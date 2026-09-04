@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 
-const BASE_MATERIALIZER_COMMIT = "127ea463d98c1560244bc63eb2e0cd25602c3d3d";
+const BASE_MATERIALIZER_COMMIT = "9aa1cbedd3d4af9cece6312d6ab004a75b31b0f7";
 const MATERIALIZER_PATH = ".github/scripts/v142-final-contract-alignment.mjs";
+const LOCAL_VIDEO_ENGINE = "jarvis-local-video-engine.js";
+const LOCAL_VIDEO_TEST = "tests/jarvis-local-video-engine-v142.test.mjs";
 const FS_BRIDGE = "jarvis-fs-bridge.js";
 const FS_BRIDGE_TEST = "tests/jarvis-fs-bridge-v2.test.mjs";
 
@@ -43,41 +45,133 @@ if (materialized.status !== 0) {
 }
 
 replaceFileExactOnce(
+  LOCAL_VIDEO_ENGINE,
+  [
+    '            "progress HUMO_RUNTIME RUNNING",',
+    '            "test -x \\\"$VENV/bin/python\\\" || python3 -m venv \\\"$VENV\\\"",',
+    '            "\\\"$VENV/bin/python\\\" -m pip install --upgrade pip setuptools wheel packaging ninja \'huggingface_hub[cli]>=0.30,<1\'",',
+    '            "\\\"$VENV/bin/python\\\" -m pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124",',
+    '            "MAX_JOBS=4 \\\"$VENV/bin/python\\\" -m pip install flash_attn==2.6.3 --no-build-isolation",',
+    '            "\\\"$VENV/bin/python\\\" -m pip install -r \\\"$HUMO_REPO/requirements.txt\\\"",',
+    '            "\\\"$VENV/bin/python\\\" -m pip check",',
+    '            "progress HUMO_RUNTIME READY",'
+  ].join("\n"),
+  [
+    '            "progress HUMO_RUNTIME RUNNING",',
+    '            "progress HUMO_VENV RUNNING",',
+    '            "test -x \\\"$VENV/bin/python\\\" || python3 -m venv \\\"$VENV\\\"",',
+    '            "\\\"$VENV/bin/python\\\" -m pip install --upgrade pip setuptools wheel packaging ninja \'huggingface_hub[cli]>=0.30,<1\'",',
+    '            "progress HUMO_VENV READY",',
+    '            "progress HUMO_TORCH RUNNING",',
+    '            "\\\"$VENV/bin/python\\\" -m pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124",',
+    '            "\\\"$VENV/bin/python\\\" -c \\\"import torch; assert str(torch.__version__).startswith(\'2.5.1\'); assert str(torch.version.cuda or \'\').startswith(\'12.4\')\\\"",',
+    '            "progress HUMO_TORCH READY",',
+    '            "progress HUMO_FLASH_ATTENTION RUNNING",',
+    '            "MAX_JOBS=4 \\\"$VENV/bin/python\\\" -m pip install flash_attn==2.6.3 --no-build-isolation &",',
+    '            "FLASH_ATTN_PID=$!",',
+    '            "while kill -0 \\\"$FLASH_ATTN_PID\\\" 2>/dev/null; do progress HUMO_FLASH_ATTENTION RUNNING; sleep 20; done",',
+    '            "wait \\\"$FLASH_ATTN_PID\\\"",',
+    '            "\\\"$VENV/bin/python\\\" -c \\\"import importlib.metadata; assert importlib.metadata.version(\'flash-attn\') == \'2.6.3\'\\\"",',
+    '            "progress HUMO_FLASH_ATTENTION READY",',
+    '            "progress HUMO_REQUIREMENTS RUNNING",',
+    '            "\\\"$VENV/bin/python\\\" -m pip install -r \\\"$HUMO_REPO/requirements.txt\\\"",',
+    '            "\\\"$VENV/bin/python\\\" -m pip check",',
+    '            "progress HUMO_REQUIREMENTS READY",',
+    '            "progress HUMO_RUNTIME READY",'
+  ].join("\n"),
+  "V142_HUMO_RUNTIME_SUBSTAGE_HEARTBEATS"
+);
+
+appendFileOnce(
+  LOCAL_VIDEO_TEST,
+  "V142 HuMo runtime bootstrap exposes venv torch flash-attention and requirements substages",
+  `test("V142 HuMo runtime bootstrap exposes venv torch flash-attention and requirements substages", () => {\n    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");\n    for (const stage of ["HUMO_VENV", "HUMO_TORCH", "HUMO_FLASH_ATTENTION", "HUMO_REQUIREMENTS"]) {\n        assert.equal(engineSource.includes("progress " + stage + " RUNNING"), true);\n        assert.equal(engineSource.includes("progress " + stage + " READY"), true);\n    }\n    assert.equal(engineSource.includes("FLASH_ATTN_PID=$!"), true);\n    assert.equal(engineSource.includes("while kill -0 \\\"$FLASH_ATTN_PID\\\" 2>/dev/null"), true);\n    assert.equal(engineSource.includes("MAX_JOBS=4"), true);\n    assert.equal(engineSource.includes("flash_attn==2.6.3 --no-build-isolation"), true);\n});`
+);
+
+replaceFileExactOnce(
   FS_BRIDGE,
-  `        while (Date.now() < deadlineMs) {\n            const polled = await engine.poll({ operationName });\n            log({\n                ok: polled?.ok === true,\n                status: polled?.status || null,\n                done: polled?.done === true,\n                podId: polled?.podId || polled?.remoteWorker?.podId || null,\n                gpuRentalEstimatedCost: Number(polled?.gpuRentalEstimatedCost || 0)\n            });\n            if (polled?.done === true) {`,
-  `        const certificationStartedMs = Date.now();\n        while (Date.now() < deadlineMs) {\n            const polled = await engine.poll({ operationName });\n            const remoteWorker = polled?.remoteWorker || {};\n            const bootstrapProgress = remoteWorker?.bootstrapProgress || null;\n            const elapsedSeconds = Math.max(0, (Date.now() - certificationStartedMs) / 1000);\n            const providerReportedCostUsd = Number(\n                polled?.gpuRentalEstimatedCost || remoteWorker?.gpuRentalEstimatedCost || 0\n            );\n            const wallClockUpperBoundCostUsd = Number((elapsedSeconds * 1.09 / 3600).toFixed(6));\n            log({\n                ok: polled?.ok === true,\n                status: polled?.status || null,\n                done: polled?.done === true,\n                podId: polled?.podId || remoteWorker?.podId || null,\n                remotePhase: remoteWorker?.phase || null,\n                bootstrapStage: bootstrapProgress?.stage || null,\n                bootstrapStatus: bootstrapProgress?.status || null,\n                bootstrapAt: bootstrapProgress?.at || null,\n                cacheStatus: remoteWorker?.cacheStatus || bootstrapProgress?.cacheStatus || null,\n                elapsedSeconds: Number(elapsedSeconds.toFixed(1)),\n                providerReportedCostUsd,\n                wallClockUpperBoundCostUsd,\n                terminationVerified: polled?.workerRelease?.terminationVerified === true\n            });\n            if (polled?.done === true) {`,
-  "V142_HUMO_RUNTIME_CERTIFICATION_PROGRESS_OBSERVABILITY"
+  '    const runtimeEnv = {',
+  '    const requestedHardBudgetUsd = Number(String(env.JARVIS_HUMO_RUNTIME_CERT_HARD_BUDGET_USD || "2").trim());\n    if (!Number.isFinite(requestedHardBudgetUsd) || requestedHardBudgetUsd <= 0 || requestedHardBudgetUsd > 2) {\n        throw new Error("RUNPOD_HUMO_RUNTIME_CERT_BUDGET_INVALID");\n    }\n    const certificationHardBudgetUsd = requestedHardBudgetUsd;\n    const certificationDeadlineMinutes = 60;\n    const runtimeEnv = {',
+  "V142_HUMO_RUNTIME_REMAINING_BUDGET_INPUT"
+);
+
+replaceFileExactOnce(
+  FS_BRIDGE,
+  '        JARVIS_REMOTE_GPU_HARD_BUDGET_USD: "2",',
+  '        JARVIS_REMOTE_GPU_HARD_BUDGET_USD: String(certificationHardBudgetUsd),',
+  "V142_HUMO_RUNTIME_REMAINING_BUDGET_APPLY"
+);
+
+replaceFileExactOnce(
+  FS_BRIDGE,
+  '        JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS: "1500",\n        JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: "1800",',
+  '        JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS: "3300",\n        JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: "3600",',
+  "V142_HUMO_RUNTIME_BOOTSTRAP_TIMEOUT"
+);
+
+replaceFileExactOnce(
+  FS_BRIDGE,
+  '    const deadlineMs = Date.now() + 30 * 60 * 1000;',
+  '    const deadlineMs = Date.now() + certificationDeadlineMinutes * 60 * 1000;',
+  "V142_HUMO_RUNTIME_OPERATIONAL_DEADLINE"
+);
+
+replaceFileExactOnce(
+  FS_BRIDGE,
+  '            hardBudgetUsd: 2,\n            authorizedHourlyRateUsd: 1.09,\n            maximumOperationalMinutes: 30,',
+  '            hardBudgetUsd: certificationHardBudgetUsd,\n            authorizedHourlyRateUsd: 1.09,\n            maximumOperationalMinutes: certificationDeadlineMinutes,',
+  "V142_HUMO_RUNTIME_BUDGET_RECEIPT"
+);
+
+replaceFileExactOnce(
+  FS_BRIDGE,
+  '            Number(final.gpuRentalEstimatedCost || 0) > 2',
+  '            Number(final.gpuRentalEstimatedCost || 0) > certificationHardBudgetUsd',
+  "V142_HUMO_RUNTIME_BUDGET_FINAL_GATE"
+);
+
+replaceFileExactOnce(
+  FS_BRIDGE_TEST,
+  '    assert.equal(bridgeSource.includes(\'JARVIS_REMOTE_GPU_HARD_BUDGET_USD: "2"\'), true);',
+  '    assert.equal(bridgeSource.includes("JARVIS_HUMO_RUNTIME_CERT_HARD_BUDGET_USD"), true);\n    assert.equal(bridgeSource.includes("JARVIS_REMOTE_GPU_HARD_BUDGET_USD: String(certificationHardBudgetUsd)"), true);',
+  "V142_HUMO_RUNTIME_BUDGET_TEST"
+);
+
+replaceFileExactOnce(
+  FS_BRIDGE_TEST,
+  '    assert.equal(bridgeSource.includes("Date.now() + 30 * 60 * 1000"), true);',
+  '    assert.equal(bridgeSource.includes("certificationDeadlineMinutes * 60 * 1000"), true);',
+  "V142_HUMO_RUNTIME_DEADLINE_TEST"
 );
 
 appendFileOnce(
   FS_BRIDGE_TEST,
-  "V142 HuMo runtime certification CLI exposes remote bootstrap progress and nonzero wall clock cost",
-  `test("V142 HuMo runtime certification CLI exposes remote bootstrap progress and nonzero wall clock cost", () => {\n    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");\n    assert.equal(bridgeSource.includes("remotePhase: remoteWorker?.phase || null"), true);\n    assert.equal(bridgeSource.includes("bootstrapStage: bootstrapProgress?.stage || null"), true);\n    assert.equal(bridgeSource.includes("bootstrapStatus: bootstrapProgress?.status || null"), true);\n    assert.equal(bridgeSource.includes("wallClockUpperBoundCostUsd"), true);\n    assert.equal(bridgeSource.includes("providerReportedCostUsd"), true);\n    assert.equal(bridgeSource.includes("terminationVerified: polled?.workerRelease?.terminationVerified === true"), true);\n});`
+  "V142 HuMo runtime certification supports a lower per-attempt budget and a 55 minute bootstrap window",
+  `test("V142 HuMo runtime certification supports a lower per-attempt budget and a 55 minute bootstrap window", () => {\n    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");\n    assert.equal(bridgeSource.includes("RUNPOD_HUMO_RUNTIME_CERT_BUDGET_INVALID"), true);\n    assert.equal(bridgeSource.includes('JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS: "3300"'), true);\n    assert.equal(bridgeSource.includes('JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: "3600"'), true);\n    assert.equal(bridgeSource.includes("const certificationDeadlineMinutes = 60"), true);\n    assert.equal(bridgeSource.includes("Number(final.gpuRentalEstimatedCost || 0) > certificationHardBudgetUsd"), true);\n});`
 );
 
+execFileSync(process.execPath, ["--check", LOCAL_VIDEO_ENGINE], { stdio: "inherit" });
 execFileSync(process.execPath, ["--check", FS_BRIDGE], { stdio: "inherit" });
 
 console.log(JSON.stringify({
   ok: true,
-  status: "V142_HUMO_RUNTIME_CERTIFICATION_PROGRESS_OBSERVABILITY_READY",
+  status: "V142_HUMO_RUNTIME_BOOTSTRAP_CERTIFICATION_HARDENED",
   baseMaterializerCommit: BASE_MATERIALIZER_COMMIT,
   providerTrafficUsed: false,
   resourceCreationPossible: false,
-  bootstrapTimeoutSecondsUnchanged: 1500,
-  hardBudgetUsd: 2,
-  authorizedHourlyRateUsd: 1.09,
   runtimeCertificationOnly: true,
   inferenceAuthorized: false,
-  progressFields: [
-    "remotePhase",
-    "bootstrapStage",
-    "bootstrapStatus",
-    "bootstrapAt",
-    "cacheStatus",
-    "providerReportedCostUsd",
-    "wallClockUpperBoundCostUsd",
-    "terminationVerified"
-  ],
+  flashAttentionVersion: "2.6.3",
+  flashAttentionBuildMode: "official_source_build",
+  flashAttentionMaxJobs: 4,
+  bootstrapTimeoutSeconds: 3300,
+  operationalDeadlineMinutes: 60,
+  maximumHardBudgetUsd: 2,
+  lowerPerAttemptBudgetSupported: true,
+  knownPreviousEstimatedSpendUsd: 0.492600066667,
+  suggestedNextAttemptHardBudgetUsd: 1.5,
+  authorizedHourlyRateUsd: 1.09,
+  previousPodTerminationVerified: true,
   newFiles: false,
   newBrains: false
 }));
