@@ -119,13 +119,6 @@ write(LOCAL_VIDEO_RUNNER, runner);
 let tests = read(LOCAL_VIDEO_TEST);
 tests = replaceExactCount(
   tests,
-  "    assert.match(candidate, /runtimePreflightCertified: false/);",
-  "    assert.match(candidate, /runtimePreflightCertified: true/);",
-  1,
-  "V142_HUMO_CANDIDATE_RUNTIME_PREFLIGHT_TEST"
-);
-tests = replaceExactCount(
-  tests,
   "    assert.match(candidate, /physicalRuntimeCertified: false/);",
   "    assert.match(candidate, /physicalRuntimeCertified: true/);",
   1,
@@ -197,7 +190,8 @@ if (bridge.includes('env.JARVIS_RUNPOD_DATACENTER_ID || "EU-NL-1"')) {
 
 execFileSync(process.execPath, ["--check", LOCAL_VIDEO_ENGINE], { stdio: "inherit" });
 execFileSync(process.execPath, ["--check", FS_BRIDGE], { stdio: "inherit" });
-execFileSync("python3", ["-c", `import ast,pathlib; ast.parse(pathlib.Path('${LOCAL_VIDEO_RUNNER}').read_text(encoding='utf-8'))`], { stdio: "inherit" });
+const python = process.platform === "win32" ? "python" : "python3";
+execFileSync(python, ["-c", `import ast,pathlib; ast.parse(pathlib.Path('${LOCAL_VIDEO_RUNNER}').read_text(encoding='utf-8'))`], { stdio: "inherit" });
 
 console.log(JSON.stringify({
   ok: true,
