@@ -7668,6 +7668,12 @@ export async function runHuMoRuntimeCertificationCli({
     if (!/^[a-f0-9]{40}$/.test(canonicalSha)) {
         throw new Error("RUNPOD_CANONICAL_SHA_REQUIRED");
     }
+    const requestedHardBudgetUsd = Number(String(env.JARVIS_HUMO_RUNTIME_CERT_HARD_BUDGET_USD || "2").trim());
+    if (!Number.isFinite(requestedHardBudgetUsd) || requestedHardBudgetUsd <= 0 || requestedHardBudgetUsd > 2) {
+        throw new Error("RUNPOD_HUMO_RUNTIME_CERT_BUDGET_INVALID");
+    }
+    const certificationHardBudgetUsd = requestedHardBudgetUsd;
+    const certificationDeadlineMinutes = 60;
     const runtimeEnv = {
         ...env,
         NODE_USE_SYSTEM_CA: "1",
@@ -7687,15 +7693,15 @@ export async function runHuMoRuntimeCertificationCli({
         ).trim(),
         JARVIS_RUNPOD_CANONICAL_SHA: canonicalSha,
         JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "true",
-        JARVIS_REMOTE_GPU_HARD_BUDGET_USD: "2",
+        JARVIS_REMOTE_GPU_HARD_BUDGET_USD: String(certificationHardBudgetUsd),
         JARVIS_REMOTE_GPU_BUDGET_STOP_RATIO: "0.95",
         JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "1.09",
         JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true",
         JARVIS_RUNPOD_EXPECTED_VRAM_GB: "48",
         JARVIS_RUNPOD_MIN_RAM_GB: "62",
         JARVIS_RUNPOD_MIN_VCPU: "16",
-        JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS: "1500",
-        JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: "1800",
+        JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS: "3300",
+        JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: "3600",
         JARVIS_EXTERNAL_FALLBACK_ENABLED: "false"
     };
     delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID;
@@ -7723,7 +7729,7 @@ export async function runHuMoRuntimeCertificationCli({
     let operationName = null;
     let final = null;
     let primaryError = null;
-    const deadlineMs = Date.now() + 30 * 60 * 1000;
+    const deadlineMs = Date.now() + certificationDeadlineMinutes * 60 * 1000;
     try {
         const started = await engine.start({
             selectedBackend: "humo-1.7b-identity",
@@ -7742,9 +7748,9 @@ export async function runHuMoRuntimeCertificationCli({
             status: "HUMO_RUNTIME_CERTIFICATION_STARTED",
             operationName,
             podId: started?.remoteWorker?.podId || started?.podId || null,
-            hardBudgetUsd: 2,
+            hardBudgetUsd: certificationHardBudgetUsd,
             authorizedHourlyRateUsd: 1.09,
-            maximumOperationalMinutes: 30,
+            maximumOperationalMinutes: certificationDeadlineMinutes,
             runtimeCertificationOnly: true
         });
         const certificationStartedMs = Date.now();
@@ -7787,7 +7793,7 @@ export async function runHuMoRuntimeCertificationCli({
             final.physicalRuntimeCertified !== true ||
             final.inferenceStarted !== false ||
             final.workerRelease?.terminationVerified !== true ||
-            Number(final.gpuRentalEstimatedCost || 0) > 2
+            Number(final.gpuRentalEstimatedCost || 0) > certificationHardBudgetUsd
         ) {
             throw new Error(final.error || final.status || "HUMO_RUNTIME_CERTIFICATION_INVALID");
         }

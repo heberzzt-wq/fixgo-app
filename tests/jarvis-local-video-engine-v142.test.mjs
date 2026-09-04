@@ -6917,3 +6917,15 @@ test("V142 HuMo physical base runtime authority matches observed RunPod L40S tor
     assert.equal(engineSource.includes('baseTorch: "2.4.1"'), true);
     assert.equal(engineSource.includes('baseTorch: "2.4.0"'), false);
 });
+
+test("V142 HuMo runtime bootstrap exposes venv torch flash-attention and requirements substages", () => {
+    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    for (const stage of ["HUMO_VENV", "HUMO_TORCH", "HUMO_FLASH_ATTENTION", "HUMO_REQUIREMENTS"]) {
+        assert.equal(engineSource.includes("progress " + stage + " RUNNING"), true);
+        assert.equal(engineSource.includes("progress " + stage + " READY"), true);
+    }
+    assert.equal(engineSource.includes("FLASH_ATTN_PID=$!"), true);
+    assert.equal(engineSource.includes("while kill -0"), true);
+    assert.equal(engineSource.includes("MAX_JOBS=4"), true);
+    assert.equal(engineSource.includes("flash_attn==2.6.3 --no-build-isolation"), true);
+});
