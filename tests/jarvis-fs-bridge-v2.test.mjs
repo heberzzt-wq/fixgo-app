@@ -1430,3 +1430,11 @@ test("V142 HuMo runtime certification supports a lower per-attempt budget and a 
     assert.equal(bridgeSource.includes("const certificationDeadlineMinutes = 60"), true);
     assert.equal(bridgeSource.includes("Number(final.gpuRentalEstimatedCost || 0) > certificationHardBudgetUsd"), true);
 });
+
+test("V142 HuMo runtime certification does not hard-pin a default datacenter", () => {
+    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+    assert.equal(bridgeSource.includes('env.JARVIS_RUNPOD_DATACENTER_ID || "EU-NL-1"'), false);
+    assert.equal(bridgeSource.includes('env.JARVIS_RUNPOD_DATACENTER_ID || ""'), true);
+    assert.equal(bridgeSource.includes('JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA L40S"'), true);
+    assert.equal(bridgeSource.includes('JARVIS_RUNPOD_CLOUD_TYPE: "SECURE"'), true);
+});

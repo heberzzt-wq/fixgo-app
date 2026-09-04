@@ -1536,7 +1536,7 @@ test("V142 A40 runtime-only preparation stays physical, cache-independent, and p
         assert.equal(report.payload, null);
     });
 
-    await t.test("16 paid runtime authority requires one exact datacenter", () => {
+    await t.test("16 paid ephemeral runtime authority allows provider-selected secure datacenter", () => {
         const missing = runtimeHarness("a40-missing-runtime-dc", {
             dataCenterId: "",
             envOverrides: { JARVIS_RUNPOD_DATACENTER_ID: "" }
@@ -1545,7 +1545,10 @@ test("V142 A40 runtime-only preparation stays physical, cache-independent, and p
             job: missing.dryRunJob,
             registryVerification: missing.gpuRegistryVerification
         });
-        assert.equal(report.error, "RUNPOD_RUNTIME_CERTIFICATION_DATACENTER_REQUIRED");
+        assert.equal(report.ok, true, JSON.stringify(report));
+        assert.equal(report.payload.cloudType, "SECURE");
+        assert.equal("dataCenterIds" in report.payload, false);
+        assert.deepEqual(report.payload.gpuTypeIds, ["NVIDIA A40"]);
         assert.equal(missing.calls.length, 0);
     });
 
@@ -6780,8 +6783,7 @@ test("V142 HuMo mocked runtime certification provisions polls and releases witho
         envOverrides: {
             JARVIS_LOCAL_VIDEO_MODEL: "humo",
             JARVIS_RUNPOD_CLOUD_TYPE: "SECURE",
-            JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true",
-            JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1"
+            JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true"
         },
         baseHealthOverrides: {
             operatingSystem: "ubuntu-22.04",
@@ -6841,7 +6843,7 @@ test("V142 HuMo mocked runtime certification provisions polls and releases witho
     assert.equal(launched.remoteWorker.podId, "pod-l40s-v142");
     assert.equal(harness.createdBody.imageName, "runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04");
     assert.equal(harness.createdBody.cloudType, "SECURE");
-    assert.deepEqual(harness.createdBody.dataCenterIds, ["EU-NL-1"]);
+    assert.equal("dataCenterIds" in harness.createdBody, false);
     assert.deepEqual(harness.createdBody.gpuTypeIds, ["NVIDIA L40S"]);
     assert.equal("networkVolumeId" in harness.createdBody, false);
     assert.equal(harness.createdBody.volumeInGb, 100);
@@ -6945,4 +6947,12 @@ test("V142 HuMo FlashAttention wheel is SHA-pinned and must execute a real CUDA 
     assert.equal(engineSource.includes("from flash_attn import flash_attn_func"), true);
     assert.equal(engineSource.includes("torch.cuda.synchronize()"), true);
     assert.equal(engineSource.includes("and payload['flashAttentionCudaProbe']"), true);
+});
+
+test("V142 HuMo ephemeral runtime certification allows provider-selected secure datacenter", () => {
+    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    assert.equal(engineSource.includes("RUNPOD_RUNTIME_CERTIFICATION_DATACENTER_REQUIRED"), false);
+    assert.equal(engineSource.includes("expectedRuntimeCertificationDataCenterId"), true);
+    assert.equal(engineSource.includes('Object.hasOwn(body, "dataCenterIds")'), true);
+    assert.equal(engineSource.includes('runtimeCertificationOnly ? runtimeCertificationDataCenterId : null'), true);
 });

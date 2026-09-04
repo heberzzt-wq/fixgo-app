@@ -7689,7 +7689,7 @@ export async function runHuMoRuntimeCertificationCli({
         JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA L40S",
         JARVIS_RUNPOD_CLOUD_TYPE: "SECURE",
         JARVIS_RUNPOD_DATACENTER_ID: String(
-            env.JARVIS_RUNPOD_DATACENTER_ID || "EU-NL-1"
+            env.JARVIS_RUNPOD_DATACENTER_ID || ""
         ).trim(),
         JARVIS_RUNPOD_CANONICAL_SHA: canonicalSha,
         JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "true",

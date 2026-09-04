@@ -1995,9 +1995,6 @@ export function createRunpodRemoteVideoAdapter({
             if (!gpuTypeId || !cacheContract) {
                 throw new Error("RUNPOD_GPU_TYPE_EXPLICIT_AUTHORIZATION_REQUIRED");
             }
-            if (!networkVolumeId && !runtimeCertificationDataCenterId) {
-                throw new Error("RUNPOD_RUNTIME_CERTIFICATION_DATACENTER_REQUIRED");
-            }
         }
         if (!/^[a-f0-9]{40}$/.test(configuredCanonicalSha)) {
             throw new Error("RUNPOD_CANONICAL_SHA_REQUIRED");
@@ -2747,10 +2744,16 @@ export function createRunpodRemoteVideoAdapter({
         else if (body.volumeInGb !== volumeInGb || Object.hasOwn(body, "networkVolumeId")) {
             throw new Error("RUNPOD_EPHEMERAL_VOLUME_PAYLOAD_INVALID");
         }
+        const expectedRuntimeCertificationDataCenterId =
+            networkVolume?.dataCenterId || runtimeCertificationDataCenterId || null;
         if (runtimeCertificationOnly && (
             body.cloudType !== "SECURE" ||
-            body.dataCenterIds?.length !== 1 ||
-            body.dataCenterIds[0] !== (networkVolume?.dataCenterId || runtimeCertificationDataCenterId)
+            (expectedRuntimeCertificationDataCenterId
+                ? (
+                    body.dataCenterIds?.length !== 1 ||
+                    body.dataCenterIds[0] !== expectedRuntimeCertificationDataCenterId
+                )
+                : Object.hasOwn(body, "dataCenterIds"))
         )) {
             throw new Error("RUNPOD_RUNTIME_CERTIFICATION_PLACEMENT_INVALID");
         }
