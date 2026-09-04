@@ -115,10 +115,29 @@ for (const marker of [
 write(LOCAL_VIDEO_ENGINE, engine);
 
 let tests = read(LOCAL_VIDEO_TEST);
+const selectiveAssetTest = [
+  'test("V142 HuMo bootstrap downloads only the exact 1.7B identity runtime assets", () => {',
+  '    const source = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");',
+  '    assert.equal(source.includes("humo_hf_download ${authority.modelRepository} --revision ${authority.modelRevision}"), false);',
+  '    assert.equal(source.includes("humo_hf_download Wan-AI/Wan2.1-T2V-1.3B --revision 37ec512624d61f7aa208f7ea8140a131f93afc9a"), false);',
+  '    assert.equal(source.includes("humo_hf_download ${authority.whisper.repository} --revision ${authority.whisper.revision}"), false);',
+  '    assert.equal(source.includes("${authority.checkpoint.path} ${authority.zeroVae.path} ${authority.audioSeparator.path}"), true);',
+  '    assert.equal(source.includes("Wan2.1_VAE.pth models_t5_umt5-xxl-enc-bf16.pth"), true);',
+  '    assert.equal(source.includes("google/umt5-xxl/special_tokens_map.json"), true);',
+  '    assert.equal(source.includes("google/umt5-xxl/spiece.model"), true);',
+  '    assert.equal(source.includes("google/umt5-xxl/tokenizer.json"), true);',
+  '    assert.equal(source.includes("google/umt5-xxl/tokenizer_config.json"), true);',
+  '    assert.equal(source.includes("${authority.whisper.model.path} ${authority.whisper.requiredMetadata.join(\\\" \\\")}"), true);',
+  '    assert.match(source, /test ! -e .*HuMo-17B/);',
+  '    assert.match(source, /test ! -e .*diffusion_pytorch_model\\.safetensors/);',
+  '    assert.equal(source.includes("HF_HUB_DISABLE_XET=1"), true);',
+  '    assert.equal(source.includes("--max-workers 1"), true);',
+  '});'
+].join("\n");
 tests = appendOnce(
   tests,
   "V142 HuMo bootstrap downloads only the exact 1.7B identity runtime assets",
-  `test("V142 HuMo bootstrap downloads only the exact 1.7B identity runtime assets", () => {\n    const source = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");\n    assert.doesNotMatch(source, /humo_hf_download \\${authority\\.modelRepository} --revision \\${authority\\.modelRevision}/);\n    assert.doesNotMatch(source, /humo_hf_download Wan-AI\\/Wan2\\.1-T2V-1\\.3B --revision 37ec512624d61f7aa208f7ea8140a131f93afc9a/);\n    assert.doesNotMatch(source, /humo_hf_download \\${authority\\.whisper\\.repository} --revision \\${authority\\.whisper\\.revision}/);\n    assert.match(source, /\\${authority\\.checkpoint\\.path} \\${authority\\.zeroVae\\.path} \\${authority\\.audioSeparator\\.path}/);\n    assert.match(source, /Wan2\\.1_VAE\\.pth models_t5_umt5-xxl-enc-bf16\\.pth/);\n    assert.match(source, /google\\/umt5-xxl\\/special_tokens_map\\.json/);\n    assert.match(source, /google\\/umt5-xxl\\/spiece\\.model/);\n    assert.match(source, /google\\/umt5-xxl\\/tokenizer\\.json/);\n    assert.match(source, /google\\/umt5-xxl\\/tokenizer_config\\.json/);\n    assert.match(source, /\\${authority\\.whisper\\.model\\.path} \\${authority\\.whisper\\.requiredMetadata\\.join\\(" "\\)}/);\n    assert.match(source, /test ! -e .*HuMo-17B/);\n    assert.match(source, /test ! -e .*diffusion_pytorch_model\\.safetensors/);\n    assert.match(source, /HF_HUB_DISABLE_XET=1/);\n    assert.match(source, /--max-workers 1/);\n});`
+  selectiveAssetTest
 );
 write(LOCAL_VIDEO_TEST, tests);
 
