@@ -7095,8 +7095,13 @@ test("V142 HuMo paid bootstrap reuses preinstalled Torch and invalidates stale p
     const engine = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
     assert.equal(engine.includes("runpod/pytorch:0.7.1-dev-ubuntu2204-cu1251-torch251"), true);
     assert.equal(engine.includes("sha256:ccdc2fe736e83eba1b88cbef27f516458e66a9eac857862f601cf42462f822b2"), true);
-    assert.equal(engine.includes("python3 -m venv --system-site-packages"), true);
-    assert.equal(engine.includes("pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1"), false);
+    const humoVenvStart = engine.indexOf('"progress HUMO_VENV RUNNING"');
+    const humoFlashStart = engine.indexOf('"progress HUMO_FLASH_ATTENTION RUNNING"', humoVenvStart);
+    assert.ok(humoVenvStart >= 0 && humoFlashStart > humoVenvStart);
+    const humoPreFlash = engine.slice(humoVenvStart, humoFlashStart);
+    assert.equal(humoPreFlash.includes("python3 -m venv --system-site-packages"), true);
+    assert.equal(humoPreFlash.includes("pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1"), false);
+    assert.equal(humoPreFlash.includes("importlib.metadata.version('torch').startswith('2.5.1')"), true);
     assert.equal(engine.includes("runtimePreflightCertified: false"), true);
     assert.equal(engine.includes("physicalRuntimeCertified: false"), true);
     assert.equal(engine.includes("physicalRuntimeCertification: null"), true);

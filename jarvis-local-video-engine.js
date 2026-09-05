@@ -3942,7 +3942,7 @@ export function createRunpodRemoteVideoAdapter({
             "progress HUMO_REPOSITORY READY",
             "progress HUMO_RUNTIME RUNNING",
             "progress HUMO_VENV RUNNING",
-            "test -x \"$VENV/bin/python\" || python3 -m venv \"$VENV\"",
+            "test -x \"$VENV/bin/python\" || python3 -m venv --system-site-packages \"$VENV\"",
             "\"$VENV/bin/python\" -m pip install --upgrade pip setuptools wheel packaging ninja 'huggingface_hub[cli]>=0.30,<1'",
             "progress HUMO_VENV READY",
             "progress HUMO_TORCH RUNNING",
