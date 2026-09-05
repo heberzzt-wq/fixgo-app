@@ -111,17 +111,17 @@ const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({
     remoteRuntimeBase: Object.freeze({
         registry: "registry-1.docker.io",
         repository: "runpod/pytorch",
-        tag: "2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04",
-        provisionImageTag: "runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04",
-        expectedRegistryDigest: "sha256:61a4aafb0094cd773f11eefa378929d5a687bd775febeb78eac62fc824141fb5",
+        tag: "0.7.1-dev-ubuntu2204-cu1251-torch251",
+        provisionImageTag: "runpod/pytorch:0.7.1-dev-ubuntu2204-cu1251-torch251",
+        expectedRegistryDigest: "sha256:ccdc2fe736e83eba1b88cbef27f516458e66a9eac857862f601cf42462f822b2",
         basePython: "3.11",
-        baseTorch: "2.4.1",
-        baseCuda: "12.4.1",
+        baseTorch: "2.5.1",
+        baseCuda: "12.5.1",
         bootstrapPython: "3.11",
         bootstrapTorch: "2.5.1",
         bootstrapTorchCuda: "12.4",
         bootstrapFlashAttention: "2.6.3",
-        runtimePreflightCertified: true
+        runtimePreflightCertified: false
     }),
     targetGpuTypeId: "NVIDIA L40S",
     candidateProbeGeometry: Object.freeze({
@@ -133,19 +133,8 @@ const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({
         orientation: "landscape"
     }),
     portraitTargetUnresolved: true,
-    physicalRuntimeCertified: true,
-    physicalRuntimeCertification: Object.freeze({
-        status: "RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFIED",
-        canonicalSha: "e9e96fc7cc622ff9092eb2926c5af047fca1c7ea",
-        operationName: "local-video/0c1a1082-dce4-40c4-993d-053255859fc6",
-        podId: "0qildg0t1wyosk",
-        runtimeCertificationOnly: true,
-        physicalRuntimeCertified: true,
-        inferenceStarted: false,
-        terminationVerified: true,
-        gpuRentalSeconds: 872.338,
-        gpuRentalEstimatedCostUsd: 0.2641245611111111
-    }),
+    physicalRuntimeCertified: false,
+    physicalRuntimeCertification: null,
     physicalPortraitCertified: false,
     paidExecutionAuthorized: false
 });
@@ -3957,7 +3946,7 @@ export function createRunpodRemoteVideoAdapter({
             "\"$VENV/bin/python\" -m pip install --upgrade pip setuptools wheel packaging ninja 'huggingface_hub[cli]>=0.30,<1'",
             "progress HUMO_VENV READY",
             "progress HUMO_TORCH RUNNING",
-            "\"$VENV/bin/python\" -m pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124",
+            "\"$VENV/bin/python\" -c \"import importlib.metadata; assert importlib.metadata.version('torch').startswith('2.5.1'); assert importlib.metadata.version('torchvision').startswith('0.20.1'); assert importlib.metadata.version('torchaudio').startswith('2.5.1')\"",
             "\"$VENV/bin/python\" -c \"import torch; assert str(torch.__version__).startswith('2.5.1'); assert str(torch.version.cuda or '').startswith('12.4')\"",
             "progress HUMO_TORCH READY",
             "progress HUMO_FLASH_ATTENTION RUNNING",
@@ -5062,8 +5051,11 @@ export function createRunpodRemoteVideoAdapter({
             }
         });
         if (cost.estimatedCostUsd >= state.hardBudgetUsd * budgetStopRatio) {
+            const bootstrapDiagnostics = state.phase === "BOOTSTRAPPING"
+                ? await captureBootstrapFailureDiagnostics(state)
+                : null;
             await writeLocalFailure(operation, resultFile, "RUNPOD_HARD_BUDGET_EXCEEDED", false);
-            state = writeState(loaded.file, state, { phase: "BUDGET_EXCEEDED" });
+            state = writeState(loaded.file, state, { phase: "BUDGET_EXCEEDED", bootstrapDiagnostics });
             return { ok: false, done: true, status: "RUNPOD_HARD_BUDGET_EXCEEDED", remoteWorker: runpodPublicWorker(state) };
         }
         try {
