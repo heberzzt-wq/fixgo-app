@@ -3450,24 +3450,40 @@ export function createRunpodRemoteVideoAdapter({
         stage = "runpod_api",
         operationId = null
     ) {
+        const method = String(options.method || "GET").toUpperCase();
+        const idempotentTransportRetry = method === "GET" || method === "DELETE";
+        const maximumTransportAttempts = idempotentTransportRetry ? 3 : 1;
         let response;
-        try {
-            response = await fetchImpl(url, {
-                ...options,
-                headers: {
-                    Authorization: `Bearer ${apiKey}`,
-                    ...(options.body ? { "Content-Type": "application/json" } : {}),
-                    ...(options.headers || {})
+        let transportAttempt = 0;
+        while (transportAttempt < maximumTransportAttempts) {
+            transportAttempt += 1;
+            try {
+                response = await fetchImpl(url, {
+                    ...options,
+                    headers: {
+                        Authorization: `Bearer ${apiKey}`,
+                        ...(options.body ? { "Content-Type": "application/json" } : {}),
+                        ...(options.headers || {})
+                    }
+                });
+                break;
+            }
+            catch(error) {
+                if (idempotentTransportRetry && transportAttempt < maximumTransportAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, Math.min(1000, 250 * transportAttempt)));
+                    continue;
                 }
-            });
-        }
-        catch(error) {
-            const failure = new Error("RUNPOD_API_TRANSPORT_FAILED");
-            failure.cause = error;
-            Object.assign(failure, safeProviderDiagnostic(error));
-            failure.retryable = true;
-            failure.stage = stage;
-            throw failure;
+                const failure = new Error("RUNPOD_API_TRANSPORT_FAILED");
+                failure.cause = error;
+                Object.assign(failure, safeProviderDiagnostic(error));
+                failure.retryable = true;
+                failure.stage = stage;
+                failure.transportAttempts = transportAttempt;
+                failure.transportRetryPolicy = idempotentTransportRetry
+                    ? "IDEMPOTENT_GET_DELETE_MAX_3"
+                    : "NON_IDEMPOTENT_NO_RETRY";
+                throw failure;
+            }
         }
         let text = "";
         if (Number(response.status) !== 204 && typeof response.text === "function") {
@@ -3483,9 +3499,10 @@ export function createRunpodRemoteVideoAdapter({
             stage,
             operationId: operationId || null,
             endpoint: safeProviderEndpoint(url),
-            method: String(options.method || "GET").toUpperCase(),
+            method,
             contentType: headers["content-type"] || null,
-            timestampUtc: now().toISOString()
+            timestampUtc: now().toISOString(),
+            transportAttempts: transportAttempt
         };
         if (!accepted.includes(Number(response.status))) {
             const failure = new Error(`RUNPOD_API_HTTP_${Number(response.status || 0)}`);
@@ -3502,7 +3519,6 @@ export function createRunpodRemoteVideoAdapter({
         try { return JSON.parse(text); }
         catch { throw new Error("RUNPOD_API_RESPONSE_INVALID"); }
     }
-
     async function queryAvailability(dataCenterId = null, operationId = null) {
         const secureCloud = cloudType === "SECURE" ? "true" : "false";
         const dataCenterSelection = dataCenterId

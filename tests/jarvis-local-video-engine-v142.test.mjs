@@ -372,6 +372,8 @@ function runpodPhysicalHarness({
     let bootstrapProgressChecks = 0;
     let runtimePreflightPresent = scenario === "bootstrap-fail-stale-preflight";
     let availabilityTransportFailures = scenario === "availability-transport-once" ? 1 : 0;
+    let restGetTransportFailures = scenario === "rest-get-connect-timeout-once" ? 1 : 0;
+    let restDeleteTransportFailures = scenario === "rest-delete-connect-timeout-once" ? 1 : 0;
     const remoteAssets = new Map();
     const remoteContents = new Map();
     const goodVideo = Buffer.alloc(120000, 7);
@@ -531,6 +533,12 @@ function runpodPhysicalHarness({
             });
         }
         if (String(url).endsWith("/pods") && (options.method || "GET") === "GET") {
+            if (restGetTransportFailures > 0) {
+                restGetTransportFailures -= 1;
+                const error = new Error("Connect Timeout Error (controlled REST GET)");
+                error.code = "UND_ERR_CONNECT_TIMEOUT";
+                throw error;
+            }
             if (scenario === "existing-obligation-pod") {
                 const fingerprint = createHash("sha256")
                     .update(`${payload.missionId}\n${payload.objectiveId}\n${payload.obligationId}\n${payload.rootInstructionHash}`)
@@ -590,6 +598,12 @@ function runpodPhysicalHarness({
         }
         if (String(url).includes("/billing/pods")) return mockHttpResponse(200, []);
         if (String(url).includes("/pods/pod-l40s-v142") && options.method === "DELETE") {
+            if (restDeleteTransportFailures > 0) {
+                restDeleteTransportFailures -= 1;
+                const error = new Error("Connect Timeout Error (controlled REST DELETE)");
+                error.code = "UND_ERR_CONNECT_TIMEOUT";
+                throw error;
+            }
             if (scenario === "release-fail") return mockHttpResponse(500, { error: "controlled" });
             deleted = true;
             return scenario === "delete-404"
@@ -4063,8 +4077,15 @@ test("V142 RunPod polling retries transport on the same Pod/job and durable obli
     const firstPoll = await harness.engine.poll({ operationName: started.operationName });
     assert.equal(firstPoll.ok, true);
     assert.equal(firstPoll.done, false);
-    assert.equal(firstPoll.remotePoll.status, "RUNPOD_POLL_TRANSPORT_RETRYABLE");
-    assert.equal(firstPoll.remotePoll.retryable, true);
+    assert.equal(firstPoll.remotePoll.status, "RUNPOD_WAN22_BOOTSTRAPPING");
+    assert.equal(
+        harness.calls.filter(call =>
+            call.kind === "http" &&
+            call.method === "GET" &&
+            call.url.includes("/pods/pod-l40s-v142")
+        ).length >= 2,
+        true
+    );
     const completed = await pollRunpodUntilDone(harness.engine, started.operationName);
     assert.equal(completed.ok, true);
     assert.equal(harness.calls.filter(call => call.kind === "http" && call.method === "POST").length, 2);
@@ -7234,4 +7255,43 @@ test("V142 RunPod control plane avoids deprecated REST v1 while preserving hard 
     ), false);
     const cancelled = await harness.engine.cancel({ operationName: started.operationName });
     assert.equal(cancelled.workerRelease.terminationVerified, true);
+});
+
+test("V142 RunPod retries transient REST GET and DELETE transport but never retries provisioning", async () => {
+    const getHarness = runpodPhysicalHarness({ scenario: "rest-get-connect-timeout-once" });
+    const started = await getHarness.engine.start(getHarness.payload);
+    assert.equal(started.ok, true, JSON.stringify(started));
+    assert.equal(
+        getHarness.calls.filter(call =>
+            call.kind === "http" && call.method === "GET" && call.url.endsWith("/pods")
+        ).length,
+        2
+    );
+    assert.equal(
+        getHarness.calls.filter(call => call.providerOperation === "provision").length,
+        1,
+        "billable provisioning must never be retried"
+    );
+    const getCancelled = await getHarness.engine.cancel({ operationName: started.operationName });
+    assert.equal(getCancelled.ok, true, JSON.stringify(getCancelled));
+
+    const deleteHarness = runpodPhysicalHarness({ scenario: "rest-delete-connect-timeout-once" });
+    const deleteStarted = await deleteHarness.engine.start(deleteHarness.payload);
+    assert.equal(deleteStarted.ok, true, JSON.stringify(deleteStarted));
+    const deleted = await deleteHarness.engine.cancel({ operationName: deleteStarted.operationName });
+    assert.equal(deleted.ok, true, JSON.stringify(deleted));
+    assert.equal(deleted.workerRelease?.terminationVerified, true, JSON.stringify(deleted));
+    assert.equal(
+        deleteHarness.calls.filter(call =>
+            call.kind === "http" &&
+            call.method === "DELETE" &&
+            call.url.includes("/pods/pod-l40s-v142")
+        ).length,
+        2
+    );
+    assert.equal(
+        deleteHarness.calls.filter(call => call.providerOperation === "provision").length,
+        1,
+        "cleanup retry must never create a replacement Pod"
+    );
 });
