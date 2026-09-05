@@ -118,7 +118,76 @@ if (runner.includes('diagnostic = str(completed.stderr or completed.stdout or ""
 }
 write(LOCAL_VIDEO_RUNNER, runner);
 
-const engine = read(LOCAL_VIDEO_ENGINE);
+let engine = read(LOCAL_VIDEO_ENGINE);
+
+engine = replaceExactOnce(
+  engine,
+  [
+    '        tag: "2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04",',
+    '        provisionImageTag: "runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04",',
+    '        expectedRegistryDigest: "sha256:61a4aafb0094cd773f11eefa378929d5a687bd775febeb78eac62fc824141fb5",',
+    '        basePython: "3.11",',
+    '        baseTorch: "2.4.1",',
+    '        baseCuda: "12.4.1",'
+  ].join("\n"),
+  [
+    '        tag: "0.7.1-dev-ubuntu2204-cu1251-torch251",',
+    '        provisionImageTag: "runpod/pytorch:0.7.1-dev-ubuntu2204-cu1251-torch251",',
+    '        expectedRegistryDigest: "sha256:ccdc2fe736e83eba1b88cbef27f516458e66a9eac857862f601cf42462f822b2",',
+    '        basePython: "3.11",',
+    '        baseTorch: "2.5.1",',
+    '        baseCuda: "12.5.1",'
+  ].join("\n"),
+  "V142_HUMO_PREINSTALLED_RUNPOD_IMAGE"
+);
+engine = replaceExactOnce(
+  engine,
+  '"test -x \\\"$VENV/bin/python\\\" || python3 -m venv \\\"$VENV\\\"",',
+  '"test -x \\\"$VENV/bin/python\\\" || python3 -m venv --system-site-packages \\\"$VENV\\\"",',
+  "V142_HUMO_SYSTEM_SITE_PACKAGES_VENV"
+);
+engine = replaceExactOnce(
+  engine,
+  '"\\\"$VENV/bin/python\\\" -m pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124",',
+  '"\\\"$VENV/bin/python\\\" -c \\\"import importlib.metadata; assert importlib.metadata.version(\'torch\').startswith(\'2.5.1\'); assert importlib.metadata.version(\'torchvision\').startswith(\'0.20.1\'); assert importlib.metadata.version(\'torchaudio\').startswith(\'2.5.1\')\\\"",',
+  "V142_HUMO_NO_PAID_TORCH_INSTALL"
+);
+engine = replaceExactOnce(
+  engine,
+  [
+    '        if (cost.estimatedCostUsd >= state.hardBudgetUsd * budgetStopRatio) {',
+    '            await writeLocalFailure(operation, resultFile, "RUNPOD_HARD_BUDGET_EXCEEDED", false);',
+    '            state = writeState(loaded.file, state, { phase: "BUDGET_EXCEEDED" });',
+    '            return { ok: false, done: true, status: "RUNPOD_HARD_BUDGET_EXCEEDED", remoteWorker: runpodPublicWorker(state) };',
+    '        }'
+  ].join("\n"),
+  [
+    '        if (cost.estimatedCostUsd >= state.hardBudgetUsd * budgetStopRatio) {',
+    '            const bootstrapDiagnostics = state.phase === "BOOTSTRAPPING"',
+    '                ? await captureBootstrapFailureDiagnostics(state)',
+    '                : null;',
+    '            await writeLocalFailure(operation, resultFile, "RUNPOD_HARD_BUDGET_EXCEEDED", false);',
+    '            state = writeState(loaded.file, state, { phase: "BUDGET_EXCEEDED", bootstrapDiagnostics });',
+    '            return { ok: false, done: true, status: "RUNPOD_HARD_BUDGET_EXCEEDED", remoteWorker: runpodPublicWorker(state) };',
+    '        }'
+  ].join("\n"),
+  "V142_HUMO_BUDGET_DIAGNOSTICS_BEFORE_RELEASE"
+);
+for (const marker of [
+  'runpod/pytorch:0.7.1-dev-ubuntu2204-cu1251-torch251',
+  'sha256:ccdc2fe736e83eba1b88cbef27f516458e66a9eac857862f601cf42462f822b2',
+  'python3 -m venv --system-site-packages',
+  "importlib.metadata.version('torch').startswith('2.5.1')",
+  'bootstrapDiagnostics = state.phase === "BOOTSTRAPPING"',
+  'await captureBootstrapFailureDiagnostics(state)'
+]) {
+  if (!engine.includes(marker)) throw new Error(`V142_HUMO_PREINSTALLED_RUNTIME_MISSING:${marker}`);
+}
+if (engine.includes('pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1')) {
+  throw new Error("V142_HUMO_PAID_TORCH_INSTALL_REGRESSION");
+}
+write(LOCAL_VIDEO_ENGINE, engine);
+
 for (const marker of [
   "persistentVolumeDisabled = isHuMoRemoteJob(job)",
   "persistentVolumeDisabled ? 0 : volumeInGb",
@@ -166,6 +235,25 @@ tests = appendOnce(
   "V142 HuMo single GPU inference follows upstream rendezvous contract and preserves child errors",
   launchTest
 );
+
+const runtimeBootstrapTest = [
+  'test("V142 HuMo paid bootstrap reuses preinstalled Torch and preserves budget diagnostics", () => {',
+  '    const engine = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");',
+  '    assert.equal(engine.includes("runpod/pytorch:0.7.1-dev-ubuntu2204-cu1251-torch251"), true);',
+  '    assert.equal(engine.includes("sha256:ccdc2fe736e83eba1b88cbef27f516458e66a9eac857862f601cf42462f822b2"), true);',
+  '    assert.equal(engine.includes("python3 -m venv --system-site-packages"), true);',
+  '    assert.equal(engine.includes("pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1"), false);',
+  "    assert.equal(engine.includes(\"importlib.metadata.version('torch').startswith('2.5.1')\"), true);",
+  '    assert.equal(engine.includes("bootstrapDiagnostics = state.phase === \\\"BOOTSTRAPPING\\\""), true);',
+  '    assert.equal(engine.includes("await captureBootstrapFailureDiagnostics(state)"), true);',
+  '});'
+].join("\n");
+tests = appendOnce(
+  tests,
+  "V142 HuMo paid bootstrap reuses preinstalled Torch and preserves budget diagnostics",
+  runtimeBootstrapTest
+);
+
 write(LOCAL_VIDEO_TEST, tests);
 
 execFileSync(process.execPath, ["--check", LOCAL_VIDEO_ENGINE], { stdio: "inherit" });
@@ -175,16 +263,19 @@ execFileSync(python, ["-c", `import ast,pathlib; ast.parse(pathlib.Path('${LOCAL
 
 console.log(JSON.stringify({
   ok: true,
-  status: "V142_HUMO_UPSTREAM_SINGLE_GPU_LAUNCH_MATERIALIZED",
+  status: "V142_HUMO_PREINSTALLED_RUNTIME_MATERIALIZED",
   productBaseCommit: PRODUCT_BASE_COMMIT,
   launchAuthority: "Phantom-video/HuMo scripts/infer_tia_1_7B.sh",
   certifiedVenvPythonRequired: true,
   upstreamRendezvousAligned: true,
   childErrorRootLinesVisible: true,
+  preinstalledTorchRuntime: true,
+  paidTorchInstallationAllowed: false,
+  budgetBootstrapDiagnosticsRequired: true,
   diagnosticCharacterBudget: 22000,
   previousRunpodTestBalanceUsd: 3.86,
-  lastProbeEstimatedCostUsd: 0.4124381361111112,
-  currentRunpodTestBalanceUsdConservative: 3.447561863888889,
+  lastProbeEstimatedCostUsd: 0.9529642916666667,
+  currentRunpodTestBalanceUsdConservative: 2.4945975722222223,
   paidProbeHardCapUsd: 1,
   persistentVolumeInGb: 0,
   networkVolumeAllowedForHuMoProbe: false,
