@@ -544,3 +544,242 @@ console.log(JSON.stringify({
   newBrains: false,
   newWorkflow: false
 }));
+
+function ensureHuMoRuntimeCertificationTransportHardening() {
+  const bridgeFile = "jarvis-fs-bridge.js";
+  replaceExactOnce(
+    bridgeFile,
+    [
+      '        const started = await engine.start({',
+      '            selectedBackend: "humo-1.7b-identity",',
+      '            output: ".jarvis-artifacts/videos/humo-runtime-certification.mp4",',
+      '            missionId: "MISSION-HUMO-RUNTIME-" + certificationId,',
+      '            objectiveId: "OBJECTIVE-HUMO-RUNTIME-" + certificationId,',
+      '            obligationId: "video.runtime-certification:" + certificationId,',
+      '            rootInstructionHash',
+      '        });',
+      '        operationName = started?.operationName || null;',
+      '        if (started?.ok !== true || !operationName) {',
+      '            throw new Error(started?.error || started?.status || "HUMO_RUNTIME_CERTIFICATION_START_FAILED");',
+      '        }'
+    ].join("\n"),
+    [
+      '        const startPayload = {',
+      '            selectedBackend: "humo-1.7b-identity",',
+      '            output: ".jarvis-artifacts/videos/humo-runtime-certification.mp4",',
+      '            missionId: "MISSION-HUMO-RUNTIME-" + certificationId,',
+      '            objectiveId: "OBJECTIVE-HUMO-RUNTIME-" + certificationId,',
+      '            obligationId: "video.runtime-certification:" + certificationId,',
+      '            rootInstructionHash',
+      '        };',
+      '        const safeStartStages = new Set(["duplicate_guard", "availability"]);',
+      '        const maximumSafeStartAttempts = 3;',
+      '        let started = null;',
+      '        for (let attempt = 1; attempt <= maximumSafeStartAttempts; attempt += 1) {',
+      '            started = await engine.start(startPayload);',
+      '            operationName = started?.operationName || operationName || null;',
+      '            if (started?.ok === true && operationName) break;',
+      '            const failureStage = String(started?.failureStage || "").trim();',
+      '            const podId = started?.podId || started?.remoteWorker?.podId || null;',
+      '            const retryablePreProvision =',
+      '                started?.retryable === true &&',
+      '                safeStartStages.has(failureStage) &&',
+      '                !podId &&',
+      '                !started?.remoteJobId;',
+      '            log({',
+      '                ok: false,',
+      '                status: retryablePreProvision',
+      '                    ? "HUMO_RUNTIME_CERTIFICATION_START_RETRYABLE"',
+      '                    : "HUMO_RUNTIME_CERTIFICATION_START_FAILED",',
+      '                attempt,',
+      '                maximumAttempts: maximumSafeStartAttempts,',
+      '                operationName: started?.operationName || null,',
+      '                failureStage: failureStage || null,',
+      '                providerCode: started?.providerCode || null,',
+      '                providerMessage: started?.providerMessage || null,',
+      '                podId,',
+      '                retryablePreProvision',
+      '            });',
+      '            if (!retryablePreProvision || attempt >= maximumSafeStartAttempts) {',
+      '                const startError = new Error(',
+      '                    started?.error || started?.status || "HUMO_RUNTIME_CERTIFICATION_START_FAILED"',
+      '                );',
+      '                startError.stage = failureStage || null;',
+      '                startError.providerCode = started?.providerCode || null;',
+      '                startError.providerMessage = started?.providerMessage || null;',
+      '                startError.podId = podId;',
+      '                startError.retryable = started?.retryable === true;',
+      '                throw startError;',
+      '            }',
+      '            await sleepMs(2000 * attempt);',
+      '        }',
+      '        if (started?.ok !== true || !operationName) {',
+      '            throw new Error("HUMO_RUNTIME_CERTIFICATION_START_FAILED");',
+      '        }'
+    ].join("\n"),
+    "V142_HUMO_RUNTIME_CERT_SAFE_PREPROVISION_RETRY"
+  );
+
+  replaceExactOnce(
+    bridgeFile,
+    [
+      '            .catch(error => {',
+      '                console.error(JSON.stringify({',
+      '                    ok: false,',
+      '                    status: error?.message || "HUMO_RUNTIME_CERTIFICATION_FAILED"',
+      '                }));',
+      '                process.exitCode = 1;',
+      '            });'
+    ].join("\n"),
+    [
+      '            .catch(error => {',
+      '                console.error(JSON.stringify({',
+      '                    ok: false,',
+      '                    status: error?.message || "HUMO_RUNTIME_CERTIFICATION_FAILED",',
+      '                    failureStage: error?.stage || null,',
+      '                    providerCode: error?.providerCode || null,',
+      '                    providerMessage: error?.providerMessage || null,',
+      '                    podId: error?.podId || null',
+      '                }));',
+      '                process.exitCode = 1;',
+      '            });'
+    ].join("\n"),
+    "V142_HUMO_RUNTIME_CERT_CLI_DIAGNOSTICS"
+  );
+
+  const engineFile = "jarvis-local-video-engine.js";
+  replaceExactOnce(
+    engineFile,
+    '    const bootstrapTimeoutSeconds = runpodPositiveNumber(env.JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS, 1800);\n    const inferenceTimeoutSeconds = runpodPositiveNumber(',
+    [
+      '    const bootstrapTimeoutSeconds = runpodPositiveNumber(env.JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS, 1800);',
+      '    const humoTorchStageTimeoutSeconds = Math.min(',
+      '        300,',
+      '        Math.max(30, runpodPositiveNumber(env.JARVIS_HUMO_TORCH_STAGE_TIMEOUT_SECONDS, 120))',
+      '    );',
+      '    const inferenceTimeoutSeconds = runpodPositiveNumber('
+    ].join("\n"),
+    "V142_HUMO_TORCH_STAGE_TIMEOUT_CONFIG"
+  );
+
+  replaceExactOnce(
+    engineFile,
+    [
+      '                cacheStatus: "CACHE_MISS",',
+      '                bootstrapTimeoutSeconds,',
+      '                inferenceTimeoutSeconds,',
+      '                provisionedAt,'
+    ].join("\n"),
+    [
+      '                cacheStatus: "CACHE_MISS",',
+      '                bootstrapTimeoutSeconds,',
+      '                humoTorchStageTimeoutSeconds,',
+      '                inferenceTimeoutSeconds,',
+      '                provisionedAt,'
+    ].join("\n"),
+    "V142_HUMO_TORCH_STAGE_TIMEOUT_STATE"
+  );
+
+  replaceExactOnce(
+    engineFile,
+    [
+      '            if (state.phase === "BOOTSTRAPPING") {',
+      '                const progress = await readBootstrapProgress(state);',
+      '                state = persistBootstrapProgress(loaded.file, state, progress);',
+      '                const lastProgressMs = Date.parse(String(state.lastBootstrapProgressAt || state.bootstrapStartedAt || ""));'
+    ].join("\n"),
+    [
+      '            if (state.phase === "BOOTSTRAPPING") {',
+      '                const progress = await readBootstrapProgress(state);',
+      '                state = persistBootstrapProgress(loaded.file, state, progress);',
+      '                const humoTorchStageStartedMs =',
+      '                    state.runtimeKind === "humo" &&',
+      '                    progress?.stage === "HUMO_TORCH" &&',
+      '                    progress?.status === "RUNNING"',
+      '                        ? Date.parse(String(state.stageTimeline?.HUMO_TORCH?.startedAt || progress.at || ""))',
+      '                        : Number.NaN;',
+      '                if (',
+      '                    Number.isFinite(humoTorchStageStartedMs) &&',
+      '                    (now().getTime() - humoTorchStageStartedMs) / 1000 >=',
+      '                        Number(state.humoTorchStageTimeoutSeconds || 120)',
+      '                ) {',
+      '                    const bootstrapDiagnostics = await captureBootstrapFailureDiagnostics(state);',
+      '                    state = withStage(state, "HUMO_TORCH", "TIMEOUT");',
+      '                    state = withStage(state, "bootstrap", "TIMEOUT");',
+      '                    state = writeState(loaded.file, state, {',
+      '                        phase: "HUMO_TORCH_TIMEOUT",',
+      '                        bootstrapDiagnostics,',
+      '                        stageTimeline: state.stageTimeline',
+      '                    });',
+      '                    await writeLocalFailure(',
+      '                        operation,',
+      '                        resultFile,',
+      '                        "RUNPOD_HUMO_TORCH_STAGE_TIMEOUT",',
+      '                        false,',
+      '                        { bootstrapDiagnostics }',
+      '                    );',
+      '                    return {',
+      '                        ok: false,',
+      '                        done: true,',
+      '                        status: "RUNPOD_HUMO_TORCH_STAGE_TIMEOUT",',
+      '                        remoteWorker: runpodPublicWorker(state)',
+      '                    };',
+      '                }',
+      '                const lastProgressMs = Date.parse(String(state.lastBootstrapProgressAt || state.bootstrapStartedAt || ""));'
+    ].join("\n"),
+    "V142_HUMO_TORCH_STAGE_TIMEOUT_ENFORCEMENT"
+  );
+
+  const testFile = "tests/jarvis-local-video-engine-v142.test.mjs";
+  appendOnce(
+    testFile,
+    'test("V142 HuMo runtime cert retries only safe pre-provision transport and bounds Torch verification"',
+    `test("V142 HuMo runtime cert retries only safe pre-provision transport and bounds Torch verification", () => {
+    const bridge = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+    const engine = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    const retryStart = bridge.indexOf('const safeStartStages = new Set(["duplicate_guard", "availability"])');
+    const retryEnd = bridge.indexOf("const maximumSafeStartAttempts = 3", retryStart);
+    assert.ok(retryStart >= 0 && retryEnd > retryStart);
+    assert.equal(bridge.slice(retryStart, retryEnd).includes("provision"), false);
+    assert.match(bridge, /HUMO_RUNTIME_CERTIFICATION_START_RETRYABLE/);
+    assert.match(bridge, /failureStage: error\?\.stage \|\| null/);
+    assert.match(bridge, /providerCode: error\?\.providerCode \|\| null/);
+    assert.match(bridge, /providerMessage: error\?\.providerMessage \|\| null/);
+    assert.match(engine, /JARVIS_HUMO_TORCH_STAGE_TIMEOUT_SECONDS/);
+    assert.match(engine, /RUNPOD_HUMO_TORCH_STAGE_TIMEOUT/);
+    assert.match(engine, /humoTorchStageTimeoutSeconds/);
+});`
+  );
+
+  const hardenedBridge = sourceOf(bridgeFile);
+  const hardenedEngine = sourceOf(engineFile);
+  for (const marker of [
+    'const safeStartStages = new Set(["duplicate_guard", "availability"])',
+    "HUMO_RUNTIME_CERTIFICATION_START_RETRYABLE",
+    "providerMessage: error?.providerMessage || null"
+  ]) {
+    if (!hardenedBridge.includes(marker)) throw new Error(`V142_HUMO_RUNTIME_CERT_RETRY_MISSING:${marker}`);
+  }
+  for (const marker of [
+    "JARVIS_HUMO_TORCH_STAGE_TIMEOUT_SECONDS",
+    "RUNPOD_HUMO_TORCH_STAGE_TIMEOUT",
+    "humoTorchStageTimeoutSeconds"
+  ]) {
+    if (!hardenedEngine.includes(marker)) throw new Error(`V142_HUMO_TORCH_TIMEOUT_MISSING:${marker}`);
+  }
+}
+
+ensureHuMoRuntimeCertificationTransportHardening();
+
+console.log(JSON.stringify({
+  ok: true,
+  status: "V142_HUMO_RUNTIME_CERT_TRANSPORT_HARDENED",
+  safePreProvisionRetryStages: ["duplicate_guard", "availability"],
+  maximumSafeStartAttempts: 3,
+  provisionRetryAllowed: false,
+  humoTorchStageTimeoutSeconds: 120,
+  inferenceAuthorized: false,
+  billableGpuCreated: false,
+  newFiles: false,
+  newWorkflow: false
+}));
