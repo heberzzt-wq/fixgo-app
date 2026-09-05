@@ -13,6 +13,8 @@ const OLD_HUMO_DIGEST = "sha256:61a4aafb0094cd773f11eefa378929d5a687bd775febeb78
 const NEW_HUMO_IMAGE = "runpod/pytorch:0.7.1-dev-ubuntu2204-cu1251-torch251";
 const NEW_HUMO_TAG = "0.7.1-dev-ubuntu2204-cu1251-torch251";
 const NEW_HUMO_DIGEST = "sha256:ccdc2fe736e83eba1b88cbef27f516458e66a9eac857862f601cf42462f822b2";
+const OLD_HUMO_DIGEST_HEX = OLD_HUMO_DIGEST.slice("sha256:".length);
+const NEW_HUMO_DIGEST_HEX = NEW_HUMO_DIGEST.slice("sha256:".length);
 
 function read(file) { return fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n"); }
 function write(file, source) { fs.writeFileSync(file, source, "utf8"); }
@@ -100,7 +102,8 @@ for (const marker of ['JARVIS_RUNPOD_CONTAINER_DISK_GB: "60"','JARVIS_RUNPOD_VOL
 
 let tests = read(LOCAL_VIDEO_TEST);
 tests = tests.split(OLD_HUMO_IMAGE).join(NEW_HUMO_IMAGE).split(OLD_HUMO_TAG).join(NEW_HUMO_TAG).split(OLD_HUMO_DIGEST).join(NEW_HUMO_DIGEST);
-if (tests.includes(OLD_HUMO_TAG) || tests.includes(OLD_HUMO_DIGEST)) throw new Error("V142_TEST_STALE_HUMO_IMAGE_AUTHORITY");
+tests = tests.split(OLD_HUMO_DIGEST_HEX).join(NEW_HUMO_DIGEST_HEX);
+if (tests.includes(OLD_HUMO_TAG) || tests.includes(OLD_HUMO_DIGEST) || tests.includes(OLD_HUMO_DIGEST_HEX)) throw new Error("V142_TEST_STALE_HUMO_IMAGE_AUTHORITY");
 tests = replaceExpectedCount(tests,'assert.equal(candidate.includes("runtimePreflightCertified: true"), true);','assert.equal(candidate.includes("runtimePreflightCertified: false"), true);',1,"V142_TEST_RUNTIME_CERT_STATE");
 tests = replaceExpectedCount(tests,'assert.equal(candidate.includes("physicalRuntimeCertified: true"), true);','assert.equal(candidate.includes("physicalRuntimeCertified: false"), true);\n    assert.equal(candidate.includes("physicalRuntimeCertification: null"), true);',1,"V142_TEST_PHYSICAL_CERT_STATE");
 tests = tests.split('assert.equal(report.contract.runtimePreflightCertified, true);').join('assert.equal(report.contract.runtimePreflightCertified, false);');
@@ -110,7 +113,16 @@ tests = tests.split('assert.match(candidate, /physicalRuntimeCertified: true/);'
 tests = tests.split('assert.equal(closed.physicalRuntimeCertified, true);').join('assert.equal(closed.physicalRuntimeCertified, false);');
 tests = tests.split('assert.equal(scoped.physicalRuntimeCertified, true);').join('assert.equal(scoped.physicalRuntimeCertified, false);');
 tests = tests.split('test("V142 HuMo physical runtime certification is durable while paid inference stays closed", () => {').join('test("V142 HuMo stale physical runtime certification is invalidated for the preinstalled image", () => {');
-for (const oldReceiptAssertion of ['assert.match(candidate, /canonicalSha: \\"e9e96fc7cc622ff9092eb2926c5af047fca1c7ea\\"/);','assert.match(candidate, /operationName: \\"local-video\\\\/0c1a1082-dce4-40c4-993d-053255859fc6\\"/);','assert.match(candidate, /podId: \\"0qildg0t1wyosk\\"/);','assert.match(candidate, /runtimeCertificationOnly: true/);','assert.match(candidate, /inferenceStarted: false/);','assert.match(candidate, /terminationVerified: true/);']) tests = tests.split(oldReceiptAssertion).join(oldReceiptAssertion.replace('assert.match','assert.doesNotMatch'));
+for (const staleReceiptAssertion of [
+  'assert.match(candidate, /canonicalSha: "e9e96fc7cc622ff9092eb2926c5af047fca1c7ea"/);',
+  'assert.match(candidate, /operationName: "local-video\\/0c1a1082-dce4-40c4-993d-053255859fc6"/);',
+  'assert.match(candidate, /podId: "0qildg0t1wyosk"/);',
+  'assert.match(candidate, /runtimeCertificationOnly: true/);',
+  'assert.match(candidate, /inferenceStarted: false/);',
+  'assert.match(candidate, /terminationVerified: true/);'
+]) {
+  tests = tests.split(staleReceiptAssertion).join(staleReceiptAssertion.replace('assert.match', 'assert.doesNotMatch'));
+}
 tests = tests.split('    assert.doesNotMatch(candidate, /terminationVerified: true/);\n    assert.match(candidate, /paidExecutionAuthorized: false/);').join('    assert.doesNotMatch(candidate, /terminationVerified: true/);\n    assert.match(candidate, /physicalRuntimeCertification: null/);\n    assert.match(candidate, /paidExecutionAuthorized: false/);');
 tests = tests.split(['        assert.deepEqual(report.executionBlockers, [','            "RUNPOD_HUMO_PAID_EXECUTION_AUTHORITY_REQUIRED"','        ]);'].join("\n")).join(['        assert.deepEqual(report.executionBlockers, [','            "RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFICATION_REQUIRED",','            "RUNPOD_HUMO_PAID_EXECUTION_AUTHORITY_REQUIRED"','        ]);'].join("\n"));
 tests = replaceExactOnce(tests,['        baseHealthOverrides: {','            operatingSystem: "ubuntu-22.04",','            pythonVersion: "3.11.9",','            torchVersion: "2.4.1+cu124",','            torchCudaVersion: "12.4",','            cudaImageVersion: "12.4.1",'].join("\n"),['        baseHealthOverrides: {','            operatingSystem: "ubuntu-22.04",','            pythonVersion: "3.11.9",','            torchVersion: "2.5.1+cu124",','            torchCudaVersion: "12.4",','            cudaImageVersion: "12.5.1",'].join("\n"),"V142_TEST_PREINSTALLED_BASE_HEALTH");
