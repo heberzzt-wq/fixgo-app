@@ -2294,9 +2294,21 @@ export function createRunpodRemoteVideoAdapter({
         if (imageProfile.registry !== "registry-1.docker.io") {
             throw new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
         }
+        const requestRegistry = async (url, options) => {
+            let response = null;
+            for (let attempt = 0; attempt < 3; attempt += 1) {
+                try { response = await registryFetchImpl(url, options); }
+                catch(error) { if (attempt >= 2) throw error; continue; }
+                const status = Number(response?.status || 0);
+                if (status === 200) return response;
+                const retryable = status === 408 || status === 429 || status >= 500;
+                if (!retryable || attempt >= 2) return response;
+            }
+            return response;
+        };
         try {
             const scope = encodeURIComponent(`repository:${imageProfile.repository}:pull`);
-            const tokenResponse = await registryFetchImpl(
+            const tokenResponse = await requestRegistry(
                 `https://auth.docker.io/token?service=registry.docker.io&scope=${scope}`,
                 { method: "GET", headers: { Accept: "application/json" } }
             );
@@ -2306,28 +2318,64 @@ export function createRunpodRemoteVideoAdapter({
             const tokenPayload = JSON.parse(await tokenResponse.text());
             const token = String(tokenPayload?.token || tokenPayload?.access_token || "");
             if (!token) throw new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
-            const manifestResponse = await registryFetchImpl(
-                `https://${imageProfile.registry}/v2/${imageProfile.repository}/manifests/${encodeURIComponent(imageProfile.tag)}`,
-                {
-                    method: "HEAD",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        Accept: [
-                            "application/vnd.oci.image.index.v1+json",
-                            "application/vnd.docker.distribution.manifest.list.v2+json",
-                            "application/vnd.oci.image.manifest.v1+json",
-                            "application/vnd.docker.distribution.manifest.v2+json"
-                        ].join(", ")
-                    }
-                }
-            );
-            if (Number(manifestResponse?.status || 0) !== 200) {
+            const acceptIndex = [
+                "application/vnd.oci.image.index.v1+json",
+                "application/vnd.docker.distribution.manifest.list.v2+json",
+                "application/vnd.oci.image.manifest.v1+json",
+                "application/vnd.docker.distribution.manifest.v2+json"
+            ].join(", " );
+            const manifestUrl = `https://${imageProfile.registry}/v2/${imageProfile.repository}/manifests/${encodeURIComponent(imageProfile.tag)}`;
+            const manifestResponse = await requestRegistry(manifestUrl, {
+                method: "GET",
+                headers: { Authorization: `Bearer ${token}`, Accept: acceptIndex }
+            });
+            if (Number(manifestResponse?.status || 0) !== 200 || typeof manifestResponse.text !== "function") {
                 throw new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
             }
-            const observedDigest = String(
-                manifestResponse?.headers?.get?.("docker-content-digest") || ""
-            ).trim().toLowerCase();
-            return normalizedRegistryVerification(imageProfile, {
+            const indexDigest = String(manifestResponse?.headers?.get?.("docker-content-digest") || "").trim().toLowerCase();
+            const rawManifest = await manifestResponse.text();
+            let manifestPayload = null;
+            if (rawManifest) {
+                try { manifestPayload = JSON.parse(rawManifest); }
+                catch { throw new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE"); }
+            }
+            let observedDigest = indexDigest;
+            let platform = null;
+            if (Array.isArray(manifestPayload?.manifests)) {
+                const descriptor = manifestPayload.manifests.find(item =>
+                    String(item?.platform?.os || "").toLowerCase() === "linux" &&
+                    String(item?.platform?.architecture || "").toLowerCase() === "amd64"
+                );
+                observedDigest = String(descriptor?.digest || "").trim().toLowerCase();
+                if (!/^sha256:[a-f0-9]{64}$/i.test(observedDigest)) {
+                    throw new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
+                }
+                platform = { os: "linux", architecture: "amd64" };
+                const childResponse = await requestRegistry(
+                    `https://${imageProfile.registry}/v2/${imageProfile.repository}/manifests/${encodeURIComponent(observedDigest)}`,
+                    {
+                        method: "GET",
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            Accept: [
+                                "application/vnd.oci.image.manifest.v1+json",
+                                "application/vnd.docker.distribution.manifest.v2+json"
+                            ].join(", " )
+                        }
+                    }
+                );
+                if (Number(childResponse?.status || 0) !== 200) {
+                    throw new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
+                }
+                const childDigest = String(childResponse?.headers?.get?.("docker-content-digest") || "").trim().toLowerCase();
+                if (childDigest && childDigest !== observedDigest) {
+                    throw new Error("RUNPOD_REGISTRY_DIGEST_MISMATCH");
+                }
+            }
+            if (!/^sha256:[a-f0-9]{64}$/i.test(observedDigest)) {
+                throw new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
+            }
+            const verified = normalizedRegistryVerification(imageProfile, {
                 registry: imageProfile.registry,
                 repository: imageProfile.repository,
                 tag: imageProfile.tag,
@@ -2336,13 +2384,13 @@ export function createRunpodRemoteVideoAdapter({
                 checkedAt: now().toISOString(),
                 status: "REGISTRY_DIGEST_VERIFIED"
             });
+            return { ...verified, indexDigest: indexDigest || null, platform };
         }
         catch(error) {
             if (error?.message === "RUNPOD_REGISTRY_DIGEST_MISMATCH") throw error;
             throw new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
         }
     }
-
     function assertPaidResourceCreationAuthority() {
         if (paidResourceCreationAuthorized !== true) {
             throw new Error("RUNPOD_PAID_RESOURCE_CREATION_NOT_AUTHORIZED");

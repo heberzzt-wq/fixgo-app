@@ -404,6 +404,24 @@ function runpodPhysicalHarness({
                 : String(url).includes("0.7.1-dev-ubuntu2204-cu1251-torch251")
                     ? "sha256:ccdc2fe736e83eba1b88cbef27f516458e66a9eac857862f601cf42462f822b2"
                     : gpuImageProfile.expectedRegistryDigest;
+            if (scenario === "registry-multiarch-platform-digest") {
+                if (String(url).includes(encodeURIComponent(expectedDigest))) {
+                    return mockHttpResponse(200, { schemaVersion: 2 }, {
+                        "content-type": "application/vnd.oci.image.manifest.v1+json",
+                        "docker-content-digest": expectedDigest
+                    });
+                }
+                return mockHttpResponse(200, {
+                    mediaType: "application/vnd.oci.image.index.v1+json",
+                    manifests: [
+                        { digest: expectedDigest, platform: { os: "linux", architecture: "amd64" } },
+                        { digest: `sha256:${"a".repeat(64)}`, platform: { os: "linux", architecture: "arm64" } }
+                    ]
+                }, {
+                    "content-type": "application/vnd.oci.image.index.v1+json",
+                    "docker-content-digest": `sha256:${"5".repeat(64)}`
+                });
+            }
             return mockHttpResponse(200, null, {
                 "content-type": "application/vnd.oci.image.index.v1+json",
                 "docker-content-digest": scenario === "registry-digest-mismatch"
@@ -7107,4 +7125,15 @@ test("V142 HuMo paid bootstrap reuses preinstalled Torch and invalidates stale p
     assert.equal(engine.includes("physicalRuntimeCertification: null"), true);
     assert.equal(engine.includes("bootstrapDiagnostics = state.phase === \"BOOTSTRAPPING\""), true);
     assert.equal(engine.includes("await captureBootstrapFailureDiagnostics(state)"), true);
+});
+
+test("V142 registry verifier resolves OCI index to linux amd64 digest before paid provisioning", async () => {
+    const harness = runpodPhysicalHarness({ scenario: "registry-multiarch-platform-digest" });
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, true, JSON.stringify(started));
+    assert.ok(harness.createdBody);
+    const registryCalls = harness.calls.filter(call => call.kind === "http" && call.url.includes("registry-1.docker.io/v2/"));
+    assert.ok(registryCalls.length >= 2);
+    assert.equal(registryCalls.some(call => call.method === "HEAD"), false);
+    assert.equal(registryCalls.every(call => call.method === "GET"), true);
 });
