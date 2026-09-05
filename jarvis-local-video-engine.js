@@ -124,7 +124,7 @@ const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({
         bootstrapTorch: "2.5.1",
         bootstrapTorchCuda: "12.4",
         bootstrapFlashAttention: "2.6.3",
-        runtimePreflightCertified: false
+        runtimePreflightCertified: true
     }),
     targetGpuTypeId: "NVIDIA L40S",
     candidateProbeGeometry: Object.freeze({
@@ -136,8 +136,25 @@ const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({
         orientation: "landscape"
     }),
     portraitTargetUnresolved: true,
-    physicalRuntimeCertified: false,
-    physicalRuntimeCertification: null,
+    physicalRuntimeCertified: true,
+    physicalRuntimeCertification: Object.freeze({
+        "canonicalSha": "fb973d73fc66ae60664302f21edc5e84e31f9885",
+        "operationName": "local-video/72e89488-b552-4d3f-b712-82db76d5eae1",
+        "podId": "ys08rhfupwuome",
+        "certifiedAt": "2026-09-05T13:58:23.851Z",
+        "provisionImageTag": "pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel",
+        "expectedRegistryDigest": "sha256:14611869895df612b7b07227d5925f30ec3cd6673bad58ce3d84ed107950e014",
+        "sourceRevision": "845f44736e21be93aa5d8cf406b6eb01af9bff67",
+        "gpuTypeId": "NVIDIA L40S",
+        "pythonVersion": "3.11.10",
+        "torchVersion": "2.5.1+cu124",
+        "torchCudaVersion": "12.4",
+        "flashAttentionVersion": "2.6.3",
+        "runtimeCertificationOnly": true,
+        "inferenceStarted": false,
+        "terminationVerified": true,
+        "gpuRentalEstimatedCost": 0.0775114138888889
+    }),
     physicalPortraitCertified: false,
     paidExecutionAuthorized: false
 });
