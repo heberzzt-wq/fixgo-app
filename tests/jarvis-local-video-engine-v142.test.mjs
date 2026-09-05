@@ -15,6 +15,9 @@ import {
     describeLocalVideoPolicy,
     estimateExternalVideoGeneration,
     RUNPOD_CPU_STAGING_PROFILE,
+    RUNPOD_HUMO_CACHE_BASE,
+    validateModelCacheManifest,
+    verifyModelCacheContents,
     RUNPOD_WAN22_GPU_PROFILES,
     resolveLocalExecutable,
     resolveLocalVideoInspectionExecutable,
@@ -24,6 +27,273 @@ import {
 import { listArtifacts } from "../jarvis-artifact-studio.js";
 import { createJarvisFsBridgeApp } from "../jarvis-fs-bridge.js";
 import { registerJarvisActuatorTools } from "../gestia-core/jarvis/jarvis.actuator.pack.js";
+
+function humoCacheManifest(contract = RUNPOD_HUMO_CACHE_BASE) {
+    return { ...contract, files: structuredClone(contract.requiredFiles), cacheStatus: "CACHE_MODEL_READY",
+        verifiedAt: "2026-09-05T00:00:00Z", networkVolumeId: "humo-cache", dataCenterId: "EU-RO-1" };
+}
+
+for (const [label, mutate] of [
+    ["wrong SHA", m => { m.files[0].sha256 = "0".repeat(64); }],
+    ["wrong bytes", m => { m.files[0].bytes++; }],
+    ["wrong file", m => { m.files[0].path = "unexpected.pth"; }],
+    ["wrong model revision", m => { m.modelRevision = "0".repeat(40); }],
+    ["wrong per-file revision", m => { m.files[0].revision = "0".repeat(40); }],
+    ["wrong source revision", m => { m.sourceRevision = "0".repeat(40); }],
+    ["incomplete manifest", m => { m.files.pop(); }],
+    ["duplicate file", m => { m.files[1] = m.files[0]; }],
+    ["wrong image digest", m => { m.expectedRegistryDigest = "sha256:" + "0".repeat(64); }],
+    ["wrong total bytes", m => { m.totalBytes++; }],
+    ["no timestamp", m => { delete m.verifiedAt; }],
+    ["CPU claiming runtime ready", m => { m.cacheStatus = "CACHE_READY"; }]
+]) test(`V142 HuMo persistent cache rejects ${label}`, () => {
+    const manifest = humoCacheManifest();
+    assert.equal(validateModelCacheManifest(manifest), true);
+    mutate(manifest);
+    assert.equal(validateModelCacheManifest(manifest), false);
+});
+
+test("V142 HuMo verifies actual streamed bytes instead of trusting manifest claims", async () => {
+    const bytes = Buffer.from("fixture");
+    const requiredFiles = [{ ...RUNPOD_HUMO_CACHE_BASE.requiredFiles[0], bytes: bytes.length,
+        sha256: createHash("sha256").update(bytes).digest("hex") }];
+    const contract = { ...RUNPOD_HUMO_CACHE_BASE, requiredFiles, totalBytes: bytes.length };
+    const manifest = humoCacheManifest(contract);
+    assert.equal((await verifyModelCacheContents({ contract, manifest, readAsset: async () => new Response(bytes) })).shaVerified, true);
+    await assert.rejects(verifyModelCacheContents({ contract, manifest, readAsset: async () => new Response("corrupt") }), /SHA256/);
+    await assert.rejects(verifyModelCacheContents({ contract, manifest, readAsset: async () => new Response("short") }), /SIZE/);
+    await assert.rejects(verifyModelCacheContents({ contract, manifest, readAsset: async () => new Response("", { status: 404 }) }), /MISSING/);
+});
+
+// Scale only fixture bytes, keeping production lifecycle/validators/transports unchanged.
+let smallHuMoModule;
+async function smallHuMoAuthorityModule() {
+    if (!smallHuMoModule) {
+        const source = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8")
+            .replace('"./jarvis-artifact-studio.js"', JSON.stringify(new URL("../jarvis-artifact-studio.js", import.meta.url).href))
+            .replace("...file, repository, revision, sourcePath: file.path", `...file, bytes: 7, sha256: "${createHash("sha256").update("fixture").digest("hex")}", repository, revision, sourcePath: file.path`);
+        smallHuMoModule = import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
+    }
+    return smallHuMoModule;
+}
+
+async function humoPersistentHarness(fault = "") {
+    const module = await smallHuMoAuthorityModule();
+    const id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const base = runpodPhysicalHarness({ networkVolumeId: "humo-cache", networkVolumeDataCenterId: "EU-RO-1",
+        baseHealthOverrides: { pythonVersion: "3.11.10", torchVersion: "2.5.1+cu124", torchCudaVersion: "12.4" },
+        runtimeHealthOverrides: { pythonVersion: "3.11.10", torchVersion: "2.5.1+cu124", torchCudaVersion: "12.4",
+            humoRepository: true, weights: true, wan21: true, whisper: true, separator: true, dependencyContract: true,
+            pipCheck: true, flashAttentionVersion: "2.6.3", sourceRevision: RUNPOD_HUMO_CACHE_BASE.sourceRevision },
+        envOverrides: { JARVIS_LOCAL_VIDEO_MODEL: "humo", JARVIS_RUNPOD_CLOUD_TYPE: "SECURE",
+            JARVIS_RUNPOD_DATACENTER_ID: "EU-RO-1", JARVIS_RUNPOD_RETAIN_NETWORK_VOLUME_AUTHORIZED: "true",
+            JARVIS_RUNPOD_S3_ACCESS_KEY_ID: "fixture-access", JARVIS_RUNPOD_S3_SECRET_ACCESS_KEY: "fixture-secret",
+            JARVIS_HUMO_IDENTITY_PROBE_PAID_EXECUTION_AUTHORIZED: "true",
+            JARVIS_HUMO_IDENTITY_PROBE_AUTHORIZATION_ID: id, JARVIS_HUMO_IDENTITY_PROBE_CHARACTER_ID: "CHAR_ONE" } });
+    if (fault === "no volume") delete base.env.JARVIS_RUNPOD_NETWORK_VOLUME_ID;
+    if (fault === "no retention") base.env.JARVIS_RUNPOD_RETAIN_NETWORK_VOLUME_AUTHORIZED = "false";
+    const manifest = humoCacheManifest(module.RUNPOD_HUMO_CACHE_BASE);
+    if (fault === "bad manifest") manifest.files.pop();
+    if (fault === "substituted manifest") manifest.networkVolumeId = "other";
+    const reads = [];
+    const fetchImpl = async (url, options = {}) => {
+        reads.push(String(url));
+        if (String(url).endsWith("/pods/pod-l40s-v142") && (options.method || "GET") === "GET" && !base.deleted) {
+            return mockHttpResponse(200, { id: "pod-l40s-v142", status: "RUNNING", publicIp: fault === "cpu wrong endpoint" ? "203.0.113.99" : "203.0.113.42",
+                portMappings: { "22": 22122 }, mounts: { network: [{ path: "/workspace", volumeId: fault === "wrong mount" ? "other" : "humo-cache" }] }, dataCenterId: "EU-RO-1",
+                ...(fault.startsWith("cpu") ? { cpu: { id: "cpu3c", vcpuCount: 2, memory: 4 }, image: "ubuntu:22.04", cost: 0.04 } : {}) });
+        }
+        if (String(url).includes("/network-volumes/")) return mockHttpResponse(fault === "nonexistent volume" ? 404 : 200,
+            { id: fault === "substituted volume" ? "other" : "humo-cache", dataCenterId: fault === "wrong datacenter" ? "EU-NL-1" : "EU-RO-1",
+                sizeGb: fault === "small volume" ? 10 : 64, type: fault === "wrong type" ? "HIGH_PERFORMANCE" : "STANDARD" });
+        if (String(url).includes("/datacenters/")) return mockHttpResponse(200,
+            { id: fault === "wrong datacenter" ? "EU-NL-1" : "EU-RO-1", networkVolumeTypes: ["STANDARD"] });
+        if (String(url).startsWith("https://s3api-")) {
+            assert.equal(options.method, "GET");
+            assert.match(options.headers.Authorization, /AWS4-HMAC-SHA256 Credential=fixture-access/);
+            if (String(url).endsWith("model-manifest.json")) return new Response(JSON.stringify(manifest));
+            return new Response(fault === "corrupt bytes" ? "corrupt" : "fixture");
+        }
+        return base.fetchImpl(url, options);
+    };
+    const execute = async (command, args, options) => {
+        if (fault.startsWith("cpu") && String(args.at(-1)).startsWith("cat ") && String(args.at(-1)).includes("model-manifest.json")) {
+            return { stdout: JSON.stringify(manifest), exitCode: 0 };
+        }
+        if (fault === "cpu download failure" && String(args.at(-1)).startsWith("timeout ")) throw new Error("CONTROLLED_DOWNLOAD_FAILURE");
+        if (String(args.at(-1)).startsWith("cat ") && String(args.at(-1)).includes("model-integrity.json")) {
+            const observed = { ...manifest, mountedVerification: { operationId: id, shaVerified: fault !== "corrupt mount" } };
+            return { stdout: JSON.stringify(observed), exitCode: 0 };
+        }
+        return base.execute(command, args, options);
+    };
+    const adapter = module.createRunpodRemoteVideoAdapter({ root: base.root, env: base.env, fetchImpl,
+        execute, generateKeyPair: base.generateKeyPair, now: base.now,
+        inspectBridgeIdentity: () => ({ ok: true, status: "BRIDGE_IDENTITY_OK" }),
+        resolveCanonicalSha: () => base.env.JARVIS_RUNPOD_CANONICAL_SHA });
+    const job = { ...base.dryRunJob, backend: "humo-1.7b-identity", model: "HuMo-1.7B",
+        obligationId: `video.identity-probe:${id}`, aspectRatio: "16:9", requiresIdentityFidelity: true,
+        identityRuntimeAuthority: module.buildHuMoIdentityRuntimeAuthority({ paidExecutionAuthorized: true }),
+        identityProbeExecutionAuthority: { authorized: true, scope: "single_identity_probe", consumableOnce: true,
+            authorizationId: id, characterId: "CHAR_ONE" },
+        shotPlan: [{ identityMode: "single_identity", characterIds: ["CHAR_ONE"],
+            identityReferenceOutputs: base.dryRunJob.referenceOutputs, durationSeconds: 3.88 }] };
+    return { ...base, base, adapter, job, reads, manifest };
+}
+
+for (const fault of ["no volume", "no retention", "nonexistent volume", "substituted volume", "wrong datacenter",
+    "small volume", "wrong type", "bad manifest", "substituted manifest", "corrupt bytes"]) {
+    test(`V142 HuMo ${fault} prevents every GPU provision POST`, async () => {
+        const h = await humoPersistentHarness(fault);
+        try {
+            await assert.rejects(h.adapter.launch({ job: h.job }), /RUNPOD_/);
+            assert.equal(h.base.createdGraphQlInput, null);
+        } finally { fs.rmSync(h.root, { recursive: true, force: true }); }
+    });
+}
+
+test("V142 HuMo verified volume binds inference payload and GPU cleanup retains only the authorized volume", async () => {
+    const h = await humoPersistentHarness();
+    try {
+        const receipt = await h.adapter.launch({ job: h.job });
+        assert.equal(h.base.createdGraphQlInput.networkVolumeId, "humo-cache");
+        assert.equal(h.base.createdGraphQlInput.dataCenterId, "EU-RO-1");
+        assert.equal(Object.hasOwn(h.base.createdGraphQlInput, "volumeInGb"), false);
+        assert.equal(h.reads.filter(url => url.startsWith("https://s3api-")).length, 14);
+        assert.equal(receipt.remoteWorker.cacheStatus, "CACHE_MISS", "HIT requires this Pod to mount and verify");
+        let polled;
+        for (let i = 0; i < 4; i++) {
+            polled = await h.adapter.poll({ operation: h.job, resultFile: path.join(h.root, "result.json") });
+            if (polled.remoteWorker?.cacheStatus === "CACHE_HIT" || polled.done) break;
+        }
+        assert.equal(polled.remoteWorker.cacheStatus, "CACHE_HIT", JSON.stringify(polled));
+        assert.equal(polled.status, "RUNPOD_REMOTE_JOB_RUNNING");
+        const cleanup = await h.adapter.release({ ...h.job, remoteWorker: receipt.remoteWorker });
+        assert.equal(cleanup.terminationVerified, true);
+        assert.equal(cleanup.networkVolumeRetained, true);
+        assert.equal(h.base.deleted, true);
+    } finally { fs.rmSync(h.root, { recursive: true, force: true }); }
+});
+
+for (const fault of ["cpu success", "cpu download failure", "cpu wrong endpoint"]) test(`V142 HuMo ${fault} always terminates CPU and retains authorized cache`, async () => {
+    const h = await humoPersistentHarness(fault);
+    h.env.JARVIS_RUNPOD_CPU_STAGING_AUTHORIZED = "true";
+    h.env.JARVIS_RUNPOD_CPU_STAGING_POD_ID = "pod-l40s-v142";
+    const dir = path.join(h.root, "cpu-stage");
+    fs.mkdirSync(dir);
+    const state = { ...h.job, podId: "pod-l40s-v142", provisionedAt: h.now().toISOString(),
+        publicIp: "203.0.113.42", sshPort: 22122, bootstrapFile: path.join(dir, "bootstrap.sh"),
+        privateKeyFile: path.join(dir, "key"), publicKeyFile: path.join(dir, "key.pub"), knownHostsFile: path.join(dir, "hosts"),
+        remoteOperationDir: `/workspace/jarvis-v142/operations/${h.job.operationId}` };
+    fs.writeFileSync(state.privateKeyFile, "fixture-key");
+    fs.writeFileSync(state.publicKeyFile, "fixture-public-key");
+    const health = { podStatus: "RUNNING", uptimeSeconds: 30, stableSshEndpointPolls: 2,
+        sshEndpoint: { host: state.publicIp, port: state.sshPort }, sshHandshake: true, sshAuthenticated: true,
+        sshUser: "root", sshdRunning: true, publicKeyPresent: true, authorizedKeyMatches: true,
+        operatingSystem: "ubuntu-22.04", caCertificates: true, mountPath: "/workspace", mountWritable: true,
+        commands: { bash: true, sshd: true }, cuda: false, nvcc: false, flashAttention: false };
+    try {
+        const result = await h.adapter.stageCpuModelCache({ state, health,
+            previousHealth: { uptimeSeconds: 20, sshEndpoint: health.sshEndpoint } });
+        assert.equal(result.ok, fault === "cpu success", JSON.stringify(result));
+        assert.equal(result.terminationVerified, true);
+        assert.equal(result.cleanup.networkVolumeRetained, true);
+        assert.equal(result.inferenceStarted, false);
+        assert.equal(h.base.deleted, true);
+        assert.equal(h.base.createdGraphQlInput, null);
+        if (result.ok) {
+            assert.equal(result.cacheStatus, "CACHE_MODEL_READY");
+            assert.equal(result.physicalRuntimeCertified, false);
+            assert.equal(result.cudaVerified, false);
+            assert.equal(result.flashAttentionVerified, false);
+        }
+    } finally { fs.rmSync(h.root, { recursive: true, force: true }); }
+});
+
+for (const fault of ["wrong mount", "corrupt mount"]) test(`V142 HuMo ${fault} blocks inference after provisioning and still cleans up`, async () => {
+    const h = await humoPersistentHarness(fault);
+    try {
+        const receipt = await h.adapter.launch({ job: h.job });
+        let polled;
+        for (let i = 0; i < 4; i++) {
+            polled = await h.adapter.poll({ operation: h.job, resultFile: path.join(h.root, "result.json") });
+            if (polled.done) break;
+        }
+        assert.equal(polled.ok, false);
+        assert.equal(h.base.inferenceStarts, 0);
+        assert.equal((await h.adapter.release({ ...h.job, remoteWorker: receipt.remoteWorker })).terminationVerified, true);
+    } finally { fs.rmSync(h.root, { recursive: true, force: true }); }
+});
+
+test("V142 HuMo CPU staging is resumable, atomically verified, and cannot certify a GPU runtime", async () => {
+    const h = await humoPersistentHarness();
+    try {
+        const script = h.adapter.buildCpuModelStagingBootstrap(h.job.operationId);
+        assert.match(script, /mountpoint -q \/workspace/);
+        assert.match(script, /hf_hub_download/);
+        assert.match(script, /os.replace\(downloaded,target\)/);
+        assert.match(script, /CACHE_MODEL_READY/);
+        assert.match(script, /inferenceStarted/);
+        assert.doesNotMatch(script, /torch\.cuda|import torch|pip install.*flash|CACHE_HIT|CACHE_READY|rm -rf|HF_HUB_DISABLE_XET=1/);
+        assert.match(script, /huggingface_hub==0\.36\.0/);
+        assert.match(script, /hf-xet==1\.1\.10/);
+        assert.match(script, /metadata.read_text\(\).splitlines\(\)\[0\]==item\['revision'\]/);
+    } finally { fs.rmSync(h.root, { recursive: true, force: true }); }
+});
+
+test("V142 HuMo generated Python physically verifies files and rejects corruption without rewriting the manifest", async () => {
+    const h = await humoPersistentHarness();
+    try {
+        const root = path.join(h.root, "model-cache");
+        fs.mkdirSync(root);
+        for (const item of h.manifest.files) {
+            const file = path.join(root, item.path);
+            fs.mkdirSync(path.dirname(file), { recursive: true });
+            fs.writeFileSync(file, "fixture");
+        }
+        const manifestFile = path.join(root, "model-manifest.json");
+        const manifestBytes = JSON.stringify(h.manifest);
+        fs.writeFileSync(manifestFile, manifestBytes);
+        const script = h.adapter.buildCpuModelStagingBootstrap(h.job.operationId);
+        const python = script.split("<<'PY'\n")[1].split("\nPY")[0];
+        const fixtureGit = `import subprocess\nsubprocess.check_output=lambda cmd,**kwargs: '${RUNPOD_HUMO_CACHE_BASE.sourceRevision}' if 'rev-parse' in cmd else ''\n`;
+        const invoke = () => spawnSync("python", ["-c", fixtureGit + python, root, "verify", "humo-cache", "EU-RO-1", h.job.operationId], { encoding: "utf8" });
+        const verified = invoke();
+        assert.equal(verified.status, 0, verified.stderr || String(verified.error));
+        const receipt = JSON.parse(verified.stdout);
+        assert.equal(receipt.mountedVerification.operationId, h.job.operationId);
+        assert.equal(receipt.mountedVerification.shaVerified, true);
+        fs.writeFileSync(path.join(root, h.manifest.files[0].path), "corrupt");
+        const rejected = invoke();
+        assert.notEqual(rejected.status, 0);
+        assert.match(rejected.stderr, /CACHE_ASSET_INTEGRITY_FAILED/);
+        assert.equal(fs.readFileSync(manifestFile, "utf8"), manifestBytes);
+    } finally { fs.rmSync(h.root, { recursive: true, force: true }); }
+});
+
+test("V142 HuMo reuses the read-only CPU precheck with the selected datacenter and 64 GB cache authority", async () => {
+    const h = await humoPersistentHarness();
+    try {
+        const adapter = createRunpodRemoteVideoAdapter({ root: h.root,
+            env: { ...h.env, JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false" },
+            inspectBridgeIdentity: () => ({ ok: true, status: "BRIDGE_IDENTITY_OK" }),
+            resolveCanonicalSha: () => h.env.JARVIS_RUNPOD_CANONICAL_SHA });
+        const request = { networkVolume: { id: "humo-cache", dataCenterId: "EU-RO-1", sizeGb: 64, type: "STANDARD" },
+            registryVerification: h.cpuRegistryVerification, sshKeyRegistered: true,
+            inventory: { cpuFlavorId: "cpu3c", dataCenterId: "EU-RO-1", minimumVcpu: 2,
+                ramMultiplier: 2, securePriceUsdPerHour: 0.04, stockStatus: "HIGH" } };
+        const report = adapter.inspectCpuStagingPrecheck(request);
+        assert.equal(report.ok, true, JSON.stringify(report));
+        assert.equal(report.cache.profile, RUNPOD_HUMO_CACHE_BASE.profile);
+        assert.equal(report.payload.computeType, "CPU");
+        assert.deepEqual(report.payload.dataCenterIds, ["EU-RO-1"]);
+        assert.equal(report.payload.networkVolumeId, "humo-cache");
+        assert.equal(report.resourceCreationPossible, false);
+        assert.equal(report.cache.cpuCompletionStatus, "CACHE_MODEL_READY");
+        assert.equal(adapter.inspectCpuStagingPrecheck({ ...request,
+            networkVolume: { ...request.networkVolume, sizeGb: 50 } }).ok, false);
+    } finally { fs.rmSync(h.root, { recursive: true, force: true }); }
+});
 
 function runtimeFixture() {
     const registry = new Map();
@@ -6821,7 +7091,7 @@ test("V142 HuMo remote lifecycle is wired but paid execution remains fail-closed
         assert.equal(lifecycle.lifecycle.kind, "humo");
         assert.equal(lifecycle.lifecycle.cacheRoot, "/workspace/jarvis-v142/cache/humo-1.7b");
         assert.equal(lifecycle.lifecycle.repositoryDir, "/workspace/jarvis-v142/cache/humo-1.7b/HuMo");
-        assert.equal(lifecycle.lifecycle.venvDir, "/workspace/jarvis-v142/cache/humo-1.7b/venv");
+        assert.equal(lifecycle.lifecycle.venvDir, "/opt/jarvis-v142/humo-venv");
         assert.equal(lifecycle.lifecycle.provisionImageTag, "pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel");
         assert.deepEqual(lifecycle.lifecycle.runnerEnvironment, [
             "JARVIS_HUMO_REPO_DIR",
@@ -7141,38 +7411,15 @@ test("V142 HuMo paid identity probe authority is mission scoped and never opens 
     assert.match(bridgeSource, /HUMO_IDENTITY_PROBE_COMPLETED_AND_RELEASED/);
 });
 
-test("V142 HuMo asset bootstrap disables Xet and serializes pinned resumable downloads", () => {
-    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
-    assert.match(engineSource, /HF_HUB_DISABLE_XET=1/);
-    assert.match(engineSource, /HF_HUB_DOWNLOAD_TIMEOUT=60/);
-    assert.match(engineSource, /--max-workers 1/);
-    assert.match(engineSource, /37ec512624d61f7aa208f7ea8140a131f93afc9a/);
-    for (const stage of ["HUMO_ASSETS_HUMO", "HUMO_ASSETS_WAN21", "HUMO_ASSETS_WHISPER", "HUMO_ASSETS_VERIFY"]) {
-        assert.match(engineSource, new RegExp(stage));
-    }
-    assert.match(engineSource, /bootstrapDiagnostics: state\.bootstrapDiagnostics/);
-    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-    assert.match(bridgeSource, /bootstrapDiagnostics: final\?\.remoteWorker\?\.bootstrapDiagnostics/);
-    assert.match(bridgeSource, /HUMO_IDENTITY_PROBE_FAILED_AND_RELEASED/);
-    assert.match(bridgeSource, /terminationVerified: releaseReceipt\?\.terminationVerified === true/);
-});
-
-test("V142 HuMo bootstrap downloads only the exact 1.7B identity runtime assets", () => {
-    const source = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
-    assert.equal(source.includes("humo_hf_download ${authority.modelRepository} --revision ${authority.modelRevision}"), false);
-    assert.equal(source.includes("humo_hf_download Wan-AI/Wan2.1-T2V-1.3B --revision 37ec512624d61f7aa208f7ea8140a131f93afc9a"), false);
-    assert.equal(source.includes("humo_hf_download ${authority.whisper.repository} --revision ${authority.whisper.revision}"), false);
-    assert.equal(source.includes("${authority.checkpoint.path} ${authority.zeroVae.path} ${authority.audioSeparator.path}"), true);
-    assert.equal(source.includes("Wan2.1_VAE.pth models_t5_umt5-xxl-enc-bf16.pth"), true);
-    assert.equal(source.includes("google/umt5-xxl/special_tokens_map.json"), true);
-    assert.equal(source.includes("google/umt5-xxl/spiece.model"), true);
-    assert.equal(source.includes("google/umt5-xxl/tokenizer.json"), true);
-    assert.equal(source.includes("google/umt5-xxl/tokenizer_config.json"), true);
-    assert.equal(source.includes("${authority.whisper.model.path} ${authority.whisper.requiredMetadata.join(\" \")}"), true);
-    assert.match(source, /test ! -e .*HuMo-17B/);
-    assert.match(source, /test ! -e .*diffusion_pytorch_model\.safetensors/);
-    assert.equal(source.includes("HF_HUB_DISABLE_XET=1"), true);
-    assert.equal(source.includes("--max-workers 1"), true);
+test("V142 HuMo GPU bootstrap contains verification only and CPU owns resumable transfers", () => {
+    const source=fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url),"utf8");
+    const gpu=source.slice(source.indexOf("    function writeHuMoRuntimeBootstrapFile("),source.indexOf("    function writeRemoteRuntimeBootstrapFile("));
+    assert.doesNotMatch(gpu,/hf.*download|hf_hub_download|HF_HUB_DISABLE_XET|--max-workers/);
+    assert.match(gpu,/persistentModelEvidenceProgram/);
+    assert.match(gpu,/model-integrity.json/);
+    assert.equal(RUNPOD_HUMO_CACHE_BASE.requiredFiles.length,12);
+    assert.ok(RUNPOD_HUMO_CACHE_BASE.totalBytes>22e9);
+    assert.equal(RUNPOD_HUMO_CACHE_BASE.persistentVenv,false);
 });
 
 test("V142 HuMo inference is bound to the certified venv Python instead of global torchrun", () => {
@@ -7188,7 +7435,7 @@ test("V142 HuMo inference is bound to the certified venv Python instead of globa
     assert.equal(runner.includes("2.6.3"), true);
 });
 
-test("V142 HuMo probes forbid persistent RunPod storage and use temporary container disk", () => {
+test("V142 HuMo runtime certification remains ephemeral while identity CLI requires a persistent cache", () => {
     const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
     assert.equal(engineSource.includes("persistentVolumeDisabled = isHuMoRemoteJob(job)"), true);
     assert.equal(engineSource.includes("persistentVolumeDisabled ? 0 : volumeInGb"), true);
@@ -7197,6 +7444,9 @@ test("V142 HuMo probes forbid persistent RunPod storage and use temporary contai
     assert.equal(bridgeSource.includes("JARVIS_RUNPOD_CONTAINER_DISK_GB: \"60\""), true);
     assert.equal(bridgeSource.includes("JARVIS_RUNPOD_VOLUME_DISK_GB: \"0\""), true);
     assert.equal(bridgeSource.includes("delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID"), true);
+    const identityCli = bridgeSource.slice(bridgeSource.indexOf("export async function runHuMoIdentityProbeCli"));
+    assert.equal(identityCli.includes("delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID"), false);
+    assert.match(identityCli, /RUNPOD_HUMO_CACHE_REQUIRED/);
 });
 
 test("V142 HuMo single GPU inference follows upstream rendezvous contract and preserves child errors", () => {

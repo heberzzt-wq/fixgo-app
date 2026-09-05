@@ -8023,7 +8023,7 @@ export async function runHuMoIdentityProbeCli({
         JARVIS_HUMO_IDENTITY_PROBE_AUTHORIZATION_ID: authorizationId,
         JARVIS_HUMO_IDENTITY_PROBE_CHARACTER_ID: characterId
     };
-    delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID;
+    if (!runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID) throw new Error("RUNPOD_HUMO_CACHE_REQUIRED");
     const credential = resolveRunpodCredentialEnvironment({ env: runtimeEnv });
     if (credential.credentialLoaded !== true) {
         throw new Error(credential.credentialError || "RUNPOD_API_KEY_REQUIRED");

@@ -576,3 +576,87 @@ Therefore, on this laptop:
 - no local generative MP4 is claimed on this host;
 - controlled tests exercise the worker contract with a fixture, clearly not as
   creative or human acceptance evidence.
+
+## HuMo persistent cache contract (2026-09-05)
+
+`RUNPOD_HUMO_CACHE_BASE` in `jarvis-local-video-engine.js` is the asset authority.
+It extends the existing RunPod adapter, CPU staging precheck, model staging bootstrap,
+replica normalization and cleanup. There is no additional video backend or workflow.
+The 12 required assets occupy 22,095,109,502 bytes. UMT5/tokenizer hashes reuse the Wan
+authority; HuMo, Wan2.1 and Whisper revisions are immutable. The volume namespace is
+`/workspace/jarvis-v142/cache/humo-1.7b` (HuMo source, weights, HF/Xet cache, partials
+and `model-manifest.json`). The minimum STANDARD volume is 64 GB: room for two
+asset sets during repair, a bounded 10 GB Xet cache and roughly 8 GiB of reserve.
+
+Runtime certification remains ephemeral and skips models. Identity inference requires
+an existing persistent cache; `RUNPOD_HUMO_CACHE_REQUIRED` prevents GPU creation when
+it is absent. Set the exact volume ID, datacenter and retention authority through
+`JARVIS_RUNPOD_NETWORK_VOLUME_ID`, `JARVIS_RUNPOD_DATACENTER_ID` and
+`JARVIS_RUNPOD_RETAIN_NETWORK_VOLUME_AUTHORIZED=true`. No volume discovery by name or
+silent substitution is allowed. Retention authority is required before attaching a
+volume; cleanup deletes the Pod, never a user's existing volume.
+
+Before GPU provision, the adapter reads the volume from RunPod and validates its ID,
+type, datacenter and capacity. `inspectPersistentModelCache()` then reads its remote
+manifest and streams **every asset** through SHA256 over RunPod S3. It does not save
+these reads to local disk. This deliberately spends local/network time, not GPU
+time, to reject corruption before rental; it transfers about 22.1 GB per preflight.
+The remote manifest is reread to detect a concurrent staging change. S3 credentials
+are separate from the RunPod API key and are supplied only in environment variables
+`JARVIS_RUNPOD_S3_ACCESS_KEY_ID` / `JARVIS_RUNPOD_S3_SECRET_ACCESS_KEY`; neither is
+persisted in evidence or included in Pod environment variables. The selected
+datacenter must support [RunPod S3](https://docs.runpod.io/storage/s3-api).
+
+`inspectCpuStagingPrecheck()` supplies the existing CPU payload/startup contract,
+now using the configured HuMo datacenter and capacity. It remains read-only.
+Provisioning the reviewed CPU payload is a separate, explicitly authorized action.
+`stageCpuModelCache({state, health, previousHealth})` completes that authorized
+lease: it requires `JARVIS_RUNPOD_CPU_STAGING_AUTHORIZED=true`, the exact
+`JARVIS_RUNPOD_CPU_STAGING_POD_ID`, an explicit hard budget, the previously observed
+stable SSH runtime evidence and the lease's durable operation/key/endpoint fields.
+It checks the live Pod is CPU, its image and mount identity, stages the models,
+reads the resulting manifest, and always invokes the existing verified Pod release
+in `finally`. Its result cannot be successful without `terminationVerified=true`.
+No CPU/GPU/volume is created by this staging method or its precheck.
+
+The CPU bootstrap runs only system/model tools. Downloads use pinned
+`huggingface_hub==0.36.0`, `hf-xet==1.1.10`, two bounded workers and persistent
+HF/Xet paths. A verified file is reused; downloads live under a revision-specific
+`.partial` directory, and size, SHA256 and HF revision metadata are checked before
+`os.replace` promotes it. The manifest is written atomically only after the complete
+set and clean pinned source checkout pass. Partials are retained on failure.
+
+The transport choice follows inspected upstream code, not a throughput claim:
+[Hub 0.36.0](https://github.com/huggingface/huggingface_hub/blob/v0.36.0/src/huggingface_hub/file_download.py)
+preserves resumable incomplete files (HTTP uses Range; Xet can reuse persistent
+chunks). `force_download` is never enabled, and legacy `hf_transfer` is unset because
+that implementation deletes incomplete files when it is enabled. Xet stays enabled.
+[Hub 1.30.0](https://github.com/huggingface/huggingface_hub/blob/v1.30.0/src/huggingface_hub/file_download.py)
+instead creates unique temporary files and removes them on failure, so it is not
+used for staging. A 120-second inactivity timeout tolerates slow CPU/storage reads;
+it is not a promise of improved download speed. Partial reusability still depends
+on the transport/server honoring resume, and all completed bytes must pass SHA256.
+
+Cache state meanings:
+
+| State | Required evidence |
+| --- | --- |
+| CACHE_MISS | No complete verified persistent asset set |
+| CACHE_POPULATING | CPU is staging; incomplete artifacts remain reusable |
+| CACHE_MODEL_READY | All assets, revisions and source verified; no GPU certification |
+| CACHE_READY | Mounted asset verification plus this Pod's strict HuMo runtime |
+| CACHE_HIT | New Pod has the exact existing volume, fresh full asset verification and valid current runtime |
+
+GPU bootstrap has no model download path. It verifies the mounted files using the
+same authority and writes an operation-bound integrity receipt. Poll checks this
+receipt and the provider's mount identity before inference. Corruption after the
+pre-rental read therefore still blocks inference and triggers ordinary cleanup.
+The runner also uses its existing offline environment. Runtime remains Python 3.11,
+Torch 2.5.1, Torch CUDA 12.4 and FlashAttention 2.6.3 on the already certified image.
+The venv is recreated under `/opt/jarvis-v142/humo-venv`, outside the volume. Apt,
+FlashAttention and requirements bootstrap still run; no unverified persisted venv
+or custom image has been introduced. Eliminating those smaller repeated costs is
+distinct from the now-forbidden repeated GPU model download.
+
+All cache tests use fixtures. No persistent volume or CPU staging has been physically
+certified by this change; creating/paying for those resources requires new authority.

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import { execFile, execFileSync, spawn } from "node:child_process";
 
 import { registerArtifact } from "./jarvis-artifact-studio.js";
@@ -73,10 +73,12 @@ const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({
     }),
     zeroVae: Object.freeze({
         path: "zero_vae_129frame.pt",
+        bytes: 13180110,
         sha256: "c458d9ea111ea1107a576183cc291daa78fffacbe280967c0a0807fed9200830"
     }),
     wan21Vae: Object.freeze({
         path: "Wan2.1_VAE.pth",
+        bytes: 507609880,
         sha256: "38071ab59bd94681c686fa51d75a1968f64e470262043be31f7a094e442fd981"
     }),
     sharedTextEncoderAuthority: "RUNPOD_WAN22_CACHE_BASE.requiredFiles",
@@ -351,6 +353,74 @@ const RUNPOD_WAN22_CACHE_BASE = Object.freeze({
         Object.freeze({ path: "models_t5_umt5-xxl-enc-bf16.pth", bytes: 11361920418, sha256: "7cace0da2b446bbbbc57d031ab6cf163a3d59b366da94e5afe36745b746fd81d" })
     ])
 });
+
+// One asset authority feeds CPU staging, pre-rental S3 verification and mounted verification.
+export const RUNPOD_HUMO_CACHE_BASE = (() => {
+    const a = RUNPOD_HUMO_IDENTITY_CANDIDATE;
+    const asset = (file, repository, revision, directory) => Object.freeze({
+        ...file, repository, revision, sourcePath: file.path, path: `${directory}/${file.path}`
+    });
+    const sharedRepository = "Wan-AI/Wan2.1-T2V-1.3B";
+    const sharedRevision = "37ec512624d61f7aa208f7ea8140a131f93afc9a";
+    const requiredFiles = Object.freeze([
+        ...[a.checkpoint, a.zeroVae, a.audioSeparator].map(file =>
+            asset(file, a.modelRepository, a.modelRevision, "weights/HuMo")),
+        ...[a.wan21Vae, ...RUNPOD_WAN22_CACHE_BASE.requiredFiles.filter(file =>
+            file.path.startsWith("google/umt5-xxl/") || file.path === "models_t5_umt5-xxl-enc-bf16.pth"
+        )].map(file => asset(file, sharedRepository, sharedRevision, "weights/Wan2.1-T2V-1.3B")),
+        ...[a.whisper.model,
+            { path: "config.json", bytes: 1250, sha256: "fc4c466fd3664826ed7b8d0b4e1a757253fccc8f7b852850f35fe95faece400c" },
+            { path: "preprocessor_config.json", bytes: 340, sha256: "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711" }
+        ].map(file => asset(file, a.whisper.repository, a.whisper.revision, "weights/whisper-large-v3"))
+    ]);
+    return Object.freeze({
+        schemaVersion: "jarvis.model-cache.v142.1", profile: "humo-1.7b-cache-v1",
+        cacheDirectory: "humo-1.7b", manifestName: "model-manifest.json",
+        modelRepository: a.modelRepository, modelRevision: a.modelRevision,
+        sourceRepository: a.sourceRepository, sourceRevision: a.sourceRevision,
+        provisionImageTag: a.remoteRuntimeBase.provisionImageTag,
+        expectedRegistryDigest: a.remoteRuntimeBase.expectedRegistryDigest,
+        // Two complete asset sets (repair/partials), 10 GB Xet cache and ~8 GiB reserve fit in 64 GB.
+        networkVolumeType: "STANDARD", minimumNetworkVolumeGb: 64,
+        requiredFiles, totalBytes: requiredFiles.reduce((sum, file) => sum + file.bytes, 0),
+        // v0.36 retains resumable .incomplete files; v1.30 deletes process-unique partials on failure.
+        // Default Xet transport, bounded concurrency for the existing 2-vCPU / 4-GB staging profile.
+        downloadTools: Object.freeze({ huggingfaceHub: "0.36.0", hfXet: "1.1.10", maxWorkers: 2 }),
+        persistentVenv: false
+    });
+})();
+
+export function validateModelCacheManifest(manifest, contract = RUNPOD_HUMO_CACHE_BASE) {
+    const identity = ["schemaVersion", "profile", "modelRepository", "modelRevision",
+        "sourceRepository", "sourceRevision", "provisionImageTag", "expectedRegistryDigest", "totalBytes"];
+    if (!manifest || identity.some(key => manifest[key] !== contract[key]) ||
+        !Number.isFinite(Date.parse(manifest.verifiedAt)) || manifest.cacheStatus !== "CACHE_MODEL_READY" ||
+        !Array.isArray(manifest.files) || manifest.files.length !== contract.requiredFiles.length) return false;
+    const files = new Map(manifest.files.map(file => [file.path, file]));
+    return files.size === contract.requiredFiles.length && contract.requiredFiles.every(expected => {
+        const observed = files.get(expected.path);
+        return observed && ["bytes", "sha256", "repository", "revision", "sourcePath"].every(key =>
+            observed[key] === expected[key]);
+    });
+}
+
+export async function verifyModelCacheContents({ manifest, readAsset, contract = RUNPOD_HUMO_CACHE_BASE }) {
+    if (!validateModelCacheManifest(manifest, contract)) throw new Error("RUNPOD_MODEL_MANIFEST_INVALID");
+    for (const expected of contract.requiredFiles) {
+        const response = await readAsset(expected.path);
+        if (!response?.ok || !response.body) throw new Error("RUNPOD_MODEL_ASSET_MISSING");
+        const hash = createHash("sha256");
+        let bytes = 0;
+        for await (const chunk of response.body) {
+            bytes += chunk.length;
+            if (bytes > expected.bytes) throw new Error("RUNPOD_MODEL_ASSET_SIZE_MISMATCH");
+            hash.update(chunk);
+        }
+        if (bytes !== expected.bytes) throw new Error("RUNPOD_MODEL_ASSET_SIZE_MISMATCH");
+        if (hash.digest("hex") !== expected.sha256) throw new Error("RUNPOD_MODEL_ASSET_SHA256_MISMATCH");
+    }
+    return { cacheStatus: "CACHE_MODEL_READY", shaVerified: true, totalBytes: contract.totalBytes };
+}
 
 export const RUNPOD_WAN22_GPU_PROFILES = Object.freeze({
     "NVIDIA L40S": Object.freeze({
@@ -1756,6 +1826,7 @@ export function createRunpodRemoteVideoAdapter({
     const containerDiskInGb = Math.ceil(runpodPositiveNumber(env.JARVIS_RUNPOD_CONTAINER_DISK_GB, 30));
     const volumeInGb = Math.ceil(runpodPositiveNumber(env.JARVIS_RUNPOD_VOLUME_DISK_GB, 100));
     const networkVolumeId = String(env.JARVIS_RUNPOD_NETWORK_VOLUME_ID || "").trim();
+    const retainNetworkVolumeAuthorized = booleanValue(env.JARVIS_RUNPOD_RETAIN_NETWORK_VOLUME_AUTHORIZED, false);
     const runtimeCertificationOnly = booleanValue(
         env.JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY,
         false
@@ -1860,9 +1931,10 @@ export function createRunpodRemoteVideoAdapter({
             wan21Dir: `${weightsRoot}/Wan2.1-T2V-1.3B`,
             whisperDir: `${weightsRoot}/whisper-large-v3`,
             separatorFile: `${weightsRoot}/HuMo/${RUNPOD_HUMO_IDENTITY_CANDIDATE.audioSeparator.path}`,
-            venvDir: `${cacheRoot}/venv`,
+            venvDir: "/opt/jarvis-v142/humo-venv",
             runtimePreflightFile: `${cacheRoot}/runtime-preflight.json`,
             profile: {
+                ...RUNPOD_HUMO_CACHE_BASE,
                 profile: "humo-1.7b-identity",
                 provisionImageTag: runtime.provisionImageTag,
                 expectedRegistryDigest: runtime.expectedRegistryDigest,
@@ -2112,8 +2184,12 @@ export function createRunpodRemoteVideoAdapter({
                 ) {
                     throw new Error("RUNPOD_HUMO_JOB_CONTRACT_INVALID");
                 }
-                if (networkVolumeId) {
+                if (networkVolumeId && runtimeCertificationOnly) {
                     throw new Error("RUNPOD_HUMO_NETWORK_VOLUME_CACHE_UNCERTIFIED");
+                }
+                if (!runtimeCertificationOnly && !networkVolumeId) throw new Error("RUNPOD_HUMO_CACHE_REQUIRED");
+                if (!runtimeCertificationOnly && !retainNetworkVolumeAuthorized) {
+                    throw new Error("RUNPOD_NETWORK_VOLUME_RETENTION_AUTHORITY_REQUIRED");
                 }
                 if (!runtimeCertificationOnly && (
                     shots.length !== 1 ||
@@ -2475,6 +2551,20 @@ export function createRunpodRemoteVideoAdapter({
     }
 
     function normalizedCacheReplica(evidence) {
+        if (configuredRemoteBackend() === HUMO_IDENTITY_PROBE.backend) {
+            const manifest = evidence?.manifest || evidence?.modelManifest;
+            const id = String(evidence?.networkVolumeId || evidence?.id || "");
+            const dc = String(evidence?.dataCenterId || evidence?.networkVolumeDataCenterId || "");
+            if (!id) return null;
+            if (!validateModelCacheManifest(manifest) || manifest.networkVolumeId !== id || manifest.dataCenterId !== dc ||
+                evidence.networkVolumeRetained !== true || evidence.networkVolumeRetentionAuthorized !== true) {
+                return { invalid: true, networkVolumeId: id };
+            }
+            return { networkVolumeId: id, dataCenterId: dc, sizeGb: Number(evidence.networkVolumeSizeGb || evidence.sizeGb),
+                type: RUNPOD_HUMO_CACHE_BASE.networkVolumeType, cacheStatus: "CACHE_MODEL_READY",
+                modelRepository: manifest.modelRepository, modelRevision: manifest.modelRevision,
+                modelBytes: manifest.totalBytes, requiredFilesBytes: manifest.totalBytes, shaVerified: true };
+        }
         const cacheStatus = String(evidence?.cacheStatus || "").trim().toUpperCase();
         if (!["CACHE_MODEL_READY", "CACHE_READY", "CACHE_HIT"].includes(cacheStatus)) return null;
         const networkVolumeId = String(evidence?.networkVolumeId || evidence?.id || "").trim();
@@ -3086,7 +3176,12 @@ export function createRunpodRemoteVideoAdapter({
         startupContract = RUNPOD_CPU_STAGING_PROFILE.dockerStartCmd
     } = {}) {
         try {
-            assertZeroCostConfiguration(job);
+            const humo = configuredRemoteBackend() === HUMO_IDENTITY_PROBE.backend;
+            const stagingProfile = { ...RUNPOD_CPU_STAGING_PROFILE,
+                dataCenterId: humo ? runtimeCertificationDataCenterId : RUNPOD_CPU_STAGING_PROFILE.dataCenterId };
+            const modelProfile = humo ? RUNPOD_HUMO_CACHE_BASE : cacheContract;
+            assertZeroCostConfiguration(humo ? null : job);
+            if (humo && !retainNetworkVolumeAuthorized) throw new Error("RUNPOD_NETWORK_VOLUME_RETENTION_AUTHORITY_REQUIRED");
             const verifiedRegistry = normalizedRegistryVerification(
                 RUNPOD_CPU_STAGING_PROFILE,
                 registryVerification
@@ -3111,8 +3206,8 @@ export function createRunpodRemoteVideoAdapter({
             if (sshKeyRegistered !== true) {
                 throw new Error("RUNPOD_CPU_SSH_KEY_REGISTERED_REQUIRED");
             }
-            const plannedVolume = normalizedPlannedNetworkVolume(networkVolume);
-            if (!plannedVolume || plannedVolume.dataCenterId !== RUNPOD_CPU_STAGING_PROFILE.dataCenterId) {
+            const plannedVolume = normalizedPlannedNetworkVolume(networkVolume, networkVolumeId, modelProfile);
+            if (!plannedVolume || plannedVolume.dataCenterId !== stagingProfile.dataCenterId) {
                 throw new Error("RUNPOD_CPU_STAGING_NETWORK_VOLUME_REQUIRED");
             }
             const flavor = String(inventory?.cpuFlavorId || "");
@@ -3123,7 +3218,7 @@ export function createRunpodRemoteVideoAdapter({
             const stockStatus = inventory?.stockStatus ?? null;
             if (
                 flavor !== RUNPOD_CPU_STAGING_PROFILE.cpuFlavorId ||
-                dataCenterId !== RUNPOD_CPU_STAGING_PROFILE.dataCenterId ||
+                dataCenterId !== stagingProfile.dataCenterId ||
                 minimumVcpuAvailable !== RUNPOD_CPU_STAGING_PROFILE.minimumVcpu ||
                 !RUNPOD_CPU_STAGING_PROFILE.supportedVcpuCounts.includes(minimumVcpuAvailable) ||
                 ramMultiplier !== RUNPOD_CPU_STAGING_PROFILE.ramGbPerVcpu ||
@@ -3151,7 +3246,7 @@ export function createRunpodRemoteVideoAdapter({
                 containerDiskInGb: requestedContainerDiskGb,
                 cpuFlavorIds: [RUNPOD_CPU_STAGING_PROFILE.cpuFlavorId],
                 cpuFlavorPriority: RUNPOD_CPU_STAGING_PROFILE.cpuFlavorPriority,
-                dataCenterIds: [RUNPOD_CPU_STAGING_PROFILE.dataCenterId],
+                dataCenterIds: [stagingProfile.dataCenterId],
                 dataCenterPriority: RUNPOD_CPU_STAGING_PROFILE.dataCenterPriority,
                 dockerStartCmd: [...expectedStartCommand],
                 imageName: RUNPOD_CPU_STAGING_PROFILE.provisionImageTag,
@@ -3182,7 +3277,7 @@ export function createRunpodRemoteVideoAdapter({
                     networkVolumeStorageExcluded: true
                 },
                 cache: {
-                    profile: cacheContract.profile,
+                    profile: modelProfile.profile,
                     cpuCompletionStatus: RUNPOD_CPU_STAGING_PROFILE.cacheStatus,
                     runtimeVerificationStatus: RUNPOD_CPU_STAGING_PROFILE.runtimeStatus,
                     bootstrapPhase: RUNPOD_CPU_STAGING_PROFILE.bootstrapPhase,
@@ -3205,9 +3300,9 @@ export function createRunpodRemoteVideoAdapter({
                 },
                 contract: {
                     maximumContainerDiskGb: RUNPOD_CPU_STAGING_PROFILE.maximumContainerDiskGb,
-                    dataCenterId: RUNPOD_CPU_STAGING_PROFILE.dataCenterId,
+                    dataCenterId: stagingProfile.dataCenterId,
                     networkVolumeType: RUNPOD_CPU_STAGING_PROFILE.networkVolumeType,
-                    minimumNetworkVolumeGb: RUNPOD_CPU_STAGING_PROFILE.minimumNetworkVolumeGb,
+                    minimumNetworkVolumeGb: modelProfile.minimumNetworkVolumeGb,
                     supportedVcpuCounts: [...RUNPOD_CPU_STAGING_PROFILE.supportedVcpuCounts],
                     ramGbPerVcpu: RUNPOD_CPU_STAGING_PROFILE.ramGbPerVcpu,
                     provisionImageTag: RUNPOD_CPU_STAGING_PROFILE.provisionImageTag,
@@ -3739,6 +3834,8 @@ export function createRunpodRemoteVideoAdapter({
 
     async function resolveNetworkVolume(operationId = null) {
         if (!networkVolumeId) return null;
+        const humo = configuredRemoteBackend() === HUMO_IDENTITY_PROBE.backend;
+        const profile = humo ? RUNPOD_HUMO_CACHE_BASE : cacheContract;
         const volume = await apiRequest(
             `${apiBase}/network-volumes/${encodeURIComponent(networkVolumeId)}`,
             { method: "GET" },
@@ -3747,12 +3844,12 @@ export function createRunpodRemoteVideoAdapter({
             operationId
         );
         const id = String(volume?.id || "").trim();
-        const dataCenterId = String(volume?.dataCenter || volume?.dataCenterId || volume?.dataCenter?.id || "").trim();
+        const dataCenterId = String(volume?.dataCenterId || volume?.dataCenter?.id || volume?.dataCenter || "").trim();
         const sizeGb = Number(volume?.size || volume?.sizeInGb || volume?.sizeGb || 0);
         if (id !== networkVolumeId || !dataCenterId || !Number.isFinite(sizeGb)) {
             throw new Error("RUNPOD_NETWORK_VOLUME_RESPONSE_INVALID");
         }
-        if (sizeGb < cacheContract.minimumNetworkVolumeGb) {
+        if (sizeGb < profile.minimumNetworkVolumeGb) {
             throw new Error("RUNPOD_NETWORK_VOLUME_CAPACITY_INSUFFICIENT");
         }
         const dataCenter = await apiRequest(
@@ -3768,10 +3865,169 @@ export function createRunpodRemoteVideoAdapter({
         if (String(dataCenter?.id || "").trim() !== dataCenterId || !networkVolumeTypes) {
             throw new Error("RUNPOD_NETWORK_VOLUME_DATACENTER_RESPONSE_INVALID");
         }
-        if (!networkVolumeTypes.includes(cacheContract.networkVolumeType)) {
+        if (!networkVolumeTypes.includes(profile.networkVolumeType)) {
             throw new Error("RUNPOD_NETWORK_VOLUME_TYPE_NOT_APPROVED");
         }
-        return { id, dataCenterId, sizeGb, type: cacheContract.networkVolumeType };
+        const type = String(volume?.type || volume?.volumeType || "").toUpperCase();
+        // A datacenter supporting STANDARD does not prove that this particular volume is STANDARD.
+        if (humo && type !== profile.networkVolumeType) throw new Error("RUNPOD_NETWORK_VOLUME_TYPE_NOT_APPROVED");
+        if (humo && (!runtimeCertificationDataCenterId || dataCenterId !== runtimeCertificationDataCenterId)) {
+            throw new Error("RUNPOD_NETWORK_VOLUME_DATACENTER_MISMATCH");
+        }
+        return { id, dataCenterId, sizeGb, type: type || profile.networkVolumeType };
+    }
+
+    // Runpod S3 maps /workspace to the volume bucket. GET only; never stage weights on a GPU.
+    // https://docs.runpod.io/storage/s3-api (region is the datacenter ID, path-style addressing).
+    async function readNetworkVolumeAsset(volume, key) {
+        const accessKey = String(env.JARVIS_RUNPOD_S3_ACCESS_KEY_ID || "");
+        const secret = String(env.JARVIS_RUNPOD_S3_SECRET_ACCESS_KEY || "");
+        if (!accessKey || !secret) throw new Error("RUNPOD_CACHE_S3_CREDENTIALS_REQUIRED");
+        if (!/^[A-Z0-9-]+$/.test(volume.dataCenterId) || !/^[a-zA-Z0-9_-]+$/.test(volume.id)) {
+            throw new Error("RUNPOD_NETWORK_VOLUME_RESPONSE_INVALID");
+        }
+        const host = `s3api-${volume.dataCenterId.toLowerCase()}.runpod.io`;
+        const uri = `/${volume.id}/${key.split("/").map(encodeURIComponent).join("/")}`;
+        const date = now().toISOString().replace(/[:-]|\.\d{3}/g, "");
+        const day = date.slice(0, 8);
+        const sha = value => createHash("sha256").update(value).digest("hex");
+        const hmac = (key, value) => createHmac("sha256", key).update(value).digest();
+        const empty = sha("");
+        const signedHeaders = "host;x-amz-content-sha256;x-amz-date";
+        const canonicalHeaders = `host:${host}\nx-amz-content-sha256:${empty}\nx-amz-date:${date}\n`;
+        const scope = `${day}/${volume.dataCenterId}/s3/aws4_request`;
+        const canonical = `GET\n${uri}\n\n${canonicalHeaders}\n${signedHeaders}\n${empty}`;
+        const signingKey = hmac(hmac(hmac(hmac(`AWS4${secret}`, day), volume.dataCenterId), "s3"), "aws4_request");
+        const signature = hmac(signingKey, `AWS4-HMAC-SHA256\n${date}\n${scope}\n${sha(canonical)}`).toString("hex");
+        return fetchImpl(`https://${host}${uri}`, {
+            method: "GET", redirect: "error", signal: AbortSignal.timeout(30 * 60 * 1000),
+            headers: { "x-amz-content-sha256": empty, "x-amz-date": date,
+                Authorization: `AWS4-HMAC-SHA256 Credential=${accessKey}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}` }
+        });
+    }
+
+    async function inspectPersistentModelCache({ operationId = null } = {}) {
+        if (!networkVolumeId) throw new Error("RUNPOD_HUMO_CACHE_REQUIRED");
+        if (!retainNetworkVolumeAuthorized) throw new Error("RUNPOD_NETWORK_VOLUME_RETENTION_AUTHORITY_REQUIRED");
+        const volume = await resolveNetworkVolume(operationId);
+        const prefix = `jarvis-v142/cache/${RUNPOD_HUMO_CACHE_BASE.cacheDirectory}`;
+        const readManifest = async () => {
+            const response = await readNetworkVolumeAsset(volume, `${prefix}/model-manifest.json`);
+            if (!response.ok || !response.body) throw new Error("RUNPOD_HUMO_CACHE_REQUIRED");
+            const chunks = []; let bytes = 0;
+            for await (const chunk of response.body) {
+                bytes += chunk.length;
+                if (bytes > 128 * 1024) throw new Error("RUNPOD_MODEL_MANIFEST_INVALID");
+                chunks.push(Buffer.from(chunk));
+            }
+            return Buffer.concat(chunks).toString("utf8");
+        };
+        const raw = await readManifest();
+        let manifest;
+        try { manifest = JSON.parse(raw); } catch { throw new Error("RUNPOD_MODEL_MANIFEST_INVALID"); }
+        if (manifest.networkVolumeId !== volume.id || manifest.dataCenterId !== volume.dataCenterId) {
+            throw new Error("RUNPOD_CACHE_VOLUME_IDENTITY_MISMATCH");
+        }
+        const integrity = await verifyModelCacheContents({ manifest,
+            readAsset: key => readNetworkVolumeAsset(volume, `${prefix}/${key}`) });
+        if (await readManifest() !== raw) throw new Error("RUNPOD_CACHE_CHANGED_DURING_VERIFICATION");
+        return { ...integrity, volume, manifest, verifiedAt: now().toISOString(),
+            verification: "live_runpod_api_and_s3_sha256", inferenceStarted: false };
+    }
+
+    function assertPodVolumeIdentity(pod, volume) {
+        const mounts = Array.isArray(pod?.mounts?.network) ? pod.mounts.network
+            : (Array.isArray(pod?.mounts) ? pod.mounts : []);
+        const mounted = mounts.find(item => (item.mountPath || item.path) === "/workspace");
+        const id = String(mounted?.volumeId || mounted?.networkVolumeId || pod?.networkVolumeId || pod?.networkVolume?.id || "");
+        const dc = String(pod?.dataCenterId || pod?.machine?.dataCenterId || pod?.dataCenter?.id || "");
+        if (!volume || id !== volume.id || dc !== volume.dataCenterId ||
+            (pod?.mounts && (!mounted || mounts.length !== 1)) ||
+            (pod?.networkVolumeId && pod.networkVolumeId !== id)) {
+            throw new Error("RUNPOD_CACHE_VOLUME_IDENTITY_MISMATCH");
+        }
+    }
+
+    // Completes an explicitly authorized CPU lease provisioned from inspectCpuStagingPrecheck().payload.
+    // Provisioning remains a separate financial action; this method never creates or substitutes a Pod/volume.
+    async function stageCpuModelCache({ state, health, previousHealth } = {}) {
+        if (!booleanValue(env.JARVIS_RUNPOD_CPU_STAGING_AUTHORIZED, false) ||
+            !state?.podId || state.podId !== env.JARVIS_RUNPOD_CPU_STAGING_POD_ID ||
+            configuredRemoteBackend() !== HUMO_IDENTITY_PROBE.backend) {
+            throw new Error("RUNPOD_CPU_STAGING_AUTHORITY_REQUIRED");
+        }
+        assertProviderConfigured();
+        if (!retainNetworkVolumeAuthorized) throw new Error("RUNPOD_NETWORK_VOLUME_RETENTION_AUTHORITY_REQUIRED");
+        const file = stateFile(state.operationId);
+        state = { ...state, runtimeKind: "humo_cpu_staging", gpuTypeId: null,
+            networkVolumeId, networkVolumeRetentionAuthorized: true, inferenceStarted: false,
+            cacheStatus: "CACHE_MISS", hardBudgetUsd, budgetStopRatio };
+        atomicJsonWrite(file, state);
+        let result;
+        try {
+            assertZeroCostConfiguration(null);
+            if (!hardBudgetExplicit) throw new Error("RUNPOD_HARD_BUDGET_REQUIRED");
+            const volume = await resolveNetworkVolume(state.operationId);
+            const pod = await apiRequest(`${apiBase}/pods/${encodeURIComponent(state.podId)}`,
+                { method: "GET" }, [200], "cpu_staging_pod", state.operationId);
+            const cpuType = String(pod.computeType || pod.type || (pod.cpu ? "CPU" : "")).toUpperCase();
+            if (pod.id !== state.podId || !pod.cpu || cpuType !== "CPU" ||
+                String(pod.imageName || pod.image) !== RUNPOD_CPU_STAGING_PROFILE.provisionImageTag || pod.gpu) {
+                throw new Error("RUNPOD_CPU_STAGING_POD_IDENTITY_MISMATCH");
+            }
+            if (pod.cpu && (pod.cpu.id !== RUNPOD_CPU_STAGING_PROFILE.cpuFlavorId ||
+                Number(pod.cpu.vcpuCount) !== RUNPOD_CPU_STAGING_PROFILE.minimumVcpu ||
+                !(Number(pod.cpu.memory) >= RUNPOD_CPU_STAGING_PROFILE.ramGb))) {
+                throw new Error("RUNPOD_CPU_STAGING_POD_IDENTITY_MISMATCH");
+            }
+            assertPodVolumeIdentity(pod, volume);
+            const runtime = inspectCpuStagingRuntimeIdentity({ health, previousHealth });
+            if (!runtime.cacheWriteAuthorized) throw new Error(runtime.status);
+            const port = (pod.runtime?.ports || []).find(item => Number(item.private ?? item.privatePort) === 22);
+            const providerHost = String(port?.ip || pod.publicIp || "");
+            const providerPort = Number(port?.public ?? port?.publicPort ?? pod.portMappings?.["22"] ?? 0);
+            if (String(pod.status || pod.desiredStatus) !== "RUNNING" || !providerHost || !providerPort ||
+                providerHost !== state.publicIp || providerPort !== Number(state.sshPort) ||
+                health.sshEndpoint?.host !== state.publicIp || Number(health.sshEndpoint?.port) !== Number(state.sshPort)) {
+                throw new Error("RUNPOD_CPU_SSH_ENDPOINT_IDENTITY_MISMATCH");
+            }
+            const rate = Number(pod.cost ?? pod.costPerHr);
+            if (!(rate > 0) || rate > configuredTotalHourlyRateUsd || !Number.isFinite(Date.parse(state.provisionedAt))) {
+                throw new Error("RUNPOD_CPU_STAGING_BUDGET_IDENTITY_REQUIRED");
+            }
+            const registryVerification = await resolveRegistryVerification(RUNPOD_CPU_STAGING_PROFILE);
+            state = writeState(file, state, { hourlyRateUsd: rate, registryVerification,
+                networkVolumeDataCenterId: volume.dataCenterId, networkVolumeSizeGb: volume.sizeGb });
+            let remainingSeconds = Math.floor((hardBudgetUsd * budgetStopRatio - rentalCost(state).estimatedCostUsd) * 3600 / rate);
+            if (remainingSeconds < 60) throw new Error("RUNPOD_HARD_BUDGET_EXCEEDED");
+            const bootstrap = buildCpuModelStagingBootstrap(state.operationId);
+            fs.mkdirSync(path.dirname(state.bootstrapFile), { recursive: true });
+            fs.writeFileSync(state.bootstrapFile, bootstrap);
+            await sshCommand(state, `mkdir -p ${shellSingleQuote(state.remoteOperationDir)}`);
+            await scpFile(state, state.bootstrapFile, `${state.remoteOperationDir}/cpu-staging.sh`);
+            const remoteSha = (await sshCommand(state, `sha256sum ${shellSingleQuote(`${state.remoteOperationDir}/cpu-staging.sh`)}`)).stdout.trim().split(/\s+/)[0];
+            if (remoteSha !== createHash("sha256").update(bootstrap).digest("hex")) throw new Error("RUNPOD_BOOTSTRAP_SHA256_MISMATCH");
+            remainingSeconds = Math.floor((hardBudgetUsd * budgetStopRatio - rentalCost(state).estimatedCostUsd) * 3600 / rate);
+            if (remainingSeconds < 60) throw new Error("RUNPOD_HARD_BUDGET_EXCEEDED");
+            state = writeState(file, state, { phase: "BOOTSTRAPPING", cacheStatus: "CACHE_POPULATING" });
+            // Both remote timeout and local watchdog expire before the cleanup reserve; partial files survive.
+            await sshCommand(state, `timeout ${remainingSeconds - 30}s bash ${shellSingleQuote(`${state.remoteOperationDir}/cpu-staging.sh`)} > ${shellSingleQuote(`${state.remoteOperationDir}/bootstrap.log`)} 2>&1`, remainingSeconds * 1000);
+            const raw = await sshCommand(state, `cat ${shellSingleQuote(`${remoteBase}/cache/humo-1.7b/model-manifest.json`)}`);
+            const manifest = JSON.parse(raw.stdout);
+            if (!validateModelCacheManifest(manifest) || manifest.networkVolumeId !== volume.id || manifest.dataCenterId !== volume.dataCenterId) {
+                throw new Error("RUNPOD_MODEL_MANIFEST_INVALID");
+            }
+            state = writeState(file, state, { phase: "CACHE_MODEL_READY", cacheStatus: "CACHE_MODEL_READY", modelManifest: manifest });
+            result = { ok: true, status: "CACHE_MODEL_READY", cacheStatus: "CACHE_MODEL_READY", manifest,
+                inferenceStarted: false, cudaVerified: false, flashAttentionVerified: false, physicalRuntimeCertified: false };
+        }
+        catch (error) { result = { ok: false, status: error.message, inferenceStarted: false }; }
+        finally {
+            const cleanup = await release({ ...state, remoteWorker: state });
+            result = { ...result, cleanup, terminationVerified: cleanup.terminationVerified === true };
+            if (!cleanup.ok || cleanup.terminationVerified !== true) result.ok = false;
+        }
+        return result;
     }
 
     async function terminatePod(podId, operationId, stage = "release") {
@@ -3912,7 +4168,102 @@ export function createRunpodRemoteVideoAdapter({
         });
     }
 
+    function persistentModelEvidenceProgram() {
+        return [
+            "import concurrent.futures,datetime,hashlib,json,os,pathlib,subprocess,sys,tempfile",
+            `contract=json.loads(${JSON.stringify(JSON.stringify(RUNPOD_HUMO_CACHE_BASE))})`,
+            "root=pathlib.Path(sys.argv[1]); mode=sys.argv[2]; volume_id=sys.argv[3]; dc=sys.argv[4]",
+            "manifest_path=root/'model-manifest.json'",
+            "def digest(file):",
+            "    h=hashlib.sha256()",
+            "    with open(file,'rb') as stream:",
+            "        for chunk in iter(lambda:stream.read(8*1024*1024),b''): h.update(chunk)",
+            "    return h.hexdigest()",
+            "def valid(file,item):",
+            "    return file.is_file() and not file.is_symlink() and file.resolve().is_relative_to(root.resolve()) and file.stat().st_size==item['bytes'] and digest(file)==item['sha256']",
+            "def atomic_json(target,payload):",
+            "    fd,tmp=tempfile.mkstemp(prefix='.manifest-',dir=target.parent)",
+            "    with os.fdopen(fd,'w') as stream: json.dump(payload,stream,sort_keys=True); stream.flush(); os.fsync(stream.fileno())",
+            "    os.replace(tmp,target)",
+            "assert mode in ('stage','verify') and volume_id and dc, 'CACHE_VOLUME_IDENTITY_REQUIRED'",
+            "repo=root/'HuMo'",
+            "assert subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD'],text=True).strip()==contract['sourceRevision'], 'CACHE_SOURCE_REVISION_MISMATCH'",
+            "assert not subprocess.check_output(['git','-C',str(repo),'status','--porcelain','--untracked-files=no'],text=True).strip(), 'CACHE_SOURCE_MODIFIED'",
+            "if mode=='stage':",
+            "    from huggingface_hub import hf_hub_download",
+            "    def stage(item):",
+            "        target=root/item['path']; target.parent.mkdir(parents=True,exist_ok=True)",
+            "        if valid(target,item): return",
+            "        # HF owns resumable .incomplete files; never remove those after a transport failure.",
+            "        partial=root/'.partial'/item['repository'].replace('/','--')/item['revision']",
+            "        downloaded=pathlib.Path(hf_hub_download(repo_id=item['repository'],revision=item['revision'],filename=item['sourcePath'],local_dir=str(partial)))",
+            "        metadata=partial/'.cache'/'huggingface'/'download'/(item['sourcePath']+'.metadata')",
+            "        assert metadata.read_text().splitlines()[0]==item['revision'], 'CACHE_DOWNLOAD_REVISION_MISMATCH'",
+            "        if not valid(downloaded,item):",
+            "            quarantine=downloaded.with_name(downloaded.name+'.invalid-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%f'))",
+            "            os.replace(downloaded,quarantine)",
+            "            raise RuntimeError('CACHE_DOWNLOAD_INTEGRITY_FAILED')",
+            "        os.replace(downloaded,target)",
+            "    with concurrent.futures.ThreadPoolExecutor(max_workers=contract['downloadTools']['maxWorkers']) as pool:",
+            "        list(pool.map(stage,contract['requiredFiles']))",
+            "for item in contract['requiredFiles']:",
+            "    assert valid(root/item['path'],item), 'CACHE_ASSET_INTEGRITY_FAILED:'+item['path']",
+            "identity=('schemaVersion','profile','modelRepository','modelRevision','sourceRepository','sourceRevision','provisionImageTag','expectedRegistryDigest','totalBytes')",
+            "if mode=='stage':",
+            "    result={key:contract[key] for key in identity}",
+            "    result.update(files=contract['requiredFiles'],networkVolumeId=volume_id,dataCenterId=dc,cacheStatus='CACHE_MODEL_READY',verifiedAt=datetime.datetime.now(datetime.timezone.utc).isoformat(),inferenceStarted=False)",
+            "    atomic_json(manifest_path,result)",
+            "else:",
+            "    result=json.loads(manifest_path.read_text())",
+            "    assert all(result.get(key)==contract[key] for key in identity), 'CACHE_MANIFEST_IDENTITY_INVALID'",
+            "    assert result.get('networkVolumeId')==volume_id and result.get('dataCenterId')==dc, 'CACHE_VOLUME_IDENTITY_MISMATCH'",
+            "    assert result.get('cacheStatus')=='CACHE_MODEL_READY' and result.get('files')==contract['requiredFiles'] and result.get('verifiedAt'), 'CACHE_MANIFEST_INVALID'",
+            "    result['mountedVerification']={'operationId':sys.argv[5],'shaVerified':True,'verifiedAt':datetime.datetime.now(datetime.timezone.utc).isoformat()}",
+            "print(json.dumps(result,sort_keys=True))"
+        ].join("\n");
+    }
+
     function buildCpuModelStagingBootstrap(operationId = "cpu-model-staging") {
+        const humo = configuredRemoteBackend() === HUMO_IDENTITY_PROBE.backend;
+        if (humo) {
+            if (!networkVolumeId || !runtimeCertificationDataCenterId) throw new Error("RUNPOD_HUMO_CACHE_REQUIRED");
+            if (!retainNetworkVolumeAuthorized) throw new Error("RUNPOD_NETWORK_VOLUME_RETENTION_AUTHORITY_REQUIRED");
+            const a = RUNPOD_HUMO_CACHE_BASE;
+            const root = `${remoteBase}/cache/${a.cacheDirectory}`;
+            return [
+                "#!/usr/bin/env bash", "set -eEuo pipefail",
+                `JARVIS_BOOTSTRAP_PHASE=${shellSingleQuote(RUNPOD_BOOTSTRAP_PHASES.CPU_MODEL_STAGING)}`,
+                "export DEBIAN_FRONTEND=noninteractive",
+                `CACHE_ROOT=${shellSingleQuote(root)}`,
+                `PROGRESS=${shellSingleQuote(`${remoteBase}/operations/${operationId}/bootstrap-progress.json`)}`,
+                "mkdir -p \"$(dirname \"$PROGRESS\")\"",
+                "progress() { case \"$1\" in CACHE_MISS|CACHE_POPULATING|CACHE_MODEL_READY) ;; *) return 97 ;; esac; printf '{\"stage\":\"MODEL_VALIDATION\",\"status\":\"%s\",\"cacheStatus\":\"%s\",\"inferenceStarted\":false,\"modelBytes\":0,\"at\":\"%s\"}\\n' \"$2\" \"$1\" \"$(date -u '+%Y-%m-%dT%H:%M:%SZ')\" > \"$PROGRESS.tmp\"; mv \"$PROGRESS.tmp\" \"$PROGRESS\"; }",
+                "trap 'progress CACHE_POPULATING FAILED' ERR",
+                "progress CACHE_MISS RUNNING",
+                "test -d /workspace && test -w /workspace",
+                // No ephemeral /workspace substitution: the caller also verifies provider mounts and volume identity.
+                "mountpoint -q /workspace",
+                "apt-get update -qq",
+                `apt-get install -y -qq --no-install-recommends ${RUNPOD_CPU_MODEL_STAGING_PACKAGES.join(" ")}`,
+                "mkdir -p \"$CACHE_ROOT\"",
+                "exec 9>\"$CACHE_ROOT/.staging.lock\"; flock -n 9",
+                "progress CACHE_POPULATING RUNNING",
+                "if test ! -d \"$CACHE_ROOT/HuMo/.git\"; then git clone --filter=blob:none https://github.com/Phantom-video/HuMo.git \"$CACHE_ROOT/HuMo\"; fi",
+                `git -C "$CACHE_ROOT/HuMo" fetch --depth 1 origin ${a.sourceRevision}`,
+                `git -C "$CACHE_ROOT/HuMo" checkout --detach ${a.sourceRevision}`,
+                "CPU_TOOLS_VENV=\"$CACHE_ROOT/cpu-tools-venv\"",
+                "test -x \"$CPU_TOOLS_VENV/bin/python\" || python3 -m venv \"$CPU_TOOLS_VENV\"",
+                `"$CPU_TOOLS_VENV/bin/python" -m pip install 'huggingface_hub==${a.downloadTools.huggingfaceHub}' 'hf-xet==${a.downloadTools.hfXet}'`,
+                "export HF_HOME=\"$CACHE_ROOT/.cache/huggingface\" HF_HUB_DISABLE_TELEMETRY=1",
+                "export HF_HUB_CACHE=\"$HF_HOME/hub\" HF_XET_CACHE=\"$HF_HOME/xet\"",
+                "unset HF_HUB_DISABLE_XET HF_XET_HIGH_PERFORMANCE HF_HUB_ENABLE_HF_TRANSFER",
+                "export HF_XET_CHUNK_CACHE_SIZE_BYTES=10000000000",
+                "export HF_HUB_DOWNLOAD_TIMEOUT=120",
+                `"$CPU_TOOLS_VENV/bin/python" - "$CACHE_ROOT" stage ${shellSingleQuote(networkVolumeId)} ${shellSingleQuote(runtimeCertificationDataCenterId)} <<'PY'`,
+                persistentModelEvidenceProgram(), "PY",
+                "progress CACHE_MODEL_READY READY", "exit 0", ""
+            ].join("\n");
+        }
         const cacheRoot = `${remoteBase}/cache/wan22-ti2v-5b`;
         const cpuToolsVenv = `${cacheRoot}/cpu-tools-venv`;
         const remoteRepository = `${cacheRoot}/Wan2.2`;
@@ -4022,7 +4373,7 @@ export function createRunpodRemoteVideoAdapter({
             `RUNTIME_CERTIFICATION_ONLY=${runtimeCertificationOnly ? "1" : "0"}`,
             `PROGRESS=${shellSingleQuote(`${remoteBase}/operations`)}/${path.basename(path.dirname(bootstrapFile))}/bootstrap-progress.json`,
             "mkdir -p \"$CACHE_ROOT\" \"$HUMO_WEIGHTS\" \"$WAN21_WEIGHTS\" \"$WHISPER_DIR\" \"$(dirname \"$PROGRESS\")\"",
-            "progress() { local stage=\"$1\" status=\"$2\" cache; if test \"$RUNTIME_CERTIFICATION_ONLY\" = 1; then cache=CACHE_MISS; elif test \"$status\" = READY; then cache=CACHE_READY; else cache=CACHE_POPULATING; fi; python3 - \"$PROGRESS\" \"$stage\" \"$status\" \"$cache\" <<'PY'",
+            "progress() { local stage=\"$1\" status=\"$2\" cache; if test \"$RUNTIME_CERTIFICATION_ONLY\" = 1; then cache=CACHE_MISS; elif test \"$stage\" = HUMO_RUNTIME_PREFLIGHT && test \"$status\" = READY; then cache=CACHE_READY; else cache=CACHE_MODEL_READY; fi; python3 - \"$PROGRESS\" \"$stage\" \"$status\" \"$cache\" <<'PY'",
             "import datetime,json,os,sys,tempfile",
             "target,stage,status,cache=sys.argv[1:]",
             "payload={'stage':stage,'status':status,'cacheStatus':cache,'modelBytes':0,'at':datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')}",
@@ -4036,9 +4387,11 @@ export function createRunpodRemoteVideoAdapter({
             "if test ${#missing[@]} -gt 0; then apt-get update -qq; apt-get install -y -qq git ffmpeg curl python3-venv build-essential ninja-build; fi",
             "progress SYSTEM_DEPENDENCIES READY",
             "progress HUMO_REPOSITORY RUNNING",
-            "if test ! -d \"$HUMO_REPO/.git\"; then rm -rf \"$HUMO_REPO\"; git clone --filter=blob:none https://github.com/Phantom-video/HuMo.git \"$HUMO_REPO\"; fi",
-            `git -C "$HUMO_REPO" fetch --depth 1 origin ${authority.sourceRevision}`,
-            `git -C "$HUMO_REPO" checkout --detach ${authority.sourceRevision}`,
+            "if test \"$RUNTIME_CERTIFICATION_ONLY\" = 1; then",
+            "  if test ! -d \"$HUMO_REPO/.git\"; then git clone --filter=blob:none https://github.com/Phantom-video/HuMo.git \"$HUMO_REPO\"; fi",
+            `  git -C "$HUMO_REPO" fetch --depth 1 origin ${authority.sourceRevision}`,
+            `  git -C "$HUMO_REPO" checkout --detach ${authority.sourceRevision}`,
+            "fi",
             `test "$(git -C "$HUMO_REPO" rev-parse HEAD)" = ${shellSingleQuote(authority.sourceRevision)}`,
             "progress HUMO_REPOSITORY READY",
             "progress HUMO_RUNTIME RUNNING",
@@ -4067,37 +4420,11 @@ export function createRunpodRemoteVideoAdapter({
             "if test \"$RUNTIME_CERTIFICATION_ONLY\" = 1; then",
             "  progress HUMO_ASSETS SKIPPED",
             "else",
-            "  export HF_HUB_DISABLE_XET=1",
-            "  export HF_HUB_DOWNLOAD_TIMEOUT=60",
-            "  humo_hf_download() {",
-            "    \"$VENV/bin/hf\" download \"$@\" --max-workers 1 && return 0",
-            "    sleep 5",
-            "    \"$VENV/bin/hf\" download \"$@\" --max-workers 1",
-            "  }",
-            "  progress HUMO_ASSETS_HUMO RUNNING",
-            `  humo_hf_download ${authority.modelRepository} ${authority.checkpoint.path} ${authority.zeroVae.path} ${authority.audioSeparator.path} --revision ${authority.modelRevision} --local-dir "$HUMO_WEIGHTS"`,
-            "  progress HUMO_ASSETS_HUMO READY",
-            "  progress HUMO_ASSETS_WAN21 RUNNING",
-            "  humo_hf_download Wan-AI/Wan2.1-T2V-1.3B Wan2.1_VAE.pth models_t5_umt5-xxl-enc-bf16.pth google/umt5-xxl/special_tokens_map.json google/umt5-xxl/spiece.model google/umt5-xxl/tokenizer.json google/umt5-xxl/tokenizer_config.json --revision 37ec512624d61f7aa208f7ea8140a131f93afc9a --local-dir \"$WAN21_WEIGHTS\"",
-            "  progress HUMO_ASSETS_WAN21 READY",
-            "  progress HUMO_ASSETS_WHISPER RUNNING",
-            `  humo_hf_download ${authority.whisper.repository} ${authority.whisper.model.path} ${authority.whisper.requiredMetadata.join(" ")} --revision ${authority.whisper.revision} --local-dir "$WHISPER_DIR"`,
-            "  progress HUMO_ASSETS_WHISPER READY",
             "  progress HUMO_ASSETS_VERIFY RUNNING",
-            "  test ! -e \"$HUMO_WEIGHTS/HuMo-17B\"",
-            "  test ! -e \"$WAN21_WEIGHTS/diffusion_pytorch_model.safetensors\"",
-            `  test -f "$HUMO_WEIGHTS/${authority.checkpoint.path}"`,
-            `  test -f "$HUMO_WEIGHTS/${authority.zeroVae.path}"`,
-            `  test -f "$WAN21_WEIGHTS/${authority.wan21Vae.path}"`,
-            "  test -f \"$WAN21_WEIGHTS/models_t5_umt5-xxl-enc-bf16.pth\"",
-            "  test -f \"$WAN21_WEIGHTS/google/umt5-xxl/special_tokens_map.json\"",
-            "  test -f \"$WAN21_WEIGHTS/google/umt5-xxl/spiece.model\"",
-            "  test -f \"$WAN21_WEIGHTS/google/umt5-xxl/tokenizer.json\"",
-            "  test -f \"$WAN21_WEIGHTS/google/umt5-xxl/tokenizer_config.json\"",
-            `  test -f "$WHISPER_DIR/${authority.whisper.model.path}"`,
-            "  test -f \"$WHISPER_DIR/config.json\"",
-            "  test -f \"$WHISPER_DIR/preprocessor_config.json\"",
-            `  test -f "$SEPARATOR_FILE"`,
+            "  mountpoint -q /workspace",
+            `  "$VENV/bin/python" - "$CACHE_ROOT" verify ${shellSingleQuote(networkVolumeId)} ${shellSingleQuote(runtimeCertificationDataCenterId)} ${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))} > "$(dirname "$PROGRESS")/model-integrity.json" <<'PY'`,
+            persistentModelEvidenceProgram(),
+            "PY",
             "  progress HUMO_ASSETS_VERIFY READY",
             "fi",
             "progress HUMO_RUNTIME_PREFLIGHT RUNNING",
@@ -4683,6 +5010,8 @@ export function createRunpodRemoteVideoAdapter({
         assertProviderConfigured();
         const lifecycle = remoteHuMoLifecycleContract(job);
         const launchProfile = lifecycle?.profile || cacheContract;
+        const persistentCache = lifecycle && !runtimeCertificationOnly
+            ? await inspectPersistentModelCache({ operationId: job.operationId }) : null;
         const registryVerification = await resolveRegistryVerification(launchProfile);
         const file = stateFile(job.operationId);
         if (fs.existsSync(file)) {
@@ -4693,7 +5022,7 @@ export function createRunpodRemoteVideoAdapter({
         let podId = null;
         try {
             await assertNoExistingOperationPod(job);
-            const networkVolume = await resolveNetworkVolume(job.operationId);
+            const networkVolume = persistentCache?.volume || await resolveNetworkVolume(job.operationId);
             const selectedDataCenterId = networkVolume?.dataCenterId || (
                 runtimeCertificationOnly ? runtimeCertificationDataCenterId : null
             );
@@ -4756,6 +5085,8 @@ export function createRunpodRemoteVideoAdapter({
                 maximumSpendBeforeCleanupUsd: zeroCostPrecheck.economics?.maximumSpendBeforeCleanupUsd ?? maximumSpendBeforeCleanupUsd,
                 maximumAuthorizedSeconds: zeroCostPrecheck.economics?.maximumAuthorizedSeconds ?? maximumAuthorizedSeconds,
                 networkVolumeId: networkVolume?.id || null,
+                networkVolumeRetentionAuthorized: Boolean(networkVolume && retainNetworkVolumeAuthorized),
+                persistentCacheVerification: persistentCache,
                 networkVolumeDataCenterId: networkVolume?.dataCenterId || null,
                 networkVolumeSizeGb: networkVolume?.sizeGb || null,
                 dataCenterId: selectedDataCenterId || null,
@@ -5236,6 +5567,9 @@ export function createRunpodRemoteVideoAdapter({
                     state.operationId
                 );
                 if (String(pod?.id || "") !== state.podId) throw new Error("RUNPOD_POD_IDENTITY_MISMATCH");
+                if (state.runtimeKind === "humo" && !state.runtimeCertificationOnly) {
+                    assertPodVolumeIdentity(pod, state.persistentCacheVerification?.volume);
+                }
                 if (String(pod?.status || pod?.desiredStatus || "") !== "RUNNING") {
                     return { ok: true, done: false, status: "RUNPOD_POD_STARTING", remoteWorker: runpodPublicWorker(state) };
                 }
@@ -5390,6 +5724,20 @@ export function createRunpodRemoteVideoAdapter({
                     }
                 }
                 const health = await remoteHealth(state, true);
+                if (state.runtimeKind === "humo" && !state.runtimeCertificationOnly) {
+                    if (!state.networkVolumeId || state.networkVolumeId !== networkVolumeId || !state.networkVolumeRetentionAuthorized) {
+                        throw new Error("RUNPOD_HUMO_CACHE_REQUIRED");
+                    }
+                    const mounted = JSON.parse((await sshCommand(state,
+                        `cat ${shellSingleQuote(`${state.remoteOperationDir}/model-integrity.json`)}`)).stdout);
+                    if (!validateModelCacheManifest(mounted) || mounted.networkVolumeId !== state.networkVolumeId ||
+                        mounted.dataCenterId !== state.networkVolumeDataCenterId ||
+                        mounted.mountedVerification?.operationId !== state.operationId || mounted.mountedVerification?.shaVerified !== true) {
+                        throw new Error("RUNPOD_MODEL_MANIFEST_INVALID");
+                    }
+                    state = writeState(loaded.file, state, { cacheStatus: "CACHE_HIT", modelManifest: mounted,
+                        mountedCacheVerified: true, runtimePreflightVerified: true });
+                }
                 if (state.runtimeCertificationOnly === true && state.runtimeKind === "humo") {
                     const certifiedAt = now().toISOString();
                     const result = {
@@ -5822,6 +6170,9 @@ export function createRunpodRemoteVideoAdapter({
         inspectLiveZeroCostPrecheck,
         inspectCpuStagingPrecheck,
         inspectCpuStagingRuntimeIdentity,
+        inspectPersistentModelCache,
+        buildCpuModelStagingBootstrap,
+        stageCpuModelCache,
         launch,
         poll: pollRemote,
         release
