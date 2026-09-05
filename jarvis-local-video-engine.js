@@ -110,13 +110,16 @@ const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({
     }),
     remoteRuntimeBase: Object.freeze({
         registry: "registry-1.docker.io",
-        repository: "runpod/pytorch",
-        tag: "0.7.1-dev-ubuntu2204-cu1251-torch251",
-        provisionImageTag: "runpod/pytorch:0.7.1-dev-ubuntu2204-cu1251-torch251",
-        expectedRegistryDigest: "sha256:ccdc2fe736e83eba1b88cbef27f516458e66a9eac857862f601cf42462f822b2",
+        repository: "pytorch/pytorch",
+        tag: "2.5.1-cuda12.4-cudnn9-devel",
+        provisionImageTag: "pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel",
+        expectedRegistryDigest: "sha256:14611869895df612b7b07227d5925f30ec3cd6673bad58ce3d84ed107950e014",
+        // Official PyTorch image uses /opt/conda; the system python3 is not the runtime authority.
+        basePythonExecutable: "/opt/conda/bin/python",
         basePython: "3.11",
         baseTorch: "2.5.1",
-        baseCuda: "12.5.1",
+        baseCuda: "12.4.1",
+        baseTorchCuda: "12.4",
         bootstrapPython: "3.11",
         bootstrapTorch: "2.5.1",
         bootstrapTorchCuda: "12.4",
@@ -1854,7 +1857,7 @@ export function createRunpodRemoteVideoAdapter({
                     operatingSystem: "ubuntu-22.04",
                     pythonVersionPrefix: runtime.basePython + ".",
                     torchVersionPrefix: runtime.baseTorch,
-                    torchCudaVersionPrefix: "12.4"
+                    torchCudaVersionPrefix: runtime.baseTorchCuda
                 },
                 registry: runtime.registry,
                 repository: runtime.repository,
@@ -2240,6 +2243,7 @@ export function createRunpodRemoteVideoAdapter({
                     basePython: runtimeBase.basePython,
                     baseTorch: runtimeBase.baseTorch,
                     baseCuda: runtimeBase.baseCuda,
+                    baseTorchCuda: runtimeBase.baseTorchCuda,
                     bootstrapPython: runtimeBase.bootstrapPython,
                     bootstrapTorch: runtimeBase.bootstrapTorch,
                     bootstrapTorchCuda: runtimeBase.bootstrapTorchCuda,
@@ -2820,6 +2824,7 @@ export function createRunpodRemoteVideoAdapter({
                 JARVIS_OBLIGATION_FINGERPRINT: obligationFingerprint(job)
             }
         };
+        if (isHuMoRemoteJob(job)) body.dockerStartCmd = ["bash", "-lc", RUNPOD_CPU_SSH_STARTUP_SCRIPT];
         if (networkVolume) {
             body.networkVolumeId = networkVolume.id;
             body.dataCenterIds = [networkVolume.dataCenterId];
@@ -3987,6 +3992,7 @@ export function createRunpodRemoteVideoAdapter({
             "set -eEuo pipefail",
             "export DEBIAN_FRONTEND=noninteractive",
             "export PIP_NO_CACHE_DIR=1",
+            `export PATH=${shellSingleQuote(path.posix.dirname(authority.remoteRuntimeBase.basePythonExecutable))}:$PATH`,
             "export HF_HUB_DISABLE_TELEMETRY=1",
             `CACHE_ROOT=${shellSingleQuote(cacheRoot)}`,
             `VENV=${shellSingleQuote(lifecycle.venvDir)}`,
@@ -4020,7 +4026,7 @@ export function createRunpodRemoteVideoAdapter({
             "progress HUMO_REPOSITORY READY",
             "progress HUMO_RUNTIME RUNNING",
             "progress HUMO_VENV RUNNING",
-            "test -x \"$VENV/bin/python\" || python3 -m venv --system-site-packages \"$VENV\"",
+            `test -x "$VENV/bin/python" || ${shellSingleQuote(authority.remoteRuntimeBase.basePythonExecutable)} -m venv --system-site-packages "$VENV"`,
             "\"$VENV/bin/python\" -m pip install --upgrade pip setuptools wheel packaging ninja 'huggingface_hub[cli]>=0.30,<1'",
             "progress HUMO_VENV READY",
             "progress HUMO_TORCH RUNNING",
@@ -4450,11 +4456,12 @@ export function createRunpodRemoteVideoAdapter({
     async function remoteHuMoHealth(state, full = false) {
         const authority = RUNPOD_HUMO_IDENTITY_CANDIDATE;
         const lifecycle = remoteHuMoLifecycleContract({ backend: HUMO_IDENTITY_PROBE.backend });
-        const python = full ? `${state.venvDir}/bin/python` : "python3";
+        const python = full ? `${state.venvDir}/bin/python` : authority.remoteRuntimeBase.basePythonExecutable;
         const command = `${shellSingleQuote(python)} -c ${shellSingleQuote(
-            "import importlib.metadata,json,os,platform,shutil,subprocess,torch; " +
+            "import importlib.metadata,json,os,platform,shutil,subprocess,sys,torch; " +
             "cuda=torch.cuda.is_available(); " +
             "d={'pythonVersion':platform.python_version(),'torchVersion':str(torch.__version__),'torchCudaVersion':str(torch.version.cuda or ''),'cuda':cuda,'gpuName':torch.cuda.get_device_name(0) if cuda else '','computeCapability':'.'.join(map(str,torch.cuda.get_device_capability(0))) if cuda else '','vramBytes':torch.cuda.get_device_properties(0).total_memory if cuda else 0,'ffmpeg':bool(shutil.which('ffmpeg')),'ffprobe':bool(shutil.which('ffprobe'))}; " +
+            "d.update({'sysExecutable':sys.executable,'torchFile':torch.__file__,'path':os.environ.get('PATH',''),'cudaImageVersion':os.environ.get('CUDA_VERSION',''),'python3Path':shutil.which('python3'),'pythonPath':shutil.which('python'),'python3RealPath':os.path.realpath(shutil.which('python3') or ''),'pythonRealPath':os.path.realpath(shutil.which('python') or ''),'condaPresent':os.path.isdir('/opt/conda'),'venvPrefix':sys.prefix,'interpreterVersions':{name:subprocess.run([shutil.which(name),'--version'],capture_output=True,text=True,timeout=5).stdout.strip() for name in ('python3','python') if shutil.which(name)}}); " +
             (full
                 ? `p=json.load(open('${lifecycle.runtimePreflightFile}',encoding='utf-8')) if os.path.isfile('${lifecycle.runtimePreflightFile}') else {}; d.update({'runner':os.path.isfile('${state.remoteOperationDir}/jarvis-local-video-wan22.py'),'humoRepository':os.path.isfile('${lifecycle.repositoryDir}/main.py'),'weights':os.path.isfile('${lifecycle.weightsDir}/${authority.checkpoint.path}'),'wan21':os.path.isfile('${lifecycle.wan21Dir}/${authority.wan21Vae.path}'),'whisper':os.path.isfile('${lifecycle.whisperDir}/${authority.whisper.model.path}'),'separator':os.path.isfile('${lifecycle.separatorFile}'),'dependencyContract':p.get('ok') is True,'pipCheck':p.get('pipCheck') is True,'flashAttentionVersion':p.get('flashAttentionVersion'),'sourceRevision':p.get('sourceRevision')}); `
                 : "") +
@@ -4465,11 +4472,13 @@ export function createRunpodRemoteVideoAdapter({
         try { health = JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1)); }
         catch { throw new Error("RUNPOD_HEALTH_RESPONSE_INVALID"); }
         const runtime = authority.remoteRuntimeBase;
+        const expectedPython = full ? runtime.bootstrapPython : runtime.basePython;
         const expectedTorch = full ? runtime.bootstrapTorch : runtime.baseTorch;
+        const expectedTorchCuda = full ? runtime.bootstrapTorchCuda : runtime.baseTorchCuda;
         const basePredicates = {
-            pythonVersion: String(health.pythonVersion || "").startsWith(runtime.basePython + "."),
+            pythonVersion: String(health.pythonVersion || "").startsWith(expectedPython + "."),
             torchVersion: String(health.torchVersion || "").startsWith(expectedTorch),
-            torchCudaVersion: String(health.torchCudaVersion || "").startsWith("12.4"),
+            torchCudaVersion: String(health.torchCudaVersion || "") === expectedTorchCuda,
             cudaAvailable: health.cuda === true,
             gpuName: String(health.gpuName || "").trim() === authority.targetGpuTypeId,
             vramObserved: Number(health.vramBytes || 0) >= 44 * RUNPOD_GIB
@@ -4605,6 +4614,7 @@ export function createRunpodRemoteVideoAdapter({
             supportPublicIp: true,
             volumeMountPath: body.volumeMountPath || "/workspace"
         };
+        if (body.dockerStartCmd) input.dockerArgs = body.dockerStartCmd.map(shellSingleQuote).join(" ");
         if (Object.hasOwn(body, "volumeInGb")) input.volumeInGb = Number(body.volumeInGb || 0);
         if (body.networkVolumeId) input.networkVolumeId = body.networkVolumeId;
         if (Array.isArray(body.dataCenterIds) && body.dataCenterIds.length === 1) {
@@ -4741,6 +4751,8 @@ export function createRunpodRemoteVideoAdapter({
                 computeCapabilityRequired: launchProfile.computeCapability,
                 expectedCacheStatus: zeroCostPrecheck.cache?.expectedStatus || "CACHE_MISS",
                 provisionImageTag: launchProfile.provisionImageTag,
+                provisionImageNameSent: body.imageName,
+                provisionDockerStartCmd: body.dockerStartCmd || null,
                 expectedRegistryDigest: launchProfile.expectedRegistryDigest,
                 runtimeIdentity: { ...launchProfile.runtimeIdentity },
                 registryVerification,

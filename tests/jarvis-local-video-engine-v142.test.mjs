@@ -410,8 +410,8 @@ function runpodPhysicalHarness({
             if (scenario === "registry-unverifiable") return mockHttpResponse(503, { error: "controlled" });
             const expectedDigest = String(url).includes("/library/ubuntu/")
                 ? RUNPOD_CPU_STAGING_PROFILE.expectedRegistryDigest
-                : String(url).includes("0.7.1-dev-ubuntu2204-cu1251-torch251")
-                    ? "sha256:ccdc2fe736e83eba1b88cbef27f516458e66a9eac857862f601cf42462f822b2"
+                : String(url).includes("2.5.1-cuda12.4-cudnn9-devel")
+                    ? "sha256:14611869895df612b7b07227d5925f30ec3cd6673bad58ce3d84ed107950e014"
                     : gpuImageProfile.expectedRegistryDigest;
             if (scenario === "registry-multiarch-platform-digest") {
                 if (String(url).includes(encodeURIComponent(expectedDigest))) {
@@ -6659,8 +6659,8 @@ test("V142 HuMo is explicit-only and fail-closed until paid identity execution a
     assert.ok(candidateStart >= 0 && candidateEnd > candidateStart);
     const candidate = source.slice(candidateStart, candidateEnd);
     assert.equal(candidate.includes("remoteRuntimeBase: Object.freeze({"), true);
-    assert.equal(candidate.includes("runpod/pytorch:0.7.1-dev-ubuntu2204-cu1251-torch251"), true);
-    assert.equal(candidate.includes("ccdc2fe736e83eba1b88cbef27f516458e66a9eac857862f601cf42462f822b2"), true);
+    assert.equal(candidate.includes("pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel"), true);
+    assert.equal(candidate.includes("14611869895df612b7b07227d5925f30ec3cd6673bad58ce3d84ed107950e014"), true);
     assert.equal(candidate.includes('bootstrapTorch: "2.5.1"'), true);
     assert.equal(candidate.includes('bootstrapFlashAttention: "2.6.3"'), true);
     assert.equal(candidate.includes("runtimePreflightCertified: false"), true);
@@ -6714,10 +6714,10 @@ test("V142 HuMo RunPod precheck is zero-cost and landscape probe does not requir
         const report = adapter.inspectHuMoZeroCostPrecheck({
             registryVerification: {
                 registry: "registry-1.docker.io",
-                repository: "runpod/pytorch",
-                tag: "0.7.1-dev-ubuntu2204-cu1251-torch251",
-                expectedDigest: "sha256:ccdc2fe736e83eba1b88cbef27f516458e66a9eac857862f601cf42462f822b2",
-                observedDigest: "sha256:ccdc2fe736e83eba1b88cbef27f516458e66a9eac857862f601cf42462f822b2",
+                repository: "pytorch/pytorch",
+                tag: "2.5.1-cuda12.4-cudnn9-devel",
+                expectedDigest: "sha256:14611869895df612b7b07227d5925f30ec3cd6673bad58ce3d84ed107950e014",
+                observedDigest: "sha256:14611869895df612b7b07227d5925f30ec3cd6673bad58ce3d84ed107950e014",
                 checkedAt: "2026-09-03T00:00:00.000Z",
                 status: "REGISTRY_DIGEST_VERIFIED"
             }
@@ -6786,10 +6786,10 @@ test("V142 HuMo remote lifecycle is wired but paid execution remains fail-closed
         });
         const registryVerification = {
             registry: "registry-1.docker.io",
-            repository: "runpod/pytorch",
-            tag: "0.7.1-dev-ubuntu2204-cu1251-torch251",
-            expectedDigest: "sha256:ccdc2fe736e83eba1b88cbef27f516458e66a9eac857862f601cf42462f822b2",
-            observedDigest: "sha256:ccdc2fe736e83eba1b88cbef27f516458e66a9eac857862f601cf42462f822b2",
+            repository: "pytorch/pytorch",
+            tag: "2.5.1-cuda12.4-cudnn9-devel",
+            expectedDigest: "sha256:14611869895df612b7b07227d5925f30ec3cd6673bad58ce3d84ed107950e014",
+            observedDigest: "sha256:14611869895df612b7b07227d5925f30ec3cd6673bad58ce3d84ed107950e014",
             checkedAt: "2026-09-03T00:00:00.000Z",
             status: "REGISTRY_DIGEST_VERIFIED"
         };
@@ -6824,7 +6824,7 @@ test("V142 HuMo remote lifecycle is wired but paid execution remains fail-closed
         assert.equal(lifecycle.lifecycle.cacheRoot, "/workspace/jarvis-v142/cache/humo-1.7b");
         assert.equal(lifecycle.lifecycle.repositoryDir, "/workspace/jarvis-v142/cache/humo-1.7b/HuMo");
         assert.equal(lifecycle.lifecycle.venvDir, "/workspace/jarvis-v142/cache/humo-1.7b/venv");
-        assert.equal(lifecycle.lifecycle.provisionImageTag, "runpod/pytorch:0.7.1-dev-ubuntu2204-cu1251-torch251");
+        assert.equal(lifecycle.lifecycle.provisionImageTag, "pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel");
         assert.deepEqual(lifecycle.lifecycle.runnerEnvironment, [
             "JARVIS_HUMO_REPO_DIR",
             "JARVIS_HUMO_WEIGHTS_DIR",
@@ -6884,7 +6884,13 @@ test("V142 HuMo remote lifecycle is wired but paid execution remains fail-closed
     }
 });
 
-test("V142 HuMo mocked runtime certification provisions polls and releases without inference", async () => {
+for (const fault of [null, ...["base", "full"].flatMap(stage => [
+    ["pythonVersion", "3.10.12"], ["torchVersion", "2.4.0"],
+    ["torchCudaVersion", "12.1"],
+    ["cuda", false], ["gpuName", "NVIDIA L40"], ["vramBytes", 40 * 1024 ** 3]
+].map(([field, value]) => ({ stage, field, value }))),
+...["flashAttentionVersion", "sourceRevision", "pipCheck", "dependencyContract"].map(field => ({ stage: "full", field, value: false }))]) {
+test("V142 HuMo strict base and bootstrap 3.11 cu124: " + (fault ? fault.stage + " rejects " + fault.field : "certifies without inference"), async () => {
     const humoSourceRevision = "845f44736e21be93aa5d8cf406b6eb01af9bff67";
     const harness = runpodPhysicalHarness({
         scenario: "humo-runtime-certification",
@@ -6906,7 +6912,8 @@ test("V142 HuMo mocked runtime certification provisions polls and releases witho
             vramBytes: 48 * 1024 ** 3,
             freeDiskGb: 100,
             ffmpeg: true,
-            ffprobe: true
+            ffprobe: true,
+            ...(fault?.stage === "base" ? { [fault.field]: fault.value } : {})
         },
         runtimeHealthOverrides: {
             operatingSystem: "ubuntu-22.04",
@@ -6931,7 +6938,8 @@ test("V142 HuMo mocked runtime certification provisions polls and releases witho
             dependencyContract: true,
             pipCheck: true,
             flashAttentionVersion: "2.6.3",
-            sourceRevision: humoSourceRevision
+            sourceRevision: humoSourceRevision,
+            ...(fault?.stage === "full" ? { [fault.field]: fault.value } : {})
         }
     });
     const job = {
@@ -6949,8 +6957,10 @@ test("V142 HuMo mocked runtime certification provisions polls and releases witho
     const launched = await harness.adapter.launch({ job });
     assert.equal(launched.remoteWorker.provider, "runpod");
     assert.equal(launched.remoteWorker.podId, "pod-l40s-v142");
-    assert.equal(harness.createdBody.imageName, "runpod/pytorch:0.7.1-dev-ubuntu2204-cu1251-torch251");
+    assert.equal(harness.createdBody.imageName, "pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel");
     assert.equal(harness.createdBody.cloudType, "SECURE");
+    assert.equal(harness.createdGraphQlInput.imageName, harness.createdBody.imageName);
+    assert.ok(harness.createdGraphQlInput.dockerArgs.includes("sshd -D -e"));
     assert.equal("dataCenterIds" in harness.createdBody, false);
     assert.deepEqual(harness.createdBody.gpuTypeIds, ["NVIDIA L40S"]);
     assert.equal("networkVolumeId" in harness.createdBody, false);
@@ -6961,9 +6971,21 @@ test("V142 HuMo mocked runtime certification provisions polls and releases witho
         certified = await harness.adapter.poll({ operation: job, resultFile });
         if (certified.done === true) break;
     }
+    if (fault) {
+        assert.equal(certified?.ok, false, JSON.stringify(certified));
+        assert.equal(harness.inferenceStarts, 0);
+        const state = JSON.parse(fs.readFileSync(path.join(harness.root, ".jarvis-artifacts", ".video-worker", "runpod", job.operationId + ".json"), "utf8"));
+        assert.ok(state.runtimePredicateFailures.includes(fault.field === "cuda" ? "cudaAvailable" : fault.field === "vramBytes" ? "vramObserved" : fault.field));
+        const released = await harness.adapter.release({ ...job, remoteWorker: launched.remoteWorker, reason: "failed_runtime_certification" });
+        assert.equal(released.terminationVerified, true);
+        assert.equal(harness.deleted, true);
+        return;
+    }
     assert.equal(certified?.ok, true, JSON.stringify(certified));
     assert.equal(certified?.done, true, JSON.stringify(certified));
     assert.equal(certified?.status, "RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFIED");
+    assert.ok(harness.calls.some(call => call.kind === "ssh" && call.command.startsWith("'/opt/conda/bin/python' -c")));
+
     assert.equal(harness.bootstrapStarts, 1);
     assert.equal(harness.inferenceStarts, 0);
     const physicalReceipt = JSON.parse(fs.readFileSync(resultFile, "utf8"));
@@ -7002,6 +7024,8 @@ test("V142 HuMo mocked runtime certification provisions polls and releases witho
     assert.equal(persistedState.includes("controlled-private-key"), false);
 });
 
+}
+
 test("V142 HuMo bootstrap and poll diagnostics are backend-aware before paid execution", () => {
     const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
     assert.equal(engineSource.includes("flash_attn==2.6.3 --no-build-isolation"), false);
@@ -7027,7 +7051,7 @@ test("V142 HuMo runtime certification bypasses inference routing and is consumed
 test("V142 HuMo preinstalled base runtime requires fresh physical certification", () => {
     const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
     assert.equal(engineSource.includes('baseTorch: "2.5.1"'), true);
-    assert.equal(engineSource.includes('baseCuda: "12.5.1"'), true);
+    assert.equal(engineSource.includes('baseCuda: "12.4.1"'), true);
     assert.equal(engineSource.includes('physicalRuntimeCertified: false'), true);
     assert.equal(engineSource.includes('physicalRuntimeCertification: null'), true);
 });
@@ -7197,16 +7221,17 @@ test("V142 HuMo single GPU inference follows upstream rendezvous contract and pr
     assert.equal(runner.includes("\"torch.distributed.run\""), true);
 });
 
-test("V142 HuMo paid bootstrap reuses preinstalled Torch and invalidates stale physical certification", () => {
+test("V142 HuMo paid bootstrap explicitly reuses the official Conda Python Torch runtime and invalidates stale physical certification", () => {
     const engine = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
-    assert.equal(engine.includes("runpod/pytorch:0.7.1-dev-ubuntu2204-cu1251-torch251"), true);
-    assert.equal(engine.includes("sha256:ccdc2fe736e83eba1b88cbef27f516458e66a9eac857862f601cf42462f822b2"), true);
+    assert.equal(engine.includes("pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel"), true);
+    assert.equal(engine.includes("sha256:14611869895df612b7b07227d5925f30ec3cd6673bad58ce3d84ed107950e014"), true);
     const humoVenvStart = engine.indexOf('"progress HUMO_VENV RUNNING"');
     const humoFlashStart = engine.indexOf('"progress HUMO_FLASH_ATTENTION RUNNING"', humoVenvStart);
     assert.ok(humoVenvStart >= 0 && humoFlashStart > humoVenvStart);
     const humoPreFlash = engine.slice(humoVenvStart, humoFlashStart);
-    assert.equal(humoPreFlash.includes("python3 -m venv --system-site-packages"), true);
-    assert.equal(humoPreFlash.includes("pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1"), false);
+    assert.equal(humoPreFlash.includes("python3 -m venv --system-site-packages"), false);
+    assert.match(humoPreFlash, /basePythonExecutable/);
+    assert.match(humoPreFlash, /--system-site-packages/);
     assert.equal(humoPreFlash.includes("importlib.metadata.version('torch').startswith('2.5.1')"), true);
     assert.equal(engine.includes("runtimePreflightCertified: false"), true);
     assert.equal(engine.includes("physicalRuntimeCertified: false"), true);
