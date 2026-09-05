@@ -307,8 +307,9 @@ write(ENGINE, engine);
 
 let tests = read(TEST);
 
-tests = tests.split('\"/networkvolumes\"').join('\"/network-volumes\"');
-tests = tests.split('\"networkvolumes\"').join('\"network-volumes\"');
+tests = tests.split('"/networkvolumes"').join('"/network-volumes"');
+tests = tests.split('"/networkvolumes/"').join('"/network-volumes/"');
+tests = tests.split('"networkvolumes"').join('"network-volumes"');
 tests = tests.split("https://rest.runpod.io/v1/pods").join("https://api.runpod.io/graphql");
 
 tests = replaceExactOnce(
@@ -386,6 +387,8 @@ tests = replaceExactOnce(
 tests = tests.split('call.method === "POST" && call.url.endsWith("/pods")')
   .join('call.providerOperation === "provision"');
 tests = tests.split('call.url.endsWith("/pods") && call.method === "POST"')
+  .join('call.providerOperation === "provision"');
+tests = tests.split('call.url?.endsWith("/pods") && call.method === "POST"')
   .join('call.providerOperation === "provision"');
 
 const v2Test = `test("V142 RunPod control plane avoids deprecated REST v1 while preserving hard placement constraints", async () => {
