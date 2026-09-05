@@ -1663,7 +1663,7 @@ export function createRunpodRemoteVideoAdapter({
     now = () => new Date()
 } = {}) {
     const resolvedRoot = path.resolve(root);
-    const apiBase = String(env.JARVIS_RUNPOD_API_BASE || "https://rest.runpod.io/v1").replace(/\/$/, "");
+    const apiBase = String(env.JARVIS_RUNPOD_API_BASE || "https://api.runpod.io/v2").replace(/\/$/, "");
     const catalogApiBase = String(
         env.JARVIS_RUNPOD_CATALOG_API_BASE || "https://api.runpod.io/v2/catalog"
     ).replace(/\/$/, "");
@@ -3643,18 +3643,20 @@ export function createRunpodRemoteVideoAdapter({
 
     async function queryKnownNetworkVolumes(operationId = null) {
         const payload = await apiRequest(
-            `${apiBase}/networkvolumes`,
+            `${apiBase}/network-volumes`,
             { method: "GET" },
             [200],
             "placement_network_volumes",
             operationId
         );
-        const volumes = Array.isArray(payload)
-            ? payload
-            : (Array.isArray(payload?.items) ? payload.items : []);
+        const volumes = Array.isArray(payload?.networkVolumes)
+            ? payload.networkVolumes
+            : (Array.isArray(payload)
+                ? payload
+                : (Array.isArray(payload?.items) ? payload.items : []));
         return volumes.map(volume => ({
             id: String(volume?.id || "").trim(),
-            dataCenterId: String(volume?.dataCenterId || volume?.dataCenter?.id || "").trim(),
+            dataCenterId: String(volume?.dataCenter || volume?.dataCenterId || volume?.dataCenter?.id || "").trim(),
             sizeGb: Number(volume?.sizeGb || volume?.size || volume?.sizeInGb || 0),
             type: String(volume?.type || volume?.volumeType || RUNPOD_WAN22_CACHE_BASE.networkVolumeType)
                 .trim().toUpperCase()
@@ -3692,14 +3694,14 @@ export function createRunpodRemoteVideoAdapter({
     async function resolveNetworkVolume(operationId = null) {
         if (!networkVolumeId) return null;
         const volume = await apiRequest(
-            `${apiBase}/networkvolumes/${encodeURIComponent(networkVolumeId)}`,
+            `${apiBase}/network-volumes/${encodeURIComponent(networkVolumeId)}`,
             { method: "GET" },
             [200],
             "network_volume",
             operationId
         );
         const id = String(volume?.id || "").trim();
-        const dataCenterId = String(volume?.dataCenterId || volume?.dataCenter?.id || "").trim();
+        const dataCenterId = String(volume?.dataCenter || volume?.dataCenterId || volume?.dataCenter?.id || "").trim();
         const sizeGb = Number(volume?.size || volume?.sizeInGb || volume?.sizeGb || 0);
         if (id !== networkVolumeId || !dataCenterId || !Number.isFinite(sizeGb)) {
             throw new Error("RUNPOD_NETWORK_VOLUME_RESPONSE_INVALID");
@@ -3748,7 +3750,7 @@ export function createRunpodRemoteVideoAdapter({
             if (pod?.id && String(pod.id) !== expectedPodId) {
                 throw new Error("RUNPOD_POD_IDENTITY_MISMATCH");
             }
-            terminationVerified = !pod || String(pod.desiredStatus || "") === "TERMINATED";
+            terminationVerified = !pod || String(pod.status || pod.desiredStatus || "") === "TERMINATED";
         }
         catch(error) {
             terminationVerified = error?.httpStatus === 404;
@@ -3810,7 +3812,7 @@ export function createRunpodRemoteVideoAdapter({
                 catch(error) {
                     if (error?.httpStatus !== 404) throw error;
                 }
-                if (remaining && String(remaining.desiredStatus || "") !== "TERMINATED") {
+                if (remaining && String(remaining.status || remaining.desiredStatus || "") !== "TERMINATED") {
                     const unverified = new Error("RUNPOD_ORPHAN_POD_DELETE_NOT_VERIFIED");
                     unverified.retryable = false;
                     unverified.stage = "orphan_cleanup_verify";
@@ -4560,6 +4562,69 @@ export function createRunpodRemoteVideoAdapter({
         return health;
     }
 
+    async function provisionPodWithGraphQlV142(body, operationId) {
+        const input = {
+            cloudType: body.cloudType,
+            containerDiskInGb: body.containerDiskInGb,
+            env: Object.entries(body.env || {}).map(([key, value]) => ({
+                key,
+                value: String(value)
+            })),
+            gpuCount: body.gpuCount,
+            gpuTypeId: body.gpuTypeIds?.[0],
+            imageName: body.imageName,
+            minMemoryInGb: body.minRAMPerGPU,
+            minVcpuCount: body.minVCPUPerGPU,
+            name: body.name,
+            ports: Array.isArray(body.ports) ? body.ports.join(",") : String(body.ports || ""),
+            startSsh: true,
+            supportPublicIp: true,
+            volumeMountPath: body.volumeMountPath || "/workspace"
+        };
+        if (Object.hasOwn(body, "volumeInGb")) input.volumeInGb = Number(body.volumeInGb || 0);
+        if (body.networkVolumeId) input.networkVolumeId = body.networkVolumeId;
+        if (Array.isArray(body.dataCenterIds) && body.dataCenterIds.length === 1) {
+            input.dataCenterId = body.dataCenterIds[0];
+        }
+        const query = [
+            "mutation JarvisV142Provision($input: PodFindAndDeployOnDemandInput!) {",
+            "  podFindAndDeployOnDemand(input: $input) {",
+            "    id",
+            "    costPerHr",
+            "    desiredStatus",
+            "    lastStatusChange",
+            "  }",
+            "}"
+        ].join("\n");
+        const separator = graphQlBase.includes("?") ? "&" : "?";
+        const payload = await apiRequest(
+            `${graphQlBase}${separator}api_key=${encodeURIComponent(apiKey)}` ,
+            { method: "POST", body: JSON.stringify({ query, variables: { input } }) },
+            [200],
+            "provision",
+            operationId
+        );
+        if (Array.isArray(payload?.errors) && payload.errors.length > 0) {
+            const failure = new Error("RUNPOD_PROVISION_GRAPHQL_FAILED");
+            failure.retryable = false;
+            failure.stage = "provision";
+            failure.providerCode = "GRAPHQL_ERROR";
+            failure.providerMessage = sanitizeProviderText(
+                payload.errors.map(item => item?.message || item).filter(Boolean).join("; "),
+                1000
+            );
+            throw failure;
+        }
+        const pod = payload?.data?.podFindAndDeployOnDemand || null;
+        if (!String(pod?.id || "").trim()) {
+            const failure = new Error("RUNPOD_PROVISION_RESPONSE_INVALID");
+            failure.retryable = false;
+            failure.stage = "provision";
+            throw failure;
+        }
+        return pod;
+    }
+
     async function launch({ job }) {
         assertZeroCostConfiguration(job);
         assertPaidResourceCreationAuthority();
@@ -4610,19 +4675,16 @@ export function createRunpodRemoteVideoAdapter({
             const maximumAuthorizedSeconds = Math.floor(
                 maximumSpendBeforeCleanupUsd * 3600 / hourlyRateForBudget
             );
-            const pod = await apiRequest(`${apiBase}/pods`, {
-                method: "POST",
-                body: JSON.stringify(body)
-            }, [200, 201], "provision", job.operationId);
+            const pod = await provisionPodWithGraphQlV142(body, job.operationId);
             podId = String(pod?.id || "").trim();
             if (!podId) throw new Error("RUNPOD_PROVISION_RESPONSE_INVALID");
             const actualGpu = String(pod?.gpu?.id || pod?.machine?.gpuTypeId || gpuTypeId);
-            const actualVram = Number(pod?.gpu?.memoryInGb || availability.vramGb || expectedVramGb);
+            const actualVram = Number(availability.vramGb || expectedVramGb);
             if (actualGpu !== gpuTypeId || actualVram < launchProfile.minimumVramGb) {
                 throw new Error("RUNPOD_PROVISIONED_GPU_INCOMPATIBLE");
             }
             const hourlyRateUsd = Number(
-                pod?.adjustedCostPerHr || pod?.costPerHr || availability.hourlyRateUsd
+                pod?.cost ?? pod?.costPerHr ?? availability.hourlyRateUsd
             );
             if (!(hourlyRateUsd > 0)) throw new Error("RUNPOD_HOURLY_RATE_INVALID");
             if (hourlyRateUsd > configuredTotalHourlyRateUsd) {
@@ -5114,18 +5176,27 @@ export function createRunpodRemoteVideoAdapter({
         try {
             if (state.phase === "PROVISIONED") {
                 const pod = await apiRequest(
-                    `${apiBase}/pods/${encodeURIComponent(state.podId)}?includeMachine=true`,
+                    `${apiBase}/pods/${encodeURIComponent(state.podId)}`,
                     { method: "GET" },
                     [200],
                     "poll_pod",
                     state.operationId
                 );
                 if (String(pod?.id || "") !== state.podId) throw new Error("RUNPOD_POD_IDENTITY_MISMATCH");
-                if (String(pod?.desiredStatus || "") !== "RUNNING") {
+                if (String(pod?.status || pod?.desiredStatus || "") !== "RUNNING") {
                     return { ok: true, done: false, status: "RUNPOD_POD_STARTING", remoteWorker: runpodPublicWorker(state) };
                 }
-                const publicIp = String(pod?.publicIp || "").trim();
-                const sshPort = Number(pod?.portMappings?.["22"] || 0);
+                const runtimePorts = Array.isArray(pod?.runtime?.ports) ? pod.runtime.ports : [];
+                const sshRuntimePort = runtimePorts.find(port =>
+                    Number(port?.private ?? port?.privatePort) === 22 &&
+                    String(port?.type || port?.portType || "tcp").toLowerCase() === "tcp"
+                ) || null;
+                const publicIp = String(
+                    sshRuntimePort?.ip || pod?.publicIp || ""
+                ).trim();
+                const sshPort = Number(
+                    sshRuntimePort?.public ?? sshRuntimePort?.publicPort ?? pod?.portMappings?.["22"] ?? 0
+                );
                 if (!publicIp || !sshPort) {
                     return { ok: true, done: false, status: "RUNPOD_SSH_STARTING", remoteWorker: runpodPublicWorker(state) };
                 }
@@ -5545,15 +5616,18 @@ export function createRunpodRemoteVideoAdapter({
             let billingPatch = {};
             try {
                 const billing = await apiRequest(
-                    `${apiBase}/billing/pods?podId=${encodeURIComponent(state.podId)}&grouping=podId&bucketSize=hour`,
+                    `${apiBase}/billing/pods?podId=${encodeURIComponent(state.podId)}&bucketSize=hour&lastN=2`,
                     { method: "GET" },
                     [200],
                     "billing",
                     state.operationId
                 );
-                actualCostUsd = (Array.isArray(billing) ? billing : [])
-                    .filter(item => item?.podId === state.podId)
-                    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+                const billingRecords = Array.isArray(billing?.records)
+                    ? billing.records
+                    : (Array.isArray(billing) ? billing : []);
+                actualCostUsd = billingRecords
+                    .filter(item => !item?.podId || item.podId === state.podId)
+                    .reduce((sum, item) => sum + Number(item.totalAmount ?? item.amount ?? 0), 0);
             }
             catch(error) {
                 billingPatch = {

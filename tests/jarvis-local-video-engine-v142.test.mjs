@@ -362,6 +362,7 @@ function runpodPhysicalHarness({
     let orphanDeleted = false;
     let podGets = 0;
     let createdBody = null;
+    let createdGraphQlInput = null;
     let capturedJob = null;
     let healthCalls = 0;
     let transportTimeouts = 0;
@@ -438,7 +439,56 @@ function runpodPhysicalHarness({
                 error.code = "UNABLE_TO_VERIFY_LEAF_SIGNATURE";
                 throw error;
             }
-            const query = JSON.parse(options.body || "{}").query || "";
+            const graphQlRequest = JSON.parse(options.body || "{}");
+            const query = graphQlRequest.query || "";
+            if (query.includes("podFindAndDeployOnDemand")) {
+                const input = graphQlRequest.variables?.input || {};
+                createdGraphQlInput = input;
+                const envObject = Object.fromEntries(
+                    (Array.isArray(input.env) ? input.env : [])
+                        .map(item => [String(item?.key || ""), String(item?.value || "")])
+                        .filter(([key]) => key)
+                );
+                createdBody = {
+                    cloudType: input.cloudType,
+                    containerDiskInGb: input.containerDiskInGb,
+                    volumeMountPath: input.volumeMountPath,
+                    gpuCount: input.gpuCount,
+                    gpuTypeIds: input.gpuTypeId ? [input.gpuTypeId] : [],
+                    imageName: input.imageName,
+                    minRAMPerGPU: input.minMemoryInGb,
+                    minVCPUPerGPU: input.minVcpuCount,
+                    ports: String(input.ports || "").split(",").filter(Boolean),
+                    supportPublicIp: input.supportPublicIp === true,
+                    name: input.name,
+                    env: envObject,
+                    ...(Object.hasOwn(input, "volumeInGb") ? { volumeInGb: input.volumeInGb } : {}),
+                    ...(input.networkVolumeId ? { networkVolumeId: input.networkVolumeId } : {}),
+                    ...(input.dataCenterId ? { dataCenterIds: [input.dataCenterId] } : {})
+                };
+                calls.at(-1).providerOperation = "provision";
+                if (scenario === "provision-fail") return mockHttpResponse(503, { error: "controlled" });
+                if (scenario === "provision-http-500-diagnostic") {
+                    return mockHttpResponse(500, {
+                        error: "internal scheduling error",
+                        credential: env.RUNPOD_API_KEY
+                    }, {
+                        "content-type": "application/json; charset=utf-8",
+                        "x-request-id": "req-v142-cpu-500",
+                        "set-cookie": "provider-session-must-not-persist"
+                    });
+                }
+                return mockHttpResponse(200, {
+                    data: {
+                        podFindAndDeployOnDemand: {
+                            id: "pod-l40s-v142",
+                            costPerHr: String(gpuTypeId === "NVIDIA L40S" ? 0.99 : 0.44),
+                            desiredStatus: "RUNNING",
+                            lastStatusChange: "2026-09-05T00:00:00.000Z"
+                        }
+                    }
+                });
+            }
             const availableGpuCounts = Object.hasOwn(availability, "availableGpuCounts")
                 ? availability.availableGpuCounts
                 : [1];
@@ -502,7 +552,7 @@ function runpodPhysicalHarness({
                 networkVolumeTypes: [networkVolumeType]
             });
         }
-        if (String(url).endsWith("/networkvolumes") && (options.method || "GET") === "GET") {
+        if (String(url).endsWith("/network-volumes") && (options.method || "GET") === "GET") {
             return mockHttpResponse(200, networkVolumeId ? [{
                 id: networkVolumeId,
                 dataCenterId: networkVolumeDataCenterId,
@@ -510,7 +560,7 @@ function runpodPhysicalHarness({
                 type: networkVolumeType
             }] : []);
         }
-        if (String(url).includes("/networkvolumes/") && (options.method || "GET") === "GET") {
+        if (String(url).includes("/network-volumes/") && (options.method || "GET") === "GET") {
             return mockHttpResponse(200, {
                 id: networkVolumeId,
                 dataCenterId: networkVolumeDataCenterId,
@@ -861,6 +911,7 @@ function runpodPhysicalHarness({
         now,
         calls,
         get createdBody() { return createdBody; },
+        get createdGraphQlInput() { return createdGraphQlInput; },
         get podGets() { return podGets; },
         get deleted() { return deleted; },
         get orphanDeleted() { return orphanDeleted; },
@@ -1603,8 +1654,8 @@ test("V142 live placement inspection reads inventory, datacenter support, volume
     assert.equal(report.placement.selected.dataCenterId, "EU-NL-1");
     assert.equal(report.payload, null);
     assert.equal(harness.calls.some(call => call.url.includes("/graphql")), true);
-    assert.equal(harness.calls.some(call => call.url.endsWith("/networkvolumes")), true);
-    assert.equal(harness.calls.some(call => call.url.endsWith("/pods") && call.method === "POST"), false);
+    assert.equal(harness.calls.some(call => call.url.endsWith("/network-volumes")), true);
+    assert.equal(harness.calls.some(call => call.providerOperation === "provision"), false);
 });
 
 test("V142 live placement ignores a stale catalog datacenter 404 and keeps the executable candidate", async () => {
@@ -1624,7 +1675,7 @@ test("V142 live placement ignores a stale catalog datacenter 404 and keeps the e
         true
     );
     assert.equal(
-        harness.calls.some(call => call.url.endsWith("/pods") && call.method === "POST"),
+        harness.calls.some(call => call.providerOperation === "provision"),
         false
     );
 });
@@ -1730,7 +1781,7 @@ test("V142 L40S runtime certification validates a mounted model cache and delete
     assert.equal(harness.deleted, true);
     assert.equal(result.workerRelease.terminationVerified, true);
     assert.equal(
-        harness.calls.filter(call => call.url?.endsWith("/pods") && call.method === "POST").length,
+        harness.calls.filter(call => call.providerOperation === "provision").length,
         1
     );
 
@@ -2826,7 +2877,7 @@ test("V142 RunPod local durable duplicate and incomplete payload both block befo
         assert.equal(started.ok, false, JSON.stringify(started));
         assert.equal(started.error, "RUNPOD_PROVISION_PAYLOAD_INCOMPLETE");
         assert.equal(harness.createdBody, null);
-        assert.equal(harness.calls.some(call => call.method === "POST" && call.url.endsWith("/pods")), false);
+        assert.equal(harness.calls.some(call => call.providerOperation === "provision"), false);
     });
 });
 
@@ -3266,7 +3317,7 @@ test("V142 RunPod registry digest verification passes only on an exact public ma
             assert.equal(started.error, expected);
             assert.equal(harness.createdBody, null);
             assert.equal(
-                harness.calls.some(call => call.method === "POST" && call.url.endsWith("/pods")),
+                harness.calls.some(call => call.providerOperation === "provision"),
                 false
             );
         });
@@ -3366,7 +3417,7 @@ test("V142 RunPod attaches an existing Network Volume, pins its datacenter, and 
     assert.equal(cancelled.workerRelease.networkVolumeRetained, true);
     assert.equal(harness.deleted, true);
     assert.equal(
-        harness.calls.some(call => call.method === "DELETE" && call.url.includes("networkvolumes")),
+        harness.calls.some(call => call.method === "DELETE" && call.url.includes("network-volumes")),
         false
     );
 });
@@ -3405,7 +3456,7 @@ test("V142 RunPod verifies STANDARD support from the authenticated datacenter ca
     assert.equal(started.error, "RUNPOD_NETWORK_VOLUME_TYPE_NOT_APPROVED");
     assert.equal(harness.createdBody, null);
     assert.equal(
-        harness.calls.some(call => call.method === "POST" && call.url.endsWith("/pods")),
+        harness.calls.some(call => call.providerOperation === "provision"),
         false
     );
 });
@@ -3506,7 +3557,7 @@ test("V142 cache recovery survives a new runtime without changing the durable ob
     assert.equal(ready.remoteWorker.phase, "JOB_RUNNING", JSON.stringify(ready));
     assert.equal(ready.remoteWorker.cacheStatus, "CACHE_READY");
     assert.equal(second.inferenceStarts, 1);
-    assert.equal(second.calls.some(call => call.method === "POST" && call.url.endsWith("/pods")), false);
+    assert.equal(second.calls.some(call => call.providerOperation === "provision"), false);
 
     const cancelled = await second.engine.cancel({ operationName: started.operationName });
     assert.equal(cancelled.workerRelease.terminationVerified, true);
@@ -3566,7 +3617,7 @@ test("V142 RunPod refreshes a stale failed bootstrap on the same Pod and obligat
     assert.equal(refresh.remotePoll.status, "RUNPOD_WAN22_BOOTSTRAP_REFRESH_REQUIRED");
     const completed = await pollRunpodUntilDone(harness.engine, started.operationName, 10);
     assert.equal(completed.status, "VIDEO_GENERATED_VERIFIED");
-    assert.equal(harness.calls.filter(call => call.kind === "http" && call.method === "POST" && call.url.endsWith("/pods")).length, 1);
+    assert.equal(harness.calls.filter(call => call.kind === "http" && call.providerOperation === "provision").length, 1);
     assert.equal(completed.workerRelease.status, "RUNPOD_POD_TERMINATED_VERIFIED");
 });
 
@@ -3888,7 +3939,7 @@ test("V142 RunPod availability follows authenticated stockStatus while preservin
             assert.equal(started.ok, false, JSON.stringify(started));
             assert.equal(started.error, expectedError);
             assert.equal(
-                harness.calls.filter(call => call.url.endsWith("/pods") && call.method === "POST").length,
+                harness.calls.filter(call => call.providerOperation === "provision").length,
                 0
             );
             assert.equal(harness.createdBody, null);
@@ -3922,7 +3973,7 @@ test("V142 RunPod adapter fails closed on provision and real worker health failu
         assert.equal(started.providerHttp.status, 500);
         assert.equal(started.providerHttp.stage, "provision");
         assert.equal(started.providerHttp.operationId, started.operationId);
-        assert.equal(started.providerHttp.endpoint, "https://rest.runpod.io/v1/pods");
+        assert.equal(started.providerHttp.endpoint, "https://api.runpod.io/graphql");
         assert.equal(started.providerHttp.method, "POST");
         assert.equal(started.providerHttp.contentType, "application/json; charset=utf-8");
         assert.equal(started.providerHttp.requestId, "req-v142-cpu-500");
@@ -3944,7 +3995,7 @@ test("V142 RunPod adapter fails closed on provision and real worker health failu
         assert.equal(JSON.stringify(persisted).includes(harness.env.RUNPOD_API_KEY), false);
         assert.equal(JSON.stringify(started).includes(harness.env.RUNPOD_API_KEY), false);
         assert.equal(
-            harness.calls.filter(call => call.url.endsWith("/pods") && call.method === "POST").length,
+            harness.calls.filter(call => call.providerOperation === "provision").length,
             1
         );
     });
@@ -4053,7 +4104,7 @@ test("V142 RunPod pre-provision transport recovery reuses the same operation and
     assert.equal(recovered.attemptHistory[0].providerCode, "UNABLE_TO_VERIFY_LEAF_SIGNATURE");
     assert.ok(recovered.remoteWorker.provisionedAt);
     assert.equal(
-        harness.calls.filter(call => call.url.endsWith("/pods") && call.method === "POST").length,
+        harness.calls.filter(call => call.providerOperation === "provision").length,
         1
     );
 
@@ -4081,8 +4132,8 @@ test("V142 RunPod maps a later physical attempt of the same durable obligation t
     assert.equal(secondStarted.ok, true, JSON.stringify(secondStarted));
     assert.equal(second.createdBody.name, first.createdBody.name);
     assert.equal(second.createdBody.env.JARVIS_OBLIGATION_FINGERPRINT, first.createdBody.env.JARVIS_OBLIGATION_FINGERPRINT);
-    assert.equal(first.calls.filter(call => call.method === "POST" && call.url.endsWith("/pods")).length, 1);
-    assert.equal(second.calls.filter(call => call.method === "POST" && call.url.endsWith("/pods")).length, 1);
+    assert.equal(first.calls.filter(call => call.providerOperation === "provision").length, 1);
+    assert.equal(second.calls.filter(call => call.providerOperation === "provision").length, 1);
     await second.engine.cancel({ operationName: secondStarted.operationName });
     assert.equal(second.deleted, true);
 });
@@ -4095,7 +4146,7 @@ test("V142 RunPod terminates an already-active Pod for the same obligation and r
     assert.equal(harness.orphanDeleted, true);
     assert.equal(harness.createdBody, null);
     assert.equal(
-        harness.calls.filter(call => call.method === "POST" && call.url.endsWith("/pods")).length,
+        harness.calls.filter(call => call.providerOperation === "provision").length,
         0
     );
 });
@@ -4129,7 +4180,7 @@ test("V142 RunPod adapter handles job failure, bad SHA, bad MP4 and mandatory de
 
 test("V142 paid Pod cleanup is independent from evidence, receipt, and artifact capture", async t => {
     const podPosts = harness => harness.calls.filter(call =>
-        call.kind === "http" && call.method === "POST" && call.url.endsWith("/pods")
+        call.kind === "http" && call.providerOperation === "provision"
     );
     const podDeletes = harness => harness.calls.filter(call =>
         call.kind === "http" && call.method === "DELETE" && call.url.includes("/pods/")
@@ -6899,7 +6950,7 @@ test("V142 HuMo mocked runtime certification provisions polls and releases witho
     assert.equal(released.terminationVerified, true, JSON.stringify(released));
     assert.equal(harness.deleted, true);
     assert.equal(
-        harness.calls.filter(call => call.kind === "http" && call.url?.endsWith("/pods") && call.method === "POST").length,
+        harness.calls.filter(call => call.kind === "http" && call.providerOperation === "provision").length,
         1
     );
     assert.equal(
@@ -7152,4 +7203,35 @@ test("V142 HuMo runtime cert retries only safe pre-provision transport and bound
     assert.match(engine, /JARVIS_HUMO_TORCH_STAGE_TIMEOUT_SECONDS/);
     assert.match(engine, /RUNPOD_HUMO_TORCH_STAGE_TIMEOUT/);
     assert.match(engine, /humoTorchStageTimeoutSeconds/);
+});
+
+test("V142 RunPod control plane avoids deprecated REST v1 while preserving hard placement constraints", async () => {
+    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    assert.equal(engineSource.includes("https://rest.runpod.io/v1"), false);
+    assert.equal(engineSource.includes("https://api.runpod.io/v2"), true);
+    assert.equal(engineSource.includes("PodFindAndDeployOnDemandInput!"), true);
+    assert.equal(engineSource.includes("minMemoryInGb: body.minRAMPerGPU"), true);
+    assert.equal(engineSource.includes("minVcpuCount: body.minVCPUPerGPU"), true);
+    assert.equal(engineSource.includes("/network-volumes"), true);
+    assert.equal(engineSource.includes("totalAmount ?? item.amount"), true);
+
+    const harness = runpodPhysicalHarness({ scenario: "rest-v2-graphql-provision" });
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, true, JSON.stringify(started));
+    assert.equal(harness.createdGraphQlInput.gpuTypeId, "NVIDIA L40S");
+    assert.equal(harness.createdGraphQlInput.gpuCount, 1);
+    assert.equal(harness.createdGraphQlInput.minMemoryInGb, 62);
+    assert.equal(harness.createdGraphQlInput.minVcpuCount, 16);
+    assert.equal(harness.createdGraphQlInput.imageName, RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].provisionImageTag);
+    assert.equal(harness.createdGraphQlInput.startSsh, true);
+    assert.equal(harness.createdGraphQlInput.supportPublicIp, true);
+    assert.equal(harness.calls.some(call =>
+        call.providerOperation === "provision" &&
+        call.url.startsWith("https://api.runpod.io/graphql")
+    ), true);
+    assert.equal(harness.calls.some(call =>
+        call.url.startsWith("https://rest.runpod.io/")
+    ), false);
+    const cancelled = await harness.engine.cancel({ operationName: started.operationName });
+    assert.equal(cancelled.workerRelease.terminationVerified, true);
 });
