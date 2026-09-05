@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 
-const PATCH_BASELINE_COMMIT = "eac255caa9ce4bb4e286a3078d243210a8d23395";
+const PATCH_BASELINE_COMMIT = "cd324264b4744c475b800ea49fa9b9574a03a4c5";
 const SELF = ".github/scripts/v142-final-contract-alignment.mjs";
 const FS_BRIDGE_TEST = "tests/jarvis-fs-bridge-v2.test.mjs";
 
