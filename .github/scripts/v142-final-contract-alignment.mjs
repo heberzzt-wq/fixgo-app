@@ -5,6 +5,9 @@ import { execFileSync } from "node:child_process";
 
 const PATCH_BASELINE_COMMIT = "cd324264b4744c475b800ea49fa9b9574a03a4c5";
 const SELF = ".github/scripts/v142-final-contract-alignment.mjs";
+const ENGINE = "jarvis-local-video-engine.js";
+const BRIDGE = "jarvis-fs-bridge.js";
+const LOCAL_VIDEO_TEST = "tests/jarvis-local-video-engine-v142.test.mjs";
 const FS_BRIDGE_TEST = "tests/jarvis-fs-bridge-v2.test.mjs";
 
 const read = file => fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
@@ -15,6 +18,50 @@ function replaceExactOnce(source, before, after, label) {
   const count = source.split(before).length - 1;
   if (count !== 1) throw new Error(`${label}_MATCH_COUNT_${count}`);
   return source.replace(before, after);
+}
+
+function hasMaterializedV142Contract() {
+  const engine = read(ENGINE);
+  const bridge = read(BRIDGE);
+  const localVideoTests = read(LOCAL_VIDEO_TEST);
+  const fsBridgeTests = read(FS_BRIDGE_TEST);
+  const required = [
+    [engine, 'stage === "availability" || stage === "placement_inventory"'],
+    [engine, '"READ_ONLY_GRAPHQL_MAX_3"'],
+    [bridge, "certificationEconomicDeadlineSeconds"],
+    [bridge, "certificationOuterStopRatio = 0.90"],
+    [bridge, 'JARVIS_HUMO_TORCH_STAGE_TIMEOUT_SECONDS: "120"'],
+    [bridge, "maximumPaidRuntimeSeconds"],
+    [bridge, "paidDeadlineMs"],
+    [localVideoTests, "V142 read-only GraphQL availability absorbs two connect timeouts before any billable provision"],
+    [fsBridgeTests, "V142 HuMo runtime certification supports a lower per-attempt budget and paid economic deadline"]
+  ];
+  return required.every(([source, marker]) => source.includes(marker));
+}
+
+function assertMaterializedV142Contract() {
+  const bridge = read(BRIDGE);
+  const required = [
+    "certificationEconomicDeadlineSeconds",
+    "certificationOuterStopRatio = 0.90",
+    'JARVIS_HUMO_TORCH_STAGE_TIMEOUT_SECONDS: "120"',
+    "maximumPaidRuntimeSeconds",
+    "paidDeadlineMs"
+  ];
+  for (const marker of required) {
+    if (!bridge.includes(marker)) {
+      throw new Error(`V142_MATERIALIZED_RUNTIME_MARKER_MISSING:${marker}`);
+    }
+  }
+  for (const legacy of [
+    'JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS: "3300"',
+    'JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: "3600"',
+    "const certificationDeadlineMinutes = 60;"
+  ]) {
+    if (bridge.includes(legacy)) {
+      throw new Error(`V142_MATERIALIZED_LEGACY_MARKER_PRESENT:${legacy}`);
+    }
+  }
 }
 
 function runPinnedBaseline() {
@@ -42,7 +89,12 @@ function runPinnedBaseline() {
   }
 }
 
-runPinnedBaseline();
+const materializedBaselineDetected = hasMaterializedV142Contract();
+if (materializedBaselineDetected) {
+  assertMaterializedV142Contract();
+} else {
+  runPinnedBaseline();
+}
 
 let tests = read(FS_BRIDGE_TEST);
 
@@ -139,6 +191,7 @@ console.log(JSON.stringify({
   ok: true,
   status: "V142_SHARED_BRIDGE_ECONOMIC_DEADLINE_CONTRACT_ALIGNED",
   patchBaselineCommit: PATCH_BASELINE_COMMIT,
+  materializedBaselineDetected,
   sharedBridgeTestAligned: true,
   paidEconomicDeadlinePreserved: true,
   readOnlyGraphQlRetriesPreserved: 3,
