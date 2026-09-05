@@ -1754,6 +1754,10 @@ export function createRunpodRemoteVideoAdapter({
         env.JARVIS_RUNPOD_DATACENTER_ID || ""
     ).trim();
     const bootstrapTimeoutSeconds = runpodPositiveNumber(env.JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS, 1800);
+    const humoTorchStageTimeoutSeconds = Math.min(
+        300,
+        Math.max(30, runpodPositiveNumber(env.JARVIS_HUMO_TORCH_STAGE_TIMEOUT_SECONDS, 120))
+    );
     const inferenceTimeoutSeconds = runpodPositiveNumber(
         env.JARVIS_RUNPOD_INFERENCE_TIMEOUT_SECONDS,
         localVideoTimeoutSeconds(env)
@@ -4656,6 +4660,7 @@ export function createRunpodRemoteVideoAdapter({
                 registryVerification,
                 cacheStatus: "CACHE_MISS",
                 bootstrapTimeoutSeconds,
+                humoTorchStageTimeoutSeconds,
                 inferenceTimeoutSeconds,
                 provisionedAt,
                 createdAt: provisionedAt,
@@ -5151,6 +5156,39 @@ export function createRunpodRemoteVideoAdapter({
             if (state.phase === "BOOTSTRAPPING") {
                 const progress = await readBootstrapProgress(state);
                 state = persistBootstrapProgress(loaded.file, state, progress);
+                const humoTorchStageStartedMs =
+                    state.runtimeKind === "humo" &&
+                    progress?.stage === "HUMO_TORCH" &&
+                    progress?.status === "RUNNING"
+                        ? Date.parse(String(state.stageTimeline?.HUMO_TORCH?.startedAt || progress.at || ""))
+                        : Number.NaN;
+                if (
+                    Number.isFinite(humoTorchStageStartedMs) &&
+                    (now().getTime() - humoTorchStageStartedMs) / 1000 >=
+                        Number(state.humoTorchStageTimeoutSeconds || 120)
+                ) {
+                    const bootstrapDiagnostics = await captureBootstrapFailureDiagnostics(state);
+                    state = withStage(state, "HUMO_TORCH", "TIMEOUT");
+                    state = withStage(state, "bootstrap", "TIMEOUT");
+                    state = writeState(loaded.file, state, {
+                        phase: "HUMO_TORCH_TIMEOUT",
+                        bootstrapDiagnostics,
+                        stageTimeline: state.stageTimeline
+                    });
+                    await writeLocalFailure(
+                        operation,
+                        resultFile,
+                        "RUNPOD_HUMO_TORCH_STAGE_TIMEOUT",
+                        false,
+                        { bootstrapDiagnostics }
+                    );
+                    return {
+                        ok: false,
+                        done: true,
+                        status: "RUNPOD_HUMO_TORCH_STAGE_TIMEOUT",
+                        remoteWorker: runpodPublicWorker(state)
+                    };
+                }
                 const lastProgressMs = Date.parse(String(state.lastBootstrapProgressAt || state.bootstrapStartedAt || ""));
                 if (Number.isFinite(lastProgressMs) && (now().getTime() - lastProgressMs) / 1000 >= state.bootstrapTimeoutSeconds) {
                     const bootstrapDiagnostics = await captureBootstrapFailureDiagnostics(state);

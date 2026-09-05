@@ -7137,3 +7137,19 @@ test("V142 registry verifier resolves OCI index to linux amd64 digest before pai
     assert.equal(registryCalls.some(call => call.method === "HEAD"), false);
     assert.equal(registryCalls.every(call => call.method === "GET"), true);
 });
+
+test("V142 HuMo runtime cert retries only safe pre-provision transport and bounds Torch verification", () => {
+    const bridge = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+    const engine = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    const retryStart = bridge.indexOf('const safeStartStages = new Set(["duplicate_guard", "availability"])');
+    const retryEnd = bridge.indexOf("const maximumSafeStartAttempts = 3", retryStart);
+    assert.ok(retryStart >= 0 && retryEnd > retryStart);
+    assert.equal(bridge.slice(retryStart, retryEnd).includes("provision"), false);
+    assert.match(bridge, /HUMO_RUNTIME_CERTIFICATION_START_RETRYABLE/);
+    assert.match(bridge, /failureStage: error?.stage || null/);
+    assert.match(bridge, /providerCode: error?.providerCode || null/);
+    assert.match(bridge, /providerMessage: error?.providerMessage || null/);
+    assert.match(engine, /JARVIS_HUMO_TORCH_STAGE_TIMEOUT_SECONDS/);
+    assert.match(engine, /RUNPOD_HUMO_TORCH_STAGE_TIMEOUT/);
+    assert.match(engine, /humoTorchStageTimeoutSeconds/);
+});

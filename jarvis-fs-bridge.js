@@ -7732,17 +7732,57 @@ export async function runHuMoRuntimeCertificationCli({
     let primaryError = null;
     const deadlineMs = Date.now() + certificationDeadlineMinutes * 60 * 1000;
     try {
-        const started = await engine.start({
+        const startPayload = {
             selectedBackend: "humo-1.7b-identity",
             output: ".jarvis-artifacts/videos/humo-runtime-certification.mp4",
             missionId: "MISSION-HUMO-RUNTIME-" + certificationId,
             objectiveId: "OBJECTIVE-HUMO-RUNTIME-" + certificationId,
             obligationId: "video.runtime-certification:" + certificationId,
             rootInstructionHash
-        });
-        operationName = started?.operationName || null;
+        };
+        const safeStartStages = new Set(["duplicate_guard", "availability"]);
+        const maximumSafeStartAttempts = 3;
+        let started = null;
+        for (let attempt = 1; attempt <= maximumSafeStartAttempts; attempt += 1) {
+            started = await engine.start(startPayload);
+            operationName = started?.operationName || operationName || null;
+            if (started?.ok === true && operationName) break;
+            const failureStage = String(started?.failureStage || "").trim();
+            const podId = started?.podId || started?.remoteWorker?.podId || null;
+            const retryablePreProvision =
+                started?.retryable === true &&
+                safeStartStages.has(failureStage) &&
+                !podId &&
+                !started?.remoteJobId;
+            log({
+                ok: false,
+                status: retryablePreProvision
+                    ? "HUMO_RUNTIME_CERTIFICATION_START_RETRYABLE"
+                    : "HUMO_RUNTIME_CERTIFICATION_START_FAILED",
+                attempt,
+                maximumAttempts: maximumSafeStartAttempts,
+                operationName: started?.operationName || null,
+                failureStage: failureStage || null,
+                providerCode: started?.providerCode || null,
+                providerMessage: started?.providerMessage || null,
+                podId,
+                retryablePreProvision
+            });
+            if (!retryablePreProvision || attempt >= maximumSafeStartAttempts) {
+                const startError = new Error(
+                    started?.error || started?.status || "HUMO_RUNTIME_CERTIFICATION_START_FAILED"
+                );
+                startError.stage = failureStage || null;
+                startError.providerCode = started?.providerCode || null;
+                startError.providerMessage = started?.providerMessage || null;
+                startError.podId = podId;
+                startError.retryable = started?.retryable === true;
+                throw startError;
+            }
+            await sleepMs(2000 * attempt);
+        }
         if (started?.ok !== true || !operationName) {
-            throw new Error(started?.error || started?.status || "HUMO_RUNTIME_CERTIFICATION_START_FAILED");
+            throw new Error("HUMO_RUNTIME_CERTIFICATION_START_FAILED");
         }
         log({
             ok: true,
@@ -8204,7 +8244,11 @@ if (
             .catch(error => {
                 console.error(JSON.stringify({
                     ok: false,
-                    status: error?.message || "HUMO_RUNTIME_CERTIFICATION_FAILED"
+                    status: error?.message || "HUMO_RUNTIME_CERTIFICATION_FAILED",
+                    failureStage: error?.stage || null,
+                    providerCode: error?.providerCode || null,
+                    providerMessage: error?.providerMessage || null,
+                    podId: error?.podId || null
                 }));
                 process.exitCode = 1;
             });
