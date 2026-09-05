@@ -20,6 +20,13 @@ function replaceExactOnce(source, before, after, label) {
   return source.replace(before, after);
 }
 
+function sectionBetween(source, startMarker, endMarker, label) {
+  const start = source.indexOf(startMarker);
+  const end = start >= 0 ? source.indexOf(endMarker, start + startMarker.length) : -1;
+  if (start < 0 || end < 0) throw new Error(`${label}_SECTION_MISSING`);
+  return source.slice(start, end);
+}
+
 function hasMaterializedV142Contract() {
   const engine = read(ENGINE);
   const bridge = read(BRIDGE);
@@ -41,15 +48,23 @@ function hasMaterializedV142Contract() {
 
 function assertMaterializedV142Contract() {
   const bridge = read(BRIDGE);
+  const runtimeCertification = sectionBetween(
+    bridge,
+    "export async function runHuMoRuntimeCertificationCli({",
+    "export async function runHuMoIdentityProbeCli({",
+    "V142_RUNTIME_CERTIFICATION"
+  );
   const required = [
     "certificationEconomicDeadlineSeconds",
     "certificationOuterStopRatio = 0.90",
     'JARVIS_HUMO_TORCH_STAGE_TIMEOUT_SECONDS: "120"',
+    "JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS: String(certificationEconomicDeadlineSeconds)",
+    "JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: String(certificationEconomicDeadlineSeconds + 120)",
     "maximumPaidRuntimeSeconds",
-    "paidDeadlineMs"
+    "paidDeadlineMs = certificationStartedMs + certificationEconomicDeadlineSeconds * 1000"
   ];
   for (const marker of required) {
-    if (!bridge.includes(marker)) {
+    if (!runtimeCertification.includes(marker)) {
       throw new Error(`V142_MATERIALIZED_RUNTIME_MARKER_MISSING:${marker}`);
     }
   }
@@ -58,8 +73,8 @@ function assertMaterializedV142Contract() {
     'JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: "3600"',
     "const certificationDeadlineMinutes = 60;"
   ]) {
-    if (bridge.includes(legacy)) {
-      throw new Error(`V142_MATERIALIZED_LEGACY_MARKER_PRESENT:${legacy}`);
+    if (runtimeCertification.includes(legacy)) {
+      throw new Error(`V142_MATERIALIZED_RUNTIME_LEGACY_MARKER_PRESENT:${legacy}`);
     }
   }
 }
