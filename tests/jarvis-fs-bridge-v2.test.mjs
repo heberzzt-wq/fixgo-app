@@ -1403,10 +1403,10 @@ test("V142 HuMo runtime certification CLI is explicit-authority budgeted and cle
     assert.equal(bridgeSource.includes("RUNPOD_PAID_RESOURCE_CREATION_NOT_AUTHORIZED"), true);
     assert.equal(bridgeSource.includes("JARVIS_HUMO_RUNTIME_CERT_HARD_BUDGET_USD"), true);
     assert.equal(bridgeSource.includes("JARVIS_REMOTE_GPU_HARD_BUDGET_USD: String(certificationHardBudgetUsd)"), true);
-    assert.equal(bridgeSource.includes('JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "1.09"'), true);
+    assert.equal(bridgeSource.includes("JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: String(certificationAuthorizedHourlyRateUsd)"), true);
     assert.equal(bridgeSource.includes('JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY: "true"'), true);
     assert.equal(bridgeSource.includes("delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID"), true);
-    assert.equal(bridgeSource.includes("certificationDeadlineMinutes * 60 * 1000"), true);
+    assert.equal(bridgeSource.includes("paidDeadlineMs = certificationStartedMs + certificationEconomicDeadlineSeconds * 1000"), true);
     assert.equal(bridgeSource.includes("await engine.cancel({ operationName })"), true);
     assert.equal(bridgeSource.includes("workerRelease?.terminationVerified !== true"), true);
     assert.equal(bridgeSource.includes('final.status !== "RUNPOD_HUMO_RUNTIME_PREFLIGHT_CERTIFIED"'), true);
@@ -1422,12 +1422,15 @@ test("V142 HuMo runtime certification CLI exposes remote bootstrap progress and 
     assert.equal(bridgeSource.includes("terminationVerified: polled?.workerRelease?.terminationVerified === true"), true);
 });
 
-test("V142 HuMo runtime certification supports a lower per-attempt budget and a 55 minute bootstrap window", () => {
+test("V142 HuMo runtime certification supports a lower per-attempt budget and paid economic deadline", () => {
     const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
     assert.equal(bridgeSource.includes("RUNPOD_HUMO_RUNTIME_CERT_BUDGET_INVALID"), true);
-    assert.equal(bridgeSource.includes('JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS: "3300"'), true);
-    assert.equal(bridgeSource.includes('JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: "3600"'), true);
-    assert.equal(bridgeSource.includes("const certificationDeadlineMinutes = 60"), true);
+    assert.equal(bridgeSource.includes("certificationOuterStopRatio = 0.90"), true);
+    assert.equal(bridgeSource.includes('JARVIS_HUMO_TORCH_STAGE_TIMEOUT_SECONDS: "120"'), true);
+    assert.equal(bridgeSource.includes("JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS: String(certificationEconomicDeadlineSeconds)"), true);
+    assert.equal(bridgeSource.includes("JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: String(certificationEconomicDeadlineSeconds + 120)"), true);
+    assert.equal(bridgeSource.includes("maximumPaidRuntimeSeconds"), true);
+    assert.equal(bridgeSource.includes("const certificationDeadlineMinutes = 60"), false);
     assert.equal(bridgeSource.includes("Number(final.gpuRentalEstimatedCost || 0) > certificationHardBudgetUsd"), true);
 });
 

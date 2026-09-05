@@ -3451,8 +3451,14 @@ export function createRunpodRemoteVideoAdapter({
         operationId = null
     ) {
         const method = String(options.method || "GET").toUpperCase();
-        const idempotentTransportRetry = method === "GET" || method === "DELETE";
-        const maximumTransportAttempts = idempotentTransportRetry ? 3 : 1;
+        const readOnlyGraphQlTransportRetry =
+            method === "POST" &&
+            (stage === "availability" || stage === "placement_inventory");
+        const safeTransportRetry =
+            method === "GET" ||
+            method === "DELETE" ||
+            readOnlyGraphQlTransportRetry;
+        const maximumTransportAttempts = safeTransportRetry ? 3 : 1;
         let response;
         let transportAttempt = 0;
         while (transportAttempt < maximumTransportAttempts) {
@@ -3469,7 +3475,7 @@ export function createRunpodRemoteVideoAdapter({
                 break;
             }
             catch(error) {
-                if (idempotentTransportRetry && transportAttempt < maximumTransportAttempts) {
+                if (safeTransportRetry && transportAttempt < maximumTransportAttempts) {
                     await new Promise(resolve => setTimeout(resolve, Math.min(1000, 250 * transportAttempt)));
                     continue;
                 }
@@ -3479,9 +3485,11 @@ export function createRunpodRemoteVideoAdapter({
                 failure.retryable = true;
                 failure.stage = stage;
                 failure.transportAttempts = transportAttempt;
-                failure.transportRetryPolicy = idempotentTransportRetry
-                    ? "IDEMPOTENT_GET_DELETE_MAX_3"
-                    : "NON_IDEMPOTENT_NO_RETRY";
+                failure.transportRetryPolicy = readOnlyGraphQlTransportRetry
+                    ? "READ_ONLY_GRAPHQL_MAX_3"
+                    : safeTransportRetry
+                        ? "IDEMPOTENT_GET_DELETE_MAX_3"
+                        : "NON_IDEMPOTENT_NO_RETRY";
                 throw failure;
             }
         }

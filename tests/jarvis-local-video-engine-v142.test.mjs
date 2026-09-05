@@ -371,7 +371,13 @@ function runpodPhysicalHarness({
     let bootstrapMarkerChecks = 0;
     let bootstrapProgressChecks = 0;
     let runtimePreflightPresent = scenario === "bootstrap-fail-stale-preflight";
-    let availabilityTransportFailures = scenario === "availability-transport-once" ? 1 : 0;
+    let availabilityTransportFailures = scenario === "availability-transport-once"
+        ? 1
+        : scenario === "availability-transport-three"
+            ? 3
+            : scenario === "availability-connect-timeout-twice"
+                ? 2
+                : 0;
     let restGetTransportFailures = scenario === "rest-get-connect-timeout-once" ? 1 : 0;
     let restDeleteTransportFailures = scenario === "rest-delete-connect-timeout-once" ? 1 : 0;
     const remoteAssets = new Map();
@@ -435,10 +441,15 @@ function runpodPhysicalHarness({
         if (String(url).includes("/graphql")) {
             if (availabilityTransportFailures > 0) {
                 availabilityTransportFailures -= 1;
-                const error = new Error(
-                    `UNABLE_TO_VERIFY_LEAF_SIGNATURE credential=${env.RUNPOD_API_KEY} encoded=${encodeURIComponent(env.RUNPOD_API_KEY)}`
-                );
-                error.code = "UNABLE_TO_VERIFY_LEAF_SIGNATURE";
+                const connectTimeout = scenario === "availability-connect-timeout-twice";
+                const error = connectTimeout
+                    ? new Error("Connect Timeout Error (controlled GraphQL availability)")
+                    : new Error(
+                        `UNABLE_TO_VERIFY_LEAF_SIGNATURE credential=${env.RUNPOD_API_KEY} encoded=${encodeURIComponent(env.RUNPOD_API_KEY)}`
+                    );
+                error.code = connectTimeout
+                    ? "UND_ERR_CONNECT_TIMEOUT"
+                    : "UNABLE_TO_VERIFY_LEAF_SIGNATURE";
                 throw error;
             }
             const graphQlRequest = JSON.parse(options.body || "{}");
@@ -469,6 +480,11 @@ function runpodPhysicalHarness({
                     ...(input.dataCenterId ? { dataCenterIds: [input.dataCenterId] } : {})
                 };
                 calls.at(-1).providerOperation = "provision";
+                if (scenario === "provision-connect-timeout-once") {
+                    const error = new Error("Connect Timeout Error (controlled GraphQL provision)");
+                    error.code = "UND_ERR_CONNECT_TIMEOUT";
+                    throw error;
+                }
                 if (scenario === "provision-fail") return mockHttpResponse(503, { error: "controlled" });
                 if (scenario === "provision-http-500-diagnostic") {
                     return mockHttpResponse(500, {
@@ -4097,7 +4113,7 @@ test("V142 RunPod polling retries transport on the same Pod/job and durable obli
 });
 
 test("V142 RunPod pre-provision transport recovery reuses the same operation and provisions at most one Pod", async () => {
-    const harness = runpodPhysicalHarness({ scenario: "availability-transport-once" });
+    const harness = runpodPhysicalHarness({ scenario: "availability-transport-three" });
     const first = await harness.engine.start(harness.payload);
     assert.equal(first.ok, false, JSON.stringify(first));
     assert.equal(first.error, "RUNPOD_API_TRANSPORT_FAILED");
@@ -7224,6 +7240,13 @@ test("V142 HuMo runtime cert retries only safe pre-provision transport and bound
     assert.match(engine, /JARVIS_HUMO_TORCH_STAGE_TIMEOUT_SECONDS/);
     assert.match(engine, /RUNPOD_HUMO_TORCH_STAGE_TIMEOUT/);
     assert.match(engine, /humoTorchStageTimeoutSeconds/);
+    assert.match(engine, /READ_ONLY_GRAPHQL_MAX_3/);
+    assert.match(engine, /stage === "availability" \|\| stage === "placement_inventory"/);
+    assert.match(bridge, /certificationEconomicDeadlineSeconds/);
+    assert.match(bridge, /certificationOuterStopRatio = 0\.90/);
+    assert.match(bridge, /JARVIS_HUMO_TORCH_STAGE_TIMEOUT_SECONDS: "120"/);
+    assert.match(bridge, /maximumPaidRuntimeSeconds/);
+    assert.equal(bridge.includes("const certificationDeadlineMinutes = 60;"), false);
 });
 
 test("V142 RunPod control plane avoids deprecated REST v1 while preserving hard placement constraints", async () => {
@@ -7294,4 +7317,40 @@ test("V142 RunPod retries transient REST GET and DELETE transport but never retr
         1,
         "cleanup retry must never create a replacement Pod"
     );
+});
+
+test("V142 read-only GraphQL availability absorbs two connect timeouts before any billable provision", async () => {
+    const harness = runpodPhysicalHarness({ scenario: "availability-connect-timeout-twice" });
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, true, JSON.stringify(started));
+    const availabilityCalls = harness.calls.filter(call =>
+        call.kind === "http" &&
+        call.method === "POST" &&
+        call.url.includes("/graphql") &&
+        call.providerOperation !== "provision"
+    );
+    assert.equal(availabilityCalls.length, 3);
+    assert.equal(
+        harness.calls.filter(call => call.providerOperation === "provision").length,
+        1,
+        "read-only recovery must still create at most one Pod"
+    );
+    const cancelled = await harness.engine.cancel({ operationName: started.operationName });
+    assert.equal(cancelled.workerRelease?.terminationVerified, true, JSON.stringify(cancelled));
+});
+
+test("V142 GraphQL provision connect timeout is never retried automatically", async () => {
+    const harness = runpodPhysicalHarness({ scenario: "provision-connect-timeout-once" });
+    const started = await harness.engine.start(harness.payload);
+    assert.equal(started.ok, false, JSON.stringify(started));
+    assert.equal(started.error, "RUNPOD_API_TRANSPORT_FAILED");
+    assert.equal(started.failureStage, "provision");
+    assert.equal(started.providerCode, "UND_ERR_CONNECT_TIMEOUT");
+    assert.equal(started.podId, undefined);
+    assert.equal(
+        harness.calls.filter(call => call.providerOperation === "provision").length,
+        1,
+        "non-idempotent provisioning must remain single-attempt"
+    );
+    assert.equal(harness.deleted, false);
 });
