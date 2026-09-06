@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-local-cache-adapter-config-20260906-07",
-  "completedAt": "2026-09-06T18:01:36.073Z",
+  "jobId": "v142-humo-local-cache-transfer-precheck-20260906-08",
+  "completedAt": "2026-09-06T18:02:21.059Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-local-video-engine.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 392868,
-  "bytesAfter": 393089,
+  "bytesBefore": 393089,
+  "bytesAfter": 396216,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

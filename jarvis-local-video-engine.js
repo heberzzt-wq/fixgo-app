@@ -2113,6 +2113,82 @@ export function createRunpodRemoteVideoAdapter({
         };
     }
 
+    async function inspectHuMoLocalCacheTransferPrecheck({ job = null } = {}) {
+        const phase = "HUMO_LOCAL_CACHE_TRANSFER_PREFLIGHT";
+        const failed = (status, extra = {}) => ({
+            ok: false,
+            phase,
+            status,
+            error: status,
+            backend: HUMO_IDENTITY_PROBE.backend,
+            model: HUMO_IDENTITY_PROBE.model,
+            targetGpuTypeId: RUNPOD_HUMO_IDENTITY_CANDIDATE.targetGpuTypeId,
+            resourceCreationPossible: false,
+            providerTrafficUsed: false,
+            inferenceStarted: false,
+            externalApiUsed: false,
+            externalEstimatedCostUsd: 0,
+            ...extra
+        });
+        try {
+            if (configuredRemoteBackend() !== HUMO_IDENTITY_PROBE.backend) {
+                return failed("RUNPOD_HUMO_BACKEND_REQUIRED");
+            }
+            if (runtimeCertificationOnly) {
+                return failed("RUNPOD_HUMO_LOCAL_CACHE_INFERENCE_MODE_REQUIRED");
+            }
+            if (networkVolumeId) {
+                return failed("RUNPOD_HUMO_LOCAL_CACHE_NETWORK_VOLUME_CONFLICT");
+            }
+            if (!localHuMoCacheRoot) {
+                return failed("LOCAL_HUMO_CACHE_ROOT_REQUIRED");
+            }
+            if (!runtimeCertificationDataCenterId) {
+                return failed("RUNPOD_DATACENTER_EXPLICIT_CONFIGURATION_REQUIRED");
+            }
+            if (typeof inspectLocalHuMoCacheImpl !== "function") {
+                return failed("LOCAL_HUMO_CACHE_INSPECTOR_REQUIRED");
+            }
+            const cacheEvidence = await inspectLocalHuMoCacheImpl({
+                cacheRoot: localHuMoCacheRoot,
+                contract: RUNPOD_HUMO_CACHE_BASE,
+                requireSourceRevision: true
+            });
+            if (cacheEvidence?.ok !== true) {
+                return failed(
+                    cacheEvidence?.status || "LOCAL_HUMO_CACHE_NOT_READY",
+                    { cacheEvidence }
+                );
+            }
+            const transferPlan = buildHuMoLocalEphemeralTransferPlan({
+                cacheEvidence,
+                contract: RUNPOD_HUMO_CACHE_BASE,
+                remoteBase,
+                ephemeralVolumeGb: localHuMoEphemeralVolumeGb
+            });
+            if (transferPlan.ok !== true) {
+                return { ...transferPlan, phase };
+            }
+            return {
+                ...transferPlan,
+                phase,
+                backend: HUMO_IDENTITY_PROBE.backend,
+                model: HUMO_IDENTITY_PROBE.model,
+                targetGpuTypeId: RUNPOD_HUMO_IDENTITY_CANDIDATE.targetGpuTypeId,
+                dataCenterId: runtimeCertificationDataCenterId,
+                cacheEvidence,
+                paidResourceCreationAuthorized,
+                paidExecutionAuthorized: humoIdentityProbePaidExecutionAuthorized,
+                resourceCreationPossible: false,
+                providerTrafficUsed: false,
+                inferenceStarted: false
+            };
+        }
+        catch(error) {
+            return failed(error?.message || "LOCAL_HUMO_CACHE_PREFLIGHT_FAILED");
+        }
+    }
+
     function huMoIdentityProbeExecutionAuthorized(job = null) {
         if (!isHuMoRemoteJob(job) || runtimeCertificationOnly === true) return false;
         const authority = job?.identityRuntimeAuthority;
