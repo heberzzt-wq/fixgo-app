@@ -148,6 +148,60 @@ test("V142 local HuMo cache pins the source repository revision fail-closed", as
     }
 });
 
+test("V142 HuMo local cache builds a zero-cost ephemeral transfer plan", async () => {
+    const { buildHuMoLocalEphemeralTransferPlan } = await import("../jarvis-local-video-engine.js");
+    const bytes = Buffer.from("fixture-transfer-plan");
+    const contract = {
+        ...RUNPOD_HUMO_CACHE_BASE,
+        cacheDirectory: "humo-fixture",
+        requiredFiles: [{
+            path: "weights/HuMo/fixture.bin",
+            bytes: bytes.length,
+            sha256: createHash("sha256").update(bytes).digest("hex")
+        }],
+        totalBytes: bytes.length
+    };
+    const evidence = {
+        ok: true,
+        cacheStatus: "CACHE_MODEL_READY",
+        cacheRoot: path.resolve(os.tmpdir(), "humo-fixture-cache"),
+        assetsVerified: 1,
+        shaVerified: true,
+        totalBytes: bytes.length,
+        inferenceStarted: false,
+        externalApiUsed: false,
+        externalEstimatedCostUsd: 0
+    };
+    const plan = buildHuMoLocalEphemeralTransferPlan({
+        cacheEvidence: evidence,
+        contract,
+        ephemeralVolumeGb: 1,
+        reserveBytes: 1024
+    });
+    assert.equal(plan.ok, true);
+    assert.equal(plan.status, "LOCAL_HUMO_EPHEMERAL_TRANSFER_PLAN_READY");
+    assert.equal(plan.cacheMode, "LOCAL_TO_EPHEMERAL");
+    assert.equal(plan.networkVolumeRequired, false);
+    assert.equal(plan.persistentStorageRequired, false);
+    assert.equal(plan.recurringStorageCostUsd, 0);
+    assert.equal(plan.resourceCreationPossible, false);
+    assert.equal(plan.providerTrafficUsed, false);
+    assert.equal(plan.inferenceStarted, false);
+    assert.equal(plan.transferBytes, bytes.length);
+    assert.equal(plan.files.length, 1);
+    assert.match(plan.files[0].destination, /\/workspace\/jarvis-v142\/cache\/humo-fixture\/weights\/HuMo\/fixture\.bin$/);
+
+    const insufficient = buildHuMoLocalEphemeralTransferPlan({
+        cacheEvidence: evidence,
+        contract,
+        ephemeralVolumeGb: 0,
+        reserveBytes: 1024
+    });
+    assert.equal(insufficient.ok, false);
+    assert.equal(insufficient.status, "LOCAL_HUMO_EPHEMERAL_VOLUME_INSUFFICIENT");
+    assert.equal(insufficient.resourceCreationPossible, false);
+});
+
 // Scale only fixture bytes, keeping production lifecycle/validators/transports unchanged.
 let smallHuMoModule;
 async function smallHuMoAuthorityModule() {
