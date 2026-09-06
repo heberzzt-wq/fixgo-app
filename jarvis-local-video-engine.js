@@ -2425,7 +2425,7 @@ export function createRunpodRemoteVideoAdapter({
                 if (!runtimeCertificationOnly && networkVolumeId && localHuMoCacheConfigured) {
                     throw new Error("RUNPOD_HUMO_CACHE_AUTHORITY_CONFLICT");
                 }
-                if (!runtimeCertificationOnly && !retainNetworkVolumeAuthorized) {
+                if (!runtimeCertificationOnly && networkVolumeId && !retainNetworkVolumeAuthorized) {
                     throw new Error("RUNPOD_NETWORK_VOLUME_RETENTION_AUTHORITY_REQUIRED");
                 }
                 if (!runtimeCertificationOnly && (
