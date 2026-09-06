@@ -65,6 +65,89 @@ test("V142 HuMo verifies actual streamed bytes instead of trusting manifest clai
     await assert.rejects(verifyModelCacheContents({ contract, manifest, readAsset: async () => new Response("", { status: 404 }) }), /MISSING/);
 });
 
+test("V142 local HuMo cache verifies physical bytes with zero RunPod activity", async () => {
+    const { inspectLocalHuMoCache } = await import("../jarvis-local-video-engine.js");
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-local-humo-cache-"));
+    try {
+        const relativePath = "weights/HuMo/fixture.bin";
+        const target = path.join(root, ...relativePath.split("/"));
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        const bytes = Buffer.from("fixture-local-humo");
+        fs.writeFileSync(target, bytes);
+        const contract = {
+            ...RUNPOD_HUMO_CACHE_BASE,
+            requiredFiles: [{
+                path: relativePath,
+                bytes: bytes.length,
+                sha256: createHash("sha256").update(bytes).digest("hex"),
+                repository: "fixture/humo",
+                revision: "fixture-revision",
+                sourcePath: "fixture.bin"
+            }],
+            totalBytes: bytes.length
+        };
+        const ready = await inspectLocalHuMoCache({ cacheRoot: root, contract, requireSourceRevision: false });
+        assert.equal(ready.ok, true);
+        assert.equal(ready.status, "LOCAL_HUMO_ASSETS_READY");
+        assert.equal(ready.cacheStatus, "CACHE_MODEL_READY");
+        assert.equal(ready.assetsVerified, 1);
+        assert.equal(ready.shaVerified, true);
+        assert.equal(ready.totalBytes, bytes.length);
+        assert.equal(ready.inferenceStarted, false);
+        assert.equal(ready.externalApiUsed, false);
+        assert.equal(ready.externalEstimatedCostUsd, 0);
+
+        const corrupted = Buffer.from(bytes);
+        corrupted[0] ^= 0xff;
+        fs.writeFileSync(target, corrupted);
+        const failed = await inspectLocalHuMoCache({ cacheRoot: root, contract, requireSourceRevision: false });
+        assert.equal(failed.ok, false);
+        assert.equal(failed.status, "LOCAL_HUMO_CACHE_ASSET_SHA256_MISMATCH");
+        assert.equal(failed.inferenceStarted, false);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test("V142 local HuMo cache pins the source repository revision fail-closed", async () => {
+    const { inspectLocalHuMoCache } = await import("../jarvis-local-video-engine.js");
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-local-humo-source-"));
+    try {
+        const relativePath = "weights/HuMo/fixture.bin";
+        const target = path.join(root, ...relativePath.split("/"));
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        const bytes = Buffer.from("fixture-source-pin");
+        fs.writeFileSync(target, bytes);
+        fs.mkdirSync(path.join(root, "HuMo", ".git"), { recursive: true });
+        const contract = {
+            ...RUNPOD_HUMO_CACHE_BASE,
+            requiredFiles: [{
+                path: relativePath,
+                bytes: bytes.length,
+                sha256: createHash("sha256").update(bytes).digest("hex"),
+                repository: "fixture/humo",
+                revision: "fixture-revision",
+                sourcePath: "fixture.bin"
+            }],
+            totalBytes: bytes.length,
+            sourceRevision: "845f44736e21be93aa5d8cf406b6eb01af9bff67"
+        };
+        const exactGit = (_command, args) => args.includes("rev-parse") ? `${contract.sourceRevision}\n` : "";
+        const ready = await inspectLocalHuMoCache({ cacheRoot: root, contract, execFileSyncImpl: exactGit });
+        assert.equal(ready.ok, true);
+        assert.equal(ready.status, "LOCAL_HUMO_CACHE_READY");
+        assert.equal(ready.sourceRevisionVerified, true);
+
+        const wrongGit = (_command, args) => args.includes("rev-parse") ? `${"0".repeat(40)}\n` : "";
+        const failed = await inspectLocalHuMoCache({ cacheRoot: root, contract, execFileSyncImpl: wrongGit });
+        assert.equal(failed.ok, false);
+        assert.equal(failed.status, "LOCAL_HUMO_SOURCE_REVISION_MISMATCH");
+        assert.equal(failed.inferenceStarted, false);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
 // Scale only fixture bytes, keeping production lifecycle/validators/transports unchanged.
 let smallHuMoModule;
 async function smallHuMoAuthorityModule() {
