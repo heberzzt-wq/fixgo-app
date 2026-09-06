@@ -422,6 +422,87 @@ export async function verifyModelCacheContents({ manifest, readAsset, contract =
     return { cacheStatus: "CACHE_MODEL_READY", shaVerified: true, totalBytes: contract.totalBytes };
 }
 
+export async function inspectLocalHuMoCache({
+    cacheRoot,
+    contract = RUNPOD_HUMO_CACHE_BASE,
+    requireSourceRevision = true,
+    execFileSyncImpl = execFileSync
+} = {}) {
+    const requestedRoot = String(cacheRoot || "").trim();
+    if (!requestedRoot) {
+        return { ok: false, status: "LOCAL_HUMO_CACHE_ROOT_REQUIRED", inferenceStarted: false };
+    }
+    const root = path.resolve(requestedRoot);
+    if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) {
+        return { ok: false, status: "LOCAL_HUMO_CACHE_ROOT_NOT_FOUND", cacheRoot: root, inferenceStarted: false };
+    }
+    const digestFile = file => new Promise((resolve, reject) => {
+        const hash = createHash("sha256");
+        const stream = fs.createReadStream(file, { highWaterMark: 8 * 1024 * 1024 });
+        stream.on("data", chunk => hash.update(chunk));
+        stream.on("error", reject);
+        stream.on("end", () => resolve(hash.digest("hex")));
+    });
+    let totalBytes = 0;
+    const files = [];
+    for (const expected of contract.requiredFiles) {
+        const target = path.resolve(root, expected.path);
+        if (target !== root && !target.startsWith(root + path.sep)) {
+            return { ok: false, status: "LOCAL_HUMO_CACHE_PATH_ESCAPE", file: expected.path, inferenceStarted: false };
+        }
+        let stat;
+        try { stat = fs.lstatSync(target); }
+        catch { return { ok: false, status: "LOCAL_HUMO_CACHE_ASSET_MISSING", file: expected.path, inferenceStarted: false }; }
+        if (!stat.isFile() || stat.isSymbolicLink()) {
+            return { ok: false, status: "LOCAL_HUMO_CACHE_ASSET_INVALID", file: expected.path, inferenceStarted: false };
+        }
+        if (stat.size !== expected.bytes) {
+            return { ok: false, status: "LOCAL_HUMO_CACHE_ASSET_SIZE_MISMATCH", file: expected.path, expectedBytes: expected.bytes, observedBytes: stat.size, inferenceStarted: false };
+        }
+        const sha256 = await digestFile(target);
+        if (sha256 !== expected.sha256) {
+            return { ok: false, status: "LOCAL_HUMO_CACHE_ASSET_SHA256_MISMATCH", file: expected.path, expectedSha256: expected.sha256, observedSha256: sha256, inferenceStarted: false };
+        }
+        totalBytes += stat.size;
+        files.push({ path: expected.path, bytes: stat.size, sha256 });
+    }
+    let sourceRevision = null;
+    if (requireSourceRevision) {
+        const repository = path.join(root, "HuMo");
+        if (!fs.existsSync(path.join(repository, ".git"))) {
+            return { ok: false, status: "LOCAL_HUMO_SOURCE_REQUIRED", cacheRoot: root, assetsVerified: files.length, totalBytes, inferenceStarted: false };
+        }
+        try {
+            sourceRevision = String(execFileSyncImpl("git", ["-C", repository, "rev-parse", "HEAD"], { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }) || "").trim();
+            const dirty = String(execFileSyncImpl("git", ["-C", repository, "status", "--porcelain", "--untracked-files=no"], { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }) || "").trim();
+            if (sourceRevision !== contract.sourceRevision) {
+                return { ok: false, status: "LOCAL_HUMO_SOURCE_REVISION_MISMATCH", sourceRevision, expectedSourceRevision: contract.sourceRevision, inferenceStarted: false };
+            }
+            if (dirty) {
+                return { ok: false, status: "LOCAL_HUMO_SOURCE_MODIFIED", sourceRevision, inferenceStarted: false };
+            }
+        } catch(error) {
+            return { ok: false, status: "LOCAL_HUMO_SOURCE_VERIFY_FAILED", error: error?.message || String(error), inferenceStarted: false };
+        }
+    }
+    return {
+        ok: true,
+        status: requireSourceRevision ? "LOCAL_HUMO_CACHE_READY" : "LOCAL_HUMO_ASSETS_READY",
+        cacheStatus: "CACHE_MODEL_READY",
+        cacheRoot: root,
+        assetsVerified: files.length,
+        assetsExpected: contract.requiredFiles.length,
+        shaVerified: true,
+        totalBytes,
+        sourceRevision,
+        sourceRevisionVerified: requireSourceRevision,
+        inferenceStarted: false,
+        externalApiUsed: false,
+        externalEstimatedCostUsd: 0,
+        files
+    };
+}
+
 export const RUNPOD_WAN22_GPU_PROFILES = Object.freeze({
     "NVIDIA L40S": Object.freeze({
         ...RUNPOD_WAN22_CACHE_BASE,
