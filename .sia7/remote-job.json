@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-local-ephemeral-plan-tests-20260906-05",
+  "jobId": "v142-humo-local-cache-adapter-injection-20260906-06",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+    "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "// Scale only fixture bytes, keeping production lifecycle/validators/transports unchanged.",
-    "replace": "test(\"V142 HuMo local cache builds a zero-cost ephemeral transfer plan\", async () => {\n    const { buildHuMoLocalEphemeralTransferPlan } = await import(\"../jarvis-local-video-engine.js\");\n    const bytes = Buffer.from(\"fixture-transfer-plan\");\n    const contract = {\n        ...RUNPOD_HUMO_CACHE_BASE,\n        cacheDirectory: \"humo-fixture\",\n        requiredFiles: [{\n            path: \"weights/HuMo/fixture.bin\",\n            bytes: bytes.length,\n            sha256: createHash(\"sha256\").update(bytes).digest(\"hex\")\n        }],\n        totalBytes: bytes.length\n    };\n    const evidence = {\n        ok: true,\n        cacheStatus: \"CACHE_MODEL_READY\",\n        cacheRoot: path.resolve(os.tmpdir(), \"humo-fixture-cache\"),\n        assetsVerified: 1,\n        shaVerified: true,\n        totalBytes: bytes.length,\n        inferenceStarted: false,\n        externalApiUsed: false,\n        externalEstimatedCostUsd: 0\n    };\n    const plan = buildHuMoLocalEphemeralTransferPlan({\n        cacheEvidence: evidence,\n        contract,\n        ephemeralVolumeGb: 1,\n        reserveBytes: 1024\n    });\n    assert.equal(plan.ok, true);\n    assert.equal(plan.status, \"LOCAL_HUMO_EPHEMERAL_TRANSFER_PLAN_READY\");\n    assert.equal(plan.cacheMode, \"LOCAL_TO_EPHEMERAL\");\n    assert.equal(plan.networkVolumeRequired, false);\n    assert.equal(plan.persistentStorageRequired, false);\n    assert.equal(plan.recurringStorageCostUsd, 0);\n    assert.equal(plan.resourceCreationPossible, false);\n    assert.equal(plan.providerTrafficUsed, false);\n    assert.equal(plan.inferenceStarted, false);\n    assert.equal(plan.transferBytes, bytes.length);\n    assert.equal(plan.files.length, 1);\n    assert.match(plan.files[0].destination, /\\/workspace\\/jarvis-v142\\/cache\\/humo-fixture\\/weights\\/HuMo\\/fixture\\.bin$/);\n\n    const insufficient = buildHuMoLocalEphemeralTransferPlan({\n        cacheEvidence: evidence,\n        contract,\n        ephemeralVolumeGb: 0,\n        reserveBytes: 1024\n    });\n    assert.equal(insufficient.ok, false);\n    assert.equal(insufficient.status, \"LOCAL_HUMO_EPHEMERAL_VOLUME_INSUFFICIENT\");\n    assert.equal(insufficient.resourceCreationPossible, false);\n});\n\n// Scale only fixture bytes, keeping production lifecycle/validators/transports unchanged."
+    "search": "    resolveCanonicalSha = null,",
+    "replace": "    resolveCanonicalSha = null,\n    inspectLocalHuMoCacheImpl = inspectLocalHuMoCache,"
   }
 }
