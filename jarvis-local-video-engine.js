@@ -503,6 +503,74 @@ export async function inspectLocalHuMoCache({
     };
 }
 
+export function buildHuMoLocalEphemeralTransferPlan({
+    cacheEvidence,
+    contract = RUNPOD_HUMO_CACHE_BASE,
+    remoteBase = "/workspace/jarvis-v142",
+    ephemeralVolumeGb = 64,
+    reserveBytes = 12 * RUNPOD_GIB
+} = {}) {
+    const fail = status => ({
+        ok: false,
+        status,
+        error: status,
+        resourceCreationPossible: false,
+        providerTrafficUsed: false,
+        inferenceStarted: false,
+        externalApiUsed: false,
+        externalEstimatedCostUsd: 0
+    });
+    if (
+        cacheEvidence?.ok !== true ||
+        cacheEvidence?.cacheStatus !== "CACHE_MODEL_READY" ||
+        cacheEvidence?.shaVerified !== true ||
+        cacheEvidence?.inferenceStarted !== false ||
+        cacheEvidence?.externalApiUsed !== false ||
+        Number(cacheEvidence?.externalEstimatedCostUsd || 0) !== 0 ||
+        Number(cacheEvidence?.assetsVerified || 0) !== contract.requiredFiles.length ||
+        Number(cacheEvidence?.totalBytes || 0) !== Number(contract.totalBytes || 0)
+    ) return fail("LOCAL_HUMO_CACHE_EVIDENCE_REQUIRED");
+    const requestedVolumeGb = Number(ephemeralVolumeGb);
+    const minimumEphemeralVolumeGb = Math.ceil((Number(contract.totalBytes || 0) + Number(reserveBytes || 0)) / RUNPOD_GIB);
+    if (!Number.isInteger(requestedVolumeGb) || requestedVolumeGb < minimumEphemeralVolumeGb) {
+        return {
+            ...fail("LOCAL_HUMO_EPHEMERAL_VOLUME_INSUFFICIENT"),
+            requestedVolumeGb,
+            minimumEphemeralVolumeGb
+        };
+    }
+    const sourceRoot = path.resolve(String(cacheEvidence.cacheRoot || ""));
+    if (!sourceRoot) return fail("LOCAL_HUMO_CACHE_ROOT_REQUIRED");
+    const destinationCacheRoot = `${String(remoteBase || "/workspace/jarvis-v142").replace(/\/$/, "")}/cache/${contract.cacheDirectory || "humo-1.7b"}`;
+    return {
+        ok: true,
+        status: "LOCAL_HUMO_EPHEMERAL_TRANSFER_PLAN_READY",
+        cacheMode: "LOCAL_TO_EPHEMERAL",
+        sourceCacheRoot: sourceRoot,
+        destinationCacheRoot,
+        transferBytes: contract.totalBytes,
+        assetCount: contract.requiredFiles.length,
+        ephemeralVolumeGb: requestedVolumeGb,
+        minimumEphemeralVolumeGb,
+        reserveBytes: Number(reserveBytes || 0),
+        networkVolumeRequired: false,
+        persistentStorageRequired: false,
+        recurringStorageCostUsd: 0,
+        resourceCreationPossible: false,
+        providerTrafficUsed: false,
+        inferenceStarted: false,
+        externalApiUsed: false,
+        externalEstimatedCostUsd: 0,
+        files: contract.requiredFiles.map(file => ({
+            path: file.path,
+            bytes: file.bytes,
+            sha256: file.sha256,
+            source: path.resolve(sourceRoot, file.path),
+            destination: `${destinationCacheRoot}/${file.path}`
+        }))
+    };
+}
+
 export const RUNPOD_WAN22_GPU_PROFILES = Object.freeze({
     "NVIDIA L40S": Object.freeze({
         ...RUNPOD_WAN22_CACHE_BASE,

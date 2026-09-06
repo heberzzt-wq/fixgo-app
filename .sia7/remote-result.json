@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-local-humo-cache-tests-20260906-03",
-  "completedAt": "2026-09-06T17:55:35.527Z",
+  "jobId": "v142-humo-local-ephemeral-plan-20260906-04",
+  "completedAt": "2026-09-06T17:59:51.034Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+  "file": "jarvis-local-video-engine.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 381666,
-  "bytesAfter": 385747,
+  "bytesBefore": 390002,
+  "bytesAfter": 392813,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "tests/jarvis-local-video-engine-v142.test.mjs"
+    "jarvis-local-video-engine.js"
   ]
 }
