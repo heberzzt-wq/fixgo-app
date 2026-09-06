@@ -1976,6 +1976,11 @@ export function createRunpodRemoteVideoAdapter({
     const containerDiskInGb = Math.ceil(runpodPositiveNumber(env.JARVIS_RUNPOD_CONTAINER_DISK_GB, 30));
     const volumeInGb = Math.ceil(runpodPositiveNumber(env.JARVIS_RUNPOD_VOLUME_DISK_GB, 100));
     const networkVolumeId = String(env.JARVIS_RUNPOD_NETWORK_VOLUME_ID || "").trim();
+    const localHuMoCacheRoot = String(env.JARVIS_HUMO_LOCAL_CACHE_ROOT || "").trim();
+    const localHuMoEphemeralVolumeGb = Math.ceil(runpodPositiveNumber(
+        env.JARVIS_HUMO_EPHEMERAL_VOLUME_GB,
+        64
+    ));
     const retainNetworkVolumeAuthorized = booleanValue(env.JARVIS_RUNPOD_RETAIN_NETWORK_VOLUME_AUTHORIZED, false);
     const runtimeCertificationOnly = booleanValue(
         env.JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY,
