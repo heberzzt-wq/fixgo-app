@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-local-cache-retention-scope-20260906-13",
+  "jobId": "v142-humo-local-cache-launch-precheck-20260906-14",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                if (!runtimeCertificationOnly && !retainNetworkVolumeAuthorized) {",
-    "replace": "                if (!runtimeCertificationOnly && networkVolumeId && !retainNetworkVolumeAuthorized) {"
+    "search": "        const persistentCache = lifecycle && !runtimeCertificationOnly",
+    "replace": "        const localCacheTransferPrecheck = lifecycle && !runtimeCertificationOnly && !networkVolumeId\n            ? await inspectHuMoLocalCacheTransferPrecheck({ job })\n            : null;\n        if (localCacheTransferPrecheck && localCacheTransferPrecheck.ok !== true) {\n            throw new Error(localCacheTransferPrecheck.status || \"LOCAL_HUMO_CACHE_PREFLIGHT_FAILED\");\n        }\n        const persistentCache = lifecycle && !runtimeCertificationOnly && Boolean(networkVolumeId)"
   }
 }
