@@ -5247,7 +5247,13 @@ export function createRunpodRemoteVideoAdapter({
         assertProviderConfigured();
         const lifecycle = remoteHuMoLifecycleContract(job);
         const launchProfile = lifecycle?.profile || cacheContract;
-        const persistentCache = lifecycle && !runtimeCertificationOnly
+        const localCacheTransferPrecheck = lifecycle && !runtimeCertificationOnly && !networkVolumeId
+            ? await inspectHuMoLocalCacheTransferPrecheck({ job })
+            : null;
+        if (localCacheTransferPrecheck && localCacheTransferPrecheck.ok !== true) {
+            throw new Error(localCacheTransferPrecheck.status || "LOCAL_HUMO_CACHE_PREFLIGHT_FAILED");
+        }
+        const persistentCache = lifecycle && !runtimeCertificationOnly && Boolean(networkVolumeId)
             ? await inspectPersistentModelCache({ operationId: job.operationId }) : null;
         const registryVerification = await resolveRegistryVerification(launchProfile);
         const file = stateFile(job.operationId);
