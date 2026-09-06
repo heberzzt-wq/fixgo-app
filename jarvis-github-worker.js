@@ -4,7 +4,7 @@ import path from "node:path";
 
 const BRIDGE_URL = process.env.JARVIS_FS_BRIDGE_URL || "http://localhost:3344";
 const REMOTE = process.env.SIA7_REMOTE || "origin";
-const BRANCH = process.env.SIA7_BRANCH || "v5.9-polish";
+const BRANCH = process.env.SIA7_BRANCH || "v94-media-v4n-negative-claims";
 const JOB_PATH = process.env.SIA7_JOB_PATH || ".sia7/remote-job.json";
 const RESULT_PATH = process.env.SIA7_RESULT_PATH || ".sia7/remote-result.json";
 const POLL_MS = Number(process.env.SIA7_POLL_MS) || 5000;
