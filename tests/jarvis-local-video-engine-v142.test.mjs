@@ -202,6 +202,75 @@ test("V142 HuMo local cache builds a zero-cost ephemeral transfer plan", async (
     assert.equal(insufficient.resourceCreationPossible, false);
 });
 
+test("V142 RunPod adapter local HuMo preflight verifies cache before any provider traffic", async () => {
+    let providerCalls = 0;
+    const cacheRoot = path.resolve(os.tmpdir(), "jarvis-adapter-humo-cache");
+    const adapter = createRunpodRemoteVideoAdapter({
+        env: {
+            JARVIS_REMOTE_GPU_PROVIDER: "runpod",
+            JARVIS_LOCAL_VIDEO_MODEL: "humo",
+            JARVIS_RUNPOD_DATACENTER_ID: "EU-RO-1",
+            JARVIS_HUMO_LOCAL_CACHE_ROOT: cacheRoot,
+            JARVIS_HUMO_EPHEMERAL_VOLUME_GB: "64"
+        },
+        fetchImpl: async () => { providerCalls += 1; throw new Error("PROVIDER_MUST_NOT_BE_CALLED"); },
+        inspectLocalHuMoCacheImpl: async ({ cacheRoot: observedRoot, contract, requireSourceRevision }) => ({
+            ok: true,
+            status: "LOCAL_HUMO_CACHE_READY",
+            cacheStatus: "CACHE_MODEL_READY",
+            cacheRoot: observedRoot,
+            assetsVerified: contract.requiredFiles.length,
+            assetsExpected: contract.requiredFiles.length,
+            shaVerified: true,
+            totalBytes: contract.totalBytes,
+            sourceRevision: contract.sourceRevision,
+            sourceRevisionVerified: requireSourceRevision === true,
+            inferenceStarted: false,
+            externalApiUsed: false,
+            externalEstimatedCostUsd: 0
+        })
+    });
+    const plan = await adapter.inspectHuMoLocalCacheTransferPrecheck();
+    assert.equal(plan.ok, true);
+    assert.equal(plan.phase, "HUMO_LOCAL_CACHE_TRANSFER_PREFLIGHT");
+    assert.equal(plan.status, "LOCAL_HUMO_EPHEMERAL_TRANSFER_PLAN_READY");
+    assert.equal(plan.cacheMode, "LOCAL_TO_EPHEMERAL");
+    assert.equal(plan.networkVolumeRequired, false);
+    assert.equal(plan.persistentStorageRequired, false);
+    assert.equal(plan.resourceCreationPossible, false);
+    assert.equal(plan.providerTrafficUsed, false);
+    assert.equal(plan.inferenceStarted, false);
+    assert.equal(plan.dataCenterId, "EU-RO-1");
+    assert.equal(providerCalls, 0);
+});
+
+test("V142 RunPod adapter local HuMo preflight fails closed on bad cache with zero provider traffic", async () => {
+    let providerCalls = 0;
+    const adapter = createRunpodRemoteVideoAdapter({
+        env: {
+            JARVIS_REMOTE_GPU_PROVIDER: "runpod",
+            JARVIS_LOCAL_VIDEO_MODEL: "humo",
+            JARVIS_RUNPOD_DATACENTER_ID: "EU-RO-1",
+            JARVIS_HUMO_LOCAL_CACHE_ROOT: path.resolve(os.tmpdir(), "bad-humo-cache")
+        },
+        fetchImpl: async () => { providerCalls += 1; throw new Error("PROVIDER_MUST_NOT_BE_CALLED"); },
+        inspectLocalHuMoCacheImpl: async () => ({
+            ok: false,
+            status: "LOCAL_HUMO_CACHE_ASSET_SHA256_MISMATCH",
+            inferenceStarted: false,
+            externalApiUsed: false,
+            externalEstimatedCostUsd: 0
+        })
+    });
+    const result = await adapter.inspectHuMoLocalCacheTransferPrecheck();
+    assert.equal(result.ok, false);
+    assert.equal(result.status, "LOCAL_HUMO_CACHE_ASSET_SHA256_MISMATCH");
+    assert.equal(result.resourceCreationPossible, false);
+    assert.equal(result.providerTrafficUsed, false);
+    assert.equal(result.inferenceStarted, false);
+    assert.equal(providerCalls, 0);
+});
+
 // Scale only fixture bytes, keeping production lifecycle/validators/transports unchanged.
 let smallHuMoModule;
 async function smallHuMoAuthorityModule() {
