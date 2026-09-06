@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-local-cache-adapter-injection-20260906-06",
+  "jobId": "v142-humo-local-cache-adapter-config-20260906-07",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    resolveCanonicalSha = null,",
-    "replace": "    resolveCanonicalSha = null,\n    inspectLocalHuMoCacheImpl = inspectLocalHuMoCache,"
+    "search": "    const networkVolumeId = String(env.JARVIS_RUNPOD_NETWORK_VOLUME_ID || \"\").trim();",
+    "replace": "    const networkVolumeId = String(env.JARVIS_RUNPOD_NETWORK_VOLUME_ID || \"\").trim();\n    const localHuMoCacheRoot = String(env.JARVIS_HUMO_LOCAL_CACHE_ROOT || \"\").trim();\n    const localHuMoEphemeralVolumeGb = Math.ceil(runpodPositiveNumber(\n        env.JARVIS_HUMO_EPHEMERAL_VOLUME_GB,\n        64\n    ));"
   }
 }
