@@ -2418,7 +2418,13 @@ export function createRunpodRemoteVideoAdapter({
                 if (networkVolumeId && runtimeCertificationOnly) {
                     throw new Error("RUNPOD_HUMO_NETWORK_VOLUME_CACHE_UNCERTIFIED");
                 }
-                if (!runtimeCertificationOnly && !networkVolumeId) throw new Error("RUNPOD_HUMO_CACHE_REQUIRED");
+                const localHuMoCacheConfigured = Boolean(localHuMoCacheRoot);
+                if (!runtimeCertificationOnly && !networkVolumeId && !localHuMoCacheConfigured) {
+                    throw new Error("RUNPOD_HUMO_CACHE_REQUIRED");
+                }
+                if (!runtimeCertificationOnly && networkVolumeId && localHuMoCacheConfigured) {
+                    throw new Error("RUNPOD_HUMO_CACHE_AUTHORITY_CONFLICT");
+                }
                 if (!runtimeCertificationOnly && !retainNetworkVolumeAuthorized) {
                     throw new Error("RUNPOD_NETWORK_VOLUME_RETENTION_AUTHORITY_REQUIRED");
                 }
