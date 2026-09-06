@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-local-cache-mode-contract-20260906-11",
+  "jobId": "v142-humo-local-cache-mode-contract-20260906-12",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                if (!runtimeCertificationOnly && !networkVolumeId) throw new Error(\"RUNPOD_HUMO_CACHE_REQUIRED\");\n                if (!runtimeCertificationOnly && !retainNetworkVolumeAuthorized) {\n                    throw new Error(\"RUNPOD_NETWORK_VOLUME_RETENTION_AUTHORITY_REQUIRED\");\n                }",
-    "replace": "                const localHuMoCacheConfigured = Boolean(localHuMoCacheRoot);\n                if (!runtimeCertificationOnly && !networkVolumeId && !localHuMoCacheConfigured) {\n                    throw new Error(\"RUNPOD_HUMO_CACHE_REQUIRED\");\n                }\n                if (!runtimeCertificationOnly && networkVolumeId && localHuMoCacheConfigured) {\n                    throw new Error(\"RUNPOD_HUMO_CACHE_AUTHORITY_CONFLICT\");\n                }\n                if (!runtimeCertificationOnly && networkVolumeId && !retainNetworkVolumeAuthorized) {\n                    throw new Error(\"RUNPOD_NETWORK_VOLUME_RETENTION_AUTHORITY_REQUIRED\");\n                }"
+    "search": "                if (!runtimeCertificationOnly && !networkVolumeId) throw new Error(\"RUNPOD_HUMO_CACHE_REQUIRED\");",
+    "replace": "                const localHuMoCacheConfigured = Boolean(localHuMoCacheRoot);\n                if (!runtimeCertificationOnly && !networkVolumeId && !localHuMoCacheConfigured) {\n                    throw new Error(\"RUNPOD_HUMO_CACHE_REQUIRED\");\n                }\n                if (!runtimeCertificationOnly && networkVolumeId && localHuMoCacheConfigured) {\n                    throw new Error(\"RUNPOD_HUMO_CACHE_AUTHORITY_CONFLICT\");\n                }"
   }
 }
