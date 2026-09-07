@@ -4467,7 +4467,7 @@ export function createRunpodRemoteVideoAdapter({
     function buildCpuModelStagingBootstrap(operationId = "cpu-model-staging") {
         const humo = configuredRemoteBackend() === HUMO_IDENTITY_PROBE.backend;
         if (humo) {
-            if (!runtimeCertificationDataCenterId) throw new Error("RUNPOD_HUMO_DATACENTER_REQUIRED");
+            if (!networkVolumeId || !runtimeCertificationDataCenterId) throw new Error("RUNPOD_HUMO_CACHE_REQUIRED");
             if (!retainNetworkVolumeAuthorized) throw new Error("RUNPOD_NETWORK_VOLUME_RETENTION_AUTHORITY_REQUIRED");
             const a = RUNPOD_HUMO_CACHE_BASE;
             const root = `${remoteBase}/cache/${a.cacheDirectory}`;

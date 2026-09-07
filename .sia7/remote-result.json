@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-ephemeral-stage-authority-20260907-70a",
-  "completedAt": "2026-09-07T05:59:33.249Z",
+  "jobId": "v142-humo-persistent-volume-guard-20260907-71",
+  "completedAt": "2026-09-07T06:07:14.106Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-local-video-engine.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 401693,
-  "bytesAfter": 401678,
+  "bytesBefore": 401678,
+  "bytesAfter": 401693,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
