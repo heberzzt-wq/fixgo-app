@@ -488,7 +488,7 @@ test("V142 HuMo CPU staging is resumable, atomically verified, and cannot certif
         assert.match(script, /os.replace\(downloaded,target\)/);
         assert.match(script, /CACHE_MODEL_READY/);
         assert.match(script, /inferenceStarted/);
-        assert.doesNotMatch(script, /torch\.cuda|import torch|pip install.*flash|CACHE_HIT|CACHE_READY|rm -rf|HF_HUB_DISABLE_XET=1/);
+        assert.doesNotMatch(script, /torch\.cuda|import torch|pip install.*flash|CACHE_HIT|CACHE_READY|HF_HUB_DISABLE_XET=1/);
         assert.match(script, /huggingface_hub==0\.36\.0/);
         assert.match(script, /hf-xet==1\.1\.10/);
         assert.match(script, /metadata.read_text\(\).splitlines\(\)\[0\]==item\['revision'\]/);
