@@ -1,40 +1,8 @@
 {
-  "jobId": "v142-local-run-contract-inspect-20260907-73",
-  "completedAt": "2026-09-07T06:16:00.325Z",
+  "jobId": "v142-humo-cpu-stage-receipt-authority-20260907-74",
+  "completedAt": "2026-09-07T06:28:51.234Z",
   "ok": false,
-  "httpStatus": 503,
-  "endpoint": "/grep",
-  "payload": {
-    "ok": false,
-    "status": "BRIDGE_IDENTITY_INVALID",
-    "error": "BRIDGE_IDENTITY_INVALID",
-    "identity": {
-      "ok": false,
-      "status": "BRIDGE_IDENTITY_INVALID",
-      "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-host-operations-v142-20260905",
-      "contract": {
-        "ok": true,
-        "projectId": "fixgo-app",
-        "repository": "heberzzt-wq/fixgo-app",
-        "branch": "v94-media-v4n-negative-claims",
-        "releaseId": "v94-source-grounded-research-v124-20260810",
-        "contractPath": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-host-operations-v142-20260905\\jarvis-runtime-contract.json"
-      },
-      "git": {
-        "root": "",
-        "branch": "",
-        "head": "",
-        "remote": "",
-        "clean": false
-      },
-      "identityMode": "invalid",
-      "contractHead": null,
-      "remoteVerified": false,
-      "repositoryMatches": false,
-      "worktreeClean": false
-    },
-    "version": "2.51.0-temporal-media-self-hosted-v142"
-  },
+  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1",
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
