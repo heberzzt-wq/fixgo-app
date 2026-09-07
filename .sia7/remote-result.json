@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-volume-fallback-validation-20260907-124",
-  "completedAt": "2026-09-07T18:09:32.044Z",
+  "jobId": "v142-humo-volume-fallback-economic-receipt-20260907-125",
+  "completedAt": "2026-09-07T18:10:11.285Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 353373,
-  "bytesAfter": 353384,
+  "bytesBefore": 353384,
+  "bytesAfter": 353463,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

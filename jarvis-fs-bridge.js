@@ -8458,7 +8458,7 @@ async function ensureHuMoPersistentNetworkVolume({ root, env, canonicalSha, log 
     }
     log({
         ok: true, status: "HUMO_NETWORK_VOLUME_CREATED", ...created, created: true,
-        estimatedMonthlyStorageUsd: 3.5, gpuHourlyRateUsd: Number(selected.hourlyRateUsd)
+        estimatedMonthlyStorageUsd: 3.5, gpuHourlyRateUsd: Number((eligible.find(item => String(item.dataCenterId) === created.dataCenterId) || selected).hourlyRateUsd)
     });
     return { ...created, created: true };
 }
