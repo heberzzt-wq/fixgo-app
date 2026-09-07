@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-8s-worker-output-20260907-161",
+  "jobId": "v142-humo-8s-worker-dryrun-20260907-162",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "const SIA7_HUMO_OUTPUT = \".jarvis-artifacts/videos/humo-heberto-identity-probe-3-3.88s.mp4\";",
-    "replace": "const SIA7_HUMO_OUTPUT = \".jarvis-artifacts/videos/humo-heberto-identity-probe-8s.mp4\";"
+    "search": "            durationSeconds: 3.88,",
+    "replace": "            durationSeconds: 8.0,"
   }
 }
