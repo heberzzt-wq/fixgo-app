@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-lan-adapter-stager-wiring-20260906-34",
+  "jobId": "v142-humo-lan-tests-imports-20260906-35",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "tests/jarvis-fs-bridge-v2.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            env: runpodCredential.env,",
-    "replace": "            env: runpodEnv,\n            ...(humoLanCacheAuthority.configured ? {\n                inspectLocalHuMoCacheImpl: createHuMoLanCacheInspector({ authority: humoLanCacheAuthority }),\n                stageHuMoLocalCacheToEphemeralImpl: createHuMoLanEphemeralStager({ authority: humoLanCacheAuthority })\n            } : {}),"
+    "search": "    createJarvisFsBridgeApp,",
+    "replace": "    createJarvisFsBridgeApp,\n    createHuMoLanCacheInspector,\n    createHuMoLanEphemeralStager,"
   }
 }
