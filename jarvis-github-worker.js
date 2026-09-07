@@ -10,6 +10,15 @@ const JOB_PATH = process.env.SIA7_JOB_PATH || ".sia7/remote-job.json";
 const RESULT_PATH = process.env.SIA7_RESULT_PATH || ".sia7/remote-result.json";
 const POLL_MS = Number(process.env.SIA7_POLL_MS) || 5000;
 const REPO_ROOT = path.resolve(process.cwd());
+const SIA7_HUMO_MAX_COMPUTE_USD = 3;
+const SIA7_HUMO_MONTHLY_STORAGE_USD = 3.5;
+const SIA7_HUMO_SOURCE_ROOT = path.resolve(REPO_ROOT, "..", "fixgo-v142-local-first-20260825");
+const SIA7_HUMO_REFERENCE_OUTPUT = ".jarvis-artifacts/uploads/1787783430100-a3151d2eefde-IMG_20240807_165633505_HDR-2.jpg";
+const SIA7_HUMO_REFERENCE_SHA256 = "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958";
+const SIA7_HUMO_AUDIO_OUTPUT = ".jarvis-artifacts/audio/series_heberto_infiltrado_cancun-ep-series_heberto_infiltrado_cancun-1-narration.wav";
+const SIA7_HUMO_AUDIO_SHA256 = "294861191281abdcc32a0d8fcef6102832e784d95e73e0e55a75fde7ecfc35ad";
+const SIA7_HUMO_OUTPUT = ".jarvis-artifacts/videos/humo-heberto-identity-probe-3-3.88s.mp4";
+const SIA7_HUMO_CHARACTER_ID = "CHAR_HEBERTO";
 const WINDOWS_GIT = "C:\\Program Files\\Git\\cmd\\git.exe";
 const GIT_EXECUTABLE = String(process.env.SIA7_GIT || "").trim() ||
     (process.platform === "win32" && fs.existsSync(WINDOWS_GIT) ? WINDOWS_GIT : "git");
