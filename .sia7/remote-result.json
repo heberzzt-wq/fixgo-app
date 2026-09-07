@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-lan-adapter-injection-20260906-33",
-  "completedAt": "2026-09-07T01:47:49.150Z",
+  "jobId": "v142-humo-lan-adapter-stager-wiring-20260906-34",
+  "completedAt": "2026-09-07T01:48:40.346Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 338209,
-  "bytesAfter": 338599,
+  "bytesBefore": 338599,
+  "bytesAfter": 338891,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

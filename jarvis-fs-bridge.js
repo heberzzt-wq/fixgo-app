@@ -5045,7 +5045,11 @@ export function createJarvisFsBridgeApp({
     const runpod = runpodEnabled
         ? createRunpodRemoteVideoAdapter({
             root,
-            env: runpodCredential.env,
+            env: runpodEnv,
+            ...(humoLanCacheAuthority.configured ? {
+                inspectLocalHuMoCacheImpl: createHuMoLanCacheInspector({ authority: humoLanCacheAuthority }),
+                stageHuMoLocalCacheToEphemeralImpl: createHuMoLanEphemeralStager({ authority: humoLanCacheAuthority })
+            } : {}),
             inspectBridgeIdentity: () => describeJarvisBridgeIdentity(root)
         })
         : null;
