@@ -6548,6 +6548,7 @@ export function createRunpodRemoteVideoAdapter({
         inspectHuMoRuntimeCertificationPrecheck,
         inspectHuMoRemoteLifecyclePlan,
         inspectLiveZeroCostPrecheck,
+        inspectPlacementInventory: queryPlacementInventory,
         inspectCpuStagingPrecheck,
         inspectCpuStagingRuntimeIdentity,
         inspectPersistentModelCache,
