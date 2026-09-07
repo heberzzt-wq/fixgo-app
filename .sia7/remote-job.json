@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-runpodctl-retry-contract-fix-20260907-134a",
+  "jobId": "v142-humo-runpodctl-retry-contract-fix-20260907-134b",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    assert.match(bridgeSource, /retryableVolumeError/);",
-    "replace": "    const start = bridgeSource.indexOf(\"async function ensureHuMoPersistentNetworkVolumeWithRunpodctl\");\n    const end = bridgeSource.indexOf(\"async function ensureHuMoPersistentNetworkVolume({\", start);\n    const cliBlock = bridgeSource.slice(start, end);\n    assert.ok(start >= 0 && end > start);\n    assert.match(cliBlock, /const listVolumes = async/);\n    assert.match(cliBlock, /network-volume\\\", \\\"list/);\n    assert.match(cliBlock, /network-volume\\\", \\\"create/);\n    assert.match(cliBlock, /for \\(const candidate of eligible\\)/);\n    assert.match(cliBlock, /refreshed = await listVolumes\\(\\)/);\n    assert.match(cliBlock, /const recovered = refreshed\\.filter/);\n    assert.match(cliBlock, /RUNPOD_HUMO_NETWORK_VOLUME_AMBIGUOUS/);\n    assert.match(cliBlock, /--data-center-id/);\n    assert.match(cliBlock, /--size\\\", \\\"50/);\n    assert.equal(cliBlock.includes(\"network-volume delete\"), false);\n    /* legacy REST retry assertions retired after runpodctl cutover"
+    "search": "    assert.equal(retryBlock.includes(\"status === 403\"), false);",
+    "replace": "    */"
   }
 }
