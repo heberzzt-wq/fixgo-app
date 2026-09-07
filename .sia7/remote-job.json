@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-bootstrap-local-cache-verifier-program-20260906-24b",
+  "jobId": "v142-humo-ephemeral-manifest-compat-20260906-25",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
-    "expectedMatches": 2,
-    "search": "            persistentModelEvidenceProgram(),",
-    "replace": "            networkVolumeId ? persistentModelEvidenceProgram() : localEphemeralModelEvidenceProgram(),"
+    "expectedMatches": 1,
+    "search": "            \"manifest.update({'verifiedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'cacheStatus':'CACHE_MODEL_READY','files':verified,'networkVolumeId':None,'persistentStorage':False,'cacheMode':'LOCAL_TO_EPHEMERAL','ephemeralVerification':{'operationId':operation_id,'shaVerified':True,'sourceRevisionVerified':True,'assetsVerified':len(verified),'totalBytes':total}})\",",
+    "replace": "            \"manifest.update({'verifiedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'cacheStatus':'CACHE_MODEL_READY','files':verified,'networkVolumeId':None,'dataCenterId':None,'persistentStorage':False,'cacheMode':'LOCAL_TO_EPHEMERAL','mountedVerification':{'operationId':operation_id,'shaVerified':True,'sourceRevisionVerified':True,'assetsVerified':len(verified),'totalBytes':total,'cacheMode':'LOCAL_TO_EPHEMERAL'},'ephemeralVerification':{'operationId':operation_id,'shaVerified':True,'sourceRevisionVerified':True,'assetsVerified':len(verified),'totalBytes':total}})\","
   }
 }
