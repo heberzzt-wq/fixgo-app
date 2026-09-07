@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-persistent-volume-guard-20260907-71",
+  "jobId": "v142-humo-network-volume-50gb-20260907-72",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            if (!runtimeCertificationDataCenterId) throw new Error(\"RUNPOD_HUMO_DATACENTER_REQUIRED\");",
-    "replace": "            if (!networkVolumeId || !runtimeCertificationDataCenterId) throw new Error(\"RUNPOD_HUMO_CACHE_REQUIRED\");"
+    "search": "        // Two complete asset sets (repair/partials), 10 GB Xet cache and ~8 GiB reserve fit in 64 GB.\n        networkVolumeType: \"STANDARD\", minimumNetworkVolumeGb: 64,",
+    "replace": "        // One verified asset set plus runtime workspace fits in a 50 GB Standard volume; transport caches stay disabled.\n        networkVolumeType: \"STANDARD\", minimumNetworkVolumeGb: 50,"
   }
 }
