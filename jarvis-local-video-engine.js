@@ -6028,7 +6028,7 @@ export function createRunpodRemoteVideoAdapter({
                 }
                 const health = await remoteHealth(state, true);
                 if (state.runtimeKind === "humo" && !state.runtimeCertificationOnly) {
-                    if (!state.networkVolumeId || state.networkVolumeId !== networkVolumeId || !state.networkVolumeRetentionAuthorized) {
+                    if (state.networkVolumeId && (state.networkVolumeId !== networkVolumeId || !state.networkVolumeRetentionAuthorized)) {
                         throw new Error("RUNPOD_HUMO_CACHE_REQUIRED");
                     }
                     const mounted = JSON.parse((await sshCommand(state,
