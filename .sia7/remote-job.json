@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-8s-duration-20260907-155",
+  "jobId": "v142-humo-8s-engine-frames-20260907-156",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "scripts/jarvis-local-video-wan22.py",
+    "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        \"probe_duration_seconds\": 3.88,",
-    "replace": "        \"probe_duration_seconds\": 8.0,"
+    "search": "        frames: 97,",
+    "replace": "        frames: 201,"
   }
 }
