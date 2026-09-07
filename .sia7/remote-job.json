@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-lan-runpod-options-20260906-38",
+  "jobId": "v142-humo-lan-generic-adapter-options-20260906-39",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
-    "expectedMatches": 1,
-    "search": "function safeFileStem(value = \"artifact\") {",
-    "replace": "function huMoLanRunpodAdapterOptions({ env = process.env } = {}) {\n    const authority = resolveHuMoLanCacheAuthority({ env });\n    if (!authority.configured) return {};\n    return {\n        env: { ...env, JARVIS_HUMO_LOCAL_CACHE_ROOT: authority.cacheRoot },\n        inspectLocalHuMoCacheImpl: createHuMoLanCacheInspector({ authority }),\n        stageHuMoLocalCacheToEphemeralImpl: createHuMoLanEphemeralStager({ authority })\n    };\n}\n\nfunction safeFileStem(value = \"artifact\") {"
+    "expectedMatches": 2,
+    "search": "        env: credential.env,",
+    "replace": "        env: credential.env,\n        ...huMoLanRunpodAdapterOptions({ env: credential.env }),"
   }
 }
