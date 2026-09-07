@@ -5738,6 +5738,24 @@ export function createRunpodRemoteVideoAdapter({
 
     async function uploadOperation(state) {
         writeRemoteRuntimeBootstrapFile(state.bootstrapFile, state);
+        if (state.runtimeKind === "humo" && !state.runtimeCertificationOnly && !state.networkVolumeId) {
+            const transferPlan = state.localCacheTransferPrecheck;
+            if (transferPlan?.ok !== true || transferPlan?.cacheMode !== "LOCAL_TO_EPHEMERAL") {
+                throw new Error("LOCAL_HUMO_CACHE_TRANSFER_PLAN_REQUIRED");
+            }
+            if (typeof stageHuMoLocalCacheToEphemeralImpl !== "function") {
+                throw new Error("LOCAL_HUMO_EPHEMERAL_STAGER_REQUIRED");
+            }
+            const staged = await stageHuMoLocalCacheToEphemeralImpl({ state, transferPlan });
+            if (
+                staged?.ok !== true ||
+                staged?.shaVerified !== true ||
+                Number(staged?.assetsVerified || 0) !== Number(transferPlan.assetCount || 0) ||
+                Number(staged?.totalBytes || 0) !== Number(transferPlan.transferBytes || 0)
+            ) {
+                throw new Error(staged?.status || "LOCAL_HUMO_EPHEMERAL_STAGE_FAILED");
+            }
+        }
         await sshCommand(state, `mkdir -p ${shellSingleQuote(state.remoteOperationDir + "/assets")}`);
         await scpFile(state, state.localJobFile, `${state.remoteOperationDir}/job.json`);
         await scpFile(state, state.localRunnerFile, `${state.remoteOperationDir}/jarvis-local-video-wan22.py`);
