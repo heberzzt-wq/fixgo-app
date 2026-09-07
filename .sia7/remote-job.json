@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-preserve-network-volume-20260907-98",
+  "jobId": "v142-humo-retained-volume-contract-fix-20260907-99",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    if (!persistentVolume?.id || !persistentVolume?.dataCenterId) {\n        throw new Error(\"RUNPOD_HUMO_NETWORK_VOLUME_REQUIRED\");\n    }\n    delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID;\n    delete runtimeEnv.JARVIS_HUMO_LOCAL_CACHE_ROOT;",
-    "replace": "    if (!persistentVolume?.id || !persistentVolume?.dataCenterId) {\n        throw new Error(\"RUNPOD_HUMO_NETWORK_VOLUME_REQUIRED\");\n    }\n    delete runtimeEnv.JARVIS_HUMO_LOCAL_CACHE_ROOT;"
+    "search": "    const identityCli = bridgeSource.slice(bridgeSource.indexOf(\"export async function runHuMoIdentityProbeCli\"));\n    assert.equal(identityCli.includes(\"delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID\"), true);",
+    "replace": "    const identityCli = bridgeSource.slice(bridgeSource.indexOf(\"export async function runHuMoIdentityProbeCli\"));\n    assert.equal(identityCli.includes(\"delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID\"), false);"
   }
 }
