@@ -693,7 +693,7 @@ def run_humo_identity_probe(
         "LOCAL_VIDEO_HUMO_AUDIO_SEPARATOR_MISSING",
     )
     runtime_python = str(Path(sys.executable).absolute())
-    if not runtime_python.replace("\\", "/").endswith("/venv/bin/python"):
+    if runtime_python.replace("\\", "/") != "/opt/jarvis-v142/humo-venv/bin/python":
         raise RuntimeError("LOCAL_VIDEO_HUMO_CERTIFIED_VENV_REQUIRED")
     runtime_check = subprocess.run(
         [

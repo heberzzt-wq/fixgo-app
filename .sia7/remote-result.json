@@ -1,9 +1,17 @@
 {
-  "jobId": "v142-humo-identity-paid-20260907-146",
-  "completedAt": "2026-09-07T21:13:28.599Z",
-  "ok": false,
-  "error": "SIA7_HUMO_IDENTITY_PROBE_FAILED:LOCAL_VIDEO_HUMO_CERTIFIED_VENV_REQUIRED",
+  "jobId": "v142-humo-certified-venv-contract-20260907-147",
+  "completedAt": "2026-09-07T21:16:09.483Z",
+  "ok": true,
+  "operation": "patch",
+  "dryRun": false,
+  "file": "scripts/jarvis-local-video-wan22.py",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 42389,
+  "bytesAfter": 42399,
+  "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
-    ".sia7/remote-result.json"
+    ".sia7/remote-result.json",
+    "scripts/jarvis-local-video-wan22.py"
   ]
 }
