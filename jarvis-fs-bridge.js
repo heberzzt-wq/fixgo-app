@@ -8687,7 +8687,7 @@ export async function runHuMoIdentityProbeCli({
 
     const output = String(
         env.JARVIS_HUMO_IDENTITY_PROBE_OUTPUT ||
-        ".jarvis-artifacts/videos/humo-heberto-identity-probe-3.88s.mp4"
+        ".jarvis-artifacts/videos/humo-heberto-identity-probe-8s.mp4"
     ).trim().replaceAll("\\", "/");
     const outputFile = artifactPath(output, resolvedRoot, [".mp4"]);
     const prompt = String(env.JARVIS_HUMO_IDENTITY_PROBE_PROMPT || [
