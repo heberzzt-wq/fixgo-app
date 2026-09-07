@@ -8397,7 +8397,7 @@ async function ensureHuMoPersistentNetworkVolume({ root, env, canonicalSha, log 
     const createdRaw = await provider("POST", "/network-volumes", {
         name,
         size: 50,
-        dataCenter: dataCenterId,
+        dataCenterId,
         type: "STANDARD"
     }, [201]);
     const created = normalize(createdRaw);
