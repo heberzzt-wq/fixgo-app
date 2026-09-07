@@ -1,8 +1,8 @@
 {
-  "jobId": "v142-humo-identity-preflight-20260907-116",
+  "jobId": "v142-humo-identity-paid-20260907-117",
   "operation": "humo_identity_probe",
   "humanApproved": true,
-  "executePaid": false,
+  "executePaid": true,
   "expectedBaseSha": "6c259b9b22bc60ccfd4d6f9df1f06b9fbc5f2eee",
   "hardBudgetUsd": 3,
   "monthlyStorageAuthorizedUsd": 3.5,
