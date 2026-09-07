@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-placement-catalog-fallback-20260907-118",
+  "jobId": "v142-humo-placement-empty-types-fallback-20260907-119",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                    return [dataCenterId, false];",
-    "replace": "                    return [dataCenterId, true];"
+    "search": "            return [dataCenterId, types.includes(RUNPOD_WAN22_CACHE_BASE.networkVolumeType)];",
+    "replace": "            return [dataCenterId, types.length === 0 || types.includes(RUNPOD_WAN22_CACHE_BASE.networkVolumeType)];"
   }
 }
