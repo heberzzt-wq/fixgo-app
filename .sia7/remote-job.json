@@ -1,10 +1,12 @@
 {
-  "jobId": "v142-humo-identity-paid-20260907-146",
-  "operation": "humo_identity_probe",
+  "jobId": "v142-humo-certified-venv-contract-20260907-147",
+  "operation": "patch",
   "humanApproved": true,
-  "expectedBaseSha": "e7f443b85be265efa319924c4e2ea46d06f70925",
-  "hardBudgetUsd": 3,
-  "monthlyStorageAuthorizedUsd": 3.5,
-  "executePaid": true,
-  "fullEpisodeAuthorized": false
+  "patch": {
+    "file": "scripts/jarvis-local-video-wan22.py",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "    if not runtime_python.replace(\"\\\\\", \"/\").endswith(\"/venv/bin/python\"):",
+    "replace": "    if runtime_python.replace(\"\\\\\", \"/\") != \"/opt/jarvis-v142/humo-venv/bin/python\":"
+  }
 }
