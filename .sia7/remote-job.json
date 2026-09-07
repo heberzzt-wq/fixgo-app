@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-local-cache-pod-identity-gate-20260906-18",
+  "jobId": "v142-humo-ephemeral-source-contract-20260906-19",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                    assertPodVolumeIdentity(pod, state.persistentCacheVerification?.volume);",
-    "replace": "                    if (state.networkVolumeId) {\n                        assertPodVolumeIdentity(pod, state.persistentCacheVerification?.volume);\n                    } else if (state.localCacheTransferPrecheck?.cacheMode !== \"LOCAL_TO_EPHEMERAL\") {\n                        throw new Error(\"LOCAL_HUMO_CACHE_TRANSFER_PLAN_REQUIRED\");\n                    }"
+    "search": "        sourceCacheRoot: sourceRoot,",
+    "replace": "        sourceCacheRoot: sourceRoot,\n        sourceRepositoryPath: path.join(sourceRoot, \"HuMo\"),\n        destinationSourceRepository: `${destinationCacheRoot}/HuMo`,\n        sourceRevision: contract.sourceRevision,"
   }
 }
