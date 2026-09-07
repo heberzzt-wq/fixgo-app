@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-volume-idempotent-retry-20260907-122",
-  "completedAt": "2026-09-07T18:07:40.433Z",
+  "jobId": "v142-humo-volume-reconcile-fallback-20260907-123",
+  "completedAt": "2026-09-07T18:08:40.522Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 350841,
-  "bytesAfter": 350876,
+  "bytesBefore": 350876,
+  "bytesAfter": 353373,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

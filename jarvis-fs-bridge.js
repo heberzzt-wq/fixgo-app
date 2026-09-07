@@ -8402,6 +8402,55 @@ async function ensureHuMoPersistentNetworkVolume({ root, env, canonicalSha, log 
         dataCenterId,
         // STANDARD is implicit in RunPod's documented networkvolumes endpoint.
     }, [200]);
+    }
+    catch(error) {
+        const retryableVolumeError = candidate => {
+            const status = Number(String(candidate?.message || "").match(/RUNPOD_NETWORK_VOLUME_HTTP_(\d+)/)?.[1] || 0);
+            return status === 400 || status === 404 || status === 409 || status === 422 || status >= 500;
+        };
+        const recoverVolume = async (expectedName, expectedDataCenterId) => {
+            const refreshed = await provider("GET", "/networkvolumes", null, [200]);
+            const refreshedRaw = Array.isArray(refreshed?.networkVolumes) ? refreshed.networkVolumes :
+                (Array.isArray(refreshed?.items) ? refreshed.items : (Array.isArray(refreshed) ? refreshed : []));
+            const named = refreshedRaw.map(normalize).filter(item =>
+                item.name === expectedName && item.dataCenterId === expectedDataCenterId
+            );
+            if (named.length > 1) throw new Error("RUNPOD_HUMO_NETWORK_VOLUME_AMBIGUOUS");
+            if (named.length === 1) {
+                if (named[0].sizeGb < 50 || named[0].type !== "STANDARD") {
+                    throw new Error("RUNPOD_HUMO_NETWORK_VOLUME_NAME_CONFLICT");
+                }
+                return named[0];
+            }
+            return null;
+        };
+        let lastError = error;
+        createdRaw = await recoverVolume(name, dataCenterId);
+        if (!createdRaw) {
+            if (!retryableVolumeError(error)) throw error;
+            for (const fallback of eligible.slice(1)) {
+                const fallbackDataCenterId = String(fallback.dataCenterId || "");
+                const fallbackName = `${prefix}${fallbackDataCenterId.toLowerCase()}`;
+                createdRaw = await recoverVolume(fallbackName, fallbackDataCenterId);
+                if (createdRaw) break;
+                try {
+                    createdRaw = await provider("POST", "/networkvolumes", {
+                        name: fallbackName,
+                        size: 50,
+                        dataCenterId: fallbackDataCenterId
+                    }, [200]);
+                    break;
+                }
+                catch(candidateError) {
+                    lastError = candidateError;
+                    createdRaw = await recoverVolume(fallbackName, fallbackDataCenterId);
+                    if (createdRaw) break;
+                    if (!retryableVolumeError(candidateError)) throw candidateError;
+                }
+            }
+            if (!createdRaw) throw lastError;
+        }
+    }
     const created = normalize(createdRaw);
     if (!created.id || created.name !== name || created.dataCenterId !== dataCenterId ||
         created.sizeGb < 50 || created.type !== "STANDARD") {
