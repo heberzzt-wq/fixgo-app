@@ -7719,7 +7719,21 @@ test("V142 HuMo placement treats undocumented catalog volume metadata as non-aut
 
 test("V142 HuMo Network Volume creation reconciles ambiguous 5xx and falls back without blind duplicates", () => {
     const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-    assert.match(bridgeSource, /retryableVolumeError/);
+    const start = bridgeSource.indexOf("async function ensureHuMoPersistentNetworkVolumeWithRunpodctl");
+    const end = bridgeSource.indexOf("async function ensureHuMoPersistentNetworkVolume({", start);
+    const cliBlock = bridgeSource.slice(start, end);
+    assert.ok(start >= 0 && end > start);
+    assert.match(cliBlock, /const listVolumes = async/);
+    assert.match(cliBlock, /network-volume\", \"list/);
+    assert.match(cliBlock, /network-volume\", \"create/);
+    assert.match(cliBlock, /for \(const candidate of eligible\)/);
+    assert.match(cliBlock, /refreshed = await listVolumes\(\)/);
+    assert.match(cliBlock, /const recovered = refreshed\.filter/);
+    assert.match(cliBlock, /RUNPOD_HUMO_NETWORK_VOLUME_AMBIGUOUS/);
+    assert.match(cliBlock, /--data-center-id/);
+    assert.match(cliBlock, /--size\", \"50/);
+    assert.equal(cliBlock.includes("network-volume delete"), false);
+    /* legacy REST retry assertions retired after runpodctl cutover
     assert.match(bridgeSource, /recoverVolume/);
     assert.match(bridgeSource, /eligible\.slice\(1\)/);
     assert.match(bridgeSource, /provider\("GET", "\/networkvolumes", null, \[200\]\)/);
