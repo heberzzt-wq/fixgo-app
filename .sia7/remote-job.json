@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-network-volume-datacenter-field-20260907-103",
+  "jobId": "v142-humo-network-volume-create-route-20260907-104",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        dataCenter: dataCenterId,",
-    "replace": "        dataCenterId,"
+    "search": "    const createdRaw = await provider(\"POST\", \"/network-volumes\", {",
+    "replace": "    const createdRaw = await provider(\"POST\", \"/networkvolumes\", {"
   }
 }
