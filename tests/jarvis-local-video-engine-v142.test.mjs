@@ -7705,6 +7705,11 @@ test("V142 HuMo runtime certification stays ephemeral while identity CLI uses a 
     assert.equal(identityCli.includes("delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID"), false);
     assert.doesNotMatch(identityCli, /resolveHuMoLanCacheAuthority/);
     assert.match(identityCli, /ensureHuMoPersistentNetworkVolume/);
+    assert.equal(bridgeSource.includes("JARVIS_RUNPOD_NETWORK_VOLUME_API_BASE || \"https://rest.runpod.io/v1\""), true);
+    assert.equal(bridgeSource.includes("provider(\"GET\", \"/networkvolumes\", null, [200])"), true);
+    assert.equal(bridgeSource.includes("provider(\"POST\", \"/networkvolumes\", {"), true);
+    assert.equal(bridgeSource.includes("dataCenter: dataCenterId"), false);
+    assert.equal(bridgeSource.includes("type: \"STANDARD\""), false);
     assert.match(identityCli, /JARVIS_RUNPOD_RETAIN_NETWORK_VOLUME_AUTHORIZED/);
     assert.match(identityCli, /JARVIS_RUNPOD_HUMO_CACHE_POPULATE_ON_GPU_AUTHORIZED/);
     assert.match(identityCli, /huMoLanRunpodAdapterOptions/);
