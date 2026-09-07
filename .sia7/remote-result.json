@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-probe-persistent-volume-guard-20260907-87a",
-  "completedAt": "2026-09-07T14:16:59.943Z",
+  "jobId": "v142-humo-probe-persistent-volume-guard-20260907-87b",
+  "completedAt": "2026-09-07T14:17:25.317Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 350552,
-  "bytesAfter": 350571,
+  "bytesBefore": 350571,
+  "bytesAfter": 350537,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

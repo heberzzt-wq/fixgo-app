@@ -8555,7 +8555,7 @@ export async function runHuMoIdentityProbeCli({
     runtimeEnv.JARVIS_RUNPOD_RETAIN_NETWORK_VOLUME_AUTHORIZED = "true";
     runtimeEnv.JARVIS_RUNPOD_HUMO_CACHE_POPULATE_ON_GPU_AUTHORIZED = "true";
     if (!persistentVolume?.id || !persistentVolume?.dataCenterId) {
-        throw new Error(identityProbeLanAuthority.status || "HUMO_LAN_CACHE_AUTHORITY_REQUIRED");
+        throw new Error("RUNPOD_HUMO_NETWORK_VOLUME_REQUIRED");
     }
     delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID;
     runtimeEnv.JARVIS_HUMO_LOCAL_CACHE_ROOT = identityProbeLanAuthority.cacheRoot;
