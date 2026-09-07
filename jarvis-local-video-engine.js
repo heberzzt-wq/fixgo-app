@@ -4694,7 +4694,9 @@ export function createRunpodRemoteVideoAdapter({
             "else",
             "  progress HUMO_ASSETS_VERIFY RUNNING",
             networkVolumeId ? "  mountpoint -q /workspace" : "  test -d \"$CACHE_ROOT\" && test -d \"$HUMO_REPO\"",
-            `  "$VENV/bin/python" - "$CACHE_ROOT" verify ${shellSingleQuote(networkVolumeId)} ${shellSingleQuote(runtimeCertificationDataCenterId)} ${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))} > "$(dirname "$PROGRESS")/model-integrity.json" <<'PY'`,
+            networkVolumeId
+                ? `  "$VENV/bin/python" - "$CACHE_ROOT" verify ${shellSingleQuote(networkVolumeId)} ${shellSingleQuote(runtimeCertificationDataCenterId)} ${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))} > "$(dirname "$PROGRESS")/model-integrity.json" <<'PY'`
+                : `  "$VENV/bin/python" - "$CACHE_ROOT" "$HUMO_REPO" ${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))} > "$(dirname "$PROGRESS")/model-integrity.json" <<'PY'`,
             persistentModelEvidenceProgram(),
             "PY",
             "  progress HUMO_ASSETS_VERIFY READY",
