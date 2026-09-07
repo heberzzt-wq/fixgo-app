@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-network-volume-retention-receipt-20260907-90",
+  "jobId": "v142-humo-network-volume-normalize-dc-20260907-91",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                if (releaseReceipt?.terminationVerified !== true) {",
-    "replace": "                if (\n                    releaseReceipt?.terminationVerified !== true ||\n                    releaseReceipt?.networkVolumeRetained !== true ||\n                    releaseReceipt?.networkVolumeId !== persistentVolume.id\n                ) {"
+    "search": "        dataCenterId: String(volume?.dataCenter || volume?.dataCenterId || volume?.dataCenter?.id || \"\").trim(),",
+    "replace": "        dataCenterId: String(volume?.dataCenterId || volume?.dataCenter?.id || volume?.dataCenter || \"\").trim(),"
   }
 }
