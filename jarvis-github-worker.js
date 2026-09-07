@@ -314,6 +314,7 @@ async function validateHuMoIdentityProbeScope(job = {}) {
         throw new Error("SIA7_HUMO_SOURCE_ROOT_MISSING");
     }
     const referenceFile = path.resolve(SIA7_HUMO_SOURCE_ROOT, SIA7_HUMO_REFERENCE_OUTPUT);
+    const secondReferenceFile = path.resolve(SIA7_HUMO_SOURCE_ROOT, SIA7_HUMO_REFERENCE_OUTPUT_2);
     const audioFile = path.resolve(SIA7_HUMO_SOURCE_ROOT, SIA7_HUMO_AUDIO_OUTPUT);
     if (!fs.existsSync(referenceFile) || !fs.statSync(referenceFile).isFile()) throw new Error("SIA7_HUMO_REFERENCE_MISSING");
     if (!fs.existsSync(audioFile) || !fs.statSync(audioFile).isFile()) throw new Error("SIA7_HUMO_AUDIO_MISSING");
