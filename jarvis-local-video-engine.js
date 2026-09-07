@@ -4592,6 +4592,37 @@ export function createRunpodRemoteVideoAdapter({
         ].join("\n") + "\n";
     }
 
+    function localEphemeralModelEvidenceProgram() {
+        return [
+            "import datetime,hashlib,json,pathlib,subprocess,sys",
+            `contract=json.loads(${JSON.stringify(JSON.stringify(RUNPOD_HUMO_CACHE_BASE))})`,
+            "root=pathlib.Path(sys.argv[1]); repo=pathlib.Path(sys.argv[2]); operation_id=sys.argv[3]",
+            "verified=[]; total=0",
+            "for item in contract['requiredFiles']:",
+            "    p=root/item['path']",
+            "    if not p.is_file(): raise SystemExit('LOCAL_HUMO_REMOTE_ASSET_MISSING:'+item['path'])",
+            "    size=p.stat().st_size",
+            "    if size != item['bytes']: raise SystemExit('LOCAL_HUMO_REMOTE_ASSET_SIZE_MISMATCH:'+item['path'])",
+            "    h=hashlib.sha256()",
+            "    with p.open('rb') as fh:",
+            "        while True:",
+            "            chunk=fh.read(8*1024*1024)",
+            "            if not chunk: break",
+            "            h.update(chunk)",
+            "    digest=h.hexdigest()",
+            "    if digest != item['sha256']: raise SystemExit('LOCAL_HUMO_REMOTE_ASSET_SHA256_MISMATCH:'+item['path'])",
+            "    total += size; verified.append(item)",
+            "if total != contract['totalBytes']: raise SystemExit('LOCAL_HUMO_REMOTE_TOTAL_BYTES_MISMATCH')",
+            "head=subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD'],text=True).strip()",
+            "dirty=subprocess.check_output(['git','-C',str(repo),'status','--porcelain','--untracked-files=no'],text=True).strip()",
+            "if head != contract['sourceRevision']: raise SystemExit('LOCAL_HUMO_REMOTE_SOURCE_REVISION_MISMATCH')",
+            "if dirty: raise SystemExit('LOCAL_HUMO_REMOTE_SOURCE_MODIFIED')",
+            "manifest={k:contract[k] for k in ['schemaVersion','profile','modelRepository','modelRevision','sourceRepository','sourceRevision','provisionImageTag','expectedRegistryDigest','totalBytes']}",
+            "manifest.update({'verifiedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'cacheStatus':'CACHE_MODEL_READY','files':verified,'networkVolumeId':None,'persistentStorage':False,'cacheMode':'LOCAL_TO_EPHEMERAL','ephemeralVerification':{'operationId':operation_id,'shaVerified':True,'sourceRevisionVerified':True,'assetsVerified':len(verified),'totalBytes':total}})",
+            "print(json.dumps(manifest,separators=(',',':')))"
+        ].join("\n");
+    }
+
     function writeHuMoRuntimeBootstrapFile(bootstrapFile) {
         const lifecycle = remoteHuMoLifecycleContract({ backend: HUMO_IDENTITY_PROBE.backend });
         const authority = RUNPOD_HUMO_IDENTITY_CANDIDATE;
