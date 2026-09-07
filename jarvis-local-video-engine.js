@@ -4501,7 +4501,7 @@ export function createRunpodRemoteVideoAdapter({
                 "export HF_XET_CHUNK_CACHE_SIZE_BYTES=10000000000",
                 "export HF_HUB_DOWNLOAD_TIMEOUT=120",
                 `"$CPU_TOOLS_VENV/bin/python" - "$CACHE_ROOT" stage ${shellSingleQuote(networkVolumeId)} ${shellSingleQuote(runtimeCertificationDataCenterId)} <<'PY'`,
-                persistentModelEvidenceProgram(), "PY",
+                networkVolumeId ? persistentModelEvidenceProgram() : localEphemeralModelEvidenceProgram(), "PY",
                 "progress CACHE_MODEL_READY READY", "exit 0", ""
             ].join("\n");
         }
