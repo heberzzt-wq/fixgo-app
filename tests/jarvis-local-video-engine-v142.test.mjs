@@ -7743,6 +7743,20 @@ test("V142 HuMo physical closeout exposes retained Network Volume identity throu
     assert.match(workerSource, /networkVolumeRetained: result\.networkVolumeRetained === true/);
 });
 
+test("V142 HuMo Network Volume uses pinned official runpodctl instead of the failing REST create path", () => {
+    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+    assert.match(bridgeSource, /RUNPODCTL_V142/);
+    assert.equal(bridgeSource.includes("version: \"v2.7.1\""), true);
+    assert.equal(bridgeSource.includes("runpodctl-windows-amd64.exe"), true);
+    assert.equal(bridgeSource.includes("d0be7de83ba023392bc3d680eec44e45f1cbb3bc9d6bf117b0f575078d3e9443"), true);
+    assert.match(bridgeSource, /network-volume\", \"list/);
+    assert.match(bridgeSource, /network-volume\", \"create/);
+    assert.match(bridgeSource, /--data-center-id/);
+    assert.match(bridgeSource, /--size\", \"50/);
+    assert.match(bridgeSource, /RUNPOD_API_KEY: String\(env\.RUNPOD_API_KEY/);
+    assert.match(bridgeSource, /return await ensureHuMoPersistentNetworkVolumeWithRunpodctl/);
+});
+
 test("V142 HuMo runtime certification stays ephemeral while identity CLI uses a retained network volume", () => {
     const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
     assert.equal(engineSource.includes("persistentVolumeDisabled = isHuMoRemoteJob(job)"), true);
