@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-lan-stdin-transport-20260906-54",
+  "jobId": "v142-humo-lan-stdin-transport-20260906-55",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "function runHuMoLanPowerShell(authority, script, { execFileSyncImpl = execFileSync, timeoutMs = 120000 } = {}) {\r\n    const ssh = process.platform === \"win32\"\r\n        ? path.join(process.env.SystemRoot || \"C:\\\\Windows\", \"System32\", \"OpenSSH\", \"ssh.exe\")\r\n        : \"ssh\";\r\n    const encoded = encodeWindowsPowerShellCommand(script);\r\n    return String(execFileSyncImpl(ssh, huMoLanSshArgs(\r\n        authority,\r\n        `powershell.exe -NoProfile -NonInteractive -EncodedCommand ${encoded}`\r\n    ), { encoding: \"utf8\", windowsHide: true, timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }) || \"\").trim();\r\n}",
-    "replace": "function runHuMoLanPowerShell(authority, script, { execFileSyncImpl = execFileSync, timeoutMs = 120000 } = {}) {\r\n    const ssh = process.platform === \"win32\"\r\n        ? path.join(process.env.SystemRoot || \"C:\\\\Windows\", \"System32\", \"OpenSSH\", \"ssh.exe\")\r\n        : \"ssh\";\r\n    return String(execFileSyncImpl(ssh, huMoLanSshArgs(\r\n        authority,\r\n        \"powershell.exe -NoProfile -NonInteractive -Command -\"\r\n    ), {\r\n        encoding: \"utf8\",\r\n        windowsHide: true,\r\n        timeout: timeoutMs,\r\n        maxBuffer: 4 * 1024 * 1024,\r\n        input: String(script)\r\n    }) || \"\").trim();\r\n}"
+    "search": "    const encoded = encodeWindowsPowerShellCommand(script);\r\n    return String(execFileSyncImpl(ssh, huMoLanSshArgs(\r\n        authority,\r\n        `powershell.exe -NoProfile -NonInteractive -EncodedCommand ${encoded}`\r\n    ), { encoding: \"utf8\", windowsHide: true, timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }) || \"\").trim();",
+    "replace": "    return String(execFileSyncImpl(ssh, huMoLanSshArgs(\r\n        authority,\r\n        \"powershell.exe -NoProfile -NonInteractive -Command -\"\r\n    ), {\r\n        encoding: \"utf8\",\r\n        windowsHide: true,\r\n        timeout: timeoutMs,\r\n        maxBuffer: 4 * 1024 * 1024,\r\n        input: String(script)\r\n    }) || \"\").trim();"
   }
 }
