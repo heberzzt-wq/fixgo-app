@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-network-volume-create-body-20260907-105",
+  "jobId": "v142-humo-network-volume-create-status-20260907-106",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        type: \"STANDARD\"",
-    "replace": "        // STANDARD is implicit in RunPod's documented networkvolumes endpoint."
+    "search": "    }, [201]);",
+    "replace": "    }, [200]);"
   }
 }
