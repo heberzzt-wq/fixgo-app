@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-worker-stale-blocker-20260907-187",
+  "jobId": "v142-humo-two-reference-receipt-20260907-188",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "async function executeHuMoIdentityProbeJob(job = {}) {\n    const scope = await validateHuMoIdentityProbeScope(job);",
-    "replace": "async function executeHuMoIdentityProbeJob(job = {}) {\n    if (sha256File(SIA7_WORKER_SOURCE_FILE) !== SIA7_WORKER_SOURCE_SHA256_AT_START) {\n        throw new Error(\"SIA7_WORKER_RESTART_REQUIRED\");\n    }\n    const scope = await validateHuMoIdentityProbeScope(job);"
+    "search": "            durationSeconds: 8.0,",
+    "replace": "            durationSeconds: 8.0,\n            referenceCount: 2,\n            referenceSha256s: [SIA7_HUMO_REFERENCE_SHA256, SIA7_HUMO_REFERENCE_SHA256_2],\n            audioSha256: SIA7_HUMO_AUDIO_SHA256,"
   }
 }
