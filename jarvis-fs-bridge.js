@@ -8646,7 +8646,19 @@ if (
     process.argv[1] &&
     path.resolve(process.argv[1]) === MODULE_FILE
 ) {
-    if (process.argv.includes("--humo-runtime-certification")) {
+    if (process.argv.includes("--humo-lan-cache-preflight")) {
+        runHuMoLanCachePreflightCli()
+            .catch(error => {
+                console.error(JSON.stringify({
+                    ok: false,
+                    status: error?.message || "HUMO_LAN_CACHE_PREFLIGHT_FAILED",
+                    resourceCreationPossible: false,
+                    inferenceStarted: false
+                }));
+                process.exitCode = 1;
+            });
+    }
+    else if (process.argv.includes("--humo-runtime-certification")) {
         runHuMoRuntimeCertificationCli()
             .then(result => {
                 console.log(JSON.stringify({

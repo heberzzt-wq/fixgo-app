@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-lan-zero-cost-preflight-cli-20260906-42",
-  "completedAt": "2026-09-07T01:57:19.358Z",
+  "jobId": "v142-humo-lan-preflight-cli-entrypoint-20260906-43",
+  "completedAt": "2026-09-07T01:57:45.785Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 339635,
-  "bytesAfter": 342807,
+  "bytesBefore": 342807,
+  "bytesAfter": 343280,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
