@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-worker-second-reference-authority-20260907-178",
+  "jobId": "v142-humo-worker-second-reference-file-20260907-179",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "const SIA7_HUMO_REFERENCE_SHA256 = \"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\";",
-    "replace": "const SIA7_HUMO_REFERENCE_SHA256 = \"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\";\nconst SIA7_HUMO_REFERENCE_OUTPUT_2 = \".jarvis-artifacts/uploads/1787783430832-b401b4761075-IMG_20241216_111105551_HDR.jpg\";\nconst SIA7_HUMO_REFERENCE_SHA256_2 = \"b401b476107521d9e3de3b267885bf91de956b644072a01e7373ab5476a3b6f3\";"
+    "search": "    const audioFile = path.resolve(SIA7_HUMO_SOURCE_ROOT, SIA7_HUMO_AUDIO_OUTPUT);",
+    "replace": "    const secondReferenceFile = path.resolve(SIA7_HUMO_SOURCE_ROOT, SIA7_HUMO_REFERENCE_OUTPUT_2);\n    const audioFile = path.resolve(SIA7_HUMO_SOURCE_ROOT, SIA7_HUMO_AUDIO_OUTPUT);"
   }
 }
