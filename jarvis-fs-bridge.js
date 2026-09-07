@@ -8131,7 +8131,7 @@ export async function runHuMoRuntimeCertificationCli({
         JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: String(certificationEconomicDeadlineSeconds + 120),
         JARVIS_EXTERNAL_FALLBACK_ENABLED: "false"
     };
-    delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID;
+    if (runtimeEnv.JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY === "true") delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID;
     const credential = resolveRunpodCredentialEnvironment({ env: runtimeEnv });
     if (credential.credentialLoaded !== true) {
         throw new Error(credential.credentialError || "RUNPOD_API_KEY_REQUIRED");
