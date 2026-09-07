@@ -97,6 +97,20 @@ async function readRemoteJob() {
     return JSON.parse(showResult.stdout);
 }
 
+async function readRemoteResultJobId() {
+    const showResult = await runGit([
+        "show",
+        `${REMOTE}/${BRANCH}:${RESULT_PATH}`
+    ]);
+    if (!showResult.ok) return "";
+    try {
+        return String(JSON.parse(showResult.stdout)?.jobId || "").trim();
+    }
+    catch {
+        return "";
+    }
+}
+
 async function syncLocalBranch() {
     const syncResult = await runGit([
         "pull",
