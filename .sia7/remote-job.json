@@ -1,10 +1,12 @@
 {
-  "jobId": "v142-humo-identity-paid-retry-20260907-138",
-  "operation": "humo_identity_probe",
+  "jobId": "v142-windows-openssh-fallback-20260907-139",
+  "operation": "patch",
   "humanApproved": true,
-  "expectedBaseSha": "7f247e7904a9907b753c57c5825a5fb6220a6a24",
-  "hardBudgetUsd": 3,
-  "monthlyStorageAuthorizedUsd": 3.5,
-  "executePaid": true,
-  "fullEpisodeAuthorized": false
+  "patch": {
+    "file": "jarvis-local-video-engine.js",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "    if (path.isAbsolute(candidate)) return fs.existsSync(candidate) ? candidate : null;\n    const extensions = process.platform === \"win32\"",
+    "replace": "    if (path.isAbsolute(candidate)) return fs.existsSync(candidate) ? candidate : null;\n    if (process.platform === \"win32\") {\n        const systemRoot = String(env.SystemRoot || env.SYSTEMROOT || env.WINDIR || \"C:\\\\Windows\").trim();\n        const executableName = candidate.toLowerCase().endsWith(\".exe\") ? candidate : `${candidate}.exe`;\n        const openSshTarget = path.join(systemRoot, \"System32\", \"OpenSSH\", executableName);\n        if (fs.existsSync(openSshTarget)) return openSshTarget;\n    }\n    const extensions = process.platform === \"win32\""
+  }
 }
