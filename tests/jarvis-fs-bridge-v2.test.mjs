@@ -286,6 +286,66 @@ test("V142 HuMo LAN ephemeral stager fails closed before transport on source or 
     assert.equal(spawnCalls, 0);
 });
 
+test("V142 HuMo LAN zero-cost preflight certifies cache and tar without provider creation", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-humo-lan-preflight-"));
+    try {
+        const keyFile = path.join(root, "lan_ed25519");
+        const knownHostsFile = path.join(root, "known_hosts");
+        fs.writeFileSync(keyFile, "fixture-key");
+        fs.writeFileSync(knownHostsFile, "fixture-host");
+        const revision = "845f44736e21be93aa5d8cf406b6eb01af9bff67";
+        const logs = [];
+        const result = await runHuMoLanCachePreflightCli({
+            env: {
+                JARVIS_HUMO_LAN_SOURCE_HOST: "192.0.2.44",
+                JARVIS_HUMO_LAN_SOURCE_USER: "sak",
+                JARVIS_HUMO_LAN_SOURCE_KEY: keyFile,
+                JARVIS_HUMO_LAN_SOURCE_KNOWN_HOSTS: knownHostsFile,
+                JARVIS_HUMO_LAN_CACHE_ROOT: "F:\\Nueva carpeta\\models\\humo-1.7b",
+                JARVIS_HUMO_LAN_CLOSEOUT: "F:\\Nueva carpeta\\humo-local-cache-v142-closeout.json"
+            },
+            inspectImpl: async () => ({
+                ok: true,
+                status: "LOCAL_HUMO_CACHE_READY",
+                cacheStatus: "CACHE_MODEL_READY",
+                storageAuthority: "F:\\Nueva carpeta",
+                assetsVerified: 12,
+                shaVerified: true,
+                totalBytes: 22095109502,
+                sourceRevision: revision,
+                sourceRevisionVerified: true,
+                sourceTrackedClean: true,
+                inferenceStarted: false,
+                externalApiUsed: false,
+                externalEstimatedCostUsd: 0
+            }),
+            runRemotePowerShellImpl: () => JSON.stringify({
+                ok: true,
+                volumeHealth: "Healthy",
+                freeBytes: 2_000_000_000_000,
+                tarAvailable: true,
+                tarPath: "C:\\Windows\\System32\\tar.exe",
+                tarVersion: "bsdtar fixture"
+            }),
+            log: value => logs.push(value)
+        });
+        assert.equal(result.ok, true);
+        assert.equal(result.status, "HUMO_LAN_CACHE_ZERO_COST_PREFLIGHT_READY");
+        assert.equal(result.cacheMode, "LOCAL_TO_EPHEMERAL");
+        assert.equal(result.assetsVerified, 12);
+        assert.equal(result.totalBytes, 22095109502);
+        assert.equal(result.sourceTarAvailable, true);
+        assert.equal(result.networkVolumeRequired, false);
+        assert.equal(result.recurringStorageCostUsd, 0);
+        assert.equal(result.resourceCreationPossible, false);
+        assert.equal(result.providerTrafficUsed, false);
+        assert.equal(result.inferenceStarted, false);
+        assert.equal(logs.length, 1);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
 test("self-hosted semantic backend feeds the canonical planner without paid API calls", async () => {
     const requests = [];
     const engine = createSelfHostedSemanticEngine({
