@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-second-reference-worker-regression-20260907-183",
+  "jobId": "v142-humo-second-reference-bridge-regression-20260907-184",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    assert.equal(workerSource.includes(\"SIA7_HUMO_REFERENCE_SHA256 = \\\"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\\\"\"), true);",
-    "replace": "    assert.equal(workerSource.includes(\"SIA7_HUMO_REFERENCE_SHA256 = \\\"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\\\"\"), true);\n    assert.equal(workerSource.includes(\"SIA7_HUMO_REFERENCE_OUTPUT_2 = \\\".jarvis-artifacts/uploads/1787783430832-b401b4761075-IMG_20241216_111105551_HDR.jpg\\\"\"), true);\n    assert.equal(workerSource.includes(\"SIA7_HUMO_REFERENCE_SHA256_2 = \\\"b401b476107521d9e3de3b267885bf91de956b644072a01e7373ab5476a3b6f3\\\"\"), true);\n    assert.equal(workerSource.includes(\"SIA7_HUMO_REFERENCE_2_MISSING\"), true);\n    assert.equal(workerSource.includes(\"SIA7_HUMO_REFERENCE_2_SHA_MISMATCH\"), true);\n    assert.equal(workerSource.includes(\"JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_OUTPUT_2: SIA7_HUMO_REFERENCE_OUTPUT_2\"), true);\n    assert.equal(workerSource.includes(\"JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_2: SIA7_HUMO_REFERENCE_SHA256_2\"), true);"
+    "search": "    assert.match(bridgeSource, /runHuMoIdentityProbeCli/);",
+    "replace": "    assert.match(bridgeSource, /runHuMoIdentityProbeCli/);\n    assert.equal(bridgeSource.includes(\"JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_OUTPUT_2\"), true);\n    assert.equal(bridgeSource.includes(\"JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_2\"), true);\n    assert.equal(bridgeSource.includes(\"referenceOutputs: [reference.output, ...(secondReference ? [secondReference.output] : [])]\"), true);\n    assert.equal(bridgeSource.includes(\"referenceFiles: [reference.file, ...(secondReference ? [secondReference.file] : [])]\"), true);\n    assert.equal(bridgeSource.includes(\"identityReferenceOutputs: [reference.output, ...(secondReference ? [secondReference.output] : [])]\"), true);\n    assert.equal(bridgeSource.includes(\"RUNPOD_HUMO_IDENTITY_PROBE_REFERENCE_SET_INVALID\"), true);"
   }
 }
