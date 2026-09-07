@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-gpu-populate-source-20260907-81",
+  "jobId": "v142-humo-gpu-populate-bootstrap-flag-20260907-80b",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            \"progress HUMO_REPOSITORY RUNNING\",",
-    "replace": "            \"progress HUMO_REPOSITORY RUNNING\",\n            \"if test \\\"$POPULATE_PERSISTENT_HUMO_CACHE\\\" = 1; then\",\n            \"  if test ! -d \\\"$HUMO_REPO/.git\\\"; then git clone --filter=blob:none https://github.com/Phantom-video/HuMo.git \\\"$HUMO_REPO\\\"; fi\",\n            `  git -C \"$HUMO_REPO\" fetch --depth 1 origin ${authority.sourceRevision}`,\n            `  git -C \"$HUMO_REPO\" checkout --detach ${authority.sourceRevision}`,\n            \"fi\","
+    "search": "            `RUNTIME_CERTIFICATION_ONLY=${runtimeCertificationOnly ? \"1\" : \"0\"}` ,",
+    "replace": "            `RUNTIME_CERTIFICATION_ONLY=${runtimeCertificationOnly ? \"1\" : \"0\"}` ,"
   }
 }
