@@ -1,10 +1,12 @@
 {
-  "jobId": "v142-humo-identity-paid-20260907-121",
-  "operation": "humo_identity_probe",
+  "jobId": "v142-humo-volume-idempotent-retry-20260907-122",
+  "operation": "patch",
   "humanApproved": true,
-  "executePaid": true,
-  "expectedBaseSha": "48149500ad1926aa4d20bba4f4aea57ba4b9b255",
-  "hardBudgetUsd": 3,
-  "monthlyStorageAuthorizedUsd": 3.5,
-  "fullEpisodeAuthorized": false
+  "patch": {
+    "file": "jarvis-fs-bridge.js",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "    const createdRaw = await provider(\"POST\", \"/networkvolumes\", {",
+    "replace": "    let createdRaw = null;\n    try {\n        createdRaw = await provider(\"POST\", \"/networkvolumes\", {"
+  }
 }
