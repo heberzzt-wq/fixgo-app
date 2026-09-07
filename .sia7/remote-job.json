@@ -1,12 +1,10 @@
 {
-  "jobId": "v142-humo-whisper-dtype-overlay-test-20260907-151",
-  "operation": "patch",
+  "jobId": "v142-humo-identity-paid-20260907-152",
+  "operation": "humo_identity_probe",
   "humanApproved": true,
-  "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "test(\"V142 HuMo verifies actual streamed bytes instead of trusting manifest claims\", async () => {",
-    "replace": "test(\"V142 HuMo Whisper dtype repair is transient and follows the physical encoder dtype\", () => {\r\n    const runner = fs.readFileSync(new URL(\"../scripts/jarvis-local-video-wan22.py\", import.meta.url), \"utf8\");\r\n    assert.equal(runner.includes('tempfile.mkdtemp(prefix=\"jarvis-humo-runtime-overlay-\")'), true);\r\n    assert.equal(runner.includes('ignore=shutil.ignore_patterns(\".git\", \"__pycache__\")'), true);\r\n    assert.equal(runner.includes('dtype=self.whisper.encoder.conv1.weight.dtype'), true);\r\n    assert.equal(runner.includes('audio_processor_source.count(dtype_source) != 1'), true);\r\n    const copied = runner.indexOf(\"shutil.copytree(\");\r\n    const patched = runner.indexOf(\"audio_processor_file.write_text(\");\r\n    const rebound = runner.indexOf(\"humo_root = runtime_humo_root\");\r\n    assert.equal(copied >= 0 && copied < patched && patched < rebound, true);\r\n});\r\n\r\ntest(\"V142 HuMo verifies actual streamed bytes instead of trusting manifest claims\", async () => {"
-  }
+  "expectedBaseSha": "d0dbbf23a9b20fa96f1a9b0e181b2e8abf28c719",
+  "hardBudgetUsd": 3,
+  "monthlyStorageAuthorizedUsd": 3.5,
+  "executePaid": true,
+  "fullEpisodeAuthorized": false
 }
