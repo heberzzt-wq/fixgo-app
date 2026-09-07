@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-volume-closeout-fields-20260907-127",
+  "jobId": "v142-humo-volume-closeout-propagation-20260907-128",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        humanIdentityApproval: \"PENDING\",",
-    "replace": "        humanIdentityApproval: \"PENDING\",\n        networkVolumeId: persistentVolume.id,\n        networkVolumeDataCenterId: persistentVolume.dataCenterId,\n        networkVolumeSizeGb: Number(persistentVolume.sizeGb || 0),\n        networkVolumeRetained: releaseReceipt?.networkVolumeRetained === true,\n        estimatedMonthlyStorageUsd: 3.5,"
+    "search": "        humanIdentityApproval: result.humanIdentityApproval || \"PENDING\",",
+    "replace": "        humanIdentityApproval: result.humanIdentityApproval || \"PENDING\",\n        networkVolumeId: result.networkVolumeId || null,\n        networkVolumeDataCenterId: result.networkVolumeDataCenterId || null,\n        networkVolumeSizeGb: Number(result.networkVolumeSizeGb || 0),\n        networkVolumeRetained: result.networkVolumeRetained === true,\n        estimatedMonthlyStorageUsd: Number(result.estimatedMonthlyStorageUsd || 0),"
   }
 }
