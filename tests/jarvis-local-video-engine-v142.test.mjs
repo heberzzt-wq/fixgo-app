@@ -545,7 +545,7 @@ test("V142 HuMo reuses the read-only CPU precheck with the selected datacenter a
         assert.equal(report.resourceCreationPossible, false);
         assert.equal(report.cache.cpuCompletionStatus, "CACHE_MODEL_READY");
         assert.equal(adapter.inspectCpuStagingPrecheck({ ...request,
-            networkVolume: { ...request.networkVolume, sizeGb: 50 } }).ok, false);
+            networkVolume: { ...request.networkVolume, sizeGb: 49 } }).ok, false);
     } finally { fs.rmSync(h.root, { recursive: true, force: true }); }
 });
 
