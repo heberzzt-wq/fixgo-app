@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-sia7-suppress-completed-job-replay-20260907-109a",
+  "jobId": "v142-sia7-suppress-completed-job-replay-20260907-109b",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        currentJob = await readRemoteJob();",
-    "replace": "        currentJob = await readRemoteJob();\n        const remoteResultJobId = await readRemoteResultJobId();"
+    "search": "        if (!currentJob?.jobId || currentJob.jobId === lastJobId) {",
+    "replace": "        if (!currentJob?.jobId || currentJob.jobId === lastJobId || currentJob.jobId === remoteResultJobId) {"
   }
 }
