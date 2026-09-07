@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-placement-empty-types-fallback-20260907-119",
+  "jobId": "v142-humo-placement-fallback-contract-test-20260907-120",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-local-video-engine.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            return [dataCenterId, types.includes(RUNPOD_WAN22_CACHE_BASE.networkVolumeType)];",
-    "replace": "            return [dataCenterId, types.length === 0 || types.includes(RUNPOD_WAN22_CACHE_BASE.networkVolumeType)];"
+    "search": "test(\"V142 HuMo runtime certification stays ephemeral while identity CLI uses a retained network volume\", () => {",
+    "replace": "test(\"V142 HuMo placement treats undocumented catalog volume metadata as non-authoritative\", () => {\n    const engineSource = fs.readFileSync(new URL(\"../jarvis-local-video-engine.js\", import.meta.url), \"utf8\");\n    assert.equal(engineSource.includes(\"return [dataCenterId, true];\"), true);\n    assert.equal(engineSource.includes(\"types.length === 0 || types.includes(RUNPOD_WAN22_CACHE_BASE.networkVolumeType)\"), true);\n    assert.match(engineSource, /networkVolumeSupported: dataCenterSupport\\.get\\(dataCenterId\\) === true/);\n});\n\ntest(\"V142 HuMo runtime certification stays ephemeral while identity CLI uses a retained network volume\", () => {"
   }
 }
