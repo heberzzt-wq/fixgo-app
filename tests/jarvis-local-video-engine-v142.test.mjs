@@ -361,6 +361,51 @@ for (const fault of ["no volume", "no retention", "nonexistent volume", "substit
     });
 }
 
+test("V142 HuMo CPU-staged receipt skips S3 pre-read but still requires mounted GPU verification", async () => {
+    const h = await humoPersistentHarness();
+    try {
+        const receiptFile = path.join(h.root, "cpu-stage-receipt.json");
+        fs.writeFileSync(receiptFile, JSON.stringify({
+            cacheStatus: "CACHE_MODEL_READY", shaVerified: true, inferenceStarted: false,
+            networkVolumeId: "humo-cache", dataCenterId: "EU-RO-1", sizeGb: 64, type: "STANDARD",
+            manifest: h.manifest
+        }));
+        h.env.JARVIS_RUNPOD_CPU_STAGED_CACHE_RECEIPT = receiptFile;
+        h.env.JARVIS_RUNPOD_CPU_STAGED_CACHE_RECEIPT_AUTHORIZED = "true";
+        delete h.env.JARVIS_RUNPOD_S3_ACCESS_KEY_ID;
+        delete h.env.JARVIS_RUNPOD_S3_SECRET_ACCESS_KEY;
+        const launched = await h.adapter.launch({ job: h.job });
+        assert.equal(h.reads.filter(url => url.startsWith("https://s3api-")).length, 0);
+        assert.equal(launched.remoteWorker.cacheStatus, "CACHE_MISS");
+        let polled;
+        for (let i = 0; i < 4; i++) {
+            polled = await h.adapter.poll({ operation: h.job, resultFile: path.join(h.root, "result.json") });
+            if (polled.remoteWorker?.cacheStatus === "CACHE_HIT" || polled.done) break;
+        }
+        assert.equal(polled.remoteWorker.cacheStatus, "CACHE_HIT", JSON.stringify(polled));
+        assert.equal(h.base.inferenceStarts, 0, "mounted verification precedes inference start");
+        const cleanup = await h.adapter.release({ ...h.job, remoteWorker: launched.remoteWorker });
+        assert.equal(cleanup.terminationVerified, true);
+        assert.equal(cleanup.networkVolumeRetained, true);
+    } finally { fs.rmSync(h.root, { recursive: true, force: true }); }
+});
+
+test("V142 HuMo rejects invalid CPU-staged cache receipt before every GPU provision POST", async () => {
+    const h = await humoPersistentHarness();
+    try {
+        const receiptFile = path.join(h.root, "cpu-stage-receipt-invalid.json");
+        fs.writeFileSync(receiptFile, JSON.stringify({
+            cacheStatus: "CACHE_MODEL_READY", shaVerified: false, inferenceStarted: false,
+            networkVolumeId: "humo-cache", dataCenterId: "EU-RO-1", sizeGb: 64, type: "STANDARD",
+            manifest: h.manifest
+        }));
+        h.env.JARVIS_RUNPOD_CPU_STAGED_CACHE_RECEIPT = receiptFile;
+        h.env.JARVIS_RUNPOD_CPU_STAGED_CACHE_RECEIPT_AUTHORIZED = "true";
+        await assert.rejects(h.adapter.launch({ job: h.job }), /RUNPOD_CPU_STAGED_CACHE_RECEIPT_INVALID/);
+        assert.equal(h.base.createdGraphQlInput, null);
+    } finally { fs.rmSync(h.root, { recursive: true, force: true }); }
+});
+
 test("V142 HuMo verified volume binds inference payload and GPU cleanup retains only the authorized volume", async () => {
     const h = await humoPersistentHarness();
     try {
