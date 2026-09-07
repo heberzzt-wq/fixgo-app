@@ -243,7 +243,9 @@ test("V142 HuMo LAN cache inspector consumes certified closeout evidence with ze
     assert.equal(result.sourceRevisionVerified, true);
     assert.equal(result.totalBytes, 7);
     assert.ok(observed.args.includes("BatchMode=yes"));
-    assert.ok(observed.args.at(-1).includes("-EncodedCommand"));
+    assert.equal(observed.args.at(-1), "powershell.exe -NoProfile -NonInteractive -Command -");
+    assert.equal(typeof observed.options.input, "string");
+    assert.match(observed.options.input, /LAN_CACHE_CLOSEOUT_ASSET_COUNT_MISMATCH/);
     assert.equal(observed.options.windowsHide, true);
 });
 
