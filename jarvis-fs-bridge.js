@@ -8352,7 +8352,12 @@ export async function runHuMoIdentityProbeCli({
         JARVIS_HUMO_IDENTITY_PROBE_AUTHORIZATION_ID: authorizationId,
         JARVIS_HUMO_IDENTITY_PROBE_CHARACTER_ID: characterId
     };
-    if (!runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID) throw new Error("RUNPOD_HUMO_CACHE_REQUIRED");
+    const identityProbeLanAuthority = resolveHuMoLanCacheAuthority({ env: runtimeEnv });
+    if (!identityProbeLanAuthority.configured) {
+        throw new Error(identityProbeLanAuthority.status || "HUMO_LAN_CACHE_AUTHORITY_REQUIRED");
+    }
+    delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID;
+    runtimeEnv.JARVIS_HUMO_LOCAL_CACHE_ROOT = identityProbeLanAuthority.cacheRoot;
     const credential = resolveRunpodCredentialEnvironment({ env: runtimeEnv });
     if (credential.credentialLoaded !== true) {
         throw new Error(credential.credentialError || "RUNPOD_API_KEY_REQUIRED");
