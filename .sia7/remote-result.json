@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-humo-lan-preflight-cli-entrypoint-20260906-43",
-  "completedAt": "2026-09-07T01:57:45.785Z",
+  "jobId": "v142-humo-lan-preflight-test-import-20260906-44",
+  "completedAt": "2026-09-07T01:58:05.065Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "jarvis-fs-bridge.js",
+  "file": "tests/jarvis-fs-bridge-v2.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 342807,
-  "bytesAfter": 343280,
+  "bytesBefore": 64405,
+  "bytesAfter": 64438,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "jarvis-fs-bridge.js"
+    "tests/jarvis-fs-bridge-v2.test.mjs"
   ]
 }

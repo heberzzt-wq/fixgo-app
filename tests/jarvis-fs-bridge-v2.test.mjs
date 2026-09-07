@@ -28,6 +28,7 @@ import {
     readJarvisRuntimeContract,
     resolveHuMoLanCacheAuthority,
     resolveRepoPath,
+    runHuMoLanCachePreflightCli,
     runLocalWebResearch,
     saveGeneratedImageArtifact,
     saveUploadedArtifact,
