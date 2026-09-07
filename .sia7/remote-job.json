@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-network-volume-create-route-20260907-104",
+  "jobId": "v142-humo-network-volume-create-body-20260907-105",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const createdRaw = await provider(\"POST\", \"/network-volumes\", {",
-    "replace": "    const createdRaw = await provider(\"POST\", \"/networkvolumes\", {"
+    "search": "        type: \"STANDARD\"",
+    "replace": "        // STANDARD is implicit in RunPod's documented networkvolumes endpoint."
   }
 }
