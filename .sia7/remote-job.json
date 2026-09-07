@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-second-reference-sha-20260907-170",
+  "jobId": "v142-humo-second-reference-integrity-20260907-171",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const expectedReferenceSha256 = String(env.JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256 || \"\").trim().toLowerCase();",
-    "replace": "    const expectedReferenceSha256 = String(env.JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256 || \"\").trim().toLowerCase();\n    const expectedSecondReferenceSha256 = String(env.JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_2 || \"\").trim().toLowerCase();"
+    "search": "    if (!/^[a-f0-9]{64}$/.test(expectedAudioSha256) || sha256File(audio.file) !== expectedAudioSha256) {",
+    "replace": "    if (secondReference && (!/^[a-f0-9]{64}$/.test(expectedSecondReferenceSha256) || sha256File(secondReference.file) !== expectedSecondReferenceSha256)) {\n        throw new Error(\"RUNPOD_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_MISMATCH\");\n    }\n    if (!secondReference && expectedSecondReferenceSha256) {\n        throw new Error(\"RUNPOD_HUMO_IDENTITY_PROBE_REFERENCE_SET_INVALID\");\n    }\n    if (secondReference && !expectedSecondReferenceSha256) {\n        throw new Error(\"RUNPOD_HUMO_IDENTITY_PROBE_REFERENCE_SET_INVALID\");\n    }\n    if (!/^[a-f0-9]{64}$/.test(expectedAudioSha256) || sha256File(audio.file) !== expectedAudioSha256) {"
   }
 }
