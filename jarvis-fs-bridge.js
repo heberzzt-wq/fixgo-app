@@ -8445,7 +8445,7 @@ async function ensureHuMoPersistentNetworkVolumeWithRunpodctl({ eligible, creden
         }
     }
     if (lastError?.providerMessage) {
-        const error = new Error("RUNPODCTL_NETWORK_VOLUME_CREATE_FAILED");
+        const error = new Error("RUNPODCTL_NETWORK_VOLUME_CREATE_FAILED:" + String(lastError.providerMessage || "unknown").replace(/\s+/g, " " ).slice(0, 240));
         error.providerMessage = lastError.providerMessage;
         throw error;
     }
