@@ -7732,6 +7732,17 @@ test("V142 HuMo Network Volume creation reconciles ambiguous 5xx and falls back 
     assert.equal(retryBlock.includes("status === 403"), false);
 });
 
+test("V142 HuMo physical closeout exposes retained Network Volume identity through SIA7", () => {
+    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+    const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
+    for (const field of ["networkVolumeId", "networkVolumeDataCenterId", "networkVolumeSizeGb", "networkVolumeRetained", "estimatedMonthlyStorageUsd"]) {
+        assert.equal(bridgeSource.includes(field), true, field);
+        assert.equal(workerSource.includes(field), true, field);
+    }
+    assert.match(bridgeSource, /networkVolumeRetained: releaseReceipt\?\.networkVolumeRetained === true/);
+    assert.match(workerSource, /networkVolumeRetained: result\.networkVolumeRetained === true/);
+});
+
 test("V142 HuMo runtime certification stays ephemeral while identity CLI uses a retained network volume", () => {
     const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
     assert.equal(engineSource.includes("persistentVolumeDisabled = isHuMoRemoteJob(job)"), true);
