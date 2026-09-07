@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-humo-lan-adapter-stager-wiring-20260906-34",
-  "completedAt": "2026-09-07T01:48:40.346Z",
+  "jobId": "v142-humo-lan-tests-imports-20260906-35",
+  "completedAt": "2026-09-07T01:49:39.470Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "jarvis-fs-bridge.js",
+  "file": "tests/jarvis-fs-bridge-v2.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 338599,
-  "bytesAfter": 338891,
+  "bytesBefore": 59573,
+  "bytesAfter": 59640,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "jarvis-fs-bridge.js"
+    "tests/jarvis-fs-bridge-v2.test.mjs"
   ]
 }

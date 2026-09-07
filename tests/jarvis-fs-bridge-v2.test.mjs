@@ -13,6 +13,8 @@ import {
     cancelChunkedUpload,
     completeChunkedUpload,
     createJarvisFsBridgeApp,
+    createHuMoLanCacheInspector,
+    createHuMoLanEphemeralStager,
     createSelfHostedSemanticEngine,
     describeJarvisBridgeIdentity,
     describeJarvisFsBridge,
