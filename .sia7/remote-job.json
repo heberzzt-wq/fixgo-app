@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-worker-freshness-guard-20260907-186",
+  "jobId": "v142-humo-worker-stale-blocker-20260907-187",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "async function currentHeadSha() {",
-    "replace": "const SIA7_WORKER_SOURCE_FILE = path.resolve(REPO_ROOT, \"jarvis-github-worker.js\");\nconst SIA7_WORKER_SOURCE_SHA256_AT_START = sha256File(SIA7_WORKER_SOURCE_FILE);\n\nasync function currentHeadSha() {"
+    "search": "async function executeHuMoIdentityProbeJob(job = {}) {\n    const scope = await validateHuMoIdentityProbeScope(job);",
+    "replace": "async function executeHuMoIdentityProbeJob(job = {}) {\n    if (sha256File(SIA7_WORKER_SOURCE_FILE) !== SIA7_WORKER_SOURCE_SHA256_AT_START) {\n        throw new Error(\"SIA7_WORKER_RESTART_REQUIRED\");\n    }\n    const scope = await validateHuMoIdentityProbeScope(job);"
   }
 }
