@@ -1986,6 +1986,10 @@ export function createRunpodRemoteVideoAdapter({
         64
     ));
     const retainNetworkVolumeAuthorized = booleanValue(env.JARVIS_RUNPOD_RETAIN_NETWORK_VOLUME_AUTHORIZED, false);
+    const populatePersistentHuMoCacheAuthorized = booleanValue(
+        env.JARVIS_RUNPOD_HUMO_CACHE_POPULATE_ON_GPU_AUTHORIZED,
+        false
+    );
     const runtimeCertificationOnly = booleanValue(
         env.JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY,
         false
