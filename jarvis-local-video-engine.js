@@ -4559,6 +4559,7 @@ export function createRunpodRemoteVideoAdapter({
                 "export HF_HUB_DOWNLOAD_TIMEOUT=120",
                 `"$CPU_TOOLS_VENV/bin/python" - "$CACHE_ROOT" stage ${shellSingleQuote(networkVolumeId)} ${shellSingleQuote(runtimeCertificationDataCenterId)} <<'PY'`,
                 networkVolumeId ? persistentModelEvidenceProgram() : localEphemeralModelEvidenceProgram(), "PY",
+                "rm -rf \"$CACHE_ROOT/.partial\" \"$CACHE_ROOT/.cache/huggingface\" \"$CPU_TOOLS_VENV\"",
                 "progress CACHE_MODEL_READY READY", "exit 0", ""
             ].join("\n");
         }
