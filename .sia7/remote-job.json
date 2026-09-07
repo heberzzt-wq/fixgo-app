@@ -1,9 +1,12 @@
 {
-  "jobId": "v142-humo-two-reference-zero-cost-preflight-20260907-185",
-  "operation": "humo_identity_probe",
-  "expectedBaseSha": "6debe049e32f7498e9cd5d187fae5360809aa25e",
-  "hardBudgetUsd": 3,
-  "monthlyStorageAuthorizedUsd": 3.5,
-  "fullEpisodeAuthorized": false,
-  "executePaid": false
+  "jobId": "v142-humo-worker-freshness-guard-20260907-186",
+  "operation": "patch",
+  "humanApproved": true,
+  "patch": {
+    "file": "jarvis-github-worker.js",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "async function currentHeadSha() {",
+    "replace": "const SIA7_WORKER_SOURCE_FILE = path.resolve(REPO_ROOT, \"jarvis-github-worker.js\");\nconst SIA7_WORKER_SOURCE_SHA256_AT_START = sha256File(SIA7_WORKER_SOURCE_FILE);\n\nasync function currentHeadSha() {"
+  }
 }
