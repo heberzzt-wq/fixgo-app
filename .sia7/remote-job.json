@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-reference-file-line-20260907-174",
+  "jobId": "v142-humo-source-reference-outputs-bind-20260907-175",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        referenceFiles: [reference.file],",
-    "replace": "        referenceFiles: [reference.file, ...(secondReference ? [secondReference.file] : [])],"
+    "search": "        sourceReferenceOutputs: [],",
+    "replace": "        sourceReferenceOutputs: [reference.output, ...(secondReference ? [secondReference.output] : [])],"
   }
 }
