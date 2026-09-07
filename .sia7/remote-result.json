@@ -1,8 +1,8 @@
 {
-  "jobId": "v142-humo-reference-output-pair-20260907-172",
-  "completedAt": "2026-09-07T23:33:32.895Z",
+  "jobId": "v142-humo-second-reference-job-bind-20260907-172",
+  "completedAt": "2026-09-07T23:33:44.134Z",
   "ok": false,
-  "error": "RESULT_GIT_PUSH_FAILED: To https://github.com/heberzzt-wq/fixgo-app.git\n ! [rejected]          v94-media-v4n-negative-claims -> v94-media-v4n-negative-claims (fetch first)\nerror: failed to push some refs to 'https://github.com/heberzzt-wq/fixgo-app.git'\nhint: Updates were rejected because the remote contains work that you do not\nhint: have locally. This is usually caused by another repository pushing to\nhint: the same ref. If you want to integrate the remote changes, use\nhint: 'git pull' before pushing again.\nhint: See the 'Note about fast-forwards' in 'git push --help' for details.\n",
+  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1",
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
