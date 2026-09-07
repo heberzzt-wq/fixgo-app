@@ -5307,8 +5307,10 @@ export function createRunpodRemoteVideoAdapter({
             gpuCount: body.gpuCount,
             gpuTypeId: body.gpuTypeIds?.[0],
             imageName: body.imageName,
-            minMemoryInGb: body.minRAMPerGPU,
-            minVcpuCount: body.minVCPUPerGPU,
+            ...(body.networkVolumeId ? {} : {
+                minMemoryInGb: body.minRAMPerGPU,
+                minVcpuCount: body.minVCPUPerGPU
+            }),
             name: body.name,
             ports: Array.isArray(body.ports) ? body.ports.join(",") : String(body.ports || ""),
             startSsh: true,

@@ -1,9 +1,17 @@
 {
-  "jobId": "v142-humo-graphql-diagnostic-cli-recover-20260907-143b",
-  "completedAt": "2026-09-07T19:41:56.096Z",
-  "ok": false,
-  "error": "RESULT_SYNC_FAILED: From https://github.com/heberzzt-wq/fixgo-app\n * branch              v94-media-v4n-negative-claims -> FETCH_HEAD\nerror: unable to write file .git/objects/27/61293e03cc3115a1516223cf5cd6ee549f81d4: Permission denied\nCannot record working tree state\nfatal: Cannot autostash\n",
+  "jobId": "v142-humo-volume-placement-filters-20260907-144",
+  "completedAt": "2026-09-07T20:52:46.342Z",
+  "ok": true,
+  "operation": "patch",
+  "dryRun": false,
+  "file": "jarvis-local-video-engine.js",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 407139,
+  "bytesAfter": 407210,
+  "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
-    ".sia7/remote-result.json"
+    ".sia7/remote-result.json",
+    "jarvis-local-video-engine.js"
   ]
 }
