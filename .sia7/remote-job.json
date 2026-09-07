@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-worker-second-reference-file-20260907-179",
+  "jobId": "v142-humo-worker-second-reference-exists-20260907-180",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const audioFile = path.resolve(SIA7_HUMO_SOURCE_ROOT, SIA7_HUMO_AUDIO_OUTPUT);",
-    "replace": "    const secondReferenceFile = path.resolve(SIA7_HUMO_SOURCE_ROOT, SIA7_HUMO_REFERENCE_OUTPUT_2);\n    const audioFile = path.resolve(SIA7_HUMO_SOURCE_ROOT, SIA7_HUMO_AUDIO_OUTPUT);"
+    "search": "    if (!fs.existsSync(referenceFile) || !fs.statSync(referenceFile).isFile()) throw new Error(\"SIA7_HUMO_REFERENCE_MISSING\");",
+    "replace": "    if (!fs.existsSync(referenceFile) || !fs.statSync(referenceFile).isFile()) throw new Error(\"SIA7_HUMO_REFERENCE_MISSING\");\n    if (!fs.existsSync(secondReferenceFile) || !fs.statSync(secondReferenceFile).isFile()) throw new Error(\"SIA7_HUMO_REFERENCE_2_MISSING\");"
   }
 }
