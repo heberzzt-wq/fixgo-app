@@ -1,9 +1,17 @@
 {
-  "jobId": "v142-humo-lan-adapter-wiring-20260906-50",
-  "completedAt": "2026-09-07T02:18:07.053Z",
-  "ok": false,
-  "error": "PATCH_MATCH_COUNT_MISMATCH:3:2",
+  "jobId": "v142-humo-lan-adapter-wiring-20260906-51",
+  "completedAt": "2026-09-07T02:18:42.321Z",
+  "ok": true,
+  "operation": "patch",
+  "dryRun": false,
+  "file": "jarvis-fs-bridge.js",
+  "matchCount": 2,
+  "expectedMatches": 2,
+  "bytesBefore": 343280,
+  "bytesAfter": 343345,
+  "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
-    ".sia7/remote-result.json"
+    ".sia7/remote-result.json",
+    "jarvis-fs-bridge.js"
   ]
 }

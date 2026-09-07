@@ -8125,6 +8125,7 @@ export async function runHuMoRuntimeCertificationCli({
     const runpod = createRunpodRemoteVideoAdapter({
         root: resolvedRoot,
         env: credential.env,
+        ...huMoLanRunpodAdapterOptions({ env: credential.env }),
         inspectBridgeIdentity: () => describeJarvisBridgeIdentity(resolvedRoot)
     });
     const engine = createLocalVideoEngine({
