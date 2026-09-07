@@ -8372,7 +8372,7 @@ async function ensureHuMoPersistentNetworkVolume({ root, env, canonicalSha, log 
         dataCenterId: String(volume?.dataCenterId || volume?.dataCenter?.id || volume?.dataCenter || "").trim(),
         type: String(volume?.type || volume?.volumeType || "STANDARD").trim().toUpperCase()
     });
-    const listed = await provider("GET", "/network-volumes", null, [200]);
+    const listed = await provider("GET", "/networkvolumes", null, [200]);
     const rawVolumes = Array.isArray(listed?.networkVolumes) ? listed.networkVolumes :
         (Array.isArray(listed?.items) ? listed.items : (Array.isArray(listed) ? listed : []));
     const volumes = rawVolumes.map(normalize).filter(item => item.id);
