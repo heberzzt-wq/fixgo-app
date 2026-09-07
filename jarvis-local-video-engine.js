@@ -5330,6 +5330,7 @@ export function createRunpodRemoteVideoAdapter({
                 networkVolumeId: networkVolume?.id || null,
                 networkVolumeRetentionAuthorized: Boolean(networkVolume && retainNetworkVolumeAuthorized),
                 persistentCacheVerification: persistentCache,
+                localCacheTransferPrecheck,
                 networkVolumeDataCenterId: networkVolume?.dataCenterId || null,
                 networkVolumeSizeGb: networkVolume?.sizeGb || null,
                 dataCenterId: selectedDataCenterId || null,
