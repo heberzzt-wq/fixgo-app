@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-probe-keep-network-volume-20260907-87c",
+  "jobId": "v142-humo-probe-keep-network-volume-20260907-87d",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
-    "expectedMatches": 1,
+    "expectedMatches": 2,
     "search": "    delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID;",
-    "replace": ""
+    "replace": "    if (runtimeEnv.JARVIS_RUNPOD_RUNTIME_CERTIFICATION_ONLY === \"true\") delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID;"
   }
 }
