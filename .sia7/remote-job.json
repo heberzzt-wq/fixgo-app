@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-local-poll-guard-20260906-26",
+  "jobId": "v142-humo-ephemeral-verification-state-20260906-27",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                    if (!state.networkVolumeId || state.networkVolumeId !== networkVolumeId || !state.networkVolumeRetentionAuthorized) {",
-    "replace": "                    if (state.networkVolumeId && (state.networkVolumeId !== networkVolumeId || !state.networkVolumeRetentionAuthorized)) {"
+    "search": "                    state = writeState(loaded.file, state, { cacheStatus: \"CACHE_HIT\", modelManifest: mounted,",
+    "replace": "                    state = writeState(loaded.file, state, { cacheStatus: \"CACHE_HIT\", modelManifest: mounted,\n                        ephemeralCacheVerified: !state.networkVolumeId,"
   }
 }
