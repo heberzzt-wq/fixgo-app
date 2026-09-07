@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-sia7-humo-typed-import-20260907-110a",
+  "jobId": "v142-sia7-humo-typed-authority-20260907-111",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "import fs from \"node:fs\";",
-    "replace": "import { createHash } from \"node:crypto\";\nimport fs from \"node:fs\";"
+    "search": "const REPO_ROOT = path.resolve(process.cwd());",
+    "replace": "const REPO_ROOT = path.resolve(process.cwd());\nconst SIA7_HUMO_MAX_COMPUTE_USD = 3;\nconst SIA7_HUMO_MONTHLY_STORAGE_USD = 3.5;\nconst SIA7_HUMO_SOURCE_ROOT = path.resolve(REPO_ROOT, \"..\", \"fixgo-v142-local-first-20260825\");\nconst SIA7_HUMO_REFERENCE_OUTPUT = \".jarvis-artifacts/uploads/1787783430100-a3151d2eefde-IMG_20240807_165633505_HDR-2.jpg\";\nconst SIA7_HUMO_REFERENCE_SHA256 = \"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\";\nconst SIA7_HUMO_AUDIO_OUTPUT = \".jarvis-artifacts/audio/series_heberto_infiltrado_cancun-ep-series_heberto_infiltrado_cancun-1-narration.wav\";\nconst SIA7_HUMO_AUDIO_SHA256 = \"294861191281abdcc32a0d8fcef6102832e784d95e73e0e55a75fde7ecfc35ad\";\nconst SIA7_HUMO_OUTPUT = \".jarvis-artifacts/videos/humo-heberto-identity-probe-3-3.88s.mp4\";\nconst SIA7_HUMO_CHARACTER_ID = \"CHAR_HEBERTO\";"
   }
 }
