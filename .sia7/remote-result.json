@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-probe-remove-lan-authority-20260907-87e",
-  "completedAt": "2026-09-07T14:19:25.552Z",
+  "jobId": "v142-humo-network-volume-authority-precedence-20260907-88",
+  "completedAt": "2026-09-07T14:20:20.189Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 350605,
-  "bytesAfter": 350574,
+  "bytesBefore": 350574,
+  "bytesAfter": 350651,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

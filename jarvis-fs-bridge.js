@@ -510,6 +510,7 @@ export function createHuMoLanEphemeralStager({ authority, spawnImpl = spawn } = 
 }
 
 function huMoLanRunpodAdapterOptions({ env = process.env } = {}) {
+    if (String(env.JARVIS_RUNPOD_NETWORK_VOLUME_ID || "").trim()) return {};
     const authority = resolveHuMoLanCacheAuthority({ env });
     if (!authority.configured) return {};
     return {
