@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-network-volume-normalize-dc-20260907-91",
+  "jobId": "v142-humo-50gb-disable-cpu-xet-cache-20260907-92",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        dataCenterId: String(volume?.dataCenter || volume?.dataCenterId || volume?.dataCenter?.id || \"\").trim(),",
-    "replace": "        dataCenterId: String(volume?.dataCenterId || volume?.dataCenter?.id || volume?.dataCenter || \"\").trim(),"
+    "search": "                \"export HF_XET_CHUNK_CACHE_SIZE_BYTES=10000000000\",",
+    "replace": "                \"export HF_XET_CHUNK_CACHE_SIZE_BYTES=0 HF_XET_SHARD_CACHE_SIZE_LIMIT=0\","
   }
 }
