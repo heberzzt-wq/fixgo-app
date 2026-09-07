@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-humo-certified-venv-contract-20260907-147",
-  "completedAt": "2026-09-07T21:16:09.483Z",
+  "jobId": "v142-humo-certified-venv-test-20260907-148",
+  "completedAt": "2026-09-07T21:17:14.725Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "scripts/jarvis-local-video-wan22.py",
+  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 42389,
-  "bytesAfter": 42399,
+  "bytesBefore": 400802,
+  "bytesAfter": 401163,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "scripts/jarvis-local-video-wan22.py"
+    "tests/jarvis-local-video-engine-v142.test.mjs"
   ]
 }

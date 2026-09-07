@@ -53,6 +53,12 @@ for (const [label, mutate] of [
     assert.equal(validateModelCacheManifest(manifest), false);
 });
 
+test("V142 HuMo runner binds inference to the certified lifecycle venv", () => {
+    const runner = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");
+    assert.equal(runner.includes("/opt/jarvis-v142/humo-venv/bin/python"), true);
+    assert.equal(runner.includes('.endswith("/venv/bin/python")'), false);
+});
+
 test("V142 HuMo verifies actual streamed bytes instead of trusting manifest claims", async () => {
     const bytes = Buffer.from("fixture");
     const requiredFiles = [{ ...RUNPOD_HUMO_CACHE_BASE.requiredFiles[0], bytes: bytes.length,
