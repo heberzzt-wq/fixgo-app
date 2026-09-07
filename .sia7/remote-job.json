@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-8s-bridge-output-20260907-160",
+  "jobId": "v142-humo-8s-worker-output-20260907-161",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        \".jarvis-artifacts/videos/humo-heberto-identity-probe-3.88s.mp4\"",
-    "replace": "        \".jarvis-artifacts/videos/humo-heberto-identity-probe-8s.mp4\""
+    "search": "const SIA7_HUMO_OUTPUT = \".jarvis-artifacts/videos/humo-heberto-identity-probe-3-3.88s.mp4\";",
+    "replace": "const SIA7_HUMO_OUTPUT = \".jarvis-artifacts/videos/humo-heberto-identity-probe-8s.mp4\";"
   }
 }
