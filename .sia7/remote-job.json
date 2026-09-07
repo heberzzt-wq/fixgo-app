@@ -1,10 +1,12 @@
 {
-  "jobId": "v142-humo-identity-paid-20260907-140",
-  "operation": "humo_identity_probe",
+  "jobId": "v142-runpodctl-volume-diagnostic-20260907-141",
+  "operation": "patch",
   "humanApproved": true,
-  "expectedBaseSha": "fcab9e22b63d8253af8a10749f9e8a6107ea22b8",
-  "hardBudgetUsd": 3,
-  "monthlyStorageAuthorizedUsd": 3.5,
-  "executePaid": true,
-  "fullEpisodeAuthorized": false
+  "patch": {
+    "file": "jarvis-fs-bridge.js",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "    if (lastError?.providerMessage) {\r\n        const error = new Error(\"RUNPODCTL_NETWORK_VOLUME_CREATE_FAILED\");\r\n        error.providerMessage = lastError.providerMessage;\r\n        throw error;\r\n    }",
+    "replace": "    if (lastError?.providerMessage) {\r\n        const providerDetail = String(lastError.providerMessage || \"unknown\").replace(/\\s+/g, \" \" ).slice(0, 240);\r\n        const error = new Error(`RUNPODCTL_NETWORK_VOLUME_CREATE_FAILED:${providerDetail}`);\r\n        error.providerMessage = providerDetail;\r\n        throw error;\r\n    }"
+  }
 }
