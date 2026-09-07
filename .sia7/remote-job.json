@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-ephemeral-verification-state-20260906-27",
+  "jobId": "v142-humo-ephemeral-mounted-state-20260906-28",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                    state = writeState(loaded.file, state, { cacheStatus: \"CACHE_HIT\", modelManifest: mounted,",
-    "replace": "                    state = writeState(loaded.file, state, { cacheStatus: \"CACHE_HIT\", modelManifest: mounted,\n                        ephemeralCacheVerified: !state.networkVolumeId,"
+    "search": "                        mountedCacheVerified: true, runtimePreflightVerified: true });",
+    "replace": "                        mountedCacheVerified: Boolean(state.networkVolumeId), runtimePreflightVerified: true });"
   }
 }
