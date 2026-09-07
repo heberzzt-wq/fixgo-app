@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-humo-whisper-dtype-overlay-20260907-150",
-  "completedAt": "2026-09-07T21:35:26.568Z",
+  "jobId": "v142-humo-whisper-dtype-overlay-test-20260907-151",
+  "completedAt": "2026-09-07T21:36:11.442Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "scripts/jarvis-local-video-wan22.py",
+  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 42399,
-  "bytesAfter": 43757,
+  "bytesBefore": 401163,
+  "bytesAfter": 402044,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "scripts/jarvis-local-video-wan22.py"
+    "tests/jarvis-local-video-engine-v142.test.mjs"
   ]
 }

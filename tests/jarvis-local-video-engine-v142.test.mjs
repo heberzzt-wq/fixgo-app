@@ -59,6 +59,18 @@ test("V142 HuMo runner binds inference to the certified lifecycle venv", () => {
     assert.equal(runner.includes('.endswith("/venv/bin/python")'), false);
 });
 
+test("V142 HuMo Whisper dtype repair is transient and follows the physical encoder dtype", () => {
+    const runner = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");
+    assert.equal(runner.includes('tempfile.mkdtemp(prefix="jarvis-humo-runtime-overlay-")'), true);
+    assert.equal(runner.includes('ignore=shutil.ignore_patterns(".git", "__pycache__")'), true);
+    assert.equal(runner.includes('dtype=self.whisper.encoder.conv1.weight.dtype'), true);
+    assert.equal(runner.includes('audio_processor_source.count(dtype_source) != 1'), true);
+    const copied = runner.indexOf("shutil.copytree(");
+    const patched = runner.indexOf("audio_processor_file.write_text(");
+    const rebound = runner.indexOf("humo_root = runtime_humo_root");
+    assert.equal(copied >= 0 && copied < patched && patched < rebound, true);
+});
+
 test("V142 HuMo verifies actual streamed bytes instead of trusting manifest claims", async () => {
     const bytes = Buffer.from("fixture");
     const requiredFiles = [{ ...RUNPOD_HUMO_CACHE_BASE.requiredFiles[0], bytes: bytes.length,
