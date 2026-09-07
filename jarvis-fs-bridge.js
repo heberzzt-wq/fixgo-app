@@ -8301,6 +8301,116 @@ export async function runHuMoRuntimeCertificationCli({
     return final;
 }
 
+async function ensureHuMoPersistentNetworkVolume({ root, env, canonicalSha, log = () => {} } = {}) {
+    const truthy = value => ["true", "1", "yes", "on"].includes(String(value || "").trim().toLowerCase());
+    const credential = resolveRunpodCredentialEnvironment({ env });
+    if (credential.credentialLoaded !== true) {
+        throw new Error(credential.credentialError || "RUNPOD_API_KEY_REQUIRED");
+    }
+    const discoveryEnv = {
+        ...credential.env,
+        JARVIS_REMOTE_GPU_PROVIDER: "runpod",
+        JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST",
+        JARVIS_LOCAL_VIDEO_MODEL: "humo",
+        JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA L40S",
+        JARVIS_RUNPOD_CLOUD_TYPE: "SECURE",
+        JARVIS_RUNPOD_CANONICAL_SHA: canonicalSha,
+        JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false",
+        JARVIS_REMOTE_GPU_HARD_BUDGET_USD: String(env.JARVIS_HUMO_IDENTITY_PROBE_HARD_BUDGET_USD || "3"),
+        JARVIS_RUNPOD_MIN_RAM_GB: "62",
+        JARVIS_RUNPOD_MIN_VCPU: "16",
+        JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "1.10"
+    };
+    const discovery = createRunpodRemoteVideoAdapter({
+        root: path.resolve(root),
+        env: discoveryEnv,
+        inspectBridgeIdentity: () => ({ ok: true, status: "BRIDGE_IDENTITY_OK" }),
+        resolveCanonicalSha: () => canonicalSha
+    });
+    const inventory = await discovery.inspectPlacementInventory("humo-persistent-volume-placement");
+    const stockRank = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+    const eligible = (Array.isArray(inventory) ? inventory : []).filter(item =>
+        String(item?.gpuTypeId || "") === "NVIDIA L40S" &&
+        item?.available === true && item?.secureCloud === true &&
+        item?.networkVolumeSupported === true &&
+        Number(item?.vramGb || 0) >= 48 &&
+        Number(item?.hourlyRateUsd || 0) > 0 && Number(item?.hourlyRateUsd || 0) <= 1.10 &&
+        Object.hasOwn(stockRank, String(item?.stockStatus || "").toUpperCase())
+    ).sort((a, b) =>
+        stockRank[String(a.stockStatus).toUpperCase()] - stockRank[String(b.stockStatus).toUpperCase()] ||
+        Number(a.hourlyRateUsd) - Number(b.hourlyRateUsd) ||
+        String(a.dataCenterId).localeCompare(String(b.dataCenterId))
+    );
+    if (eligible.length < 1) throw new Error("RUNPOD_HUMO_PERSISTENT_VOLUME_PLACEMENT_UNAVAILABLE");
+
+    const apiBase = String(env.JARVIS_RUNPOD_V2_API_BASE || "https://v2-rest.runpod.io/v2").replace(/\/$/, "");
+    const provider = async (method, suffix, body = null, accepted = [200]) => {
+        const response = await fetch(`${apiBase}${suffix}`, {
+            method,
+            signal: AbortSignal.timeout(30000),
+            headers: {
+                Authorization: `Bearer ${credential.env.RUNPOD_API_KEY}`,
+                ...(body ? { "Content-Type": "application/json" } : {})
+            },
+            ...(body ? { body: JSON.stringify(body) } : {})
+        });
+        const text = await response.text();
+        if (!accepted.includes(Number(response.status))) {
+            const error = new Error(`RUNPOD_NETWORK_VOLUME_HTTP_${Number(response.status || 0)}`);
+            error.providerMessage = text.slice(0, 500);
+            throw error;
+        }
+        if (!text) return null;
+        try { return JSON.parse(text); }
+        catch { throw new Error("RUNPOD_NETWORK_VOLUME_RESPONSE_INVALID"); }
+    };
+    const normalize = volume => ({
+        id: String(volume?.id || "").trim(),
+        name: String(volume?.name || "").trim(),
+        sizeGb: Number(volume?.size ?? volume?.sizeGb ?? volume?.sizeInGb ?? 0),
+        dataCenterId: String(volume?.dataCenter || volume?.dataCenterId || volume?.dataCenter?.id || "").trim(),
+        type: String(volume?.type || volume?.volumeType || "").trim().toUpperCase()
+    });
+    const listed = await provider("GET", "/network-volumes", null, [200]);
+    const rawVolumes = Array.isArray(listed?.networkVolumes) ? listed.networkVolumes :
+        (Array.isArray(listed?.items) ? listed.items : (Array.isArray(listed) ? listed : []));
+    const volumes = rawVolumes.map(normalize).filter(item => item.id);
+    const eligibleDc = new Set(eligible.map(item => String(item.dataCenterId)));
+    const prefix = "jarvis-v142-humo-1-7b-";
+    const reusable = volumes.filter(item =>
+        item.name.startsWith(prefix) && item.sizeGb >= 50 && item.type === "STANDARD" && eligibleDc.has(item.dataCenterId)
+    );
+    if (reusable.length > 1) throw new Error("RUNPOD_HUMO_NETWORK_VOLUME_AMBIGUOUS");
+    if (reusable.length === 1) {
+        const volume = reusable[0];
+        log({ ok: true, status: "HUMO_NETWORK_VOLUME_REUSED", ...volume, created: false });
+        return { ...volume, created: false };
+    }
+    if (!truthy(env.JARVIS_RUNPOD_CREATE_HUMO_NETWORK_VOLUME_AUTHORIZED)) {
+        throw new Error("RUNPOD_HUMO_NETWORK_VOLUME_CREATION_AUTHORITY_REQUIRED");
+    }
+    const selected = eligible[0];
+    const dataCenterId = String(selected.dataCenterId || "");
+    const name = `${prefix}${dataCenterId.toLowerCase()}`;
+    if (volumes.some(item => item.name === name)) throw new Error("RUNPOD_HUMO_NETWORK_VOLUME_NAME_CONFLICT");
+    const createdRaw = await provider("POST", "/network-volumes", {
+        name,
+        size: 50,
+        dataCenter: dataCenterId,
+        type: "STANDARD"
+    }, [201]);
+    const created = normalize(createdRaw);
+    if (!created.id || created.name !== name || created.dataCenterId !== dataCenterId ||
+        created.sizeGb < 50 || created.type !== "STANDARD") {
+        throw new Error("RUNPOD_HUMO_NETWORK_VOLUME_CREATE_RESPONSE_INVALID");
+    }
+    log({
+        ok: true, status: "HUMO_NETWORK_VOLUME_CREATED", ...created, created: true,
+        estimatedMonthlyStorageUsd: 3.5, gpuHourlyRateUsd: Number(selected.hourlyRateUsd)
+    });
+    return { ...created, created: true };
+}
+
 export async function runHuMoIdentityProbeCli({
     root = DEFAULT_ROOT,
     env = process.env,
