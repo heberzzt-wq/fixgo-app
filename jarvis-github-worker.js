@@ -320,6 +320,7 @@ async function validateHuMoIdentityProbeScope(job = {}) {
     if (!fs.existsSync(secondReferenceFile) || !fs.statSync(secondReferenceFile).isFile()) throw new Error("SIA7_HUMO_REFERENCE_2_MISSING");
     if (!fs.existsSync(audioFile) || !fs.statSync(audioFile).isFile()) throw new Error("SIA7_HUMO_AUDIO_MISSING");
     if (sha256File(referenceFile) !== SIA7_HUMO_REFERENCE_SHA256) throw new Error("SIA7_HUMO_REFERENCE_SHA_MISMATCH");
+    if (sha256File(secondReferenceFile) !== SIA7_HUMO_REFERENCE_SHA256_2) throw new Error("SIA7_HUMO_REFERENCE_2_SHA_MISMATCH");
     if (sha256File(audioFile) !== SIA7_HUMO_AUDIO_SHA256) throw new Error("SIA7_HUMO_AUDIO_SHA_MISMATCH");
     const localAppData = String(process.env.LOCALAPPDATA || "").trim();
     const credentialFile = path.join(localAppData, "PeninsulaTech", "Jarvis", "runpod-api-key.clixml");
