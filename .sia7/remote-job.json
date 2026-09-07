@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-reference-output-pair-20260907-172",
+  "jobId": "v142-humo-second-reference-job-bind-20260907-172",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        referenceOutputs: [reference.output],",
-    "replace": "        referenceOutputs: [reference.output, ...(secondReference ? [secondReference.output] : [])],"
+    "search": "        referenceOutputs: [reference.output],\n        referenceFiles: [reference.file],\n        sourceReferenceOutputs: [],\n        sourceReferenceFiles: [],",
+    "replace": "        referenceOutputs: [reference.output, secondReference?.output].filter(Boolean),\n        referenceFiles: [reference.file, secondReference?.file].filter(Boolean),\n        sourceReferenceOutputs: [reference.output, secondReference?.output].filter(Boolean),\n        sourceReferenceFiles: [reference.file, secondReference?.file].filter(Boolean),"
   }
 }
