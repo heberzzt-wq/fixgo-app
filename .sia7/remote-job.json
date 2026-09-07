@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-lan-closeout-path-normalization-20260906-59",
+  "jobId": "v142-humo-lan-closeout-path-test-20260906-60",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "tests/jarvis-fs-bridge-v2.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            \"  $row=@($c.files | Where-Object { [string]$_.path -eq [string]$e.path })\",",
-    "replace": "            \"  $expectedPath=(([string]$e.path) -replace '\\\\','/')\",\n            \"  $row=@($c.files | Where-Object { (([string]$_.path) -replace '\\\\','/') -eq $expectedPath })\","
+    "search": "    assert.match(observed.options.input, /LAN_CACHE_CLOSEOUT_ASSET_COUNT_MISMATCH/);",
+    "replace": "    assert.match(observed.options.input, /LAN_CACHE_CLOSEOUT_ASSET_COUNT_MISMATCH/);\n    assert.match(observed.options.input, /expectedPath/);\n    assert.match(observed.options.input, /-replace '\\\\\\\\','\\/'/);"
   }
 }
