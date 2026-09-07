@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-placement-catalog-fallback-20260907-118",
-  "completedAt": "2026-09-07T17:58:25.926Z",
+  "jobId": "v142-humo-placement-empty-types-fallback-20260907-119",
+  "completedAt": "2026-09-07T17:59:00.516Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-local-video-engine.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 406697,
-  "bytesAfter": 406696,
+  "bytesBefore": 406696,
+  "bytesAfter": 406718,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

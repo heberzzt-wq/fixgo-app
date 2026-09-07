@@ -3993,7 +3993,7 @@ export function createRunpodRemoteVideoAdapter({
             const types = Array.isArray(catalog?.networkVolumeTypes)
                 ? catalog.networkVolumeTypes.map(type => String(type || "").trim().toUpperCase())
                 : [];
-            return [dataCenterId, types.includes(RUNPOD_WAN22_CACHE_BASE.networkVolumeType)];
+            return [dataCenterId, types.length === 0 || types.includes(RUNPOD_WAN22_CACHE_BASE.networkVolumeType)];
         })));
         const inventory = [];
         for (const dataCenter of dataCenters) {
