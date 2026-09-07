@@ -284,6 +284,174 @@ function executePatchJob(job = {}) {
     };
 }
 
+function sha256File(file) {
+    return createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+}
+
+async function currentHeadSha() {
+    const result = await runGit(["rev-parse", "HEAD"]);
+    const sha = String(result.stdout || "").trim().toLowerCase();
+    if (!result.ok || !/^[a-f0-9]{40}$/.test(sha)) throw new Error("SIA7_HUMO_EXECUTION_HEAD_INVALID");
+    return sha;
+}
+
+async function validateHuMoIdentityProbeScope(job = {}) {
+    const expectedBaseSha = String(job.expectedBaseSha || "").trim().toLowerCase();
+    if (!/^[a-f0-9]{40}$/.test(expectedBaseSha)) throw new Error("SIA7_HUMO_CERTIFIED_BASE_SHA_REQUIRED");
+    const executionHeadSha = await currentHeadSha();
+    const ancestor = await runGit(["merge-base", "--is-ancestor", expectedBaseSha, executionHeadSha]);
+    if (!ancestor.ok) throw new Error("SIA7_HUMO_CERTIFIED_BASE_NOT_ANCESTOR");
+    const diff = await runGit(["diff", "--name-only", `${expectedBaseSha}..${executionHeadSha}`]);
+    if (!diff.ok) throw new Error("SIA7_HUMO_CERTIFIED_BASE_DIFF_FAILED");
+    const changedFiles = String(diff.stdout || "").split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+    if (changedFiles.some(file => !file.startsWith(".sia7/"))) {
+        throw new Error("SIA7_HUMO_EXECUTION_HEAD_HAS_UNCERTIFIED_CODE");
+    }
+    if (process.platform !== "win32") throw new Error("SIA7_HUMO_WINDOWS_WORKER_REQUIRED");
+    if (!fs.existsSync(SIA7_HUMO_SOURCE_ROOT) || !fs.statSync(SIA7_HUMO_SOURCE_ROOT).isDirectory()) {
+        throw new Error("SIA7_HUMO_SOURCE_ROOT_MISSING");
+    }
+    const referenceFile = path.resolve(SIA7_HUMO_SOURCE_ROOT, SIA7_HUMO_REFERENCE_OUTPUT);
+    const audioFile = path.resolve(SIA7_HUMO_SOURCE_ROOT, SIA7_HUMO_AUDIO_OUTPUT);
+    if (!fs.existsSync(referenceFile) || !fs.statSync(referenceFile).isFile()) throw new Error("SIA7_HUMO_REFERENCE_MISSING");
+    if (!fs.existsSync(audioFile) || !fs.statSync(audioFile).isFile()) throw new Error("SIA7_HUMO_AUDIO_MISSING");
+    if (sha256File(referenceFile) !== SIA7_HUMO_REFERENCE_SHA256) throw new Error("SIA7_HUMO_REFERENCE_SHA_MISMATCH");
+    if (sha256File(audioFile) !== SIA7_HUMO_AUDIO_SHA256) throw new Error("SIA7_HUMO_AUDIO_SHA_MISMATCH");
+    const localAppData = String(process.env.LOCALAPPDATA || "").trim();
+    const credentialFile = path.join(localAppData, "PeninsulaTech", "Jarvis", "runpod-api-key.clixml");
+    if (!localAppData || !fs.existsSync(credentialFile)) throw new Error("SIA7_HUMO_RUNPOD_DPAPI_CREDENTIAL_MISSING");
+    if (!fs.existsSync(path.join(REPO_ROOT, "jarvis-fs-bridge.js"))) throw new Error("SIA7_HUMO_BRIDGE_SOURCE_MISSING");
+    if (!fs.existsSync(path.join(REPO_ROOT, "node_modules"))) throw new Error("SIA7_HUMO_NODE_MODULES_MISSING");
+    return { expectedBaseSha, executionHeadSha, changedFiles, referenceFile, audioFile, credentialFile };
+}
+
+function runHuMoIdentityProbeProcess(env) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(process.execPath, ["jarvis-fs-bridge.js", "--humo-identity-probe"], {
+            cwd: REPO_ROOT,
+            shell: false,
+            windowsHide: true,
+            stdio: ["ignore", "pipe", "pipe"],
+            env
+        });
+        let stdout = "";
+        let stderr = "";
+        const append = (current, chunk) => (current + chunk.toString()).slice(-4 * 1024 * 1024);
+        child.stdout.on("data", chunk => { stdout = append(stdout, chunk); });
+        child.stderr.on("data", chunk => { stderr = append(stderr, chunk); });
+        let settled = false;
+        const timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            child.kill("SIGTERM");
+            reject(new Error("SIA7_HUMO_IDENTITY_PROBE_TIMEOUT"));
+        }, 65 * 60 * 1000);
+        child.on("error", error => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            reject(error);
+        });
+        child.on("close", code => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            const lines = `${stdout}\n${stderr}`.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+            let parsed = null;
+            for (let index = lines.length - 1; index >= 0; index -= 1) {
+                try {
+                    const candidate = JSON.parse(lines[index]);
+                    if (candidate && typeof candidate === "object") { parsed = candidate; break; }
+                }
+                catch {}
+            }
+            if (code !== 0 || parsed?.ok !== true) {
+                const tail = lines.slice(-12).join(" | ").slice(-6000);
+                reject(new Error(`SIA7_HUMO_IDENTITY_PROBE_FAILED:${parsed?.status || tail || code}`));
+                return;
+            }
+            resolve({ code, parsed, logTail: lines.slice(-20) });
+        });
+    });
+}
+
+async function executeHuMoIdentityProbeJob(job = {}) {
+    const scope = await validateHuMoIdentityProbeScope(job);
+    const hardBudgetUsd = Number(job.hardBudgetUsd);
+    const monthlyStorageAuthorizedUsd = Number(job.monthlyStorageAuthorizedUsd);
+    if (!Number.isFinite(hardBudgetUsd) || hardBudgetUsd <= 0 || hardBudgetUsd > SIA7_HUMO_MAX_COMPUTE_USD) {
+        throw new Error("SIA7_HUMO_COMPUTE_BUDGET_INVALID");
+    }
+    if (Math.abs(monthlyStorageAuthorizedUsd - SIA7_HUMO_MONTHLY_STORAGE_USD) > 0.000001) {
+        throw new Error("SIA7_HUMO_STORAGE_BUDGET_INVALID");
+    }
+    if (job.fullEpisodeAuthorized === true) throw new Error("SIA7_HUMO_FULL_EPISODE_NOT_AUTHORIZED");
+    if (job.executePaid !== true) {
+        return {
+            ok: true,
+            operation: "humo_identity_probe",
+            dryRun: true,
+            status: "SIA7_HUMO_IDENTITY_PREFLIGHT_READY",
+            certifiedBaseSha: scope.expectedBaseSha,
+            executionHeadSha: scope.executionHeadSha,
+            controlPlaneOnlyChanges: scope.changedFiles,
+            hardBudgetUsd,
+            monthlyStorageAuthorizedUsd,
+            characterId: SIA7_HUMO_CHARACTER_ID,
+            durationSeconds: 3.88,
+            resourceCreationPossible: false
+        };
+    }
+    if (job.humanApproved !== true) throw new Error("SIA7_HUMO_PAID_HUMAN_APPROVAL_REQUIRED");
+    const childEnv = {
+        ...process.env,
+        JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "true",
+        JARVIS_HUMO_IDENTITY_PROBE_PAID_EXECUTION_AUTHORIZED: "true",
+        JARVIS_HUMO_IDENTITY_PROBE_HARD_BUDGET_USD: String(hardBudgetUsd),
+        JARVIS_HUMO_IDENTITY_PROBE_DURATION_SECONDS: "3.88",
+        JARVIS_HUMO_IDENTITY_PROBE_AUDIO_START_SECONDS: "0",
+        JARVIS_HUMO_IDENTITY_PROBE_CHARACTER_ID: SIA7_HUMO_CHARACTER_ID,
+        JARVIS_HUMO_IDENTITY_PROBE_SOURCE_ROOT: SIA7_HUMO_SOURCE_ROOT,
+        JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_OUTPUT: SIA7_HUMO_REFERENCE_OUTPUT,
+        JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256: SIA7_HUMO_REFERENCE_SHA256,
+        JARVIS_HUMO_IDENTITY_PROBE_AUDIO_OUTPUT: SIA7_HUMO_AUDIO_OUTPUT,
+        JARVIS_HUMO_IDENTITY_PROBE_AUDIO_SHA256: SIA7_HUMO_AUDIO_SHA256,
+        JARVIS_HUMO_IDENTITY_PROBE_OUTPUT: SIA7_HUMO_OUTPUT,
+        JARVIS_RUNPOD_CREATE_HUMO_NETWORK_VOLUME_AUTHORIZED: "true"
+    };
+    const execution = await runHuMoIdentityProbeProcess(childEnv);
+    const result = execution.parsed;
+    if (result.status !== "HUMO_IDENTITY_PROBE_COMPLETED_AND_RELEASED" || result.terminationVerified !== true) {
+        throw new Error("SIA7_HUMO_IDENTITY_PROBE_CLOSEOUT_INVALID");
+    }
+    if (Number(result.gpuRentalEstimatedCost || 0) > hardBudgetUsd + 0.000001) {
+        throw new Error("SIA7_HUMO_IDENTITY_PROBE_BUDGET_EXCEEDED");
+    }
+    return {
+        ok: true,
+        operation: "humo_identity_probe",
+        dryRun: false,
+        status: result.status,
+        certifiedBaseSha: scope.expectedBaseSha,
+        executionHeadSha: scope.executionHeadSha,
+        controlPlaneOnlyChanges: scope.changedFiles,
+        hardBudgetUsd,
+        monthlyStorageAuthorizedUsd,
+        characterId: result.characterId,
+        podId: result.podId,
+        output: result.output,
+        bytes: result.bytes,
+        sha256: result.sha256,
+        terminationVerified: result.terminationVerified === true,
+        gpuRentalSeconds: Number(result.gpuRentalSeconds || 0),
+        gpuRentalEstimatedCost: Number(result.gpuRentalEstimatedCost || 0),
+        gpuRentalActualCost: Number(result.gpuRentalActualCost || 0),
+        humanIdentityApproval: result.humanIdentityApproval || "PENDING",
+        fullEpisodeAuthorized: false,
+        logTail: execution.logTail
+    };
+}
+
 async function executeJob(job = {}) {
     const operation = String(job.operation || "bridge").trim();
 
