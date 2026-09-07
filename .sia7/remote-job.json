@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-lan-stdin-command-20260906-56",
+  "jobId": "v142-humo-lan-stdin-input-20260906-57",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        `powershell.exe -NoProfile -NonInteractive -EncodedCommand ${encoded}`",
-    "replace": "        \"powershell.exe -NoProfile -NonInteractive -Command -\""
+    "search": "    ), { encoding: \"utf8\", windowsHide: true, timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }) || \"\").trim();",
+    "replace": "    ), { encoding: \"utf8\", windowsHide: true, timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, input: String(script) }) || \"\").trim();"
   }
 }
