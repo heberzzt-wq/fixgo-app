@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-lan-adapter-wiring-20260906-50",
+  "jobId": "v142-humo-lan-adapter-wiring-20260906-51",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 2,
-    "search": "        env: credential.env,",
-    "replace": "        env: credential.env,\n        ...huMoLanRunpodAdapterOptions({ env: credential.env }),"
+    "search": "        inspectBridgeIdentity: () => describeJarvisBridgeIdentity(resolvedRoot)",
+    "replace": "        ...huMoLanRunpodAdapterOptions({ env: credential.env }),\n        inspectBridgeIdentity: () => describeJarvisBridgeIdentity(resolvedRoot)"
   }
 }
