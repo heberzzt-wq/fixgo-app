@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-identity-probe-budget-3usd-20260907-84",
+  "jobId": "v142-humo-identity-probe-budget-default-3usd-20260907-84a",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const requestedHardBudgetUsd = Number(String(env.JARVIS_HUMO_IDENTITY_PROBE_HARD_BUDGET_USD || \"1\").trim());\n    if (!Number.isFinite(requestedHardBudgetUsd) || requestedHardBudgetUsd <= 0 || requestedHardBudgetUsd > 1) {",
-    "replace": "    const requestedHardBudgetUsd = Number(String(env.JARVIS_HUMO_IDENTITY_PROBE_HARD_BUDGET_USD || \"3\").trim());\n    if (!Number.isFinite(requestedHardBudgetUsd) || requestedHardBudgetUsd <= 0 || requestedHardBudgetUsd > 3) {"
+    "search": "    const requestedHardBudgetUsd = Number(String(env.JARVIS_HUMO_IDENTITY_PROBE_HARD_BUDGET_USD || \"1\").trim());",
+    "replace": "    const requestedHardBudgetUsd = Number(String(env.JARVIS_HUMO_IDENTITY_PROBE_HARD_BUDGET_USD || \"3\").trim());"
   }
 }
