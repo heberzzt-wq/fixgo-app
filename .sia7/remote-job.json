@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-worker-second-reference-env-20260907-182",
+  "jobId": "v142-humo-second-reference-worker-regression-20260907-183",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-github-worker.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256: SIA7_HUMO_REFERENCE_SHA256,",
-    "replace": "        JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256: SIA7_HUMO_REFERENCE_SHA256,\n        JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_OUTPUT_2: SIA7_HUMO_REFERENCE_OUTPUT_2,\n        JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_2: SIA7_HUMO_REFERENCE_SHA256_2,"
+    "search": "    assert.equal(workerSource.includes(\"SIA7_HUMO_REFERENCE_SHA256 = \\\"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\\\"\"), true);",
+    "replace": "    assert.equal(workerSource.includes(\"SIA7_HUMO_REFERENCE_SHA256 = \\\"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\\\"\"), true);\n    assert.equal(workerSource.includes(\"SIA7_HUMO_REFERENCE_OUTPUT_2 = \\\".jarvis-artifacts/uploads/1787783430832-b401b4761075-IMG_20241216_111105551_HDR.jpg\\\"\"), true);\n    assert.equal(workerSource.includes(\"SIA7_HUMO_REFERENCE_SHA256_2 = \\\"b401b476107521d9e3de3b267885bf91de956b644072a01e7373ab5476a3b6f3\\\"\"), true);\n    assert.equal(workerSource.includes(\"SIA7_HUMO_REFERENCE_2_MISSING\"), true);\n    assert.equal(workerSource.includes(\"SIA7_HUMO_REFERENCE_2_SHA_MISMATCH\"), true);\n    assert.equal(workerSource.includes(\"JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_OUTPUT_2: SIA7_HUMO_REFERENCE_OUTPUT_2\"), true);\n    assert.equal(workerSource.includes(\"JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_2: SIA7_HUMO_REFERENCE_SHA256_2\"), true);"
   }
 }
