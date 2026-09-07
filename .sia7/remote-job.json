@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-probe-budget-contract-test-20260907-89b",
+  "jobId": "v142-humo-network-volume-retention-receipt-20260907-90",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+    "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    assert.match(bridgeSource, /requestedHardBudgetUsd > 1/);",
-    "replace": "    assert.match(bridgeSource, /requestedHardBudgetUsd > 3/);"
+    "search": "                if (releaseReceipt?.terminationVerified !== true) {",
+    "replace": "                if (\n                    releaseReceipt?.terminationVerified !== true ||\n                    releaseReceipt?.networkVolumeRetained !== true ||\n                    releaseReceipt?.networkVolumeId !== persistentVolume.id\n                ) {"
   }
 }
