@@ -6039,6 +6039,7 @@ export function createRunpodRemoteVideoAdapter({
                         throw new Error("RUNPOD_MODEL_MANIFEST_INVALID");
                     }
                     state = writeState(loaded.file, state, { cacheStatus: "CACHE_HIT", modelManifest: mounted,
+                        ephemeralCacheVerified: !state.networkVolumeId,
                         mountedCacheVerified: true, runtimePreflightVerified: true });
                 }
                 if (state.runtimeCertificationOnly === true && state.runtimeKind === "humo") {
