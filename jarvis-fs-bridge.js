@@ -452,7 +452,20 @@ export function createHuMoLanEphemeralStager({ authority, spawnImpl = spawn } = 
         const sourceItems = [...relativeFiles, "HuMo"].map(windowsDoubleQuote).join(" " );
         const sourceCommand = `cmd.exe /d /s /c ""%SystemRoot%\\System32\\tar.exe" -cf - -C ${windowsDoubleQuote(authority.cacheRoot)} ${sourceItems}"`;
         const destinationCommand = `rm -rf ${posixShellSingleQuote(destinationRoot)} && mkdir -p ${posixShellSingleQuote(destinationRoot)} && tar -xf - -C ${posixShellSingleQuote(destinationRoot)}`;
-        await pipeHuMoLanTarToPod(authority, state, sourceCommand, destinationCommand, { spawnImpl });
+        const provisionedAtMs = Date.parse(String(state?.provisionedAt || state?.createdAt || ""));
+        const maximumAuthorizedSeconds = Number(state?.maximumAuthorizedSeconds || 0);
+        if (!Number.isFinite(provisionedAtMs) || !Number.isFinite(maximumAuthorizedSeconds) || maximumAuthorizedSeconds <= 0) {
+            throw new Error("HUMO_EPHEMERAL_BUDGET_DEADLINE_REQUIRED");
+        }
+        const budgetDeadlineMs = provisionedAtMs + (maximumAuthorizedSeconds * 1000);
+        const cleanupReserveMs = 120 * 1000;
+        const remainingBudgetMs = () => Math.floor(budgetDeadlineMs - Date.now() - cleanupReserveMs);
+        const transferTimeoutMs = remainingBudgetMs();
+        if (transferTimeoutMs <= 0) throw new Error("HUMO_EPHEMERAL_BUDGET_EXHAUSTED");
+        await pipeHuMoLanTarToPod(authority, state, sourceCommand, destinationCommand, {
+            spawnImpl,
+            timeoutMs: Math.min(60 * 60 * 1000, transferTimeoutMs)
+        });
         const verificationFiles = (transferPlan.files || []).map(item => ({ path: item.path, bytes: item.bytes, sha256: item.sha256 }));
         const manifestBase64 = Buffer.from(JSON.stringify(verificationFiles), "utf8").toString("base64");
         const verifier = [
