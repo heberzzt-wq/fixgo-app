@@ -188,6 +188,9 @@ test("V142 HuMo local cache builds a zero-cost ephemeral transfer plan", async (
     assert.equal(plan.providerTrafficUsed, false);
     assert.equal(plan.inferenceStarted, false);
     assert.equal(plan.transferBytes, bytes.length);
+    assert.equal(plan.sourceRepositoryPath, path.join(evidence.cacheRoot, "HuMo"));
+    assert.equal(plan.destinationSourceRepository, "/workspace/jarvis-v142/cache/humo-fixture/HuMo");
+    assert.equal(plan.sourceRevision, contract.sourceRevision);
     assert.equal(plan.files.length, 1);
     assert.match(plan.files[0].destination, /\/workspace\/jarvis-v142\/cache\/humo-fixture\/weights\/HuMo\/fixture\.bin$/);
 
