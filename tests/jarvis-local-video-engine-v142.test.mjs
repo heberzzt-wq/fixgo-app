@@ -7692,7 +7692,7 @@ test("V142 HuMo inference is bound to the certified venv Python instead of globa
     assert.equal(runner.includes("2.6.3"), true);
 });
 
-test("V142 HuMo runtime certification and identity CLI remain ephemeral with certified LAN cache authority", () => {
+test("V142 HuMo runtime certification stays ephemeral while identity CLI uses a retained network volume", () => {
     const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
     assert.equal(engineSource.includes("persistentVolumeDisabled = isHuMoRemoteJob(job)"), true);
     assert.equal(engineSource.includes("persistentVolumeDisabled ? 0 : volumeInGb"), true);
