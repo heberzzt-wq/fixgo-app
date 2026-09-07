@@ -1,11 +1,11 @@
 {
-  "jobId": "v142-humo-bootstrap-local-cache-verifier-program-20260906-24",
+  "jobId": "v142-humo-bootstrap-local-cache-verifier-program-20260906-24b",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
-    "expectedMatches": 1,
+    "expectedMatches": 2,
     "search": "            persistentModelEvidenceProgram(),",
     "replace": "            networkVolumeId ? persistentModelEvidenceProgram() : localEphemeralModelEvidenceProgram(),"
   }
