@@ -1,12 +1,9 @@
 {
-  "jobId": "v142-humo-second-reference-bridge-regression-20260907-184",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "    assert.match(bridgeSource, /runHuMoIdentityProbeCli/);",
-    "replace": "    assert.match(bridgeSource, /runHuMoIdentityProbeCli/);\n    assert.equal(bridgeSource.includes(\"JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_OUTPUT_2\"), true);\n    assert.equal(bridgeSource.includes(\"JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_2\"), true);\n    assert.equal(bridgeSource.includes(\"referenceOutputs: [reference.output, ...(secondReference ? [secondReference.output] : [])]\"), true);\n    assert.equal(bridgeSource.includes(\"referenceFiles: [reference.file, ...(secondReference ? [secondReference.file] : [])]\"), true);\n    assert.equal(bridgeSource.includes(\"identityReferenceOutputs: [reference.output, ...(secondReference ? [secondReference.output] : [])]\"), true);\n    assert.equal(bridgeSource.includes(\"RUNPOD_HUMO_IDENTITY_PROBE_REFERENCE_SET_INVALID\"), true);"
-  }
+  "jobId": "v142-humo-two-reference-zero-cost-preflight-20260907-185",
+  "operation": "humo_identity_probe",
+  "expectedBaseSha": "6debe049e32f7498e9cd5d187fae5360809aa25e",
+  "hardBudgetUsd": 3,
+  "monthlyStorageAuthorizedUsd": 3.5,
+  "fullEpisodeAuthorized": false,
+  "executePaid": false
 }
