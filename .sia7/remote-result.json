@@ -1,17 +1,9 @@
 {
-  "jobId": "v142-humo-lan-runpod-options-20260906-38",
-  "completedAt": "2026-09-07T01:54:06.599Z",
-  "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "jarvis-fs-bridge.js",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 338891,
-  "bytesAfter": 339327,
-  "source": "sia7_github_worker_exact_patch_v1",
+  "jobId": "v142-humo-lan-generic-adapter-options-20260906-39",
+  "completedAt": "2026-09-07T01:54:50.553Z",
+  "ok": false,
+  "error": "PATCH_MATCH_COUNT_MISMATCH:3:2",
   "committedFiles": [
-    ".sia7/remote-result.json",
-    "jarvis-fs-bridge.js"
+    ".sia7/remote-result.json"
   ]
 }
