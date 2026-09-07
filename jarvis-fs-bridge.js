@@ -242,7 +242,7 @@ function runHuMoLanPowerShell(authority, script, { execFileSyncImpl = execFileSy
     const encoded = encodeWindowsPowerShellCommand(script);
     return String(execFileSyncImpl(ssh, huMoLanSshArgs(
         authority,
-        `powershell.exe -NoProfile -NonInteractive -EncodedCommand ${encoded}`
+        "powershell.exe -NoProfile -NonInteractive -Command -"
     ), { encoding: "utf8", windowsHide: true, timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }) || "").trim();
 }
 
