@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-second-reference-integrity-20260907-171",
-  "completedAt": "2026-09-07T23:33:03.831Z",
+  "jobId": "v142-humo-reference-output-pair-20260907-172",
+  "completedAt": "2026-09-07T23:33:24.483Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 363135,
-  "bytesAfter": 363666,
+  "bytesBefore": 363666,
+  "bytesAfter": 363720,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

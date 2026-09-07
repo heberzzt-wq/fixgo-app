@@ -8807,7 +8807,7 @@ export async function runHuMoIdentityProbeCli({
         prompts: [prompt],
         externalApiAllowed: false,
         requiresIdentityFidelity: true,
-        referenceOutputs: [reference.output],
+        referenceOutputs: [reference.output, ...(secondReference ? [secondReference.output] : [])],
         referenceFiles: [reference.file],
         sourceReferenceOutputs: [],
         sourceReferenceFiles: [],
