@@ -8690,6 +8690,15 @@ export async function runHuMoIdentityProbeCli({
     if (!/^[a-f0-9]{64}$/.test(expectedReferenceSha256) || sha256File(reference.file) !== expectedReferenceSha256) {
         throw new Error("RUNPOD_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_MISMATCH");
     }
+    if (secondReference && (!/^[a-f0-9]{64}$/.test(expectedSecondReferenceSha256) || sha256File(secondReference.file) !== expectedSecondReferenceSha256)) {
+        throw new Error("RUNPOD_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_MISMATCH");
+    }
+    if (!secondReference && expectedSecondReferenceSha256) {
+        throw new Error("RUNPOD_HUMO_IDENTITY_PROBE_REFERENCE_SET_INVALID");
+    }
+    if (secondReference && !expectedSecondReferenceSha256) {
+        throw new Error("RUNPOD_HUMO_IDENTITY_PROBE_REFERENCE_SET_INVALID");
+    }
     if (!/^[a-f0-9]{64}$/.test(expectedAudioSha256) || sha256File(audio.file) !== expectedAudioSha256) {
         throw new Error("RUNPOD_HUMO_IDENTITY_PROBE_AUDIO_SHA256_MISMATCH");
     }
