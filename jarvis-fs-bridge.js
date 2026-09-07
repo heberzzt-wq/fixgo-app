@@ -8820,7 +8820,7 @@ export async function runHuMoIdentityProbeCli({
             prompt,
             identityMode: "single_identity",
             characterIds: [characterId],
-            identityReferenceOutputs: [reference.output]
+            identityReferenceOutputs: [reference.output, ...(secondReference ? [secondReference.output] : [])]
         }],
         identityRuntimeAuthority: buildHuMoIdentityRuntimeAuthority({ paidExecutionAuthorized: true }),
         identityProbeExecutionAuthority: {
