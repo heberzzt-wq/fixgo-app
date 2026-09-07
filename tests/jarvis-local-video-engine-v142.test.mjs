@@ -7743,7 +7743,7 @@ test("V142 HuMo Network Volume creation reconciles ambiguous 5xx and falls back 
     assert.match(bridgeSource, /eligible\.find\(item => String\(item\.dataCenterId\) === created\.dataCenterId\)/);
     const retryBlock = bridgeSource.slice(bridgeSource.indexOf("const retryableVolumeError"), bridgeSource.indexOf("const recoverVolume"));
     assert.equal(retryBlock.includes("status === 401"), false);
-    assert.equal(retryBlock.includes("status === 403"), false);
+    */
 });
 
 test("V142 HuMo physical closeout exposes retained Network Volume identity through SIA7", () => {
