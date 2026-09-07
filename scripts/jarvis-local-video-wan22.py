@@ -724,6 +724,35 @@ def run_humo_identity_probe(
     probe_root = output_file.parent / f"humo-probe-{operation_id}"
     probe_output = probe_root / "output"
     probe_output.mkdir(parents=True, exist_ok=True)
+    runtime_overlay_parent = Path(tempfile.mkdtemp(prefix="jarvis-humo-runtime-overlay-"))
+    runtime_humo_root = runtime_overlay_parent / "HuMo"
+    shutil.copytree(
+        humo_root,
+        runtime_humo_root,
+        ignore=shutil.ignore_patterns(".git", "__pycache__"),
+    )
+    audio_processor_file = runtime_humo_root / "humo" / "utils" / "audio_processor_whisper.py"
+    audio_processor_source = audio_processor_file.read_text(encoding="utf-8")
+    dtype_source = "        audio_feature = audio_input.to(self.whisper.device).float()"
+    dtype_target = (
+        "        audio_feature = audio_input.to(device=self.whisper.device, "
+        "dtype=self.whisper.encoder.conv1.weight.dtype)"
+    )
+    if audio_processor_source.count(dtype_source) != 1:
+        raise RuntimeError("LOCAL_VIDEO_HUMO_WHISPER_DTYPE_OVERLAY_SOURCE_MISMATCH")
+    audio_processor_file.write_text(
+        audio_processor_source.replace(dtype_source, dtype_target, 1),
+        encoding="utf-8",
+    )
+    humo_root = runtime_humo_root
+    main_file = _required_humo_path(
+        str(humo_root / str(config["entrypoint"])),
+        "LOCAL_VIDEO_HUMO_RUNTIME_OVERLAY_NOT_READY",
+    )
+    config_file = _required_humo_path(
+        str(humo_root / str(config["config_path"])),
+        "LOCAL_VIDEO_HUMO_RUNTIME_OVERLAY_CONFIG_NOT_READY",
+    )
     item_name = "identity_probe"
     prompt_file = probe_root / "prompt.json"
     probe_audio = probe_root / "audio.wav"
