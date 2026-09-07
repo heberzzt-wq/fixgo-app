@@ -8308,7 +8308,7 @@ export async function runHuMoIdentityProbeCli({
     if (!/^[a-f0-9]{40}$/.test(canonicalSha)) throw new Error("RUNPOD_CANONICAL_SHA_REQUIRED");
 
     const requestedHardBudgetUsd = Number(String(env.JARVIS_HUMO_IDENTITY_PROBE_HARD_BUDGET_USD || "1").trim());
-    if (!Number.isFinite(requestedHardBudgetUsd) || requestedHardBudgetUsd <= 0 || requestedHardBudgetUsd > 2) {
+    if (!Number.isFinite(requestedHardBudgetUsd) || requestedHardBudgetUsd <= 0 || requestedHardBudgetUsd > 1) {
         throw new Error("RUNPOD_HUMO_IDENTITY_PROBE_BUDGET_INVALID");
     }
     const durationSeconds = Number(String(env.JARVIS_HUMO_IDENTITY_PROBE_DURATION_SECONDS || "3.88").trim());
