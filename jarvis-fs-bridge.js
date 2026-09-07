@@ -5036,6 +5036,12 @@ export function createJarvisFsBridgeApp({
     const runpodCredential = runpodEnabled
         ? resolveRunpodCredentialEnvironment({ env: process.env })
         : { env: process.env, credentialLoaded: false, credentialSource: null };
+    const humoLanCacheAuthority = runpodEnabled
+        ? resolveHuMoLanCacheAuthority({ env: runpodCredential.env })
+        : { configured: false, status: "HUMO_LAN_CACHE_AUTHORITY_NOT_CONFIGURED" };
+    const runpodEnv = humoLanCacheAuthority.configured
+        ? { ...runpodCredential.env, JARVIS_HUMO_LOCAL_CACHE_ROOT: humoLanCacheAuthority.cacheRoot }
+        : runpodCredential.env;
     const runpod = runpodEnabled
         ? createRunpodRemoteVideoAdapter({
             root,
