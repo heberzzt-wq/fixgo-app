@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-8s-engine-authority-max-20260907-166",
+  "jobId": "v142-humo-8s-authority-test-20260907-167",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-local-video-engine.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            durationSeconds > 0 && durationSeconds <= 3.881",
-    "replace": "            durationSeconds > 0 && durationSeconds <= 8.001"
+    "search": "    assert.match(candidate, /durationSeconds: 3\\.88/);",
+    "replace": "    assert.match(candidate, /durationSeconds: 8\\.0/);"
   }
 }
