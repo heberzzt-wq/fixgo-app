@@ -247,7 +247,7 @@ test("V142 HuMo LAN cache inspector consumes certified closeout evidence with ze
     assert.equal(typeof observed.options.input, "string");
     assert.match(observed.options.input, /LAN_CACHE_CLOSEOUT_ASSET_COUNT_MISMATCH/);
     assert.match(observed.options.input, /expectedPath/);
-    assert.match(observed.options.input, /-replace '\\\\','\/'/);
+    assert.equal(observed.options.input.includes(".Replace([char]92,'/')"), true);
     assert.equal(observed.options.windowsHide, true);
 });
 
