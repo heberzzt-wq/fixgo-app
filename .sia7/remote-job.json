@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-lan-ci-contract-alignment-20260906-47",
+  "jobId": "v142-humo-lan-ci-final-assertion-20260906-48",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    assert.equal(identityCli.includes(\"delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID\"), false);",
-    "replace": "    assert.equal(identityCli.includes(\"delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID\"), true);\n    assert.match(identityCli, /resolveHuMoLanCacheAuthority/);\n    assert.match(identityCli, /JARVIS_HUMO_LOCAL_CACHE_ROOT/);"
+    "search": "    assert.match(identityCli, /RUNPOD_HUMO_CACHE_REQUIRED/);",
+    "replace": "    assert.equal(identityCli.includes(\"RUNPOD_HUMO_CACHE_REQUIRED\"), false);"
   }
 }
