@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-8s-worker-dryrun-20260907-162",
-  "completedAt": "2026-09-07T22:49:49.343Z",
+  "jobId": "v142-humo-8s-worker-env-20260907-163",
+  "completedAt": "2026-09-07T22:50:09.829Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-github-worker.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 20044,
-  "bytesAfter": 20043,
+  "bytesBefore": 20043,
+  "bytesAfter": 20040,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
