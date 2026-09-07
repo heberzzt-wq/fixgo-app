@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-8s-engine-duration-20260907-157",
+  "jobId": "v142-humo-8s-bridge-default-20260907-158",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-local-video-engine.js",
+    "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        durationSeconds: 3.88,",
-    "replace": "        durationSeconds: 8.0,"
+    "search": "    const durationSeconds = Number(String(env.JARVIS_HUMO_IDENTITY_PROBE_DURATION_SECONDS || \"3.88\").trim());",
+    "replace": "    const durationSeconds = Number(String(env.JARVIS_HUMO_IDENTITY_PROBE_DURATION_SECONDS || \"8\").trim());"
   }
 }
