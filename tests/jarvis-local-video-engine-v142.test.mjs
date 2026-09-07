@@ -7657,7 +7657,7 @@ test("V142 HuMo runtime certification remains ephemeral while identity CLI requi
     assert.equal(identityCli.includes("delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID"), true);
     assert.match(identityCli, /resolveHuMoLanCacheAuthority/);
     assert.match(identityCli, /JARVIS_HUMO_LOCAL_CACHE_ROOT/);
-    assert.match(identityCli, /RUNPOD_HUMO_CACHE_REQUIRED/);
+    assert.equal(identityCli.includes("RUNPOD_HUMO_CACHE_REQUIRED"), false);
 });
 
 test("V142 HuMo single GPU inference follows upstream rendezvous contract and preserves child errors", () => {
