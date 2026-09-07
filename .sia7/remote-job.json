@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-sia7-json-recovery-20260907-69",
+  "jobId": "v142-humo-ephemeral-stage-authority-20260907-70",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
-    "dryRun": true,
+    "file": "jarvis-local-video-engine.js",
+    "dryRun": false,
     "expectedMatches": 1,
-    "search": "function pipeHuMoLanTarToPod",
-    "replace": "function pipeHuMoLanTarToPod"
+    "search": "            if (!networkVolumeId || !runtimeCertificationDataCenterId) throw new Error(\"RUNPOD_HUMO_CACHE_REQUIRED\");\n            if (!retainNetworkVolumeAuthorized) throw new Error(\"RUNPOD_NETWORK_VOLUME_RETENTION_AUTHORITY_REQUIRED\");",
+    "replace": "            if (!runtimeCertificationDataCenterId) throw new Error(\"RUNPOD_HUMO_DATACENTER_REQUIRED\");\n            if (networkVolumeId && !retainNetworkVolumeAuthorized) throw new Error(\"RUNPOD_NETWORK_VOLUME_RETENTION_AUTHORITY_REQUIRED\");"
   }
 }
