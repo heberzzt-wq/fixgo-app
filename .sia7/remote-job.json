@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-identity-probe-budget-1usd-20260906-65",
+  "jobId": "v142-humo-ephemeral-budget-deadline-20260907-66",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    if (!Number.isFinite(requestedHardBudgetUsd) || requestedHardBudgetUsd <= 0 || requestedHardBudgetUsd > 2) {\r\n        throw new Error(\"RUNPOD_HUMO_IDENTITY_PROBE_BUDGET_INVALID\");\r\n    }",
-    "replace": "    if (!Number.isFinite(requestedHardBudgetUsd) || requestedHardBudgetUsd <= 0 || requestedHardBudgetUsd > 1) {\r\n        throw new Error(\"RUNPOD_HUMO_IDENTITY_PROBE_BUDGET_INVALID\");\r\n    }"
+    "search": "        await pipeHuMoLanTarToPod(authority, state, sourceCommand, destinationCommand, { spawnImpl });",
+    "replace": "        const provisionedAtMs = Date.parse(String(state?.provisionedAt || state?.createdAt || \"\"));\r\n        const maximumAuthorizedSeconds = Number(state?.maximumAuthorizedSeconds || 0);\r\n        if (!Number.isFinite(provisionedAtMs) || !Number.isFinite(maximumAuthorizedSeconds) || maximumAuthorizedSeconds <= 0) {\r\n            throw new Error(\"HUMO_EPHEMERAL_BUDGET_DEADLINE_REQUIRED\");\r\n        }\r\n        const budgetDeadlineMs = provisionedAtMs + (maximumAuthorizedSeconds * 1000);\r\n        const cleanupReserveMs = 120 * 1000;\r\n        const remainingBudgetMs = () => Math.floor(budgetDeadlineMs - Date.now() - cleanupReserveMs);\r\n        const transferTimeoutMs = remainingBudgetMs();\r\n        if (transferTimeoutMs <= 0) throw new Error(\"HUMO_EPHEMERAL_BUDGET_EXHAUSTED\");\r\n        await pipeHuMoLanTarToPod(authority, state, sourceCommand, destinationCommand, {\r\n            spawnImpl,\r\n            timeoutMs: Math.min(60 * 60 * 1000, transferTimeoutMs)\r\n        });"
   }
 }
