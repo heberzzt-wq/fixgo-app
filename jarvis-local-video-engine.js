@@ -5831,7 +5831,11 @@ export function createRunpodRemoteVideoAdapter({
                 );
                 if (String(pod?.id || "") !== state.podId) throw new Error("RUNPOD_POD_IDENTITY_MISMATCH");
                 if (state.runtimeKind === "humo" && !state.runtimeCertificationOnly) {
-                    assertPodVolumeIdentity(pod, state.persistentCacheVerification?.volume);
+                    if (state.networkVolumeId) {
+                        assertPodVolumeIdentity(pod, state.persistentCacheVerification?.volume);
+                    } else if (state.localCacheTransferPrecheck?.cacheMode !== "LOCAL_TO_EPHEMERAL") {
+                        throw new Error("LOCAL_HUMO_CACHE_TRANSFER_PLAN_REQUIRED");
+                    }
                 }
                 if (String(pod?.status || pod?.desiredStatus || "") !== "RUNNING") {
                     return { ok: true, done: false, status: "RUNPOD_POD_STARTING", remoteWorker: runpodPublicWorker(state) };

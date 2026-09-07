@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-ephemeral-staging-gate-20260906-17b",
-  "completedAt": "2026-09-07T01:22:04.210Z",
+  "jobId": "v142-humo-local-cache-pod-identity-gate-20260906-18",
+  "completedAt": "2026-09-07T01:22:42.046Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-local-video-engine.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 397125,
-  "bytesAfter": 398161,
+  "bytesBefore": 398161,
+  "bytesAfter": 398423,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
