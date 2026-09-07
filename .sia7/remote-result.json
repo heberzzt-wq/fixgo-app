@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-humo-lan-path-literal-test-20260906-63",
-  "completedAt": "2026-09-07T03:01:10.612Z",
+  "jobId": "v142-humo-identity-probe-budget-2usd-20260906-64",
+  "completedAt": "2026-09-07T03:14:26.669Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "tests/jarvis-fs-bridge-v2.test.mjs",
+  "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 67510,
-  "bytesAfter": 67527,
+  "bytesBefore": 343511,
+  "bytesAfter": 343511,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "tests/jarvis-fs-bridge-v2.test.mjs"
+    "jarvis-fs-bridge.js"
   ]
 }
