@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-second-reference-resolver-20260907-169",
+  "jobId": "v142-humo-second-reference-sha-20260907-170",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const audio = resolveSourceArtifact(",
-    "replace": "    const secondReferenceOutput = String(env.JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_OUTPUT_2 || \"\").trim();\n    const secondReference = secondReferenceOutput\n        ? resolveSourceArtifact(\n            secondReferenceOutput,\n            [\".jpg\", \".jpeg\", \".png\", \".webp\"],\n            \"RUNPOD_HUMO_IDENTITY_PROBE_REFERENCE_INVALID\"\n        )\n        : null;\n    const audio = resolveSourceArtifact("
+    "search": "    const expectedReferenceSha256 = String(env.JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256 || \"\").trim().toLowerCase();",
+    "replace": "    const expectedReferenceSha256 = String(env.JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256 || \"\").trim().toLowerCase();\n    const expectedSecondReferenceSha256 = String(env.JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_2 || \"\").trim().toLowerCase();"
   }
 }
