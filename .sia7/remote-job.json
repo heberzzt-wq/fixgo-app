@@ -1,10 +1,12 @@
 {
-  "jobId": "v142-humo-identity-paid-diagnostic-20260907-142",
-  "operation": "humo_identity_probe",
+  "jobId": "v142-humo-graphql-diagnostic-cli-20260907-143",
+  "operation": "patch",
   "humanApproved": true,
-  "expectedBaseSha": "bc4df9b6881700e1b8d40ff8189c17098275fa11",
-  "hardBudgetUsd": 3,
-  "monthlyStorageAuthorizedUsd": 3.5,
-  "executePaid": true,
-  "fullEpisodeAuthorized": false
+  "patch": {
+    "file": "jarvis-fs-bridge.js",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "                    status: error?.message || \"HUMO_IDENTITY_PROBE_FAILED\"",
+    "replace": "                    status: error?.message || \"HUMO_IDENTITY_PROBE_FAILED\",\r\n                    failureStage: error?.stage || null,\r\n                    providerCode: error?.providerCode || null,\r\n                    providerMessage: error?.providerMessage || null"
+  }
 }
