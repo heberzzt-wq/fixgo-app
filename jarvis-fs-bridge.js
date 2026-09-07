@@ -65,6 +65,7 @@ import {
 } from "./jarvis-speech-artifact.js";
 import {
     buildHuMoIdentityRuntimeAuthority,
+    RUNPOD_HUMO_CACHE_BASE,
     createLocalVideoEngine,
     createRunpodRemoteVideoAdapter,
     resolveLocalExecutable,

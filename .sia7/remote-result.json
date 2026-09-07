@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-identity-probe-lan-cache-mode-20260906-40",
-  "completedAt": "2026-09-07T01:55:33.107Z",
+  "jobId": "v142-humo-lan-preflight-contract-import-20260906-41",
+  "completedAt": "2026-09-07T01:56:30.050Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 339327,
-  "bytesAfter": 339607,
+  "bytesBefore": 339607,
+  "bytesAfter": 339635,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
