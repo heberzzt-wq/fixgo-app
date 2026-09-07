@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-graphql-diagnostic-cli-recover-20260907-143b",
+  "jobId": "v142-humo-volume-placement-filters-20260907-144",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                    status: error?.message || \"HUMO_IDENTITY_PROBE_FAILED\",\r\n                    failureStage: error?.stage || null,\r\n                    providerCode: error?.providerCode || null,\r\n                    providerMessage: error?.providerMessage || null",
-    "replace": "                    status: error?.message || \"HUMO_IDENTITY_PROBE_FAILED\",\r\n                    failureStage: error?.stage || null,\r\n                    providerCode: error?.providerCode || null,\r\n                    providerMessage: String(error?.providerMessage || \"\").slice(0, 1000) || null"
+    "search": "            minMemoryInGb: body.minRAMPerGPU,\r\n            minVcpuCount: body.minVCPUPerGPU,",
+    "replace": "            ...(body.networkVolumeId ? {} : {\r\n                minMemoryInGb: body.minRAMPerGPU,\r\n                minVcpuCount: body.minVCPUPerGPU\r\n            }),"
   }
 }
