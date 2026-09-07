@@ -294,7 +294,7 @@ async function pollOnce() {
         currentJob = await readRemoteJob();
         const remoteResultJobId = await readRemoteResultJobId();
 
-        if (!currentJob?.jobId || currentJob.jobId === lastJobId) {
+        if (!currentJob?.jobId || currentJob.jobId === lastJobId || currentJob.jobId === remoteResultJobId) {
             return;
         }
 

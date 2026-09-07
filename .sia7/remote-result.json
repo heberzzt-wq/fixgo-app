@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-sia7-suppress-completed-job-replay-20260907-109a",
-  "completedAt": "2026-09-07T15:48:05.957Z",
+  "jobId": "v142-sia7-suppress-completed-job-replay-20260907-109b",
+  "completedAt": "2026-09-07T15:48:40.849Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-github-worker.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 10071,
-  "bytesAfter": 10136,
+  "bytesBefore": 10136,
+  "bytesAfter": 10178,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
