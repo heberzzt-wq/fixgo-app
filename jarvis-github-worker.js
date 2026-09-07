@@ -398,7 +398,7 @@ async function executeHuMoIdentityProbeJob(job = {}) {
             hardBudgetUsd,
             monthlyStorageAuthorizedUsd,
             characterId: SIA7_HUMO_CHARACTER_ID,
-            durationSeconds: 3.88,
+            durationSeconds: 8.0,
             resourceCreationPossible: false
         };
     }
