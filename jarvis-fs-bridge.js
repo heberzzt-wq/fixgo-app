@@ -214,6 +214,37 @@ export function resolveHuMoLanCacheAuthority({ env = process.env, existsSync = f
     };
 }
 
+function encodeWindowsPowerShellCommand(script = "") {
+    return Buffer.from(String(script), "utf16le").toString("base64");
+}
+
+function huMoLanSshArgs(authority, remoteCommand) {
+    return [
+        "-F", "NUL", "-T",
+        "-o", "BatchMode=yes",
+        "-o", "IdentitiesOnly=yes",
+        "-o", "IdentityAgent=none",
+        "-o", "StrictHostKeyChecking=yes",
+        "-o", `UserKnownHostsFile=${authority.knownHostsFile}`,
+        "-o", "GlobalKnownHostsFile=NUL",
+        "-o", "ConnectTimeout=10",
+        "-i", authority.keyFile,
+        `${authority.user}@${authority.host}`,
+        remoteCommand
+    ];
+}
+
+function runHuMoLanPowerShell(authority, script, { execFileSyncImpl = execFileSync, timeoutMs = 120000 } = {}) {
+    const ssh = process.platform === "win32"
+        ? path.join(process.env.SystemRoot || "C:\\Windows", "System32", "OpenSSH", "ssh.exe")
+        : "ssh";
+    const encoded = encodeWindowsPowerShellCommand(script);
+    return String(execFileSyncImpl(ssh, huMoLanSshArgs(
+        authority,
+        `powershell.exe -NoProfile -NonInteractive -EncodedCommand ${encoded}`
+    ), { encoding: "utf8", windowsHide: true, timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }) || "").trim();
+}
+
 function safeFileStem(value = "artifact") {
     const normalized = String(value || "artifact").normalize("NFD").toLowerCase();
     let result = "";
