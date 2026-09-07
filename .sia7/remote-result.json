@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-humo-lan-adapter-wiring-test-20260906-52",
-  "completedAt": "2026-09-07T02:19:12.336Z",
+  "jobId": "v142-humo-identity-lan-adapter-final-20260906-53",
+  "completedAt": "2026-09-07T02:20:52.074Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+  "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 391524,
-  "bytesAfter": 391586,
+  "bytesBefore": 343345,
+  "bytesAfter": 343411,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "tests/jarvis-local-video-engine-v142.test.mjs"
+    "jarvis-fs-bridge.js"
   ]
 }

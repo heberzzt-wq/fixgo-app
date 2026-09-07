@@ -8433,6 +8433,7 @@ export async function runHuMoIdentityProbeCli({
     const runpod = createRunpodRemoteVideoAdapter({
         root: resolvedRoot,
         env: credential.env,
+        ...huMoLanRunpodAdapterOptions({ env: credential.env }),
         inspectBridgeIdentity: () => describeJarvisBridgeIdentity(resolvedRoot)
     });
     const job = {
