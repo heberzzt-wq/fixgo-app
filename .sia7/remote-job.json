@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-network-volume-api-contract-test-20260907-107",
+  "jobId": "v142-sia7-durable-job-dedupe-20260907-108",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+    "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    assert.match(identityCli, /ensureHuMoPersistentNetworkVolume/);",
-    "replace": "    assert.match(identityCli, /ensureHuMoPersistentNetworkVolume/);\n    assert.equal(bridgeSource.includes(\"JARVIS_RUNPOD_NETWORK_VOLUME_API_BASE || \\\"https://rest.runpod.io/v1\\\"\"), true);\n    assert.equal(bridgeSource.includes(\"provider(\\\"GET\\\", \\\"/networkvolumes\\\", null, [200])\"), true);\n    assert.equal(bridgeSource.includes(\"provider(\\\"POST\\\", \\\"/networkvolumes\\\", {\"), true);\n    assert.equal(bridgeSource.includes(\"dataCenter: dataCenterId\"), false);\n    assert.equal(bridgeSource.includes(\"type: \\\"STANDARD\\\"\"), false);"
+    "search": "async function syncLocalBranch() {",
+    "replace": "async function readRemoteResultJobId() {\n    const showResult = await runGit([\n        \"show\",\n        `${REMOTE}/${BRANCH}:${RESULT_PATH}`\n    ]);\n    if (!showResult.ok) return \"\";\n    try {\n        return String(JSON.parse(showResult.stdout)?.jobId || \"\").trim();\n    }\n    catch {\n        return \"\";\n    }\n}\n\nasync function syncLocalBranch() {"
   }
 }
