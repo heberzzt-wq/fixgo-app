@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-probe-remove-lan-authority-20260907-87e",
+  "jobId": "v142-humo-network-volume-authority-precedence-20260907-88",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    runtimeEnv.JARVIS_HUMO_LOCAL_CACHE_ROOT = identityProbeLanAuthority.cacheRoot;",
-    "replace": "    delete runtimeEnv.JARVIS_HUMO_LOCAL_CACHE_ROOT;"
+    "search": "function huMoLanRunpodAdapterOptions({ env = process.env } = {}) {",
+    "replace": "function huMoLanRunpodAdapterOptions({ env = process.env } = {}) {\n    if (String(env.JARVIS_RUNPOD_NETWORK_VOLUME_ID || \"\").trim()) return {};"
   }
 }
