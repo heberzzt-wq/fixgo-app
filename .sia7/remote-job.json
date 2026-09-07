@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-8s-bridge-default-20260907-158",
+  "jobId": "v142-humo-8s-bridge-max-20260907-159",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const durationSeconds = Number(String(env.JARVIS_HUMO_IDENTITY_PROBE_DURATION_SECONDS || \"3.88\").trim());",
-    "replace": "    const durationSeconds = Number(String(env.JARVIS_HUMO_IDENTITY_PROBE_DURATION_SECONDS || \"8\").trim());"
+    "search": "    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 3.88) {",
+    "replace": "    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 8.0) {"
   }
 }
