@@ -8700,7 +8700,11 @@ export async function runHuMoIdentityProbeCli({
                     remoteWorker: launched.remoteWorker,
                     reason: primaryError ? "identity_probe_failed" : "identity_probe_complete"
                 });
-                if (releaseReceipt?.terminationVerified !== true) {
+                if (
+                    releaseReceipt?.terminationVerified !== true ||
+                    releaseReceipt?.networkVolumeRetained !== true ||
+                    releaseReceipt?.networkVolumeId !== persistentVolume.id
+                ) {
                     throw new Error("RUNPOD_HUMO_RELEASE_NOT_VERIFIED");
                 }
             }
