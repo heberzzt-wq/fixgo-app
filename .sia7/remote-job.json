@@ -1,12 +1,10 @@
 {
-  "jobId": "v142-humo-certified-venv-test-20260907-148",
-  "operation": "patch",
+  "jobId": "v142-humo-identity-paid-20260907-149",
+  "operation": "humo_identity_probe",
   "humanApproved": true,
-  "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "test(\"V142 HuMo verifies actual streamed bytes instead of trusting manifest claims\", async () => {",
-    "replace": "test(\"V142 HuMo runner binds inference to the certified lifecycle venv\", () => {\r\n    const runner = fs.readFileSync(new URL(\"../scripts/jarvis-local-video-wan22.py\", import.meta.url), \"utf8\");\r\n    assert.equal(runner.includes(\"/opt/jarvis-v142/humo-venv/bin/python\"), true);\r\n    assert.equal(runner.includes('.endswith(\"/venv/bin/python\")'), false);\r\n});\r\n\r\ntest(\"V142 HuMo verifies actual streamed bytes instead of trusting manifest claims\", async () => {"
-  }
+  "expectedBaseSha": "287a5ced58c39af7d8f6ed67ed907b78b02b72d5",
+  "hardBudgetUsd": 3,
+  "monthlyStorageAuthorizedUsd": 3.5,
+  "executePaid": true,
+  "fullEpisodeAuthorized": false
 }
