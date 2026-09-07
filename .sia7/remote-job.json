@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-network-volume-authority-precedence-20260907-88",
+  "jobId": "v142-humo-persistent-identity-cli-test-20260907-89",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "function huMoLanRunpodAdapterOptions({ env = process.env } = {}) {",
-    "replace": "function huMoLanRunpodAdapterOptions({ env = process.env } = {}) {\n    if (String(env.JARVIS_RUNPOD_NETWORK_VOLUME_ID || \"\").trim()) return {};"
+    "search": "test(\"V142 HuMo runtime certification and identity CLI remain ephemeral with certified LAN cache authority\", () => {",
+    "replace": "test(\"V142 HuMo runtime certification stays ephemeral while identity CLI uses a retained network volume\", () => {"
   }
 }
