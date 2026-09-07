@@ -380,7 +380,7 @@ export const RUNPOD_HUMO_CACHE_BASE = (() => {
         sourceRepository: a.sourceRepository, sourceRevision: a.sourceRevision,
         provisionImageTag: a.remoteRuntimeBase.provisionImageTag,
         expectedRegistryDigest: a.remoteRuntimeBase.expectedRegistryDigest,
-        // Two complete asset sets (repair/partials), 10 GB Xet cache and ~8 GiB reserve fit in 64 GB.
+        // One verified asset set plus source/runtime metadata fits in 50 GB; transport/Xet caches are disabled and staging scratch is removed after verification.
         networkVolumeType: "STANDARD", minimumNetworkVolumeGb: 50,
         requiredFiles, totalBytes: requiredFiles.reduce((sum, file) => sum + file.bytes, 0),
         // v0.36 retains resumable .incomplete files; v1.30 deletes process-unique partials on failure.
