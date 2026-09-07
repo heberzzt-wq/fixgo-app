@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-humo-lan-bridge-tests-20260906-37",
-  "completedAt": "2026-09-07T01:50:54.283Z",
+  "jobId": "v142-humo-lan-runpod-options-20260906-38",
+  "completedAt": "2026-09-07T01:54:06.599Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "tests/jarvis-fs-bridge-v2.test.mjs",
+  "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 59674,
-  "bytesAfter": 64405,
+  "bytesBefore": 338891,
+  "bytesAfter": 339327,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "tests/jarvis-fs-bridge-v2.test.mjs"
+    "jarvis-fs-bridge.js"
   ]
 }

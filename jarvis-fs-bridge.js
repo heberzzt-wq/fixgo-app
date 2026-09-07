@@ -494,6 +494,16 @@ export function createHuMoLanEphemeralStager({ authority, spawnImpl = spawn } = 
     };
 }
 
+function huMoLanRunpodAdapterOptions({ env = process.env } = {}) {
+    const authority = resolveHuMoLanCacheAuthority({ env });
+    if (!authority.configured) return {};
+    return {
+        env: { ...env, JARVIS_HUMO_LOCAL_CACHE_ROOT: authority.cacheRoot },
+        inspectLocalHuMoCacheImpl: createHuMoLanCacheInspector({ authority }),
+        stageHuMoLocalCacheToEphemeralImpl: createHuMoLanEphemeralStager({ authority })
+    };
+}
+
 function safeFileStem(value = "artifact") {
     const normalized = String(value || "artifact").normalize("NFD").toLowerCase();
     let result = "";
