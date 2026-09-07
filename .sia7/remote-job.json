@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-bootstrap-local-cache-mount-gate-20260906-22",
+  "jobId": "v142-humo-bootstrap-local-cache-verifier-command-20260906-23",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            \"  mountpoint -q /workspace\",",
-    "replace": "            networkVolumeId ? \"  mountpoint -q /workspace\" : \"  test -d \\\"$CACHE_ROOT\\\" && test -d \\\"$HUMO_REPO\\\"\"," 
+    "search": "            `  \"$VENV/bin/python\" - \"$CACHE_ROOT\" verify ${shellSingleQuote(networkVolumeId)} ${shellSingleQuote(runtimeCertificationDataCenterId)} ${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))} > \"$(dirname \"$PROGRESS\")/model-integrity.json\" <<'PY'`,",
+    "replace": "            networkVolumeId\n                ? `  \"$VENV/bin/python\" - \"$CACHE_ROOT\" verify ${shellSingleQuote(networkVolumeId)} ${shellSingleQuote(runtimeCertificationDataCenterId)} ${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))} > \"$(dirname \"$PROGRESS\")/model-integrity.json\" <<'PY'`\n                : `  \"$VENV/bin/python\" - \"$CACHE_ROOT\" \"$HUMO_REPO\" ${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))} > \"$(dirname \"$PROGRESS\")/model-integrity.json\" <<'PY'`,"
   }
 }
