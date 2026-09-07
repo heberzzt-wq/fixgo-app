@@ -7979,6 +7979,72 @@ export function startJarvisFsBridge({
     });
 }
 
+export async function runHuMoLanCachePreflightCli({
+    env = process.env,
+    inspectImpl = null,
+    runRemotePowerShellImpl = runHuMoLanPowerShell,
+    log = value => console.log(JSON.stringify(value))
+} = {}) {
+    const authority = resolveHuMoLanCacheAuthority({ env });
+    if (!authority.configured) {
+        throw new Error(authority.status || "HUMO_LAN_CACHE_AUTHORITY_REQUIRED");
+    }
+    if (String(env.JARVIS_RUNPOD_NETWORK_VOLUME_ID || "").trim()) {
+        throw new Error("RUNPOD_HUMO_CACHE_AUTHORITY_CONFLICT");
+    }
+    const inspector = inspectImpl || createHuMoLanCacheInspector({ authority });
+    const cache = await inspector({ contract: RUNPOD_HUMO_CACHE_BASE, requireSourceRevision: true });
+    if (cache?.ok !== true || cache?.shaVerified !== true || cache?.sourceRevisionVerified !== true) {
+        throw new Error(cache?.status || "HUMO_LAN_CACHE_PREFLIGHT_FAILED");
+    }
+    const script = [
+        "$ErrorActionPreference='Stop'",
+        `$root=${powerShellSingleQuote(authority.cacheRoot)}`,
+        "$drive=[IO.Path]::GetPathRoot($root).TrimEnd('\\').TrimEnd(':')",
+        "$vol=Get-Volume -DriveLetter $drive -ErrorAction Stop",
+        "$tar=Join-Path $env:SystemRoot 'System32\\tar.exe'",
+        "if($vol.HealthStatus -ne 'Healthy'){ throw 'LAN_CACHE_VOLUME_NOT_HEALTHY' }",
+        "if(-not (Test-Path -LiteralPath $tar)){ throw 'LAN_CACHE_TAR_MISSING' }",
+        "$tarVersion=(& $tar --version 2>&1 | Select-Object -First 1) -join ''",
+        "$result=[ordered]@{ok=$true;volumeHealth=[string]$vol.HealthStatus;freeBytes=[int64]$vol.SizeRemaining;tarAvailable=$true;tarPath=$tar;tarVersion=[string]$tarVersion}",
+        "$result | ConvertTo-Json -Compress"
+    ].join("; " );
+    const raw = String(runRemotePowerShellImpl(authority, script, { timeoutMs: 120000 }) || "").trim();
+    const line = raw.split(/\r?\n/).filter(Boolean).at(-1);
+    const host = JSON.parse(line);
+    if (host?.ok !== true || host?.volumeHealth !== "Healthy" || host?.tarAvailable !== true) {
+        throw new Error("HUMO_LAN_HOST_PREFLIGHT_INVALID");
+    }
+    const result = {
+        ok: true,
+        status: "HUMO_LAN_CACHE_ZERO_COST_PREFLIGHT_READY",
+        cacheMode: "LOCAL_TO_EPHEMERAL",
+        storageAuthority: cache.storageAuthority || authority.cacheRoot,
+        cacheRoot: authority.cacheRoot,
+        closeoutFile: authority.closeoutFile,
+        sourceRevision: cache.sourceRevision,
+        sourceRevisionVerified: true,
+        sourceTrackedClean: cache.sourceTrackedClean === true,
+        assetsVerified: cache.assetsVerified,
+        totalBytes: cache.totalBytes,
+        volumeHealth: host.volumeHealth,
+        freeBytes: Number(host.freeBytes || 0),
+        sourceTarAvailable: true,
+        sourceTarPath: host.tarPath,
+        sourceTarVersion: host.tarVersion || null,
+        networkVolumeRequired: false,
+        recurringStorageCostUsd: 0,
+        paidResourceCreationAuthorized: false,
+        resourceCreationPossible: false,
+        providerTrafficUsed: false,
+        inferenceStarted: false,
+        externalApiUsed: false,
+        externalEstimatedCostUsd: 0
+    };
+    log(result);
+    return result;
+}
+
 export async function runHuMoRuntimeCertificationCli({
     root = DEFAULT_ROOT,
     env = process.env,
