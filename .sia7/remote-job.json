@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-50gb-clean-cpu-staging-cache-20260907-93a",
+  "jobId": "v142-humo-50gb-clean-gpu-staging-cache-20260907-94",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                \"progress CACHE_MODEL_READY READY\", \"exit 0\", \"\"",
-    "replace": "                \"rm -rf \\\"$CACHE_ROOT/.partial\\\" \\\"$CACHE_ROOT/.cache/huggingface\\\" \\\"$CPU_TOOLS_VENV\\\"\",\n                \"progress CACHE_MODEL_READY READY\", \"exit 0\", \"\""
+    "search": "                \"  progress HUMO_ASSETS_POPULATE READY\"",
+    "replace": "                \"  rm -rf \\\"$CACHE_ROOT/.partial\\\" \\\"$CACHE_ROOT/.cache/huggingface\\\" \\\"$CACHE_TOOLS_VENV\\\"\",\n                \"  progress HUMO_ASSETS_POPULATE READY\""
   }
 }
