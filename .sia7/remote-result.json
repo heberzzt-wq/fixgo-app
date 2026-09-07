@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-sia7-humo-dispatcher-20260907-113",
-  "completedAt": "2026-09-07T16:02:57.125Z",
+  "jobId": "v142-sia7-humo-executor-contract-test-20260907-114",
+  "completedAt": "2026-09-07T16:03:47.686Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "jarvis-github-worker.js",
+  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 19582,
-  "bytesAfter": 19691,
+  "bytesBefore": 395128,
+  "bytesAfter": 396620,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "jarvis-github-worker.js"
+    "tests/jarvis-local-video-engine-v142.test.mjs"
   ]
 }

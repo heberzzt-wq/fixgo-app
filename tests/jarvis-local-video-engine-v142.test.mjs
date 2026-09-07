@@ -7692,6 +7692,24 @@ test("V142 HuMo inference is bound to the certified venv Python instead of globa
     assert.equal(runner.includes("2.6.3"), true);
 });
 
+test("V142 SIA7 HuMo executor is typed, budget-capped, source-pinned and control-plane-only after certification", () => {
+    const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
+    assert.equal(workerSource.includes("SIA7_HUMO_MAX_COMPUTE_USD = 3"), true);
+    assert.equal(workerSource.includes("SIA7_HUMO_MONTHLY_STORAGE_USD = 3.5"), true);
+    assert.equal(workerSource.includes("SIA7_HUMO_CHARACTER_ID = \"CHAR_HEBERTO\""), true);
+    assert.equal(workerSource.includes("SIA7_HUMO_REFERENCE_SHA256 = \"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\""), true);
+    assert.equal(workerSource.includes("SIA7_HUMO_AUDIO_SHA256 = \"294861191281abdcc32a0d8fcef6102832e784d95e73e0e55a75fde7ecfc35ad\""), true);
+    assert.match(workerSource, /operation === \"humo_identity_probe\"/);
+    assert.match(workerSource, /executePaid !== true/);
+    assert.match(workerSource, /SIA7_HUMO_PAID_HUMAN_APPROVAL_REQUIRED/);
+    assert.match(workerSource, /SIA7_HUMO_FULL_EPISODE_NOT_AUTHORIZED/);
+    assert.match(workerSource, /SIA7_HUMO_EXECUTION_HEAD_HAS_UNCERTIFIED_CODE/);
+    assert.match(workerSource, /!file\.startsWith\(\"\.sia7\/\"\)/);
+    assert.match(workerSource, /spawn\(process\.execPath, \[\"jarvis-fs-bridge\.js\", \"--humo-identity-probe\"\]/);
+    assert.match(workerSource, /JARVIS_RUNPOD_CREATE_HUMO_NETWORK_VOLUME_AUTHORIZED: \"true\"/);
+    assert.equal(workerSource.includes("spawn(job.command"), false);
+});
+
 test("V142 HuMo runtime certification stays ephemeral while identity CLI uses a retained network volume", () => {
     const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
     assert.equal(engineSource.includes("persistentVolumeDisabled = isHuMoRemoteJob(job)"), true);
