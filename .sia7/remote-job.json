@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-sia7-humo-typed-import-20260907-110",
+  "jobId": "v142-sia7-humo-typed-import-20260907-110a",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "import { spawn } from \"node:child_process\";\nimport fs from \"node:fs\";\nimport path from \"node:path\";",
-    "replace": "import { spawn } from \"node:child_process\";\nimport { createHash } from \"node:crypto\";\nimport fs from \"node:fs\";\nimport path from \"node:path\";"
+    "search": "import fs from \"node:fs\";",
+    "replace": "import { createHash } from \"node:crypto\";\nimport fs from \"node:fs\";"
   }
 }
