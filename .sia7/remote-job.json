@@ -1,10 +1,12 @@
 {
-  "jobId": "v142-humo-identity-paid-20260907-152",
-  "operation": "humo_identity_probe",
+  "jobId": "v142-humo-8s-runner-20260907-153",
+  "operation": "patch",
   "humanApproved": true,
-  "expectedBaseSha": "d0dbbf23a9b20fa96f1a9b0e181b2e8abf28c719",
-  "hardBudgetUsd": 3,
-  "monthlyStorageAuthorizedUsd": 3.5,
-  "executePaid": true,
-  "fullEpisodeAuthorized": false
+  "patch": {
+    "file": "scripts/jarvis-local-video-wan22.py",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "        \"frame_count\": 97,\n        \"probe_duration_seconds\": 3.88,",
+    "replace": "        \"frame_count\": 201,\n        \"probe_duration_seconds\": 8.0,"
+  }
 }
