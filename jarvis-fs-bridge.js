@@ -8685,6 +8685,7 @@ export async function runHuMoIdentityProbeCli({
     );
     const sha256File = file => createHash("sha256").update(fs.readFileSync(file)).digest("hex");
     const expectedReferenceSha256 = String(env.JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256 || "").trim().toLowerCase();
+    const expectedSecondReferenceSha256 = String(env.JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_2 || "").trim().toLowerCase();
     const expectedAudioSha256 = String(env.JARVIS_HUMO_IDENTITY_PROBE_AUDIO_SHA256 || "").trim().toLowerCase();
     if (!/^[a-f0-9]{64}$/.test(expectedReferenceSha256) || sha256File(reference.file) !== expectedReferenceSha256) {
         throw new Error("RUNPOD_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_MISMATCH");
