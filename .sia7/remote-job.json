@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-lan-tests-imports-20260906-35",
+  "jobId": "v142-humo-lan-tests-resolver-import-20260906-36",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "tests/jarvis-fs-bridge-v2.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    createJarvisFsBridgeApp,",
-    "replace": "    createJarvisFsBridgeApp,\n    createHuMoLanCacheInspector,\n    createHuMoLanEphemeralStager,"
+    "search": "    resolveRepoPath,",
+    "replace": "    resolveHuMoLanCacheAuthority,\n    resolveRepoPath,"
   }
 }
