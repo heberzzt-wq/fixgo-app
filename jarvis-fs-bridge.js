@@ -185,6 +185,35 @@ export function resolveRunpodCredentialEnvironment({
     }
 }
 
+export function resolveHuMoLanCacheAuthority({ env = process.env, existsSync = fs.existsSync } = {}) {
+    const host = String(env.JARVIS_HUMO_LAN_SOURCE_HOST || "").trim();
+    const user = String(env.JARVIS_HUMO_LAN_SOURCE_USER || "").trim();
+    const keyFile = String(env.JARVIS_HUMO_LAN_SOURCE_KEY || "").trim();
+    const knownHostsFile = String(env.JARVIS_HUMO_LAN_SOURCE_KNOWN_HOSTS || "").trim();
+    const cacheRoot = String(env.JARVIS_HUMO_LAN_CACHE_ROOT || env.JARVIS_HUMO_LOCAL_CACHE_ROOT || "").trim();
+    const closeoutFile = String(env.JARVIS_HUMO_LAN_CLOSEOUT || "").trim();
+    const configured = Boolean(host && user && keyFile && knownHostsFile && cacheRoot && closeoutFile);
+    if (!configured) {
+        return { configured: false, status: "HUMO_LAN_CACHE_AUTHORITY_NOT_CONFIGURED" };
+    }
+    if (!/^[a-z0-9._:-]+$/i.test(host) || !/^[a-z0-9._-]+$/i.test(user)) {
+        return { configured: false, status: "HUMO_LAN_CACHE_AUTHORITY_IDENTITY_INVALID" };
+    }
+    if (!existsSync(path.resolve(keyFile)) || !existsSync(path.resolve(knownHostsFile))) {
+        return { configured: false, status: "HUMO_LAN_CACHE_SSH_IDENTITY_MISSING" };
+    }
+    return {
+        configured: true,
+        status: "HUMO_LAN_CACHE_AUTHORITY_READY",
+        host,
+        user,
+        keyFile: path.resolve(keyFile),
+        knownHostsFile: path.resolve(knownHostsFile),
+        cacheRoot,
+        closeoutFile
+    };
+}
+
 function safeFileStem(value = "artifact") {
     const normalized = String(value || "artifact").normalize("NFD").toLowerCase();
     let result = "";
