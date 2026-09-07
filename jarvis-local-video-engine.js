@@ -4618,7 +4618,7 @@ export function createRunpodRemoteVideoAdapter({
             "if head != contract['sourceRevision']: raise SystemExit('LOCAL_HUMO_REMOTE_SOURCE_REVISION_MISMATCH')",
             "if dirty: raise SystemExit('LOCAL_HUMO_REMOTE_SOURCE_MODIFIED')",
             "manifest={k:contract[k] for k in ['schemaVersion','profile','modelRepository','modelRevision','sourceRepository','sourceRevision','provisionImageTag','expectedRegistryDigest','totalBytes']}",
-            "manifest.update({'verifiedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'cacheStatus':'CACHE_MODEL_READY','files':verified,'networkVolumeId':None,'persistentStorage':False,'cacheMode':'LOCAL_TO_EPHEMERAL','ephemeralVerification':{'operationId':operation_id,'shaVerified':True,'sourceRevisionVerified':True,'assetsVerified':len(verified),'totalBytes':total}})",
+            "manifest.update({'verifiedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'cacheStatus':'CACHE_MODEL_READY','files':verified,'networkVolumeId':None,'dataCenterId':None,'persistentStorage':False,'cacheMode':'LOCAL_TO_EPHEMERAL','mountedVerification':{'operationId':operation_id,'shaVerified':True,'sourceRevisionVerified':True,'assetsVerified':len(verified),'totalBytes':total,'cacheMode':'LOCAL_TO_EPHEMERAL'},'ephemeralVerification':{'operationId':operation_id,'shaVerified':True,'sourceRevisionVerified':True,'assetsVerified':len(verified),'totalBytes':total}})",
             "print(json.dumps(manifest,separators=(',',':')))"
         ].join("\n");
     }
