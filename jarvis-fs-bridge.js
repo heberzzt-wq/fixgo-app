@@ -8399,7 +8399,7 @@ async function ensureHuMoPersistentNetworkVolume({ root, env, canonicalSha, log 
         size: 50,
         dataCenterId,
         // STANDARD is implicit in RunPod's documented networkvolumes endpoint.
-    }, [201]);
+    }, [200]);
     const created = normalize(createdRaw);
     if (!created.id || created.name !== name || created.dataCenterId !== dataCenterId ||
         created.sizeGb < 50 || created.type !== "STANDARD") {
