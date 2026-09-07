@@ -7079,7 +7079,7 @@ test("V142 HuMo identity candidate is pinned and cannot authorize paid execution
     assert.match(candidate, /runtimeAssetAuthorityPinned: true/);
     assert.match(candidate, /width: 832/);
     assert.match(candidate, /height: 480/);
-    assert.match(candidate, /durationSeconds: 3\.88/);
+    assert.match(candidate, /durationSeconds: 8\.0/);
     assert.match(candidate, /portraitTargetUnresolved: true/);
     assert.match(candidate, /physicalRuntimeCertified: true/);
     assert.match(candidate, /physicalPortraitCertified: false/);
@@ -7124,7 +7124,7 @@ test("V142 HuMo identity probe executor exists but remains behind certification 
     ]) assert.equal(executor.includes(marker), true, marker);
     assert.match(runner, /"probe_width": 832/);
     assert.match(runner, /"probe_height": 480/);
-    assert.match(runner, /"probe_duration_seconds": 3\.88/);
+    assert.match(runner, /"probe_duration_seconds": 8\.0/);
 });
 
 test("V142 provision cleanup failure cannot hide a billable Pod", () => {
