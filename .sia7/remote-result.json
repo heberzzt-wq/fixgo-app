@@ -1,21 +1,8 @@
 {
-  "jobId": "v142-humo-identity-preflight-20260907-116",
-  "completedAt": "2026-09-07T17:48:34.775Z",
-  "ok": true,
-  "operation": "humo_identity_probe",
-  "dryRun": true,
-  "status": "SIA7_HUMO_IDENTITY_PREFLIGHT_READY",
-  "certifiedBaseSha": "6c259b9b22bc60ccfd4d6f9df1f06b9fbc5f2eee",
-  "executionHeadSha": "c89abf42edccfd530af64ecc9a3d15c29cb3a159",
-  "controlPlaneOnlyChanges": [
-    ".sia7/remote-job.json",
-    ".sia7/remote-result.json"
-  ],
-  "hardBudgetUsd": 3,
-  "monthlyStorageAuthorizedUsd": 3.5,
-  "characterId": "CHAR_HEBERTO",
-  "durationSeconds": 3.88,
-  "resourceCreationPossible": false,
+  "jobId": "v142-humo-identity-paid-20260907-117",
+  "completedAt": "2026-09-07T17:49:15.361Z",
+  "ok": false,
+  "error": "SIA7_HUMO_IDENTITY_PROBE_FAILED:RUNPOD_HUMO_PERSISTENT_VOLUME_PLACEMENT_UNAVAILABLE",
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
