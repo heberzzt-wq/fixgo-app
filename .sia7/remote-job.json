@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-lan-stdin-input-20260906-57",
+  "jobId": "v142-humo-lan-stdin-test-20260906-58",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "tests/jarvis-fs-bridge-v2.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    ), { encoding: \"utf8\", windowsHide: true, timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }) || \"\").trim();",
-    "replace": "    ), { encoding: \"utf8\", windowsHide: true, timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, input: String(script) }) || \"\").trim();"
+    "search": "    assert.ok(observed.args.at(-1).includes(\"-EncodedCommand\"));",
+    "replace": "    assert.equal(observed.args.at(-1), \"powershell.exe -NoProfile -NonInteractive -Command -\");\n    assert.equal(typeof observed.options.input, \"string\");\n    assert.match(observed.options.input, /LAN_CACHE_CLOSEOUT_ASSET_COUNT_MISMATCH/);"
   }
 }
