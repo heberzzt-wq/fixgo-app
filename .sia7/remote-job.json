@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-lan-adapter-wiring-test-20260906-52",
+  "jobId": "v142-humo-identity-lan-adapter-final-20260906-53",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+    "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    assert.match(identityCli, /resolveHuMoLanCacheAuthority/);",
-    "replace": "    assert.match(identityCli, /resolveHuMoLanCacheAuthority/);\n    assert.match(identityCli, /huMoLanRunpodAdapterOptions/);"
+    "search": "        env: credential.env,\r\n        inspectBridgeIdentity: () => describeJarvisBridgeIdentity(resolvedRoot)\r\n    });\r\n    const job = {",
+    "replace": "        env: credential.env,\r\n        ...huMoLanRunpodAdapterOptions({ env: credential.env }),\r\n        inspectBridgeIdentity: () => describeJarvisBridgeIdentity(resolvedRoot)\r\n    });\r\n    const job = {"
   }
 }
