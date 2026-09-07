@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-runpod-v2-api-base-20260907-97",
+  "jobId": "v142-humo-preserve-network-volume-20260907-98",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const apiBase = String(env.JARVIS_RUNPOD_V2_API_BASE || \"https://v2-rest.runpod.io/v2\").replace(/\\/$/, \"\");",
-    "replace": "    const apiBase = String(env.JARVIS_RUNPOD_V2_API_BASE || \"https://api.runpod.io/v2\").replace(/\\/$/, \"\");"
+    "search": "    if (!persistentVolume?.id || !persistentVolume?.dataCenterId) {\n        throw new Error(\"RUNPOD_HUMO_NETWORK_VOLUME_REQUIRED\");\n    }\n    delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID;\n    delete runtimeEnv.JARVIS_HUMO_LOCAL_CACHE_ROOT;",
+    "replace": "    if (!persistentVolume?.id || !persistentVolume?.dataCenterId) {\n        throw new Error(\"RUNPOD_HUMO_NETWORK_VOLUME_REQUIRED\");\n    }\n    delete runtimeEnv.JARVIS_HUMO_LOCAL_CACHE_ROOT;"
   }
 }
