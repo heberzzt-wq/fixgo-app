@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-local-cache-state-persist-20260906-15",
+  "jobId": "v142-humo-ephemeral-stager-injection-20260906-16",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                persistentCacheVerification: persistentCache,",
-    "replace": "                persistentCacheVerification: persistentCache,\n                localCacheTransferPrecheck,"
+    "search": "    inspectLocalHuMoCacheImpl = inspectLocalHuMoCache,",
+    "replace": "    inspectLocalHuMoCacheImpl = inspectLocalHuMoCache,\n    stageHuMoLocalCacheToEphemeralImpl = null,"
   }
 }
