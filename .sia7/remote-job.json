@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-volume-fallback-economic-receipt-20260907-125",
+  "jobId": "v142-humo-volume-retry-contract-test-20260907-126",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        estimatedMonthlyStorageUsd: 3.5, gpuHourlyRateUsd: Number(selected.hourlyRateUsd)",
-    "replace": "        estimatedMonthlyStorageUsd: 3.5, gpuHourlyRateUsd: Number((eligible.find(item => String(item.dataCenterId) === created.dataCenterId) || selected).hourlyRateUsd)"
+    "search": "test(\"V142 HuMo runtime certification stays ephemeral while identity CLI uses a retained network volume\", () => {",
+    "replace": "test(\"V142 HuMo Network Volume creation reconciles ambiguous 5xx and falls back without blind duplicates\", () => {\n    const bridgeSource = fs.readFileSync(new URL(\"../jarvis-fs-bridge.js\", import.meta.url), \"utf8\");\n    assert.match(bridgeSource, /retryableVolumeError/);\n    assert.match(bridgeSource, /recoverVolume/);\n    assert.match(bridgeSource, /eligible\\.slice\\(1\\)/);\n    assert.match(bridgeSource, /provider\\(\"GET\", \"\\/networkvolumes\", null, \\[200\\]\\)/);\n    assert.match(bridgeSource, /fallbackDataCenterId/);\n    assert.match(bridgeSource, /created\\.name\\.startsWith\\(prefix\\)/);\n    assert.match(bridgeSource, /eligibleDc\\.has\\(created\\.dataCenterId\\)/);\n    assert.match(bridgeSource, /eligible\\.find\\(item => String\\(item\\.dataCenterId\\) === created\\.dataCenterId\\)/);\n    const retryBlock = bridgeSource.slice(bridgeSource.indexOf(\"const retryableVolumeError\"), bridgeSource.indexOf(\"const recoverVolume\"));\n    assert.equal(retryBlock.includes(\"status === 401\"), false);\n    assert.equal(retryBlock.includes(\"status === 403\"), false);\n});\n\ntest(\"V142 HuMo runtime certification stays ephemeral while identity CLI uses a retained network volume\", () => {"
   }
 }
