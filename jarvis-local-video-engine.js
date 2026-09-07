@@ -4768,6 +4768,7 @@ export function createRunpodRemoteVideoAdapter({
                 `  "$CACHE_TOOLS_VENV/bin/python" - "$CACHE_ROOT" stage ${shellSingleQuote(networkVolumeId)} ${shellSingleQuote(runtimeCertificationDataCenterId)} ${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))} <<'PY'`,
                 persistentModelEvidenceProgram(),
                 "PY",
+                "  rm -rf \"$CACHE_ROOT/.partial\" \"$CACHE_ROOT/.cache/huggingface\" \"$CACHE_TOOLS_VENV\"",
                 "  progress HUMO_ASSETS_POPULATE READY"
             ] : []),
             networkVolumeId

@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-50gb-clean-cpu-staging-cache-20260907-93a",
-  "completedAt": "2026-09-07T14:29:02.132Z",
+  "jobId": "v142-humo-50gb-clean-gpu-staging-cache-20260907-94",
+  "completedAt": "2026-09-07T14:29:36.134Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-local-video-engine.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 406421,
-  "bytesAfter": 406527,
+  "bytesBefore": 406527,
+  "bytesAfter": 406637,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
