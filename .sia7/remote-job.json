@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-network-volume-official-api-20260907-100",
+  "jobId": "v142-humo-network-volume-standard-normalize-20260907-101",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const apiBase = String(env.JARVIS_RUNPOD_V2_API_BASE || \"https://api.runpod.io/v2\").replace(/\\/$/, \"\");",
-    "replace": "    const apiBase = String(env.JARVIS_RUNPOD_NETWORK_VOLUME_API_BASE || \"https://rest.runpod.io/v1\").replace(/\\/$/, \"\");"
+    "search": "        type: String(volume?.type || volume?.volumeType || \"\").trim().toUpperCase()",
+    "replace": "        type: String(volume?.type || volume?.volumeType || \"STANDARD\").trim().toUpperCase()"
   }
 }
