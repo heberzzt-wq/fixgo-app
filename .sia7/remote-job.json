@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-sia7-durable-job-dedupe-20260907-108",
+  "jobId": "v142-sia7-suppress-completed-job-replay-20260907-109",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "async function syncLocalBranch() {",
-    "replace": "async function readRemoteResultJobId() {\n    const showResult = await runGit([\n        \"show\",\n        `${REMOTE}/${BRANCH}:${RESULT_PATH}`\n    ]);\n    if (!showResult.ok) return \"\";\n    try {\n        return String(JSON.parse(showResult.stdout)?.jobId || \"\").trim();\n    }\n    catch {\n        return \"\";\n    }\n}\n\nasync function syncLocalBranch() {"
+    "search": "        currentJob = await readRemoteJob();\n\n        if (!currentJob?.jobId || currentJob.jobId === lastJobId) {\n            return;\n        }",
+    "replace": "        currentJob = await readRemoteJob();\n        const remoteResultJobId = await readRemoteResultJobId();\n\n        if (\n            !currentJob?.jobId ||\n            currentJob.jobId === lastJobId ||\n            currentJob.jobId === remoteResultJobId\n        ) {\n            return;\n        }"
   }
 }
