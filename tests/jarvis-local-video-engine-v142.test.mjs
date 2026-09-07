@@ -7665,7 +7665,7 @@ test("V142 HuMo paid identity probe authority is mission scoped and never opens 
     assert.match(bridgeSource, /HUMO_IDENTITY_PROBE_COMPLETED_AND_RELEASED/);
 });
 
-test("V142 HuMo GPU bootstrap contains verification only and CPU owns resumable transfers", () => {
+test("V142 HuMo GPU bootstrap may populate an explicitly authorized persistent cache and then physically verifies it", () => {
     const source=fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url),"utf8");
     const gpu=source.slice(source.indexOf("    function writeHuMoRuntimeBootstrapFile("),source.indexOf("    function writeRemoteRuntimeBootstrapFile("));
     assert.doesNotMatch(gpu,/hf.*download|hf_hub_download|HF_HUB_DISABLE_XET|--max-workers/);
