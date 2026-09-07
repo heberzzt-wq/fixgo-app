@@ -8493,6 +8493,7 @@ async function ensureHuMoPersistentNetworkVolume({ root, env, canonicalSha, log 
         String(a.dataCenterId).localeCompare(String(b.dataCenterId))
     );
     if (eligible.length < 1) throw new Error("RUNPOD_HUMO_PERSISTENT_VOLUME_PLACEMENT_UNAVAILABLE");
+    return await ensureHuMoPersistentNetworkVolumeWithRunpodctl({ eligible, credential, env, log });
 
     const apiBase = String(env.JARVIS_RUNPOD_NETWORK_VOLUME_API_BASE || "https://rest.runpod.io/v1").replace(/\/$/, "");
     const provider = async (method, suffix, body = null, accepted = [200]) => {

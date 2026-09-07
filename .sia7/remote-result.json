@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-runpodctl-volume-helper-20260907-131",
-  "completedAt": "2026-09-07T18:28:33.228Z",
+  "jobId": "v142-humo-runpodctl-volume-route-20260907-132",
+  "completedAt": "2026-09-07T18:29:23.942Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 353762,
-  "bytesAfter": 361725,
+  "bytesBefore": 361725,
+  "bytesAfter": 361826,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
