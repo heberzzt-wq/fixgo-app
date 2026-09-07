@@ -3911,8 +3911,8 @@ test("V142 L40S physical mock requires exact identity and a working FlashAttenti
         assert.equal(completed.verifiedArtifactDelivery, true);
         assert.deepEqual(harness.createdBody.gpuTypeIds, ["NVIDIA L40S"]);
         assert.deepEqual(harness.createdBody.dataCenterIds, ["EU-NL-1"]);
-        assert.equal(harness.createdBody.minRAMPerGPU, 62);
-        assert.equal(harness.createdBody.minVCPUPerGPU, 16);
+        assert.equal(harness.createdBody.minRAMPerGPU, undefined);
+        assert.equal(harness.createdBody.minVCPUPerGPU, undefined);
         assert.equal(harness.deleted, true);
     });
 
