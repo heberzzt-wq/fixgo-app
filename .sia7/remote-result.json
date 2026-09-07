@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-worker-stale-blocker-20260907-187",
-  "completedAt": "2026-09-07T23:48:55.472Z",
+  "jobId": "v142-humo-two-reference-receipt-20260907-188",
+  "completedAt": "2026-09-07T23:49:20.841Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-github-worker.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 20973,
-  "bytesAfter": 21122,
+  "bytesBefore": 21122,
+  "bytesAfter": 21292,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

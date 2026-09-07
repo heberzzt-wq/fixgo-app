@@ -410,6 +410,9 @@ async function executeHuMoIdentityProbeJob(job = {}) {
             monthlyStorageAuthorizedUsd,
             characterId: SIA7_HUMO_CHARACTER_ID,
             durationSeconds: 8.0,
+            referenceCount: 2,
+            referenceSha256s: [SIA7_HUMO_REFERENCE_SHA256, SIA7_HUMO_REFERENCE_SHA256_2],
+            audioSha256: SIA7_HUMO_AUDIO_SHA256,
             resourceCreationPossible: false
         };
     }
