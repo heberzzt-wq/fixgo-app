@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-cpu-stage-50gb-test-fix-20260907-77",
+  "jobId": "v142-humo-gpu-populate-flag-20260907-78",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+    "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            networkVolume: { ...request.networkVolume, sizeGb: 50 } }).ok, false);",
-    "replace": "            networkVolume: { ...request.networkVolume, sizeGb: 49 } }).ok, false);"
+    "search": "    const retainNetworkVolumeAuthorized = booleanValue(env.JARVIS_RUNPOD_RETAIN_NETWORK_VOLUME_AUTHORIZED, false);",
+    "replace": "    const retainNetworkVolumeAuthorized = booleanValue(env.JARVIS_RUNPOD_RETAIN_NETWORK_VOLUME_AUTHORIZED, false);\n    const populatePersistentHuMoCacheAuthorized = booleanValue(\n        env.JARVIS_RUNPOD_HUMO_CACHE_POPULATE_ON_GPU_AUTHORIZED,\n        false\n    );"
   }
 }
