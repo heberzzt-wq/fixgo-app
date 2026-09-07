@@ -459,6 +459,10 @@ async function executeJob(job = {}) {
         return executePatchJob(job);
     }
 
+    if (operation === "humo_identity_probe") {
+        return await executeHuMoIdentityProbeJob(job);
+    }
+
     return await executeBridgeJob(job);
 }
 
