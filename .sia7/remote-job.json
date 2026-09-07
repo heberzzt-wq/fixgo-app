@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-ephemeral-mounted-state-20260906-28",
+  "jobId": "v142-humo-lan-cache-authority-20260906-29",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-local-video-engine.js",
+    "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                        mountedCacheVerified: true, runtimePreflightVerified: true });",
-    "replace": "                        mountedCacheVerified: Boolean(state.networkVolumeId), runtimePreflightVerified: true });"
+    "search": "function safeFileStem(value = \"artifact\") {",
+    "replace": "export function resolveHuMoLanCacheAuthority({ env = process.env, existsSync = fs.existsSync } = {}) {\n    const host = String(env.JARVIS_HUMO_LAN_SOURCE_HOST || \"\").trim();\n    const user = String(env.JARVIS_HUMO_LAN_SOURCE_USER || \"\").trim();\n    const keyFile = String(env.JARVIS_HUMO_LAN_SOURCE_KEY || \"\").trim();\n    const knownHostsFile = String(env.JARVIS_HUMO_LAN_SOURCE_KNOWN_HOSTS || \"\").trim();\n    const cacheRoot = String(env.JARVIS_HUMO_LAN_CACHE_ROOT || env.JARVIS_HUMO_LOCAL_CACHE_ROOT || \"\").trim();\n    const closeoutFile = String(env.JARVIS_HUMO_LAN_CLOSEOUT || \"\").trim();\n    const configured = Boolean(host && user && keyFile && knownHostsFile && cacheRoot && closeoutFile);\n    if (!configured) {\n        return { configured: false, status: \"HUMO_LAN_CACHE_AUTHORITY_NOT_CONFIGURED\" };\n    }\n    if (!/^[a-z0-9._:-]+$/i.test(host) || !/^[a-z0-9._-]+$/i.test(user)) {\n        return { configured: false, status: \"HUMO_LAN_CACHE_AUTHORITY_IDENTITY_INVALID\" };\n    }\n    if (!existsSync(path.resolve(keyFile)) || !existsSync(path.resolve(knownHostsFile))) {\n        return { configured: false, status: \"HUMO_LAN_CACHE_SSH_IDENTITY_MISSING\" };\n    }\n    return {\n        configured: true,\n        status: \"HUMO_LAN_CACHE_AUTHORITY_READY\",\n        host,\n        user,\n        keyFile: path.resolve(keyFile),\n        knownHostsFile: path.resolve(knownHostsFile),\n        cacheRoot,\n        closeoutFile\n    };\n}\n\nfunction safeFileStem(value = \"artifact\") {"
   }
 }
