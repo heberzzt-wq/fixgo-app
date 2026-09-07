@@ -7656,6 +7656,7 @@ test("V142 HuMo runtime certification and identity CLI remain ephemeral with cer
     const identityCli = bridgeSource.slice(bridgeSource.indexOf("export async function runHuMoIdentityProbeCli"));
     assert.equal(identityCli.includes("delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID"), true);
     assert.match(identityCli, /resolveHuMoLanCacheAuthority/);
+    assert.match(identityCli, /huMoLanRunpodAdapterOptions/);
     assert.match(identityCli, /JARVIS_HUMO_LOCAL_CACHE_ROOT/);
     assert.equal(identityCli.includes("RUNPOD_HUMO_CACHE_REQUIRED"), false);
 });
