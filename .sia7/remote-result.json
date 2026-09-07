@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-runpodctl-retry-contract-fix-20260907-134b",
-  "completedAt": "2026-09-07T18:36:03.662Z",
+  "jobId": "v142-humo-runpodctl-retry-contract-fix-20260907-134c",
+  "completedAt": "2026-09-07T18:36:43.980Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "tests/jarvis-local-video-engine-v142.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 400858,
-  "bytesAfter": 400801,
+  "bytesBefore": 400801,
+  "bytesAfter": 400789,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

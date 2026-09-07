@@ -7717,7 +7717,7 @@ test("V142 HuMo placement treats undocumented catalog volume metadata as non-aut
     assert.match(engineSource, /networkVolumeSupported: dataCenterSupport\.get\(dataCenterId\) === true/);
 });
 
-test("V142 HuMo Network Volume creation reconciles ambiguous 5xx and falls back without blind duplicates", () => {
+test("V142 HuMo Network Volume runpodctl reconciles create failures without blind duplicates", () => {
     const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
     const start = bridgeSource.indexOf("async function ensureHuMoPersistentNetworkVolumeWithRunpodctl");
     const end = bridgeSource.indexOf("async function ensureHuMoPersistentNetworkVolume({", start);
