@@ -1,12 +1,10 @@
 {
-  "jobId": "v142-humo-volume-placement-test-align-20260907-145",
-  "operation": "patch",
+  "jobId": "v142-humo-identity-paid-20260907-146",
+  "operation": "humo_identity_probe",
   "humanApproved": true,
-  "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "        assert.equal(harness.createdBody.minRAMPerGPU, 62);\r\n        assert.equal(harness.createdBody.minVCPUPerGPU, 16);",
-    "replace": "        assert.equal(harness.createdBody.minRAMPerGPU, undefined);\r\n        assert.equal(harness.createdBody.minVCPUPerGPU, undefined);"
-  }
+  "expectedBaseSha": "e7f443b85be265efa319924c4e2ea46d06f70925",
+  "hardBudgetUsd": 3,
+  "monthlyStorageAuthorizedUsd": 3.5,
+  "executePaid": true,
+  "fullEpisodeAuthorized": false
 }
