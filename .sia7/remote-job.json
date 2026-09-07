@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-probe-bind-persistent-volume-20260907-87",
+  "jobId": "v142-humo-probe-persistent-volume-guard-20260907-87a",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const identityProbeLanAuthority = resolveHuMoLanCacheAuthority({ env: runtimeEnv });",
-    "replace": "    const persistentVolume = await ensureHuMoPersistentNetworkVolume({\n        root: resolvedRoot,\n        env: runtimeEnv,\n        canonicalSha,\n        log\n    });\n    runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID = persistentVolume.id;\n    runtimeEnv.JARVIS_RUNPOD_DATACENTER_ID = persistentVolume.dataCenterId;\n    runtimeEnv.JARVIS_RUNPOD_RETAIN_NETWORK_VOLUME_AUTHORIZED = \"true\";\n    runtimeEnv.JARVIS_RUNPOD_HUMO_CACHE_POPULATE_ON_GPU_AUTHORIZED = \"true\";"
+    "search": "    if (!identityProbeLanAuthority.configured) {",
+    "replace": "    if (!persistentVolume?.id || !persistentVolume?.dataCenterId) {"
   }
 }
