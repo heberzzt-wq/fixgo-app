@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-cpu-stage-receipt-test-fix-20260907-76",
+  "jobId": "v142-humo-cpu-stage-50gb-test-fix-20260907-77",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        assert.equal(h.base.inferenceStarts, 0, \"mounted verification precedes inference start\");",
-    "replace": "        assert.equal(h.base.inferenceStarts, 1, \"inference starts only after mounted verification promoted cache to HIT\");"
+    "search": "            networkVolume: { ...request.networkVolume, sizeGb: 50 } }).ok, false);",
+    "replace": "            networkVolume: { ...request.networkVolume, sizeGb: 49 } }).ok, false);"
   }
 }
