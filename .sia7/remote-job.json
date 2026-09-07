@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-identity-probe-budget-max-3usd-20260907-84b",
+  "jobId": "v142-runpod-placement-inventory-export-20260907-85",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    if (!Number.isFinite(requestedHardBudgetUsd) || requestedHardBudgetUsd <= 0 || requestedHardBudgetUsd > 1) {",
-    "replace": "    if (!Number.isFinite(requestedHardBudgetUsd) || requestedHardBudgetUsd <= 0 || requestedHardBudgetUsd > 3) {"
+    "search": "        inspectLiveZeroCostPrecheck,",
+    "replace": "        inspectLiveZeroCostPrecheck,\n        inspectPlacementInventory: queryPlacementInventory,"
   }
 }
