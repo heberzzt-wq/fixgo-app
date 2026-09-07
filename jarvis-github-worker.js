@@ -447,6 +447,11 @@ async function executeHuMoIdentityProbeJob(job = {}) {
         gpuRentalEstimatedCost: Number(result.gpuRentalEstimatedCost || 0),
         gpuRentalActualCost: Number(result.gpuRentalActualCost || 0),
         humanIdentityApproval: result.humanIdentityApproval || "PENDING",
+        networkVolumeId: result.networkVolumeId || null,
+        networkVolumeDataCenterId: result.networkVolumeDataCenterId || null,
+        networkVolumeSizeGb: Number(result.networkVolumeSizeGb || 0),
+        networkVolumeRetained: result.networkVolumeRetained === true,
+        estimatedMonthlyStorageUsd: Number(result.estimatedMonthlyStorageUsd || 0),
         fullEpisodeAuthorized: false,
         logTail: execution.logTail
     };
