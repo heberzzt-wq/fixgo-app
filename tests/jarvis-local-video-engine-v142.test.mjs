@@ -7710,6 +7710,13 @@ test("V142 SIA7 HuMo executor is typed, budget-capped, source-pinned and control
     assert.equal(workerSource.includes("spawn(job.command"), false);
 });
 
+test("V142 HuMo placement treats undocumented catalog volume metadata as non-authoritative", () => {
+    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    assert.equal(engineSource.includes("return [dataCenterId, true];"), true);
+    assert.equal(engineSource.includes("types.length === 0 || types.includes(RUNPOD_WAN22_CACHE_BASE.networkVolumeType)"), true);
+    assert.match(engineSource, /networkVolumeSupported: dataCenterSupport\.get\(dataCenterId\) === true/);
+});
+
 test("V142 HuMo runtime certification stays ephemeral while identity CLI uses a retained network volume", () => {
     const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
     assert.equal(engineSource.includes("persistentVolumeDisabled = isHuMoRemoteJob(job)"), true);
