@@ -7717,6 +7717,21 @@ test("V142 HuMo placement treats undocumented catalog volume metadata as non-aut
     assert.match(engineSource, /networkVolumeSupported: dataCenterSupport\.get\(dataCenterId\) === true/);
 });
 
+test("V142 HuMo Network Volume creation reconciles ambiguous 5xx and falls back without blind duplicates", () => {
+    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+    assert.match(bridgeSource, /retryableVolumeError/);
+    assert.match(bridgeSource, /recoverVolume/);
+    assert.match(bridgeSource, /eligible\.slice\(1\)/);
+    assert.match(bridgeSource, /provider\("GET", "\/networkvolumes", null, \[200\]\)/);
+    assert.match(bridgeSource, /fallbackDataCenterId/);
+    assert.match(bridgeSource, /created\.name\.startsWith\(prefix\)/);
+    assert.match(bridgeSource, /eligibleDc\.has\(created\.dataCenterId\)/);
+    assert.match(bridgeSource, /eligible\.find\(item => String\(item\.dataCenterId\) === created\.dataCenterId\)/);
+    const retryBlock = bridgeSource.slice(bridgeSource.indexOf("const retryableVolumeError"), bridgeSource.indexOf("const recoverVolume"));
+    assert.equal(retryBlock.includes("status === 401"), false);
+    assert.equal(retryBlock.includes("status === 403"), false);
+});
+
 test("V142 HuMo runtime certification stays ephemeral while identity CLI uses a retained network volume", () => {
     const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
     assert.equal(engineSource.includes("persistentVolumeDisabled = isHuMoRemoteJob(job)"), true);

@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-humo-volume-fallback-economic-receipt-20260907-125",
-  "completedAt": "2026-09-07T18:10:11.285Z",
+  "jobId": "v142-humo-volume-retry-contract-test-20260907-126",
+  "completedAt": "2026-09-07T18:12:26.725Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "jarvis-fs-bridge.js",
+  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 353384,
-  "bytesAfter": 353463,
+  "bytesBefore": 397153,
+  "bytesAfter": 398211,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "jarvis-fs-bridge.js"
+    "tests/jarvis-local-video-engine-v142.test.mjs"
   ]
 }
