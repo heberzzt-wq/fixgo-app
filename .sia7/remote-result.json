@@ -1,8 +1,8 @@
 {
-  "jobId": "v142-humo-graphql-diagnostic-cli-recover-20260907-143a",
-  "completedAt": "2026-09-07T19:40:44.253Z",
+  "jobId": "v142-humo-graphql-diagnostic-cli-recover-20260907-143b",
+  "completedAt": "2026-09-07T19:41:56.096Z",
   "ok": false,
-  "error": "PATCH_MATCH_COUNT_MISMATCH:2:1",
+  "error": "RESULT_SYNC_FAILED: From https://github.com/heberzzt-wq/fixgo-app\n * branch              v94-media-v4n-negative-claims -> FETCH_HEAD\nerror: unable to write file .git/objects/27/61293e03cc3115a1516223cf5cd6ee549f81d4: Permission denied\nCannot record working tree state\nfatal: Cannot autostash\n",
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
