@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-ephemeral-staging-gate-20260906-17",
+  "jobId": "v142-humo-ephemeral-staging-gate-20260906-17b",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        writeRemoteRuntimeBootstrapFile(state.bootstrapFile, state);",
-    "replace": "        if (state.runtimeKind === \"humo\" && !state.runtimeCertificationOnly && !state.networkVolumeId) {\n            const transferPlan = state.localCacheTransferPrecheck;\n            if (transferPlan?.ok !== true || transferPlan?.cacheMode !== \"LOCAL_TO_EPHEMERAL\") {\n                throw new Error(\"LOCAL_HUMO_CACHE_TRANSFER_PLAN_REQUIRED\");\n            }\n            if (typeof stageHuMoLocalCacheToEphemeralImpl !== \"function\") {\n                throw new Error(\"LOCAL_HUMO_EPHEMERAL_STAGER_REQUIRED\");\n            }\n            const staged = await stageHuMoLocalCacheToEphemeralImpl({ state, transferPlan });\n            if (\n                staged?.ok !== true ||\n                staged?.shaVerified !== true ||\n                Number(staged?.assetsVerified || 0) !== Number(transferPlan.assetCount || 0) ||\n                Number(staged?.totalBytes || 0) !== Number(transferPlan.transferBytes || 0)\n            ) {\n                throw new Error(staged?.status || \"LOCAL_HUMO_EPHEMERAL_STAGE_FAILED\");\n            }\n        }\n        writeRemoteRuntimeBootstrapFile(state.bootstrapFile, state);"
+    "search": "        await sshCommand(state, `mkdir -p ${shellSingleQuote(state.remoteOperationDir + \"/assets\")}`);",
+    "replace": "        if (state.runtimeKind === \"humo\" && !state.runtimeCertificationOnly && !state.networkVolumeId) {\n            const transferPlan = state.localCacheTransferPrecheck;\n            if (transferPlan?.ok !== true || transferPlan?.cacheMode !== \"LOCAL_TO_EPHEMERAL\") {\n                throw new Error(\"LOCAL_HUMO_CACHE_TRANSFER_PLAN_REQUIRED\");\n            }\n            if (typeof stageHuMoLocalCacheToEphemeralImpl !== \"function\") {\n                throw new Error(\"LOCAL_HUMO_EPHEMERAL_STAGER_REQUIRED\");\n            }\n            const staged = await stageHuMoLocalCacheToEphemeralImpl({ state, transferPlan });\n            if (\n                staged?.ok !== true ||\n                staged?.shaVerified !== true ||\n                Number(staged?.assetsVerified || 0) !== Number(transferPlan.assetCount || 0) ||\n                Number(staged?.totalBytes || 0) !== Number(transferPlan.transferBytes || 0)\n            ) {\n                throw new Error(staged?.status || \"LOCAL_HUMO_EPHEMERAL_STAGE_FAILED\");\n            }\n        }\n        await sshCommand(state, `mkdir -p ${shellSingleQuote(state.remoteOperationDir + \"/assets\")}`);"
   }
 }
