@@ -1,12 +1,10 @@
 {
-  "jobId": "v142-humo-standard-volume-assertion-20260907-135",
-  "operation": "patch",
+  "jobId": "v142-humo-identity-preflight-20260907-136",
+  "operation": "humo_identity_probe",
   "humanApproved": true,
-  "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "    assert.equal(bridgeSource.includes(\"type: \\\"STANDARD\\\"\"), false);",
-    "replace": "    assert.equal(bridgeSource.includes(\"type: \\\"STANDARD\\\"\"), true);"
-  }
+  "expectedBaseSha": "7f247e7904a9907b753c57c5825a5fb6220a6a24",
+  "hardBudgetUsd": 3,
+  "monthlyStorageAuthorizedUsd": 3.5,
+  "executePaid": false,
+  "fullEpisodeAuthorized": false
 }
