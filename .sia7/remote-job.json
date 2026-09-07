@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-gpu-populate-contract-test-20260907-83",
+  "jobId": "v142-humo-gpu-populate-contract-test-20260907-83a",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "test(\"V142 HuMo GPU bootstrap contains verification only and CPU owns resumable transfers\", () => {\n    const source=fs.readFileSync(new URL(\"../jarvis-local-video-engine.js\", import.meta.url),\"utf8\");\n    const gpu=source.slice(source.indexOf(\"    function writeHuMoRuntimeBootstrapFile(\"),source.indexOf(\"    function writeRemoteRuntimeBootstrapFile(\"));\n    assert.doesNotMatch(gpu,/hf.*download|hf_hub_download|HF_HUB_DISABLE_XET|--max-workers/);\n    assert.match(gpu,/persistentModelEvidenceProgram/);\n    assert.match(gpu,/model-integrity.json/);\n    assert.equal(RUNPOD_HUMO_CACHE_BASE.requiredFiles.length,12);\n    assert.ok(RUNPOD_HUMO_CACHE_BASE.totalBytes>22e9);\n    assert.equal(RUNPOD_HUMO_CACHE_BASE.persistentVenv,false);\n});",
-    "replace": "test(\"V142 HuMo GPU bootstrap may populate an explicitly authorized persistent cache and then physically verifies it\", () => {\n    const source=fs.readFileSync(new URL(\"../jarvis-local-video-engine.js\", import.meta.url),\"utf8\");\n    const gpu=source.slice(source.indexOf(\"    function writeHuMoRuntimeBootstrapFile(\"),source.indexOf(\"    function writeRemoteRuntimeBootstrapFile(\"));\n    assert.match(gpu,/populatePersistentHuMoCacheAuthorized/);\n    assert.match(gpu,/POPULATE_PERSISTENT_HUMO_CACHE/);\n    assert.match(gpu,/HUMO_ASSETS_POPULATE/);\n    assert.match(gpu,/HF_XET_CHUNK_CACHE_SIZE_BYTES=0/);\n    assert.match(gpu,/persistentModelEvidenceProgram/);\n    assert.match(gpu,/model-integrity.json/);\n    assert.equal(RUNPOD_HUMO_CACHE_BASE.requiredFiles.length,12);\n    assert.ok(RUNPOD_HUMO_CACHE_BASE.totalBytes>22e9);\n    assert.equal(RUNPOD_HUMO_CACHE_BASE.minimumNetworkVolumeGb,50);\n    assert.equal(RUNPOD_HUMO_CACHE_BASE.persistentVenv,false);\n});"
+    "search": "test(\"V142 HuMo GPU bootstrap contains verification only and CPU owns resumable transfers\", () => {",
+    "replace": "test(\"V142 HuMo GPU bootstrap may populate an explicitly authorized persistent cache and then physically verifies it\", () => {"
   }
 }
