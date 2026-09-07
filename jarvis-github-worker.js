@@ -384,6 +384,9 @@ function runHuMoIdentityProbeProcess(env) {
 }
 
 async function executeHuMoIdentityProbeJob(job = {}) {
+    if (sha256File(SIA7_WORKER_SOURCE_FILE) !== SIA7_WORKER_SOURCE_SHA256_AT_START) {
+        throw new Error("SIA7_WORKER_RESTART_REQUIRED");
+    }
     const scope = await validateHuMoIdentityProbeScope(job);
     const hardBudgetUsd = Number(job.hardBudgetUsd);
     const monthlyStorageAuthorizedUsd = Number(job.monthlyStorageAuthorizedUsd);
