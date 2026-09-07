@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-persistent-identity-cli-test-20260907-89a",
+  "jobId": "v142-humo-probe-budget-contract-test-20260907-89b",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    assert.match(identityCli, /resolveHuMoLanCacheAuthority/);",
-    "replace": "    assert.doesNotMatch(identityCli, /resolveHuMoLanCacheAuthority/);\n    assert.match(identityCli, /ensureHuMoPersistentNetworkVolume/);\n    assert.match(identityCli, /JARVIS_RUNPOD_RETAIN_NETWORK_VOLUME_AUTHORIZED/);\n    assert.match(identityCli, /JARVIS_RUNPOD_HUMO_CACHE_POPULATE_ON_GPU_AUTHORIZED/);"
+    "search": "    assert.match(bridgeSource, /requestedHardBudgetUsd > 1/);",
+    "replace": "    assert.match(bridgeSource, /requestedHardBudgetUsd > 3/);"
   }
 }
