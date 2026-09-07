@@ -7718,6 +7718,12 @@ test("V142 SIA7 HuMo executor is typed, budget-capped, source-pinned and control
     assert.equal(workerSource.includes("SIA7_HUMO_MONTHLY_STORAGE_USD = 3.5"), true);
     assert.equal(workerSource.includes("SIA7_HUMO_CHARACTER_ID = \"CHAR_HEBERTO\""), true);
     assert.equal(workerSource.includes("SIA7_HUMO_REFERENCE_SHA256 = \"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\""), true);
+    assert.equal(workerSource.includes("SIA7_HUMO_REFERENCE_OUTPUT_2 = \".jarvis-artifacts/uploads/1787783430832-b401b4761075-IMG_20241216_111105551_HDR.jpg\""), true);
+    assert.equal(workerSource.includes("SIA7_HUMO_REFERENCE_SHA256_2 = \"b401b476107521d9e3de3b267885bf91de956b644072a01e7373ab5476a3b6f3\""), true);
+    assert.equal(workerSource.includes("SIA7_HUMO_REFERENCE_2_MISSING"), true);
+    assert.equal(workerSource.includes("SIA7_HUMO_REFERENCE_2_SHA_MISMATCH"), true);
+    assert.equal(workerSource.includes("JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_OUTPUT_2: SIA7_HUMO_REFERENCE_OUTPUT_2"), true);
+    assert.equal(workerSource.includes("JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_2: SIA7_HUMO_REFERENCE_SHA256_2"), true);
     assert.equal(workerSource.includes("SIA7_HUMO_AUDIO_SHA256 = \"294861191281abdcc32a0d8fcef6102832e784d95e73e0e55a75fde7ecfc35ad\""), true);
     assert.match(workerSource, /operation === \"humo_identity_probe\"/);
     assert.match(workerSource, /executePaid !== true/);
