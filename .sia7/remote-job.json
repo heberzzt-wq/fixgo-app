@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-lan-path-literal-20260906-61",
+  "jobId": "v142-humo-lan-row-path-literal-20260906-62",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            \"  $expectedPath=(([string]$e.path) -replace '\\\\','/')\",",
-    "replace": "            \"  $expectedPath=([string]$e.path).Replace([char]92,'/')\","
+    "search": "            \"  $row=@($c.files | Where-Object { (([string]$_.path) -replace '\\\\','/') -eq $expectedPath })\",",
+    "replace": "            \"  $row=@($c.files | Where-Object { ([string]$_.path).Replace([char]92,'/') -eq $expectedPath })\","
   }
 }
