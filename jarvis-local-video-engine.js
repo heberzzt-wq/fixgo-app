@@ -4555,7 +4555,7 @@ export function createRunpodRemoteVideoAdapter({
                 "export HF_HOME=\"$CACHE_ROOT/.cache/huggingface\" HF_HUB_DISABLE_TELEMETRY=1",
                 "export HF_HUB_CACHE=\"$HF_HOME/hub\" HF_XET_CACHE=\"$HF_HOME/xet\"",
                 "unset HF_HUB_DISABLE_XET HF_XET_HIGH_PERFORMANCE HF_HUB_ENABLE_HF_TRANSFER",
-                "export HF_XET_CHUNK_CACHE_SIZE_BYTES=10000000000",
+                "export HF_XET_CHUNK_CACHE_SIZE_BYTES=0 HF_XET_SHARD_CACHE_SIZE_LIMIT=0",
                 "export HF_HUB_DOWNLOAD_TIMEOUT=120",
                 `"$CPU_TOOLS_VENV/bin/python" - "$CACHE_ROOT" stage ${shellSingleQuote(networkVolumeId)} ${shellSingleQuote(runtimeCertificationDataCenterId)} <<'PY'`,
                 networkVolumeId ? persistentModelEvidenceProgram() : localEphemeralModelEvidenceProgram(), "PY",
