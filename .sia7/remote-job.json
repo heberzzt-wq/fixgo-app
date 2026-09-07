@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-ephemeral-stage-authority-20260907-70a",
+  "jobId": "v142-humo-persistent-volume-guard-20260907-71",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            if (!networkVolumeId || !runtimeCertificationDataCenterId) throw new Error(\"RUNPOD_HUMO_CACHE_REQUIRED\");",
-    "replace": "            if (!runtimeCertificationDataCenterId) throw new Error(\"RUNPOD_HUMO_DATACENTER_REQUIRED\");"
+    "search": "            if (!runtimeCertificationDataCenterId) throw new Error(\"RUNPOD_HUMO_DATACENTER_REQUIRED\");",
+    "replace": "            if (!networkVolumeId || !runtimeCertificationDataCenterId) throw new Error(\"RUNPOD_HUMO_CACHE_REQUIRED\");"
   }
 }
