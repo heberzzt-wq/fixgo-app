@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-8s-worker-env-20260907-163",
+  "jobId": "v142-humo-8s-regression-gate-20260907-164",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-github-worker.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        JARVIS_HUMO_IDENTITY_PROBE_DURATION_SECONDS: \"3.88\",",
-    "replace": "        JARVIS_HUMO_IDENTITY_PROBE_DURATION_SECONDS: \"8\","
+    "search": "    assert.equal(runner.includes('dtype=self.whisper.encoder.conv1.weight.dtype'), true);",
+    "replace": "    assert.equal(runner.includes('dtype=self.whisper.encoder.conv1.weight.dtype'), true);\r\n    assert.equal(runner.includes('\\\"frame_count\\\": 201'), true);\r\n    assert.equal(runner.includes('\\\"probe_duration_seconds\\\": 8.0'), true);"
   }
 }
