@@ -4151,6 +4151,46 @@ export function createRunpodRemoteVideoAdapter({
         if (!networkVolumeId) throw new Error("RUNPOD_HUMO_CACHE_REQUIRED");
         if (!retainNetworkVolumeAuthorized) throw new Error("RUNPOD_NETWORK_VOLUME_RETENTION_AUTHORITY_REQUIRED");
         const volume = await resolveNetworkVolume(operationId);
+        const cpuStageReceiptPath = String(env.JARVIS_RUNPOD_CPU_STAGED_CACHE_RECEIPT || "").trim();
+        if (cpuStageReceiptPath) {
+            if (!booleanValue(env.JARVIS_RUNPOD_CPU_STAGED_CACHE_RECEIPT_AUTHORIZED, false)) {
+                throw new Error("RUNPOD_CPU_STAGED_CACHE_RECEIPT_AUTHORITY_REQUIRED");
+            }
+            const receiptFile = path.resolve(cpuStageReceiptPath);
+            const receiptRoot = path.resolve(root);
+            if (receiptFile !== receiptRoot && !receiptFile.startsWith(receiptRoot + path.sep)) {
+                throw new Error("RUNPOD_CPU_STAGED_CACHE_RECEIPT_PATH_INVALID");
+            }
+            if (!fs.existsSync(receiptFile) || !fs.statSync(receiptFile).isFile()) {
+                throw new Error("RUNPOD_CPU_STAGED_CACHE_RECEIPT_REQUIRED");
+            }
+            const receipt = readJson(receiptFile);
+            const manifest = receipt?.manifest || null;
+            if (
+                receipt?.cacheStatus !== "CACHE_MODEL_READY" ||
+                receipt?.shaVerified !== true ||
+                receipt?.inferenceStarted !== false ||
+                receipt?.networkVolumeId !== volume.id ||
+                receipt?.dataCenterId !== volume.dataCenterId ||
+                Number(receipt?.sizeGb || 0) < Number(RUNPOD_HUMO_CACHE_BASE.minimumNetworkVolumeGb || 0) ||
+                String(receipt?.type || "STANDARD").toUpperCase() !== String(RUNPOD_HUMO_CACHE_BASE.networkVolumeType || "STANDARD").toUpperCase() ||
+                !validateModelCacheManifest(manifest) ||
+                manifest.networkVolumeId !== volume.id ||
+                manifest.dataCenterId !== volume.dataCenterId
+            ) {
+                throw new Error("RUNPOD_CPU_STAGED_CACHE_RECEIPT_INVALID");
+            }
+            return {
+                cacheStatus: "CACHE_MODEL_READY",
+                shaVerified: true,
+                totalBytes: RUNPOD_HUMO_CACHE_BASE.totalBytes,
+                volume,
+                manifest,
+                verifiedAt: now().toISOString(),
+                verification: "cpu_staging_receipt_plus_gpu_physical_verify_required",
+                inferenceStarted: false
+            };
+        }
         const prefix = `jarvis-v142/cache/${RUNPOD_HUMO_CACHE_BASE.cacheDirectory}`;
         const readManifest = async () => {
             const response = await readNetworkVolumeAsset(volume, `${prefix}/model-manifest.json`);
