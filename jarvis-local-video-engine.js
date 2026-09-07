@@ -4757,6 +4757,18 @@ export function createRunpodRemoteVideoAdapter({
             "else",
             "  progress HUMO_ASSETS_VERIFY RUNNING",
             networkVolumeId ? "  mountpoint -q /workspace" : "  test -d \"$CACHE_ROOT\" && test -d \"$HUMO_REPO\"",
+            ...(networkVolumeId && populatePersistentHuMoCacheAuthorized ? [
+                "  progress HUMO_ASSETS_POPULATE RUNNING",
+                "  CACHE_TOOLS_VENV=\"$CACHE_ROOT/cache-tools-venv\"",
+                `  test -x "$CACHE_TOOLS_VENV/bin/python" || ${shellSingleQuote(authority.remoteRuntimeBase.basePythonExecutable)} -m venv "$CACHE_TOOLS_VENV"`,
+                `  "$CACHE_TOOLS_VENV/bin/python" -m pip install --disable-pip-version-check --no-input 'huggingface_hub==${RUNPOD_HUMO_CACHE_BASE.downloadTools.huggingfaceHub}' 'hf-xet==${RUNPOD_HUMO_CACHE_BASE.downloadTools.hfXet}'`,
+                "  export HF_HOME=\"$CACHE_ROOT/.cache/huggingface\" HF_HUB_CACHE=\"$CACHE_ROOT/.cache/huggingface/hub\" HF_XET_CACHE=\"$CACHE_ROOT/.cache/huggingface/xet\"",
+                "  export HF_HUB_DISABLE_TELEMETRY=1 HF_XET_CHUNK_CACHE_SIZE_BYTES=0 HF_XET_SHARD_CACHE_SIZE_LIMIT=0 HF_HUB_DOWNLOAD_TIMEOUT=120",
+                `  "$CACHE_TOOLS_VENV/bin/python" - "$CACHE_ROOT" stage ${shellSingleQuote(networkVolumeId)} ${shellSingleQuote(runtimeCertificationDataCenterId)} ${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))} <<'PY'`,
+                persistentModelEvidenceProgram(),
+                "PY",
+                "  progress HUMO_ASSETS_POPULATE READY"
+            ] : []),
             networkVolumeId
                 ? `  "$VENV/bin/python" - "$CACHE_ROOT" verify ${shellSingleQuote(networkVolumeId)} ${shellSingleQuote(runtimeCertificationDataCenterId)} ${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))} > "$(dirname "$PROGRESS")/model-integrity.json" <<'PY'`
                 : `  "$VENV/bin/python" - "$CACHE_ROOT" "$HUMO_REPO" ${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))} > "$(dirname "$PROGRESS")/model-integrity.json" <<'PY'`,
