@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-two-reference-receipt-20260907-188",
+  "jobId": "v142-humo-worker-freshness-regression-20260907-189",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-github-worker.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            durationSeconds: 8.0,",
-    "replace": "            durationSeconds: 8.0,\n            referenceCount: 2,\n            referenceSha256s: [SIA7_HUMO_REFERENCE_SHA256, SIA7_HUMO_REFERENCE_SHA256_2],\n            audioSha256: SIA7_HUMO_AUDIO_SHA256,"
+    "search": "    assert.equal(workerSource.includes(\"JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_2: SIA7_HUMO_REFERENCE_SHA256_2\"), true);",
+    "replace": "    assert.equal(workerSource.includes(\"JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_2: SIA7_HUMO_REFERENCE_SHA256_2\"), true);\n    assert.equal(workerSource.includes(\"SIA7_WORKER_SOURCE_SHA256_AT_START\"), true);\n    assert.equal(workerSource.includes(\"SIA7_WORKER_RESTART_REQUIRED\"), true);\n    assert.equal(workerSource.includes(\"durationSeconds: 8.0\"), true);\n    assert.equal(workerSource.includes(\"referenceCount: 2\"), true);\n    assert.equal(workerSource.includes(\"referenceSha256s: [SIA7_HUMO_REFERENCE_SHA256, SIA7_HUMO_REFERENCE_SHA256_2]\"), true);"
   }
 }
