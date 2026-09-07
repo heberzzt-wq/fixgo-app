@@ -290,6 +290,9 @@ function sha256File(file) {
     return createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 }
 
+const SIA7_WORKER_SOURCE_FILE = path.resolve(REPO_ROOT, "jarvis-github-worker.js");
+const SIA7_WORKER_SOURCE_SHA256_AT_START = sha256File(SIA7_WORKER_SOURCE_FILE);
+
 async function currentHeadSha() {
     const result = await runGit(["rev-parse", "HEAD"]);
     const sha = String(result.stdout || "").trim().toLowerCase();
