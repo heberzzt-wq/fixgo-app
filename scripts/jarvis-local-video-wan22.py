@@ -78,7 +78,7 @@ BACKENDS: dict[str, dict[str, Any]] = {
         "probe_height": 480,
         "target_fps": 25.0,
         "frame_count": 201,
-        "probe_duration_seconds": 3.88,
+        "probe_duration_seconds": 8.0,
         "reference_assets": True,
         "max_reference_assets": 3,
         "maximum_identity_count": 1,

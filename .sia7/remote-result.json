@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-8s-framecount-20260907-154",
-  "completedAt": "2026-09-07T22:46:19.190Z",
+  "jobId": "v142-humo-8s-duration-20260907-155",
+  "completedAt": "2026-09-07T22:46:39.230Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "scripts/jarvis-local-video-wan22.py",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 43757,
-  "bytesAfter": 43758,
+  "bytesBefore": 43758,
+  "bytesAfter": 43757,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
