@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-lan-cache-inspector-20260906-31",
-  "completedAt": "2026-09-07T01:45:04.429Z",
+  "jobId": "v142-humo-lan-ephemeral-stager-20260906-32",
+  "completedAt": "2026-09-07T01:46:59.144Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 322114,
-  "bytesAfter": 327732,
+  "bytesBefore": 327732,
+  "bytesAfter": 338209,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

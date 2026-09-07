@@ -321,6 +321,179 @@ export function createHuMoLanCacheInspector({
     };
 }
 
+function openSshExecutable() {
+    return process.platform === "win32"
+        ? path.join(process.env.SystemRoot || "C:\\Windows", "System32", "OpenSSH", "ssh.exe")
+        : "ssh";
+}
+
+function posixShellSingleQuote(value = "") {
+    return `'${String(value).replace(/'/g, `'\"'\"'`)}'`;
+}
+
+function huMoPodSshArgs(state, remoteCommand) {
+    if (!state?.publicIp || !Number(state?.sshPort) || !state?.privateKeyFile || !state?.knownHostsFile) {
+        throw new Error("HUMO_EPHEMERAL_POD_SSH_IDENTITY_REQUIRED");
+    }
+    return [
+        "-F", "NUL", "-T",
+        "-p", String(state.sshPort),
+        "-o", "BatchMode=yes",
+        "-o", "IdentitiesOnly=yes",
+        "-o", "IdentityAgent=none",
+        "-o", "StrictHostKeyChecking=yes",
+        "-o", `UserKnownHostsFile=${state.knownHostsFile}`,
+        "-o", "ConnectTimeout=20",
+        "-i", state.privateKeyFile,
+        `root@${state.publicIp}`,
+        remoteCommand
+    ];
+}
+
+function spawnCaptured(executable, args, { spawnImpl = spawn, timeoutMs = 120000, maxBytes = 4 * 1024 * 1024 } = {}) {
+    return new Promise((resolve, reject) => {
+        const child = spawnImpl(executable, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+        const stdout = [];
+        const stderr = [];
+        let stdoutBytes = 0;
+        let stderrBytes = 0;
+        let settled = false;
+        const timer = setTimeout(() => {
+            try { child.kill(); } catch {}
+            if (!settled) { settled = true; reject(new Error("HUMO_EPHEMERAL_PROCESS_TIMEOUT")); }
+        }, timeoutMs);
+        child.stdout?.on("data", chunk => {
+            if (stdoutBytes >= maxBytes) return;
+            const slice = Buffer.from(chunk).subarray(0, Math.max(0, maxBytes - stdoutBytes));
+            stdout.push(slice); stdoutBytes += slice.length;
+        });
+        child.stderr?.on("data", chunk => {
+            if (stderrBytes >= maxBytes) return;
+            const slice = Buffer.from(chunk).subarray(0, Math.max(0, maxBytes - stderrBytes));
+            stderr.push(slice); stderrBytes += slice.length;
+        });
+        child.once("error", error => {
+            clearTimeout(timer);
+            if (!settled) { settled = true; reject(error); }
+        });
+        child.once("close", code => {
+            clearTimeout(timer);
+            if (settled) return;
+            settled = true;
+            const result = { code: Number(code), stdout: Buffer.concat(stdout).toString("utf8"), stderr: Buffer.concat(stderr).toString("utf8") };
+            if (code !== 0) {
+                const error = new Error("HUMO_EPHEMERAL_REMOTE_COMMAND_FAILED");
+                error.processResult = result;
+                reject(error);
+                return;
+            }
+            resolve(result);
+        });
+    });
+}
+
+function pipeHuMoLanTarToPod(authority, state, sourceCommand, destinationCommand, { spawnImpl = spawn, timeoutMs = 60 * 60 * 1000 } = {}) {
+    const ssh = openSshExecutable();
+    return new Promise((resolve, reject) => {
+        const destination = spawnImpl(ssh, huMoPodSshArgs(state, destinationCommand), { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
+        const source = spawnImpl(ssh, huMoLanSshArgs(authority, sourceCommand), { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+        let sourceCode = null;
+        let destinationCode = null;
+        let sourceError = "";
+        let destinationError = "";
+        let settled = false;
+        const finish = () => {
+            if (settled || sourceCode === null || destinationCode === null) return;
+            settled = true; clearTimeout(timer);
+            if (sourceCode !== 0 || destinationCode !== 0) {
+                const error = new Error("HUMO_LAN_TO_EPHEMERAL_STREAM_FAILED");
+                error.sourceCode = sourceCode; error.destinationCode = destinationCode;
+                error.sourceError = sourceError.slice(-2000); error.destinationError = destinationError.slice(-2000);
+                reject(error);
+                return;
+            }
+            resolve({ sourceCode, destinationCode });
+        };
+        const timer = setTimeout(() => {
+            try { source.kill(); } catch {}
+            try { destination.kill(); } catch {}
+            if (!settled) { settled = true; reject(new Error("HUMO_LAN_TO_EPHEMERAL_STREAM_TIMEOUT")); }
+        }, timeoutMs);
+        source.stderr?.on("data", chunk => { sourceError = (sourceError + Buffer.from(chunk).toString("utf8")).slice(-8000); });
+        destination.stderr?.on("data", chunk => { destinationError = (destinationError + Buffer.from(chunk).toString("utf8")).slice(-8000); });
+        source.once("error", error => { if (!settled) { settled = true; clearTimeout(timer); try { destination.kill(); } catch {}; reject(error); } });
+        destination.once("error", error => { if (!settled) { settled = true; clearTimeout(timer); try { source.kill(); } catch {}; reject(error); } });
+        source.stdout.pipe(destination.stdin);
+        source.once("close", code => { sourceCode = Number(code); finish(); });
+        destination.once("close", code => { destinationCode = Number(code); finish(); });
+    });
+}
+
+export function createHuMoLanEphemeralStager({ authority, spawnImpl = spawn } = {}) {
+    return async function stageHuMoLanCacheToEphemeral({ state, transferPlan } = {}) {
+        if (!authority?.configured) throw new Error(authority?.status || "HUMO_LAN_CACHE_AUTHORITY_REQUIRED");
+        if (transferPlan?.ok !== true || transferPlan?.cacheMode !== "LOCAL_TO_EPHEMERAL") {
+            throw new Error("LOCAL_HUMO_CACHE_TRANSFER_PLAN_REQUIRED");
+        }
+        const expectedRoot = path.win32.normalize(String(authority.cacheRoot || "")).toLowerCase();
+        const plannedRoot = path.win32.normalize(String(transferPlan.sourceCacheRoot || "")).toLowerCase();
+        if (!expectedRoot || plannedRoot !== expectedRoot) throw new Error("HUMO_LAN_CACHE_ROOT_IDENTITY_MISMATCH");
+        const destinationRoot = String(transferPlan.destinationCacheRoot || "");
+        if (!destinationRoot.startsWith("/workspace/jarvis-v142/cache/") || destinationRoot.includes("..")) {
+            throw new Error("HUMO_EPHEMERAL_DESTINATION_INVALID");
+        }
+        const relativeFiles = (transferPlan.files || []).map(item => String(item?.path || "").replace(/\\/g, "/"));
+        if (relativeFiles.length !== Number(transferPlan.assetCount || 0) || relativeFiles.some(item => !item || item.startsWith("/") || item.includes("..") || item.includes(":"))) {
+            throw new Error("HUMO_EPHEMERAL_TRANSFER_FILESET_INVALID");
+        }
+        const windowsDoubleQuote = value => `"${String(value).replace(/"/g, '""')}"`;
+        const sourceItems = [...relativeFiles, "HuMo"].map(windowsDoubleQuote).join(" " );
+        const sourceCommand = `cmd.exe /d /s /c ""%SystemRoot%\\System32\\tar.exe" -cf - -C ${windowsDoubleQuote(authority.cacheRoot)} ${sourceItems}"`;
+        const destinationCommand = `rm -rf ${posixShellSingleQuote(destinationRoot)} && mkdir -p ${posixShellSingleQuote(destinationRoot)} && tar -xf - -C ${posixShellSingleQuote(destinationRoot)}`;
+        await pipeHuMoLanTarToPod(authority, state, sourceCommand, destinationCommand, { spawnImpl });
+        const verificationFiles = (transferPlan.files || []).map(item => ({ path: item.path, bytes: item.bytes, sha256: item.sha256 }));
+        const manifestBase64 = Buffer.from(JSON.stringify(verificationFiles), "utf8").toString("base64");
+        const verifier = [
+            "import base64,hashlib,json,pathlib,subprocess,sys",
+            "files=json.loads(base64.b64decode(sys.argv[1]).decode('utf-8'))",
+            "root=pathlib.Path(sys.argv[2]); repo=pathlib.Path(sys.argv[3]); expected_revision=sys.argv[4]",
+            "verified=0; total=0",
+            "for item in files:",
+            "    p=root/item['path']",
+            "    if not p.is_file() or p.is_symlink() or not p.resolve().is_relative_to(root.resolve()): raise SystemExit('HUMO_EPHEMERAL_ASSET_MISSING:'+item['path'])",
+            "    size=p.stat().st_size",
+            "    if size != int(item['bytes']): raise SystemExit('HUMO_EPHEMERAL_ASSET_SIZE_MISMATCH:'+item['path'])",
+            "    h=hashlib.sha256()",
+            "    with p.open('rb') as fh:",
+            "        for chunk in iter(lambda:fh.read(8*1024*1024),b''): h.update(chunk)",
+            "    if h.hexdigest() != item['sha256']: raise SystemExit('HUMO_EPHEMERAL_ASSET_SHA256_MISMATCH:'+item['path'])",
+            "    verified += 1; total += size",
+            "head=subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD'],text=True).strip()",
+            "dirty=subprocess.check_output(['git','-C',str(repo),'status','--porcelain','--untracked-files=no'],text=True).strip()",
+            "if head != expected_revision: raise SystemExit('HUMO_EPHEMERAL_SOURCE_REVISION_MISMATCH')",
+            "if dirty: raise SystemExit('HUMO_EPHEMERAL_SOURCE_MODIFIED')",
+            "print(json.dumps({'ok':True,'shaVerified':True,'assetsVerified':verified,'totalBytes':total,'sourceRevision':head,'sourceRevisionVerified':True},separators=(',',':')))"
+        ].join("\n");
+        const verifyCommand = `python3 -c ${posixShellSingleQuote(verifier)} ${posixShellSingleQuote(manifestBase64)} ${posixShellSingleQuote(destinationRoot)} ${posixShellSingleQuote(String(transferPlan.destinationSourceRepository || `${destinationRoot}/HuMo`))} ${posixShellSingleQuote(String(transferPlan.sourceRevision || ""))}`;
+        const verified = await spawnCaptured(openSshExecutable(), huMoPodSshArgs(state, verifyCommand), { spawnImpl, timeoutMs: 45 * 60 * 1000 });
+        const line = verified.stdout.split(/\r?\n/).filter(Boolean).at(-1);
+        const receipt = JSON.parse(line);
+        if (receipt?.ok !== true || receipt?.shaVerified !== true || receipt?.sourceRevisionVerified !== true || Number(receipt.assetsVerified) !== Number(transferPlan.assetCount) || Number(receipt.totalBytes) !== Number(transferPlan.transferBytes)) {
+            throw new Error("HUMO_EPHEMERAL_STAGE_RECEIPT_INVALID");
+        }
+        return {
+            ...receipt,
+            status: "LOCAL_HUMO_EPHEMERAL_STAGE_READY",
+            cacheMode: "LOCAL_TO_EPHEMERAL",
+            sourceCacheRoot: transferPlan.sourceCacheRoot,
+            destinationCacheRoot: destinationRoot,
+            inferenceStarted: false,
+            externalApiUsed: false,
+            externalEstimatedCostUsd: 0
+        };
+    };
+}
+
 function safeFileStem(value = "artifact") {
     const normalized = String(value || "artifact").normalize("NFD").toLowerCase();
     let result = "";
