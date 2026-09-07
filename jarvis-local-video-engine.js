@@ -133,7 +133,7 @@ const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({
         width: 832,
         height: 480,
         fps: 25,
-        frames: 97,
+        frames: 201,
         durationSeconds: 3.88,
         orientation: "landscape"
     }),
