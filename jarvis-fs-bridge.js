@@ -8394,7 +8394,7 @@ async function ensureHuMoPersistentNetworkVolume({ root, env, canonicalSha, log 
     const dataCenterId = String(selected.dataCenterId || "");
     const name = `${prefix}${dataCenterId.toLowerCase()}`;
     if (volumes.some(item => item.name === name)) throw new Error("RUNPOD_HUMO_NETWORK_VOLUME_NAME_CONFLICT");
-    const createdRaw = await provider("POST", "/network-volumes", {
+    const createdRaw = await provider("POST", "/networkvolumes", {
         name,
         size: 50,
         dataCenterId,
