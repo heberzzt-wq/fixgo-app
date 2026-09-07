@@ -8670,6 +8670,14 @@ export async function runHuMoIdentityProbeCli({
         [".jpg", ".jpeg", ".png", ".webp"],
         "RUNPOD_HUMO_IDENTITY_PROBE_REFERENCE_INVALID"
     );
+    const secondReferenceOutput = String(env.JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_OUTPUT_2 || "").trim();
+    const secondReference = secondReferenceOutput
+        ? resolveSourceArtifact(
+            secondReferenceOutput,
+            [".jpg", ".jpeg", ".png", ".webp"],
+            "RUNPOD_HUMO_IDENTITY_PROBE_REFERENCE_INVALID"
+        )
+        : null;
     const audio = resolveSourceArtifact(
         env.JARVIS_HUMO_IDENTITY_PROBE_AUDIO_OUTPUT,
         [".wav"],
