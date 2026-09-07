@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-worker-second-reference-sha-20260907-181",
+  "jobId": "v142-humo-worker-second-reference-env-20260907-182",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    if (sha256File(referenceFile) !== SIA7_HUMO_REFERENCE_SHA256) throw new Error(\"SIA7_HUMO_REFERENCE_SHA_MISMATCH\");",
-    "replace": "    if (sha256File(referenceFile) !== SIA7_HUMO_REFERENCE_SHA256) throw new Error(\"SIA7_HUMO_REFERENCE_SHA_MISMATCH\");\n    if (sha256File(secondReferenceFile) !== SIA7_HUMO_REFERENCE_SHA256_2) throw new Error(\"SIA7_HUMO_REFERENCE_2_SHA_MISMATCH\");"
+    "search": "        JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256: SIA7_HUMO_REFERENCE_SHA256,",
+    "replace": "        JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256: SIA7_HUMO_REFERENCE_SHA256,\n        JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_OUTPUT_2: SIA7_HUMO_REFERENCE_OUTPUT_2,\n        JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_2: SIA7_HUMO_REFERENCE_SHA256_2,"
   }
 }
