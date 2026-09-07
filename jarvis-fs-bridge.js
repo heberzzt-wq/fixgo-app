@@ -8302,6 +8302,156 @@ export async function runHuMoRuntimeCertificationCli({
     return final;
 }
 
+const RUNPODCTL_V142 = Object.freeze({
+    version: "v2.7.1",
+    url: "https://github.com/runpod/runpodctl/releases/download/v2.7.1/runpodctl-windows-amd64.exe",
+    sha256: "d0be7de83ba023392bc3d680eec44e45f1cbb3bc9d6bf117b0f575078d3e9443"
+});
+
+async function resolveManagedRunpodctl({ env = process.env } = {}) {
+    if (process.platform !== "win32") throw new Error("RUNPODCTL_WINDOWS_REQUIRED");
+    const localAppData = String(env.LOCALAPPDATA || "").trim();
+    if (!localAppData) throw new Error("RUNPODCTL_LOCALAPPDATA_REQUIRED");
+    const directory = path.join(localAppData, "PeninsulaTech", "Jarvis", "tools");
+    const executable = path.join(directory, `runpodctl-${RUNPODCTL_V142.version}-windows-amd64.exe`);
+    const hashFile = file => createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+    if (fs.existsSync(executable) && hashFile(executable) !== RUNPODCTL_V142.sha256) {
+        fs.rmSync(executable, { force: true });
+    }
+    if (!fs.existsSync(executable)) {
+        fs.mkdirSync(directory, { recursive: true });
+        const temporary = executable + `.partial-${randomUUID()}`;
+        try {
+            const response = await fetch(RUNPODCTL_V142.url, {
+                redirect: "follow",
+                signal: AbortSignal.timeout(120000)
+            });
+            if (!response.ok) throw new Error(`RUNPODCTL_DOWNLOAD_HTTP_${response.status}`);
+            const bytes = Buffer.from(await response.arrayBuffer());
+            const observed = createHash("sha256").update(bytes).digest("hex");
+            if (observed !== RUNPODCTL_V142.sha256) throw new Error("RUNPODCTL_DOWNLOAD_SHA256_MISMATCH");
+            fs.writeFileSync(temporary, bytes, { flag: "wx" });
+            fs.renameSync(temporary, executable);
+        }
+        finally {
+            fs.rmSync(temporary, { force: true });
+        }
+    }
+    if (hashFile(executable) !== RUNPODCTL_V142.sha256) throw new Error("RUNPODCTL_BINARY_SHA256_MISMATCH");
+    return executable;
+}
+
+async function runRunpodctlJson(args = [], env = process.env) {
+    const executable = await resolveManagedRunpodctl({ env });
+    return await new Promise((resolve, reject) => {
+        const child = spawn(executable, args, {
+            cwd: path.dirname(executable),
+            shell: false,
+            windowsHide: true,
+            stdio: ["ignore", "pipe", "pipe"],
+            env: { ...env, RUNPOD_API_KEY: String(env.RUNPOD_API_KEY || "").trim() }
+        });
+        let stdout = "";
+        let stderr = "";
+        const append = (current, chunk) => (current + chunk.toString()).slice(-2 * 1024 * 1024);
+        child.stdout.on("data", chunk => { stdout = append(stdout, chunk); });
+        child.stderr.on("data", chunk => { stderr = append(stderr, chunk); });
+        child.on("error", reject);
+        child.on("close", code => {
+            if (code !== 0) {
+                let detail = stderr.trim() || stdout.trim() || `exit_${code}`;
+                try { detail = String(JSON.parse(stderr.trim())?.error || detail); } catch {}
+                const error = new Error("RUNPODCTL_COMMAND_FAILED");
+                error.providerMessage = detail.replace(/\s+/g, " " ).slice(0, 500);
+                reject(error);
+                return;
+            }
+            try {
+                resolve(stdout.trim() ? JSON.parse(stdout) : null);
+            }
+            catch {
+                reject(new Error("RUNPODCTL_RESPONSE_INVALID"));
+            }
+        });
+    });
+}
+
+function normalizeRunpodctlNetworkVolumes(payload) {
+    const raw = Array.isArray(payload) ? payload :
+        (Array.isArray(payload?.networkVolumes) ? payload.networkVolumes :
+            (Array.isArray(payload?.items) ? payload.items : (payload && typeof payload === "object" ? [payload] : [])));
+    return raw.map(volume => ({
+        id: String(volume?.id || "").trim(),
+        name: String(volume?.name || "").trim(),
+        sizeGb: Number(volume?.size ?? volume?.sizeGb ?? volume?.sizeInGb ?? 0),
+        dataCenterId: String(volume?.dataCenterId || volume?.dataCenter?.id || volume?.dataCenter || "").trim(),
+        type: String(volume?.type || volume?.volumeType || "STANDARD").trim().toUpperCase()
+    })).filter(volume => volume.id);
+}
+
+async function ensureHuMoPersistentNetworkVolumeWithRunpodctl({ eligible, credential, env, log = () => {} } = {}) {
+    const truthy = value => ["true", "1", "yes", "on"].includes(String(value || "").trim().toLowerCase());
+    if (!truthy(env.JARVIS_RUNPOD_CREATE_HUMO_NETWORK_VOLUME_AUTHORIZED)) {
+        throw new Error("RUNPOD_HUMO_NETWORK_VOLUME_CREATION_AUTHORITY_REQUIRED");
+    }
+    const cliEnv = { ...credential.env, RUNPOD_API_KEY: credential.env.RUNPOD_API_KEY };
+    const listVolumes = async () => normalizeRunpodctlNetworkVolumes(
+        await runRunpodctlJson(["network-volume", "list"], cliEnv)
+    );
+    const prefix = "jarvis-v142-humo-1-7b-";
+    const eligibleDc = new Set(eligible.map(item => String(item.dataCenterId || "")));
+    const initial = await listVolumes();
+    const reusable = initial.filter(item =>
+        item.name.startsWith(prefix) && item.sizeGb >= 50 && item.type === "STANDARD" && eligibleDc.has(item.dataCenterId)
+    );
+    if (reusable.length > 1) throw new Error("RUNPOD_HUMO_NETWORK_VOLUME_AMBIGUOUS");
+    if (reusable.length === 1) {
+        log({ ok: true, status: "HUMO_NETWORK_VOLUME_REUSED_RUNPODCTL", ...reusable[0], created: false, runpodctlVersion: RUNPODCTL_V142.version });
+        return { ...reusable[0], created: false };
+    }
+    let lastError = null;
+    for (const candidate of eligible) {
+        const dataCenterId = String(candidate.dataCenterId || "");
+        const name = `${prefix}${dataCenterId.toLowerCase()}`;
+        const conflict = initial.find(item => item.name === name);
+        if (conflict && (conflict.dataCenterId !== dataCenterId || conflict.sizeGb < 50 || conflict.type !== "STANDARD")) {
+            lastError = new Error("RUNPOD_HUMO_NETWORK_VOLUME_NAME_CONFLICT");
+            continue;
+        }
+        try {
+            const createdPayload = await runRunpodctlJson([
+                "network-volume", "create",
+                "--name", name,
+                "--size", "50",
+                "--data-center-id", dataCenterId
+            ], cliEnv);
+            const created = normalizeRunpodctlNetworkVolumes(createdPayload)[0] || null;
+            if (!created?.id || created.name !== name || created.dataCenterId !== dataCenterId || created.sizeGb < 50) {
+                throw new Error("RUNPODCTL_NETWORK_VOLUME_CREATE_RESPONSE_INVALID");
+            }
+            log({ ok: true, status: "HUMO_NETWORK_VOLUME_CREATED_RUNPODCTL", ...created, created: true, runpodctlVersion: RUNPODCTL_V142.version, estimatedMonthlyStorageUsd: 3.5, gpuHourlyRateUsd: Number(candidate.hourlyRateUsd) });
+            return { ...created, type: "STANDARD", created: true };
+        }
+        catch(error) {
+            lastError = error;
+            let refreshed = [];
+            try { refreshed = await listVolumes(); } catch {}
+            const recovered = refreshed.filter(item => item.name === name && item.dataCenterId === dataCenterId);
+            if (recovered.length > 1) throw new Error("RUNPOD_HUMO_NETWORK_VOLUME_AMBIGUOUS");
+            if (recovered.length === 1 && recovered[0].sizeGb >= 50) {
+                log({ ok: true, status: "HUMO_NETWORK_VOLUME_RECOVERED_RUNPODCTL", ...recovered[0], created: true, runpodctlVersion: RUNPODCTL_V142.version, estimatedMonthlyStorageUsd: 3.5, gpuHourlyRateUsd: Number(candidate.hourlyRateUsd) });
+                return { ...recovered[0], type: "STANDARD", created: true };
+            }
+        }
+    }
+    if (lastError?.providerMessage) {
+        const error = new Error("RUNPODCTL_NETWORK_VOLUME_CREATE_FAILED");
+        error.providerMessage = lastError.providerMessage;
+        throw error;
+    }
+    throw lastError || new Error("RUNPODCTL_NETWORK_VOLUME_CREATE_FAILED");
+}
+
 async function ensureHuMoPersistentNetworkVolume({ root, env, canonicalSha, log = () => {} } = {}) {
     const truthy = value => ["true", "1", "yes", "on"].includes(String(value || "").trim().toLowerCase());
     const credential = resolveRunpodCredentialEnvironment({ env });
