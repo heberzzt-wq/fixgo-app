@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-graphql-diagnostic-cli-recover-20260907-143a",
+  "jobId": "v142-humo-graphql-diagnostic-cli-recover-20260907-143b",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                    providerMessage: error?.providerMessage || null",
-    "replace": "                    providerMessage: String(error?.providerMessage || \"\").slice(0, 1000) || null"
+    "search": "                    status: error?.message || \"HUMO_IDENTITY_PROBE_FAILED\",\r\n                    failureStage: error?.stage || null,\r\n                    providerCode: error?.providerCode || null,\r\n                    providerMessage: error?.providerMessage || null",
+    "replace": "                    status: error?.message || \"HUMO_IDENTITY_PROBE_FAILED\",\r\n                    failureStage: error?.stage || null,\r\n                    providerCode: error?.providerCode || null,\r\n                    providerMessage: String(error?.providerMessage || \"\").slice(0, 1000) || null"
   }
 }
