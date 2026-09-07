@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-ephemeral-verification-state-20260906-27",
-  "completedAt": "2026-09-07T01:33:47.728Z",
+  "jobId": "v142-humo-ephemeral-mounted-state-20260906-28",
+  "completedAt": "2026-09-07T01:34:18.153Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-local-video-engine.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 401595,
-  "bytesAfter": 401667,
+  "bytesBefore": 401667,
+  "bytesAfter": 401693,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

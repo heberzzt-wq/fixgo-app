@@ -6040,7 +6040,7 @@ export function createRunpodRemoteVideoAdapter({
                     }
                     state = writeState(loaded.file, state, { cacheStatus: "CACHE_HIT", modelManifest: mounted,
                         ephemeralCacheVerified: !state.networkVolumeId,
-                        mountedCacheVerified: true, runtimePreflightVerified: true });
+                        mountedCacheVerified: Boolean(state.networkVolumeId), runtimePreflightVerified: true });
                 }
                 if (state.runtimeCertificationOnly === true && state.runtimeKind === "humo") {
                     const certifiedAt = now().toISOString();
