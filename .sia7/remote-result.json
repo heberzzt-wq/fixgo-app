@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-lan-stdin-command-20260906-56",
-  "completedAt": "2026-09-07T02:41:48.887Z",
+  "jobId": "v142-humo-lan-stdin-input-20260906-57",
+  "completedAt": "2026-09-07T02:42:17.940Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 343411,
-  "bytesAfter": 343395,
+  "bytesBefore": 343395,
+  "bytesAfter": 343418,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
