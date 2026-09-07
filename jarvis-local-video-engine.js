@@ -4195,6 +4195,19 @@ export function createRunpodRemoteVideoAdapter({
                 inferenceStarted: false
             };
         }
+        if (populatePersistentHuMoCacheAuthorized) {
+            return {
+                cacheStatus: "CACHE_MISS",
+                shaVerified: false,
+                totalBytes: RUNPOD_HUMO_CACHE_BASE.totalBytes,
+                volume,
+                manifest: null,
+                verifiedAt: null,
+                verification: "gpu_direct_official_stage_authorized",
+                populationAuthorized: true,
+                inferenceStarted: false
+            };
+        }
         const prefix = `jarvis-v142/cache/${RUNPOD_HUMO_CACHE_BASE.cacheDirectory}`;
         const readManifest = async () => {
             const response = await readNetworkVolumeAsset(volume, `${prefix}/model-manifest.json`);
