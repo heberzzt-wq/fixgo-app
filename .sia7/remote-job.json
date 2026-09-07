@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-cpu-cleanup-contract-fix-20260907-96",
+  "jobId": "v142-humo-runpod-v2-api-base-20260907-97",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+    "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        assert.doesNotMatch(script, /torch\\.cuda|import torch|pip install.*flash|CACHE_HIT|CACHE_READY|rm -rf|HF_HUB_DISABLE_XET=1/);",
-    "replace": "        assert.doesNotMatch(script, /torch\\.cuda|import torch|pip install.*flash|CACHE_HIT|CACHE_READY|HF_HUB_DISABLE_XET=1/);"
+    "search": "    const apiBase = String(env.JARVIS_RUNPOD_V2_API_BASE || \"https://v2-rest.runpod.io/v2\").replace(/\\/$/, \"\");",
+    "replace": "    const apiBase = String(env.JARVIS_RUNPOD_V2_API_BASE || \"https://api.runpod.io/v2\").replace(/\\/$/, \"\");"
   }
 }
