@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-volume-reconcile-fallback-20260907-123",
-  "completedAt": "2026-09-07T18:08:40.522Z",
+  "jobId": "v142-humo-volume-fallback-validation-20260907-124",
+  "completedAt": "2026-09-07T18:09:32.044Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 350876,
-  "bytesAfter": 353373,
+  "bytesBefore": 353373,
+  "bytesAfter": 353384,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

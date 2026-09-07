@@ -8452,7 +8452,7 @@ async function ensureHuMoPersistentNetworkVolume({ root, env, canonicalSha, log 
         }
     }
     const created = normalize(createdRaw);
-    if (!created.id || created.name !== name || created.dataCenterId !== dataCenterId ||
+    if (!created.id || !created.name.startsWith(prefix) || !eligibleDc.has(created.dataCenterId) ||
         created.sizeGb < 50 || created.type !== "STANDARD") {
         throw new Error("RUNPOD_HUMO_NETWORK_VOLUME_CREATE_RESPONSE_INVALID");
     }
