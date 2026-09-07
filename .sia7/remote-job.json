@@ -1,12 +1,10 @@
 {
-  "jobId": "v142-sia7-humo-executor-contract-test-20260907-114",
-  "operation": "patch",
+  "jobId": "v142-humo-identity-preflight-20260907-115",
+  "operation": "humo_identity_probe",
   "humanApproved": true,
-  "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "test(\"V142 HuMo runtime certification stays ephemeral while identity CLI uses a retained network volume\", () => {",
-    "replace": "test(\"V142 SIA7 HuMo executor is typed, budget-capped, source-pinned and control-plane-only after certification\", () => {\n    const workerSource = fs.readFileSync(new URL(\"../jarvis-github-worker.js\", import.meta.url), \"utf8\");\n    assert.equal(workerSource.includes(\"SIA7_HUMO_MAX_COMPUTE_USD = 3\"), true);\n    assert.equal(workerSource.includes(\"SIA7_HUMO_MONTHLY_STORAGE_USD = 3.5\"), true);\n    assert.equal(workerSource.includes(\"SIA7_HUMO_CHARACTER_ID = \\\"CHAR_HEBERTO\\\"\"), true);\n    assert.equal(workerSource.includes(\"SIA7_HUMO_REFERENCE_SHA256 = \\\"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\\\"\"), true);\n    assert.equal(workerSource.includes(\"SIA7_HUMO_AUDIO_SHA256 = \\\"294861191281abdcc32a0d8fcef6102832e784d95e73e0e55a75fde7ecfc35ad\\\"\"), true);\n    assert.match(workerSource, /operation === \\\"humo_identity_probe\\\"/);\n    assert.match(workerSource, /executePaid !== true/);\n    assert.match(workerSource, /SIA7_HUMO_PAID_HUMAN_APPROVAL_REQUIRED/);\n    assert.match(workerSource, /SIA7_HUMO_FULL_EPISODE_NOT_AUTHORIZED/);\n    assert.match(workerSource, /SIA7_HUMO_EXECUTION_HEAD_HAS_UNCERTIFIED_CODE/);\n    assert.match(workerSource, /!file\\.startsWith\\(\\\"\\.sia7\\/\\\"\\)/);\n    assert.match(workerSource, /spawn\\(process\\.execPath, \\[\\\"jarvis-fs-bridge\\.js\\\", \\\"--humo-identity-probe\\\"\\]/);\n    assert.match(workerSource, /JARVIS_RUNPOD_CREATE_HUMO_NETWORK_VOLUME_AUTHORIZED: \\\"true\\\"/);\n    assert.equal(workerSource.includes(\"spawn(job.command\"), false);\n});\n\ntest(\"V142 HuMo runtime certification stays ephemeral while identity CLI uses a retained network volume\", () => {"
-  }
+  "executePaid": false,
+  "expectedBaseSha": "6c259b9b22bc60ccfd4d6f9df1f06b9fbc5f2eee",
+  "hardBudgetUsd": 3,
+  "monthlyStorageAuthorizedUsd": 3.5,
+  "fullEpisodeAuthorized": false
 }
