@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-network-volume-50gb-line-20260907-72a",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": "jarvis-local-video-engine.js",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "        networkVolumeType: \"STANDARD\", minimumNetworkVolumeGb: 64,",
-    "replace": "        networkVolumeType: \"STANDARD\", minimumNetworkVolumeGb: 50,"
+  "jobId": "v142-local-run-contract-inspect-20260907-73",
+  "operation": "bridge",
+  "endpoint": "/grep",
+  "body": {
+    "term": "app.post(\"/run\"",
+    "cwd": ".",
+    "maxFiles": 20,
+    "maxFileSizeBytes": 600000,
+    "maxMatches": 20
   }
 }
