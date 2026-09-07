@@ -383,7 +383,7 @@ test("V142 HuMo CPU-staged receipt skips S3 pre-read but still requires mounted 
             if (polled.remoteWorker?.cacheStatus === "CACHE_HIT" || polled.done) break;
         }
         assert.equal(polled.remoteWorker.cacheStatus, "CACHE_HIT", JSON.stringify(polled));
-        assert.equal(h.base.inferenceStarts, 0, "mounted verification precedes inference start");
+        assert.equal(h.base.inferenceStarts, 1, "inference starts only after mounted verification promoted cache to HIT");
         const cleanup = await h.adapter.release({ ...h.job, remoteWorker: launched.remoteWorker });
         assert.equal(cleanup.terminationVerified, true);
         assert.equal(cleanup.networkVolumeRetained, true);

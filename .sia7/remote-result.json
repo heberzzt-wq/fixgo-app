@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-cpu-stage-receipt-tests-20260907-75",
-  "completedAt": "2026-09-07T06:31:22.047Z",
+  "jobId": "v142-humo-cpu-stage-receipt-test-fix-20260907-76",
+  "completedAt": "2026-09-07T13:12:34.343Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "tests/jarvis-local-video-engine-v142.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 391586,
-  "bytesAfter": 394254,
+  "bytesBefore": 394254,
+  "bytesAfter": 394279,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
