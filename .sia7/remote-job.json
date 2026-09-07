@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-8s-worker-dryrun-20260907-162",
+  "jobId": "v142-humo-8s-worker-env-20260907-163",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            durationSeconds: 3.88,",
-    "replace": "            durationSeconds: 8.0,"
+    "search": "        JARVIS_HUMO_IDENTITY_PROBE_DURATION_SECONDS: \"3.88\",",
+    "replace": "        JARVIS_HUMO_IDENTITY_PROBE_DURATION_SECONDS: \"8\","
   }
 }
