@@ -8544,7 +8544,16 @@ export async function runHuMoIdentityProbeCli({
         JARVIS_HUMO_IDENTITY_PROBE_AUTHORIZATION_ID: authorizationId,
         JARVIS_HUMO_IDENTITY_PROBE_CHARACTER_ID: characterId
     };
-    const identityProbeLanAuthority = resolveHuMoLanCacheAuthority({ env: runtimeEnv });
+    const persistentVolume = await ensureHuMoPersistentNetworkVolume({
+        root: resolvedRoot,
+        env: runtimeEnv,
+        canonicalSha,
+        log
+    });
+    runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID = persistentVolume.id;
+    runtimeEnv.JARVIS_RUNPOD_DATACENTER_ID = persistentVolume.dataCenterId;
+    runtimeEnv.JARVIS_RUNPOD_RETAIN_NETWORK_VOLUME_AUTHORIZED = "true";
+    runtimeEnv.JARVIS_RUNPOD_HUMO_CACHE_POPULATE_ON_GPU_AUTHORIZED = "true";
     if (!identityProbeLanAuthority.configured) {
         throw new Error(identityProbeLanAuthority.status || "HUMO_LAN_CACHE_AUTHORITY_REQUIRED");
     }
