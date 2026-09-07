@@ -1,8 +1,8 @@
 {
-  "jobId": "v142-humo-identity-paid-diagnostic-20260907-142",
-  "completedAt": "2026-09-07T19:31:51.515Z",
+  "jobId": "v142-humo-graphql-diagnostic-cli-20260907-143",
+  "completedAt": "2026-09-07T19:39:25.696Z",
   "ok": false,
-  "error": "SIA7_HUMO_IDENTITY_PROBE_FAILED:RUNPOD_PROVISION_GRAPHQL_FAILED",
+  "error": "RESULT_GIT_ADD_FAILED: warning: in the working copy of '.sia7/remote-result.json', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'jarvis-fs-bridge.js', LF will be replaced by CRLF the next time Git touches it\nerror: unable to write file .git/objects/14/65f2c83cf291dc9d6112e87d6a29a57ccc0c22: Permission denied\nerror: jarvis-fs-bridge.js: failed to insert into database\nerror: unable to index file 'jarvis-fs-bridge.js'\nfatal: updating files failed\n",
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
