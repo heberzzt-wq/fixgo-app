@@ -7668,7 +7668,10 @@ test("V142 HuMo paid identity probe authority is mission scoped and never opens 
 test("V142 HuMo GPU bootstrap may populate an explicitly authorized persistent cache and then physically verifies it", () => {
     const source=fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url),"utf8");
     const gpu=source.slice(source.indexOf("    function writeHuMoRuntimeBootstrapFile("),source.indexOf("    function writeRemoteRuntimeBootstrapFile("));
-    assert.doesNotMatch(gpu,/hf.*download|hf_hub_download|HF_HUB_DISABLE_XET|--max-workers/);
+    assert.match(gpu,/populatePersistentHuMoCacheAuthorized/);
+    assert.match(gpu,/POPULATE_PERSISTENT_HUMO_CACHE/);
+    assert.match(gpu,/HUMO_ASSETS_POPULATE/);
+    assert.match(gpu,/HF_XET_CHUNK_CACHE_SIZE_BYTES=0/);
     assert.match(gpu,/persistentModelEvidenceProgram/);
     assert.match(gpu,/model-integrity.json/);
     assert.equal(RUNPOD_HUMO_CACHE_BASE.requiredFiles.length,12);
