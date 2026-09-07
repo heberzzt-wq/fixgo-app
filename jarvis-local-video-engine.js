@@ -3986,7 +3986,7 @@ export function createRunpodRemoteVideoAdapter({
             }
             catch(error) {
                 if (Number(error?.httpStatus || 0) === 404) {
-                    return [dataCenterId, false];
+                    return [dataCenterId, true];
                 }
                 throw error;
             }
