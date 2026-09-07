@@ -79,29 +79,29 @@ function assertMaterializedV142Contract() {
   }
 }
 
-function runPinnedBaseline() {
-  const baseline = execFileSync(
-    "git",
-    ["show", `${PATCH_BASELINE_COMMIT}:${SELF}`],
-    { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 }
+function alignHuMoEightSecondProbeTests() {
+  let localTests = read(LOCAL_VIDEO_TEST);
+  localTests = replaceExactOnce(
+    localTests,
+    '    assert.match(candidate, /durationSeconds: 3\\.88/);',
+    '    assert.match(candidate, /durationSeconds: 8\\.0/);',
+    "V142_HUMO_8S_CANDIDATE_DURATION_CONTRACT"
   );
-  if (!baseline.includes("V142_HUMO_LESSONS_PERSISTED_AND_TRANSPORT_HARDENED")) {
-    throw new Error("V142_SHARED_BRIDGE_ALIGNMENT_BASELINE_INVALID");
-  }
-  const temp = path.join(
-    os.tmpdir(),
-    `fixgo-v142-shared-bridge-alignment-${process.pid}-${Date.now()}.mjs`
+  localTests = replaceExactOnce(
+    localTests,
+    '    assert.match(runner, /"probe_duration_seconds": 3\\.88/);',
+    '    assert.match(runner, /"probe_duration_seconds": 8\\.0/);',
+    "V142_HUMO_8S_RUNNER_DURATION_CONTRACT"
   );
-  try {
-    fs.writeFileSync(temp, baseline, "utf8");
-    execFileSync(process.execPath, [temp], {
-      cwd: process.cwd(),
-      stdio: "inherit",
-      maxBuffer: 64 * 1024 * 1024
-    });
-  } finally {
-    fs.rmSync(temp, { force: true });
+  for (const marker of [
+    'assert.match(candidate, /durationSeconds: 8\\.0/);',
+    'assert.match(runner, /"probe_duration_seconds": 8\\.0/);'
+  ]) {
+    if (!localTests.includes(marker)) {
+      throw new Error(`V142_HUMO_8S_TEST_MARKER_MISSING:${marker}`);
+    }
   }
+  write(LOCAL_VIDEO_TEST, localTests);
 }
 
 const materializedBaselineDetected = hasMaterializedV142Contract();
@@ -110,6 +110,8 @@ if (materializedBaselineDetected) {
 } else {
   runPinnedBaseline();
 }
+
+alignHuMoEightSecondProbeTests();
 
 let tests = read(FS_BRIDGE_TEST);
 
@@ -208,6 +210,7 @@ console.log(JSON.stringify({
   patchBaselineCommit: PATCH_BASELINE_COMMIT,
   materializedBaselineDetected,
   sharedBridgeTestAligned: true,
+  huMoEightSecondProbeTestsAligned: true,
   paidEconomicDeadlinePreserved: true,
   readOnlyGraphQlRetriesPreserved: 3,
   provisioningRetryAllowed: false,
