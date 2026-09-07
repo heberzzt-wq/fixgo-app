@@ -1,8 +1,8 @@
 {
-  "jobId": "v142-humo-identity-paid-20260907-137",
-  "completedAt": "2026-09-07T19:01:14.329Z",
+  "jobId": "v142-humo-identity-paid-retry-20260907-138",
+  "completedAt": "2026-09-07T19:06:06.551Z",
   "ok": false,
-  "error": "SIA7_HUMO_IDENTITY_PROBE_FAILED:RUNPODCTL_NETWORK_VOLUME_CREATE_FAILED",
+  "error": "SIA7_HUMO_IDENTITY_PROBE_FAILED:RUNPOD_SSH_TOOLCHAIN_UNAVAILABLE",
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
