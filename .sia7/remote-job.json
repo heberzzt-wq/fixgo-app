@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-gpu-populate-bootstrap-flag-20260907-80b",
+  "jobId": "v142-humo-gpu-populate-bootstrap-flag-20260907-80c",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            `RUNTIME_CERTIFICATION_ONLY=${runtimeCertificationOnly ? \"1\" : \"0\"}` ,",
-    "replace": "            `RUNTIME_CERTIFICATION_ONLY=${runtimeCertificationOnly ? \"1\" : \"0\"}` ,"
+    "search": "            `RUNTIME_CERTIFICATION_ONLY=${runtimeCertificationOnly ? \"1\" : \"0\"}`,",
+    "replace": "            `RUNTIME_CERTIFICATION_ONLY=${runtimeCertificationOnly ? \"1\" : \"0\"}`,\n            `POPULATE_PERSISTENT_HUMO_CACHE=${populatePersistentHuMoCacheAuthorized ? \"1\" : \"0\"}`,"
   }
 }
