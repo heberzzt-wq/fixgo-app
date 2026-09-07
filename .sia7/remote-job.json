@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-network-volume-create-status-20260907-106",
+  "jobId": "v142-humo-network-volume-api-contract-test-20260907-107",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    }, [201]);",
-    "replace": "    }, [200]);"
+    "search": "    assert.match(identityCli, /ensureHuMoPersistentNetworkVolume/);",
+    "replace": "    assert.match(identityCli, /ensureHuMoPersistentNetworkVolume/);\n    assert.equal(bridgeSource.includes(\"JARVIS_RUNPOD_NETWORK_VOLUME_API_BASE || \\\"https://rest.runpod.io/v1\\\"\"), true);\n    assert.equal(bridgeSource.includes(\"provider(\\\"GET\\\", \\\"/networkvolumes\\\", null, [200])\"), true);\n    assert.equal(bridgeSource.includes(\"provider(\\\"POST\\\", \\\"/networkvolumes\\\", {\"), true);\n    assert.equal(bridgeSource.includes(\"dataCenter: dataCenterId\"), false);\n    assert.equal(bridgeSource.includes(\"type: \\\"STANDARD\\\"\"), false);"
   }
 }
