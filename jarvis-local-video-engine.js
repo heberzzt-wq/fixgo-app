@@ -1900,6 +1900,7 @@ export function createRunpodRemoteVideoAdapter({
     inspectBridgeIdentity = null,
     resolveCanonicalSha = null,
     inspectLocalHuMoCacheImpl = inspectLocalHuMoCache,
+    stageHuMoLocalCacheToEphemeralImpl = null,
     now = () => new Date()
 } = {}) {
     const resolvedRoot = path.resolve(root);
