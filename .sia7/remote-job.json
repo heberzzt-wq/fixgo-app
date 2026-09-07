@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-volume-fallback-validation-20260907-124",
+  "jobId": "v142-humo-volume-fallback-economic-receipt-20260907-125",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    if (!created.id || created.name !== name || created.dataCenterId !== dataCenterId ||",
-    "replace": "    if (!created.id || !created.name.startsWith(prefix) || !eligibleDc.has(created.dataCenterId) ||"
+    "search": "        estimatedMonthlyStorageUsd: 3.5, gpuHourlyRateUsd: Number(selected.hourlyRateUsd)",
+    "replace": "        estimatedMonthlyStorageUsd: 3.5, gpuHourlyRateUsd: Number((eligible.find(item => String(item.dataCenterId) === created.dataCenterId) || selected).hourlyRateUsd)"
   }
 }
