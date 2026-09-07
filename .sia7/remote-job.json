@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-bootstrap-local-cache-verifier-command-20260906-23",
+  "jobId": "v142-humo-bootstrap-local-cache-verifier-program-20260906-24",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            `  \"$VENV/bin/python\" - \"$CACHE_ROOT\" verify ${shellSingleQuote(networkVolumeId)} ${shellSingleQuote(runtimeCertificationDataCenterId)} ${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))} > \"$(dirname \"$PROGRESS\")/model-integrity.json\" <<'PY'`,",
-    "replace": "            networkVolumeId\n                ? `  \"$VENV/bin/python\" - \"$CACHE_ROOT\" verify ${shellSingleQuote(networkVolumeId)} ${shellSingleQuote(runtimeCertificationDataCenterId)} ${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))} > \"$(dirname \"$PROGRESS\")/model-integrity.json\" <<'PY'`\n                : `  \"$VENV/bin/python\" - \"$CACHE_ROOT\" \"$HUMO_REPO\" ${shellSingleQuote(path.basename(path.dirname(bootstrapFile)))} > \"$(dirname \"$PROGRESS\")/model-integrity.json\" <<'PY'`,"
+    "search": "            persistentModelEvidenceProgram(),",
+    "replace": "            networkVolumeId ? persistentModelEvidenceProgram() : localEphemeralModelEvidenceProgram(),"
   }
 }
