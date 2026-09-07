@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-probe-persistent-volume-guard-20260907-87b",
+  "jobId": "v142-humo-probe-keep-network-volume-20260907-87c",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        throw new Error(identityProbeLanAuthority.status || \"HUMO_LAN_CACHE_AUTHORITY_REQUIRED\");",
-    "replace": "        throw new Error(\"RUNPOD_HUMO_NETWORK_VOLUME_REQUIRED\");"
+    "search": "    delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID;",
+    "replace": ""
   }
 }
