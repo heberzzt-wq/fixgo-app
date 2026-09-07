@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-lan-stdin-test-20260906-58",
+  "jobId": "v142-humo-lan-closeout-path-normalization-20260906-59",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "tests/jarvis-fs-bridge-v2.test.mjs",
+    "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    assert.ok(observed.args.at(-1).includes(\"-EncodedCommand\"));",
-    "replace": "    assert.equal(observed.args.at(-1), \"powershell.exe -NoProfile -NonInteractive -Command -\");\n    assert.equal(typeof observed.options.input, \"string\");\n    assert.match(observed.options.input, /LAN_CACHE_CLOSEOUT_ASSET_COUNT_MISMATCH/);"
+    "search": "            \"  $row=@($c.files | Where-Object { [string]$_.path -eq [string]$e.path })\",",
+    "replace": "            \"  $expectedPath=(([string]$e.path) -replace '\\\\','/')\",\n            \"  $row=@($c.files | Where-Object { (([string]$_.path) -replace '\\\\','/') -eq $expectedPath })\","
   }
 }
