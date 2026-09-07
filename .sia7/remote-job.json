@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-8s-bridge-max-20260907-159",
+  "jobId": "v142-humo-8s-bridge-output-20260907-160",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 3.88) {",
-    "replace": "    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 8.0) {"
+    "search": "        \".jarvis-artifacts/videos/humo-heberto-identity-probe-3.88s.mp4\"",
+    "replace": "        \".jarvis-artifacts/videos/humo-heberto-identity-probe-8s.mp4\""
   }
 }
