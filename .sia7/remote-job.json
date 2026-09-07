@@ -1,12 +1,10 @@
 {
-  "jobId": "v142-humo-placement-fallback-contract-test-20260907-120",
-  "operation": "patch",
+  "jobId": "v142-humo-identity-paid-20260907-121",
+  "operation": "humo_identity_probe",
   "humanApproved": true,
-  "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "test(\"V142 HuMo runtime certification stays ephemeral while identity CLI uses a retained network volume\", () => {",
-    "replace": "test(\"V142 HuMo placement treats undocumented catalog volume metadata as non-authoritative\", () => {\n    const engineSource = fs.readFileSync(new URL(\"../jarvis-local-video-engine.js\", import.meta.url), \"utf8\");\n    assert.equal(engineSource.includes(\"return [dataCenterId, true];\"), true);\n    assert.equal(engineSource.includes(\"types.length === 0 || types.includes(RUNPOD_WAN22_CACHE_BASE.networkVolumeType)\"), true);\n    assert.match(engineSource, /networkVolumeSupported: dataCenterSupport\\.get\\(dataCenterId\\) === true/);\n});\n\ntest(\"V142 HuMo runtime certification stays ephemeral while identity CLI uses a retained network volume\", () => {"
-  }
+  "executePaid": true,
+  "expectedBaseSha": "48149500ad1926aa4d20bba4f4aea57ba4b9b255",
+  "hardBudgetUsd": 3,
+  "monthlyStorageAuthorizedUsd": 3.5,
+  "fullEpisodeAuthorized": false
 }
