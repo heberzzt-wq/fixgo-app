@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-lan-ci-final-assertion-20260906-48",
-  "completedAt": "2026-09-07T02:14:56.747Z",
+  "jobId": "v142-humo-lan-ci-title-alignment-20260906-49",
+  "completedAt": "2026-09-07T02:15:31.762Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "tests/jarvis-local-video-engine-v142.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 391504,
-  "bytesAfter": 391520,
+  "bytesBefore": 391520,
+  "bytesAfter": 391524,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
