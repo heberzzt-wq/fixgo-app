@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-ephemeral-budget-deadline-20260907-66",
+  "jobId": "v142-humo-total-hourly-budget-20260907-67",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        await pipeHuMoLanTarToPod(authority, state, sourceCommand, destinationCommand, { spawnImpl });",
-    "replace": "        const provisionedAtMs = Date.parse(String(state?.provisionedAt || state?.createdAt || \"\"));\r\n        const maximumAuthorizedSeconds = Number(state?.maximumAuthorizedSeconds || 0);\r\n        if (!Number.isFinite(provisionedAtMs) || !Number.isFinite(maximumAuthorizedSeconds) || maximumAuthorizedSeconds <= 0) {\r\n            throw new Error(\"HUMO_EPHEMERAL_BUDGET_DEADLINE_REQUIRED\");\r\n        }\r\n        const budgetDeadlineMs = provisionedAtMs + (maximumAuthorizedSeconds * 1000);\r\n        const cleanupReserveMs = 120 * 1000;\r\n        const remainingBudgetMs = () => Math.floor(budgetDeadlineMs - Date.now() - cleanupReserveMs);\r\n        const transferTimeoutMs = remainingBudgetMs();\r\n        if (transferTimeoutMs <= 0) throw new Error(\"HUMO_EPHEMERAL_BUDGET_EXHAUSTED\");\r\n        await pipeHuMoLanTarToPod(authority, state, sourceCommand, destinationCommand, {\r\n            spawnImpl,\r\n            timeoutMs: Math.min(60 * 60 * 1000, transferTimeoutMs)\r\n        });"
+    "search": "        JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: \"1.09\",",
+    "replace": "        JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: \"1.10\","
   }
 }
