@@ -1,10 +1,12 @@
 {
-  "jobId": "v142-humo-identity-paid-20260907-149",
-  "operation": "humo_identity_probe",
+  "jobId": "v142-humo-whisper-dtype-overlay-20260907-150",
+  "operation": "patch",
   "humanApproved": true,
-  "expectedBaseSha": "287a5ced58c39af7d8f6ed67ed907b78b02b72d5",
-  "hardBudgetUsd": 3,
-  "monthlyStorageAuthorizedUsd": 3.5,
-  "executePaid": true,
-  "fullEpisodeAuthorized": false
+  "patch": {
+    "file": "scripts/jarvis-local-video-wan22.py",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "    probe_output.mkdir(parents=True, exist_ok=True)",
+    "replace": "    probe_output.mkdir(parents=True, exist_ok=True)\r\n    runtime_overlay_parent = Path(tempfile.mkdtemp(prefix=\"jarvis-humo-runtime-overlay-\"))\r\n    runtime_humo_root = runtime_overlay_parent / \"HuMo\"\r\n    shutil.copytree(\r\n        humo_root,\r\n        runtime_humo_root,\r\n        ignore=shutil.ignore_patterns(\".git\", \"__pycache__\"),\r\n    )\r\n    audio_processor_file = runtime_humo_root / \"humo\" / \"utils\" / \"audio_processor_whisper.py\"\r\n    audio_processor_source = audio_processor_file.read_text(encoding=\"utf-8\")\r\n    dtype_source = \"        audio_feature = audio_input.to(self.whisper.device).float()\"\r\n    dtype_target = (\r\n        \"        audio_feature = audio_input.to(device=self.whisper.device, \"\r\n        \"dtype=self.whisper.encoder.conv1.weight.dtype)\"\r\n    )\r\n    if audio_processor_source.count(dtype_source) != 1:\r\n        raise RuntimeError(\"LOCAL_VIDEO_HUMO_WHISPER_DTYPE_OVERLAY_SOURCE_MISMATCH\")\r\n    audio_processor_file.write_text(\r\n        audio_processor_source.replace(dtype_source, dtype_target, 1),\r\n        encoding=\"utf-8\",\r\n    )\r\n    humo_root = runtime_humo_root\r\n    main_file = _required_humo_path(\r\n        str(humo_root / str(config[\"entrypoint\"])),\r\n        \"LOCAL_VIDEO_HUMO_RUNTIME_OVERLAY_NOT_READY\",\r\n    )\r\n    config_file = _required_humo_path(\r\n        str(humo_root / str(config[\"config_path\"])),\r\n        \"LOCAL_VIDEO_HUMO_RUNTIME_OVERLAY_CONFIG_NOT_READY\",\r\n    )"
+  }
 }
