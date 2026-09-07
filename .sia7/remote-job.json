@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-50gb-cache-comment-20260907-95",
+  "jobId": "v142-humo-cpu-cleanup-contract-fix-20260907-96",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-local-video-engine.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        // Two complete asset sets (repair/partials), 10 GB Xet cache and ~8 GiB reserve fit in 64 GB.",
-    "replace": "        // One verified asset set plus source/runtime metadata fits in 50 GB; transport/Xet caches are disabled and staging scratch is removed after verification."
+    "search": "        assert.doesNotMatch(script, /torch\\.cuda|import torch|pip install.*flash|CACHE_HIT|CACHE_READY|rm -rf|HF_HUB_DISABLE_XET=1/);",
+    "replace": "        assert.doesNotMatch(script, /torch\\.cuda|import torch|pip install.*flash|CACHE_HIT|CACHE_READY|HF_HUB_DISABLE_XET=1/);"
   }
 }
