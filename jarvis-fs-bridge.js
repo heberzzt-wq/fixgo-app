@@ -8558,7 +8558,6 @@ export async function runHuMoIdentityProbeCli({
     if (!persistentVolume?.id || !persistentVolume?.dataCenterId) {
         throw new Error("RUNPOD_HUMO_NETWORK_VOLUME_REQUIRED");
     }
-    delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID;
     delete runtimeEnv.JARVIS_HUMO_LOCAL_CACHE_ROOT;
     const credential = resolveRunpodCredentialEnvironment({ env: runtimeEnv });
     if (credential.credentialLoaded !== true) {
