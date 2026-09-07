@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-50gb-disable-cpu-xet-cache-20260907-92",
+  "jobId": "v142-humo-50gb-clean-cpu-staging-cache-20260907-93",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                \"export HF_XET_CHUNK_CACHE_SIZE_BYTES=10000000000\",",
-    "replace": "                \"export HF_XET_CHUNK_CACHE_SIZE_BYTES=0 HF_XET_SHARD_CACHE_SIZE_LIMIT=0\","
+    "search": "                networkVolumeId ? persistentModelEvidenceProgram() : localEphemeralModelEvidenceProgram(), \"PY\",\n                \"progress CACHE_MODEL_READY READY\", \"exit 0\", \"\"",
+    "replace": "                networkVolumeId ? persistentModelEvidenceProgram() : localEphemeralModelEvidenceProgram(), \"PY\",\n                \"rm -rf \\\"$CACHE_ROOT/.partial\\\" \\\"$CACHE_ROOT/.cache/huggingface\\\" \\\"$CPU_TOOLS_VENV\\\"\",\n                \"progress CACHE_MODEL_READY READY\", \"exit 0\", \"\""
   }
 }
