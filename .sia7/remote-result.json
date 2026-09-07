@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-8s-engine-frames-20260907-156",
-  "completedAt": "2026-09-07T22:47:19.071Z",
+  "jobId": "v142-humo-8s-engine-duration-20260907-157",
+  "completedAt": "2026-09-07T22:47:39.479Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-local-video-engine.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 407210,
-  "bytesAfter": 407211,
+  "bytesBefore": 407211,
+  "bytesAfter": 407210,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

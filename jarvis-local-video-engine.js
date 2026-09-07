@@ -134,7 +134,7 @@ const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({
         height: 480,
         fps: 25,
         frames: 201,
-        durationSeconds: 3.88,
+        durationSeconds: 8.0,
         orientation: "landscape"
     }),
     portraitTargetUnresolved: true,
