@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-lan-tests-imports-20260906-35",
-  "completedAt": "2026-09-07T01:49:39.470Z",
+  "jobId": "v142-humo-lan-tests-resolver-import-20260906-36",
+  "completedAt": "2026-09-07T01:50:09.072Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "tests/jarvis-fs-bridge-v2.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 59573,
-  "bytesAfter": 59640,
+  "bytesBefore": 59640,
+  "bytesAfter": 59674,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

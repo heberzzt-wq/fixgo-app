@@ -26,6 +26,7 @@ import {
     inspectLocalConnectors,
     normalizeReadLineRange,
     readJarvisRuntimeContract,
+    resolveHuMoLanCacheAuthority,
     resolveRepoPath,
     runLocalWebResearch,
     saveGeneratedImageArtifact,
