@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-lan-path-literal-test-20260906-63",
+  "jobId": "v142-humo-identity-probe-budget-2usd-20260906-64",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "tests/jarvis-fs-bridge-v2.test.mjs",
+    "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    assert.match(observed.options.input, /-replace '\\\\\\\\','\\/'/);",
-    "replace": "    assert.equal(observed.options.input.includes(\".Replace([char]92,'/')\"), true);"
+    "search": "    if (!Number.isFinite(requestedHardBudgetUsd) || requestedHardBudgetUsd <= 0 || requestedHardBudgetUsd > 1) {\r\n        throw new Error(\"RUNPOD_HUMO_IDENTITY_PROBE_BUDGET_INVALID\");\r\n    }",
+    "replace": "    if (!Number.isFinite(requestedHardBudgetUsd) || requestedHardBudgetUsd <= 0 || requestedHardBudgetUsd > 2) {\r\n        throw new Error(\"RUNPOD_HUMO_IDENTITY_PROBE_BUDGET_INVALID\");\r\n    }"
   }
 }
