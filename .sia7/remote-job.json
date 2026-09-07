@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-ephemeral-source-contract-20260906-19",
+  "jobId": "v142-humo-ephemeral-source-plan-tests-20260906-20",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-local-video-engine.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        sourceCacheRoot: sourceRoot,",
-    "replace": "        sourceCacheRoot: sourceRoot,\n        sourceRepositoryPath: path.join(sourceRoot, \"HuMo\"),\n        destinationSourceRepository: `${destinationCacheRoot}/HuMo`,\n        sourceRevision: contract.sourceRevision,"
+    "search": "    assert.equal(plan.transferBytes, bytes.length);",
+    "replace": "    assert.equal(plan.transferBytes, bytes.length);\n    assert.equal(plan.sourceRepositoryPath, path.join(evidence.cacheRoot, \"HuMo\"));\n    assert.equal(plan.destinationSourceRepository, \"/workspace/jarvis-v142/cache/humo-fixture/HuMo\");\n    assert.equal(plan.sourceRevision, contract.sourceRevision);"
   }
 }
