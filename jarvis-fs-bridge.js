@@ -282,7 +282,7 @@ export function createHuMoLanCacheInspector({
             "if([int64]$c.totalBytes -ne [int64]$expected.totalBytes -or $c.modelReady -ne $true){ throw 'LAN_CACHE_CLOSEOUT_TOTAL_MISMATCH' }",
             "if([string]$c.sourceRevision -ne [string]$expected.sourceRevision -or $c.sourceTrackedClean -ne $true){ throw 'LAN_CACHE_CLOSEOUT_SOURCE_MISMATCH' }",
             "foreach($e in $expected.requiredFiles){",
-            "  $expectedPath=(([string]$e.path) -replace '\\','/')",
+            "  $expectedPath=([string]$e.path).Replace([char]92,'/')",
             "  $row=@($c.files | Where-Object { (([string]$_.path) -replace '\\','/') -eq $expectedPath })",
             "  if($row.Count -ne 1){ throw ('LAN_CACHE_CLOSEOUT_FILE_MISSING:'+([string]$e.path)) }",
             "  if([int64]$row[0].bytes -ne [int64]$e.bytes -or ([string]$row[0].sha256).ToLowerInvariant() -ne ([string]$e.sha256).ToLowerInvariant()){ throw ('LAN_CACHE_CLOSEOUT_FILE_IDENTITY_MISMATCH:'+([string]$e.path)) }",

@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-humo-lan-closeout-path-test-20260906-60",
-  "completedAt": "2026-09-07T02:50:29.945Z",
+  "jobId": "v142-humo-lan-path-literal-20260906-61",
+  "completedAt": "2026-09-07T02:57:45.546Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "tests/jarvis-fs-bridge-v2.test.mjs",
+  "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 67386,
-  "bytesAfter": 67510,
+  "bytesBefore": 343507,
+  "bytesAfter": 343509,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "tests/jarvis-fs-bridge-v2.test.mjs"
+    "jarvis-fs-bridge.js"
   ]
 }
