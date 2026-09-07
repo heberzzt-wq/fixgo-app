@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-gpu-persistent-cache-miss-20260907-79",
+  "jobId": "v142-humo-gpu-populate-bootstrap-flag-20260907-80",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        const prefix = `jarvis-v142/cache/${RUNPOD_HUMO_CACHE_BASE.cacheDirectory}`;",
-    "replace": "        if (populatePersistentHuMoCacheAuthorized) {\n            return {\n                cacheStatus: \"CACHE_MISS\",\n                shaVerified: false,\n                totalBytes: RUNPOD_HUMO_CACHE_BASE.totalBytes,\n                volume,\n                manifest: null,\n                verifiedAt: null,\n                verification: \"gpu_direct_official_stage_authorized\",\n                populationAuthorized: true,\n                inferenceStarted: false\n            };\n        }\n        const prefix = `jarvis-v142/cache/${RUNPOD_HUMO_CACHE_BASE.cacheDirectory}`;"
+    "search": "            `RUNTIME_CERTIFICATION_ONLY=${runtimeCertificationOnly ? \"1\" : \"0\"}` ,",
+    "replace": "            `RUNTIME_CERTIFICATION_ONLY=${runtimeCertificationOnly ? \"1\" : \"0\"}` ,\n            `POPULATE_PERSISTENT_HUMO_CACHE=${populatePersistentHuMoCacheAuthorized ? \"1\" : \"0\"}` ,"
   }
 }
