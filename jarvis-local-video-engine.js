@@ -4700,6 +4700,7 @@ export function createRunpodRemoteVideoAdapter({
             `SEPARATOR_FILE=${shellSingleQuote(lifecycle.separatorFile)}`,
             `PREFLIGHT_RESULT=${shellSingleQuote(lifecycle.runtimePreflightFile)}`,
             `RUNTIME_CERTIFICATION_ONLY=${runtimeCertificationOnly ? "1" : "0"}`,
+            `POPULATE_PERSISTENT_HUMO_CACHE=${populatePersistentHuMoCacheAuthorized ? "1" : "0"}`,
             `PROGRESS=${shellSingleQuote(`${remoteBase}/operations`)}/${path.basename(path.dirname(bootstrapFile))}/bootstrap-progress.json`,
             "mkdir -p \"$CACHE_ROOT\" \"$HUMO_WEIGHTS\" \"$WAN21_WEIGHTS\" \"$WHISPER_DIR\" \"$(dirname \"$PROGRESS\")\"",
             "progress() { local stage=\"$1\" status=\"$2\" cache; if test \"$RUNTIME_CERTIFICATION_ONLY\" = 1; then cache=CACHE_MISS; elif test \"$stage\" = HUMO_RUNTIME_PREFLIGHT && test \"$status\" = READY; then cache=CACHE_READY; else cache=CACHE_MODEL_READY; fi; python3 - \"$PROGRESS\" \"$stage\" \"$status\" \"$cache\" <<'PY'",
