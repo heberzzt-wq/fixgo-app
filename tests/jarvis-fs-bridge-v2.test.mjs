@@ -169,6 +169,122 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
     assert.deepEqual(description.actuators.connectors.adapters, ["github", "firebase"]);
 });
 
+test("V142 HuMo LAN cache authority resolves a typed SSH storage contract", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-humo-lan-authority-"));
+    try {
+        const keyFile = path.join(root, "lan_ed25519");
+        const knownHostsFile = path.join(root, "known_hosts");
+        fs.writeFileSync(keyFile, "fixture-key");
+        fs.writeFileSync(knownHostsFile, "fixture-known-host");
+        const authority = resolveHuMoLanCacheAuthority({
+            env: {
+                JARVIS_HUMO_LAN_SOURCE_HOST: "192.0.2.44",
+                JARVIS_HUMO_LAN_SOURCE_USER: "sak",
+                JARVIS_HUMO_LAN_SOURCE_KEY: keyFile,
+                JARVIS_HUMO_LAN_SOURCE_KNOWN_HOSTS: knownHostsFile,
+                JARVIS_HUMO_LAN_CACHE_ROOT: "F:\\Nueva carpeta\\models\\humo-1.7b",
+                JARVIS_HUMO_LAN_CLOSEOUT: "F:\\Nueva carpeta\\humo-local-cache-v142-closeout.json"
+            }
+        });
+        assert.equal(authority.configured, true);
+        assert.equal(authority.status, "HUMO_LAN_CACHE_AUTHORITY_READY");
+        assert.equal(authority.host, "192.0.2.44");
+        assert.equal(authority.user, "sak");
+        assert.equal(authority.cacheRoot, "F:\\Nueva carpeta\\models\\humo-1.7b");
+        assert.equal(resolveHuMoLanCacheAuthority({ env: {} }).configured, false);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test("V142 HuMo LAN cache inspector consumes certified closeout evidence with zero provider traffic", async () => {
+    const revision = "845f44736e21be93aa5d8cf406b6eb01af9bff67";
+    const authority = {
+        configured: true,
+        host: "192.0.2.44",
+        user: "sak",
+        keyFile: path.resolve("fixture-lan-key"),
+        knownHostsFile: path.resolve("fixture-known-hosts"),
+        cacheRoot: "F:\\Nueva carpeta\\models\\humo-1.7b",
+        closeoutFile: "F:\\Nueva carpeta\\humo-local-cache-v142-closeout.json"
+    };
+    const contract = {
+        requiredFiles: [{ path: "weights/HuMo/fixture.bin", bytes: 7, sha256: "a".repeat(64) }],
+        totalBytes: 7,
+        sourceRevision: revision
+    };
+    let observed = null;
+    const inspector = createHuMoLanCacheInspector({
+        authority,
+        execFileSyncImpl: (executable, args, options) => {
+            observed = { executable, args, options };
+            return JSON.stringify({
+                ok: true,
+                status: "LOCAL_HUMO_CACHE_READY",
+                cacheStatus: "CACHE_MODEL_READY",
+                cacheRoot: authority.cacheRoot,
+                assetsVerified: 1,
+                assetsExpected: 1,
+                shaVerified: true,
+                totalBytes: 7,
+                sourceRevision: revision,
+                sourceRevisionVerified: true,
+                sourceTrackedClean: true,
+                inferenceStarted: false,
+                externalApiUsed: false,
+                externalEstimatedCostUsd: 0
+            }) + "\n";
+        }
+    });
+    const result = await inspector({ contract, requireSourceRevision: true });
+    assert.equal(result.ok, true);
+    assert.equal(result.shaVerified, true);
+    assert.equal(result.sourceRevisionVerified, true);
+    assert.equal(result.totalBytes, 7);
+    assert.ok(observed.args.includes("BatchMode=yes"));
+    assert.ok(observed.args.at(-1).includes("-EncodedCommand"));
+    assert.equal(observed.options.windowsHide, true);
+});
+
+test("V142 HuMo LAN ephemeral stager fails closed before transport on source or destination identity drift", async () => {
+    let spawnCalls = 0;
+    const authority = {
+        configured: true,
+        cacheRoot: "F:\\Nueva carpeta\\models\\humo-1.7b",
+        host: "192.0.2.44",
+        user: "sak",
+        keyFile: "fixture-key",
+        knownHostsFile: "fixture-known-hosts"
+    };
+    const stager = createHuMoLanEphemeralStager({
+        authority,
+        spawnImpl: () => { spawnCalls += 1; throw new Error("TRANSPORT_MUST_NOT_START"); }
+    });
+    await assert.rejects(stager({
+        state: {},
+        transferPlan: {
+            ok: true,
+            cacheMode: "LOCAL_TO_EPHEMERAL",
+            sourceCacheRoot: "F:\\wrong",
+            destinationCacheRoot: "/workspace/jarvis-v142/cache/humo-1.7b",
+            assetCount: 0,
+            files: []
+        }
+    }), /HUMO_LAN_CACHE_ROOT_IDENTITY_MISMATCH/);
+    await assert.rejects(stager({
+        state: {},
+        transferPlan: {
+            ok: true,
+            cacheMode: "LOCAL_TO_EPHEMERAL",
+            sourceCacheRoot: authority.cacheRoot,
+            destinationCacheRoot: "/tmp/not-authorized",
+            assetCount: 0,
+            files: []
+        }
+    }), /HUMO_EPHEMERAL_DESTINATION_INVALID/);
+    assert.equal(spawnCalls, 0);
+});
+
 test("self-hosted semantic backend feeds the canonical planner without paid API calls", async () => {
     const requests = [];
     const engine = createSelfHostedSemanticEngine({
