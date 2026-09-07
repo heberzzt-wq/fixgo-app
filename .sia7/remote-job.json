@@ -1,12 +1,11 @@
 {
-  "jobId": "v142-humo-8s-regression-gate-20260907-164",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "    assert.equal(runner.includes('dtype=self.whisper.encoder.conv1.weight.dtype'), true);",
-    "replace": "    assert.equal(runner.includes('dtype=self.whisper.encoder.conv1.weight.dtype'), true);\r\n    assert.equal(runner.includes('\\\"frame_count\\\": 201'), true);\r\n    assert.equal(runner.includes('\\\"probe_duration_seconds\\\": 8.0'), true);"
+  "jobId": "v142-humo-8s-local-ci-diagnostic-20260907-165",
+  "operation": "bridge",
+  "endpoint": "/run",
+  "body": {
+    "command": "npm run ci:test",
+    "cwd": ".",
+    "timeoutMs": 600000,
+    "source": "v142_humo_8s_local_ci_diagnostic"
   }
 }
