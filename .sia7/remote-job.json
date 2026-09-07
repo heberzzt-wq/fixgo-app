@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-lan-generic-adapter-options-20260906-39",
+  "jobId": "v142-humo-identity-probe-lan-cache-mode-20260906-40",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
-    "expectedMatches": 2,
-    "search": "        env: credential.env,",
-    "replace": "        env: credential.env,\n        ...huMoLanRunpodAdapterOptions({ env: credential.env }),"
+    "expectedMatches": 1,
+    "search": "    if (!runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID) throw new Error(\"RUNPOD_HUMO_CACHE_REQUIRED\");",
+    "replace": "    const identityProbeLanAuthority = resolveHuMoLanCacheAuthority({ env: runtimeEnv });\n    if (!identityProbeLanAuthority.configured) {\n        throw new Error(identityProbeLanAuthority.status || \"HUMO_LAN_CACHE_AUTHORITY_REQUIRED\");\n    }\n    delete runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID;\n    runtimeEnv.JARVIS_HUMO_LOCAL_CACHE_ROOT = identityProbeLanAuthority.cacheRoot;"
   }
 }
