@@ -245,6 +245,82 @@ function runHuMoLanPowerShell(authority, script, { execFileSyncImpl = execFileSy
     ), { encoding: "utf8", windowsHide: true, timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }) || "").trim();
 }
 
+function powerShellSingleQuote(value = "") {
+    return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+export function createHuMoLanCacheInspector({
+    authority,
+    execFileSyncImpl = execFileSync
+} = {}) {
+    return async function inspectHuMoLanCache({ contract, requireSourceRevision = true } = {}) {
+        if (!authority?.configured) {
+            return { ok: false, status: authority?.status || "HUMO_LAN_CACHE_AUTHORITY_REQUIRED", inferenceStarted: false, externalApiUsed: false, externalEstimatedCostUsd: 0 };
+        }
+        if (!contract || !Array.isArray(contract.requiredFiles) || !contract.sourceRevision) {
+            return { ok: false, status: "HUMO_LAN_CACHE_CONTRACT_REQUIRED", inferenceStarted: false, externalApiUsed: false, externalEstimatedCostUsd: 0 };
+        }
+        const expectedPayload = Buffer.from(JSON.stringify({
+            requiredFiles: contract.requiredFiles.map(item => ({ path: item.path, bytes: item.bytes, sha256: item.sha256 })),
+            totalBytes: contract.totalBytes,
+            sourceRevision: contract.sourceRevision
+        }), "utf8").toString("base64");
+        const script = [
+            "$ErrorActionPreference='Stop'",
+            `$root=${powerShellSingleQuote(authority.cacheRoot)}`,
+            `$closeout=${powerShellSingleQuote(authority.closeoutFile)}`,
+            `$expectedJson=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(${powerShellSingleQuote(expectedPayload)}))`,
+            "$expected=$expectedJson | ConvertFrom-Json",
+            "if(-not (Test-Path -LiteralPath $root)){ throw 'LAN_CACHE_ROOT_MISSING' }",
+            "if(-not (Test-Path -LiteralPath $closeout)){ throw 'LAN_CACHE_CLOSEOUT_MISSING' }",
+            "$drive=[IO.Path]::GetPathRoot($root).TrimEnd('\\').TrimEnd(':')",
+            "$vol=Get-Volume -DriveLetter $drive -ErrorAction Stop",
+            "if($vol.HealthStatus -ne 'Healthy'){ throw 'LAN_CACHE_VOLUME_NOT_HEALTHY' }",
+            "$c=Get-Content -Raw -LiteralPath $closeout | ConvertFrom-Json",
+            "if([int]$c.assetsVerified -ne $expected.requiredFiles.Count -or [int]$c.assetsExpected -ne $expected.requiredFiles.Count){ throw 'LAN_CACHE_CLOSEOUT_ASSET_COUNT_MISMATCH' }",
+            "if([int64]$c.totalBytes -ne [int64]$expected.totalBytes -or $c.modelReady -ne $true){ throw 'LAN_CACHE_CLOSEOUT_TOTAL_MISMATCH' }",
+            "if([string]$c.sourceRevision -ne [string]$expected.sourceRevision -or $c.sourceTrackedClean -ne $true){ throw 'LAN_CACHE_CLOSEOUT_SOURCE_MISMATCH' }",
+            "foreach($e in $expected.requiredFiles){",
+            "  $row=@($c.files | Where-Object { [string]$_.path -eq [string]$e.path })",
+            "  if($row.Count -ne 1){ throw ('LAN_CACHE_CLOSEOUT_FILE_MISSING:'+([string]$e.path)) }",
+            "  if([int64]$row[0].bytes -ne [int64]$e.bytes -or ([string]$row[0].sha256).ToLowerInvariant() -ne ([string]$e.sha256).ToLowerInvariant()){ throw ('LAN_CACHE_CLOSEOUT_FILE_IDENTITY_MISMATCH:'+([string]$e.path)) }",
+            "  $target=Join-Path $root (([string]$e.path) -replace '/','\\')",
+            "  $item=Get-Item -LiteralPath $target -Force -ErrorAction Stop",
+            "  if($item.PSIsContainer -or [int64]$item.Length -ne [int64]$e.bytes -or (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)){ throw ('LAN_CACHE_PHYSICAL_FILE_INVALID:'+([string]$e.path)) }",
+            "}",
+            "$gitCandidates=@('C:\\Program Files\\Git\\cmd\\git.exe','C:\\Program Files\\Git\\bin\\git.exe')",
+            "$git=$gitCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1",
+            "if(-not $git){ $git=(Get-Command git.exe -ErrorAction Stop).Source }",
+            "$repo=Join-Path $root 'HuMo'",
+            "if(-not (Test-Path -LiteralPath (Join-Path $repo '.git'))){ throw 'LAN_CACHE_SOURCE_REPOSITORY_MISSING' }",
+            "$head=(& $git -C $repo rev-parse HEAD).Trim()",
+            "$dirty=((& $git -C $repo status --porcelain --untracked-files=no) -join [Environment]::NewLine).Trim()",
+            "if($head -ne [string]$expected.sourceRevision){ throw 'LAN_CACHE_SOURCE_REVISION_MISMATCH' }",
+            "if(-not [string]::IsNullOrWhiteSpace($dirty)){ throw 'LAN_CACHE_SOURCE_MODIFIED' }",
+            "$result=[ordered]@{ok=$true;status='LOCAL_HUMO_CACHE_READY';cacheStatus='CACHE_MODEL_READY';cacheRoot=$root;assetsVerified=[int]$expected.requiredFiles.Count;assetsExpected=[int]$expected.requiredFiles.Count;shaVerified=$true;totalBytes=[int64]$expected.totalBytes;sourceRevision=$head;sourceRevisionVerified=$true;sourceTrackedClean=$true;certifiedAt=[string]$c.certifiedAt;storageAuthority=[string]$c.storageAuthority;inferenceStarted=$false;externalApiUsed=$false;externalEstimatedCostUsd=0}",
+            "$result | ConvertTo-Json -Compress"
+        ].join("; " );
+        try {
+            const raw = runHuMoLanPowerShell(authority, script, { execFileSyncImpl, timeoutMs: 120000 });
+            const line = raw.split(/\r?\n/).filter(Boolean).at(-1);
+            const parsed = JSON.parse(line);
+            if (parsed?.ok !== true || parsed?.shaVerified !== true || (requireSourceRevision && parsed?.sourceRevisionVerified !== true)) {
+                throw new Error("HUMO_LAN_CACHE_EVIDENCE_INVALID");
+            }
+            return parsed;
+        }
+        catch(error) {
+            return {
+                ok: false,
+                status: error?.message || "HUMO_LAN_CACHE_INSPECTION_FAILED",
+                inferenceStarted: false,
+                externalApiUsed: false,
+                externalEstimatedCostUsd: 0
+            };
+        }
+    };
+}
+
 function safeFileStem(value = "artifact") {
     const normalized = String(value || "artifact").normalize("NFD").toLowerCase();
     let result = "";
