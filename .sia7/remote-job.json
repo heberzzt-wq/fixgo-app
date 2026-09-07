@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-runpodctl-retry-contract-fix-20260907-134b",
+  "jobId": "v142-humo-runpodctl-retry-contract-fix-20260907-134c",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    assert.equal(retryBlock.includes(\"status === 403\"), false);",
-    "replace": "    */"
+    "search": "test(\"V142 HuMo Network Volume creation reconciles ambiguous 5xx and falls back without blind duplicates\", () => {",
+    "replace": "test(\"V142 HuMo Network Volume runpodctl reconciles create failures without blind duplicates\", () => {"
   }
 }
