@@ -1,13 +1,13 @@
 {
-  "jobId": "v142-humo-ephemeral-budget-deadline-20260907-66",
-  "completedAt": "2026-09-07T05:23:50.932Z",
+  "jobId": "v142-humo-total-hourly-budget-20260907-67",
+  "completedAt": "2026-09-07T05:49:02.246Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 343511,
+  "bytesBefore": 344385,
   "bytesAfter": 344385,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
