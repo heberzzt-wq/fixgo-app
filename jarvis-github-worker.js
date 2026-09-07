@@ -9,13 +9,16 @@ const JOB_PATH = process.env.SIA7_JOB_PATH || ".sia7/remote-job.json";
 const RESULT_PATH = process.env.SIA7_RESULT_PATH || ".sia7/remote-result.json";
 const POLL_MS = Number(process.env.SIA7_POLL_MS) || 5000;
 const REPO_ROOT = path.resolve(process.cwd());
+const WINDOWS_GIT = "C:\\Program Files\\Git\\cmd\\git.exe";
+const GIT_EXECUTABLE = String(process.env.SIA7_GIT || "").trim() ||
+    (process.platform === "win32" && fs.existsSync(WINDOWS_GIT) ? WINDOWS_GIT : "git");
 
 let lastJobId = "";
 let polling = false;
 
 function runGit(args = []) {
     return new Promise(resolve => {
-        const child = spawn("git", args, {
+        const child = spawn(GIT_EXECUTABLE, args, {
             cwd: REPO_ROOT,
             shell: false,
             stdio: ["ignore", "pipe", "pipe"],
