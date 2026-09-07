@@ -8344,7 +8344,7 @@ async function ensureHuMoPersistentNetworkVolume({ root, env, canonicalSha, log 
     );
     if (eligible.length < 1) throw new Error("RUNPOD_HUMO_PERSISTENT_VOLUME_PLACEMENT_UNAVAILABLE");
 
-    const apiBase = String(env.JARVIS_RUNPOD_V2_API_BASE || "https://v2-rest.runpod.io/v2").replace(/\/$/, "");
+    const apiBase = String(env.JARVIS_RUNPOD_V2_API_BASE || "https://api.runpod.io/v2").replace(/\/$/, "");
     const provider = async (method, suffix, body = null, accepted = [200]) => {
         const response = await fetch(`${apiBase}${suffix}`, {
             method,
