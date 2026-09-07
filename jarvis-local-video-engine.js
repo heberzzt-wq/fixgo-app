@@ -1117,6 +1117,12 @@ export function resolveLocalExecutable(command, env = process.env) {
     const candidate = String(command || "").trim();
     if (!candidate) return null;
     if (path.isAbsolute(candidate)) return fs.existsSync(candidate) ? candidate : null;
+    if (process.platform === "win32") {
+        const systemRoot = String(env.SystemRoot || env.SYSTEMROOT || env.WINDIR || "C:\\Windows").trim();
+        const executableName = candidate.toLowerCase().endsWith(".exe") ? candidate : `${candidate}.exe`;
+        const openSshTarget = path.join(systemRoot, "System32", "OpenSSH", executableName);
+        if (fs.existsSync(openSshTarget)) return openSshTarget;
+    }
     const extensions = process.platform === "win32"
         ? String(env.PATHEXT || ".EXE;.CMD;.BAT;.COM").split(";")
         : [""];
