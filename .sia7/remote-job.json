@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-runpodctl-volume-route-20260907-132",
+  "jobId": "v142-humo-runpodctl-volume-contract-test-20260907-133",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    if (eligible.length < 1) throw new Error(\"RUNPOD_HUMO_PERSISTENT_VOLUME_PLACEMENT_UNAVAILABLE\");",
-    "replace": "    if (eligible.length < 1) throw new Error(\"RUNPOD_HUMO_PERSISTENT_VOLUME_PLACEMENT_UNAVAILABLE\");\n    return await ensureHuMoPersistentNetworkVolumeWithRunpodctl({ eligible, credential, env, log });"
+    "search": "test(\"V142 HuMo runtime certification stays ephemeral while identity CLI uses a retained network volume\", () => {",
+    "replace": "test(\"V142 HuMo Network Volume uses pinned official runpodctl instead of the failing REST create path\", () => {\n    const bridgeSource = fs.readFileSync(new URL(\"../jarvis-fs-bridge.js\", import.meta.url), \"utf8\");\n    assert.match(bridgeSource, /RUNPODCTL_V142/);\n    assert.equal(bridgeSource.includes(\"version: \\\"v2.7.1\\\"\"), true);\n    assert.equal(bridgeSource.includes(\"runpodctl-windows-amd64.exe\"), true);\n    assert.equal(bridgeSource.includes(\"d0be7de83ba023392bc3d680eec44e45f1cbb3bc9d6bf117b0f575078d3e9443\"), true);\n    assert.match(bridgeSource, /network-volume\\\", \\\"list/);\n    assert.match(bridgeSource, /network-volume\\\", \\\"create/);\n    assert.match(bridgeSource, /--data-center-id/);\n    assert.match(bridgeSource, /--size\\\", \\\"50/);\n    assert.match(bridgeSource, /RUNPOD_API_KEY: String\\(env\\.RUNPOD_API_KEY/);\n    assert.match(bridgeSource, /return await ensureHuMoPersistentNetworkVolumeWithRunpodctl/);\n});\n\ntest(\"V142 HuMo runtime certification stays ephemeral while identity CLI uses a retained network volume\", () => {"
   }
 }
