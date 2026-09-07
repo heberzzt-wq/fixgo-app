@@ -1,17 +1,9 @@
 {
-  "jobId": "v142-humo-gpu-persistent-cache-miss-20260907-79",
-  "completedAt": "2026-09-07T13:37:10.986Z",
-  "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "jarvis-local-video-engine.js",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 404040,
-  "bytesAfter": 404525,
-  "source": "sia7_github_worker_exact_patch_v1",
+  "jobId": "v142-humo-gpu-populate-bootstrap-flag-20260907-80",
+  "completedAt": "2026-09-07T13:37:40.958Z",
+  "ok": false,
+  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1",
   "committedFiles": [
-    ".sia7/remote-result.json",
-    "jarvis-local-video-engine.js"
+    ".sia7/remote-result.json"
   ]
 }
