@@ -7679,6 +7679,12 @@ test("V142 HuMo paid identity probe authority is mission scoped and never opens 
 
     const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
     assert.match(bridgeSource, /runHuMoIdentityProbeCli/);
+    assert.equal(bridgeSource.includes("JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_OUTPUT_2"), true);
+    assert.equal(bridgeSource.includes("JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_2"), true);
+    assert.equal(bridgeSource.includes("referenceOutputs: [reference.output, ...(secondReference ? [secondReference.output] : [])]"), true);
+    assert.equal(bridgeSource.includes("referenceFiles: [reference.file, ...(secondReference ? [secondReference.file] : [])]"), true);
+    assert.equal(bridgeSource.includes("identityReferenceOutputs: [reference.output, ...(secondReference ? [secondReference.output] : [])]"), true);
+    assert.equal(bridgeSource.includes("RUNPOD_HUMO_IDENTITY_PROBE_REFERENCE_SET_INVALID"), true);
     assert.match(bridgeSource, /--humo-identity-probe/);
     assert.match(bridgeSource, /requestedHardBudgetUsd > 3/);
     assert.match(bridgeSource, /fullEpisodeAuthorized: false/);
