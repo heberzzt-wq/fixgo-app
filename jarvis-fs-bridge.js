@@ -8809,7 +8809,7 @@ export async function runHuMoIdentityProbeCli({
         requiresIdentityFidelity: true,
         referenceOutputs: [reference.output, ...(secondReference ? [secondReference.output] : [])],
         referenceFiles: [reference.file, ...(secondReference ? [secondReference.file] : [])],
-        sourceReferenceOutputs: [],
+        sourceReferenceOutputs: [reference.output, ...(secondReference ? [secondReference.output] : [])],
         sourceReferenceFiles: [],
         audioOutput: audio.output,
         audioFile: audio.file,
