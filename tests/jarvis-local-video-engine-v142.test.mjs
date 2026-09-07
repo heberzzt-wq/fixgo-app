@@ -7730,6 +7730,11 @@ test("V142 SIA7 HuMo executor is typed, budget-capped, source-pinned and control
     assert.equal(workerSource.includes("SIA7_HUMO_REFERENCE_2_SHA_MISMATCH"), true);
     assert.equal(workerSource.includes("JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_OUTPUT_2: SIA7_HUMO_REFERENCE_OUTPUT_2"), true);
     assert.equal(workerSource.includes("JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_2: SIA7_HUMO_REFERENCE_SHA256_2"), true);
+    assert.equal(workerSource.includes("SIA7_WORKER_SOURCE_SHA256_AT_START"), true);
+    assert.equal(workerSource.includes("SIA7_WORKER_RESTART_REQUIRED"), true);
+    assert.equal(workerSource.includes("durationSeconds: 8.0"), true);
+    assert.equal(workerSource.includes("referenceCount: 2"), true);
+    assert.equal(workerSource.includes("referenceSha256s: [SIA7_HUMO_REFERENCE_SHA256, SIA7_HUMO_REFERENCE_SHA256_2]"), true);
     assert.equal(workerSource.includes("SIA7_HUMO_AUDIO_SHA256 = \"294861191281abdcc32a0d8fcef6102832e784d95e73e0e55a75fde7ecfc35ad\""), true);
     assert.match(workerSource, /operation === \"humo_identity_probe\"/);
     assert.match(workerSource, /executePaid !== true/);

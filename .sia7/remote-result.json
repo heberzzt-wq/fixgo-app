@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-humo-two-reference-receipt-20260907-188",
-  "completedAt": "2026-09-07T23:49:20.841Z",
+  "jobId": "v142-humo-worker-freshness-regression-20260907-189",
+  "completedAt": "2026-09-07T23:49:55.686Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "jarvis-github-worker.js",
+  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 21122,
-  "bytesAfter": 21292,
+  "bytesBefore": 403984,
+  "bytesAfter": 404414,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "jarvis-github-worker.js"
+    "tests/jarvis-local-video-engine-v142.test.mjs"
   ]
 }
