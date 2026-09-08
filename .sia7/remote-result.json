@@ -1,17 +1,9 @@
 {
-  "jobId": "v142-humo-good-voice-receipt-regression-20260907-197",
-  "completedAt": "2026-09-08T00:31:28.648Z",
-  "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 405127,
-  "bytesAfter": 405423,
-  "source": "sia7_github_worker_exact_patch_v1",
+  "jobId": "v142-humo-good-voice-prepare-20260907-198",
+  "completedAt": "2026-09-08T00:53:09.716Z",
+  "ok": false,
+  "error": "SIA7_HUMO_MINIDRAMA_SOURCE_MATCH_COUNT:0",
   "committedFiles": [
-    ".sia7/remote-result.json",
-    "tests/jarvis-local-video-engine-v142.test.mjs"
+    ".sia7/remote-result.json"
   ]
 }
