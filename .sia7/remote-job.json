@@ -1,12 +1,5 @@
 {
-  "jobId": "v142-humo-good-voice-download-regression-20260907-202",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "    assert.equal(workerSource.includes(\"materializationSource: \\\"chat_user_uploaded_minidrama_pcm_extract\\\"\"), true);",
-    "replace": "    assert.equal(workerSource.includes(\"materializationSource: \\\"chat_user_uploaded_minidrama_pcm_extract\\\"\"), true);\n    assert.equal(workerSource.includes(\"Downloads\\\", \\\"humo-heberto-minidrama-good-voice-8s.wav\"), true);\n    assert.equal(workerSource.includes(\"SIA7_HUMO_GOOD_VOICE_DOWNLOAD_BYTES_INVALID\"), true);\n    assert.equal(workerSource.includes(\"SIA7_HUMO_GOOD_VOICE_DOWNLOAD_SHA_MISMATCH\"), true);\n    assert.equal(workerSource.includes(\"materializationSource: \\\"verified_user_download\\\"\"), true);"
-  }
+  "jobId": "v142-humo-good-voice-prepare-20260907-203",
+  "operation": "humo_reference_audio_prepare",
+  "humanApproved": true
 }
