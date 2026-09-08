@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-next-identity-test-import-20260908-264",
-  "completedAt": "2026-09-08T16:15:19.300Z",
+  "jobId": "v142-next-identity-zero-cost-test-20260908-265",
+  "completedAt": "2026-09-08T16:15:54.379Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "tests/jarvis-local-video-engine-v142.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 410416,
-  "bytesAfter": 410501,
+  "bytesBefore": 410501,
+  "bytesAfter": 412052,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

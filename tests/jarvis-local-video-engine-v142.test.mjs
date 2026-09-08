@@ -99,6 +99,38 @@ test("V142 HuMo17 single-L40S candidate pins FP8 block-swap authority and remain
     assert.equal(candidate.executable, false);
 });
 
+test("V142 next identity runtime preflight is zero-cost and remains fail-closed", async () => {
+    const observed = [];
+    const result = await runNextIdentityRuntimePreflightCli({
+        env: { JARVIS_NEXT_IDENTITY_BACKEND: "humo17" },
+        log: value => observed.push(value)
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "NEXT_IDENTITY_RUNTIME_CANDIDATE_ZERO_COST_READY");
+    assert.equal(result.backend, "humo-17b-identity");
+    assert.equal(result.model, "HuMo-17B");
+    assert.equal(result.targetGpuTypeId, "NVIDIA L40S");
+    assert.equal(result.capacity.nominalFitByBytes, true);
+    assert.equal(result.capacity.certified, false);
+    assert.equal(result.executable, false);
+    assert.equal(result.runtimeAssetAuthorityPinned, false);
+    assert.equal(result.singleL40sRuntimeCertified, false);
+    assert.equal(result.paidExecutionAuthorized, false);
+    assert.equal(result.resourceCreationPossible, false);
+    assert.equal(result.providerTrafficUsed, false);
+    assert.equal(result.inferenceStarted, false);
+    assert.equal(result.externalApiUsed, false);
+    assert.equal(result.externalEstimatedCostUsd, 0);
+    assert.equal(observed.length, 1);
+
+    const phantom = inspectNextIdentityRuntimeCandidate({ backend: "phantom" });
+    assert.equal(phantom.backend, "phantom-wan-14b");
+    assert.equal(phantom.executable, false);
+    assert.equal(phantom.resourceCreationPossible, false);
+    assert.equal(phantom.providerTrafficUsed, false);
+    assert.equal(phantom.inferenceStarted, false);
+});
+
 test("V142 HuMo runner binds inference to the certified lifecycle venv", () => {
     const runner = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");
     assert.equal(runner.includes("/opt/jarvis-v142/humo-venv/bin/python"), true);
