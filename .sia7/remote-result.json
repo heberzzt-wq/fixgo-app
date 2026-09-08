@@ -1,21 +1,8 @@
 {
-  "jobId": "v142-humo17-core-stage-preflight-20260908-308",
-  "completedAt": "2026-09-08T21:15:38.562Z",
-  "ok": true,
-  "operation": "humo17_core_stage",
-  "dryRun": true,
-  "status": "SIA7_HUMO17_CORE_STAGE_PREFLIGHT_READY",
-  "certifiedBaseSha": "93088d96fc3d6c36d58d0b5b78834329d1bb7b6d",
-  "executionHeadSha": "db0a81541a1268cd486b269f507789b654ee9248",
-  "controlPlaneOnlyChanges": [
-    ".sia7/remote-job.json"
-  ],
-  "hardBudgetUsd": 1.5,
-  "maximumMinutes": 90,
-  "networkVolumeId": "1qm5wczocl",
-  "dataCenterId": "EU-NL-1",
-  "resourceCreationPossible": false,
-  "inferenceStarted": false,
+  "jobId": "v142-humo17-core-stage-physical-20260908-309",
+  "completedAt": "2026-09-08T21:21:54.087Z",
+  "ok": false,
+  "error": "SIA7_HUMO17_CORE_STAGE_FAILED:HUMO17_CORE_STAGE_FAILED;RELEASE:RUNPOD_HUMO17_DELETE_NOT_VERIFIED",
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
