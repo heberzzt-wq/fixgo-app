@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-next-identity-zero-cost-test-20260908-265",
-  "completedAt": "2026-09-08T16:15:54.379Z",
+  "jobId": "v142-humo17-capacity-account-lora-20260908-266",
+  "completedAt": "2026-09-08T16:20:44.046Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+  "file": "jarvis-local-video-engine.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 410501,
-  "bytesAfter": 412052,
+  "bytesBefore": 414314,
+  "bytesAfter": 414406,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "tests/jarvis-local-video-engine-v142.test.mjs"
+    "jarvis-local-video-engine.js"
   ]
 }

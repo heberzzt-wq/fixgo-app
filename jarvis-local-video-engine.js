@@ -195,6 +195,8 @@ export const NEXT_IDENTITY_RUNTIME_CANDIDATES = Object.freeze({
             existingHuMoCacheRequiresFormatConversion: true,
             existingHuMoCacheBytes: 22095109502,
             baseAndDiffusionPersistentBytes: 39987403600,
+            distillationLoraBytes: 738005744,
+            persistentCoreBytes: 40725409344,
             wrapperAuxiliaryAssets: Object.freeze([
                 Object.freeze({ repository: "Kijai/WanVideo_comfy", revision: "922f4662eda47d7ebef46c0b3689aa1e0478315e", path: "umt5-xxl-enc-bf16.safetensors", bytes: 11361845464, sha256: "4fa971faf306cad919033d5bbe192e571dc08452f800cbf2ec3c73977c01b2cc", role: "text_encoder" }),
                 Object.freeze({ repository: "Kijai/WanVideo_comfy", revision: "68e95be3ae932f8572ceec9b64ad8167be91d566", path: "Wan2_1_VAE_bf16.safetensors", bytes: 253806278, sha256: "1ab9a32cc2c740f6e39d80d367ce5dcc28db8c71b79b28670546b8973e9d75f9", role: "vae" }),
