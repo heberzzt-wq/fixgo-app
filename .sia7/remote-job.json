@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-materializer-idempotent-20260908-251",
+  "jobId": "v142-humo17-storage-authority-20260908-252",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": ".github/scripts/v142-final-contract-alignment.mjs",
+    "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "  const anchor = \"export function buildHuMoIdentityRuntimeAuthority({ paidExecutionAuthorized = false } = {}) {\";",
-    "replace": "  if (engine.includes(\"export const NEXT_IDENTITY_RUNTIME_CANDIDATES = Object.freeze({\")) return;\n  const anchor = \"export function buildHuMoIdentityRuntimeAuthority({ paidExecutionAuthorized = false } = {}) {\";"
+    "search": "            reuseExistingHuMoSharedAssets: true,\n            existingHuMoCacheBytes: 22095109502,\n            plannedPersistentBytes: 39987403600,\n            minimumNetworkVolumeGb: 50,\n            targetGpuTypeId: \"NVIDIA L40S\",\n            physicalFitCertified: false,",
+    "replace": "            reuseExistingHuMoSharedAssets: false,\n            existingHuMoCacheRequiresFormatConversion: true,\n            existingHuMoCacheBytes: 22095109502,\n            baseAndDiffusionPersistentBytes: 39987403600,\n            wrapperAuxiliaryAssets: Object.freeze([\n                Object.freeze({ repository: \"Kijai/WanVideo_comfy\", revision: \"922f4662eda47d7ebef46c0b3689aa1e0478315e\", path: \"umt5-xxl-enc-bf16.safetensors\", bytes: 11361845464, sha256: \"4fa971faf306cad919033d5bbe192e571dc08452f800cbf2ec3c73977c01b2cc\", role: \"text_encoder\" }),\n                Object.freeze({ repository: \"Kijai/WanVideo_comfy\", revision: \"68e95be3ae932f8572ceec9b64ad8167be91d566\", path: \"Wan2_1_VAE_bf16.safetensors\", bytes: 253806278, sha256: \"1ab9a32cc2c740f6e39d80d367ce5dcc28db8c71b79b28670546b8973e9d75f9\", role: \"vae\" }),\n                Object.freeze({ repository: \"Kijai/WanVideo_comfy\", revision: \"d45e290d88d212a8e78f8f45584a21a0f0e2457b\", path: \"HuMo/whisper_large_v3_encoder_fp16.safetensors\", bytes: 1693870272, sha256: \"fe5624f5db7413815a5decbc2afb1f7a8015f37519d6e9ae6dc7fad7c0c6c253\", role: \"audio_encoder\" })\n            ]),\n            wrapperAuxiliaryBytes: 13309522014,\n            requiredBytesKeepingExistingCache: 53296925614,\n            nominal50GiBBytes: 53687091200,\n            nominal50GiBHeadroomBytes: 390165586,\n            minimumNetworkVolumeGb: 50,\n            capacityFitCertified: false,\n            storagePlan: \"PERSISTENT_DIFFUSION_PLUS_AUXILIARY_EPHEMERAL_UNCERTIFIED\",\n            auxiliaryAssetsPersistent: false,\n            auxiliaryAssetsEphemeralRequired: true,\n            optionalVocalSeparatorAuthorityPinned: false,\n            targetGpuTypeId: \"NVIDIA L40S\",\n            physicalFitCertified: false,"
   }
 }
