@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-retained-volume-reuse-20260907-216",
+  "jobId": "v142-humo-retained-volume-pin-20260907-217",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const initial = await listVolumes();",
-    "replace": "    const initial = await listVolumes();\n    const requestedVolumeId = String(env.JARVIS_RUNPOD_NETWORK_VOLUME_ID || \"\").trim();\n    if (requestedVolumeId) {\n        const requested = initial.filter(item => item.id === requestedVolumeId);\n        if (requested.length !== 1) throw new Error(`RUNPOD_HUMO_RETAINED_VOLUME_MATCH_COUNT:${requested.length}`);\n        const volume = requested[0];\n        if (volume.sizeGb < 50 || volume.type !== \"STANDARD\") throw new Error(\"RUNPOD_HUMO_RETAINED_VOLUME_INVALID\");\n        if (!eligibleDc.has(volume.dataCenterId)) throw new Error(`RUNPOD_HUMO_RETAINED_VOLUME_DATACENTER_UNAVAILABLE:${volume.dataCenterId}`);\n        log({ ok: true, status: \"HUMO_NETWORK_VOLUME_REUSED_EXPLICIT_RUNPODCTL\", ...volume, created: false, runpodctlVersion: RUNPODCTL_V142.version });\n        return { ...volume, created: false };\n    }"
+    "search": "    const persistentVolume = await ensureHuMoPersistentNetworkVolume({",
+    "replace": "    runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID = String(env.JARVIS_RUNPOD_NETWORK_VOLUME_ID || \"1qm5wczocl\").trim();\n    runtimeEnv.JARVIS_RUNPOD_DATACENTER_ID = String(env.JARVIS_RUNPOD_DATACENTER_ID || \"EU-NL-1\").trim();\n    runtimeEnv.JARVIS_RUNPOD_RETAIN_NETWORK_VOLUME_AUTHORIZED = \"true\";\n    const persistentVolume = await ensureHuMoPersistentNetworkVolume({"
   }
 }
