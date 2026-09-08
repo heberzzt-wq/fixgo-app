@@ -8648,7 +8648,7 @@ export async function runHuMoIdentityProbeCli({
     if (!Number.isFinite(requestedHardBudgetUsd) || requestedHardBudgetUsd <= 0 || requestedHardBudgetUsd > 3) {
         throw new Error("RUNPOD_HUMO_IDENTITY_PROBE_BUDGET_INVALID");
     }
-    const durationSeconds = Number(String(env.JARVIS_HUMO_IDENTITY_PROBE_DURATION_SECONDS || "8").trim());
+    const durationSeconds = Number(String(env.JARVIS_HUMO_IDENTITY_PROBE_DURATION_SECONDS || "3.88").trim());
     if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 8.0) {
         throw new Error("RUNPOD_HUMO_IDENTITY_PROBE_DURATION_INVALID");
     }
