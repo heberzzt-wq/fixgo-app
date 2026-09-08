@@ -1,9 +1,12 @@
 {
-  "jobId": "v142-humo17-core-stage-physical-20260908-309",
-  "operation": "humo17_core_stage",
+  "jobId": "v142-humo17-delete-verify-fix-20260908-310",
+  "operation": "patch",
   "humanApproved": true,
-  "executePaid": true,
-  "expectedBaseSha": "93088d96fc3d6c36d58d0b5b78834329d1bb7b6d",
-  "hardBudgetUsd": 1.5,
-  "maximumMinutes": 90
+  "patch": {
+    "file": "jarvis-fs-bridge.js",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "const observed = await provider(\"GET\", `/pods/${encodeURIComponent(podId)}`, null, [200, 404]);",
+    "replace": "const observed = await provider(\"GET\", `/pods/${encodeURIComponent(podId)}`, null, [200]);"
+  }
 }
