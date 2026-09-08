@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-humo17-materializer-idempotent-20260908-251",
-  "completedAt": "2026-09-08T14:59:37.749Z",
+  "jobId": "v142-humo17-storage-authority-20260908-252",
+  "completedAt": "2026-09-08T15:10:08.724Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": ".github/scripts/v142-final-contract-alignment.mjs",
+  "file": "jarvis-local-video-engine.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 17623,
-  "bytesAfter": 17721,
+  "bytesBefore": 412502,
+  "bytesAfter": 413975,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    ".github/scripts/v142-final-contract-alignment.mjs"
+    "jarvis-local-video-engine.js"
   ]
 }
