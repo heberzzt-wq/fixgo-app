@@ -804,6 +804,10 @@ async function executeJob(job = {}) {
         return await executeHuMoIdentityProbeJob(job);
     }
 
+    if (operation === "humo17_core_stage") {
+        return await executeHuMo17CoreStageJob(job);
+    }
+
     return await executeBridgeJob(job);
 }
 
