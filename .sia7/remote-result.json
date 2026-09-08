@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo17-capacity-tests-20260908-271",
-  "completedAt": "2026-09-08T16:24:40.468Z",
+  "jobId": "v142-humo17-zero-cost-fit-test-20260908-272",
+  "completedAt": "2026-09-08T16:25:16.242Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "tests/jarvis-local-video-engine-v142.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 412052,
-  "bytesAfter": 412370,
+  "bytesBefore": 412370,
+  "bytesAfter": 412371,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

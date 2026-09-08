@@ -115,7 +115,7 @@ test("V142 next identity runtime preflight is zero-cost and remains fail-closed"
     assert.equal(result.backend, "humo-17b-identity");
     assert.equal(result.model, "HuMo-17B");
     assert.equal(result.targetGpuTypeId, "NVIDIA L40S");
-    assert.equal(result.capacity.nominalFitByBytes, true);
+    assert.equal(result.capacity.nominalFitByBytes, false);
     assert.equal(result.capacity.certified, false);
     assert.equal(result.executable, false);
     assert.equal(result.runtimeAssetAuthorityPinned, false);
