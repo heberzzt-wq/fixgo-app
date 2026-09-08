@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-core-cache-test-import-20260908-279",
+  "jobId": "v142-humo17-core-cache-test-import-20260908-280",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    RUNPOD_HUMO_CACHE_BASE,\n    validateModelCacheManifest,",
-    "replace": "    RUNPOD_HUMO_CACHE_BASE,\n    RUNPOD_HUMO17_CORE_CACHE_BASE,\n    validateHuMo17CoreCacheManifest,\n    validateModelCacheManifest,"
+    "search": "    RUNPOD_HUMO_CACHE_BASE,",
+    "replace": "    RUNPOD_HUMO_CACHE_BASE,\n    RUNPOD_HUMO17_CORE_CACHE_BASE,\n    validateHuMo17CoreCacheManifest,"
   }
 }
