@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-core-stage-dispatch-20260908-294",
+  "jobId": "v142-humo17-worker-env-20260908-295",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    else if (process.argv.includes(\"--humo-runtime-certification\")) {",
-    "replace": "    else if (process.argv.includes(\"--humo17-core-stage\")) {\n        runHuMo17PersistentCoreStagingCli()\n            .then(result => console.log(JSON.stringify(result)))\n            .catch(error => {\n                console.error(JSON.stringify({\n                    ok: false,\n                    status: error?.message || \"HUMO17_PERSISTENT_CORE_STAGE_FAILED\",\n                    podId: error?.podId || null,\n                    inferenceStarted: false\n                }));\n                process.exitCode = 1;\n            });\n    }\n    else if (process.argv.includes(\"--humo-runtime-certification\")) {"
+    "search": "function runLocalProcess(command, args = [], { cwd = REPO_ROOT, timeoutMs = 120000 } = {}) {\n    return new Promise(resolve => {\n        const child = spawn(command, args, {\n            cwd,\n            shell: false,\n            windowsHide: true,\n            stdio: [\"ignore\", \"pipe\", \"pipe\"],\n            env: { ...process.env }\n        });",
+    "replace": "function runLocalProcess(command, args = [], { cwd = REPO_ROOT, timeoutMs = 120000, env = process.env } = {}) {\n    return new Promise(resolve => {\n        const child = spawn(command, args, {\n            cwd,\n            shell: false,\n            windowsHide: true,\n            stdio: [\"ignore\", \"pipe\", \"pipe\"],\n            env: { ...env }\n        });"
   }
 }
