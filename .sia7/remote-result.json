@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-humo17-staging-plan-tests-20260908-284",
-  "completedAt": "2026-09-08T16:55:23.483Z",
+  "jobId": "v142-humo17-core-manifest-authority-fix-20260908-285",
+  "completedAt": "2026-09-08T16:56:48.597Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+  "file": "jarvis-local-video-engine.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 415473,
-  "bytesAfter": 418433,
+  "bytesBefore": 421755,
+  "bytesAfter": 421798,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "tests/jarvis-local-video-engine-v142.test.mjs"
+    "jarvis-local-video-engine.js"
   ]
 }

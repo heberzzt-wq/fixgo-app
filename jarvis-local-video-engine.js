@@ -552,7 +552,7 @@ export function validateHuMo17CoreCacheManifest(manifest, contract = RUNPOD_HUMO
     const identity = ["schemaVersion", "profile", "runtime", "targetGpuTypeId", "comfyUiRepository", "comfyUiRevision", "wrapperRepository", "wrapperRevision", "modelRepository", "modelRevision", "existingHuMoCacheProfile", "existingHuMoCacheTotalBytes", "minimumNetworkVolumeGb", "networkVolumeType", "totalBytes", "combinedPersistentBytes", "nominalVolumeBytes", "headroomBytes", "storagePlan", "cacheMutationPolicy"];
     if (!manifest || identity.some(key => manifest[key] !== contract[key]) ||
         !Number.isFinite(Date.parse(manifest.verifiedAt)) || manifest.cacheStatus !== "CACHE_MODEL_READY" ||
-        manifest.assetDownloadAuthorized !== false || manifest.physicalStageCertified !== true ||
+        manifest.assetDownloadAuthorized !== true || manifest.physicalStageCertified !== true || manifest.existingCachePreserved !== true ||
         !String(manifest.networkVolumeId || "").trim() || !String(manifest.dataCenterId || "").trim() ||
         !Array.isArray(manifest.files) || manifest.files.length !== contract.requiredFiles.length) return false;
     const files = new Map(manifest.files.map(file => [file.path, file]));
