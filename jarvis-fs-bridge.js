@@ -8626,6 +8626,52 @@ async function ensureHuMoPersistentNetworkVolume({ root, env, canonicalSha, log 
     return { ...created, created: true };
 }
 
+export function inspectNextIdentityRuntimeCandidate({ backend = "humo-17b-identity" } = {}) {
+    const candidate = buildNextIdentityRuntimeCandidate({ backend });
+    const strategy = candidate.singleGpuStrategy || null;
+    const requiredBytes = Number(strategy?.requiredBytesKeepingExistingCache || 0);
+    const nominalBytes = Number(strategy?.nominal50GiBBytes || 0);
+    const nominalHeadroomBytes = Number(strategy?.nominal50GiBHeadroomBytes || 0);
+    return {
+        ok: true,
+        status: "NEXT_IDENTITY_RUNTIME_CANDIDATE_ZERO_COST_READY",
+        backend: candidate.id,
+        model: candidate.model,
+        targetGpuTypeId: candidate.targetGpuTypeId,
+        candidateOnly: candidate.candidateOnly === true,
+        executable: candidate.executable === true,
+        blockingReason: candidate.blockingReason || null,
+        runtimeAssetAuthorityPinned: candidate.runtimeAssetAuthorityPinned === true,
+        physicalRuntimeCertified: candidate.physicalRuntimeCertified === true,
+        singleL40sRuntimeCertified: candidate.singleL40sRuntimeCertified === true,
+        paidExecutionAuthorized: candidate.paidExecutionAuthorized === true,
+        probeGeometry: candidate.probeGeometry || null,
+        singleGpuStrategy: strategy,
+        capacity: strategy ? {
+            requiredBytesKeepingExistingCache: requiredBytes,
+            nominal50GiBBytes: nominalBytes,
+            nominal50GiBHeadroomBytes: nominalHeadroomBytes,
+            nominalFitByBytes: requiredBytes > 0 && nominalBytes > 0 && requiredBytes <= nominalBytes,
+            certified: strategy.capacityFitCertified === true
+        } : null,
+        resourceCreationPossible: false,
+        providerTrafficUsed: false,
+        inferenceStarted: false,
+        externalApiUsed: false,
+        externalEstimatedCostUsd: 0
+    };
+}
+
+export async function runNextIdentityRuntimePreflightCli({
+    env = process.env,
+    log = value => console.log(JSON.stringify(value))
+} = {}) {
+    const backend = String(env.JARVIS_NEXT_IDENTITY_BACKEND || "humo-17b-identity").trim();
+    const result = inspectNextIdentityRuntimeCandidate({ backend });
+    log(result);
+    return result;
+}
+
 export async function runHuMoIdentityProbeCli({
     root = DEFAULT_ROOT,
     env = process.env,

@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo17-bridge-candidate-import-20260908-261",
-  "completedAt": "2026-09-08T16:11:44.540Z",
+  "jobId": "v142-next-identity-zero-cost-preflight-20260908-262",
+  "completedAt": "2026-09-08T16:14:05.559Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 365703,
-  "bytesAfter": 365742,
+  "bytesBefore": 365742,
+  "bytesAfter": 367910,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
