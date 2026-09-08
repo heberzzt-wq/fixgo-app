@@ -171,7 +171,7 @@ test("V142 HuMo17 physical core staging worker is explicit-authority budgeted an
     assert.equal(bridgeSource.includes('JARVIS_HUMO17_CORE_STAGE_AUTHORIZED'), true);
     assert.equal(bridgeSource.includes('hardBudgetUsd > 3'), true);
     assert.equal(bridgeSource.includes('HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED'), true);
-    assert.equal(bridgeSource.includes('computeType: \"CPU\"'), true);
+    assert.equal(bridgeSource.includes('computeType: runtimeProbeAuthorized ? \"GPU\" : \"CPU\"'), true);
     assert.equal(bridgeSource.includes('dataCenterIds: [volume.dataCenterId]'), true);
     assert.equal(bridgeSource.includes('networkVolumeId: volume.id'), true);
     assert.equal(bridgeSource.includes('dockerEntrypoint: [\"bash\", \"-lc\"]'), true);
