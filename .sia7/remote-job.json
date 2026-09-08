@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-bridge-official-duration-cap-20260907-227",
+  "jobId": "v142-humo-bridge-duration-default-20260907-228",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const durationSeconds = Number(String(env.JARVIS_HUMO_IDENTITY_PROBE_DURATION_SECONDS || \"8\").trim());\n    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 8.0) {",
-    "replace": "    const durationSeconds = Number(String(env.JARVIS_HUMO_IDENTITY_PROBE_DURATION_SECONDS || \"3.88\").trim());\n    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 3.88) {"
+    "search": "    const durationSeconds = Number(String(env.JARVIS_HUMO_IDENTITY_PROBE_DURATION_SECONDS || \"8\").trim());",
+    "replace": "    const durationSeconds = Number(String(env.JARVIS_HUMO_IDENTITY_PROBE_DURATION_SECONDS || \"3.88\").trim());"
   }
 }
