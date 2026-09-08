@@ -8892,6 +8892,14 @@ export async function runHuMo17PersistentCoreStagingCli({
     let placement = null;
     if (runtimeProbeAuthorized) {
         if (volume.id !== "1qm5wczocl" || volume.dataCenterId !== "EU-NL-1") throw new Error("HUMO17_PINNED_VOLUME_REQUIRED");
+        const stageReceiptPath = String(env.JARVIS_HUMO17_CORE_STAGE_RECEIPT || "").trim();
+        if (!stageReceiptPath || !fs.existsSync(stageReceiptPath)) throw new Error("HUMO17_STAGE_RECEIPT_REQUIRED");
+        const stageReceipt = JSON.parse(fs.readFileSync(stageReceiptPath, "utf8"));
+        if (stageReceipt.ok !== true || stageReceipt.physicalStageCertified !== true || stageReceipt.coreManifestVerified !== true ||
+            stageReceipt.terminationVerified !== true || stageReceipt.networkVolumeRetained !== true ||
+            stageReceipt.networkVolumeId !== volume.id || stageReceipt.networkVolumeDataCenterId !== volume.dataCenterId ||
+            stageReceipt.newPersistentBytes !== RUNPOD_HUMO17_CORE_CACHE_BASE.totalBytes ||
+            stageReceipt.combinedPersistentBytes !== RUNPOD_HUMO17_CORE_CACHE_BASE.combinedPersistentBytes) throw new Error("HUMO17_STAGE_RECEIPT_INVALID");
         const discovery = createRunpodRemoteVideoAdapter({root: resolvedRoot,
             env: {...credential.env, JARVIS_REMOTE_GPU_PROVIDER: "runpod", JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA L40S",
                 JARVIS_RUNPOD_CLOUD_TYPE: "SECURE", JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false",
@@ -8906,7 +8914,8 @@ export async function runHuMo17PersistentCoreStagingCli({
                 geometry: buildNextIdentityRuntimeCandidate({backend: "humo-17b-identity"}).probeGeometry,
                 networkVolumeId: volume.id, gpu: "NVIDIA L40S", gpuCount: 1, hardBudgetUsd,
                 referenceSha256: runtimeProbeAssets.reference.sha256, audioSha256: runtimeProbeAssets.audio.sha256,
-                resourceCreated: false, inferenceStarted: false, networkVolumeRetained: true, canonicalSha};
+                resourceCreated: false, inferenceStarted: false, networkVolumeRetained: true, canonicalSha,
+                coreManifestVerified: true, coreStagePodId: stageReceipt.podId, coreStageReceiptSha256: createHash("sha256").update(fs.readFileSync(stageReceiptPath)).digest("hex")};
             log(result); return result;
         }
         if (env.JARVIS_HUMO17_RUNTIME_CI_VERIFIED_SHA !== canonicalSha) throw new Error("HUMO17_EXACT_HEAD_CI_REQUIRED");
