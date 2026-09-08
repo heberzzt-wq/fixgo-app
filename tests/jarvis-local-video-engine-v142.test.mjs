@@ -7743,6 +7743,11 @@ test("V142 SIA7 HuMo executor is typed, budget-capped, source-pinned and control
     assert.equal(workerSource.includes("SIA7_HUMO_MINIDRAMA_SOURCE_SHA256 = \"7fe58e7e4ec425aa556b57263b8a5b3173683e23a13cabc74e50b16f7084301d\""), true);
     assert.equal(workerSource.includes("SIA7_HUMO_MINIDRAMA_SOURCE_PREFIX = \"mini-drama-1787639542914\""), true);
     assert.equal(workerSource.includes("SIA7_HUMO_GOOD_VOICE_REFERENCE_READY"), true);
+    assert.equal(workerSource.includes("SIA7_HUMO_GOOD_VOICE_BASE64_INVALID"), true);
+    assert.equal(workerSource.includes("audioBytes.length !== 256078"), true);
+    assert.equal(workerSource.includes("Buffer.from(inlineAudioBase64, \"base64\")"), true);
+    assert.equal(workerSource.includes("materializationSource: \"chat_user_uploaded_minidrama_pcm_extract\""), true);
+    assert.equal(workerSource.includes("SIA7_HUMO_GOOD_VOICE_POST_WRITE_SHA_MISMATCH"), true);
     assert.equal(workerSource.includes("sampleRateHz: 16000"), true);
     assert.equal(workerSource.includes("channels: 1"), true);
     assert.match(workerSource, /operation === "humo_reference_audio_prepare"/);
