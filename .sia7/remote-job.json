@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-materializer-idempotent-20260908-250",
+  "jobId": "v142-humo17-materializer-idempotent-20260908-251",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": ".github/scripts/v142-final-contract-alignment.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "function alignNextIdentityRuntimeCandidates() {\n  let engine = read(ENGINE);\n  const anchor =",
-    "replace": "function alignNextIdentityRuntimeCandidates() {\n  let engine = read(ENGINE);\n  if (engine.includes(\"export const NEXT_IDENTITY_RUNTIME_CANDIDATES = Object.freeze({\")) return;\n  const anchor ="
+    "search": "  const anchor = \"export function buildHuMoIdentityRuntimeAuthority({ paidExecutionAuthorized = false } = {}) {\";",
+    "replace": "  if (engine.includes(\"export const NEXT_IDENTITY_RUNTIME_CANDIDATES = Object.freeze({\")) return;\n  const anchor = \"export function buildHuMoIdentityRuntimeAuthority({ paidExecutionAuthorized = false } = {}) {\";"
   }
 }
