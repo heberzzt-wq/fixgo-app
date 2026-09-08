@@ -1,5 +1,12 @@
 {
-  "jobId": "v142-humo-good-voice-prepare-20260907-198",
-  "operation": "humo_reference_audio_prepare",
-  "humanApproved": true
+  "jobId": "v142-humo-good-voice-inline-materializer-20260907-199",
+  "operation": "patch",
+  "humanApproved": true,
+  "patch": {
+    "file": "jarvis-github-worker.js",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "    const sourceVideoFile = findHuMoMiniDramaSource();",
+    "replace": "    const inlineAudioBase64 = String(job.audioBase64 || \"\").trim();\n    if (inlineAudioBase64) {\n        if (inlineAudioBase64.length > 400000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(inlineAudioBase64)) {\n            throw new Error(\"SIA7_HUMO_GOOD_VOICE_BASE64_INVALID\");\n        }\n        const audioBytes = Buffer.from(inlineAudioBase64, \"base64\");\n        if (audioBytes.length !== 256078) {\n            throw new Error(`SIA7_HUMO_GOOD_VOICE_BYTES_INVALID:${audioBytes.length}`);\n        }\n        const inlineSha256 = createHash(\"sha256\").update(audioBytes).digest(\"hex\");\n        if (inlineSha256 !== SIA7_HUMO_AUDIO_SHA256) {\n            throw new Error(`SIA7_HUMO_GOOD_VOICE_SHA_MISMATCH:${inlineSha256}`);\n        }\n        if (audioBytes.subarray(0, 4).toString(\"ascii\") !== \"RIFF\" || audioBytes.subarray(8, 12).toString(\"ascii\") !== \"WAVE\") {\n            throw new Error(\"SIA7_HUMO_GOOD_VOICE_WAV_INVALID\");\n        }\n        const outputFile = path.resolve(SIA7_HUMO_SOURCE_ROOT, SIA7_HUMO_AUDIO_OUTPUT);\n        const sourceRootPrefix = SIA7_HUMO_SOURCE_ROOT.endsWith(path.sep) ? SIA7_HUMO_SOURCE_ROOT : SIA7_HUMO_SOURCE_ROOT + path.sep;\n        if (!outputFile.startsWith(sourceRootPrefix)) throw new Error(\"SIA7_HUMO_AUDIO_OUTPUT_OUTSIDE_SOURCE_ROOT\");\n        fs.mkdirSync(path.dirname(outputFile), { recursive: true });\n        const temporaryFile = outputFile + \".partial.wav\";\n        fs.rmSync(temporaryFile, { force: true });\n        fs.writeFileSync(temporaryFile, audioBytes);\n        if (sha256File(temporaryFile) !== SIA7_HUMO_AUDIO_SHA256) {\n            fs.rmSync(temporaryFile, { force: true });\n            throw new Error(\"SIA7_HUMO_GOOD_VOICE_POST_WRITE_SHA_MISMATCH\");\n        }\n        fs.rmSync(outputFile, { force: true });\n        fs.renameSync(temporaryFile, outputFile);\n        return {\n            ok: true,\n            operation: \"humo_reference_audio_prepare\",\n            dryRun: false,\n            status: \"SIA7_HUMO_GOOD_VOICE_REFERENCE_READY\",\n            sourceVideoOutput: null,\n            sourceVideoSha256: SIA7_HUMO_MINIDRAMA_SOURCE_SHA256,\n            materializationSource: \"chat_user_uploaded_minidrama_pcm_extract\",\n            audioOutput: SIA7_HUMO_AUDIO_OUTPUT,\n            audioSha256: inlineSha256,\n            bytes: audioBytes.length,\n            durationSeconds: 8.0,\n            sampleRateHz: 16000,\n            channels: 1,\n            externalApiUsed: false,\n            gpuRentalSeconds: 0,\n            gpuRentalEstimatedCost: 0\n        };\n    }\n    const sourceVideoFile = findHuMoMiniDramaSource();"
+  }
 }
