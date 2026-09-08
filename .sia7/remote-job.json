@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-series-generation-backend-context-20260908-244",
+  "jobId": "v142-series-backend-policy-enforcement-20260908-245",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-artifact-studio.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    maximumReferenceImages = SERIES_REFERENCE_MAX_COUNT",
-    "replace": "    maximumReferenceImages = null,\n    generationBackend = \"veo\""
+    "search": "    const normalizedMaximum = Number(maximumReferenceImages);",
+    "replace": "    const backendPolicy = getSeriesGenerationBackendPolicy(generationBackend);\n    const policyMaximum = Number(backendPolicy.maximumReferenceImages) || SERIES_REFERENCE_MAX_COUNT;\n    const normalizedMaximum = maximumReferenceImages === null || maximumReferenceImages === undefined\n        ? policyMaximum\n        : Number(maximumReferenceImages);\n    const uniqueCastIds = [...new Set(episode.castIds || [])];\n    if (uniqueCastIds.length > Number(backendPolicy.maximumIdentityCount || uniqueCastIds.length)) {\n        if (backendPolicy.backend === \"humo-17b-identity\") {\n            throw new Error(`SERIES_HUMO_SINGLE_IDENTITY_REQUIRED:${uniqueCastIds.length}`);\n        }\n        throw new Error(`SERIES_GENERATION_IDENTITY_LIMIT_EXCEEDED:${backendPolicy.backend}:${uniqueCastIds.length}:${backendPolicy.maximumIdentityCount}`);\n    }"
   }
 }
