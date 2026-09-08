@@ -1,9 +1,17 @@
 {
-  "jobId": "v142-humo17-core-stage-physical-20260908-300",
-  "completedAt": "2026-09-08T20:59:28.527Z",
-  "ok": false,
-  "error": "SIA7_HUMO17_CORE_STAGE_FAILED:RUNPOD_HUMO17_HTTP_500",
+  "jobId": "v142-humo17-cpu-pod-payload-fix-20260908-301",
+  "completedAt": "2026-09-08T21:04:02.664Z",
+  "ok": true,
+  "operation": "patch",
+  "dryRun": false,
+  "file": "jarvis-fs-bridge.js",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 390858,
+  "bytesAfter": 390644,
+  "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
-    ".sia7/remote-result.json"
+    ".sia7/remote-result.json",
+    "jarvis-fs-bridge.js"
   ]
 }
