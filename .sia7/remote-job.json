@@ -1,12 +1,10 @@
 {
-  "jobId": "v142-humo-worker-freshness-regression-20260907-189",
-  "operation": "patch",
+  "jobId": "v142-humo-8s-two-ref-freshness-preflight-20260907-190",
+  "operation": "humo_identity_probe",
   "humanApproved": true,
-  "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "    assert.equal(workerSource.includes(\"JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_2: SIA7_HUMO_REFERENCE_SHA256_2\"), true);",
-    "replace": "    assert.equal(workerSource.includes(\"JARVIS_HUMO_IDENTITY_PROBE_REFERENCE_SHA256_2: SIA7_HUMO_REFERENCE_SHA256_2\"), true);\n    assert.equal(workerSource.includes(\"SIA7_WORKER_SOURCE_SHA256_AT_START\"), true);\n    assert.equal(workerSource.includes(\"SIA7_WORKER_RESTART_REQUIRED\"), true);\n    assert.equal(workerSource.includes(\"durationSeconds: 8.0\"), true);\n    assert.equal(workerSource.includes(\"referenceCount: 2\"), true);\n    assert.equal(workerSource.includes(\"referenceSha256s: [SIA7_HUMO_REFERENCE_SHA256, SIA7_HUMO_REFERENCE_SHA256_2]\"), true);"
-  }
+  "executePaid": false,
+  "fullEpisodeAuthorized": false,
+  "expectedBaseSha": "27d13dcaa44d0af10b82768244bcd70ffc368d2e",
+  "hardBudgetUsd": 3,
+  "monthlyStorageAuthorizedUsd": 3.5
 }
