@@ -203,6 +203,9 @@ export const NEXT_IDENTITY_RUNTIME_CANDIDATES = Object.freeze({
                 Object.freeze({ repository: "Kijai/WanVideo_comfy", revision: "d45e290d88d212a8e78f8f45584a21a0f0e2457b", path: "HuMo/whisper_large_v3_encoder_fp16.safetensors", bytes: 1693870272, sha256: "fe5624f5db7413815a5decbc2afb1f7a8015f37519d6e9ae6dc7fad7c0c6c253", role: "audio_encoder" })
             ]),
             wrapperAuxiliaryBytes: 13309522014,
+            persistentCoreHeadroomBytes: 12961681856,
+            ephemeralWorkspaceReserveBytes: 8589934592,
+            minimumEphemeralBytes: 21899456606,
             requiredBytesKeepingExistingCache: 54034931358,
             nominal50GiBBytes: 53687091200,
             nominal50GiBHeadroomBytes: -347840158,
