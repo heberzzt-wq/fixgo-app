@@ -1,17 +1,9 @@
 {
-  "jobId": "v142-humo17-distill-lora-authority-20260908-258",
-  "completedAt": "2026-09-08T16:00:42.489Z",
-  "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "jarvis-local-video-engine.js",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 413966,
-  "bytesAfter": 414314,
-  "source": "sia7_github_worker_exact_patch_v1",
+  "jobId": "v142-humo17-bridge-candidate-import-20260908-259",
+  "completedAt": "2026-09-08T16:01:17.256Z",
+  "ok": false,
+  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1",
   "committedFiles": [
-    ".sia7/remote-result.json",
-    "jarvis-local-video-engine.js"
+    ".sia7/remote-result.json"
   ]
 }
