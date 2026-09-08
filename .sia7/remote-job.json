@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-core-cache-test-import-20260908-280",
+  "jobId": "v142-humo17-core-cache-validator-tests-20260908-281",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    RUNPOD_HUMO_CACHE_BASE,",
-    "replace": "    RUNPOD_HUMO_CACHE_BASE,\n    RUNPOD_HUMO17_CORE_CACHE_BASE,\n    validateHuMo17CoreCacheManifest,"
+    "search": "test(\"V142 HuMo runner binds inference to the certified lifecycle venv\", () => {",
+    "replace": "test(\"V142 HuMo17 persistent core cache is additive pinned and fail-closed\", () => {\n    const contract = RUNPOD_HUMO17_CORE_CACHE_BASE;\n    assert.equal(contract.profile, \"humo17-fp8-core-v1\");\n    assert.equal(contract.requiredFiles.length, 2);\n    assert.equal(contract.totalBytes, 18630299842);\n    assert.equal(contract.combinedPersistentBytes, 40725409344);\n    assert.equal(contract.headroomBytes, 12961681856);\n    assert.equal(contract.cacheMutationPolicy, \"ADD_ONLY_PRESERVE_EXISTING_HUMO_CACHE\");\n    assert.equal(contract.assetDownloadAuthorized, false);\n    assert.equal(contract.physicalStageCertified, false);\n    assert.equal(contract.existingHuMoCacheProfile, RUNPOD_HUMO_CACHE_BASE.profile);\n    assert.equal(contract.existingHuMoCacheTotalBytes, RUNPOD_HUMO_CACHE_BASE.totalBytes);\n    const manifest = {\n        ...contract,\n        files: structuredClone(contract.requiredFiles),\n        verifiedAt: \"2026-09-08T00:00:00Z\",\n        cacheStatus: \"CACHE_MODEL_READY\",\n        networkVolumeId: \"humo17-volume\",\n        dataCenterId: \"EU-NL-1\",\n        assetDownloadAuthorized: false,\n        physicalStageCertified: true\n    };\n    assert.equal(validateHuMo17CoreCacheManifest(manifest), true);\n    const badSha = structuredClone(manifest);\n    badSha.files[0].sha256 = \"0\".repeat(64);\n    assert.equal(validateHuMo17CoreCacheManifest(badSha), false);\n    const notPhysical = structuredClone(manifest);\n    notPhysical.physicalStageCertified = false;\n    assert.equal(validateHuMo17CoreCacheManifest(notPhysical), false);\n    const mutatedPolicy = structuredClone(manifest);\n    mutatedPolicy.cacheMutationPolicy = \"REPLACE\";\n    assert.equal(validateHuMo17CoreCacheManifest(mutatedPolicy), false);\n});\n\ntest(\"V142 HuMo runner binds inference to the certified lifecycle venv\", () => {"
   }
 }
