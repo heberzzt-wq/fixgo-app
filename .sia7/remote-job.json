@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-test-official-duration-20260907-231",
+  "jobId": "v142-humo-official-geometry-authority-20260908-232",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+    "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    assert.equal(runner.includes('\\\"probe_duration_seconds\\\": 8.0'), true);",
-    "replace": "    assert.equal(runner.includes('\\\"probe_duration_seconds\\\": 3.88'), true);"
+    "search": "    candidateProbeGeometry: Object.freeze({\n        width: 832,\n        height: 480,\n        fps: 25,\n        frames: 201,\n        durationSeconds: 8.0,\n        orientation: \"landscape\"\n    }),",
+    "replace": "    candidateProbeGeometry: Object.freeze({\n        width: 832,\n        height: 480,\n        fps: 25,\n        frames: 97,\n        durationSeconds: 3.88,\n        orientation: \"landscape\"\n    }),"
   }
 }
