@@ -1,5 +1,5 @@
 {
-  "jobId": "v142-humo17-worker-recovery-20260908-318",
+  "jobId": "v142-humo17-worker-recovery-20260908-319",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
@@ -7,6 +7,6 @@
     "dryRun": true,
     "expectedMatches": 1,
     "search": "    const runtimeProbeAuthorized = truthy(env.JARVIS_HUMO17_RUNTIME_PROBE_AUTHORIZED);",
-    "replace": "    const runtimeProbeAuthorized = truthy(env.JARVIS_HUMO17_RUNTIME_PROBE_AUTHORIZED);"
+    "replace": "    const runtimeProbeAuthorized = truthy(env.JARVIS_HUMO17_RUNTIME_PROBE_AUTHORIZED); // explicit probe authority"
   }
 }
