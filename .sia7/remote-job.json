@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-zero-cost-fit-test-20260908-272",
+  "jobId": "v142-humo17-split-capacity-preflight-20260908-273",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+    "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    assert.equal(result.capacity.nominalFitByBytes, true);",
-    "replace": "    assert.equal(result.capacity.nominalFitByBytes, false);"
+    "search": "            nominal50GiBHeadroomBytes: nominalHeadroomBytes,",
+    "replace": "            nominal50GiBHeadroomBytes: nominalHeadroomBytes,\n            persistentCoreBytes: Number(strategy?.persistentCoreBytes || 0),\n            persistentCoreHeadroomBytes: Number(strategy?.persistentCoreHeadroomBytes || 0),\n            wrapperAuxiliaryBytes: Number(strategy?.wrapperAuxiliaryBytes || 0),\n            ephemeralWorkspaceReserveBytes: Number(strategy?.ephemeralWorkspaceReserveBytes || 0),\n            minimumEphemeralBytes: Number(strategy?.minimumEphemeralBytes || 0),\n            splitPlanFitsNominalPersistentByBytes: Number(strategy?.persistentCoreBytes || 0) > 0 && nominalBytes > 0 && Number(strategy?.persistentCoreBytes || 0) <= nominalBytes,"
   }
 }
