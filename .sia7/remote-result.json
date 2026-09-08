@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo17-ephemeral-capacity-plan-20260908-269",
-  "completedAt": "2026-09-08T16:22:29.614Z",
+  "jobId": "v142-humo17-storage-plan-truth-20260908-270",
+  "completedAt": "2026-09-08T16:23:54.968Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-local-video-engine.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 414407,
-  "bytesAfter": 414565,
+  "bytesBefore": 414565,
+  "bytesAfter": 414557,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
