@@ -1,12 +1,10 @@
 {
-  "jobId": "v142-humo-facial-hair-prompt-20260907-205",
-  "operation": "patch",
+  "jobId": "v142-humo-8s-two-ref-good-voice-paid-20260907-206",
+  "operation": "humo_identity_probe",
   "humanApproved": true,
-  "patch": {
-    "file": "jarvis-fs-bridge.js",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "        \"Preserve his exact facial identity, facial proportions, skin texture and age.\",",
-    "replace": "        \"Preserve his exact facial identity, facial proportions, skin texture, age, hairstyle and facial-hair state.\",\n        \"Match facial hair exactly to the supplied identity references; do not invent, darken, thicken or add beard, mustache or stubble.\","
-  }
+  "executePaid": true,
+  "fullEpisodeAuthorized": false,
+  "expectedBaseSha": "edcbf8a7dc884d2ec10f0c6060e9717964b68ea6",
+  "hardBudgetUsd": 3,
+  "monthlyStorageAuthorizedUsd": 3.5
 }
