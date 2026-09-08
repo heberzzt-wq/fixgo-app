@@ -701,6 +701,94 @@ async function executeHuMoIdentityProbeJob(job = {}) {
     };
 }
 
+async function executeHuMo17CoreStageJob(job = {}) {
+    if (process.platform !== "win32") throw new Error("SIA7_HUMO17_WINDOWS_WORKER_REQUIRED");
+    const hardBudgetUsd = Number(job.hardBudgetUsd ?? 1.5);
+    const maximumMinutes = Number(job.maximumMinutes ?? 90);
+    if (!Number.isFinite(hardBudgetUsd) || hardBudgetUsd <= 0 || hardBudgetUsd > SIA7_HUMO_MAX_COMPUTE_USD) {
+        throw new Error("SIA7_HUMO17_CORE_STAGE_BUDGET_INVALID");
+    }
+    if (!Number.isFinite(maximumMinutes) || maximumMinutes < 5 || maximumMinutes > 90) {
+        throw new Error("SIA7_HUMO17_CORE_STAGE_DURATION_INVALID");
+    }
+    const expectedBaseSha = String(job.expectedBaseSha || "").trim().toLowerCase();
+    if (!/^[a-f0-9]{40}$/.test(expectedBaseSha)) throw new Error("SIA7_HUMO17_CERTIFIED_BASE_SHA_REQUIRED");
+    const executionHeadSha = await currentHeadSha();
+    const ancestor = await runGit(["merge-base", "--is-ancestor", expectedBaseSha, executionHeadSha]);
+    if (!ancestor.ok) throw new Error("SIA7_HUMO17_CERTIFIED_BASE_NOT_ANCESTOR");
+    const diff = await runGit(["diff", "--name-only", `${expectedBaseSha}..${executionHeadSha}`]);
+    if (!diff.ok) throw new Error("SIA7_HUMO17_CERTIFIED_BASE_DIFF_FAILED");
+    const changedFiles = String(diff.stdout || "").split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+    if (changedFiles.some(file => !file.startsWith(".sia7/"))) {
+        throw new Error("SIA7_HUMO17_EXECUTION_HEAD_HAS_UNCERTIFIED_CODE");
+    }
+    if (job.executePaid !== true) {
+        return {
+            ok: true,
+            operation: "humo17_core_stage",
+            dryRun: true,
+            status: "SIA7_HUMO17_CORE_STAGE_PREFLIGHT_READY",
+            certifiedBaseSha: expectedBaseSha,
+            executionHeadSha,
+            controlPlaneOnlyChanges: changedFiles,
+            hardBudgetUsd,
+            maximumMinutes,
+            networkVolumeId: "1qm5wczocl",
+            dataCenterId: "EU-NL-1",
+            resourceCreationPossible: false,
+            inferenceStarted: false
+        };
+    }
+    if (job.humanApproved !== true) throw new Error("SIA7_HUMO17_CORE_STAGE_HUMAN_APPROVAL_REQUIRED");
+    const execution = await runLocalProcess(
+        process.execPath,
+        ["jarvis-fs-bridge.js", "--humo17-core-stage"],
+        {
+            timeoutMs: Math.ceil((maximumMinutes + 5) * 60 * 1000),
+            env: {
+                ...process.env,
+                JARVIS_HUMO17_CORE_STAGE_AUTHORIZED: "true",
+                JARVIS_HUMO17_CORE_STAGE_HARD_BUDGET_USD: String(hardBudgetUsd),
+                JARVIS_HUMO17_CORE_STAGE_MAX_MINUTES: String(maximumMinutes),
+                JARVIS_RUNPOD_NETWORK_VOLUME_ID: "1qm5wczocl",
+                JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1"
+            }
+        }
+    );
+    const lines = `${execution.stdout || ""}\n${execution.stderr || ""}`
+        .split(/\r?\n/)
+        .map(value => value.trim())
+        .filter(Boolean);
+    let parsed = null;
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+        try {
+            const candidate = JSON.parse(lines[index]);
+            if (candidate && typeof candidate === "object") { parsed = candidate; break; }
+        }
+        catch {}
+    }
+    if (!execution.ok || parsed?.ok !== true || parsed?.status !== "HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED") {
+        throw new Error(`SIA7_HUMO17_CORE_STAGE_FAILED:${parsed?.status || lines.slice(-8).join(" | ") || execution.code}`);
+    }
+    if (parsed.terminationVerified !== true || parsed.networkVolumeRetained !== true) {
+        throw new Error("SIA7_HUMO17_CORE_STAGE_CLOSEOUT_INVALID");
+    }
+    if (Number(parsed.estimatedCostUsd || parsed.cpuRentalEstimatedCost || 0) > hardBudgetUsd + 0.000001) {
+        throw new Error("SIA7_HUMO17_CORE_STAGE_BUDGET_EXCEEDED");
+    }
+    return {
+        ...parsed,
+        operation: "humo17_core_stage",
+        dryRun: false,
+        certifiedBaseSha: expectedBaseSha,
+        executionHeadSha,
+        controlPlaneOnlyChanges: changedFiles,
+        hardBudgetUsd,
+        maximumMinutes,
+        logTail: lines.slice(-20)
+    };
+}
+
 async function executeJob(job = {}) {
     const operation = String(job.operation || "bridge").trim();
 
