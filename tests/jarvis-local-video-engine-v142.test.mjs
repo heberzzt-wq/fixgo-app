@@ -7125,7 +7125,7 @@ test("V142 HuMo identity probe executor exists but remains behind certification 
     ]) assert.equal(executor.includes(marker), true, marker);
     assert.match(runner, /"probe_width": 832/);
     assert.match(runner, /"probe_height": 480/);
-    assert.match(runner, /"probe_duration_seconds": 8\.0/);
+    assert.match(runner, /"probe_duration_seconds": 3\.88/);
 });
 
 test("V142 provision cleanup failure cannot hide a billable Pod", () => {

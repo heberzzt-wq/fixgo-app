@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-test-candidate-geometry-20260908-236",
-  "completedAt": "2026-09-08T05:45:45.140Z",
+  "jobId": "v142-humo-test-executor-duration-20260908-237",
+  "completedAt": "2026-09-08T05:46:04.856Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "tests/jarvis-local-video-engine-v142.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 406287,
-  "bytesAfter": 406331,
+  "bytesBefore": 406331,
+  "bytesAfter": 406332,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
