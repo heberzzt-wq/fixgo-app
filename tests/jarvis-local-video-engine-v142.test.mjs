@@ -11,6 +11,7 @@ import {
     buildLocalAiCapabilityReport,
     buildHuMoIdentityRuntimeAuthority,
     buildHuMo17PersistentCoreStagingPlan,
+    buildHuMo17PersistentCoreStagingBootstrap,
     buildNextIdentityRuntimeCandidate,
     createLocalVideoEngine,
     createRunpodRemoteVideoAdapter,
