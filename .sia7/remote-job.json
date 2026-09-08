@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-worker-core-stage-route-20260908-297",
+  "jobId": "v142-humo17-worker-stage-contract-test-20260908-298",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-github-worker.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    if (operation === \"humo_identity_probe\") {\n        return await executeHuMoIdentityProbeJob(job);\n    }\n\n    return await executeBridgeJob(job);",
-    "replace": "    if (operation === \"humo_identity_probe\") {\n        return await executeHuMoIdentityProbeJob(job);\n    }\n\n    if (operation === \"humo17_core_stage\") {\n        return await executeHuMo17CoreStageJob(job);\n    }\n\n    return await executeBridgeJob(job);"
+    "search": "    assert.equal(phantom.inferenceStarted, false);\n});\n\ntest(\"V142 HuMo17 persistent core cache is additive pinned and fail-closed\", () => {",
+    "replace": "    assert.equal(phantom.inferenceStarted, false);\n});\n\ntest(\"V142 HuMo17 physical core staging worker is explicit-authority budgeted and cleanup-verified\", () => {\n    const workerSource = fs.readFileSync(new URL(\"../jarvis-github-worker.js\", import.meta.url), \"utf8\");\n    const bridgeSource = fs.readFileSync(new URL(\"../jarvis-fs-bridge.js\", import.meta.url), \"utf8\");\n    assert.equal(workerSource.includes('operation === \"humo17_core_stage\"'), true);\n    assert.equal(workerSource.includes('executeHuMo17CoreStageJob(job)'), true);\n    assert.equal(workerSource.includes('job.executePaid !== true'), true);\n    assert.equal(workerSource.includes('job.humanApproved !== true'), true);\n    assert.equal(workerSource.includes('JARVIS_HUMO17_CORE_STAGE_AUTHORIZED: \"true\"'), true);\n    assert.equal(workerSource.includes('JARVIS_RUNPOD_NETWORK_VOLUME_ID: \"1qm5wczocl\"'), true);\n    assert.equal(workerSource.includes('JARVIS_RUNPOD_DATACENTER_ID: \"EU-NL-1\"'), true);\n    assert.equal(workerSource.includes('parsed.terminationVerified !== true || parsed.networkVolumeRetained !== true'), true);\n    assert.equal(workerSource.includes('SIA7_HUMO17_CORE_STAGE_BUDGET_EXCEEDED'), true);\n    assert.equal(bridgeSource.includes('JARVIS_HUMO17_CORE_STAGE_AUTHORIZED'), true);\n    assert.equal(bridgeSource.includes('hardBudgetUsd > 3'), true);\n    assert.equal(bridgeSource.includes('HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED'), true);\n});\n\ntest(\"V142 HuMo17 persistent core cache is additive pinned and fail-closed\", () => {"
   }
 }
