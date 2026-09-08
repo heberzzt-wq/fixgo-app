@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-capacity-required-bytes-20260908-267",
+  "jobId": "v142-humo17-capacity-headroom-20260908-268",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            requiredBytesKeepingExistingCache: 53296925614,",
-    "replace": "            requiredBytesKeepingExistingCache: 54034931358,"
+    "search": "            nominal50GiBHeadroomBytes: 390165586,",
+    "replace": "            nominal50GiBHeadroomBytes: -347840158,"
   }
 }
