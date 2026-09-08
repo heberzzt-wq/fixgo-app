@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-next-identity-test-import-20260908-264",
+  "jobId": "v142-next-identity-zero-cost-test-20260908-265",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "import { createJarvisFsBridgeApp } from \"../jarvis-fs-bridge.js\";",
-    "replace": "import {\n    createJarvisFsBridgeApp,\n    inspectNextIdentityRuntimeCandidate,\n    runNextIdentityRuntimePreflightCli\n} from \"../jarvis-fs-bridge.js\";"
+    "search": "test(\"V142 HuMo runner binds inference to the certified lifecycle venv\", () => {",
+    "replace": "test(\"V142 next identity runtime preflight is zero-cost and remains fail-closed\", async () => {\n    const observed = [];\n    const result = await runNextIdentityRuntimePreflightCli({\n        env: { JARVIS_NEXT_IDENTITY_BACKEND: \"humo17\" },\n        log: value => observed.push(value)\n    });\n    assert.equal(result.ok, true);\n    assert.equal(result.status, \"NEXT_IDENTITY_RUNTIME_CANDIDATE_ZERO_COST_READY\");\n    assert.equal(result.backend, \"humo-17b-identity\");\n    assert.equal(result.model, \"HuMo-17B\");\n    assert.equal(result.targetGpuTypeId, \"NVIDIA L40S\");\n    assert.equal(result.capacity.nominalFitByBytes, true);\n    assert.equal(result.capacity.certified, false);\n    assert.equal(result.executable, false);\n    assert.equal(result.runtimeAssetAuthorityPinned, false);\n    assert.equal(result.singleL40sRuntimeCertified, false);\n    assert.equal(result.paidExecutionAuthorized, false);\n    assert.equal(result.resourceCreationPossible, false);\n    assert.equal(result.providerTrafficUsed, false);\n    assert.equal(result.inferenceStarted, false);\n    assert.equal(result.externalApiUsed, false);\n    assert.equal(result.externalEstimatedCostUsd, 0);\n    assert.equal(observed.length, 1);\n\n    const phantom = inspectNextIdentityRuntimeCandidate({ backend: \"phantom\" });\n    assert.equal(phantom.backend, \"phantom-wan-14b\");\n    assert.equal(phantom.executable, false);\n    assert.equal(phantom.resourceCreationPossible, false);\n    assert.equal(phantom.providerTrafficUsed, false);\n    assert.equal(phantom.inferenceStarted, false);\n});\n\ntest(\"V142 HuMo runner binds inference to the certified lifecycle venv\", () => {"
   }
 }
