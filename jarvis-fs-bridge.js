@@ -8647,6 +8647,23 @@ export function inspectNextIdentityRuntimeCandidate({ backend = "humo-17b-identi
         paidExecutionAuthorized: candidate.paidExecutionAuthorized === true,
         probeGeometry: candidate.probeGeometry || null,
         singleGpuStrategy: strategy,
+        assetPlacementPlan: strategy ? {
+            storagePlan: strategy.storagePlan,
+            preserveExistingHuMoCache: true,
+            existingHuMoCacheBytes: Number(strategy.existingHuMoCacheBytes || 0),
+            persistentNewAssets: [
+                { ...strategy.quantizedModel, role: "video_transformer" },
+                { ...strategy.distillationLora, role: "distillation_lora" }
+            ],
+            persistentNewBytes: Number(strategy.quantizedModel?.bytes || 0) + Number(strategy.distillationLora?.bytes || 0),
+            persistentTotalWithExistingCacheBytes: Number(strategy.persistentCoreBytes || 0),
+            ephemeralAssets: (strategy.wrapperAuxiliaryAssets || []).map(asset => ({ ...asset })),
+            ephemeralAssetsBytes: Number(strategy.wrapperAuxiliaryBytes || 0),
+            ephemeralWorkspaceReserveBytes: Number(strategy.ephemeralWorkspaceReserveBytes || 0),
+            minimumEphemeralBytes: Number(strategy.minimumEphemeralBytes || 0),
+            existingCacheMutationAuthorized: false,
+            assetDownloadAuthorized: false
+        } : null,
         capacity: strategy ? {
             requiredBytesKeepingExistingCache: requiredBytes,
             nominal50GiBBytes: nominalBytes,
