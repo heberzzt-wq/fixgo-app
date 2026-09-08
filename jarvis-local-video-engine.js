@@ -510,6 +510,58 @@ export const RUNPOD_HUMO_CACHE_BASE = (() => {
     });
 })();
 
+export const RUNPOD_HUMO17_CORE_CACHE_BASE = (() => {
+    const candidate = NEXT_IDENTITY_RUNTIME_CANDIDATES["humo-17b-identity"];
+    const strategy = candidate.singleGpuStrategy;
+    const requiredFiles = Object.freeze([
+        Object.freeze({ ...strategy.quantizedModel, role: "video_transformer", sourcePath: strategy.quantizedModel.path, path: `weights/${strategy.quantizedModel.path}` }),
+        Object.freeze({ ...strategy.distillationLora, role: "distillation_lora", sourcePath: strategy.distillationLora.path, path: `loras/${strategy.distillationLora.path}` })
+    ]);
+    const totalBytes = requiredFiles.reduce((sum, file) => sum + Number(file.bytes || 0), 0);
+    const combinedPersistentBytes = Number(RUNPOD_HUMO_CACHE_BASE.totalBytes || 0) + totalBytes;
+    const nominalVolumeBytes = Number(strategy.nominal50GiBBytes || 0);
+    return Object.freeze({
+        schemaVersion: "jarvis.model-cache.v142.humo17-core.1",
+        profile: "humo17-fp8-core-v1",
+        cacheDirectory: "humo17-fp8-core",
+        runtime: strategy.runtime,
+        targetGpuTypeId: candidate.targetGpuTypeId,
+        comfyUiRepository: strategy.comfyUiRepository,
+        comfyUiRevision: strategy.comfyUiRevision,
+        wrapperRepository: strategy.wrapperRepository,
+        wrapperRevision: strategy.wrapperRevision,
+        modelRepository: candidate.modelRepository,
+        modelRevision: candidate.modelRevision,
+        existingHuMoCacheProfile: RUNPOD_HUMO_CACHE_BASE.profile,
+        existingHuMoCacheTotalBytes: RUNPOD_HUMO_CACHE_BASE.totalBytes,
+        minimumNetworkVolumeGb: strategy.minimumNetworkVolumeGb,
+        networkVolumeType: RUNPOD_HUMO_CACHE_BASE.networkVolumeType,
+        requiredFiles,
+        totalBytes,
+        combinedPersistentBytes,
+        nominalVolumeBytes,
+        headroomBytes: nominalVolumeBytes - combinedPersistentBytes,
+        storagePlan: strategy.storagePlan,
+        cacheMutationPolicy: "ADD_ONLY_PRESERVE_EXISTING_HUMO_CACHE",
+        assetDownloadAuthorized: false,
+        physicalStageCertified: false
+    });
+})();
+
+export function validateHuMo17CoreCacheManifest(manifest, contract = RUNPOD_HUMO17_CORE_CACHE_BASE) {
+    const identity = ["schemaVersion", "profile", "runtime", "targetGpuTypeId", "comfyUiRepository", "comfyUiRevision", "wrapperRepository", "wrapperRevision", "modelRepository", "modelRevision", "existingHuMoCacheProfile", "existingHuMoCacheTotalBytes", "minimumNetworkVolumeGb", "networkVolumeType", "totalBytes", "combinedPersistentBytes", "nominalVolumeBytes", "headroomBytes", "storagePlan", "cacheMutationPolicy"];
+    if (!manifest || identity.some(key => manifest[key] !== contract[key]) ||
+        !Number.isFinite(Date.parse(manifest.verifiedAt)) || manifest.cacheStatus !== "CACHE_MODEL_READY" ||
+        manifest.assetDownloadAuthorized !== false || manifest.physicalStageCertified !== true ||
+        !String(manifest.networkVolumeId || "").trim() || !String(manifest.dataCenterId || "").trim() ||
+        !Array.isArray(manifest.files) || manifest.files.length !== contract.requiredFiles.length) return false;
+    const files = new Map(manifest.files.map(file => [file.path, file]));
+    return files.size === contract.requiredFiles.length && contract.requiredFiles.every(expected => {
+        const observed = files.get(expected.path);
+        return observed && ["bytes", "sha256", "repository", "revision", "sourcePath", "role"].every(key => observed[key] === expected[key]);
+    });
+}
+
 export function validateModelCacheManifest(manifest, contract = RUNPOD_HUMO_CACHE_BASE) {
     const identity = ["schemaVersion", "profile", "modelRepository", "modelRevision",
         "sourceRepository", "sourceRevision", "provisionImageTag", "expectedRegistryDigest", "totalBytes"];
