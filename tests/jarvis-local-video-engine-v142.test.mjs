@@ -174,8 +174,9 @@ test("V142 HuMo17 persistent core cache is additive pinned and fail-closed", () 
         cacheStatus: "CACHE_MODEL_READY",
         networkVolumeId: "humo17-volume",
         dataCenterId: "EU-NL-1",
-        assetDownloadAuthorized: false,
-        physicalStageCertified: true
+        assetDownloadAuthorized: true,
+        physicalStageCertified: true,
+        existingCachePreserved: true
     };
     assert.equal(validateHuMo17CoreCacheManifest(manifest), true);
     const badSha = structuredClone(manifest);
