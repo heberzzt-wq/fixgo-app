@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-provider-status-bridge-20260908-306",
+  "jobId": "v142-humo17-provider-status-contract-20260908-307",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        runHuMo17PersistentCoreStagingCli()\n            .then(result => console.log(JSON.stringify(result)))\n            .catch(error => {\n                console.error(JSON.stringify({\n                    ok: false,\n                    status: error?.message || \"HUMO17_PERSISTENT_CORE_STAGE_FAILED\",\n                    providerMessage: error?.providerMessage || null,\n                    podId: error?.podId || null,\n                    inferenceStarted: false\n                }));\n                process.exitCode = 1;\n            });",
-    "replace": "        runHuMo17PersistentCoreStagingCli()\n            .then(result => console.log(JSON.stringify(result)))\n            .catch(error => {\n                const providerMessage = String(error?.providerMessage || \"\").trim();\n                const status = providerMessage\n                    ? `${error?.message || \"HUMO17_PERSISTENT_CORE_STAGE_FAILED\"}:${providerMessage}`\n                    : (error?.message || \"HUMO17_PERSISTENT_CORE_STAGE_FAILED\");\n                console.error(JSON.stringify({\n                    ok: false,\n                    status,\n                    providerMessage: providerMessage || null,\n                    podId: error?.podId || null,\n                    inferenceStarted: false\n                }));\n                process.exitCode = 1;\n            });"
+    "search": "    assert.equal(bridgeSource.includes('providerMessage: error?.providerMessage || null'), true);\n    assert.equal(workerSource.includes('parsed?.providerMessage'), true);\n    assert.equal(workerSource.includes('parsed.providerMessage'), true);",
+    "replace": "    assert.equal(bridgeSource.includes('const providerMessage = String(error?.providerMessage || \\\"\\\").trim()'), true);\n    assert.equal(bridgeSource.includes('providerMessage: providerMessage || null'), true);\n    assert.equal(bridgeSource.includes('HUMO17_PERSISTENT_CORE_STAGE_FAILED\\\"}:${providerMessage}'), true);\n    assert.equal(workerSource.includes('parsed?.status || lines.slice(-8).join'), true);"
   }
 }
