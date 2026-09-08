@@ -1,17 +1,21 @@
 {
-  "jobId": "v142-humo-worker-freshness-regression-20260907-189",
-  "completedAt": "2026-09-07T23:49:55.686Z",
+  "jobId": "v142-humo-8s-two-ref-freshness-preflight-20260907-190",
+  "completedAt": "2026-09-08T00:21:04.776Z",
   "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 403984,
-  "bytesAfter": 404414,
-  "source": "sia7_github_worker_exact_patch_v1",
+  "operation": "humo_identity_probe",
+  "dryRun": true,
+  "status": "SIA7_HUMO_IDENTITY_PREFLIGHT_READY",
+  "certifiedBaseSha": "27d13dcaa44d0af10b82768244bcd70ffc368d2e",
+  "executionHeadSha": "3ffc7c413e763a0e8d5abeafc6f55b568d1ca3a7",
+  "controlPlaneOnlyChanges": [
+    ".sia7/remote-job.json"
+  ],
+  "hardBudgetUsd": 3,
+  "monthlyStorageAuthorizedUsd": 3.5,
+  "characterId": "CHAR_HEBERTO",
+  "durationSeconds": 3.88,
+  "resourceCreationPossible": false,
   "committedFiles": [
-    ".sia7/remote-result.json",
-    "tests/jarvis-local-video-engine-v142.test.mjs"
+    ".sia7/remote-result.json"
   ]
 }
