@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-split-capacity-test-20260908-274",
+  "jobId": "v142-humo17-asset-placement-plan-20260908-275",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+    "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    assert.equal(result.capacity.nominalFitByBytes, false);\n    assert.equal(result.capacity.certified, false);",
-    "replace": "    assert.equal(result.capacity.nominalFitByBytes, false);\n    assert.equal(result.capacity.persistentCoreBytes, 40725409344);\n    assert.equal(result.capacity.persistentCoreHeadroomBytes, 12961681856);\n    assert.equal(result.capacity.wrapperAuxiliaryBytes, 13309522014);\n    assert.equal(result.capacity.ephemeralWorkspaceReserveBytes, 8589934592);\n    assert.equal(result.capacity.minimumEphemeralBytes, 21899456606);\n    assert.equal(result.capacity.splitPlanFitsNominalPersistentByBytes, true);\n    assert.equal(result.capacity.certified, false);"
+    "search": "        singleGpuStrategy: strategy,",
+    "replace": "        singleGpuStrategy: strategy,\n        assetPlacementPlan: strategy ? {\n            storagePlan: strategy.storagePlan,\n            preserveExistingHuMoCache: true,\n            existingHuMoCacheBytes: Number(strategy.existingHuMoCacheBytes || 0),\n            persistentNewAssets: [\n                { ...strategy.quantizedModel, role: \"video_transformer\" },\n                { ...strategy.distillationLora, role: \"distillation_lora\" }\n            ],\n            persistentNewBytes: Number(strategy.quantizedModel?.bytes || 0) + Number(strategy.distillationLora?.bytes || 0),\n            persistentTotalWithExistingCacheBytes: Number(strategy.persistentCoreBytes || 0),\n            ephemeralAssets: (strategy.wrapperAuxiliaryAssets || []).map(asset => ({ ...asset })),\n            ephemeralAssetsBytes: Number(strategy.wrapperAuxiliaryBytes || 0),\n            ephemeralWorkspaceReserveBytes: Number(strategy.ephemeralWorkspaceReserveBytes || 0),\n            minimumEphemeralBytes: Number(strategy.minimumEphemeralBytes || 0),\n            existingCacheMutationAuthorized: false,\n            assetDownloadAuthorized: false\n        } : null,"
   }
 }
