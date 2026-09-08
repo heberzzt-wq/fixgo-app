@@ -184,6 +184,12 @@ test("V142 HuMo17 physical core staging worker is explicit-authority budgeted an
     assert.equal(bridgeSource.includes('providerMessage: providerMessage || null'), true);
     assert.equal(bridgeSource.includes('HUMO17_PERSISTENT_CORE_STAGE_FAILED\"}:${providerMessage}'), true);
     assert.equal(workerSource.includes('parsed?.status || lines.slice(-8).join'), true);
+    assert.equal(bridgeSource.includes('const verifyPodDeleted = async idValue =>'), true);
+    assert.equal(bridgeSource.includes('const listedPods = await provider(\"GET\", \"/pods\", null, [200])'), true);
+    assert.equal(bridgeSource.includes('startsWith(\"jarvis-v142-humo17-core-\")'), true);
+    assert.equal(bridgeSource.includes('RUNPOD_HUMO17_STALE_POD_DELETE_NOT_VERIFIED'), true);
+    assert.equal(bridgeSource.includes('const observed = await provider(\"GET\", `/pods/${encodeURIComponent(podId)}`, null, [200]);'), true);
+    assert.equal(bridgeSource.includes('const observed = await provider(\"GET\", `/pods/${encodeURIComponent(podId)}`, null, [200, 404]);'), false);
 });
 
 test("V142 HuMo17 persistent core cache is additive pinned and fail-closed", () => {
