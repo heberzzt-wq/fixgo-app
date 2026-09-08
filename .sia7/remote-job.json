@@ -1,5 +1,10 @@
 {
-  "jobId": "v142-humo-good-voice-prepare-20260907-203",
-  "operation": "humo_reference_audio_prepare",
-  "humanApproved": true
+  "jobId": "v142-humo-8s-two-ref-good-voice-preflight-20260907-204",
+  "operation": "humo_identity_probe",
+  "humanApproved": true,
+  "executePaid": false,
+  "fullEpisodeAuthorized": false,
+  "expectedBaseSha": "c4573ecd274c2601d458430d232e9faf2c499d1b",
+  "hardBudgetUsd": 3,
+  "monthlyStorageAuthorizedUsd": 3.5
 }
