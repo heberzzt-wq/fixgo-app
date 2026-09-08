@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo17-core-cache-test-import-20260908-280",
-  "completedAt": "2026-09-08T16:51:17.809Z",
+  "jobId": "v142-humo17-core-cache-validator-tests-20260908-281",
+  "completedAt": "2026-09-08T16:51:59.124Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "tests/jarvis-local-video-engine-v142.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 413637,
-  "bytesAfter": 413709,
+  "bytesBefore": 413709,
+  "bytesAfter": 415431,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

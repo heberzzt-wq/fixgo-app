@@ -154,6 +154,40 @@ test("V142 next identity runtime preflight is zero-cost and remains fail-closed"
     assert.equal(phantom.inferenceStarted, false);
 });
 
+test("V142 HuMo17 persistent core cache is additive pinned and fail-closed", () => {
+    const contract = RUNPOD_HUMO17_CORE_CACHE_BASE;
+    assert.equal(contract.profile, "humo17-fp8-core-v1");
+    assert.equal(contract.requiredFiles.length, 2);
+    assert.equal(contract.totalBytes, 18630299842);
+    assert.equal(contract.combinedPersistentBytes, 40725409344);
+    assert.equal(contract.headroomBytes, 12961681856);
+    assert.equal(contract.cacheMutationPolicy, "ADD_ONLY_PRESERVE_EXISTING_HUMO_CACHE");
+    assert.equal(contract.assetDownloadAuthorized, false);
+    assert.equal(contract.physicalStageCertified, false);
+    assert.equal(contract.existingHuMoCacheProfile, RUNPOD_HUMO_CACHE_BASE.profile);
+    assert.equal(contract.existingHuMoCacheTotalBytes, RUNPOD_HUMO_CACHE_BASE.totalBytes);
+    const manifest = {
+        ...contract,
+        files: structuredClone(contract.requiredFiles),
+        verifiedAt: "2026-09-08T00:00:00Z",
+        cacheStatus: "CACHE_MODEL_READY",
+        networkVolumeId: "humo17-volume",
+        dataCenterId: "EU-NL-1",
+        assetDownloadAuthorized: false,
+        physicalStageCertified: true
+    };
+    assert.equal(validateHuMo17CoreCacheManifest(manifest), true);
+    const badSha = structuredClone(manifest);
+    badSha.files[0].sha256 = "0".repeat(64);
+    assert.equal(validateHuMo17CoreCacheManifest(badSha), false);
+    const notPhysical = structuredClone(manifest);
+    notPhysical.physicalStageCertified = false;
+    assert.equal(validateHuMo17CoreCacheManifest(notPhysical), false);
+    const mutatedPolicy = structuredClone(manifest);
+    mutatedPolicy.cacheMutationPolicy = "REPLACE";
+    assert.equal(validateHuMo17CoreCacheManifest(mutatedPolicy), false);
+});
+
 test("V142 HuMo runner binds inference to the certified lifecycle venv", () => {
     const runner = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");
     assert.equal(runner.includes("/opt/jarvis-v142/humo-venv/bin/python"), true);
