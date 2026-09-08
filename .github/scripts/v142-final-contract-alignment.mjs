@@ -79,26 +79,45 @@ function assertMaterializedV142Contract() {
   }
 }
 
+function alignHuMoOfficialProbeGeometry() {
+  let engine = read(ENGINE);
+  engine = replaceExactOnce(
+    engine,
+    '        frames: 201,\n        durationSeconds: 8.0,',
+    '        frames: 97,\n        durationSeconds: 3.88,',
+    "V142_HUMO_OFFICIAL_PROBE_GEOMETRY"
+  );
+  for (const marker of [
+    "        frames: 97,",
+    "        durationSeconds: 3.88,"
+  ]) {
+    if (!engine.includes(marker)) {
+      throw new Error(`V142_HUMO_OFFICIAL_PROBE_GEOMETRY_MISSING:${marker}`);
+    }
+  }
+  write(ENGINE, engine);
+}
+
 function alignHuMoEightSecondProbeTests() {
   let localTests = read(LOCAL_VIDEO_TEST);
   localTests = replaceExactOnce(
     localTests,
-    '    assert.match(candidate, /durationSeconds: 3\\.88/);',
     '    assert.match(candidate, /durationSeconds: 8\\.0/);',
-    "V142_HUMO_8S_CANDIDATE_DURATION_CONTRACT"
+    '    assert.match(candidate, /durationSeconds: 3\\.88/);',
+    "V142_HUMO_OFFICIAL_CANDIDATE_DURATION_CONTRACT"
   );
   localTests = replaceExactOnce(
     localTests,
-    '    assert.match(runner, /"probe_duration_seconds": 3\\.88/);',
     '    assert.match(runner, /"probe_duration_seconds": 8\\.0/);',
-    "V142_HUMO_8S_RUNNER_DURATION_CONTRACT"
+    '    assert.match(runner, /"probe_duration_seconds": 3\\.88/);',
+    "V142_HUMO_OFFICIAL_RUNNER_DURATION_CONTRACT"
   );
   for (const marker of [
-    'assert.match(candidate, /durationSeconds: 8\\.0/);',
-    'assert.match(runner, /"probe_duration_seconds": 8\\.0/);'
+    'assert.match(candidate, /durationSeconds: 3\\.88/);',
+    'assert.match(runner, /"probe_duration_seconds": 3\\.88/);'
   ]) {
     if (!localTests.includes(marker)) {
-      throw new Error(`V142_HUMO_8S_TEST_MARKER_MISSING:${marker}`);
+      throw new Error(`V142_HUMO_OFFICIAL_TEST_MARKER_MISSING:${marker}`);
     }
   }
   write(LOCAL_VIDEO_TEST, localTests);
@@ -111,6 +130,7 @@ if (materializedBaselineDetected) {
   runPinnedBaseline();
 }
 
+alignHuMoOfficialProbeGeometry();
 alignHuMoEightSecondProbeTests();
 
 let tests = read(FS_BRIDGE_TEST);
@@ -210,7 +230,8 @@ console.log(JSON.stringify({
   patchBaselineCommit: PATCH_BASELINE_COMMIT,
   materializedBaselineDetected,
   sharedBridgeTestAligned: true,
-  huMoEightSecondProbeTestsAligned: true,
+  huMoOfficialProbeTestsAligned: true,
+  huMoOfficialProbeGeometryAligned: true,
   paidEconomicDeadlinePreserved: true,
   readOnlyGraphQlRetriesPreserved: 3,
   provisioningRetryAllowed: false,
