@@ -881,12 +881,101 @@ def run_humo_identity_probe(
     return 0
 
 
+def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
+    """Explicit single-L40S probe; never an alias of the legacy HuMo runner."""
+    if job.get("paidAuthorized") is not True or job.get("fullEpisodeAuthorized") is not False:
+        raise RuntimeError("HUMO17_PROBE_AUTHORITY_REQUIRED")
+    if job.get("geometry") != {"width": 832, "height": 480, "fps": 25, "frames": 97, "durationSeconds": 3.88}:
+        raise RuntimeError("HUMO17_PROBE_GEOMETRY_INVALID")
+    if job.get("gpuCount") != 1 or job.get("maximumIdentityCount") != 1:
+        raise RuntimeError("HUMO17_SINGLE_GPU_IDENTITY_REQUIRED")
+    if not 0 < float(job.get("hardBudgetUsd", 0)) <= 3:
+        raise RuntimeError("HUMO17_PROBE_BUDGET_INVALID")
+    strategy = job["strategy"]
+    if (strategy["runtime"] != "comfyui-wanvideowrapper" or strategy["compileEnabled"] is not False
+            or strategy["attentionMode"] != "sdpa" or strategy["modelLoaderDevice"] != "offload_device"):
+        raise RuntimeError("HUMO17_RUNTIME_STRATEGY_INVALID")
+    reference = Path(job["referenceFile"]).resolve()
+    audio = Path(job["audioFile"]).resolve()
+    for file, sha in ((reference, job["referenceSha256"]), (audio, job["audioSha256"])):
+        if not file.is_file() or len(sha) != 64 or _sha256_file(file) != sha:
+            raise RuntimeError("HUMO17_INPUT_SHA256_MISMATCH")
+    comfy = Path(job["comfyRoot"]).resolve()
+    wrapper = comfy / "custom_nodes" / "ComfyUI-WanVideoWrapper"
+    for directory, revision in ((comfy, strategy["comfyUiRevision"]), (wrapper, strategy["wrapperRevision"])):
+        actual = subprocess.check_output(["git", "-C", str(directory), "rev-parse", "HEAD"], text=True, timeout=20).strip()
+        if actual != revision:
+            raise RuntimeError("HUMO17_RUNTIME_REVISION_MISMATCH")
+    sys.path.insert(0, str(comfy))
+    # Comfy's CLI parser must not receive Jarvis's --job/--result arguments.
+    sys.argv = [sys.argv[0]]
+    import importlib.util
+    import numpy as np
+    import torch
+    import soundfile as sf
+    from PIL import Image
+    if torch.cuda.device_count() != 1 or "L40S" not in torch.cuda.get_device_name(0):
+        raise RuntimeError("HUMO17_ONE_L40S_REQUIRED")
+    spec = importlib.util.spec_from_file_location("jarvis_wan_wrapper", wrapper / "__init__.py", submodule_search_locations=[str(wrapper)])
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    classes = module.NODE_CLASS_MAPPINGS
+    def call(name: str, **kwargs):
+        cls = classes[name]
+        return getattr(cls(), cls.FUNCTION)(**kwargs)
+    image = torch.from_numpy(np.asarray(Image.open(reference).convert("RGB").resize((832, 480)), dtype=np.float32) / 255.0).unsqueeze(0)
+    wave, rate = sf.read(audio, always_2d=True, dtype="float32")
+    if len(wave) < int(rate * 3.88):
+        raise RuntimeError("HUMO17_AUDIO_TOO_SHORT")
+    wave = wave[:int(rate * 3.88)].mean(axis=1, keepdims=True)
+    audio_tensor = {"waveform": torch.from_numpy(wave.T.copy()).unsqueeze(0), "sample_rate": rate}
+    names = job["assetNames"]
+    with torch.inference_mode():
+        text = call("WanVideoTextEncodeCached", model_name=names["text_encoder"], precision="bf16",
+                    positive_prompt=job["prompt"], negative_prompt="another person, identity change, subtitles, watermark, deformed face",
+                    quantization="disabled", use_disk_cache=False, device="gpu")[0]
+        vae = call("WanVideoVAELoader", model_name=names["vae"], precision="bf16")[0]
+        whisper = call("WhisperModelLoader", model=names["audio_encoder"], base_precision="fp16", load_device="offload_device")[0]
+        embeds = call("HuMoEmbeds", num_frames=97, width=832, height=480, audio_scale=1.0, audio_cfg_scale=2.5,
+                      audio_start_percent=0.0, audio_end_percent=1.0, whisper_model=whisper, vae=vae,
+                      reference_images=image, audio=audio_tensor, tiled_vae=False)[0]
+        swap_keys = ["blocks_to_swap", "offload_img_emb", "offload_txt_emb", "use_non_blocking", "vace_blocks_to_swap", "prefetch_blocks", "block_swap_debug"]
+        swap = call("WanVideoBlockSwap", **dict(zip(swap_keys, strategy["blockSwapWorkflowWidgetValues"])))[0]
+        lora = call("WanVideoLoraSelect", lora=names["distillation_lora"], strength=1.0, unique_id=None, merge_loras=False)[0]
+        model = call("WanVideoModelLoader", model=names["video_transformer"], base_precision="fp16", load_device="offload_device",
+                     quantization="disabled", attention_mode="sdpa", compile_args=None, block_swap_args=swap, lora=lora)[0]
+        write_json_atomic(result_file, {"ok": False, "backend": "humo-17b-identity", "inferenceStarted": True, "status": "HUMO17_SAMPLING"})
+        samples = call("WanVideoSampler", model=model, image_embeds=embeds, text_embeds=text, shift=5.0, steps=8,
+                       cfg=2.0, seed=42, scheduler="lcm", riflex_freq_index=0, force_offload=True)[0]
+        frames = call("WanVideoDecode", vae=vae, samples=samples, enable_vae_tiling=False,
+                      tile_x=272, tile_y=272, tile_stride_x=144, tile_stride_y=128, normalization="default")[0]
+    if tuple(frames.shape[:3]) != (97, 480, 832):
+        raise RuntimeError("HUMO17_GENERATED_FRAME_GEOMETRY_INVALID")
+    output = Path(job["outputFile"]).resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    command = ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "832x480", "-r", "25", "-i", "pipe:0",
+               "-i", str(audio), "-map", "0:v:0", "-map", "1:a:0", "-frames:v", "97", "-t", "3.88", "-c:v", "libx264",
+               "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", str(output)]
+    pixels = (frames.clamp(0, 1).cpu().numpy() * 255).round().astype(np.uint8)
+    subprocess.run(command, input=pixels.tobytes(), check=True, timeout=60)
+    media = inspect_video(output, "ffprobe")
+    write_json_atomic(result_file, {"ok": True, "status": "HUMO17_RUNTIME_PROBE_COMPLETED", "backend": "humo-17b-identity",
+        "gpu": torch.cuda.get_device_name(0), "inferenceStarted": True, "referenceSha256": job["referenceSha256"],
+        "audioSha256": job["audioSha256"], "sha256": _sha256_file(output), "bytes": output.stat().st_size,
+        "geometry": job["geometry"], "media": media, "runtimeRevision": strategy["wrapperRevision"], "fallbackUsed": False})
+    return 0
+
+
 def run(job_file: Path, result_file: Path) -> int:
     job = read_json(job_file)
     if job.get("externalApiAllowed") is not False:
         raise RuntimeError("LOCAL_VIDEO_EXTERNAL_API_MUST_BE_DISABLED")
     if os.environ.get("JARVIS_LOCAL_VIDEO_EXTERNAL_API_ALLOWED", "false").lower() != "false":
         raise RuntimeError("LOCAL_VIDEO_PROCESS_NETWORK_POLICY_INVALID")
+
+    if job.get("backend") == "humo-17b-identity":
+        return run_humo17_runtime_probe(job, result_file)
 
     backend, config = resolve_backend(job)
     if str(config.get("runtime") or "wan22").strip().lower() == "humo":

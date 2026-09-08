@@ -1656,3 +1656,37 @@ test("SIA7 publication retry and restart never replay an executed paid operation
     const restarted = createWorkerPoller(deps);
     await restarted(); await restarted(); assert.equal(executions, 1); assert.equal(publications, 3);
 });
+
+
+test("HuMo17 probe is single L40S, pinned, hash-bound, budgeted and distinct from legacy", async () => {
+    const {buildHuMo17RuntimeProbeJob, buildHuMo17RuntimeBootstrap} = await import("../jarvis-fs-bridge.js");
+    const assets = {reference: {file: "reference.jpg", sha256: "a".repeat(64)}, audio: {file: "audio.wav", sha256: "b".repeat(64)}, output: ".jarvis-artifacts/videos/probe.mp4"};
+    const options = {assets, hardBudgetUsd: 3, operationId: "fixture", paidAuthorized: true};
+    const job = buildHuMo17RuntimeProbeJob(options);
+    assert.equal(job.backend, "humo-17b-identity"); assert.equal(job.gpu, "NVIDIA L40S");
+    assert.equal(job.gpuCount, 1); assert.equal(job.maximumIdentityCount, 1);
+    assert.deepEqual(job.geometry, {width: 832, height: 480, fps: 25, frames: 97, durationSeconds: 3.88});
+    assert.equal(job.networkVolumeId, "1qm5wczocl"); assert.equal(job.networkVolumeRetained, true);
+    assert.equal(job.fullEpisodeAuthorized, false); assert.equal(job.strategy.compileEnabled, false);
+    assert.equal(job.strategy.attentionMode, "sdpa"); assert.equal(job.strategy.modelLoaderDevice, "offload_device");
+    assert.equal(job.referenceSha256, assets.reference.sha256); assert.equal(job.audioSha256, assets.audio.sha256);
+    for (const hardBudgetUsd of [0, -1, 3.01, NaN, Infinity]) assert.throws(() => buildHuMo17RuntimeProbeJob({...options, hardBudgetUsd}), /BUDGET/);
+    assert.throws(() => buildHuMo17RuntimeProbeJob({...options, paidAuthorized: false}), /AUTHORITY/);
+    assert.throws(() => buildHuMo17RuntimeProbeJob({...options, assets: {...assets, reference: {file: "x.jpg"}}}), /HASHES/);
+    assert.throws(() => buildHuMo17RuntimeProbeJob({...options, assets: {...assets, output: "outside.mp4"}}), /OUTPUT/);
+    const shell = buildHuMo17RuntimeBootstrap(job);
+    assert.match(shell, /CORE_NOT_CERTIFIED/); assert.match(shell, /ASSET_SHA256/);
+    assert.match(shell, /wrapperAuxiliaryAssets/); assert.doesNotMatch(shell, /download.*core|generate_1_7B/);
+    assert.throws(() => buildHuMo17RuntimeBootstrap({...job, gpuCount: 2}), /AUTHORITY/);
+});
+
+
+test("HuMo17 cleanup verifies Pod absence and never deletes a retained volume", async () => {
+    const {releaseHuMo17Pod} = await import("../jarvis-fs-bridge.js");
+    const calls = [];
+    const provider = async (method, url) => { calls.push([method,url]); if(method === "GET") throw new Error("RUNPOD_HUMO17_HTTP_404"); };
+    assert.equal(await releaseHuMo17Pod({podId: "fixture", provider, wait: async () => {}}), true);
+    assert.deepEqual(calls, [["DELETE","/pods/fixture"],["GET","/pods/fixture"]]);
+    assert.equal(await releaseHuMo17Pod({podId: "fixture", provider: async () => ({id:"fixture",desiredStatus:"RUNNING"}), wait: async () => {}}), false);
+    await assert.rejects(releaseHuMo17Pod({podId:"fixture", provider:async () => {throw new Error("provider unavailable");}}), /provider unavailable/);
+});

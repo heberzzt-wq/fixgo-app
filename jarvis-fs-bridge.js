@@ -8699,13 +8699,94 @@ export async function runNextIdentityRuntimePreflightCli({
     return result;
 }
 
+export async function releaseHuMo17Pod({podId, provider, wait = sleepMs} = {}) {
+    if (!podId || typeof provider !== "function") throw new Error("HUMO17_CLEANUP_ID_REQUIRED");
+    await provider("DELETE", `/pods/${encodeURIComponent(podId)}`, null, [200, 204, 404]);
+    for (let attempt = 0; attempt < 12; attempt++) {
+        try {
+            const observed = await provider("GET", `/pods/${encodeURIComponent(podId)}`, null, [200]);
+            if (observed?.id === podId && String(observed.desiredStatus).toUpperCase() === "TERMINATED") return true;
+        } catch (error) {
+            if (String(error.message).includes("RUNPOD_HUMO17_HTTP_404")) return true;
+            throw error;
+        }
+        await wait(2500);
+    }
+    return false;
+}
+
+export function buildHuMo17RuntimeProbeJob({ assets, hardBudgetUsd, operationId, paidAuthorized = false } = {}) {
+    if (![assets?.reference?.sha256, assets?.audio?.sha256].every(x => /^[a-f0-9]{64}$/.test(x || ""))) throw new Error("HUMO17_INPUT_HASHES_REQUIRED");
+    if (!/^\.jarvis-artifacts\/.+\.mp4$/.test(assets?.output || "") || assets.output.includes("..")) throw new Error("HUMO17_OUTPUT_INVALID");
+    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 3)) throw new Error("HUMO17_PROBE_BUDGET_INVALID");
+    if (paidAuthorized !== true) throw new Error("HUMO17_PROBE_PAID_AUTHORITY_REQUIRED");
+    const candidate = buildNextIdentityRuntimeCandidate({ backend: "humo-17b-identity" });
+    return {
+        operationId, backend: "humo-17b-identity", model: "HuMo-17B", externalApiAllowed: false,
+        paidAuthorized: true, fullEpisodeAuthorized: false, gpuCount: 1, maximumIdentityCount: 1,
+        gpu: "NVIDIA L40S", hardBudgetUsd, networkVolumeId: "1qm5wczocl", networkVolumeRetained: true,
+        geometry: candidate.probeGeometry, strategy: candidate.singleGpuStrategy,
+        referenceSha256: assets.reference.sha256, audioSha256: assets.audio.sha256,
+        referenceFile: "/tmp/jarvis-humo17/reference" + path.extname(assets.reference.file),
+        audioFile: "/tmp/jarvis-humo17/audio.wav", outputFile: "/tmp/jarvis-humo17/probe.mp4",
+        comfyRoot: "/tmp/jarvis-humo17/ComfyUI",
+        prompt: "The exact person in the reference image speaks the supplied audio, natural restrained facial motion. Preserve facial identity, age, hair and facial hair. One person only, no subtitles or watermark.",
+        assetNames: {
+            video_transformer: path.posix.basename(candidate.singleGpuStrategy.quantizedModel.path),
+            distillation_lora: path.posix.basename(candidate.singleGpuStrategy.distillationLora.path),
+            ...Object.fromEntries(candidate.singleGpuStrategy.wrapperAuxiliaryAssets.map(a => [a.role, path.posix.basename(a.path)]))
+        }
+    };
+}
+
+export function buildHuMo17RuntimeBootstrap(job) {
+    if (job?.backend !== "humo-17b-identity" || job?.paidAuthorized !== true || job?.gpuCount !== 1) throw new Error("HUMO17_BOOTSTRAP_AUTHORITY_INVALID");
+    const s = job.strategy;
+    const q = posixShellSingleQuote;
+    const preparation = [
+        "import json,pathlib,hashlib,urllib.request,os",
+        "j=json.load(open('/tmp/jarvis-humo17/job.json')); root=pathlib.Path(j['comfyRoot']); core=pathlib.Path('/workspace/jarvis-v142/cache/humo17-fp8-core')",
+        "contract=json.loads(" + JSON.stringify(JSON.stringify(RUNPOD_HUMO17_CORE_CACHE_BASE)) + ")",
+        "manifest=json.load(open(core/'model-manifest.json')); assert manifest['physicalStageCertified'] and manifest['networkVolumeId']=='1qm5wczocl' and manifest['dataCenterId']=='EU-NL-1', 'CORE_NOT_CERTIFIED'",
+        "def verify(p,a):",
+        "    assert p.is_file() and p.stat().st_size==a['bytes'], 'ASSET_SIZE:'+str(p)",
+        "    h=hashlib.sha256()",
+        "    with p.open('rb') as f:",
+        "        for b in iter(lambda:f.read(8*1024*1024),b''): h.update(b)",
+        "    assert h.hexdigest()==a['sha256'], 'ASSET_SHA256:'+str(p)",
+        "folders={'video_transformer':'diffusion_models','distillation_lora':'loras','text_encoder':'text_encoders','vae':'vae','audio_encoder':'audio_encoders'}",
+        "for a in contract['requiredFiles']:",
+        "    p=core/a['path']; verify(p,a); target=root/'models'/folders[a['role']]/j['assetNames'][a['role']]; target.parent.mkdir(parents=True,exist_ok=True); target.symlink_to(p)",
+        "for a in j['strategy']['wrapperAuxiliaryAssets']:",
+        "    p=root/'models'/folders[a['role']]/j['assetNames'][a['role']]; p.parent.mkdir(parents=True,exist_ok=True); partial=p.with_suffix('.partial')",
+        "    url='https://huggingface.co/'+a['repository']+'/resolve/'+a['revision']+'/'+a['path']",
+        "    with urllib.request.urlopen(url,timeout=60) as src, partial.open('wb') as dst:",
+        "        while True:",
+        "            b=src.read(8*1024*1024)",
+        "            if not b: break",
+        "            dst.write(b)",
+        "        dst.flush(); os.fsync(dst.fileno())",
+        "    verify(partial,a); partial.rename(p)",
+        "print('HUMO17_CORE_REUSED_AND_AUXILIARY_VERIFIED',flush=True)"
+    ].join("\n");
+    return [
+        "set -euo pipefail", "cd /tmp/jarvis-humo17",
+        `git init -q ComfyUI && git -C ComfyUI fetch -q --depth 1 https://github.com/${s.comfyUiRepository}.git ${q(s.comfyUiRevision)} && git -C ComfyUI checkout -q --detach FETCH_HEAD`,
+        `git init -q ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper && git -C ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper fetch -q --depth 1 https://github.com/${s.wrapperRepository}.git ${q(s.wrapperRevision)} && git -C ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper checkout -q --detach FETCH_HEAD`,
+        "python -m pip install --disable-pip-version-check -r ComfyUI/requirements.txt -r ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper/requirements.txt soundfile",
+        "python -m pip check", `python -c ${q(preparation)}`,
+        "export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1",
+        "python runner.py --job job.json --result result.json"
+    ].join("\n");
+}
+
 export async function runHuMo17PersistentCoreStagingCli({
     root = DEFAULT_ROOT,
     env = process.env,
     log = value => console.log(JSON.stringify(value))
 } = {}) {
     const truthy = value => ["true", "1", "yes", "on"].includes(String(value || "").trim().toLowerCase());
-    if (!truthy(env.JARVIS_HUMO17_CORE_STAGE_AUTHORIZED)) {
+    if (!truthy(env.JARVIS_HUMO17_CORE_STAGE_AUTHORIZED) && !truthy(env.JARVIS_HUMO17_RUNTIME_PROBE_AUTHORIZED)) {
         throw new Error("RUNPOD_HUMO17_CORE_STAGE_AUTHORITY_REQUIRED");
     }
     if (process.platform !== "win32") throw new Error("RUNPOD_HUMO17_WINDOWS_WORKER_REQUIRED");
@@ -8726,12 +8807,23 @@ export async function runHuMo17PersistentCoreStagingCli({
         if (!fs.existsSync(sourceRoot) || !fs.statSync(sourceRoot).isDirectory()) {
             throw new Error("RUNPOD_HUMO17_RUNTIME_PROBE_SOURCE_ROOT_INVALID");
         }
+        const assertProbeContainment = file => {
+            let current = file;
+            while (current !== sourceRoot) {
+                if (fs.existsSync(current) && fs.lstatSync(current).isSymbolicLink()) throw new Error("HUMO17_REPARSE_PATH_FORBIDDEN");
+                const parent = path.dirname(current);
+                if (parent === current) throw new Error("HUMO17_PATH_OUTSIDE_ROOT");
+                current = parent;
+            }
+            if (fs.lstatSync(sourceRoot).isSymbolicLink()) throw new Error("HUMO17_REPARSE_ROOT_FORBIDDEN");
+        };
         const resolveProbeAsset = (rawOutput, extensions, expectedSha, status) => {
             const output = String(rawOutput || "").trim().replaceAll("\\", "/");
             if (!output.startsWith(".jarvis-artifacts/") || output.includes("../")) throw new Error(status);
             const file = path.resolve(sourceRoot, output);
             const prefix = sourceRoot.endsWith(path.sep) ? sourceRoot : sourceRoot + path.sep;
             if (!file.startsWith(prefix) || !extensions.includes(path.extname(file).toLowerCase()) || !fs.existsSync(file) || !fs.statSync(file).isFile()) throw new Error(status);
+            assertProbeContainment(file);
             const sha256 = createHash("sha256").update(fs.readFileSync(file)).digest("hex");
             if (!/^[a-f0-9]{64}$/.test(expectedSha) || sha256 !== expectedSha) throw new Error(status + "_SHA256_MISMATCH");
             return { output, file, sha256, bytes: fs.statSync(file).size };
@@ -8755,8 +8847,15 @@ export async function runHuMo17PersistentCoreStagingCli({
         const outputFile = path.resolve(sourceRoot, output);
         const prefix = sourceRoot.endsWith(path.sep) ? sourceRoot : sourceRoot + path.sep;
         if (!outputFile.startsWith(prefix)) throw new Error("RUNPOD_HUMO17_RUNTIME_PROBE_OUTPUT_INVALID");
+        assertProbeContainment(outputFile);
         fs.mkdirSync(path.dirname(outputFile), { recursive: true });
+        if (!resolveLocalExecutable("ffprobe", env)) throw new Error("HUMO17_LOCAL_FFPROBE_REQUIRED");
+        const audioInfo = JSON.parse(execFileSync(resolveLocalExecutable("ffprobe", env), ["-v", "error", "-show_streams", "-show_format", "-of", "json", audio.file], {encoding: "utf8", timeout: 20000, windowsHide: true}));
+        if (!audioInfo.streams?.some(x => x.codec_type === "audio") || Number(audioInfo.format?.duration) < 3.88) throw new Error("HUMO17_REAL_AUDIO_REQUIRED");
         runtimeProbeAssets = { sourceRoot, reference, audio, output, outputFile };
+    }
+    if (runtimeProbeAuthorized && !truthy(env.JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED) && !truthy(env.JARVIS_HUMO17_RUNTIME_PROBE_PREFLIGHT_ONLY)) {
+        throw new Error("HUMO17_PROBE_PAID_AUTHORITY_REQUIRED");
     }
     const requestedVolumeId = String(env.JARVIS_RUNPOD_NETWORK_VOLUME_ID || "1qm5wczocl").trim();
     const requestedDataCenterId = String(env.JARVIS_RUNPOD_DATACENTER_ID || "EU-NL-1").trim();
@@ -8790,7 +8889,29 @@ export async function runHuMo17PersistentCoreStagingCli({
     })).trim().toLowerCase();
     if (!/^[a-f0-9]{40}$/.test(canonicalSha)) throw new Error("RUNPOD_CANONICAL_SHA_REQUIRED");
 
-    const operationId = `humo17-core-${randomUUID()}`;
+    let placement = null;
+    if (runtimeProbeAuthorized) {
+        if (volume.id !== "1qm5wczocl" || volume.dataCenterId !== "EU-NL-1") throw new Error("HUMO17_PINNED_VOLUME_REQUIRED");
+        const discovery = createRunpodRemoteVideoAdapter({root: resolvedRoot,
+            env: {...credential.env, JARVIS_REMOTE_GPU_PROVIDER: "runpod", JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA L40S",
+                JARVIS_RUNPOD_CLOUD_TYPE: "SECURE", JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false",
+                JARVIS_RUNPOD_CANONICAL_SHA: canonicalSha, JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "1.10"},
+            resolveCanonicalSha: () => canonicalSha, inspectBridgeIdentity: () => ({ok: true, status: "BRIDGE_IDENTITY_OK"})});
+        const inventory = await discovery.inspectPlacementInventory("humo17-runtime-probe");
+        placement = inventory.find(x => x.gpuTypeId === "NVIDIA L40S" && x.dataCenterId === volume.dataCenterId &&
+            x.available === true && x.secureCloud === true && x.networkVolumeSupported === true && x.vramGb >= 48 && x.hourlyRateUsd > 0 && x.hourlyRateUsd <= 1.10);
+        if (!placement) throw new Error("HUMO17_L40S_PLACEMENT_UNAVAILABLE");
+        if (truthy(env.JARVIS_HUMO17_RUNTIME_PROBE_PREFLIGHT_ONLY)) {
+            const result = {ok: true, status: "HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY", backend: "humo-17b-identity",
+                geometry: buildNextIdentityRuntimeCandidate({backend: "humo-17b-identity"}).probeGeometry,
+                networkVolumeId: volume.id, gpu: "NVIDIA L40S", gpuCount: 1, hardBudgetUsd,
+                referenceSha256: runtimeProbeAssets.reference.sha256, audioSha256: runtimeProbeAssets.audio.sha256,
+                resourceCreated: false, inferenceStarted: false, networkVolumeRetained: true, canonicalSha};
+            log(result); return result;
+        }
+        if (env.JARVIS_HUMO17_RUNTIME_CI_VERIFIED_SHA !== canonicalSha) throw new Error("HUMO17_EXACT_HEAD_CI_REQUIRED");
+    }
+    const operationId = `${runtimeProbeAuthorized ? "humo17-probe" : "humo17-core"}-${randomUUID()}`;
     const podName = `jarvis-v142-${operationId}`.slice(0, 63);
     const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-humo17-core-stage-"));
     const privateKeyFile = path.join(workDir, "id_ed25519");
@@ -8852,6 +8973,7 @@ export async function runHuMo17PersistentCoreStagingCli({
     };
     const listedPods = await provider("GET", "/pods", null, [200]);
     if (!Array.isArray(listedPods)) throw new Error("RUNPOD_HUMO17_POD_LIST_INVALID");
+    if (runtimeProbeAuthorized && listedPods.some(p => String(p?.desiredStatus || "").toUpperCase() !== "TERMINATED")) throw new Error("HUMO17_EXISTING_POD_RECONCILIATION_REQUIRED");
     const stalePods = listedPods.filter(pod =>
         String(pod?.name || "").startsWith("jarvis-v142-humo17-core-") &&
         String(pod?.desiredStatus || "").toUpperCase() !== "TERMINATED"
@@ -8900,7 +9022,7 @@ export async function runHuMo17PersistentCoreStagingCli({
         "set -euo pipefail",
         "export DEBIAN_FRONTEND=noninteractive",
         "apt-get update -qq",
-        "apt-get install -y -qq --no-install-recommends openssh-server ca-certificates python3 python3-venv python3-pip git curl",
+        "apt-get install -y -qq --no-install-recommends openssh-server ca-certificates python3 python3-venv python3-pip git curl ffmpeg",
         "mkdir -p /run/sshd /root/.ssh",
         "test -n \"${PUBLIC_KEY:-}\"",
         "printf '%s\\n' \"$PUBLIC_KEY\" > /root/.ssh/authorized_keys",
@@ -8911,11 +9033,12 @@ export async function runHuMo17PersistentCoreStagingCli({
     ].join("\n");
     const createBody = {
         name: podName,
-        imageName: "ubuntu:22.04",
-        computeType: "CPU",
+        imageName: runtimeProbeAuthorized ? RUNPOD_HUMO_CACHE_BASE.provisionImageTag : "ubuntu:22.04",
+        computeType: runtimeProbeAuthorized ? "GPU" : "CPU",
+        ...(runtimeProbeAuthorized ? {gpuTypeIds: ["NVIDIA L40S"], gpuCount: 1, minRAMPerGPU: 62, minVCPUPerGPU: 16} : {}),
         cloudType: "SECURE",
         dataCenterIds: [volume.dataCenterId],
-        containerDiskInGb: 20,
+        containerDiskInGb: runtimeProbeAuthorized ? 60 : 20,
         volumeMountPath: "/workspace",
         networkVolumeId: volume.id,
         ports: ["22/tcp"],
@@ -8933,19 +9056,32 @@ export async function runHuMo17PersistentCoreStagingCli({
     let manifest = null;
     let legacyEvidence = null;
     let primaryError = null;
+    let runtimePhysical = null;
+    let inferenceStarted = false;
+    let budgetTimer = null;
+    const paidReceiptFile = path.join(resolvedRoot, ".jarvis-artifacts", operationId + ".json");
+    fs.mkdirSync(path.dirname(paidReceiptFile), {recursive: true});
     try {
+        createdAtMs = Date.now();
+        hourlyRateUsd = Number(placement?.hourlyRateUsd || 0);
         const created = await provider("POST", "/pods", createBody, [200, 201]);
         podId = String(created?.id || "").trim();
         if (!podId) throw new Error("RUNPOD_HUMO17_CPU_POD_CREATE_INVALID");
         hourlyRateUsd = Number(created?.adjustedCostPerHr ?? created?.costPerHr ?? 0);
+        createdAtMs = Date.now();
+        if (runtimeProbeAuthorized && hourlyRateUsd > 1.10) throw new Error("HUMO17_RATE_EXCEEDS_PREFLIGHT");
         if (!(hourlyRateUsd > 0)) throw new Error("RUNPOD_HUMO17_CPU_RATE_INVALID");
         const maximumAuthorizedSeconds = Math.min(
             Math.floor(maximumMinutes * 60),
-            Math.floor(hardBudgetUsd * 3600 / hourlyRateUsd)
+            Math.floor(hardBudgetUsd * 0.90 * 3600 / hourlyRateUsd)
         );
         if (maximumAuthorizedSeconds < 300) throw new Error("RUNPOD_HUMO17_CPU_BUDGET_INSUFFICIENT");
         createdAtMs = Date.now();
         const deadlineMs = createdAtMs + maximumAuthorizedSeconds * 1000;
+        fs.writeFileSync(paidReceiptFile, JSON.stringify({operationId, podId, createdAtMs, deadlineMs, hardBudgetUsd, hourlyRateUsd, terminationVerified: false}));
+        budgetTimer = setTimeout(() => {
+            provider("DELETE", `/pods/${encodeURIComponent(podId)}`, null, [200,204,404]).catch(error => log({status:"HUMO17_BUDGET_CLEANUP_ERROR",podId,error:error.message}));
+        }, Math.max(1, deadlineMs - Date.now()));
         log({
             ok: true,
             status: "HUMO17_CORE_CPU_POD_CREATED",
@@ -8979,6 +9115,41 @@ export async function runHuMo17PersistentCoreStagingCli({
         }
         if (!endpoint) throw new Error("RUNPOD_HUMO17_CPU_SSH_TIMEOUT");
 
+        if (runtimeProbeAuthorized) {
+            const probeJob = buildHuMo17RuntimeProbeJob({assets: runtimeProbeAssets, hardBudgetUsd, operationId, paidAuthorized: true});
+            const jobFile = path.join(workDir, "probe-job.json");
+            fs.writeFileSync(jobFile, JSON.stringify(probeJob));
+            fs.writeFileSync(bootstrapFile, buildHuMo17RuntimeBootstrap(probeJob));
+            await runSsh(endpoint, "mkdir -p /tmp/jarvis-humo17", 30000);
+            await runScp(endpoint, jobFile, "/tmp/jarvis-humo17/job.json", 30000);
+            await runScp(endpoint, bootstrapFile, "/tmp/jarvis-humo17/probe.sh", 30000);
+            await runScp(endpoint, path.join(resolvedRoot, "scripts/jarvis-local-video-wan22.py"), "/tmp/jarvis-humo17/runner.py", 30000);
+            await runScp(endpoint, runtimeProbeAssets.reference.file, probeJob.referenceFile, 45000);
+            await runScp(endpoint, runtimeProbeAssets.audio.file, probeJob.audioFile, 45000);
+            const remainingSeconds = Math.floor((deadlineMs - Date.now()) / 1000) - 120;
+            if (remainingSeconds < 300) throw new Error("HUMO17_PROBE_BUDGET_DEADLINE");
+            try {
+                await runSsh(endpoint, `timeout ${remainingSeconds}s bash /tmp/jarvis-humo17/probe.sh > /tmp/jarvis-humo17/probe.log 2>&1`, (remainingSeconds + 15) * 1000);
+            } catch (error) {
+                const detail = await runSsh(endpoint, "tail -c 6000 /tmp/jarvis-humo17/probe.log; test ! -f /tmp/jarvis-humo17/result.json || cat /tmp/jarvis-humo17/result.json", 30000).catch(() => ({stdout: "diagnostic unavailable"}));
+                error.logTail = detail.stdout; throw error;
+            }
+            const raw = await runSsh(endpoint, "cat /tmp/jarvis-humo17/result.json", 30000);
+            runtimePhysical = JSON.parse(raw.stdout); inferenceStarted = runtimePhysical.inferenceStarted === true;
+            if (runtimePhysical.ok !== true || runtimePhysical.backend !== "humo-17b-identity" || runtimePhysical.fallbackUsed !== false ||
+                runtimePhysical.referenceSha256 !== probeJob.referenceSha256 || runtimePhysical.audioSha256 !== probeJob.audioSha256) throw new Error("HUMO17_RUNTIME_RESULT_INVALID");
+            const fetched = await spawnCaptured(scp, ["-i", privateKeyFile, "-P", String(endpoint.port), "-o", "BatchMode=yes",
+                "-o", "StrictHostKeyChecking=yes", "-o", `UserKnownHostsFile=${knownHostsFile}`,
+                `root@${endpoint.host}:/tmp/jarvis-humo17/probe.mp4`, runtimeProbeAssets.outputFile], {timeoutMs: 45000, maxBytes: 1024 * 1024});
+            const hash = createHash("sha256").update(fs.readFileSync(runtimeProbeAssets.outputFile)).digest("hex");
+            if (hash !== runtimePhysical.sha256) throw new Error("HUMO17_OUTPUT_SHA256_MISMATCH");
+            const ffprobe = resolveLocalExecutable("ffprobe", env);
+            if (!ffprobe) throw new Error("HUMO17_LOCAL_FFPROBE_REQUIRED");
+            const probe = JSON.parse(execFileSync(ffprobe, ["-v", "error", "-count_frames", "-show_streams", "-show_format", "-of", "json", runtimeProbeAssets.outputFile], {encoding: "utf8", timeout: 45000, windowsHide: true}));
+            const video = probe.streams.find(x => x.codec_type === "video");
+            if (!video || video.width !== 832 || video.height !== 480 || video.avg_frame_rate !== "25/1" || Number(video.nb_read_frames) !== 97 || Math.abs(Number(video.duration) - 3.88) > 0.05) throw new Error("HUMO17_PHYSICAL_GEOMETRY_INVALID");
+            runtimePhysical.ffprobe = probe; runtimePhysical.output = runtimeProbeAssets.output;
+        } else {
         const legacyContractB64 = Buffer.from(JSON.stringify(RUNPOD_HUMO_CACHE_BASE), "utf8").toString("base64");
         const legacyVerifier = [
             "import base64,hashlib,json,pathlib,sys",
@@ -9073,31 +9244,24 @@ export async function runHuMo17PersistentCoreStagingCli({
         ) {
             throw new Error("RUNPOD_HUMO17_CORE_STAGE_RECEIPT_INVALID");
         }
+        }
     }
     catch(error) {
         primaryError = error;
+        if (!podId && createdAtMs) {
+            try {
+                const pods = await provider("GET", "/pods", null, [200]);
+                const owned = pods.filter(p => p.name === podName);
+                if (owned.length === 1) podId = owned[0].id;
+                else if (owned.length > 1) primaryError.message += ";HUMO17_AMBIGUOUS_CREATE_RECONCILIATION";
+            } catch (reconcileError) { primaryError.message += ";CREATE_RECONCILIATION:" + reconcileError.message; }
+        }
     }
     finally {
+        if (budgetTimer) clearTimeout(budgetTimer);
         if (podId) {
             try {
-                await provider("DELETE", `/pods/${encodeURIComponent(podId)}`, null, [200, 204, 404]);
-                for (let attempt = 0; attempt < 12; attempt += 1) {
-                    try {
-                        const observed = await provider("GET", `/pods/${encodeURIComponent(podId)}`, null, [200]);
-                        if (!observed || String(observed?.desiredStatus || "").toUpperCase() === "TERMINATED") {
-                            terminationVerified = true;
-                            break;
-                        }
-                    }
-                    catch(error) {
-                        if (String(error?.message || "").includes("RUNPOD_HUMO17_HTTP_404")) {
-                            terminationVerified = true;
-                            break;
-                        }
-                        throw error;
-                    }
-                    await sleepMs(2500);
-                }
+                terminationVerified = await releaseHuMo17Pod({podId, provider});
             }
             catch(releaseError) {
                 primaryError = new Error(
@@ -9121,6 +9285,9 @@ export async function runHuMo17PersistentCoreStagingCli({
             (primaryError?.message || "HUMO17_CORE_STAGE_FAILED") + ";BUDGET:RUNPOD_HUMO17_CORE_STAGE_BUDGET_EXCEEDED"
         );
     }
+    fs.writeFileSync(paidReceiptFile, JSON.stringify({operationId, canonicalSha, podId, terminationVerified,
+        networkVolumeId: volume.id, networkVolumeRetained: true, estimatedCostUsd, inferenceStarted,
+        error: primaryError?.message || null, providerError: primaryError?.providerMessage || null, logTail: primaryError?.logTail || null}, null, 2));
     if (primaryError) {
         log({
             ok: false,
@@ -9131,9 +9298,16 @@ export async function runHuMo17PersistentCoreStagingCli({
             networkVolumeId: volume.id,
             networkVolumeRetained: true,
             estimatedCostUsd,
-            inferenceStarted: false
+            inferenceStarted, providerError: primaryError.providerMessage || null, logTail: primaryError.logTail || null
         });
         throw primaryError;
+    }
+    if (runtimeProbeAuthorized) {
+        const receipt = {ok: true, status: "HUMO17_RUNTIME_PROBE_VERIFIED_AND_RELEASED", canonicalSha, operationId, podId,
+            gpu: "NVIDIA L40S", hardBudgetUsd, estimatedCostUsd, terminationVerified,
+            networkVolumeId: volume.id, networkVolumeRetained: true, inferenceStarted, ...runtimePhysical, status: "HUMO17_RUNTIME_PROBE_VERIFIED_AND_RELEASED"};
+        fs.writeFileSync(runtimeProbeAssets.outputFile + ".receipt.json", JSON.stringify(receipt, null, 2));
+        log(receipt); return receipt;
     }
     const result = {
         ok: true,
