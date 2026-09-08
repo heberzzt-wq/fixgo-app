@@ -913,7 +913,7 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
     import numpy as np
     import torch
     import soundfile as sf
-    from PIL import Image
+    from PIL import Image, ImageOps
     if torch.cuda.device_count() != 1 or "L40S" not in torch.cuda.get_device_name(0):
         raise RuntimeError("HUMO17_ONE_L40S_REQUIRED")
     spec = importlib.util.spec_from_file_location("jarvis_wan_wrapper", wrapper / "__init__.py", submodule_search_locations=[str(wrapper)])
@@ -924,7 +924,7 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
     def call(name: str, **kwargs):
         cls = classes[name]
         return getattr(cls(), cls.FUNCTION)(**kwargs)
-    image = torch.from_numpy(np.asarray(Image.open(reference).convert("RGB").resize((832, 480)), dtype=np.float32) / 255.0).unsqueeze(0)
+    image = torch.from_numpy(np.asarray(ImageOps.pad(Image.open(reference).convert("RGB"), (832, 480), method=Image.Resampling.LANCZOS, color=(255, 255, 255)), dtype=np.float32) / 255.0).unsqueeze(0)
     wave, rate = sf.read(audio, always_2d=True, dtype="float32")
     if len(wave) < int(rate * 3.88):
         raise RuntimeError("HUMO17_AUDIO_TOO_SHORT")
