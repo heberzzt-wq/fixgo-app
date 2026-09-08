@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-fp8-contract-test-import-20260908-248",
+  "jobId": "v142-humo17-fp8-contract-test-20260908-249",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    buildHuMoIdentityRuntimeAuthority,",
-    "replace": "    buildHuMoIdentityRuntimeAuthority,\n    buildNextIdentityRuntimeCandidate,"
+    "search": "test(\"V142 HuMo runner binds inference to the certified lifecycle venv\", () => {",
+    "replace": "test(\"V142 HuMo17 single-L40S candidate pins FP8 block-swap authority and remains fail-closed\", () => {\n    const candidate = buildNextIdentityRuntimeCandidate({ backend: \"humo17\" });\n    const strategy = candidate.singleGpuStrategy;\n    assert.equal(candidate.model, \"HuMo-17B\");\n    assert.equal(candidate.targetGpuTypeId, \"NVIDIA L40S\");\n    assert.equal(candidate.modelRevision, \"cb20be4504cb725caad4076be7a11fd295866462\");\n    assert.equal(strategy.runtime, \"comfyui-wanvideowrapper\");\n    assert.equal(strategy.comfyUiRevision, \"efa6c8f804bff78b46a0fd458ebd2e47bba07a30\");\n    assert.equal(strategy.wrapperRevision, \"088128b224242e110d3906c6750e9a3a348a659b\");\n    assert.equal(strategy.quantizedModel.revision, \"0d987e66e7debb098970adb907d99c07c5aa2ac9\");\n    assert.equal(strategy.quantizedModel.path, \"HuMo/Wan2_1-HuMo-14B_fp8_e4m3fn_scaled_KJ.safetensors\");\n    assert.equal(strategy.quantizedModel.bytes, 17892294098);\n    assert.equal(strategy.quantizedModel.sha256, \"a67ed82a7c008892f9192cdc5b23bbfe2e2a8e2f87d0b5b8dfb0226fafec022d\");\n    assert.equal(strategy.modelLoaderBasePrecision, \"fp16_fast\");\n    assert.equal(strategy.modelLoaderDevice, \"offload_device\");\n    assert.equal(strategy.attentionMode, \"sageattn\");\n    assert.deepEqual(strategy.blockSwapWorkflowWidgetValues, [20, false, false, true, 0, 1, false]);\n    assert.equal(strategy.existingHuMoCacheBytes, RUNPOD_HUMO_CACHE_BASE.totalBytes);\n    assert.equal(strategy.plannedPersistentBytes, RUNPOD_HUMO_CACHE_BASE.totalBytes + strategy.quantizedModel.bytes);\n    assert.equal(strategy.plannedPersistentBytes < 50 * 1024 ** 3, true);\n    assert.equal(strategy.physicalFitCertified, false);\n    assert.equal(strategy.qualityCertified, false);\n    assert.equal(strategy.resourceCreationPossible, false);\n    assert.equal(strategy.inferenceStarted, false);\n    assert.equal(candidate.runtimeAssetAuthorityPinned, false);\n    assert.equal(candidate.singleL40sRuntimeCertified, false);\n    assert.equal(candidate.paidExecutionAuthorized, false);\n    assert.equal(candidate.executable, false);\n});\n\ntest(\"V142 HuMo runner binds inference to the certified lifecycle venv\", () => {"
   }
 }
