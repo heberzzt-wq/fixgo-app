@@ -1,17 +1,22 @@
 {
-  "jobId": "v142-humo17-cleanup-contract-20260908-312",
-  "completedAt": "2026-09-08T22:11:44.897Z",
+  "jobId": "v142-humo17-core-stage-preflight-20260908-313",
+  "completedAt": "2026-09-08T22:15:50.365Z",
   "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 423050,
-  "bytesAfter": 423736,
-  "source": "sia7_github_worker_exact_patch_v1",
+  "operation": "humo17_core_stage",
+  "dryRun": true,
+  "status": "SIA7_HUMO17_CORE_STAGE_PREFLIGHT_READY",
+  "certifiedBaseSha": "0d60e9eb5628964fe36853fd8c178149a75c3bfa",
+  "executionHeadSha": "ed8817686f83c77dbd7638d17001a22664f905de",
+  "controlPlaneOnlyChanges": [
+    ".sia7/remote-job.json"
+  ],
+  "hardBudgetUsd": 1.5,
+  "maximumMinutes": 90,
+  "networkVolumeId": "1qm5wczocl",
+  "dataCenterId": "EU-NL-1",
+  "resourceCreationPossible": false,
+  "inferenceStarted": false,
   "committedFiles": [
-    ".sia7/remote-result.json",
-    "tests/jarvis-local-video-engine-v142.test.mjs"
+    ".sia7/remote-result.json"
   ]
 }
