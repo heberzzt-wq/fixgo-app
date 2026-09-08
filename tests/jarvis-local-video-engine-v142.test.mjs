@@ -10,6 +10,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
     buildLocalAiCapabilityReport,
     buildHuMoIdentityRuntimeAuthority,
+    buildHuMo17PersistentCoreStagingPlan,
     buildNextIdentityRuntimeCandidate,
     createLocalVideoEngine,
     createRunpodRemoteVideoAdapter,
