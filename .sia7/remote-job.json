@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-cpu-pod-payload-contract-20260908-302",
+  "jobId": "v142-humo17-provider-message-bridge-20260908-303",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+    "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    assert.equal(bridgeSource.includes('HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED'), true);\n});",
-    "replace": "    assert.equal(bridgeSource.includes('HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED'), true);\n    assert.equal(bridgeSource.includes('computeType: \\\"CPU\\\"'), true);\n    assert.equal(bridgeSource.includes('dataCenterIds: [volume.dataCenterId]'), true);\n    assert.equal(bridgeSource.includes('networkVolumeId: volume.id'), true);\n    assert.equal(bridgeSource.includes('dockerEntrypoint: [\\\"bash\\\", \\\"-lc\\\"]'), true);\n    assert.equal(bridgeSource.includes('cpuFlavorIds: [\\\"cpu3c\\\"]'), false);\n    assert.equal(bridgeSource.includes('cpuFlavorPriority: \\\"custom\\\"'), false);\n    assert.equal(bridgeSource.includes('dataCenterPriority: \\\"custom\\\"'), false);\n    assert.equal(bridgeSource.includes('supportPublicIp: true'), false);\n    assert.equal(bridgeSource.includes('interruptible: false'), false);\n});"
+    "search": "                console.error(JSON.stringify({\n                    ok: false,\n                    status: error?.message || \"HUMO17_PERSISTENT_CORE_STAGE_FAILED\",\n                    podId: error?.podId || null,\n                    inferenceStarted: false\n                }));",
+    "replace": "                console.error(JSON.stringify({\n                    ok: false,\n                    status: error?.message || \"HUMO17_PERSISTENT_CORE_STAGE_FAILED\",\n                    providerMessage: error?.providerMessage || null,\n                    podId: error?.podId || null,\n                    inferenceStarted: false\n                }));"
   }
 }
