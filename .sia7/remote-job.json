@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-cpu-pod-payload-fix-20260908-301",
+  "jobId": "v142-humo17-cpu-pod-payload-contract-20260908-302",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const createBody = {\n        name: podName,\n        imageName: \"ubuntu:22.04\",\n        computeType: \"CPU\",\n        cloudType: \"SECURE\",\n        cpuFlavorIds: [\"cpu3c\"],\n        cpuFlavorPriority: \"custom\",\n        dataCenterIds: [volume.dataCenterId],\n        dataCenterPriority: \"custom\",\n        vcpuCount: 2,\n        containerDiskInGb: 20,\n        volumeInGb: 0,\n        volumeMountPath: \"/workspace\",\n        networkVolumeId: volume.id,\n        ports: [\"22/tcp\"],\n        supportPublicIp: true,\n        interruptible: false,\n        dockerEntrypoint: [\"bash\", \"-lc\"],\n        dockerStartCmd: [startupScript],\n        env: { PUBLIC_KEY: publicKey }\n    };",
-    "replace": "    const createBody = {\n        name: podName,\n        imageName: \"ubuntu:22.04\",\n        computeType: \"CPU\",\n        cloudType: \"SECURE\",\n        dataCenterIds: [volume.dataCenterId],\n        containerDiskInGb: 20,\n        volumeMountPath: \"/workspace\",\n        networkVolumeId: volume.id,\n        ports: [\"22/tcp\"],\n        dockerEntrypoint: [\"bash\", \"-lc\"],\n        dockerStartCmd: [startupScript],\n        env: { PUBLIC_KEY: publicKey }\n    };"
+    "search": "    assert.equal(bridgeSource.includes('HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED'), true);\n});",
+    "replace": "    assert.equal(bridgeSource.includes('HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED'), true);\n    assert.equal(bridgeSource.includes('computeType: \\\"CPU\\\"'), true);\n    assert.equal(bridgeSource.includes('dataCenterIds: [volume.dataCenterId]'), true);\n    assert.equal(bridgeSource.includes('networkVolumeId: volume.id'), true);\n    assert.equal(bridgeSource.includes('dockerEntrypoint: [\\\"bash\\\", \\\"-lc\\\"]'), true);\n    assert.equal(bridgeSource.includes('cpuFlavorIds: [\\\"cpu3c\\\"]'), false);\n    assert.equal(bridgeSource.includes('cpuFlavorPriority: \\\"custom\\\"'), false);\n    assert.equal(bridgeSource.includes('dataCenterPriority: \\\"custom\\\"'), false);\n    assert.equal(bridgeSource.includes('supportPublicIp: true'), false);\n    assert.equal(bridgeSource.includes('interruptible: false'), false);\n});"
   }
 }
