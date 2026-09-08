@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-compatible-comfy-pin-20260908-255",
+  "jobId": "v142-humo17-safe-runtime-tests-20260908-256",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-local-video-engine.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            comfyUiRevision: \"efa6c8f804bff78b46a0fd458ebd2e47bba07a30\",",
-    "replace": "            comfyUiRevision: \"b30e980a206607d1a9d56b7a6f7df3999d68438a\"," 
+    "search": "    assert.equal(strategy.comfyUiRevision, \"efa6c8f804bff78b46a0fd458ebd2e47bba07a30\");\n    assert.equal(strategy.wrapperRevision, \"088128b224242e110d3906c6750e9a3a348a659b\");\n    assert.equal(strategy.quantizedModel.revision, \"0d987e66e7debb098970adb907d99c07c5aa2ac9\");",
+    "replace": "    assert.equal(strategy.comfyUiRevision, \"b30e980a206607d1a9d56b7a6f7df3999d68438a\");\n    assert.equal(strategy.wrapperRevision, \"088128b224242e110d3906c6750e9a3a348a659b\");\n    assert.equal(strategy.quantizedModel.revision, \"0d987e66e7debb098970adb907d99c07c5aa2ac9\");"
   }
 }
