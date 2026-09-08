@@ -1,12 +1,5 @@
 {
-  "jobId": "v142-humo-good-voice-receipt-regression-20260907-197",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "    assert.equal(workerSource.includes(\"referenceSha256s: [SIA7_HUMO_REFERENCE_SHA256, SIA7_HUMO_REFERENCE_SHA256_2]\"), true);",
-    "replace": "    assert.equal(workerSource.includes(\"referenceSha256s: [SIA7_HUMO_REFERENCE_SHA256, SIA7_HUMO_REFERENCE_SHA256_2]\"), true);\n    assert.equal(workerSource.split(\"referenceCount: 2\").length - 1, 2);\n    assert.equal(workerSource.split(\"referenceSha256s: [SIA7_HUMO_REFERENCE_SHA256, SIA7_HUMO_REFERENCE_SHA256_2]\").length - 1, 2);\n    assert.equal(workerSource.split(\"audioSha256: SIA7_HUMO_AUDIO_SHA256\").length - 1, 2);"
-  }
+  "jobId": "v142-humo-good-voice-prepare-20260907-198",
+  "operation": "humo_reference_audio_prepare",
+  "humanApproved": true
 }
