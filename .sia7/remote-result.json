@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-humo17-storage-authority-20260908-252",
-  "completedAt": "2026-09-08T15:10:08.724Z",
+  "jobId": "v142-humo17-storage-test-alignment-20260908-253",
+  "completedAt": "2026-09-08T15:20:10.295Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "jarvis-local-video-engine.js",
+  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 412502,
-  "bytesAfter": 413975,
+  "bytesBefore": 409725,
+  "bytesAfter": 410425,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "jarvis-local-video-engine.js"
+    "tests/jarvis-local-video-engine-v142.test.mjs"
   ]
 }
