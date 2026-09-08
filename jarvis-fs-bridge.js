@@ -9518,10 +9518,14 @@ if (
         runHuMo17PersistentCoreStagingCli()
             .then(result => console.log(JSON.stringify(result)))
             .catch(error => {
+                const providerMessage = String(error?.providerMessage || "").trim();
+                const status = providerMessage
+                    ? `${error?.message || "HUMO17_PERSISTENT_CORE_STAGE_FAILED"}:${providerMessage}`
+                    : (error?.message || "HUMO17_PERSISTENT_CORE_STAGE_FAILED");
                 console.error(JSON.stringify({
                     ok: false,
-                    status: error?.message || "HUMO17_PERSISTENT_CORE_STAGE_FAILED",
-                    providerMessage: error?.providerMessage || null,
+                    status,
+                    providerMessage: providerMessage || null,
                     podId: error?.podId || null,
                     inferenceStarted: false
                 }));

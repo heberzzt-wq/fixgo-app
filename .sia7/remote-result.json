@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-humo17-provider-message-contract-20260908-305",
-  "completedAt": "2026-09-08T21:07:01.699Z",
+  "jobId": "v142-humo17-provider-status-bridge-20260908-306",
+  "completedAt": "2026-09-08T21:11:37.800Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+  "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 422642,
-  "bytesAfter": 422887,
+  "bytesBefore": 390713,
+  "bytesAfter": 390964,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "tests/jarvis-local-video-engine-v142.test.mjs"
+    "jarvis-fs-bridge.js"
   ]
 }
