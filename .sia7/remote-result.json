@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-retained-volume-reuse-20260907-216",
-  "completedAt": "2026-09-08T02:15:04.538Z",
+  "jobId": "v142-humo-retained-volume-pin-20260907-217",
+  "completedAt": "2026-09-08T02:15:44.828Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 364412,
-  "bytesAfter": 365230,
+  "bytesBefore": 365230,
+  "bytesAfter": 365525,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

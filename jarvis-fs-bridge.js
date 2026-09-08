@@ -8776,6 +8776,9 @@ export async function runHuMoIdentityProbeCli({
         JARVIS_HUMO_IDENTITY_PROBE_AUTHORIZATION_ID: authorizationId,
         JARVIS_HUMO_IDENTITY_PROBE_CHARACTER_ID: characterId
     };
+    runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID = String(env.JARVIS_RUNPOD_NETWORK_VOLUME_ID || "1qm5wczocl").trim();
+    runtimeEnv.JARVIS_RUNPOD_DATACENTER_ID = String(env.JARVIS_RUNPOD_DATACENTER_ID || "EU-NL-1").trim();
+    runtimeEnv.JARVIS_RUNPOD_RETAIN_NETWORK_VOLUME_AUTHORIZED = "true";
     const persistentVolume = await ensureHuMoPersistentNetworkVolume({
         root: resolvedRoot,
         env: runtimeEnv,
