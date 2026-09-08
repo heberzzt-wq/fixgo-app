@@ -8787,6 +8787,43 @@ export async function runHuMo17PersistentCoreStagingCli({
         try { return JSON.parse(text); }
         catch { throw new Error("RUNPOD_HUMO17_PROVIDER_RESPONSE_INVALID"); }
     };
+    const verifyPodDeleted = async idValue => {
+        const id = String(idValue || "").trim();
+        if (!id) return true;
+        try {
+            await provider("DELETE", `/pods/${encodeURIComponent(id)}`, null, [200, 204, 404]);
+        }
+        catch(error) {
+            if (!String(error?.message || "").includes("RUNPOD_HUMO17_HTTP_404")) throw error;
+        }
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+            try {
+                const observed = await provider("GET", `/pods/${encodeURIComponent(id)}`, null, [200]);
+                if (!observed || String(observed?.desiredStatus || "").toUpperCase() === "TERMINATED") return true;
+            }
+            catch(error) {
+                if (String(error?.message || "").includes("RUNPOD_HUMO17_HTTP_404")) return true;
+                throw error;
+            }
+            await sleepMs(2500);
+        }
+        return false;
+    };
+    const listedPods = await provider("GET", "/pods", null, [200]);
+    if (!Array.isArray(listedPods)) throw new Error("RUNPOD_HUMO17_POD_LIST_INVALID");
+    const stalePods = listedPods.filter(pod =>
+        String(pod?.name || "").startsWith("jarvis-v142-humo17-core-") &&
+        String(pod?.desiredStatus || "").toUpperCase() !== "TERMINATED"
+    );
+    for (const stalePod of stalePods) {
+        const stalePodId = String(stalePod?.id || "").trim();
+        if (!stalePodId) throw new Error("RUNPOD_HUMO17_STALE_POD_ID_REQUIRED");
+        log({ ok: true, status: "HUMO17_STALE_CPU_POD_RELEASE_STARTED", podId: stalePodId, inferenceStarted: false });
+        if (await verifyPodDeleted(stalePodId) !== true) {
+            throw new Error(`RUNPOD_HUMO17_STALE_POD_DELETE_NOT_VERIFIED:${stalePodId}`);
+        }
+        log({ ok: true, status: "HUMO17_STALE_CPU_POD_RELEASED", podId: stalePodId, terminationVerified: true, inferenceStarted: false });
+    }
     const sshEndpoint = pod => {
         const ports = Array.isArray(pod?.runtime?.ports) ? pod.runtime.ports : [];
         const mapping = ports.find(item => Number(item?.private ?? item?.privatePort) === 22) || null;

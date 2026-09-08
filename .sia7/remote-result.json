@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo17-delete-verify-fix-20260908-310",
-  "completedAt": "2026-09-08T22:10:44.377Z",
+  "jobId": "v142-humo17-stale-pod-cleanup-20260908-311",
+  "completedAt": "2026-09-08T22:11:19.042Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 390964,
-  "bytesAfter": 390959,
+  "bytesBefore": 390959,
+  "bytesAfter": 392847,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
