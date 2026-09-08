@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-series-backend-policy-enforcement-20260908-245",
+  "jobId": "v142-humo17-fp8-l40s-authority-20260908-246",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-artifact-studio.js",
+    "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const normalizedMaximum = Number(maximumReferenceImages);",
-    "replace": "    const backendPolicy = getSeriesGenerationBackendPolicy(generationBackend);\n    const policyMaximum = Number(backendPolicy.maximumReferenceImages) || SERIES_REFERENCE_MAX_COUNT;\n    const normalizedMaximum = maximumReferenceImages === null || maximumReferenceImages === undefined\n        ? policyMaximum\n        : Number(maximumReferenceImages);\n    const uniqueCastIds = [...new Set(episode.castIds || [])];\n    if (uniqueCastIds.length > Number(backendPolicy.maximumIdentityCount || uniqueCastIds.length)) {\n        if (backendPolicy.backend === \"humo-17b-identity\") {\n            throw new Error(`SERIES_HUMO_SINGLE_IDENTITY_REQUIRED:${uniqueCastIds.length}`);\n        }\n        throw new Error(`SERIES_GENERATION_IDENTITY_LIMIT_EXCEEDED:${backendPolicy.backend}:${uniqueCastIds.length}:${backendPolicy.maximumIdentityCount}`);\n    }"
+    "search": "        modelRevision: \"cb20be4504cb725caad4076be7a11fd295866462\",\n        checkpointDirectory: \"HuMo-17B\",",
+    "replace": "        modelRevision: \"cb20be4504cb725caad4076be7a11fd295866462\",\n        singleGpuStrategy: Object.freeze({\n            runtime: \"comfyui-wanvideowrapper\",\n            comfyUiRepository: \"Comfy-Org/ComfyUI\",\n            comfyUiRevision: \"efa6c8f804bff78b46a0fd458ebd2e47bba07a30\",\n            wrapperRepository: \"kijai/ComfyUI-WanVideoWrapper\",\n            wrapperRevision: \"088128b224242e110d3906c6750e9a3a348a659b\",\n            exampleWorkflowPath: \"example_workflows/wanvideo_2_1_14B_HuMo_example_01.json\",\n            quantizedModel: Object.freeze({\n                repository: \"Kijai/WanVideo_comfy_fp8_scaled\",\n                revision: \"0d987e66e7debb098970adb907d99c07c5aa2ac9\",\n                path: \"HuMo/Wan2_1-HuMo-14B_fp8_e4m3fn_scaled_KJ.safetensors\",\n                bytes: 17892294098,\n                sha256: \"a67ed82a7c008892f9192cdc5b23bbfe2e2a8e2f87d0b5b8dfb0226fafec022d\",\n                precision: \"fp8_e4m3fn_scaled\"\n            }),\n            modelLoaderBasePrecision: \"fp16_fast\",\n            modelLoaderDevice: \"offload_device\",\n            attentionMode: \"sageattn\",\n            blockSwapWorkflowWidgetValues: Object.freeze([20, false, false, true, 0, 1, false]),\n            compileEnabled: false,\n            reuseExistingHuMoSharedAssets: true,\n            existingHuMoCacheBytes: 22095109502,\n            plannedPersistentBytes: 39987403600,\n            minimumNetworkVolumeGb: 50,\n            targetGpuTypeId: \"NVIDIA L40S\",\n            physicalFitCertified: false,\n            qualityCertified: false,\n            resourceCreationPossible: false,\n            inferenceStarted: false\n        }),\n        checkpointDirectory: \"HuMo-17B\","
   }
 }
