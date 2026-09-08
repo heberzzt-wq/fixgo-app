@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-humo17-fp16-sdpa-test-alignment-20260908-257",
-  "completedAt": "2026-09-08T16:00:07.206Z",
+  "jobId": "v142-humo17-distill-lora-authority-20260908-258",
+  "completedAt": "2026-09-08T16:00:42.489Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+  "file": "jarvis-local-video-engine.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 410425,
-  "bytesAfter": 410416,
+  "bytesBefore": 413966,
+  "bytesAfter": 414314,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "tests/jarvis-local-video-engine-v142.test.mjs"
+    "jarvis-local-video-engine.js"
   ]
 }

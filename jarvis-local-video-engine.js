@@ -185,6 +185,7 @@ export const NEXT_IDENTITY_RUNTIME_CANDIDATES = Object.freeze({
                 sha256: "a67ed82a7c008892f9192cdc5b23bbfe2e2a8e2f87d0b5b8dfb0226fafec022d",
                 precision: "fp8_e4m3fn_scaled"
             }),
+            distillationLora: Object.freeze({ repository: "Kijai/WanVideo_comfy", revision: "20d7d266a972317784a0dae4decd642ab3b2f6fe", path: "Lightx2v/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors", bytes: 738005744, sha256: "85c4a61c30e0497aa44b91d93a893b624708461a56fe5485183b28fa07e2dfb3", strength: 1.0, mergeLoras: false }),
             modelLoaderBasePrecision: "fp16",
             modelLoaderDevice: "offload_device",
             attentionMode: "sdpa",
