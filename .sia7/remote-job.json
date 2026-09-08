@@ -1,12 +1,10 @@
 {
-  "jobId": "v142-humo-engine-windows-git-path-20260907-210",
-  "operation": "patch",
+  "jobId": "v142-humo-8s-two-ref-good-voice-paid-20260907-211",
+  "operation": "humo_identity_probe",
   "humanApproved": true,
-  "patch": {
-    "file": "jarvis-local-video-engine.js",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "            return String(execFileSync(\"git\", [\"rev-parse\", \"HEAD\"], {",
-    "replace": "            return String(execFileSync((process.platform === \"win32\" && fs.existsSync(\"C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe\") ? \"C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe\" : \"git\"), [\"rev-parse\", \"HEAD\"], {"
-  }
+  "executePaid": true,
+  "fullEpisodeAuthorized": false,
+  "expectedBaseSha": "98a50aded38017d3c534cc3bdae960118913da96",
+  "hardBudgetUsd": 3,
+  "monthlyStorageAuthorizedUsd": 3.5
 }
