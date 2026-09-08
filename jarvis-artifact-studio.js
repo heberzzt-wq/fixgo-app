@@ -5,6 +5,36 @@ import { createHash, randomUUID } from "node:crypto";
 export const JARVIS_ARTIFACT_STUDIO_VERSION = "1.0.0-versioned-ledger";
 export const JARVIS_SERIES_CANON_VERSION = "1.0.0-v142-artifact-studio-series-canon";
 const SERIES_REFERENCE_MAX_COUNT = 3;
+const SERIES_GENERATION_BACKEND_POLICIES = Object.freeze({
+    veo: Object.freeze({ backend: "veo", maximumReferenceImages: 3, maximumIdentityCount: 3, multiIdentity: true, audioConditioned: false, candidateOnly: false, operationallyCertified: true }),
+    "humo-17b-identity": Object.freeze({
+        backend: "humo-17b-identity", model: "HuMo-17B", sourceRepository: "Phantom-video/HuMo",
+        sourceRevision: "845f44736e21be93aa5d8cf406b6eb01af9bff67", modelRepository: "bytedance-research/HuMo",
+        modelRevision: "cb20be4504cb725caad4076be7a11fd295866462", maximumReferenceImages: 3, maximumIdentityCount: 1,
+        multiIdentity: false, audioConditioned: true, targetGpuTypeId: "NVIDIA L40S",
+        probeGeometry: Object.freeze({ width: 832, height: 480, fps: 25, frames: 97, durationSeconds: 3.88 }),
+        candidateOnly: true, operationallyCertified: false, paidExecutionAuthorized: false,
+        blockingReason: "HUMO17_SINGLE_L40S_RUNTIME_NOT_CERTIFIED"
+    }),
+    "phantom-wan-14b": Object.freeze({
+        backend: "phantom-wan-14b", model: "Phantom-Wan-14B", sourceRepository: "Phantom-video/Phantom",
+        sourceRevision: "bd84b602dcc949e23c89cbbf266b6f5975f2f025", modelRepository: "bytedance-research/Phantom",
+        modelRevision: "6739b2d576426a211c9fec00a476253e538ca7d5", maximumReferenceImages: 4, maximumIdentityCount: 4,
+        multiIdentity: true, audioConditioned: false, targetGpuTypeId: "NVIDIA L40S",
+        probeGeometry: Object.freeze({ width: 832, height: 480, fps: 24, frames: 121, durationSeconds: 5.041667 }),
+        candidateOnly: true, operationallyCertified: false, paidExecutionAuthorized: false,
+        blockingReason: "PHANTOM14B_SINGLE_L40S_RUNTIME_NOT_CERTIFIED"
+    })
+});
+
+export function getSeriesGenerationBackendPolicy(backend = "veo") {
+    const requested = clean(backend).toLowerCase() || "veo";
+    const aliases = { "google-veo": "veo", humo17: "humo-17b-identity", "humo-17b": "humo-17b-identity", phantom: "phantom-wan-14b", "phantom-14b": "phantom-wan-14b" };
+    const normalized = aliases[requested] || requested;
+    const policy = SERIES_GENERATION_BACKEND_POLICIES[normalized];
+    if (!policy) throw new Error(`SERIES_GENERATION_BACKEND_UNSUPPORTED:${normalized}`);
+    return JSON.parse(JSON.stringify(policy));
+}
 const SERIES_COMMERCIAL_CLEARANCE_STATUS =
     "PUBLIC_SEARCH_PASS_FORMAL_REGISTRATION_PENDING";
 const SERIES_CHARACTER_STATE_FIELDS = [

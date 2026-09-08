@@ -1,9 +1,17 @@
 {
-  "jobId": "v142-series-backend-identity-policy-20260908-242",
-  "completedAt": "2026-09-08T14:23:51.829Z",
-  "ok": false,
-  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1",
+  "jobId": "v142-series-backend-identity-policy-20260908-243",
+  "completedAt": "2026-09-08T14:24:51.855Z",
+  "ok": true,
+  "operation": "patch",
+  "dryRun": false,
+  "file": "jarvis-artifact-studio.js",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 45388,
+  "bytesAfter": 47688,
+  "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
-    ".sia7/remote-result.json"
+    ".sia7/remote-result.json",
+    "jarvis-artifact-studio.js"
   ]
 }
