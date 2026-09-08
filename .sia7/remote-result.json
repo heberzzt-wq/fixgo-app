@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo17-bridge-imports-20260908-292",
-  "completedAt": "2026-09-08T17:32:12.887Z",
+  "jobId": "v142-humo17-core-stage-cli-20260908-293",
+  "completedAt": "2026-09-08T17:43:38.982Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 370168,
-  "bytesAfter": 370333,
+  "bytesBefore": 370333,
+  "bytesAfter": 390321,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

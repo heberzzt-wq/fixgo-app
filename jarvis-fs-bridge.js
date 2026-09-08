@@ -8699,6 +8699,403 @@ export async function runNextIdentityRuntimePreflightCli({
     return result;
 }
 
+export async function runHuMo17PersistentCoreStagingCli({
+    root = DEFAULT_ROOT,
+    env = process.env,
+    log = value => console.log(JSON.stringify(value))
+} = {}) {
+    const truthy = value => ["true", "1", "yes", "on"].includes(String(value || "").trim().toLowerCase());
+    if (!truthy(env.JARVIS_HUMO17_CORE_STAGE_AUTHORIZED)) {
+        throw new Error("RUNPOD_HUMO17_CORE_STAGE_AUTHORITY_REQUIRED");
+    }
+    if (process.platform !== "win32") throw new Error("RUNPOD_HUMO17_WINDOWS_WORKER_REQUIRED");
+    const hardBudgetUsd = Number(String(env.JARVIS_HUMO17_CORE_STAGE_HARD_BUDGET_USD || "1.5").trim());
+    if (!Number.isFinite(hardBudgetUsd) || hardBudgetUsd <= 0 || hardBudgetUsd > 3) {
+        throw new Error("RUNPOD_HUMO17_CORE_STAGE_BUDGET_INVALID");
+    }
+    const maximumMinutes = Number(String(env.JARVIS_HUMO17_CORE_STAGE_MAX_MINUTES || "90").trim());
+    if (!Number.isFinite(maximumMinutes) || maximumMinutes < 5 || maximumMinutes > 90) {
+        throw new Error("RUNPOD_HUMO17_CORE_STAGE_DURATION_INVALID");
+    }
+    const requestedVolumeId = String(env.JARVIS_RUNPOD_NETWORK_VOLUME_ID || "1qm5wczocl").trim();
+    const requestedDataCenterId = String(env.JARVIS_RUNPOD_DATACENTER_ID || "EU-NL-1").trim();
+    if (!requestedVolumeId || !requestedDataCenterId) throw new Error("RUNPOD_HUMO17_VOLUME_REQUIRED");
+
+    const credential = resolveRunpodCredentialEnvironment({ env });
+    if (credential.credentialLoaded !== true) {
+        throw new Error(credential.credentialError || "RUNPOD_API_KEY_REQUIRED");
+    }
+    const cliEnv = { ...credential.env, RUNPOD_API_KEY: credential.env.RUNPOD_API_KEY };
+    const volumes = normalizeRunpodctlNetworkVolumes(
+        await runRunpodctlJson(["network-volume", "list"], cliEnv)
+    );
+    const matches = volumes.filter(volume => volume.id === requestedVolumeId);
+    if (matches.length !== 1) throw new Error(`RUNPOD_HUMO17_VOLUME_MATCH_COUNT:${matches.length}`);
+    const volume = matches[0];
+    if (
+        volume.dataCenterId !== requestedDataCenterId ||
+        Number(volume.sizeGb || 0) < Number(RUNPOD_HUMO17_CORE_CACHE_BASE.minimumNetworkVolumeGb || 50) ||
+        String(volume.type || "").toUpperCase() !== String(RUNPOD_HUMO17_CORE_CACHE_BASE.networkVolumeType || "STANDARD").toUpperCase()
+    ) {
+        throw new Error("RUNPOD_HUMO17_VOLUME_IDENTITY_MISMATCH");
+    }
+
+    const resolvedRoot = path.resolve(root);
+    const git = process.platform === "win32" && fs.existsSync("C:\\Program Files\\Git\\cmd\\git.exe")
+        ? "C:\\Program Files\\Git\\cmd\\git.exe"
+        : "git";
+    const canonicalSha = String(execFileSync(git, ["rev-parse", "HEAD"], {
+        cwd: resolvedRoot, encoding: "utf8", windowsHide: true
+    })).trim().toLowerCase();
+    if (!/^[a-f0-9]{40}$/.test(canonicalSha)) throw new Error("RUNPOD_CANONICAL_SHA_REQUIRED");
+
+    const operationId = `humo17-core-${randomUUID()}`;
+    const podName = `jarvis-v142-${operationId}`.slice(0, 63);
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-humo17-core-stage-"));
+    const privateKeyFile = path.join(workDir, "id_ed25519");
+    const publicKeyFile = privateKeyFile + ".pub";
+    const knownHostsFile = path.join(workDir, "known_hosts");
+    const bootstrapFile = path.join(workDir, "stage.sh");
+    const sshKeygen = resolveLocalExecutable("ssh-keygen", env);
+    const ssh = resolveLocalExecutable("ssh", env) || openSshExecutable();
+    const scp = resolveLocalExecutable("scp", env);
+    if (!sshKeygen || !ssh || !scp) throw new Error("RUNPOD_HUMO17_SSH_TOOLCHAIN_REQUIRED");
+    execFileSync(sshKeygen, ["-q", "-t", "ed25519", "-N", "", "-C", operationId, "-f", privateKeyFile], {
+        windowsHide: true, stdio: "ignore"
+    });
+    const publicKey = fs.readFileSync(publicKeyFile, "utf8").trim();
+    if (!publicKey.startsWith("ssh-ed25519 ")) throw new Error("RUNPOD_HUMO17_SSH_KEY_INVALID");
+
+    const apiBase = String(env.JARVIS_RUNPOD_API_V1_BASE || "https://rest.runpod.io/v1").replace(/\/$/, "");
+    const provider = async (method, suffix, body = null, accepted = [200]) => {
+        const response = await fetch(`${apiBase}${suffix}`, {
+            method,
+            signal: AbortSignal.timeout(60000),
+            headers: {
+                Authorization: `Bearer ${credential.env.RUNPOD_API_KEY}`,
+                ...(body ? { "Content-Type": "application/json" } : {})
+            },
+            ...(body ? { body: JSON.stringify(body) } : {})
+        });
+        const text = Number(response.status) === 204 ? "" : await response.text();
+        if (!accepted.includes(Number(response.status))) {
+            const error = new Error(`RUNPOD_HUMO17_HTTP_${Number(response.status || 0)}`);
+            error.providerMessage = text.replace(/\s+/g, " " ).slice(0, 500);
+            throw error;
+        }
+        if (!text) return null;
+        try { return JSON.parse(text); }
+        catch { throw new Error("RUNPOD_HUMO17_PROVIDER_RESPONSE_INVALID"); }
+    };
+    const sshEndpoint = pod => {
+        const ports = Array.isArray(pod?.runtime?.ports) ? pod.runtime.ports : [];
+        const mapping = ports.find(item => Number(item?.private ?? item?.privatePort) === 22) || null;
+        const host = String(mapping?.ip || pod?.publicIp || pod?.runtime?.ip || "").trim();
+        const port = Number(mapping?.public ?? mapping?.publicPort ?? pod?.portMappings?.["22"] ?? 0);
+        return host && port > 0 ? { host, port } : null;
+    };
+    const sshArgs = (endpoint, command) => [
+        "-i", privateKeyFile,
+        "-p", String(endpoint.port),
+        "-o", "BatchMode=yes",
+        "-o", "ConnectTimeout=20",
+        "-o", "StrictHostKeyChecking=accept-new",
+        "-o", `UserKnownHostsFile=${knownHostsFile}`,
+        `root@${endpoint.host}`,
+        command
+    ];
+    const runSsh = async (endpoint, command, timeoutMs = 120000) =>
+        await spawnCaptured(ssh, sshArgs(endpoint, command), { timeoutMs, maxBytes: 4 * 1024 * 1024 });
+    const runScp = async (endpoint, source, destination, timeoutMs = 120000) =>
+        await spawnCaptured(scp, [
+            "-i", privateKeyFile,
+            "-P", String(endpoint.port),
+            "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=20",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", `UserKnownHostsFile=${knownHostsFile}`,
+            source,
+            `root@${endpoint.host}:${destination}`
+        ], { timeoutMs, maxBytes: 2 * 1024 * 1024 });
+
+    const startupScript = [
+        "set -euo pipefail",
+        "export DEBIAN_FRONTEND=noninteractive",
+        "apt-get update -qq",
+        "apt-get install -y -qq --no-install-recommends openssh-server ca-certificates python3 python3-venv python3-pip git curl",
+        "mkdir -p /run/sshd /root/.ssh",
+        "test -n \"${PUBLIC_KEY:-}\"",
+        "printf '%s\\n' \"$PUBLIC_KEY\" > /root/.ssh/authorized_keys",
+        "chmod 700 /root/.ssh",
+        "chmod 600 /root/.ssh/authorized_keys",
+        "ssh-keygen -A",
+        "exec /usr/sbin/sshd -D -e"
+    ].join("\n");
+    const createBody = {
+        name: podName,
+        imageName: "ubuntu:22.04",
+        computeType: "CPU",
+        cloudType: "SECURE",
+        cpuFlavorIds: ["cpu3c"],
+        cpuFlavorPriority: "custom",
+        dataCenterIds: [volume.dataCenterId],
+        dataCenterPriority: "custom",
+        vcpuCount: 2,
+        containerDiskInGb: 20,
+        volumeInGb: 0,
+        volumeMountPath: "/workspace",
+        networkVolumeId: volume.id,
+        ports: ["22/tcp"],
+        supportPublicIp: true,
+        interruptible: false,
+        dockerEntrypoint: ["bash", "-lc"],
+        dockerStartCmd: [startupScript],
+        env: { PUBLIC_KEY: publicKey }
+    };
+
+    let podId = null;
+    let endpoint = null;
+    let hourlyRateUsd = 0;
+    let createdAtMs = 0;
+    let estimatedCostUsd = 0;
+    let terminationVerified = false;
+    let manifest = null;
+    let legacyEvidence = null;
+    let primaryError = null;
+    try {
+        const created = await provider("POST", "/pods", createBody, [200, 201]);
+        podId = String(created?.id || "").trim();
+        if (!podId) throw new Error("RUNPOD_HUMO17_CPU_POD_CREATE_INVALID");
+        hourlyRateUsd = Number(created?.adjustedCostPerHr ?? created?.costPerHr ?? 0);
+        if (!(hourlyRateUsd > 0)) throw new Error("RUNPOD_HUMO17_CPU_RATE_INVALID");
+        const maximumAuthorizedSeconds = Math.min(
+            Math.floor(maximumMinutes * 60),
+            Math.floor(hardBudgetUsd * 3600 / hourlyRateUsd)
+        );
+        if (maximumAuthorizedSeconds < 300) throw new Error("RUNPOD_HUMO17_CPU_BUDGET_INSUFFICIENT");
+        createdAtMs = Date.now();
+        const deadlineMs = createdAtMs + maximumAuthorizedSeconds * 1000;
+        log({
+            ok: true,
+            status: "HUMO17_CORE_CPU_POD_CREATED",
+            podId,
+            cpuFlavorId: created?.cpuFlavorId || "cpu3c",
+            dataCenterId: volume.dataCenterId,
+            networkVolumeId: volume.id,
+            hourlyRateUsd,
+            hardBudgetUsd,
+            maximumAuthorizedSeconds,
+            inferenceStarted: false
+        });
+
+        while (Date.now() < Math.min(deadlineMs, createdAtMs + 10 * 60 * 1000)) {
+            const pod = await provider("GET", `/pods/${encodeURIComponent(podId)}?includeNetworkVolume=true`, null, [200]);
+            if (String(pod?.id || "") !== podId) throw new Error("RUNPOD_HUMO17_CPU_POD_IDENTITY_MISMATCH");
+            const attachedVolumeId = String(pod?.networkVolumeId || pod?.networkVolume?.id || "").trim();
+            if (attachedVolumeId && attachedVolumeId !== volume.id) {
+                throw new Error("RUNPOD_HUMO17_CPU_VOLUME_MISMATCH");
+            }
+            endpoint = sshEndpoint(pod);
+            if (String(pod?.desiredStatus || "").toUpperCase() === "RUNNING" && endpoint) {
+                try {
+                    const ready = await runSsh(endpoint, "mountpoint -q /workspace && test -w /workspace && command -v python3 >/dev/null && printf READY", 30000);
+                    if (ready.stdout.trim().endsWith("READY")) break;
+                }
+                catch {}
+            }
+            endpoint = null;
+            await sleepMs(5000);
+        }
+        if (!endpoint) throw new Error("RUNPOD_HUMO17_CPU_SSH_TIMEOUT");
+
+        const legacyContractB64 = Buffer.from(JSON.stringify(RUNPOD_HUMO_CACHE_BASE), "utf8").toString("base64");
+        const legacyVerifier = [
+            "import base64,hashlib,json,pathlib,sys",
+            "root=pathlib.Path('/workspace/jarvis-v142/cache/humo-1.7b'); contract=json.loads(base64.b64decode(sys.argv[1]).decode('utf-8')); vid=sys.argv[2]; dc=sys.argv[3]",
+            "manifest_path=root/'model-manifest.json'",
+            "assert manifest_path.is_file(), 'LEGACY_MANIFEST_MISSING'",
+            "manifest=json.loads(manifest_path.read_text(encoding='utf-8'))",
+            "identity=['schemaVersion','profile','modelRepository','modelRevision','sourceRepository','sourceRevision','provisionImageTag','expectedRegistryDigest','totalBytes']",
+            "assert all(manifest.get(k)==contract.get(k) for k in identity), 'LEGACY_MANIFEST_IDENTITY_MISMATCH'",
+            "assert manifest.get('networkVolumeId')==vid and manifest.get('dataCenterId')==dc, 'LEGACY_VOLUME_IDENTITY_MISMATCH'",
+            "observed={item.get('path'):item for item in manifest.get('files',[])}",
+            "assert len(observed)==len(contract['requiredFiles']), 'LEGACY_MANIFEST_FILE_COUNT_MISMATCH'",
+            "total=0",
+            "for item in contract['requiredFiles']:",
+            "    recorded=observed.get(item['path']); assert recorded and all(recorded.get(k)==item.get(k) for k in ['bytes','sha256','repository','revision','sourcePath']), 'LEGACY_MANIFEST_FILE_MISMATCH:'+item['path']",
+            "    file=root/item['path']; assert file.is_file() and not file.is_symlink(), 'LEGACY_FILE_MISSING:'+item['path']",
+            "    assert file.stat().st_size==item['bytes'], 'LEGACY_FILE_SIZE_MISMATCH:'+item['path']",
+            "    h=hashlib.sha256()",
+            "    with file.open('rb') as stream:",
+            "        for chunk in iter(lambda:stream.read(8*1024*1024),b''): h.update(chunk)",
+            "    assert h.hexdigest()==item['sha256'], 'LEGACY_FILE_SHA_MISMATCH:'+item['path']",
+            "    total+=item['bytes']",
+            "mh=hashlib.sha256(manifest_path.read_bytes()).hexdigest()",
+            "print(json.dumps({'cacheStatus':'CACHE_MODEL_READY','shaVerified':True,'totalBytes':total,'networkVolumeId':vid,'dataCenterId':dc,'assetsVerified':len(contract['requiredFiles']),'legacyManifestSha256':mh,'inferenceStarted':False},separators=(',',':')))"
+        ].join("\n");
+        const verifyCommand = [
+            "python3", "-c", posixShellSingleQuote(legacyVerifier),
+            posixShellSingleQuote(legacyContractB64),
+            posixShellSingleQuote(volume.id),
+            posixShellSingleQuote(volume.dataCenterId)
+        ].join(" " );
+        const verifyRemainingMs = Math.max(60000, Math.min(30 * 60 * 1000, deadlineMs - Date.now() - 120000));
+        const verified = await runSsh(endpoint, verifyCommand, verifyRemainingMs);
+        const verifiedLine = verified.stdout.trim().split(/\r?\n/).filter(Boolean).at(-1);
+        legacyEvidence = JSON.parse(verifiedLine || "{}");
+        if (
+            legacyEvidence.shaVerified !== true ||
+            Number(legacyEvidence.totalBytes || 0) !== Number(RUNPOD_HUMO_CACHE_BASE.totalBytes || 0) ||
+            legacyEvidence.networkVolumeId !== volume.id ||
+            legacyEvidence.dataCenterId !== volume.dataCenterId
+        ) {
+            throw new Error("RUNPOD_HUMO17_LEGACY_CACHE_VERIFICATION_FAILED");
+        }
+
+        const plan = buildHuMo17PersistentCoreStagingPlan({
+            networkVolumeId: volume.id,
+            dataCenterId: volume.dataCenterId,
+            networkVolumeSizeGb: volume.sizeGb,
+            networkVolumeType: volume.type,
+            existingCacheEvidence: legacyEvidence
+        });
+        if (plan.ok !== true) throw new Error(plan.error || plan.status || "HUMO17_CORE_PLAN_FAILED");
+        const bootstrap = buildHuMo17PersistentCoreStagingBootstrap({ plan, operationId });
+        fs.writeFileSync(bootstrapFile, bootstrap.script, "utf8");
+        await runScp(endpoint, bootstrapFile, `/tmp/${operationId}.sh`, 120000);
+
+        const remainingSeconds = Math.floor((deadlineMs - Date.now()) / 1000) - 90;
+        if (remainingSeconds < 300) throw new Error("RUNPOD_HUMO17_CORE_STAGE_BUDGET_DEADLINE");
+        log({
+            ok: true,
+            status: "HUMO17_CORE_PHYSICAL_STAGE_STARTED",
+            podId,
+            networkVolumeId: volume.id,
+            newPersistentBytes: plan.newPersistentBytes,
+            combinedPersistentBytes: plan.combinedPersistentBytes,
+            remainingSeconds,
+            inferenceStarted: false
+        });
+        await runSsh(
+            endpoint,
+            `chmod 700 ${posixShellSingleQuote(`/tmp/${operationId}.sh`)} && timeout ${remainingSeconds}s bash ${posixShellSingleQuote(`/tmp/${operationId}.sh`)}`,
+            (remainingSeconds + 30) * 1000
+        );
+        const manifestRaw = await runSsh(
+            endpoint,
+            `cat ${posixShellSingleQuote(plan.manifestPath)} && printf '\\n'; sha256sum ${posixShellSingleQuote(`/workspace/jarvis-v142/cache/${RUNPOD_HUMO_CACHE_BASE.cacheDirectory}/model-manifest.json`)}`,
+            120000
+        );
+        const lines = manifestRaw.stdout.trim().split(/\r?\n/).filter(Boolean);
+        manifest = JSON.parse(lines[0] || "{}");
+        const legacyShaAfter = String(lines.at(-1) || "").trim().split(/\s+/)[0].toLowerCase();
+        if (!validateHuMo17CoreCacheManifest(manifest)) {
+            throw new Error("RUNPOD_HUMO17_CORE_MANIFEST_INVALID");
+        }
+        if (
+            manifest.networkVolumeId !== volume.id ||
+            manifest.dataCenterId !== volume.dataCenterId ||
+            manifest.physicalStageCertified !== true ||
+            manifest.existingCachePreserved !== true ||
+            manifest.inferenceStarted !== false ||
+            legacyShaAfter !== String(legacyEvidence.legacyManifestSha256 || "").toLowerCase()
+        ) {
+            throw new Error("RUNPOD_HUMO17_CORE_STAGE_RECEIPT_INVALID");
+        }
+    }
+    catch(error) {
+        primaryError = error;
+    }
+    finally {
+        if (podId) {
+            try {
+                await provider("DELETE", `/pods/${encodeURIComponent(podId)}`, null, [200, 204, 404]);
+                for (let attempt = 0; attempt < 12; attempt += 1) {
+                    try {
+                        const observed = await provider("GET", `/pods/${encodeURIComponent(podId)}`, null, [200, 404]);
+                        if (!observed || String(observed?.desiredStatus || "").toUpperCase() === "TERMINATED") {
+                            terminationVerified = true;
+                            break;
+                        }
+                    }
+                    catch(error) {
+                        if (String(error?.message || "").includes("RUNPOD_HUMO17_HTTP_404")) {
+                            terminationVerified = true;
+                            break;
+                        }
+                        throw error;
+                    }
+                    await sleepMs(2500);
+                }
+            }
+            catch(releaseError) {
+                primaryError = new Error(
+                    (primaryError?.message || "HUMO17_CORE_STAGE_FAILED") +
+                    ";RELEASE:" + (releaseError?.message || releaseError)
+                );
+            }
+        }
+        estimatedCostUsd = createdAtMs && hourlyRateUsd > 0
+            ? Math.max(0, (Date.now() - createdAtMs) / 1000) * hourlyRateUsd / 3600
+            : 0;
+        try { fs.rmSync(workDir, { recursive: true, force: true }); } catch {}
+    }
+    if (!terminationVerified && podId) {
+        primaryError = new Error(
+            (primaryError?.message || "HUMO17_CORE_STAGE_FAILED") + ";RELEASE:RUNPOD_HUMO17_DELETE_NOT_VERIFIED"
+        );
+    }
+    if (estimatedCostUsd > hardBudgetUsd + 0.000001) {
+        primaryError = new Error(
+            (primaryError?.message || "HUMO17_CORE_STAGE_FAILED") + ";BUDGET:RUNPOD_HUMO17_CORE_STAGE_BUDGET_EXCEEDED"
+        );
+    }
+    if (primaryError) {
+        log({
+            ok: false,
+            status: "HUMO17_PERSISTENT_CORE_STAGE_FAILED_AND_RELEASED",
+            error: primaryError.message,
+            podId,
+            terminationVerified,
+            networkVolumeId: volume.id,
+            networkVolumeRetained: true,
+            estimatedCostUsd,
+            inferenceStarted: false
+        });
+        throw primaryError;
+    }
+    const result = {
+        ok: true,
+        status: "HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED",
+        operationId,
+        canonicalSha,
+        podId,
+        cpuFlavorId: "cpu3c",
+        hourlyRateUsd,
+        hardBudgetUsd,
+        estimatedCostUsd,
+        terminationVerified: true,
+        networkVolumeId: volume.id,
+        networkVolumeDataCenterId: volume.dataCenterId,
+        networkVolumeSizeGb: Number(volume.sizeGb || 0),
+        networkVolumeRetained: true,
+        legacyCacheShaVerified: legacyEvidence?.shaVerified === true,
+        legacyCacheManifestSha256: legacyEvidence?.legacyManifestSha256 || null,
+        coreCacheStatus: manifest?.cacheStatus || null,
+        coreManifestVerified: validateHuMo17CoreCacheManifest(manifest),
+        newPersistentBytes: Number(RUNPOD_HUMO17_CORE_CACHE_BASE.totalBytes || 0),
+        combinedPersistentBytes: Number(RUNPOD_HUMO17_CORE_CACHE_BASE.combinedPersistentBytes || 0),
+        physicalStageCertified: manifest?.physicalStageCertified === true,
+        existingCachePreserved: manifest?.existingCachePreserved === true,
+        inferenceStarted: false,
+        gpuUsed: false,
+        externalApiUsed: false,
+        externalEstimatedCostUsd: 0
+    };
+    log(result);
+    return result;
+}
+
 export async function runHuMoIdentityProbeCli({
     root = DEFAULT_ROOT,
     env = process.env,
