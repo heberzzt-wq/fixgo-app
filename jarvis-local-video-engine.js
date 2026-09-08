@@ -562,6 +562,93 @@ export function validateHuMo17CoreCacheManifest(manifest, contract = RUNPOD_HUMO
     });
 }
 
+export function buildHuMo17PersistentCoreStagingPlan({
+    networkVolumeId = "",
+    dataCenterId = "",
+    networkVolumeSizeGb = 0,
+    networkVolumeType = "",
+    existingCacheEvidence = null,
+    contract = RUNPOD_HUMO17_CORE_CACHE_BASE
+} = {}) {
+    const fail = (status, extra = {}) => ({
+        ok: false,
+        status,
+        error: status,
+        resourceCreationPossible: false,
+        providerTrafficUsed: false,
+        assetDownloadAuthorized: false,
+        inferenceStarted: false,
+        externalApiUsed: false,
+        externalEstimatedCostUsd: 0,
+        ...extra
+    });
+    const volumeId = String(networkVolumeId || "").trim();
+    const dc = String(dataCenterId || "").trim();
+    const type = String(networkVolumeType || contract.networkVolumeType || "").trim().toUpperCase();
+    const sizeGb = Number(networkVolumeSizeGb || 0);
+    if (!volumeId || !dc) return fail("HUMO17_NETWORK_VOLUME_IDENTITY_REQUIRED");
+    if (type !== String(contract.networkVolumeType || "").toUpperCase()) {
+        return fail("HUMO17_NETWORK_VOLUME_TYPE_MISMATCH", { observedType: type });
+    }
+    if (!Number.isFinite(sizeGb) || sizeGb < Number(contract.minimumNetworkVolumeGb || 0)) {
+        return fail("HUMO17_NETWORK_VOLUME_CAPACITY_INSUFFICIENT", { observedSizeGb: sizeGb });
+    }
+    const evidence = existingCacheEvidence;
+    if (
+        !evidence ||
+        !["CACHE_MODEL_READY", "CACHE_READY", "CACHE_HIT"].includes(String(evidence.cacheStatus || "").toUpperCase()) ||
+        evidence.shaVerified !== true ||
+        Number(evidence.totalBytes || 0) !== Number(contract.existingHuMoCacheTotalBytes || 0) ||
+        String(evidence.networkVolumeId || "") !== volumeId ||
+        String(evidence.dataCenterId || evidence.networkVolumeDataCenterId || "") !== dc
+    ) {
+        return fail("HUMO17_EXISTING_HUMO_CACHE_EVIDENCE_REQUIRED");
+    }
+    const capacityBytes = Math.floor(sizeGb * RUNPOD_GIB);
+    if (Number(contract.combinedPersistentBytes || 0) > capacityBytes) {
+        return fail("HUMO17_PERSISTENT_CORE_CAPACITY_INSUFFICIENT", {
+            capacityBytes,
+            requiredBytes: Number(contract.combinedPersistentBytes || 0)
+        });
+    }
+    const destinationRoot = `/workspace/jarvis-v142/cache/${contract.cacheDirectory}`;
+    return {
+        ok: true,
+        status: "HUMO17_PERSISTENT_CORE_STAGING_PLAN_READY",
+        cacheMode: "ADD_ONLY_PERSISTENT_CORE",
+        storagePlan: contract.storagePlan,
+        networkVolumeId: volumeId,
+        dataCenterId: dc,
+        networkVolumeSizeGb: sizeGb,
+        networkVolumeType: type,
+        preserveExistingHuMoCache: true,
+        existingHuMoCacheBytes: Number(contract.existingHuMoCacheTotalBytes || 0),
+        newPersistentBytes: Number(contract.totalBytes || 0),
+        combinedPersistentBytes: Number(contract.combinedPersistentBytes || 0),
+        capacityBytes,
+        headroomBytes: capacityBytes - Number(contract.combinedPersistentBytes || 0),
+        destinationRoot,
+        manifestPath: `${destinationRoot}/model-manifest.json`,
+        files: contract.requiredFiles.map(file => ({
+            role: file.role,
+            repository: file.repository,
+            revision: file.revision,
+            sourcePath: file.sourcePath,
+            bytes: file.bytes,
+            sha256: file.sha256,
+            destination: `${destinationRoot}/${file.path}`
+        })),
+        cacheMutationPolicy: contract.cacheMutationPolicy,
+        existingCacheMutationAuthorized: false,
+        resourceCreationPossible: false,
+        providerTrafficUsed: false,
+        assetDownloadAuthorized: false,
+        inferenceStarted: false,
+        externalApiUsed: false,
+        externalEstimatedCostUsd: 0
+    };
+}
+
 export function validateModelCacheManifest(manifest, contract = RUNPOD_HUMO_CACHE_BASE) {
     const identity = ["schemaVersion", "profile", "modelRepository", "modelRevision",
         "sourceRepository", "sourceRevision", "provisionImageTag", "expectedRegistryDigest", "totalBytes"];
