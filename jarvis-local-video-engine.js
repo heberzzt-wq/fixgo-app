@@ -185,9 +185,9 @@ export const NEXT_IDENTITY_RUNTIME_CANDIDATES = Object.freeze({
                 sha256: "a67ed82a7c008892f9192cdc5b23bbfe2e2a8e2f87d0b5b8dfb0226fafec022d",
                 precision: "fp8_e4m3fn_scaled"
             }),
-            modelLoaderBasePrecision: "fp16_fast",
+            modelLoaderBasePrecision: "fp16",
             modelLoaderDevice: "offload_device",
-            attentionMode: "sageattn",
+            attentionMode: "sdpa",
             blockSwapWorkflowWidgetValues: Object.freeze([20, false, false, true, 0, 1, false]),
             compileEnabled: false,
             reuseExistingHuMoSharedAssets: false,

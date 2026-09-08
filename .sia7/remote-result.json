@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-humo17-storage-test-alignment-20260908-253",
-  "completedAt": "2026-09-08T15:20:10.295Z",
+  "jobId": "v142-humo17-l40s-safe-precision-20260908-254",
+  "completedAt": "2026-09-08T15:56:12.562Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+  "file": "jarvis-local-video-engine.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 409725,
-  "bytesAfter": 410425,
+  "bytesBefore": 413975,
+  "bytesAfter": 413966,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "tests/jarvis-local-video-engine-v142.test.mjs"
+    "jarvis-local-video-engine.js"
   ]
 }
