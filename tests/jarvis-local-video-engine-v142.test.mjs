@@ -67,9 +67,9 @@ test("V142 HuMo17 single-L40S candidate pins FP8 block-swap authority and remain
     assert.equal(strategy.quantizedModel.path, "HuMo/Wan2_1-HuMo-14B_fp8_e4m3fn_scaled_KJ.safetensors");
     assert.equal(strategy.quantizedModel.bytes, 17892294098);
     assert.equal(strategy.quantizedModel.sha256, "a67ed82a7c008892f9192cdc5b23bbfe2e2a8e2f87d0b5b8dfb0226fafec022d");
-    assert.equal(strategy.modelLoaderBasePrecision, "fp16_fast");
+    assert.equal(strategy.modelLoaderBasePrecision, "fp16");
     assert.equal(strategy.modelLoaderDevice, "offload_device");
-    assert.equal(strategy.attentionMode, "sageattn");
+    assert.equal(strategy.attentionMode, "sdpa");
     assert.deepEqual(strategy.blockSwapWorkflowWidgetValues, [20, false, false, true, 0, 1, false]);
     assert.equal(strategy.reuseExistingHuMoSharedAssets, false);
     assert.equal(strategy.existingHuMoCacheRequiresFormatConversion, true);

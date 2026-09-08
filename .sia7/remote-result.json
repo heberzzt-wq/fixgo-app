@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-humo17-safe-runtime-tests-20260908-256",
-  "completedAt": "2026-09-08T15:59:32.396Z",
+  "jobId": "v142-humo17-fp16-sdpa-test-alignment-20260908-257",
+  "completedAt": "2026-09-08T16:00:07.206Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
@@ -8,7 +8,7 @@
   "matchCount": 1,
   "expectedMatches": 1,
   "bytesBefore": 410425,
-  "bytesAfter": 410425,
+  "bytesAfter": 410416,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
