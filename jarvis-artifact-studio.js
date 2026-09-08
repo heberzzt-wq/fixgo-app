@@ -749,7 +749,8 @@ export function getSeriesGenerationContext({
     seriesId,
     episodeId,
     referenceSelectionPolicy = "",
-    maximumReferenceImages = SERIES_REFERENCE_MAX_COUNT
+    maximumReferenceImages = null,
+    generationBackend = "veo"
 } = {}) {
     const canon = readSeriesCanon(root, seriesId).canon;
     const episode = episodeById(canon, episodeId);
