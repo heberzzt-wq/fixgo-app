@@ -8401,6 +8401,16 @@ async function ensureHuMoPersistentNetworkVolumeWithRunpodctl({ eligible, creden
     const prefix = "jarvis-v142-humo-1-7b-";
     const eligibleDc = new Set(eligible.map(item => String(item.dataCenterId || "")));
     const initial = await listVolumes();
+    const requestedVolumeId = String(env.JARVIS_RUNPOD_NETWORK_VOLUME_ID || "").trim();
+    if (requestedVolumeId) {
+        const requested = initial.filter(item => item.id === requestedVolumeId);
+        if (requested.length !== 1) throw new Error(`RUNPOD_HUMO_RETAINED_VOLUME_MATCH_COUNT:${requested.length}`);
+        const volume = requested[0];
+        if (volume.sizeGb < 50 || volume.type !== "STANDARD") throw new Error("RUNPOD_HUMO_RETAINED_VOLUME_INVALID");
+        if (!eligibleDc.has(volume.dataCenterId)) throw new Error(`RUNPOD_HUMO_RETAINED_VOLUME_DATACENTER_UNAVAILABLE:${volume.dataCenterId}`);
+        log({ ok: true, status: "HUMO_NETWORK_VOLUME_REUSED_EXPLICIT_RUNPODCTL", ...volume, created: false, runpodctlVersion: RUNPODCTL_V142.version });
+        return { ...volume, created: false };
+    }
     const reusable = initial.filter(item =>
         item.name.startsWith(prefix) && item.sizeGb >= 50 && item.type === "STANDARD" && eligibleDc.has(item.dataCenterId)
     );
