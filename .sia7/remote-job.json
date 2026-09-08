@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-capacity-tests-20260908-271",
+  "jobId": "v142-humo17-zero-cost-fit-test-20260908-272",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    assert.equal(strategy.baseAndDiffusionPersistentBytes, 39987403600);\n    assert.equal(strategy.wrapperAuxiliaryBytes, 13309522014);\n    assert.equal(strategy.requiredBytesKeepingExistingCache, 53296925614);\n    assert.equal(strategy.nominal50GiBBytes, 50 * 1024 ** 3);\n    assert.equal(strategy.nominal50GiBHeadroomBytes, 390165586);\n    assert.equal(strategy.minimumNetworkVolumeGb, 50);\n    assert.equal(strategy.capacityFitCertified, false);\n    assert.equal(strategy.storagePlan, \"PERSISTENT_DIFFUSION_PLUS_AUXILIARY_EPHEMERAL_UNCERTIFIED\");",
-    "replace": "    assert.equal(strategy.baseAndDiffusionPersistentBytes, 39987403600);\n    assert.equal(strategy.distillationLoraBytes, 738005744);\n    assert.equal(strategy.persistentCoreBytes, 40725409344);\n    assert.equal(strategy.wrapperAuxiliaryBytes, 13309522014);\n    assert.equal(strategy.persistentCoreHeadroomBytes, 12961681856);\n    assert.equal(strategy.ephemeralWorkspaceReserveBytes, 8589934592);\n    assert.equal(strategy.minimumEphemeralBytes, 21899456606);\n    assert.equal(strategy.requiredBytesKeepingExistingCache, 54034931358);\n    assert.equal(strategy.nominal50GiBBytes, 50 * 1024 ** 3);\n    assert.equal(strategy.nominal50GiBHeadroomBytes, -347840158);\n    assert.equal(strategy.minimumNetworkVolumeGb, 50);\n    assert.equal(strategy.capacityFitCertified, false);\n    assert.equal(strategy.storagePlan, \"PERSISTENT_CORE_PLUS_EPHEMERAL_AUXILIARY_REQUIRED\");"
+    "search": "    assert.equal(result.capacity.nominalFitByBytes, true);",
+    "replace": "    assert.equal(result.capacity.nominalFitByBytes, false);"
   }
 }
