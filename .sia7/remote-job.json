@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-windows-git-path-20260907-207",
+  "jobId": "v142-humo-windows-git-path-20260907-208",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const canonicalSha = String(execFileSync(\n        \"git\", [\"rev-parse\", \"HEAD\"],\n        { cwd: resolvedRoot, encoding: \"utf8\", windowsHide: true }\n    )).trim().toLowerCase();",
-    "replace": "    const gitExecutable = process.platform === \"win32\" && fs.existsSync(\"C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe\")\n        ? \"C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe\"\n        : \"git\";\n    const canonicalSha = String(execFileSync(\n        gitExecutable, [\"rev-parse\", \"HEAD\"],\n        { cwd: resolvedRoot, encoding: \"utf8\", windowsHide: true }\n    )).trim().toLowerCase();"
+    "search": "        \"git\", [\"rev-parse\", \"HEAD\"],",
+    "replace": "        (process.platform === \"win32\" && fs.existsSync(\"C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe\") ? \"C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe\" : \"git\"), [\"rev-parse\", \"HEAD\"],"
   }
 }
