@@ -61,7 +61,7 @@ test("V142 HuMo17 single-L40S candidate pins FP8 block-swap authority and remain
     assert.equal(candidate.targetGpuTypeId, "NVIDIA L40S");
     assert.equal(candidate.modelRevision, "cb20be4504cb725caad4076be7a11fd295866462");
     assert.equal(strategy.runtime, "comfyui-wanvideowrapper");
-    assert.equal(strategy.comfyUiRevision, "efa6c8f804bff78b46a0fd458ebd2e47bba07a30");
+    assert.equal(strategy.comfyUiRevision, "b30e980a206607d1a9d56b7a6f7df3999d68438a");
     assert.equal(strategy.wrapperRevision, "088128b224242e110d3906c6750e9a3a348a659b");
     assert.equal(strategy.quantizedModel.revision, "0d987e66e7debb098970adb907d99c07c5aa2ac9");
     assert.equal(strategy.quantizedModel.path, "HuMo/Wan2_1-HuMo-14B_fp8_e4m3fn_scaled_KJ.safetensors");

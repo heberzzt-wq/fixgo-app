@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-humo17-compatible-comfy-pin-20260908-255",
-  "completedAt": "2026-09-08T15:58:46.973Z",
+  "jobId": "v142-humo17-safe-runtime-tests-20260908-256",
+  "completedAt": "2026-09-08T15:59:32.396Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "jarvis-local-video-engine.js",
+  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 413966,
-  "bytesAfter": 413966,
+  "bytesBefore": 410425,
+  "bytesAfter": 410425,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "jarvis-local-video-engine.js"
+    "tests/jarvis-local-video-engine-v142.test.mjs"
   ]
 }
