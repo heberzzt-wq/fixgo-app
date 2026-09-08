@@ -161,6 +161,75 @@ const RUNPOD_HUMO_IDENTITY_CANDIDATE = Object.freeze({
     paidExecutionAuthorized: false
 });
 
+export const NEXT_IDENTITY_RUNTIME_CANDIDATES = Object.freeze({
+    "humo-17b-identity": Object.freeze({
+        id: "humo-17b-identity",
+        role: "single_subject_identity_candidate",
+        model: "HuMo-17B",
+        sourceRepository: "Phantom-video/HuMo",
+        sourceRevision: "845f44736e21be93aa5d8cf406b6eb01af9bff67",
+        modelRepository: "bytedance-research/HuMo",
+        modelRevision: "cb20be4504cb725caad4076be7a11fd295866462",
+        checkpointDirectory: "HuMo-17B",
+        checkpointFormat: "safetensors-sharded",
+        checkpointShardCount: 7,
+        maximumReferenceAssets: 3,
+        maximumIdentityCount: 1,
+        targetGpuTypeId: "NVIDIA L40S",
+        probeGeometry: Object.freeze({ width: 832, height: 480, fps: 25, frames: 97, durationSeconds: 3.88 }),
+        runtimeAssetAuthorityPinned: false,
+        physicalRuntimeCertified: false,
+        singleL40sRuntimeCertified: false,
+        paidExecutionAuthorized: false,
+        candidateOnly: true,
+        executable: false,
+        blockingReason: "HUMO17_SINGLE_L40S_RUNTIME_NOT_CERTIFIED"
+    }),
+    "phantom-wan-14b": Object.freeze({
+        id: "phantom-wan-14b",
+        role: "multi_subject_identity_candidate",
+        model: "Phantom-Wan-14B",
+        sourceRepository: "Phantom-video/Phantom",
+        sourceRevision: "bd84b602dcc949e23c89cbbf266b6f5975f2f025",
+        modelRepository: "bytedance-research/Phantom",
+        modelRevision: "6739b2d576426a211c9fec00a476253e538ca7d5",
+        checkpointDirectory: "Phantom-Wan-14B",
+        checkpointFormat: "safetensors-sharded",
+        checkpointShardCount: 6,
+        officialTask: "s2v-14B",
+        maximumReferenceAssets: 4,
+        maximumIdentityCount: 4,
+        targetGpuTypeId: "NVIDIA L40S",
+        probeGeometry: Object.freeze({ width: 832, height: 480, fps: 24, frames: 121, durationSeconds: 5.041667 }),
+        runtimeAssetAuthorityPinned: false,
+        physicalRuntimeCertified: false,
+        singleL40sRuntimeCertified: false,
+        paidExecutionAuthorized: false,
+        candidateOnly: true,
+        executable: false,
+        blockingReason: "PHANTOM14B_SINGLE_L40S_RUNTIME_NOT_CERTIFIED"
+    })
+});
+
+export function buildNextIdentityRuntimeCandidate({ backend = "" } = {}) {
+    const requested = String(backend || "").trim().toLowerCase();
+    const aliases = { humo17: "humo-17b-identity", "humo-17b": "humo-17b-identity", phantom: "phantom-wan-14b", "phantom-14b": "phantom-wan-14b" };
+    const normalized = aliases[requested] || requested;
+    const candidate = NEXT_IDENTITY_RUNTIME_CANDIDATES[normalized];
+    if (!candidate) throw new Error(`LOCAL_VIDEO_IDENTITY_CANDIDATE_UNSUPPORTED:${normalized || "missing"}`);
+    return {
+        ...candidate,
+        runtimeAssetAuthorityPinned: false,
+        physicalRuntimeCertified: false,
+        singleL40sRuntimeCertified: false,
+        paidExecutionAuthorized: false,
+        resourceCreationPossible: false,
+        inferenceStarted: false,
+        externalApiUsed: false,
+        externalEstimatedCostUsd: 0
+    };
+}
+
 export function buildHuMoIdentityRuntimeAuthority({ paidExecutionAuthorized = false } = {}) {
     return {
         ...RUNPOD_HUMO_IDENTITY_CANDIDATE,

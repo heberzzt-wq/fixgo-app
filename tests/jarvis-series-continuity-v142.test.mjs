@@ -9,6 +9,7 @@ import {
     acceptSeriesEpisode,
     createSeriesBible,
     getSeriesBible,
+    getSeriesGenerationBackendPolicy,
     getSeriesGenerationContext,
     getSeriesResumeContext,
     markSeriesEpisodeGenerated,
@@ -1441,3 +1442,79 @@ test("commercial identity rejects registration claims and leaves the canon untou
 function cloneForTest(value) {
     return JSON.parse(JSON.stringify(value));
 }
+
+
+test("V142 next identity backends preserve canonical character locks and fail closed", () => {
+    const humo = getSeriesGenerationBackendPolicy("humo-17b");
+    const phantom = getSeriesGenerationBackendPolicy("phantom");
+    assert.equal(humo.backend, "humo-17b-identity");
+    assert.equal(humo.maximumIdentityCount, 1);
+    assert.equal(humo.probeGeometry.frames, 97);
+    assert.equal(humo.operationallyCertified, false);
+    assert.equal(humo.paidExecutionAuthorized, false);
+    assert.equal(phantom.backend, "phantom-wan-14b");
+    assert.equal(phantom.maximumReferenceImages, 4);
+    assert.equal(phantom.maximumIdentityCount, 4);
+    assert.equal(phantom.operationallyCertified, false);
+    assert.equal(phantom.paidExecutionAuthorized, false);
+
+    const root = seriesRoot();
+    const seriesId = "SERIES-BACKEND-LOCKS";
+    createSeries(root, seriesId);
+    const refs = [1, 2, 3, 4].map(index => physicalArtifact(
+        root,
+        `.jarvis-artifacts/uploads/backend-lock-${index}.jpg`,
+        Buffer.from(`backend-lock-${index}`),
+        "image/jpeg"
+    ));
+    registerCharacter(root, seriesId, "CHAR_HEBERTO", "Heberto", refs.slice(0, 2), {
+        visualDescription: "Identidad visual canonica de Heberto.",
+        wardrobeState: { shirt: "canon" },
+        voiceProfile: { profileId: "VOICE_HEBERTO" }
+    });
+    registerCharacter(root, seriesId, "CHAR_ROLDAN", "Roldan", refs.slice(2), {
+        visualDescription: "Identidad visual canonica de Roldan.",
+        wardrobeState: { shirt: "canon-roldan" },
+        voiceProfile: { profileId: "VOICE_ROLDAN" }
+    });
+    const prepared = prepareEpisode27(root, seriesId, ["CHAR_HEBERTO", "CHAR_ROLDAN"]);
+    const phantomContext = getSeriesGenerationContext({
+        root,
+        seriesId,
+        episodeId: prepared.episode.episodeId,
+        generationBackend: "phantom-wan-14b",
+        referenceSelectionPolicy: "ACTIVE_CAST_COVERAGE"
+    });
+    assert.equal(phantomContext.generationBackend, "phantom-wan-14b");
+    assert.equal(phantomContext.referenceAssets.length, 4);
+    assert.deepEqual(phantomContext.identityLocks.map(item => item.characterId), ["CHAR_HEBERTO", "CHAR_ROLDAN"]);
+    assert.deepEqual(phantomContext.identityLocks.map(item => item.referenceAssets.length), [2, 2]);
+    assert.throws(
+        () => getSeriesGenerationContext({
+            root,
+            seriesId,
+            episodeId: prepared.episode.episodeId,
+            generationBackend: "humo-17b-identity"
+        }),
+        /SERIES_HUMO_SINGLE_IDENTITY_REQUIRED:2/
+    );
+
+    const accepted = generateAndAccept(root, seriesId, prepared.episode.episodeId, { location: "Taller" });
+    const next = prepareSeriesEpisode({
+        root,
+        seriesId,
+        episodeNumber: 28,
+        title: "Capitulo 28",
+        script: "Continuidad canonica del capitulo 28.",
+        castIds: ["CHAR_HEBERTO", "CHAR_ROLDAN"],
+        storyBeats: [{ exactAction: "Continuan desde el cierre anterior.", finalState: { location: "Taller" } }]
+    });
+    const nextContext = getSeriesGenerationContext({
+        root,
+        seriesId,
+        episodeId: next.episode.episodeId,
+        generationBackend: "phantom"
+    });
+    assert.equal(nextContext.priorAcceptedEpisodeAnchor.episodeId, accepted.episode.episodeId);
+    assert.equal(nextContext.priorAcceptedEpisodeAnchor.artifactSha256, accepted.episode.artifactSha256);
+});

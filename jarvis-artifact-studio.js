@@ -770,15 +770,28 @@ export function getSeriesGenerationContext({
             throw new Error(`SERIES_CHARACTER_REFERENCE_ASSETS_PENDING:${characterId}`);
         }
     }
-    const normalizedMaximum = Number(maximumReferenceImages);
+    const backendPolicy = getSeriesGenerationBackendPolicy(generationBackend);
+    const policyMaximum = Number(backendPolicy.maximumReferenceImages) || SERIES_REFERENCE_MAX_COUNT;
+    const normalizedMaximum = maximumReferenceImages === null || maximumReferenceImages === undefined
+        ? policyMaximum
+        : Number(maximumReferenceImages);
+    const uniqueCastIds = [...new Set(episode.castIds || [])];
+    if (uniqueCastIds.length > Number(backendPolicy.maximumIdentityCount || uniqueCastIds.length)) {
+        if (backendPolicy.backend === "humo-17b-identity") {
+            throw new Error(`SERIES_HUMO_SINGLE_IDENTITY_REQUIRED:${uniqueCastIds.length}`);
+        }
+        throw new Error(`SERIES_GENERATION_IDENTITY_LIMIT_EXCEEDED:${backendPolicy.backend}:${uniqueCastIds.length}:${backendPolicy.maximumIdentityCount}`);
+    }
     const allowCoverageSelection =
         referenceSelectionPolicy === "ACTIVE_CAST_COVERAGE" &&
         Number.isInteger(normalizedMaximum) &&
         normalizedMaximum > 0 &&
-        normalizedMaximum <= SERIES_REFERENCE_MAX_COUNT;
-    if (availableReferences.length > SERIES_REFERENCE_MAX_COUNT && !allowCoverageSelection) {
+        normalizedMaximum <= policyMaximum;
+    if (availableReferences.length > policyMaximum && !allowCoverageSelection) {
         throw new Error(
-            `SERIES_VEO_REFERENCE_LIMIT_EXCEEDED:${availableReferences.length}:${SERIES_REFERENCE_MAX_COUNT}`
+            backendPolicy.backend === "veo"
+                ? `SERIES_VEO_REFERENCE_LIMIT_EXCEEDED:${availableReferences.length}:${policyMaximum}`
+                : `SERIES_BACKEND_REFERENCE_LIMIT_EXCEEDED:${backendPolicy.backend}:${availableReferences.length}:${policyMaximum}`
         );
     }
     const references = allowCoverageSelection
@@ -788,6 +801,29 @@ export function getSeriesGenerationContext({
             normalizedMaximum
         )
         : availableReferences;
+    const identityLocks = uniqueCastIds.map(characterId => {
+        const character = canon.characters?.[characterId];
+        return {
+            characterId,
+            displayName: clean(character?.displayName) || characterId,
+            visualDescription: clean(character?.visualDescription),
+            wardrobeState: clone(character?.wardrobeState),
+            voiceProfile: clone(character?.voiceProfile),
+            recurringProps: clone(character?.recurringProps || []),
+            referenceAssets: clone(availableReferences.filter(reference => reference.characterId === characterId))
+        };
+    });
+    const priorAcceptedEpisode = [...(canon.episodes || [])]
+        .filter(item => item?.status === "HUMAN_ACCEPTED" && Number(item.episodeNumber) < Number(episode.episodeNumber))
+        .sort((a, b) => Number(b.episodeNumber) - Number(a.episodeNumber))[0] || null;
+    const priorAcceptedEpisodeAnchor = priorAcceptedEpisode ? {
+        episodeId: priorAcceptedEpisode.episodeId,
+        episodeNumber: priorAcceptedEpisode.episodeNumber,
+        physicalArtifact: priorAcceptedEpisode.physicalArtifact || null,
+        artifactSha256: priorAcceptedEpisode.artifactSha256 || null,
+        continuityEnd: clone(priorAcceptedEpisode.continuityEnd || priorAcceptedEpisode.lockedContinuityEnd || {}),
+        cliffhanger: clean(priorAcceptedEpisode.cliffhanger || priorAcceptedEpisode.narrativeLock?.cliffhanger)
+    } : null;
     return {
         ok: true,
         status: "SERIES_EPISODE_GENERATION_CONTEXT_VERIFIED",
@@ -810,6 +846,10 @@ export function getSeriesGenerationContext({
         revealRestrictions: clone(episode.narrativeLock?.revealRestrictions || []),
         durableProps: clone(episode.narrativeLock?.durableProps || []),
         nextEpisodeOpeningObligation: clean(episode.narrativeLock?.nextEpisodeOpeningObligation),
+        generationBackend: backendPolicy.backend,
+        backendPolicy: clone(backendPolicy),
+        identityLocks,
+        priorAcceptedEpisodeAnchor,
         referenceAssets: references,
         referenceOutputs: references.map(item => item.sourceOutput),
         referenceSelection: {
@@ -822,7 +862,7 @@ export function getSeriesGenerationContext({
         canonRevision: canon.revision,
         policy: {
             referenceSelection: "ACTIVE_CAST_EXPLICIT_ASSIGNMENTS_ONLY",
-            maximumReferenceImages: SERIES_REFERENCE_MAX_COUNT,
+            maximumReferenceImages: policyMaximum,
             noFacialIdentification: true
         }
     };

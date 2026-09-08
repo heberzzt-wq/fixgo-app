@@ -8043,3 +8043,25 @@ test("V142 GraphQL provision connect timeout is never retried automatically", as
  assert.equal(r.torchCudaVersion,"12.4");assert.equal(r.flashAttentionVersion,"2.6.3");
  assert.equal(a.paidExecutionAuthorized,false);assert.equal(a.physicalPortraitCertified,false);
  });
+
+
+test("V142 HuMo-17B and Phantom-Wan candidates are pinned but cannot create paid resources", () => {
+    const source = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    const start = source.indexOf("export const NEXT_IDENTITY_RUNTIME_CANDIDATES = Object.freeze({");
+    const end = source.indexOf("export function buildHuMoIdentityRuntimeAuthority", start);
+    assert.ok(start >= 0 && end > start);
+    const section = source.slice(start, end);
+    for (const marker of [
+        "humo-17b-identity",
+        "Phantom-Wan-14B",
+        "cb20be4504cb725caad4076be7a11fd295866462",
+        "6739b2d576426a211c9fec00a476253e538ca7d5",
+        "HUMO17_SINGLE_L40S_RUNTIME_NOT_CERTIFIED",
+        "PHANTOM14B_SINGLE_L40S_RUNTIME_NOT_CERTIFIED",
+        "resourceCreationPossible: false",
+        "externalEstimatedCostUsd: 0"
+    ]) assert.equal(section.includes(marker), true, marker);
+    assert.equal((section.match(/runtimeAssetAuthorityPinned: false/g) || []).length >= 3, true);
+    assert.equal((section.match(/singleL40sRuntimeCertified: false/g) || []).length >= 3, true);
+    assert.equal((section.match(/paidExecutionAuthorized: false/g) || []).length >= 3, true);
+});
