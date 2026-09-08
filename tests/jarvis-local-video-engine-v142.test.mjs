@@ -116,6 +116,12 @@ test("V142 next identity runtime preflight is zero-cost and remains fail-closed"
     assert.equal(result.model, "HuMo-17B");
     assert.equal(result.targetGpuTypeId, "NVIDIA L40S");
     assert.equal(result.capacity.nominalFitByBytes, false);
+    assert.equal(result.capacity.persistentCoreBytes, 40725409344);
+    assert.equal(result.capacity.persistentCoreHeadroomBytes, 12961681856);
+    assert.equal(result.capacity.wrapperAuxiliaryBytes, 13309522014);
+    assert.equal(result.capacity.ephemeralWorkspaceReserveBytes, 8589934592);
+    assert.equal(result.capacity.minimumEphemeralBytes, 21899456606);
+    assert.equal(result.capacity.splitPlanFitsNominalPersistentByBytes, true);
     assert.equal(result.capacity.certified, false);
     assert.equal(result.executable, false);
     assert.equal(result.runtimeAssetAuthorityPinned, false);
