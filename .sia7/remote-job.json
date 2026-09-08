@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-staging-bootstrap-test-import-20260908-288",
+  "jobId": "v142-humo17-staging-bootstrap-tests-20260908-289",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    buildHuMo17PersistentCoreStagingPlan,",
-    "replace": "    buildHuMo17PersistentCoreStagingPlan,\n    buildHuMo17PersistentCoreStagingBootstrap,"
+    "search": "test(\"V142 HuMo runner binds inference to the certified lifecycle venv\", () => {",
+    "replace": "test(\"V142 HuMo17 staging bootstrap is prepared offline and protects the legacy cache\", () => {\n    const evidence = {\n        cacheStatus: \"CACHE_MODEL_READY\",\n        shaVerified: true,\n        totalBytes: RUNPOD_HUMO_CACHE_BASE.totalBytes,\n        networkVolumeId: \"humo-volume\",\n        dataCenterId: \"EU-NL-1\"\n    };\n    const plan = buildHuMo17PersistentCoreStagingPlan({\n        networkVolumeId: \"humo-volume\",\n        dataCenterId: \"EU-NL-1\",\n        networkVolumeSizeGb: 50,\n        networkVolumeType: \"STANDARD\",\n        existingCacheEvidence: evidence\n    });\n    const prepared = buildHuMo17PersistentCoreStagingBootstrap({\n        plan,\n        operationId: \"fixture-humo17-stage\"\n    });\n    assert.equal(prepared.ok, true);\n    assert.equal(prepared.status, \"HUMO17_PERSISTENT_CORE_STAGING_BOOTSTRAP_PREPARED\");\n    assert.match(prepared.sha256, /^[a-f0-9]{64}$/);\n    assert.equal(prepared.networkVolumeId, \"humo-volume\");\n    assert.equal(prepared.dataCenterId, \"EU-NL-1\");\n    assert.equal(prepared.preserveExistingHuMoCache, true);\n    assert.equal(prepared.resourceCreationPossible, false);\n    assert.equal(prepared.providerTrafficUsed, false);\n    assert.equal(prepared.assetDownloadAuthorized, false);\n    assert.equal(prepared.inferenceStarted, false);\n    assert.match(prepared.script, /LEGACY_MANIFEST_SHA_BEFORE/);\n    assert.match(prepared.script, /LEGACY_MANIFEST_SHA_AFTER/);\n    assert.match(prepared.script, /hf_hub_download/);\n    assert.match(prepared.script, /existingCachePreserved':True/);\n    assert.match(prepared.script, /physicalStageCertified':True/);\n    assert.equal(prepared.script.includes('rm -rf \\\"$LEGACY_ROOT'), false);\n    assert.equal(prepared.script.includes(\"api.runpod.io\"), false);\n    assert.equal(prepared.script.includes(\"nvidia-smi\"), false);\n\n    assert.throws(() => buildHuMo17PersistentCoreStagingBootstrap({\n        plan: { ...plan, assetDownloadAuthorized: true },\n        operationId: \"fixture-humo17-stage\"\n    }), /HUMO17_PERSISTENT_CORE_STAGING_PLAN_REQUIRED/);\n});\n\ntest(\"V142 HuMo runner binds inference to the certified lifecycle venv\", () => {"
   }
 }
