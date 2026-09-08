@@ -1,10 +1,6 @@
 {
-  "jobId": "v142-humo-8s-two-ref-good-voice-paid-20260907-222",
-  "operation": "humo_identity_probe",
-  "humanApproved": true,
-  "executePaid": true,
-  "fullEpisodeAuthorized": false,
-  "expectedBaseSha": "172931f6ff92adb435e62c4f9f50be0c7221af7c",
-  "hardBudgetUsd": 3,
-  "monthlyStorageAuthorizedUsd": 3.5
+  "jobId": "v142-humo-live-bridge-root-inspect-20260907-223",
+  "operation": "bridge",
+  "endpoint": "/health",
+  "body": {}
 }
