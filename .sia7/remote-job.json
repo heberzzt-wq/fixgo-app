@@ -1,10 +1,12 @@
 {
-  "jobId": "v142-humo-8s-two-ref-good-voice-paid-20260907-214",
-  "operation": "humo_identity_probe",
+  "jobId": "v142-humo-retained-volume-reuse-20260907-215",
+  "operation": "patch",
   "humanApproved": true,
-  "executePaid": true,
-  "fullEpisodeAuthorized": false,
-  "expectedBaseSha": "0cdf7c58c93015ebf6be6d6174126607b49389eb",
-  "hardBudgetUsd": 3,
-  "monthlyStorageAuthorizedUsd": 3.5
+  "patch": {
+    "file": "jarvis-fs-bridge.js",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "    const initial = await listVolumes();\n    const reusable = initial.filter(item =>\n        item.name.startsWith(prefix) && item.sizeGb >= 50 && item.type === \"STANDARD\" && eligibleDc.has(item.dataCenterId)\n    );",
+    "replace": "    const initial = await listVolumes();\n    const requestedVolumeId = String(env.JARVIS_RUNPOD_NETWORK_VOLUME_ID || \"\").trim();\n    if (requestedVolumeId) {\n        const requested = initial.filter(item => item.id === requestedVolumeId);\n        if (requested.length !== 1) throw new Error(`RUNPOD_HUMO_RETAINED_VOLUME_MATCH_COUNT:${requested.length}`);\n        const volume = requested[0];\n        if (volume.sizeGb < 50 || volume.type !== \"STANDARD\") throw new Error(\"RUNPOD_HUMO_RETAINED_VOLUME_INVALID\");\n        if (!eligibleDc.has(volume.dataCenterId)) throw new Error(`RUNPOD_HUMO_RETAINED_VOLUME_DATACENTER_UNAVAILABLE:${volume.dataCenterId}`);\n        log({ ok: true, status: \"HUMO_NETWORK_VOLUME_REUSED_EXPLICIT_RUNPODCTL\", ...volume, created: false, runpodctlVersion: RUNPODCTL_V142.version });\n        return { ...volume, created: false };\n    }\n    const reusable = initial.filter(item =>\n        item.name.startsWith(prefix) && item.sizeGb >= 50 && item.type === \"STANDARD\" && eligibleDc.has(item.dataCenterId)\n    );"
+  }
 }
