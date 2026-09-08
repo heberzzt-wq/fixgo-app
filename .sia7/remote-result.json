@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-good-voice-prep-operation-20260907-192",
-  "completedAt": "2026-09-08T00:23:58.787Z",
+  "jobId": "v142-humo-good-voice-dispatch-20260907-193",
+  "completedAt": "2026-09-08T00:24:34.094Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-github-worker.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 21428,
-  "bytesAfter": 27134,
+  "bytesBefore": 27134,
+  "bytesAfter": 27257,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
