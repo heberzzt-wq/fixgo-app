@@ -1,17 +1,9 @@
 {
-  "jobId": "v142-series-generation-backend-context-20260908-244",
-  "completedAt": "2026-09-08T14:25:42.660Z",
-  "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "jarvis-artifact-studio.js",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 47688,
-  "bytesAfter": 47697,
-  "source": "sia7_github_worker_exact_patch_v1",
+  "jobId": "v142-series-backend-policy-enforcement-20260908-245",
+  "completedAt": "2026-09-08T14:26:48.720Z",
+  "ok": false,
+  "error": "RESULT_SYNC_FAILED: fatal: unable to access 'https://github.com/heberzzt-wq/fixgo-app.git/': Could not resolve host: github.com\n",
   "committedFiles": [
-    ".sia7/remote-result.json",
-    "jarvis-artifact-studio.js"
+    ".sia7/remote-result.json"
   ]
 }
