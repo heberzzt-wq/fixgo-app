@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-good-voice-paid-receipt-20260907-196",
+  "jobId": "v142-humo-good-voice-receipt-regression-20260907-197",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-github-worker.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        characterId: result.characterId,\n        podId: result.podId,",
-    "replace": "        characterId: result.characterId,\n        durationSeconds: 8.0,\n        referenceCount: 2,\n        referenceSha256s: [SIA7_HUMO_REFERENCE_SHA256, SIA7_HUMO_REFERENCE_SHA256_2],\n        audioSha256: SIA7_HUMO_AUDIO_SHA256,\n        podId: result.podId,"
+    "search": "    assert.equal(workerSource.includes(\"referenceSha256s: [SIA7_HUMO_REFERENCE_SHA256, SIA7_HUMO_REFERENCE_SHA256_2]\"), true);",
+    "replace": "    assert.equal(workerSource.includes(\"referenceSha256s: [SIA7_HUMO_REFERENCE_SHA256, SIA7_HUMO_REFERENCE_SHA256_2]\"), true);\n    assert.equal(workerSource.split(\"referenceCount: 2\").length - 1, 2);\n    assert.equal(workerSource.split(\"referenceSha256s: [SIA7_HUMO_REFERENCE_SHA256, SIA7_HUMO_REFERENCE_SHA256_2]\").length - 1, 2);\n    assert.equal(workerSource.split(\"audioSha256: SIA7_HUMO_AUDIO_SHA256\").length - 1, 2);"
   }
 }
