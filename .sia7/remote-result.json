@@ -1,9 +1,16 @@
 {
-  "jobId": "v142-humo17-worker-recovery-20260908-318",
-  "completedAt": "2026-09-08T23:27:05.245Z",
+  "jobId": "v142-humo17-worker-recovery-20260908-319",
+  "completedAt": "2026-09-08T23:27:25.530Z",
   "executionStarted": true,
-  "ok": false,
-  "error": "PATCH_NO_CHANGE",
+  "ok": true,
+  "operation": "patch",
+  "dryRun": true,
+  "file": "jarvis-fs-bridge.js",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 395744,
+  "bytesAfter": 395772,
+  "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
