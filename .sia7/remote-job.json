@@ -1,10 +1,10 @@
 {
-  "jobId": "v142-humo-bridge-identity-git-path-dryrun-20260907-212",
+  "jobId": "v142-humo-bridge-identity-git-path-20260907-213",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
-    "dryRun": true,
+    "dryRun": false,
     "expectedMatches": 1,
     "search": "                    \"git\",",
     "replace": "                    (process.platform === \"win32\" && fs.existsSync(\"C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe\") ? \"C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe\" : \"git\"),"
