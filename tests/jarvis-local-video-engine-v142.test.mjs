@@ -123,6 +123,16 @@ test("V142 next identity runtime preflight is zero-cost and remains fail-closed"
     assert.equal(result.capacity.minimumEphemeralBytes, 21899456606);
     assert.equal(result.capacity.splitPlanFitsNominalPersistentByBytes, true);
     assert.equal(result.capacity.certified, false);
+    assert.equal(result.assetPlacementPlan.storagePlan, "PERSISTENT_CORE_PLUS_EPHEMERAL_AUXILIARY_REQUIRED");
+    assert.equal(result.assetPlacementPlan.preserveExistingHuMoCache, true);
+    assert.equal(result.assetPlacementPlan.persistentNewAssets.length, 2);
+    assert.equal(result.assetPlacementPlan.persistentNewBytes, 18630299842);
+    assert.equal(result.assetPlacementPlan.persistentTotalWithExistingCacheBytes, 40725409344);
+    assert.equal(result.assetPlacementPlan.ephemeralAssets.length, 3);
+    assert.equal(result.assetPlacementPlan.ephemeralAssetsBytes, 13309522014);
+    assert.equal(result.assetPlacementPlan.minimumEphemeralBytes, 21899456606);
+    assert.equal(result.assetPlacementPlan.existingCacheMutationAuthorized, false);
+    assert.equal(result.assetPlacementPlan.assetDownloadAuthorized, false);
     assert.equal(result.executable, false);
     assert.equal(result.runtimeAssetAuthorityPinned, false);
     assert.equal(result.singleL40sRuntimeCertified, false);
