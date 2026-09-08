@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-delete-verify-fix-20260908-310",
+  "jobId": "v142-humo17-stale-pod-cleanup-20260908-311",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "const observed = await provider(\"GET\", `/pods/${encodeURIComponent(podId)}`, null, [200, 404]);",
-    "replace": "const observed = await provider(\"GET\", `/pods/${encodeURIComponent(podId)}`, null, [200]);"
+    "search": "        if (!text) return null;\n        try { return JSON.parse(text); }\n        catch { throw new Error(\"RUNPOD_HUMO17_PROVIDER_RESPONSE_INVALID\"); }\n    };\n    const sshEndpoint = pod => {",
+    "replace": "        if (!text) return null;\n        try { return JSON.parse(text); }\n        catch { throw new Error(\"RUNPOD_HUMO17_PROVIDER_RESPONSE_INVALID\"); }\n    };\n    const verifyPodDeleted = async idValue => {\n        const id = String(idValue || \"\").trim();\n        if (!id) return true;\n        try {\n            await provider(\"DELETE\", `/pods/${encodeURIComponent(id)}`, null, [200, 204, 404]);\n        }\n        catch(error) {\n            if (!String(error?.message || \"\").includes(\"RUNPOD_HUMO17_HTTP_404\")) throw error;\n        }\n        for (let attempt = 0; attempt < 12; attempt += 1) {\n            try {\n                const observed = await provider(\"GET\", `/pods/${encodeURIComponent(id)}`, null, [200]);\n                if (!observed || String(observed?.desiredStatus || \"\").toUpperCase() === \"TERMINATED\") return true;\n            }\n            catch(error) {\n                if (String(error?.message || \"\").includes(\"RUNPOD_HUMO17_HTTP_404\")) return true;\n                throw error;\n            }\n            await sleepMs(2500);\n        }\n        return false;\n    };\n    const listedPods = await provider(\"GET\", \"/pods\", null, [200]);\n    if (!Array.isArray(listedPods)) throw new Error(\"RUNPOD_HUMO17_POD_LIST_INVALID\");\n    const stalePods = listedPods.filter(pod =>\n        String(pod?.name || \"\").startsWith(\"jarvis-v142-humo17-core-\") &&\n        String(pod?.desiredStatus || \"\").toUpperCase() !== \"TERMINATED\"\n    );\n    for (const stalePod of stalePods) {\n        const stalePodId = String(stalePod?.id || \"\").trim();\n        if (!stalePodId) throw new Error(\"RUNPOD_HUMO17_STALE_POD_ID_REQUIRED\");\n        log({ ok: true, status: \"HUMO17_STALE_CPU_POD_RELEASE_STARTED\", podId: stalePodId, inferenceStarted: false });\n        if (await verifyPodDeleted(stalePodId) !== true) {\n            throw new Error(`RUNPOD_HUMO17_STALE_POD_DELETE_NOT_VERIFIED:${stalePodId}`);\n        }\n        log({ ok: true, status: \"HUMO17_STALE_CPU_POD_RELEASED\", podId: stalePodId, terminationVerified: true, inferenceStarted: false });\n    }\n    const sshEndpoint = pod => {"
   }
 }
