@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-bridge-duration-max-20260907-229",
+  "jobId": "v142-humo-test-official-frame-count-20260907-230",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 8.0) {",
-    "replace": "    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 3.88) {"
+    "search": "    assert.equal(runner.includes('\\\"frame_count\\\": 201'), true);",
+    "replace": "    assert.equal(runner.includes('\\\"frame_count\\\": 97'), true);"
   }
 }
