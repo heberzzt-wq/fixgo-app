@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-core-manifest-authority-fix-20260908-285",
+  "jobId": "v142-humo17-core-manifest-authority-tests-20260908-286",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-local-video-engine.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        manifest.assetDownloadAuthorized !== false || manifest.physicalStageCertified !== true ||",
-    "replace": "        manifest.assetDownloadAuthorized !== true || manifest.physicalStageCertified !== true || manifest.existingCachePreserved !== true ||"
+    "search": "        assetDownloadAuthorized: false,\n        physicalStageCertified: true",
+    "replace": "        assetDownloadAuthorized: true,\n        physicalStageCertified: true,\n        existingCachePreserved: true"
   }
 }
