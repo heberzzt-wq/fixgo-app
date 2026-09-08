@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-official-97-frame-envelope-20260907-224",
+  "jobId": "v142-humo-official-frame-count-20260907-225",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "scripts/jarvis-local-video-wan22.py",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        \"target_fps\": 25.0,\n        \"frame_count\": 201,\n        \"probe_duration_seconds\": 8.0,",
-    "replace": "        \"target_fps\": 25.0,\n        \"frame_count\": 97,\n        \"probe_duration_seconds\": 3.88,"
+    "search": "        \"frame_count\": 201,",
+    "replace": "        \"frame_count\": 97,"
   }
 }
