@@ -9521,6 +9521,19 @@ if (
                 process.exitCode = 1;
             });
     }
+    else if (process.argv.includes("--humo17-core-stage")) {
+        runHuMo17PersistentCoreStagingCli()
+            .then(result => console.log(JSON.stringify(result)))
+            .catch(error => {
+                console.error(JSON.stringify({
+                    ok: false,
+                    status: error?.message || "HUMO17_PERSISTENT_CORE_STAGE_FAILED",
+                    podId: error?.podId || null,
+                    inferenceStarted: false
+                }));
+                process.exitCode = 1;
+            });
+    }
     else if (process.argv.includes("--humo-runtime-certification")) {
         runHuMoRuntimeCertificationCli()
             .then(result => {
