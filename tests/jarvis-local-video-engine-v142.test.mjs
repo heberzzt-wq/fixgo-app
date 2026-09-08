@@ -65,7 +65,7 @@ test("V142 HuMo Whisper dtype repair is transient and follows the physical encod
     assert.equal(runner.includes('ignore=shutil.ignore_patterns(".git", "__pycache__")'), true);
     assert.equal(runner.includes('dtype=self.whisper.encoder.conv1.weight.dtype'), true);
     assert.equal(runner.includes('\"frame_count\": 97'), true);
-    assert.equal(runner.includes('\"probe_duration_seconds\": 8.0'), true);
+    assert.equal(runner.includes('\"probe_duration_seconds\": 3.88'), true);
     assert.equal(runner.includes('audio_processor_source.count(dtype_source) != 1'), true);
     const copied = runner.indexOf("shutil.copytree(");
     const patched = runner.indexOf("audio_processor_file.write_text(");
