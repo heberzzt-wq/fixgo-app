@@ -365,6 +365,54 @@ async function executeHuMoReferenceAudioPrepJob(job = {}) {
     if (!fs.existsSync(SIA7_HUMO_SOURCE_ROOT) || !fs.statSync(SIA7_HUMO_SOURCE_ROOT).isDirectory()) {
         throw new Error("SIA7_HUMO_SOURCE_ROOT_MISSING");
     }
+    const userProfile = String(process.env.USERPROFILE || "").trim();
+    const downloadedAudioFile = userProfile
+        ? path.resolve(userProfile, "Downloads", "humo-heberto-minidrama-good-voice-8s.wav")
+        : "";
+    if (downloadedAudioFile && fs.existsSync(downloadedAudioFile) && fs.statSync(downloadedAudioFile).isFile()) {
+        const downloadedBytes = fs.readFileSync(downloadedAudioFile);
+        if (downloadedBytes.length !== 256078) {
+            throw new Error(`SIA7_HUMO_GOOD_VOICE_DOWNLOAD_BYTES_INVALID:${downloadedBytes.length}`);
+        }
+        const downloadedSha256 = createHash("sha256").update(downloadedBytes).digest("hex");
+        if (downloadedSha256 !== SIA7_HUMO_AUDIO_SHA256) {
+            throw new Error(`SIA7_HUMO_GOOD_VOICE_DOWNLOAD_SHA_MISMATCH:${downloadedSha256}`);
+        }
+        if (downloadedBytes.subarray(0, 4).toString("ascii") !== "RIFF" || downloadedBytes.subarray(8, 12).toString("ascii") !== "WAVE") {
+            throw new Error("SIA7_HUMO_GOOD_VOICE_WAV_INVALID");
+        }
+        const outputFile = path.resolve(SIA7_HUMO_SOURCE_ROOT, SIA7_HUMO_AUDIO_OUTPUT);
+        const sourceRootPrefix = SIA7_HUMO_SOURCE_ROOT.endsWith(path.sep) ? SIA7_HUMO_SOURCE_ROOT : SIA7_HUMO_SOURCE_ROOT + path.sep;
+        if (!outputFile.startsWith(sourceRootPrefix)) throw new Error("SIA7_HUMO_AUDIO_OUTPUT_OUTSIDE_SOURCE_ROOT");
+        fs.mkdirSync(path.dirname(outputFile), { recursive: true });
+        const temporaryFile = outputFile + ".partial.wav";
+        fs.rmSync(temporaryFile, { force: true });
+        fs.writeFileSync(temporaryFile, downloadedBytes);
+        if (sha256File(temporaryFile) !== SIA7_HUMO_AUDIO_SHA256) {
+            fs.rmSync(temporaryFile, { force: true });
+            throw new Error("SIA7_HUMO_GOOD_VOICE_POST_WRITE_SHA_MISMATCH");
+        }
+        fs.rmSync(outputFile, { force: true });
+        fs.renameSync(temporaryFile, outputFile);
+        return {
+            ok: true,
+            operation: "humo_reference_audio_prepare",
+            dryRun: false,
+            status: "SIA7_HUMO_GOOD_VOICE_REFERENCE_READY",
+            sourceVideoOutput: null,
+            sourceVideoSha256: SIA7_HUMO_MINIDRAMA_SOURCE_SHA256,
+            materializationSource: "verified_user_download",
+            audioOutput: SIA7_HUMO_AUDIO_OUTPUT,
+            audioSha256: downloadedSha256,
+            bytes: downloadedBytes.length,
+            durationSeconds: 8.0,
+            sampleRateHz: 16000,
+            channels: 1,
+            externalApiUsed: false,
+            gpuRentalSeconds: 0,
+            gpuRentalEstimatedCost: 0
+        };
+    }
     const inlineAudioBase64 = String(job.audioBase64 || "").trim();
     if (inlineAudioBase64) {
         if (inlineAudioBase64.length > 400000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(inlineAudioBase64)) {
