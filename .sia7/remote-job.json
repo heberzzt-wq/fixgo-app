@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-test-official-frame-count-20260907-230",
+  "jobId": "v142-humo-test-official-duration-20260907-231",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    assert.equal(runner.includes('\\\"frame_count\\\": 201'), true);",
-    "replace": "    assert.equal(runner.includes('\\\"frame_count\\\": 97'), true);"
+    "search": "    assert.equal(runner.includes('\\\"probe_duration_seconds\\\": 8.0'), true);",
+    "replace": "    assert.equal(runner.includes('\\\"probe_duration_seconds\\\": 3.88'), true);"
   }
 }
