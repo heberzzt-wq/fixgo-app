@@ -9084,6 +9084,19 @@ if (
                 process.exitCode = 1;
             });
     }
+    else if (process.argv.includes("--next-identity-runtime-preflight")) {
+        runNextIdentityRuntimePreflightCli()
+            .catch(error => {
+                console.error(JSON.stringify({
+                    ok: false,
+                    status: error?.message || "NEXT_IDENTITY_RUNTIME_PREFLIGHT_FAILED",
+                    resourceCreationPossible: false,
+                    providerTrafficUsed: false,
+                    inferenceStarted: false
+                }));
+                process.exitCode = 1;
+            });
+    }
     else if (process.argv.includes("--humo-runtime-certification")) {
         runHuMoRuntimeCertificationCli()
             .then(result => {

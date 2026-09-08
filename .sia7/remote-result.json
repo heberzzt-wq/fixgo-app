@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-next-identity-zero-cost-preflight-20260908-262",
-  "completedAt": "2026-09-08T16:14:05.559Z",
+  "jobId": "v142-next-identity-cli-switch-20260908-263",
+  "completedAt": "2026-09-08T16:14:39.901Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 365742,
-  "bytesAfter": 367910,
+  "bytesBefore": 367910,
+  "bytesAfter": 368452,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
