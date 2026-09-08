@@ -9005,7 +9005,7 @@ export async function runHuMo17PersistentCoreStagingCli({
                 await provider("DELETE", `/pods/${encodeURIComponent(podId)}`, null, [200, 204, 404]);
                 for (let attempt = 0; attempt < 12; attempt += 1) {
                     try {
-                        const observed = await provider("GET", `/pods/${encodeURIComponent(podId)}`, null, [200, 404]);
+                        const observed = await provider("GET", `/pods/${encodeURIComponent(podId)}`, null, [200]);
                         if (!observed || String(observed?.desiredStatus || "").toUpperCase() === "TERMINATED") {
                             terminationVerified = true;
                             break;
