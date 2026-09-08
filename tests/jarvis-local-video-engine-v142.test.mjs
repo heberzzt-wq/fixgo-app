@@ -1015,8 +1015,11 @@ function controlledPythonExecutable() {
 function bashPath(file) {
     const resolved = path.resolve(file);
     if (process.platform !== "win32") return resolved.replaceAll("\\", "/");
-    const match = resolved.match(/^([A-Za-z]):[\\/](.*)$/);
-    return match ? `/${match[1].toLowerCase()}/${match[2].replaceAll("\\", "/")}` : resolved;
+    const bash = controlledBashExecutable();
+    if (!bash) throw new Error("CONTROLLED_BASH_REQUIRED");
+    return execFileSync(bash, ["--noprofile", "--norc", "-c", 'cygpath -u "$1"', "--", resolved], {
+        encoding: "utf8", timeout: 10000, windowsHide: true
+    }).trim();
 }
 
 function mockHttpResponse(status, payload = null, responseHeaders = {}) {
