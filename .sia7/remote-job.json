@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-next-identity-cli-switch-20260908-263",
+  "jobId": "v142-next-identity-test-import-20260908-264",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    else if (process.argv.includes(\"--humo-runtime-certification\")) {",
-    "replace": "    else if (process.argv.includes(\"--next-identity-runtime-preflight\")) {\n        runNextIdentityRuntimePreflightCli()\n            .catch(error => {\n                console.error(JSON.stringify({\n                    ok: false,\n                    status: error?.message || \"NEXT_IDENTITY_RUNTIME_PREFLIGHT_FAILED\",\n                    resourceCreationPossible: false,\n                    providerTrafficUsed: false,\n                    inferenceStarted: false\n                }));\n                process.exitCode = 1;\n            });\n    }\n    else if (process.argv.includes(\"--humo-runtime-certification\")) {"
+    "search": "import { createJarvisFsBridgeApp } from \"../jarvis-fs-bridge.js\";",
+    "replace": "import {\n    createJarvisFsBridgeApp,\n    inspectNextIdentityRuntimeCandidate,\n    runNextIdentityRuntimePreflightCli\n} from \"../jarvis-fs-bridge.js\";"
   }
 }
