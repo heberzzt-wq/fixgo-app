@@ -8628,7 +8628,7 @@ export async function runHuMoIdentityProbeCli({
     }
     const resolvedRoot = path.resolve(root);
     const canonicalSha = String(execFileSync(
-        "git", ["rev-parse", "HEAD"],
+        (process.platform === "win32" && fs.existsSync("C:\\Program Files\\Git\\cmd\\git.exe") ? "C:\\Program Files\\Git\\cmd\\git.exe" : "git"), ["rev-parse", "HEAD"],
         { cwd: resolvedRoot, encoding: "utf8", windowsHide: true }
     )).trim().toLowerCase();
     if (!/^[a-f0-9]{40}$/.test(canonicalSha)) throw new Error("RUNPOD_CANONICAL_SHA_REQUIRED");
