@@ -1676,6 +1676,9 @@ test("HuMo17 probe is single L40S, pinned, hash-bound, budgeted and distinct fro
     assert.throws(() => buildHuMo17RuntimeProbeJob({...options, assets: {...assets, output: "outside.mp4"}}), /OUTPUT/);
     const shell = buildHuMo17RuntimeBootstrap(job);
     assert.match(shell, /CORE_NOT_CERTIFIED/); assert.match(shell, /ASSET_SHA256/);
+    assert.match(shell, /export PATH=\/opt\/conda\/bin:\$PATH/);
+    assert.match(shell, /HUMO17_PINNED_PYTHON_MISSING/);
+    assert.ok(shell.indexOf("torch.cuda.is_available") < shell.indexOf("pip install"));
     assert.match(shell, /wrapperAuxiliaryAssets/); assert.doesNotMatch(shell, /download.*core|generate_1_7B/);
     assert.throws(() => buildHuMo17RuntimeBootstrap({...job, gpuCount: 2}), /AUTHORITY/);
 });

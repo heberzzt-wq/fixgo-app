@@ -8771,6 +8771,9 @@ export function buildHuMo17RuntimeBootstrap(job) {
     ].join("\n");
     return [
         "set -euo pipefail", "cd /tmp/jarvis-humo17",
+        "export PATH=/opt/conda/bin:$PATH",
+        "test -x /opt/conda/bin/python || { echo HUMO17_PINNED_PYTHON_MISSING >&2; exit 1; }",
+        "python -c 'import torch; assert torch.cuda.is_available(), \"HUMO17_CUDA_UNAVAILABLE\"'",
         `git init -q ComfyUI && git -C ComfyUI fetch -q --depth 1 https://github.com/${s.comfyUiRepository}.git ${q(s.comfyUiRevision)} && git -C ComfyUI checkout -q --detach FETCH_HEAD`,
         `git init -q ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper && git -C ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper fetch -q --depth 1 https://github.com/${s.wrapperRepository}.git ${q(s.wrapperRevision)} && git -C ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper checkout -q --detach FETCH_HEAD`,
         "python -m pip install --disable-pip-version-check -r ComfyUI/requirements.txt -r ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper/requirements.txt soundfile",
