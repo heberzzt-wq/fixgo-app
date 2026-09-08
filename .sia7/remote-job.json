@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-provider-message-bridge-20260908-303",
+  "jobId": "v142-humo17-provider-message-worker-20260908-304",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                console.error(JSON.stringify({\n                    ok: false,\n                    status: error?.message || \"HUMO17_PERSISTENT_CORE_STAGE_FAILED\",\n                    podId: error?.podId || null,\n                    inferenceStarted: false\n                }));",
-    "replace": "                console.error(JSON.stringify({\n                    ok: false,\n                    status: error?.message || \"HUMO17_PERSISTENT_CORE_STAGE_FAILED\",\n                    providerMessage: error?.providerMessage || null,\n                    podId: error?.podId || null,\n                    inferenceStarted: false\n                }));"
+    "search": "    if (!execution.ok || parsed?.ok !== true || parsed?.status !== \"HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED\") {\n        throw new Error(`SIA7_HUMO17_CORE_STAGE_FAILED:${parsed?.status || lines.slice(-8).join(\" | \" ) || execution.code}`);\n    }",
+    "replace": "    if (!execution.ok || parsed?.ok !== true || parsed?.status !== \"HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED\") {\n        const failureDetail = parsed?.providerMessage\n            ? `${parsed?.status || \"HUMO17_PERSISTENT_CORE_STAGE_FAILED\"}:${parsed.providerMessage}`\n            : (parsed?.status || lines.slice(-8).join(\" | \" ) || execution.code);\n        throw new Error(`SIA7_HUMO17_CORE_STAGE_FAILED:${failureDetail}`);\n    }"
   }
 }
