@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-storage-test-alignment-20260908-253",
+  "jobId": "v142-humo17-l40s-safe-precision-20260908-254",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+    "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    assert.equal(strategy.existingHuMoCacheBytes, RUNPOD_HUMO_CACHE_BASE.totalBytes);\n    assert.equal(strategy.plannedPersistentBytes, RUNPOD_HUMO_CACHE_BASE.totalBytes + strategy.quantizedModel.bytes);\n    assert.equal(strategy.plannedPersistentBytes < 50 * 1024 ** 3, true);",
-    "replace": "    assert.equal(strategy.reuseExistingHuMoSharedAssets, false);\n    assert.equal(strategy.existingHuMoCacheRequiresFormatConversion, true);\n    assert.equal(strategy.existingHuMoCacheBytes, RUNPOD_HUMO_CACHE_BASE.totalBytes);\n    assert.equal(strategy.baseAndDiffusionPersistentBytes, 39987403600);\n    assert.equal(strategy.wrapperAuxiliaryBytes, 13309522014);\n    assert.equal(strategy.requiredBytesKeepingExistingCache, 53296925614);\n    assert.equal(strategy.nominal50GiBBytes, 50 * 1024 ** 3);\n    assert.equal(strategy.nominal50GiBHeadroomBytes, 390165586);\n    assert.equal(strategy.minimumNetworkVolumeGb, 50);\n    assert.equal(strategy.capacityFitCertified, false);\n    assert.equal(strategy.storagePlan, \"PERSISTENT_DIFFUSION_PLUS_AUXILIARY_EPHEMERAL_UNCERTIFIED\");\n    assert.equal(strategy.auxiliaryAssetsPersistent, false);\n    assert.equal(strategy.auxiliaryAssetsEphemeralRequired, true);\n    assert.equal(strategy.optionalVocalSeparatorAuthorityPinned, false);"
+    "search": "            modelLoaderBasePrecision: \"fp16_fast\",\n            modelLoaderDevice: \"offload_device\",\n            attentionMode: \"sageattn\",",
+    "replace": "            modelLoaderBasePrecision: \"fp16\",\n            modelLoaderDevice: \"offload_device\",\n            attentionMode: \"sdpa\"," 
   }
 }
