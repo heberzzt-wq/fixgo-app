@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-test-candidate-geometry-20260908-236",
+  "jobId": "v142-humo-test-executor-duration-20260908-237",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    assert.match(candidate, /durationSeconds: 8\\.0/);",
-    "replace": "    assert.match(candidate, /frames: 97/);\n    assert.match(candidate, /durationSeconds: 3\\.88/);"
+    "search": "    assert.match(runner, /\"probe_duration_seconds\": 8\\.0/);",
+    "replace": "    assert.match(runner, /\"probe_duration_seconds\": 3\\.88/);"
   }
 }
