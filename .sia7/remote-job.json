@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-retained-volume-test-align-20260907-218",
+  "jobId": "v142-humo-retained-volume-test-line-20260907-219",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "tests/jarvis-fs-bridge-v2.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "test(\"V142 HuMo runtime certification does not hard-pin a default datacenter\", () => {\n    const bridgeSource = fs.readFileSync(new URL(\"../jarvis-fs-bridge.js\", import.meta.url), \"utf8\");\n    assert.equal(bridgeSource.includes('env.JARVIS_RUNPOD_DATACENTER_ID || \"EU-NL-1\"'), false);\n    assert.equal(bridgeSource.includes('env.JARVIS_RUNPOD_DATACENTER_ID || \"\"'), true);\n    assert.equal(bridgeSource.includes('JARVIS_RUNPOD_GPU_TYPE_ID: \"NVIDIA L40S\"'), true);\n    assert.equal(bridgeSource.includes('JARVIS_RUNPOD_CLOUD_TYPE: \"SECURE\"'), true);\n});",
-    "replace": "test(\"V142 HuMo runtime certification stays dynamic while paid identity probe pins the certified retained volume\", () => {\n    const bridgeSource = fs.readFileSync(new URL(\"../jarvis-fs-bridge.js\", import.meta.url), \"utf8\");\n    assert.equal(bridgeSource.includes('env.JARVIS_RUNPOD_DATACENTER_ID || \"\"'), true);\n    assert.equal(bridgeSource.includes('runtimeEnv.JARVIS_RUNPOD_NETWORK_VOLUME_ID = String(env.JARVIS_RUNPOD_NETWORK_VOLUME_ID || \"1qm5wczocl\").trim()'), true);\n    assert.equal(bridgeSource.includes('runtimeEnv.JARVIS_RUNPOD_DATACENTER_ID = String(env.JARVIS_RUNPOD_DATACENTER_ID || \"EU-NL-1\").trim()'), true);\n    assert.equal(bridgeSource.includes('RUNPOD_HUMO_RETAINED_VOLUME_DATACENTER_UNAVAILABLE'), true);\n    assert.equal(bridgeSource.includes('JARVIS_RUNPOD_GPU_TYPE_ID: \"NVIDIA L40S\"'), true);\n    assert.equal(bridgeSource.includes('JARVIS_RUNPOD_CLOUD_TYPE: \"SECURE\"'), true);\n});"
+    "search": "    assert.equal(bridgeSource.includes('env.JARVIS_RUNPOD_DATACENTER_ID || \"EU-NL-1\"'), false);",
+    "replace": "    assert.equal(bridgeSource.includes('runtimeEnv.JARVIS_RUNPOD_DATACENTER_ID = String(env.JARVIS_RUNPOD_DATACENTER_ID || \"EU-NL-1\").trim()'), true);"
   }
 }
