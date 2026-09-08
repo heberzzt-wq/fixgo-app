@@ -1150,9 +1150,11 @@ def main() -> int:
             or "timed out" in error_text.lower()
             or "out of memory" in error_text.lower()
         )
+        previous = read_json(result_file) if result_file.is_file() else {}
         write_json_atomic(
             result_file,
             {
+                "inferenceStarted": previous.get("inferenceStarted", False),
                 "ok": False,
                 "status": error_text,
                 "error": error_text,

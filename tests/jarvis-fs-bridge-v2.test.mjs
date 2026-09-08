@@ -1690,3 +1690,23 @@ test("HuMo17 cleanup verifies Pod absence and never deletes a retained volume", 
     assert.equal(await releaseHuMo17Pod({podId: "fixture", provider: async () => ({id:"fixture",desiredStatus:"RUNNING"}), wait: async () => {}}), false);
     await assert.rejects(releaseHuMo17Pod({podId:"fixture", provider:async () => {throw new Error("provider unavailable");}}), /provider unavailable/);
 });
+
+
+test("HuMo17 Python runner rejects unauthorized and invalid geometry before importing GPU libraries", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "humo17-runner-fixture-"));
+    try {
+        const result = path.join(root, "result.json"), jobFile = path.join(root, "job.json");
+        const script = path.resolve("scripts/jarvis-local-video-wan22.py");
+        for (const [job, expected] of [
+            [{paidAuthorized:false}, "HUMO17_PROBE_AUTHORITY_REQUIRED"],
+            [{paidAuthorized:true, fullEpisodeAuthorized:false, geometry:{frames:65}}, "HUMO17_PROBE_GEOMETRY_INVALID"]
+        ]) {
+            fs.writeFileSync(jobFile, JSON.stringify({backend:"humo-17b-identity",externalApiAllowed:false,...job}));
+            try {execFileSync(process.platform === "win32" ? "python" : "python3", [script,"--job",jobFile,"--result",result], {timeout:15000,stdio:"pipe"});}
+            catch(error) {assert.equal(error.status,1);}
+            const receipt=JSON.parse(fs.readFileSync(result,"utf8"));
+            assert.equal(receipt.ok,false); assert.equal(receipt.error,expected);
+            assert.equal(receipt.backend,"humo-17b-identity");
+        }
+    } finally {fs.rmSync(root,{recursive:true,force:true});}
+});

@@ -9132,7 +9132,10 @@ export async function runHuMo17PersistentCoreStagingCli({
                 await runSsh(endpoint, `timeout ${remainingSeconds}s bash /tmp/jarvis-humo17/probe.sh > /tmp/jarvis-humo17/probe.log 2>&1`, (remainingSeconds + 15) * 1000);
             } catch (error) {
                 const detail = await runSsh(endpoint, "tail -c 6000 /tmp/jarvis-humo17/probe.log; test ! -f /tmp/jarvis-humo17/result.json || cat /tmp/jarvis-humo17/result.json", 30000).catch(() => ({stdout: "diagnostic unavailable"}));
-                error.logTail = detail.stdout; throw error;
+                error.logTail = detail.stdout;
+                const state = await runSsh(endpoint, "if test -f /tmp/jarvis-humo17/result.json; then cat /tmp/jarvis-humo17/result.json; else printf '{}'; fi", 30000).catch(() => ({stdout: "{}"}));
+                try { inferenceStarted = JSON.parse(state.stdout).inferenceStarted === true; } catch {}
+                throw error;
             }
             const raw = await runSsh(endpoint, "cat /tmp/jarvis-humo17/result.json", 30000);
             runtimePhysical = JSON.parse(raw.stdout); inferenceStarted = runtimePhysical.inferenceStarted === true;
