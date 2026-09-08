@@ -8651,6 +8651,12 @@ export function inspectNextIdentityRuntimeCandidate({ backend = "humo-17b-identi
             requiredBytesKeepingExistingCache: requiredBytes,
             nominal50GiBBytes: nominalBytes,
             nominal50GiBHeadroomBytes: nominalHeadroomBytes,
+            persistentCoreBytes: Number(strategy?.persistentCoreBytes || 0),
+            persistentCoreHeadroomBytes: Number(strategy?.persistentCoreHeadroomBytes || 0),
+            wrapperAuxiliaryBytes: Number(strategy?.wrapperAuxiliaryBytes || 0),
+            ephemeralWorkspaceReserveBytes: Number(strategy?.ephemeralWorkspaceReserveBytes || 0),
+            minimumEphemeralBytes: Number(strategy?.minimumEphemeralBytes || 0),
+            splitPlanFitsNominalPersistentByBytes: Number(strategy?.persistentCoreBytes || 0) > 0 && nominalBytes > 0 && Number(strategy?.persistentCoreBytes || 0) <= nominalBytes,
             nominalFitByBytes: requiredBytes > 0 && nominalBytes > 0 && requiredBytes <= nominalBytes,
             certified: strategy.capacityFitCertified === true
         } : null,
