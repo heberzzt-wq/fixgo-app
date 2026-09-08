@@ -1,12 +1,9 @@
 {
-  "jobId": "v142-humo17-provider-status-contract-20260908-307",
-  "operation": "patch",
+  "jobId": "v142-humo17-core-stage-preflight-20260908-308",
+  "operation": "humo17_core_stage",
   "humanApproved": true,
-  "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "    assert.equal(bridgeSource.includes('providerMessage: error?.providerMessage || null'), true);\n    assert.equal(workerSource.includes('parsed?.providerMessage'), true);\n    assert.equal(workerSource.includes('parsed.providerMessage'), true);",
-    "replace": "    assert.equal(bridgeSource.includes('const providerMessage = String(error?.providerMessage || \\\"\\\").trim()'), true);\n    assert.equal(bridgeSource.includes('providerMessage: providerMessage || null'), true);\n    assert.equal(bridgeSource.includes('HUMO17_PERSISTENT_CORE_STAGE_FAILED\\\"}:${providerMessage}'), true);\n    assert.equal(workerSource.includes('parsed?.status || lines.slice(-8).join'), true);"
-  }
+  "executePaid": false,
+  "expectedBaseSha": "93088d96fc3d6c36d58d0b5b78834329d1bb7b6d",
+  "hardBudgetUsd": 1.5,
+  "maximumMinutes": 90
 }
