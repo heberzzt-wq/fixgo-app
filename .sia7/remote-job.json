@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-capacity-account-lora-20260908-266",
+  "jobId": "v142-humo17-capacity-required-bytes-20260908-267",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            baseAndDiffusionPersistentBytes: 39987403600,",
-    "replace": "            baseAndDiffusionPersistentBytes: 39987403600,\n            distillationLoraBytes: 738005744,\n            persistentCoreBytes: 40725409344,"
+    "search": "            requiredBytesKeepingExistingCache: 53296925614,",
+    "replace": "            requiredBytesKeepingExistingCache: 54034931358,"
   }
 }
