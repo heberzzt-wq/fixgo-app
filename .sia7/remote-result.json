@@ -1,8 +1,8 @@
 {
-  "jobId": "v142-humo17-runtime-authority-20260908-315",
-  "completedAt": "2026-09-08T22:30:10.258Z",
+  "jobId": "v142-humo17-runtime-authority-20260908-316",
+  "completedAt": "2026-09-08T22:42:26.783Z",
   "ok": false,
-  "error": "RESULT_SYNC_FAILED: fatal: unable to access 'https://github.com/heberzzt-wq/fixgo-app.git/': Failed to connect to github.com:443 after 33787 ms: Could not connect to server\n",
+  "error": "RESULT_SYNC_FAILED: fatal: unable to access 'https://github.com/heberzzt-wq/fixgo-app.git/': Failed to connect to github.com:443 after 33783 ms: Could not connect to server\n",
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
