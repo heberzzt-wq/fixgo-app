@@ -1,22 +1,27 @@
 {
-  "jobId": "v142-humo-good-voice-prepare-20260907-203",
-  "completedAt": "2026-09-08T01:31:35.364Z",
+  "jobId": "v142-humo-8s-two-ref-good-voice-preflight-20260907-204",
+  "completedAt": "2026-09-08T01:32:07.299Z",
   "ok": true,
-  "operation": "humo_reference_audio_prepare",
-  "dryRun": false,
-  "status": "SIA7_HUMO_GOOD_VOICE_REFERENCE_READY",
-  "sourceVideoOutput": null,
-  "sourceVideoSha256": "7fe58e7e4ec425aa556b57263b8a5b3173683e23a13cabc74e50b16f7084301d",
-  "materializationSource": "verified_user_download",
-  "audioOutput": ".jarvis-artifacts/audio/humo-heberto-minidrama-good-voice-8s.wav",
-  "audioSha256": "9a075a37c56b6e0cd828a9b2a37a2fe3ee3f01c28cc7483f6a5d97ff96bd2bd5",
-  "bytes": 256078,
+  "operation": "humo_identity_probe",
+  "dryRun": true,
+  "status": "SIA7_HUMO_IDENTITY_PREFLIGHT_READY",
+  "certifiedBaseSha": "c4573ecd274c2601d458430d232e9faf2c499d1b",
+  "executionHeadSha": "907285a6f2a577a95fb4552c45cfe366c454b4f6",
+  "controlPlaneOnlyChanges": [
+    ".sia7/remote-job.json",
+    ".sia7/remote-result.json"
+  ],
+  "hardBudgetUsd": 3,
+  "monthlyStorageAuthorizedUsd": 3.5,
+  "characterId": "CHAR_HEBERTO",
   "durationSeconds": 8,
-  "sampleRateHz": 16000,
-  "channels": 1,
-  "externalApiUsed": false,
-  "gpuRentalSeconds": 0,
-  "gpuRentalEstimatedCost": 0,
+  "referenceCount": 2,
+  "referenceSha256s": [
+    "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958",
+    "b401b476107521d9e3de3b267885bf91de956b644072a01e7373ab5476a3b6f3"
+  ],
+  "audioSha256": "9a075a37c56b6e0cd828a9b2a37a2fe3ee3f01c28cc7483f6a5d97ff96bd2bd5",
+  "resourceCreationPossible": false,
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
