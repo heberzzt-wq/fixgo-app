@@ -2049,7 +2049,7 @@ export function createRunpodRemoteVideoAdapter({
             return String(resolveCanonicalSha({ root: resolvedRoot }) || "").trim().toLowerCase();
         }
         try {
-            return String(execFileSync("git", ["rev-parse", "HEAD"], {
+            return String(execFileSync((process.platform === "win32" && fs.existsSync("C:\\Program Files\\Git\\cmd\\git.exe") ? "C:\\Program Files\\Git\\cmd\\git.exe" : "git"), ["rev-parse", "HEAD"], {
                 cwd: resolvedRoot,
                 encoding: "utf8",
                 stdio: ["ignore", "pipe", "ignore"]
