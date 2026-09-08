@@ -8711,7 +8711,8 @@ export async function runHuMoIdentityProbeCli({
     const prompt = String(env.JARVIS_HUMO_IDENTITY_PROBE_PROMPT || [
         "Landscape 16:9 cinematic medium close-up of Heberto, the exact person in the supplied identity reference,",
         "at a realistic construction site in Cancun under bright natural daylight.",
-        "Preserve his exact facial identity, facial proportions, skin texture and age.",
+        "Preserve his exact facial identity, facial proportions, skin texture, age, hairstyle and facial-hair state.",
+        "Match facial hair exactly to the supplied identity references; do not invent, darken, thicken or add beard, mustache or stubble.",
         "He speaks the supplied audio with restrained natural head, eye and mouth movement.",
         "No other identifiable person, no subtitles, no title, no logo, no branding, no watermark."
     ].join(" ")).trim();
