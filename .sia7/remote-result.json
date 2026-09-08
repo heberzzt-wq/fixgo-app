@@ -1,8 +1,8 @@
 {
-  "jobId": "v142-humo-8s-two-ref-good-voice-paid-20260907-214",
-  "completedAt": "2026-09-08T02:11:30.368Z",
+  "jobId": "v142-humo-retained-volume-reuse-20260907-215",
+  "completedAt": "2026-09-08T02:14:24.870Z",
   "ok": false,
-  "error": "SIA7_HUMO_IDENTITY_PROBE_FAILED:RUNPODCTL_NETWORK_VOLUME_CREATE_FAILED:{\"error\":\"api error: {\\\"error\\\":\\\"create network volume: Data center \\\\\\\"US-TX-4\\\\\\\" not found or does not support network volumes. Available data centers: AP-IN-2, AP-JP-1, CA-MTL-3, CA-MTL-4, EU-FR-1, EU-NL-1, EU-RO-1, EUR-IS-1, EUR-IS-3,",
+  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1",
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
