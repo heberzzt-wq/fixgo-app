@@ -17,6 +17,8 @@ import {
     estimateExternalVideoGeneration,
     RUNPOD_CPU_STAGING_PROFILE,
     RUNPOD_HUMO_CACHE_BASE,
+    RUNPOD_HUMO17_CORE_CACHE_BASE,
+    validateHuMo17CoreCacheManifest,
     validateModelCacheManifest,
     verifyModelCacheContents,
     RUNPOD_WAN22_GPU_PROFILES,
