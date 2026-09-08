@@ -2001,7 +2001,7 @@ function readGitIdentity(
             return {
                 ok: true,
                 value: execFileSync(
-                    "git",
+                    (process.platform === "win32" && fs.existsSync("C:\\Program Files\\Git\\cmd\\git.exe") ? "C:\\Program Files\\Git\\cmd\\git.exe" : "git"),
                     args,
                     {
                         cwd:
