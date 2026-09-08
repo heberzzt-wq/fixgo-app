@@ -66,7 +66,11 @@ import {
 import {
     buildHuMoIdentityRuntimeAuthority,
     buildNextIdentityRuntimeCandidate,
+    buildHuMo17PersistentCoreStagingPlan,
+    buildHuMo17PersistentCoreStagingBootstrap,
     RUNPOD_HUMO_CACHE_BASE,
+    RUNPOD_HUMO17_CORE_CACHE_BASE,
+    validateHuMo17CoreCacheManifest,
     createLocalVideoEngine,
     createRunpodRemoteVideoAdapter,
     resolveLocalExecutable,
