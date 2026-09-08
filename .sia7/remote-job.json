@@ -1,12 +1,10 @@
 {
-  "jobId": "v142-humo-retained-volume-test-line-20260907-219",
-  "operation": "patch",
+  "jobId": "v142-humo-8s-two-ref-good-voice-paid-20260907-220",
+  "operation": "humo_identity_probe",
   "humanApproved": true,
-  "patch": {
-    "file": "tests/jarvis-fs-bridge-v2.test.mjs",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "    assert.equal(bridgeSource.includes('env.JARVIS_RUNPOD_DATACENTER_ID || \"EU-NL-1\"'), false);",
-    "replace": "    assert.equal(bridgeSource.includes('runtimeEnv.JARVIS_RUNPOD_DATACENTER_ID = String(env.JARVIS_RUNPOD_DATACENTER_ID || \"EU-NL-1\").trim()'), true);"
-  }
+  "executePaid": true,
+  "fullEpisodeAuthorized": false,
+  "expectedBaseSha": "3e03fd243fe410e9d2c594cdba56246fa66da1dd",
+  "hardBudgetUsd": 3,
+  "monthlyStorageAuthorizedUsd": 3.5
 }
