@@ -8717,6 +8717,47 @@ export async function runHuMo17PersistentCoreStagingCli({
     if (!Number.isFinite(maximumMinutes) || maximumMinutes < 5 || maximumMinutes > 90) {
         throw new Error("RUNPOD_HUMO17_CORE_STAGE_DURATION_INVALID");
     }
+    const runtimeProbeAuthorized = truthy(env.JARVIS_HUMO17_RUNTIME_PROBE_AUTHORIZED);
+    let runtimeProbeAssets = null;
+    if (runtimeProbeAuthorized) {
+        const sourceRootRaw = String(env.JARVIS_HUMO17_RUNTIME_PROBE_SOURCE_ROOT || "").trim();
+        if (!sourceRootRaw) throw new Error("RUNPOD_HUMO17_RUNTIME_PROBE_SOURCE_ROOT_REQUIRED");
+        const sourceRoot = path.resolve(sourceRootRaw);
+        if (!fs.existsSync(sourceRoot) || !fs.statSync(sourceRoot).isDirectory()) {
+            throw new Error("RUNPOD_HUMO17_RUNTIME_PROBE_SOURCE_ROOT_INVALID");
+        }
+        const resolveProbeAsset = (rawOutput, extensions, expectedSha, status) => {
+            const output = String(rawOutput || "").trim().replaceAll("\\", "/");
+            if (!output.startsWith(".jarvis-artifacts/") || output.includes("../")) throw new Error(status);
+            const file = path.resolve(sourceRoot, output);
+            const prefix = sourceRoot.endsWith(path.sep) ? sourceRoot : sourceRoot + path.sep;
+            if (!file.startsWith(prefix) || !extensions.includes(path.extname(file).toLowerCase()) || !fs.existsSync(file) || !fs.statSync(file).isFile()) throw new Error(status);
+            const sha256 = createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+            if (!/^[a-f0-9]{64}$/.test(expectedSha) || sha256 !== expectedSha) throw new Error(status + "_SHA256_MISMATCH");
+            return { output, file, sha256, bytes: fs.statSync(file).size };
+        };
+        const reference = resolveProbeAsset(
+            env.JARVIS_HUMO17_RUNTIME_PROBE_REFERENCE_OUTPUT,
+            [".jpg", ".jpeg", ".png", ".webp"],
+            String(env.JARVIS_HUMO17_RUNTIME_PROBE_REFERENCE_SHA256 || "").trim().toLowerCase(),
+            "RUNPOD_HUMO17_RUNTIME_PROBE_REFERENCE_INVALID"
+        );
+        const audio = resolveProbeAsset(
+            env.JARVIS_HUMO17_RUNTIME_PROBE_AUDIO_OUTPUT,
+            [".wav"],
+            String(env.JARVIS_HUMO17_RUNTIME_PROBE_AUDIO_SHA256 || "").trim().toLowerCase(),
+            "RUNPOD_HUMO17_RUNTIME_PROBE_AUDIO_INVALID"
+        );
+        const output = String(env.JARVIS_HUMO17_RUNTIME_PROBE_OUTPUT || ".jarvis-artifacts/videos/humo17-heberto-physical-probe-97f.mp4").trim().replaceAll("\\", "/");
+        if (!output.startsWith(".jarvis-artifacts/") || output.includes("../") || path.extname(output).toLowerCase() !== ".mp4") {
+            throw new Error("RUNPOD_HUMO17_RUNTIME_PROBE_OUTPUT_INVALID");
+        }
+        const outputFile = path.resolve(sourceRoot, output);
+        const prefix = sourceRoot.endsWith(path.sep) ? sourceRoot : sourceRoot + path.sep;
+        if (!outputFile.startsWith(prefix)) throw new Error("RUNPOD_HUMO17_RUNTIME_PROBE_OUTPUT_INVALID");
+        fs.mkdirSync(path.dirname(outputFile), { recursive: true });
+        runtimeProbeAssets = { sourceRoot, reference, audio, output, outputFile };
+    }
     const requestedVolumeId = String(env.JARVIS_RUNPOD_NETWORK_VOLUME_ID || "1qm5wczocl").trim();
     const requestedDataCenterId = String(env.JARVIS_RUNPOD_DATACENTER_ID || "EU-NL-1").trim();
     if (!requestedVolumeId || !requestedDataCenterId) throw new Error("RUNPOD_HUMO17_VOLUME_REQUIRED");
