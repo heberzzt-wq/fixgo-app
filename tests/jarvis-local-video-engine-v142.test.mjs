@@ -156,6 +156,23 @@ test("V142 next identity runtime preflight is zero-cost and remains fail-closed"
     assert.equal(phantom.inferenceStarted, false);
 });
 
+test("V142 HuMo17 physical core staging worker is explicit-authority budgeted and cleanup-verified", () => {
+    const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
+    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+    assert.equal(workerSource.includes('operation === "humo17_core_stage"'), true);
+    assert.equal(workerSource.includes('executeHuMo17CoreStageJob(job)'), true);
+    assert.equal(workerSource.includes('job.executePaid !== true'), true);
+    assert.equal(workerSource.includes('job.humanApproved !== true'), true);
+    assert.equal(workerSource.includes('JARVIS_HUMO17_CORE_STAGE_AUTHORIZED: "true"'), true);
+    assert.equal(workerSource.includes('JARVIS_RUNPOD_NETWORK_VOLUME_ID: "1qm5wczocl"'), true);
+    assert.equal(workerSource.includes('JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1"'), true);
+    assert.equal(workerSource.includes('parsed.terminationVerified !== true || parsed.networkVolumeRetained !== true'), true);
+    assert.equal(workerSource.includes('SIA7_HUMO17_CORE_STAGE_BUDGET_EXCEEDED'), true);
+    assert.equal(bridgeSource.includes('JARVIS_HUMO17_CORE_STAGE_AUTHORIZED'), true);
+    assert.equal(bridgeSource.includes('hardBudgetUsd > 3'), true);
+    assert.equal(bridgeSource.includes('HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED'), true);
+});
+
 test("V142 HuMo17 persistent core cache is additive pinned and fail-closed", () => {
     const contract = RUNPOD_HUMO17_CORE_CACHE_BASE;
     assert.equal(contract.profile, "humo17-fp8-core-v1");

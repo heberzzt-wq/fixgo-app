@@ -1,17 +1,17 @@
 {
-  "jobId": "v142-humo17-worker-core-stage-route-20260908-297",
-  "completedAt": "2026-09-08T17:56:54.172Z",
+  "jobId": "v142-humo17-worker-stage-contract-test-20260908-298",
+  "completedAt": "2026-09-08T17:58:59.681Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "jarvis-github-worker.js",
+  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 36687,
-  "bytesAfter": 36792,
+  "bytesBefore": 420553,
+  "bytesAfter": 421934,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "jarvis-github-worker.js"
+    "tests/jarvis-local-video-engine-v142.test.mjs"
   ]
 }
