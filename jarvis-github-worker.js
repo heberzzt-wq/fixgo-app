@@ -292,6 +292,132 @@ function sha256File(file) {
     return createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 }
 
+function findHuMoMiniDramaSource() {
+    const artifactRoot = path.resolve(SIA7_HUMO_SOURCE_ROOT, ".jarvis-artifacts");
+    if (!fs.existsSync(artifactRoot) || !fs.statSync(artifactRoot).isDirectory()) {
+        throw new Error("SIA7_HUMO_ARTIFACT_ROOT_MISSING");
+    }
+    const prefix = SIA7_HUMO_MINIDRAMA_SOURCE_PREFIX.toLowerCase();
+    const stack = [artifactRoot];
+    const candidates = [];
+    let visited = 0;
+    while (stack.length > 0) {
+        const current = stack.pop();
+        for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+            visited += 1;
+            if (visited > 5000) throw new Error("SIA7_HUMO_ARTIFACT_SCAN_LIMIT_EXCEEDED");
+            const target = path.join(current, entry.name);
+            if (entry.isDirectory()) {
+                stack.push(target);
+                continue;
+            }
+            if (!entry.isFile()) continue;
+            const name = entry.name.toLowerCase();
+            if (!name.startsWith(prefix) || path.extname(name) !== ".mp4") continue;
+            if (sha256File(target) === SIA7_HUMO_MINIDRAMA_SOURCE_SHA256) candidates.push(target);
+        }
+    }
+    if (candidates.length !== 1) {
+        throw new Error(`SIA7_HUMO_MINIDRAMA_SOURCE_MATCH_COUNT:${candidates.length}`);
+    }
+    return candidates[0];
+}
+
+function runLocalProcess(command, args = [], { cwd = REPO_ROOT, timeoutMs = 120000 } = {}) {
+    return new Promise(resolve => {
+        const child = spawn(command, args, {
+            cwd,
+            shell: false,
+            windowsHide: true,
+            stdio: ["ignore", "pipe", "pipe"],
+            env: { ...process.env }
+        });
+        let stdout = "";
+        let stderr = "";
+        const append = (current, chunk) => (current + chunk.toString()).slice(-1024 * 1024);
+        child.stdout.on("data", chunk => { stdout = append(stdout, chunk); });
+        child.stderr.on("data", chunk => { stderr = append(stderr, chunk); });
+        let settled = false;
+        const timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            child.kill("SIGTERM");
+            resolve({ ok: false, code: null, stdout, stderr, timeout: true });
+        }, timeoutMs);
+        child.on("error", error => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            resolve({ ok: false, code: null, stdout, stderr, error: error.message });
+        });
+        child.on("close", code => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            resolve({ ok: code === 0, code, stdout, stderr });
+        });
+    });
+}
+
+async function executeHuMoReferenceAudioPrepJob(job = {}) {
+    if (job.humanApproved !== true) throw new Error("SIA7_HUMO_AUDIO_PREP_HUMAN_APPROVAL_REQUIRED");
+    if (process.platform !== "win32") throw new Error("SIA7_HUMO_WINDOWS_WORKER_REQUIRED");
+    if (!fs.existsSync(SIA7_HUMO_SOURCE_ROOT) || !fs.statSync(SIA7_HUMO_SOURCE_ROOT).isDirectory()) {
+        throw new Error("SIA7_HUMO_SOURCE_ROOT_MISSING");
+    }
+    const sourceVideoFile = findHuMoMiniDramaSource();
+    const outputFile = path.resolve(SIA7_HUMO_SOURCE_ROOT, SIA7_HUMO_AUDIO_OUTPUT);
+    const sourceRootPrefix = SIA7_HUMO_SOURCE_ROOT.endsWith(path.sep) ? SIA7_HUMO_SOURCE_ROOT : SIA7_HUMO_SOURCE_ROOT + path.sep;
+    if (!outputFile.startsWith(sourceRootPrefix)) throw new Error("SIA7_HUMO_AUDIO_OUTPUT_OUTSIDE_SOURCE_ROOT");
+    fs.mkdirSync(path.dirname(outputFile), { recursive: true });
+    const temporaryFile = outputFile + ".partial.wav";
+    fs.rmSync(temporaryFile, { force: true });
+    const ffmpeg = String(process.env.JARVIS_FFMPEG_PATH || "ffmpeg").trim() || "ffmpeg";
+    const result = await runLocalProcess(ffmpeg, [
+        "-hide_banner", "-loglevel", "error", "-y",
+        "-ss", "0", "-i", sourceVideoFile, "-t", "8",
+        "-vn", "-ac", "1", "-ar", "16000",
+        "-c:a", "pcm_s16le", temporaryFile
+    ], { cwd: SIA7_HUMO_SOURCE_ROOT, timeoutMs: 120000 });
+    if (!result.ok) {
+        fs.rmSync(temporaryFile, { force: true });
+        throw new Error(`SIA7_HUMO_GOOD_VOICE_EXTRACTION_FAILED:${result.code ?? "NA"}:${String(result.stderr || result.error || "").slice(-500)}`);
+    }
+    if (!fs.existsSync(temporaryFile) || !fs.statSync(temporaryFile).isFile()) {
+        throw new Error("SIA7_HUMO_GOOD_VOICE_OUTPUT_MISSING");
+    }
+    const bytes = fs.statSync(temporaryFile).size;
+    if (bytes < 250000 || bytes > 270000) throw new Error(`SIA7_HUMO_GOOD_VOICE_BYTES_INVALID:${bytes}`);
+    const header = fs.readFileSync(temporaryFile).subarray(0, 12);
+    if (header.toString("ascii", 0, 4) !== "RIFF" || header.toString("ascii", 8, 12) !== "WAVE") {
+        throw new Error("SIA7_HUMO_GOOD_VOICE_WAV_INVALID");
+    }
+    const sha256 = sha256File(temporaryFile);
+    if (sha256 !== SIA7_HUMO_AUDIO_SHA256) {
+        fs.rmSync(temporaryFile, { force: true });
+        throw new Error(`SIA7_HUMO_GOOD_VOICE_SHA_MISMATCH:${sha256}`);
+    }
+    fs.rmSync(outputFile, { force: true });
+    fs.renameSync(temporaryFile, outputFile);
+    return {
+        ok: true,
+        operation: "humo_reference_audio_prepare",
+        dryRun: false,
+        status: "SIA7_HUMO_GOOD_VOICE_REFERENCE_READY",
+        sourceVideoOutput: path.relative(SIA7_HUMO_SOURCE_ROOT, sourceVideoFile).replace(/\\/g, "/"),
+        sourceVideoSha256: SIA7_HUMO_MINIDRAMA_SOURCE_SHA256,
+        audioOutput: SIA7_HUMO_AUDIO_OUTPUT,
+        audioSha256: sha256,
+        bytes,
+        durationSeconds: 8.0,
+        sampleRateHz: 16000,
+        channels: 1,
+        externalApiUsed: false,
+        gpuRentalSeconds: 0,
+        gpuRentalEstimatedCost: 0
+    };
+}
+
 const SIA7_WORKER_SOURCE_FILE = path.resolve(REPO_ROOT, "jarvis-github-worker.js");
 const SIA7_WORKER_SOURCE_SHA256_AT_START = sha256File(SIA7_WORKER_SOURCE_FILE);
 
