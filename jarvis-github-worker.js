@@ -323,14 +323,14 @@ function findHuMoMiniDramaSource() {
     return candidates[0];
 }
 
-function runLocalProcess(command, args = [], { cwd = REPO_ROOT, timeoutMs = 120000 } = {}) {
+function runLocalProcess(command, args = [], { cwd = REPO_ROOT, timeoutMs = 120000, env = process.env } = {}) {
     return new Promise(resolve => {
         const child = spawn(command, args, {
             cwd,
             shell: false,
             windowsHide: true,
             stdio: ["ignore", "pipe", "pipe"],
-            env: { ...process.env }
+            env: { ...env }
         });
         let stdout = "";
         let stderr = "";
