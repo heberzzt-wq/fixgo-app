@@ -26,7 +26,11 @@ import {
     writeLocalAiCapabilityReport
 } from "../jarvis-local-video-engine.js";
 import { listArtifacts } from "../jarvis-artifact-studio.js";
-import { createJarvisFsBridgeApp } from "../jarvis-fs-bridge.js";
+import {
+    createJarvisFsBridgeApp,
+    inspectNextIdentityRuntimeCandidate,
+    runNextIdentityRuntimePreflightCli
+} from "../jarvis-fs-bridge.js";
 import { registerJarvisActuatorTools } from "../gestia-core/jarvis/jarvis.actuator.pack.js";
 
 function humoCacheManifest(contract = RUNPOD_HUMO_CACHE_BASE) {
