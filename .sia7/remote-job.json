@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-asset-placement-plan-20260908-275",
+  "jobId": "v142-humo17-asset-placement-test-20260908-276",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        singleGpuStrategy: strategy,",
-    "replace": "        singleGpuStrategy: strategy,\n        assetPlacementPlan: strategy ? {\n            storagePlan: strategy.storagePlan,\n            preserveExistingHuMoCache: true,\n            existingHuMoCacheBytes: Number(strategy.existingHuMoCacheBytes || 0),\n            persistentNewAssets: [\n                { ...strategy.quantizedModel, role: \"video_transformer\" },\n                { ...strategy.distillationLora, role: \"distillation_lora\" }\n            ],\n            persistentNewBytes: Number(strategy.quantizedModel?.bytes || 0) + Number(strategy.distillationLora?.bytes || 0),\n            persistentTotalWithExistingCacheBytes: Number(strategy.persistentCoreBytes || 0),\n            ephemeralAssets: (strategy.wrapperAuxiliaryAssets || []).map(asset => ({ ...asset })),\n            ephemeralAssetsBytes: Number(strategy.wrapperAuxiliaryBytes || 0),\n            ephemeralWorkspaceReserveBytes: Number(strategy.ephemeralWorkspaceReserveBytes || 0),\n            minimumEphemeralBytes: Number(strategy.minimumEphemeralBytes || 0),\n            existingCacheMutationAuthorized: false,\n            assetDownloadAuthorized: false\n        } : null,"
+    "search": "    assert.equal(result.capacity.certified, false);",
+    "replace": "    assert.equal(result.capacity.certified, false);\n    assert.equal(result.assetPlacementPlan.storagePlan, \"PERSISTENT_CORE_PLUS_EPHEMERAL_AUXILIARY_REQUIRED\");\n    assert.equal(result.assetPlacementPlan.preserveExistingHuMoCache, true);\n    assert.equal(result.assetPlacementPlan.persistentNewAssets.length, 2);\n    assert.equal(result.assetPlacementPlan.persistentNewBytes, 18630299842);\n    assert.equal(result.assetPlacementPlan.persistentTotalWithExistingCacheBytes, 40725409344);\n    assert.equal(result.assetPlacementPlan.ephemeralAssets.length, 3);\n    assert.equal(result.assetPlacementPlan.ephemeralAssetsBytes, 13309522014);\n    assert.equal(result.assetPlacementPlan.minimumEphemeralBytes, 21899456606);\n    assert.equal(result.assetPlacementPlan.existingCacheMutationAuthorized, false);\n    assert.equal(result.assetPlacementPlan.assetDownloadAuthorized, false);"
   }
 }
