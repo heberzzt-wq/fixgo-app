@@ -1,8 +1,15 @@
 {
-  "jobId": "v142-humo-8s-two-ref-good-voice-paid-20260907-211",
-  "completedAt": "2026-09-08T01:50:00.819Z",
-  "ok": false,
-  "error": "SIA7_HUMO_IDENTITY_PROBE_FAILED:RUNPOD_BRIDGE_IDENTITY_REQUIRED",
+  "jobId": "v142-humo-bridge-identity-git-path-dryrun-20260907-212",
+  "completedAt": "2026-09-08T01:53:23.776Z",
+  "ok": true,
+  "operation": "patch",
+  "dryRun": true,
+  "file": "jarvis-fs-bridge.js",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 364281,
+  "bytesAfter": 364412,
+  "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
