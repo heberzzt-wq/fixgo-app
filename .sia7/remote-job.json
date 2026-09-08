@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-align-official-probe-tests-20260908-239",
+  "jobId": "v142-humo-align-engine-probe-geometry-20260908-240",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": ".github/scripts/v142-final-contract-alignment.mjs",
+    "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "function alignHuMoEightSecondProbeTests() {\n  let localTests = read(LOCAL_VIDEO_TEST);\n  localTests = replaceExactOnce(\n    localTests,\n    '    assert.match(candidate, /durationSeconds: 3\\\\.88/);',\n    '    assert.match(candidate, /durationSeconds: 8\\\\.0/);',\n    \"V142_HUMO_8S_CANDIDATE_DURATION_CONTRACT\"\n  );\n  localTests = replaceExactOnce(\n    localTests,\n    '    assert.match(runner, /\"probe_duration_seconds\": 3\\\\.88/);',\n    '    assert.match(runner, /\"probe_duration_seconds\": 8\\\\.0/);',\n    \"V142_HUMO_8S_RUNNER_DURATION_CONTRACT\"\n  );\n  for (const marker of [\n    'assert.match(candidate, /durationSeconds: 8\\\\.0/);',\n    'assert.match(runner, /\"probe_duration_seconds\": 8\\\\.0/);'\n  ]) {\n    if (!localTests.includes(marker)) {\n      throw new Error(`V142_HUMO_8S_TEST_MARKER_MISSING:${marker}`);\n    }\n  }\n  write(LOCAL_VIDEO_TEST, localTests);\n}",
-    "replace": "function alignHuMoEightSecondProbeTests() {\n  let localTests = read(LOCAL_VIDEO_TEST);\n  localTests = replaceExactOnce(\n    localTests,\n    '    assert.match(candidate, /durationSeconds: 8\\\\.0/);',\n    '    assert.match(candidate, /durationSeconds: 3\\\\.88/);',\n    \"V142_HUMO_OFFICIAL_CANDIDATE_DURATION_CONTRACT\"\n  );\n  localTests = replaceExactOnce(\n    localTests,\n    '    assert.match(runner, /\"probe_duration_seconds\": 8\\\\.0/);',\n    '    assert.match(runner, /\"probe_duration_seconds\": 3\\\\.88/);',\n    \"V142_HUMO_OFFICIAL_RUNNER_DURATION_CONTRACT\"\n  );\n  for (const marker of [\n    'assert.match(candidate, /durationSeconds: 3\\\\.88/);',\n    'assert.match(runner, /\"probe_duration_seconds\": 3\\\\.88/);'\n  ]) {\n    if (!localTests.includes(marker)) {\n      throw new Error(`V142_HUMO_OFFICIAL_TEST_MARKER_MISSING:${marker}`);\n    }\n  }\n  write(LOCAL_VIDEO_TEST, localTests);\n}"
+    "search": "    candidateProbeGeometry: Object.freeze({\n        width: 832,\n        height: 480,\n        fps: 25,\n        frames: 201,\n        durationSeconds: 8.0,\n        orientation: \"landscape\"\n    }),",
+    "replace": "    candidateProbeGeometry: Object.freeze({\n        width: 832,\n        height: 480,\n        fps: 25,\n        frames: 97,\n        durationSeconds: 3.88,\n        orientation: \"landscape\"\n    }),"
   }
 }
