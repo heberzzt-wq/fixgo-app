@@ -1,8 +1,8 @@
 {
-  "jobId": "v142-humo17-core-stage-preflight-20260908-308",
+  "jobId": "v142-humo17-core-stage-physical-20260908-309",
   "operation": "humo17_core_stage",
   "humanApproved": true,
-  "executePaid": false,
+  "executePaid": true,
   "expectedBaseSha": "93088d96fc3d6c36d58d0b5b78834329d1bb7b6d",
   "hardBudgetUsd": 1.5,
   "maximumMinutes": 90
