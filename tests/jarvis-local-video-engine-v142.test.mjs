@@ -180,6 +180,9 @@ test("V142 HuMo17 physical core staging worker is explicit-authority budgeted an
     assert.equal(bridgeSource.includes('dataCenterPriority: \"custom\"'), false);
     assert.equal(bridgeSource.includes('supportPublicIp: true'), false);
     assert.equal(bridgeSource.includes('interruptible: false'), false);
+    assert.equal(bridgeSource.includes('providerMessage: error?.providerMessage || null'), true);
+    assert.equal(workerSource.includes('parsed?.providerMessage'), true);
+    assert.equal(workerSource.includes('parsed.providerMessage'), true);
 });
 
 test("V142 HuMo17 persistent core cache is additive pinned and fail-closed", () => {

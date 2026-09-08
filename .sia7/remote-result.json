@@ -1,9 +1,17 @@
 {
-  "jobId": "v142-humo17-provider-message-worker-20260908-304",
-  "completedAt": "2026-09-08T21:06:27.027Z",
-  "ok": false,
-  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1",
+  "jobId": "v142-humo17-provider-message-contract-20260908-305",
+  "completedAt": "2026-09-08T21:07:01.699Z",
+  "ok": true,
+  "operation": "patch",
+  "dryRun": false,
+  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 422642,
+  "bytesAfter": 422887,
+  "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
-    ".sia7/remote-result.json"
+    ".sia7/remote-result.json",
+    "tests/jarvis-local-video-engine-v142.test.mjs"
   ]
 }
