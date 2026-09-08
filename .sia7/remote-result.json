@@ -1,8 +1,8 @@
 {
-  "jobId": "v142-humo-8s-two-ref-good-voice-paid-20260907-206",
-  "completedAt": "2026-09-08T01:38:03.192Z",
+  "jobId": "v142-humo-windows-git-path-20260907-207",
+  "completedAt": "2026-09-08T01:38:56.770Z",
   "ok": false,
-  "error": "SIA7_HUMO_IDENTITY_PROBE_FAILED:spawnSync git ENOENT",
+  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1",
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
