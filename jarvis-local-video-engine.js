@@ -649,6 +649,107 @@ export function buildHuMo17PersistentCoreStagingPlan({
     };
 }
 
+export function buildHuMo17PersistentCoreStagingBootstrap({
+    plan,
+    operationId = "humo17-core-stage",
+    contract = RUNPOD_HUMO17_CORE_CACHE_BASE
+} = {}) {
+    const id = String(operationId || "").trim();
+    if (!/^[a-zA-Z0-9._-]{3,120}$/.test(id)) {
+        throw new Error("HUMO17_STAGING_OPERATION_ID_INVALID");
+    }
+    if (
+        plan?.ok !== true ||
+        plan?.status !== "HUMO17_PERSISTENT_CORE_STAGING_PLAN_READY" ||
+        plan?.preserveExistingHuMoCache !== true ||
+        plan?.existingCacheMutationAuthorized !== false ||
+        plan?.assetDownloadAuthorized !== false ||
+        String(plan?.cacheMutationPolicy || "") !== contract.cacheMutationPolicy ||
+        String(plan?.networkVolumeId || "").trim().length < 1 ||
+        String(plan?.dataCenterId || "").trim().length < 1
+    ) {
+        throw new Error("HUMO17_PERSISTENT_CORE_STAGING_PLAN_REQUIRED");
+    }
+    if (
+        Number(plan.newPersistentBytes || 0) !== Number(contract.totalBytes || 0) ||
+        Number(plan.combinedPersistentBytes || 0) !== Number(contract.combinedPersistentBytes || 0) ||
+        !Array.isArray(plan.files) || plan.files.length !== contract.requiredFiles.length
+    ) {
+        throw new Error("HUMO17_PERSISTENT_CORE_STAGING_PLAN_MISMATCH");
+    }
+    const contractPayload = Buffer.from(JSON.stringify(contract), "utf8").toString("base64");
+    const legacyRoot = `/workspace/jarvis-v142/cache/${RUNPOD_HUMO_CACHE_BASE.cacheDirectory}`;
+    const coreRoot = `/workspace/jarvis-v142/cache/${contract.cacheDirectory}`;
+    const script = [
+        "#!/usr/bin/env bash",
+        "set -eEuo pipefail",
+        `OPERATION_ID=${shellSingleQuote(id)}`,
+        `NETWORK_VOLUME_ID=${shellSingleQuote(plan.networkVolumeId)}`,
+        `DATA_CENTER_ID=${shellSingleQuote(plan.dataCenterId)}`,
+        `LEGACY_ROOT=${shellSingleQuote(legacyRoot)}`,
+        `CORE_ROOT=${shellSingleQuote(coreRoot)}`,
+        `CONTRACT_B64=${shellSingleQuote(contractPayload)}`,
+        "test \"$LEGACY_ROOT\" != \"$CORE_ROOT\"",
+        "test -f \"$LEGACY_ROOT/model-manifest.json\"",
+        "LEGACY_MANIFEST_SHA_BEFORE=$(sha256sum \"$LEGACY_ROOT/model-manifest.json\" | awk '{print $1}')",
+        "mkdir -p \"$CORE_ROOT\"",
+        "TOOLS_VENV=\"$CORE_ROOT/.cpu-tools-venv\"",
+        "test -x \"$TOOLS_VENV/bin/python\" || python3 -m venv \"$TOOLS_VENV\"",
+        `\"$TOOLS_VENV/bin/python\" -m pip install --disable-pip-version-check --no-input 'huggingface_hub==${RUNPOD_HUMO_CACHE_BASE.downloadTools.huggingfaceHub}' 'hf-xet==${RUNPOD_HUMO_CACHE_BASE.downloadTools.hfXet}'`,
+        "export HF_HOME=\"$CORE_ROOT/.hf-home\" HF_HUB_CACHE=\"$CORE_ROOT/.hf-home/hub\" HF_XET_CACHE=\"$CORE_ROOT/.hf-home/xet\"",
+        "export HF_HUB_DISABLE_TELEMETRY=1 HF_XET_CHUNK_CACHE_SIZE_BYTES=0 HF_XET_SHARD_CACHE_SIZE_LIMIT=0 HF_HUB_DOWNLOAD_TIMEOUT=120",
+        "\"$TOOLS_VENV/bin/python\" - \"$CORE_ROOT\" \"$CONTRACT_B64\" \"$NETWORK_VOLUME_ID\" \"$DATA_CENTER_ID\" \"$OPERATION_ID\" <<'PY'",
+        "import base64,datetime,hashlib,json,os,pathlib,sys,tempfile",
+        "from huggingface_hub import hf_hub_download",
+        "root=pathlib.Path(sys.argv[1]); contract=json.loads(base64.b64decode(sys.argv[2]).decode('utf-8')); volume_id=sys.argv[3]; dc=sys.argv[4]; operation_id=sys.argv[5]",
+        "def digest(file):",
+        "    h=hashlib.sha256()",
+        "    with file.open('rb') as stream:",
+        "        for chunk in iter(lambda:stream.read(8*1024*1024),b''): h.update(chunk)",
+        "    return h.hexdigest()",
+        "def exact(file,item):",
+        "    return file.is_file() and not file.is_symlink() and file.stat().st_size==item['bytes'] and digest(file)==item['sha256']",
+        "for item in contract['requiredFiles']:",
+        "    target=root/item['path']; target.parent.mkdir(parents=True,exist_ok=True)",
+        "    if exact(target,item): continue",
+        "    if target.exists():",
+        "        quarantine=target.with_name(target.name+'.invalid-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%f')); os.replace(target,quarantine)",
+        "    partial=root/'.download'/item['repository'].replace('/','--')/item['revision']",
+        "    downloaded=pathlib.Path(hf_hub_download(repo_id=item['repository'],revision=item['revision'],filename=item['sourcePath'],local_dir=str(partial)))",
+        "    if not exact(downloaded,item): raise RuntimeError('HUMO17_STAGE_DOWNLOAD_INTEGRITY_FAILED:'+item['path'])",
+        "    os.replace(downloaded,target)",
+        "for item in contract['requiredFiles']:",
+        "    if not exact(root/item['path'],item): raise RuntimeError('HUMO17_STAGE_ASSET_INTEGRITY_FAILED:'+item['path'])",
+        "manifest={key:contract[key] for key in ['schemaVersion','profile','runtime','targetGpuTypeId','comfyUiRepository','comfyUiRevision','wrapperRepository','wrapperRevision','modelRepository','modelRevision','existingHuMoCacheProfile','existingHuMoCacheTotalBytes','minimumNetworkVolumeGb','networkVolumeType','totalBytes','combinedPersistentBytes','nominalVolumeBytes','headroomBytes','storagePlan','cacheMutationPolicy']}",
+        "manifest.update({'verifiedAt':datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z'),'cacheStatus':'CACHE_MODEL_READY','networkVolumeId':volume_id,'dataCenterId':dc,'files':contract['requiredFiles'],'assetDownloadAuthorized':True,'physicalStageCertified':True,'existingCachePreserved':True,'operationId':operation_id,'inferenceStarted':False})",
+        "target=root/'model-manifest.json'; fd,tmp=tempfile.mkstemp(prefix='.model-manifest-',dir=root); os.close(fd)",
+        "with open(tmp,'w',encoding='utf-8') as stream: json.dump(manifest,stream,sort_keys=True,separators=(',',':')); stream.write('\\n'); stream.flush(); os.fsync(stream.fileno())",
+        "os.replace(tmp,target); print(json.dumps(manifest,separators=(',',':')))",
+        "PY",
+        "LEGACY_MANIFEST_SHA_AFTER=$(sha256sum \"$LEGACY_ROOT/model-manifest.json\" | awk '{print $1}')",
+        "test \"$LEGACY_MANIFEST_SHA_BEFORE\" = \"$LEGACY_MANIFEST_SHA_AFTER\"",
+        "rm -rf \"$CORE_ROOT/.download\" \"$CORE_ROOT/.hf-home\" \"$TOOLS_VENV\"",
+        "printf 'HUMO17_PERSISTENT_CORE_STAGED_VERIFIED\\n'"
+    ].join("\n") + "\n";
+    return {
+        ok: true,
+        status: "HUMO17_PERSISTENT_CORE_STAGING_BOOTSTRAP_PREPARED",
+        operationId: id,
+        script,
+        sha256: createHash("sha256").update(script).digest("hex"),
+        networkVolumeId: plan.networkVolumeId,
+        dataCenterId: plan.dataCenterId,
+        preserveExistingHuMoCache: true,
+        cacheMutationPolicy: contract.cacheMutationPolicy,
+        resourceCreationPossible: false,
+        providerTrafficUsed: false,
+        assetDownloadAuthorized: false,
+        inferenceStarted: false,
+        externalApiUsed: false,
+        externalEstimatedCostUsd: 0
+    };
+}
+
 export function validateModelCacheManifest(manifest, contract = RUNPOD_HUMO_CACHE_BASE) {
     const identity = ["schemaVersion", "profile", "modelRepository", "modelRevision",
         "sourceRepository", "sourceRevision", "provisionImageTag", "expectedRegistryDigest", "totalBytes"];
