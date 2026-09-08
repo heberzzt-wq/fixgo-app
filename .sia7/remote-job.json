@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-ephemeral-capacity-plan-20260908-269",
+  "jobId": "v142-humo17-storage-plan-truth-20260908-270",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            wrapperAuxiliaryBytes: 13309522014,",
-    "replace": "            wrapperAuxiliaryBytes: 13309522014,\n            persistentCoreHeadroomBytes: 12961681856,\n            ephemeralWorkspaceReserveBytes: 8589934592,\n            minimumEphemeralBytes: 21899456606,"
+    "search": "            storagePlan: \"PERSISTENT_DIFFUSION_PLUS_AUXILIARY_EPHEMERAL_UNCERTIFIED\",",
+    "replace": "            storagePlan: \"PERSISTENT_CORE_PLUS_EPHEMERAL_AUXILIARY_REQUIRED\"," 
   }
 }
