@@ -2205,7 +2205,8 @@ function gitText(args = [], root = DEFAULT_ROOT, {
         if (env && typeof env === "object") {
             options.env = env;
         }
-        const output = execFileSync("git", args, options);
+        const gitExecutable = process.platform === "win32" && fs.existsSync("C:\\Program Files\\Git\\cmd\\git.exe") ? "C:\\Program Files\\Git\\cmd\\git.exe" : "git";
+        const output = execFileSync(gitExecutable, args, options);
         return trim ? output.trim() : output;
     } catch (error) {
         if (allowFailure) return "";
