@@ -1,17 +1,9 @@
 {
-  "jobId": "v142-humo17-staging-bootstrap-tests-20260908-289",
-  "completedAt": "2026-09-08T17:01:10.458Z",
-  "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 418517,
-  "bytesAfter": 420553,
-  "source": "sia7_github_worker_exact_patch_v1",
+  "jobId": "v142-humo17-bridge-health-20260908-290",
+  "completedAt": "2026-09-08T17:25:11.709Z",
+  "ok": false,
+  "error": "fetch failed",
   "committedFiles": [
-    ".sia7/remote-result.json",
-    "tests/jarvis-local-video-engine-v142.test.mjs"
+    ".sia7/remote-result.json"
   ]
 }
