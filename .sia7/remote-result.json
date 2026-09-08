@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-humo17-capacity-required-bytes-20260908-267",
-  "completedAt": "2026-09-08T16:21:14.919Z",
+  "jobId": "v142-humo17-capacity-headroom-20260908-268",
+  "completedAt": "2026-09-08T16:21:49.691Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
@@ -8,7 +8,7 @@
   "matchCount": 1,
   "expectedMatches": 1,
   "bytesBefore": 414406,
-  "bytesAfter": 414406,
+  "bytesAfter": 414407,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
