@@ -7735,7 +7735,14 @@ test("V142 SIA7 HuMo executor is typed, budget-capped, source-pinned and control
     assert.equal(workerSource.includes("durationSeconds: 8.0"), true);
     assert.equal(workerSource.includes("referenceCount: 2"), true);
     assert.equal(workerSource.includes("referenceSha256s: [SIA7_HUMO_REFERENCE_SHA256, SIA7_HUMO_REFERENCE_SHA256_2]"), true);
-    assert.equal(workerSource.includes("SIA7_HUMO_AUDIO_SHA256 = \"294861191281abdcc32a0d8fcef6102832e784d95e73e0e55a75fde7ecfc35ad\""), true);
+    assert.equal(workerSource.includes("SIA7_HUMO_AUDIO_OUTPUT = \".jarvis-artifacts/audio/humo-heberto-minidrama-good-voice-8s.wav\""), true);
+    assert.equal(workerSource.includes("SIA7_HUMO_AUDIO_SHA256 = \"9a075a37c56b6e0cd828a9b2a37a2fe3ee3f01c28cc7483f6a5d97ff96bd2bd5\""), true);
+    assert.equal(workerSource.includes("SIA7_HUMO_MINIDRAMA_SOURCE_SHA256 = \"7fe58e7e4ec425aa556b57263b8a5b3173683e23a13cabc74e50b16f7084301d\""), true);
+    assert.equal(workerSource.includes("SIA7_HUMO_MINIDRAMA_SOURCE_PREFIX = \"mini-drama-1787639542914\""), true);
+    assert.equal(workerSource.includes("SIA7_HUMO_GOOD_VOICE_REFERENCE_READY"), true);
+    assert.equal(workerSource.includes("sampleRateHz: 16000"), true);
+    assert.equal(workerSource.includes("channels: 1"), true);
+    assert.match(workerSource, /operation === "humo_reference_audio_prepare"/);
     assert.match(workerSource, /operation === \"humo_identity_probe\"/);
     assert.match(workerSource, /executePaid !== true/);
     assert.match(workerSource, /SIA7_HUMO_PAID_HUMAN_APPROVAL_REQUIRED/);
