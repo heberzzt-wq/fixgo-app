@@ -2233,7 +2233,8 @@ export function createRunpodRemoteVideoAdapter({
             shot.identityMode === "single_identity" &&
             characterIds.length === 1 &&
             characterIds[0] === humoIdentityProbeCharacterId &&
-            durationSeconds > 0 && durationSeconds <= 8.001
+            durationSeconds > 0 &&
+            durationSeconds <= RUNPOD_HUMO_IDENTITY_CANDIDATE.candidateProbeGeometry.durationSeconds + 0.001
         );
     }
 
