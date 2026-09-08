@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo-official-duration-gate-20260908-233",
+  "jobId": "v142-humo-worker-dryrun-duration-20260908-234",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-local-video-engine.js",
+    "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            durationSeconds > 0 && durationSeconds <= 8.001",
-    "replace": "            durationSeconds > 0 &&\n            durationSeconds <= RUNPOD_HUMO_IDENTITY_CANDIDATE.candidateProbeGeometry.durationSeconds + 0.001"
+    "search": "            characterId: SIA7_HUMO_CHARACTER_ID,\n            durationSeconds: 8.0,\n            referenceCount: 2,",
+    "replace": "            characterId: SIA7_HUMO_CHARACTER_ID,\n            durationSeconds: 3.88,\n            referenceCount: 2,"
   }
 }
