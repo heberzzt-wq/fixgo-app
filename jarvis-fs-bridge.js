@@ -8649,7 +8649,7 @@ export async function runHuMoIdentityProbeCli({
         throw new Error("RUNPOD_HUMO_IDENTITY_PROBE_BUDGET_INVALID");
     }
     const durationSeconds = Number(String(env.JARVIS_HUMO_IDENTITY_PROBE_DURATION_SECONDS || "3.88").trim());
-    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 8.0) {
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 3.88) {
         throw new Error("RUNPOD_HUMO_IDENTITY_PROBE_DURATION_INVALID");
     }
     const startSeconds = Number(String(env.JARVIS_HUMO_IDENTITY_PROBE_AUDIO_START_SECONDS || "0").trim());

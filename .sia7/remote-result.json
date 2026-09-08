@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo-bridge-duration-default-20260907-228",
-  "completedAt": "2026-09-08T04:10:15.823Z",
+  "jobId": "v142-humo-bridge-duration-max-20260907-229",
+  "completedAt": "2026-09-08T04:10:45.838Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 365699,
-  "bytesAfter": 365702,
+  "bytesBefore": 365702,
+  "bytesAfter": 365703,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
