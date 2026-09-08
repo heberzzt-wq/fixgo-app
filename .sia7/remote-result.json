@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo17-fp8-contract-test-import-20260908-248",
-  "completedAt": "2026-09-08T14:53:07.004Z",
+  "jobId": "v142-humo17-fp8-contract-test-20260908-249",
+  "completedAt": "2026-09-08T14:54:07.426Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "tests/jarvis-local-video-engine-v142.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 407616,
-  "bytesAfter": 407655,
+  "bytesBefore": 407655,
+  "bytesAfter": 409725,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

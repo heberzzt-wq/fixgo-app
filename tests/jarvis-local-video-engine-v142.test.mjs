@@ -54,6 +54,36 @@ for (const [label, mutate] of [
     assert.equal(validateModelCacheManifest(manifest), false);
 });
 
+test("V142 HuMo17 single-L40S candidate pins FP8 block-swap authority and remains fail-closed", () => {
+    const candidate = buildNextIdentityRuntimeCandidate({ backend: "humo17" });
+    const strategy = candidate.singleGpuStrategy;
+    assert.equal(candidate.model, "HuMo-17B");
+    assert.equal(candidate.targetGpuTypeId, "NVIDIA L40S");
+    assert.equal(candidate.modelRevision, "cb20be4504cb725caad4076be7a11fd295866462");
+    assert.equal(strategy.runtime, "comfyui-wanvideowrapper");
+    assert.equal(strategy.comfyUiRevision, "efa6c8f804bff78b46a0fd458ebd2e47bba07a30");
+    assert.equal(strategy.wrapperRevision, "088128b224242e110d3906c6750e9a3a348a659b");
+    assert.equal(strategy.quantizedModel.revision, "0d987e66e7debb098970adb907d99c07c5aa2ac9");
+    assert.equal(strategy.quantizedModel.path, "HuMo/Wan2_1-HuMo-14B_fp8_e4m3fn_scaled_KJ.safetensors");
+    assert.equal(strategy.quantizedModel.bytes, 17892294098);
+    assert.equal(strategy.quantizedModel.sha256, "a67ed82a7c008892f9192cdc5b23bbfe2e2a8e2f87d0b5b8dfb0226fafec022d");
+    assert.equal(strategy.modelLoaderBasePrecision, "fp16_fast");
+    assert.equal(strategy.modelLoaderDevice, "offload_device");
+    assert.equal(strategy.attentionMode, "sageattn");
+    assert.deepEqual(strategy.blockSwapWorkflowWidgetValues, [20, false, false, true, 0, 1, false]);
+    assert.equal(strategy.existingHuMoCacheBytes, RUNPOD_HUMO_CACHE_BASE.totalBytes);
+    assert.equal(strategy.plannedPersistentBytes, RUNPOD_HUMO_CACHE_BASE.totalBytes + strategy.quantizedModel.bytes);
+    assert.equal(strategy.plannedPersistentBytes < 50 * 1024 ** 3, true);
+    assert.equal(strategy.physicalFitCertified, false);
+    assert.equal(strategy.qualityCertified, false);
+    assert.equal(strategy.resourceCreationPossible, false);
+    assert.equal(strategy.inferenceStarted, false);
+    assert.equal(candidate.runtimeAssetAuthorityPinned, false);
+    assert.equal(candidate.singleL40sRuntimeCertified, false);
+    assert.equal(candidate.paidExecutionAuthorized, false);
+    assert.equal(candidate.executable, false);
+});
+
 test("V142 HuMo runner binds inference to the certified lifecycle venv", () => {
     const runner = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");
     assert.equal(runner.includes("/opt/jarvis-v142/humo-venv/bin/python"), true);
