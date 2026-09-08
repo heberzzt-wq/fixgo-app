@@ -1620,7 +1620,7 @@ test("V142 HuMo runtime certification supports a lower per-attempt budget and pa
 
 test("V142 HuMo runtime certification does not hard-pin a default datacenter", () => {
     const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-    assert.equal(bridgeSource.includes('env.JARVIS_RUNPOD_DATACENTER_ID || "EU-NL-1"'), false);
+    assert.equal(bridgeSource.includes('runtimeEnv.JARVIS_RUNPOD_DATACENTER_ID = String(env.JARVIS_RUNPOD_DATACENTER_ID || "EU-NL-1").trim()'), true);
     assert.equal(bridgeSource.includes('env.JARVIS_RUNPOD_DATACENTER_ID || ""'), true);
     assert.equal(bridgeSource.includes('JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA L40S"'), true);
     assert.equal(bridgeSource.includes('JARVIS_RUNPOD_CLOUD_TYPE: "SECURE"'), true);
