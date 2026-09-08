@@ -183,7 +183,7 @@ async function publishRemoteResult(result = {}) {
 
     if (!commitResult.ok) {
         const output = `${commitResult.stdout}\n${commitResult.stderr}`.toLowerCase();
-        if (!output.includes("nothing to commit")) {
+        if (!output.includes("nothing to commit") && !output.includes("nothing added to commit")) {
             throw new Error(
                 `RESULT_GIT_COMMIT_FAILED: ${commitResult.stderr || commitResult.error || "unknown"}`
             );
