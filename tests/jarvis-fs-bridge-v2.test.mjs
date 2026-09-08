@@ -1625,3 +1625,34 @@ test("V142 HuMo runtime certification does not hard-pin a default datacenter", (
     assert.equal(bridgeSource.includes('JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA L40S"'), true);
     assert.equal(bridgeSource.includes('JARVIS_RUNPOD_CLOUD_TYPE: "SECURE"'), true);
 });
+
+
+test("SIA7 retries synchronization before execution without consuming the job", async () => {
+    const { createWorkerPoller } = await import("../jarvis-github-worker.js");
+    let syncs = 0, executions = 0, publications = 0;
+    const poll = createWorkerPoller({
+        readJob: async () => ({jobId: "retry-control"}), readResultId: async () => "",
+        sync: async () => { if (++syncs === 1) throw new Error("network offline"); },
+        execute: async () => { executions++; return {ok: true}; },
+        publish: async () => { publications++; }, persist: () => {}, readLocalResult: () => null,
+        log: () => {}, reportError: () => {}
+    });
+    await poll(); assert.equal(executions, 0); assert.equal(publications, 0);
+    await poll(); await poll(); assert.equal(executions, 1); assert.equal(publications, 1);
+});
+
+test("SIA7 publication retry and restart never replay an executed paid operation", async () => {
+    const { createWorkerPoller } = await import("../jarvis-github-worker.js");
+    let executions = 0, publications = 0, local = null;
+    const deps = {
+        readJob: async () => ({jobId: "paid-once"}), readResultId: async () => "",
+        sync: async () => {}, execute: async () => { executions++; return {ok: true, podId: "fixture"}; },
+        publish: async () => { if (++publications === 1) throw new Error("push failed"); },
+        persist: value => { local = value; }, readLocalResult: () => local,
+        log: () => {}, reportError: () => {}
+    };
+    const poll = createWorkerPoller(deps);
+    await poll(); await poll(); assert.equal(executions, 1); assert.equal(publications, 2);
+    const restarted = createWorkerPoller(deps);
+    await restarted(); await restarted(); assert.equal(executions, 1); assert.equal(publications, 3);
+});

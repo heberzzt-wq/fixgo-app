@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 const BRIDGE_URL = process.env.JARVIS_FS_BRIDGE_URL || "http://localhost:3344";
 const REMOTE = process.env.SIA7_REMOTE || "origin";
@@ -27,14 +28,13 @@ const WINDOWS_GIT = "C:\\Program Files\\Git\\cmd\\git.exe";
 const GIT_EXECUTABLE = String(process.env.SIA7_GIT || "").trim() ||
     (process.platform === "win32" && fs.existsSync(WINDOWS_GIT) ? WINDOWS_GIT : "git");
 
-let lastJobId = "";
-let polling = false;
-
 function runGit(args = []) {
     return new Promise(resolve => {
         const child = spawn(GIT_EXECUTABLE, args, {
             cwd: REPO_ROOT,
             shell: false,
+            windowsHide: true,
+            timeout: 45000,
             stdio: ["ignore", "pipe", "pipe"],
             env: { ...process.env, GIT_TERMINAL_PROMPT: "0" }
         });
@@ -43,11 +43,11 @@ function runGit(args = []) {
         let stderr = "";
 
         child.stdout.on("data", chunk => {
-            stdout += chunk.toString();
+            stdout = (stdout + chunk.toString()).slice(-2 * 1024 * 1024);
         });
 
         child.stderr.on("data", chunk => {
-            stderr += chunk.toString();
+            stderr = (stderr + chunk.toString()).slice(-2 * 1024 * 1024);
         });
 
         child.on("error", error => {
@@ -811,78 +811,86 @@ async function executeJob(job = {}) {
     return await executeBridgeJob(job);
 }
 
-async function pollOnce() {
-    if (polling) return;
-    polling = true;
-
-    let currentJob = null;
-
-    try {
-        currentJob = await readRemoteJob();
-        const remoteResultJobId = await readRemoteResultJobId();
-
-        if (!currentJob?.jobId || currentJob.jobId === lastJobId || currentJob.jobId === remoteResultJobId) {
-            return;
-        }
-
-        lastJobId = currentJob.jobId;
-
-        console.log(
-            "[SIA7_REMOTE_JOB_RECEIVED]",
-            JSON.stringify({
-                jobId: currentJob.jobId,
-                operation: currentJob.operation || "bridge",
-                endpoint: currentJob.endpoint || null
-            })
-        );
-
-        await syncLocalBranch();
-
-        const executionResult = await executeJob(currentJob);
-        const result = {
-            jobId: currentJob.jobId,
-            completedAt: new Date().toISOString(),
-            ...executionResult
-        };
-
-        console.log("[SIA7_REMOTE_JOB_RESULT]", JSON.stringify(result));
-        await publishRemoteResult(result);
-
-        console.log(
-            "[SIA7_REMOTE_RESULT_PUBLISHED]",
-            JSON.stringify({ jobId: currentJob.jobId, path: RESULT_PATH })
-        );
-    }
-    catch(error) {
-        const failure = {
-            jobId: currentJob?.jobId || null,
-            completedAt: new Date().toISOString(),
-            ok: false,
-            error: error.message
-        };
-
-        console.error("[SIA7_REMOTE_WORKER_ERROR]", error.message);
-
-        if (currentJob?.jobId) {
-            try {
-                await publishRemoteResult(failure);
-            }
-            catch(publishError) {
-                console.error(
-                    "[SIA7_REMOTE_RESULT_PUBLISH_ERROR]",
-                    publishError.message
-                );
-            }
-        }
-    }
-    finally {
-        polling = false;
-    }
+function persistWorkerResult(result) {
+    const file = path.resolve(REPO_ROOT, RESULT_PATH);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const temporary = file + ".pending";
+    fs.writeFileSync(temporary, JSON.stringify(result, null, 2) + "\n");
+    fs.renameSync(temporary, file);
 }
 
-console.log(
-    `[SIA7_GITHUB_WORKER] online branch=${BRANCH} bridge=${BRIDGE_URL}`
-);
+function readLocalWorkerResult() {
+    const file = path.resolve(REPO_ROOT, RESULT_PATH);
+    if (!fs.existsSync(file)) return null;
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+}
 
-await pollOnce();
-setInterval(pollOnce, POLL_MS);
+export function createWorkerPoller({
+    readJob = readRemoteJob,
+    readResultId = readRemoteResultJobId,
+    sync = syncLocalBranch,
+    execute = executeJob,
+    publish = publishRemoteResult,
+    persist = persistWorkerResult,
+    readLocalResult = readLocalWorkerResult,
+    log = (...args) => console.log(...args),
+    reportError = (...args) => console.error(...args)
+} = {}) {
+    let lastJobId = "";
+    let polling = false;
+    let pendingResult = null;
+    return async function pollOnce() {
+        if (polling) return;
+        polling = true;
+        let currentJob = null;
+        try {
+            // A failed publication must never replay an operation (especially a paid one).
+            if (pendingResult) {
+                await sync();
+                await publish(pendingResult);
+                log("[SIA7_REMOTE_RESULT_PUBLISHED]", JSON.stringify({jobId: pendingResult.jobId, path: RESULT_PATH}));
+                pendingResult = null;
+                return;
+            }
+            currentJob = await readJob();
+            const remoteResultJobId = await readResultId();
+            if (!currentJob?.jobId || currentJob.jobId === lastJobId || currentJob.jobId === remoteResultJobId) return;
+            log("[SIA7_REMOTE_JOB_RECEIVED]", JSON.stringify({jobId: currentJob.jobId, operation: currentJob.operation || "bridge"}));
+            // Transport failure before execution leaves the job eligible for the next poll.
+            await sync();
+            const local = readLocalResult();
+            if (local?.jobId === currentJob.jobId && local.executionStarted === true) {
+                lastJobId = currentJob.jobId;
+                pendingResult = local;
+                return;
+            }
+            persist({jobId: currentJob.jobId, executionStarted: true, ok: false,
+                error: "WORKER_EXECUTION_INTERRUPTED_RECONCILIATION_REQUIRED"});
+            lastJobId = currentJob.jobId;
+            try {
+                pendingResult = {jobId: currentJob.jobId, completedAt: new Date().toISOString(), executionStarted: true, ...await execute(currentJob)};
+            }
+            catch (error) {
+                pendingResult = {jobId: currentJob.jobId, completedAt: new Date().toISOString(), executionStarted: true, ok: false, error: error.message};
+            }
+            persist(pendingResult);
+            log("[SIA7_REMOTE_JOB_RESULT]", JSON.stringify(pendingResult));
+            await publish(pendingResult);
+            log("[SIA7_REMOTE_RESULT_PUBLISHED]", JSON.stringify({jobId: currentJob.jobId, path: RESULT_PATH}));
+            pendingResult = null;
+        }
+        catch (error) {
+            reportError("[SIA7_REMOTE_WORKER_ERROR]", error.message);
+        }
+        finally {
+            polling = false;
+        }
+    };
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+    console.log(`[SIA7_GITHUB_WORKER] online branch=${BRANCH} bridge=${BRIDGE_URL}`);
+    const pollOnce = createWorkerPoller();
+    await pollOnce();
+    setInterval(pollOnce, POLL_MS);
+}
