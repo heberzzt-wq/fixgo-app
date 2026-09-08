@@ -1,12 +1,10 @@
 {
-  "jobId": "v142-humo-gittext-windows-path-20260907-221",
-  "operation": "patch",
+  "jobId": "v142-humo-8s-two-ref-good-voice-paid-20260907-222",
+  "operation": "humo_identity_probe",
   "humanApproved": true,
-  "patch": {
-    "file": "jarvis-fs-bridge.js",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "        const output = execFileSync(\"git\", args, options);",
-    "replace": "        const gitExecutable = process.platform === \"win32\" && fs.existsSync(\"C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe\") ? \"C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe\" : \"git\";\n        const output = execFileSync(gitExecutable, args, options);"
-  }
+  "executePaid": true,
+  "fullEpisodeAuthorized": false,
+  "expectedBaseSha": "172931f6ff92adb435e62c4f9f50be0c7221af7c",
+  "hardBudgetUsd": 3,
+  "monthlyStorageAuthorizedUsd": 3.5
 }
