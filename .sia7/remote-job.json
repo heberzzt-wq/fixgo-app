@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-l40s-safe-precision-20260908-254",
+  "jobId": "v142-humo17-compatible-comfy-pin-20260908-255",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            modelLoaderBasePrecision: \"fp16_fast\",\n            modelLoaderDevice: \"offload_device\",\n            attentionMode: \"sageattn\",",
-    "replace": "            modelLoaderBasePrecision: \"fp16\",\n            modelLoaderDevice: \"offload_device\",\n            attentionMode: \"sdpa\"," 
+    "search": "            comfyUiRevision: \"efa6c8f804bff78b46a0fd458ebd2e47bba07a30\",",
+    "replace": "            comfyUiRevision: \"b30e980a206607d1a9d56b7a6f7df3999d68438a\"," 
   }
 }
