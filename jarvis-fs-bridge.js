@@ -9521,6 +9521,7 @@ if (
                 console.error(JSON.stringify({
                     ok: false,
                     status: error?.message || "HUMO17_PERSISTENT_CORE_STAGE_FAILED",
+                    providerMessage: error?.providerMessage || null,
                     podId: error?.podId || null,
                     inferenceStarted: false
                 }));
