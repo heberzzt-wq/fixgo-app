@@ -189,6 +189,62 @@ test("V142 HuMo17 persistent core cache is additive pinned and fail-closed", () 
     assert.equal(validateHuMo17CoreCacheManifest(mutatedPolicy), false);
 });
 
+test("V142 HuMo17 persistent core staging plan preserves legacy cache and never authorizes spend", () => {
+    const evidence = {
+        cacheStatus: "CACHE_MODEL_READY",
+        shaVerified: true,
+        totalBytes: RUNPOD_HUMO_CACHE_BASE.totalBytes,
+        networkVolumeId: "humo-volume",
+        dataCenterId: "EU-NL-1"
+    };
+    const plan = buildHuMo17PersistentCoreStagingPlan({
+        networkVolumeId: "humo-volume",
+        dataCenterId: "EU-NL-1",
+        networkVolumeSizeGb: 50,
+        networkVolumeType: "STANDARD",
+        existingCacheEvidence: evidence
+    });
+    assert.equal(plan.ok, true);
+    assert.equal(plan.status, "HUMO17_PERSISTENT_CORE_STAGING_PLAN_READY");
+    assert.equal(plan.cacheMode, "ADD_ONLY_PERSISTENT_CORE");
+    assert.equal(plan.preserveExistingHuMoCache, true);
+    assert.equal(plan.existingHuMoCacheBytes, RUNPOD_HUMO_CACHE_BASE.totalBytes);
+    assert.equal(plan.newPersistentBytes, 18630299842);
+    assert.equal(plan.combinedPersistentBytes, 40725409344);
+    assert.equal(plan.headroomBytes, 12961681856);
+    assert.equal(plan.files.length, 2);
+    assert.match(plan.files[0].destination, /humo17-fp8-core\/weights\/HuMo\/Wan2_1-HuMo-14B_fp8_e4m3fn_scaled_KJ\.safetensors$/);
+    assert.match(plan.files[1].destination, /humo17-fp8-core\/loras\/Lightx2v\/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16\.safetensors$/);
+    assert.equal(plan.cacheMutationPolicy, "ADD_ONLY_PRESERVE_EXISTING_HUMO_CACHE");
+    assert.equal(plan.existingCacheMutationAuthorized, false);
+    assert.equal(plan.resourceCreationPossible, false);
+    assert.equal(plan.providerTrafficUsed, false);
+    assert.equal(plan.assetDownloadAuthorized, false);
+    assert.equal(plan.inferenceStarted, false);
+    assert.equal(plan.externalApiUsed, false);
+    assert.equal(plan.externalEstimatedCostUsd, 0);
+
+    const wrongCache = buildHuMo17PersistentCoreStagingPlan({
+        networkVolumeId: "humo-volume", dataCenterId: "EU-NL-1", networkVolumeSizeGb: 50, networkVolumeType: "STANDARD",
+        existingCacheEvidence: { ...evidence, shaVerified: false }
+    });
+    assert.equal(wrongCache.ok, false);
+    assert.equal(wrongCache.status, "HUMO17_EXISTING_HUMO_CACHE_EVIDENCE_REQUIRED");
+    assert.equal(wrongCache.resourceCreationPossible, false);
+
+    const wrongType = buildHuMo17PersistentCoreStagingPlan({
+        networkVolumeId: "humo-volume", dataCenterId: "EU-NL-1", networkVolumeSizeGb: 50, networkVolumeType: "NVME", existingCacheEvidence: evidence
+    });
+    assert.equal(wrongType.ok, false);
+    assert.equal(wrongType.status, "HUMO17_NETWORK_VOLUME_TYPE_MISMATCH");
+
+    const tooSmall = buildHuMo17PersistentCoreStagingPlan({
+        networkVolumeId: "humo-volume", dataCenterId: "EU-NL-1", networkVolumeSizeGb: 30, networkVolumeType: "STANDARD", existingCacheEvidence: evidence
+    });
+    assert.equal(tooSmall.ok, false);
+    assert.equal(tooSmall.status, "HUMO17_NETWORK_VOLUME_CAPACITY_INSUFFICIENT");
+});
+
 test("V142 HuMo runner binds inference to the certified lifecycle venv", () => {
     const runner = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");
     assert.equal(runner.includes("/opt/jarvis-v142/humo-venv/bin/python"), true);

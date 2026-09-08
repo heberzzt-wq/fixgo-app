@@ -1,14 +1,14 @@
 {
-  "jobId": "v142-humo17-staging-plan-test-import-20260908-283",
-  "completedAt": "2026-09-08T16:54:33.338Z",
+  "jobId": "v142-humo17-staging-plan-tests-20260908-284",
+  "completedAt": "2026-09-08T16:55:23.483Z",
   "ok": true,
   "operation": "patch",
   "dryRun": false,
   "file": "tests/jarvis-local-video-engine-v142.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 415431,
-  "bytesAfter": 415473,
+  "bytesBefore": 415473,
+  "bytesAfter": 418433,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
