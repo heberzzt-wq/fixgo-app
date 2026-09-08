@@ -7735,6 +7735,9 @@ test("V142 SIA7 HuMo executor is typed, budget-capped, source-pinned and control
     assert.equal(workerSource.includes("durationSeconds: 8.0"), true);
     assert.equal(workerSource.includes("referenceCount: 2"), true);
     assert.equal(workerSource.includes("referenceSha256s: [SIA7_HUMO_REFERENCE_SHA256, SIA7_HUMO_REFERENCE_SHA256_2]"), true);
+    assert.equal(workerSource.split("referenceCount: 2").length - 1, 2);
+    assert.equal(workerSource.split("referenceSha256s: [SIA7_HUMO_REFERENCE_SHA256, SIA7_HUMO_REFERENCE_SHA256_2]").length - 1, 2);
+    assert.equal(workerSource.split("audioSha256: SIA7_HUMO_AUDIO_SHA256").length - 1, 2);
     assert.equal(workerSource.includes("SIA7_HUMO_AUDIO_OUTPUT = \".jarvis-artifacts/audio/humo-heberto-minidrama-good-voice-8s.wav\""), true);
     assert.equal(workerSource.includes("SIA7_HUMO_AUDIO_SHA256 = \"9a075a37c56b6e0cd828a9b2a37a2fe3ee3f01c28cc7483f6a5d97ff96bd2bd5\""), true);
     assert.equal(workerSource.includes("SIA7_HUMO_MINIDRAMA_SOURCE_SHA256 = \"7fe58e7e4ec425aa556b57263b8a5b3173683e23a13cabc74e50b16f7084301d\""), true);
