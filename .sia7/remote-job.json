@@ -1,12 +1,9 @@
 {
-  "jobId": "v142-humo17-cleanup-contract-20260908-312",
-  "operation": "patch",
+  "jobId": "v142-humo17-core-stage-preflight-20260908-313",
+  "operation": "humo17_core_stage",
   "humanApproved": true,
-  "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "    assert.equal(bridgeSource.includes('HUMO17_PERSISTENT_CORE_STAGE_FAILED\\\"}:${providerMessage}'), true);\n    assert.equal(workerSource.includes('parsed?.status || lines.slice(-8).join'), true);",
-    "replace": "    assert.equal(bridgeSource.includes('HUMO17_PERSISTENT_CORE_STAGE_FAILED\\\"}:${providerMessage}'), true);\n    assert.equal(workerSource.includes('parsed?.status || lines.slice(-8).join'), true);\n    assert.equal(bridgeSource.includes('const verifyPodDeleted = async idValue =>'), true);\n    assert.equal(bridgeSource.includes('const listedPods = await provider(\\\"GET\\\", \\\"/pods\\\", null, [200])'), true);\n    assert.equal(bridgeSource.includes('startsWith(\\\"jarvis-v142-humo17-core-\\\")'), true);\n    assert.equal(bridgeSource.includes('RUNPOD_HUMO17_STALE_POD_DELETE_NOT_VERIFIED'), true);\n    assert.equal(bridgeSource.includes('const observed = await provider(\\\"GET\\\", `/pods/${encodeURIComponent(podId)}`, null, [200]);'), true);\n    assert.equal(bridgeSource.includes('const observed = await provider(\\\"GET\\\", `/pods/${encodeURIComponent(podId)}`, null, [200, 404]);'), false);"
-  }
+  "executePaid": false,
+  "expectedBaseSha": "0d60e9eb5628964fe36853fd8c178149a75c3bfa",
+  "hardBudgetUsd": 1.5,
+  "maximumMinutes": 90
 }
