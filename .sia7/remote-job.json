@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-bridge-candidate-import-20260908-260",
+  "jobId": "v142-humo17-bridge-candidate-import-20260908-261",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "import {\n    buildHuMoIdentityRuntimeAuthority,\n    RUNPOD_HUMO_CACHE_BASE,\n    createLocalVideoEngine,",
-    "replace": "import {\n    buildHuMoIdentityRuntimeAuthority,\n    buildNextIdentityRuntimeCandidate,\n    RUNPOD_HUMO_CACHE_BASE,\n    createLocalVideoEngine,"
+    "search": "    buildHuMoIdentityRuntimeAuthority,",
+    "replace": "    buildHuMoIdentityRuntimeAuthority,\n    buildNextIdentityRuntimeCandidate,"
   }
 }
