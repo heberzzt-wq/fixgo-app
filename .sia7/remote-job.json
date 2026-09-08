@@ -1,9 +1,12 @@
 {
-  "jobId": "v142-humo17-core-stage-physical-20260908-300",
-  "operation": "humo17_core_stage",
+  "jobId": "v142-humo17-cpu-pod-payload-fix-20260908-301",
+  "operation": "patch",
   "humanApproved": true,
-  "executePaid": true,
-  "expectedBaseSha": "aad591dfabbd71ad97c62b101c830a72940f32bc",
-  "hardBudgetUsd": 1.5,
-  "maximumMinutes": 90
+  "patch": {
+    "file": "jarvis-fs-bridge.js",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "    const createBody = {\n        name: podName,\n        imageName: \"ubuntu:22.04\",\n        computeType: \"CPU\",\n        cloudType: \"SECURE\",\n        cpuFlavorIds: [\"cpu3c\"],\n        cpuFlavorPriority: \"custom\",\n        dataCenterIds: [volume.dataCenterId],\n        dataCenterPriority: \"custom\",\n        vcpuCount: 2,\n        containerDiskInGb: 20,\n        volumeInGb: 0,\n        volumeMountPath: \"/workspace\",\n        networkVolumeId: volume.id,\n        ports: [\"22/tcp\"],\n        supportPublicIp: true,\n        interruptible: false,\n        dockerEntrypoint: [\"bash\", \"-lc\"],\n        dockerStartCmd: [startupScript],\n        env: { PUBLIC_KEY: publicKey }\n    };",
+    "replace": "    const createBody = {\n        name: podName,\n        imageName: \"ubuntu:22.04\",\n        computeType: \"CPU\",\n        cloudType: \"SECURE\",\n        dataCenterIds: [volume.dataCenterId],\n        containerDiskInGb: 20,\n        volumeMountPath: \"/workspace\",\n        networkVolumeId: volume.id,\n        ports: [\"22/tcp\"],\n        dockerEntrypoint: [\"bash\", \"-lc\"],\n        dockerStartCmd: [startupScript],\n        env: { PUBLIC_KEY: publicKey }\n    };"
+  }
 }
