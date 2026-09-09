@@ -8745,7 +8745,7 @@ export async function reconcileHuMo17PaidReceipts({root=DEFAULT_ROOT,provider,wa
         if(!absent) absent=await releaseHuMo17Pod({podId:value.podId,provider,wait});
         if(!absent) throw new Error("HUMO17_RECOVERY_TERMINATION_UNVERIFIED");
         const receipt={...value,terminationVerified:true,reconciledAt:new Date().toISOString(),reconciliationStatus:"PROVIDER_ABSENCE_VERIFIED"};
-        persistHuMo17PaidReceipt(file.replace(/\.pending$/,""),receipt);if(file.endsWith(".pending"))fs.unlinkSync(file);recovered.push(receipt);
+        persistHuMo17PaidReceipt(file.replace(/\.pending$/,""),receipt);recovered.push(receipt);
     }
     return recovered;
 }
