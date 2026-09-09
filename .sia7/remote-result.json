@@ -1,18 +1,10 @@
 {
-  "jobId": "v142-humo17-quality-source-root-dedupe-20260908-331",
-  "completedAt": "2026-09-09T03:21:13.844Z",
+  "jobId": "v142-humo17-quality-preflight-201f-20260908-332",
+  "completedAt": "2026-09-09T03:25:52.488Z",
   "executionStarted": true,
-  "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "jarvis-fs-bridge.js",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 427633,
-  "bytesAfter": 427416,
-  "source": "sia7_github_worker_exact_patch_v1",
+  "ok": false,
+  "error": "SIA7_HUMO17_CORE_STAGE_FAILED:^ | Error: HUMO17_QUALITY_LOCAL_ROOT_INVALID | at resolveHuMo17QualityControlPlane (file:///C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker/jarvis-fs-bridge.js:9425:133) | at file:///C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker/jarvis-fs-bridge.js:9898:32 | at ModuleJob.run (node:internal/modules/esm/module_job:439:25) | at async node:internal/modules/esm/loader:643:26 | at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) | Node.js v24.19.0",
   "committedFiles": [
-    ".sia7/remote-result.json",
-    "jarvis-fs-bridge.js"
+    ".sia7/remote-result.json"
   ]
 }
