@@ -1676,8 +1676,8 @@ test("HuMo17 probe is single L40S, pinned, hash-bound, budgeted and distinct fro
     assert.throws(() => buildHuMo17RuntimeProbeJob({...options, assets: {...assets, output: "outside.mp4"}}), /OUTPUT/);
     const shell = buildHuMo17RuntimeBootstrap(job);
     assert.match(shell, /CORE_NOT_CERTIFIED/); assert.match(shell, /ASSET_SHA256/);
-    assert.match(shell, /export PATH=\/opt\/conda\/bin:\$PATH/);
-    assert.match(shell, /HUMO17_PINNED_PYTHON_MISSING/);
+    assert.match(shell, /venv --system-site-packages/);
+    assert.match(shell, /torch.__version__/);
     assert.match(shell, /--force-reinstall --no-deps ninja==1\.11\.1\.3/);
     assert.match(shell, /transformers==4\.51\.3/);
     assert.ok(shell.indexOf("HUMO17_REQUIRED_NODES_MISSING") < shell.indexOf("urlopen"));

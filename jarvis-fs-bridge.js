@@ -70,6 +70,7 @@ import {
     buildHuMo17PersistentCoreStagingBootstrap,
     RUNPOD_HUMO_CACHE_BASE,
     RUNPOD_HUMO17_CORE_CACHE_BASE,
+    RUNPOD_WAN22_GPU_PROFILES,
     validateHuMo17CoreCacheManifest,
     createLocalVideoEngine,
     createRunpodRemoteVideoAdapter,
@@ -8774,9 +8775,9 @@ export function buildHuMo17RuntimeBootstrap(job) {
     ].join("\n");
     return [
         "set -euo pipefail", "cd /tmp/jarvis-humo17",
-        "export PATH=/opt/conda/bin:$PATH",
-        "test -x /opt/conda/bin/python || { echo HUMO17_PINNED_PYTHON_MISSING >&2; exit 1; }",
-        "python -c 'import torch; assert torch.cuda.is_available(), \"HUMO17_CUDA_UNAVAILABLE\"'",
+        "python3 -m venv --system-site-packages /tmp/jarvis-humo17/venv",
+        "export PATH=/tmp/jarvis-humo17/venv/bin:$PATH",
+        "python -c 'import torch; assert torch.__version__.startswith(\"2.8.\"), torch.__version__; assert torch.cuda.is_available(), \"HUMO17_CUDA_UNAVAILABLE\"'",
         `git init -q ComfyUI && git -C ComfyUI fetch -q --depth 1 https://github.com/${s.comfyUiRepository}.git ${q(s.comfyUiRevision)} && git -C ComfyUI checkout -q --detach FETCH_HEAD`,
         `git init -q ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper && git -C ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper fetch -q --depth 1 https://github.com/${s.wrapperRepository}.git ${q(s.wrapperRevision)} && git -C ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper checkout -q --detach FETCH_HEAD`,
         "python -m pip install --disable-pip-version-check --force-reinstall --no-deps ninja==1.11.1.3",
@@ -9049,7 +9050,7 @@ export async function runHuMo17PersistentCoreStagingCli({
     ].join("\n");
     const createBody = {
         name: podName,
-        imageName: runtimeProbeAuthorized ? RUNPOD_HUMO_CACHE_BASE.provisionImageTag : "ubuntu:22.04",
+        imageName: runtimeProbeAuthorized ? `${RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].provisionImageTag}@${RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].expectedRegistryDigest}` : "ubuntu:22.04",
         computeType: runtimeProbeAuthorized ? "GPU" : "CPU",
         ...(runtimeProbeAuthorized ? {gpuTypeIds: ["NVIDIA L40S"], gpuCount: 1, minRAMPerGPU: 62, minVCPUPerGPU: 16} : {}),
         cloudType: "SECURE",
