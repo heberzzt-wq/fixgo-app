@@ -1,12 +1,36 @@
 {
-  "jobId": "v142-humo17-test-quality-prompt-parity-20260909-353",
-  "operation": "patch",
+  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-preflight-20260909-354",
+  "operation": "humo17_core_stage",
   "humanApproved": true,
-  "patch": {
-    "file": "tests/jarvis-fs-bridge-v2.test.mjs",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "    assert.match(job.negativePrompt,/smooth plastic skin/);assert.equal(job.strategy.compileEnabled,false);",
-    "replace": "    const physicalJob=buildHuMo17RuntimeProbeJob({assets:{qualityProbe:false,reference:assets.reference,audio:assets.audio,output:\".jarvis-artifacts/videos/physical.mp4\"},hardBudgetUsd:0.95,paidAuthorized:true});\n    assert.equal(job.prompt,physicalJob.prompt);assert.equal(job.negativePrompt,physicalJob.negativePrompt);\n    assert.match(job.negativePrompt,/identity change/);assert.doesNotMatch(job.negativePrompt,/smooth plastic skin/);\n    assert.equal(job.effectiveRuntimeConfig.seed,42);assert.equal(job.effectiveRuntimeConfig.steps,8);assert.equal(job.effectiveRuntimeConfig.scheduler,\"lcm\");\n    assert.equal(job.effectiveRuntimeConfig.referencePreprocessing.preserveAspectRatio,true);\n    assert.equal(job.effectiveRuntimeConfig.prompt,job.prompt);assert.equal(job.effectiveRuntimeConfig.negativePrompt,job.negativePrompt);\n    assert.equal(job.strategy.compileEnabled,false);"
-  }
+  "executePaid": true,
+  "qualityProbe": true,
+  "qualityPreflightOnly": true,
+  "fullEpisodeAuthorized": false,
+  "expectedBaseSha": "7813ddf9c04bc5774ad2b01875e245f512f2ab2d",
+  "certifiedCodeSha": "f0ce80bf9f9b7b77d649c21c904f19e9f93c841f",
+  "ciRun": 34388686064,
+  "hardBudgetUsd": 0.95,
+  "providerBudgetSafetyRatio": 0.75,
+  "maximumMinutes": 90,
+  "backend": "humo-17b-identity",
+  "gpu": "NVIDIA L40S",
+  "gpuCount": 1,
+  "maximumIdentityCount": 1,
+  "geometry": {
+    "width": 832,
+    "height": 480,
+    "fps": 25,
+    "frames": 201,
+    "durationSeconds": 8.04
+  },
+  "networkVolumeId": "1qm5wczocl",
+  "dataCenterId": "EU-NL-1",
+  "coreStageReceiptCommit": "c5461883e28a5f80ad6006e0a2d2ddd2b641d37c",
+  "referenceSha256": "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958",
+  "audioSha256": "bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184",
+  "speechValidated": true,
+  "promptParityRequired": true,
+  "authorityPath": ".sia7/humo17-quality-ab-prompt-parity-201f-authority.json",
+  "authorityId": "v142-humo17-quality-ab-prompt-parity-201f-20260909-354-authority",
+  "output": ".jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4"
 }
