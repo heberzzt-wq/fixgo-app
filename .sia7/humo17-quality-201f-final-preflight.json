@@ -1,0 +1,90 @@
+{
+  "jobId": "v142-humo17-quality-201f-preflight-20260909",
+  "checkedAt": "2026-09-09T16:04:44.481Z",
+  "head": "de04a55ec578487080d39c438c8d614c9f7b1567",
+  "codeSha": "de04a55ec578487080d39c438c8d614c9f7b1567",
+  "ciRun": 34373916524,
+  "ciPending": false,
+  "status": "HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY",
+  "resourceCreated": false,
+  "inferenceStarted": false,
+  "paidPostAttempts": 0,
+  "paidAuthorizationConsumed": false,
+  "paidExecutionAuthorized": false,
+  "hardCapCertified": true,
+  "watchdogSha256": "1bb8b94a33a005c67571e4e9885b698aa2fdcc3ff97e8a0bf9f24a7d9595c43f",
+  "watchdogStartsBeforeInstallAndSsh": true,
+  "watchdogSemanticsChanged": false,
+  "cheapCpuRecertificationRequired": false,
+  "referencePath": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-v142-local-first-20260825\\.jarvis-artifacts\\uploads\\1787783430100-a3151d2eefde-IMG_20240807_165633505_HDR-2.jpg",
+  "referenceSha256": "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958",
+  "audioPath": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-v142-local-first-20260825\\.jarvis-artifacts\\audio\\humo17-quality-voice-3.00-11.04.wav",
+  "audioSha256": "bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184",
+  "audioDurationSeconds": 8.04,
+  "speechValidated": true,
+  "speechEvidenceSha256": "5161ca3474adb0225bb1c211a454ca257eafaa1215816fe911c226634a0d5631",
+  "transcript": "Es hora de tomar las riendas.",
+  "vocalCoverageSeconds": 2.2399999999999998,
+  "geometry": {
+    "width": 832,
+    "height": 480,
+    "fps": 25,
+    "frames": 201,
+    "durationSeconds": 8.04
+  },
+  "backend": "humo-17b-identity",
+  "output": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-v142-local-first-20260825\\.jarvis-artifacts\\videos\\humo17-heberto-quality-probe-201f.mp4",
+  "outputExists": false,
+  "qualityCertified": false,
+  "fullEpisodeAuthorized": false,
+  "volumeId": "1qm5wczocl",
+  "dataCenterId": "EU-NL-1",
+  "gpu": "NVIDIA L40S",
+  "gpuCount": 1,
+  "hardBudgetUsd": 0.95,
+  "providerSafetyRatio": 0.75,
+  "conservativeDeadlineSeconds": 2331,
+  "next": "One authorized attempt; consume nonce once; no retries.",
+  "linux": "success",
+  "windows": "success",
+  "deploy": "skipped",
+  "materialize": "skipped",
+  "ok": true,
+  "paidBudgetReady": true,
+  "activePods": 0,
+  "paidStaleReceipts": 0,
+  "localBudgetWatchdog": true,
+  "remoteBudgetWatchdogVerified": false,
+  "runtimeProbeStatus": "HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY",
+  "terminationVerified": true,
+  "estimatedCostUsd": 0,
+  "networkVolumeId": "1qm5wczocl",
+  "qualityProbe": true,
+  "preserveAspectRatio": true,
+  "networkVolumeRetained": true,
+  "canonicalSha": "de04a55ec578487080d39c438c8d614c9f7b1567",
+  "coreManifestVerified": true,
+  "coreStagePodId": "gdt15dfk6aktog",
+  "coreStageReceiptSha256": "e413bb8983ed00c2676ee68eac4a575ede2f820ac40f5a7c98c717f3965b722d",
+  "previousUnavailableObservation": {
+    "at": "2026-09-09T15:56:42.557Z",
+    "gpu": [
+      {
+        "id": "NVIDIA L40S",
+        "lowestPrice": {
+          "stockStatus": "Low",
+          "uninterruptablePrice": 1.09,
+          "availableGpuCounts": null
+        }
+      }
+    ],
+    "region": [
+      {
+        "gpuTypeId": "NVIDIA L40S",
+        "stockStatus": null,
+        "available": false
+      }
+    ]
+  },
+  "freshPlacementVerifiedBy": "runHuMo17PersistentCoreStagingCli required available=true before returning READY"
+}

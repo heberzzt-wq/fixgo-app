@@ -1,0 +1,65 @@
+{
+  "operationId": "humo17-probe-05d7b0fd-0e06-4805-a7ce-2c51466f9685",
+  "jobId": "v142-humo17-quality-201f-20260909-345",
+  "podId": "m3fk4jw14yx714",
+  "createdAtMs": 1788969978021,
+  "createdAt": "2026-09-09T16:06:18.021Z",
+  "hardBudgetUsd": 0.95,
+  "hourlyRateUsd": 1.09,
+  "providerBudgetKillSeconds": 2353,
+  "networkVolumeId": "1qm5wczocl",
+  "gpu": "NVIDIA L40S",
+  "gpuCount": 1,
+  "terminationVerified": false,
+  "status": "HUMO17_RUNTIME_GPU_POD_CREATED",
+  "schema": "jarvis.v142.paid-early-receipt.2",
+  "bootstrapState": "PAYLOAD_ALLOWED",
+  "computeType": "GPU",
+  "providerBudgetSafetyRatio": 0.75,
+  "remoteWatchdogDeadlineMs": 1788972309020,
+  "remoteWatchdogInstalled": true,
+  "remoteWatchdogVerified": true,
+  "inferenceStarted": false,
+  "bootstrapTransitions": [
+    {
+      "state": "REMOTE_WATCHDOG_INSTALLING",
+      "at": "2026-09-09T16:06:19.496Z"
+    },
+    {
+      "state": "REMOTE_WATCHDOG_INSTALLED",
+      "at": "2026-09-09T16:06:49.115Z"
+    },
+    {
+      "state": "REMOTE_WATCHDOG_VERIFIED",
+      "at": "2026-09-09T16:06:49.115Z"
+    },
+    {
+      "state": "PAYLOAD_ALLOWED",
+      "at": "2026-09-09T16:06:49.115Z"
+    }
+  ],
+  "deadlineMs": 1788972331021,
+  "localBudgetWatchdog": true,
+  "remoteBudgetWatchdog": true,
+  "remoteWatchdog": {
+    "podId": "m3fk4jw14yx714",
+    "pid": 502,
+    "deadlineEpochSeconds": 1788972309,
+    "remoteBudgetWatchdogInstalled": true,
+    "remoteBudgetWatchdogVerified": true,
+    "terminationVerified": false,
+    "hostIndependent": true,
+    "mechanism": "pod_scoped_graphql_self_delete",
+    "inferenceStarted": false,
+    "remoteWatchdogTriggered": false,
+    "localWatchdogTriggered": false,
+    "armedAtEpochSeconds": 1788969985.1446018,
+    "maximumRuntimeSeconds": 2323.855396747589,
+    "status": "REMOTE_BUDGET_WATCHDOG_ARMED"
+  },
+  "remoteBudgetWatchdogInstalled": true,
+  "remoteBudgetWatchdogVerified": true,
+  "codeSha": "de04a55ec578487080d39c438c8d614c9f7b1567",
+  "ciRun": 34373916524,
+  "paidAuthorizationConsumed": true
+}
