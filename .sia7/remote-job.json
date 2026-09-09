@@ -1,12 +1,27 @@
 {
-  "jobId": "v142-humo17-quality-source-root-dedupe-20260908-331",
-  "operation": "patch",
+  "jobId": "v142-humo17-quality-preflight-201f-20260908-332",
+  "operation": "humo17_core_stage",
   "humanApproved": true,
-  "patch": {
-    "file": "jarvis-fs-bridge.js",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "    const sourceRoot = path.resolve(root, \"..\", \"fixgo-v142-local-first-20260825\");\n    if (!fs.existsSync(sourceRoot) || !fs.statSync(sourceRoot).isDirectory()) throw new Error(\"HUMO17_QUALITY_SOURCE_ROOT_MISSING\");\n    const referenceOutput = \".jarvis-artifacts/uploads/1787783430100-a3151d2eefde-IMG_20240807_165633505_HDR-2.jpg\", referenceSha256 = \"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\";",
-    "replace": "    const referenceOutput = \".jarvis-artifacts/uploads/1787783430100-a3151d2eefde-IMG_20240807_165633505_HDR-2.jpg\", referenceSha256 = \"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\";"
-  }
+  "executePaid": true,
+  "qualityProbe": true,
+  "qualityPreflightOnly": true,
+  "fullEpisodeAuthorized": false,
+  "expectedBaseSha": "f8dcbc441d7ec58421a89611d2375bd227c32877",
+  "hardBudgetUsd": 0.95,
+  "maximumMinutes": 90,
+  "backend": "humo-17b-identity",
+  "gpu": "NVIDIA L40S",
+  "gpuCount": 1,
+  "maximumIdentityCount": 1,
+  "geometry": {
+    "width": 832,
+    "height": 480,
+    "fps": 25,
+    "frames": 201,
+    "durationSeconds": 8.04
+  },
+  "networkVolumeId": "1qm5wczocl",
+  "dataCenterId": "EU-NL-1",
+  "coreStageReceiptCommit": "c5461883e28a5f80ad6006e0a2d2ddd2b641d37c",
+  "output": ".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4"
 }
