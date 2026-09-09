@@ -1,12 +1,27 @@
 {
-  "jobId": "v142-humo17-quality-preflight-envelope-20260908-324",
-  "operation": "patch",
+  "jobId": "v142-humo17-quality-preflight-201f-20260908-325",
+  "operation": "humo17_core_stage",
   "humanApproved": true,
-  "patch": {
-    "file": "jarvis-fs-bridge.js",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "            const result = {ok: true, status: \"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY\", backend: \"humo-17b-identity\",",
-    "replace": "            const runtimeProbeStatus = \"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY\";\n            const result = {ok: true, status: truthy(env.JARVIS_HUMO17_SIA7_COMPAT) ? \"HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED\" : runtimeProbeStatus, runtimeProbeStatus, terminationVerified: true, estimatedCostUsd: 0, backend: \"humo-17b-identity\"," 
-  }
+  "executePaid": true,
+  "qualityProbe": true,
+  "qualityPreflightOnly": true,
+  "fullEpisodeAuthorized": false,
+  "expectedBaseSha": "13f23da17308c2458489fe9c4e09fc1d799942b1",
+  "hardBudgetUsd": 0.95,
+  "maximumMinutes": 90,
+  "backend": "humo-17b-identity",
+  "gpu": "NVIDIA L40S",
+  "gpuCount": 1,
+  "maximumIdentityCount": 1,
+  "geometry": {
+    "width": 832,
+    "height": 480,
+    "fps": 25,
+    "frames": 201,
+    "durationSeconds": 8.04
+  },
+  "networkVolumeId": "1qm5wczocl",
+  "dataCenterId": "EU-NL-1",
+  "coreStageReceiptCommit": "c5461883e28a5f80ad6006e0a2d2ddd2b641d37c",
+  "output": ".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4"
 }
