@@ -1,18 +1,17 @@
 {
-  "jobId": "v142-humo17-fix-authority-test-syntax-20260909-368",
-  "completedAt": "2026-09-09T20:46:39.560Z",
+  "jobId": "v142-humo17-quality-ab-final-preflight-20260909-369",
+  "completedAt": "2026-09-09T20:51:33.394Z",
   "executionStarted": true,
-  "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "tests/jarvis-fs-bridge-v2.test.mjs",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 91162,
-  "bytesAfter": 91001,
-  "source": "sia7_github_worker_exact_patch_v1",
+  "ok": false,
+  "error": "SIA7_HUMO17_CORE_STAGE_FAILED:HUMO17_L40S_PLACEMENT_UNAVAILABLE",
+  "evidence": {
+    "phase": "HUMO17_L40S_PLACEMENT_UNAVAILABLE",
+    "paidReceipts": [],
+    "logTail": [
+      "{\"ok\":false,\"status\":\"HUMO17_L40S_PLACEMENT_UNAVAILABLE\",\"providerMessage\":null,\"podId\":null,\"inferenceStarted\":false}"
+    ]
+  },
   "committedFiles": [
-    ".sia7/remote-result.json",
-    "tests/jarvis-fs-bridge-v2.test.mjs"
+    ".sia7/remote-result.json"
   ]
 }
