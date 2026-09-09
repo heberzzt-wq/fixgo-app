@@ -9658,7 +9658,7 @@ export function resolveHuMo17QualityControlPlane({ root = DEFAULT_ROOT, env = pr
     if (stageReceipt?.ok !== true || stageReceipt?.status !== "HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED" || stageReceipt?.physicalStageCertified !== true || stageReceipt?.coreManifestVerified !== true || stageReceipt?.terminationVerified !== true || stageReceipt?.networkVolumeRetained !== true || stageReceipt?.networkVolumeId !== "1qm5wczocl" || stageReceipt?.networkVolumeDataCenterId !== "EU-NL-1") throw new Error("HUMO17_QUALITY_CORE_RECEIPT_INVALID");
     const stageReceiptFile = path.join(os.tmpdir(), "jarvis-v142-humo17-core-stage-314-receipt.json"); fs.writeFileSync(stageReceiptFile, JSON.stringify(stageReceipt));
     const output = String(control.output || ".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4").trim().replaceAll("\\", "/");
-    if (output !== ".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4") throw new Error("HUMO17_QUALITY_OUTPUT_NOT_PINNED");
+    if (![".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4", ".jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4"].includes(output)) throw new Error("HUMO17_QUALITY_OUTPUT_NOT_PINNED");
     const findLocalFfprobe = () => {
         const direct = resolveLocalExecutable(String(env.JARVIS_FFPROBE_PATH || "ffprobe").trim() || "ffprobe", env);
         if (direct) return direct;
