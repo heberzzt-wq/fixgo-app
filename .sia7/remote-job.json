@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-export-authority-env-20260909-366",
+  "jobId": "v142-humo17-test-authority-reconcile-20260909-367",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "tests/jarvis-fs-bridge-v2.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "JARVIS_RUNPOD_NETWORK_VOLUME_ID: \"1qm5wczocl\", JARVIS_RUNPOD_DATACENTER_ID: \"EU-NL-1\"}};",
-    "replace": "JARVIS_RUNPOD_NETWORK_VOLUME_ID: \"1qm5wczocl\", JARVIS_RUNPOD_DATACENTER_ID: \"EU-NL-1\", JARVIS_HUMO17_SINGLE_USE_AUTHORITY_FILE: authorityFile, JARVIS_HUMO17_JOB_ID: runtimeJobId, JARVIS_HUMO17_CERTIFIED_CODE_SHA: certifiedCodeSha}};"
+    "search": "    const c={...a,qualityProbe:true,speechValidated:true};assert.equal(assertHuMo17IndependentBudget({authority:a,context:c}),a);",
+    "replace": "    const c={...a,qualityProbe:true,speechValidated:true};assert.equal(assertHuMo17IndependentBudget({authority:a,context:c}),a);\n    const abOutput='.jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4';\n    assert.equal(validateHuMo17QualityAuthority({...a,output:abOutput},{...c,output:abOutput}).output,abOutput);\n    const bridgeSource=fs.readFileSync(path.resolve('jarvis-fs-bridge.js'),'utf8');\n    for(const marker of ['JARVIS_HUMO17_SINGLE_USE_AUTHORITY_FILE','JARVIS_HUMO17_CERTIFIED_CODE_SHA','control.paidJobId','HUMO17_QUALITY_CONTROL_UNCERTIFIED_CODE'])assert.match(bridgeSource,new RegExp(marker.replace(/[.*+?^${}()|[\\]\\]/g,'\\\\$&')));"
   }
 }
