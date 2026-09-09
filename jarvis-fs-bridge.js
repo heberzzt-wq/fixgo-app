@@ -9363,7 +9363,7 @@ export async function runHuMo17PersistentCoreStagingCli({
     if (runtimeProbeAuthorized) {
         const receipt = {ok: true, status: "HUMO17_RUNTIME_PROBE_VERIFIED_AND_RELEASED", canonicalSha, operationId, podId,
             gpu: "NVIDIA L40S", hardBudgetUsd, estimatedCostUsd, terminationVerified,
-            networkVolumeId: volume.id, networkVolumeRetained: true, inferenceStarted, ...runtimePhysical, status: "HUMO17_RUNTIME_PROBE_VERIFIED_AND_RELEASED"};
+            networkVolumeId: volume.id, networkVolumeRetained: true, inferenceStarted, ...runtimePhysical, status: truthy(env.JARVIS_HUMO17_SIA7_COMPAT) ? "HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED" : "HUMO17_RUNTIME_PROBE_VERIFIED_AND_RELEASED", runtimeProbeStatus: "HUMO17_RUNTIME_PROBE_VERIFIED_AND_RELEASED"};
         fs.writeFileSync(runtimeProbeAssets.outputFile + ".receipt.json", JSON.stringify(receipt, null, 2));
         log(receipt); return receipt;
     }
