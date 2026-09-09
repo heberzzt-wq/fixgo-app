@@ -1,15 +1,91 @@
 {
-  "jobId": "v142-humo17-quality-ab-final-preflight-20260909-383",
-  "completedAt": "2026-09-09T21:35:17.223Z",
+  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-20260909-362",
+  "completedAt": "2026-09-09T22:13:35.244Z",
   "executionStarted": true,
   "ok": false,
-  "error": "SIA7_HUMO17_CORE_STAGE_FAILED:HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY",
+  "error": "SIA7_HUMO17_CORE_STAGE_FAILED:HUMO_EPHEMERAL_REMOTE_COMMAND_FAILED",
   "evidence": {
-    "phase": "HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY",
-    "paidReceipts": [],
+    "phase": "HUMO_EPHEMERAL_REMOTE_COMMAND_FAILED",
+    "paidReceipts": [
+      {
+        "operationId": "humo17-probe-3c656f9f-7e33-4c6b-9445-ca4adee8c13b",
+        "jobId": "v142-humo17-quality-ab-prompt-parity-201f-20260909-362",
+        "podId": "awfy3a3yzs6mgj",
+        "createdAtMs": 1788989772739,
+        "createdAt": "2026-09-09T21:36:12.739Z",
+        "hardBudgetUsd": 0.95,
+        "hourlyRateUsd": 1.09,
+        "providerBudgetKillSeconds": 2353,
+        "networkVolumeId": "1qm5wczocl",
+        "gpu": "NVIDIA L40S",
+        "gpuCount": 1,
+        "terminationVerified": true,
+        "status": "HUMO17_RUNTIME_GPU_POD_CREATED",
+        "schema": "jarvis.v142.paid-early-receipt.2",
+        "bootstrapState": "PAYLOAD_BLOCKED",
+        "computeType": "GPU",
+        "providerBudgetSafetyRatio": 0.75,
+        "remoteWatchdogDeadlineMs": 1788992103738,
+        "remoteWatchdogInstalled": true,
+        "remoteWatchdogVerified": true,
+        "inferenceStarted": true,
+        "bootstrapTransitions": [
+          {
+            "state": "REMOTE_WATCHDOG_INSTALLING",
+            "at": "2026-09-09T21:36:14.360Z"
+          },
+          {
+            "state": "REMOTE_WATCHDOG_INSTALLED",
+            "at": "2026-09-09T21:36:46.129Z"
+          },
+          {
+            "state": "REMOTE_WATCHDOG_VERIFIED",
+            "at": "2026-09-09T21:36:46.129Z"
+          },
+          {
+            "state": "PAYLOAD_ALLOWED",
+            "at": "2026-09-09T21:36:46.129Z"
+          },
+          {
+            "state": "PAYLOAD_BLOCKED",
+            "at": "2026-09-09T22:13:33.603Z"
+          }
+        ],
+        "deadlineMs": 1788992125739,
+        "localBudgetWatchdog": true,
+        "remoteBudgetWatchdog": true,
+        "remoteWatchdog": {
+          "podId": "awfy3a3yzs6mgj",
+          "pid": 502,
+          "deadlineEpochSeconds": 1788992103,
+          "remoteBudgetWatchdogInstalled": true,
+          "remoteBudgetWatchdogVerified": true,
+          "terminationVerified": false,
+          "hostIndependent": true,
+          "mechanism": "pod_scoped_graphql_self_delete",
+          "inferenceStarted": false,
+          "remoteWatchdogTriggered": false,
+          "localWatchdogTriggered": false,
+          "armedAtEpochSeconds": 1788989778.970321,
+          "maximumRuntimeSeconds": 2324.0296783447266,
+          "status": "REMOTE_BUDGET_WATCHDOG_ARMED"
+        },
+        "remoteBudgetWatchdogInstalled": true,
+        "remoteBudgetWatchdogVerified": true,
+        "canonicalSha": "ae673879a52d3d23a9b5e67b3c3a4049c4db1812",
+        "networkVolumeRetained": true,
+        "estimatedCostUsd": 0.6789649361111112,
+        "error": "HUMO_EPHEMERAL_REMOTE_COMMAND_FAILED",
+        "providerError": null,
+        "logTail": "]\rLoading transformer parameters to cuda:0:  48%|████▊     | 755/1583 [00:42<00:49, 16.74it/s]\rLoading transformer parameters to cuda:0:  48%|████▊     | 758/1583 [00:42<00:45, 18.08it/s]\rLoading transformer parameters to cuda:0:  48%|████▊     | 761/1583 [00:43<00:48, 16.84it/s]\rLoading transformer parameters to cuda:0:  48%|████▊     | 767/1583 [00:43<00:36, 22.39it/s]\rLoading transformer parameters to cuda:0:  49%|████▊     | 771/1583 [00:43<00:37, 21.54it/s]\rLoading transformer parameters to cuda:0:  49%|████▉     | 774/1583 [00:43<00:36, 21.92it/s]\rLoading transformer parameters to cuda:0:  49%|████▉     | 777/1583 [00:43<00:40, 19.74it/s]\rLoading transformer parameters to cuda:0:  49%|████▉     | 780/1583 [00:44<00:43, 18.61it/s]\rLoading transformer parameters to cuda:0:  49%|████▉     | 783/1583 [00:44<00:41, 19.15it/s]\rLoading transformer parameters to cuda:0:  50%|████▉     | 787/1583 [00:44<00:36, 22.01it/s]\rLoading transformer parameters to cuda:0: 100%|█████████▉| 1576/1583 [00:44<00:00, 1122.78it/s]\rLoading transformer parameters to cuda:0: 100%|██████████| 1583/1583 [00:44<00:00, 35.33it/s]  \n\r  0%|          | 0/8 [00:00<?, ?it/s]\r 12%|█▎        | 1/8 [03:37<25:20, 217.25s/it]\r 25%|██▌       | 2/8 [06:32<19:16, 192.71s/it]\r 38%|███▊      | 3/8 [09:28<15:24, 184.98s/it]\r 50%|█████     | 4/8 [12:24<12:05, 181.26s/it]\r 62%|██████▎   | 5/8 [15:19<08:57, 179.09s/it]\r 75%|███████▌  | 6/8 [18:14<05:55, 177.68s/it]\r 88%|████████▊ | 7/8 [21:09<02:56, 176.82s/it]\r100%|██████████| 8/8 [24:03<00:00, 175.90s/it]\r100%|██████████| 8/8 [24:03<00:00, 180.41s/it]\n\rWanVAE decoding frames:   0%|          | 0/51 [00:00<?, ?it/s]\rWanVAE decoding frames:   2%|▏         | 1/51 [00:00<00:05,  9.26it/s]\rWanVAE decoding frames:   8%|▊         | 4/51 [00:00<00:04, 11.56it/s]\rWanVAE decoding frames:  12%|█▏        | 6/51 [00:00<00:06,  6.50it/s]\rWanVAE decoding frames:  14%|█▎        | 7/51 [00:01<00:07,  5.73it/s]\rWanVAE decoding frames:  16%|█▌        | 8/51 [00:01<00:08,  5.22it/s]\rWanVAE decoding frames:  18%|█▊        | 9/51 [00:01<00:08,  4.89it/s]\rWanVAE decoding frames:  20%|█▉        | 10/51 [00:01<00:08,  4.66it/s]\rWanVAE decoding frames:  22%|██▏       | 11/51 [00:02<00:08,  4.51it/s]\rWanVAE decoding frames:  24%|██▎       | 12/51 [00:02<00:08,  4.40it/s]\rWanVAE decoding frames:  25%|██▌       | 13/51 [00:02<00:08,  4.32it/s]\rWanVAE decoding frames:  27%|██▋       | 14/51 [00:02<00:08,  4.27it/s]\rWanVAE decoding frames:  29%|██▉       | 15/51 [00:03<00:08,  4.23it/s]\rWanVAE decoding frames:  31%|███▏      | 16/51 [00:03<00:08,  4.21it/s]\rWanVAE decoding frames:  33%|███▎      | 17/51 [00:03<00:08,  4.19it/s]\rWanVAE decoding frames:  35%|███▌      | 18/51 [00:03<00:07,  4.18it/s]\rWanVAE decoding frames:  37%|███▋      | 19/51 [00:03<00:07,  4.17it/s]\rWanVAE decoding frames:  39%|███▉      | 20/51 [00:04<00:07,  4.16it/s]\rWanVAE decoding frames:  41%|████      | 21/51 [00:04<00:07,  4.16it/s]\rWanVAE decoding frames:  43%|████▎     | 22/51 [00:04<00:06,  4.15it/s]\rWanVAE decoding frames:  45%|████▌     | 23/51 [00:04<00:06,  4.14it/s]\rWanVAE decoding frames:  47%|████▋     | 24/51 [00:05<00:06,  4.15it/s]\rWanVAE decoding frames:  49%|████▉     | 25/51 [00:05<00:06,  4.15it/s]\rWanVAE decoding frames:  51%|█████     | 26/51 [00:05<00:06,  4.14it/s]\rWanVAE decoding frames:  53%|█████▎    | 27/51 [00:05<00:05,  4.15it/s]\rWanVAE decoding frames:  55%|█████▍    | 28/51 [00:06<00:05,  4.14it/s]\rWanVAE decoding frames:  57%|█████▋    | 29/51 [00:06<00:05,  4.14it/s]\rWanVAE decoding frames:  59%|█████▉    | 30/51 [00:06<00:05,  4.14it/s]\rWanVAE decoding frames:  61%|██████    | 31/51 [00:06<00:04,  4.14it/s]\rWanVAE decoding frames:  63%|██████▎   | 32/51 [00:07<00:04,  4.13it/s]\rWanVAE decoding frames:  65%|██████▍   | 33/51 [00:07<00:04,  4.14it/s]\rWanVAE decoding frames:  67%|██████▋   | 34/51 [00:07<00:04,  4.14it/s]\rWanVAE decoding frames:  69%|██████▊   | 35/51 [00:07<00:03,  4.14it/s]\rWanVAE decoding frames:  71%|███████   | 36/51 [00:08<00:03,  4.14it/s]\rWanVAE decoding frames:  73%|███████▎  | 37/51 [00:08<00:03,  4.14it/s]\rWanVAE decoding frames:  75%|███████▍  | 38/51 [00:08<00:03,  4.14it/s]\rWanVAE decoding frames:  76%|███████▋  | 39/51 [00:08<00:02,  4.14it/s]\rWanVAE decoding frames:  78%|███████▊  | 40/51 [00:09<00:02,  4.14it/s]\rWanVAE decoding frames:  80%|████████  | 41/51 [00:09<00:02,  4.14it/s]\rWanVAE decoding frames:  82%|████████▏ | 42/51 [00:09<00:02,  4.14it/s]\rWanVAE decoding frames:  84%|████████▍ | 43/51 [00:09<00:01,  4.13it/s]\rWanVAE decoding frames:  86%|████████▋ | 44/51 [00:10<00:01,  4.13it/s]\rWanVAE decoding frames:  88%|████████▊ | 45/51 [00:10<00:01,  4.13it/s]\rWanVAE decoding frames:  90%|█████████ | 46/51 [00:10<00:01,  4.13it/s]\rWanVAE decoding frames:  92%|█████████▏| 47/51 [00:10<00:00,  4.13it/s]\rWanVAE decoding frames:  94%|█████████▍| 48/51 [00:10<00:00,  4.14it/s]\rWanVAE decoding frames:  96%|█████████▌| 49/51 [00:11<00:00,  4.14it/s]\rWanVAE decoding frames:  98%|█████████▊| 50/51 [00:11<00:00,  4.13it/s]\rWanVAE decoding frames: 100%|██████████| 51/51 [00:11<00:00,  4.13it/s]\rWanVAE decoding frames: 100%|██████████| 51/51 [00:11<00:00,  4.36it/s]\n{\n  \"ok\": false,\n  \"backend\": \"humo-17b-identity\",\n  \"inferenceStarted\": true,\n  \"status\": \"HUMO17_SAMPLING\"\n}\n"
+      }
+    ],
     "logTail": [
-      "{\"ok\":true,\"hardCapCertified\":true,\"paidExecutionAuthorized\":false,\"paidBudgetReady\":true,\"activePods\":0,\"paidStaleReceipts\":0,\"localBudgetWatchdog\":true,\"remoteBudgetWatchdogVerified\":false,\"status\":\"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY\",\"runtimeProbeStatus\":\"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY\",\"terminationVerified\":true,\"estimatedCostUsd\":0,\"backend\":\"humo-17b-identity\",\"geometry\":{\"width\":832,\"height\":480,\"fps\":25,\"frames\":201,\"durationSeconds\":8.04},\"networkVolumeId\":\"1qm5wczocl\",\"gpu\":\"NVIDIA L40S\",\"gpuCount\":1,\"hardBudgetUsd\":0.95,\"referenceSha256\":\"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\",\"audioSha256\":\"bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184\",\"qualityProbe\":true,\"speechValidated\":true,\"qualityCertified\":false,\"preserveAspectRatio\":true,\"resourceCreated\":false,\"inferenceStarted\":false,\"networkVolumeRetained\":true,\"canonicalSha\":\"577169606dc5d6acf715bb4f37b3b3b46b723889\",\"coreManifestVerified\":true,\"coreStagePodId\":\"gdt15dfk6aktog\",\"coreStageReceiptSha256\":\"ef4694a06d6f2a740deee09e077a699c63cdc196b342a0c169342042e971abd0\"}",
-      "{\"ok\":true,\"hardCapCertified\":true,\"paidExecutionAuthorized\":false,\"paidBudgetReady\":true,\"activePods\":0,\"paidStaleReceipts\":0,\"localBudgetWatchdog\":true,\"remoteBudgetWatchdogVerified\":false,\"status\":\"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY\",\"runtimeProbeStatus\":\"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY\",\"terminationVerified\":true,\"estimatedCostUsd\":0,\"backend\":\"humo-17b-identity\",\"geometry\":{\"width\":832,\"height\":480,\"fps\":25,\"frames\":201,\"durationSeconds\":8.04},\"networkVolumeId\":\"1qm5wczocl\",\"gpu\":\"NVIDIA L40S\",\"gpuCount\":1,\"hardBudgetUsd\":0.95,\"referenceSha256\":\"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\",\"audioSha256\":\"bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184\",\"qualityProbe\":true,\"speechValidated\":true,\"qualityCertified\":false,\"preserveAspectRatio\":true,\"resourceCreated\":false,\"inferenceStarted\":false,\"networkVolumeRetained\":true,\"canonicalSha\":\"577169606dc5d6acf715bb4f37b3b3b46b723889\",\"coreManifestVerified\":true,\"coreStagePodId\":\"gdt15dfk6aktog\",\"coreStageReceiptSha256\":\"ef4694a06d6f2a740deee09e077a699c63cdc196b342a0c169342042e971abd0\"}"
+      "{\"operationId\":\"humo17-probe-3c656f9f-7e33-4c6b-9445-ca4adee8c13b\",\"jobId\":\"v142-humo17-quality-ab-prompt-parity-201f-20260909-362\",\"podId\":\"awfy3a3yzs6mgj\",\"createdAtMs\":1788989772739,\"createdAt\":\"2026-09-09T21:36:12.739Z\",\"hardBudgetUsd\":0.95,\"hourlyRateUsd\":1.09,\"providerBudgetKillSeconds\":2330,\"networkVolumeId\":\"1qm5wczocl\",\"gpu\":\"NVIDIA L40S\",\"gpuCount\":1,\"terminationVerified\":false,\"status\":\"HUMO17_RUNTIME_GPU_POD_CREATED\",\"schema\":\"jarvis.v142.paid-early-receipt.2\",\"bootstrapState\":\"POD_CREATED\",\"computeType\":\"GPU\",\"providerBudgetSafetyRatio\":0.75,\"remoteWatchdogDeadlineMs\":1788992103738,\"remoteWatchdogInstalled\":false,\"remoteWatchdogVerified\":false,\"inferenceStarted\":false}",
+      "{\"ok\":true,\"status\":\"HUMO17_LOCAL_BUDGET_WATCHDOG_ARMED\",\"gpu\":\"NVIDIA L40S\",\"gpuCount\":1,\"podId\":\"awfy3a3yzs6mgj\",\"cpuFlavorId\":\"cpu3c\",\"dataCenterId\":\"EU-NL-1\",\"networkVolumeId\":\"1qm5wczocl\",\"hourlyRateUsd\":1.09,\"hardBudgetUsd\":0.95,\"maximumAuthorizedSeconds\":2353,\"providerBudgetKillSeconds\":2353,\"createdAt\":\"2026-09-09T21:36:12.739Z\",\"operationId\":\"humo17-probe-3c656f9f-7e33-4c6b-9445-ca4adee8c13b\",\"jobId\":\"v142-humo17-quality-ab-prompt-parity-201f-20260909-362\",\"terminationVerified\":false,\"inferenceStarted\":false}",
+      "{\"status\":\"HUMO17_REMOTE_BUDGET_WATCHDOG_VERIFIED\",\"podId\":\"awfy3a3yzs6mgj\",\"remoteBudgetWatchdogInstalled\":true,\"remoteBudgetWatchdogVerified\":true,\"inferenceStarted\":false}",
+      "{\"ok\":false,\"status\":\"HUMO17_PERSISTENT_CORE_STAGE_FAILED_AND_RELEASED\",\"error\":\"HUMO_EPHEMERAL_REMOTE_COMMAND_FAILED\",\"podId\":\"awfy3a3yzs6mgj\",\"terminationVerified\":true,\"networkVolumeId\":\"1qm5wczocl\",\"networkVolumeRetained\":true,\"estimatedCostUsd\":0.6789649361111112,\"inferenceStarted\":true,\"providerError\":null,\"logTail\":\"]\\rLoading transformer parameters to cuda:0:  48%|████▊     | 755/1583 [00:42<00:49, 16.74it/s]\\rLoading transformer parameters to cuda:0:  48%|████▊     | 758/1583 [00:42<00:45, 18.08it/s]\\rLoading transformer parameters to cuda:0:  48%|████▊     | 761/1583 [00:43<00:48, 16.84it/s]\\rLoading transformer parameters to cuda:0:  48%|████▊     | 767/1583 [00:43<00:36, 22.39it/s]\\rLoading transformer parameters to cuda:0:  49%|████▊     | 771/1583 [00:43<00:37, 21.54it/s]\\rLoading transformer parameters to cuda:0:  49%|████▉     | 774/1583 [00:43<00:36, 21.92it/s]\\rLoading transformer parameters to cuda:0:  49%|████▉     | 777/1583 [00:43<00:40, 19.74it/s]\\rLoading transformer parameters to cuda:0:  49%|████▉     | 780/1583 [00:44<00:43, 18.61it/s]\\rLoading transformer parameters to cuda:0:  49%|████▉     | 783/1583 [00:44<00:41, 19.15it/s]\\rLoading transformer parameters to cuda:0:  50%|████▉     | 787/1583 [00:44<00:36, 22.01it/s]\\rLoading transformer parameters to cuda:0: 100%|█████████▉| 1576/1583 [00:44<00:00, 1122.78it/s]\\rLoading transformer parameters to cuda:0: 100%|██████████| 1583/1583 [00:44<00:00, 35.33it/s]  \\n\\r  0%|          | 0/8 [00:00<?, ?it/s]\\r 12%|█▎        | 1/8 [03:37<25:20, 217.25s/it]\\r 25%|██▌       | 2/8 [06:32<19:16, 192.71s/it]\\r 38%|███▊      | 3/8 [09:28<15:24, 184.98s/it]\\r 50%|█████     | 4/8 [12:24<12:05, 181.26s/it]\\r 62%|██████▎   | 5/8 [15:19<08:57, 179.09s/it]\\r 75%|███████▌  | 6/8 [18:14<05:55, 177.68s/it]\\r 88%|████████▊ | 7/8 [21:09<02:56, 176.82s/it]\\r100%|██████████| 8/8 [24:03<00:00, 175.90s/it]\\r100%|██████████| 8/8 [24:03<00:00, 180.41s/it]\\n\\rWanVAE decoding frames:   0%|          | 0/51 [00:00<?, ?it/s]\\rWanVAE decoding frames:   2%|▏         | 1/51 [00:00<00:05,  9.26it/s]\\rWanVAE decoding frames:   8%|▊         | 4/51 [00:00<00:04, 11.56it/s]\\rWanVAE decoding frames:  12%|█▏        | 6/51 [00:00<00:06,  6.50it/s]\\rWanVAE decoding frames:  14%|█▎        | 7/51 [00:01<00:07,  5.73it/s]\\rWanVAE decoding frames:  16%|█▌        | 8/51 [00:01<00:08,  5.22it/s]\\rWanVAE decoding frames:  18%|█▊        | 9/51 [00:01<00:08,  4.89it/s]\\rWanVAE decoding frames:  20%|█▉        | 10/51 [00:01<00:08,  4.66it/s]\\rWanVAE decoding frames:  22%|██▏       | 11/51 [00:02<00:08,  4.51it/s]\\rWanVAE decoding frames:  24%|██▎       | 12/51 [00:02<00:08,  4.40it/s]\\rWanVAE decoding frames:  25%|██▌       | 13/51 [00:02<00:08,  4.32it/s]\\rWanVAE decoding frames:  27%|██▋       | 14/51 [00:02<00:08,  4.27it/s]\\rWanVAE decoding frames:  29%|██▉       | 15/51 [00:03<00:08,  4.23it/s]\\rWanVAE decoding frames:  31%|███▏      | 16/51 [00:03<00:08,  4.21it/s]\\rWanVAE decoding frames:  33%|███▎      | 17/51 [00:03<00:08,  4.19it/s]\\rWanVAE decoding frames:  35%|███▌      | 18/51 [00:03<00:07,  4.18it/s]\\rWanVAE decoding frames:  37%|███▋      | 19/51 [00:03<00:07,  4.17it/s]\\rWanVAE decoding frames:  39%|███▉      | 20/51 [00:04<00:07,  4.16it/s]\\rWanVAE decoding frames:  41%|████      | 21/51 [00:04<00:07,  4.16it/s]\\rWanVAE decoding frames:  43%|████▎     | 22/51 [00:04<00:06,  4.15it/s]\\rWanVAE decoding frames:  45%|████▌     | 23/51 [00:04<00:06,  4.14it/s]\\rWanVAE decoding frames:  47%|████▋     | 24/51 [00:05<00:06,  4.15it/s]\\rWanVAE decoding frames:  49%|████▉     | 25/51 [00:05<00:06,  4.15it/s]\\rWanVAE decoding frames:  51%|█████     | 26/51 [00:05<00:06,  4.14it/s]\\rWanVAE decoding frames:  53%|█████▎    | 27/51 [00:05<00:05,  4.15it/s]\\rWanVAE decoding frames:  55%|█████▍    | 28/51 [00:06<00:05,  4.14it/s]\\rWanVAE decoding frames:  57%|█████▋    | 29/51 [00:06<00:05,  4.14it/s]\\rWanVAE decoding frames:  59%|█████▉    | 30/51 [00:06<00:05,  4.14it/s]\\rWanVAE decoding frames:  61%|██████    | 31/51 [00:06<00:04,  4.14it/s]\\rWanVAE decoding frames:  63%|██████▎   | 32/51 [00:07<00:04,  4.13it/s]\\rWanVAE decoding frames:  65%|██████▍   | 33/51 [00:07<00:04,  4.14it/s]\\rWanVAE decoding frames:  67%|██████▋   | 34/51 [00:07<00:04,  4.14it/s]\\rWanVAE decoding frames:  69%|██████▊   | 35/51 [00:07<00:03,  4.14it/s]\\rWanVAE decoding frames:  71%|███████   | 36/51 [00:08<00:03,  4.14it/s]\\rWanVAE decoding frames:  73%|███████▎  | 37/51 [00:08<00:03,  4.14it/s]\\rWanVAE decoding frames:  75%|███████▍  | 38/51 [00:08<00:03,  4.14it/s]\\rWanVAE decoding frames:  76%|███████▋  | 39/51 [00:08<00:02,  4.14it/s]\\rWanVAE decoding frames:  78%|███████▊  | 40/51 [00:09<00:02,  4.14it/s]\\rWanVAE decoding frames:  80%|████████  | 41/51 [00:09<00:02,  4.14it/s]\\rWanVAE decoding frames:  82%|████████▏ | 42/51 [00:09<00:02,  4.14it/s]\\rWanVAE decoding frames:  84%|████████▍ | 43/51 [00:09<00:01,  4.13it/s]\\rWanVAE decoding frames:  86%|████████▋ | 44/51 [00:10<00:01,  4.13it/s]\\rWanVAE decoding frames:  88%|████████▊ | 45/51 [00:10<00:01,  4.13it/s]\\rWanVAE decoding frames:  90%|█████████ | 46/51 [00:10<00:01,  4.13it/s]\\rWanVAE decoding frames:  92%|█████████▏| 47/51 [00:10<00:00,  4.13it/s]\\rWanVAE decoding frames:  94%|█████████▍| 48/51 [00:10<00:00,  4.14it/s]\\rWanVAE decoding frames:  96%|█████████▌| 49/51 [00:11<00:00,  4.14it/s]\\rWanVAE decoding frames:  98%|█████████▊| 50/51 [00:11<00:00,  4.13it/s]\\rWanVAE decoding frames: 100%|██████████| 51/51 [00:11<00:00,  4.13it/s]\\rWanVAE decoding frames: 100%|██████████| 51/51 [00:11<00:00,  4.36it/s]\\n{\\n  \\\"ok\\\": false,\\n  \\\"backend\\\": \\\"humo-17b-identity\\\",\\n  \\\"inferenceStarted\\\": true,\\n  \\\"status\\\": \\\"HUMO17_SAMPLING\\\"\\n}\\n\"}",
+      "{\"ok\":false,\"status\":\"HUMO_EPHEMERAL_REMOTE_COMMAND_FAILED\",\"providerMessage\":null,\"podId\":null,\"inferenceStarted\":false}"
     ]
   },
   "committedFiles": [
