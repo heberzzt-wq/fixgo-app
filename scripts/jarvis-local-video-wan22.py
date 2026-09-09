@@ -913,6 +913,13 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
         raise RuntimeError("HUMO17_SINGLE_GPU_IDENTITY_REQUIRED")
     if not 0 < float(job.get("hardBudgetUsd", 0)) <= 3:
         raise RuntimeError("HUMO17_PROBE_BUDGET_INVALID")
+    if job.get("qualityProbe"):
+        evidence = job.get("speechEvidence") or {}
+        if (evidence.get("speechValidated") is not True or evidence.get("wavSha256") != job.get("audioSha256")
+                or evidence.get("selectionMethod") != "full_source_vad_asr"
+                or float(evidence.get("vocalCoverageSeconds", 0)) < 1.55
+                or job.get("referencePreprocessing", {}).get("preserveAspectRatio") is not True):
+            raise RuntimeError("HUMO17_QUALITY_EVIDENCE_REQUIRED")
     strategy = job["strategy"]
     if (strategy["runtime"] != "comfyui-wanvideowrapper" or strategy["compileEnabled"] is not False
             or strategy["attentionMode"] != "sdpa" or strategy["modelLoaderDevice"] != "offload_device"):
@@ -943,7 +950,12 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
     def call(name: str, **kwargs):
         cls = classes[name]
         return getattr(cls(), cls.FUNCTION)(**kwargs)
-    image = torch.from_numpy(np.asarray(ImageOps.pad(Image.open(reference).convert("RGB"), (832, 480), method=Image.Resampling.LANCZOS, color=(255, 255, 255)), dtype=np.float32) / 255.0).unsqueeze(0)
+    original_image = Image.open(reference).convert("RGB")
+    original_size = original_image.size
+    prepared_image = ImageOps.pad(original_image, (832, 480), method=Image.Resampling.LANCZOS, color=(255, 255, 255))
+    reference_preprocessing = {"originalWidth": original_size[0], "originalHeight": original_size[1],
+                               "width": 832, "height": 480, "method": "pad", "preserveAspectRatio": True}
+    image = torch.from_numpy(np.asarray(prepared_image, dtype=np.float32) / 255.0).unsqueeze(0)
     wave, rate = sf.read(audio, always_2d=True, dtype="float32")
     if len(wave) < int(rate * 3.88):
         raise RuntimeError("HUMO17_AUDIO_TOO_SHORT")
@@ -952,7 +964,7 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
     names = job["assetNames"]
     with torch.inference_mode():
         text = call("WanVideoTextEncodeCached", model_name=names["text_encoder"], precision="bf16",
-                    positive_prompt=job["prompt"], negative_prompt="another person, identity change, subtitles, watermark, deformed face",
+                    positive_prompt=job["prompt"], negative_prompt=job.get("negativePrompt", "another person, identity change, subtitles, watermark, deformed face"),
                     quantization="disabled", use_disk_cache=False, device="gpu")[0]
         vae = call("WanVideoVAELoader", model_name=names["vae"], precision="bf16")[0]
         whisper = call("WhisperModelLoader", model=names["audio_encoder"], base_precision="fp16", load_device="offload_device")[0]
@@ -982,7 +994,8 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
     write_json_atomic(result_file, {"ok": True, "status": "HUMO17_RUNTIME_PROBE_COMPLETED", "backend": "humo-17b-identity",
         "gpu": torch.cuda.get_device_name(0), "inferenceStarted": True, "referenceSha256": job["referenceSha256"],
         "audioSha256": job["audioSha256"], "sha256": _sha256_file(output), "bytes": output.stat().st_size,
-        "geometry": job["geometry"], "media": media, "runtimeRevision": strategy["wrapperRevision"], "fallbackUsed": False})
+        "geometry": job["geometry"], "media": media, "runtimeRevision": strategy["wrapperRevision"], "fallbackUsed": False,
+        "qualityProbe": bool(job.get("qualityProbe")), "qualityCertified": False, "referencePreprocessing": reference_preprocessing})
     return 0
 
 

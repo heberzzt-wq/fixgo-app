@@ -8716,22 +8716,48 @@ export async function releaseHuMo17Pod({podId, provider, wait = sleepMs} = {}) {
     return false;
 }
 
+export function validateHuMo17SpeechEvidence(evidence, audioSha256) {
+    const e = evidence;
+    if (!e || e.schemaVersion !== "jarvis.audio-speech-segment.v142.1" || e.selectionMethod !== "full_source_vad_asr" ||
+        e.speechValidated !== true || e.wavSha256 !== audioSha256 || !/^[a-f0-9]{64}$/.test(e.sourceSha256 || "") ||
+        !Number.isFinite(e.startSeconds) || e.startSeconds < 0 || !Number.isFinite(e.endSeconds) ||
+        Math.abs(e.endSeconds - e.startSeconds - 3.88) > 0.000001 ||
+        !Array.isArray(e.vocalIntervals) || !e.vocalIntervals.length ||
+        typeof e.transcript !== "string" || e.transcript.trim().split(/\s+/).length < 2 ||
+        !(e.asrMeanWordProbability >= 0.65 && e.asrMeanWordProbability <= 1) ||
+        !(e.asrNoSpeechProbability >= 0 && e.asrNoSpeechProbability < 0.3)) throw new Error("HUMO17_VALIDATED_SPEECH_REQUIRED");
+    let lastEnd = 0, coverage = 0;
+    for (const interval of e.vocalIntervals) {
+        if (!Number.isFinite(interval.start) || !Number.isFinite(interval.end) || interval.start < lastEnd ||
+            interval.end <= interval.start || interval.end > 3.88) throw new Error("HUMO17_VOCAL_INTERVAL_INVALID");
+        coverage += interval.end - interval.start; lastEnd = interval.end;
+    }
+    if (coverage < 1.55) throw new Error("HUMO17_SPEECH_COVERAGE_INSUFFICIENT");
+    return {...e, vocalCoverageSeconds: coverage};
+}
+
 export function buildHuMo17RuntimeProbeJob({ assets, hardBudgetUsd, operationId, paidAuthorized = false } = {}) {
     if (![assets?.reference?.sha256, assets?.audio?.sha256].every(x => /^[a-f0-9]{64}$/.test(x || ""))) throw new Error("HUMO17_INPUT_HASHES_REQUIRED");
     if (!/^\.jarvis-artifacts\/.+\.mp4$/.test(assets?.output || "") || assets.output.includes("..")) throw new Error("HUMO17_OUTPUT_INVALID");
     if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 3)) throw new Error("HUMO17_PROBE_BUDGET_INVALID");
     if (paidAuthorized !== true) throw new Error("HUMO17_PROBE_PAID_AUTHORITY_REQUIRED");
+    const quality = assets.qualityProbe === true;
+    const speechEvidence = quality ? validateHuMo17SpeechEvidence(assets.speechEvidence, assets.audio.sha256) : null;
+    if (quality && hardBudgetUsd > 1) throw new Error("HUMO17_QUALITY_BUDGET_EXCEEDED");
     const candidate = buildNextIdentityRuntimeCandidate({ backend: "humo-17b-identity" });
     return {
         operationId, backend: "humo-17b-identity", model: "HuMo-17B", externalApiAllowed: false,
         paidAuthorized: true, fullEpisodeAuthorized: false, gpuCount: 1, maximumIdentityCount: 1,
         gpu: "NVIDIA L40S", hardBudgetUsd, networkVolumeId: "1qm5wczocl", networkVolumeRetained: true,
         geometry: candidate.probeGeometry, strategy: candidate.singleGpuStrategy,
+        qualityProbe: quality, qualityCertified: false, speechEvidence,
+        referencePreprocessing: {preserveAspectRatio: true, method: "pad", width: 832, height: 480},
         referenceSha256: assets.reference.sha256, audioSha256: assets.audio.sha256,
         referenceFile: "/tmp/jarvis-humo17/reference" + path.extname(assets.reference.file),
         audioFile: "/tmp/jarvis-humo17/audio.wav", outputFile: "/tmp/jarvis-humo17/probe.mp4",
         comfyRoot: "/tmp/jarvis-humo17/ComfyUI",
-        prompt: "The exact person in the reference image speaks the supplied audio, natural restrained facial motion. Preserve facial identity, age, hair and facial hair. One person only, no subtitles or watermark.",
+        prompt: quality ? "Documentary close-up of the exact person and setting in the reference photograph speaking the supplied audio. Preserve the original facial width, jaw, nose, eyes, forehead, hairline, gray hairs, sparse real facial hair, skin texture and apparent age. Preserve the eyeglasses and clothing. Restrained mouth movement, neutral expression except for speech. Fixed camera, one person." : "The exact person in the reference image speaks the supplied audio, natural restrained facial motion. Preserve facial identity, age, hair and facial hair. One person only, no subtitles or watermark.",
+        negativePrompt: quality ? "beauty retouching, smooth plastic skin, younger face, wider face, rounded jaw, altered nose, darkened hair, added beard, exaggerated smile, oversized mouth, oversized teeth, different glasses, different person, different background, subtitles, watermark" : "another person, identity change, subtitles, watermark, deformed face",
         assetNames: {
             video_transformer: path.posix.basename(candidate.singleGpuStrategy.quantizedModel.path),
             distillation_lora: path.posix.basename(candidate.singleGpuStrategy.distillationLora.path),
@@ -8860,7 +8886,17 @@ export async function runHuMo17PersistentCoreStagingCli({
         if (!resolveLocalExecutable("ffprobe", env)) throw new Error("HUMO17_LOCAL_FFPROBE_REQUIRED");
         const audioInfo = JSON.parse(execFileSync(resolveLocalExecutable("ffprobe", env), ["-v", "error", "-show_streams", "-show_format", "-of", "json", audio.file], {encoding: "utf8", timeout: 20000, windowsHide: true}));
         if (!audioInfo.streams?.some(x => x.codec_type === "audio") || Number(audioInfo.format?.duration) < 3.88) throw new Error("HUMO17_REAL_AUDIO_REQUIRED");
-        runtimeProbeAssets = { sourceRoot, reference, audio, output, outputFile };
+        const qualityProbe = truthy(env.JARVIS_HUMO17_QUALITY_PROBE_AUTHORIZED);
+        let speechEvidence = null;
+        if (qualityProbe) {
+            if (fs.existsSync(outputFile)) throw new Error("HUMO17_QUALITY_OUTPUT_ALREADY_EXISTS");
+            if (Math.abs(Number(audioInfo.format.duration) - 3.88) > 0.001) throw new Error("HUMO17_QUALITY_AUDIO_DURATION_INVALID");
+            const evidenceAsset = resolveProbeAsset(env.JARVIS_HUMO17_SPEECH_EVIDENCE_OUTPUT, [".json"],
+                String(env.JARVIS_HUMO17_SPEECH_EVIDENCE_SHA256 || "").trim(), "HUMO17_SPEECH_EVIDENCE_INVALID");
+            speechEvidence = validateHuMo17SpeechEvidence(JSON.parse(fs.readFileSync(evidenceAsset.file,"utf8")), audio.sha256);
+            if (hardBudgetUsd > 1) throw new Error("HUMO17_QUALITY_BUDGET_EXCEEDED");
+        }
+        runtimeProbeAssets = { sourceRoot, reference, audio, output, outputFile, qualityProbe, speechEvidence };
     }
     if (runtimeProbeAuthorized && !truthy(env.JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED) && !truthy(env.JARVIS_HUMO17_RUNTIME_PROBE_PREFLIGHT_ONLY)) {
         throw new Error("HUMO17_PROBE_PAID_AUTHORITY_REQUIRED");
@@ -8922,6 +8958,7 @@ export async function runHuMo17PersistentCoreStagingCli({
                 geometry: buildNextIdentityRuntimeCandidate({backend: "humo-17b-identity"}).probeGeometry,
                 networkVolumeId: volume.id, gpu: "NVIDIA L40S", gpuCount: 1, hardBudgetUsd,
                 referenceSha256: runtimeProbeAssets.reference.sha256, audioSha256: runtimeProbeAssets.audio.sha256,
+                qualityProbe: runtimeProbeAssets.qualityProbe, speechValidated: runtimeProbeAssets.speechEvidence?.speechValidated === true, qualityCertified: false, preserveAspectRatio: true,
                 resourceCreated: false, inferenceStarted: false, networkVolumeRetained: true, canonicalSha,
                 coreManifestVerified: true, coreStagePodId: stageReceipt.podId, coreStageReceiptSha256: createHash("sha256").update(fs.readFileSync(stageReceiptPath)).digest("hex")};
             log(result); return result;

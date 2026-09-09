@@ -1716,3 +1716,26 @@ test("HuMo17 Python runner rejects unauthorized and invalid geometry before impo
         }
     } finally {fs.rmSync(root,{recursive:true,force:true});}
 });
+
+
+test("HuMo17 quality probe rejects noise-only, blind segments, mismatched hashes and insufficient speech", async () => {
+    const {validateHuMo17SpeechEvidence, buildHuMo17RuntimeProbeJob} = await import("../jarvis-fs-bridge.js");
+    const sha="a".repeat(64);
+    const evidence={schemaVersion:"jarvis.audio-speech-segment.v142.1",selectionMethod:"full_source_vad_asr",speechValidated:true,
+        sourceSha256:"b".repeat(64),wavSha256:sha,startSeconds:5,endSeconds:8.88,vocalIntervals:[{start:0.6,end:2.8}],
+        transcript:"Es hora de tomar las riendas",asrMeanWordProbability:0.9,asrNoSpeechProbability:0.04};
+    assert.ok(validateHuMo17SpeechEvidence(evidence,sha).vocalCoverageSeconds>2);
+    for (const patch of [{selectionMethod:"first_seconds"},{speechValidated:false},{transcript:""},{wavSha256:"c".repeat(64)},
+        {asrNoSpeechProbability:0.9},{asrMeanWordProbability:0.3},{endSeconds:9},{vocalIntervals:[]},
+        {vocalIntervals:[{start:0,end:0.4}]},{vocalIntervals:[{start:0,end:2},{start:1,end:3}]}]) {
+        assert.throws(()=>validateHuMo17SpeechEvidence({...evidence,...patch},sha),/HUMO17_/);
+    }
+    const assets={qualityProbe:true,speechEvidence:evidence,reference:{file:"face.jpg",sha256:sha},audio:{sha256:sha},output:".jarvis-artifacts/videos/quality.mp4"};
+    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets:{...assets,speechEvidence:null},hardBudgetUsd:0.95,paidAuthorized:true}),/SPEECH/);
+    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.01,paidAuthorized:true}),/QUALITY_BUDGET/);
+    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:0.95,paidAuthorized:true});
+    assert.equal(job.backend,"humo-17b-identity");assert.equal(job.qualityCertified,false);
+    assert.equal(job.referencePreprocessing.preserveAspectRatio,true);assert.equal(job.gpuCount,1);
+    assert.equal(job.networkVolumeRetained,true);assert.equal(job.fullEpisodeAuthorized,false);
+    assert.match(job.negativePrompt,/smooth plastic skin/);assert.equal(job.strategy.compileEnabled,false);
+});
