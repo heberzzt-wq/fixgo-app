@@ -8,12 +8,19 @@ import { registerArtifact } from "./jarvis-artifact-studio.js";
 
 export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.15.0-v142-single-authority";
 export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.8.0-v142-single-authority";
-export const RUNPOD_HARD_CAP_CERTIFIED = false;
+// Physical CPU evidence: .sia7/humo17-watchdog-certification.json, Pod ha3ax8k7eeyi7g.
+// Scope is host loss AFTER remote watchdog verification, not pre-container allocation.
+export const RUNPOD_HARD_CAP_CERTIFIED = true;
+export const RUNPOD_PAID_EXECUTION_AUTHORIZED = false;
+export function assertRunpodPaidAdmission({hardCapCertified,paidExecutionAuthorized}) {
+    if(hardCapCertified!==true)throw Error('RUNPOD_HARD_CAP_NOT_CERTIFIED');
+    if(paidExecutionAuthorized!==true)throw Error('RUNPOD_PAID_EXECUTION_DISABLED');
+}
 export async function guardedRunpodFetch(url, options={}) {
     const parsed=new URL(url);
     const creation=String(options.method||'GET').toUpperCase()==='POST' &&
         (/\/pods\/?$/.test(parsed.pathname) || /podFindAndDeployOnDemand|podRentInterruptable/.test(String(options.body||'')));
-    if(creation && !RUNPOD_HARD_CAP_CERTIFIED) throw Error('RUNPOD_HARD_CAP_NOT_CERTIFIED');
+    if(creation)assertRunpodPaidAdmission({hardCapCertified:RUNPOD_HARD_CAP_CERTIFIED,paidExecutionAuthorized:RUNPOD_PAID_EXECUTION_AUTHORIZED});
     return globalThis.fetch(url,options);
 }
 export const VIDEO_ENGINE_MODES = Object.freeze([

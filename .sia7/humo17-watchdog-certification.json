@@ -1,0 +1,177 @@
+{
+  "schema": "jarvis.v142.watchdog-certificate.1",
+  "jobId": "watchdog-2ab90270-8691-4001-8a44-fc1b11380451",
+  "operationId": "watchdog-2ab90270-8691-4001-8a44-fc1b11380451",
+  "computeType": "CPU",
+  "cpuType": "cpu3c",
+  "dataCenterId": "EU-RO-1",
+  "createdAt": "2026-09-09T15:21:08.112Z",
+  "createdAtMs": 1788967268112,
+  "hardBudgetUsd": 0.1,
+  "providerBudgetSafetyRatio": 0.75,
+  "maximumPaidRuntimeSeconds": 1200,
+  "remoteWatchdogDeadline": "2026-09-09T15:25:18.000Z",
+  "remoteWatchdogDeadlineMs": 1788967518000,
+  "remoteWatchdogInstalled": true,
+  "remoteWatchdogVerified": true,
+  "inferenceStarted": false,
+  "MP4Generated": false,
+  "qualityCertified": false,
+  "paidExecutionAuthorized": false,
+  "terminationVerified": true,
+  "hostControlAbandoned": true,
+  "localWatchdogTriggered": false,
+  "localDeleteIssued": false,
+  "remoteWatchdogTriggered": true,
+  "hardCapCertified": true,
+  "watchdogSha256": "1bb8b94a33a005c67571e4e9885b698aa2fdcc3ff97e8a0bf9f24a7d9595c43f",
+  "creatorPid": 19260,
+  "podId": "ha3ax8k7eeyi7g",
+  "hourlyRateUsd": 0.06,
+  "status": "PROVIDER_TERMINATION_CONFIRMED",
+  "hostControlAbandonedAt": "2026-09-09T15:22:06.253Z",
+  "verifierPid": 23288,
+  "triggerEvidence": "Armed self-delete was the sole configured deletion authority; independent provider observation after deadline.",
+  "observedAt": "2026-09-09T15:25:58.991Z",
+  "observerPid": 2860,
+  "providerActivePods": 0,
+  "networkVolumeRetained": true,
+  "certificationScope": "HOST_LOSS_AFTER_REMOTE_WATCHDOG_VERIFIED",
+  "physicalWatchdogCertified": true,
+  "startupRecoveryPhysicallyVerified": true,
+  "certificationCostUsd": null,
+  "certificationCostUpperBoundUsd": 0.018035411313205296,
+  "providerInvoiceFinalized": false,
+  "certificationBudgetSatisfied": true,
+  "terminationTimeExact": null,
+  "terminationObservedNoLaterThan": "2026-09-09T15:25:58.991Z",
+  "networkVolumeId": "1qm5wczocl",
+  "gpuPodsCreated": 0,
+  "codeCertified": false,
+  "ciPending": true,
+  "armedWatchdogSnapshot": {
+    "podId": "ha3ax8k7eeyi7g",
+    "pid": 8,
+    "deadlineEpochSeconds": 1788967518,
+    "remoteBudgetWatchdogInstalled": true,
+    "remoteBudgetWatchdogVerified": true,
+    "terminationVerified": false,
+    "hostIndependent": true,
+    "mechanism": "pod_scoped_graphql_self_delete",
+    "inferenceStarted": false,
+    "remoteWatchdogTriggered": false,
+    "localWatchdogTriggered": false,
+    "armedAtEpochSeconds": 1788967279.7151763,
+    "maximumRuntimeSeconds": 238.28481912612915,
+    "status": "REMOTE_BUDGET_WATCHDOG_ARMED",
+    "bootstrapExited": true
+  },
+  "remoteWatchdog": {
+    "installed": true,
+    "verified": true,
+    "armedAtEpochSeconds": 1788967279.7151763,
+    "deadlineAt": "2026-09-09T15:25:18.000Z",
+    "maximumRuntimeSeconds": 238.28481912612915,
+    "mechanism": "pod_scoped_graphql_self_delete",
+    "hostIndependent": true
+  },
+  "hostLossEvidence": {
+    "CheckedAt": "2026-09-09T15:22:50.9377150Z",
+    "CreatorPid": 19260,
+    "VerifierPid": 23288,
+    "FormerWorkerPid": 22264,
+    "LocalControllersAlive": 0,
+    "FormerWorkerPidReusedBy": "wireguardtun",
+    "RemoteDeleteIssued": false
+  },
+  "startupRecoveryEvidence": {
+    "schema": "jarvis.v142.cpu-startup-recovery.1",
+    "at": "2026-09-09T15:27:38.347Z",
+    "podId": "ha3ax8k7eeyi7g",
+    "observerPid": 5628,
+    "fixture": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker\\.jarvis-artifacts\\humo17-quality\\certified-cpu-recovery-rLgAMc",
+    "order": [
+      "RECOVERY_STARTED",
+      "PROVIDER_GET",
+      "STALE_RECEIPT_CLOSED",
+      "JOB_READ_ALLOWED"
+    ],
+    "startupRecoveryPhysicallyVerified": true,
+    "localDeleteIssued": false
+  },
+  "costBounds": {
+    "schema": "jarvis.v142.watchdog-cost-bounds.1",
+    "at": "2026-09-09T15:27:13.288Z",
+    "attempts": [
+      {
+        "attempt": 2,
+        "podId": "ddgm73tihuld2n",
+        "createdAt": "2026-09-09T14:50:32.978Z",
+        "terminationObservedNoLaterThan": "2026-09-09T14:58:05.598Z",
+        "hourlyRateUsd": 0.06,
+        "maximumElapsedSeconds": 452.6201530761719,
+        "computeCostUpperBoundUsd": 0.007543669217936198,
+        "withDiskReserveUpperBoundUsd": 0.008800947420925565
+      },
+      {
+        "attempt": 3,
+        "podId": "tqt7jlafdjijle",
+        "createdAt": "2026-09-09T15:06:08.499Z",
+        "terminationObservedNoLaterThan": "2026-09-09T15:09:12.535Z",
+        "hourlyRateUsd": 0.06,
+        "maximumElapsedSeconds": 184.03628588867187,
+        "computeCostUpperBoundUsd": 0.0030672714314778646,
+        "withDiskReserveUpperBoundUsd": 0.003578483336724176
+      },
+      {
+        "attempt": 5,
+        "podId": "ha3ax8k7eeyi7g",
+        "createdAt": "2026-09-09T15:21:08.112Z",
+        "terminationObservedNoLaterThan": "2026-09-09T15:25:58.991Z",
+        "hourlyRateUsd": 0.06,
+        "maximumElapsedSeconds": 290.879,
+        "computeCostUpperBoundUsd": 0.0048479833333333324,
+        "withDiskReserveUpperBoundUsd": 0.005655980555555556
+      }
+    ],
+    "hardBudgetUsd": 0.1,
+    "aggregateUpperBoundUsd": 0.018035411313205296,
+    "providerInvoiceFinalized": false,
+    "providerReportedRows": [],
+    "costEvidence": "Actual provider rate and elapsed time through verified deletion; 0.07 USD/h ceiling includes disk reserve. Empty billing response is not treated as zero charge."
+  },
+  "attemptHistory": [
+    {
+      "attempt": 1,
+      "podCreated": false,
+      "result": "Provider rejected create; balance insufficient"
+    },
+    {
+      "attempt": 2,
+      "podId": "ddgm73tihuld2n",
+      "result": "No observable watchdog; local cleanup verified"
+    },
+    {
+      "attempt": 3,
+      "podId": "tqt7jlafdjijle",
+      "result": "Scoped REST returned 403; local cleanup verified; corrected to scoped GraphQL"
+    },
+    {
+      "attempt": 4,
+      "podCreated": false,
+      "result": "Provider capacity unavailable in EU-NL-1"
+    },
+    {
+      "attempt": 5,
+      "podId": "ha3ax8k7eeyi7g",
+      "result": "Remote self-delete; no local DELETE; provider 404"
+    }
+  ],
+  "limitations": [
+    "Certification covers host disappearance after watchdog verification, not allocation or image pull before watchdog start.",
+    "Provider API availability is required for remote self-deletion; no provider-side TTL certified.",
+    "Exact deletion timestamp unavailable; fresh observer confirmed absence after deadline.",
+    "Provider billing rows pending; cost is conservative rate/time upper bound, not finalized invoice.",
+    "Remote trigger inferred from sole configured self-delete authority and subsequent provider absence; armed snapshot retained unchanged."
+  ]
+}

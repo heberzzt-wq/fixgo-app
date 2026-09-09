@@ -72,6 +72,7 @@ import {
     RUNPOD_HUMO17_CORE_CACHE_BASE,
     RUNPOD_WAN22_GPU_PROFILES,
     RUNPOD_HARD_CAP_CERTIFIED,
+    RUNPOD_PAID_EXECUTION_AUTHORIZED,
     validateHuMo17CoreCacheManifest,
     createLocalVideoEngine,
     createRunpodRemoteVideoAdapter,
@@ -8701,11 +8702,12 @@ export async function runNextIdentityRuntimePreflightCli({
     return result;
 }
 
-// Paid admission stays closed until provider-side protection covers pre-container allocation.
-// No env flag, job approval or mocked receipt can promote this physical certification.
+// Physical host-loss certification is separate from paid launch authority.
+// No environment flag or old job approval can reopen paid execution.
 export const HUMO17_INDEPENDENT_BUDGET_CERTIFIED = RUNPOD_HARD_CAP_CERTIFIED;
 export function assertHuMo17IndependentBudget() {
     if (!HUMO17_INDEPENDENT_BUDGET_CERTIFIED) throw new Error("HUMO17_INDEPENDENT_BUDGET_CERTIFICATION_REQUIRED");
+    if (!RUNPOD_PAID_EXECUTION_AUTHORIZED) throw new Error('HUMO17_PAID_EXECUTION_DISABLED');
 }
 export function huMo17BudgetSeconds({hardBudgetUsd, hourlyRateUsd, maximumMinutes}) {
     if (![hardBudgetUsd,hourlyRateUsd,maximumMinutes].every(v=>Number.isFinite(v)&&v>0)) throw new Error("HUMO17_BUDGET_INPUT_INVALID");
@@ -9041,8 +9043,8 @@ export async function runHuMo17PersistentCoreStagingCli({
             x.available === true && x.secureCloud === true && x.networkVolumeSupported === true && x.vramGb >= 48 && x.hourlyRateUsd > 0 && x.hourlyRateUsd <= 1.10);
         if (!placement) throw new Error("HUMO17_L40S_PLACEMENT_UNAVAILABLE");
         if (truthy(env.JARVIS_HUMO17_RUNTIME_PROBE_PREFLIGHT_ONLY)) {
-            const runtimeProbeStatus = "HUMO17_INDEPENDENT_BUDGET_CERTIFICATION_REQUIRED";
-            const result = {ok: false, hardCapCertified:false, paidBudgetReady:false, localBudgetWatchdog:true, remoteBudgetWatchdogVerified:false, status: runtimeProbeStatus, runtimeProbeStatus, terminationVerified: true, estimatedCostUsd: 0, backend: "humo-17b-identity",
+            const runtimeProbeStatus = HUMO17_INDEPENDENT_BUDGET_CERTIFIED?'HUMO17_PAID_EXECUTION_DISABLED':'HUMO17_INDEPENDENT_BUDGET_CERTIFICATION_REQUIRED';
+            const result = {ok: false, hardCapCertified:HUMO17_INDEPENDENT_BUDGET_CERTIFIED, paidExecutionAuthorized:false,paidBudgetReady:false, localBudgetWatchdog:true, remoteBudgetWatchdogVerified:false, status: runtimeProbeStatus, runtimeProbeStatus, terminationVerified: true, estimatedCostUsd: 0, backend: "humo-17b-identity",
                 geometry: buildNextIdentityRuntimeCandidate({backend: "humo-17b-identity"})[runtimeProbeAssets.qualityProbe ? "qualityProbeGeometry" : "probeGeometry"],
                 networkVolumeId: volume.id, gpu: "NVIDIA L40S", gpuCount: 1, hardBudgetUsd,
                 referenceSha256: runtimeProbeAssets.reference.sha256, audioSha256: runtimeProbeAssets.audio.sha256,

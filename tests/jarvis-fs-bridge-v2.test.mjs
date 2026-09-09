@@ -1764,7 +1764,7 @@ test("HuMo17 201-frame quality contract survives V142 materialization twice", ()
 
 test("HuMo17 budget guard denies paid admission and computes conservative deadline", async () => {
     const {assertHuMo17IndependentBudget,huMo17BudgetSeconds,buildHuMo17RemoteWatchdogStartup}=await import("../jarvis-fs-bridge.js");
-    assert.throws(()=>assertHuMo17IndependentBudget(),/INDEPENDENT_BUDGET_CERTIFICATION_REQUIRED/);
+    assert.throws(()=>assertHuMo17IndependentBudget(),/HUMO17_PAID_EXECUTION_DISABLED/);
     assert.equal(huMo17BudgetSeconds({hardBudgetUsd:.95,hourlyRateUsd:1.10,maximumMinutes:42}),2331);
     for(const value of [NaN,Infinity,0,-1])assert.throws(()=>huMo17BudgetSeconds({hardBudgetUsd:value,hourlyRateUsd:1,maximumMinutes:42}));
     const startup=buildHuMo17RemoteWatchdogStartup({deadlineMs:100000,source:"fixture"}).join("\n");
@@ -1788,9 +1788,11 @@ test('HuMo17 bootstrap blocks payload until live independent evidence and reject
 });
 
 test('Runpod live transport blocks REST and GraphQL provisioning before network',async()=>{
-    const {guardedRunpodFetch}=await import('../jarvis-local-video-engine.js');
-    await assert.rejects(guardedRunpodFetch('https://rest.runpod.io/v1/pods',{method:'POST',body:'{}'}),/RUNPOD_HARD_CAP_NOT_CERTIFIED/);
-    await assert.rejects(guardedRunpodFetch('https://api.runpod.io/graphql',{method:'POST',body:JSON.stringify({query:'mutation { podFindAndDeployOnDemand {} }'})}),/RUNPOD_HARD_CAP_NOT_CERTIFIED/);
+    const {guardedRunpodFetch,assertRunpodPaidAdmission}=await import('../jarvis-local-video-engine.js');
+    for(const hardCapCertified of [false,undefined,'true'])assert.throws(()=>assertRunpodPaidAdmission({hardCapCertified,paidExecutionAuthorized:true}),/RUNPOD_HARD_CAP_NOT_CERTIFIED/);
+    assert.throws(()=>assertRunpodPaidAdmission({hardCapCertified:true,paidExecutionAuthorized:false}),/RUNPOD_PAID_EXECUTION_DISABLED/);
+    await assert.rejects(guardedRunpodFetch('https://rest.runpod.io/v1/pods',{method:'POST',body:'{}'}),/RUNPOD_PAID_EXECUTION_DISABLED/);
+    await assert.rejects(guardedRunpodFetch('https://api.runpod.io/graphql',{method:'POST',body:JSON.stringify({query:'mutation { podFindAndDeployOnDemand {} }'})}),/RUNPOD_PAID_EXECUTION_DISABLED/);
 });
 
 test('HuMo17 CPU certificate has no GPU, volume, payload, account key or local timer',async()=>{

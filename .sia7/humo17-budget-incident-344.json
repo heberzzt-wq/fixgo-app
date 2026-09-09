@@ -38,5 +38,26 @@
   ],
   "productionDeployed": false,
   "mainMerged": false,
-  "episodeLaunched": false
+  "episodeLaunched": false,
+  "providerChargedUsd": 8.463767,
+  "budgetExceededUsd": 7.513767,
+  "hardCapWorked": false,
+  "videoProduced": false,
+  "qualityCertified": false,
+  "hardCapRemediation": {
+    "physicalWatchdogCertified": true,
+    "hardCapCertified": true,
+    "certificationScope": "HOST_LOSS_AFTER_REMOTE_WATCHDOG_VERIFIED",
+    "certificationCostUsd": null,
+    "certificationCostUpperBoundUsd": 0.018035411313205296,
+    "providerInvoiceFinalized": false,
+    "certificationBudgetSatisfied": true,
+    "startupRecoveryPhysicallyVerified": true,
+    "paidExecutionAuthorized": false,
+    "codeCertified": false,
+    "hostIndependent": true,
+    "receiptPath": ".sia7/humo17-watchdog-certification.json",
+    "ciPending": true
+  },
+  "historicalSnapshotNote": "Top-level original runtime and CI fields describe incident closure before remediation; current certification is recorded separately below."
 }
