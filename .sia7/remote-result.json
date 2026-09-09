@@ -1,25 +1,10 @@
 {
-  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-preflight-20260909-354",
-  "completedAt": "2026-09-09T19:52:33.912Z",
+  "jobId": "v142-humo17-ab-output-pin-repair-20260909-355",
+  "completedAt": "2026-09-09T19:53:22.890Z",
   "executionStarted": true,
   "ok": false,
-  "error": "SIA7_HUMO17_CORE_STAGE_FAILED:^ | Error: HUMO17_QUALITY_OUTPUT_NOT_PINNED | at resolveHuMo17QualityControlPlane (file:///C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker/jarvis-fs-bridge.js:9661:92) | at file:///C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker/jarvis-fs-bridge.js:10121:32 | at ModuleJob.run (node:internal/modules/esm/module_job:439:25) | at async node:internal/modules/esm/loader:643:26 | at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) | Node.js v24.19.0",
-  "evidence": {
-    "phase": "WORKER_PROCESS_FAILED",
-    "paidReceipts": [],
-    "logTail": [
-      "file:///C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker/jarvis-fs-bridge.js:9661",
-      "if (output !== \".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4\") throw new Error(\"HUMO17_QUALITY_OUTPUT_NOT_PINNED\");",
-      "^",
-      "Error: HUMO17_QUALITY_OUTPUT_NOT_PINNED",
-      "at resolveHuMo17QualityControlPlane (file:///C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker/jarvis-fs-bridge.js:9661:92)",
-      "at file:///C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker/jarvis-fs-bridge.js:10121:32",
-      "at ModuleJob.run (node:internal/modules/esm/module_job:439:25)",
-      "at async node:internal/modules/esm/loader:643:26",
-      "at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)",
-      "Node.js v24.19.0"
-    ]
-  },
+  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1",
+  "evidence": null,
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
