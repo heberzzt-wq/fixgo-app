@@ -9421,8 +9421,8 @@ export function resolveHuMo17QualityControlPlane({ root = DEFAULT_ROOT, env = pr
     if (changed.some(file => !file.startsWith(".sia7/"))) throw new Error("HUMO17_QUALITY_CONTROL_UNCERTIFIED_CODE");
     const sourceRoot = path.resolve(root, "..", "fixgo-v142-local-first-20260825");
     if (!fs.existsSync(sourceRoot) || !fs.statSync(sourceRoot).isDirectory()) throw new Error("HUMO17_QUALITY_SOURCE_ROOT_MISSING");
-    const qualityRoot = path.resolve(sourceRoot, ".jarvis-artifacts", "humo17-quality");
-    if (!fs.existsSync(qualityRoot) || !fs.statSync(qualityRoot).isDirectory() || fs.lstatSync(qualityRoot).isSymbolicLink()) throw new Error("HUMO17_QUALITY_LOCAL_ROOT_INVALID");
+    const qualityRoot = path.resolve(sourceRoot, ".jarvis-artifacts");
+    if (!fs.existsSync(qualityRoot) || !fs.statSync(qualityRoot).isDirectory() || fs.lstatSync(qualityRoot).isSymbolicLink()) throw new Error("HUMO17_QUALITY_ARTIFACT_ROOT_INVALID");
     const files = [], stack = [qualityRoot];
     while (stack.length) {
         const current = stack.pop();
