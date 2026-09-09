@@ -167,7 +167,7 @@ alignIdentityCandidateTests();
 
 for (const file of [STUDIO, ENGINE, LOCAL_VIDEO_TEST, SERIES_TEST]) {
   const source = read(file);
-  if (source.includes("durationSeconds: 8.0") && file === ENGINE) {
+  if (/durationSeconds:\s*8\.0\s*[,}]/.test(source) && file === ENGINE) {
     throw new Error("V142_HUMO_LEGACY_8S_ENGINE_CONTRACT_PRESENT");
   }
 }

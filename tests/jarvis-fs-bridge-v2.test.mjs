@@ -1742,3 +1742,22 @@ test("HuMo17 quality probe rejects noise-only, blind segments, mismatched hashes
     assert.equal(job.networkVolumeRetained,true);assert.equal(job.fullEpisodeAuthorized,false);
     assert.match(job.negativePrompt,/smooth plastic skin/);assert.equal(job.strategy.compileEnabled,false);
 });
+
+
+test("HuMo17 201-frame quality contract survives V142 materialization twice", () => {
+    const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "humo17-materializer-"));
+    const files = ["jarvis-local-video-engine.js", "jarvis-fs-bridge.js", "jarvis-artifact-studio.js",
+        "tests/jarvis-local-video-engine-v142.test.mjs", "tests/jarvis-series-continuity-v142.test.mjs", "tests/jarvis-fs-bridge-v2.test.mjs"];
+    try {
+        for (const file of files) {
+            const dest = path.join(fixture,file); fs.mkdirSync(path.dirname(dest),{recursive:true}); fs.copyFileSync(path.resolve(file),dest);
+        }
+        const materializer = path.resolve(".github/scripts/v142-final-contract-alignment.mjs");
+        execFileSync(process.execPath,[materializer],{cwd:fixture,timeout:15000,stdio:"pipe"});
+        const first = files.map(file=>fs.readFileSync(path.join(fixture,file),"utf8"));
+        execFileSync(process.execPath,[materializer],{cwd:fixture,timeout:15000,stdio:"pipe"});
+        assert.deepEqual(files.map(file=>fs.readFileSync(path.join(fixture,file),"utf8")),first);
+        assert.match(first[0],/qualityProbeGeometry:.*frames: 201, durationSeconds: 8.04/);
+        assert.match(first[0],/probeGeometry:.*frames: 97, durationSeconds: 3.88/);
+    } finally {fs.rmSync(fixture,{recursive:true,force:true});}
+});
