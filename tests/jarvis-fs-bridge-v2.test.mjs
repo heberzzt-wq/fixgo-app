@@ -1881,7 +1881,7 @@ test('HuMo17 quality authority binds exact media, budget and HEAD and is consume
     const abOutput='.jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4';
     assert.equal(validateHuMo17QualityAuthority({...a,output:abOutput},{...c,output:abOutput}).output,abOutput);
     const bridgeSource=fs.readFileSync(path.resolve('jarvis-fs-bridge.js'),'utf8');
-    for(const marker of ['JARVIS_HUMO17_SINGLE_USE_AUTHORITY_FILE','JARVIS_HUMO17_CERTIFIED_CODE_SHA','control.paidJobId','HUMO17_QUALITY_CONTROL_UNCERTIFIED_CODE'])assert.match(bridgeSource,new RegExp(marker.replace(/[.*+?^${}()|[\]\]/g,'\\    const c={...a,qualityProbe:true,speechValidated:true};assert.equal(assertHuMo17IndependentBudget({authority:a,context:c}),a);')));
+    for(const marker of ['JARVIS_HUMO17_SINGLE_USE_AUTHORITY_FILE','JARVIS_HUMO17_CERTIFIED_CODE_SHA','control.paidJobId','HUMO17_QUALITY_CONTROL_UNCERTIFIED_CODE'])assert.equal(bridgeSource.includes(marker),true);
     for(const patch of [{humanApproved:false},{maximumAttempts:2},{gpu:'NVIDIA A40'},{gpuCount:2},{frames:97},{hardBudgetUsd:1},{audioSha256:'b'.repeat(64)},{codeSha:'b'.repeat(40)},{fullEpisodeAuthorized:true},{expiresAt:'2000-01-01'}])assert.throws(()=>validateHuMo17QualityAuthority({...a,...patch},c),/SINGLE_USE_AUTHORITY_INVALID/);
     for(const patch of [{qualityProbe:false},{speechValidated:false},{output:'other.mp4'},{jobId:'old-job'},{hardBudgetUsd:3}])assert.throws(()=>validateHuMo17QualityAuthority(a,{...c,...patch}),/SINGLE_USE_AUTHORITY_INVALID/);
     const root=fs.mkdtempSync(path.join(os.tmpdir(),'humo17-once-'));try {
