@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "jarvis.v142.humo17.physical-probe.1",
+  "certifiedAt": "2026-09-09T00:43:43.556Z",
+  "codeSha": "42630fa2a064b08732974562c1baf9851fe9be66",
+  "ciRun": 34294696698,
+  "linux": "success",
+  "windows": "success",
+  "worker": {
+    "pid": 5664,
+    "controlJob": "v142-humo17-worker-recovery-20260908-319",
+    "ok": true
+  },
+  "physicalRuntimeCertified": true,
+  "singleL40sRuntimeCertified": true,
+  "paidExecutionAuthorized": false,
+  "qualityCertified": false,
+  "backend": "humo-17b-identity",
+  "podId": "i1ti17kijdb986",
+  "gpu": "NVIDIA L40S",
+  "geometry": {
+    "width": 832,
+    "height": 480,
+    "fps": 25,
+    "frames": 97,
+    "durationSeconds": 3.88
+  },
+  "artifactId": "ART-32cd7a61-f2e4-4ab2-8b4e-c469521768ee",
+  "output": ".jarvis-artifacts/videos/humo17-heberto-physical-probe-97f.mp4",
+  "bytes": 336129,
+  "sha256": "e849c5c866d5e8503f042b6dcdcbb4983311c4ec883842d063eb7dd5bd460df3",
+  "referenceSha256": "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958",
+  "audioSha256": "9a075a37c56b6e0cd828a9b2a37a2fe3ee3f01c28cc7483f6a5d97ff96bd2bd5",
+  "runtimeRevision": "088128b224242e110d3906c6750e9a3a348a659b",
+  "fallbackUsed": false,
+  "identityValidation": {
+    "inputHashVerified": true,
+    "referenceConditioningUsed": true,
+    "firstMiddleLastFramesReviewed": true,
+    "biometricCertification": false,
+    "limitations": "Generated background and smoothed facial appearance differ from source; production quality not approved."
+  },
+  "coreReused": true,
+  "networkVolumeId": "1qm5wczocl",
+  "networkVolumeRetained": true,
+  "terminationVerified": true,
+  "providerActivePodsAfterCleanup": 0,
+  "totalEstimatedCostUsd": 0.5222771333333334,
+  "hardBudgetTotalUsd": 3,
+  "attempts": [
+    {
+      "podId": "4w1w7vs414ymk4",
+      "costUsd": 0.05579740277777778,
+      "terminationVerified": true,
+      "inferenceStarted": false,
+      "error": "HUMO_EPHEMERAL_REMOTE_COMMAND_FAILED"
+    },
+    {
+      "podId": "uxdokrqomyasdb",
+      "costUsd": 0.05425959444444445,
+      "terminationVerified": true,
+      "inferenceStarted": false,
+      "error": "HUMO_EPHEMERAL_REMOTE_COMMAND_FAILED"
+    },
+    {
+      "podId": "zmnuzslz380d9f",
+      "costUsd": 0.06876900833333334,
+      "terminationVerified": true,
+      "inferenceStarted": false,
+      "error": "HUMO_EPHEMERAL_REMOTE_COMMAND_FAILED"
+    },
+    {
+      "podId": "v1ll0rkoigmbj3",
+      "costUsd": 0.03842916111111112,
+      "terminationVerified": true,
+      "inferenceStarted": false,
+      "error": "HUMO_EPHEMERAL_REMOTE_COMMAND_FAILED"
+    },
+    {
+      "podId": "i1ti17kijdb986",
+      "costUsd": 0.3050219666666667,
+      "terminationVerified": true,
+      "inferenceStarted": true,
+      "error": null
+    }
+  ],
+  "productionDeployed": false,
+  "mainMerged": false,
+  "episodeLaunched": false
+}
