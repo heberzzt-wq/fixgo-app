@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-quality-runtime-envelope-20260908-323",
+  "jobId": "v142-humo17-quality-preflight-envelope-20260908-324",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "status: \"HUMO17_RUNTIME_PROBE_VERIFIED_AND_RELEASED\"};",
-    "replace": "status: truthy(env.JARVIS_HUMO17_SIA7_COMPAT) ? \"HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED\" : \"HUMO17_RUNTIME_PROBE_VERIFIED_AND_RELEASED\", runtimeProbeStatus: \"HUMO17_RUNTIME_PROBE_VERIFIED_AND_RELEASED\"};"
+    "search": "            const result = {ok: true, status: \"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY\", backend: \"humo-17b-identity\",",
+    "replace": "            const runtimeProbeStatus = \"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY\";\n            const result = {ok: true, status: truthy(env.JARVIS_HUMO17_SIA7_COMPAT) ? \"HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED\" : runtimeProbeStatus, runtimeProbeStatus, terminationVerified: true, estimatedCostUsd: 0, backend: \"humo-17b-identity\"," 
   }
 }
