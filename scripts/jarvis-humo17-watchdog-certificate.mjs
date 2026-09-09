@@ -7,23 +7,24 @@ import {resolveRunpodCredentialEnvironment,persistHuMo17PaidReceipt,huMo17Budget
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const secondAttempt=process.argv.includes('--reconciled-attempt-2');
+const thirdAttempt=process.argv.includes('--verified-cleanup-attempt-3');
 const firstFile=path.join(root,'.jarvis-artifacts/humo17-quality/watchdog-certificate.json');
-const file=secondAttempt?firstFile.replace('.json','-2.json'):firstFile;
+const file=thirdAttempt?firstFile.replace('.json','-3.json'):secondAttempt?firstFile.replace('.json','-2.json'):firstFile;
 export function assertCertificateBalance(balance) {
     if(!Number.isFinite(balance))throw Error('CERTIFICATE_BALANCE_UNVERIFIED');
     if(balance<.10)throw Error('CERTIFICATE_INSUFFICIENT_PROVIDER_BALANCE');
 }
 export function buildCpuWatchdogCertificate({source,createdAtMs,operationId}) {
     if(!source || !Number.isFinite(createdAtMs) || !/^watchdog-[a-f0-9-]+$/.test(operationId)) throw Error('CERTIFICATE_INPUT_INVALID');
-    const seconds=huMo17BudgetSeconds({hardBudgetUsd:.10,hourlyRateUsd:.07,maximumMinutes:10});
+    const seconds=huMo17BudgetSeconds({hardBudgetUsd:.10,hourlyRateUsd:.07,maximumMinutes:20});
     const deadline=Math.floor(createdAtMs/1000)+seconds;
     // The short-lived bootstrap exits. Its detached guardian and PID1 status server are separate processes.
-    const boot=`import base64,subprocess,sys\nfrom pathlib import Path\np=Path('/tmp/jarvis-budget');p.mkdir(mode=0o700,exist_ok=True)\n(p/'watchdog.py').write_bytes(base64.b64decode('${Buffer.from(source).toString('base64')}'))\nsubprocess.Popen([sys.executable,str(p/'watchdog.py'),'--deadline','${deadline}','--receipt',str(p/'state.json')],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)\n`;
+    const boot=`import base64,subprocess,sys,time\nfrom pathlib import Path\np=Path('/tmp/jarvis-budget');p.mkdir(mode=0o700,exist_ok=True)\n(p/'watchdog.py').write_bytes(base64.b64decode('${Buffer.from(source).toString('base64')}'))\nsubprocess.Popen([sys.executable,str(p/'watchdog.py'),'--deadline',str(min(${deadline},int(time.time())+240)),'--receipt',str(p/'state.json')],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)\n`;
     const server=`import base64,json,os,subprocess,sys\nfrom pathlib import Path\nfrom http.server import BaseHTTPRequestHandler,HTTPServer\nsubprocess.run([sys.executable,'-c',base64.b64decode('${Buffer.from(boot).toString('base64')}').decode()],check=True,timeout=15)\nclass Handler(BaseHTTPRequestHandler):\n def log_message(self,*args): pass\n def do_GET(self):\n  if self.path!='/state': self.send_error(404);return\n  try:\n   state=json.loads(Path('/tmp/jarvis-budget/state.json').read_text());state['bootstrapExited']=True\n   if state.get('pid'): os.kill(state['pid'],0)\n   data=json.dumps(state).encode();self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(data)\n  except Exception: self.send_error(503)\nHTTPServer(('0.0.0.0',8080),Handler).serve_forever()\n`;
     return {deadlineMs:deadline*1000,maximumPaidRuntimeSeconds:seconds,body:{
         name:operationId,computeType:'CPU',cpuFlavorIds:['cpu3c'],vcpuCount:2,
-        cloudType:'SECURE',dataCenterIds:['EU-NL-1'],containerDiskInGb:20,volumeInGb:0,
-        imageName:'python:3.12-slim-bookworm',ports:['8080/http'],
+        cloudType:'SECURE',dataCenterIds:['EU-NL-1'],containerDiskInGb:20,volumeInGb:0,supportPublicIp:true,
+        imageName:'python:3.12-slim-bookworm',ports:['8080/http','8080/tcp'],
         dockerEntrypoint:['python3','-c'],dockerStartCmd:[server],env:{}}};
 }
 
@@ -52,6 +53,7 @@ async function main() {
         if(process.argv[3]!=='--authorized-cpu-only-usd-0.10')throw Error('CERTIFICATE_EXPLICIT_CPU_AUTHORITY_REQUIRED');
         if(fs.existsSync(file))throw Error('CERTIFICATE_ALREADY_EXISTS_NO_REPLAY');
         if(secondAttempt){const previous=JSON.parse(fs.readFileSync(firstFile,'utf8'));if(previous.status!=='CREATE_REJECTED'||previous.podId)throw Error('PREVIOUS_CREATE_NOT_RECONCILED');}
+        if(thirdAttempt){const previous=JSON.parse(fs.readFileSync(firstFile.replace('.json','-2.json'),'utf8'));if(previous.terminationVerified!==true||previous.localDeleteIssued!==true)throw Error('PREVIOUS_TERMINATION_REQUIRED');if((Date.now()-previous.createdAtMs)/3600000*previous.hourlyRateUsd>.06)throw Error('CONSERVATIVE_CUMULATIVE_BUDGET_EXHAUSTED');}
         const createdAtMs=Date.now(),operationId='watchdog-'+randomUUID();
         const source=fs.readFileSync(path.join(root,'scripts/jarvis-humo17-budget-watchdog.py'),'utf8');
         const plan=buildCpuWatchdogCertificate({source,createdAtMs,operationId});
@@ -78,11 +80,20 @@ async function main() {
     if(!/^[a-zA-Z0-9_-]{1,80}$/.test(receipt.podId))throw Error('CERTIFICATE_POD_ID_REQUIRED');
     if(action==='verify-arm') {
         if(receipt.hostControlAbandoned)throw Error('HOST_ALREADY_ABANDONED_WAIT_FOR_DEADLINE');
-        const response=await fetch(`https://${receipt.podId}-8080.proxy.runpod.net/state`,{signal:AbortSignal.timeout(10000)});
-        if(!response.ok){console.log(JSON.stringify({status:'BOOTSTRAP_NOT_READY',httpStatus:response.status}));return;}
+        let response;
+        try{response=await fetch(`https://${receipt.podId}-8080.proxy.runpod.net/state`,{signal:AbortSignal.timeout(8000)});}catch{}
+        if(!response?.ok){
+            const {body:p}=await api('GET','/pods/'+receipt.podId);
+            const network={at:new Date().toISOString(),publicIp:p?.publicIp||null,portMappings:p?.portMappings||null,desiredStatus:p?.desiredStatus||null};
+            persistHuMo17PaidReceipt(file,{...receipt,networkObservation:network});
+            const port=Number(p?.portMappings?.['8080']);
+            if(/^\d{1,3}(\.\d{1,3}){3}$/.test(p?.publicIp||'')&&Number.isInteger(port)&&port>0&&port<=65535){try{response=await fetch(`http://${p.publicIp}:${port}/state`,{signal:AbortSignal.timeout(8000)});}catch{}}
+            if(!response?.ok){console.log(JSON.stringify({status:'BOOTSTRAP_NOT_READY',httpStatus:response?.status||null,network}));return;}
+        }
         const state=await response.json();
-        if(state.podId!==receipt.podId||state.remoteBudgetWatchdogVerified!==true||state.hostIndependent!==true||state.bootstrapExited!==true||state.deadlineEpochSeconds*1000!==receipt.remoteWatchdogDeadlineMs||Date.now()+30000>=receipt.remoteWatchdogDeadlineMs){save({...receipt,status:'WATCHDOG_NOT_VERIFIED',observedWatchdog:state});return;}
+        if(state.podId!==receipt.podId||state.remoteBudgetWatchdogVerified!==true||state.hostIndependent!==true||state.bootstrapExited!==true||!Number.isFinite(state.deadlineEpochSeconds)||state.deadlineEpochSeconds*1000>receipt.remoteWatchdogDeadlineMs||Date.now()+30000>=state.deadlineEpochSeconds*1000){save({...receipt,status:'WATCHDOG_NOT_VERIFIED',observedWatchdog:state});return;}
         save({...receipt,status:'HOST_CONTROL_ABANDONED',remoteWatchdogInstalled:true,remoteWatchdogVerified:true,remoteWatchdog:state,
+            remoteWatchdogDeadlineMs:state.deadlineEpochSeconds*1000,remoteWatchdogDeadline:new Date(state.deadlineEpochSeconds*1000).toISOString(),
             hostControlAbandoned:true,hostControlAbandonedAt:new Date().toISOString(),verifierPid:process.pid});
         // Exit: no timer, polling, SSH session or local DELETE remains in this process.
         return;

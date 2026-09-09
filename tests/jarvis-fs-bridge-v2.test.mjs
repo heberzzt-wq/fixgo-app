@@ -1797,7 +1797,7 @@ test('HuMo17 CPU certificate has no GPU, volume, payload, account key or local t
     const {buildCpuWatchdogCertificate}=await import('../scripts/jarvis-humo17-watchdog-certificate.mjs');
     const plan=buildCpuWatchdogCertificate({source:'fixture',createdAtMs:100000,operationId:'watchdog-abcd'});
     assert.equal(plan.body.computeType,'CPU');assert.equal(plan.body.vcpuCount,2);
-    assert.equal(plan.maximumPaidRuntimeSeconds,600);assert.equal(plan.deadlineMs,700000);
+    assert.equal(plan.maximumPaidRuntimeSeconds,1200);assert.equal(plan.deadlineMs,1300000);assert.equal(plan.body.supportPublicIp,true);
     assert.equal(plan.body.networkVolumeId,undefined);assert.equal(plan.body.gpuTypeIds,undefined);
     assert.deepEqual(plan.body.env,{});assert.equal(plan.body.volumeInGb,0);
     assert.match(plan.body.dockerStartCmd[0],/subprocess.run/);
