@@ -3,9 +3,11 @@
   "authorityId": "v142-humo17-quality-ab-prompt-parity-201f-20260909-354-authority",
   "createdAt": "2026-09-09T19:37:00Z",
   "humanApproved": true,
-  "consumed": false,
+  "consumed": true,
+  "consumedAt": "2026-09-09T20:38:04Z",
+  "consumedByJobId": "v142-humo17-quality-ab-prompt-parity-201f-20260909-362",
   "maximumPaidAttempts": 1,
-  "paidAttemptsUsed": 0,
+  "paidAttemptsUsed": 1,
   "secondPaidAttemptAuthorized": false,
   "hardBudgetUsd": 0.95,
   "providerBudgetSafetyRatio": 0.75,
@@ -20,14 +22,11 @@
   "materialize": "skipped",
   "deploy": "skipped",
   "zeroCostPreflightHistory": [
-    {
-      "jobId": "v142-humo17-quality-ab-prompt-parity-201f-preflight-20260909-354",
-      "ok": false,
-      "error": "HUMO17_QUALITY_OUTPUT_NOT_PINNED",
-      "paidReceipts": 0,
-      "paidAttemptConsumed": false,
-      "resourceCreated": false
-    }
+    {"jobId":"v142-humo17-quality-ab-prompt-parity-201f-preflight-20260909-354","ok":false,"error":"HUMO17_QUALITY_OUTPUT_NOT_PINNED","paidReceipts":0,"paidAttemptConsumed":false,"resourceCreated":false},
+    {"jobId":"v142-humo17-quality-ab-prompt-parity-201f-preflight-20260909-358","ok":false,"error":"fetch failed","paidReceipts":0,"paidAttemptConsumed":false,"resourceCreated":false},
+    {"jobId":"v142-humo17-quality-ab-prompt-parity-201f-preflight-20260909-359","ok":false,"error":"HUMO17_L40S_PLACEMENT_UNAVAILABLE","paidReceipts":0,"paidAttemptConsumed":false,"resourceCreated":false},
+    {"jobId":"v142-humo17-quality-ab-prompt-parity-201f-preflight-20260909-360","ok":false,"error":"HUMO17_L40S_PLACEMENT_UNAVAILABLE","paidReceipts":0,"paidAttemptConsumed":false,"resourceCreated":false},
+    {"jobId":"v142-humo17-quality-ab-prompt-parity-201f-preflight-20260909-361","ok":true,"status":"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY","activePods":0,"paidStaleReceipts":0,"paidAttemptConsumed":false,"resourceCreated":false}
   ],
   "backend": "humo-17b-identity",
   "model": "HuMo-17B",
@@ -40,13 +39,7 @@
   "audioSha256": "bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184",
   "audioDurationSeconds": 8.04,
   "speechValidated": true,
-  "geometry": {
-    "width": 832,
-    "height": 480,
-    "fps": 25,
-    "frames": 201,
-    "durationSeconds": 8.04
-  },
+  "geometry": {"width":832,"height":480,"fps":25,"frames":201,"durationSeconds":8.04},
   "effectiveRuntimeConfig": {
     "backend": "humo-17b-identity",
     "model": "HuMo-17B",
@@ -62,14 +55,7 @@
     "referenceConditioning": "HuMoEmbeds",
     "prompt": "The exact person in the reference image speaks the supplied audio, natural restrained facial motion. Preserve facial identity, age, hair and facial hair. One person only, no subtitles or watermark.",
     "negativePrompt": "another person, identity change, subtitles, watermark, deformed face",
-    "referencePreprocessing": {
-      "preserveAspectRatio": true,
-      "method": "pad",
-      "width": 832,
-      "height": 480,
-      "interpolation": "LANCZOS",
-      "padColor": "white"
-    }
+    "referencePreprocessing": {"preserveAspectRatio":true,"method":"pad","width":832,"height":480,"interpolation":"LANCZOS","padColor":"white"}
   },
   "abVariable": "prompt_conditioning_restored_to_97f",
   "allOtherRuntimeVariablesLocked": true,
