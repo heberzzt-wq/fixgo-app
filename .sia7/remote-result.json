@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-preflight-20260909-359",
-  "completedAt": "2026-09-09T20:01:59.131Z",
+  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-preflight-20260909-360",
+  "completedAt": "2026-09-09T20:03:41.352Z",
   "executionStarted": true,
   "ok": false,
   "error": "SIA7_HUMO17_CORE_STAGE_FAILED:HUMO17_L40S_PLACEMENT_UNAVAILABLE",
