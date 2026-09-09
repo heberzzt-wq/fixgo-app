@@ -9689,6 +9689,23 @@ export function resolveHuMo17QualityControlPlane({ root = DEFAULT_ROOT, env = pr
     const ffprobePath = findLocalFfprobe();
     if (!ffprobePath) throw new Error("HUMO17_LOCAL_FFPROBE_REQUIRED");
     const preflightOnly = control.qualityPreflightOnly === true;
+    const certifiedCodeSha = String(control.certifiedCodeSha || "").trim().toLowerCase();
+    if (!/^[a-f0-9]{40}$/.test(certifiedCodeSha)) throw new Error("HUMO17_QUALITY_CERTIFIED_CODE_SHA_REQUIRED");
+    try { execFileSync(git, ["merge-base", "--is-ancestor", certifiedCodeSha, head], {cwd: root, windowsHide: true, stdio: "ignore"}); } catch { throw new Error("HUMO17_QUALITY_CERTIFIED_CODE_NOT_ANCESTOR"); }
+    const certifiedChanged = String(execFileSync(git, ["diff", "--name-only", `${certifiedCodeSha}..${head}`], {cwd: root, encoding: "utf8", windowsHide: true})).split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    if (certifiedChanged.some(file => !file.startsWith(".sia7/"))) throw new Error("HUMO17_QUALITY_CONTROL_UNCERTIFIED_CODE");
+    const runtimeJobId = String(control.paidJobId || control.jobId || "").trim();
+    if (!runtimeJobId) throw new Error("HUMO17_QUALITY_PAID_JOB_ID_REQUIRED");
+    let authorityFile = "";
+    if (!preflightOnly) {
+        const authorityOutput = String(control.authorityPath || "").trim().replaceAll("\\", "/");
+        if (authorityOutput !== ".sia7/humo17-quality-ab-prompt-parity-201f-authority.json") throw new Error("HUMO17_QUALITY_AUTHORITY_PATH_INVALID");
+        authorityFile = path.resolve(root, authorityOutput);
+        const authorityRoot = path.resolve(root, ".sia7") + path.sep;
+        if (!authorityFile.startsWith(authorityRoot) || !fs.existsSync(authorityFile) || !fs.statSync(authorityFile).isFile() || fs.lstatSync(authorityFile).isSymbolicLink()) throw new Error("HUMO17_QUALITY_AUTHORITY_FILE_INVALID");
+        const authority = JSON.parse(fs.readFileSync(authorityFile, "utf8"));
+        if (authority.authorityId !== control.authorityId || authority.consumed !== true || authority.consumedByJobId !== runtimeJobId || authority.maximumPaidAttempts !== 1 || authority.paidAttemptsUsed !== 1 || authority.secondPaidAttemptAuthorized !== false) throw new Error("HUMO17_QUALITY_AUTHORITY_CONSUMPTION_INVALID");
+    }
     return {control, head, sourceRoot, audio, speech, referenceOutput, referenceSha256, output, preflightOnly, env: {...env, JARVIS_FFPROBE_PATH: ffprobePath, JARVIS_HUMO17_RUNTIME_PROBE_AUTHORIZED: "true", JARVIS_HUMO17_QUALITY_PROBE_AUTHORIZED: "true", JARVIS_HUMO17_RUNTIME_PROBE_SOURCE_ROOT: sourceRoot, JARVIS_HUMO17_RUNTIME_PROBE_REFERENCE_OUTPUT: referenceOutput, JARVIS_HUMO17_RUNTIME_PROBE_REFERENCE_SHA256: referenceSha256, JARVIS_HUMO17_RUNTIME_PROBE_AUDIO_OUTPUT: audio.output, JARVIS_HUMO17_RUNTIME_PROBE_AUDIO_SHA256: audio.sha256, JARVIS_HUMO17_SPEECH_EVIDENCE_OUTPUT: speech.output, JARVIS_HUMO17_SPEECH_EVIDENCE_SHA256: speech.sha256, JARVIS_HUMO17_RUNTIME_PROBE_OUTPUT: output, JARVIS_HUMO17_CORE_STAGE_RECEIPT: stageReceiptFile, JARVIS_HUMO17_RUNTIME_CI_VERIFIED_SHA: head, JARVIS_HUMO17_RUNTIME_PROBE_PREFLIGHT_ONLY: preflightOnly ? "true" : "false", JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: preflightOnly ? "false" : "true", JARVIS_RUNPOD_NETWORK_VOLUME_ID: "1qm5wczocl", JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1"}};
 }
 

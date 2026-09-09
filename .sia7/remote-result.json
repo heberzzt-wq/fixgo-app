@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-humo17-reconcile-certified-code-20260909-364",
-  "completedAt": "2026-09-09T20:42:10.139Z",
+  "jobId": "v142-humo17-wire-single-use-authority-20260909-365",
+  "completedAt": "2026-09-09T20:42:58.160Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 446387,
-  "bytesAfter": 446454,
+  "bytesBefore": 446454,
+  "bytesAfter": 448446,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
