@@ -6,7 +6,9 @@ import {randomUUID,createHash} from 'node:crypto';
 import {resolveRunpodCredentialEnvironment,persistHuMo17PaidReceipt,huMo17BudgetSeconds} from '../jarvis-fs-bridge.js';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const file=path.join(root,'.jarvis-artifacts/humo17-quality/watchdog-certificate.json');
+const secondAttempt=process.argv.includes('--reconciled-attempt-2');
+const firstFile=path.join(root,'.jarvis-artifacts/humo17-quality/watchdog-certificate.json');
+const file=secondAttempt?firstFile.replace('.json','-2.json'):firstFile;
 export function buildCpuWatchdogCertificate({source,createdAtMs,operationId}) {
     if(!source || !Number.isFinite(createdAtMs) || !/^watchdog-[a-f0-9-]+$/.test(operationId)) throw Error('CERTIFICATE_INPUT_INVALID');
     const seconds=huMo17BudgetSeconds({hardBudgetUsd:.10,hourlyRateUsd:.07,maximumMinutes:10});
@@ -16,7 +18,7 @@ export function buildCpuWatchdogCertificate({source,createdAtMs,operationId}) {
     const server=`import base64,json,os,subprocess,sys\nfrom pathlib import Path\nfrom http.server import BaseHTTPRequestHandler,HTTPServer\nsubprocess.run([sys.executable,'-c',base64.b64decode('${Buffer.from(boot).toString('base64')}').decode()],check=True,timeout=15)\nclass Handler(BaseHTTPRequestHandler):\n def log_message(self,*args): pass\n def do_GET(self):\n  if self.path!='/state': self.send_error(404);return\n  try:\n   state=json.loads(Path('/tmp/jarvis-budget/state.json').read_text());state['bootstrapExited']=True\n   if state.get('pid'): os.kill(state['pid'],0)\n   data=json.dumps(state).encode();self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(data)\n  except Exception: self.send_error(503)\nHTTPServer(('0.0.0.0',8080),Handler).serve_forever()\n`;
     return {deadlineMs:deadline*1000,maximumPaidRuntimeSeconds:seconds,body:{
         name:operationId,computeType:'CPU',cpuFlavorIds:['cpu3c'],vcpuCount:2,
-        cloudType:'SECURE',dataCenterIds:['EU-NL-1'],containerDiskInGb:5,volumeInGb:0,
+        cloudType:'SECURE',dataCenterIds:['EU-NL-1'],containerDiskInGb:20,volumeInGb:0,
         imageName:'python:3.12-slim-bookworm',ports:['8080/http'],
         dockerEntrypoint:['python3','-c'],dockerStartCmd:[server],env:{}}};
 }
@@ -41,6 +43,7 @@ async function main() {
         if(action==='preflight'){console.log(JSON.stringify({activePods:0,networkVolumeRetained:true,computeType:'CPU',cpuType:'cpu3c',vcpuCount:2,hourlyComputeRateUsd:cpu.price.securePerVcpu*2,maximumRateIncludingDiskUsd:.07,hardBudgetUsd:.10,paidExecutionAuthorized:false}));return;}
         if(process.argv[3]!=='--authorized-cpu-only-usd-0.10')throw Error('CERTIFICATE_EXPLICIT_CPU_AUTHORITY_REQUIRED');
         if(fs.existsSync(file))throw Error('CERTIFICATE_ALREADY_EXISTS_NO_REPLAY');
+        if(secondAttempt){const previous=JSON.parse(fs.readFileSync(firstFile,'utf8'));if(previous.status!=='CREATE_REJECTED'||previous.podId)throw Error('PREVIOUS_CREATE_NOT_RECONCILED');}
         const createdAtMs=Date.now(),operationId='watchdog-'+randomUUID();
         const source=fs.readFileSync(path.join(root,'scripts/jarvis-humo17-budget-watchdog.py'),'utf8');
         const plan=buildCpuWatchdogCertificate({source,createdAtMs,operationId});
@@ -54,7 +57,7 @@ async function main() {
         // Write-ahead prevents a second POST even after an uncertain response or host crash.
         persistHuMo17PaidReceipt(file,{...receipt,status:'CREATE_REQUEST_PENDING'});
         const response=await fetch('https://rest.runpod.io/v1/pods',{method:'POST',headers:{Authorization:'Bearer '+credential.env.RUNPOD_API_KEY,'Content-Type':'application/json'},body:JSON.stringify(plan.body),signal:AbortSignal.timeout(15000)});
-        if(!response.ok){save({...receipt,status:'CREATE_REJECTED',httpStatus:response.status});throw Error('CERTIFICATE_CREATE_HTTP_'+response.status);}
+        if(!response.ok){const detail=(await response.text()).slice(0,2048).replaceAll(credential.env.RUNPOD_API_KEY,'[REDACTED]');save({...receipt,status:'CREATE_REJECTED',httpStatus:response.status,providerError:detail});throw Error('CERTIFICATE_CREATE_HTTP_'+response.status);}
         const pod=await response.json();
         if(!pod.id)throw Error('CERTIFICATE_CREATE_ID_MISSING_RECONCILE_BY_NAME');
         const early={...receipt,podId:pod.id,hourlyRateUsd:Number(pod.adjustedCostPerHr??pod.costPerHr),status:'POD_CREATED'};save(early);
