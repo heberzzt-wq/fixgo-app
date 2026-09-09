@@ -19,7 +19,7 @@
   "remoteWatchdogDeadlineMs": 1788972309020,
   "remoteWatchdogInstalled": true,
   "remoteWatchdogVerified": true,
-  "inferenceStarted": false,
+  "inferenceStarted": true,
   "bootstrapTransitions": [
     {
       "state": "REMOTE_WATCHDOG_INSTALLING",
@@ -59,11 +59,11 @@
   },
   "remoteBudgetWatchdogInstalled": true,
   "remoteBudgetWatchdogVerified": true,
+  "inferenceObservedAt": "2026-09-09T16:19:20.529Z",
+  "runtimeStatus": "HUMO17_SAMPLING",
+  "runtimeEvidence": "Remote result.json inferenceStarted=true; sampler 0/8; nvidia-smi L40S 100%",
   "codeSha": "de04a55ec578487080d39c438c8d614c9f7b1567",
   "ciRun": 34373916524,
   "paidAuthorizationConsumed": true,
-  "maximumPaidAttempts": 1,
-  "qualityCertified": false,
-  "updatedAt": "2026-09-09T16:12:36.003781+00:00",
-  "observedGpu": "NVIDIA L40S"
+  "qualityCertified": false
 }
