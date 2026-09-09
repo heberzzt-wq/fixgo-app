@@ -9894,7 +9894,8 @@ if (
             });
     }
     else if (process.argv.includes("--humo17-core-stage")) {
-        runHuMo17PersistentCoreStagingCli()
+        const qualityControl = resolveHuMo17QualityControlPlane();
+        runHuMo17PersistentCoreStagingCli({ env: qualityControl ? {...qualityControl.env, JARVIS_HUMO17_SIA7_COMPAT: "true"} : process.env })
             .then(result => console.log(JSON.stringify(result)))
             .catch(error => {
                 const providerMessage = String(error?.providerMessage || "").trim();
