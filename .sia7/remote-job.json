@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-ab-output-pin-repair-line-20260909-356",
+  "jobId": "v142-humo17-ab-output-pin-contract-20260909-357",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "tests/jarvis-fs-bridge-v2.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    if (output !== \".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4\") throw new Error(\"HUMO17_QUALITY_OUTPUT_NOT_PINNED\");",
-    "replace": "    if (![\".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4\", \".jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4\"].includes(output)) throw new Error(\"HUMO17_QUALITY_OUTPUT_NOT_PINNED\");"
+    "search": "    assert.equal(job.effectiveRuntimeConfig.prompt,job.prompt);assert.equal(job.effectiveRuntimeConfig.negativePrompt,job.negativePrompt);\n    assert.equal(job.strategy.compileEnabled,false);",
+    "replace": "    assert.equal(job.effectiveRuntimeConfig.prompt,job.prompt);assert.equal(job.effectiveRuntimeConfig.negativePrompt,job.negativePrompt);\n    assert.equal(job.strategy.compileEnabled,false);\n    const bridgeSource=fs.readFileSync(path.resolve(\"jarvis-fs-bridge.js\"),\"utf8\");\n    assert.match(bridgeSource,/humo17-heberto-quality-probe-201f\\.mp4.*humo17-heberto-quality-ab-prompt-parity-201f\\.mp4/);\n    assert.match(bridgeSource,/HUMO17_QUALITY_OUTPUT_NOT_PINNED/);"
   }
 }
