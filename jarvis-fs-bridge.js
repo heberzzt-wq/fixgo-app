@@ -8722,7 +8722,7 @@ export function validateHuMo17QualityAuthority(a,c,now=Date.now()) {
        a.audioSha256!=='bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184' ||
        c.referenceSha256!==a.referenceSha256 || c.audioSha256!==a.audioSha256 ||
        c.qualityProbe!==true || c.speechValidated!==true ||
-       a.output!=='.jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4' || c.output!==a.output ||
+       !['.jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4','.jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4'].includes(a.output) || c.output!==a.output ||
        a.frames!==201 || a.fps!==25 || a.width!==832 || a.height!==480)
        throw Error('HUMO17_SINGLE_USE_AUTHORITY_INVALID');
     return a;
