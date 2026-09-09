@@ -9420,9 +9420,11 @@ export async function runHuMo17PersistentCoreStagingCli({
         if (budgetTimer) clearTimeout(budgetTimer);
         if (podId) {
             if(primaryError && fs.existsSync(paidReceiptFile)) {
-                const previous=JSON.parse(fs.readFileSync(paidReceiptFile,'utf8'));
-                persistHuMo17PaidReceipt(paidReceiptFile,{...previous,bootstrapState:'PAYLOAD_BLOCKED',inferenceStarted,
-                    bootstrapTransitions:[...(previous.bootstrapTransitions||[]),{state:'PAYLOAD_BLOCKED',at:new Date().toISOString()}]});
+                try {
+                    const previous=JSON.parse(fs.readFileSync(paidReceiptFile,'utf8'));
+                    persistHuMo17PaidReceipt(paidReceiptFile,{...previous,bootstrapState:'PAYLOAD_BLOCKED',inferenceStarted,
+                        bootstrapTransitions:[...(previous.bootstrapTransitions||[]),{state:'PAYLOAD_BLOCKED',at:new Date().toISOString()}]});
+                } catch {log({status:'HUMO17_FAILURE_RECEIPT_WRITE_FAILED',podId});}
             }
             try {
                 terminationVerified = await releaseHuMo17Pod({podId, provider});
