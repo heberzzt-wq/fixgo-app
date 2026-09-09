@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-humo17-quality-ab-final-preflight-20260909-377",
-  "completedAt": "2026-09-09T20:59:16.590Z",
+  "jobId": "v142-humo17-quality-ab-final-preflight-20260909-378",
+  "completedAt": "2026-09-09T21:00:28.679Z",
   "executionStarted": true,
   "ok": false,
   "error": "SIA7_HUMO17_CORE_STAGE_FAILED:HUMO17_L40S_PLACEMENT_UNAVAILABLE",
