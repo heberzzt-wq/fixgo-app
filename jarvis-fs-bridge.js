@@ -71,6 +71,7 @@ import {
     RUNPOD_HUMO_CACHE_BASE,
     RUNPOD_HUMO17_CORE_CACHE_BASE,
     RUNPOD_WAN22_GPU_PROFILES,
+    RUNPOD_HARD_CAP_CERTIFIED,
     validateHuMo17CoreCacheManifest,
     createLocalVideoEngine,
     createRunpodRemoteVideoAdapter,
@@ -8702,13 +8703,30 @@ export async function runNextIdentityRuntimePreflightCli({
 
 // Paid admission stays closed until provider-side protection covers pre-container allocation.
 // No env flag, job approval or mocked receipt can promote this physical certification.
-export const HUMO17_INDEPENDENT_BUDGET_CERTIFIED = false;
+export const HUMO17_INDEPENDENT_BUDGET_CERTIFIED = RUNPOD_HARD_CAP_CERTIFIED;
 export function assertHuMo17IndependentBudget() {
     if (!HUMO17_INDEPENDENT_BUDGET_CERTIFIED) throw new Error("HUMO17_INDEPENDENT_BUDGET_CERTIFICATION_REQUIRED");
 }
 export function huMo17BudgetSeconds({hardBudgetUsd, hourlyRateUsd, maximumMinutes}) {
     if (![hardBudgetUsd,hourlyRateUsd,maximumMinutes].every(v=>Number.isFinite(v)&&v>0)) throw new Error("HUMO17_BUDGET_INPUT_INVALID");
     return Math.floor(Math.min(maximumMinutes*60,hardBudgetUsd*0.75*3600/hourlyRateUsd));
+}
+export function advanceHuMo17BudgetBootstrap(receipt, next, {watchdog, now=Date.now()}={}) {
+    const allowed={POD_CREATED:['REMOTE_WATCHDOG_INSTALLING','PAYLOAD_BLOCKED'],
+        REMOTE_WATCHDOG_INSTALLING:['REMOTE_WATCHDOG_INSTALLED','PAYLOAD_BLOCKED'],
+        REMOTE_WATCHDOG_INSTALLED:['REMOTE_WATCHDOG_VERIFIED','PAYLOAD_BLOCKED'],
+        REMOTE_WATCHDOG_VERIFIED:['PAYLOAD_ALLOWED','PAYLOAD_BLOCKED'],
+        PAYLOAD_ALLOWED:['PAYLOAD_BLOCKED'],PAYLOAD_BLOCKED:['TERMINATION_VERIFIED']};
+    if(!allowed[receipt.bootstrapState]?.includes(next)) throw Error('HUMO17_BOOTSTRAP_TRANSITION_INVALID');
+    if(next==='REMOTE_WATCHDOG_VERIFIED' && (!watchdog || watchdog.podId!==receipt.podId ||
+        watchdog.remoteBudgetWatchdogInstalled!==true || watchdog.remoteBudgetWatchdogVerified!==true ||
+        watchdog.hostIndependent!==true || !(watchdog.deadlineEpochSeconds*1000>now) ||
+        watchdog.deadlineEpochSeconds*1000>receipt.remoteWatchdogDeadlineMs)) throw Error('HUMO17_REMOTE_WATCHDOG_EVIDENCE_INVALID');
+    if(next==='PAYLOAD_ALLOWED' && (receipt.remoteWatchdogVerified!==true || now>=receipt.remoteWatchdogDeadlineMs)) throw Error('HUMO17_PAYLOAD_BLOCKED');
+    return {...receipt,bootstrapState:next,
+        ...(next==='REMOTE_WATCHDOG_INSTALLED'?{remoteWatchdogInstalled:true}:{}),
+        ...(next==='REMOTE_WATCHDOG_VERIFIED'?{remoteWatchdogVerified:true,remoteWatchdog:watchdog}:{}),
+        bootstrapTransitions:[...(receipt.bootstrapTransitions||[]),{state:next,at:new Date(now).toISOString()}]};
 }
 export function persistHuMo17PaidReceipt(file, receipt) {
     fs.mkdirSync(path.dirname(file),{recursive:true});
@@ -9190,7 +9208,9 @@ export async function runHuMo17PersistentCoreStagingCli({
         const earlyReceipt={operationId,jobId:env.JARVIS_HUMO17_JOB_ID||null,podId,createdAtMs,createdAt:new Date(createdAtMs).toISOString(),hardBudgetUsd,
             hourlyRateUsd:Number(created?.adjustedCostPerHr??created?.costPerHr??hourlyRateUsd),providerBudgetKillSeconds:Math.max(0,Math.floor((remoteDeadlineMs-createdAtMs)/1000)),
             networkVolumeId:volume.id,gpu:runtimeProbeAuthorized?"NVIDIA L40S":null,gpuCount:runtimeProbeAuthorized?1:0,terminationVerified:false,
-            status:runtimeProbeAuthorized?"HUMO17_RUNTIME_GPU_POD_CREATED":"HUMO17_CORE_CPU_POD_CREATED"};
+            status:runtimeProbeAuthorized?"HUMO17_RUNTIME_GPU_POD_CREATED":"HUMO17_CORE_CPU_POD_CREATED",
+            schema:'jarvis.v142.paid-early-receipt.2',bootstrapState:'POD_CREATED',computeType:runtimeProbeAuthorized?'GPU':'CPU',
+            providerBudgetSafetyRatio:0.75,remoteWatchdogDeadlineMs:remoteDeadlineMs,remoteWatchdogInstalled:false,remoteWatchdogVerified:false,inferenceStarted:false};
         persistHuMo17PaidReceipt(paidReceiptFile,earlyReceipt);log(earlyReceipt);
         hourlyRateUsd = Number(created?.adjustedCostPerHr ?? created?.costPerHr ?? 0);
         if (runtimeProbeAuthorized && hourlyRateUsd > 1.10) throw new Error("HUMO17_RATE_EXCEEDS_PREFLIGHT");
@@ -9201,7 +9221,7 @@ export async function runHuMo17PersistentCoreStagingCli({
         );
         if (maximumAuthorizedSeconds < 300) throw new Error("RUNPOD_HUMO17_CPU_BUDGET_INSUFFICIENT");
         const deadlineMs = createdAtMs + maximumAuthorizedSeconds * 1000;
-        persistHuMo17PaidReceipt(paidReceiptFile, {operationId, jobId: env.JARVIS_HUMO17_JOB_ID || null, podId, createdAtMs, deadlineMs, hardBudgetUsd, hourlyRateUsd,
+        persistHuMo17PaidReceipt(paidReceiptFile, {...advanceHuMo17BudgetBootstrap(earlyReceipt,'REMOTE_WATCHDOG_INSTALLING'),operationId, jobId: env.JARVIS_HUMO17_JOB_ID || null, podId, createdAtMs, deadlineMs, hardBudgetUsd, hourlyRateUsd,
             providerBudgetKillSeconds: maximumAuthorizedSeconds, networkVolumeId:volume.id, gpu:runtimeProbeAuthorized?"NVIDIA L40S":null,gpuCount:runtimeProbeAuthorized?1:0,
             status:runtimeProbeAuthorized?"HUMO17_RUNTIME_GPU_POD_CREATED":"HUMO17_CORE_CPU_POD_CREATED",localBudgetWatchdog:true,remoteBudgetWatchdog:false,terminationVerified:false});
         budgetTimer = setTimeout(() => {
@@ -9245,7 +9265,9 @@ export async function runHuMo17PersistentCoreStagingCli({
         if(watchdog.podId!==podId || watchdog.remoteBudgetWatchdogInstalled!==true || watchdog.remoteBudgetWatchdogVerified!==true ||
             Number(watchdog.deadlineEpochSeconds)*1000>remoteDeadlineMs || Number(watchdog.deadlineEpochSeconds)*1000<=Date.now()) throw new Error("HUMO17_REMOTE_BUDGET_WATCHDOG_NOT_VERIFIED");
         const paidState=JSON.parse(fs.readFileSync(paidReceiptFile,"utf8"));
-        persistHuMo17PaidReceipt(paidReceiptFile,{...paidState,remoteBudgetWatchdog:true,remoteBudgetWatchdogInstalled:true,remoteBudgetWatchdogVerified:true});
+        const installedState=advanceHuMo17BudgetBootstrap(paidState,'REMOTE_WATCHDOG_INSTALLED');
+        const verifiedState=advanceHuMo17BudgetBootstrap(installedState,'REMOTE_WATCHDOG_VERIFIED',{watchdog});
+        persistHuMo17PaidReceipt(paidReceiptFile,{...advanceHuMo17BudgetBootstrap(verifiedState,'PAYLOAD_ALLOWED'),remoteBudgetWatchdog:true,remoteBudgetWatchdogInstalled:true,remoteBudgetWatchdogVerified:true});
         log({status:"HUMO17_REMOTE_BUDGET_WATCHDOG_VERIFIED",podId,remoteBudgetWatchdogInstalled:true,remoteBudgetWatchdogVerified:true,inferenceStarted:false});
 
 
@@ -9397,6 +9419,11 @@ export async function runHuMo17PersistentCoreStagingCli({
     finally {
         if (budgetTimer) clearTimeout(budgetTimer);
         if (podId) {
+            if(primaryError && fs.existsSync(paidReceiptFile)) {
+                const previous=JSON.parse(fs.readFileSync(paidReceiptFile,'utf8'));
+                persistHuMo17PaidReceipt(paidReceiptFile,{...previous,bootstrapState:'PAYLOAD_BLOCKED',inferenceStarted,
+                    bootstrapTransitions:[...(previous.bootstrapTransitions||[]),{state:'PAYLOAD_BLOCKED',at:new Date().toISOString()}]});
+            }
             try {
                 terminationVerified = await releaseHuMo17Pod({podId, provider});
             }

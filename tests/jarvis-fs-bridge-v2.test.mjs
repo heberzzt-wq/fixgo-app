@@ -1772,6 +1772,37 @@ test("HuMo17 budget guard denies paid admission and computes conservative deadli
     execFileSync(process.platform==="win32"?"python":"python3",["tests/humo17-budget-watchdog.py"],{timeout:15000,stdio:"pipe"});
 });
 
+test('HuMo17 bootstrap blocks payload until live independent evidence and rejects expired deadlines',async()=>{
+    const {advanceHuMo17BudgetBootstrap:advance}=await import('../jarvis-fs-bridge.js');
+    let r={podId:'fixture',bootstrapState:'POD_CREATED',remoteWatchdogDeadlineMs:200000};
+    assert.throws(()=>advance(r,'PAYLOAD_ALLOWED'),/TRANSITION/);
+    r=advance(r,'REMOTE_WATCHDOG_INSTALLING',{now:100000});
+    assert.throws(()=>advance(r,'PAYLOAD_ALLOWED'),/TRANSITION/);
+    r=advance(r,'REMOTE_WATCHDOG_INSTALLED',{now:100000});
+    assert.throws(()=>advance(r,'REMOTE_WATCHDOG_VERIFIED',{now:100000}),/EVIDENCE/);
+    const watchdog={podId:'fixture',remoteBudgetWatchdogInstalled:true,remoteBudgetWatchdogVerified:true,hostIndependent:true,deadlineEpochSeconds:200};
+    for(const patch of [{podId:'other'},{hostIndependent:false},{deadlineEpochSeconds:201},{deadlineEpochSeconds:99}])assert.throws(()=>advance(r,'REMOTE_WATCHDOG_VERIFIED',{watchdog:{...watchdog,...patch},now:100000}),/EVIDENCE/);
+    r=advance(r,'REMOTE_WATCHDOG_VERIFIED',{watchdog,now:100000});
+    assert.equal(advance(r,'PAYLOAD_ALLOWED',{now:110000}).bootstrapState,'PAYLOAD_ALLOWED');
+    assert.throws(()=>advance(r,'PAYLOAD_ALLOWED',{now:200000}),/PAYLOAD_BLOCKED/);
+});
+
+test('Runpod live transport blocks REST and GraphQL provisioning before network',async()=>{
+    const {guardedRunpodFetch}=await import('../jarvis-local-video-engine.js');
+    await assert.rejects(guardedRunpodFetch('https://rest.runpod.io/v1/pods',{method:'POST',body:'{}'}),/RUNPOD_HARD_CAP_NOT_CERTIFIED/);
+    await assert.rejects(guardedRunpodFetch('https://api.runpod.io/graphql',{method:'POST',body:JSON.stringify({query:'mutation { podFindAndDeployOnDemand {} }'})}),/RUNPOD_HARD_CAP_NOT_CERTIFIED/);
+});
+
+test('HuMo17 CPU certificate has no GPU, volume, payload, account key or local timer',async()=>{
+    const {buildCpuWatchdogCertificate}=await import('../scripts/jarvis-humo17-watchdog-certificate.mjs');
+    const plan=buildCpuWatchdogCertificate({source:'fixture',createdAtMs:100000,operationId:'watchdog-abcd'});
+    assert.equal(plan.body.computeType,'CPU');assert.equal(plan.body.vcpuCount,2);
+    assert.equal(plan.maximumPaidRuntimeSeconds,600);assert.equal(plan.deadlineMs,700000);
+    assert.equal(plan.body.networkVolumeId,undefined);assert.equal(plan.body.gpuTypeIds,undefined);
+    assert.deepEqual(plan.body.env,{});assert.equal(plan.body.volumeInGb,0);
+    assert.match(plan.body.dockerStartCmd[0],/subprocess.run/);
+});
+
 test("HuMo17 recovery deletes only recorded Pods and persists verified absence", async () => {
     const {reconcileHuMo17PaidReceipts}=await import("../jarvis-fs-bridge.js");
     const root=fs.mkdtempSync(path.join(os.tmpdir(),"humo17-recovery-"));

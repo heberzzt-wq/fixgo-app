@@ -8,6 +8,14 @@ import { registerArtifact } from "./jarvis-artifact-studio.js";
 
 export const JARVIS_LOCAL_VIDEO_ENGINE_VERSION = "1.15.0-v142-single-authority";
 export const JARVIS_RUNPOD_ADAPTER_VERSION = "1.8.0-v142-single-authority";
+export const RUNPOD_HARD_CAP_CERTIFIED = false;
+export async function guardedRunpodFetch(url, options={}) {
+    const parsed=new URL(url);
+    const creation=String(options.method||'GET').toUpperCase()==='POST' &&
+        (/\/pods\/?$/.test(parsed.pathname) || /podFindAndDeployOnDemand|podRentInterruptable/.test(String(options.body||'')));
+    if(creation && !RUNPOD_HARD_CAP_CERTIFIED) throw Error('RUNPOD_HARD_CAP_NOT_CERTIFIED');
+    return globalThis.fetch(url,options);
+}
 export const VIDEO_ENGINE_MODES = Object.freeze([
     "CURRENT_STABLE",
     "LOCAL_TEST",
@@ -2263,7 +2271,7 @@ function assertFlashAttentionWheelAuthority(profile) {
 export function createRunpodRemoteVideoAdapter({
     root = process.cwd(),
     env = process.env,
-    fetchImpl = globalThis.fetch,
+    fetchImpl = guardedRunpodFetch,
     registryFetchImpl = fetchImpl,
     execute = runProcess,
     generateKeyPair = null,

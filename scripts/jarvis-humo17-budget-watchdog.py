@@ -40,7 +40,9 @@ def guard(pod_id, deadline, receipt, provider, now=time.time, sleep=time.sleep, 
         raise ValueError('WATCHDOG_ID_OR_DEADLINE_INVALID')
     state = {'podId': pod_id, 'pid': os.getpid(), 'deadlineEpochSeconds': deadline,
              'remoteBudgetWatchdogInstalled': True, 'remoteBudgetWatchdogVerified': False,
-             'terminationVerified': False}
+             'terminationVerified': False, 'hostIndependent': True,
+             'mechanism': 'pod_scoped_rest_self_delete', 'inferenceStarted': False,
+             'remoteWatchdogTriggered': False, 'localWatchdogTriggered': False}
     atomic_write(receipt, state)
     # A failed identity/credential probe accelerates cleanup, never inference.
     try:
@@ -50,12 +52,16 @@ def guard(pod_id, deadline, receipt, provider, now=time.time, sleep=time.sleep, 
         verified = False
     if verified:
         state['remoteBudgetWatchdogVerified'] = True
+        state['armedAtEpochSeconds'] = now()
+        state['maximumRuntimeSeconds'] = max(0, deadline-now())
         state['status'] = 'REMOTE_BUDGET_WATCHDOG_ARMED'
         atomic_write(receipt, state)
         mono_deadline = monotonic() + max(0, deadline - now())
         while now() < deadline and monotonic() < mono_deadline:
             sleep(min(1, max(0, deadline-now()), max(0, mono_deadline-monotonic())))
     state['status'] = 'REMOTE_BUDGET_TERMINATION_REQUESTED'
+    state['remoteWatchdogTriggered'] = True
+    state['terminationRequestedAtEpochSeconds'] = now()
     atomic_write(receipt, state)
     # Retry in the Pod independently of SSH, Node, Windows and GitHub.
     while True:
