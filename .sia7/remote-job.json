@@ -1,12 +1,38 @@
 {
-  "jobId": "v142-humo17-ab-output-pin-contract-20260909-357",
-  "operation": "patch",
+  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-preflight-20260909-358",
+  "operation": "humo17_core_stage",
   "humanApproved": true,
-  "patch": {
-    "file": "tests/jarvis-fs-bridge-v2.test.mjs",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "    assert.equal(job.effectiveRuntimeConfig.prompt,job.prompt);assert.equal(job.effectiveRuntimeConfig.negativePrompt,job.negativePrompt);\n    assert.equal(job.strategy.compileEnabled,false);",
-    "replace": "    assert.equal(job.effectiveRuntimeConfig.prompt,job.prompt);assert.equal(job.effectiveRuntimeConfig.negativePrompt,job.negativePrompt);\n    assert.equal(job.strategy.compileEnabled,false);\n    const bridgeSource=fs.readFileSync(path.resolve(\"jarvis-fs-bridge.js\"),\"utf8\");\n    assert.match(bridgeSource,/humo17-heberto-quality-probe-201f\\.mp4.*humo17-heberto-quality-ab-prompt-parity-201f\\.mp4/);\n    assert.match(bridgeSource,/HUMO17_QUALITY_OUTPUT_NOT_PINNED/);"
-  }
+  "executePaid": true,
+  "qualityProbe": true,
+  "qualityPreflightOnly": true,
+  "fullEpisodeAuthorized": false,
+  "expectedBaseSha": "49923922155119de7665508f06b3dc870eadedd1",
+  "certifiedCodeSha": "45706654087f4562df1adb963d11a89589f1d702",
+  "ciRun": 34397865823,
+  "hardBudgetUsd": 0.95,
+  "providerBudgetSafetyRatio": 0.75,
+  "maximumMinutes": 90,
+  "backend": "humo-17b-identity",
+  "gpu": "NVIDIA L40S",
+  "gpuCount": 1,
+  "maximumIdentityCount": 1,
+  "geometry": {
+    "width": 832,
+    "height": 480,
+    "fps": 25,
+    "frames": 201,
+    "durationSeconds": 8.04
+  },
+  "networkVolumeId": "1qm5wczocl",
+  "dataCenterId": "EU-NL-1",
+  "coreStageReceiptCommit": "c5461883e28a5f80ad6006e0a2d2ddd2b641d37c",
+  "referenceSha256": "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958",
+  "audioSha256": "bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184",
+  "speechValidated": true,
+  "promptParityRequired": true,
+  "authorityPath": ".sia7/humo17-quality-ab-prompt-parity-201f-authority.json",
+  "authorityId": "v142-humo17-quality-ab-prompt-parity-201f-20260909-354-authority",
+  "maximumPaidAttempts": 1,
+  "noPaidReplay": true,
+  "output": ".jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4"
 }
