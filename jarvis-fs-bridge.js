@@ -9399,6 +9399,75 @@ export async function runHuMo17PersistentCoreStagingCli({
     return result;
 }
 
+export function resolveHuMo17QualityControlPlane({ root = DEFAULT_ROOT, env = process.env } = {}) {
+    const controlFile = path.resolve(root, ".sia7", "remote-job.json");
+    if (!fs.existsSync(controlFile) || !fs.statSync(controlFile).isFile()) return null;
+    const control = JSON.parse(fs.readFileSync(controlFile, "utf8"));
+    if (control?.operation !== "humo17_core_stage" || control?.qualityProbe !== true) return null;
+    if (control.humanApproved !== true || control.executePaid !== true || control.fullEpisodeAuthorized === true) throw new Error("HUMO17_QUALITY_CONTROL_AUTHORITY_INVALID");
+    if (control.backend !== "humo-17b-identity" || control.gpu !== "NVIDIA L40S" || Number(control.gpuCount) !== 1 || Number(control.maximumIdentityCount) !== 1) throw new Error("HUMO17_QUALITY_CONTROL_RUNTIME_INVALID");
+    const geometry = control.geometry || {};
+    if (Number(geometry.width) !== 832 || Number(geometry.height) !== 480 || Number(geometry.fps) !== 25 || Number(geometry.frames) !== 201 || Math.abs(Number(geometry.durationSeconds) - 8.04) > 0.000001) throw new Error("HUMO17_QUALITY_CONTROL_GEOMETRY_INVALID");
+    const hardBudgetUsd = Number(control.hardBudgetUsd);
+    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 1)) throw new Error("HUMO17_QUALITY_CONTROL_BUDGET_INVALID");
+    if (String(control.networkVolumeId || "") !== "1qm5wczocl" || String(control.dataCenterId || "") !== "EU-NL-1") throw new Error("HUMO17_QUALITY_CONTROL_VOLUME_INVALID");
+    const expectedBaseSha = String(control.expectedBaseSha || "").trim().toLowerCase();
+    if (!/^[a-f0-9]{40}$/.test(expectedBaseSha)) throw new Error("HUMO17_QUALITY_CONTROL_BASE_SHA_REQUIRED");
+    const git = process.platform === "win32" && fs.existsSync("C:\\Program Files\\Git\\cmd\\git.exe") ? "C:\\Program Files\\Git\\cmd\\git.exe" : "git";
+    const head = String(execFileSync(git, ["rev-parse", "HEAD"], {cwd: root, encoding: "utf8", windowsHide: true})).trim().toLowerCase();
+    try { execFileSync(git, ["merge-base", "--is-ancestor", expectedBaseSha, head], {cwd: root, windowsHide: true, stdio: "ignore"}); } catch { throw new Error("HUMO17_QUALITY_CONTROL_BASE_NOT_ANCESTOR"); }
+    const changed = String(execFileSync(git, ["diff", "--name-only", `${expectedBaseSha}..${head}`], {cwd: root, encoding: "utf8", windowsHide: true})).split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    if (changed.some(file => !file.startsWith(".sia7/"))) throw new Error("HUMO17_QUALITY_CONTROL_UNCERTIFIED_CODE");
+    const qualityRoot = path.resolve(root, ".jarvis-artifacts", "humo17-quality");
+    if (!fs.existsSync(qualityRoot) || !fs.statSync(qualityRoot).isDirectory() || fs.lstatSync(qualityRoot).isSymbolicLink()) throw new Error("HUMO17_QUALITY_LOCAL_ROOT_INVALID");
+    const files = [], stack = [qualityRoot];
+    while (stack.length) {
+        const current = stack.pop();
+        for (const entry of fs.readdirSync(current, {withFileTypes: true})) {
+            const target = path.join(current, entry.name);
+            if (fs.lstatSync(target).isSymbolicLink()) throw new Error("HUMO17_QUALITY_REPARSE_PATH_FORBIDDEN");
+            if (entry.isDirectory()) stack.push(target); else if (entry.isFile()) files.push(target);
+            if (files.length > 200) throw new Error("HUMO17_QUALITY_LOCAL_SCAN_LIMIT");
+        }
+    }
+    const sha256File = file => createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+    const evidenceCandidates = [];
+    for (const file of files.filter(file => path.extname(file).toLowerCase() === ".json")) {
+        try {
+            const value = JSON.parse(fs.readFileSync(file, "utf8"));
+            if (value?.schemaVersion === "jarvis.audio-speech-segment.v142.1" && value?.selectionMethod === "full_source_vad_asr" && value?.speechValidated === true && Math.abs(Number(value.endSeconds) - Number(value.startSeconds) - 8.04) <= 0.000001 && String(value.transcript || "").trim().split(/\s+/).length >= 2 && /^[a-f0-9]{64}$/.test(String(value.wavSha256 || ""))) evidenceCandidates.push({file, value, sha256: sha256File(file)});
+        } catch {}
+    }
+    if (evidenceCandidates.length !== 1) throw new Error(`HUMO17_QUALITY_SPEECH_EVIDENCE_MATCH_COUNT:${evidenceCandidates.length}`);
+    const evidence = evidenceCandidates[0];
+    const wavCandidates = files.filter(file => path.extname(file).toLowerCase() === ".wav" && sha256File(file) === String(evidence.value.wavSha256).toLowerCase());
+    if (wavCandidates.length !== 1) throw new Error(`HUMO17_QUALITY_WAV_MATCH_COUNT:${wavCandidates.length}`);
+    const sourceRoot = path.resolve(root, "..", "fixgo-v142-local-first-20260825");
+    if (!fs.existsSync(sourceRoot) || !fs.statSync(sourceRoot).isDirectory()) throw new Error("HUMO17_QUALITY_SOURCE_ROOT_MISSING");
+    const referenceOutput = ".jarvis-artifacts/uploads/1787783430100-a3151d2eefde-IMG_20240807_165633505_HDR-2.jpg", referenceSha256 = "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958";
+    const referenceFile = path.resolve(sourceRoot, referenceOutput);
+    if (!fs.existsSync(referenceFile) || fs.lstatSync(referenceFile).isSymbolicLink() || sha256File(referenceFile) !== referenceSha256) throw new Error("HUMO17_QUALITY_REFERENCE_INVALID");
+    const targetDir = path.resolve(sourceRoot, ".jarvis-artifacts", "humo17-quality");
+    fs.mkdirSync(targetDir, {recursive: true});
+    const installInput = source => {
+        const target = path.join(targetDir, path.basename(source)), expected = sha256File(source);
+        if (fs.existsSync(target)) { if (!fs.statSync(target).isFile() || fs.lstatSync(target).isSymbolicLink() || sha256File(target) !== expected) throw new Error("HUMO17_QUALITY_INPUT_COLLISION"); }
+        else { fs.copyFileSync(source, target); if (sha256File(target) !== expected) throw new Error("HUMO17_QUALITY_INPUT_COPY_VERIFY_FAILED"); }
+        return {file: target, output: path.relative(sourceRoot, target).replaceAll("\\", "/"), sha256: expected};
+    };
+    const audio = installInput(wavCandidates[0]), speech = installInput(evidence.file);
+    const coreStageReceiptCommit = String(control.coreStageReceiptCommit || "").trim().toLowerCase();
+    if (coreStageReceiptCommit !== "c5461883e28a5f80ad6006e0a2d2ddd2b641d37c") throw new Error("HUMO17_QUALITY_CORE_RECEIPT_COMMIT_INVALID");
+    try { execFileSync(git, ["merge-base", "--is-ancestor", coreStageReceiptCommit, head], {cwd: root, windowsHide: true, stdio: "ignore"}); } catch { throw new Error("HUMO17_QUALITY_CORE_RECEIPT_NOT_ANCESTOR"); }
+    const stageReceipt = JSON.parse(String(execFileSync(git, ["show", `${coreStageReceiptCommit}:.sia7/remote-result.json`], {cwd: root, encoding: "utf8", windowsHide: true, maxBuffer: 2 * 1024 * 1024})));
+    if (stageReceipt?.ok !== true || stageReceipt?.status !== "HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED" || stageReceipt?.physicalStageCertified !== true || stageReceipt?.coreManifestVerified !== true || stageReceipt?.terminationVerified !== true || stageReceipt?.networkVolumeRetained !== true || stageReceipt?.networkVolumeId !== "1qm5wczocl" || stageReceipt?.networkVolumeDataCenterId !== "EU-NL-1") throw new Error("HUMO17_QUALITY_CORE_RECEIPT_INVALID");
+    const stageReceiptFile = path.join(os.tmpdir(), "jarvis-v142-humo17-core-stage-314-receipt.json"); fs.writeFileSync(stageReceiptFile, JSON.stringify(stageReceipt));
+    const output = String(control.output || ".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4").trim().replaceAll("\\", "/");
+    if (output !== ".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4") throw new Error("HUMO17_QUALITY_OUTPUT_NOT_PINNED");
+    const preflightOnly = control.qualityPreflightOnly === true;
+    return {control, head, sourceRoot, audio, speech, referenceOutput, referenceSha256, output, preflightOnly, env: {...env, JARVIS_HUMO17_RUNTIME_PROBE_AUTHORIZED: "true", JARVIS_HUMO17_QUALITY_PROBE_AUTHORIZED: "true", JARVIS_HUMO17_RUNTIME_PROBE_SOURCE_ROOT: sourceRoot, JARVIS_HUMO17_RUNTIME_PROBE_REFERENCE_OUTPUT: referenceOutput, JARVIS_HUMO17_RUNTIME_PROBE_REFERENCE_SHA256: referenceSha256, JARVIS_HUMO17_RUNTIME_PROBE_AUDIO_OUTPUT: audio.output, JARVIS_HUMO17_RUNTIME_PROBE_AUDIO_SHA256: audio.sha256, JARVIS_HUMO17_SPEECH_EVIDENCE_OUTPUT: speech.output, JARVIS_HUMO17_SPEECH_EVIDENCE_SHA256: speech.sha256, JARVIS_HUMO17_RUNTIME_PROBE_OUTPUT: output, JARVIS_HUMO17_CORE_STAGE_RECEIPT: stageReceiptFile, JARVIS_HUMO17_RUNTIME_CI_VERIFIED_SHA: head, JARVIS_HUMO17_RUNTIME_PROBE_PREFLIGHT_ONLY: preflightOnly ? "true" : "false", JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: preflightOnly ? "false" : "true", JARVIS_RUNPOD_NETWORK_VOLUME_ID: "1qm5wczocl", JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1"}};
+}
+
 export async function runHuMoIdentityProbeCli({
     root = DEFAULT_ROOT,
     env = process.env,
