@@ -9081,7 +9081,7 @@ export async function runHuMo17PersistentCoreStagingCli({
     if(!preflightOnly && runtimeProbeAuthorized && authorityFile) {
         if(fs.lstatSync(authorityFile).isSymbolicLink())throw Error('HUMO17_AUTHORITY_SYMLINK');
         qualityAuthority=JSON.parse(fs.readFileSync(authorityFile,'utf8'));
-        qualityAuthorityContext={jobId:env.JARVIS_HUMO17_JOB_ID,codeSha:canonicalSha,hardBudgetUsd,
+        qualityAuthorityContext={jobId:env.JARVIS_HUMO17_JOB_ID,codeSha:String(env.JARVIS_HUMO17_CERTIFIED_CODE_SHA||canonicalSha).trim().toLowerCase(),hardBudgetUsd,
             referenceSha256:runtimeProbeAssets.reference.sha256,audioSha256:runtimeProbeAssets.audio.sha256,
             qualityProbe:runtimeProbeAssets.qualityProbe,speechValidated:runtimeProbeAssets.speechEvidence?.speechValidated===true,output:runtimeProbeAssets.output};
         assertHuMo17IndependentBudget({authority:qualityAuthority,context:qualityAuthorityContext});
