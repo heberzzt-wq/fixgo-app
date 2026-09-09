@@ -1,10 +1,10 @@
 {
   "jobId": "v142-humo17-quality-paid-201f-20260908-344",
   "operation": "humo17_core_stage",
-  "humanApproved": true,
-  "executePaid": true,
+  "humanApproved": false,
+  "executePaid": false,
   "qualityProbe": true,
-  "qualityPreflightOnly": false,
+  "qualityPreflightOnly": true,
   "fullEpisodeAuthorized": false,
   "expectedBaseSha": "b76630640e4004e8e9b82693966dcfc723c0f08b",
   "hardBudgetUsd": 0.95,
@@ -23,5 +23,6 @@
   "networkVolumeId": "1qm5wczocl",
   "dataCenterId": "EU-NL-1",
   "coreStageReceiptCommit": "c5461883e28a5f80ad6006e0a2d2ddd2b641d37c",
-  "output": ".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4"
+  "output": ".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4",
+  "budgetIncidentHold": true
 }
