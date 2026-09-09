@@ -9,14 +9,16 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const secondAttempt=process.argv.includes('--reconciled-attempt-2');
 const thirdAttempt=process.argv.includes('--verified-cleanup-attempt-3');
 const fourthAttempt=process.argv.includes('--scoped-transport-attempt-4');
+const fifthAttempt=process.argv.includes('--available-region-attempt-5');
 const firstFile=path.join(root,'.jarvis-artifacts/humo17-quality/watchdog-certificate.json');
-const file=fourthAttempt?firstFile.replace('.json','-4.json'):thirdAttempt?firstFile.replace('.json','-3.json'):secondAttempt?firstFile.replace('.json','-2.json'):firstFile;
+const file=fifthAttempt?firstFile.replace('.json','-5.json'):fourthAttempt?firstFile.replace('.json','-4.json'):thirdAttempt?firstFile.replace('.json','-3.json'):secondAttempt?firstFile.replace('.json','-2.json'):firstFile;
 export function assertCertificateBalance(balance) {
     if(!Number.isFinite(balance))throw Error('CERTIFICATE_BALANCE_UNVERIFIED');
     if(balance<.10)throw Error('CERTIFICATE_INSUFFICIENT_PROVIDER_BALANCE');
 }
-export function buildCpuWatchdogCertificate({source,createdAtMs,operationId}) {
+export function buildCpuWatchdogCertificate({source,createdAtMs,operationId,dataCenterId='EU-NL-1'}) {
     if(!source || !Number.isFinite(createdAtMs) || !/^watchdog-[a-f0-9-]+$/.test(operationId)) throw Error('CERTIFICATE_INPUT_INVALID');
+    if(!['EU-NL-1','EU-RO-1'].includes(dataCenterId))throw Error('CERTIFICATE_CPU_REGION_INVALID');
     const seconds=huMo17BudgetSeconds({hardBudgetUsd:.10,hourlyRateUsd:.07,maximumMinutes:20});
     const deadline=Math.floor(createdAtMs/1000)+seconds;
     // The short-lived bootstrap exits. Its detached guardian and PID1 status server are separate processes.
@@ -24,7 +26,7 @@ export function buildCpuWatchdogCertificate({source,createdAtMs,operationId}) {
     const server=`import base64,json,os,subprocess,sys\nfrom pathlib import Path\nfrom http.server import BaseHTTPRequestHandler,HTTPServer\nsubprocess.run([sys.executable,'-c',base64.b64decode('${Buffer.from(boot).toString('base64')}').decode()],check=True,timeout=15)\nclass Handler(BaseHTTPRequestHandler):\n def log_message(self,*args): pass\n def do_GET(self):\n  if self.path!='/state': self.send_error(404);return\n  try:\n   state=json.loads(Path('/tmp/jarvis-budget/state.json').read_text());state['bootstrapExited']=True\n   if state.get('pid'): os.kill(state['pid'],0)\n   data=json.dumps(state).encode();self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(data)\n  except Exception: self.send_error(503)\nHTTPServer(('0.0.0.0',8080),Handler).serve_forever()\n`;
     return {deadlineMs:deadline*1000,maximumPaidRuntimeSeconds:seconds,body:{
         name:operationId,computeType:'CPU',cpuFlavorIds:['cpu3c'],vcpuCount:2,
-        cloudType:'SECURE',dataCenterIds:['EU-NL-1'],containerDiskInGb:20,volumeInGb:0,supportPublicIp:true,
+        cloudType:'SECURE',dataCenterIds:[dataCenterId],containerDiskInGb:20,volumeInGb:0,supportPublicIp:true,
         imageName:'python:3.12-slim-bookworm',ports:['8080/http','8080/tcp'],
         dockerEntrypoint:['python3','-c'],dockerStartCmd:[server],env:{}}};
 }
@@ -55,17 +57,21 @@ async function main() {
         if(fs.existsSync(file))throw Error('CERTIFICATE_ALREADY_EXISTS_NO_REPLAY');
         if(secondAttempt){const previous=JSON.parse(fs.readFileSync(firstFile,'utf8'));if(previous.status!=='CREATE_REJECTED'||previous.podId)throw Error('PREVIOUS_CREATE_NOT_RECONCILED');}
         if(thirdAttempt){const previous=JSON.parse(fs.readFileSync(firstFile.replace('.json','-2.json'),'utf8'));if(previous.terminationVerified!==true||previous.localDeleteIssued!==true)throw Error('PREVIOUS_TERMINATION_REQUIRED');if((Date.now()-previous.createdAtMs)/3600000*previous.hourlyRateUsd>.06)throw Error('CONSERVATIVE_CUMULATIVE_BUDGET_EXHAUSTED');}
-        if(fourthAttempt){
+        if(fourthAttempt||fifthAttempt){
             let reserved=0;
             for(const n of [2,3]){const previous=JSON.parse(fs.readFileSync(firstFile.replace('.json',`-${n}.json`),'utf8'));if(previous.terminationVerified!==true||previous.localDeleteIssued!==true)throw Error('PREVIOUS_TERMINATION_REQUIRED');reserved+=previous.maximumPaidRuntimeSeconds*.07/3600;}
             const previous=JSON.parse(fs.readFileSync(firstFile.replace('.json','-3.json'),'utf8'));
             if(previous.observedWatchdog?.lastHttpStatus!==403)throw Error('SCOPED_TRANSPORT_FAILURE_EVIDENCE_REQUIRED');
             if(reserved+1200*.07/3600>.10)throw Error('CONSERVATIVE_CUMULATIVE_BUDGET_EXHAUSTED');
         }
+        if(fifthAttempt){const previous=JSON.parse(fs.readFileSync(firstFile.replace('.json','-4.json'),'utf8'));if(previous.podId||previous.status!=='CREATE_REJECTED'||!previous.providerError?.includes('no longer any instances available'))throw Error('PLACEMENT_REJECTION_EVIDENCE_REQUIRED');}
+        const dataCenterId=fifthAttempt?'EU-RO-1':'EU-NL-1';
+        const availability=await fetch('https://api.runpod.io/v2/catalog/datacenters/'+dataCenterId+'?include=CPU_AVAILABILITY',{headers:{Authorization:'Bearer '+credential.env.RUNPOD_API_KEY},signal:AbortSignal.timeout(8000)}).then(r=>r.json());
+        if(!availability.cpuAvailability?.some(c=>c.id==='cpu3c'&&['HIGH','MEDIUM','LOW'].includes(c.availability)))throw Error('CPU_NOT_AVAILABLE_NO_POST');
         const createdAtMs=Date.now(),operationId='watchdog-'+randomUUID();
         const source=fs.readFileSync(path.join(root,'scripts/jarvis-humo17-budget-watchdog.py'),'utf8');
-        const plan=buildCpuWatchdogCertificate({source,createdAtMs,operationId});
-        const receipt={schema:'jarvis.v142.watchdog-certificate.1',jobId:operationId,operationId,computeType:'CPU',cpuType:'cpu3c',
+        const plan=buildCpuWatchdogCertificate({source,createdAtMs,operationId,dataCenterId});
+        const receipt={schema:'jarvis.v142.watchdog-certificate.1',jobId:operationId,operationId,computeType:'CPU',cpuType:'cpu3c',dataCenterId,
             createdAt:new Date(createdAtMs).toISOString(),createdAtMs,hardBudgetUsd:.10,providerBudgetSafetyRatio:.75,
             maximumPaidRuntimeSeconds:plan.maximumPaidRuntimeSeconds,remoteWatchdogDeadline:new Date(plan.deadlineMs).toISOString(),
             remoteWatchdogDeadlineMs:plan.deadlineMs,remoteWatchdogInstalled:false,remoteWatchdogVerified:false,

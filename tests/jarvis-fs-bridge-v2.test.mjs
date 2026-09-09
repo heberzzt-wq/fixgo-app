@@ -1801,6 +1801,8 @@ test('HuMo17 CPU certificate has no GPU, volume, payload, account key or local t
     assert.equal(plan.body.networkVolumeId,undefined);assert.equal(plan.body.gpuTypeIds,undefined);
     assert.deepEqual(plan.body.env,{});assert.equal(plan.body.volumeInGb,0);
     assert.match(plan.body.dockerStartCmd[0],/subprocess.run/);
+    assert.deepEqual(buildCpuWatchdogCertificate({source:'fixture',createdAtMs:100000,operationId:'watchdog-abcd',dataCenterId:'EU-RO-1'}).body.dataCenterIds,['EU-RO-1']);
+    assert.throws(()=>buildCpuWatchdogCertificate({source:'fixture',createdAtMs:100000,operationId:'watchdog-abcd',dataCenterId:'other'}),/REGION_INVALID/);
 });
 
 test('HuMo17 certificate rejects negative, missing or insufficient balance before creation',async()=>{
