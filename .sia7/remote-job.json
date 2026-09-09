@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-repair-quality-negative-prompt-parity-20260909-351",
+  "jobId": "v142-humo17-persist-effective-runtime-config-20260909-352",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        negativePrompt: quality ? \"beauty retouching, smooth plastic skin, younger face, wider face, rounded jaw, altered nose, darkened hair, added beard, exaggerated smile, oversized mouth, oversized teeth, different glasses, different person, different background, subtitles, watermark\" : \"another person, identity change, subtitles, watermark, deformed face\",",
-    "replace": "        negativePrompt: \"another person, identity change, subtitles, watermark, deformed face\","
+    "search": "        qualityProbe: quality, qualityCertified: false, speechEvidence,",
+    "replace": "        qualityProbe: quality, qualityCertified: false, speechEvidence,\n        effectiveRuntimeConfig: {\n            backend: \"humo-17b-identity\",\n            model: \"HuMo-17B\",\n            comfyUiRevision: candidate.singleGpuStrategy.comfyUiRevision,\n            wrapperRevision: candidate.singleGpuStrategy.wrapperRevision,\n            videoTransformer: path.posix.basename(candidate.singleGpuStrategy.quantizedModel.path),\n            distillationLora: path.posix.basename(candidate.singleGpuStrategy.distillationLora.path),\n            distillationLoraStrength: 1.0,\n            sampler: \"WanVideoSampler\",\n            scheduler: \"lcm\",\n            steps: 8,\n            cfg: 2.0,\n            shift: 5.0,\n            seed: 42,\n            audioScale: 1.0,\n            audioCfgScale: 2.5,\n            referenceConditioning: \"HuMoEmbeds\",\n            prompt: \"The exact person in the reference image speaks the supplied audio, natural restrained facial motion. Preserve facial identity, age, hair and facial hair. One person only, no subtitles or watermark.\",\n            negativePrompt: \"another person, identity change, subtitles, watermark, deformed face\",\n            referencePreprocessing: {preserveAspectRatio: true, method: \"pad\", width: 832, height: 480, interpolation: \"LANCZOS\", padColor: \"white\"},\n            geometry: quality ? candidate.qualityProbeGeometry : candidate.probeGeometry,\n            attentionMode: candidate.singleGpuStrategy.attentionMode,\n            compileEnabled: candidate.singleGpuStrategy.compileEnabled,\n            modelLoaderDevice: candidate.singleGpuStrategy.modelLoaderDevice,\n            blockSwapWorkflowWidgetValues: candidate.singleGpuStrategy.blockSwapWorkflowWidgetValues\n        },"
   }
 }
