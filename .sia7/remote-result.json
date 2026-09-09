@@ -1,9 +1,16 @@
 {
-  "jobId": "v142-humo17-quality-paid-201f-20260908-344",
-  "completedAt": "2026-09-09T13:47:58.768Z",
+  "jobId": "v142-humo17-quality-345-reconcile-observer-20260909-346",
+  "completedAt": "2026-09-09T17:34:35.045Z",
   "executionStarted": true,
-  "ok": false,
-  "error": "SIA7_HUMO17_CORE_STAGE_FAILED:HUMO17_CORE_CPU_POD_CREATED",
+  "ok": true,
+  "operation": "patch",
+  "dryRun": true,
+  "file": ".sia7/humo17-quality-345-run.json",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 2238,
+  "bytesAfter": 2256,
+  "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
