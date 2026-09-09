@@ -6,10 +6,31 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 spec=importlib.util.spec_from_file_location('guardian',Path(__file__).resolve().parents[1]/'scripts/jarvis-humo17-budget-watchdog.py')
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 
 class GuardianTests(unittest.TestCase):
+    def test_scoped_graphql_transport_never_changes_identity_or_key(self):
+        calls=[]
+        class Response:
+            def __init__(self,status,body): self.status=status;self.body=body
+            def __enter__(self): return self
+            def __exit__(self,*args): pass
+            def read(self,*args): return json.dumps(self.body).encode()
+        def open_request(req,timeout):
+            calls.append(req)
+            if 'rest.runpod.io' in req.full_url: return Response(403,None)
+            body=json.loads(req.data)
+            self.assertEqual(body['variables'],{'id':'fixture'})
+            self.assertEqual(req.headers['Authorization'],'Bearer scoped-fixture')
+            return Response(200,{'data':{'pod':{'id':'fixture'}}}) if 'query Self' in body['query'] else Response(200,{'data':{'podTerminate':None}})
+        with patch.object(m.urllib.request,'urlopen',side_effect=open_request):
+            provider=m.self_provider('fixture','scoped-fixture')
+            self.assertEqual(provider('GET'),(200,{'id':'fixture'}))
+            self.assertEqual(provider.mechanism,'pod_scoped_graphql_self_delete')
+            self.assertEqual(provider('DELETE'),(204,None))
+        self.assertEqual(len(calls),3)
     def test_deadline_and_transient_delete_failure(self):
         with tempfile.TemporaryDirectory() as d:
             clock=[100.0]; calls=[]; attempts=[0]

@@ -8,8 +8,9 @@ import {resolveRunpodCredentialEnvironment,persistHuMo17PaidReceipt,huMo17Budget
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const secondAttempt=process.argv.includes('--reconciled-attempt-2');
 const thirdAttempt=process.argv.includes('--verified-cleanup-attempt-3');
+const fourthAttempt=process.argv.includes('--scoped-transport-attempt-4');
 const firstFile=path.join(root,'.jarvis-artifacts/humo17-quality/watchdog-certificate.json');
-const file=thirdAttempt?firstFile.replace('.json','-3.json'):secondAttempt?firstFile.replace('.json','-2.json'):firstFile;
+const file=fourthAttempt?firstFile.replace('.json','-4.json'):thirdAttempt?firstFile.replace('.json','-3.json'):secondAttempt?firstFile.replace('.json','-2.json'):firstFile;
 export function assertCertificateBalance(balance) {
     if(!Number.isFinite(balance))throw Error('CERTIFICATE_BALANCE_UNVERIFIED');
     if(balance<.10)throw Error('CERTIFICATE_INSUFFICIENT_PROVIDER_BALANCE');
@@ -54,6 +55,13 @@ async function main() {
         if(fs.existsSync(file))throw Error('CERTIFICATE_ALREADY_EXISTS_NO_REPLAY');
         if(secondAttempt){const previous=JSON.parse(fs.readFileSync(firstFile,'utf8'));if(previous.status!=='CREATE_REJECTED'||previous.podId)throw Error('PREVIOUS_CREATE_NOT_RECONCILED');}
         if(thirdAttempt){const previous=JSON.parse(fs.readFileSync(firstFile.replace('.json','-2.json'),'utf8'));if(previous.terminationVerified!==true||previous.localDeleteIssued!==true)throw Error('PREVIOUS_TERMINATION_REQUIRED');if((Date.now()-previous.createdAtMs)/3600000*previous.hourlyRateUsd>.06)throw Error('CONSERVATIVE_CUMULATIVE_BUDGET_EXHAUSTED');}
+        if(fourthAttempt){
+            let reserved=0;
+            for(const n of [2,3]){const previous=JSON.parse(fs.readFileSync(firstFile.replace('.json',`-${n}.json`),'utf8'));if(previous.terminationVerified!==true||previous.localDeleteIssued!==true)throw Error('PREVIOUS_TERMINATION_REQUIRED');reserved+=previous.maximumPaidRuntimeSeconds*.07/3600;}
+            const previous=JSON.parse(fs.readFileSync(firstFile.replace('.json','-3.json'),'utf8'));
+            if(previous.observedWatchdog?.lastHttpStatus!==403)throw Error('SCOPED_TRANSPORT_FAILURE_EVIDENCE_REQUIRED');
+            if(reserved+1200*.07/3600>.10)throw Error('CONSERVATIVE_CUMULATIVE_BUDGET_EXHAUSTED');
+        }
         const createdAtMs=Date.now(),operationId='watchdog-'+randomUUID();
         const source=fs.readFileSync(path.join(root,'scripts/jarvis-humo17-budget-watchdog.py'),'utf8');
         const plan=buildCpuWatchdogCertificate({source,createdAtMs,operationId});

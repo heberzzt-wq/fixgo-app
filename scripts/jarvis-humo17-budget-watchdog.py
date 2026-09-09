@@ -25,13 +25,42 @@ def atomic_write(file, value):
 def self_provider(pod_id, key):
     # Fixed origin and self-only resource: no caller-controlled URL or shell.
     url = 'https://rest.runpod.io/v1/pods/' + pod_id
-    def request(method):
-        req = urllib.request.Request(url, method=method, headers={'Authorization': 'Bearer ' + key})
+    transport = ['rest']
+    def http(target, method, payload=None):
+        req = urllib.request.Request(target, method=method,
+            data=json.dumps(payload).encode() if payload is not None else None,
+            headers={'Authorization': 'Bearer ' + key, 'User-Agent': 'Jarvis-V142-Watchdog/1.0',
+                     'Accept': 'application/json', 'Content-Type': 'application/json'})
         try:
             with urllib.request.urlopen(req, timeout=10) as response:
                 return response.status, json.loads(response.read(65536) or b'null')
         except urllib.error.HTTPError as error:
             return error.code, None
+    def graphql(method):
+        query = ('query Self($id:String!){pod(input:{podId:$id}){id desiredStatus}}' if method == 'GET'
+                 else 'mutation SelfTerminate($id:String!){podTerminate(input:{podId:$id})}')
+        status, body = http('https://api.runpod.io/graphql', 'POST', {'query':query,'variables':{'id':pod_id}})
+        if status != 200: return status, None
+        if not isinstance(body, dict) or body.get('errors') or not isinstance(body.get('data'), dict): return 403, None
+        if method == 'GET':
+            if 'pod' not in body['data']: return 502, None
+            pod = body['data']['pod']
+            return (404, None) if pod is None else (200, pod)
+        return (204, None) if 'podTerminate' in body['data'] else (502, None)
+    def request(method):
+        if method not in ('GET','DELETE'): raise ValueError('SELF_OPERATION_INVALID')
+        if transport[0] == 'graphql': return graphql(method)
+        result = http(url, method)
+        # Pod-scoped credentials may be accepted by the legacy control plane only.
+        # Keep the same scoped key and exact Pod identity; never escalate credentials.
+        if method == 'GET' and result[0] in (401,403):
+            alternative = graphql('GET')
+            if alternative[0] == 200 and alternative[1].get('id') == pod_id:
+                transport[0] = 'graphql'
+                request.mechanism = 'pod_scoped_graphql_self_delete'
+                return alternative
+        return result
+    request.mechanism = 'pod_scoped_rest_self_delete'
     return request
 
 
@@ -51,6 +80,7 @@ def guard(pod_id, deadline, receipt, provider, now=time.time, sleep=time.sleep, 
     except Exception:
         verified = False
     if verified:
+        state['mechanism'] = getattr(provider, 'mechanism', state['mechanism'])
         state['remoteBudgetWatchdogVerified'] = True
         state['armedAtEpochSeconds'] = now()
         state['maximumRuntimeSeconds'] = max(0, deadline-now())
