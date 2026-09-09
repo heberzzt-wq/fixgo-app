@@ -54,10 +54,17 @@
     "certificationBudgetSatisfied": true,
     "startupRecoveryPhysicallyVerified": true,
     "paidExecutionAuthorized": false,
-    "codeCertified": false,
+    "codeCertified": true,
     "hostIndependent": true,
     "receiptPath": ".sia7/humo17-watchdog-certification.json",
-    "ciPending": true
+    "ciPending": false,
+    "codeSha": "14e9047879179ba441775d07bc9e85da1c803be8",
+    "ciRun": 34370862137,
+    "linux": "success",
+    "windows": "success",
+    "materialize": "skipped",
+    "deploy": "skipped",
+    "focalTestsPassed": 14
   },
   "historicalSnapshotNote": "Top-level original runtime and CI fields describe incident closure before remediation; current certification is recorded separately below."
 }

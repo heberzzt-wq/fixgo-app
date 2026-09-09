@@ -47,8 +47,8 @@
   "terminationObservedNoLaterThan": "2026-09-09T15:25:58.991Z",
   "networkVolumeId": "1qm5wczocl",
   "gpuPodsCreated": 0,
-  "codeCertified": false,
-  "ciPending": true,
+  "codeCertified": true,
+  "ciPending": false,
   "armedWatchdogSnapshot": {
     "podId": "ha3ax8k7eeyi7g",
     "pid": 8,
@@ -173,5 +173,19 @@
     "Exact deletion timestamp unavailable; fresh observer confirmed absence after deadline.",
     "Provider billing rows pending; cost is conservative rate/time upper bound, not finalized invoice.",
     "Remote trigger inferred from sole configured self-delete authority and subsequent provider absence; armed snapshot retained unchanged."
-  ]
+  ],
+  "codeSha": "14e9047879179ba441775d07bc9e85da1c803be8",
+  "ciRun": 34370862137,
+  "linux": "success",
+  "windows": "success",
+  "materialize": "skipped",
+  "deploy": "skipped",
+  "focalTestsPassed": 14,
+  "finalProviderObservation": {
+    "at": "2026-09-09T15:32:26.727Z",
+    "providerActivePods": 0,
+    "networkVolumeRetained": true,
+    "volumeId": "1qm5wczocl",
+    "paidExecutionAuthorized": false
+  }
 }
