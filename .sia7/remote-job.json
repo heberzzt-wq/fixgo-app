@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-quality-cli-route-20260908-322",
+  "jobId": "v142-humo17-quality-runtime-envelope-20260908-323",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        runHuMo17PersistentCoreStagingCli()",
-    "replace": "        const qualityControl = resolveHuMo17QualityControlPlane();\n        runHuMo17PersistentCoreStagingCli({ env: qualityControl ? {...qualityControl.env, JARVIS_HUMO17_SIA7_COMPAT: \"true\"} : process.env })"
+    "search": "status: \"HUMO17_RUNTIME_PROBE_VERIFIED_AND_RELEASED\"};",
+    "replace": "status: truthy(env.JARVIS_HUMO17_SIA7_COMPAT) ? \"HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED\" : \"HUMO17_RUNTIME_PROBE_VERIFIED_AND_RELEASED\", runtimeProbeStatus: \"HUMO17_RUNTIME_PROBE_VERIFIED_AND_RELEASED\"};"
   }
 }
