@@ -9441,9 +9441,11 @@ export function resolveHuMo17QualityControlPlane({ root = DEFAULT_ROOT, env = pr
             if (value?.schemaVersion === "jarvis.audio-speech-segment.v142.1" && value?.selectionMethod === "full_source_vad_asr" && value?.speechValidated === true && Math.abs(Number(value.endSeconds) - Number(value.startSeconds) - 8.04) <= 0.000001 && String(value.transcript || "").trim().split(/\s+/).length >= 2 && /^[a-f0-9]{64}$/.test(String(value.wavSha256 || ""))) evidenceCandidates.push({file, value, sha256: sha256File(file)});
         } catch {}
     }
-    if (evidenceCandidates.length !== 1) throw new Error(`HUMO17_QUALITY_SPEECH_EVIDENCE_MATCH_COUNT:${evidenceCandidates.length}`);
-    const evidence = evidenceCandidates[0];
-    const wavCandidates = files.filter(file => path.extname(file).toLowerCase() === ".wav" && sha256File(file) === String(evidence.value.wavSha256).toLowerCase());
+    const uniqueEvidence = [...new Map(evidenceCandidates.map(item => [item.sha256, item])).values()];
+    if (uniqueEvidence.length !== 1) throw new Error(`HUMO17_QUALITY_SPEECH_EVIDENCE_MATCH_COUNT:${uniqueEvidence.length}`);
+    const evidence = uniqueEvidence[0];
+    const wavMatches = files.filter(file => path.extname(file).toLowerCase() === ".wav" && sha256File(file) === String(evidence.value.wavSha256).toLowerCase());
+    const wavCandidates = [...new Map(wavMatches.map(file => [sha256File(file), file])).values()];
     if (wavCandidates.length !== 1) throw new Error(`HUMO17_QUALITY_WAV_MATCH_COUNT:${wavCandidates.length}`);
     const referenceOutput = ".jarvis-artifacts/uploads/1787783430100-a3151d2eefde-IMG_20240807_165633505_HDR-2.jpg", referenceSha256 = "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958";
     const referenceFile = path.resolve(sourceRoot, referenceOutput);
