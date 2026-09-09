@@ -1,12 +1,27 @@
 {
-  "jobId": "v142-humo17-respect-ffprobe-path-20260908-338",
-  "operation": "patch",
+  "jobId": "v142-humo17-quality-preflight-201f-20260908-339",
+  "operation": "humo17_core_stage",
   "humanApproved": true,
-  "patch": {
-    "file": "jarvis-fs-bridge.js",
-    "dryRun": false,
-    "expectedMatches": 3,
-    "search": "resolveLocalExecutable(\"ffprobe\", env)",
-    "replace": "resolveLocalExecutable(env.JARVIS_FFPROBE_PATH || \"ffprobe\", env)"
-  }
+  "executePaid": true,
+  "qualityProbe": true,
+  "qualityPreflightOnly": true,
+  "fullEpisodeAuthorized": false,
+  "expectedBaseSha": "ba689d26c8ebdc122af9fe6c53b326753683a140",
+  "hardBudgetUsd": 0.95,
+  "maximumMinutes": 90,
+  "backend": "humo-17b-identity",
+  "gpu": "NVIDIA L40S",
+  "gpuCount": 1,
+  "maximumIdentityCount": 1,
+  "geometry": {
+    "width": 832,
+    "height": 480,
+    "fps": 25,
+    "frames": 201,
+    "durationSeconds": 8.04
+  },
+  "networkVolumeId": "1qm5wczocl",
+  "dataCenterId": "EU-NL-1",
+  "coreStageReceiptCommit": "c5461883e28a5f80ad6006e0a2d2ddd2b641d37c",
+  "output": ".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4"
 }
