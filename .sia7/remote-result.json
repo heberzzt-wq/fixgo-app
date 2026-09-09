@@ -1,18 +1,10 @@
 {
-  "jobId": "v142-humo17-quality-reparse-skip-20260908-328",
-  "completedAt": "2026-09-09T03:09:48.048Z",
+  "jobId": "v142-humo17-quality-preflight-201f-20260908-329",
+  "completedAt": "2026-09-09T03:13:43.176Z",
   "executionStarted": true,
-  "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "jarvis-fs-bridge.js",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 427458,
-  "bytesAfter": 427410,
-  "source": "sia7_github_worker_exact_patch_v1",
+  "ok": false,
+  "error": "SIA7_HUMO17_CORE_STAGE_FAILED:^ | Error: HUMO17_QUALITY_SPEECH_EVIDENCE_MATCH_COUNT:0 | at resolveHuMo17QualityControlPlane (file:///C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker/jarvis-fs-bridge.js:9442:48) | at file:///C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker/jarvis-fs-bridge.js:9898:32 | at ModuleJob.run (node:internal/modules/esm/module_job:439:25) | at async node:internal/modules/esm/loader:643:26 | at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) | Node.js v24.19.0",
   "committedFiles": [
-    ".sia7/remote-result.json",
-    "jarvis-fs-bridge.js"
+    ".sia7/remote-result.json"
   ]
 }
