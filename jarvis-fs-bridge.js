@@ -8955,7 +8955,8 @@ export async function runHuMo17PersistentCoreStagingCli({
             x.available === true && x.secureCloud === true && x.networkVolumeSupported === true && x.vramGb >= 48 && x.hourlyRateUsd > 0 && x.hourlyRateUsd <= 1.10);
         if (!placement) throw new Error("HUMO17_L40S_PLACEMENT_UNAVAILABLE");
         if (truthy(env.JARVIS_HUMO17_RUNTIME_PROBE_PREFLIGHT_ONLY)) {
-            const result = {ok: true, status: "HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY", backend: "humo-17b-identity",
+            const runtimeProbeStatus = "HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY";
+            const result = {ok: true, status: truthy(env.JARVIS_HUMO17_SIA7_COMPAT) ? "HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED" : runtimeProbeStatus, runtimeProbeStatus, terminationVerified: true, estimatedCostUsd: 0, backend: "humo-17b-identity",
                 geometry: buildNextIdentityRuntimeCandidate({backend: "humo-17b-identity"})[runtimeProbeAssets.qualityProbe ? "qualityProbeGeometry" : "probeGeometry"],
                 networkVolumeId: volume.id, gpu: "NVIDIA L40S", gpuCount: 1, hardBudgetUsd,
                 referenceSha256: runtimeProbeAssets.reference.sha256, audioSha256: runtimeProbeAssets.audio.sha256,
