@@ -1,27 +1,12 @@
 {
-  "jobId": "v142-humo17-quality-preflight-201f-20260908-335",
-  "operation": "humo17_core_stage",
+  "jobId": "v142-humo17-local-ffprobe-discovery-20260908-336",
+  "operation": "patch",
   "humanApproved": true,
-  "executePaid": true,
-  "qualityProbe": true,
-  "qualityPreflightOnly": true,
-  "fullEpisodeAuthorized": false,
-  "expectedBaseSha": "7fdb67f1d642820326c717f2a1f765977a240af0",
-  "hardBudgetUsd": 0.95,
-  "maximumMinutes": 90,
-  "backend": "humo-17b-identity",
-  "gpu": "NVIDIA L40S",
-  "gpuCount": 1,
-  "maximumIdentityCount": 1,
-  "geometry": {
-    "width": 832,
-    "height": 480,
-    "fps": 25,
-    "frames": 201,
-    "durationSeconds": 8.04
-  },
-  "networkVolumeId": "1qm5wczocl",
-  "dataCenterId": "EU-NL-1",
-  "coreStageReceiptCommit": "c5461883e28a5f80ad6006e0a2d2ddd2b641d37c",
-  "output": ".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4"
+  "patch": {
+    "file": "jarvis-fs-bridge.js",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "    const preflightOnly = control.qualityPreflightOnly === true;\n    return {control, head, sourceRoot, audio, speech, referenceOutput, referenceSha256, output, preflightOnly, env: {...env, JARVIS_HUMO17_RUNTIME_PROBE_AUTHORIZED: \"true\", JARVIS_HUMO17_QUALITY_PROBE_AUTHORIZED: \"true\", JARVIS_HUMO17_RUNTIME_PROBE_SOURCE_ROOT: sourceRoot,",
+    "replace": "    const findLocalFfprobe = () => {\n        const direct = resolveLocalExecutable(String(env.JARVIS_FFPROBE_PATH || \"ffprobe\").trim() || \"ffprobe\", env);\n        if (direct) return direct;\n        const localAppData = String(env.LOCALAPPDATA || \"\").trim(), userProfile = String(env.USERPROFILE || \"\").trim(), programData = String(env.ProgramData || env.PROGRAMDATA || \"C:\\\\ProgramData\").trim(), programFiles = String(env.ProgramFiles || \"C:\\\\Program Files\").trim();\n        const fixed = [\n            localAppData && path.join(localAppData, \"Microsoft\", \"WinGet\", \"Links\", \"ffprobe.exe\"),\n            programData && path.join(programData, \"chocolatey\", \"bin\", \"ffprobe.exe\"),\n            userProfile && path.join(userProfile, \"scoop\", \"shims\", \"ffprobe.exe\"),\n            programFiles && path.join(programFiles, \"ffmpeg\", \"bin\", \"ffprobe.exe\"),\n            \"C:\\\\ffmpeg\\\\bin\\\\ffprobe.exe\"\n        ].filter(Boolean);\n        for (const candidate of fixed) { try { if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return candidate; } catch {} }\n        const roots = [localAppData && path.join(localAppData, \"Microsoft\", \"WinGet\", \"Packages\"), userProfile && path.join(userProfile, \"scoop\", \"apps\")].filter(Boolean);\n        const stack = roots.map(dir => ({dir, depth: 0})); let visited = 0;\n        while (stack.length && visited < 10000) {\n            const {dir, depth} = stack.pop(); if (depth > 5 || !fs.existsSync(dir)) continue;\n            let entries; try { entries = fs.readdirSync(dir, {withFileTypes: true}); } catch { continue; }\n            for (const entry of entries) {\n                if (++visited > 10000) break;\n                const target = path.join(dir, entry.name); let stat; try { stat = fs.lstatSync(target); } catch { continue; }\n                if (stat.isSymbolicLink()) continue;\n                if (entry.isFile() && entry.name.toLowerCase() === \"ffprobe.exe\") return target;\n                if (entry.isDirectory() && depth < 5) stack.push({dir: target, depth: depth + 1});\n            }\n        }\n        return null;\n    };\n    const ffprobePath = findLocalFfprobe();\n    if (!ffprobePath) throw new Error(\"HUMO17_LOCAL_FFPROBE_REQUIRED\");\n    const preflightOnly = control.qualityPreflightOnly === true;\n    return {control, head, sourceRoot, audio, speech, referenceOutput, referenceSha256, output, preflightOnly, env: {...env, JARVIS_FFPROBE_PATH: ffprobePath, JARVIS_HUMO17_RUNTIME_PROBE_AUTHORIZED: \"true\", JARVIS_HUMO17_QUALITY_PROBE_AUTHORIZED: \"true\", JARVIS_HUMO17_RUNTIME_PROBE_SOURCE_ROOT: sourceRoot,"
+  }
 }
