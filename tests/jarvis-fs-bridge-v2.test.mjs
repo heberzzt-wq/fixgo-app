@@ -1803,6 +1803,12 @@ test('HuMo17 CPU certificate has no GPU, volume, payload, account key or local t
     assert.match(plan.body.dockerStartCmd[0],/subprocess.run/);
 });
 
+test('HuMo17 certificate rejects negative, missing or insufficient balance before creation',async()=>{
+    const {assertCertificateBalance}=await import('../scripts/jarvis-humo17-watchdog-certificate.mjs');
+    for(const v of [undefined,NaN,Infinity,-.0632118055,0,.099999])assert.throws(()=>assertCertificateBalance(v),/CERTIFICATE_/);
+    assert.doesNotThrow(()=>assertCertificateBalance(.10));
+});
+
 test("HuMo17 recovery deletes only recorded Pods and persists verified absence", async () => {
     const {reconcileHuMo17PaidReceipts}=await import("../jarvis-fs-bridge.js");
     const root=fs.mkdtempSync(path.join(os.tmpdir(),"humo17-recovery-"));

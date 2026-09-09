@@ -9,6 +9,10 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const secondAttempt=process.argv.includes('--reconciled-attempt-2');
 const firstFile=path.join(root,'.jarvis-artifacts/humo17-quality/watchdog-certificate.json');
 const file=secondAttempt?firstFile.replace('.json','-2.json'):firstFile;
+export function assertCertificateBalance(balance) {
+    if(!Number.isFinite(balance))throw Error('CERTIFICATE_BALANCE_UNVERIFIED');
+    if(balance<.10)throw Error('CERTIFICATE_INSUFFICIENT_PROVIDER_BALANCE');
+}
 export function buildCpuWatchdogCertificate({source,createdAtMs,operationId}) {
     if(!source || !Number.isFinite(createdAtMs) || !/^watchdog-[a-f0-9-]+$/.test(operationId)) throw Error('CERTIFICATE_INPUT_INVALID');
     const seconds=huMo17BudgetSeconds({hardBudgetUsd:.10,hourlyRateUsd:.07,maximumMinutes:10});
@@ -38,6 +42,10 @@ async function main() {
     if(action==='preflight'||action==='create') {
         const pods=await api('GET','/pods');if(!Array.isArray(pods.body)||pods.body.length)throw Error('CERTIFICATE_REQUIRES_ZERO_PODS');
         const volume=await api('GET','/networkvolumes/1qm5wczocl');if(volume.body?.id!=='1qm5wczocl')throw Error('ORIGINAL_VOLUME_NOT_CONFIRMED');
+        const accountResponse=await fetch('https://api.runpod.io/graphql',{method:'POST',headers:{Authorization:'Bearer '+credential.env.RUNPOD_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({query:'query WatchdogBalancePreflight { myself { clientBalance } }'}),signal:AbortSignal.timeout(10000)});
+        const account=await accountResponse.json(),balance=account.data?.myself?.clientBalance;
+        if(!accountResponse.ok||account.errors||!Number.isFinite(balance))throw Error('CERTIFICATE_BALANCE_UNVERIFIED');
+        assertCertificateBalance(balance);
         const catalog=await fetch('https://api.runpod.io/v2/catalog/cpus',{headers:{Authorization:'Bearer '+credential.env.RUNPOD_API_KEY},signal:AbortSignal.timeout(10000)}).then(r=>r.json());
         const cpu=catalog.cpus?.find(c=>c.id==='cpu3c');if(!cpu || cpu.vcpu.min!==2 || cpu.price.securePerVcpu*2>.06)throw Error('CPU_RATE_PREFLIGHT_FAILED');
         if(action==='preflight'){console.log(JSON.stringify({activePods:0,networkVolumeRetained:true,computeType:'CPU',cpuType:'cpu3c',vcpuCount:2,hourlyComputeRateUsd:cpu.price.securePerVcpu*2,maximumRateIncludingDiskUsd:.07,hardBudgetUsd:.10,paidExecutionAuthorized:false}));return;}
