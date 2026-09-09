@@ -1788,6 +1788,9 @@ test("HuMo17 recovery deletes only recorded Pods and persists verified absence",
         fs.writeFileSync(file,JSON.stringify({podId:"fixture",terminationVerified:false}));
         await assert.rejects(reconcileHuMo17PaidReceipts({root,provider:async()=>{throw Error("offline");}}),/offline/);
         assert.equal(JSON.parse(fs.readFileSync(file)).terminationVerified,false);
+        fs.renameSync(file,file+".pending");
+        await reconcileHuMo17PaidReceipts({root,provider:async()=>{throw Error("RUNPOD_HUMO17_HTTP_404");}});
+        assert.equal(JSON.parse(fs.readFileSync(file)).terminationVerified,true);assert.equal(fs.existsSync(file+".pending"),false);
     } finally {fs.rmSync(root,{recursive:true,force:true});}
 });
 

@@ -8720,7 +8720,7 @@ export async function reconcileHuMo17PaidReceipts({root=DEFAULT_ROOT,provider,wa
     const dir=path.join(root,".jarvis-artifacts");
     if (!fs.existsSync(dir)) return [];
     const pending=[];
-    for(const name of fs.readdirSync(dir).filter(n=>/^humo17-(probe|core)-[a-f0-9-]+\.json$/.test(n))) {
+    for(const name of fs.readdirSync(dir).filter(n=>/^humo17-(probe|core)-[a-f0-9-]+\.json(?:\.pending)?$/.test(n))) {
         const file=path.join(dir,name); if(fs.lstatSync(file).isSymbolicLink()) throw new Error("HUMO17_RECEIPT_SYMLINK");
         const value=JSON.parse(fs.readFileSync(file,"utf8"));
         if(value.terminationVerified===false&&value.podId) pending.push({file,value});
@@ -8745,7 +8745,7 @@ export async function reconcileHuMo17PaidReceipts({root=DEFAULT_ROOT,provider,wa
         if(!absent) absent=await releaseHuMo17Pod({podId:value.podId,provider,wait});
         if(!absent) throw new Error("HUMO17_RECOVERY_TERMINATION_UNVERIFIED");
         const receipt={...value,terminationVerified:true,reconciledAt:new Date().toISOString(),reconciliationStatus:"PROVIDER_ABSENCE_VERIFIED"};
-        persistHuMo17PaidReceipt(file,receipt);recovered.push(receipt);
+        persistHuMo17PaidReceipt(file.replace(/\.pending$/,""),receipt);if(file.endsWith(".pending"))fs.unlinkSync(file);recovered.push(receipt);
     }
     return recovered;
 }
