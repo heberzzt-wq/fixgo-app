@@ -8705,9 +8705,36 @@ export async function runNextIdentityRuntimePreflightCli({
 // Physical host-loss certification is separate from paid launch authority.
 // No environment flag or old job approval can reopen paid execution.
 export const HUMO17_INDEPENDENT_BUDGET_CERTIFIED = RUNPOD_HARD_CAP_CERTIFIED;
-export function assertHuMo17IndependentBudget() {
+export function assertHuMo17IndependentBudget({authority,context}={}) {
     if (!HUMO17_INDEPENDENT_BUDGET_CERTIFIED) throw new Error("HUMO17_INDEPENDENT_BUDGET_CERTIFICATION_REQUIRED");
+    if (authority) return validateHuMo17QualityAuthority(authority,context);
     if (!RUNPOD_PAID_EXECUTION_AUTHORIZED) throw new Error('HUMO17_PAID_EXECUTION_DISABLED');
+}
+export function validateHuMo17QualityAuthority(a,c,now=Date.now()) {
+    if(!c || !a || a.schema!=='jarvis.v142.quality-single-use.1' || a.humanApproved!==true ||
+       a.maximumAttempts!==1 || !/^[a-f0-9-]{36}$/.test(a.nonce||'') || !a.jobId || a.jobId!==c.jobId ||
+       !/^[a-f0-9]{40}$/.test(a.codeSha||'') || a.codeSha!==c.codeSha ||
+       !Number.isFinite(Date.parse(a.expiresAt)) || Date.parse(a.expiresAt)<=now ||
+       a.backend!=='humo-17b-identity' || a.gpu!=='NVIDIA L40S' || a.gpuCount!==1 ||
+       a.networkVolumeId!=='1qm5wczocl' || a.dataCenterId!=='EU-NL-1' || a.fullEpisodeAuthorized!==false ||
+       a.hardBudgetUsd!==0.95 || c.hardBudgetUsd!==a.hardBudgetUsd || a.safetyRatio!==0.75 ||
+       a.referenceSha256!=='a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958' ||
+       a.audioSha256!=='bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184' ||
+       c.referenceSha256!==a.referenceSha256 || c.audioSha256!==a.audioSha256 ||
+       c.qualityProbe!==true || c.speechValidated!==true ||
+       a.output!=='.jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4' || c.output!==a.output ||
+       a.frames!==201 || a.fps!==25 || a.width!==832 || a.height!==480)
+       throw Error('HUMO17_SINGLE_USE_AUTHORITY_INVALID');
+    return a;
+}
+export function consumeHuMo17QualityAuthority({root,authority,context,operationId}) {
+    validateHuMo17QualityAuthority(authority,context);
+    const dir=path.join(root,'.jarvis-artifacts','humo17-quality');fs.mkdirSync(dir,{recursive:true});
+    if(fs.lstatSync(dir).isSymbolicLink())throw Error('HUMO17_AUTHORITY_SYMLINK');
+    const file=path.join(dir,`consumed-${authority.nonce}.json`);
+    let fd;try {fd=fs.openSync(file,'wx',0o600);}catch(e){if(e.code==='EEXIST')throw Error('HUMO17_PAID_REPLAY_BLOCKED');throw e;}
+    try{fs.writeFileSync(fd,JSON.stringify({schema:'jarvis.v142.quality-consumed.1',jobId:authority.jobId,operationId,nonce:authority.nonce,codeSha:authority.codeSha,consumedAt:new Date().toISOString()}));fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
+    return file;
 }
 export function huMo17BudgetSeconds({hardBudgetUsd, hourlyRateUsd, maximumMinutes}) {
     if (![hardBudgetUsd,hourlyRateUsd,maximumMinutes].every(v=>Number.isFinite(v)&&v>0)) throw new Error("HUMO17_BUDGET_INPUT_INVALID");
@@ -8921,7 +8948,9 @@ export async function runHuMo17PersistentCoreStagingCli({
         throw new Error("RUNPOD_HUMO17_CORE_STAGE_DURATION_INVALID");
     }
     const runtimeProbeAuthorized = truthy(env.JARVIS_HUMO17_RUNTIME_PROBE_AUTHORIZED);
-    if (!(runtimeProbeAuthorized && truthy(env.JARVIS_HUMO17_RUNTIME_PROBE_PREFLIGHT_ONLY))) assertHuMo17IndependentBudget();
+    const preflightOnly=runtimeProbeAuthorized && truthy(env.JARVIS_HUMO17_RUNTIME_PROBE_PREFLIGHT_ONLY);
+    const authorityFile=String(env.JARVIS_HUMO17_SINGLE_USE_AUTHORITY_FILE||'').trim();
+    if (!preflightOnly && !(runtimeProbeAuthorized && truthy(env.JARVIS_HUMO17_QUALITY_PROBE_AUTHORIZED) && authorityFile)) assertHuMo17IndependentBudget();
     let runtimeProbeAssets = null;
     if (runtimeProbeAuthorized) {
         const sourceRootRaw = String(env.JARVIS_HUMO17_RUNTIME_PROBE_SOURCE_ROOT || "").trim();
@@ -9022,6 +9051,22 @@ export async function runHuMo17PersistentCoreStagingCli({
     })).trim().toLowerCase();
     if (!/^[a-f0-9]{40}$/.test(canonicalSha)) throw new Error("RUNPOD_CANONICAL_SHA_REQUIRED");
 
+    let qualityAuthority=null,qualityAuthorityContext=null;
+    if(!preflightOnly && runtimeProbeAuthorized && authorityFile) {
+        if(fs.lstatSync(authorityFile).isSymbolicLink())throw Error('HUMO17_AUTHORITY_SYMLINK');
+        qualityAuthority=JSON.parse(fs.readFileSync(authorityFile,'utf8'));
+        qualityAuthorityContext={jobId:env.JARVIS_HUMO17_JOB_ID,codeSha:canonicalSha,hardBudgetUsd,
+            referenceSha256:runtimeProbeAssets.reference.sha256,audioSha256:runtimeProbeAssets.audio.sha256,
+            qualityProbe:runtimeProbeAssets.qualityProbe,speechValidated:runtimeProbeAssets.speechEvidence?.speechValidated===true,output:runtimeProbeAssets.output};
+        assertHuMo17IndependentBudget({authority:qualityAuthority,context:qualityAuthorityContext});
+    }
+    if(runtimeProbeAuthorized) {
+        if(env.JARVIS_HUMO17_RUNTIME_CI_VERIFIED_SHA!==canonicalSha)throw Error('HUMO17_EXACT_HEAD_CI_REQUIRED');
+        await reconcileHuMo17PaidReceipts({root:resolvedRoot});
+        const response=await fetch('https://rest.runpod.io/v1/pods',{headers:{Authorization:`Bearer ${credential.env.RUNPOD_API_KEY}`},signal:AbortSignal.timeout(15000)});
+        if(!response.ok)throw Error('HUMO17_POD_PREFLIGHT_HTTP_'+response.status);
+        const active=await response.json();if(!Array.isArray(active)||active.some(p=>p.desiredStatus!=='TERMINATED'))throw Error('HUMO17_EXISTING_POD_RECONCILIATION_REQUIRED');
+    }
     let placement = null;
     if (runtimeProbeAuthorized) {
         if (volume.id !== "1qm5wczocl" || volume.dataCenterId !== "EU-NL-1") throw new Error("HUMO17_PINNED_VOLUME_REQUIRED");
@@ -9043,8 +9088,8 @@ export async function runHuMo17PersistentCoreStagingCli({
             x.available === true && x.secureCloud === true && x.networkVolumeSupported === true && x.vramGb >= 48 && x.hourlyRateUsd > 0 && x.hourlyRateUsd <= 1.10);
         if (!placement) throw new Error("HUMO17_L40S_PLACEMENT_UNAVAILABLE");
         if (truthy(env.JARVIS_HUMO17_RUNTIME_PROBE_PREFLIGHT_ONLY)) {
-            const runtimeProbeStatus = HUMO17_INDEPENDENT_BUDGET_CERTIFIED?'HUMO17_PAID_EXECUTION_DISABLED':'HUMO17_INDEPENDENT_BUDGET_CERTIFICATION_REQUIRED';
-            const result = {ok: false, hardCapCertified:HUMO17_INDEPENDENT_BUDGET_CERTIFIED, paidExecutionAuthorized:false,paidBudgetReady:false, localBudgetWatchdog:true, remoteBudgetWatchdogVerified:false, status: runtimeProbeStatus, runtimeProbeStatus, terminationVerified: true, estimatedCostUsd: 0, backend: "humo-17b-identity",
+            const runtimeProbeStatus = HUMO17_INDEPENDENT_BUDGET_CERTIFIED?'HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY':'HUMO17_INDEPENDENT_BUDGET_CERTIFICATION_REQUIRED';
+            const result = {ok: HUMO17_INDEPENDENT_BUDGET_CERTIFIED, hardCapCertified:HUMO17_INDEPENDENT_BUDGET_CERTIFIED, paidExecutionAuthorized:false,paidBudgetReady:HUMO17_INDEPENDENT_BUDGET_CERTIFIED,activePods:0,paidStaleReceipts:0, localBudgetWatchdog:true, remoteBudgetWatchdogVerified:false, status: runtimeProbeStatus, runtimeProbeStatus, terminationVerified: true, estimatedCostUsd: 0, backend: "humo-17b-identity",
                 geometry: buildNextIdentityRuntimeCandidate({backend: "humo-17b-identity"})[runtimeProbeAssets.qualityProbe ? "qualityProbeGeometry" : "probeGeometry"],
                 networkVolumeId: volume.id, gpu: "NVIDIA L40S", gpuCount: 1, hardBudgetUsd,
                 referenceSha256: runtimeProbeAssets.reference.sha256, audioSha256: runtimeProbeAssets.audio.sha256,
@@ -9211,6 +9256,11 @@ export async function runHuMo17PersistentCoreStagingCli({
     try {
         createdAtMs = Date.now();
         hourlyRateUsd = Number(placement?.hourlyRateUsd || 0);
+        if(runtimeProbeAuthorized) {
+            if(!qualityAuthority)throw Error('HUMO17_SINGLE_USE_AUTHORITY_REQUIRED');
+            consumeHuMo17QualityAuthority({root:resolvedRoot,authority:qualityAuthority,context:qualityAuthorityContext,operationId});
+        }
+        persistHuMo17PaidReceipt(paidReceiptFile,{operationId,jobId:env.JARVIS_HUMO17_JOB_ID||null,status:'CREATE_REQUEST_PENDING',createdAtMs,hardBudgetUsd,terminationVerified:false,inferenceStarted:false});
         const created = await provider("POST", "/pods", createBody, [200, 201]);
         podId = String(created?.id || "").trim();
         if (!podId) throw new Error("RUNPOD_HUMO17_CPU_POD_CREATE_INVALID");

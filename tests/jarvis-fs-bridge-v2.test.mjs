@@ -1862,3 +1862,19 @@ test("SIA7 early Pod receipt preserves budget and GPU identity without provider 
     assert.equal(r.podId,"fixture");assert.equal(r.providerBudgetKillSeconds,2331);assert.equal(r.gpuCount,1);assert.equal(r.terminationVerified,false);
     assert.ok(!JSON.stringify(r).includes("secret"));assert.throws(()=>buildHuMo17EarlyReceipt("job",{podId:"../bad"}));
 });
+
+
+test('HuMo17 quality authority binds exact media, budget and HEAD and is consumed once',async()=>{
+    const {validateHuMo17QualityAuthority,consumeHuMo17QualityAuthority,assertHuMo17IndependentBudget}=await import('../jarvis-fs-bridge.js');
+    const fs=await import('node:fs');const os=await import('node:os');const path=await import('node:path');
+    const a={schema:'jarvis.v142.quality-single-use.1',humanApproved:true,maximumAttempts:1,nonce:'12345678-1234-1234-1234-123456789abc',jobId:'quality-one',codeSha:'a'.repeat(40),expiresAt:new Date(Date.now()+60000).toISOString(),backend:'humo-17b-identity',gpu:'NVIDIA L40S',gpuCount:1,networkVolumeId:'1qm5wczocl',dataCenterId:'EU-NL-1',fullEpisodeAuthorized:false,hardBudgetUsd:.95,safetyRatio:.75,referenceSha256:'a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958',audioSha256:'bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184',output:'.jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4',frames:201,fps:25,width:832,height:480};
+    const c={...a,qualityProbe:true,speechValidated:true};assert.equal(assertHuMo17IndependentBudget({authority:a,context:c}),a);
+    for(const patch of [{humanApproved:false},{maximumAttempts:2},{gpu:'NVIDIA A40'},{gpuCount:2},{frames:97},{hardBudgetUsd:1},{audioSha256:'b'.repeat(64)},{codeSha:'b'.repeat(40)},{fullEpisodeAuthorized:true},{expiresAt:'2000-01-01'}])assert.throws(()=>validateHuMo17QualityAuthority({...a,...patch},c),/SINGLE_USE_AUTHORITY_INVALID/);
+    for(const patch of [{qualityProbe:false},{speechValidated:false},{output:'other.mp4'},{jobId:'old-job'},{hardBudgetUsd:3}])assert.throws(()=>validateHuMo17QualityAuthority(a,{...c,...patch}),/SINGLE_USE_AUTHORITY_INVALID/);
+    const root=fs.mkdtempSync(path.join(os.tmpdir(),'humo17-once-'));try {
+        const file=consumeHuMo17QualityAuthority({root,authority:a,context:c,operationId:'first'});
+        assert.equal(JSON.parse(fs.readFileSync(file,'utf8')).operationId,'first');
+        assert.throws(()=>consumeHuMo17QualityAuthority({root,authority:a,context:c,operationId:'retry'}),/PAID_REPLAY_BLOCKED/);
+    }finally{fs.rmSync(root,{recursive:true,force:true});}
+    assert.throws(()=>assertHuMo17IndependentBudget(),/PAID_EXECUTION_DISABLED/);
+});
