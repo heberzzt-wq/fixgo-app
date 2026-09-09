@@ -1,36 +1,12 @@
 {
-  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-preflight-20260909-354",
-  "operation": "humo17_core_stage",
+  "jobId": "v142-humo17-ab-output-pin-repair-20260909-355",
+  "operation": "patch",
   "humanApproved": true,
-  "executePaid": true,
-  "qualityProbe": true,
-  "qualityPreflightOnly": true,
-  "fullEpisodeAuthorized": false,
-  "expectedBaseSha": "7813ddf9c04bc5774ad2b01875e245f512f2ab2d",
-  "certifiedCodeSha": "f0ce80bf9f9b7b77d649c21c904f19e9f93c841f",
-  "ciRun": 34388686064,
-  "hardBudgetUsd": 0.95,
-  "providerBudgetSafetyRatio": 0.75,
-  "maximumMinutes": 90,
-  "backend": "humo-17b-identity",
-  "gpu": "NVIDIA L40S",
-  "gpuCount": 1,
-  "maximumIdentityCount": 1,
-  "geometry": {
-    "width": 832,
-    "height": 480,
-    "fps": 25,
-    "frames": 201,
-    "durationSeconds": 8.04
-  },
-  "networkVolumeId": "1qm5wczocl",
-  "dataCenterId": "EU-NL-1",
-  "coreStageReceiptCommit": "c5461883e28a5f80ad6006e0a2d2ddd2b641d37c",
-  "referenceSha256": "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958",
-  "audioSha256": "bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184",
-  "speechValidated": true,
-  "promptParityRequired": true,
-  "authorityPath": ".sia7/humo17-quality-ab-prompt-parity-201f-authority.json",
-  "authorityId": "v142-humo17-quality-ab-prompt-parity-201f-20260909-354-authority",
-  "output": ".jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4"
+  "patch": {
+    "file": "jarvis-fs-bridge.js",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "    const output = String(control.output || \".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4\").trim().replaceAll(\"\\\\\", \"/\");\n    if (output !== \".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4\") throw new Error(\"HUMO17_QUALITY_OUTPUT_NOT_PINNED\");",
+    "replace": "    const output = String(control.output || \".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4\").trim().replaceAll(\"\\\\\", \"/\");\n    const allowedQualityOutputs = new Set([\n        \".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4\",\n        \".jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4\"\n    ]);\n    if (!allowedQualityOutputs.has(output)) throw new Error(\"HUMO17_QUALITY_OUTPUT_NOT_PINNED\");"
+  }
 }
