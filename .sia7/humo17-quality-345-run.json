@@ -61,5 +61,9 @@
   "remoteBudgetWatchdogVerified": true,
   "codeSha": "de04a55ec578487080d39c438c8d614c9f7b1567",
   "ciRun": 34373916524,
-  "paidAuthorizationConsumed": true
+  "paidAuthorizationConsumed": true,
+  "maximumPaidAttempts": 1,
+  "qualityCertified": false,
+  "updatedAt": "2026-09-09T16:12:36.003781+00:00",
+  "observedGpu": "NVIDIA L40S"
 }
