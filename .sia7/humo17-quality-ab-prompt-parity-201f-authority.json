@@ -9,13 +9,26 @@
   "secondPaidAttemptAuthorized": false,
   "hardBudgetUsd": 0.95,
   "providerBudgetSafetyRatio": 0.75,
-  "certifiedCodeSha": "f0ce80bf9f9b7b77d649c21c904f19e9f93c841f",
+  "certifiedCodeSha": "45706654087f4562df1adb963d11a89589f1d702",
+  "priorCertifiedCodeSha": "f0ce80bf9f9b7b77d649c21c904f19e9f93c841f",
   "durableHeadBeforeAuthority": "c72ac67451b0dcecf67744b73261c9cfc671850f",
-  "ciRun": 34388686064,
+  "ciRun": 34397865823,
+  "priorCiRun": 34388686064,
   "linux": "success",
   "windows": "success",
+  "fullCi": "success",
   "materialize": "skipped",
   "deploy": "skipped",
+  "zeroCostPreflightHistory": [
+    {
+      "jobId": "v142-humo17-quality-ab-prompt-parity-201f-preflight-20260909-354",
+      "ok": false,
+      "error": "HUMO17_QUALITY_OUTPUT_NOT_PINNED",
+      "paidReceipts": 0,
+      "paidAttemptConsumed": false,
+      "resourceCreated": false
+    }
+  ],
   "backend": "humo-17b-identity",
   "model": "HuMo-17B",
   "gpu": "NVIDIA L40S",
