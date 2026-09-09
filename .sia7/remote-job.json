@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-ab-output-pin-repair-20260909-355",
+  "jobId": "v142-humo17-ab-output-pin-repair-line-20260909-356",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const output = String(control.output || \".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4\").trim().replaceAll(\"\\\\\", \"/\");\n    if (output !== \".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4\") throw new Error(\"HUMO17_QUALITY_OUTPUT_NOT_PINNED\");",
-    "replace": "    const output = String(control.output || \".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4\").trim().replaceAll(\"\\\\\", \"/\");\n    const allowedQualityOutputs = new Set([\n        \".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4\",\n        \".jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4\"\n    ]);\n    if (!allowedQualityOutputs.has(output)) throw new Error(\"HUMO17_QUALITY_OUTPUT_NOT_PINNED\");"
+    "search": "    if (output !== \".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4\") throw new Error(\"HUMO17_QUALITY_OUTPUT_NOT_PINNED\");",
+    "replace": "    if (![\".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4\", \".jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4\"].includes(output)) throw new Error(\"HUMO17_QUALITY_OUTPUT_NOT_PINNED\");"
   }
 }
