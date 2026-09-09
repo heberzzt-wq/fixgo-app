@@ -9465,8 +9465,37 @@ export function resolveHuMo17QualityControlPlane({ root = DEFAULT_ROOT, env = pr
     const stageReceiptFile = path.join(os.tmpdir(), "jarvis-v142-humo17-core-stage-314-receipt.json"); fs.writeFileSync(stageReceiptFile, JSON.stringify(stageReceipt));
     const output = String(control.output || ".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4").trim().replaceAll("\\", "/");
     if (output !== ".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4") throw new Error("HUMO17_QUALITY_OUTPUT_NOT_PINNED");
+    const findLocalFfprobe = () => {
+        const direct = resolveLocalExecutable(String(env.JARVIS_FFPROBE_PATH || "ffprobe").trim() || "ffprobe", env);
+        if (direct) return direct;
+        const localAppData = String(env.LOCALAPPDATA || "").trim(), userProfile = String(env.USERPROFILE || "").trim(), programData = String(env.ProgramData || env.PROGRAMDATA || "C:\\ProgramData").trim(), programFiles = String(env.ProgramFiles || "C:\\Program Files").trim();
+        const fixed = [
+            localAppData && path.join(localAppData, "Microsoft", "WinGet", "Links", "ffprobe.exe"),
+            programData && path.join(programData, "chocolatey", "bin", "ffprobe.exe"),
+            userProfile && path.join(userProfile, "scoop", "shims", "ffprobe.exe"),
+            programFiles && path.join(programFiles, "ffmpeg", "bin", "ffprobe.exe"),
+            "C:\\ffmpeg\\bin\\ffprobe.exe"
+        ].filter(Boolean);
+        for (const candidate of fixed) { try { if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return candidate; } catch {} }
+        const roots = [localAppData && path.join(localAppData, "Microsoft", "WinGet", "Packages"), userProfile && path.join(userProfile, "scoop", "apps")].filter(Boolean);
+        const stack = roots.map(dir => ({dir, depth: 0})); let visited = 0;
+        while (stack.length && visited < 10000) {
+            const {dir, depth} = stack.pop(); if (depth > 5 || !fs.existsSync(dir)) continue;
+            let entries; try { entries = fs.readdirSync(dir, {withFileTypes: true}); } catch { continue; }
+            for (const entry of entries) {
+                if (++visited > 10000) break;
+                const target = path.join(dir, entry.name); let stat; try { stat = fs.lstatSync(target); } catch { continue; }
+                if (stat.isSymbolicLink()) continue;
+                if (entry.isFile() && entry.name.toLowerCase() === "ffprobe.exe") return target;
+                if (entry.isDirectory() && depth < 5) stack.push({dir: target, depth: depth + 1});
+            }
+        }
+        return null;
+    };
+    const ffprobePath = findLocalFfprobe();
+    if (!ffprobePath) throw new Error("HUMO17_LOCAL_FFPROBE_REQUIRED");
     const preflightOnly = control.qualityPreflightOnly === true;
-    return {control, head, sourceRoot, audio, speech, referenceOutput, referenceSha256, output, preflightOnly, env: {...env, JARVIS_HUMO17_RUNTIME_PROBE_AUTHORIZED: "true", JARVIS_HUMO17_QUALITY_PROBE_AUTHORIZED: "true", JARVIS_HUMO17_RUNTIME_PROBE_SOURCE_ROOT: sourceRoot, JARVIS_HUMO17_RUNTIME_PROBE_REFERENCE_OUTPUT: referenceOutput, JARVIS_HUMO17_RUNTIME_PROBE_REFERENCE_SHA256: referenceSha256, JARVIS_HUMO17_RUNTIME_PROBE_AUDIO_OUTPUT: audio.output, JARVIS_HUMO17_RUNTIME_PROBE_AUDIO_SHA256: audio.sha256, JARVIS_HUMO17_SPEECH_EVIDENCE_OUTPUT: speech.output, JARVIS_HUMO17_SPEECH_EVIDENCE_SHA256: speech.sha256, JARVIS_HUMO17_RUNTIME_PROBE_OUTPUT: output, JARVIS_HUMO17_CORE_STAGE_RECEIPT: stageReceiptFile, JARVIS_HUMO17_RUNTIME_CI_VERIFIED_SHA: head, JARVIS_HUMO17_RUNTIME_PROBE_PREFLIGHT_ONLY: preflightOnly ? "true" : "false", JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: preflightOnly ? "false" : "true", JARVIS_RUNPOD_NETWORK_VOLUME_ID: "1qm5wczocl", JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1"}};
+    return {control, head, sourceRoot, audio, speech, referenceOutput, referenceSha256, output, preflightOnly, env: {...env, JARVIS_FFPROBE_PATH: ffprobePath, JARVIS_HUMO17_RUNTIME_PROBE_AUTHORIZED: "true", JARVIS_HUMO17_QUALITY_PROBE_AUTHORIZED: "true", JARVIS_HUMO17_RUNTIME_PROBE_SOURCE_ROOT: sourceRoot, JARVIS_HUMO17_RUNTIME_PROBE_REFERENCE_OUTPUT: referenceOutput, JARVIS_HUMO17_RUNTIME_PROBE_REFERENCE_SHA256: referenceSha256, JARVIS_HUMO17_RUNTIME_PROBE_AUDIO_OUTPUT: audio.output, JARVIS_HUMO17_RUNTIME_PROBE_AUDIO_SHA256: audio.sha256, JARVIS_HUMO17_SPEECH_EVIDENCE_OUTPUT: speech.output, JARVIS_HUMO17_SPEECH_EVIDENCE_SHA256: speech.sha256, JARVIS_HUMO17_RUNTIME_PROBE_OUTPUT: output, JARVIS_HUMO17_CORE_STAGE_RECEIPT: stageReceiptFile, JARVIS_HUMO17_RUNTIME_CI_VERIFIED_SHA: head, JARVIS_HUMO17_RUNTIME_PROBE_PREFLIGHT_ONLY: preflightOnly ? "true" : "false", JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: preflightOnly ? "false" : "true", JARVIS_RUNPOD_NETWORK_VOLUME_ID: "1qm5wczocl", JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1"}};
 }
 
 export async function runHuMoIdentityProbeCli({
