@@ -9426,7 +9426,7 @@ export function resolveHuMo17QualityControlPlane({ root = DEFAULT_ROOT, env = pr
         const current = stack.pop();
         for (const entry of fs.readdirSync(current, {withFileTypes: true})) {
             const target = path.join(current, entry.name);
-            if (fs.lstatSync(target).isSymbolicLink()) throw new Error("HUMO17_QUALITY_REPARSE_PATH_FORBIDDEN");
+            if (fs.lstatSync(target).isSymbolicLink()) continue;
             if (entry.isDirectory()) stack.push(target); else if (entry.isFile() && [".json", ".wav"].includes(path.extname(target).toLowerCase())) files.push(target);
             if (files.length > 200) throw new Error("HUMO17_QUALITY_LOCAL_SCAN_LIMIT");
         }
