@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-reconcile-certified-code-20260909-364",
+  "jobId": "v142-humo17-wire-single-use-authority-20260909-365",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        qualityAuthorityContext={jobId:env.JARVIS_HUMO17_JOB_ID,codeSha:canonicalSha,hardBudgetUsd,",
-    "replace": "        qualityAuthorityContext={jobId:env.JARVIS_HUMO17_JOB_ID,codeSha:String(env.JARVIS_HUMO17_CERTIFIED_CODE_SHA||canonicalSha).trim().toLowerCase(),hardBudgetUsd,"
+    "search": "    const preflightOnly = control.qualityPreflightOnly === true;",
+    "replace": "    const preflightOnly = control.qualityPreflightOnly === true;\n    const certifiedCodeSha = String(control.certifiedCodeSha || \"\").trim().toLowerCase();\n    if (!/^[a-f0-9]{40}$/.test(certifiedCodeSha)) throw new Error(\"HUMO17_QUALITY_CERTIFIED_CODE_SHA_REQUIRED\");\n    try { execFileSync(git, [\"merge-base\", \"--is-ancestor\", certifiedCodeSha, head], {cwd: root, windowsHide: true, stdio: \"ignore\"}); } catch { throw new Error(\"HUMO17_QUALITY_CERTIFIED_CODE_NOT_ANCESTOR\"); }\n    const certifiedChanged = String(execFileSync(git, [\"diff\", \"--name-only\", `${certifiedCodeSha}..${head}`], {cwd: root, encoding: \"utf8\", windowsHide: true})).split(/\\r?\\n/).map(x => x.trim()).filter(Boolean);\n    if (certifiedChanged.some(file => !file.startsWith(\".sia7/\"))) throw new Error(\"HUMO17_QUALITY_CONTROL_UNCERTIFIED_CODE\");\n    const runtimeJobId = String(control.paidJobId || control.jobId || \"\").trim();\n    if (!runtimeJobId) throw new Error(\"HUMO17_QUALITY_PAID_JOB_ID_REQUIRED\");\n    let authorityFile = \"\";\n    if (!preflightOnly) {\n        const authorityOutput = String(control.authorityPath || \"\").trim().replaceAll(\"\\\\\", \"/\");\n        if (authorityOutput !== \".sia7/humo17-quality-ab-prompt-parity-201f-authority.json\") throw new Error(\"HUMO17_QUALITY_AUTHORITY_PATH_INVALID\");\n        authorityFile = path.resolve(root, authorityOutput);\n        const authorityRoot = path.resolve(root, \".sia7\") + path.sep;\n        if (!authorityFile.startsWith(authorityRoot) || !fs.existsSync(authorityFile) || !fs.statSync(authorityFile).isFile() || fs.lstatSync(authorityFile).isSymbolicLink()) throw new Error(\"HUMO17_QUALITY_AUTHORITY_FILE_INVALID\");\n        const authority = JSON.parse(fs.readFileSync(authorityFile, \"utf8\"));\n        if (authority.authorityId !== control.authorityId || authority.consumed !== true || authority.consumedByJobId !== runtimeJobId || authority.maximumPaidAttempts !== 1 || authority.paidAttemptsUsed !== 1 || authority.secondPaidAttemptAuthorized !== false) throw new Error(\"HUMO17_QUALITY_AUTHORITY_CONSUMPTION_INVALID\");\n    }"
   }
 }
