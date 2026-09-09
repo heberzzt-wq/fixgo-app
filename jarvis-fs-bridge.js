@@ -9361,7 +9361,7 @@ export async function runHuMo17PersistentCoreStagingCli({
                 `root@${endpoint.host}:/tmp/jarvis-humo17/probe.mp4`, runtimeProbeAssets.outputFile], {timeoutMs: 45000, maxBytes: 1024 * 1024});
             const hash = createHash("sha256").update(fs.readFileSync(runtimeProbeAssets.outputFile)).digest("hex");
             if (hash !== runtimePhysical.sha256) throw new Error("HUMO17_OUTPUT_SHA256_MISMATCH");
-            const ffprobe = resolveLocalExecutable("ffprobe", env);
+            const ffprobe = resolveLocalExecutable(env.JARVIS_FFPROBE_PATH || "ffprobe", env);
             if (!ffprobe) throw new Error("HUMO17_LOCAL_FFPROBE_REQUIRED");
             const probe = JSON.parse(execFileSync(ffprobe, ["-v", "error", "-count_frames", "-show_streams", "-show_format", "-of", "json", runtimeProbeAssets.outputFile], {encoding: "utf8", timeout: 45000, windowsHide: true}));
             const video = probe.streams.find(x => x.codec_type === "video");
