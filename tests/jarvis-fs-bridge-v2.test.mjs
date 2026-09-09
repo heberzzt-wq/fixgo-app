@@ -1747,6 +1747,9 @@ test("HuMo17 quality probe rejects noise-only, blind segments, mismatched hashes
     assert.equal(job.effectiveRuntimeConfig.referencePreprocessing.preserveAspectRatio,true);
     assert.equal(job.effectiveRuntimeConfig.prompt,job.prompt);assert.equal(job.effectiveRuntimeConfig.negativePrompt,job.negativePrompt);
     assert.equal(job.strategy.compileEnabled,false);
+    const bridgeSource=fs.readFileSync(path.resolve("jarvis-fs-bridge.js"),"utf8");
+    assert.match(bridgeSource,/humo17-heberto-quality-probe-201f\.mp4.*humo17-heberto-quality-ab-prompt-parity-201f\.mp4/);
+    assert.match(bridgeSource,/HUMO17_QUALITY_OUTPUT_NOT_PINNED/);
 });
 
 
