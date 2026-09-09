@@ -1680,6 +1680,7 @@ test("HuMo17 probe is single L40S, pinned, hash-bound, budgeted and distinct fro
     assert.match(shell, /HUMO17_PINNED_PYTHON_MISSING/);
     assert.match(shell, /--force-reinstall --no-deps ninja==1\.11\.1\.3/);
     assert.match(shell, /transformers==4\.51\.3/);
+    assert.ok(shell.indexOf("HUMO17_REQUIRED_NODES_MISSING") < shell.indexOf("urlopen"));
     assert.ok(shell.indexOf("torch.cuda.is_available") < shell.indexOf("pip install"));
     assert.match(shell, /wrapperAuxiliaryAssets/); assert.doesNotMatch(shell, /download.*core|generate_1_7B/);
     assert.throws(() => buildHuMo17RuntimeBootstrap({...job, gpuCount: 2}), /AUTHORITY/);
