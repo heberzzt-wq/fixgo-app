@@ -9445,8 +9445,6 @@ export function resolveHuMo17QualityControlPlane({ root = DEFAULT_ROOT, env = pr
     const evidence = evidenceCandidates[0];
     const wavCandidates = files.filter(file => path.extname(file).toLowerCase() === ".wav" && sha256File(file) === String(evidence.value.wavSha256).toLowerCase());
     if (wavCandidates.length !== 1) throw new Error(`HUMO17_QUALITY_WAV_MATCH_COUNT:${wavCandidates.length}`);
-    const sourceRoot = path.resolve(root, "..", "fixgo-v142-local-first-20260825");
-    if (!fs.existsSync(sourceRoot) || !fs.statSync(sourceRoot).isDirectory()) throw new Error("HUMO17_QUALITY_SOURCE_ROOT_MISSING");
     const referenceOutput = ".jarvis-artifacts/uploads/1787783430100-a3151d2eefde-IMG_20240807_165633505_HDR-2.jpg", referenceSha256 = "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958";
     const referenceFile = path.resolve(sourceRoot, referenceOutput);
     if (!fs.existsSync(referenceFile) || fs.lstatSync(referenceFile).isSymbolicLink() || sha256File(referenceFile) !== referenceSha256) throw new Error("HUMO17_QUALITY_REFERENCE_INVALID");

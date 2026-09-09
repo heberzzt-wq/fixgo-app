@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-humo17-quality-source-root-scan-20260908-330",
-  "completedAt": "2026-09-09T03:20:24.846Z",
+  "jobId": "v142-humo17-quality-source-root-dedupe-20260908-331",
+  "completedAt": "2026-09-09T03:21:13.844Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 427410,
-  "bytesAfter": 427633,
+  "bytesBefore": 427633,
+  "bytesAfter": 427416,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
