@@ -8738,9 +8738,16 @@ export async function reconcileHuMo17PaidReceipts({root=DEFAULT_ROOT,provider,wa
     const dir=path.join(root,".jarvis-artifacts");
     if (!fs.existsSync(dir)) return [];
     const pending=[];
-    for(const name of fs.readdirSync(dir).filter(n=>/^humo17-(probe|core)-[a-f0-9-]+\.json(?:\.pending)?$/.test(n))) {
-        const file=path.join(dir,name); if(fs.lstatSync(file).isSymbolicLink()) throw new Error("HUMO17_RECEIPT_SYMLINK");
+    const receiptFiles=fs.readdirSync(dir).filter(n=>/^humo17-(probe|core)-[a-f0-9-]+\.json(?:\.pending)?$/.test(n)).map(n=>path.join(dir,n));
+    const certificates=path.join(dir,'humo17-quality');
+    if(fs.existsSync(certificates)){
+        if(fs.lstatSync(certificates).isSymbolicLink())throw Error('HUMO17_RECEIPT_SYMLINK');
+        receiptFiles.push(...fs.readdirSync(certificates).filter(n=>/^watchdog-certificate(?:-[2-5])?\.json(?:\.pending)?$/.test(n)).map(n=>path.join(certificates,n)));
+    }
+    for(const file of receiptFiles) {
+        if(fs.lstatSync(file).isSymbolicLink()) throw new Error("HUMO17_RECEIPT_SYMLINK");
         const value=JSON.parse(fs.readFileSync(file,"utf8"));
+        if(value.status==='CREATE_REQUEST_PENDING'&&!value.podId)throw Error('HUMO17_UNCERTAIN_CREATE_REQUIRES_RECONCILIATION');
         if(value.terminationVerified===false&&value.podId) pending.push({file,value});
     }
     if(!pending.length) return [];

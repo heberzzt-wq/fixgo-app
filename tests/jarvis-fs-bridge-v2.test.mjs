@@ -1811,6 +1811,20 @@ test('HuMo17 certificate rejects negative, missing or insufficient balance befor
     assert.doesNotThrow(()=>assertCertificateBalance(.10));
 });
 
+test('HuMo17 startup also reconciles dedicated watchdog certificates and blocks uncertain creates',async()=>{
+    const {reconcileHuMo17PaidReceipts}=await import('../jarvis-fs-bridge.js');
+    const root=fs.mkdtempSync(path.join(os.tmpdir(),'humo17-watchdog-recovery-'));
+    const dir=path.join(root,'.jarvis-artifacts/humo17-quality');fs.mkdirSync(dir,{recursive:true});
+    const file=path.join(dir,'watchdog-certificate-5.json');
+    try{
+        fs.writeFileSync(file,JSON.stringify({status:'CREATE_REQUEST_PENDING',terminationVerified:false}));
+        await assert.rejects(reconcileHuMo17PaidReceipts({root,provider:async()=>assert.fail('must block unknown creation')}),/UNCERTAIN_CREATE/);
+        fs.writeFileSync(file,JSON.stringify({podId:'fixture',status:'POD_CREATED',terminationVerified:false}));
+        const result=await reconcileHuMo17PaidReceipts({root,provider:async(method,url)=>{assert.equal(method,'GET');assert.equal(url,'/pods/fixture');throw Error('RUNPOD_HUMO17_HTTP_404');}});
+        assert.equal(result.length,1);assert.equal(JSON.parse(fs.readFileSync(file)).terminationVerified,true);
+    }finally{fs.rmSync(root,{recursive:true,force:true});}
+});
+
 test("HuMo17 recovery deletes only recorded Pods and persists verified absence", async () => {
     const {reconcileHuMo17PaidReceipts}=await import("../jarvis-fs-bridge.js");
     const root=fs.mkdtempSync(path.join(os.tmpdir(),"humo17-recovery-"));
