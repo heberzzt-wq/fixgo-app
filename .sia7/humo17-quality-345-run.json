@@ -109,6 +109,21 @@
     "causalityCertified": false,
     "nextControlledExperiment": "201f and validated 8.04s speech audio with exact 97f positive and negative prompts; change no other runtime variable"
   },
+  "regressionRepair": {
+    "codeSha": "f0ce80bf9f9b7b77d649c21c904f19e9f93c841f",
+    "ciRun": 34388686064,
+    "linux": "success",
+    "linuxFullCI": "success",
+    "windows": "success",
+    "materialize": "skipped",
+    "deploy": "skipped",
+    "qualityPromptMatches97f": true,
+    "qualityNegativePromptMatches97f": true,
+    "effectiveRuntimeConfigPersisted": true,
+    "causalityCertified": false,
+    "nextPaidExperimentAuthorized": false,
+    "newGpuSpendUsd": 0
+  },
   "paidExecutionAuthorized": false,
   "fullEpisodeAuthorized": false,
   "productionDeployed": false,
