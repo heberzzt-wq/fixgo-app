@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-quality-source-root-scan-20260908-330",
+  "jobId": "v142-humo17-quality-source-root-dedupe-20260908-331",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const qualityRoot = path.resolve(root, \".jarvis-artifacts\", \"humo17-quality\");\n    if (!fs.existsSync(qualityRoot) || !fs.statSync(qualityRoot).isDirectory() || fs.lstatSync(qualityRoot).isSymbolicLink()) throw new Error(\"HUMO17_QUALITY_LOCAL_ROOT_INVALID\");",
-    "replace": "    const sourceRoot = path.resolve(root, \"..\", \"fixgo-v142-local-first-20260825\");\n    if (!fs.existsSync(sourceRoot) || !fs.statSync(sourceRoot).isDirectory()) throw new Error(\"HUMO17_QUALITY_SOURCE_ROOT_MISSING\");\n    const qualityRoot = path.resolve(sourceRoot, \".jarvis-artifacts\", \"humo17-quality\");\n    if (!fs.existsSync(qualityRoot) || !fs.statSync(qualityRoot).isDirectory() || fs.lstatSync(qualityRoot).isSymbolicLink()) throw new Error(\"HUMO17_QUALITY_LOCAL_ROOT_INVALID\");"
+    "search": "    const sourceRoot = path.resolve(root, \"..\", \"fixgo-v142-local-first-20260825\");\n    if (!fs.existsSync(sourceRoot) || !fs.statSync(sourceRoot).isDirectory()) throw new Error(\"HUMO17_QUALITY_SOURCE_ROOT_MISSING\");\n    const referenceOutput = \".jarvis-artifacts/uploads/1787783430100-a3151d2eefde-IMG_20240807_165633505_HDR-2.jpg\", referenceSha256 = \"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\";",
+    "replace": "    const referenceOutput = \".jarvis-artifacts/uploads/1787783430100-a3151d2eefde-IMG_20240807_165633505_HDR-2.jpg\", referenceSha256 = \"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\";"
   }
 }
