@@ -9419,7 +9419,9 @@ export function resolveHuMo17QualityControlPlane({ root = DEFAULT_ROOT, env = pr
     try { execFileSync(git, ["merge-base", "--is-ancestor", expectedBaseSha, head], {cwd: root, windowsHide: true, stdio: "ignore"}); } catch { throw new Error("HUMO17_QUALITY_CONTROL_BASE_NOT_ANCESTOR"); }
     const changed = String(execFileSync(git, ["diff", "--name-only", `${expectedBaseSha}..${head}`], {cwd: root, encoding: "utf8", windowsHide: true})).split(/\r?\n/).map(x => x.trim()).filter(Boolean);
     if (changed.some(file => !file.startsWith(".sia7/"))) throw new Error("HUMO17_QUALITY_CONTROL_UNCERTIFIED_CODE");
-    const qualityRoot = path.resolve(root, ".jarvis-artifacts", "humo17-quality");
+    const sourceRoot = path.resolve(root, "..", "fixgo-v142-local-first-20260825");
+    if (!fs.existsSync(sourceRoot) || !fs.statSync(sourceRoot).isDirectory()) throw new Error("HUMO17_QUALITY_SOURCE_ROOT_MISSING");
+    const qualityRoot = path.resolve(sourceRoot, ".jarvis-artifacts", "humo17-quality");
     if (!fs.existsSync(qualityRoot) || !fs.statSync(qualityRoot).isDirectory() || fs.lstatSync(qualityRoot).isSymbolicLink()) throw new Error("HUMO17_QUALITY_LOCAL_ROOT_INVALID");
     const files = [], stack = [qualityRoot];
     while (stack.length) {
