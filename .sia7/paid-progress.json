@@ -1,0 +1,14 @@
+{
+  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-20260909-362",
+  "operationId": "humo17-probe-3c656f9f-7e33-4c6b-9445-ca4adee8c13b",
+  "podId": "awfy3a3yzs6mgj",
+  "createdAt": "2026-09-09T21:36:12.739Z",
+  "hourlyRateUsd": 1.09,
+  "hardBudgetUsd": 0.95,
+  "providerBudgetKillSeconds": 2330,
+  "networkVolumeId": "1qm5wczocl",
+  "gpu": "NVIDIA L40S",
+  "gpuCount": 1,
+  "status": "HUMO17_RUNTIME_GPU_POD_CREATED",
+  "terminationVerified": false
+}
