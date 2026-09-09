@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "jarvis.v142.humo17.budget-incident.1",
+  "incidentJobId": "v142-humo17-quality-paid-201f-20260908-344",
+  "podId": "ggid4mqstjg9r3",
+  "authorizedUsd": 0.95,
+  "providerReportedUsd": 8.46376709965989,
+  "providerReportedTimeBilledMs": 27742717,
+  "billingQueriedAt": "2026-09-09T14:20:03.784Z",
+  "codeSha": "069c6d95a3f9d7d3155cbe1360301f0a47b34640",
+  "ciRun": 34362785066,
+  "linux": "success",
+  "windows": "success",
+  "paidExecutionAuthorized": false,
+  "paidAdmissionStatus": "HUMO17_INDEPENDENT_BUDGET_CERTIFICATION_REQUIRED",
+  "hardCapCertified": false,
+  "remoteBudgetWatchdogImplemented": true,
+  "remoteBudgetWatchdogFixtureTestsPassed": true,
+  "remoteBudgetWatchdogPhysicallyVerified": false,
+  "localBudgetWatchdog": true,
+  "startupAndResumeReconciliation": true,
+  "earlyLocalAndGitHubReceiptImplemented": true,
+  "workerPid": 22264,
+  "terminationVerified": true,
+  "providerActivePods": 0,
+  "networkVolumeRetained": true,
+  "newPodsCreated": 0,
+  "newGpuSpendUsd": 0,
+  "limitations": [
+    "A Pod-local watchdog cannot protect image pull or allocation before its process starts.",
+    "No provider TTL has been verified for this REST creation path. The account API rejects schema introspection.",
+    "No active Pod existed to inspect scoped credentials or prove self-deletion; paid creation remains unconditionally blocked.",
+    "Provider billing confirms overrun; laptop suspension is consistent with the timer architecture but not independently established as the exact incident trigger."
+  ],
+  "sourceUrls": [
+    "https://docs.runpod.io/runpodctl/overview",
+    "https://docs.runpod.io/api-reference/pods/POST/pods",
+    "https://docs.runpod.io/api-reference/billing/GET/billing/pods"
+  ],
+  "productionDeployed": false,
+  "mainMerged": false,
+  "episodeLaunched": false
+}
