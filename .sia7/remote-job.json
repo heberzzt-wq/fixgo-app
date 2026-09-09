@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-quality-345-reconcile-observer-20260909-346",
+  "jobId": "v142-humo17-fix-local-ffprobe-closeout-20260909-347",
   "operation": "patch",
-  "humanApproved": false,
+  "humanApproved": true,
   "patch": {
-    "file": ".sia7/humo17-quality-345-run.json",
-    "dryRun": true,
+    "file": "jarvis-fs-bridge.js",
+    "dryRun": false,
     "expectedMatches": 1,
-    "search": "\"qualityCertified\": false",
-    "replace": "\"qualityCertified\": \"DRY_RUN_OBSERVER_ONLY\""
+    "search": "const ffprobe = resolveLocalExecutable(\"ffprobe\", env);",
+    "replace": "const ffprobe = resolveLocalExecutable(env.JARVIS_FFPROBE_PATH || \"ffprobe\", env);"
   }
 }
