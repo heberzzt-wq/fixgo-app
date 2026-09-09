@@ -1,27 +1,12 @@
 {
-  "jobId": "v142-humo17-quality-preflight-201f-20260908-341",
-  "operation": "humo17_core_stage",
+  "jobId": "v142-humo17-fix-audio-ffprobe-path-20260908-342",
+  "operation": "patch",
   "humanApproved": true,
-  "executePaid": true,
-  "qualityProbe": true,
-  "qualityPreflightOnly": true,
-  "fullEpisodeAuthorized": false,
-  "expectedBaseSha": "2b327cdfb871ff82c14d483a3fa3e5669395706e",
-  "hardBudgetUsd": 0.95,
-  "maximumMinutes": 90,
-  "backend": "humo-17b-identity",
-  "gpu": "NVIDIA L40S",
-  "gpuCount": 1,
-  "maximumIdentityCount": 1,
-  "geometry": {
-    "width": 832,
-    "height": 480,
-    "fps": 25,
-    "frames": 201,
-    "durationSeconds": 8.04
-  },
-  "networkVolumeId": "1qm5wczocl",
-  "dataCenterId": "EU-NL-1",
-  "coreStageReceiptCommit": "c5461883e28a5f80ad6006e0a2d2ddd2b641d37c",
-  "output": ".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4"
+  "patch": {
+    "file": "jarvis-fs-bridge.js",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "const audioInfo = JSON.parse(execFileSync(resolveLocalExecutable(\"ffprobe\", env),",
+    "replace": "const audioInfo = JSON.parse(execFileSync(resolveLocalExecutable(env.JARVIS_FFPROBE_PATH || \"ffprobe\", env),"
+  }
 }
