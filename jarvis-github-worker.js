@@ -142,6 +142,7 @@ async function syncLocalBranch() {
 }
 
 async function publishRemoteResult(result = {}) {
+    await paidProgressPublication;
     const stagePaths = [RESULT_PATH];
 
     if (
@@ -323,7 +324,7 @@ function findHuMoMiniDramaSource() {
     return candidates[0];
 }
 
-function runLocalProcess(command, args = [], { cwd = REPO_ROOT, timeoutMs = 120000, env = process.env } = {}) {
+function runLocalProcess(command, args = [], { cwd = REPO_ROOT, timeoutMs = 120000, env = process.env, onLine = () => {} } = {}) {
     return new Promise(resolve => {
         const child = spawn(command, args, {
             cwd,
@@ -335,7 +336,11 @@ function runLocalProcess(command, args = [], { cwd = REPO_ROOT, timeoutMs = 1200
         let stdout = "";
         let stderr = "";
         const append = (current, chunk) => (current + chunk.toString()).slice(-1024 * 1024);
-        child.stdout.on("data", chunk => { stdout = append(stdout, chunk); });
+        let lineBuffer="";
+        child.stdout.on("data", chunk => {
+            stdout=append(stdout,chunk);lineBuffer=(lineBuffer+chunk.toString()).slice(-1024*1024);
+            let end;while((end=lineBuffer.indexOf("\n"))>=0){const line=lineBuffer.slice(0,end);lineBuffer=lineBuffer.slice(end+1);try{onLine(line);}catch{console.error("SIA7_PROGRESS_PERSIST_FAILED");}}
+        });
         child.stderr.on("data", chunk => { stderr = append(stderr, chunk); });
         let settled = false;
         const timer = setTimeout(() => {
@@ -701,6 +706,26 @@ async function executeHuMoIdentityProbeJob(job = {}) {
     };
 }
 
+export function buildHuMo17EarlyReceipt(jobId,value) {
+    if(!/^[a-zA-Z0-9_-]{1,80}$/.test(value?.podId||""))throw new Error("SIA7_EARLY_POD_ID_INVALID");
+    const safe={jobId};
+    for(const key of ["operationId","podId","createdAt","hourlyRateUsd","hardBudgetUsd","providerBudgetKillSeconds","networkVolumeId","gpu","gpuCount","status","terminationVerified"])safe[key]=value[key];
+    return safe;
+}
+let paidProgressPublication=Promise.resolve();
+function recordPaidProgress(jobId,line) {
+    let value;try{value=JSON.parse(line);}catch{return;}
+    if(!["HUMO17_RUNTIME_GPU_POD_CREATED","HUMO17_CORE_CPU_POD_CREATED"].includes(value.status))return;
+    const safe=buildHuMo17EarlyReceipt(jobId,value);
+    const file=path.resolve(REPO_ROOT,".sia7/paid-progress.json");
+    fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file+".pending",JSON.stringify(safe,null,2));fs.renameSync(file+".pending",file);
+    paidProgressPublication=paidProgressPublication.then(async()=>{
+        for(const args of [["add","--",".sia7/paid-progress.json"],["commit","-m",`SIA7 paid Pod created ${jobId}`],["push",REMOTE,BRANCH]]) {
+            const result=await runGit(args);if(!result.ok)throw new Error("SIA7_EARLY_POD_PUBLICATION_FAILED");
+        }
+    }).catch(error=>console.error(error.message));
+}
+
 async function executeHuMo17CoreStageJob(job = {}) {
     if (process.platform !== "win32") throw new Error("SIA7_HUMO17_WINDOWS_WORKER_REQUIRED");
     const hardBudgetUsd = Number(job.hardBudgetUsd ?? 1.5);
@@ -745,9 +770,11 @@ async function executeHuMo17CoreStageJob(job = {}) {
         ["jarvis-fs-bridge.js", "--humo17-core-stage"],
         {
             timeoutMs: Math.ceil((maximumMinutes + 5) * 60 * 1000),
+            onLine: line=>recordPaidProgress(job.jobId,line),
             env: {
                 ...process.env,
                 JARVIS_HUMO17_CORE_STAGE_AUTHORIZED: "true",
+                JARVIS_HUMO17_JOB_ID: String(job.jobId || ""),
                 JARVIS_HUMO17_CORE_STAGE_HARD_BUDGET_USD: String(hardBudgetUsd),
                 JARVIS_HUMO17_CORE_STAGE_MAX_MINUTES: String(maximumMinutes),
                 JARVIS_RUNPOD_NETWORK_VOLUME_ID: "1qm5wczocl",
@@ -768,7 +795,11 @@ async function executeHuMo17CoreStageJob(job = {}) {
         catch {}
     }
     if (!execution.ok || parsed?.ok !== true || parsed?.status !== "HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED") {
-        throw new Error(`SIA7_HUMO17_CORE_STAGE_FAILED:${parsed?.status || lines.slice(-8).join(" | ") || execution.code}`);
+        const error=new Error(`SIA7_HUMO17_CORE_STAGE_FAILED:${parsed?.status || lines.slice(-8).join(" | ") || execution.code}`);
+        const dir=path.join(REPO_ROOT,".jarvis-artifacts");
+        const receipts=fs.existsSync(dir)?fs.readdirSync(dir).filter(n=>/^humo17-(probe|core)-[a-f0-9-]+\.json$/.test(n)).map(n=>JSON.parse(fs.readFileSync(path.join(dir,n),"utf8"))).filter(r=>r.jobId===job.jobId):[];
+        error.evidence={phase:parsed?.status||"WORKER_PROCESS_FAILED",paidReceipts:receipts,logTail:lines.slice(-20)};
+        throw error;
     }
     if (parsed.terminationVerified !== true || parsed.networkVolumeRetained !== true) {
         throw new Error("SIA7_HUMO17_CORE_STAGE_CLOSEOUT_INVALID");
@@ -826,6 +857,7 @@ function readLocalWorkerResult() {
 }
 
 export function createWorkerPoller({
+    reconcile = async () => {const {reconcileHuMo17PaidReceipts}=await import("./jarvis-fs-bridge.js");return reconcileHuMo17PaidReceipts({root:REPO_ROOT});},
     readJob = readRemoteJob,
     readResultId = readRemoteResultJobId,
     sync = syncLocalBranch,
@@ -844,6 +876,7 @@ export function createWorkerPoller({
         polling = true;
         let currentJob = null;
         try {
+            await reconcile(); // Before GitHub, pending publication or any new job, including after sleep.
             // A failed publication must never replay an operation (especially a paid one).
             if (pendingResult) {
                 await sync();
@@ -871,7 +904,7 @@ export function createWorkerPoller({
                 pendingResult = {jobId: currentJob.jobId, completedAt: new Date().toISOString(), executionStarted: true, ...await execute(currentJob)};
             }
             catch (error) {
-                pendingResult = {jobId: currentJob.jobId, completedAt: new Date().toISOString(), executionStarted: true, ok: false, error: error.message};
+                pendingResult = {jobId: currentJob.jobId, completedAt: new Date().toISOString(), executionStarted: true, ok: false, error: error.message, evidence:error.evidence||null};
             }
             persist(pendingResult);
             log("[SIA7_REMOTE_JOB_RESULT]", JSON.stringify(pendingResult));

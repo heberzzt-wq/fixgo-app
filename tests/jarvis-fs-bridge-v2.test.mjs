@@ -1630,7 +1630,7 @@ test("V142 HuMo runtime certification does not hard-pin a default datacenter", (
 test("SIA7 retries synchronization before execution without consuming the job", async () => {
     const { createWorkerPoller } = await import("../jarvis-github-worker.js");
     let syncs = 0, executions = 0, publications = 0;
-    const poll = createWorkerPoller({
+    const poll = createWorkerPoller({reconcile:async()=>{},
         readJob: async () => ({jobId: "retry-control"}), readResultId: async () => "",
         sync: async () => { if (++syncs === 1) throw new Error("network offline"); },
         execute: async () => { executions++; return {ok: true}; },
@@ -1651,9 +1651,9 @@ test("SIA7 publication retry and restart never replay an executed paid operation
         persist: value => { local = value; }, readLocalResult: () => local,
         log: () => {}, reportError: () => {}
     };
-    const poll = createWorkerPoller(deps);
+    const poll = createWorkerPoller({...deps,reconcile:async()=>{}});
     await poll(); await poll(); assert.equal(executions, 1); assert.equal(publications, 2);
-    const restarted = createWorkerPoller(deps);
+    const restarted = createWorkerPoller({...deps,reconcile:async()=>{}});
     await restarted(); await restarted(); assert.equal(executions, 1); assert.equal(publications, 3);
 });
 
@@ -1760,4 +1760,47 @@ test("HuMo17 201-frame quality contract survives V142 materialization twice", ()
         assert.match(first[0],/qualityProbeGeometry:.*frames: 201, durationSeconds: 8.04/);
         assert.match(first[0],/probeGeometry:.*frames: 97, durationSeconds: 3.88/);
     } finally {fs.rmSync(fixture,{recursive:true,force:true});}
+});
+
+test("HuMo17 budget guard denies paid admission and computes conservative deadline", async () => {
+    const {assertHuMo17IndependentBudget,huMo17BudgetSeconds,buildHuMo17RemoteWatchdogStartup}=await import("../jarvis-fs-bridge.js");
+    assert.throws(()=>assertHuMo17IndependentBudget(),/INDEPENDENT_BUDGET_CERTIFICATION_REQUIRED/);
+    assert.equal(huMo17BudgetSeconds({hardBudgetUsd:.95,hourlyRateUsd:1.10,maximumMinutes:42}),2331);
+    for(const value of [NaN,Infinity,0,-1])assert.throws(()=>huMo17BudgetSeconds({hardBudgetUsd:value,hourlyRateUsd:1,maximumMinutes:42}));
+    const startup=buildHuMo17RemoteWatchdogStartup({deadlineMs:100000,source:"fixture"}).join("\n");
+    assert.match(startup,/nohup setsid python3/);assert.match(startup,/--deadline 100/);
+    execFileSync(process.platform==="win32"?"python":"python3",["tests/humo17-budget-watchdog.py"],{timeout:15000,stdio:"pipe"});
+});
+
+test("HuMo17 recovery deletes only recorded Pods and persists verified absence", async () => {
+    const {reconcileHuMo17PaidReceipts}=await import("../jarvis-fs-bridge.js");
+    const root=fs.mkdtempSync(path.join(os.tmpdir(),"humo17-recovery-"));
+    const dir=path.join(root,".jarvis-artifacts");fs.mkdirSync(dir);
+    const file=path.join(dir,"humo17-probe-abcd.json");
+    fs.writeFileSync(file,JSON.stringify({operationId:"humo17-probe-abcd",podId:"fixture",terminationVerified:false}));
+    const calls=[];let deleted=false;
+    try {
+        const provider=async(method,url)=>{calls.push([method,url]);if(method==="DELETE"){deleted=true;return null;}if(deleted)throw Error("RUNPOD_HUMO17_HTTP_404");return {id:"fixture",desiredStatus:"RUNNING"};};
+        const result=await reconcileHuMo17PaidReceipts({root,provider,wait:async()=>{}});
+        assert.equal(result[0].terminationVerified,true);assert.equal(JSON.parse(fs.readFileSync(file)).terminationVerified,true);
+        assert.deepEqual(calls,[["GET","/pods/fixture"],["DELETE","/pods/fixture"],["GET","/pods/fixture"]]);
+        assert.deepEqual(await reconcileHuMo17PaidReceipts({root,provider}),[]);
+        fs.writeFileSync(file,JSON.stringify({podId:"fixture",terminationVerified:false}));
+        await assert.rejects(reconcileHuMo17PaidReceipts({root,provider:async()=>{throw Error("offline");}}),/offline/);
+        assert.equal(JSON.parse(fs.readFileSync(file)).terminationVerified,false);
+    } finally {fs.rmSync(root,{recursive:true,force:true});}
+});
+
+test("SIA7 reconciles before GitHub and never reads jobs while recovery fails", async () => {
+    const {createWorkerPoller}=await import("../jarvis-github-worker.js");
+    const calls=[];let fail=true;
+    const poll=createWorkerPoller({reconcile:async()=>{calls.push("recover");if(fail)throw Error("offline");},readJob:async()=>{calls.push("read");return null;},readResultId:async()=>"",reportError:()=>{}});
+    await poll();assert.deepEqual(calls,["recover"]);fail=false;await poll();assert.deepEqual(calls,["recover","recover","read"]);
+});
+
+test("SIA7 early Pod receipt preserves budget and GPU identity without provider secrets", async () => {
+    const {buildHuMo17EarlyReceipt}=await import("../jarvis-github-worker.js");
+    const r=buildHuMo17EarlyReceipt("job",{podId:"fixture",status:"HUMO17_RUNTIME_GPU_POD_CREATED",gpu:"NVIDIA L40S",gpuCount:1,hardBudgetUsd:.95,providerBudgetKillSeconds:2331,terminationVerified:false,env:{RUNPOD_API_KEY:"secret"}});
+    assert.equal(r.podId,"fixture");assert.equal(r.providerBudgetKillSeconds,2331);assert.equal(r.gpuCount,1);assert.equal(r.terminationVerified,false);
+    assert.ok(!JSON.stringify(r).includes("secret"));assert.throws(()=>buildHuMo17EarlyReceipt("job",{podId:"../bad"}));
 });

@@ -8700,6 +8700,66 @@ export async function runNextIdentityRuntimePreflightCli({
     return result;
 }
 
+// Paid admission stays closed until provider-side protection covers pre-container allocation.
+// No env flag, job approval or mocked receipt can promote this physical certification.
+export const HUMO17_INDEPENDENT_BUDGET_CERTIFIED = false;
+export function assertHuMo17IndependentBudget() {
+    if (!HUMO17_INDEPENDENT_BUDGET_CERTIFIED) throw new Error("HUMO17_INDEPENDENT_BUDGET_CERTIFICATION_REQUIRED");
+}
+export function huMo17BudgetSeconds({hardBudgetUsd, hourlyRateUsd, maximumMinutes}) {
+    if (![hardBudgetUsd,hourlyRateUsd,maximumMinutes].every(v=>Number.isFinite(v)&&v>0)) throw new Error("HUMO17_BUDGET_INPUT_INVALID");
+    return Math.floor(Math.min(maximumMinutes*60,hardBudgetUsd*0.75*3600/hourlyRateUsd));
+}
+export function persistHuMo17PaidReceipt(file, receipt) {
+    fs.mkdirSync(path.dirname(file),{recursive:true});
+    const temporary=file+".pending", fd=fs.openSync(temporary,"w");
+    try {fs.writeFileSync(fd,JSON.stringify(receipt,null,2));fs.fsyncSync(fd);} finally {fs.closeSync(fd);}
+    fs.renameSync(temporary,file);
+}
+export async function reconcileHuMo17PaidReceipts({root=DEFAULT_ROOT,provider,wait=sleepMs}={}) {
+    const dir=path.join(root,".jarvis-artifacts");
+    if (!fs.existsSync(dir)) return [];
+    const pending=[];
+    for(const name of fs.readdirSync(dir).filter(n=>/^humo17-(probe|core)-[a-f0-9-]+\.json$/.test(n))) {
+        const file=path.join(dir,name); if(fs.lstatSync(file).isSymbolicLink()) throw new Error("HUMO17_RECEIPT_SYMLINK");
+        const value=JSON.parse(fs.readFileSync(file,"utf8"));
+        if(value.terminationVerified===false&&value.podId) pending.push({file,value});
+    }
+    if(!pending.length) return [];
+    if(!provider) {
+        const credential=resolveRunpodCredentialEnvironment();
+        if(!credential.credentialLoaded) throw new Error("HUMO17_RECOVERY_CREDENTIAL_REQUIRED");
+        provider=async(method,suffix)=>{
+            const r=await fetch("https://rest.runpod.io/v1"+suffix,{method,headers:{Authorization:`Bearer ${credential.env.RUNPOD_API_KEY}`},signal:AbortSignal.timeout(15000)});
+            if(r.status===404) throw new Error("RUNPOD_HUMO17_HTTP_404");
+            if(!r.ok) throw new Error(`RUNPOD_HUMO17_HTTP_${r.status}`);
+            return r.status===204?null:await r.json();
+        };
+    }
+    const recovered=[];
+    for(const {file,value} of pending) {
+        if(!/^[a-zA-Z0-9_-]{1,80}$/.test(value.podId)) throw new Error("HUMO17_RECEIPT_ID_INVALID");
+        let absent=false;
+        try {const p=await provider("GET",`/pods/${value.podId}`);if(p?.id!==value.podId) throw new Error("HUMO17_RECOVERY_ID_MISMATCH");absent=p.desiredStatus==="TERMINATED";}
+        catch(e){if(e.message.includes("RUNPOD_HUMO17_HTTP_404")) absent=true;else throw e;}
+        if(!absent) absent=await releaseHuMo17Pod({podId:value.podId,provider,wait});
+        if(!absent) throw new Error("HUMO17_RECOVERY_TERMINATION_UNVERIFIED");
+        const receipt={...value,terminationVerified:true,reconciledAt:new Date().toISOString(),reconciliationStatus:"PROVIDER_ABSENCE_VERIFIED"};
+        persistHuMo17PaidReceipt(file,receipt);recovered.push(receipt);
+    }
+    return recovered;
+}
+
+export function buildHuMo17RemoteWatchdogStartup({deadlineMs, source}) {
+    if(!Number.isFinite(deadlineMs)||deadlineMs<=0||!source) throw new Error("HUMO17_REMOTE_WATCHDOG_INPUT_INVALID");
+    const encoded=Buffer.from(source).toString("base64");
+    return ["command -v python3 >/dev/null", "command -v setsid >/dev/null", "mkdir -p /tmp/jarvis-budget", "chmod 700 /tmp/jarvis-budget",
+        `printf '%s' '${encoded}' | base64 -d > /tmp/jarvis-budget/watchdog.py`,
+        `nohup setsid python3 /tmp/jarvis-budget/watchdog.py --deadline ${Math.floor(deadlineMs/1000)} --receipt /tmp/jarvis-budget/state.json </dev/null >/tmp/jarvis-budget/guardian.log 2>&1 &`,
+        `for i in $(seq 1 20); do python3 -c "import json; assert json.load(open('/tmp/jarvis-budget/state.json')).get('remoteBudgetWatchdogVerified') is True" 2>/dev/null && break; sleep 1; done`,
+        `python3 -c "import json; s=json.load(open('/tmp/jarvis-budget/state.json')); assert s.get('remoteBudgetWatchdogVerified') is True"` ];
+}
+
 export async function releaseHuMo17Pod({podId, provider, wait = sleepMs} = {}) {
     if (!podId || typeof provider !== "function") throw new Error("HUMO17_CLEANUP_ID_REQUIRED");
     await provider("DELETE", `/pods/${encodeURIComponent(podId)}`, null, [200, 204, 404]);
@@ -8834,6 +8894,7 @@ export async function runHuMo17PersistentCoreStagingCli({
         throw new Error("RUNPOD_HUMO17_CORE_STAGE_DURATION_INVALID");
     }
     const runtimeProbeAuthorized = truthy(env.JARVIS_HUMO17_RUNTIME_PROBE_AUTHORIZED);
+    if (!(runtimeProbeAuthorized && truthy(env.JARVIS_HUMO17_RUNTIME_PROBE_PREFLIGHT_ONLY))) assertHuMo17IndependentBudget();
     let runtimeProbeAssets = null;
     if (runtimeProbeAuthorized) {
         const sourceRootRaw = String(env.JARVIS_HUMO17_RUNTIME_PROBE_SOURCE_ROOT || "").trim();
@@ -8955,8 +9016,8 @@ export async function runHuMo17PersistentCoreStagingCli({
             x.available === true && x.secureCloud === true && x.networkVolumeSupported === true && x.vramGb >= 48 && x.hourlyRateUsd > 0 && x.hourlyRateUsd <= 1.10);
         if (!placement) throw new Error("HUMO17_L40S_PLACEMENT_UNAVAILABLE");
         if (truthy(env.JARVIS_HUMO17_RUNTIME_PROBE_PREFLIGHT_ONLY)) {
-            const runtimeProbeStatus = "HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY";
-            const result = {ok: true, status: truthy(env.JARVIS_HUMO17_SIA7_COMPAT) ? "HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED" : runtimeProbeStatus, runtimeProbeStatus, terminationVerified: true, estimatedCostUsd: 0, backend: "humo-17b-identity",
+            const runtimeProbeStatus = "HUMO17_INDEPENDENT_BUDGET_CERTIFICATION_REQUIRED";
+            const result = {ok: false, hardCapCertified:false, paidBudgetReady:false, localBudgetWatchdog:true, remoteBudgetWatchdogVerified:false, status: runtimeProbeStatus, runtimeProbeStatus, terminationVerified: true, estimatedCostUsd: 0, backend: "humo-17b-identity",
                 geometry: buildNextIdentityRuntimeCandidate({backend: "humo-17b-identity"})[runtimeProbeAssets.qualityProbe ? "qualityProbeGeometry" : "probeGeometry"],
                 networkVolumeId: volume.id, gpu: "NVIDIA L40S", gpuCount: 1, hardBudgetUsd,
                 referenceSha256: runtimeProbeAssets.reference.sha256, audioSha256: runtimeProbeAssets.audio.sha256,
@@ -9074,8 +9135,11 @@ export async function runHuMo17PersistentCoreStagingCli({
             `root@${endpoint.host}:${destination}`
         ], { timeoutMs, maxBytes: 2 * 1024 * 1024 });
 
+    const remoteWatchdogSource = fs.readFileSync(path.join(resolvedRoot,"scripts","jarvis-humo17-budget-watchdog.py"),"utf8");
+    const remoteDeadlineMs = Date.now()+huMo17BudgetSeconds({hardBudgetUsd,hourlyRateUsd:1.10,maximumMinutes})*1000;
     const startupScript = [
         "set -euo pipefail",
+        ...buildHuMo17RemoteWatchdogStartup({deadlineMs:remoteDeadlineMs,source:remoteWatchdogSource}),
         "export DEBIAN_FRONTEND=noninteractive",
         "apt-get update -qq",
         "apt-get install -y -qq --no-install-recommends openssh-server ca-certificates python3 python3-venv python3-pip git curl ffmpeg",
@@ -9123,31 +9187,37 @@ export async function runHuMo17PersistentCoreStagingCli({
         const created = await provider("POST", "/pods", createBody, [200, 201]);
         podId = String(created?.id || "").trim();
         if (!podId) throw new Error("RUNPOD_HUMO17_CPU_POD_CREATE_INVALID");
+        const earlyReceipt={operationId,jobId:env.JARVIS_HUMO17_JOB_ID||null,podId,createdAtMs,createdAt:new Date(createdAtMs).toISOString(),hardBudgetUsd,
+            hourlyRateUsd:Number(created?.adjustedCostPerHr??created?.costPerHr??hourlyRateUsd),providerBudgetKillSeconds:Math.max(0,Math.floor((remoteDeadlineMs-createdAtMs)/1000)),
+            networkVolumeId:volume.id,gpu:runtimeProbeAuthorized?"NVIDIA L40S":null,gpuCount:runtimeProbeAuthorized?1:0,terminationVerified:false,
+            status:runtimeProbeAuthorized?"HUMO17_RUNTIME_GPU_POD_CREATED":"HUMO17_CORE_CPU_POD_CREATED"};
+        persistHuMo17PaidReceipt(paidReceiptFile,earlyReceipt);log(earlyReceipt);
         hourlyRateUsd = Number(created?.adjustedCostPerHr ?? created?.costPerHr ?? 0);
-        createdAtMs = Date.now();
         if (runtimeProbeAuthorized && hourlyRateUsd > 1.10) throw new Error("HUMO17_RATE_EXCEEDS_PREFLIGHT");
         if (!(hourlyRateUsd > 0)) throw new Error("RUNPOD_HUMO17_CPU_RATE_INVALID");
         const maximumAuthorizedSeconds = Math.min(
             Math.floor(maximumMinutes * 60),
-            Math.floor(hardBudgetUsd * 0.90 * 3600 / hourlyRateUsd)
+            Math.floor(hardBudgetUsd * 0.75 * 3600 / hourlyRateUsd)
         );
         if (maximumAuthorizedSeconds < 300) throw new Error("RUNPOD_HUMO17_CPU_BUDGET_INSUFFICIENT");
-        createdAtMs = Date.now();
         const deadlineMs = createdAtMs + maximumAuthorizedSeconds * 1000;
-        fs.writeFileSync(paidReceiptFile, JSON.stringify({operationId, podId, createdAtMs, deadlineMs, hardBudgetUsd, hourlyRateUsd, terminationVerified: false}));
+        persistHuMo17PaidReceipt(paidReceiptFile, {operationId, jobId: env.JARVIS_HUMO17_JOB_ID || null, podId, createdAtMs, deadlineMs, hardBudgetUsd, hourlyRateUsd,
+            providerBudgetKillSeconds: maximumAuthorizedSeconds, networkVolumeId:volume.id, gpu:runtimeProbeAuthorized?"NVIDIA L40S":null,gpuCount:runtimeProbeAuthorized?1:0,
+            status:runtimeProbeAuthorized?"HUMO17_RUNTIME_GPU_POD_CREATED":"HUMO17_CORE_CPU_POD_CREATED",localBudgetWatchdog:true,remoteBudgetWatchdog:false,terminationVerified:false});
         budgetTimer = setTimeout(() => {
             provider("DELETE", `/pods/${encodeURIComponent(podId)}`, null, [200,204,404]).catch(error => log({status:"HUMO17_BUDGET_CLEANUP_ERROR",podId,error:error.message}));
         }, Math.max(1, deadlineMs - Date.now()));
         log({
             ok: true,
-            status: "HUMO17_CORE_CPU_POD_CREATED",
+            status: "HUMO17_LOCAL_BUDGET_WATCHDOG_ARMED",
+            gpu: runtimeProbeAuthorized ? "NVIDIA L40S" : null, gpuCount: runtimeProbeAuthorized ? 1 : 0,
             podId,
             cpuFlavorId: created?.cpuFlavorId || "cpu3c",
             dataCenterId: volume.dataCenterId,
             networkVolumeId: volume.id,
             hourlyRateUsd,
             hardBudgetUsd,
-            maximumAuthorizedSeconds,
+            maximumAuthorizedSeconds, providerBudgetKillSeconds:maximumAuthorizedSeconds, createdAt:new Date(createdAtMs).toISOString(), operationId, jobId:env.JARVIS_HUMO17_JOB_ID||null,terminationVerified:false,
             inferenceStarted: false
         });
 
@@ -9170,6 +9240,14 @@ export async function runHuMo17PersistentCoreStagingCli({
             await sleepMs(5000);
         }
         if (!endpoint) throw new Error("RUNPOD_HUMO17_CPU_SSH_TIMEOUT");
+        const watchdogCheck = await runSsh(endpoint, "python3 -c " + posixShellSingleQuote("import json,os; s=json.load(open('/tmp/jarvis-budget/state.json')); os.kill(s['pid'],0); print(json.dumps(s))"),15000);
+        const watchdog = JSON.parse(watchdogCheck.stdout.trim());
+        if(watchdog.podId!==podId || watchdog.remoteBudgetWatchdogInstalled!==true || watchdog.remoteBudgetWatchdogVerified!==true ||
+            Number(watchdog.deadlineEpochSeconds)*1000>remoteDeadlineMs || Number(watchdog.deadlineEpochSeconds)*1000<=Date.now()) throw new Error("HUMO17_REMOTE_BUDGET_WATCHDOG_NOT_VERIFIED");
+        const paidState=JSON.parse(fs.readFileSync(paidReceiptFile,"utf8"));
+        persistHuMo17PaidReceipt(paidReceiptFile,{...paidState,remoteBudgetWatchdog:true,remoteBudgetWatchdogInstalled:true,remoteBudgetWatchdogVerified:true});
+        log({status:"HUMO17_REMOTE_BUDGET_WATCHDOG_VERIFIED",podId,remoteBudgetWatchdogInstalled:true,remoteBudgetWatchdogVerified:true,inferenceStarted:false});
+
 
         if (runtimeProbeAuthorized) {
             const probeJob = buildHuMo17RuntimeProbeJob({assets: runtimeProbeAssets, hardBudgetUsd, operationId, paidAuthorized: true});
@@ -9344,9 +9422,9 @@ export async function runHuMo17PersistentCoreStagingCli({
             (primaryError?.message || "HUMO17_CORE_STAGE_FAILED") + ";BUDGET:RUNPOD_HUMO17_CORE_STAGE_BUDGET_EXCEEDED"
         );
     }
-    fs.writeFileSync(paidReceiptFile, JSON.stringify({operationId, canonicalSha, podId, terminationVerified,
+    persistHuMo17PaidReceipt(paidReceiptFile, {...(fs.existsSync(paidReceiptFile)?JSON.parse(fs.readFileSync(paidReceiptFile,"utf8")):{}),operationId, canonicalSha, podId, terminationVerified,
         networkVolumeId: volume.id, networkVolumeRetained: true, estimatedCostUsd, inferenceStarted,
-        error: primaryError?.message || null, providerError: primaryError?.providerMessage || null, logTail: primaryError?.logTail || null}, null, 2));
+        error: primaryError?.message || null, providerError: primaryError?.providerMessage || null, logTail: primaryError?.logTail || null});
     if (primaryError) {
         log({
             ok: false,
