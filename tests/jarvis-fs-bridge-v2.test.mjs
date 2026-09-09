@@ -1740,7 +1740,13 @@ test("HuMo17 quality probe rejects noise-only, blind segments, mismatched hashes
     assert.deepEqual(job.geometry,{width:832,height:480,fps:25,frames:201,durationSeconds:8.04});
     assert.equal(job.referencePreprocessing.preserveAspectRatio,true);assert.equal(job.gpuCount,1);
     assert.equal(job.networkVolumeRetained,true);assert.equal(job.fullEpisodeAuthorized,false);
-    assert.match(job.negativePrompt,/smooth plastic skin/);assert.equal(job.strategy.compileEnabled,false);
+    const physicalJob=buildHuMo17RuntimeProbeJob({assets:{qualityProbe:false,reference:assets.reference,audio:assets.audio,output:".jarvis-artifacts/videos/physical.mp4"},hardBudgetUsd:0.95,paidAuthorized:true});
+    assert.equal(job.prompt,physicalJob.prompt);assert.equal(job.negativePrompt,physicalJob.negativePrompt);
+    assert.match(job.negativePrompt,/identity change/);assert.doesNotMatch(job.negativePrompt,/smooth plastic skin/);
+    assert.equal(job.effectiveRuntimeConfig.seed,42);assert.equal(job.effectiveRuntimeConfig.steps,8);assert.equal(job.effectiveRuntimeConfig.scheduler,"lcm");
+    assert.equal(job.effectiveRuntimeConfig.referencePreprocessing.preserveAspectRatio,true);
+    assert.equal(job.effectiveRuntimeConfig.prompt,job.prompt);assert.equal(job.effectiveRuntimeConfig.negativePrompt,job.negativePrompt);
+    assert.equal(job.strategy.compileEnabled,false);
 });
 
 
