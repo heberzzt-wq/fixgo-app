@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-reconcile-authority-output-20260909-363",
+  "jobId": "v142-humo17-reconcile-certified-code-20260909-364",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "       a.output!=='.jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4' || c.output!==a.output ||",
-    "replace": "       !['.jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4','.jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4'].includes(a.output) || c.output!==a.output ||"
+    "search": "        qualityAuthorityContext={jobId:env.JARVIS_HUMO17_JOB_ID,codeSha:canonicalSha,hardBudgetUsd,",
+    "replace": "        qualityAuthorityContext={jobId:env.JARVIS_HUMO17_JOB_ID,codeSha:String(env.JARVIS_HUMO17_CERTIFIED_CODE_SHA||canonicalSha).trim().toLowerCase(),hardBudgetUsd,"
   }
 }
