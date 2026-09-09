@@ -1,49 +1,9 @@
 {
-  "jobId": "v142-humo17-quality-preflight-201f-20260908-343",
-  "completedAt": "2026-09-09T04:31:06.165Z",
+  "jobId": "v142-humo17-quality-paid-201f-20260908-344",
+  "completedAt": "2026-09-09T13:47:58.768Z",
   "executionStarted": true,
-  "ok": true,
-  "status": "HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED",
-  "runtimeProbeStatus": "HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY",
-  "terminationVerified": true,
-  "estimatedCostUsd": 0,
-  "backend": "humo-17b-identity",
-  "geometry": {
-    "width": 832,
-    "height": 480,
-    "fps": 25,
-    "frames": 201,
-    "durationSeconds": 8.04
-  },
-  "networkVolumeId": "1qm5wczocl",
-  "gpu": "NVIDIA L40S",
-  "gpuCount": 1,
-  "hardBudgetUsd": 0.95,
-  "referenceSha256": "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958",
-  "audioSha256": "bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184",
-  "qualityProbe": true,
-  "speechValidated": true,
-  "qualityCertified": false,
-  "preserveAspectRatio": true,
-  "resourceCreated": false,
-  "inferenceStarted": false,
-  "networkVolumeRetained": true,
-  "canonicalSha": "0347de245d76264ed246a6e17c4dfe16999fa3c9",
-  "coreManifestVerified": true,
-  "coreStagePodId": "gdt15dfk6aktog",
-  "coreStageReceiptSha256": "ef4694a06d6f2a740deee09e077a699c63cdc196b342a0c169342042e971abd0",
-  "operation": "humo17_core_stage",
-  "dryRun": false,
-  "certifiedBaseSha": "b76630640e4004e8e9b82693966dcfc723c0f08b",
-  "executionHeadSha": "0347de245d76264ed246a6e17c4dfe16999fa3c9",
-  "controlPlaneOnlyChanges": [
-    ".sia7/remote-job.json"
-  ],
-  "maximumMinutes": 90,
-  "logTail": [
-    "{\"ok\":true,\"status\":\"HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED\",\"runtimeProbeStatus\":\"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY\",\"terminationVerified\":true,\"estimatedCostUsd\":0,\"backend\":\"humo-17b-identity\",\"geometry\":{\"width\":832,\"height\":480,\"fps\":25,\"frames\":201,\"durationSeconds\":8.04},\"networkVolumeId\":\"1qm5wczocl\",\"gpu\":\"NVIDIA L40S\",\"gpuCount\":1,\"hardBudgetUsd\":0.95,\"referenceSha256\":\"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\",\"audioSha256\":\"bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184\",\"qualityProbe\":true,\"speechValidated\":true,\"qualityCertified\":false,\"preserveAspectRatio\":true,\"resourceCreated\":false,\"inferenceStarted\":false,\"networkVolumeRetained\":true,\"canonicalSha\":\"0347de245d76264ed246a6e17c4dfe16999fa3c9\",\"coreManifestVerified\":true,\"coreStagePodId\":\"gdt15dfk6aktog\",\"coreStageReceiptSha256\":\"ef4694a06d6f2a740deee09e077a699c63cdc196b342a0c169342042e971abd0\"}",
-    "{\"ok\":true,\"status\":\"HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED\",\"runtimeProbeStatus\":\"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY\",\"terminationVerified\":true,\"estimatedCostUsd\":0,\"backend\":\"humo-17b-identity\",\"geometry\":{\"width\":832,\"height\":480,\"fps\":25,\"frames\":201,\"durationSeconds\":8.04},\"networkVolumeId\":\"1qm5wczocl\",\"gpu\":\"NVIDIA L40S\",\"gpuCount\":1,\"hardBudgetUsd\":0.95,\"referenceSha256\":\"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\",\"audioSha256\":\"bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184\",\"qualityProbe\":true,\"speechValidated\":true,\"qualityCertified\":false,\"preserveAspectRatio\":true,\"resourceCreated\":false,\"inferenceStarted\":false,\"networkVolumeRetained\":true,\"canonicalSha\":\"0347de245d76264ed246a6e17c4dfe16999fa3c9\",\"coreManifestVerified\":true,\"coreStagePodId\":\"gdt15dfk6aktog\",\"coreStageReceiptSha256\":\"ef4694a06d6f2a740deee09e077a699c63cdc196b342a0c169342042e971abd0\"}"
-  ],
+  "ok": false,
+  "error": "SIA7_HUMO17_CORE_STAGE_FAILED:HUMO17_CORE_CPU_POD_CREATED",
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
