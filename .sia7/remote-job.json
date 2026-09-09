@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-test-authority-reconcile-20260909-367",
+  "jobId": "v142-humo17-fix-authority-test-syntax-20260909-368",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "tests/jarvis-fs-bridge-v2.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const c={...a,qualityProbe:true,speechValidated:true};assert.equal(assertHuMo17IndependentBudget({authority:a,context:c}),a);",
-    "replace": "    const c={...a,qualityProbe:true,speechValidated:true};assert.equal(assertHuMo17IndependentBudget({authority:a,context:c}),a);\n    const abOutput='.jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4';\n    assert.equal(validateHuMo17QualityAuthority({...a,output:abOutput},{...c,output:abOutput}).output,abOutput);\n    const bridgeSource=fs.readFileSync(path.resolve('jarvis-fs-bridge.js'),'utf8');\n    for(const marker of ['JARVIS_HUMO17_SINGLE_USE_AUTHORITY_FILE','JARVIS_HUMO17_CERTIFIED_CODE_SHA','control.paidJobId','HUMO17_QUALITY_CONTROL_UNCERTIFIED_CODE'])assert.match(bridgeSource,new RegExp(marker.replace(/[.*+?^${}()|[\\]\\]/g,'\\\\$&')));"
+    "search": "    for(const marker of ['JARVIS_HUMO17_SINGLE_USE_AUTHORITY_FILE','JARVIS_HUMO17_CERTIFIED_CODE_SHA','control.paidJobId','HUMO17_QUALITY_CONTROL_UNCERTIFIED_CODE'])assert.match(bridgeSource,new RegExp(marker.replace(/[.*+?^${}()|[\\]\\]/g,'\\\\    const c={...a,qualityProbe:true,speechValidated:true};assert.equal(assertHuMo17IndependentBudget({authority:a,context:c}),a);')));",
+    "replace": "    for(const marker of ['JARVIS_HUMO17_SINGLE_USE_AUTHORITY_FILE','JARVIS_HUMO17_CERTIFIED_CODE_SHA','control.paidJobId','HUMO17_QUALITY_CONTROL_UNCERTIFIED_CODE'])assert.equal(bridgeSource.includes(marker),true);"
   }
 }
