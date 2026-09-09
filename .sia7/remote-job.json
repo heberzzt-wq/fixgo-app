@@ -1,11 +1,11 @@
 {
-  "jobId": "v142-humo17-respect-ffprobe-path-20260908-337",
+  "jobId": "v142-humo17-respect-ffprobe-path-20260908-338",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
-    "expectedMatches": 2,
+    "expectedMatches": 3,
     "search": "resolveLocalExecutable(\"ffprobe\", env)",
     "replace": "resolveLocalExecutable(env.JARVIS_FFPROBE_PATH || \"ffprobe\", env)"
   }
