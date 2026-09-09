@@ -1705,7 +1705,9 @@ test("HuMo17 Python runner rejects unauthorized and invalid geometry before impo
         const script = path.resolve("scripts/jarvis-local-video-wan22.py");
         for (const [job, expected] of [
             [{paidAuthorized:false}, "HUMO17_PROBE_AUTHORITY_REQUIRED"],
-            [{paidAuthorized:true, fullEpisodeAuthorized:false, geometry:{frames:65}}, "HUMO17_PROBE_GEOMETRY_INVALID"]
+            [{paidAuthorized:true, fullEpisodeAuthorized:false, geometry:{frames:65}}, "HUMO17_PROBE_GEOMETRY_INVALID"],
+            [{paidAuthorized:true, fullEpisodeAuthorized:false, qualityProbe:true, geometry:{width:832,height:480,fps:25,frames:97,durationSeconds:3.88}}, "HUMO17_PROBE_GEOMETRY_INVALID"],
+            [{paidAuthorized:true, fullEpisodeAuthorized:false, qualityProbe:true, geometry:{width:832,height:480,fps:25,frames:201,durationSeconds:8.04},gpuCount:1,maximumIdentityCount:1,hardBudgetUsd:0.95}, "HUMO17_QUALITY_EVIDENCE_REQUIRED"]
         ]) {
             fs.writeFileSync(jobFile, JSON.stringify({backend:"humo-17b-identity",externalApiAllowed:false,...job}));
             try {execFileSync(process.platform === "win32" ? "python" : "python3", [script,"--job",jobFile,"--result",result], {timeout:15000,stdio:"pipe"});}
@@ -1722,11 +1724,11 @@ test("HuMo17 quality probe rejects noise-only, blind segments, mismatched hashes
     const {validateHuMo17SpeechEvidence, buildHuMo17RuntimeProbeJob} = await import("../jarvis-fs-bridge.js");
     const sha="a".repeat(64);
     const evidence={schemaVersion:"jarvis.audio-speech-segment.v142.1",selectionMethod:"full_source_vad_asr",speechValidated:true,
-        sourceSha256:"b".repeat(64),wavSha256:sha,startSeconds:5,endSeconds:8.88,vocalIntervals:[{start:0.6,end:2.8}],
+        sourceSha256:"b".repeat(64),wavSha256:sha,startSeconds:3,endSeconds:11.04,vocalIntervals:[{start:2.6,end:4.8}],
         transcript:"Es hora de tomar las riendas",asrMeanWordProbability:0.9,asrNoSpeechProbability:0.04};
     assert.ok(validateHuMo17SpeechEvidence(evidence,sha).vocalCoverageSeconds>2);
     for (const patch of [{selectionMethod:"first_seconds"},{speechValidated:false},{transcript:""},{wavSha256:"c".repeat(64)},
-        {asrNoSpeechProbability:0.9},{asrMeanWordProbability:0.3},{endSeconds:9},{vocalIntervals:[]},
+        {asrNoSpeechProbability:0.9},{asrMeanWordProbability:0.3},{endSeconds:6.88},{vocalIntervals:[]},{vocalIntervals:[{start:7,end:8.1}]},
         {vocalIntervals:[{start:0,end:0.4}]},{vocalIntervals:[{start:0,end:2},{start:1,end:3}]}]) {
         assert.throws(()=>validateHuMo17SpeechEvidence({...evidence,...patch},sha),/HUMO17_/);
     }
@@ -1735,6 +1737,7 @@ test("HuMo17 quality probe rejects noise-only, blind segments, mismatched hashes
     assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.01,paidAuthorized:true}),/QUALITY_BUDGET/);
     const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:0.95,paidAuthorized:true});
     assert.equal(job.backend,"humo-17b-identity");assert.equal(job.qualityCertified,false);
+    assert.deepEqual(job.geometry,{width:832,height:480,fps:25,frames:201,durationSeconds:8.04});
     assert.equal(job.referencePreprocessing.preserveAspectRatio,true);assert.equal(job.gpuCount,1);
     assert.equal(job.networkVolumeRetained,true);assert.equal(job.fullEpisodeAuthorized,false);
     assert.match(job.negativePrompt,/smooth plastic skin/);assert.equal(job.strategy.compileEnabled,false);

@@ -8721,7 +8721,7 @@ export function validateHuMo17SpeechEvidence(evidence, audioSha256) {
     if (!e || e.schemaVersion !== "jarvis.audio-speech-segment.v142.1" || e.selectionMethod !== "full_source_vad_asr" ||
         e.speechValidated !== true || e.wavSha256 !== audioSha256 || !/^[a-f0-9]{64}$/.test(e.sourceSha256 || "") ||
         !Number.isFinite(e.startSeconds) || e.startSeconds < 0 || !Number.isFinite(e.endSeconds) ||
-        Math.abs(e.endSeconds - e.startSeconds - 3.88) > 0.000001 ||
+        Math.abs(e.endSeconds - e.startSeconds - 8.04) > 0.000001 ||
         !Array.isArray(e.vocalIntervals) || !e.vocalIntervals.length ||
         typeof e.transcript !== "string" || e.transcript.trim().split(/\s+/).length < 2 ||
         !(e.asrMeanWordProbability >= 0.65 && e.asrMeanWordProbability <= 1) ||
@@ -8729,10 +8729,10 @@ export function validateHuMo17SpeechEvidence(evidence, audioSha256) {
     let lastEnd = 0, coverage = 0;
     for (const interval of e.vocalIntervals) {
         if (!Number.isFinite(interval.start) || !Number.isFinite(interval.end) || interval.start < lastEnd ||
-            interval.end <= interval.start || interval.end > 3.88) throw new Error("HUMO17_VOCAL_INTERVAL_INVALID");
+            interval.end <= interval.start || interval.end > 8.04) throw new Error("HUMO17_VOCAL_INTERVAL_INVALID");
         coverage += interval.end - interval.start; lastEnd = interval.end;
     }
-    if (coverage < 1.55) throw new Error("HUMO17_SPEECH_COVERAGE_INSUFFICIENT");
+    if (coverage < 2.01) throw new Error("HUMO17_SPEECH_COVERAGE_INSUFFICIENT");
     return {...e, vocalCoverageSeconds: coverage};
 }
 
@@ -8749,7 +8749,7 @@ export function buildHuMo17RuntimeProbeJob({ assets, hardBudgetUsd, operationId,
         operationId, backend: "humo-17b-identity", model: "HuMo-17B", externalApiAllowed: false,
         paidAuthorized: true, fullEpisodeAuthorized: false, gpuCount: 1, maximumIdentityCount: 1,
         gpu: "NVIDIA L40S", hardBudgetUsd, networkVolumeId: "1qm5wczocl", networkVolumeRetained: true,
-        geometry: candidate.probeGeometry, strategy: candidate.singleGpuStrategy,
+        geometry: quality ? candidate.qualityProbeGeometry : candidate.probeGeometry, strategy: candidate.singleGpuStrategy,
         qualityProbe: quality, qualityCertified: false, speechEvidence,
         referencePreprocessing: {preserveAspectRatio: true, method: "pad", width: 832, height: 480},
         referenceSha256: assets.reference.sha256, audioSha256: assets.audio.sha256,
@@ -8776,6 +8776,7 @@ export function buildHuMo17RuntimeBootstrap(job) {
         "import sys,importlib.util; sys.path.insert(0,str(root)); sys.argv=['humo17-preflight']",
         "import runner; wrapper=root/'custom_nodes'/'ComfyUI-WanVideoWrapper'; module=runner._load_humo17_wrapper(root,wrapper)",
         "assert all(n in module.NODE_CLASS_MAPPINGS for n in ['HuMoEmbeds','WhisperModelLoader','WanVideoSampler','WanVideoModelLoader']), 'HUMO17_REQUIRED_NODES_MISSING'",
+        "frame_spec=module.NODE_CLASS_MAPPINGS['HuMoEmbeds'].INPUT_TYPES()['required']['num_frames'][1]; frames=j['geometry']['frames']; assert frame_spec['min']<=frames<=frame_spec['max'] and frames%4==1, 'HUMO17_WRAPPER_FRAME_CONTRACT_INVALID'",
         "contract=json.loads(" + JSON.stringify(JSON.stringify(RUNPOD_HUMO17_CORE_CACHE_BASE)) + ")",
         "manifest=json.load(open(core/'model-manifest.json')); assert manifest['physicalStageCertified'] and manifest['networkVolumeId']=='1qm5wczocl' and manifest['dataCenterId']=='EU-NL-1', 'CORE_NOT_CERTIFIED'",
         "def verify(p,a):",
@@ -8890,7 +8891,7 @@ export async function runHuMo17PersistentCoreStagingCli({
         let speechEvidence = null;
         if (qualityProbe) {
             if (fs.existsSync(outputFile)) throw new Error("HUMO17_QUALITY_OUTPUT_ALREADY_EXISTS");
-            if (Math.abs(Number(audioInfo.format.duration) - 3.88) > 0.001) throw new Error("HUMO17_QUALITY_AUDIO_DURATION_INVALID");
+            if (Math.abs(Number(audioInfo.format.duration) - 8.04) > 0.001) throw new Error("HUMO17_QUALITY_AUDIO_DURATION_INVALID");
             const evidenceAsset = resolveProbeAsset(env.JARVIS_HUMO17_SPEECH_EVIDENCE_OUTPUT, [".json"],
                 String(env.JARVIS_HUMO17_SPEECH_EVIDENCE_SHA256 || "").trim(), "HUMO17_SPEECH_EVIDENCE_INVALID");
             speechEvidence = validateHuMo17SpeechEvidence(JSON.parse(fs.readFileSync(evidenceAsset.file,"utf8")), audio.sha256);
@@ -8955,7 +8956,7 @@ export async function runHuMo17PersistentCoreStagingCli({
         if (!placement) throw new Error("HUMO17_L40S_PLACEMENT_UNAVAILABLE");
         if (truthy(env.JARVIS_HUMO17_RUNTIME_PROBE_PREFLIGHT_ONLY)) {
             const result = {ok: true, status: "HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY", backend: "humo-17b-identity",
-                geometry: buildNextIdentityRuntimeCandidate({backend: "humo-17b-identity"}).probeGeometry,
+                geometry: buildNextIdentityRuntimeCandidate({backend: "humo-17b-identity"})[runtimeProbeAssets.qualityProbe ? "qualityProbeGeometry" : "probeGeometry"],
                 networkVolumeId: volume.id, gpu: "NVIDIA L40S", gpuCount: 1, hardBudgetUsd,
                 referenceSha256: runtimeProbeAssets.reference.sha256, audioSha256: runtimeProbeAssets.audio.sha256,
                 qualityProbe: runtimeProbeAssets.qualityProbe, speechValidated: runtimeProbeAssets.speechEvidence?.speechValidated === true, qualityCertified: false, preserveAspectRatio: true,
@@ -9204,7 +9205,7 @@ export async function runHuMo17PersistentCoreStagingCli({
             if (!ffprobe) throw new Error("HUMO17_LOCAL_FFPROBE_REQUIRED");
             const probe = JSON.parse(execFileSync(ffprobe, ["-v", "error", "-count_frames", "-show_streams", "-show_format", "-of", "json", runtimeProbeAssets.outputFile], {encoding: "utf8", timeout: 45000, windowsHide: true}));
             const video = probe.streams.find(x => x.codec_type === "video");
-            if (!video || video.width !== 832 || video.height !== 480 || video.avg_frame_rate !== "25/1" || Number(video.nb_read_frames) !== 97 || Math.abs(Number(video.duration) - 3.88) > 0.05) throw new Error("HUMO17_PHYSICAL_GEOMETRY_INVALID");
+            if (!video || video.width !== 832 || video.height !== 480 || video.avg_frame_rate !== "25/1" || Number(video.nb_read_frames) !== probeJob.geometry.frames || Math.abs(Number(video.duration) - probeJob.geometry.durationSeconds) > 0.05) throw new Error("HUMO17_PHYSICAL_GEOMETRY_INVALID");
             runtimePhysical.ffprobe = probe; runtimePhysical.output = runtimeProbeAssets.output;
         } else {
         const legacyContractB64 = Buffer.from(JSON.stringify(RUNPOD_HUMO_CACHE_BASE), "utf8").toString("base64");

@@ -228,6 +228,7 @@ export const NEXT_IDENTITY_RUNTIME_CANDIDATES = Object.freeze({
         maximumIdentityCount: 1,
         targetGpuTypeId: "NVIDIA L40S",
         probeGeometry: Object.freeze({ width: 832, height: 480, fps: 25, frames: 97, durationSeconds: 3.88 }),
+        qualityProbeGeometry: Object.freeze({ width: 832, height: 480, fps: 25, frames: 201, durationSeconds: 8.04 }),
         runtimeAssetAuthorityPinned: false,
         physicalRuntimeCertified: false,
         singleL40sRuntimeCertified: false,

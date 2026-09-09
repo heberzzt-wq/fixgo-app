@@ -907,7 +907,9 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
     """Explicit single-L40S probe; never an alias of the legacy HuMo runner."""
     if job.get("paidAuthorized") is not True or job.get("fullEpisodeAuthorized") is not False:
         raise RuntimeError("HUMO17_PROBE_AUTHORITY_REQUIRED")
-    if job.get("geometry") != {"width": 832, "height": 480, "fps": 25, "frames": 97, "durationSeconds": 3.88}:
+    frame_count = 201 if job.get("qualityProbe") is True else 97
+    duration = frame_count / 25
+    if job.get("geometry") != {"width": 832, "height": 480, "fps": 25, "frames": frame_count, "durationSeconds": duration}:
         raise RuntimeError("HUMO17_PROBE_GEOMETRY_INVALID")
     if job.get("gpuCount") != 1 or job.get("maximumIdentityCount") != 1:
         raise RuntimeError("HUMO17_SINGLE_GPU_IDENTITY_REQUIRED")
@@ -917,7 +919,7 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
         evidence = job.get("speechEvidence") or {}
         if (evidence.get("speechValidated") is not True or evidence.get("wavSha256") != job.get("audioSha256")
                 or evidence.get("selectionMethod") != "full_source_vad_asr"
-                or float(evidence.get("vocalCoverageSeconds", 0)) < 1.55
+                or float(evidence.get("vocalCoverageSeconds", 0)) < 2.01
                 or job.get("referencePreprocessing", {}).get("preserveAspectRatio") is not True):
             raise RuntimeError("HUMO17_QUALITY_EVIDENCE_REQUIRED")
     strategy = job["strategy"]
@@ -957,9 +959,9 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
                                "width": 832, "height": 480, "method": "pad", "preserveAspectRatio": True}
     image = torch.from_numpy(np.asarray(prepared_image, dtype=np.float32) / 255.0).unsqueeze(0)
     wave, rate = sf.read(audio, always_2d=True, dtype="float32")
-    if len(wave) < int(rate * 3.88):
+    if len(wave) < round(rate * duration):
         raise RuntimeError("HUMO17_AUDIO_TOO_SHORT")
-    wave = wave[:int(rate * 3.88)].mean(axis=1, keepdims=True)
+    wave = wave[:round(rate * duration)].mean(axis=1, keepdims=True)
     audio_tensor = {"waveform": torch.from_numpy(wave.T.copy()).unsqueeze(0), "sample_rate": rate}
     names = job["assetNames"]
     with torch.inference_mode():
@@ -968,7 +970,7 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
                     quantization="disabled", use_disk_cache=False, device="gpu")[0]
         vae = call("WanVideoVAELoader", model_name=names["vae"], precision="bf16")[0]
         whisper = call("WhisperModelLoader", model=names["audio_encoder"], base_precision="fp16", load_device="offload_device")[0]
-        embeds = call("HuMoEmbeds", num_frames=97, width=832, height=480, audio_scale=1.0, audio_cfg_scale=2.5,
+        embeds = call("HuMoEmbeds", num_frames=frame_count, width=832, height=480, audio_scale=1.0, audio_cfg_scale=2.5,
                       audio_start_percent=0.0, audio_end_percent=1.0, whisper_model=whisper, vae=vae,
                       reference_images=image, audio=audio_tensor, tiled_vae=False)[0]
         swap_keys = ["blocks_to_swap", "offload_img_emb", "offload_txt_emb", "use_non_blocking", "vace_blocks_to_swap", "prefetch_blocks", "block_swap_debug"]
@@ -981,12 +983,12 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
                        cfg=2.0, seed=42, scheduler="lcm", riflex_freq_index=0, force_offload=True)[0]
         frames = call("WanVideoDecode", vae=vae, samples=samples, enable_vae_tiling=False,
                       tile_x=272, tile_y=272, tile_stride_x=144, tile_stride_y=128, normalization="default")[0]
-    if tuple(frames.shape[:3]) != (97, 480, 832):
+    if tuple(frames.shape[:3]) != (frame_count, 480, 832):
         raise RuntimeError("HUMO17_GENERATED_FRAME_GEOMETRY_INVALID")
     output = Path(job["outputFile"]).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     command = ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "832x480", "-r", "25", "-i", "pipe:0",
-               "-i", str(audio), "-map", "0:v:0", "-map", "1:a:0", "-frames:v", "97", "-t", "3.88", "-c:v", "libx264",
+               "-i", str(audio), "-map", "0:v:0", "-map", "1:a:0", "-frames:v", str(frame_count), "-t", str(duration), "-c:v", "libx264",
                "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", str(output)]
     pixels = (frames.clamp(0, 1).cpu().numpy() * 255).round().astype(np.uint8)
     subprocess.run(command, input=pixels.tobytes(), check=True, timeout=60)
