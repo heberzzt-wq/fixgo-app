@@ -9429,8 +9429,8 @@ export function resolveHuMo17QualityControlPlane({ root = DEFAULT_ROOT, env = pr
         for (const entry of fs.readdirSync(current, {withFileTypes: true})) {
             const target = path.join(current, entry.name);
             if (fs.lstatSync(target).isSymbolicLink()) continue;
-            if (entry.isDirectory()) stack.push(target); else if (entry.isFile() && [".json", ".wav"].includes(path.extname(target).toLowerCase())) files.push(target);
-            if (files.length > 200) throw new Error("HUMO17_QUALITY_LOCAL_SCAN_LIMIT");
+            if (entry.isDirectory()) stack.push(target); else if (entry.isFile() && [".json", ".wav"].includes(path.extname(target).toLowerCase()) && fs.statSync(target).size <= 16 * 1024 * 1024) files.push(target);
+            if (files.length > 1000) throw new Error("HUMO17_QUALITY_LOCAL_SCAN_LIMIT");
         }
     }
     const sha256File = file => createHash("sha256").update(fs.readFileSync(file)).digest("hex");
