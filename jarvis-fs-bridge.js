@@ -8748,7 +8748,7 @@ export function buildHuMo17RuntimeBootstrap(job) {
         "import json,pathlib,hashlib,urllib.request,os",
         "j=json.load(open('/tmp/jarvis-humo17/job.json')); root=pathlib.Path(j['comfyRoot']); core=pathlib.Path('/workspace/jarvis-v142/cache/humo17-fp8-core')",
         "import sys,importlib.util; sys.path.insert(0,str(root)); sys.argv=['humo17-preflight']",
-        "wrapper=root/'custom_nodes'/'ComfyUI-WanVideoWrapper'; spec=importlib.util.spec_from_file_location('jarvis_wan_wrapper',wrapper/'__init__.py',submodule_search_locations=[str(wrapper)]); module=importlib.util.module_from_spec(spec); sys.modules[spec.name]=module; spec.loader.exec_module(module)",
+        "import runner; wrapper=root/'custom_nodes'/'ComfyUI-WanVideoWrapper'; module=runner._load_humo17_wrapper(root,wrapper)",
         "assert all(n in module.NODE_CLASS_MAPPINGS for n in ['HuMoEmbeds','WhisperModelLoader','WanVideoSampler','WanVideoModelLoader']), 'HUMO17_REQUIRED_NODES_MISSING'",
         "contract=json.loads(" + JSON.stringify(JSON.stringify(RUNPOD_HUMO17_CORE_CACHE_BASE)) + ")",
         "manifest=json.load(open(core/'model-manifest.json')); assert manifest['physicalStageCertified'] and manifest['networkVolumeId']=='1qm5wczocl' and manifest['dataCenterId']=='EU-NL-1', 'CORE_NOT_CERTIFIED'",

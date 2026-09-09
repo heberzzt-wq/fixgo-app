@@ -881,6 +881,28 @@ def run_humo_identity_probe(
     return 0
 
 
+def _load_humo17_wrapper(comfy: Path, wrapper: Path):
+    import asyncio
+    import importlib.util
+    sys.path.insert(0, str(comfy))
+    sys.argv = ["humo17-probe"]
+    # Load Comfy's package before custom nodes can claim the generic utils name.
+    spec = importlib.util.spec_from_file_location("utils", comfy / "utils" / "__init__.py",
+                                                submodule_search_locations=[str(comfy / "utils")])
+    utils = importlib.util.module_from_spec(spec)
+    sys.modules["utils"] = utils
+    spec.loader.exec_module(utils)
+    import server
+    if not hasattr(server.PromptServer, "instance"):
+        server.PromptServer(asyncio.new_event_loop())
+    spec = importlib.util.spec_from_file_location("jarvis_wan_wrapper", wrapper / "__init__.py",
+                                                submodule_search_locations=[str(wrapper)])
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
     """Explicit single-L40S probe; never an alias of the legacy HuMo runner."""
     if job.get("paidAuthorized") is not True or job.get("fullEpisodeAuthorized") is not False:
@@ -916,10 +938,7 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
     from PIL import Image, ImageOps
     if torch.cuda.device_count() != 1 or "L40S" not in torch.cuda.get_device_name(0):
         raise RuntimeError("HUMO17_ONE_L40S_REQUIRED")
-    spec = importlib.util.spec_from_file_location("jarvis_wan_wrapper", wrapper / "__init__.py", submodule_search_locations=[str(wrapper)])
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
+    module = _load_humo17_wrapper(comfy, wrapper)
     classes = module.NODE_CLASS_MAPPINGS
     def call(name: str, **kwargs):
         cls = classes[name]
