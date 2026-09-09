@@ -1,4 +1,5 @@
 {
+  "schema": "jarvis.v142.humo17-quality-closeout.1",
   "operationId": "humo17-probe-05d7b0fd-0e06-4805-a7ce-2c51466f9685",
   "jobId": "v142-humo17-quality-201f-20260909-345",
   "podId": "m3fk4jw14yx714",
@@ -6,20 +7,24 @@
   "createdAt": "2026-09-09T16:06:18.021Z",
   "hardBudgetUsd": 0.95,
   "hourlyRateUsd": 1.09,
+  "providerBudgetSafetyRatio": 0.75,
   "providerBudgetKillSeconds": 2353,
+  "estimatedCostUsd": 0.672881525,
+  "hardCapSatisfied": true,
   "networkVolumeId": "1qm5wczocl",
+  "networkVolumeRetained": true,
   "gpu": "NVIDIA L40S",
   "gpuCount": 1,
-  "terminationVerified": false,
-  "status": "HUMO17_RUNTIME_GPU_POD_CREATED",
-  "schema": "jarvis.v142.paid-early-receipt.2",
-  "bootstrapState": "PAYLOAD_ALLOWED",
   "computeType": "GPU",
-  "providerBudgetSafetyRatio": 0.75,
-  "remoteWatchdogDeadlineMs": 1788972309020,
+  "paidAuthorizationConsumed": true,
+  "maximumPaidAttempts": 1,
+  "secondPaidAttemptLaunched": false,
   "remoteWatchdogInstalled": true,
   "remoteWatchdogVerified": true,
-  "inferenceStarted": true,
+  "remoteWatchdogDeadlineMs": 1788972309020,
+  "localBudgetWatchdog": true,
+  "remoteBudgetWatchdog": true,
+  "bootstrapState": "PAYLOAD_BLOCKED",
   "bootstrapTransitions": [
     {
       "state": "REMOTE_WATCHDOG_INSTALLING",
@@ -36,34 +41,77 @@
     {
       "state": "PAYLOAD_ALLOWED",
       "at": "2026-09-09T16:06:49.115Z"
+    },
+    {
+      "state": "PAYLOAD_BLOCKED",
+      "at": "2026-09-09T16:43:18.918Z"
     }
   ],
-  "deadlineMs": 1788972331021,
-  "localBudgetWatchdog": true,
-  "remoteBudgetWatchdog": true,
-  "remoteWatchdog": {
-    "podId": "m3fk4jw14yx714",
-    "pid": 502,
-    "deadlineEpochSeconds": 1788972309,
-    "remoteBudgetWatchdogInstalled": true,
-    "remoteBudgetWatchdogVerified": true,
-    "terminationVerified": false,
-    "hostIndependent": true,
-    "mechanism": "pod_scoped_graphql_self_delete",
-    "inferenceStarted": false,
-    "remoteWatchdogTriggered": false,
-    "localWatchdogTriggered": false,
-    "armedAtEpochSeconds": 1788969985.1446018,
-    "maximumRuntimeSeconds": 2323.855396747589,
-    "status": "REMOTE_BUDGET_WATCHDOG_ARMED"
+  "inferenceStarted": true,
+  "generationSucceeded": true,
+  "technicalMediaValidationPassed": true,
+  "status": "HUMO17_QUALITY_345_RENDERED_REJECTED_AND_RELEASED",
+  "backend": "humo-17b-identity",
+  "referenceSha256": "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958",
+  "audioSha256": "bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184",
+  "output": ".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4",
+  "outputSha256": "60ad8182fc9202ce86a792a2e5145c3b638244cc826ce08c176f10ba17b76c29",
+  "bytes": 551643,
+  "media": {
+    "videoCodec": "h264",
+    "audioCodec": "aac",
+    "width": 832,
+    "height": 480,
+    "fps": 25,
+    "frames": 201,
+    "durationSeconds": 8.04,
+    "audioDurationSeconds": 8.04
   },
-  "remoteBudgetWatchdogInstalled": true,
-  "remoteBudgetWatchdogVerified": true,
-  "inferenceObservedAt": "2026-09-09T16:19:20.529Z",
-  "runtimeStatus": "HUMO17_SAMPLING",
-  "runtimeEvidence": "Remote result.json inferenceStarted=true; sampler 0/8; nvidia-smi L40S 100%",
   "codeSha": "de04a55ec578487080d39c438c8d614c9f7b1567",
   "ciRun": 34373916524,
-  "paidAuthorizationConsumed": true,
-  "qualityCertified": false
+  "postCloseoutBug": "HUMO17_LOCAL_FFPROBE_REQUIRED",
+  "postCloseoutBugWasInferenceFailure": false,
+  "postCloseoutBugFixedBy": {
+    "jobId": "v142-humo17-fix-local-ffprobe-closeout-20260909-347",
+    "head": "7226bbb16bacf95ba11c3fb7250aecc3a63fc1ad"
+  },
+  "terminationVerified": true,
+  "qualityCertified": false,
+  "qualityDecision": "REJECTED_IDENTITY_REGRESSION",
+  "qualityReview": {
+    "originalBenchmark": "TARGET",
+    "physical97fBenchmark": "MINIMUM_ACCEPTABLE_IDENTITY_BASELINE",
+    "quality201fBenchmark": "REJECTED",
+    "regressionPresentFromInitialFrame": true,
+    "observedProblems": [
+      "hairline and hair strongly reinterpreted",
+      "forehead exaggerated",
+      "face widened",
+      "nose and facial proportions altered",
+      "plastic skin appearance",
+      "synthetic mouth and teeth appearance"
+    ]
+  },
+  "regressionAnalysis": {
+    "sameReferenceSha": true,
+    "sameReferencePreprocessing": true,
+    "sameSeed": true,
+    "sameSampler": true,
+    "sameScheduler": true,
+    "sameSteps": true,
+    "confirmedDifferences": [
+      "positivePrompt",
+      "negativePrompt",
+      "frameCountAndDuration",
+      "validatedSpeechAudio"
+    ],
+    "primarySuspect": "prompt_conditioning_regression",
+    "causalityCertified": false,
+    "nextControlledExperiment": "201f and validated 8.04s speech audio with exact 97f positive and negative prompts; change no other runtime variable"
+  },
+  "paidExecutionAuthorized": false,
+  "fullEpisodeAuthorized": false,
+  "productionDeployed": false,
+  "mainMerged": false,
+  "episodeLaunched": false
 }
