@@ -1,10 +1,10 @@
 {
-  "jobId": "v142-humo17-quality-preflight-201f-20260908-343",
+  "jobId": "v142-humo17-quality-paid-201f-20260908-344",
   "operation": "humo17_core_stage",
   "humanApproved": true,
   "executePaid": true,
   "qualityProbe": true,
-  "qualityPreflightOnly": true,
+  "qualityPreflightOnly": false,
   "fullEpisodeAuthorized": false,
   "expectedBaseSha": "b76630640e4004e8e9b82693966dcfc723c0f08b",
   "hardBudgetUsd": 0.95,
