@@ -8885,7 +8885,7 @@ export async function runHuMo17PersistentCoreStagingCli({
         assertProbeContainment(outputFile);
         fs.mkdirSync(path.dirname(outputFile), { recursive: true });
         if (!resolveLocalExecutable(env.JARVIS_FFPROBE_PATH || "ffprobe", env)) throw new Error("HUMO17_LOCAL_FFPROBE_REQUIRED");
-        const audioInfo = JSON.parse(execFileSync(resolveLocalExecutable("ffprobe", env), ["-v", "error", "-show_streams", "-show_format", "-of", "json", audio.file], {encoding: "utf8", timeout: 20000, windowsHide: true}));
+        const audioInfo = JSON.parse(execFileSync(resolveLocalExecutable(env.JARVIS_FFPROBE_PATH || "ffprobe", env), ["-v", "error", "-show_streams", "-show_format", "-of", "json", audio.file], {encoding: "utf8", timeout: 20000, windowsHide: true}));
         if (!audioInfo.streams?.some(x => x.codec_type === "audio") || Number(audioInfo.format?.duration) < 3.88) throw new Error("HUMO17_REAL_AUDIO_REQUIRED");
         const qualityProbe = truthy(env.JARVIS_HUMO17_QUALITY_PROBE_AUTHORIZED);
         let speechEvidence = null;
