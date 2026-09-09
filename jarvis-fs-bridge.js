@@ -8871,7 +8871,7 @@ export function buildHuMo17RuntimeProbeJob({ assets, hardBudgetUsd, operationId,
         audioFile: "/tmp/jarvis-humo17/audio.wav", outputFile: "/tmp/jarvis-humo17/probe.mp4",
         comfyRoot: "/tmp/jarvis-humo17/ComfyUI",
         prompt: "The exact person in the reference image speaks the supplied audio, natural restrained facial motion. Preserve facial identity, age, hair and facial hair. One person only, no subtitles or watermark.",
-        negativePrompt: quality ? "beauty retouching, smooth plastic skin, younger face, wider face, rounded jaw, altered nose, darkened hair, added beard, exaggerated smile, oversized mouth, oversized teeth, different glasses, different person, different background, subtitles, watermark" : "another person, identity change, subtitles, watermark, deformed face",
+        negativePrompt: "another person, identity change, subtitles, watermark, deformed face",
         assetNames: {
             video_transformer: path.posix.basename(candidate.singleGpuStrategy.quantizedModel.path),
             distillation_lora: path.posix.basename(candidate.singleGpuStrategy.distillationLora.path),
