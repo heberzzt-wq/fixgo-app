@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-ffprobe-isolated-env-20260909-480",
+  "jobId": "v142-humo17-ffprobe-isolated-env-20260909-481",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "scripts/jarvis-local-video-wan22.py",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "def inspect_video(file: Path, ffprobe: str) -> dict[str, Any]:",
-    "replace": "def inspect_video(file: Path, ffprobe: str, env: dict[str, str] | None = None) -> dict[str, Any]:"
+    "search": "        text=True,\n        timeout=60,\n    )",
+    "replace": "        text=True,\n        timeout=60,\n        env=env,\n    )"
   }
 }
