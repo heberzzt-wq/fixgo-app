@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-paid-offline-startup-20260909-429",
+  "jobId": "v142-humo17-paid-offline-startup-20260909-430",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        \"export DEBIAN_FRONTEND=noninteractive\",",
-    "replace": "        runtimeProbeAuthorized ? \"RUNTIME_ROOT=/workspace/jarvis-v142/runtime/humo17; SYSTEM_ROOT=$RUNTIME_ROOT/system; export PATH=$SYSTEM_ROOT/bin:$PATH; export LD_LIBRARY_PATH=$SYSTEM_ROOT/lib:${LD_LIBRARY_PATH:-}; export GIT_EXEC_PATH=$SYSTEM_ROOT/lib/git-core\" : \"export DEBIAN_FRONTEND=noninteractive\","
+    "search": "        \"apt-get update -qq\",",
+    "replace": "        runtimeProbeAuthorized ? \"test -x /usr/sbin/sshd && test -x $SYSTEM_ROOT/bin/ffmpeg && test -x $SYSTEM_ROOT/bin/ffprobe && test -x $SYSTEM_ROOT/bin/git\" : \"apt-get update -qq\","
   }
 }
