@@ -8660,7 +8660,10 @@ export function inspectNextIdentityRuntimeCandidate({ backend = "humo-17b-identi
             existingHuMoCacheBytes: Number(strategy.existingHuMoCacheBytes || 0),
             persistentNewAssets: [
                 { ...strategy.quantizedModel, role: "video_transformer" },
-                { ...strategy.distillationLora, role: "distillation_lora" }
+                { ...strategy.distillationLora, role: "distillation_lora" },
+                ...(strategy.auxiliaryAssetsPersistent === true
+                    ? (strategy.wrapperAuxiliaryAssets || []).map(asset => ({ ...asset }))
+                    : [])
             ],
             persistentNewBytes: Number(strategy.quantizedModel?.bytes || 0) + Number(strategy.distillationLora?.bytes || 0),
             persistentTotalWithExistingCacheBytes: Number(strategy.persistentCoreBytes || 0),
