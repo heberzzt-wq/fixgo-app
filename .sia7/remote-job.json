@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-close-preauth-require-explicit-core-budget-20260910-735",
+  "jobId": "v142-close-preauth-materialize-explicit-core-budget-20260910-736",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-github-worker.js",
+    "file": ".github/scripts/v142-final-contract-alignment.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const hardBudgetUsd = Number(job.hardBudgetUsd ?? 1.5);",
-    "replace": "    const hardBudgetUsd = Number(job.hardBudgetUsd);"
+    "search": "    fs.writeFileSync(BRIDGE_FILE, bridge, \"utf8\");",
+    "replace": "    fs.writeFileSync(BRIDGE_FILE, bridge, \"utf8\");\n\n    let worker = fs.readFileSync(\"jarvis-github-worker.js\", \"utf8\").replace(/\\r\\n/g, \"\\n\");\n    worker = replaceCountOrAlready(\n        worker,\n        '    const hardBudgetUsd = Number(job.hardBudgetUsd ?? 1.5);',\n        '    const hardBudgetUsd = Number(job.hardBudgetUsd);',\n        1,\n        \"V142_HUMO17_EXPLICIT_CORE_BUDGET\"\n    );\n    fs.writeFileSync(\"jarvis-github-worker.js\", worker, \"utf8\");"
   }
 }
