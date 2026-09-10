@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-humo17-stage-checkpoints-20260909-491",
-  "completedAt": "2026-09-10T03:30:27.593Z",
+  "jobId": "v142-humo17-stage-checkpoints-20260909-492",
+  "completedAt": "2026-09-10T03:31:22.839Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": "scripts/jarvis-local-video-wan22.py",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 54173,
-  "bytesAfter": 54320,
+  "bytesBefore": 54320,
+  "bytesAfter": 55204,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

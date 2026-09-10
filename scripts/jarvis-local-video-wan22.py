@@ -1010,9 +1010,15 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
     command = ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "832x480", "-r", "25", "-i", "pipe:0",
                "-i", str(audio), "-map", "0:v:0", "-map", "1:a:0", "-frames:v", str(frame_count), "-t", str(duration), "-c:v", "libx264",
                "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", str(output)]
+    write_json_atomic(result_file, {"ok": False, "backend": "humo-17b-identity", "inferenceStarted": True, "status": "HUMO17_CPU_TRANSFER_STARTED"})
     pixels = (frames.clamp(0, 1).cpu().numpy() * 255).round().astype(np.uint8)
+    write_json_atomic(result_file, {"ok": False, "backend": "humo-17b-identity", "inferenceStarted": True, "status": "HUMO17_CPU_TRANSFER_COMPLETED"})
+    write_json_atomic(result_file, {"ok": False, "backend": "humo-17b-identity", "inferenceStarted": True, "status": "HUMO17_FFMPEG_STARTED"})
     subprocess.run(command, input=pixels.tobytes(), check=True, timeout=60)
+    write_json_atomic(result_file, {"ok": False, "backend": "humo-17b-identity", "inferenceStarted": True, "status": "HUMO17_FFMPEG_COMPLETED"})
+    write_json_atomic(result_file, {"ok": False, "backend": "humo-17b-identity", "inferenceStarted": True, "status": "HUMO17_FFPROBE_STARTED"})
     media = inspect_video(output, "ffprobe")
+    write_json_atomic(result_file, {"ok": False, "backend": "humo-17b-identity", "inferenceStarted": True, "status": "HUMO17_FFPROBE_COMPLETED"})
     write_json_atomic(result_file, {"ok": True, "status": "HUMO17_RUNTIME_PROBE_COMPLETED", "backend": "humo-17b-identity",
         "gpu": torch.cuda.get_device_name(0), "inferenceStarted": True, "referenceSha256": job["referenceSha256"],
         "audioSha256": job["audioSha256"], "sha256": _sha256_file(output), "bytes": output.stat().st_size,
