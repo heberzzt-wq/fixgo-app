@@ -9111,6 +9111,7 @@ export async function runHuMo17PersistentCoreStagingCli({
         if (!stageReceiptPath || !fs.existsSync(stageReceiptPath)) throw new Error("HUMO17_STAGE_RECEIPT_REQUIRED");
         const stageReceipt = JSON.parse(fs.readFileSync(stageReceiptPath, "utf8"));
         if (stageReceipt.ok !== true || stageReceipt.physicalStageCertified !== true || stageReceipt.coreManifestVerified !== true ||
+            stageReceipt.persistentRuntimeReady !== true || stageReceipt.offlinePaidBootstrapRequired !== true || Number(stageReceipt.persistentRuntimeRequiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length ||
             stageReceipt.terminationVerified !== true || stageReceipt.networkVolumeRetained !== true ||
             stageReceipt.networkVolumeId !== volume.id || stageReceipt.networkVolumeDataCenterId !== volume.dataCenterId ||
             stageReceipt.newPersistentBytes !== RUNPOD_HUMO17_CORE_CACHE_BASE.totalBytes ||
