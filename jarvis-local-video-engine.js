@@ -531,7 +531,8 @@ export const RUNPOD_HUMO17_CORE_CACHE_BASE = (() => {
     const strategy = candidate.singleGpuStrategy;
     const requiredFiles = Object.freeze([
         Object.freeze({ ...strategy.quantizedModel, role: "video_transformer", sourcePath: strategy.quantizedModel.path, path: `weights/${strategy.quantizedModel.path}` }),
-        Object.freeze({ ...strategy.distillationLora, role: "distillation_lora", sourcePath: strategy.distillationLora.path, path: `loras/${strategy.distillationLora.path}` })
+        Object.freeze({ ...strategy.distillationLora, role: "distillation_lora", sourcePath: strategy.distillationLora.path, path: `loras/${strategy.distillationLora.path}` }),
+        ...strategy.wrapperAuxiliaryAssets.map(file => Object.freeze({ ...file, sourcePath: file.path, path: `auxiliary/${file.path}` }))
     ]);
     const totalBytes = requiredFiles.reduce((sum, file) => sum + Number(file.bytes || 0), 0);
     const combinedPersistentBytes = Number(RUNPOD_HUMO_CACHE_BASE.totalBytes || 0) + totalBytes;
