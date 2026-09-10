@@ -215,7 +215,7 @@ function alignHuMo17QualityContract() {
             region = replaceCountOrAlready(
                 region,
                 '    assert.match(shell, /venv --system-site-packages/);',
-                '    assert.match(shell, /test -x \/workspace\/jarvis-v142\/runtime\/humo17\/venv\/bin\/python/);\n    assert.doesNotMatch(shell, /venv --system-site-packages/);',
+                '    assert.ok(shell.includes("test -x /workspace/jarvis-v142/runtime/humo17/venv/bin/python"));\n    assert.doesNotMatch(shell, /venv --system-site-packages/);',
                 1,
                 "V142_HUMO17_PREINSTALLED_VENV_TEST"
             );
