@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-cpu-runtime-image-parity-20260909-458",
+  "jobId": "v142-humo17-cpu-runtime-image-parity-20260909-459",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    maximumBootstrapCacheStatus: \"CACHE_MODEL_READY\",",
-    "replace": "    maximumBootstrapCacheStatus: \"CACHE_MODEL_READY\",\n    runtimeImageParityRequired: true,"
+    "search": "    runtimeImageParityRequired: true,\n    startupContract: Object.freeze({\n        requiredEnvironment: Object.freeze([\"PUBLIC_KEY\"]),\n        persistentProcess: \"/usr/sbin/sshd -D -e\",\n        sshPort: \"22/tcp\",\n        minimumStableEndpointPolls: 2,\n        readinessTimeoutSeconds: 600\n    }),\n    runtimeIdentity: Object.freeze({\n        operatingSystem: \"ubuntu-22.04\",",
+    "replace": "    runtimeImageParityRequired: true,\n    startupContract: Object.freeze({\n        requiredEnvironment: Object.freeze([\"PUBLIC_KEY\"]),\n        persistentProcess: \"/usr/sbin/sshd -D -e\",\n        sshPort: \"22/tcp\",\n        minimumStableEndpointPolls: 2,\n        readinessTimeoutSeconds: 600\n    }),\n    runtimeIdentity: Object.freeze({\n        operatingSystem: \"ubuntu-24.04\","
   }
 }
