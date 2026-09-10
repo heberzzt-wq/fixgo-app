@@ -205,6 +205,14 @@ function alignHuMo17QualityContract() {
         "V142_HUMO17_OPERATION_PATHS"
     );
 
+    bridge = replaceCountOrAlready(
+        bridge,
+        '    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 1.5)) throw new Error("HUMO17_QUALITY_CONTROL_BUDGET_INVALID");',
+        `    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= ${HUMO17_QUALITY_BUDGET_USD})) throw new Error("HUMO17_QUALITY_CONTROL_BUDGET_INVALID");`,
+        1,
+        "V142_HUMO17_QUALITY_CONTROL_BUDGET"
+    );
+
     fs.writeFileSync(BRIDGE_FILE, bridge, "utf8");
 
     let tests = fs.readFileSync(FS_BRIDGE_TEST_FILE, "utf8").replace(/\r\n/g, "\n");
