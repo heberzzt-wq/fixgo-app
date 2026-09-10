@@ -552,7 +552,7 @@ export const RUNPOD_HUMO17_CORE_CACHE_BASE = (() => {
         modelRevision: candidate.modelRevision,
         existingHuMoCacheProfile: RUNPOD_HUMO_CACHE_BASE.profile,
         existingHuMoCacheTotalBytes: RUNPOD_HUMO_CACHE_BASE.totalBytes,
-        minimumNetworkVolumeGb: strategy.minimumNetworkVolumeGb,
+        minimumNetworkVolumeGb: strategy.persistentMinimumNetworkVolumeGb || strategy.minimumNetworkVolumeGb,
         networkVolumeType: RUNPOD_HUMO_CACHE_BASE.networkVolumeType,
         requiredFiles,
         totalBytes,
