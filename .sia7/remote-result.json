@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-budget-150-migrate-authority-fixture-crlf-20260910-749",
-  "completedAt": "2026-09-10T20:39:55.077Z",
+  "jobId": "v142-budget-150-migrate-canonical-test-budgets-20260910-750",
+  "completedAt": "2026-09-10T20:40:54.999Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": ".github/scripts/v142-final-contract-alignment.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 15893,
-  "bytesAfter": 15894,
+  "bytesBefore": 15894,
+  "bytesAfter": 18135,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

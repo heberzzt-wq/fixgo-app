@@ -318,6 +318,42 @@ function alignHuMo17QualityContract() {
 
     tests = replaceCountOrAlready(
         tests,
+        '    const options = {assets, hardBudgetUsd: 3, operationId: "fixture", paidAuthorized: true};',
+        '    const options = {assets, hardBudgetUsd: 1.5, operationId: "fixture", paidAuthorized: true};',
+        1,
+        "V142_HUMO17_GENERAL_PROBE_ACCEPTANCE_BUDGET_TEST"
+    );
+    tests = replaceCountOrAlready(
+        tests,
+        '    for (const hardBudgetUsd of [0, -1, 3.01, NaN, Infinity]) assert.throws(() => buildHuMo17RuntimeProbeJob({...options, hardBudgetUsd}), /BUDGET/);',
+        '    for (const hardBudgetUsd of [0, -1, 1.51, NaN, Infinity]) assert.throws(() => buildHuMo17RuntimeProbeJob({...options, hardBudgetUsd}), /BUDGET/);',
+        1,
+        "V142_HUMO17_GENERAL_PROBE_REJECTION_BUDGET_TEST"
+    );
+    tests = replaceCountOrAlready(
+        tests,
+        'geometry:{width:832,height:480,fps:25,frames:201,durationSeconds:8.04},gpuCount:1,maximumIdentityCount:1,hardBudgetUsd:0.95}, "HUMO17_QUALITY_EVIDENCE_REQUIRED"',
+        'geometry:{width:832,height:480,fps:25,frames:201,durationSeconds:8.04},gpuCount:1,maximumIdentityCount:1,hardBudgetUsd:1.5}, "HUMO17_QUALITY_EVIDENCE_REQUIRED"',
+        1,
+        "V142_HUMO17_RUNNER_QUALITY_BUDGET_TEST"
+    );
+    tests = replaceCountOrAlready(
+        tests,
+        'assert.throws(()=>buildHuMo17RuntimeProbeJob({assets:{...assets,speechEvidence:null},hardBudgetUsd:0.95,paidAuthorized:true}),/SPEECH/);',
+        'assert.throws(()=>buildHuMo17RuntimeProbeJob({assets:{...assets,speechEvidence:null},hardBudgetUsd:1.5,paidAuthorized:true}),/SPEECH/);',
+        1,
+        "V142_HUMO17_QUALITY_SPEECH_BUDGET_TEST"
+    );
+    tests = replaceCountOrAlready(
+        tests,
+        'physicalJob=buildHuMo17RuntimeProbeJob({assets:{qualityProbe:false,reference:assets.reference,audio:assets.audio,output:".jarvis-artifacts/videos/physical.mp4"},hardBudgetUsd:0.95,paidAuthorized:true});',
+        'physicalJob=buildHuMo17RuntimeProbeJob({assets:{qualityProbe:false,reference:assets.reference,audio:assets.audio,output:".jarvis-artifacts/videos/physical.mp4"},hardBudgetUsd:1.5,paidAuthorized:true});',
+        1,
+        "V142_HUMO17_PHYSICAL_PARITY_BUDGET_TEST"
+    );
+
+    tests = replaceCountOrAlready(
+        tests,
         'hardBudgetUsd:0.95,safetyRatio:.75',
         `hardBudgetUsd:${HUMO17_QUALITY_BUDGET_USD},safetyRatio:.75`,
         1,
