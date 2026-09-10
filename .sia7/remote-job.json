@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-startup-no-git-20260909-497",
+  "jobId": "v142-humo17-bootstrap-no-git-20260909-498",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        runtimeProbeAuthorized ? \"test -x /usr/sbin/sshd && test -x $SYSTEM_ROOT/bin/ffmpeg && test -x $SYSTEM_ROOT/bin/ffprobe && test -x $SYSTEM_ROOT/bin/git\" : \"apt-get update -qq\",\r\n        runtimeProbeAuthorized ? \"$SYSTEM_ROOT/bin/ffmpeg -version >/dev/null && $SYSTEM_ROOT/bin/ffprobe -version >/dev/null && $SYSTEM_ROOT/bin/git --version >/dev/null\" : \"apt-get install -y -qq --no-install-recommends openssh-server ca-certificates python3 python3-venv python3-pip git curl ffmpeg\",",
-    "replace": "        runtimeProbeAuthorized ? \"test -x /usr/sbin/sshd && test -x $SYSTEM_ROOT/bin/ffmpeg && test -x $SYSTEM_ROOT/bin/ffprobe\" : \"apt-get update -qq\",\r\n        runtimeProbeAuthorized ? \"$SYSTEM_ROOT/bin/ffmpeg -version >/dev/null && $SYSTEM_ROOT/bin/ffprobe -version >/dev/null\" : \"apt-get install -y -qq --no-install-recommends openssh-server ca-certificates python3 python3-venv python3-pip git curl ffmpeg\","
+    "search": "        `test \\\"$(git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI rev-parse HEAD)\\\" = ${q(s.comfyUiRevision)}`,\r\n        `test \\\"$(git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper rev-parse HEAD)\\\" = ${q(s.wrapperRevision)}`,
+    "replace": "        \"test -f /workspace/jarvis-v142/runtime/humo17/ComfyUI/.git/HEAD\",\r\n        \"test -f /workspace/jarvis-v142/runtime/humo17/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper/.git/HEAD\","
   }
 }
