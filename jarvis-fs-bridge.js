@@ -9388,13 +9388,13 @@ export async function runHuMo17PersistentCoreStagingCli({
             try {
                 await runSsh(endpoint, `timeout ${remainingSeconds}s bash /tmp/jarvis-humo17/probe.sh > ${posixShellSingleQuote(probeJob.logFile)} 2>&1`, (remainingSeconds + 15) * 1000);
             } catch (error) {
-                const detail = await runSsh(endpoint, "tail -c 6000 /tmp/jarvis-humo17/probe.log; test ! -f /tmp/jarvis-humo17/result.json || cat /tmp/jarvis-humo17/result.json", 30000).catch(() => ({stdout: "diagnostic unavailable"}));
+                const detail = await runSsh(endpoint, `tail -c 6000 ${posixShellSingleQuote(probeJob.logFile)}; test ! -f ${posixShellSingleQuote(probeJob.resultFile)} || cat ${posixShellSingleQuote(probeJob.resultFile)}`, 30000).catch(() => ({stdout: "diagnostic unavailable"}));
                 error.logTail = detail.stdout;
-                const state = await runSsh(endpoint, "if test -f /tmp/jarvis-humo17/result.json; then cat /tmp/jarvis-humo17/result.json; else printf '{}'; fi", 30000).catch(() => ({stdout: "{}"}));
+                const state = await runSsh(endpoint, `if test -f ${posixShellSingleQuote(probeJob.resultFile)}; then cat ${posixShellSingleQuote(probeJob.resultFile)}; else printf '{}'; fi`, 30000).catch(() => ({stdout: "{}"}));
                 try { inferenceStarted = JSON.parse(state.stdout).inferenceStarted === true; } catch {}
                 throw error;
             }
-            const raw = await runSsh(endpoint, "cat /tmp/jarvis-humo17/result.json", 30000);
+            const raw = await runSsh(endpoint, `cat ${posixShellSingleQuote(probeJob.resultFile)}`, 30000);
             runtimePhysical = JSON.parse(raw.stdout); inferenceStarted = runtimePhysical.inferenceStarted === true;
             if (runtimePhysical.ok !== true || runtimePhysical.backend !== "humo-17b-identity" || runtimePhysical.fallbackUsed !== false ||
                 runtimePhysical.referenceSha256 !== probeJob.referenceSha256 || runtimePhysical.audioSha256 !== probeJob.audioSha256) throw new Error("HUMO17_RUNTIME_RESULT_INVALID");
