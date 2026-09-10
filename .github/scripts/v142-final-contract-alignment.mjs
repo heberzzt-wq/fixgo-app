@@ -1,13 +1,18 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 
 const BASELINE_COMMIT = "ea8fe32af61a092af5b36cd1fdd7ec9aeec1b3c6";
 const BASELINE_PATH = ".github/scripts/v142-final-contract-alignment.mjs";
+const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const TEST_FILE = "tests/jarvis-local-video-engine-v142.test.mjs";
+const FS_BRIDGE_TEST_FILE = "tests/jarvis-fs-bridge-v2.test.mjs";
+const BRIDGE_FILE = "jarvis-fs-bridge.js";
 const CPU_IMAGE = "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404";
 const CPU_OS = "ubuntu-24.04";
+const HUMO17_QUALITY_BUDGET_USD = 0.95;
 
 function countOf(source, needle) {
     return needle ? source.split(needle).length - 1 : 0;
@@ -42,7 +47,7 @@ function runPinnedBaseline() {
     const source = execFileSync(
         "git",
         ["show", `${BASELINE_COMMIT}:${BASELINE_PATH}`],
-        { cwd: process.cwd(), encoding: "utf8", maxBuffer: 8 * 1024 * 1024 }
+        { cwd: REPOSITORY_ROOT, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 }
     );
     const file = path.join(os.tmpdir(), `v142-final-contract-${process.pid}.mjs`);
     fs.writeFileSync(file, source, "utf8");
@@ -157,8 +162,101 @@ function alignCpuParityFixtures() {
     fs.writeFileSync(TEST_FILE, source, "utf8");
 }
 
+function alignHuMo17QualityContract() {
+    let bridge = fs.readFileSync(BRIDGE_FILE, "utf8").replace(/\r\n/g, "\n");
+
+    bridge = replaceCountOrAlready(
+        bridge,
+        '       a.hardBudgetUsd!==1.5 || c.hardBudgetUsd!==a.hardBudgetUsd || a.safetyRatio!==0.75 ||',
+        `       a.hardBudgetUsd!==${HUMO17_QUALITY_BUDGET_USD} || c.hardBudgetUsd!==a.hardBudgetUsd || a.safetyRatio!==0.75 ||`,
+        1,
+        "V142_HUMO17_SINGLE_USE_BUDGET"
+    );
+
+    bridge = replaceCountOrAlready(
+        bridge,
+        '    if (quality && hardBudgetUsd > 1.5) throw new Error("HUMO17_QUALITY_BUDGET_EXCEEDED");',
+        `    if (quality && hardBudgetUsd > ${HUMO17_QUALITY_BUDGET_USD}) throw new Error("HUMO17_QUALITY_BUDGET_EXCEEDED");`,
+        1,
+        "V142_HUMO17_QUALITY_BUDGET"
+    );
+
+    bridge = replaceCountOrAlready(
+        bridge,
+        '    const quality = assets.qualityProbe === true;\n    const speechEvidence = quality ? validateHuMo17SpeechEvidence(assets.speechEvidence, assets.audio.sha256) : null;',
+        '    const quality = assets.qualityProbe === true;\n    const resolvedOperationId = String(operationId || path.posix.basename(assets.output, path.posix.extname(assets.output))).trim();\n    if (!/^[a-zA-Z0-9._-]{1,120}$/.test(resolvedOperationId)) throw new Error("HUMO17_OPERATION_ID_INVALID");\n    const speechEvidence = quality ? validateHuMo17SpeechEvidence(assets.speechEvidence, assets.audio.sha256) : null;',
+        1,
+        "V142_HUMO17_OPERATION_ID"
+    );
+
+    bridge = replaceCountOrAlready(
+        bridge,
+        '        operationId, backend: "humo-17b-identity", model: "HuMo-17B", externalApiAllowed: false,',
+        '        operationId: resolvedOperationId, backend: "humo-17b-identity", model: "HuMo-17B", externalApiAllowed: false,',
+        1,
+        "V142_HUMO17_OPERATION_ID_RESULT"
+    );
+
+    bridge = replaceCountOrAlready(
+        bridge,
+        'path.posix.join("/workspace/jarvis-v142/operations", operationId,',
+        'path.posix.join("/workspace/jarvis-v142/operations", resolvedOperationId,',
+        3,
+        "V142_HUMO17_OPERATION_PATHS"
+    );
+
+    fs.writeFileSync(BRIDGE_FILE, bridge, "utf8");
+
+    let tests = fs.readFileSync(FS_BRIDGE_TEST_FILE, "utf8").replace(/\r\n/g, "\n");
+    tests = transformNamedTest(
+        tests,
+        "HuMo17 probe is single L40S, pinned, hash-bound, budgeted and distinct from legacy",
+        region => {
+            region = replaceCountOrAlready(
+                region,
+                '    assert.match(shell, /venv --system-site-packages/);',
+                '    assert.match(shell, /test -x \/workspace\/jarvis-v142\/runtime\/humo17\/venv\/bin\/python/);\n    assert.doesNotMatch(shell, /venv --system-site-packages/);',
+                1,
+                "V142_HUMO17_PREINSTALLED_VENV_TEST"
+            );
+            region = replaceCountOrAlready(
+                region,
+                '    assert.match(shell, /--force-reinstall --no-deps ninja==1\\.11\\.1\\.3/);',
+                '    assert.doesNotMatch(shell, /pip install/);',
+                1,
+                "V142_HUMO17_OFFLINE_NO_INSTALL_TEST"
+            );
+            region = replaceCountOrAlready(
+                region,
+                '    assert.match(shell, /transformers==4\\.51\\.3/);',
+                '    assert.match(shell, /PIP_NO_INDEX=1/);',
+                1,
+                "V142_HUMO17_OFFLINE_ENV_TEST"
+            );
+            region = replaceCountOrAlready(
+                region,
+                '    assert.ok(shell.indexOf("torch.cuda.is_available") < shell.indexOf("pip install"));',
+                '    assert.equal(shell.indexOf("pip install"), -1);',
+                1,
+                "V142_HUMO17_NO_RUNTIME_INSTALL_ORDER_TEST"
+            );
+            return replaceCountOrAlready(
+                region,
+                '    assert.match(shell, /wrapperAuxiliaryAssets/); assert.doesNotMatch(shell, /download.*core|generate_1_7B/);',
+                '    assert.match(shell, /runtime-manifest\\.json/); assert.doesNotMatch(shell, /download.*core|generate_1_7B/);',
+                1,
+                "V142_HUMO17_PERSISTENT_RUNTIME_TEST"
+            );
+        },
+        "V142_HUMO17_PROBE_RUNTIME"
+    );
+
+    fs.writeFileSync(FS_BRIDGE_TEST_FILE, tests, "utf8");
+}
+
 runPinnedBaseline();
 alignCpuParityFixtures();
+alignHuMo17QualityContract();
 
 console.log(JSON.stringify({
     ok: true,
@@ -167,6 +265,10 @@ console.log(JSON.stringify({
     cpuParityFixturesAligned: true,
     cpuImage: CPU_IMAGE,
     cpuOperatingSystem: CPU_OS,
+    humo17QualityContractAligned: true,
+    humo17QualityBudgetUsd: HUMO17_QUALITY_BUDGET_USD,
+    humo17OfflineRuntimeAligned: true,
+    fixtureGitLookupAnchoredToRepository: true,
     duplicateAlignmentRemoved: true,
     l40sStarted: false,
     billableGpuCreated: false
