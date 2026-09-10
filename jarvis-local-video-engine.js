@@ -1070,6 +1070,7 @@ export const RUNPOD_CPU_STAGING_PROFILE = Object.freeze({
     bootstrapPhase: RUNPOD_BOOTSTRAP_PHASES.CPU_MODEL_STAGING,
     bootstrapPackages: RUNPOD_CPU_MODEL_STAGING_PACKAGES,
     maximumBootstrapCacheStatus: "CACHE_MODEL_READY",
+    runtimeImageParityRequired: true,
     startupContract: Object.freeze({
         requiredEnvironment: Object.freeze(["PUBLIC_KEY"]),
         persistentProcess: "/usr/sbin/sshd -D -e",
