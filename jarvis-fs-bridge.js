@@ -8948,7 +8948,7 @@ export function buildHuMo17RuntimeBootstrap(job) {
         `test \"$(git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI rev-parse HEAD)\" = ${q(s.comfyUiRevision)}`,
         `test \"$(git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper rev-parse HEAD)\" = ${q(s.wrapperRevision)}`,
         "python -c 'import json; m=json.load(open(\"/workspace/jarvis-v142/runtime/humo17/runtime-manifest.json\")); assert m.get(\"runtimeReady\") is True; assert m.get(\"networkVolumeId\")==\"1qm5wczocl\"; assert m.get(\"dataCenterId\")==\"EU-NL-1\"; assert m.get(\"offlinePaidBootstrapRequired\") is True; assert int(m.get(\"requiredAssetCount\",0))==5'",
-        "python -m pip install --disable-pip-version-check -r ComfyUI/requirements.txt -r ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper/requirements.txt soundfile transformers==4.51.3 tokenizers==0.21.4 peft==0.17.1 diffusers==0.33.1",
+        "python -m pip check",
         "python -m pip check", `python -c ${q(preparation)}`,
         "export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1",
         "python runner.py --job job.json --result result.json"
