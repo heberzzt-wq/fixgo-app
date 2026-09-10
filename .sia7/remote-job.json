@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-preflight-contract-20260909-435",
+  "jobId": "v142-humo17-persistent-preflight-contract-20260909-436",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            persistentNewBytes: Number(strategy.quantizedModel?.bytes || 0) + Number(strategy.distillationLora?.bytes || 0),",
-    "replace": "            persistentNewBytes: Number(strategy.quantizedModel?.bytes || 0) + Number(strategy.distillationLora?.bytes || 0) + (strategy.auxiliaryAssetsPersistent === true ? Number(strategy.wrapperAuxiliaryBytes || 0) : 0),"
+    "search": "            persistentTotalWithExistingCacheBytes: Number(strategy.persistentCoreBytes || 0),",
+    "replace": "            persistentTotalWithExistingCacheBytes: strategy.auxiliaryAssetsPersistent === true ? Number(strategy.requiredBytesKeepingExistingCache || 0) : Number(strategy.persistentCoreBytes || 0),"
   }
 }
