@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-budget-150-all-humo17-bridge-caps-20260910-741",
+  "jobId": "v142-budget-150-worker-max-20260910-742",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": ".github/scripts/v142-final-contract-alignment.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    fs.writeFileSync(BRIDGE_FILE, bridge, \"utf8\");",
-    "replace": "    bridge = replaceCountOrAlready(\n        bridge,\n        '    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 3)) throw new Error(\"HUMO17_PROBE_BUDGET_INVALID\");',\n        '    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 1.5)) throw new Error(\"HUMO17_PROBE_BUDGET_INVALID\");',\n        1,\n        \"V142_HUMO17_GENERAL_PROBE_BUDGET\"\n    );\n\n    bridge = replaceCountOrAlready(\n        bridge,\n        '    if (!Number.isFinite(hardBudgetUsd) || hardBudgetUsd <= 0 || hardBudgetUsd > 3) {',\n        '    if (!Number.isFinite(hardBudgetUsd) || hardBudgetUsd <= 0 || hardBudgetUsd > 1.5) {',\n        1,\n        \"V142_HUMO17_CORE_STAGE_BUDGET\"\n    );\n\n    fs.writeFileSync(BRIDGE_FILE, bridge, \"utf8\");"
+    "search": "        let worker = fs.readFileSync(\"jarvis-github-worker.js\", \"utf8\").replace(/\\r\\n/g, \"\\n\");\n        worker = replaceCountOrAlready(\n            worker,\n            '    const hardBudgetUsd = Number(job.hardBudgetUsd ?? 1.5);',",
+    "replace": "        let worker = fs.readFileSync(\"jarvis-github-worker.js\", \"utf8\").replace(/\\r\\n/g, \"\\n\");\n        worker = replaceCountOrAlready(\n            worker,\n            'const SIA7_HUMO_MAX_COMPUTE_USD = 3;',\n            'const SIA7_HUMO_MAX_COMPUTE_USD = 1.5;',\n            1,\n            \"V142_HUMO17_SIA7_MAX_COMPUTE_BUDGET\"\n        );\n        worker = replaceCountOrAlready(\n            worker,\n            '    const hardBudgetUsd = Number(job.hardBudgetUsd ?? 1.5);',"
   }
 }
