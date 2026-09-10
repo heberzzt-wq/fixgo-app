@@ -130,6 +130,7 @@ def inspect_video(file: Path, ffprobe: str, env: dict[str, str] | None = None) -
         capture_output=True,
         text=True,
         timeout=60,
+        env=env,
     )
     payload = json.loads(completed.stdout)
     stream = (payload.get("streams") or [{}])[0]
