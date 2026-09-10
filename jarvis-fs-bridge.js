@@ -9488,6 +9488,7 @@ export async function runHuMo17PersistentCoreStagingCli({
         const persistentRuntimeRaw = await runSsh(endpoint, `cat ${posixShellSingleQuote("/workspace/jarvis-v142/runtime/humo17/runtime-manifest.json")}`, 120000);
         const persistentRuntime = JSON.parse(String(persistentRuntimeRaw.stdout || "{}").trim() || "{}");
         if (persistentRuntime.runtimeReady !== true || persistentRuntime.networkVolumeId !== volume.id || persistentRuntime.dataCenterId !== volume.dataCenterId || persistentRuntime.comfyUiRevision !== RUNPOD_HUMO17_CORE_CACHE_BASE.comfyUiRevision || persistentRuntime.wrapperRevision !== RUNPOD_HUMO17_CORE_CACHE_BASE.wrapperRevision || Number(persistentRuntime.requiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length || persistentRuntime.offlinePaidBootstrapRequired !== true) throw new Error("RUNPOD_HUMO17_PERSISTENT_RUNTIME_INVALID");
+        runtimePhysical = persistentRuntime;
         const legacyShaAfter = String(lines.at(-1) || "").trim().split(/\s+/)[0].toLowerCase();
         if (!validateHuMo17CoreCacheManifest(manifest)) {
             throw new Error("RUNPOD_HUMO17_CORE_MANIFEST_INVALID");
