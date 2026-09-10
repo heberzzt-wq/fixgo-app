@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-durable-probe-control-20260909-493",
+  "jobId": "v142-humo17-durable-probe-control-20260909-494",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                await runSsh(endpoint, `timeout ${remainingSeconds}s bash /tmp/jarvis-humo17/probe.sh > /tmp/jarvis-humo17/probe.log 2>&1`, (remainingSeconds + 15) * 1000);",
-    "replace": "                await runSsh(endpoint, `timeout ${remainingSeconds}s bash /tmp/jarvis-humo17/probe.sh > ${posixShellSingleQuote(probeJob.logFile)} 2>&1`, (remainingSeconds + 15) * 1000);"
+    "search": "                const detail = await runSsh(endpoint, \"tail -c 6000 /tmp/jarvis-humo17/probe.log; test ! -f /tmp/jarvis-humo17/result.json || cat /tmp/jarvis-humo17/result.json\", 30000).catch(() => ({stdout: \"diagnostic unavailable\"}));\r\n                error.logTail = detail.stdout;\r\n                const state = await runSsh(endpoint, \"if test -f /tmp/jarvis-humo17/result.json; then cat /tmp/jarvis-humo17/result.json; else printf '{}'; fi\", 30000).catch(() => ({stdout: \"{}\"}));\r\n                try { inferenceStarted = JSON.parse(state.stdout).inferenceStarted === true; } catch {}\r\n                throw error;\r\n            }\r\n            const raw = await runSsh(endpoint, \"cat /tmp/jarvis-humo17/result.json\", 30000);",
+    "replace": "                const detail = await runSsh(endpoint, `tail -c 6000 ${posixShellSingleQuote(probeJob.logFile)}; test ! -f ${posixShellSingleQuote(probeJob.resultFile)} || cat ${posixShellSingleQuote(probeJob.resultFile)}`, 30000).catch(() => ({stdout: \"diagnostic unavailable\"}));\r\n                error.logTail = detail.stdout;\r\n                const state = await runSsh(endpoint, `if test -f ${posixShellSingleQuote(probeJob.resultFile)}; then cat ${posixShellSingleQuote(probeJob.resultFile)}; else printf '{}'; fi`, 30000).catch(() => ({stdout: \"{}\"}));\r\n                try { inferenceStarted = JSON.parse(state.stdout).inferenceStarted === true; } catch {}\r\n                throw error;\r\n            }\r\n            const raw = await runSsh(endpoint, `cat ${posixShellSingleQuote(probeJob.resultFile)}`, 30000);"
   }
 }
