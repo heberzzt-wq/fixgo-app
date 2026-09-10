@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-series-longform-batch-cadence-20260909-462",
+  "jobId": "v142-series-longform-batch-cadence-20260909-463",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-artifact-studio.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const requestedMinimum = Number(value?.minimumPersistentCharacterCount ?? 1);",
-    "replace": "    const requestedMinimum = Number(value?.minimumPersistentCharacterCount ?? 1);\n    const requestedBatchSize = Number(value?.productionBatchSize ?? 5);\n    const productionBatchSize = Number.isInteger(requestedBatchSize)\n        ? Math.max(1, Math.min(requestedBatchSize, 50))\n        : 5;"
+    "search": "        longFormContinuityRequired: value?.longFormContinuityRequired === true,",
+    "replace": "        longFormContinuityRequired: value?.longFormContinuityRequired === true,\n        productionBatchSize,\n        continuousCanonAcrossProductionBatches: true,"
   }
 }
