@@ -998,6 +998,7 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
         write_json_atomic(result_file, {"ok": False, "backend": "humo-17b-identity", "inferenceStarted": True, "status": "HUMO17_SAMPLING"})
         samples = call("WanVideoSampler", model=model, image_embeds=embeds, text_embeds=text, shift=5.0, steps=8,
                        cfg=2.0, seed=42, scheduler="lcm", riflex_freq_index=0, force_offload=True)[0]
+        write_json_atomic(result_file, {"ok": False, "backend": "humo-17b-identity", "inferenceStarted": True, "status": "HUMO17_SAMPLER_COMPLETED"})
         frames = call("WanVideoDecode", vae=vae, samples=samples, enable_vae_tiling=False,
                       tile_x=272, tile_y=272, tile_stride_x=144, tile_stride_y=128, normalization="default")[0]
     if tuple(frames.shape[:3]) != (frame_count, 480, 832):
