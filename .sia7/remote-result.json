@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-humo17-cpu-runtime-image-parity-20260909-466",
-  "completedAt": "2026-09-10T02:34:16.208Z",
+  "jobId": "v142-humo17-runtime-contract-parity-20260909-467",
+  "completedAt": "2026-09-10T02:36:47.574Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": "jarvis-local-video-engine.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 435449,
-  "bytesAfter": 435573,
+  "bytesBefore": 435573,
+  "bytesAfter": 436037,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
