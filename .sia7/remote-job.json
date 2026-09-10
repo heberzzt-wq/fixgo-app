@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-system-tools-20260909-427",
+  "jobId": "v142-humo17-paid-offline-startup-20260909-428",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-local-video-engine.js",
+    "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        \"mkdir -p \\\"$SYSTEM_ROOT/bin\\\" \\\"$SYSTEM_ROOT/lib\\\"\",\n        \"test -x /usr/bin/ffmpeg && test -x /usr/bin/ffprobe\",\n        \"cp -L /usr/bin/ffmpeg /usr/bin/ffprobe \\\"$SYSTEM_ROOT/bin/\\\"\",\n        \"ldd /usr/bin/ffmpeg /usr/bin/ffprobe | awk '{for(i=1;i<=NF;i++) if($i ~ /^\\\\//) print $i}' | sort -u | while read -r lib; do test -f \\\"$lib\\\" && cp -L \\\"$lib\\\" \\\"$SYSTEM_ROOT/lib/\\\"; done\",\n        \"test -x \\\"$SYSTEM_ROOT/bin/ffmpeg\\\" && test -x \\\"$SYSTEM_ROOT/bin/ffprobe\\\"\",",
-    "replace": "        \"mkdir -p \\\"$SYSTEM_ROOT/bin\\\" \\\"$SYSTEM_ROOT/lib\\\" \\\"$SYSTEM_ROOT/lib/git-core\\\"\",\n        \"test -x /usr/bin/ffmpeg && test -x /usr/bin/ffprobe && test -x /usr/bin/git && test -d /usr/lib/git-core\",\n        \"cp -L /usr/bin/ffmpeg /usr/bin/ffprobe /usr/bin/git \\\"$SYSTEM_ROOT/bin/\\\"\",\n        \"cp -a /usr/lib/git-core/. \\\"$SYSTEM_ROOT/lib/git-core/\\\"\",\n        \"ldd /usr/bin/ffmpeg /usr/bin/ffprobe /usr/bin/git | awk '{for(i=1;i<=NF;i++) if($i ~ /^\\\\//) print $i}' | sort -u | while read -r lib; do test -f \\\"$lib\\\" && cp -L \\\"$lib\\\" \\\"$SYSTEM_ROOT/lib/\\\"; done\",\n        \"test -x \\\"$SYSTEM_ROOT/bin/ffmpeg\\\" && test -x \\\"$SYSTEM_ROOT/bin/ffprobe\\\" && test -x \\\"$SYSTEM_ROOT/bin/git\\\"\","
+    "search": "        \"export DEBIAN_FRONTEND=noninteractive\",\n        \"apt-get update -qq\",\n        \"apt-get install -y -qq --no-install-recommends openssh-server ca-certificates python3 python3-venv python3-pip git curl ffmpeg\",",
+    "replace": "        ...(runtimeProbeAuthorized ? [\n            \"RUNTIME_ROOT=/workspace/jarvis-v142/runtime/humo17\",\n            \"SYSTEM_ROOT=$RUNTIME_ROOT/system\",\n            \"test -x /usr/sbin/sshd\",\n            \"test -x $SYSTEM_ROOT/bin/ffmpeg && test -x $SYSTEM_ROOT/bin/ffprobe && test -x $SYSTEM_ROOT/bin/git\",\n            \"export PATH=$SYSTEM_ROOT/bin:$PATH\",\n            \"export LD_LIBRARY_PATH=$SYSTEM_ROOT/lib:${LD_LIBRARY_PATH:-}\",\n            \"export GIT_EXEC_PATH=$SYSTEM_ROOT/lib/git-core\",\n            \"$SYSTEM_ROOT/bin/ffmpeg -version >/dev/null && $SYSTEM_ROOT/bin/ffprobe -version >/dev/null && $SYSTEM_ROOT/bin/git --version >/dev/null\"\n        ] : [\n            \"export DEBIAN_FRONTEND=noninteractive\",\n            \"apt-get update -qq\",\n            \"apt-get install -y -qq --no-install-recommends openssh-server ca-certificates python3 python3-venv python3-pip git curl ffmpeg\"\n        ]),"
   }
 }
