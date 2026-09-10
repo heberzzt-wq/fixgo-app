@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-paid-offline-runtime-20260909-412",
+  "jobId": "v142-humo17-paid-offline-runtime-20260909-413",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "\"python -m pip install --disable-pip-version-check --force-reinstall --no-deps ninja==1.11.1.3\"",
-    "replace": "\"python -c 'import json; m=json.load(open(\\\"/workspace/jarvis-v142/runtime/humo17/runtime-manifest.json\\\")); assert m.get(\\\"runtimeReady\\\") is True; assert m.get(\\\"networkVolumeId\\\")==\\\"1qm5wczocl\\\"; assert m.get(\\\"dataCenterId\\\")==\\\"EU-NL-1\\\"; assert m.get(\\\"offlinePaidBootstrapRequired\\\") is True; assert int(m.get(\\\"requiredAssetCount\\\",0))==5'\""
+    "search": "\"python -m pip install --disable-pip-version-check -r ComfyUI/requirements.txt -r ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper/requirements.txt soundfile transformers==4.51.3 tokenizers==0.21.4 peft==0.17.1 diffusers==0.33.1\"",
+    "replace": "\"python -m pip check\""
   }
 }
