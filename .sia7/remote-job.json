@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-budget-095-migrate-quality-guard-20260910-726",
+  "jobId": "v142-budget-095-migrate-rejection-fixture-20260910-727",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": ".github/scripts/v142-final-contract-alignment.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "'    if (quality && hardBudgetUsd > 0.95) throw new Error(\"HUMO17_QUALITY_BUDGET_EXCEEDED\");',",
-    "replace": "'    if (quality && hardBudgetUsd > 1.5) throw new Error(\"HUMO17_QUALITY_BUDGET_EXCEEDED\");',"
+    "search": "            region = replaceCountOrAlready(\n                region,\n                '    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.01,paidAuthorized:true}),/QUALITY_BUDGET/);',\n                '    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.01,paidAuthorized:true}),/QUALITY_BUDGET/);',\n                1,\n                \"V142_HUMO17_QUALITY_BUDGET_REJECTION_TEST\"\n            );",
+    "replace": "            region = replaceCountOrAlready(\n                region,\n                '    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.51,paidAuthorized:true}),/QUALITY_BUDGET/);',\n                '    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.01,paidAuthorized:true}),/QUALITY_BUDGET/);',\n                1,\n                \"V142_HUMO17_QUALITY_BUDGET_REJECTION_TEST\"\n            );"
   }
 }
