@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-l40s-runtime-parity-gate-20260909-475",
+  "jobId": "v142-humo17-persistent-system-tools-path-20260909-476",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        \"python -c 'import torch; assert torch.__version__.startswith(\\\"2.8.\\\"), torch.__version__; assert torch.cuda.is_available(), \\\"HUMO17_CUDA_UNAVAILABLE\\\"'\",",
-    "replace": "        \"python -c 'import platform,torch; assert platform.python_version().startswith(\\\"3.12.\\\"), platform.python_version(); assert str(torch.__version__).startswith(\\\"2.8.0+cu128\\\"), torch.__version__; assert str(torch.version.cuda or \\\"\\\").startswith(\\\"12.8\\\"), torch.version.cuda; assert torch.cuda.is_available(), \\\"HUMO17_CUDA_UNAVAILABLE\\\"'\","
+    "search": "        \"export PATH=/workspace/jarvis-v142/runtime/humo17/venv/bin:$PATH HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PIP_NO_INDEX=1\",",
+    "replace": "        \"export PATH=/workspace/jarvis-v142/runtime/humo17/system/bin:/workspace/jarvis-v142/runtime/humo17/venv/bin:$PATH LD_LIBRARY_PATH=/workspace/jarvis-v142/runtime/humo17/system/lib:${LD_LIBRARY_PATH:-} GIT_EXEC_PATH=/workspace/jarvis-v142/runtime/humo17/system/lib/git-core HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PIP_NO_INDEX=1\","
   }
 }
