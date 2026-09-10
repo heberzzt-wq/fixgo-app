@@ -213,6 +213,22 @@ function alignHuMo17QualityContract() {
         "V142_HUMO17_QUALITY_CONTROL_BUDGET"
     );
 
+    bridge = replaceCountOrAlready(
+        bridge,
+        '    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 3)) throw new Error("HUMO17_PROBE_BUDGET_INVALID");',
+        '    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 1.5)) throw new Error("HUMO17_PROBE_BUDGET_INVALID");',
+        1,
+        "V142_HUMO17_GENERAL_PROBE_BUDGET"
+    );
+
+    bridge = replaceCountOrAlready(
+        bridge,
+        '    if (!Number.isFinite(hardBudgetUsd) || hardBudgetUsd <= 0 || hardBudgetUsd > 3) {',
+        '    if (!Number.isFinite(hardBudgetUsd) || hardBudgetUsd <= 0 || hardBudgetUsd > 1.5) {',
+        1,
+        "V142_HUMO17_CORE_STAGE_BUDGET"
+    );
+
     fs.writeFileSync(BRIDGE_FILE, bridge, "utf8");
 
     if (fs.existsSync("jarvis-github-worker.js")) {
