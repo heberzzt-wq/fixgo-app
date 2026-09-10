@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-runtime-contract-parity-20260909-467",
+  "jobId": "v142-humo17-runtime-contract-parity-20260909-468",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        runtime: strategy.runtime,\r\n        targetGpuTypeId: candidate.targetGpuTypeId,",
-    "replace": "        runtime: strategy.runtime,\r\n        targetGpuTypeId: candidate.targetGpuTypeId,\r\n        provisionImageTag: RUNPOD_WAN22_CACHE_BASE.provisionImageTag,\r\n        expectedRegistryDigest: RUNPOD_WAN22_CACHE_BASE.expectedRegistryDigest,\r\n        operatingSystem: RUNPOD_WAN22_CACHE_BASE.runtimeIdentity.operatingSystem,\r\n        pythonVersionPrefix: RUNPOD_WAN22_CACHE_BASE.pythonVersionPrefix,\r\n        torchVersionPrefix: RUNPOD_WAN22_CACHE_BASE.torchVersionPrefix,\r\n        torchCudaVersionPrefix: RUNPOD_WAN22_CACHE_BASE.torchCudaVersionPrefix,"
+    "search": "const identity = [\"schemaVersion\", \"profile\", \"runtime\", \"targetGpuTypeId\", \"comfyUiRepository\", \"comfyUiRevision\", \"wrapperRepository\", \"wrapperRevision\", \"modelRepository\", \"modelRevision\", \"existingHuMoCacheProfile\", \"existingHuMoCacheTotalBytes\", \"minimumNetworkVolumeGb\", \"networkVolumeType\", \"totalBytes\", \"combinedPersistentBytes\", \"nominalVolumeBytes\", \"headroomBytes\", \"storagePlan\", \"cacheMutationPolicy\"];",
+    "replace": "const identity = [\"schemaVersion\", \"profile\", \"runtime\", \"targetGpuTypeId\", \"provisionImageTag\", \"expectedRegistryDigest\", \"operatingSystem\", \"pythonVersionPrefix\", \"torchVersionPrefix\", \"torchCudaVersionPrefix\", \"comfyUiRepository\", \"comfyUiRevision\", \"wrapperRepository\", \"wrapperRevision\", \"modelRepository\", \"modelRevision\", \"existingHuMoCacheProfile\", \"existingHuMoCacheTotalBytes\", \"minimumNetworkVolumeGb\", \"networkVolumeType\", \"totalBytes\", \"combinedPersistentBytes\", \"nominalVolumeBytes\", \"headroomBytes\", \"storagePlan\", \"cacheMutationPolicy\"];"
   }
 }
