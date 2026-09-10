@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-series-character-recast-lock-20260909-455",
+  "jobId": "v142-series-character-recast-lock-20260909-456",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-artifact-studio.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const previous = canon.characters?.[id] || null;",
-    "replace": "    const previous = canon.characters?.[id] || null;\n    const normalizedReferenceUpdateMode = clean(referenceUpdateMode).toUpperCase() || \"MERGE\";\n    if (!new Set([\"MERGE\", \"RECAST\"]).has(normalizedReferenceUpdateMode)) {\n        throw new Error(\"SERIES_CHARACTER_REFERENCE_UPDATE_MODE_INVALID\");\n    }\n    if (previous && normalizedReferenceUpdateMode === \"RECAST\" && identityRecastConfirmed !== true) {\n        throw new Error(`SERIES_CHARACTER_IDENTITY_RECAST_CONFIRMATION_REQUIRED:${id}`);\n    }\n    if (previous && normalizedReferenceUpdateMode === \"RECAST\" && verifiedReferences.length === 0) {\n        throw new Error(`SERIES_CHARACTER_IDENTITY_RECAST_REFERENCES_REQUIRED:${id}`);\n    }\n    const referenceCandidates = normalizedReferenceUpdateMode === \"RECAST\"\n        ? verifiedReferences\n        : [...(previous?.referenceAssets || []), ...verifiedReferences]\n            .filter((item, index, values) =>\n                values.findIndex(candidate => candidate.sha256 === item.sha256) === index\n            )\n            .sort((a, b) => a.sourceOutput.localeCompare(b.sourceOutput));"
+    "search": "        referenceAssets: verifiedReferences,\n        referenceAssetsPending: verifiedReferences.length === 0,",
+    "replace": "        referenceAssets: referenceCandidates,\n        referenceAssetsPending: referenceCandidates.length === 0,"
   }
 }
