@@ -12,7 +12,7 @@ const FS_BRIDGE_TEST_FILE = "tests/jarvis-fs-bridge-v2.test.mjs";
 const BRIDGE_FILE = "jarvis-fs-bridge.js";
 const CPU_IMAGE = "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404";
 const CPU_OS = "ubuntu-24.04";
-const HUMO17_QUALITY_BUDGET_USD = 0.95;
+const HUMO17_QUALITY_BUDGET_USD = 1.5;
 
 function countOf(source, needle) {
     return needle ? source.split(needle).length - 1 : 0;
@@ -249,6 +249,28 @@ function alignHuMo17QualityContract() {
             );
         },
         "V142_HUMO17_PROBE_RUNTIME"
+    );
+
+    tests = transformNamedTest(
+        tests,
+        "HuMo17 quality probe rejects noise-only, blind segments, mismatched hashes and insufficient speech",
+        region => {
+            region = replaceCountOrAlready(
+                region,
+                '    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.01,paidAuthorized:true}),/QUALITY_BUDGET/);',
+                '    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.51,paidAuthorized:true}),/QUALITY_BUDGET/);',
+                1,
+                "V142_HUMO17_QUALITY_BUDGET_REJECTION_TEST"
+            );
+            return replaceCountOrAlready(
+                region,
+                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:0.95,paidAuthorized:true});',
+                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.5,paidAuthorized:true});',
+                1,
+                "V142_HUMO17_QUALITY_BUDGET_ACCEPTANCE_TEST"
+            );
+        },
+        "V142_HUMO17_QUALITY_BUDGET_TEST"
     );
 
     fs.writeFileSync(FS_BRIDGE_TEST_FILE, tests, "utf8");
