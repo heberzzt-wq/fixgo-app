@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-runtime-20260909-392",
+  "jobId": "v142-humo17-persistent-runtime-20260909-393",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "storagePlan: \"PERSISTENT_CORE_PLUS_EPHEMERAL_AUXILIARY_REQUIRED\"",
-    "replace": "storagePlan: \"FULL_PERSISTENT_RUNTIME_80GB\""
+    "search": "auxiliaryAssetsPersistent: false",
+    "replace": "auxiliaryAssetsPersistent: true"
   }
 }
