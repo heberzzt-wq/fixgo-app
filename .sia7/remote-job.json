@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-ready-budget-20260909-387",
+  "jobId": "v142-humo17-persistent-ready-budget-20260909-388",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "if (hardBudgetUsd > 1) throw new Error(\"HUMO17_QUALITY_BUDGET_EXCEEDED\");",
-    "replace": "if (hardBudgetUsd > 1.5) throw new Error(\"HUMO17_QUALITY_BUDGET_EXCEEDED\");"
+    "search": "if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 1)) throw new Error(\"HUMO17_QUALITY_CONTROL_BUDGET_INVALID\");",
+    "replace": "if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 1.5)) throw new Error(\"HUMO17_QUALITY_CONTROL_BUDGET_INVALID\");"
   }
 }
