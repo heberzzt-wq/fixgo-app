@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-series-longform-batch-cadence-20260909-465",
+  "jobId": "v142-humo17-cpu-runtime-image-parity-20260909-466",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-artifact-studio.js",
+    "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        minimumPersistentCharacterCount,\n        longFormContinuityRequired\n    });",
-    "replace": "        minimumPersistentCharacterCount,\n        longFormContinuityRequired,\n        productionBatchSize\n    });"
+    "search": "    runtimeImageParityRequired: true,\r\n    startupContract: Object.freeze({\r\n        requiredEnvironment: Object.freeze([\"PUBLIC_KEY\"]),\r\n        persistentProcess: \"/usr/sbin/sshd -D -e\",\r\n        sshPort: \"22/tcp\",\r\n        minimumStableEndpointPolls: 2,\r\n        readinessTimeoutSeconds: 600\r\n    }),\r\n    runtimeIdentity: Object.freeze({\r\n        operatingSystem: \"ubuntu-22.04\",\r\n        mountPath: \"/workspace\",",
+    "replace": "    runtimeImageParityRequired: true,\r\n    startupContract: Object.freeze({\r\n        requiredEnvironment: Object.freeze([\"PUBLIC_KEY\"]),\r\n        persistentProcess: \"/usr/sbin/sshd -D -e\",\r\n        sshPort: \"22/tcp\",\r\n        minimumStableEndpointPolls: 2,\r\n        readinessTimeoutSeconds: 600\r\n    }),\r\n    runtimeIdentity: Object.freeze({\r\n        operatingSystem: \"ubuntu-24.04\",\r\n        pythonVersionPrefix: \"3.12.\",\r\n        torchVersionPrefix: \"2.8.0+cu128\",\r\n        torchCudaVersionPrefix: \"12.8\",\r\n        mountPath: \"/workspace\","
   }
 }
