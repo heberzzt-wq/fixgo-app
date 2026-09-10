@@ -1,5 +1,12 @@
 {
-  "jobId": "v142-bridge-health-post-worker-restart-20260910-732",
-  "operation": "bridge",
-  "endpoint": "/health"
+  "jobId": "v142-close-preauth-align-quality-budget-20260910-733",
+  "operation": "patch",
+  "humanApproved": true,
+  "patch": {
+    "file": ".github/scripts/v142-final-contract-alignment.mjs",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "    bridge = replaceCountOrAlready(\n        bridge,\n        '    if (quality && hardBudgetUsd > 1.5) throw new Error(\"HUMO17_QUALITY_BUDGET_EXCEEDED\");',\n        `    if (quality && hardBudgetUsd > ${HUMO17_QUALITY_BUDGET_USD}) throw new Error(\"HUMO17_QUALITY_BUDGET_EXCEEDED\");`,\n        1,\n        \"V142_HUMO17_QUALITY_BUDGET\"\n    );\n",
+    "replace": "    bridge = replaceCountOrAlready(\n        bridge,\n        '    if (quality && hardBudgetUsd > 1.5) throw new Error(\"HUMO17_QUALITY_BUDGET_EXCEEDED\");',\n        `    if (quality && hardBudgetUsd > ${HUMO17_QUALITY_BUDGET_USD}) throw new Error(\"HUMO17_QUALITY_BUDGET_EXCEEDED\");`,\n        1,\n        \"V142_HUMO17_QUALITY_BUDGET\"\n    );\n\n    bridge = replaceCountOrAlready(\n        bridge,\n        '    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 1.5)) throw new Error(\"HUMO17_QUALITY_CONTROL_BUDGET_INVALID\");',\n        `    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= ${HUMO17_QUALITY_BUDGET_USD})) throw new Error(\"HUMO17_QUALITY_CONTROL_BUDGET_INVALID\");`,\n        1,\n        \"V142_HUMO17_QUALITY_CONTROL_BUDGET\"\n    );\n"
+  }
 }
