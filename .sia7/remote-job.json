@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-runtime-20260909-394",
+  "jobId": "v142-humo17-persistent-runtime-20260909-395",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "auxiliaryAssetsEphemeralRequired: true",
-    "replace": "auxiliaryAssetsEphemeralRequired: false"
+    "search": "nominal50GiBHeadroomBytes: -347840158,\n            minimumNetworkVolumeGb: 50,",
+    "replace": "nominal50GiBHeadroomBytes: -347840158,\n            minimumNetworkVolumeGb: 80,"
   }
 }
