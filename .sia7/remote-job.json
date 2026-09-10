@@ -1,12 +1,10 @@
 {
-  "jobId": "v142-humo17-bootstrap-no-git-retry-20260909-499",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": "jarvis-fs-bridge.js",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "        `test \\\"$(git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI rev-parse HEAD)\\\" = ${q(s.comfyUiRevision)}`,\r\n        `test \\\"$(git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper rev-parse HEAD)\\\" = ${q(s.wrapperRevision)}`,
-    "replace": "        \"test -f /workspace/jarvis-v142/runtime/humo17/ComfyUI/.git/HEAD\",\r\n        \"test -f /workspace/jarvis-v142/runtime/humo17/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper/.git/HEAD\","
-  }
+  "jobId": "v142-humo-identity-preflight-97f-20260910-719",
+  "operation": "humo_identity_probe",
+  "expectedBaseSha": "d85719265f916a0c54c3d6528493fa2c7ad26c02",
+  "hardBudgetUsd": 0.8,
+  "monthlyStorageAuthorizedUsd": 5.6,
+  "fullEpisodeAuthorized": false,
+  "executePaid": false,
+  "humanApproved": true
 }
