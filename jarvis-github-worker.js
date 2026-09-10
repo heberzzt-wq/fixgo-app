@@ -774,6 +774,7 @@ async function executeHuMo17CoreStageJob(job = {}) {
             env: {
                 ...process.env,
                 JARVIS_HUMO17_CORE_STAGE_AUTHORIZED: "true",
+                JARVIS_HUMO17_PERSISTENT_VOLUME_RESIZE_AUTHORIZED: job.resizePersistentVolume === true ? "true" : "false",
                 JARVIS_HUMO17_JOB_ID: String(job.jobId || ""),
                 JARVIS_HUMO17_CORE_STAGE_HARD_BUDGET_USD: String(hardBudgetUsd),
                 JARVIS_HUMO17_CORE_STAGE_MAX_MINUTES: String(maximumMinutes),
