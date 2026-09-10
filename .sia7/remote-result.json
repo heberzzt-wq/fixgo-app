@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-budget-150-constant-20260910-737",
-  "completedAt": "2026-09-10T20:09:27.660Z",
+  "jobId": "v142-budget-150-rejection-fixture-20260910-738",
+  "completedAt": "2026-09-10T20:10:03.323Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,7 +8,7 @@
   "file": ".github/scripts/v142-final-contract-alignment.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 14910,
+  "bytesBefore": 14909,
   "bytesAfter": 14909,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
