@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-capacity-20260909-421",
+  "jobId": "v142-humo17-persistent-contract-20260909-422",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "const nominalVolumeBytes = Number(strategy.nominal50GiBBytes || 0);",
-    "replace": "const nominalVolumeBytes = Number(strategy.persistentVolumeBytes || strategy.nominal50GiBBytes || 0);"
+    "search": "schemaVersion: \"jarvis.model-cache.v142.humo17-core.1\", profile: \"humo17-fp8-core-v1\"",
+    "replace": "schemaVersion: \"jarvis.model-cache.v142.humo17-persistent-runtime.2\", profile: \"humo17-persistent-runtime-v2\""
   }
 }
