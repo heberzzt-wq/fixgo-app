@@ -1,18 +1,18 @@
 {
-  "jobId": "v142-close-preauth-align-quality-budget-20260910-734",
-  "completedAt": "2026-09-10T19:53:26.129Z",
+  "jobId": "v142-close-preauth-require-explicit-core-budget-20260910-735",
+  "completedAt": "2026-09-10T19:54:15.838Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": ".github/scripts/v142-final-contract-alignment.mjs",
+  "file": "jarvis-github-worker.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 14117,
-  "bytesAfter": 14504,
+  "bytesBefore": 41772,
+  "bytesAfter": 41765,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    ".github/scripts/v142-final-contract-alignment.mjs"
+    "jarvis-github-worker.js"
   ]
 }

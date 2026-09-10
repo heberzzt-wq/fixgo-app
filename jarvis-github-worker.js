@@ -728,7 +728,7 @@ function recordPaidProgress(jobId,line) {
 
 async function executeHuMo17CoreStageJob(job = {}) {
     if (process.platform !== "win32") throw new Error("SIA7_HUMO17_WINDOWS_WORKER_REQUIRED");
-    const hardBudgetUsd = Number(job.hardBudgetUsd ?? 1.5);
+    const hardBudgetUsd = Number(job.hardBudgetUsd);
     const maximumMinutes = Number(job.maximumMinutes ?? 90);
     if (!Number.isFinite(hardBudgetUsd) || hardBudgetUsd <= 0 || hardBudgetUsd > SIA7_HUMO_MAX_COMPUTE_USD) {
         throw new Error("SIA7_HUMO17_CORE_STAGE_BUDGET_INVALID");
