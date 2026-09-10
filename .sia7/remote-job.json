@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-stage-checkpoints-20260909-489",
+  "jobId": "v142-humo17-stage-checkpoints-20260909-490",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "scripts/jarvis-local-video-wan22.py",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                       cfg=2.0, seed=42, scheduler=\"lcm\", riflex_freq_index=0, force_offload=True)[0]\r\n        frames = call(\"WanVideoDecode\", vae=vae, samples=samples, enable_vae_tiling=False,",
-    "replace": "                       cfg=2.0, seed=42, scheduler=\"lcm\", riflex_freq_index=0, force_offload=True)[0]\r\n        write_json_atomic(result_file, {\"ok\": False, \"backend\": \"humo-17b-identity\", \"inferenceStarted\": True, \"status\": \"HUMO17_SAMPLER_COMPLETED\"})\r\n        frames = call(\"WanVideoDecode\", vae=vae, samples=samples, enable_vae_tiling=False,"
+    "search": "                      tile_x=272, tile_y=272, tile_stride_x=144, tile_stride_y=128, normalization=\"default\")[0]\r\n    if tuple(frames.shape[:3]) != (frame_count, 480, 832):",
+    "replace": "                      tile_x=272, tile_y=272, tile_stride_x=144, tile_stride_y=128, normalization=\"default\")[0]\r\n        write_json_atomic(result_file, {\"ok\": False, \"backend\": \"humo-17b-identity\", \"inferenceStarted\": True, \"status\": \"HUMO17_VAE_DECODE_COMPLETED\"})\r\n    if tuple(frames.shape[:3]) != (frame_count, 480, 832):"
   }
 }
