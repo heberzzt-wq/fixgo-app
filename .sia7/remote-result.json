@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-budget-150-migrate-rejection-input-crlf-20260910-747",
-  "completedAt": "2026-09-10T20:39:00.461Z",
+  "jobId": "v142-budget-150-migrate-acceptance-input-crlf-20260910-748",
+  "completedAt": "2026-09-10T20:39:30.060Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -9,7 +9,7 @@
   "matchCount": 1,
   "expectedMatches": 1,
   "bytesBefore": 15892,
-  "bytesAfter": 15892,
+  "bytesAfter": 15893,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
