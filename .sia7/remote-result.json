@@ -1,18 +1,28 @@
 {
-  "jobId": "v142-budget-095-migrate-single-use-fixture-crlf-20260910-730",
-  "completedAt": "2026-09-10T17:12:15.091Z",
+  "jobId": "v142-humo-identity-preflight-post-restart-20260910-731",
+  "completedAt": "2026-09-10T17:21:56.568Z",
   "executionStarted": true,
   "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": ".github/scripts/v142-final-contract-alignment.mjs",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 14117,
-  "bytesAfter": 14117,
-  "source": "sia7_github_worker_exact_patch_v1",
+  "operation": "humo_identity_probe",
+  "dryRun": true,
+  "status": "SIA7_HUMO_IDENTITY_PREFLIGHT_READY",
+  "certifiedBaseSha": "0623d17b66c6cffb6632112d2b417e275c64a0fc",
+  "executionHeadSha": "a2e8589dbd8cbd8f8f5f88faf491db0e49fda77e",
+  "controlPlaneOnlyChanges": [
+    ".sia7/remote-job.json"
+  ],
+  "hardBudgetUsd": 0.32,
+  "monthlyStorageAuthorizedUsd": 5.6,
+  "characterId": "CHAR_HEBERTO",
+  "durationSeconds": 3.88,
+  "referenceCount": 2,
+  "referenceSha256s": [
+    "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958",
+    "b401b476107521d9e3de3b267885bf91de956b644072a01e7373ab5476a3b6f3"
+  ],
+  "audioSha256": "9a075a37c56b6e0cd828a9b2a37a2fe3ee3f01c28cc7483f6a5d97ff96bd2bd5",
+  "resourceCreationPossible": false,
   "committedFiles": [
-    ".sia7/remote-result.json",
-    ".github/scripts/v142-final-contract-alignment.mjs"
+    ".sia7/remote-result.json"
   ]
 }
