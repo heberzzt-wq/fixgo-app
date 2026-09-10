@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-cpu-runtime-image-parity-20260909-459",
+  "jobId": "v142-humo17-cpu-runtime-image-parity-20260909-460",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    runtimeImageParityRequired: true,\n    startupContract: Object.freeze({\n        requiredEnvironment: Object.freeze([\"PUBLIC_KEY\"]),\n        persistentProcess: \"/usr/sbin/sshd -D -e\",\n        sshPort: \"22/tcp\",\n        minimumStableEndpointPolls: 2,\n        readinessTimeoutSeconds: 600\n    }),\n    runtimeIdentity: Object.freeze({\n        operatingSystem: \"ubuntu-22.04\",",
-    "replace": "    runtimeImageParityRequired: true,\n    startupContract: Object.freeze({\n        requiredEnvironment: Object.freeze([\"PUBLIC_KEY\"]),\n        persistentProcess: \"/usr/sbin/sshd -D -e\",\n        sshPort: \"22/tcp\",\n        minimumStableEndpointPolls: 2,\n        readinessTimeoutSeconds: 600\n    }),\n    runtimeIdentity: Object.freeze({\n        operatingSystem: \"ubuntu-24.04\","
+    "search": "    runtimeImageParityRequired: true,\n    startupContract: Object.freeze({\n        requiredEnvironment: Object.freeze([\"PUBLIC_KEY\"]),\n        persistentProcess: \"/usr/sbin/sshd -D -e\",\n        sshPort: \"22/tcp\",\n        minimumStableEndpointPolls: 2,\n        readinessTimeoutSeconds: 600\n    }),\n    runtimeIdentity: Object.freeze({\n        operatingSystem: \"ubuntu-22.04\",\n        mountPath: \"/workspace\",",
+    "replace": "    runtimeImageParityRequired: true,\n    startupContract: Object.freeze({\n        requiredEnvironment: Object.freeze([\"PUBLIC_KEY\"]),\n        persistentProcess: \"/usr/sbin/sshd -D -e\",\n        sshPort: \"22/tcp\",\n        minimumStableEndpointPolls: 2,\n        readinessTimeoutSeconds: 600\n    }),\n    runtimeIdentity: Object.freeze({\n        operatingSystem: \"ubuntu-24.04\",\n        pythonVersionPrefix: \"3.12.\",\n        torchVersionPrefix: \"2.8.0+cu128\",\n        torchCudaVersionPrefix: \"12.8\",\n        mountPath: \"/workspace\","
   }
 }
