@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-paid-offline-runtime-20260909-407",
+  "jobId": "v142-humo17-paid-offline-runtime-20260909-408",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "comfyRoot: \"/tmp/jarvis-humo17/ComfyUI\"",
-    "replace": "comfyRoot: \"/workspace/jarvis-v142/runtime/humo17/ComfyUI\""
+    "search": "\"python3 -m venv --system-site-packages /tmp/jarvis-humo17/venv\"",
+    "replace": "\"test -x /workspace/jarvis-v142/runtime/humo17/venv/bin/python\""
   }
 }
