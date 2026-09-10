@@ -9038,7 +9038,7 @@ export async function runHuMo17PersistentCoreStagingCli({
             const evidenceAsset = resolveProbeAsset(env.JARVIS_HUMO17_SPEECH_EVIDENCE_OUTPUT, [".json"],
                 String(env.JARVIS_HUMO17_SPEECH_EVIDENCE_SHA256 || "").trim(), "HUMO17_SPEECH_EVIDENCE_INVALID");
             speechEvidence = validateHuMo17SpeechEvidence(JSON.parse(fs.readFileSync(evidenceAsset.file,"utf8")), audio.sha256);
-            if (hardBudgetUsd > 1) throw new Error("HUMO17_QUALITY_BUDGET_EXCEEDED");
+            if (hardBudgetUsd > 1.5) throw new Error("HUMO17_QUALITY_BUDGET_EXCEEDED");
         }
         runtimeProbeAssets = { sourceRoot, reference, audio, output, outputFile, qualityProbe, speechEvidence };
     }
