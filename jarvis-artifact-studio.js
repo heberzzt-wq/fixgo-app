@@ -180,6 +180,35 @@ function cleanStringList(value, maximum = 100) {
         .slice(0, maximum);
 }
 
+function normalizeSeriesIdentityContinuityPolicy(value = {}) {
+    const requestedMinimum = Number(value?.minimumPersistentCharacterCount ?? 1);
+    const minimumPersistentCharacterCount = Number.isInteger(requestedMinimum)
+        ? Math.max(1, Math.min(requestedMinimum, 100))
+        : 1;
+    return {
+        mode: clean(value?.mode).toUpperCase() || "CANONICAL_CHARACTER_ROSTER",
+        minimumPersistentCharacterCount,
+        longFormContinuityRequired: value?.longFormContinuityRequired === true,
+        characterIdentityRecastRequiresExplicitConfirmation: true,
+        pendingReferenceAssetsAllowed: true,
+        generationRequiresResolvedCastIdentity: true,
+        backendIdentityLimitsApplyPerShotOnly: true
+    };
+}
+
+function activeSeriesCharacterCount(canon = {}) {
+    return Object.values(canon.characters || {}).filter(character => character?.active === true).length;
+}
+
+function assertSeriesIdentityRosterReady(canon = {}) {
+    const policy = normalizeSeriesIdentityContinuityPolicy(canon.identityContinuityPolicy || {});
+    const activeCount = activeSeriesCharacterCount(canon);
+    if (policy.longFormContinuityRequired === true && activeCount < policy.minimumPersistentCharacterCount) {
+        throw new Error(`SERIES_PERSISTENT_CHARACTER_ROSTER_INCOMPLETE:${activeCount}:${policy.minimumPersistentCharacterCount}`);
+    }
+    return { policy, activeCount };
+}
+
 function seriesCanonOutput(seriesId) {
     return `.jarvis-artifacts/series/${cleanIdentifier(seriesId, "SERIES_ID")}/canon.json`;
 }

@@ -1,18 +1,18 @@
 {
-  "jobId": "v142-humo17-multireference-runner-20260909-442",
-  "completedAt": "2026-09-10T01:20:35.224Z",
+  "jobId": "v142-series-longform-identity-policy-20260909-443",
+  "completedAt": "2026-09-10T01:53:57.831Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "scripts/jarvis-local-video-wan22.py",
+  "file": "jarvis-artifact-studio.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 53320,
-  "bytesAfter": 53603,
+  "bytesBefore": 49132,
+  "bytesAfter": 50522,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "scripts/jarvis-local-video-wan22.py"
+    "jarvis-artifact-studio.js"
   ]
 }
