@@ -1,11 +1,18 @@
 {
-  "jobId": "v142-sia7-inspect-run-route-20260910-720",
-  "completedAt": "2026-09-10T16:46:32.378Z",
+  "jobId": "v142-budget-095-materializer-20260910-721",
+  "completedAt": "2026-09-10T17:02:38.746Z",
   "executionStarted": true,
-  "ok": false,
-  "error": "fetch failed",
-  "evidence": null,
+  "ok": true,
+  "operation": "patch",
+  "dryRun": false,
+  "file": ".github/scripts/v142-final-contract-alignment.mjs",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 14118,
+  "bytesAfter": 14119,
+  "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
-    ".sia7/remote-result.json"
+    ".sia7/remote-result.json",
+    ".github/scripts/v142-final-contract-alignment.mjs"
   ]
 }

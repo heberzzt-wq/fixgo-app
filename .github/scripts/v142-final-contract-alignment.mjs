@@ -12,7 +12,7 @@ const FS_BRIDGE_TEST_FILE = "tests/jarvis-fs-bridge-v2.test.mjs";
 const BRIDGE_FILE = "jarvis-fs-bridge.js";
 const CPU_IMAGE = "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404";
 const CPU_OS = "ubuntu-24.04";
-const HUMO17_QUALITY_BUDGET_USD = 1.5;
+const HUMO17_QUALITY_BUDGET_USD = 0.95;
 
 function countOf(source, needle) {
     return needle ? source.split(needle).length - 1 : 0;
