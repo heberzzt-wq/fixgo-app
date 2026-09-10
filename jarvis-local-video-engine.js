@@ -228,7 +228,7 @@ export const NEXT_IDENTITY_RUNTIME_CANDIDATES = Object.freeze({
             capacityFitCertified: false,
             storagePlan: "FULL_PERSISTENT_RUNTIME_80GB",
             auxiliaryAssetsPersistent: true,
-            auxiliaryAssetsEphemeralRequired: true,
+            auxiliaryAssetsEphemeralRequired: false,
             optionalVocalSeparatorAuthorityPinned: false,
             targetGpuTypeId: "NVIDIA L40S",
             physicalFitCertified: false,
