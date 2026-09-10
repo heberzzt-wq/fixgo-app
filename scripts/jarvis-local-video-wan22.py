@@ -116,7 +116,7 @@ def parse_fraction(value: str) -> float:
     return float(numerator or "0") / divisor if divisor else 0.0
 
 
-def inspect_video(file: Path, ffprobe: str) -> dict[str, Any]:
+def inspect_video(file: Path, ffprobe: str, env: dict[str, str] | None = None) -> dict[str, Any]:
     completed = subprocess.run(
         [
             ffprobe,
