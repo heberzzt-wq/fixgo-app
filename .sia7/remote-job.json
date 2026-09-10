@@ -1,9 +1,9 @@
 {
-  "jobId": "v142-humo17-paid-offline-runtime-20260909-406",
+  "jobId": "v142-humo17-paid-offline-runtime-20260909-407",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-local-video-engine.js",
+    "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
     "search": "comfyRoot: \"/tmp/jarvis-humo17/ComfyUI\"",
