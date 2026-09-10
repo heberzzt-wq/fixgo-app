@@ -8943,7 +8943,7 @@ export function buildHuMo17RuntimeBootstrap(job) {
     return [
         "set -euo pipefail", "cd /tmp/jarvis-humo17",
         "test -x /workspace/jarvis-v142/runtime/humo17/venv/bin/python",
-        "export PATH=/tmp/jarvis-humo17/venv/bin:$PATH",
+        "export PATH=/workspace/jarvis-v142/runtime/humo17/venv/bin:$PATH HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PIP_NO_INDEX=1",
         "python -c 'import torch; assert torch.__version__.startswith(\"2.8.\"), torch.__version__; assert torch.cuda.is_available(), \"HUMO17_CUDA_UNAVAILABLE\"'",
         `git init -q ComfyUI && git -C ComfyUI fetch -q --depth 1 https://github.com/${s.comfyUiRepository}.git ${q(s.comfyUiRevision)} && git -C ComfyUI checkout -q --detach FETCH_HEAD`,
         `git init -q ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper && git -C ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper fetch -q --depth 1 https://github.com/${s.wrapperRepository}.git ${q(s.wrapperRevision)} && git -C ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper checkout -q --detach FETCH_HEAD`,
