@@ -749,6 +749,14 @@ export function buildHuMo17PersistentCoreStagingBootstrap({
         "rm -rf \"$CORE_ROOT/.download\" \"$CORE_ROOT/.hf-home\" \"$TOOLS_VENV\"",
         "RUNTIME_ROOT=\"/workspace/jarvis-v142/runtime/humo17\"",
         "mkdir -p \"$RUNTIME_ROOT\"",
+        "rm -rf \"$RUNTIME_ROOT/ComfyUI\" \"$RUNTIME_ROOT/venv\"",
+        `git init -q \"$RUNTIME_ROOT/ComfyUI\" && git -C \"$RUNTIME_ROOT/ComfyUI\" fetch -q --depth 1 https://github.com/${contract.comfyUiRepository}.git ${contract.comfyUiRevision} && git -C \"$RUNTIME_ROOT/ComfyUI\" checkout -q --detach FETCH_HEAD`,
+        "mkdir -p \"$RUNTIME_ROOT/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper\"",
+        `git init -q \"$RUNTIME_ROOT/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper\" && git -C \"$RUNTIME_ROOT/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper\" fetch -q --depth 1 https://github.com/${contract.wrapperRepository}.git ${contract.wrapperRevision} && git -C \"$RUNTIME_ROOT/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper\" checkout -q --detach FETCH_HEAD`,
+        "python3 -m venv --system-site-packages \"$RUNTIME_ROOT/venv\"",
+        "\"$RUNTIME_ROOT/venv/bin/python\" -m pip install --disable-pip-version-check --no-cache-dir --force-reinstall --no-deps ninja==1.11.1.3",
+        "\"$RUNTIME_ROOT/venv/bin/python\" -m pip install --disable-pip-version-check --no-cache-dir -r \"$RUNTIME_ROOT/ComfyUI/requirements.txt\" -r \"$RUNTIME_ROOT/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper/requirements.txt\" soundfile transformers==4.51.3 tokenizers==0.21.4 peft==0.17.1 diffusers==0.33.1",
+        "\"$RUNTIME_ROOT/venv/bin/python\" -m pip check",
         "printf 'HUMO17_PERSISTENT_CORE_STAGED_VERIFIED\\n'"
     ].join("\n") + "\n";
     return {
