@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-ffprobe-isolated-env-20260909-486",
+  "jobId": "v142-humo17-ffprobe-isolated-env-20260909-487",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "scripts/jarvis-local-video-wan22.py",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        text=True,\r\n        timeout=60,\r\n    )",
-    "replace": "        text=True,\r\n        timeout=60,\r\n        env=env,\r\n    )"
+    "search": "            str(file),\r\n        ],\r\n        check=True,\r\n        capture_output=True,\r\n        text=True,\r\n        timeout=60,\r\n    )",
+    "replace": "            str(file),\r\n        ],\r\n        check=True,\r\n        capture_output=True,\r\n        text=True,\r\n        timeout=60,\r\n        env=env,\r\n    )"
   }
 }
