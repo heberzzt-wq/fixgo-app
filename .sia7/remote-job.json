@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-runtime-contract-parity-20260909-468",
+  "jobId": "v142-humo17-runtime-contract-parity-20260909-469",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "const identity = [\"schemaVersion\", \"profile\", \"runtime\", \"targetGpuTypeId\", \"comfyUiRepository\", \"comfyUiRevision\", \"wrapperRepository\", \"wrapperRevision\", \"modelRepository\", \"modelRevision\", \"existingHuMoCacheProfile\", \"existingHuMoCacheTotalBytes\", \"minimumNetworkVolumeGb\", \"networkVolumeType\", \"totalBytes\", \"combinedPersistentBytes\", \"nominalVolumeBytes\", \"headroomBytes\", \"storagePlan\", \"cacheMutationPolicy\"];",
-    "replace": "const identity = [\"schemaVersion\", \"profile\", \"runtime\", \"targetGpuTypeId\", \"provisionImageTag\", \"expectedRegistryDigest\", \"operatingSystem\", \"pythonVersionPrefix\", \"torchVersionPrefix\", \"torchCudaVersionPrefix\", \"comfyUiRepository\", \"comfyUiRevision\", \"wrapperRepository\", \"wrapperRevision\", \"modelRepository\", \"modelRevision\", \"existingHuMoCacheProfile\", \"existingHuMoCacheTotalBytes\", \"minimumNetworkVolumeGb\", \"networkVolumeType\", \"totalBytes\", \"combinedPersistentBytes\", \"nominalVolumeBytes\", \"headroomBytes\", \"storagePlan\", \"cacheMutationPolicy\"];"
+    "search": "['schemaVersion','profile','runtime','targetGpuTypeId','comfyUiRepository','comfyUiRevision','wrapperRepository','wrapperRevision','modelRepository','modelRevision','existingHuMoCacheProfile','existingHuMoCacheTotalBytes','minimumNetworkVolumeGb','networkVolumeType','totalBytes','combinedPersistentBytes','nominalVolumeBytes','headroomBytes','storagePlan','cacheMutationPolicy']",
+    "replace": "['schemaVersion','profile','runtime','targetGpuTypeId','provisionImageTag','expectedRegistryDigest','operatingSystem','pythonVersionPrefix','torchVersionPrefix','torchCudaVersionPrefix','comfyUiRepository','comfyUiRevision','wrapperRepository','wrapperRevision','modelRepository','modelRevision','existingHuMoCacheProfile','existingHuMoCacheTotalBytes','minimumNetworkVolumeGb','networkVolumeType','totalBytes','combinedPersistentBytes','nominalVolumeBytes','headroomBytes','storagePlan','cacheMutationPolicy']"
   }
 }
