@@ -574,7 +574,7 @@ export const RUNPOD_HUMO17_CORE_CACHE_BASE = (() => {
 })();
 
 export function validateHuMo17CoreCacheManifest(manifest, contract = RUNPOD_HUMO17_CORE_CACHE_BASE) {
-    const identity = ["schemaVersion", "profile", "runtime", "targetGpuTypeId", "comfyUiRepository", "comfyUiRevision", "wrapperRepository", "wrapperRevision", "modelRepository", "modelRevision", "existingHuMoCacheProfile", "existingHuMoCacheTotalBytes", "minimumNetworkVolumeGb", "networkVolumeType", "totalBytes", "combinedPersistentBytes", "nominalVolumeBytes", "headroomBytes", "storagePlan", "cacheMutationPolicy"];
+    const identity = ["schemaVersion", "profile", "runtime", "targetGpuTypeId", "provisionImageTag", "expectedRegistryDigest", "operatingSystem", "pythonVersionPrefix", "torchVersionPrefix", "torchCudaVersionPrefix", "comfyUiRepository", "comfyUiRevision", "wrapperRepository", "wrapperRevision", "modelRepository", "modelRevision", "existingHuMoCacheProfile", "existingHuMoCacheTotalBytes", "minimumNetworkVolumeGb", "networkVolumeType", "totalBytes", "combinedPersistentBytes", "nominalVolumeBytes", "headroomBytes", "storagePlan", "cacheMutationPolicy"];
     if (!manifest || identity.some(key => manifest[key] !== contract[key]) ||
         !Number.isFinite(Date.parse(manifest.verifiedAt)) || manifest.cacheStatus !== "CACHE_MODEL_READY" ||
         manifest.assetDownloadAuthorized !== true || manifest.physicalStageCertified !== true || manifest.existingCachePreserved !== true ||
