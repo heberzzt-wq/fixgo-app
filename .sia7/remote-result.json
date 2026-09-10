@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-budget-150-migrate-single-use-input-20260910-743",
-  "completedAt": "2026-09-10T20:37:05.531Z",
+  "jobId": "v142-budget-150-migrate-quality-guard-20260910-744",
+  "completedAt": "2026-09-10T20:37:34.639Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": ".github/scripts/v142-final-contract-alignment.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 15889,
-  "bytesAfter": 15890,
+  "bytesBefore": 15890,
+  "bytesAfter": 15891,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
