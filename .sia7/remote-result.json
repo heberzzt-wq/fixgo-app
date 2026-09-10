@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-budget-150-rejection-fixture-20260910-738",
-  "completedAt": "2026-09-10T20:10:03.323Z",
+  "jobId": "v142-budget-150-acceptance-fixture-20260910-739",
+  "completedAt": "2026-09-10T20:10:36.896Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -9,7 +9,7 @@
   "matchCount": 1,
   "expectedMatches": 1,
   "bytesBefore": 14909,
-  "bytesAfter": 14909,
+  "bytesAfter": 14908,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
