@@ -265,7 +265,7 @@ function alignHuMo17QualityContract() {
             return replaceCountOrAlready(
                 region,
                 '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:0.95,paidAuthorized:true});',
-                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.5,paidAuthorized:true});',
+                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:0.95,paidAuthorized:true});',
                 1,
                 "V142_HUMO17_QUALITY_BUDGET_ACCEPTANCE_TEST"
             );
