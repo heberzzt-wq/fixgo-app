@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-multireference-runner-20260909-438",
+  "jobId": "v142-humo17-multireference-runner-20260909-439",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "scripts/jarvis-local-video-wan22.py",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    reference = Path(job[\"referenceFile\"]).resolve()\n    audio = Path(job[\"audioFile\"]).resolve()\n    for file, sha in ((reference, job[\"referenceSha256\"]), (audio, job[\"audioSha256\"])):\n        if not file.is_file() or len(sha) != 64 or _sha256_file(file) != sha:\n            raise RuntimeError(\"HUMO17_INPUT_SHA256_MISMATCH\")",
-    "replace": "    raw_reference_files = job.get(\"referenceFiles\")\n    raw_reference_shas = job.get(\"referenceSha256s\")\n    if raw_reference_files is None:\n        raw_reference_files = [job.get(\"referenceFile\")]\n    if raw_reference_shas is None:\n        raw_reference_shas = [job.get(\"referenceSha256\")]\n    reference_files = [Path(str(value)).resolve() for value in raw_reference_files if str(value or \"\").strip()]\n    reference_shas = [str(value or \"\").strip().lower() for value in raw_reference_shas if str(value or \"\").strip()]\n    if not (1 <= len(reference_files) <= 3) or len(reference_files) != len(reference_shas):\n        raise RuntimeError(\"HUMO17_REFERENCE_SET_INVALID\")\n    audio = Path(job[\"audioFile\"]).resolve()\n    input_pairs = list(zip(reference_files, reference_shas)) + [(audio, str(job[\"audioSha256\"]).strip().lower())]\n    for file, sha in input_pairs:\n        if not file.is_file() or len(sha) != 64 or _sha256_file(file) != sha:\n            raise RuntimeError(\"HUMO17_INPUT_SHA256_MISMATCH\")"
+    "search": "    reference = Path(job[\"referenceFile\"]).resolve()",
+    "replace": "    raw_reference_files = job.get(\"referenceFiles\")\n    raw_reference_shas = job.get(\"referenceSha256s\")\n    if raw_reference_files is None:\n        raw_reference_files = [job.get(\"referenceFile\")]\n    if raw_reference_shas is None:\n        raw_reference_shas = [job.get(\"referenceSha256\")]\n    reference_files = [Path(str(value)).resolve() for value in raw_reference_files if str(value or \"\").strip()]\n    reference_shas = [str(value or \"\").strip().lower() for value in raw_reference_shas if str(value or \"\").strip()]\n    if not (1 <= len(reference_files) <= 3) or len(reference_files) != len(reference_shas):\n        raise RuntimeError(\"HUMO17_REFERENCE_SET_INVALID\")\n    reference = reference_files[0]"
   }
 }
