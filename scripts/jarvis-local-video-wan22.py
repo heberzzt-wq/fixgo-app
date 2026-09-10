@@ -945,7 +945,11 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
     comfy = Path(job["comfyRoot"]).resolve()
     wrapper = comfy / "custom_nodes" / "ComfyUI-WanVideoWrapper"
     for directory, revision in ((comfy, strategy["comfyUiRevision"]), (wrapper, strategy["wrapperRevision"])):
-        actual = subprocess.check_output(["git", "-C", str(directory), "rev-parse", "HEAD"], text=True, timeout=20).strip()
+        head_file = directory / ".git" / "HEAD"
+        actual = head_file.read_text(encoding="utf-8").strip() if head_file.is_file() else ""
+        if actual.startswith("ref: "):
+            ref_file = directory / ".git" / actual[5:]
+            actual = ref_file.read_text(encoding="utf-8").strip() if ref_file.is_file() else ""
         if actual != revision:
             raise RuntimeError("HUMO17_RUNTIME_REVISION_MISMATCH")
     sys.path.insert(0, str(comfy))
