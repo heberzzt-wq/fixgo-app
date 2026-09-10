@@ -9602,7 +9602,7 @@ export function resolveHuMo17QualityControlPlane({ root = DEFAULT_ROOT, env = pr
     const geometry = control.geometry || {};
     if (Number(geometry.width) !== 832 || Number(geometry.height) !== 480 || Number(geometry.fps) !== 25 || Number(geometry.frames) !== 201 || Math.abs(Number(geometry.durationSeconds) - 8.04) > 0.000001) throw new Error("HUMO17_QUALITY_CONTROL_GEOMETRY_INVALID");
     const hardBudgetUsd = Number(control.hardBudgetUsd);
-    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 1)) throw new Error("HUMO17_QUALITY_CONTROL_BUDGET_INVALID");
+    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 1.5)) throw new Error("HUMO17_QUALITY_CONTROL_BUDGET_INVALID");
     if (String(control.networkVolumeId || "") !== "1qm5wczocl" || String(control.dataCenterId || "") !== "EU-NL-1") throw new Error("HUMO17_QUALITY_CONTROL_VOLUME_INVALID");
     const expectedBaseSha = String(control.expectedBaseSha || "").trim().toLowerCase();
     if (!/^[a-f0-9]{40}$/.test(expectedBaseSha)) throw new Error("HUMO17_QUALITY_CONTROL_BASE_SHA_REQUIRED");
