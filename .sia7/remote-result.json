@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-budget-150-all-humo17-bridge-caps-20260910-741",
-  "completedAt": "2026-09-10T20:14:08.416Z",
+  "jobId": "v142-budget-150-worker-max-20260910-742",
+  "completedAt": "2026-09-10T20:14:48.165Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": ".github/scripts/v142-final-contract-alignment.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 15002,
-  "bytesAfter": 15647,
+  "bytesBefore": 15647,
+  "bytesAfter": 15889,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

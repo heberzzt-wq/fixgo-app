@@ -235,6 +235,13 @@ function alignHuMo17QualityContract() {
         let worker = fs.readFileSync("jarvis-github-worker.js", "utf8").replace(/\r\n/g, "\n");
         worker = replaceCountOrAlready(
             worker,
+            'const SIA7_HUMO_MAX_COMPUTE_USD = 3;',
+            'const SIA7_HUMO_MAX_COMPUTE_USD = 1.5;',
+            1,
+            "V142_HUMO17_SIA7_MAX_COMPUTE_BUDGET"
+        );
+        worker = replaceCountOrAlready(
+            worker,
             '    const hardBudgetUsd = Number(job.hardBudgetUsd ?? 1.5);',
             '    const hardBudgetUsd = Number(job.hardBudgetUsd);',
             1,
