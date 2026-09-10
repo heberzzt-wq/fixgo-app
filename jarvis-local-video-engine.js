@@ -747,6 +747,8 @@ export function buildHuMo17PersistentCoreStagingBootstrap({
         "LEGACY_MANIFEST_SHA_AFTER=$(sha256sum \"$LEGACY_ROOT/model-manifest.json\" | awk '{print $1}')",
         "test \"$LEGACY_MANIFEST_SHA_BEFORE\" = \"$LEGACY_MANIFEST_SHA_AFTER\"",
         "rm -rf \"$CORE_ROOT/.download\" \"$CORE_ROOT/.hf-home\" \"$TOOLS_VENV\"",
+        "RUNTIME_ROOT=\"/workspace/jarvis-v142/runtime/humo17\"",
+        "mkdir -p \"$RUNTIME_ROOT\"",
         "printf 'HUMO17_PERSISTENT_CORE_STAGED_VERIFIED\\n'"
     ].join("\n") + "\n";
     return {
