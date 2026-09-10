@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-budget-095-migrate-acceptance-fixture-crlf-20260910-729",
+  "jobId": "v142-budget-095-migrate-single-use-fixture-crlf-20260910-730",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": ".github/scripts/v142-final-contract-alignment.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            return replaceCountOrAlready(\r\n                region,\r\n                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:0.95,paidAuthorized:true});',\r\n                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:0.95,paidAuthorized:true});',\r\n                1,\r\n                \"V142_HUMO17_QUALITY_BUDGET_ACCEPTANCE_TEST\"\r\n            );",
-    "replace": "            return replaceCountOrAlready(\r\n                region,\r\n                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.5,paidAuthorized:true});',\r\n                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:0.95,paidAuthorized:true});',\r\n                1,\r\n                \"V142_HUMO17_QUALITY_BUDGET_ACCEPTANCE_TEST\"\r\n            );"
+    "search": "    tests = replaceCountOrAlready(\r\n        tests,\r\n        'hardBudgetUsd:.95,safetyRatio:.75',\r\n        `hardBudgetUsd:${HUMO17_QUALITY_BUDGET_USD},safetyRatio:.75`,\r\n        1,\r\n        \"V142_HUMO17_SINGLE_USE_AUTHORITY_FIXTURE_BUDGET\"\r\n    );",
+    "replace": "    tests = replaceCountOrAlready(\r\n        tests,\r\n        'hardBudgetUsd:1.5,safetyRatio:.75',\r\n        `hardBudgetUsd:${HUMO17_QUALITY_BUDGET_USD},safetyRatio:.75`,\r\n        1,\r\n        \"V142_HUMO17_SINGLE_USE_AUTHORITY_FIXTURE_BUDGET\"\r\n    );"
   }
 }
