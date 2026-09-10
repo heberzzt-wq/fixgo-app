@@ -1004,6 +1004,7 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
         write_json_atomic(result_file, {"ok": False, "backend": "humo-17b-identity", "inferenceStarted": True, "status": "HUMO17_VAE_DECODE_COMPLETED"})
     if tuple(frames.shape[:3]) != (frame_count, 480, 832):
         raise RuntimeError("HUMO17_GENERATED_FRAME_GEOMETRY_INVALID")
+    write_json_atomic(result_file, {"ok": False, "backend": "humo-17b-identity", "inferenceStarted": True, "status": "HUMO17_GEOMETRY_VERIFIED"})
     output = Path(job["outputFile"]).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     command = ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "832x480", "-r", "25", "-i", "pipe:0",
