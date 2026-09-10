@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-runtime-20260909-403",
+  "jobId": "v142-humo17-persistent-runtime-20260909-404",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        \"rm -rf \\\"$CORE_ROOT/.download\\\" \\\"$CORE_ROOT/.hf-home\\\" \\\"$TOOLS_VENV\\\"\",",
-    "replace": "        \"rm -rf \\\"$CORE_ROOT/.download\\\" \\\"$CORE_ROOT/.hf-home\\\" \\\"$TOOLS_VENV\\\"\",\n        \"RUNTIME_ROOT=\\\"/workspace/jarvis-v142/runtime/humo17\\\"\",\n        \"mkdir -p \\\"$RUNTIME_ROOT\\\"\","
+    "search": "        \"mkdir -p \\\"$RUNTIME_ROOT\\\"\",",
+    "replace": "        \"mkdir -p \\\"$RUNTIME_ROOT\\\"\",\n        \"rm -rf \\\"$RUNTIME_ROOT/ComfyUI\\\" \\\"$RUNTIME_ROOT/venv\\\"\",\n        `git init -q \\\"$RUNTIME_ROOT/ComfyUI\\\" && git -C \\\"$RUNTIME_ROOT/ComfyUI\\\" fetch -q --depth 1 https://github.com/${contract.comfyUiRepository}.git ${contract.comfyUiRevision} && git -C \\\"$RUNTIME_ROOT/ComfyUI\\\" checkout -q --detach FETCH_HEAD`,\n        \"mkdir -p \\\"$RUNTIME_ROOT/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper\\\"\",\n        `git init -q \\\"$RUNTIME_ROOT/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper\\\" && git -C \\\"$RUNTIME_ROOT/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper\\\" fetch -q --depth 1 https://github.com/${contract.wrapperRepository}.git ${contract.wrapperRevision} && git -C \\\"$RUNTIME_ROOT/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper\\\" checkout -q --detach FETCH_HEAD`,\n        \"python3 -m venv --system-site-packages \\\"$RUNTIME_ROOT/venv\\\"\",\n        \"\\\"$RUNTIME_ROOT/venv/bin/python\\\" -m pip install --disable-pip-version-check --no-cache-dir --force-reinstall --no-deps ninja==1.11.1.3\",\n        \"\\\"$RUNTIME_ROOT/venv/bin/python\\\" -m pip install --disable-pip-version-check --no-cache-dir -r \\\"$RUNTIME_ROOT/ComfyUI/requirements.txt\\\" -r \\\"$RUNTIME_ROOT/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper/requirements.txt\\\" soundfile transformers==4.51.3 tokenizers==0.21.4 peft==0.17.1 diffusers==0.33.1\",\n        \"\\\"$RUNTIME_ROOT/venv/bin/python\\\" -m pip check\","
   }
 }
