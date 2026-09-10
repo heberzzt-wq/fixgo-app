@@ -215,6 +215,16 @@ function alignHuMo17QualityContract() {
 
     fs.writeFileSync(BRIDGE_FILE, bridge, "utf8");
 
+    let worker = fs.readFileSync("jarvis-github-worker.js", "utf8").replace(/\r\n/g, "\n");
+    worker = replaceCountOrAlready(
+        worker,
+        '    const hardBudgetUsd = Number(job.hardBudgetUsd ?? 1.5);',
+        '    const hardBudgetUsd = Number(job.hardBudgetUsd);',
+        1,
+        "V142_HUMO17_EXPLICIT_CORE_BUDGET"
+    );
+    fs.writeFileSync("jarvis-github-worker.js", worker, "utf8");
+
     let tests = fs.readFileSync(FS_BRIDGE_TEST_FILE, "utf8").replace(/\r\n/g, "\n");
     tests = transformNamedTest(
         tests,
