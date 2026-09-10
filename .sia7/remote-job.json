@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-close-preauth-align-quality-budget-20260910-734",
+  "jobId": "v142-close-preauth-require-explicit-core-budget-20260910-735",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": ".github/scripts/v142-final-contract-alignment.mjs",
+    "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    fs.writeFileSync(BRIDGE_FILE, bridge, \"utf8\");",
-    "replace": "    bridge = replaceCountOrAlready(\n        bridge,\n        '    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 1.5)) throw new Error(\"HUMO17_QUALITY_CONTROL_BUDGET_INVALID\");',\n        `    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= ${HUMO17_QUALITY_BUDGET_USD})) throw new Error(\"HUMO17_QUALITY_CONTROL_BUDGET_INVALID\");`,\n        1,\n        \"V142_HUMO17_QUALITY_CONTROL_BUDGET\"\n    );\n\n    fs.writeFileSync(BRIDGE_FILE, bridge, \"utf8\");"
+    "search": "    const hardBudgetUsd = Number(job.hardBudgetUsd ?? 1.5);",
+    "replace": "    const hardBudgetUsd = Number(job.hardBudgetUsd);"
   }
 }
