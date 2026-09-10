@@ -765,6 +765,7 @@ export function buildHuMo17PersistentCoreStagingBootstrap({
         "\"$RUNTIME_ROOT/venv/bin/python\" -m pip install --disable-pip-version-check --no-cache-dir --force-reinstall --no-deps ninja==1.11.1.3",
         "\"$RUNTIME_ROOT/venv/bin/python\" -m pip install --disable-pip-version-check --no-cache-dir -r \"$RUNTIME_ROOT/ComfyUI/requirements.txt\" -r \"$RUNTIME_ROOT/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper/requirements.txt\" soundfile transformers==4.51.3 tokenizers==0.21.4 peft==0.17.1 diffusers==0.33.1",
         "\"$RUNTIME_ROOT/venv/bin/python\" -m pip check",
+        "\"$RUNTIME_ROOT/venv/bin/python\" -c 'import platform,torch; assert platform.python_version().startswith(\"3.12.\"), platform.python_version(); assert str(torch.__version__).startswith(\"2.8.0+cu128\"), torch.__version__; assert str(torch.version.cuda or \"\").startswith(\"12.8\"), torch.version.cuda'",
         "SYSTEM_ROOT=\"$RUNTIME_ROOT/system\"",
         "mkdir -p \"$SYSTEM_ROOT/bin\" \"$SYSTEM_ROOT/lib\" \"$SYSTEM_ROOT/lib/git-core\"",
         "test -x /usr/bin/ffmpeg && test -x /usr/bin/ffprobe && test -x /usr/bin/git && test -d /usr/lib/git-core",
