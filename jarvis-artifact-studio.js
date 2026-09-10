@@ -674,8 +674,8 @@ export function upsertSeriesCharacter({
         characterId: id,
         displayName: name,
         role: clean(role).slice(0, 1000),
-        referenceAssets: verifiedReferences,
-        referenceAssetsPending: verifiedReferences.length === 0,
+        referenceAssets: referenceCandidates,
+        referenceAssetsPending: referenceCandidates.length === 0,
         visualDescription: clean(visualDescription).slice(0, 5000),
         wardrobeState: clone(wardrobeState),
         voiceProfile: voiceProfile && typeof voiceProfile === "object"
