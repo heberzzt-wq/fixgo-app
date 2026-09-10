@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-runtime-contract-parity-20260909-472",
+  "jobId": "v142-humo17-persistent-preflight-contract-20260909-473",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-local-video-engine.js",
+    "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        \"\\\"$RUNTIME_ROOT/venv/bin/python\\\" -m pip check\",",
-    "replace": "        \"\\\"$RUNTIME_ROOT/venv/bin/python\\\" -m pip check\",\r\n        \"\\\"$RUNTIME_ROOT/venv/bin/python\\\" -c 'import platform,torch; assert platform.python_version().startswith(\\\"3.12.\\\"), platform.python_version(); assert str(torch.__version__).startswith(\\\"2.8.0+cu128\\\"), torch.__version__; assert str(torch.version.cuda or \\\"\\\").startswith(\\\"12.8\\\"), torch.version.cuda'\","
+    "search": "            ephemeralAssets: (strategy.wrapperAuxiliaryAssets || []).map(asset => ({ ...asset })),\n            ephemeralAssetsBytes: Number(strategy.wrapperAuxiliaryBytes || 0),",
+    "replace": "            ephemeralAssets: strategy.auxiliaryAssetsPersistent === true ? [] : (strategy.wrapperAuxiliaryAssets || []).map(asset => ({ ...asset })),\n            ephemeralAssetsBytes: strategy.auxiliaryAssetsPersistent === true ? 0 : Number(strategy.wrapperAuxiliaryBytes || 0),"
   }
 }
