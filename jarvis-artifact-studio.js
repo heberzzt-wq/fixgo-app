@@ -558,7 +558,8 @@ export function updateSeriesIdentityContinuityPolicy({
     root,
     seriesId,
     minimumPersistentCharacterCount = 1,
-    longFormContinuityRequired = false
+    longFormContinuityRequired = false,
+    productionBatchSize = 5
 } = {}) {
     const loaded = readSeriesCanon(root, seriesId);
     const canon = loaded.canon;
