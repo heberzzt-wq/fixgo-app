@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-cpu-runtime-image-parity-20260909-452",
+  "jobId": "v142-humo17-cpu-runtime-image-parity-20260909-453",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    provisionImageTag: \"ubuntu:22.04\",",
-    "replace": "    provisionImageTag: \"runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404\","
+    "search": "    expectedRegistryDigest: \"sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc\",",
+    "replace": "    expectedRegistryDigest: \"sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35\","
   }
 }
