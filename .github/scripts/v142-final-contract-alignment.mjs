@@ -12,14 +12,13 @@ const read = file => fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
 const countOf = (source, needle) => needle ? source.split(needle).length - 1 : 0;
 
 function replaceOnceOrAlready(source, before, after, label) {
-  if (source.includes(after)) return source;
   const count = countOf(source, before);
-  if (count !== 1) throw new Error(`${label}_MATCH_COUNT_${count}`);
-  return source.replace(before, after);
+  if (count === 1) return source.replace(before, after);
+  if (count === 0 && source.includes(after)) return source;
+  throw new Error(`${label}_MATCH_COUNT_${count}`);
 }
 
 function replaceCountOrAlready(source, before, after, expectedCount, label) {
-  if (expectedCount === 1 && source.includes(after)) return source;
   const count = countOf(source, before);
   if (count === expectedCount) return source.split(before).join(after);
   if (count === 0 && countOf(source, after) >= expectedCount) return source;
