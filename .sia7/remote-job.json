@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-runtime-20260909-389",
+  "jobId": "v142-humo17-persistent-runtime-20260909-390",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const requiredFiles = Object.freeze([\n        Object.freeze({ ...strategy.quantizedModel, role: \"video_transformer\", sourcePath: strategy.quantizedModel.path, path: `weights/${strategy.quantizedModel.path}` }),\n        Object.freeze({ ...strategy.distillationLora, role: \"distillation_lora\", sourcePath: strategy.distillationLora.path, path: `loras/${strategy.distillationLora.path}` })\n    ]);",
-    "replace": "    const requiredFiles = Object.freeze([\n        Object.freeze({ ...strategy.quantizedModel, role: \"video_transformer\", sourcePath: strategy.quantizedModel.path, path: `weights/${strategy.quantizedModel.path}` }),\n        Object.freeze({ ...strategy.distillationLora, role: \"distillation_lora\", sourcePath: strategy.distillationLora.path, path: `loras/${strategy.distillationLora.path}` }),\n        ...strategy.wrapperAuxiliaryAssets.map(file => Object.freeze({ ...file, sourcePath: file.path, path: `auxiliary/${file.path}` }))\n    ]);"
+    "search": "        Object.freeze({ ...strategy.distillationLora, role: \"distillation_lora\", sourcePath: strategy.distillationLora.path, path: `loras/${strategy.distillationLora.path}` })",
+    "replace": "        Object.freeze({ ...strategy.distillationLora, role: \"distillation_lora\", sourcePath: strategy.distillationLora.path, path: `loras/${strategy.distillationLora.path}` }),\n        ...strategy.wrapperAuxiliaryAssets.map(file => Object.freeze({ ...file, sourcePath: file.path, path: `auxiliary/${file.path}` }))"
   }
 }
