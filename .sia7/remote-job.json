@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-quality-stage-receipt-freshness-20260909-477",
+  "jobId": "v142-humo17-quality-stage-receipt-contract-20260909-478",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const coreStageReceiptCommit = String(control.coreStageReceiptCommit || \"\").trim().toLowerCase();\r\n    if (coreStageReceiptCommit !== \"c5461883e28a5f80ad6006e0a2d2ddd2b641d37c\") throw new Error(\"HUMO17_QUALITY_CORE_RECEIPT_COMMIT_INVALID\");",
-    "replace": "    const coreStageReceiptCommit = String(control.coreStageReceiptCommit || \"\").trim().toLowerCase();\r\n    if (!/^[a-f0-9]{40}$/.test(coreStageReceiptCommit)) throw new Error(\"HUMO17_QUALITY_CORE_RECEIPT_COMMIT_INVALID\");"
+    "search": "    if (stageReceipt?.ok !== true || stageReceipt?.status !== \"HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED\" || stageReceipt?.physicalStageCertified !== true || stageReceipt?.coreManifestVerified !== true || stageReceipt?.terminationVerified !== true || stageReceipt?.networkVolumeRetained !== true || stageReceipt?.networkVolumeId !== \"1qm5wczocl\" || stageReceipt?.networkVolumeDataCenterId !== \"EU-NL-1\") throw new Error(\"HUMO17_QUALITY_CORE_RECEIPT_INVALID\");",
+    "replace": "    if (stageReceipt?.ok !== true || stageReceipt?.status !== \"HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED\" || stageReceipt?.physicalStageCertified !== true || stageReceipt?.coreManifestVerified !== true || stageReceipt?.persistentRuntimeReady !== true || stageReceipt?.offlinePaidBootstrapRequired !== true || Number(stageReceipt?.persistentRuntimeRequiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length || Number(stageReceipt?.networkVolumeSizeGb || 0) < Number(RUNPOD_HUMO17_CORE_CACHE_BASE.minimumNetworkVolumeGb || 80) || stageReceipt?.terminationVerified !== true || stageReceipt?.networkVolumeRetained !== true || stageReceipt?.networkVolumeId !== \"1qm5wczocl\" || stageReceipt?.networkVolumeDataCenterId !== \"EU-NL-1\" || Number(stageReceipt?.newPersistentBytes || 0) !== Number(RUNPOD_HUMO17_CORE_CACHE_BASE.totalBytes || 0) || Number(stageReceipt?.combinedPersistentBytes || 0) !== Number(RUNPOD_HUMO17_CORE_CACHE_BASE.combinedPersistentBytes || 0)) throw new Error(\"HUMO17_QUALITY_CORE_RECEIPT_INVALID\");"
   }
 }
