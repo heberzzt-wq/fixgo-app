@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-humo17-multireference-runner-20260909-439",
-  "completedAt": "2026-09-10T01:18:40.076Z",
+  "jobId": "v142-humo17-multireference-runner-20260909-440",
+  "completedAt": "2026-09-10T01:19:10.410Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": "scripts/jarvis-local-video-wan22.py",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 52609,
-  "bytesAfter": 53261,
+  "bytesBefore": 53261,
+  "bytesAfter": 53320,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

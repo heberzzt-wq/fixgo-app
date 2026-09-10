@@ -938,7 +938,8 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
         raise RuntimeError("HUMO17_REFERENCE_SET_INVALID")
     reference = reference_files[0]
     audio = Path(job["audioFile"]).resolve()
-    for file, sha in ((reference, job["referenceSha256"]), (audio, job["audioSha256"])):
+    input_pairs = list(zip(reference_files, reference_shas)) + [(audio, str(job["audioSha256"]).strip().lower())]
+    for file, sha in input_pairs:
         if not file.is_file() or len(sha) != 64 or _sha256_file(file) != sha:
             raise RuntimeError("HUMO17_INPUT_SHA256_MISMATCH")
     comfy = Path(job["comfyRoot"]).resolve()
