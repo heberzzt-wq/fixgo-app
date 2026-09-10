@@ -1079,7 +1079,10 @@ export const RUNPOD_CPU_STAGING_PROFILE = Object.freeze({
         readinessTimeoutSeconds: 600
     }),
     runtimeIdentity: Object.freeze({
-        operatingSystem: "ubuntu-22.04",
+        operatingSystem: "ubuntu-24.04",
+        pythonVersionPrefix: "3.12.",
+        torchVersionPrefix: "2.8.0+cu128",
+        torchCudaVersionPrefix: "12.8",
         mountPath: "/workspace",
         caCertificatesRequired: true,
         requiredCommands: Object.freeze([
