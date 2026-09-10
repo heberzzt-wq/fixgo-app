@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-budget-150-worker-max-20260910-742",
-  "completedAt": "2026-09-10T20:14:48.165Z",
+  "jobId": "v142-budget-150-migrate-single-use-input-20260910-743",
+  "completedAt": "2026-09-10T20:37:05.531Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": ".github/scripts/v142-final-contract-alignment.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 15647,
-  "bytesAfter": 15889,
+  "bytesBefore": 15889,
+  "bytesAfter": 15890,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

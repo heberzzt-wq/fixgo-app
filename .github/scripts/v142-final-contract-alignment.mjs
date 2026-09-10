@@ -167,7 +167,7 @@ function alignHuMo17QualityContract() {
 
     bridge = replaceCountOrAlready(
         bridge,
-        '       a.hardBudgetUsd!==1.5 || c.hardBudgetUsd!==a.hardBudgetUsd || a.safetyRatio!==0.75 ||',
+        '       a.hardBudgetUsd!==0.95 || c.hardBudgetUsd!==a.hardBudgetUsd || a.safetyRatio!==0.75 ||',
         `       a.hardBudgetUsd!==${HUMO17_QUALITY_BUDGET_USD} || c.hardBudgetUsd!==a.hardBudgetUsd || a.safetyRatio!==0.75 ||`,
         1,
         "V142_HUMO17_SINGLE_USE_BUDGET"
