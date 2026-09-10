@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-cpu-runtime-image-parity-20260909-448",
+  "jobId": "v142-humo17-cpu-runtime-image-parity-20260909-449",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    registry: \"registry-1.docker.io\",\n    repository: \"library/ubuntu\",\n    tag: \"22.04\",\n    provisionImageTag: \"ubuntu:22.04\",\n    expectedRegistryDigest: \"sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc\",",
-    "replace": "    registry: \"registry-1.docker.io\",\n    repository: \"runpod/pytorch\",\n    tag: \"1.0.2-cu1281-torch280-ubuntu2404\",\n    provisionImageTag: \"runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404\",\n    expectedRegistryDigest: \"sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35\","
+    "search": "    repository: \"library/ubuntu\",\n    tag: \"22.04\",\n    provisionImageTag: \"ubuntu:22.04\",\n    expectedRegistryDigest: \"sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc\",",
+    "replace": "    repository: \"runpod/pytorch\",\n    tag: \"1.0.2-cu1281-torch280-ubuntu2404\",\n    provisionImageTag: \"runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404\",\n    expectedRegistryDigest: \"sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35\","
   }
 }
