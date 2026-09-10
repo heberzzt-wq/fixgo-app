@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-budget-150-migrate-quality-guard-20260910-744",
+  "jobId": "v142-budget-150-migrate-quality-control-20260910-745",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": ".github/scripts/v142-final-contract-alignment.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        '    if (quality && hardBudgetUsd > 1.5) throw new Error(\"HUMO17_QUALITY_BUDGET_EXCEEDED\");',",
-    "replace": "        '    if (quality && hardBudgetUsd > 0.95) throw new Error(\"HUMO17_QUALITY_BUDGET_EXCEEDED\");',"
+    "search": "        '    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 1.5)) throw new Error(\"HUMO17_QUALITY_CONTROL_BUDGET_INVALID\");',",
+    "replace": "        '    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 0.95)) throw new Error(\"HUMO17_QUALITY_CONTROL_BUDGET_INVALID\");',"
   }
 }
