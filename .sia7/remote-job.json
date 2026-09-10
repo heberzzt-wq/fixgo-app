@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-ffprobe-isolated-env-20260909-482",
+  "jobId": "v142-humo17-durable-probe-output-20260909-483",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "scripts/jarvis-local-video-wan22.py",
+    "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        text=True,\r\n        timeout=60,\r\n    )",
-    "replace": "        text=True,\r\n        timeout=60,\r\n        env=env,\r\n    )"
+    "search": "        audioFile: \"/tmp/jarvis-humo17/audio.wav\", outputFile: \"/tmp/jarvis-humo17/probe.mp4\",",
+    "replace": "        audioFile: \"/tmp/jarvis-humo17/audio.wav\", outputFile: path.posix.join(\"/workspace/jarvis-v142/operations\", operationId, \"probe.mp4\"), resultFile: path.posix.join(\"/workspace/jarvis-v142/operations\", operationId, \"result.json\"), logFile: path.posix.join(\"/workspace/jarvis-v142/operations\", operationId, \"probe.log\"),"
   }
 }
