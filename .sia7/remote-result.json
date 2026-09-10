@@ -1,18 +1,18 @@
 {
-  "jobId": "v142-humo17-persistent-runtime-20260909-419",
-  "completedAt": "2026-09-10T00:44:40.299Z",
+  "jobId": "v142-humo17-persistent-capacity-20260909-420",
+  "completedAt": "2026-09-10T00:45:26.255Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "jarvis-fs-bridge.js",
+  "file": "jarvis-local-video-engine.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 450874,
-  "bytesAfter": 451108,
+  "bytesBefore": 434373,
+  "bytesAfter": 434421,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "jarvis-fs-bridge.js"
+    "jarvis-local-video-engine.js"
   ]
 }
