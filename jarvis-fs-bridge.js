@@ -8947,7 +8947,7 @@ export function buildHuMo17RuntimeBootstrap(job) {
         "set -euo pipefail", "cd /tmp/jarvis-humo17",
         "test -x /workspace/jarvis-v142/runtime/humo17/venv/bin/python",
         "export PATH=/workspace/jarvis-v142/runtime/humo17/venv/bin:$PATH HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PIP_NO_INDEX=1",
-        "python -c 'import torch; assert torch.__version__.startswith(\"2.8.\"), torch.__version__; assert torch.cuda.is_available(), \"HUMO17_CUDA_UNAVAILABLE\"'",
+        "python -c 'import platform,torch; assert platform.python_version().startswith(\"3.12.\"), platform.python_version(); assert str(torch.__version__).startswith(\"2.8.0+cu128\"), torch.__version__; assert str(torch.version.cuda or \"\").startswith(\"12.8\"), torch.version.cuda; assert torch.cuda.is_available(), \"HUMO17_CUDA_UNAVAILABLE\"'",
         `test \"$(git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI rev-parse HEAD)\" = ${q(s.comfyUiRevision)}`,
         `test \"$(git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper rev-parse HEAD)\" = ${q(s.wrapperRevision)}`,
         "python -c 'import json; m=json.load(open(\"/workspace/jarvis-v142/runtime/humo17/runtime-manifest.json\")); assert m.get(\"runtimeReady\") is True; assert m.get(\"networkVolumeId\")==\"1qm5wczocl\"; assert m.get(\"dataCenterId\")==\"EU-NL-1\"; assert m.get(\"offlinePaidBootstrapRequired\") is True; assert int(m.get(\"requiredAssetCount\",0))==5'",
