@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-runtime-contract-parity-20260909-471",
+  "jobId": "v142-humo17-runtime-contract-parity-20260909-472",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "'networkVolumeId':volume_id,'dataCenterId':dc,'comfyUiRevision':contract['comfyUiRevision']",
-    "replace": "'networkVolumeId':volume_id,'dataCenterId':dc,'provisionImageTag':contract['provisionImageTag'],'expectedRegistryDigest':contract['expectedRegistryDigest'],'operatingSystem':contract['operatingSystem'],'pythonVersionPrefix':contract['pythonVersionPrefix'],'torchVersionPrefix':contract['torchVersionPrefix'],'torchCudaVersionPrefix':contract['torchCudaVersionPrefix'],'comfyUiRevision':contract['comfyUiRevision']"
+    "search": "        \"\\\"$RUNTIME_ROOT/venv/bin/python\\\" -m pip check\",",
+    "replace": "        \"\\\"$RUNTIME_ROOT/venv/bin/python\\\" -m pip check\",\r\n        \"\\\"$RUNTIME_ROOT/venv/bin/python\\\" -c 'import platform,torch; assert platform.python_version().startswith(\\\"3.12.\\\"), platform.python_version(); assert str(torch.__version__).startswith(\\\"2.8.0+cu128\\\"), torch.__version__; assert str(torch.version.cuda or \\\"\\\").startswith(\\\"12.8\\\"), torch.version.cuda'\","
   }
 }
