@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-series-character-recast-lock-20260909-456",
+  "jobId": "v142-humo17-cpu-runtime-image-parity-20260909-457",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-artifact-studio.js",
+    "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        referenceAssets: verifiedReferences,\n        referenceAssetsPending: verifiedReferences.length === 0,",
-    "replace": "        referenceAssets: referenceCandidates,\n        referenceAssetsPending: referenceCandidates.length === 0,"
+    "search": "    runtimeStatus: \"CACHE_RUNTIME_PHYSICALLY_UNVERIFIED\",\n    bootstrapPhase: RUNPOD_BOOTSTRAP_PHASES.CPU_MODEL_STAGING,\n    bootstrapPackages: RUNPOD_CPU_MODEL_STAGING_PACKAGES,\n    maximumBootstrapCacheStatus: \"CACHE_MODEL_READY\",",
+    "replace": "    runtimeStatus: \"CACHE_RUNTIME_PHYSICALLY_UNVERIFIED\",\n    bootstrapPhase: RUNPOD_BOOTSTRAP_PHASES.CPU_MODEL_STAGING,\n    bootstrapPackages: RUNPOD_CPU_MODEL_STAGING_PACKAGES,\n    maximumBootstrapCacheStatus: \"CACHE_MODEL_READY\",\n    runtimeImageParityRequired: true,"
   }
 }
