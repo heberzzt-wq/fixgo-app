@@ -1,9 +1,9 @@
 {
-  "jobId": "v142-humo-identity-preflight-97f-20260910-719",
-  "completedAt": "2026-09-10T16:44:52.056Z",
+  "jobId": "v142-sia7-inspect-run-route-20260910-720",
+  "completedAt": "2026-09-10T16:46:32.378Z",
   "executionStarted": true,
   "ok": false,
-  "error": "SIA7_WORKER_RESTART_REQUIRED",
+  "error": "fetch failed",
   "evidence": null,
   "committedFiles": [
     ".sia7/remote-result.json"
