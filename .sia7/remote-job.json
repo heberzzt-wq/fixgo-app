@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-budget-095-acceptance-fixture-20260910-723",
+  "jobId": "v142-budget-095-migrate-authority-source-20260910-724",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": ".github/scripts/v142-final-contract-alignment.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "'    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.5,paidAuthorized:true});',",
-    "replace": "'    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:0.95,paidAuthorized:true});',"
+    "search": "'       a.hardBudgetUsd!==0.95 || c.hardBudgetUsd!==a.hardBudgetUsd || a.safetyRatio!==0.75 ||',",
+    "replace": "'       a.hardBudgetUsd!==1.5 || c.hardBudgetUsd!==a.hardBudgetUsd || a.safetyRatio!==0.75 ||',"
   }
 }
