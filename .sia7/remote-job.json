@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-series-longform-identity-policy-20260909-444",
+  "jobId": "v142-series-longform-identity-policy-20260909-445",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-artifact-studio.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "export function createSeriesBible({\n    root,\n    seriesId,\n    title,\n    storyArc = \"\",\n    status = \"ACTIVE\"\n} = {}) {",
-    "replace": "export function createSeriesBible({\n    root,\n    seriesId,\n    title,\n    storyArc = \"\",\n    status = \"ACTIVE\",\n    identityContinuityPolicy = {}\n} = {}) {"
+    "search": "        status: clean(status).slice(0, 80) || \"ACTIVE\",\n        characters: {},",
+    "replace": "        status: clean(status).slice(0, 80) || \"ACTIVE\",\n        identityContinuityPolicy: normalizeSeriesIdentityContinuityPolicy(identityContinuityPolicy),\n        characters: {},"
   }
 }
