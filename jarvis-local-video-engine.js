@@ -1044,7 +1044,7 @@ export const RUNPOD_CPU_STAGING_PROFILE = Object.freeze({
     dataCenterPriority: "custom",
     registry: "registry-1.docker.io",
     repository: "runpod/pytorch",
-    tag: "22.04",
+    tag: "1.0.2-cu1281-torch280-ubuntu2404",
     provisionImageTag: "ubuntu:22.04",
     expectedRegistryDigest: "sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc",
     officialImageSource: "https://github.com/runpod/runpod-plugins-official/blob/main/plugins/runpod/skills/runpodctl/SKILL.md",
