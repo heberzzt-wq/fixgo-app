@@ -926,7 +926,17 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
     if (strategy["runtime"] != "comfyui-wanvideowrapper" or strategy["compileEnabled"] is not False
             or strategy["attentionMode"] != "sdpa" or strategy["modelLoaderDevice"] != "offload_device"):
         raise RuntimeError("HUMO17_RUNTIME_STRATEGY_INVALID")
-    reference = Path(job["referenceFile"]).resolve()
+    raw_reference_files = job.get("referenceFiles")
+    raw_reference_shas = job.get("referenceSha256s")
+    if raw_reference_files is None:
+        raw_reference_files = [job.get("referenceFile")]
+    if raw_reference_shas is None:
+        raw_reference_shas = [job.get("referenceSha256")]
+    reference_files = [Path(str(value)).resolve() for value in raw_reference_files if str(value or "").strip()]
+    reference_shas = [str(value or "").strip().lower() for value in raw_reference_shas if str(value or "").strip()]
+    if not (1 <= len(reference_files) <= 3) or len(reference_files) != len(reference_shas):
+        raise RuntimeError("HUMO17_REFERENCE_SET_INVALID")
+    reference = reference_files[0]
     audio = Path(job["audioFile"]).resolve()
     for file, sha in ((reference, job["referenceSha256"]), (audio, job["audioSha256"])):
         if not file.is_file() or len(sha) != 64 or _sha256_file(file) != sha:
