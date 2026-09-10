@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-quality-stage-receipt-contract-20260909-478",
+  "jobId": "v142-humo17-storage-authority-80gb-20260909-479",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    if (stageReceipt?.ok !== true || stageReceipt?.status !== \"HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED\" || stageReceipt?.physicalStageCertified !== true || stageReceipt?.coreManifestVerified !== true || stageReceipt?.terminationVerified !== true || stageReceipt?.networkVolumeRetained !== true || stageReceipt?.networkVolumeId !== \"1qm5wczocl\" || stageReceipt?.networkVolumeDataCenterId !== \"EU-NL-1\") throw new Error(\"HUMO17_QUALITY_CORE_RECEIPT_INVALID\");",
-    "replace": "    if (stageReceipt?.ok !== true || stageReceipt?.status !== \"HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED\" || stageReceipt?.physicalStageCertified !== true || stageReceipt?.coreManifestVerified !== true || stageReceipt?.persistentRuntimeReady !== true || stageReceipt?.offlinePaidBootstrapRequired !== true || Number(stageReceipt?.persistentRuntimeRequiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length || Number(stageReceipt?.networkVolumeSizeGb || 0) < Number(RUNPOD_HUMO17_CORE_CACHE_BASE.minimumNetworkVolumeGb || 80) || stageReceipt?.terminationVerified !== true || stageReceipt?.networkVolumeRetained !== true || stageReceipt?.networkVolumeId !== \"1qm5wczocl\" || stageReceipt?.networkVolumeDataCenterId !== \"EU-NL-1\" || Number(stageReceipt?.newPersistentBytes || 0) !== Number(RUNPOD_HUMO17_CORE_CACHE_BASE.totalBytes || 0) || Number(stageReceipt?.combinedPersistentBytes || 0) !== Number(RUNPOD_HUMO17_CORE_CACHE_BASE.combinedPersistentBytes || 0)) throw new Error(\"HUMO17_QUALITY_CORE_RECEIPT_INVALID\");"
+    "search": "const SIA7_HUMO_MONTHLY_STORAGE_USD = 3.5;",
+    "replace": "const SIA7_HUMO_MONTHLY_STORAGE_USD = 5.6;"
   }
 }
