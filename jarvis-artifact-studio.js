@@ -193,6 +193,8 @@ function normalizeSeriesIdentityContinuityPolicy(value = {}) {
         mode: clean(value?.mode).toUpperCase() || "CANONICAL_CHARACTER_ROSTER",
         minimumPersistentCharacterCount,
         longFormContinuityRequired: value?.longFormContinuityRequired === true,
+        productionBatchSize,
+        continuousCanonAcrossProductionBatches: true,
         characterIdentityRecastRequiresExplicitConfirmation: true,
         pendingReferenceAssetsAllowed: true,
         generationRequiresResolvedCastIdentity: true,
