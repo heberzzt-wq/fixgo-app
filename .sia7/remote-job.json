@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-durable-probe-output-20260909-483",
+  "jobId": "v142-humo17-durable-probe-bootstrap-20260909-484",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        audioFile: \"/tmp/jarvis-humo17/audio.wav\", outputFile: \"/tmp/jarvis-humo17/probe.mp4\",",
-    "replace": "        audioFile: \"/tmp/jarvis-humo17/audio.wav\", outputFile: path.posix.join(\"/workspace/jarvis-v142/operations\", operationId, \"probe.mp4\"), resultFile: path.posix.join(\"/workspace/jarvis-v142/operations\", operationId, \"result.json\"), logFile: path.posix.join(\"/workspace/jarvis-v142/operations\", operationId, \"probe.log\"),"
+    "search": "        \"python runner.py --job job.json --result result.json\"",
+    "replace": "        `mkdir -p ${q(path.posix.dirname(job.outputFile))}`,\r\n        `python runner.py --job job.json --result ${q(job.resultFile)}`"
   }
 }
