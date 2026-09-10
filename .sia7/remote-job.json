@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-durable-probe-bootstrap-20260909-484",
+  "jobId": "v142-humo17-no-git-paid-revision-check-20260909-485",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "scripts/jarvis-local-video-wan22.py",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        \"python runner.py --job job.json --result result.json\"",
-    "replace": "        `mkdir -p ${q(path.posix.dirname(job.outputFile))}`,\r\n        `python runner.py --job job.json --result ${q(job.resultFile)}`"
+    "search": "        actual = subprocess.check_output([\"git\", \"-C\", str(directory), \"rev-parse\", \"HEAD\"], text=True, timeout=20).strip()",
+    "replace": "        head_file = directory / \".git\" / \"HEAD\"\r\n        actual = head_file.read_text(encoding=\"utf-8\").strip() if head_file.is_file() else \"\"\r\n        if actual.startswith(\"ref: \"):\r\n            ref_file = directory / \".git\" / actual[5:]\r\n            actual = ref_file.read_text(encoding=\"utf-8\").strip() if ref_file.is_file() else \"\""
   }
 }
