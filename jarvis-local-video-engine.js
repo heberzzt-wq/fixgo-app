@@ -541,7 +541,7 @@ export const RUNPOD_HUMO17_CORE_CACHE_BASE = (() => {
     const nominalVolumeBytes = Number(strategy.persistentVolumeBytes || strategy.nominal50GiBBytes || 0);
     return Object.freeze({
         schemaVersion: "jarvis.model-cache.v142.humo17-persistent-runtime.2",
-        profile: "humo17-fp8-core-v1",
+        profile: "humo17-persistent-runtime-v2",
         cacheDirectory: "humo17-fp8-core",
         runtime: strategy.runtime,
         targetGpuTypeId: candidate.targetGpuTypeId,
