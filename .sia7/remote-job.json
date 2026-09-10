@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-runtime-contract-parity-20260909-469",
+  "jobId": "v142-humo17-runtime-contract-parity-20260909-470",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "['schemaVersion','profile','runtime','targetGpuTypeId','comfyUiRepository','comfyUiRevision','wrapperRepository','wrapperRevision','modelRepository','modelRevision','existingHuMoCacheProfile','existingHuMoCacheTotalBytes','minimumNetworkVolumeGb','networkVolumeType','totalBytes','combinedPersistentBytes','nominalVolumeBytes','headroomBytes','storagePlan','cacheMutationPolicy']",
-    "replace": "['schemaVersion','profile','runtime','targetGpuTypeId','provisionImageTag','expectedRegistryDigest','operatingSystem','pythonVersionPrefix','torchVersionPrefix','torchCudaVersionPrefix','comfyUiRepository','comfyUiRevision','wrapperRepository','wrapperRevision','modelRepository','modelRevision','existingHuMoCacheProfile','existingHuMoCacheTotalBytes','minimumNetworkVolumeGb','networkVolumeType','totalBytes','combinedPersistentBytes','nominalVolumeBytes','headroomBytes','storagePlan','cacheMutationPolicy']"
+    "search": "        \"TOOLS_VENV=\\\"$CORE_ROOT/.cpu-tools-venv\\\"\",",
+    "replace": "        \"python3 -c 'import platform,torch; assert platform.python_version().startswith(\\\"3.12.\\\"), platform.python_version(); assert str(torch.__version__).startswith(\\\"2.8.0+cu128\\\"), torch.__version__; assert str(torch.version.cuda or \\\"\\\").startswith(\\\"12.8\\\"), torch.version.cuda'\",\r\n        \"TOOLS_VENV=\\\"$CORE_ROOT/.cpu-tools-venv\\\"\","
   }
 }
