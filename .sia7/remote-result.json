@@ -1,18 +1,18 @@
 {
-  "jobId": "v142-humo17-quality-ab-artifact-check-20260909-384",
-  "completedAt": "2026-09-09T22:16:58.002Z",
+  "jobId": "v142-humo17-persistent-ready-budget-20260909-385",
+  "completedAt": "2026-09-10T00:14:43.267Z",
   "executionStarted": true,
-  "ok": false,
-  "error": "SIA7_HUMO17_CORE_STAGE_FAILED:HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY",
-  "evidence": {
-    "phase": "HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY",
-    "paidReceipts": [],
-    "logTail": [
-      "{\"ok\":true,\"hardCapCertified\":true,\"paidExecutionAuthorized\":false,\"paidBudgetReady\":true,\"activePods\":0,\"paidStaleReceipts\":0,\"localBudgetWatchdog\":true,\"remoteBudgetWatchdogVerified\":false,\"status\":\"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY\",\"runtimeProbeStatus\":\"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY\",\"terminationVerified\":true,\"estimatedCostUsd\":0,\"backend\":\"humo-17b-identity\",\"geometry\":{\"width\":832,\"height\":480,\"fps\":25,\"frames\":201,\"durationSeconds\":8.04},\"networkVolumeId\":\"1qm5wczocl\",\"gpu\":\"NVIDIA L40S\",\"gpuCount\":1,\"hardBudgetUsd\":0.95,\"referenceSha256\":\"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\",\"audioSha256\":\"bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184\",\"qualityProbe\":true,\"speechValidated\":true,\"qualityCertified\":false,\"preserveAspectRatio\":true,\"resourceCreated\":false,\"inferenceStarted\":false,\"networkVolumeRetained\":true,\"canonicalSha\":\"c70fa57cb38b139d33dec662948e5d000b0f15ec\",\"coreManifestVerified\":true,\"coreStagePodId\":\"gdt15dfk6aktog\",\"coreStageReceiptSha256\":\"ef4694a06d6f2a740deee09e077a699c63cdc196b342a0c169342042e971abd0\"}",
-      "{\"ok\":true,\"hardCapCertified\":true,\"paidExecutionAuthorized\":false,\"paidBudgetReady\":true,\"activePods\":0,\"paidStaleReceipts\":0,\"localBudgetWatchdog\":true,\"remoteBudgetWatchdogVerified\":false,\"status\":\"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY\",\"runtimeProbeStatus\":\"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY\",\"terminationVerified\":true,\"estimatedCostUsd\":0,\"backend\":\"humo-17b-identity\",\"geometry\":{\"width\":832,\"height\":480,\"fps\":25,\"frames\":201,\"durationSeconds\":8.04},\"networkVolumeId\":\"1qm5wczocl\",\"gpu\":\"NVIDIA L40S\",\"gpuCount\":1,\"hardBudgetUsd\":0.95,\"referenceSha256\":\"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\",\"audioSha256\":\"bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184\",\"qualityProbe\":true,\"speechValidated\":true,\"qualityCertified\":false,\"preserveAspectRatio\":true,\"resourceCreated\":false,\"inferenceStarted\":false,\"networkVolumeRetained\":true,\"canonicalSha\":\"c70fa57cb38b139d33dec662948e5d000b0f15ec\",\"coreManifestVerified\":true,\"coreStagePodId\":\"gdt15dfk6aktog\",\"coreStageReceiptSha256\":\"ef4694a06d6f2a740deee09e077a699c63cdc196b342a0c169342042e971abd0\"}"
-    ]
-  },
+  "ok": true,
+  "operation": "patch",
+  "dryRun": false,
+  "file": "jarvis-fs-bridge.js",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 448590,
+  "bytesAfter": 448589,
+  "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
-    ".sia7/remote-result.json"
+    ".sia7/remote-result.json",
+    "jarvis-fs-bridge.js"
   ]
 }

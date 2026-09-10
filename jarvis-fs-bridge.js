@@ -8717,7 +8717,7 @@ export function validateHuMo17QualityAuthority(a,c,now=Date.now()) {
        !Number.isFinite(Date.parse(a.expiresAt)) || Date.parse(a.expiresAt)<=now ||
        a.backend!=='humo-17b-identity' || a.gpu!=='NVIDIA L40S' || a.gpuCount!==1 ||
        a.networkVolumeId!=='1qm5wczocl' || a.dataCenterId!=='EU-NL-1' || a.fullEpisodeAuthorized!==false ||
-       a.hardBudgetUsd!==0.95 || c.hardBudgetUsd!==a.hardBudgetUsd || a.safetyRatio!==0.75 ||
+       a.hardBudgetUsd!==1.5 || c.hardBudgetUsd!==a.hardBudgetUsd || a.safetyRatio!==0.75 ||
        a.referenceSha256!=='a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958' ||
        a.audioSha256!=='bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184' ||
        c.referenceSha256!==a.referenceSha256 || c.audioSha256!==a.audioSha256 ||
