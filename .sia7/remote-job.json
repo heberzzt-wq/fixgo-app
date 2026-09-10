@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-preflight-contract-20260909-474",
+  "jobId": "v142-humo17-l40s-runtime-parity-gate-20260909-475",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            ephemeralAssets: (strategy.wrapperAuxiliaryAssets || []).map(asset => ({ ...asset })),\r\n            ephemeralAssetsBytes: Number(strategy.wrapperAuxiliaryBytes || 0),",
-    "replace": "            ephemeralAssets: strategy.auxiliaryAssetsPersistent === true ? [] : (strategy.wrapperAuxiliaryAssets || []).map(asset => ({ ...asset })),\r\n            ephemeralAssetsBytes: strategy.auxiliaryAssetsPersistent === true ? 0 : Number(strategy.wrapperAuxiliaryBytes || 0),"
+    "search": "        \"python -c 'import torch; assert torch.__version__.startswith(\\\"2.8.\\\"), torch.__version__; assert torch.cuda.is_available(), \\\"HUMO17_CUDA_UNAVAILABLE\\\"'\",",
+    "replace": "        \"python -c 'import platform,torch; assert platform.python_version().startswith(\\\"3.12.\\\"), platform.python_version(); assert str(torch.__version__).startswith(\\\"2.8.0+cu128\\\"), torch.__version__; assert str(torch.version.cuda or \\\"\\\").startswith(\\\"12.8\\\"), torch.version.cuda; assert torch.cuda.is_available(), \\\"HUMO17_CUDA_UNAVAILABLE\\\"'\","
   }
 }
