@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-runtime-20260909-402",
+  "jobId": "v142-humo17-persistent-runtime-20260909-403",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "imageName: runtimeProbeAuthorized ? `${RUNPOD_WAN22_GPU_PROFILES[\"NVIDIA L40S\"].provisionImageTag}@${RUNPOD_WAN22_GPU_PROFILES[\"NVIDIA L40S\"].expectedRegistryDigest}` : \"ubuntu:22.04\"",
-    "replace": "imageName: `${RUNPOD_WAN22_GPU_PROFILES[\"NVIDIA L40S\"].provisionImageTag}@${RUNPOD_WAN22_GPU_PROFILES[\"NVIDIA L40S\"].expectedRegistryDigest}`"
+    "search": "        \"rm -rf \\\"$CORE_ROOT/.download\\\" \\\"$CORE_ROOT/.hf-home\\\" \\\"$TOOLS_VENV\\\"\",",
+    "replace": "        \"rm -rf \\\"$CORE_ROOT/.download\\\" \\\"$CORE_ROOT/.hf-home\\\" \\\"$TOOLS_VENV\\\"\",\n        \"RUNTIME_ROOT=\\\"/workspace/jarvis-v142/runtime/humo17\\\"\",\n        \"mkdir -p \\\"$RUNTIME_ROOT\\\"\","
   }
 }
