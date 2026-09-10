@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-series-longform-identity-policy-20260909-443",
+  "jobId": "v142-series-longform-identity-policy-20260909-444",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-artifact-studio.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "function seriesCanonOutput(seriesId) {",
-    "replace": "function normalizeSeriesIdentityContinuityPolicy(value = {}) {\n    const requestedMinimum = Number(value?.minimumPersistentCharacterCount ?? 1);\n    const minimumPersistentCharacterCount = Number.isInteger(requestedMinimum)\n        ? Math.max(1, Math.min(requestedMinimum, 100))\n        : 1;\n    return {\n        mode: clean(value?.mode).toUpperCase() || \"CANONICAL_CHARACTER_ROSTER\",\n        minimumPersistentCharacterCount,\n        longFormContinuityRequired: value?.longFormContinuityRequired === true,\n        characterIdentityRecastRequiresExplicitConfirmation: true,\n        pendingReferenceAssetsAllowed: true,\n        generationRequiresResolvedCastIdentity: true,\n        backendIdentityLimitsApplyPerShotOnly: true\n    };\n}\n\nfunction activeSeriesCharacterCount(canon = {}) {\n    return Object.values(canon.characters || {}).filter(character => character?.active === true).length;\n}\n\nfunction assertSeriesIdentityRosterReady(canon = {}) {\n    const policy = normalizeSeriesIdentityContinuityPolicy(canon.identityContinuityPolicy || {});\n    const activeCount = activeSeriesCharacterCount(canon);\n    if (policy.longFormContinuityRequired === true && activeCount < policy.minimumPersistentCharacterCount) {\n        throw new Error(`SERIES_PERSISTENT_CHARACTER_ROSTER_INCOMPLETE:${activeCount}:${policy.minimumPersistentCharacterCount}`);\n    }\n    return { policy, activeCount };\n}\n\nfunction seriesCanonOutput(seriesId) {"
+    "search": "export function createSeriesBible({\n    root,\n    seriesId,\n    title,\n    storyArc = \"\",\n    status = \"ACTIVE\"\n} = {}) {",
+    "replace": "export function createSeriesBible({\n    root,\n    seriesId,\n    title,\n    storyArc = \"\",\n    status = \"ACTIVE\",\n    identityContinuityPolicy = {}\n} = {}) {"
   }
 }
