@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-runtime-20260909-391",
+  "jobId": "v142-humo17-persistent-runtime-20260909-392",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            minimumNetworkVolumeGb: 50,\n            capacityFitCertified: false,\n            storagePlan: \"PERSISTENT_CORE_PLUS_EPHEMERAL_AUXILIARY_REQUIRED\",\n            auxiliaryAssetsPersistent: false,\n            auxiliaryAssetsEphemeralRequired: true,",
-    "replace": "            minimumNetworkVolumeGb: 80,\n            capacityFitCertified: true,\n            storagePlan: \"FULL_PERSISTENT_RUNTIME_80GB\",\n            auxiliaryAssetsPersistent: true,\n            auxiliaryAssetsEphemeralRequired: false,"
+    "search": "storagePlan: \"PERSISTENT_CORE_PLUS_EPHEMERAL_AUXILIARY_REQUIRED\"",
+    "replace": "storagePlan: \"FULL_PERSISTENT_RUNTIME_80GB\""
   }
 }
