@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-runtime-20260909-398",
+  "jobId": "v142-humo17-persistent-volume-20260909-399",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-local-video-engine.js",
+    "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "minimumNetworkVolumeGb: strategy.minimumNetworkVolumeGb",
-    "replace": "minimumNetworkVolumeGb: strategy.persistentMinimumNetworkVolumeGb || strategy.minimumNetworkVolumeGb"
+    "search": "const volume = matches[0];",
+    "replace": "let volume = matches[0];"
   }
 }
