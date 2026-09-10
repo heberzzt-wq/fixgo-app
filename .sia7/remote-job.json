@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-volume-20260909-401",
+  "jobId": "v142-humo17-persistent-runtime-20260909-402",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-github-worker.js",
+    "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "JARVIS_HUMO17_CORE_STAGE_AUTHORIZED: \"true\",",
-    "replace": "JARVIS_HUMO17_CORE_STAGE_AUTHORIZED: \"true\",\n                JARVIS_HUMO17_PERSISTENT_VOLUME_RESIZE_AUTHORIZED: job.resizePersistentVolume === true ? \"true\" : \"false\"," 
+    "search": "imageName: runtimeProbeAuthorized ? `${RUNPOD_WAN22_GPU_PROFILES[\"NVIDIA L40S\"].provisionImageTag}@${RUNPOD_WAN22_GPU_PROFILES[\"NVIDIA L40S\"].expectedRegistryDigest}` : \"ubuntu:22.04\"",
+    "replace": "imageName: `${RUNPOD_WAN22_GPU_PROFILES[\"NVIDIA L40S\"].provisionImageTag}@${RUNPOD_WAN22_GPU_PROFILES[\"NVIDIA L40S\"].expectedRegistryDigest}`"
   }
 }
