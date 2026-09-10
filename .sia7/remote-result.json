@@ -1,18 +1,11 @@
 {
-  "jobId": "v142-budget-095-migrate-authority-source-20260910-724",
-  "completedAt": "2026-09-10T17:06:44.445Z",
+  "jobId": "v142-budget-095-migrate-quality-guard-20260910-725",
+  "completedAt": "2026-09-10T17:07:35.503Z",
   "executionStarted": true,
-  "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": ".github/scripts/v142-final-contract-alignment.mjs",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 14120,
-  "bytesAfter": 14119,
-  "source": "sia7_github_worker_exact_patch_v1",
+  "ok": false,
+  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1",
+  "evidence": null,
   "committedFiles": [
-    ".sia7/remote-result.json",
-    ".github/scripts/v142-final-contract-alignment.mjs"
+    ".sia7/remote-result.json"
   ]
 }
