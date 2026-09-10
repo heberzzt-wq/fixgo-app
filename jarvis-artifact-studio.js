@@ -566,7 +566,8 @@ export function updateSeriesIdentityContinuityPolicy({
     canon.identityContinuityPolicy = normalizeSeriesIdentityContinuityPolicy({
         ...(canon.identityContinuityPolicy || {}),
         minimumPersistentCharacterCount,
-        longFormContinuityRequired
+        longFormContinuityRequired,
+        productionBatchSize
     });
     const saved = writeSeriesCanon(root, canon, "series.identity-continuity-policy.update");
     return {
