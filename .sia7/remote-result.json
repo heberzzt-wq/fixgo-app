@@ -1,18 +1,18 @@
 {
-  "jobId": "v142-humo17-ffprobe-isolated-env-20260909-487",
-  "completedAt": "2026-09-10T03:26:26.493Z",
+  "jobId": "v142-humo17-paid-runtime-isolation-20260909-488",
+  "completedAt": "2026-09-10T03:27:36.445Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "scripts/jarvis-local-video-wan22.py",
+  "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 53850,
-  "bytesAfter": 53868,
+  "bytesBefore": 453421,
+  "bytesAfter": 453263,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "scripts/jarvis-local-video-wan22.py"
+    "jarvis-fs-bridge.js"
   ]
 }
