@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-budget-150-align-local-video-core-cap-20260910-751",
-  "completedAt": "2026-09-10T20:41:25.237Z",
+  "jobId": "v142-budget-150-align-sia7-executor-cap-test-20260910-752",
+  "completedAt": "2026-09-10T20:44:36.167Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": ".github/scripts/v142-final-contract-alignment.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 18135,
-  "bytesAfter": 18667,
+  "bytesBefore": 18667,
+  "bytesAfter": 19241,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

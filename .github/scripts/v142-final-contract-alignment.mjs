@@ -365,6 +365,18 @@ function alignHuMo17QualityContract() {
     let localVideoTests = fs.readFileSync(TEST_FILE, "utf8").replace(/\r\n/g, "\n");
     localVideoTests = transformNamedTest(
         localVideoTests,
+        "V142 SIA7 HuMo executor is typed, budget-capped, source-pinned and control-plane-only after certification",
+        region => replaceCountOrAlready(
+            region,
+            '    assert.equal(workerSource.includes("SIA7_HUMO_MAX_COMPUTE_USD = 3"), true);',
+            '    assert.equal(workerSource.includes("SIA7_HUMO_MAX_COMPUTE_USD = 1.5"), true);',
+            1,
+            "V142_SIA7_HUMO_MAX_COMPUTE_BUDGET_TEST"
+        ),
+        "V142_SIA7_HUMO_EXECUTOR_TEST"
+    );
+    localVideoTests = transformNamedTest(
+        localVideoTests,
         "V142 HuMo17 physical core staging worker is explicit-authority budgeted and cleanup-verified",
         region => replaceCountOrAlready(
             region,
