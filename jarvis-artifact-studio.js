@@ -513,6 +513,7 @@ export function createSeriesBible({
         lastCompletedEpisodeNumber: null,
         storyArc: clean(storyArc).slice(0, 20000),
         status: clean(status).slice(0, 80) || "ACTIVE",
+        identityContinuityPolicy: normalizeSeriesIdentityContinuityPolicy(identityContinuityPolicy),
         characters: {},
         episodes: [],
         continuityState: {},
