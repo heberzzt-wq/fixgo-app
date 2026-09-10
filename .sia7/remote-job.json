@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-multireference-runner-20260909-440",
+  "jobId": "v142-humo17-multireference-runner-20260909-441",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "scripts/jarvis-local-video-wan22.py",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    for file, sha in ((reference, job[\"referenceSha256\"]), (audio, job[\"audioSha256\"])):",
-    "replace": "    input_pairs = list(zip(reference_files, reference_shas)) + [(audio, str(job[\"audioSha256\"]).strip().lower())]\n    for file, sha in input_pairs:"
+    "search": "    original_image = Image.open(reference).convert(\"RGB\")\n    original_size = original_image.size\n    prepared_image = ImageOps.pad(original_image, (832, 480), method=Image.Resampling.LANCZOS, color=(255, 255, 255))\n    reference_preprocessing = {\"originalWidth\": original_size[0], \"originalHeight\": original_size[1],\n                               \"width\": 832, \"height\": 480, \"method\": \"pad\", \"preserveAspectRatio\": True}\n    image = torch.from_numpy(np.asarray(prepared_image, dtype=np.float32) / 255.0).unsqueeze(0)",
+    "replace": "    prepared_reference_tensors = []\n    reference_preprocessing_items = []\n    for reference_item, reference_sha in zip(reference_files, reference_shas):\n        original_image = Image.open(reference_item).convert(\"RGB\")\n        original_size = original_image.size\n        prepared_image = ImageOps.pad(original_image, (832, 480), method=Image.Resampling.LANCZOS, color=(255, 255, 255))\n        prepared_reference_tensors.append(torch.from_numpy(np.asarray(prepared_image, dtype=np.float32) / 255.0).unsqueeze(0))\n        reference_preprocessing_items.append({\"sourceFile\": str(reference_item), \"sha256\": reference_sha, \"originalWidth\": original_size[0], \"originalHeight\": original_size[1], \"width\": 832, \"height\": 480, \"method\": \"pad\", \"preserveAspectRatio\": True})\n    reference_preprocessing = {\"count\": len(prepared_reference_tensors), \"items\": reference_preprocessing_items, \"width\": 832, \"height\": 480, \"method\": \"pad\", \"preserveAspectRatio\": True}\n    image = torch.cat(prepared_reference_tensors, dim=0)"
   }
 }
