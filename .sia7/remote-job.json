@@ -1,10 +1,12 @@
 {
-  "jobId": "v142-sia7-inspect-run-route-20260910-720",
-  "operation": "bridge",
-  "endpoint": "/grep",
-  "body": {
-    "query": "JARVIS FS bridge /run endpoint process execution",
-    "path": "jarvis-fs-bridge.js",
-    "maxResults": 20
+  "jobId": "v142-budget-095-materializer-20260910-721",
+  "operation": "patch",
+  "humanApproved": true,
+  "patch": {
+    "file": ".github/scripts/v142-final-contract-alignment.mjs",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "const HUMO17_QUALITY_BUDGET_USD = 1.5;",
+    "replace": "const HUMO17_QUALITY_BUDGET_USD = 0.95;"
   }
 }
