@@ -9262,7 +9262,7 @@ export async function runHuMo17PersistentCoreStagingCli({
     ].join("\n");
     const createBody = {
         name: podName,
-        imageName: runtimeProbeAuthorized ? `${RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].provisionImageTag}@${RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].expectedRegistryDigest}` : "ubuntu:22.04",
+        imageName: `${RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].provisionImageTag}@${RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].expectedRegistryDigest}`,
         computeType: runtimeProbeAuthorized ? "GPU" : "CPU",
         ...(runtimeProbeAuthorized ? {gpuTypeIds: ["NVIDIA L40S"], gpuCount: 1, minRAMPerGPU: 62, minVCPUPerGPU: 16} : {}),
         cloudType: "SECURE",
