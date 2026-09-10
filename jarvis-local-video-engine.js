@@ -540,7 +540,7 @@ export const RUNPOD_HUMO17_CORE_CACHE_BASE = (() => {
     const combinedPersistentBytes = Number(RUNPOD_HUMO_CACHE_BASE.totalBytes || 0) + totalBytes;
     const nominalVolumeBytes = Number(strategy.persistentVolumeBytes || strategy.nominal50GiBBytes || 0);
     return Object.freeze({
-        schemaVersion: "jarvis.model-cache.v142.humo17-core.1",
+        schemaVersion: "jarvis.model-cache.v142.humo17-persistent-runtime.2",
         profile: "humo17-fp8-core-v1",
         cacheDirectory: "humo17-fp8-core",
         runtime: strategy.runtime,
