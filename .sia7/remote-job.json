@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-budget-150-migrate-single-use-input-20260910-743",
+  "jobId": "v142-budget-150-migrate-quality-guard-20260910-744",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": ".github/scripts/v142-final-contract-alignment.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        '       a.hardBudgetUsd!==1.5 || c.hardBudgetUsd!==a.hardBudgetUsd || a.safetyRatio!==0.75 ||',",
-    "replace": "        '       a.hardBudgetUsd!==0.95 || c.hardBudgetUsd!==a.hardBudgetUsd || a.safetyRatio!==0.75 ||',"
+    "search": "        '    if (quality && hardBudgetUsd > 1.5) throw new Error(\"HUMO17_QUALITY_BUDGET_EXCEEDED\");',",
+    "replace": "        '    if (quality && hardBudgetUsd > 0.95) throw new Error(\"HUMO17_QUALITY_BUDGET_EXCEEDED\");',"
   }
 }
