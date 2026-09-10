@@ -1,11 +1,18 @@
 {
-  "jobId": "v142-humo17-cpu-runtime-image-parity-20260909-461",
-  "completedAt": "2026-09-10T02:27:47.165Z",
+  "jobId": "v142-series-longform-batch-cadence-20260909-462",
+  "completedAt": "2026-09-10T02:29:11.398Z",
   "executionStarted": true,
-  "ok": false,
-  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1",
-  "evidence": null,
+  "ok": true,
+  "operation": "patch",
+  "dryRun": false,
+  "file": "jarvis-artifact-studio.js",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 52665,
+  "bytesAfter": 52875,
+  "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
-    ".sia7/remote-result.json"
+    ".sia7/remote-result.json",
+    "jarvis-artifact-studio.js"
   ]
 }

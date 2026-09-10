@@ -182,6 +182,10 @@ function cleanStringList(value, maximum = 100) {
 
 function normalizeSeriesIdentityContinuityPolicy(value = {}) {
     const requestedMinimum = Number(value?.minimumPersistentCharacterCount ?? 1);
+    const requestedBatchSize = Number(value?.productionBatchSize ?? 5);
+    const productionBatchSize = Number.isInteger(requestedBatchSize)
+        ? Math.max(1, Math.min(requestedBatchSize, 50))
+        : 5;
     const minimumPersistentCharacterCount = Number.isInteger(requestedMinimum)
         ? Math.max(1, Math.min(requestedMinimum, 100))
         : 1;
