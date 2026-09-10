@@ -1,18 +1,18 @@
 {
-  "jobId": "v142-humo17-stage-checkpoints-20260909-492",
-  "completedAt": "2026-09-10T03:31:22.839Z",
+  "jobId": "v142-humo17-durable-probe-control-20260909-493",
+  "completedAt": "2026-09-10T03:32:27.406Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "scripts/jarvis-local-video-wan22.py",
+  "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 54320,
-  "bytesAfter": 55204,
+  "bytesBefore": 453263,
+  "bytesAfter": 453277,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "scripts/jarvis-local-video-wan22.py"
+    "jarvis-fs-bridge.js"
   ]
 }

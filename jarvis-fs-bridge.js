@@ -9386,7 +9386,7 @@ export async function runHuMo17PersistentCoreStagingCli({
             const remainingSeconds = Math.floor((deadlineMs - Date.now()) / 1000) - 120;
             if (remainingSeconds < 300) throw new Error("HUMO17_PROBE_BUDGET_DEADLINE");
             try {
-                await runSsh(endpoint, `timeout ${remainingSeconds}s bash /tmp/jarvis-humo17/probe.sh > /tmp/jarvis-humo17/probe.log 2>&1`, (remainingSeconds + 15) * 1000);
+                await runSsh(endpoint, `timeout ${remainingSeconds}s bash /tmp/jarvis-humo17/probe.sh > ${posixShellSingleQuote(probeJob.logFile)} 2>&1`, (remainingSeconds + 15) * 1000);
             } catch (error) {
                 const detail = await runSsh(endpoint, "tail -c 6000 /tmp/jarvis-humo17/probe.log; test ! -f /tmp/jarvis-humo17/result.json || cat /tmp/jarvis-humo17/result.json", 30000).catch(() => ({stdout: "diagnostic unavailable"}));
                 error.logTail = detail.stdout;
