@@ -1046,7 +1046,7 @@ export const RUNPOD_CPU_STAGING_PROFILE = Object.freeze({
     repository: "runpod/pytorch",
     tag: "1.0.2-cu1281-torch280-ubuntu2404",
     provisionImageTag: "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404",
-    expectedRegistryDigest: "sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc",
+    expectedRegistryDigest: "sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35",
     officialImageSource: "https://github.com/runpod/runpod-plugins-official/blob/main/plugins/runpod/skills/runpodctl/SKILL.md",
     minimumVcpu: 2,
     supportedVcpuCounts: Object.freeze([1, 2, 4, 8]),
