@@ -273,17 +273,12 @@ function alignHuMo17QualityContract() {
         "V142_HUMO17_QUALITY_BUDGET_TEST"
     );
 
-    tests = transformNamedTest(
+    tests = replaceCountOrAlready(
         tests,
-        "HuMo17 quality authority binds exact media, budget and HEAD and is consumed once",
-        region => replaceCountOrAlready(
-            region,
-            'hardBudgetUsd:.95,safetyRatio:.75',
-            `hardBudgetUsd:${HUMO17_QUALITY_BUDGET_USD},safetyRatio:.75`,
-            1,
-            "V142_HUMO17_SINGLE_USE_AUTHORITY_FIXTURE_BUDGET"
-        ),
-        "V142_HUMO17_SINGLE_USE_AUTHORITY_FIXTURE"
+        'hardBudgetUsd:.95,safetyRatio:.75',
+        `hardBudgetUsd:${HUMO17_QUALITY_BUDGET_USD},safetyRatio:.75`,
+        1,
+        "V142_HUMO17_SINGLE_USE_AUTHORITY_FIXTURE_BUDGET"
     );
 
     fs.writeFileSync(FS_BRIDGE_TEST_FILE, tests, "utf8");
