@@ -8857,7 +8857,7 @@ export function buildHuMo17RuntimeProbeJob({ assets, hardBudgetUsd, operationId,
     if (paidAuthorized !== true) throw new Error("HUMO17_PROBE_PAID_AUTHORITY_REQUIRED");
     const quality = assets.qualityProbe === true;
     const speechEvidence = quality ? validateHuMo17SpeechEvidence(assets.speechEvidence, assets.audio.sha256) : null;
-    if (quality && hardBudgetUsd > 1) throw new Error("HUMO17_QUALITY_BUDGET_EXCEEDED");
+    if (quality && hardBudgetUsd > 1.5) throw new Error("HUMO17_QUALITY_BUDGET_EXCEEDED");
     const candidate = buildNextIdentityRuntimeCandidate({ backend: "humo-17b-identity" });
     return {
         operationId, backend: "humo-17b-identity", model: "HuMo-17B", externalApiAllowed: false,
