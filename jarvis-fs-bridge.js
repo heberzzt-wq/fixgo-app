@@ -9400,7 +9400,7 @@ export async function runHuMo17PersistentCoreStagingCli({
                 runtimePhysical.referenceSha256 !== probeJob.referenceSha256 || runtimePhysical.audioSha256 !== probeJob.audioSha256) throw new Error("HUMO17_RUNTIME_RESULT_INVALID");
             const fetched = await spawnCaptured(scp, ["-i", privateKeyFile, "-P", String(endpoint.port), "-o", "BatchMode=yes",
                 "-o", "StrictHostKeyChecking=yes", "-o", `UserKnownHostsFile=${knownHostsFile}`,
-                `root@${endpoint.host}:/tmp/jarvis-humo17/probe.mp4`, runtimeProbeAssets.outputFile], {timeoutMs: 45000, maxBytes: 1024 * 1024});
+                `root@${endpoint.host}:${probeJob.outputFile}`, runtimeProbeAssets.outputFile], {timeoutMs: 45000, maxBytes: 1024 * 1024});
             const hash = createHash("sha256").update(fs.readFileSync(runtimeProbeAssets.outputFile)).digest("hex");
             if (hash !== runtimePhysical.sha256) throw new Error("HUMO17_OUTPUT_SHA256_MISMATCH");
             const ffprobe = resolveLocalExecutable(env.JARVIS_FFPROBE_PATH || "ffprobe", env);
