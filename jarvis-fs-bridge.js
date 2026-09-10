@@ -9675,7 +9675,7 @@ export function resolveHuMo17QualityControlPlane({ root = DEFAULT_ROOT, env = pr
     };
     const audio = installInput(wavCandidates[0]), speech = installInput(evidence.file);
     const coreStageReceiptCommit = String(control.coreStageReceiptCommit || "").trim().toLowerCase();
-    if (coreStageReceiptCommit !== "c5461883e28a5f80ad6006e0a2d2ddd2b641d37c") throw new Error("HUMO17_QUALITY_CORE_RECEIPT_COMMIT_INVALID");
+    if (!/^[a-f0-9]{40}$/.test(coreStageReceiptCommit)) throw new Error("HUMO17_QUALITY_CORE_RECEIPT_COMMIT_INVALID");
     try { execFileSync(git, ["merge-base", "--is-ancestor", coreStageReceiptCommit, head], {cwd: root, windowsHide: true, stdio: "ignore"}); } catch { throw new Error("HUMO17_QUALITY_CORE_RECEIPT_NOT_ANCESTOR"); }
     const stageReceipt = JSON.parse(String(execFileSync(git, ["show", `${coreStageReceiptCommit}:.sia7/remote-result.json`], {cwd: root, encoding: "utf8", windowsHide: true, maxBuffer: 2 * 1024 * 1024})));
     if (stageReceipt?.ok !== true || stageReceipt?.status !== "HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED" || stageReceipt?.physicalStageCertified !== true || stageReceipt?.coreManifestVerified !== true || stageReceipt?.terminationVerified !== true || stageReceipt?.networkVolumeRetained !== true || stageReceipt?.networkVolumeId !== "1qm5wczocl" || stageReceipt?.networkVolumeDataCenterId !== "EU-NL-1") throw new Error("HUMO17_QUALITY_CORE_RECEIPT_INVALID");
