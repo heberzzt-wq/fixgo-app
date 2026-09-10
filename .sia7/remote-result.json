@@ -1,18 +1,11 @@
 {
-  "jobId": "v142-humo17-paid-offline-startup-20260909-431",
-  "completedAt": "2026-09-10T01:06:58.092Z",
+  "jobId": "v142-humo17-persistent-preflight-contract-20260909-432",
+  "completedAt": "2026-09-10T01:10:04.944Z",
   "executionStarted": true,
-  "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "jarvis-fs-bridge.js",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 451523,
-  "bytesAfter": 451689,
-  "source": "sia7_github_worker_exact_patch_v1",
+  "ok": false,
+  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1",
+  "evidence": null,
   "committedFiles": [
-    ".sia7/remote-result.json",
-    "jarvis-fs-bridge.js"
+    ".sia7/remote-result.json"
   ]
 }
