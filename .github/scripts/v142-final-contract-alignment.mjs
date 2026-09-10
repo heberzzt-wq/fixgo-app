@@ -94,12 +94,19 @@ function alignCpuParityFixtures() {
                 1,
                 "V142_CPU_PRECHECK_IMAGE"
             );
-            return replaceCount(
+            region = replaceCount(
                 region,
                 '    assert.notEqual(\n        report.payload.imageName,\n        RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].provisionImageTag\n    );',
                 '    assert.equal(\n        report.payload.imageName,\n        RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].provisionImageTag\n    );',
                 1,
                 "V142_CPU_PRECHECK_IMAGE_PARITY"
+            );
+            return replaceCount(
+                region,
+                '    assert.equal(\n        JSON.stringify(report.contract.runtimeIdentity).includes("torchVersionPrefix"),\n        false\n    );',
+                '    assert.equal(\n        JSON.stringify(report.contract.runtimeIdentity).includes("torchVersionPrefix"),\n        true\n    );',
+                1,
+                "V142_CPU_PRECHECK_RUNTIME_IDENTITY_PARITY"
             );
         },
         "V142_CPU_PRECHECK"
@@ -140,6 +147,9 @@ function alignCpuParityFixtures() {
     if (!parityRegion.includes(`imageName: "${CPU_IMAGE}"`) || parityRegion.includes("assert.notEqual(\n        report.payload.imageName")) {
         throw new Error("V142_CPU_GPU_IMAGE_PARITY_FIXTURE_INVALID");
     }
+    if (!parityRegion.includes('JSON.stringify(report.contract.runtimeIdentity).includes("torchVersionPrefix"),\n        true')) {
+        throw new Error("V142_CPU_RUNTIME_IDENTITY_PARITY_FIXTURE_INVALID");
+    }
 
     fs.writeFileSync(TEST_FILE, source, "utf8");
 }
@@ -154,6 +164,7 @@ console.log(JSON.stringify({
     cpuImage: CPU_IMAGE,
     cpuOperatingSystem: "ubuntu-24.04",
     gpuImageParity: true,
+    runtimeIdentityParityAsserted: true,
     productionRuntimeChecksWeakened: false,
     l40sStarted: false,
     billableGpuCreated: false
