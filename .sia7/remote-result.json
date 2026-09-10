@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-budget-095-migrate-acceptance-fixture-crlf-20260910-729",
-  "completedAt": "2026-09-10T17:11:40.909Z",
+  "jobId": "v142-budget-095-migrate-single-use-fixture-crlf-20260910-730",
+  "completedAt": "2026-09-10T17:12:15.091Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,7 +8,7 @@
   "file": ".github/scripts/v142-final-contract-alignment.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 14118,
+  "bytesBefore": 14117,
   "bytesAfter": 14117,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [

@@ -275,7 +275,7 @@ function alignHuMo17QualityContract() {
 
     tests = replaceCountOrAlready(
         tests,
-        'hardBudgetUsd:.95,safetyRatio:.75',
+        'hardBudgetUsd:1.5,safetyRatio:.75',
         `hardBudgetUsd:${HUMO17_QUALITY_BUDGET_USD},safetyRatio:.75`,
         1,
         "V142_HUMO17_SINGLE_USE_AUTHORITY_FIXTURE_BUDGET"
