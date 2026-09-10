@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-runtime-20260909-419",
+  "jobId": "v142-humo17-persistent-capacity-20260909-420",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "stageReceipt.ok !== true || stageReceipt.physicalStageCertified !== true || stageReceipt.coreManifestVerified !== true ||",
-    "replace": "stageReceipt.ok !== true || stageReceipt.physicalStageCertified !== true || stageReceipt.coreManifestVerified !== true ||\n            stageReceipt.persistentRuntimeReady !== true || stageReceipt.offlinePaidBootstrapRequired !== true || Number(stageReceipt.persistentRuntimeRequiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length ||"
+    "search": "persistentMinimumNetworkVolumeGb: 80,",
+    "replace": "persistentMinimumNetworkVolumeGb: 80,\n            persistentVolumeBytes: 85899345920,"
   }
 }
