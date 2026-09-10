@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-budget-150-acceptance-fixture-20260910-739",
+  "jobId": "v142-budget-150-worker-optional-fixture-20260910-740",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": ".github/scripts/v142-final-contract-alignment.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:0.95,paidAuthorized:true});',",
-    "replace": "                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.5,paidAuthorized:true});',"
+    "search": "    let worker = fs.readFileSync(\"jarvis-github-worker.js\", \"utf8\").replace(/\\r\\n/g, \"\\n\");\n    worker = replaceCountOrAlready(\n        worker,\n        '    const hardBudgetUsd = Number(job.hardBudgetUsd ?? 1.5);',\n        '    const hardBudgetUsd = Number(job.hardBudgetUsd);',\n        1,\n        \"V142_HUMO17_EXPLICIT_CORE_BUDGET\"\n    );\n    fs.writeFileSync(\"jarvis-github-worker.js\", worker, \"utf8\");",
+    "replace": "    if (fs.existsSync(\"jarvis-github-worker.js\")) {\n        let worker = fs.readFileSync(\"jarvis-github-worker.js\", \"utf8\").replace(/\\r\\n/g, \"\\n\");\n        worker = replaceCountOrAlready(\n            worker,\n            '    const hardBudgetUsd = Number(job.hardBudgetUsd ?? 1.5);',\n            '    const hardBudgetUsd = Number(job.hardBudgetUsd);',\n            1,\n            \"V142_HUMO17_EXPLICIT_CORE_BUDGET\"\n        );\n        fs.writeFileSync(\"jarvis-github-worker.js\", worker, \"utf8\");\n    }"
   }
 }
