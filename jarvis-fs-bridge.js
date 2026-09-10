@@ -9060,6 +9060,17 @@ export async function runHuMo17PersistentCoreStagingCli({
     const matches = volumes.filter(volume => volume.id === requestedVolumeId);
     if (matches.length !== 1) throw new Error(`RUNPOD_HUMO17_VOLUME_MATCH_COUNT:${matches.length}`);
     let volume = matches[0];
+    const requiredPersistentVolumeGb = Number(RUNPOD_HUMO17_CORE_CACHE_BASE.minimumNetworkVolumeGb || 80);
+    if (!runtimeProbeAuthorized && Number(volume.sizeGb || 0) < requiredPersistentVolumeGb) {
+        if (!truthy(env.JARVIS_HUMO17_PERSISTENT_VOLUME_RESIZE_AUTHORIZED)) throw new Error("HUMO17_PERSISTENT_VOLUME_RESIZE_AUTHORITY_REQUIRED");
+        await runRunpodctlJson(["network-volume", "update", volume.id, "--size", String(Math.ceil(requiredPersistentVolumeGb))], cliEnv);
+        const resizedVolumes = normalizeRunpodctlNetworkVolumes(await runRunpodctlJson(["network-volume", "list"], cliEnv));
+        const resizedMatches = resizedVolumes.filter(item => item.id === requestedVolumeId);
+        if (resizedMatches.length !== 1) throw new Error(`HUMO17_PERSISTENT_VOLUME_RESIZE_MATCH_COUNT:${resizedMatches.length}`);
+        volume = resizedMatches[0];
+        if (Number(volume.sizeGb || 0) < requiredPersistentVolumeGb) throw new Error("HUMO17_PERSISTENT_VOLUME_RESIZE_UNVERIFIED");
+        log({ok:true,status:"HUMO17_PERSISTENT_VOLUME_RESIZED",networkVolumeId:volume.id,dataCenterId:volume.dataCenterId,sizeGb:Number(volume.sizeGb || 0),inferenceStarted:false});
+    }
     if (
         volume.dataCenterId !== requestedDataCenterId ||
         Number(volume.sizeGb || 0) < Number(RUNPOD_HUMO17_CORE_CACHE_BASE.minimumNetworkVolumeGb || 50) ||
