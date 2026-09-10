@@ -1,10 +1,5 @@
 {
-  "jobId": "v142-humo-identity-preflight-post-restart-20260910-731",
-  "operation": "humo_identity_probe",
-  "expectedBaseSha": "0623d17b66c6cffb6632112d2b417e275c64a0fc",
-  "hardBudgetUsd": 0.32,
-  "monthlyStorageAuthorizedUsd": 5.6,
-  "fullEpisodeAuthorized": false,
-  "executePaid": false,
-  "humanApproved": true
+  "jobId": "v142-bridge-health-post-worker-restart-20260910-732",
+  "operation": "bridge",
+  "endpoint": "/health"
 }
