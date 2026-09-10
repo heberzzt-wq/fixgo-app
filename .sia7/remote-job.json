@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-stage-checkpoints-20260909-491",
+  "jobId": "v142-humo17-stage-checkpoints-20260909-492",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "scripts/jarvis-local-video-wan22.py",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    if tuple(frames.shape[:3]) != (frame_count, 480, 832):\r\n        raise RuntimeError(\"HUMO17_GENERATED_FRAME_GEOMETRY_INVALID\")\r\n    output = Path(job[\"outputFile\"]).resolve()",
-    "replace": "    if tuple(frames.shape[:3]) != (frame_count, 480, 832):\r\n        raise RuntimeError(\"HUMO17_GENERATED_FRAME_GEOMETRY_INVALID\")\r\n    write_json_atomic(result_file, {\"ok\": False, \"backend\": \"humo-17b-identity\", \"inferenceStarted\": True, \"status\": \"HUMO17_GEOMETRY_VERIFIED\"})\r\n    output = Path(job[\"outputFile\"]).resolve()"
+    "search": "    pixels = (frames.clamp(0, 1).cpu().numpy() * 255).round().astype(np.uint8)\r\n    subprocess.run(command, input=pixels.tobytes(), check=True, timeout=60)\r\n    media = inspect_video(output, \"ffprobe\")",
+    "replace": "    write_json_atomic(result_file, {\"ok\": False, \"backend\": \"humo-17b-identity\", \"inferenceStarted\": True, \"status\": \"HUMO17_CPU_TRANSFER_STARTED\"})\r\n    pixels = (frames.clamp(0, 1).cpu().numpy() * 255).round().astype(np.uint8)\r\n    write_json_atomic(result_file, {\"ok\": False, \"backend\": \"humo-17b-identity\", \"inferenceStarted\": True, \"status\": \"HUMO17_CPU_TRANSFER_COMPLETED\"})\r\n    write_json_atomic(result_file, {\"ok\": False, \"backend\": \"humo-17b-identity\", \"inferenceStarted\": True, \"status\": \"HUMO17_FFMPEG_STARTED\"})\r\n    subprocess.run(command, input=pixels.tobytes(), check=True, timeout=60)\r\n    write_json_atomic(result_file, {\"ok\": False, \"backend\": \"humo-17b-identity\", \"inferenceStarted\": True, \"status\": \"HUMO17_FFMPEG_COMPLETED\"})\r\n    write_json_atomic(result_file, {\"ok\": False, \"backend\": \"humo-17b-identity\", \"inferenceStarted\": True, \"status\": \"HUMO17_FFPROBE_STARTED\"})\r\n    media = inspect_video(output, \"ffprobe\")\r\n    write_json_atomic(result_file, {\"ok\": False, \"backend\": \"humo-17b-identity\", \"inferenceStarted\": True, \"status\": \"HUMO17_FFPROBE_COMPLETED\"})"
   }
 }
