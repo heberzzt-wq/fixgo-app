@@ -496,7 +496,8 @@ export function createSeriesBible({
     seriesId,
     title,
     storyArc = "",
-    status = "ACTIVE"
+    status = "ACTIVE",
+    identityContinuityPolicy = {}
 } = {}) {
     const id = cleanIdentifier(seriesId, "SERIES_ID");
     const normalizedTitle = clean(title).slice(0, 300);
