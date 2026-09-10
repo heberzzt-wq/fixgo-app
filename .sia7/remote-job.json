@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-budget-150-migrate-acceptance-input-crlf-20260910-748",
+  "jobId": "v142-budget-150-migrate-authority-fixture-crlf-20260910-749",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": ".github/scripts/v142-final-contract-alignment.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.5,paidAuthorized:true});',\r\n                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.5,paidAuthorized:true});',",
-    "replace": "                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:0.95,paidAuthorized:true});',\r\n                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.5,paidAuthorized:true});',"
+    "search": "        'hardBudgetUsd:1.5,safetyRatio:.75',\r\n        `hardBudgetUsd:${HUMO17_QUALITY_BUDGET_USD},safetyRatio:.75`,",
+    "replace": "        'hardBudgetUsd:0.95,safetyRatio:.75',\r\n        `hardBudgetUsd:${HUMO17_QUALITY_BUDGET_USD},safetyRatio:.75`,"
   }
 }
