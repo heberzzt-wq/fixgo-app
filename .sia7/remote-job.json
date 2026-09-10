@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-budget-150-rejection-fixture-20260910-738",
+  "jobId": "v142-budget-150-acceptance-fixture-20260910-739",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": ".github/scripts/v142-final-contract-alignment.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                '    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.01,paidAuthorized:true}),/QUALITY_BUDGET/);',",
-    "replace": "                '    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.51,paidAuthorized:true}),/QUALITY_BUDGET/);',"
+    "search": "                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:0.95,paidAuthorized:true});',",
+    "replace": "                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.5,paidAuthorized:true});',"
   }
 }
