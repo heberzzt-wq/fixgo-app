@@ -1,10 +1,10 @@
 {
-  "jobId": "v142-humo-identity-preflight-97f-20260910-719",
-  "operation": "humo_identity_probe",
-  "expectedBaseSha": "d85719265f916a0c54c3d6528493fa2c7ad26c02",
-  "hardBudgetUsd": 0.8,
-  "monthlyStorageAuthorizedUsd": 5.6,
-  "fullEpisodeAuthorized": false,
-  "executePaid": false,
-  "humanApproved": true
+  "jobId": "v142-sia7-inspect-run-route-20260910-720",
+  "operation": "bridge",
+  "endpoint": "/grep",
+  "body": {
+    "query": "JARVIS FS bridge /run endpoint process execution",
+    "path": "jarvis-fs-bridge.js",
+    "maxResults": 20
+  }
 }
