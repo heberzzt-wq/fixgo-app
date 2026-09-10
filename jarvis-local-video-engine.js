@@ -538,7 +538,7 @@ export const RUNPOD_HUMO17_CORE_CACHE_BASE = (() => {
     ]);
     const totalBytes = requiredFiles.reduce((sum, file) => sum + Number(file.bytes || 0), 0);
     const combinedPersistentBytes = Number(RUNPOD_HUMO_CACHE_BASE.totalBytes || 0) + totalBytes;
-    const nominalVolumeBytes = Number(strategy.nominal50GiBBytes || 0);
+    const nominalVolumeBytes = Number(strategy.persistentVolumeBytes || strategy.nominal50GiBBytes || 0);
     return Object.freeze({
         schemaVersion: "jarvis.model-cache.v142.humo17-core.1",
         profile: "humo17-fp8-core-v1",
