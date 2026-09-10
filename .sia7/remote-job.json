@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-paid-offline-startup-20260909-430",
+  "jobId": "v142-humo17-paid-offline-startup-20260909-431",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        \"apt-get update -qq\",",
-    "replace": "        runtimeProbeAuthorized ? \"test -x /usr/sbin/sshd && test -x $SYSTEM_ROOT/bin/ffmpeg && test -x $SYSTEM_ROOT/bin/ffprobe && test -x $SYSTEM_ROOT/bin/git\" : \"apt-get update -qq\","
+    "search": "        \"apt-get install -y -qq --no-install-recommends openssh-server ca-certificates python3 python3-venv python3-pip git curl ffmpeg\",",
+    "replace": "        runtimeProbeAuthorized ? \"$SYSTEM_ROOT/bin/ffmpeg -version >/dev/null && $SYSTEM_ROOT/bin/ffprobe -version >/dev/null && $SYSTEM_ROOT/bin/git --version >/dev/null\" : \"apt-get install -y -qq --no-install-recommends openssh-server ca-certificates python3 python3-venv python3-pip git curl ffmpeg\","
   }
 }
