@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-volume-20260909-399",
+  "jobId": "v142-humo17-persistent-volume-20260909-400",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "const volume = matches[0];",
-    "replace": "let volume = matches[0];"
+    "search": "let volume = matches[0];",
+    "replace": "let volume = matches[0];\n    const requiredPersistentVolumeGb = Number(RUNPOD_HUMO17_CORE_CACHE_BASE.minimumNetworkVolumeGb || 80);\n    if (!runtimeProbeAuthorized && Number(volume.sizeGb || 0) < requiredPersistentVolumeGb) {\n        if (!truthy(env.JARVIS_HUMO17_PERSISTENT_VOLUME_RESIZE_AUTHORIZED)) throw new Error(\"HUMO17_PERSISTENT_VOLUME_RESIZE_AUTHORITY_REQUIRED\");\n        await runRunpodctlJson([\"network-volume\", \"update\", volume.id, \"--size\", String(Math.ceil(requiredPersistentVolumeGb))], cliEnv);\n        const resizedVolumes = normalizeRunpodctlNetworkVolumes(await runRunpodctlJson([\"network-volume\", \"list\"], cliEnv));\n        const resizedMatches = resizedVolumes.filter(item => item.id === requestedVolumeId);\n        if (resizedMatches.length !== 1) throw new Error(`HUMO17_PERSISTENT_VOLUME_RESIZE_MATCH_COUNT:${resizedMatches.length}`);\n        volume = resizedMatches[0];\n        if (Number(volume.sizeGb || 0) < requiredPersistentVolumeGb) throw new Error(\"HUMO17_PERSISTENT_VOLUME_RESIZE_UNVERIFIED\");\n        log({ok:true,status:\"HUMO17_PERSISTENT_VOLUME_RESIZED\",networkVolumeId:volume.id,dataCenterId:volume.dataCenterId,sizeGb:Number(volume.sizeGb || 0),inferenceStarted:false});\n    }"
   }
 }
