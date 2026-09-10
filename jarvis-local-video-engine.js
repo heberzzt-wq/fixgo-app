@@ -718,6 +718,7 @@ export function buildHuMo17PersistentCoreStagingBootstrap({
         "test -f \"$LEGACY_ROOT/model-manifest.json\"",
         "LEGACY_MANIFEST_SHA_BEFORE=$(sha256sum \"$LEGACY_ROOT/model-manifest.json\" | awk '{print $1}')",
         "mkdir -p \"$CORE_ROOT\"",
+        "python3 -c 'import platform,torch; assert platform.python_version().startswith(\"3.12.\"), platform.python_version(); assert str(torch.__version__).startswith(\"2.8.0+cu128\"), torch.__version__; assert str(torch.version.cuda or \"\").startswith(\"12.8\"), torch.version.cuda'",
         "TOOLS_VENV=\"$CORE_ROOT/.cpu-tools-venv\"",
         "test -x \"$TOOLS_VENV/bin/python\" || python3 -m venv \"$TOOLS_VENV\"",
         `\"$TOOLS_VENV/bin/python\" -m pip install --disable-pip-version-check --no-input 'huggingface_hub==${RUNPOD_HUMO_CACHE_BASE.downloadTools.huggingfaceHub}' 'hf-xet==${RUNPOD_HUMO_CACHE_BASE.downloadTools.hfXet}'`,
