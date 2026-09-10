@@ -252,6 +252,21 @@ function alignHuMo17QualityContract() {
     );
 
     fs.writeFileSync(FS_BRIDGE_TEST_FILE, tests, "utf8");
+
+    let localVideoTests = fs.readFileSync(TEST_FILE, "utf8").replace(/\r\n/g, "\n");
+    localVideoTests = transformNamedTest(
+        localVideoTests,
+        "V142 HuMo17 paid bootstrap is persistent, offline and checkpointed",
+        region => replaceCountOrAlready(
+            region,
+            '    assert.equal(bridge.includes(\'path.posix.join("/workspace/jarvis-v142/operations", operationId, "probe.mp4")\'), true);',
+            '    assert.equal(bridge.includes(\'path.posix.join("/workspace/jarvis-v142/operations", resolvedOperationId, "probe.mp4")\'), true);',
+            1,
+            "V142_HUMO17_RESOLVED_OPERATION_ID_TEST"
+        ),
+        "V142_HUMO17_PAID_BOOTSTRAP"
+    );
+    fs.writeFileSync(TEST_FILE, localVideoTests, "utf8");
 }
 
 runPinnedBaseline();
@@ -268,6 +283,7 @@ console.log(JSON.stringify({
     humo17QualityContractAligned: true,
     humo17QualityBudgetUsd: HUMO17_QUALITY_BUDGET_USD,
     humo17OfflineRuntimeAligned: true,
+    humo17GeneratedPaidBootstrapAssertionAligned: true,
     fixtureGitLookupAnchoredToRepository: true,
     duplicateAlignmentRemoved: true,
     l40sStarted: false,
