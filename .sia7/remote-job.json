@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-runtime-20260909-418",
+  "jobId": "v142-humo17-persistent-runtime-20260909-419",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "coreManifestVerified: validateHuMo17CoreCacheManifest(manifest),",
-    "replace": "coreManifestVerified: validateHuMo17CoreCacheManifest(manifest),\n        persistentRuntimeReady: runtimePhysical?.runtimeReady === true,\n        persistentRuntimeSchema: runtimePhysical?.schema || null,\n        persistentRuntimeRequiredAssetCount: Number(runtimePhysical?.requiredAssetCount || 0),\n        offlinePaidBootstrapRequired: runtimePhysical?.offlinePaidBootstrapRequired === true,"
+    "search": "stageReceipt.ok !== true || stageReceipt.physicalStageCertified !== true || stageReceipt.coreManifestVerified !== true ||",
+    "replace": "stageReceipt.ok !== true || stageReceipt.physicalStageCertified !== true || stageReceipt.coreManifestVerified !== true ||\n            stageReceipt.persistentRuntimeReady !== true || stageReceipt.offlinePaidBootstrapRequired !== true || Number(stageReceipt.persistentRuntimeRequiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length ||"
   }
 }
