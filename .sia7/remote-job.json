@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-preflight-contract-20260909-432",
+  "jobId": "v142-humo17-persistent-preflight-contract-20260909-433",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            persistentNewAssets: [\n                { ...strategy.quantizedModel, role: \"video_transformer\" },\n                { ...strategy.distillationLora, role: \"distillation_lora\" }\n            ],",
-    "replace": "            persistentNewAssets: candidate?.backend === \"humo-17b-identity\"\n                ? RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.map(asset => ({ ...asset }))\n                : [\n                    { ...strategy.quantizedModel, role: \"video_transformer\" },\n                    { ...strategy.distillationLora, role: \"distillation_lora\" }\n                ],"
+    "search": "                { ...strategy.distillationLora, role: \"distillation_lora\" }",
+    "replace": "                { ...strategy.distillationLora, role: \"distillation_lora\" },\n                ...(strategy.auxiliaryAssetsPersistent === true\n                    ? (strategy.wrapperAuxiliaryAssets || []).map(asset => ({ ...asset }))\n                    : [])"
   }
 }
