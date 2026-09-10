@@ -1043,7 +1043,7 @@ export const RUNPOD_CPU_STAGING_PROFILE = Object.freeze({
     dataCenterId: "EU-NL-1",
     dataCenterPriority: "custom",
     registry: "registry-1.docker.io",
-    repository: "library/ubuntu",
+    repository: "runpod/pytorch",
     tag: "22.04",
     provisionImageTag: "ubuntu:22.04",
     expectedRegistryDigest: "sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc",
