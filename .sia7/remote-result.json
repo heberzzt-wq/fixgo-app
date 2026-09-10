@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-humo17-l40s-runtime-parity-gate-20260909-475",
-  "completedAt": "2026-09-10T02:58:05.156Z",
+  "jobId": "v142-humo17-persistent-system-tools-path-20260909-476",
+  "completedAt": "2026-09-10T02:58:59.863Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 452174,
-  "bytesAfter": 452359,
+  "bytesBefore": 452359,
+  "bytesAfter": 452566,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
