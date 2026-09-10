@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-storage-authority-80gb-20260909-479",
+  "jobId": "v142-humo17-ffprobe-isolated-env-20260909-480",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-github-worker.js",
+    "file": "scripts/jarvis-local-video-wan22.py",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "const SIA7_HUMO_MONTHLY_STORAGE_USD = 3.5;",
-    "replace": "const SIA7_HUMO_MONTHLY_STORAGE_USD = 5.6;"
+    "search": "def inspect_video(file: Path, ffprobe: str) -> dict[str, Any]:",
+    "replace": "def inspect_video(file: Path, ffprobe: str, env: dict[str, str] | None = None) -> dict[str, Any]:"
   }
 }
