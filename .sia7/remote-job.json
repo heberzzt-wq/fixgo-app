@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-paid-offline-runtime-20260909-410",
+  "jobId": "v142-humo17-paid-offline-runtime-20260909-411",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "`git init -q ComfyUI && git -C ComfyUI fetch -q --depth 1 https://github.com/${s.comfyUiRepository}.git ${q(s.comfyUiRevision)} && git -C ComfyUI checkout -q --detach FETCH_HEAD`",
-    "replace": "`test \\\"$(git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI rev-parse HEAD)\\\" = ${q(s.comfyUiRevision)}`"
+    "search": "`git init -q ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper && git -C ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper fetch -q --depth 1 https://github.com/${s.wrapperRepository}.git ${q(s.wrapperRevision)} && git -C ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper checkout -q --detach FETCH_HEAD`",
+    "replace": "`test \\\"$(git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper rev-parse HEAD)\\\" = ${q(s.wrapperRevision)}`"
   }
 }
