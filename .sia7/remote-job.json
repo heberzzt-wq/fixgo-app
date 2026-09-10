@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-series-longform-identity-policy-20260909-445",
+  "jobId": "v142-series-longform-identity-policy-20260909-446",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-artifact-studio.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        status: clean(status).slice(0, 80) || \"ACTIVE\",\n        characters: {},",
-    "replace": "        status: clean(status).slice(0, 80) || \"ACTIVE\",\n        identityContinuityPolicy: normalizeSeriesIdentityContinuityPolicy(identityContinuityPolicy),\n        characters: {},"
+    "search": "export function getSeriesBible({ root, seriesId } = {}) {\n    return clone(readSeriesCanon(root, seriesId).canon);\n}\n\nexport function updateSeriesCommercialIdentity({",
+    "replace": "export function getSeriesBible({ root, seriesId } = {}) {\n    return clone(readSeriesCanon(root, seriesId).canon);\n}\n\nexport function updateSeriesIdentityContinuityPolicy({\n    root,\n    seriesId,\n    minimumPersistentCharacterCount = 1,\n    longFormContinuityRequired = false\n} = {}) {\n    const loaded = readSeriesCanon(root, seriesId);\n    const canon = loaded.canon;\n    canon.identityContinuityPolicy = normalizeSeriesIdentityContinuityPolicy({\n        ...(canon.identityContinuityPolicy || {}),\n        minimumPersistentCharacterCount,\n        longFormContinuityRequired\n    });\n    const saved = writeSeriesCanon(root, canon, \"series.identity-continuity-policy.update\");\n    return {\n        ok: true,\n        status: \"SERIES_IDENTITY_CONTINUITY_POLICY_PERSISTED_VERIFIED\",\n        seriesId: canon.seriesId,\n        identityContinuityPolicy: clone(saved.canon.identityContinuityPolicy),\n        activeCharacterCount: activeSeriesCharacterCount(saved.canon),\n        artifact: saved.artifact\n    };\n}\n\nexport function updateSeriesCommercialIdentity({"
   }
 }
