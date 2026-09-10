@@ -1001,6 +1001,7 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
         write_json_atomic(result_file, {"ok": False, "backend": "humo-17b-identity", "inferenceStarted": True, "status": "HUMO17_SAMPLER_COMPLETED"})
         frames = call("WanVideoDecode", vae=vae, samples=samples, enable_vae_tiling=False,
                       tile_x=272, tile_y=272, tile_stride_x=144, tile_stride_y=128, normalization="default")[0]
+        write_json_atomic(result_file, {"ok": False, "backend": "humo-17b-identity", "inferenceStarted": True, "status": "HUMO17_VAE_DECODE_COMPLETED"})
     if tuple(frames.shape[:3]) != (frame_count, 480, 832):
         raise RuntimeError("HUMO17_GENERATED_FRAME_GEOMETRY_INVALID")
     output = Path(job["outputFile"]).resolve()
