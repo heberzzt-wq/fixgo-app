@@ -9250,7 +9250,7 @@ export async function runHuMo17PersistentCoreStagingCli({
     const startupScript = [
         "set -euo pipefail",
         ...buildHuMo17RemoteWatchdogStartup({deadlineMs:remoteDeadlineMs,source:remoteWatchdogSource}),
-        "export DEBIAN_FRONTEND=noninteractive",
+        runtimeProbeAuthorized ? "RUNTIME_ROOT=/workspace/jarvis-v142/runtime/humo17; SYSTEM_ROOT=$RUNTIME_ROOT/system; export PATH=$SYSTEM_ROOT/bin:$PATH; export LD_LIBRARY_PATH=$SYSTEM_ROOT/lib:${LD_LIBRARY_PATH:-}; export GIT_EXEC_PATH=$SYSTEM_ROOT/lib/git-core" : "export DEBIAN_FRONTEND=noninteractive",
         "apt-get update -qq",
         "apt-get install -y -qq --no-install-recommends openssh-server ca-certificates python3 python3-venv python3-pip git curl ffmpeg",
         "mkdir -p /run/sshd /root/.ssh",
