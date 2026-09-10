@@ -8928,7 +8928,7 @@ export function buildHuMo17RuntimeBootstrap(job) {
         "folders={'video_transformer':'diffusion_models','distillation_lora':'loras','text_encoder':'text_encoders','vae':'vae','audio_encoder':'audio_encoders'}",
         "for a in contract['requiredFiles']:",
         "    p=core/a['path']; verify(p,a); target=root/'models'/folders[a['role']]/j['assetNames'][a['role']]; target.parent.mkdir(parents=True,exist_ok=True); target.symlink_to(p)",
-        "for a in j['strategy']['wrapperAuxiliaryAssets']:",
+        "for a in []:",
         "    p=root/'models'/folders[a['role']]/j['assetNames'][a['role']]; p.parent.mkdir(parents=True,exist_ok=True); partial=p.with_suffix('.partial')",
         "    url='https://huggingface.co/'+a['repository']+'/resolve/'+a['revision']+'/'+a['path']",
         "    with urllib.request.urlopen(url,timeout=60) as src, partial.open('wb') as dst:",
