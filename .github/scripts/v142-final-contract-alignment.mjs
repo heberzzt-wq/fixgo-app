@@ -9,35 +9,28 @@ const FILES = Object.freeze({
 });
 
 const read = file => fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+const countOf = (source, needle) => needle ? source.split(needle).length - 1 : 0;
 
-function countOf(source, needle) {
-  if (!needle) return 0;
-  return source.split(needle).length - 1;
+function replaceOnceOrAlready(source, before, after, label) {
+  if (source.includes(after)) return source;
+  const count = countOf(source, before);
+  if (count !== 1) throw new Error(`${label}_MATCH_COUNT_${count}`);
+  return source.replace(before, after);
 }
 
-function replaceCount(source, before, after, expectedCount, label) {
-  const beforeCount = countOf(source, before);
-  if (beforeCount === expectedCount) {
-    return expectedCount === 1
-      ? source.replace(before, after)
-      : source.split(before).join(after);
-  }
-  if (beforeCount === 0) {
-    if (after === "") return source;
-    const afterCount = countOf(source, after);
-    if (afterCount >= 1) return source;
-  }
-  throw new Error(`${label}_MATCH_COUNT_${beforeCount}_EXPECTED_${expectedCount}`);
+function replaceCountOrAlready(source, before, after, expectedCount, label) {
+  if (expectedCount === 1 && source.includes(after)) return source;
+  const count = countOf(source, before);
+  if (count === expectedCount) return source.split(before).join(after);
+  if (count === 0 && countOf(source, after) >= expectedCount) return source;
+  throw new Error(`${label}_MATCH_COUNT_${count}_EXPECTED_${expectedCount}`);
 }
 
-function transformRegion(source, startMarker, endMarker, transforms, label) {
+function transformRegion(source, startMarker, endMarker, transform, label) {
   const start = source.indexOf(startMarker);
   const end = source.indexOf(endMarker, start + startMarker.length);
   if (start < 0 || end < 0) throw new Error(`${label}_REGION_MISSING`);
-  let region = source.slice(start, end);
-  for (const [before, after, expectedCount, suffix] of transforms) {
-    region = replaceCount(region, before, after, expectedCount, `${label}_${suffix}`);
-  }
+  const region = transform(source.slice(start, end));
   return source.slice(0, start) + region + source.slice(end);
 }
 
@@ -49,7 +42,7 @@ function transformNamedTest(source, name, transforms, label) {
   const end = next < 0 ? source.length : next;
   let region = source.slice(start, end);
   for (const [before, after, expectedCount, suffix] of transforms) {
-    region = replaceCount(region, before, after, expectedCount, `${label}_${suffix}`);
+    region = replaceCountOrAlready(region, before, after, expectedCount, `${label}_${suffix}`);
   }
   return source.slice(0, start) + region + source.slice(end);
 }
@@ -59,125 +52,122 @@ function alignEngine(source) {
     source,
     "export const RUNPOD_CPU_STAGING_PROFILE = Object.freeze({",
     "\n});\n\nexport const EXTERNAL_VIDEO_PRICING_PROFILE",
-    [
-      ['    repository: "runpod/pytorch",', '    repository: "library/ubuntu",', 1, "REPOSITORY"],
-      ['    tag: "1.0.2-cu1281-torch280-ubuntu2404",', '    tag: "22.04",', 1, "TAG"],
-      ['    provisionImageTag: "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404",', '    provisionImageTag: "ubuntu:22.04",', 1, "IMAGE"],
-      ['    expectedRegistryDigest: "sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35",', '    expectedRegistryDigest: "sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc",', 1, "DIGEST"],
-      ['    runtimeImageParityRequired: true,\n', '', 1, "REMOVE_GLOBAL_PARITY"],
-      ['        operatingSystem: "ubuntu-24.04",\n        pythonVersionPrefix: "3.12.",\n        torchVersionPrefix: "2.8.0+cu128",\n        torchCudaVersionPrefix: "12.8",\n        mountPath: "/workspace",', '        operatingSystem: "ubuntu-22.04",\n        mountPath: "/workspace",', 1, "RUNTIME_IDENTITY"]
-    ],
-    "V142_SHARED_CPU_PROFILE"
+    region => {
+      region = replaceOnceOrAlready(region, '    repository: "library/ubuntu",', '    repository: "runpod/pytorch",', "V142_CPU_REPOSITORY");
+      region = replaceOnceOrAlready(region, '    tag: "22.04",', '    tag: "1.0.2-cu1281-torch280-ubuntu2404",', "V142_CPU_TAG");
+      region = replaceOnceOrAlready(region, '    provisionImageTag: "ubuntu:22.04",', '    provisionImageTag: "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404",', "V142_CPU_IMAGE");
+      region = replaceOnceOrAlready(region, '    expectedRegistryDigest: "sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc",', '    expectedRegistryDigest: "sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35",', "V142_CPU_DIGEST");
+      if (!region.includes("    runtimeImageParityRequired: true,")) {
+        region = replaceOnceOrAlready(
+          region,
+          '    expectedRegistryDigest: "sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35",',
+          '    expectedRegistryDigest: "sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35",\n    runtimeImageParityRequired: true,',
+          "V142_CPU_PARITY_MARKER"
+        );
+      }
+      const oldIdentity = '        operatingSystem: "ubuntu-22.04",\n        mountPath: "/workspace",';
+      const newIdentity = '        operatingSystem: "ubuntu-24.04",\n        pythonVersionPrefix: "3.12.",\n        torchVersionPrefix: "2.8.0+cu128",\n        torchCudaVersionPrefix: "12.8",\n        mountPath: "/workspace",';
+      region = replaceOnceOrAlready(region, oldIdentity, newIdentity, "V142_CPU_RUNTIME_IDENTITY");
+      return region;
+    },
+    "V142_CPU_PROFILE"
   );
 
-  source = replaceCount(
+  source = replaceOnceOrAlready(
     source,
     "            minimumNetworkVolumeGb: 50,\n            persistentMinimumNetworkVolumeGb: 80,",
     "            minimumNetworkVolumeGb: 80,\n            persistentMinimumNetworkVolumeGb: 80,",
-    1,
     "V142_HUMO17_MINIMUM_VOLUME_80GB"
   );
 
-  source = replaceCount(
+  source = replaceOnceOrAlready(
     source,
     "'torchVersion':torch.__version__,'coreManifestSha256':core_sha",
     "'torchVersion':torch.__version__,'torchCudaVersion':str(torch.version.cuda or ''),'coreManifestSha256':core_sha",
-    1,
     "V142_HUMO17_RUNTIME_MANIFEST_TORCH_CUDA"
   );
   return source;
 }
 
 function alignSeries(source) {
-  source = replaceCount(
+  source = replaceOnceOrAlready(
     source,
     `export function prepareSeriesEpisode({\n    root,\n    seriesId,\n    episodeId = "",\n    episodeNumber = null,\n    title,\n    script,\n    castIds = [],\n    storyBeats = [],\n    continuityStart = null\n} = {}) {\n    const loaded = readSeriesCanon(root, seriesId);\n    const canon = loaded.canon;\n    const acceptedEpisodeNumbers = [`,
     `export function prepareSeriesEpisode({\n    root,\n    seriesId,\n    episodeId = "",\n    episodeNumber = null,\n    title,\n    script,\n    castIds = [],\n    storyBeats = [],\n    continuityStart = null\n} = {}) {\n    const loaded = readSeriesCanon(root, seriesId);\n    const canon = loaded.canon;\n    const identityRoster = assertSeriesIdentityRosterReady(canon);\n    const acceptedEpisodeNumbers = [`,
-    1,
     "V142_LONG_FORM_ROSTER_GATE"
   );
 
-  source = replaceCount(
+  source = replaceOnceOrAlready(
     source,
     `        castIds: normalizedCastIds,\n        storyBeats: normalizedBeats,`,
     `        castIds: normalizedCastIds,\n        productionBatch: {\n            size: identityRoster.policy.productionBatchSize,\n            number: Math.floor((resolvedNumber - 1) / identityRoster.policy.productionBatchSize) + 1,\n            startEpisodeNumber: Math.floor((resolvedNumber - 1) / identityRoster.policy.productionBatchSize) * identityRoster.policy.productionBatchSize + 1,\n            endEpisodeNumber: (Math.floor((resolvedNumber - 1) / identityRoster.policy.productionBatchSize) + 1) * identityRoster.policy.productionBatchSize,\n            continuousCanon: identityRoster.policy.continuousCanonAcrossProductionBatches === true\n        },\n        storyBeats: normalizedBeats,`,
-    1,
     "V142_PRODUCTION_BATCH_METADATA"
   );
 
   const oldIdentityBlock = `    const uniqueCastIds = [...new Set(episode.castIds || [])];\n    if (uniqueCastIds.length > Number(backendPolicy.maximumIdentityCount || uniqueCastIds.length)) {\n        if (backendPolicy.backend === "humo-17b-identity") {\n            throw new Error(\`SERIES_HUMO_SINGLE_IDENTITY_REQUIRED:\${uniqueCastIds.length}\`);\n        }\n        throw new Error(\`SERIES_GENERATION_IDENTITY_LIMIT_EXCEEDED:\${backendPolicy.backend}:\${uniqueCastIds.length}:\${backendPolicy.maximumIdentityCount}\`);\n    }`;
-  source = replaceCount(
+  source = replaceOnceOrAlready(
     source,
     oldIdentityBlock,
     `    const uniqueCastIds = [...new Set(episode.castIds || [])];`,
-    1,
     "V142_BACKEND_IDENTITY_LIMIT_PER_SHOT_ONLY"
   );
 
-  source = replaceCount(
+  source = replaceOnceOrAlready(
     source,
     `        policy: {\n            referenceSelection: "ACTIVE_CAST_EXPLICIT_ASSIGNMENTS_ONLY",\n            maximumReferenceImages: policyMaximum,\n            noFacialIdentification: true\n        }`,
     `        policy: {\n            referenceSelection: "ACTIVE_CAST_EXPLICIT_ASSIGNMENTS_ONLY",\n            maximumReferenceImages: policyMaximum,\n            backendIdentityLimitsApplyPerShotOnly: normalizeSeriesIdentityContinuityPolicy(canon.identityContinuityPolicy || {}).backendIdentityLimitsApplyPerShotOnly,\n            noFacialIdentification: true\n        }`,
-    1,
     "V142_GENERATION_CONTEXT_PER_SHOT_POLICY"
   );
   return source;
 }
 
 function alignBridge(source) {
-  source = replaceCount(
+  source = replaceOnceOrAlready(
     source,
     `        \`test \\\"$(git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI rev-parse HEAD)\\\" = \${q(s.comfyUiRevision)}\`,\n        \`test \\\"$(git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper rev-parse HEAD)\\\" = \${q(s.wrapperRevision)}\`,`,
-    `        "test -f /workspace/jarvis-v142/runtime/humo17/ComfyUI/.git/HEAD",\n        "test -f /workspace/jarvis-v142/runtime/humo17/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper/.git/HEAD",`,
-    1,
+    `        \`test \\\"$(cat /workspace/jarvis-v142/runtime/humo17/ComfyUI/.git/HEAD)\\\" = \${q(s.comfyUiRevision)}\`,\n        \`test \\\"$(cat /workspace/jarvis-v142/runtime/humo17/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper/.git/HEAD)\\\" = \${q(s.wrapperRevision)}\`,`,
     "V142_HUMO17_PAID_BOOTSTRAP_NO_GIT"
   );
 
-  source = replaceCount(
+  source = replaceOnceOrAlready(
     source,
     `        "test -x /workspace/jarvis-v142/runtime/humo17/venv/bin/python",\n        "export PATH=/workspace/jarvis-v142/runtime/humo17/system/bin:/workspace/jarvis-v142/runtime/humo17/venv/bin:$PATH HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PIP_NO_INDEX=1",`,
     `        "test -x /workspace/jarvis-v142/runtime/humo17/venv/bin/python",\n        "command -v nohup >/dev/null && command -v setsid >/dev/null && command -v timeout >/dev/null",\n        "export PATH=/workspace/jarvis-v142/runtime/humo17/system/bin:/workspace/jarvis-v142/runtime/humo17/venv/bin:$PATH HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PIP_NO_INDEX=1",`,
-    1,
     "V142_HUMO17_DETACHED_TOOLS_GATE"
   );
 
-  source = replaceCount(
+  source = replaceOnceOrAlready(
     source,
     `        "python -c 'import json; m=json.load(open(\\"/workspace/jarvis-v142/runtime/humo17/runtime-manifest.json\\")); assert m.get(\\"runtimeReady\\") is True; assert m.get(\\"networkVolumeId\\")==\\"1qm5wczocl\\"; assert m.get(\\"dataCenterId\\")==\\"EU-NL-1\\"; assert m.get(\\"offlinePaidBootstrapRequired\\") is True; assert int(m.get(\\"requiredAssetCount\\",0))==5'",`,
     `        "python -c 'import json; m=json.load(open(\\"/workspace/jarvis-v142/runtime/humo17/runtime-manifest.json\\")); assert m.get(\\"runtimeReady\\") is True; assert m.get(\\"networkVolumeId\\")==\\"1qm5wczocl\\"; assert m.get(\\"dataCenterId\\")==\\"EU-NL-1\\"; assert m.get(\\"offlinePaidBootstrapRequired\\") is True; assert m.get(\\"systemToolsReady\\") is True; assert m.get(\\"provisionImageTag\\")==\\"runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404\\"; assert m.get(\\"expectedRegistryDigest\\")==\\"sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35\\"; assert m.get(\\"operatingSystem\\")==\\"ubuntu-24.04\\"; assert str(m.get(\\"pythonVersion\\",\\"\\")).startswith(\\"3.12.\\"); assert str(m.get(\\"torchVersion\\",\\"\\")).startswith(\\"2.8.0+cu128\\"); assert str(m.get(\\"torchCudaVersion\\",\\"\\")).startswith(\\"12.8\\"); assert int(m.get(\\"requiredAssetCount\\",0))==5'",`,
-    1,
     "V142_HUMO17_PAID_MANIFEST_IDENTITY_GATE"
   );
 
-  source = replaceCount(
+  source = replaceOnceOrAlready(
     source,
     `        if (persistentRuntime.runtimeReady !== true || persistentRuntime.networkVolumeId !== volume.id || persistentRuntime.dataCenterId !== volume.dataCenterId || persistentRuntime.comfyUiRevision !== RUNPOD_HUMO17_CORE_CACHE_BASE.comfyUiRevision || persistentRuntime.wrapperRevision !== RUNPOD_HUMO17_CORE_CACHE_BASE.wrapperRevision || Number(persistentRuntime.requiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length || persistentRuntime.offlinePaidBootstrapRequired !== true) throw new Error("RUNPOD_HUMO17_PERSISTENT_RUNTIME_INVALID");`,
     `        if (persistentRuntime.runtimeReady !== true || persistentRuntime.networkVolumeId !== volume.id || persistentRuntime.dataCenterId !== volume.dataCenterId || persistentRuntime.comfyUiRevision !== RUNPOD_HUMO17_CORE_CACHE_BASE.comfyUiRevision || persistentRuntime.wrapperRevision !== RUNPOD_HUMO17_CORE_CACHE_BASE.wrapperRevision || Number(persistentRuntime.requiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length || persistentRuntime.offlinePaidBootstrapRequired !== true || persistentRuntime.systemToolsReady !== true || persistentRuntime.provisionImageTag !== RUNPOD_HUMO17_CORE_CACHE_BASE.provisionImageTag || persistentRuntime.expectedRegistryDigest !== RUNPOD_HUMO17_CORE_CACHE_BASE.expectedRegistryDigest || persistentRuntime.operatingSystem !== RUNPOD_HUMO17_CORE_CACHE_BASE.operatingSystem || !String(persistentRuntime.pythonVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.pythonVersionPrefix) || !String(persistentRuntime.torchVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.torchVersionPrefix) || !String(persistentRuntime.torchCudaVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.torchCudaVersionPrefix)) throw new Error("RUNPOD_HUMO17_PERSISTENT_RUNTIME_INVALID");`,
-    1,
     "V142_HUMO17_STAGE_RUNTIME_IDENTITY_GATE"
   );
 
-  source = replaceCount(
+  source = replaceOnceOrAlready(
     source,
     `        offlinePaidBootstrapRequired: runtimePhysical?.offlinePaidBootstrapRequired === true,\n        newPersistentBytes: Number(RUNPOD_HUMO17_CORE_CACHE_BASE.totalBytes || 0),`,
     `        offlinePaidBootstrapRequired: runtimePhysical?.offlinePaidBootstrapRequired === true,\n        persistentRuntimeSystemToolsReady: runtimePhysical?.systemToolsReady === true,\n        persistentRuntimeProvisionImageTag: runtimePhysical?.provisionImageTag || null,\n        persistentRuntimeExpectedRegistryDigest: runtimePhysical?.expectedRegistryDigest || null,\n        persistentRuntimeOperatingSystem: runtimePhysical?.operatingSystem || null,\n        persistentRuntimePythonVersion: runtimePhysical?.pythonVersion || null,\n        persistentRuntimeTorchVersion: runtimePhysical?.torchVersion || null,\n        persistentRuntimeTorchCudaVersion: runtimePhysical?.torchCudaVersion || null,\n        newPersistentBytes: Number(RUNPOD_HUMO17_CORE_CACHE_BASE.totalBytes || 0),`,
-    1,
     "V142_HUMO17_STAGE_RECEIPT_RUNTIME_FIELDS"
   );
 
-  source = replaceCount(
+  source = replaceOnceOrAlready(
     source,
     `stageReceipt?.persistentRuntimeReady !== true || stageReceipt?.offlinePaidBootstrapRequired !== true || Number(stageReceipt?.persistentRuntimeRequiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length || Number(stageReceipt?.networkVolumeSizeGb || 0) < Number(RUNPOD_HUMO17_CORE_CACHE_BASE.minimumNetworkVolumeGb || 80)`,
     `stageReceipt?.persistentRuntimeReady !== true || stageReceipt?.offlinePaidBootstrapRequired !== true || stageReceipt?.persistentRuntimeSystemToolsReady !== true || stageReceipt?.persistentRuntimeProvisionImageTag !== RUNPOD_HUMO17_CORE_CACHE_BASE.provisionImageTag || stageReceipt?.persistentRuntimeExpectedRegistryDigest !== RUNPOD_HUMO17_CORE_CACHE_BASE.expectedRegistryDigest || stageReceipt?.persistentRuntimeOperatingSystem !== RUNPOD_HUMO17_CORE_CACHE_BASE.operatingSystem || !String(stageReceipt?.persistentRuntimePythonVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.pythonVersionPrefix) || !String(stageReceipt?.persistentRuntimeTorchVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.torchVersionPrefix) || !String(stageReceipt?.persistentRuntimeTorchCudaVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.torchCudaVersionPrefix) || Number(stageReceipt?.persistentRuntimeRequiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length || Number(stageReceipt?.networkVolumeSizeGb || 0) < Number(RUNPOD_HUMO17_CORE_CACHE_BASE.minimumNetworkVolumeGb || 80)`,
-    1,
     "V142_HUMO17_QUALITY_STAGE_RECEIPT_IDENTITY"
   );
 
-  source = replaceCount(
+  source = replaceOnceOrAlready(
     source,
     `            stageReceipt.persistentRuntimeReady !== true || stageReceipt.offlinePaidBootstrapRequired !== true || Number(stageReceipt.persistentRuntimeRequiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length ||`,
     `            stageReceipt.persistentRuntimeReady !== true || stageReceipt.offlinePaidBootstrapRequired !== true || stageReceipt.persistentRuntimeSystemToolsReady !== true || stageReceipt.persistentRuntimeProvisionImageTag !== RUNPOD_HUMO17_CORE_CACHE_BASE.provisionImageTag || stageReceipt.persistentRuntimeExpectedRegistryDigest !== RUNPOD_HUMO17_CORE_CACHE_BASE.expectedRegistryDigest || stageReceipt.persistentRuntimeOperatingSystem !== RUNPOD_HUMO17_CORE_CACHE_BASE.operatingSystem || !String(stageReceipt.persistentRuntimePythonVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.pythonVersionPrefix) || !String(stageReceipt.persistentRuntimeTorchVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.torchVersionPrefix) || !String(stageReceipt.persistentRuntimeTorchCudaVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.torchCudaVersionPrefix) || Number(stageReceipt.persistentRuntimeRequiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length ||`,
-    1,
     "V142_HUMO17_RUNTIME_STAGE_RECEIPT_IDENTITY"
   );
 
@@ -198,7 +188,7 @@ function alignBridge(source) {
 function alignSeriesTests(source) {
   const oldExpectation = `    assert.throws(\n        () => getSeriesGenerationContext({\n            root,\n            seriesId,\n            episodeId: prepared.episode.episodeId,\n            generationBackend: "humo-17b-identity"\n        }),\n        /SERIES_HUMO_SINGLE_IDENTITY_REQUIRED:2/\n    );`;
   const newExpectation = `    const humoContext = getSeriesGenerationContext({\n        root,\n        seriesId,\n        episodeId: prepared.episode.episodeId,\n        generationBackend: "humo-17b-identity",\n        referenceSelectionPolicy: "ACTIVE_CAST_COVERAGE"\n    });\n    assert.equal(humoContext.backendPolicy.maximumIdentityCount, 1);\n    assert.equal(humoContext.identityLocks.length, 2);\n    assert.equal(humoContext.policy.backendIdentityLimitsApplyPerShotOnly, true);`;
-  source = replaceCount(source, oldExpectation, newExpectation, 1, "V142_SERIES_TEST_PER_SHOT_IDENTITY");
+  source = replaceOnceOrAlready(source, oldExpectation, newExpectation, "V142_SERIES_TEST_PER_SHOT_IDENTITY");
 
   const marker = `test("V142 long-form series requires a durable roster and persists five-episode production batches", () => {`;
   if (!source.includes(marker)) {
@@ -252,7 +242,7 @@ function alignRuntimeTests(source) {
 
   const paidTestName = "V142 HuMo17 paid bootstrap is persistent, offline and checkpointed";
   const paidMarker = `test(${JSON.stringify(paidTestName)}`;
-  const paidBody = `test("${paidTestName}", () => {\n    const bridge = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");\n    assert.equal(bridge.includes("git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI rev-parse HEAD"), false);\n    assert.equal(bridge.includes("test -f /workspace/jarvis-v142/runtime/humo17/ComfyUI/.git/HEAD"), true);\n    assert.equal(bridge.includes("PIP_NO_INDEX=1"), true);\n    assert.equal(bridge.includes("/workspace/jarvis-v142/runtime/humo17/runtime-manifest.json"), true);\n    assert.equal(bridge.includes('path.posix.join("/workspace/jarvis-v142/operations", operationId, "probe.mp4")'), true);\n    assert.equal(bridge.includes("nohup setsid timeout"), true);\n    assert.equal(bridge.includes("HUMO17_REMOTE_POLL_TRANSIENT"), true);\n    assert.equal(bridge.includes("HUMO17_REMOTE_RESULT_JSON_INVALID"), true);\n    const runner = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");\n    for (const status of ["HUMO17_SAMPLER_COMPLETED","HUMO17_VAE_DECODE_COMPLETED","HUMO17_GEOMETRY_VERIFIED","HUMO17_CPU_TRANSFER_STARTED","HUMO17_CPU_TRANSFER_COMPLETED","HUMO17_FFMPEG_STARTED","HUMO17_FFMPEG_COMPLETED","HUMO17_FFPROBE_STARTED","HUMO17_FFPROBE_COMPLETED"]) assert.equal(runner.includes(status), true, status);\n});`;
+  const paidBody = `test("${paidTestName}", () => {\n    const bridge = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");\n    assert.equal(bridge.includes("git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI rev-parse HEAD"), false);\n    assert.equal(bridge.includes("cat /workspace/jarvis-v142/runtime/humo17/ComfyUI/.git/HEAD"), true);\n    assert.equal(bridge.includes("PIP_NO_INDEX=1"), true);\n    assert.equal(bridge.includes("/workspace/jarvis-v142/runtime/humo17/runtime-manifest.json"), true);\n    assert.equal(bridge.includes('path.posix.join("/workspace/jarvis-v142/operations", operationId, "probe.mp4")'), true);\n    assert.equal(bridge.includes("nohup setsid timeout"), true);\n    assert.equal(bridge.includes("HUMO17_REMOTE_POLL_TRANSIENT"), true);\n    assert.equal(bridge.includes("HUMO17_REMOTE_RESULT_JSON_INVALID"), true);\n    const runner = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");\n    for (const status of ["HUMO17_SAMPLER_COMPLETED","HUMO17_VAE_DECODE_COMPLETED","HUMO17_GEOMETRY_VERIFIED","HUMO17_CPU_TRANSFER_STARTED","HUMO17_CPU_TRANSFER_COMPLETED","HUMO17_FFMPEG_STARTED","HUMO17_FFMPEG_COMPLETED","HUMO17_FFPROBE_STARTED","HUMO17_FFPROBE_COMPLETED"]) assert.equal(runner.includes(status), true, status);\n});`;
   if (source.includes(paidMarker)) {
     const start = source.indexOf(paidMarker);
     const next = source.indexOf("\n\ntest(", start + paidMarker.length);
@@ -275,13 +265,20 @@ const next = {
 };
 
 const invariants = [
-  [!next.engine.includes('minimumNetworkVolumeGb: 50,\n            persistentMinimumNetworkVolumeGb: 80'), "V142_ENGINE_50GB_FOSSIL"],
+  [next.engine.includes('repository: "runpod/pytorch"'), "V142_CPU_RUNTIME_REPOSITORY_MISMATCH"],
+  [next.engine.includes('provisionImageTag: "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404"'), "V142_CPU_RUNTIME_IMAGE_MISMATCH"],
+  [next.engine.includes('runtimeImageParityRequired: true'), "V142_CPU_GPU_IMAGE_PARITY_MISSING"],
+  [next.engine.includes('minimumNetworkVolumeGb: 80,\n            persistentMinimumNetworkVolumeGb: 80'), "V142_ENGINE_80GB_CONTRACT_MISSING"],
   [next.engine.includes('storagePlan: "FULL_PERSISTENT_RUNTIME_80GB"'), "V142_ENGINE_PERSISTENT_PLAN_MISSING"],
+  [next.engine.includes("'torchCudaVersion':str(torch.version.cuda or '')"), "V142_RUNTIME_CUDA_OBSERVATION_MISSING"],
   [next.bridge.includes("nohup setsid timeout"), "V142_DETACHED_INFERENCE_MISSING"],
   [next.bridge.includes("HUMO17_REMOTE_RESULT_JSON_INVALID"), "V142_MULTILINE_RESULT_GUARD_MISSING"],
   [!next.bridge.includes('git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI rev-parse HEAD'), "V142_PAID_GIT_FOSSIL"],
+  [next.bridge.includes("cat /workspace/jarvis-v142/runtime/humo17/ComfyUI/.git/HEAD"), "V142_COMFY_REVISION_GATE_MISSING"],
   [next.seriesTest.includes("V142 long-form series requires a durable roster"), "V142_LONG_FORM_TEST_MISSING"],
   [!next.studio.includes("SERIES_HUMO_SINGLE_IDENTITY_REQUIRED:${uniqueCastIds.length}"), "V142_EPISODE_IDENTITY_LIMIT_FOSSIL"],
+  [next.studio.includes("const identityRoster = assertSeriesIdentityRosterReady(canon);"), "V142_LONG_FORM_ROSTER_GATE_MISSING"],
+  [next.studio.includes("productionBatch:"), "V142_PRODUCTION_BATCH_METADATA_MISSING"],
   [next.localVideoTest.includes("SIA7_HUMO_MONTHLY_STORAGE_USD = 5.6"), "V142_STORAGE_TEST_FOSSIL"]
 ];
 for (const [ok, label] of invariants) if (!ok) throw new Error(label);
