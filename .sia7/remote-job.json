@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-cpu-runtime-image-parity-20260909-461",
+  "jobId": "v142-series-longform-batch-cadence-20260909-462",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-local-video-engine.js",
+    "file": "jarvis-artifact-studio.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        operatingSystem: \"ubuntu-22.04\",\n        mountPath: \"/workspace\",",
-    "replace": "        operatingSystem: \"ubuntu-24.04\",\n        pythonVersionPrefix: \"3.12.\",\n        torchVersionPrefix: \"2.8.0+cu128\",\n        torchCudaVersionPrefix: \"12.8\",\n        mountPath: \"/workspace\","
+    "search": "    const requestedMinimum = Number(value?.minimumPersistentCharacterCount ?? 1);",
+    "replace": "    const requestedMinimum = Number(value?.minimumPersistentCharacterCount ?? 1);\n    const requestedBatchSize = Number(value?.productionBatchSize ?? 5);\n    const productionBatchSize = Number.isInteger(requestedBatchSize)\n        ? Math.max(1, Math.min(requestedBatchSize, 50))\n        : 5;"
   }
 }
