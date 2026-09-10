@@ -1,11 +1,18 @@
 {
-  "jobId": "v142-humo17-persistent-runtime-20260909-391",
-  "completedAt": "2026-09-10T00:26:29.326Z",
+  "jobId": "v142-humo17-persistent-runtime-20260909-392",
+  "completedAt": "2026-09-10T00:27:08.837Z",
   "executionStarted": true,
-  "ok": false,
-  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1",
-  "evidence": null,
+  "ok": true,
+  "operation": "patch",
+  "dryRun": false,
+  "file": "jarvis-local-video-engine.js",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 430243,
+  "bytesAfter": 430222,
+  "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
-    ".sia7/remote-result.json"
+    ".sia7/remote-result.json",
+    "jarvis-local-video-engine.js"
   ]
 }
