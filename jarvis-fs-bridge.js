@@ -9059,7 +9059,7 @@ export async function runHuMo17PersistentCoreStagingCli({
     );
     const matches = volumes.filter(volume => volume.id === requestedVolumeId);
     if (matches.length !== 1) throw new Error(`RUNPOD_HUMO17_VOLUME_MATCH_COUNT:${matches.length}`);
-    const volume = matches[0];
+    let volume = matches[0];
     if (
         volume.dataCenterId !== requestedDataCenterId ||
         Number(volume.sizeGb || 0) < Number(RUNPOD_HUMO17_CORE_CACHE_BASE.minimumNetworkVolumeGb || 50) ||
