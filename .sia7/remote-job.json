@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-capacity-20260909-420",
+  "jobId": "v142-humo17-persistent-capacity-20260909-421",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "persistentMinimumNetworkVolumeGb: 80,",
-    "replace": "persistentMinimumNetworkVolumeGb: 80,\n            persistentVolumeBytes: 85899345920,"
+    "search": "const nominalVolumeBytes = Number(strategy.nominal50GiBBytes || 0);",
+    "replace": "const nominalVolumeBytes = Number(strategy.persistentVolumeBytes || strategy.nominal50GiBBytes || 0);"
   }
 }
