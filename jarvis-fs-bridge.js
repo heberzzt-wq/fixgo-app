@@ -8666,7 +8666,7 @@ export function inspectNextIdentityRuntimeCandidate({ backend = "humo-17b-identi
                     : [])
             ],
             persistentNewBytes: Number(strategy.quantizedModel?.bytes || 0) + Number(strategy.distillationLora?.bytes || 0) + (strategy.auxiliaryAssetsPersistent === true ? Number(strategy.wrapperAuxiliaryBytes || 0) : 0),
-            persistentTotalWithExistingCacheBytes: Number(strategy.persistentCoreBytes || 0),
+            persistentTotalWithExistingCacheBytes: strategy.auxiliaryAssetsPersistent === true ? Number(strategy.requiredBytesKeepingExistingCache || 0) : Number(strategy.persistentCoreBytes || 0),
             ephemeralAssets: (strategy.wrapperAuxiliaryAssets || []).map(asset => ({ ...asset })),
             ephemeralAssetsBytes: Number(strategy.wrapperAuxiliaryBytes || 0),
             ephemeralWorkspaceReserveBytes: Number(strategy.ephemeralWorkspaceReserveBytes || 0),
