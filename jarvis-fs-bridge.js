@@ -8954,7 +8954,8 @@ export function buildHuMo17RuntimeBootstrap(job) {
         "python -m pip check",
         "python -m pip check", `python -c ${q(preparation)}`,
         "export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1",
-        "python runner.py --job job.json --result result.json"
+        `mkdir -p ${q(path.posix.dirname(job.outputFile))}`,
+        `python runner.py --job job.json --result ${q(job.resultFile)}`
     ].join("\n");
 }
 
