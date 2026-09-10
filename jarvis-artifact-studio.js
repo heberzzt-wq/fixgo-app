@@ -627,6 +627,8 @@ export function upsertSeriesCharacter({
     secretsNotKnown = [],
     recurringProps = [],
     referenceAssetsPending = false,
+    referenceUpdateMode = "MERGE",
+    identityRecastConfirmed = false,
     active = true
 } = {}) {
     if (assignmentConfirmed !== true) {
