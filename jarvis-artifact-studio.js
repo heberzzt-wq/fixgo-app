@@ -548,6 +548,30 @@ export function getSeriesBible({ root, seriesId } = {}) {
     return clone(readSeriesCanon(root, seriesId).canon);
 }
 
+export function updateSeriesIdentityContinuityPolicy({
+    root,
+    seriesId,
+    minimumPersistentCharacterCount = 1,
+    longFormContinuityRequired = false
+} = {}) {
+    const loaded = readSeriesCanon(root, seriesId);
+    const canon = loaded.canon;
+    canon.identityContinuityPolicy = normalizeSeriesIdentityContinuityPolicy({
+        ...(canon.identityContinuityPolicy || {}),
+        minimumPersistentCharacterCount,
+        longFormContinuityRequired
+    });
+    const saved = writeSeriesCanon(root, canon, "series.identity-continuity-policy.update");
+    return {
+        ok: true,
+        status: "SERIES_IDENTITY_CONTINUITY_POLICY_PERSISTED_VERIFIED",
+        seriesId: canon.seriesId,
+        identityContinuityPolicy: clone(saved.canon.identityContinuityPolicy),
+        activeCharacterCount: activeSeriesCharacterCount(saved.canon),
+        artifact: saved.artifact
+    };
+}
+
 export function updateSeriesCommercialIdentity({
     root,
     seriesId,
