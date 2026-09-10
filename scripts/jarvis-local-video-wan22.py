@@ -968,7 +968,8 @@ def run_humo17_runtime_probe(job: dict[str, Any], result_file: Path) -> int:
     prepared_image = ImageOps.pad(original_image, (832, 480), method=Image.Resampling.LANCZOS, color=(255, 255, 255))
     reference_preprocessing = {"originalWidth": original_size[0], "originalHeight": original_size[1],
                                "width": 832, "height": 480, "method": "pad", "preserveAspectRatio": True}
-    image = torch.from_numpy(np.asarray(prepared_image, dtype=np.float32) / 255.0).unsqueeze(0)
+    image = torch.cat([torch.from_numpy(np.asarray(ImageOps.pad(Image.open(reference_item).convert("RGB"), (832, 480), method=Image.Resampling.LANCZOS, color=(255, 255, 255)), dtype=np.float32) / 255.0).unsqueeze(0) for reference_item in reference_files], dim=0)
+    reference_preprocessing = {**reference_preprocessing, "count": len(reference_files), "sha256s": reference_shas}
     wave, rate = sf.read(audio, always_2d=True, dtype="float32")
     if len(wave) < round(rate * duration):
         raise RuntimeError("HUMO17_AUDIO_TOO_SHORT")
