@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-paid-offline-runtime-20260909-409",
+  "jobId": "v142-humo17-paid-offline-runtime-20260909-410",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "\"export PATH=/tmp/jarvis-humo17/venv/bin:$PATH\"",
-    "replace": "\"export PATH=/workspace/jarvis-v142/runtime/humo17/venv/bin:$PATH HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PIP_NO_INDEX=1\""
+    "search": "`git init -q ComfyUI && git -C ComfyUI fetch -q --depth 1 https://github.com/${s.comfyUiRepository}.git ${q(s.comfyUiRevision)} && git -C ComfyUI checkout -q --detach FETCH_HEAD`",
+    "replace": "`test \\\"$(git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI rev-parse HEAD)\\\" = ${q(s.comfyUiRevision)}`"
   }
 }
