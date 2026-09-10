@@ -1489,15 +1489,16 @@ test("V142 next identity backends preserve canonical character locks and fail cl
     assert.equal(phantomContext.referenceAssets.length, 4);
     assert.deepEqual(phantomContext.identityLocks.map(item => item.characterId), ["CHAR_HEBERTO", "CHAR_ROLDAN"]);
     assert.deepEqual(phantomContext.identityLocks.map(item => item.referenceAssets.length), [2, 2]);
-    assert.throws(
-        () => getSeriesGenerationContext({
-            root,
-            seriesId,
-            episodeId: prepared.episode.episodeId,
-            generationBackend: "humo-17b-identity"
-        }),
-        /SERIES_HUMO_SINGLE_IDENTITY_REQUIRED:2/
-    );
+    const humoContext = getSeriesGenerationContext({
+        root,
+        seriesId,
+        episodeId: prepared.episode.episodeId,
+        generationBackend: "humo-17b-identity",
+        referenceSelectionPolicy: "ACTIVE_CAST_COVERAGE"
+    });
+    assert.equal(humoContext.backendPolicy.maximumIdentityCount, 1);
+    assert.equal(humoContext.identityLocks.length, 2);
+    assert.equal(humoContext.policy.backendIdentityLimitsApplyPerShotOnly, true);
 
     const accepted = generateAndAccept(root, seriesId, prepared.episode.episodeId, { location: "Taller" });
     const next = prepareSeriesEpisode({
@@ -1517,4 +1518,22 @@ test("V142 next identity backends preserve canonical character locks and fail cl
     });
     assert.equal(nextContext.priorAcceptedEpisodeAnchor.episodeId, accepted.episode.episodeId);
     assert.equal(nextContext.priorAcceptedEpisodeAnchor.artifactSha256, accepted.episode.artifactSha256);
+});
+
+
+test("V142 long-form series requires a durable roster and persists five-episode production batches", () => {
+    const root = seriesRoot();
+    const seriesId = "SERIES_LONG_FORM_BATCH";
+    createSeriesBible({ root, seriesId, title: "Long form", storyArc: "Continuidad larga.", identityContinuityPolicy: { longFormContinuityRequired: true, minimumPersistentCharacterCount: 5, productionBatchSize: 5 } });
+    const hero = physicalArtifact(root, ".jarvis-artifacts/uploads/long-hero.jpg", "hero", "image/jpeg");
+    registerCharacter(root, seriesId, "CHAR_ONE", "One", [hero]);
+    for (const id of ["CHAR_TWO", "CHAR_THREE", "CHAR_FOUR"]) upsertSeriesCharacter({ root, seriesId, characterId: id, displayName: id, assignmentConfirmed: true, referenceAssets: [], referenceAssetsPending: true });
+    assert.throws(() => prepareSeriesEpisode({ root, seriesId, episodeNumber: 1, title: "EP1", script: "Inicio.", castIds: ["CHAR_ONE"] }), /SERIES_PERSISTENT_CHARACTER_ROSTER_INCOMPLETE:4:5/);
+    upsertSeriesCharacter({ root, seriesId, characterId: "CHAR_FIVE", displayName: "Five", assignmentConfirmed: true, referenceAssets: [], referenceAssetsPending: true });
+    const prepared = prepareSeriesEpisode({ root, seriesId, episodeNumber: 1, title: "EP1", script: "Inicio.", castIds: ["CHAR_ONE"] });
+    assert.deepEqual(prepared.episode.productionBatch, { size: 5, number: 1, startEpisodeNumber: 1, endEpisodeNumber: 5, continuousCanon: true });
+    const canon = getSeriesBible({ root, seriesId });
+    assert.equal(canon.identityContinuityPolicy.minimumPersistentCharacterCount, 5);
+    assert.equal(canon.identityContinuityPolicy.productionBatchSize, 5);
+    assert.equal(canon.identityContinuityPolicy.continuousCanonAcrossProductionBatches, true);
 });

@@ -8720,7 +8720,7 @@ export function validateHuMo17QualityAuthority(a,c,now=Date.now()) {
        !Number.isFinite(Date.parse(a.expiresAt)) || Date.parse(a.expiresAt)<=now ||
        a.backend!=='humo-17b-identity' || a.gpu!=='NVIDIA L40S' || a.gpuCount!==1 ||
        a.networkVolumeId!=='1qm5wczocl' || a.dataCenterId!=='EU-NL-1' || a.fullEpisodeAuthorized!==false ||
-       a.hardBudgetUsd!==1.5 || c.hardBudgetUsd!==a.hardBudgetUsd || a.safetyRatio!==0.75 ||
+       a.hardBudgetUsd!==0.95 || c.hardBudgetUsd!==a.hardBudgetUsd || a.safetyRatio!==0.75 ||
        a.referenceSha256!=='a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958' ||
        a.audioSha256!=='bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184' ||
        c.referenceSha256!==a.referenceSha256 || c.audioSha256!==a.audioSha256 ||
@@ -8859,11 +8859,13 @@ export function buildHuMo17RuntimeProbeJob({ assets, hardBudgetUsd, operationId,
     if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 3)) throw new Error("HUMO17_PROBE_BUDGET_INVALID");
     if (paidAuthorized !== true) throw new Error("HUMO17_PROBE_PAID_AUTHORITY_REQUIRED");
     const quality = assets.qualityProbe === true;
+    const resolvedOperationId = String(operationId || path.posix.basename(assets.output, path.posix.extname(assets.output))).trim();
+    if (!/^[a-zA-Z0-9._-]{1,120}$/.test(resolvedOperationId)) throw new Error("HUMO17_OPERATION_ID_INVALID");
     const speechEvidence = quality ? validateHuMo17SpeechEvidence(assets.speechEvidence, assets.audio.sha256) : null;
-    if (quality && hardBudgetUsd > 1.5) throw new Error("HUMO17_QUALITY_BUDGET_EXCEEDED");
+    if (quality && hardBudgetUsd > 0.95) throw new Error("HUMO17_QUALITY_BUDGET_EXCEEDED");
     const candidate = buildNextIdentityRuntimeCandidate({ backend: "humo-17b-identity" });
     return {
-        operationId, backend: "humo-17b-identity", model: "HuMo-17B", externalApiAllowed: false,
+        operationId: resolvedOperationId, backend: "humo-17b-identity", model: "HuMo-17B", externalApiAllowed: false,
         paidAuthorized: true, fullEpisodeAuthorized: false, gpuCount: 1, maximumIdentityCount: 1,
         gpu: "NVIDIA L40S", hardBudgetUsd, networkVolumeId: "1qm5wczocl", networkVolumeRetained: true,
         geometry: quality ? candidate.qualityProbeGeometry : candidate.probeGeometry, strategy: candidate.singleGpuStrategy,
@@ -8897,7 +8899,7 @@ export function buildHuMo17RuntimeProbeJob({ assets, hardBudgetUsd, operationId,
         referencePreprocessing: {preserveAspectRatio: true, method: "pad", width: 832, height: 480},
         referenceSha256: assets.reference.sha256, audioSha256: assets.audio.sha256,
         referenceFile: "/tmp/jarvis-humo17/reference" + path.extname(assets.reference.file),
-        audioFile: "/tmp/jarvis-humo17/audio.wav", outputFile: path.posix.join("/workspace/jarvis-v142/operations", operationId, "probe.mp4"), resultFile: path.posix.join("/workspace/jarvis-v142/operations", operationId, "result.json"), logFile: path.posix.join("/workspace/jarvis-v142/operations", operationId, "probe.log"),
+        audioFile: "/tmp/jarvis-humo17/audio.wav", outputFile: path.posix.join("/workspace/jarvis-v142/operations", resolvedOperationId, "probe.mp4"), resultFile: path.posix.join("/workspace/jarvis-v142/operations", resolvedOperationId, "result.json"), logFile: path.posix.join("/workspace/jarvis-v142/operations", resolvedOperationId, "probe.log"),
         comfyRoot: "/workspace/jarvis-v142/runtime/humo17/ComfyUI",
         prompt: "The exact person in the reference image speaks the supplied audio, natural restrained facial motion. Preserve facial identity, age, hair and facial hair. One person only, no subtitles or watermark.",
         negativePrompt: "another person, identity change, subtitles, watermark, deformed face",
@@ -8946,11 +8948,12 @@ export function buildHuMo17RuntimeBootstrap(job) {
     return [
         "set -euo pipefail", "cd /tmp/jarvis-humo17",
         "test -x /workspace/jarvis-v142/runtime/humo17/venv/bin/python",
+        "command -v nohup >/dev/null && command -v setsid >/dev/null && command -v timeout >/dev/null",
         "export PATH=/workspace/jarvis-v142/runtime/humo17/system/bin:/workspace/jarvis-v142/runtime/humo17/venv/bin:$PATH HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PIP_NO_INDEX=1",
         "python -c 'import platform,torch; assert platform.python_version().startswith(\"3.12.\"), platform.python_version(); assert str(torch.__version__).startswith(\"2.8.0+cu128\"), torch.__version__; assert str(torch.version.cuda or \"\").startswith(\"12.8\"), torch.version.cuda; assert torch.cuda.is_available(), \"HUMO17_CUDA_UNAVAILABLE\"'",
-        `test \"$(git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI rev-parse HEAD)\" = ${q(s.comfyUiRevision)}`,
-        `test \"$(git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper rev-parse HEAD)\" = ${q(s.wrapperRevision)}`,
-        "python -c 'import json; m=json.load(open(\"/workspace/jarvis-v142/runtime/humo17/runtime-manifest.json\")); assert m.get(\"runtimeReady\") is True; assert m.get(\"networkVolumeId\")==\"1qm5wczocl\"; assert m.get(\"dataCenterId\")==\"EU-NL-1\"; assert m.get(\"offlinePaidBootstrapRequired\") is True; assert int(m.get(\"requiredAssetCount\",0))==5'",
+        `test \"$(cat /workspace/jarvis-v142/runtime/humo17/ComfyUI/.git/HEAD)\" = ${q(s.comfyUiRevision)}`,
+        `test \"$(cat /workspace/jarvis-v142/runtime/humo17/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper/.git/HEAD)\" = ${q(s.wrapperRevision)}`,
+        "python -c 'import json; m=json.load(open(\"/workspace/jarvis-v142/runtime/humo17/runtime-manifest.json\")); assert m.get(\"runtimeReady\") is True; assert m.get(\"networkVolumeId\")==\"1qm5wczocl\"; assert m.get(\"dataCenterId\")==\"EU-NL-1\"; assert m.get(\"offlinePaidBootstrapRequired\") is True; assert m.get(\"systemToolsReady\") is True; assert m.get(\"provisionImageTag\")==\"runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404\"; assert m.get(\"expectedRegistryDigest\")==\"sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35\"; assert m.get(\"operatingSystem\")==\"ubuntu-24.04\"; assert str(m.get(\"pythonVersion\",\"\")).startswith(\"3.12.\"); assert str(m.get(\"torchVersion\",\"\")).startswith(\"2.8.0+cu128\"); assert str(m.get(\"torchCudaVersion\",\"\")).startswith(\"12.8\"); assert int(m.get(\"requiredAssetCount\",0))==5'",
         "python -m pip check",
         "python -m pip check", `python -c ${q(preparation)}`,
         "export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1",
@@ -9115,7 +9118,7 @@ export async function runHuMo17PersistentCoreStagingCli({
         if (!stageReceiptPath || !fs.existsSync(stageReceiptPath)) throw new Error("HUMO17_STAGE_RECEIPT_REQUIRED");
         const stageReceipt = JSON.parse(fs.readFileSync(stageReceiptPath, "utf8"));
         if (stageReceipt.ok !== true || stageReceipt.physicalStageCertified !== true || stageReceipt.coreManifestVerified !== true ||
-            stageReceipt.persistentRuntimeReady !== true || stageReceipt.offlinePaidBootstrapRequired !== true || Number(stageReceipt.persistentRuntimeRequiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length ||
+            stageReceipt.persistentRuntimeReady !== true || stageReceipt.offlinePaidBootstrapRequired !== true || stageReceipt.persistentRuntimeSystemToolsReady !== true || stageReceipt.persistentRuntimeProvisionImageTag !== RUNPOD_HUMO17_CORE_CACHE_BASE.provisionImageTag || stageReceipt.persistentRuntimeExpectedRegistryDigest !== RUNPOD_HUMO17_CORE_CACHE_BASE.expectedRegistryDigest || stageReceipt.persistentRuntimeOperatingSystem !== RUNPOD_HUMO17_CORE_CACHE_BASE.operatingSystem || !String(stageReceipt.persistentRuntimePythonVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.pythonVersionPrefix) || !String(stageReceipt.persistentRuntimeTorchVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.torchVersionPrefix) || !String(stageReceipt.persistentRuntimeTorchCudaVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.torchCudaVersionPrefix) || Number(stageReceipt.persistentRuntimeRequiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length ||
             stageReceipt.terminationVerified !== true || stageReceipt.networkVolumeRetained !== true ||
             stageReceipt.networkVolumeId !== volume.id || stageReceipt.networkVolumeDataCenterId !== volume.dataCenterId ||
             stageReceipt.newPersistentBytes !== RUNPOD_HUMO17_CORE_CACHE_BASE.totalBytes ||
@@ -9385,17 +9388,43 @@ export async function runHuMo17PersistentCoreStagingCli({
             await runScp(endpoint, runtimeProbeAssets.audio.file, probeJob.audioFile, 45000);
             const remainingSeconds = Math.floor((deadlineMs - Date.now()) / 1000) - 120;
             if (remainingSeconds < 300) throw new Error("HUMO17_PROBE_BUDGET_DEADLINE");
-            try {
-                await runSsh(endpoint, `timeout ${remainingSeconds}s bash /tmp/jarvis-humo17/probe.sh > ${posixShellSingleQuote(probeJob.logFile)} 2>&1`, (remainingSeconds + 15) * 1000);
-            } catch (error) {
+            const operationDir = path.posix.dirname(probeJob.resultFile);
+            const remotePidFile = path.posix.join(operationDir, "probe.pid");
+            await runSsh(endpoint, `mkdir -p ${posixShellSingleQuote(operationDir)}; rm -f ${posixShellSingleQuote(probeJob.resultFile)} ${posixShellSingleQuote(remotePidFile)}; nohup setsid timeout ${remainingSeconds}s bash /tmp/jarvis-humo17/probe.sh > ${posixShellSingleQuote(probeJob.logFile)} 2>&1 < /dev/null & echo $! > ${posixShellSingleQuote(remotePidFile)}`, 30000);
+            inferenceStarted = true;
+            let remoteTerminal = null;
+            let lastRemoteStage = "HUMO17_REMOTE_STARTED";
+            while (Date.now() < deadlineMs - 60000) {
+                try {
+                    const state = await runSsh(endpoint, `if test -f ${posixShellSingleQuote(probeJob.resultFile)}; then cat ${posixShellSingleQuote(probeJob.resultFile)}; fi; printf '\\n'; if test -f ${posixShellSingleQuote(remotePidFile)} && kill -0 \"$(cat ${posixShellSingleQuote(remotePidFile)})\" 2>/dev/null; then printf '__JARVIS_RUNNING__\\n'; else printf '__JARVIS_EXITED__\\n'; fi`, 30000);
+                    const text = String(state.stdout || "").replace(/\r\n/g, "\n");
+                    const lines = text.split("\n");
+                    const processMarker = String(lines.pop() || lines.pop() || "").trim();
+                    const jsonText = lines.join("\n").trim();
+                    let observed = null;
+                    if (jsonText) { try { observed = JSON.parse(jsonText); } catch (parseError) { throw new Error(`HUMO17_REMOTE_RESULT_JSON_INVALID:${String(parseError?.message || parseError).slice(-300)}`); } }
+                    if (observed?.status) lastRemoteStage = observed.status;
+                    if (observed?.inferenceStarted === true) inferenceStarted = true;
+                    if (observed?.ok === true) { remoteTerminal = observed; break; }
+                    if (processMarker === "__JARVIS_EXITED__") {
+                        const error = new Error(`HUMO17_REMOTE_EXITED_WITHOUT_SUCCESS:${observed?.status || lastRemoteStage}`);
+                        const detail = await runSsh(endpoint, `tail -c 6000 ${posixShellSingleQuote(probeJob.logFile)}; test ! -f ${posixShellSingleQuote(probeJob.resultFile)} || cat ${posixShellSingleQuote(probeJob.resultFile)}`, 30000).catch(() => ({stdout: "diagnostic unavailable"}));
+                        error.logTail = detail.stdout;
+                        throw error;
+                    }
+                } catch (error) {
+                    if (String(error?.message || "").startsWith("HUMO17_REMOTE_EXITED_WITHOUT_SUCCESS") || String(error?.message || "").startsWith("HUMO17_REMOTE_RESULT_JSON_INVALID")) throw error;
+                    log({status:"HUMO17_REMOTE_POLL_TRANSIENT",podId,stage:lastRemoteStage,error:String(error?.message || error).slice(-500),inferenceStarted});
+                }
+                await sleepMs(5000);
+            }
+            if (!remoteTerminal) {
+                const error = new Error(`HUMO17_REMOTE_RESULT_DEADLINE:${lastRemoteStage}`);
                 const detail = await runSsh(endpoint, `tail -c 6000 ${posixShellSingleQuote(probeJob.logFile)}; test ! -f ${posixShellSingleQuote(probeJob.resultFile)} || cat ${posixShellSingleQuote(probeJob.resultFile)}`, 30000).catch(() => ({stdout: "diagnostic unavailable"}));
                 error.logTail = detail.stdout;
-                const state = await runSsh(endpoint, `if test -f ${posixShellSingleQuote(probeJob.resultFile)}; then cat ${posixShellSingleQuote(probeJob.resultFile)}; else printf '{}'; fi`, 30000).catch(() => ({stdout: "{}"}));
-                try { inferenceStarted = JSON.parse(state.stdout).inferenceStarted === true; } catch {}
                 throw error;
             }
-            const raw = await runSsh(endpoint, `cat ${posixShellSingleQuote(probeJob.resultFile)}`, 30000);
-            runtimePhysical = JSON.parse(raw.stdout); inferenceStarted = runtimePhysical.inferenceStarted === true;
+            runtimePhysical = remoteTerminal; inferenceStarted = runtimePhysical.inferenceStarted === true;
             if (runtimePhysical.ok !== true || runtimePhysical.backend !== "humo-17b-identity" || runtimePhysical.fallbackUsed !== false ||
                 runtimePhysical.referenceSha256 !== probeJob.referenceSha256 || runtimePhysical.audioSha256 !== probeJob.audioSha256) throw new Error("HUMO17_RUNTIME_RESULT_INVALID");
             const fetched = await spawnCaptured(scp, ["-i", privateKeyFile, "-P", String(endpoint.port), "-o", "BatchMode=yes",
@@ -9492,7 +9521,7 @@ export async function runHuMo17PersistentCoreStagingCli({
         manifest = JSON.parse(lines[0] || "{}");
         const persistentRuntimeRaw = await runSsh(endpoint, `cat ${posixShellSingleQuote("/workspace/jarvis-v142/runtime/humo17/runtime-manifest.json")}`, 120000);
         const persistentRuntime = JSON.parse(String(persistentRuntimeRaw.stdout || "{}").trim() || "{}");
-        if (persistentRuntime.runtimeReady !== true || persistentRuntime.networkVolumeId !== volume.id || persistentRuntime.dataCenterId !== volume.dataCenterId || persistentRuntime.comfyUiRevision !== RUNPOD_HUMO17_CORE_CACHE_BASE.comfyUiRevision || persistentRuntime.wrapperRevision !== RUNPOD_HUMO17_CORE_CACHE_BASE.wrapperRevision || Number(persistentRuntime.requiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length || persistentRuntime.offlinePaidBootstrapRequired !== true) throw new Error("RUNPOD_HUMO17_PERSISTENT_RUNTIME_INVALID");
+        if (persistentRuntime.runtimeReady !== true || persistentRuntime.networkVolumeId !== volume.id || persistentRuntime.dataCenterId !== volume.dataCenterId || persistentRuntime.comfyUiRevision !== RUNPOD_HUMO17_CORE_CACHE_BASE.comfyUiRevision || persistentRuntime.wrapperRevision !== RUNPOD_HUMO17_CORE_CACHE_BASE.wrapperRevision || Number(persistentRuntime.requiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length || persistentRuntime.offlinePaidBootstrapRequired !== true || persistentRuntime.systemToolsReady !== true || persistentRuntime.provisionImageTag !== RUNPOD_HUMO17_CORE_CACHE_BASE.provisionImageTag || persistentRuntime.expectedRegistryDigest !== RUNPOD_HUMO17_CORE_CACHE_BASE.expectedRegistryDigest || persistentRuntime.operatingSystem !== RUNPOD_HUMO17_CORE_CACHE_BASE.operatingSystem || !String(persistentRuntime.pythonVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.pythonVersionPrefix) || !String(persistentRuntime.torchVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.torchVersionPrefix) || !String(persistentRuntime.torchCudaVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.torchCudaVersionPrefix)) throw new Error("RUNPOD_HUMO17_PERSISTENT_RUNTIME_INVALID");
         runtimePhysical = persistentRuntime;
         const legacyShaAfter = String(lines.at(-1) || "").trim().split(/\s+/)[0].toLowerCase();
         if (!validateHuMo17CoreCacheManifest(manifest)) {
@@ -9603,6 +9632,13 @@ export async function runHuMo17PersistentCoreStagingCli({
         persistentRuntimeSchema: runtimePhysical?.schema || null,
         persistentRuntimeRequiredAssetCount: Number(runtimePhysical?.requiredAssetCount || 0),
         offlinePaidBootstrapRequired: runtimePhysical?.offlinePaidBootstrapRequired === true,
+        persistentRuntimeSystemToolsReady: runtimePhysical?.systemToolsReady === true,
+        persistentRuntimeProvisionImageTag: runtimePhysical?.provisionImageTag || null,
+        persistentRuntimeExpectedRegistryDigest: runtimePhysical?.expectedRegistryDigest || null,
+        persistentRuntimeOperatingSystem: runtimePhysical?.operatingSystem || null,
+        persistentRuntimePythonVersion: runtimePhysical?.pythonVersion || null,
+        persistentRuntimeTorchVersion: runtimePhysical?.torchVersion || null,
+        persistentRuntimeTorchCudaVersion: runtimePhysical?.torchCudaVersion || null,
         newPersistentBytes: Number(RUNPOD_HUMO17_CORE_CACHE_BASE.totalBytes || 0),
         combinedPersistentBytes: Number(RUNPOD_HUMO17_CORE_CACHE_BASE.combinedPersistentBytes || 0),
         physicalStageCertified: manifest?.physicalStageCertified === true,
@@ -9679,7 +9715,7 @@ export function resolveHuMo17QualityControlPlane({ root = DEFAULT_ROOT, env = pr
     if (!/^[a-f0-9]{40}$/.test(coreStageReceiptCommit)) throw new Error("HUMO17_QUALITY_CORE_RECEIPT_COMMIT_INVALID");
     try { execFileSync(git, ["merge-base", "--is-ancestor", coreStageReceiptCommit, head], {cwd: root, windowsHide: true, stdio: "ignore"}); } catch { throw new Error("HUMO17_QUALITY_CORE_RECEIPT_NOT_ANCESTOR"); }
     const stageReceipt = JSON.parse(String(execFileSync(git, ["show", `${coreStageReceiptCommit}:.sia7/remote-result.json`], {cwd: root, encoding: "utf8", windowsHide: true, maxBuffer: 2 * 1024 * 1024})));
-    if (stageReceipt?.ok !== true || stageReceipt?.status !== "HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED" || stageReceipt?.physicalStageCertified !== true || stageReceipt?.coreManifestVerified !== true || stageReceipt?.persistentRuntimeReady !== true || stageReceipt?.offlinePaidBootstrapRequired !== true || Number(stageReceipt?.persistentRuntimeRequiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length || Number(stageReceipt?.networkVolumeSizeGb || 0) < Number(RUNPOD_HUMO17_CORE_CACHE_BASE.minimumNetworkVolumeGb || 80) || stageReceipt?.terminationVerified !== true || stageReceipt?.networkVolumeRetained !== true || stageReceipt?.networkVolumeId !== "1qm5wczocl" || stageReceipt?.networkVolumeDataCenterId !== "EU-NL-1" || Number(stageReceipt?.newPersistentBytes || 0) !== Number(RUNPOD_HUMO17_CORE_CACHE_BASE.totalBytes || 0) || Number(stageReceipt?.combinedPersistentBytes || 0) !== Number(RUNPOD_HUMO17_CORE_CACHE_BASE.combinedPersistentBytes || 0)) throw new Error("HUMO17_QUALITY_CORE_RECEIPT_INVALID");
+    if (stageReceipt?.ok !== true || stageReceipt?.status !== "HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED" || stageReceipt?.physicalStageCertified !== true || stageReceipt?.coreManifestVerified !== true || stageReceipt?.persistentRuntimeReady !== true || stageReceipt?.offlinePaidBootstrapRequired !== true || stageReceipt?.persistentRuntimeSystemToolsReady !== true || stageReceipt?.persistentRuntimeProvisionImageTag !== RUNPOD_HUMO17_CORE_CACHE_BASE.provisionImageTag || stageReceipt?.persistentRuntimeExpectedRegistryDigest !== RUNPOD_HUMO17_CORE_CACHE_BASE.expectedRegistryDigest || stageReceipt?.persistentRuntimeOperatingSystem !== RUNPOD_HUMO17_CORE_CACHE_BASE.operatingSystem || !String(stageReceipt?.persistentRuntimePythonVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.pythonVersionPrefix) || !String(stageReceipt?.persistentRuntimeTorchVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.torchVersionPrefix) || !String(stageReceipt?.persistentRuntimeTorchCudaVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.torchCudaVersionPrefix) || Number(stageReceipt?.persistentRuntimeRequiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length || Number(stageReceipt?.networkVolumeSizeGb || 0) < Number(RUNPOD_HUMO17_CORE_CACHE_BASE.minimumNetworkVolumeGb || 80) || stageReceipt?.terminationVerified !== true || stageReceipt?.networkVolumeRetained !== true || stageReceipt?.networkVolumeId !== "1qm5wczocl" || stageReceipt?.networkVolumeDataCenterId !== "EU-NL-1" || Number(stageReceipt?.newPersistentBytes || 0) !== Number(RUNPOD_HUMO17_CORE_CACHE_BASE.totalBytes || 0) || Number(stageReceipt?.combinedPersistentBytes || 0) !== Number(RUNPOD_HUMO17_CORE_CACHE_BASE.combinedPersistentBytes || 0)) throw new Error("HUMO17_QUALITY_CORE_RECEIPT_INVALID");
     const stageReceiptFile = path.join(os.tmpdir(), "jarvis-v142-humo17-core-stage-314-receipt.json"); fs.writeFileSync(stageReceiptFile, JSON.stringify(stageReceipt));
     const output = String(control.output || ".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4").trim().replaceAll("\\", "/");
     if (![".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4", ".jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4"].includes(output)) throw new Error("HUMO17_QUALITY_OUTPUT_NOT_PINNED");

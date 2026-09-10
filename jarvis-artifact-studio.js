@@ -726,6 +726,7 @@ export function prepareSeriesEpisode({
 } = {}) {
     const loaded = readSeriesCanon(root, seriesId);
     const canon = loaded.canon;
+    const identityRoster = assertSeriesIdentityRosterReady(canon);
     const acceptedEpisodeNumbers = [
         canon.lastCompletedEpisodeNumber,
         canon.lastLockedEpisodeNumber
@@ -798,6 +799,13 @@ export function prepareSeriesEpisode({
             10000
         ),
         castIds: normalizedCastIds,
+        productionBatch: {
+            size: identityRoster.policy.productionBatchSize,
+            number: Math.floor((resolvedNumber - 1) / identityRoster.policy.productionBatchSize) + 1,
+            startEpisodeNumber: Math.floor((resolvedNumber - 1) / identityRoster.policy.productionBatchSize) * identityRoster.policy.productionBatchSize + 1,
+            endEpisodeNumber: (Math.floor((resolvedNumber - 1) / identityRoster.policy.productionBatchSize) + 1) * identityRoster.policy.productionBatchSize,
+            continuousCanon: identityRoster.policy.continuousCanonAcrossProductionBatches === true
+        },
         storyBeats: normalizedBeats,
         continuityStart: initialState,
         plannedContinuityEnd: normalizedBeats.length > 0
@@ -858,12 +866,6 @@ export function getSeriesGenerationContext({
         ? policyMaximum
         : Number(maximumReferenceImages);
     const uniqueCastIds = [...new Set(episode.castIds || [])];
-    if (uniqueCastIds.length > Number(backendPolicy.maximumIdentityCount || uniqueCastIds.length)) {
-        if (backendPolicy.backend === "humo-17b-identity") {
-            throw new Error(`SERIES_HUMO_SINGLE_IDENTITY_REQUIRED:${uniqueCastIds.length}`);
-        }
-        throw new Error(`SERIES_GENERATION_IDENTITY_LIMIT_EXCEEDED:${backendPolicy.backend}:${uniqueCastIds.length}:${backendPolicy.maximumIdentityCount}`);
-    }
     const allowCoverageSelection =
         referenceSelectionPolicy === "ACTIVE_CAST_COVERAGE" &&
         Number.isInteger(normalizedMaximum) &&
@@ -945,6 +947,7 @@ export function getSeriesGenerationContext({
         policy: {
             referenceSelection: "ACTIVE_CAST_EXPLICIT_ASSIGNMENTS_ONLY",
             maximumReferenceImages: policyMaximum,
+            backendIdentityLimitsApplyPerShotOnly: normalizeSeriesIdentityContinuityPolicy(canon.identityContinuityPolicy || {}).backendIdentityLimitsApplyPerShotOnly,
             noFacialIdentification: true
         }
     };

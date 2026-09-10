@@ -1676,13 +1676,14 @@ test("HuMo17 probe is single L40S, pinned, hash-bound, budgeted and distinct fro
     assert.throws(() => buildHuMo17RuntimeProbeJob({...options, assets: {...assets, output: "outside.mp4"}}), /OUTPUT/);
     const shell = buildHuMo17RuntimeBootstrap(job);
     assert.match(shell, /CORE_NOT_CERTIFIED/); assert.match(shell, /ASSET_SHA256/);
-    assert.match(shell, /venv --system-site-packages/);
+    assert.ok(shell.includes("test -x /workspace/jarvis-v142/runtime/humo17/venv/bin/python"));
+    assert.doesNotMatch(shell, /venv --system-site-packages/);
     assert.match(shell, /torch.__version__/);
-    assert.match(shell, /--force-reinstall --no-deps ninja==1\.11\.1\.3/);
-    assert.match(shell, /transformers==4\.51\.3/);
+    assert.doesNotMatch(shell, /pip install/);
+    assert.match(shell, /PIP_NO_INDEX=1/);
     assert.ok(shell.indexOf("HUMO17_REQUIRED_NODES_MISSING") < shell.indexOf("urlopen"));
-    assert.ok(shell.indexOf("torch.cuda.is_available") < shell.indexOf("pip install"));
-    assert.match(shell, /wrapperAuxiliaryAssets/); assert.doesNotMatch(shell, /download.*core|generate_1_7B/);
+    assert.equal(shell.indexOf("pip install"), -1);
+    assert.match(shell, /runtime-manifest\.json/); assert.doesNotMatch(shell, /download.*core|generate_1_7B/);
     assert.throws(() => buildHuMo17RuntimeBootstrap({...job, gpuCount: 2}), /AUTHORITY/);
 });
 
