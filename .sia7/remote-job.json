@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-durable-probe-control-20260909-495",
+  "jobId": "v142-humo17-startup-isolation-20260909-496",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                `root@${endpoint.host}:/tmp/jarvis-humo17/probe.mp4`, runtimeProbeAssets.outputFile], {timeoutMs: 45000, maxBytes: 1024 * 1024});",
-    "replace": "                `root@${endpoint.host}:${probeJob.outputFile}`, runtimeProbeAssets.outputFile], {timeoutMs: 45000, maxBytes: 1024 * 1024});"
+    "search": "        runtimeProbeAuthorized ? \"RUNTIME_ROOT=/workspace/jarvis-v142/runtime/humo17; SYSTEM_ROOT=$RUNTIME_ROOT/system; export PATH=$SYSTEM_ROOT/bin:$PATH; export LD_LIBRARY_PATH=$SYSTEM_ROOT/lib:${LD_LIBRARY_PATH:-}; export GIT_EXEC_PATH=$SYSTEM_ROOT/lib/git-core\" : \"export DEBIAN_FRONTEND=noninteractive\",",
+    "replace": "        runtimeProbeAuthorized ? \"RUNTIME_ROOT=/workspace/jarvis-v142/runtime/humo17; SYSTEM_ROOT=$RUNTIME_ROOT/system; export PATH=$SYSTEM_ROOT/bin:$PATH\" : \"export DEBIAN_FRONTEND=noninteractive\","
   }
 }
