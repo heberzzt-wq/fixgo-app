@@ -652,6 +652,23 @@ export function upsertSeriesCharacter({
         )
         .sort((a, b) => a.sourceOutput.localeCompare(b.sourceOutput));
     const previous = canon.characters?.[id] || null;
+    const normalizedReferenceUpdateMode = clean(referenceUpdateMode).toUpperCase() || "MERGE";
+    if (!new Set(["MERGE", "RECAST"]).has(normalizedReferenceUpdateMode)) {
+        throw new Error("SERIES_CHARACTER_REFERENCE_UPDATE_MODE_INVALID");
+    }
+    if (previous && normalizedReferenceUpdateMode === "RECAST" && identityRecastConfirmed !== true) {
+        throw new Error(`SERIES_CHARACTER_IDENTITY_RECAST_CONFIRMATION_REQUIRED:${id}`);
+    }
+    if (previous && normalizedReferenceUpdateMode === "RECAST" && verifiedReferences.length === 0) {
+        throw new Error(`SERIES_CHARACTER_IDENTITY_RECAST_REFERENCES_REQUIRED:${id}`);
+    }
+    const referenceCandidates = normalizedReferenceUpdateMode === "RECAST"
+        ? verifiedReferences
+        : [...(previous?.referenceAssets || []), ...verifiedReferences]
+            .filter((item, index, values) =>
+                values.findIndex(candidate => candidate.sha256 === item.sha256) === index
+            )
+            .sort((a, b) => a.sourceOutput.localeCompare(b.sourceOutput));
     const now = new Date().toISOString();
     const character = {
         characterId: id,
