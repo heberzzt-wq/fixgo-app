@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-budget-095-migrate-rejection-fixture-crlf-20260910-728",
+  "jobId": "v142-budget-095-migrate-acceptance-fixture-crlf-20260910-729",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": ".github/scripts/v142-final-contract-alignment.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            region = replaceCountOrAlready(\r\n                region,\r\n                '    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.01,paidAuthorized:true}),/QUALITY_BUDGET/);',\r\n                '    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.01,paidAuthorized:true}),/QUALITY_BUDGET/);',\r\n                1,\r\n                \"V142_HUMO17_QUALITY_BUDGET_REJECTION_TEST\"\r\n            );",
-    "replace": "            region = replaceCountOrAlready(\r\n                region,\r\n                '    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.51,paidAuthorized:true}),/QUALITY_BUDGET/);',\r\n                '    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.01,paidAuthorized:true}),/QUALITY_BUDGET/);',\r\n                1,\r\n                \"V142_HUMO17_QUALITY_BUDGET_REJECTION_TEST\"\r\n            );"
+    "search": "            return replaceCountOrAlready(\r\n                region,\r\n                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:0.95,paidAuthorized:true});',\r\n                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:0.95,paidAuthorized:true});',\r\n                1,\r\n                \"V142_HUMO17_QUALITY_BUDGET_ACCEPTANCE_TEST\"\r\n            );",
+    "replace": "            return replaceCountOrAlready(\r\n                region,\r\n                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.5,paidAuthorized:true});',\r\n                '    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:0.95,paidAuthorized:true});',\r\n                1,\r\n                \"V142_HUMO17_QUALITY_BUDGET_ACCEPTANCE_TEST\"\r\n            );"
   }
 }
