@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-runtime-20260909-396",
+  "jobId": "v142-humo17-persistent-runtime-20260909-397",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "minimumNetworkVolumeGb: 50,\n            capacityFitCertified: false",
-    "replace": "minimumNetworkVolumeGb: 80,\n            capacityFitCertified: true"
+    "search": "capacityFitCertified: false",
+    "replace": "persistentMinimumNetworkVolumeGb: 80,\n            capacityFitCertified: true"
   }
 }
