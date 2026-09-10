@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-paid-offline-startup-20260909-428",
+  "jobId": "v142-humo17-paid-offline-startup-20260909-429",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        \"export DEBIAN_FRONTEND=noninteractive\",\n        \"apt-get update -qq\",\n        \"apt-get install -y -qq --no-install-recommends openssh-server ca-certificates python3 python3-venv python3-pip git curl ffmpeg\",",
-    "replace": "        ...(runtimeProbeAuthorized ? [\n            \"RUNTIME_ROOT=/workspace/jarvis-v142/runtime/humo17\",\n            \"SYSTEM_ROOT=$RUNTIME_ROOT/system\",\n            \"test -x /usr/sbin/sshd\",\n            \"test -x $SYSTEM_ROOT/bin/ffmpeg && test -x $SYSTEM_ROOT/bin/ffprobe && test -x $SYSTEM_ROOT/bin/git\",\n            \"export PATH=$SYSTEM_ROOT/bin:$PATH\",\n            \"export LD_LIBRARY_PATH=$SYSTEM_ROOT/lib:${LD_LIBRARY_PATH:-}\",\n            \"export GIT_EXEC_PATH=$SYSTEM_ROOT/lib/git-core\",\n            \"$SYSTEM_ROOT/bin/ffmpeg -version >/dev/null && $SYSTEM_ROOT/bin/ffprobe -version >/dev/null && $SYSTEM_ROOT/bin/git --version >/dev/null\"\n        ] : [\n            \"export DEBIAN_FRONTEND=noninteractive\",\n            \"apt-get update -qq\",\n            \"apt-get install -y -qq --no-install-recommends openssh-server ca-certificates python3 python3-venv python3-pip git curl ffmpeg\"\n        ]),"
+    "search": "        \"export DEBIAN_FRONTEND=noninteractive\",",
+    "replace": "        runtimeProbeAuthorized ? \"RUNTIME_ROOT=/workspace/jarvis-v142/runtime/humo17; SYSTEM_ROOT=$RUNTIME_ROOT/system; export PATH=$SYSTEM_ROOT/bin:$PATH; export LD_LIBRARY_PATH=$SYSTEM_ROOT/lib:${LD_LIBRARY_PATH:-}; export GIT_EXEC_PATH=$SYSTEM_ROOT/lib/git-core\" : \"export DEBIAN_FRONTEND=noninteractive\","
   }
 }
