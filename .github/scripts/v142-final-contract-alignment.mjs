@@ -365,6 +365,18 @@ function alignHuMo17QualityContract() {
     let localVideoTests = fs.readFileSync(TEST_FILE, "utf8").replace(/\r\n/g, "\n");
     localVideoTests = transformNamedTest(
         localVideoTests,
+        "V142 HuMo17 physical core staging worker is explicit-authority budgeted and cleanup-verified",
+        region => replaceCountOrAlready(
+            region,
+            "    assert.equal(bridgeSource.includes('hardBudgetUsd > 3'), true);",
+            "    assert.equal(bridgeSource.includes('hardBudgetUsd > 1.5'), true);",
+            1,
+            "V142_HUMO17_CORE_STAGE_BUDGET_TEST"
+        ),
+        "V142_HUMO17_CORE_STAGE_TEST"
+    );
+    localVideoTests = transformNamedTest(
+        localVideoTests,
         "V142 HuMo17 paid bootstrap is persistent, offline and checkpointed",
         region => replaceCountOrAlready(
             region,
