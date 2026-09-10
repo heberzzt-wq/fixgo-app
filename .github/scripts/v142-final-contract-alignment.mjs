@@ -175,7 +175,7 @@ function alignHuMo17QualityContract() {
 
     bridge = replaceCountOrAlready(
         bridge,
-        '    if (quality && hardBudgetUsd > 0.95) throw new Error("HUMO17_QUALITY_BUDGET_EXCEEDED");',
+        '    if (quality && hardBudgetUsd > 1.5) throw new Error("HUMO17_QUALITY_BUDGET_EXCEEDED");',
         `    if (quality && hardBudgetUsd > ${HUMO17_QUALITY_BUDGET_USD}) throw new Error("HUMO17_QUALITY_BUDGET_EXCEEDED");`,
         1,
         "V142_HUMO17_QUALITY_BUDGET"
