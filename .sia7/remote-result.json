@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-close-preauth-materialize-explicit-core-budget-20260910-736",
-  "completedAt": "2026-09-10T19:58:11.551Z",
+  "jobId": "v142-budget-150-constant-20260910-737",
+  "completedAt": "2026-09-10T20:09:27.660Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": ".github/scripts/v142-final-contract-alignment.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 14504,
-  "bytesAfter": 14910,
+  "bytesBefore": 14910,
+  "bytesAfter": 14909,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
