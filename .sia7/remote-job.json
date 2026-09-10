@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-no-git-paid-revision-check-20260909-485",
+  "jobId": "v142-humo17-ffprobe-isolated-env-20260909-486",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "scripts/jarvis-local-video-wan22.py",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        actual = subprocess.check_output([\"git\", \"-C\", str(directory), \"rev-parse\", \"HEAD\"], text=True, timeout=20).strip()",
-    "replace": "        head_file = directory / \".git\" / \"HEAD\"\r\n        actual = head_file.read_text(encoding=\"utf-8\").strip() if head_file.is_file() else \"\"\r\n        if actual.startswith(\"ref: \"):\r\n            ref_file = directory / \".git\" / actual[5:]\r\n            actual = ref_file.read_text(encoding=\"utf-8\").strip() if ref_file.is_file() else \"\""
+    "search": "        text=True,\r\n        timeout=60,\r\n    )",
+    "replace": "        text=True,\r\n        timeout=60,\r\n        env=env,\r\n    )"
   }
 }
