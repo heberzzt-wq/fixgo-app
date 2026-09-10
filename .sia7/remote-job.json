@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-ffprobe-isolated-env-20260909-487",
+  "jobId": "v142-humo17-paid-runtime-isolation-20260909-488",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "scripts/jarvis-local-video-wan22.py",
+    "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            str(file),\r\n        ],\r\n        check=True,\r\n        capture_output=True,\r\n        text=True,\r\n        timeout=60,\r\n    )",
-    "replace": "            str(file),\r\n        ],\r\n        check=True,\r\n        capture_output=True,\r\n        text=True,\r\n        timeout=60,\r\n        env=env,\r\n    )"
+    "search": "        \"export PATH=/workspace/jarvis-v142/runtime/humo17/system/bin:/workspace/jarvis-v142/runtime/humo17/venv/bin:$PATH LD_LIBRARY_PATH=/workspace/jarvis-v142/runtime/humo17/system/lib:${LD_LIBRARY_PATH:-} GIT_EXEC_PATH=/workspace/jarvis-v142/runtime/humo17/system/lib/git-core HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PIP_NO_INDEX=1\",",
+    "replace": "        \"export PATH=/workspace/jarvis-v142/runtime/humo17/system/bin:/workspace/jarvis-v142/runtime/humo17/venv/bin:$PATH HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PIP_NO_INDEX=1\","
   }
 }
