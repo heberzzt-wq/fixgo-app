@@ -257,7 +257,7 @@ function alignHuMo17QualityContract() {
         region => {
             region = replaceCountOrAlready(
                 region,
-                '    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.01,paidAuthorized:true}),/QUALITY_BUDGET/);',
+                '    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.51,paidAuthorized:true}),/QUALITY_BUDGET/);',
                 '    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.01,paidAuthorized:true}),/QUALITY_BUDGET/);',
                 1,
                 "V142_HUMO17_QUALITY_BUDGET_REJECTION_TEST"
