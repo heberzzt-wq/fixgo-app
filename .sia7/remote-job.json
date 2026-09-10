@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-persistent-system-tools-path-20260909-476",
+  "jobId": "v142-humo17-quality-stage-receipt-freshness-20260909-477",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        \"export PATH=/workspace/jarvis-v142/runtime/humo17/venv/bin:$PATH HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PIP_NO_INDEX=1\",",
-    "replace": "        \"export PATH=/workspace/jarvis-v142/runtime/humo17/system/bin:/workspace/jarvis-v142/runtime/humo17/venv/bin:$PATH LD_LIBRARY_PATH=/workspace/jarvis-v142/runtime/humo17/system/lib:${LD_LIBRARY_PATH:-} GIT_EXEC_PATH=/workspace/jarvis-v142/runtime/humo17/system/lib/git-core HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PIP_NO_INDEX=1\","
+    "search": "    const coreStageReceiptCommit = String(control.coreStageReceiptCommit || \"\").trim().toLowerCase();\r\n    if (coreStageReceiptCommit !== \"c5461883e28a5f80ad6006e0a2d2ddd2b641d37c\") throw new Error(\"HUMO17_QUALITY_CORE_RECEIPT_COMMIT_INVALID\");",
+    "replace": "    const coreStageReceiptCommit = String(control.coreStageReceiptCommit || \"\").trim().toLowerCase();\r\n    if (!/^[a-f0-9]{40}$/.test(coreStageReceiptCommit)) throw new Error(\"HUMO17_QUALITY_CORE_RECEIPT_COMMIT_INVALID\");"
   }
 }
