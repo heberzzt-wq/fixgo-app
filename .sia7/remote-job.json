@@ -1,12 +1,5 @@
 {
-  "jobId": "v142-allow-worker-materializer-20260911-09",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": ".github/workflows/v142-mobile-web-research-recovery.yml",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "jarvis-artifact-studio.js|jarvis-fs-bridge.js",
-    "replace": "jarvis-artifact-studio.js|jarvis-github-worker.js|jarvis-fs-bridge.js"
-  }
+  "jobId": "v142-bridge-health-20260911-chatgpt-02",
+  "operation": "bridge",
+  "endpoint": "/health"
 }
