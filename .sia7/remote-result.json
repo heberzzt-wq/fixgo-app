@@ -1,10 +1,210 @@
 {
-  "jobId": "v142-humo-identity-preflight-20260911-chatgpt-07",
-  "completedAt": "2026-09-11T19:25:25.923Z",
+  "jobId": "v142-bridge-health-20260911-chatgpt-08",
+  "completedAt": "2026-09-11T21:37:00.461Z",
   "executionStarted": true,
-  "ok": false,
-  "error": "SIA7_WORKER_RESTART_REQUIRED",
-  "evidence": null,
+  "ok": true,
+  "httpStatus": 200,
+  "endpoint": "/health",
+  "payload": {
+    "ok": true,
+    "version": "2.51.0-temporal-media-self-hosted-v142",
+    "policy": {
+      "authority": "full_repo_private_owner",
+      "safeZone": "advisory",
+      "rootContainment": true,
+      "emptyWrites": "blocked",
+      "failureMode": "closed"
+    },
+    "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v122-bridge",
+    "actuators": {
+      "browser": {
+        "available": true,
+        "engine": "chrome.exe",
+        "actions": [
+          "inspect",
+          "screenshot",
+          "pdf",
+          "open",
+          "media"
+        ]
+      },
+      "speech": {
+        "available": true,
+        "provider": "windows-system-speech",
+        "platform": "win32",
+        "outputFormats": [
+          "wav"
+        ],
+        "physicallyVerified": true,
+        "cloudRequired": false,
+        "version": "1.0.0-local-windows-system-speech-v137",
+        "status": "LOCAL_SPEECH_READY"
+      },
+      "documents": {
+        "available": true,
+        "formats": [
+          "html",
+          "md",
+          "txt",
+          "csv",
+          "json",
+          "docx",
+          "xlsx",
+          "pptx",
+          "pdf"
+        ],
+        "nativeOffice": true
+      },
+      "repoWrite": {
+        "available": true,
+        "protocol": "prepare_authorize_consume_once",
+        "requires": [
+          "objectiveId",
+          "caseId",
+          "authorityId",
+          "controllerId",
+          "fingerprint",
+          "nonce",
+          "snapshot",
+          "matchCount"
+        ],
+        "postVerify": true,
+        "replayBlocked": true,
+        "gitReceiptsRequired": true,
+        "legacyFileContentWrite": false
+      },
+      "multimodalUploads": {
+        "available": true,
+        "transport": "chunked_progressive",
+        "maxFilesPerRequest": 30,
+        "maxFileBytes": 262144000,
+        "maxBatchBytes": 524288000,
+        "maxChunkBytes": 2097152,
+        "resumablePersistedArtifacts": true,
+        "artifactDownload": true,
+        "verifiedCount": 0,
+        "latest": null
+      },
+      "imageGeneration": {
+        "available": true,
+        "persistedArtifacts": true,
+        "verifiedCount": 17,
+        "latest": {
+          "name": "facebook-png.png",
+          "bytes": 1919120,
+          "updatedAt": "2026-08-19T21:27:10.275Z"
+        }
+      },
+      "artifactStudio": {
+        "available": true,
+        "versionedLedger": true,
+        "registeredCount": 347,
+        "latest": {
+          "artifactId": "ART-75417dd2-4761-448a-863a-ef41a7606f5f",
+          "studioVersion": "1.0.0-versioned-ledger",
+          "caseId": "CASE-b019eb77-60db-4083-86a9-2f0ce90c9875",
+          "objectiveId": "OBJ-4a1ab6c5-e8ff-44eb-a8b6-7777a4927a52",
+          "type": "audio",
+          "version": 1,
+          "lineageKey": ".jarvis-artifacts/audio/narration-1787246007537-hb4hqu1.wav",
+          "origin": "speech.synthesize",
+          "provider": "windows-system-speech",
+          "model": "System.Speech.Synthesis.SpeechSynthesizer",
+          "file": ".jarvis-artifacts/audio/narration-1787246007537-hb4hqu1.wav",
+          "mimeType": "audio/wav",
+          "bytes": 1259026,
+          "sha256": "d8b2495766fb3e703f1d2d329f42ac72eea3206c7b5fcc9ec561794bdd59c967",
+          "createdAt": "2026-08-20T17:13:34.897Z",
+          "status": "SPEECH_AUDIO_CREATED_VERIFIED",
+          "approval": {
+            "required": false,
+            "approved": true,
+            "approvedBy": "LOCAL_ARTIFACT_POLICY"
+          },
+          "editable": false,
+          "preview": true,
+          "downloadable": true,
+          "publishable": false,
+          "deploymentStatus": "NOT_DEPLOYED",
+          "originalFile": null,
+          "quality": {
+            "voice": {
+              "voiceId": "Microsoft Sabina Desktop",
+              "model": "System.Speech.Synthesis.SpeechSynthesizer",
+              "language": "es-MX",
+              "accent": "es-MX",
+              "gender": "Female",
+              "age": "Adult",
+              "naturality": {
+                "status": "UNASSESSED",
+                "score": null,
+                "method": "provider_metadata_only"
+              }
+            },
+            "licensing": {
+              "status": "SYSTEM_COMPONENT_TERMS_APPLY",
+              "commercialUseVerified": false,
+              "evidence": null
+            },
+            "provenance": {
+              "provider": "windows-system-speech",
+              "model": "System.Speech.Synthesis.SpeechSynthesizer",
+              "voiceId": "Microsoft Sabina Desktop",
+              "sourceType": "installed_system_voice",
+              "generatedLocally": true,
+              "cloudRequired": false
+            },
+            "acceptance": {
+              "profile": "production_natural",
+              "status": "REQUIRES_REVIEW",
+              "productionReady": false,
+              "requiresUserAcceptance": true,
+              "reason": "VOICE_NATURALITY_UNASSESSED"
+            }
+          },
+          "transformations": []
+        }
+      },
+      "webResearch": {
+        "available": true,
+        "grounded": true,
+        "engine": "duckduckgo-html-with-bing-rss-fallback"
+      },
+      "connectors": {
+        "available": true,
+        "adapters": [
+          "github",
+          "firebase"
+        ],
+        "verification": "live-read-only"
+      }
+    },
+    "identity": {
+      "ok": true,
+      "status": "BRIDGE_IDENTITY_OK",
+      "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v122-bridge",
+      "contract": {
+        "ok": true,
+        "projectId": "fixgo-app",
+        "repository": "heberzzt-wq/fixgo-app",
+        "branch": "v94-media-v4n-negative-claims",
+        "releaseId": "v94-source-grounded-research-v124-20260810",
+        "contractPath": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v122-bridge\\jarvis-runtime-contract.json"
+      },
+      "git": {
+        "root": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v122-bridge",
+        "branch": "v94-media-v4n-negative-claims",
+        "head": "fc843a984123cbfb1b1b3fbd107c1702c1eded16",
+        "remote": "https://github.com/heberzzt-wq/fixgo-app.git",
+        "clean": false
+      },
+      "identityMode": "branch_contract_head",
+      "contractHead": "fc843a984123cbfb1b1b3fbd107c1702c1eded16",
+      "remoteVerified": true,
+      "repositoryMatches": true,
+      "worktreeClean": false
+    }
+  },
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
