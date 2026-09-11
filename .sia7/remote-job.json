@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-materialize-sia7-budget-cap-20260911-01",
+  "jobId": "v142-materialize-sia7-explicit-budget-20260911-02",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "const SIA7_HUMO_MAX_COMPUTE_USD = 3;",
-    "replace": "const SIA7_HUMO_MAX_COMPUTE_USD = 1.5;"
+    "search": "    const hardBudgetUsd = Number(job.hardBudgetUsd ?? 1.5);",
+    "replace": "    const hardBudgetUsd = Number(job.hardBudgetUsd);"
   }
 }
