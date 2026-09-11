@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-cert-trigger-worker-path-20260911-04",
+  "jobId": "v142-cert-trigger-worker-path-20260911-05",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": ".github/workflows/v142-mobile-web-research-recovery.yml",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "      - 'jarvis-upload-bridge.js'\r\n      - 'jarvis-fs-bridge.js'",
-    "replace": "      - 'jarvis-upload-bridge.js'\r\n      - 'jarvis-github-worker.js'\r\n      - 'jarvis-fs-bridge.js'"
+    "search": "      - 'jarvis-upload-bridge.js'",
+    "replace": "      - 'jarvis-upload-bridge.js'\r\n      - 'jarvis-github-worker.js'"
   }
 }
