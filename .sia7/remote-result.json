@@ -1,18 +1,11 @@
 {
-  "jobId": "v142-budget-150-align-sia7-executor-cap-test-20260910-752",
-  "completedAt": "2026-09-10T20:44:36.167Z",
+  "jobId": "v142-bridge-health-20260911-chatgpt-01",
+  "completedAt": "2026-09-11T18:36:20.478Z",
   "executionStarted": true,
-  "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": ".github/scripts/v142-final-contract-alignment.mjs",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 18667,
-  "bytesAfter": 19241,
-  "source": "sia7_github_worker_exact_patch_v1",
+  "ok": false,
+  "error": "fetch failed",
+  "evidence": null,
   "committedFiles": [
-    ".sia7/remote-result.json",
-    ".github/scripts/v142-final-contract-alignment.mjs"
+    ".sia7/remote-result.json"
   ]
 }
