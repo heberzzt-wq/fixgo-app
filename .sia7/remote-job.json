@@ -1,5 +1,11 @@
 {
-  "jobId": "v142-bridge-health-20260911-chatgpt-03",
+  "jobId": "v142-local-bridge-version-file-20260911-chatgpt-04",
   "operation": "bridge",
-  "endpoint": "/health"
+  "endpoint": "/read",
+  "body": {
+    "file": "jarvis-fs-bridge.js",
+    "startLine": 50,
+    "endLine": 90,
+    "maxBytes": 30000
+  }
 }
