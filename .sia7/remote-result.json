@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-cert-trigger-worker-path-20260911-04",
-  "completedAt": "2026-09-11T18:47:31.227Z",
+  "jobId": "v142-cert-trigger-worker-path-20260911-05",
+  "completedAt": "2026-09-11T18:48:01.567Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": ".github/workflows/v142-mobile-web-research-recovery.yml",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 27525,
-  "bytesAfter": 27560,
+  "bytesBefore": 27560,
+  "bytesAfter": 27595,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

@@ -28,6 +28,7 @@ on:
       - 'jarvis-artifact-studio.js'
       - 'jarvis-upload-bridge.js'
       - 'jarvis-github-worker.js'
+      - 'jarvis-github-worker.js'
       - 'jarvis-fs-bridge.js'
       - 'jarvis-local-video-engine.js'
       - 'scripts/jarvis-local-video-wan22.py'
