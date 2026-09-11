@@ -1661,7 +1661,7 @@ test("SIA7 publication retry and restart never replay an executed paid operation
 test("HuMo17 probe is single L40S, pinned, hash-bound, budgeted and distinct from legacy", async () => {
     const {buildHuMo17RuntimeProbeJob, buildHuMo17RuntimeBootstrap} = await import("../jarvis-fs-bridge.js");
     const assets = {reference: {file: "reference.jpg", sha256: "a".repeat(64)}, audio: {file: "audio.wav", sha256: "b".repeat(64)}, output: ".jarvis-artifacts/videos/probe.mp4"};
-    const options = {assets, hardBudgetUsd: 3, operationId: "fixture", paidAuthorized: true};
+    const options = {assets, hardBudgetUsd: 1.5, operationId: "fixture", paidAuthorized: true};
     const job = buildHuMo17RuntimeProbeJob(options);
     assert.equal(job.backend, "humo-17b-identity"); assert.equal(job.gpu, "NVIDIA L40S");
     assert.equal(job.gpuCount, 1); assert.equal(job.maximumIdentityCount, 1);
@@ -1670,7 +1670,7 @@ test("HuMo17 probe is single L40S, pinned, hash-bound, budgeted and distinct fro
     assert.equal(job.fullEpisodeAuthorized, false); assert.equal(job.strategy.compileEnabled, false);
     assert.equal(job.strategy.attentionMode, "sdpa"); assert.equal(job.strategy.modelLoaderDevice, "offload_device");
     assert.equal(job.referenceSha256, assets.reference.sha256); assert.equal(job.audioSha256, assets.audio.sha256);
-    for (const hardBudgetUsd of [0, -1, 3.01, NaN, Infinity]) assert.throws(() => buildHuMo17RuntimeProbeJob({...options, hardBudgetUsd}), /BUDGET/);
+    for (const hardBudgetUsd of [0, -1, 1.51, NaN, Infinity]) assert.throws(() => buildHuMo17RuntimeProbeJob({...options, hardBudgetUsd}), /BUDGET/);
     assert.throws(() => buildHuMo17RuntimeProbeJob({...options, paidAuthorized: false}), /AUTHORITY/);
     assert.throws(() => buildHuMo17RuntimeProbeJob({...options, assets: {...assets, reference: {file: "x.jpg"}}}), /HASHES/);
     assert.throws(() => buildHuMo17RuntimeProbeJob({...options, assets: {...assets, output: "outside.mp4"}}), /OUTPUT/);
@@ -1708,7 +1708,7 @@ test("HuMo17 Python runner rejects unauthorized and invalid geometry before impo
             [{paidAuthorized:false}, "HUMO17_PROBE_AUTHORITY_REQUIRED"],
             [{paidAuthorized:true, fullEpisodeAuthorized:false, geometry:{frames:65}}, "HUMO17_PROBE_GEOMETRY_INVALID"],
             [{paidAuthorized:true, fullEpisodeAuthorized:false, qualityProbe:true, geometry:{width:832,height:480,fps:25,frames:97,durationSeconds:3.88}}, "HUMO17_PROBE_GEOMETRY_INVALID"],
-            [{paidAuthorized:true, fullEpisodeAuthorized:false, qualityProbe:true, geometry:{width:832,height:480,fps:25,frames:201,durationSeconds:8.04},gpuCount:1,maximumIdentityCount:1,hardBudgetUsd:0.95}, "HUMO17_QUALITY_EVIDENCE_REQUIRED"]
+            [{paidAuthorized:true, fullEpisodeAuthorized:false, qualityProbe:true, geometry:{width:832,height:480,fps:25,frames:201,durationSeconds:8.04},gpuCount:1,maximumIdentityCount:1,hardBudgetUsd:1.5}, "HUMO17_QUALITY_EVIDENCE_REQUIRED"]
         ]) {
             fs.writeFileSync(jobFile, JSON.stringify({backend:"humo-17b-identity",externalApiAllowed:false,...job}));
             try {execFileSync(process.platform === "win32" ? "python" : "python3", [script,"--job",jobFile,"--result",result], {timeout:15000,stdio:"pipe"});}
@@ -1734,14 +1734,14 @@ test("HuMo17 quality probe rejects noise-only, blind segments, mismatched hashes
         assert.throws(()=>validateHuMo17SpeechEvidence({...evidence,...patch},sha),/HUMO17_/);
     }
     const assets={qualityProbe:true,speechEvidence:evidence,reference:{file:"face.jpg",sha256:sha},audio:{sha256:sha},output:".jarvis-artifacts/videos/quality.mp4"};
-    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets:{...assets,speechEvidence:null},hardBudgetUsd:0.95,paidAuthorized:true}),/SPEECH/);
-    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.01,paidAuthorized:true}),/QUALITY_BUDGET/);
-    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:0.95,paidAuthorized:true});
+    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets:{...assets,speechEvidence:null},hardBudgetUsd:1.5,paidAuthorized:true}),/SPEECH/);
+    assert.throws(()=>buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.51,paidAuthorized:true}),/QUALITY_BUDGET/);
+    const job=buildHuMo17RuntimeProbeJob({assets,hardBudgetUsd:1.5,paidAuthorized:true});
     assert.equal(job.backend,"humo-17b-identity");assert.equal(job.qualityCertified,false);
     assert.deepEqual(job.geometry,{width:832,height:480,fps:25,frames:201,durationSeconds:8.04});
     assert.equal(job.referencePreprocessing.preserveAspectRatio,true);assert.equal(job.gpuCount,1);
     assert.equal(job.networkVolumeRetained,true);assert.equal(job.fullEpisodeAuthorized,false);
-    const physicalJob=buildHuMo17RuntimeProbeJob({assets:{qualityProbe:false,reference:assets.reference,audio:assets.audio,output:".jarvis-artifacts/videos/physical.mp4"},hardBudgetUsd:0.95,paidAuthorized:true});
+    const physicalJob=buildHuMo17RuntimeProbeJob({assets:{qualityProbe:false,reference:assets.reference,audio:assets.audio,output:".jarvis-artifacts/videos/physical.mp4"},hardBudgetUsd:1.5,paidAuthorized:true});
     assert.equal(job.prompt,physicalJob.prompt);assert.equal(job.negativePrompt,physicalJob.negativePrompt);
     assert.match(job.negativePrompt,/identity change/);assert.doesNotMatch(job.negativePrompt,/smooth plastic skin/);
     assert.equal(job.effectiveRuntimeConfig.seed,42);assert.equal(job.effectiveRuntimeConfig.steps,8);assert.equal(job.effectiveRuntimeConfig.scheduler,"lcm");
@@ -1877,7 +1877,7 @@ test("SIA7 early Pod receipt preserves budget and GPU identity without provider 
 test('HuMo17 quality authority binds exact media, budget and HEAD and is consumed once',async()=>{
     const {validateHuMo17QualityAuthority,consumeHuMo17QualityAuthority,assertHuMo17IndependentBudget}=await import('../jarvis-fs-bridge.js');
     const fs=await import('node:fs');const os=await import('node:os');const path=await import('node:path');
-    const a={schema:'jarvis.v142.quality-single-use.1',humanApproved:true,maximumAttempts:1,nonce:'12345678-1234-1234-1234-123456789abc',jobId:'quality-one',codeSha:'a'.repeat(40),expiresAt:new Date(Date.now()+60000).toISOString(),backend:'humo-17b-identity',gpu:'NVIDIA L40S',gpuCount:1,networkVolumeId:'1qm5wczocl',dataCenterId:'EU-NL-1',fullEpisodeAuthorized:false,hardBudgetUsd:0.95,safetyRatio:.75,referenceSha256:'a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958',audioSha256:'bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184',output:'.jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4',frames:201,fps:25,width:832,height:480};
+    const a={schema:'jarvis.v142.quality-single-use.1',humanApproved:true,maximumAttempts:1,nonce:'12345678-1234-1234-1234-123456789abc',jobId:'quality-one',codeSha:'a'.repeat(40),expiresAt:new Date(Date.now()+60000).toISOString(),backend:'humo-17b-identity',gpu:'NVIDIA L40S',gpuCount:1,networkVolumeId:'1qm5wczocl',dataCenterId:'EU-NL-1',fullEpisodeAuthorized:false,hardBudgetUsd:1.5,safetyRatio:.75,referenceSha256:'a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958',audioSha256:'bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184',output:'.jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4',frames:201,fps:25,width:832,height:480};
     const c={...a,qualityProbe:true,speechValidated:true};assert.equal(assertHuMo17IndependentBudget({authority:a,context:c}),a);
     const abOutput='.jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4';
     assert.equal(validateHuMo17QualityAuthority({...a,output:abOutput},{...c,output:abOutput}).output,abOutput);

@@ -170,7 +170,7 @@ test("V142 HuMo17 physical core staging worker is explicit-authority budgeted an
     assert.equal(workerSource.includes('parsed.terminationVerified !== true || parsed.networkVolumeRetained !== true'), true);
     assert.equal(workerSource.includes('SIA7_HUMO17_CORE_STAGE_BUDGET_EXCEEDED'), true);
     assert.equal(bridgeSource.includes('JARVIS_HUMO17_CORE_STAGE_AUTHORIZED'), true);
-    assert.equal(bridgeSource.includes('hardBudgetUsd > 3'), true);
+    assert.equal(bridgeSource.includes('hardBudgetUsd > 1.5'), true);
     assert.equal(bridgeSource.includes('HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED'), true);
     assert.equal(bridgeSource.includes('computeType: runtimeProbeAuthorized ? \"GPU\" : \"CPU\"'), true);
     assert.equal(bridgeSource.includes('dataCenterIds: [volume.dataCenterId]'), true);
@@ -8000,7 +8000,7 @@ test("V142 HuMo inference is bound to the certified venv Python instead of globa
 
 test("V142 SIA7 HuMo executor is typed, budget-capped, source-pinned and control-plane-only after certification", () => {
     const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
-    assert.equal(workerSource.includes("SIA7_HUMO_MAX_COMPUTE_USD = 3"), true);
+    assert.equal(workerSource.includes("SIA7_HUMO_MAX_COMPUTE_USD = 1.5"), true);
     assert.equal(workerSource.includes("SIA7_HUMO_MONTHLY_STORAGE_USD = 5.6"), true);
     assert.equal(workerSource.includes("SIA7_HUMO_CHARACTER_ID = \"CHAR_HEBERTO\""), true);
     assert.equal(workerSource.includes("SIA7_HUMO_REFERENCE_SHA256 = \"a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958\""), true);

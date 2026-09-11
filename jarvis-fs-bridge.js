@@ -8720,7 +8720,7 @@ export function validateHuMo17QualityAuthority(a,c,now=Date.now()) {
        !Number.isFinite(Date.parse(a.expiresAt)) || Date.parse(a.expiresAt)<=now ||
        a.backend!=='humo-17b-identity' || a.gpu!=='NVIDIA L40S' || a.gpuCount!==1 ||
        a.networkVolumeId!=='1qm5wczocl' || a.dataCenterId!=='EU-NL-1' || a.fullEpisodeAuthorized!==false ||
-       a.hardBudgetUsd!==0.95 || c.hardBudgetUsd!==a.hardBudgetUsd || a.safetyRatio!==0.75 ||
+       a.hardBudgetUsd!==1.5 || c.hardBudgetUsd!==a.hardBudgetUsd || a.safetyRatio!==0.75 ||
        a.referenceSha256!=='a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958' ||
        a.audioSha256!=='bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184' ||
        c.referenceSha256!==a.referenceSha256 || c.audioSha256!==a.audioSha256 ||
@@ -8856,13 +8856,13 @@ export function validateHuMo17SpeechEvidence(evidence, audioSha256) {
 export function buildHuMo17RuntimeProbeJob({ assets, hardBudgetUsd, operationId, paidAuthorized = false } = {}) {
     if (![assets?.reference?.sha256, assets?.audio?.sha256].every(x => /^[a-f0-9]{64}$/.test(x || ""))) throw new Error("HUMO17_INPUT_HASHES_REQUIRED");
     if (!/^\.jarvis-artifacts\/.+\.mp4$/.test(assets?.output || "") || assets.output.includes("..")) throw new Error("HUMO17_OUTPUT_INVALID");
-    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 3)) throw new Error("HUMO17_PROBE_BUDGET_INVALID");
-    if (paidAuthorized !== true) throw new Error("HUMO17_PROBE_PAID_AUTHORITY_REQUIRED");
     const quality = assets.qualityProbe === true;
+    if (quality && hardBudgetUsd > 1.5) throw new Error("HUMO17_QUALITY_BUDGET_EXCEEDED");
+    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 1.5)) throw new Error("HUMO17_PROBE_BUDGET_INVALID");
+    if (paidAuthorized !== true) throw new Error("HUMO17_PROBE_PAID_AUTHORITY_REQUIRED");
     const resolvedOperationId = String(operationId || path.posix.basename(assets.output, path.posix.extname(assets.output))).trim();
     if (!/^[a-zA-Z0-9._-]{1,120}$/.test(resolvedOperationId)) throw new Error("HUMO17_OPERATION_ID_INVALID");
     const speechEvidence = quality ? validateHuMo17SpeechEvidence(assets.speechEvidence, assets.audio.sha256) : null;
-    if (quality && hardBudgetUsd > 0.95) throw new Error("HUMO17_QUALITY_BUDGET_EXCEEDED");
     const candidate = buildNextIdentityRuntimeCandidate({ backend: "humo-17b-identity" });
     return {
         operationId: resolvedOperationId, backend: "humo-17b-identity", model: "HuMo-17B", externalApiAllowed: false,
@@ -8973,7 +8973,7 @@ export async function runHuMo17PersistentCoreStagingCli({
     }
     if (process.platform !== "win32") throw new Error("RUNPOD_HUMO17_WINDOWS_WORKER_REQUIRED");
     const hardBudgetUsd = Number(String(env.JARVIS_HUMO17_CORE_STAGE_HARD_BUDGET_USD || "1.5").trim());
-    if (!Number.isFinite(hardBudgetUsd) || hardBudgetUsd <= 0 || hardBudgetUsd > 3) {
+    if (!Number.isFinite(hardBudgetUsd) || hardBudgetUsd <= 0 || hardBudgetUsd > 1.5) {
         throw new Error("RUNPOD_HUMO17_CORE_STAGE_BUDGET_INVALID");
     }
     const maximumMinutes = Number(String(env.JARVIS_HUMO17_CORE_STAGE_MAX_MINUTES || "90").trim());
