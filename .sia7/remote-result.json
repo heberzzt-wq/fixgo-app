@@ -1,34 +1,16 @@
 {
-  "jobId": "v142-local-bridge-version-file-20260911-chatgpt-04",
-  "completedAt": "2026-09-11T19:18:45.767Z",
+  "jobId": "v142-local-bridge-version-dryrun-20260911-chatgpt-05",
+  "completedAt": "2026-09-11T19:19:20.975Z",
   "executionStarted": true,
-  "ok": false,
-  "httpStatus": 503,
-  "endpoint": "/read",
-  "payload": {
-    "ok": false,
-    "status": "BRIDGE_IDENTITY_INVALID",
-    "error": "BRIDGE_IDENTITY_INVALID",
-    "identity": {
-      "ok": false,
-      "status": "BRIDGE_IDENTITY_INVALID",
-      "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app",
-      "contract": {
-        "ok": true,
-        "projectId": "fixgo-app",
-        "branch": "v94-media-v4n-negative-claims",
-        "releaseId": "v94-source-grounded-research-v124-20260810",
-        "contractPath": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app\\jarvis-runtime-contract.json"
-      },
-      "git": {
-        "root": "",
-        "branch": "",
-        "head": "",
-        "remote": ""
-      }
-    },
-    "version": "2.45.0-native-mp4-reel-export-v138"
-  },
+  "ok": true,
+  "operation": "patch",
+  "dryRun": true,
+  "file": "jarvis-fs-bridge.js",
+  "matchCount": 1,
+  "expectedMatches": 1,
+  "bytesBefore": 459372,
+  "bytesAfter": 459378,
+  "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
