@@ -1,12 +1,5 @@
 {
-  "jobId": "v142-local-bridge-version-dryrun-20260911-chatgpt-05",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": "jarvis-fs-bridge.js",
-    "dryRun": true,
-    "expectedMatches": 1,
-    "search": "2.51.0-temporal-media-self-hosted-v142",
-    "replace": "2.51.0-temporal-media-self-hosted-v142-PROBE"
-  }
+  "jobId": "v142-bridge-health-20260911-chatgpt-06",
+  "operation": "bridge",
+  "endpoint": "/health"
 }
