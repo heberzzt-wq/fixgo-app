@@ -223,6 +223,14 @@ function alignHuMo17QualityContract() {
 
     bridge = replaceCountOrAlready(
         bridge,
+        '    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 1.5)) throw new Error("HUMO17_PROBE_BUDGET_INVALID");\n    if (paidAuthorized !== true) throw new Error("HUMO17_PROBE_PAID_AUTHORITY_REQUIRED");\n    const quality = assets.qualityProbe === true;\n    const resolvedOperationId = String(operationId || path.posix.basename(assets.output, path.posix.extname(assets.output))).trim();\n    if (!/^[a-zA-Z0-9._-]{1,120}$/.test(resolvedOperationId)) throw new Error("HUMO17_OPERATION_ID_INVALID");\n    const speechEvidence = quality ? validateHuMo17SpeechEvidence(assets.speechEvidence, assets.audio.sha256) : null;\n    if (quality && hardBudgetUsd > 1.5) throw new Error("HUMO17_QUALITY_BUDGET_EXCEEDED");',
+        '    const quality = assets.qualityProbe === true;\n    if (quality && hardBudgetUsd > 1.5) throw new Error("HUMO17_QUALITY_BUDGET_EXCEEDED");\n    if (!(hardBudgetUsd > 0 && hardBudgetUsd <= 1.5)) throw new Error("HUMO17_PROBE_BUDGET_INVALID");\n    if (paidAuthorized !== true) throw new Error("HUMO17_PROBE_PAID_AUTHORITY_REQUIRED");\n    const resolvedOperationId = String(operationId || path.posix.basename(assets.output, path.posix.extname(assets.output))).trim();\n    if (!/^[a-zA-Z0-9._-]{1,120}$/.test(resolvedOperationId)) throw new Error("HUMO17_OPERATION_ID_INVALID");\n    const speechEvidence = quality ? validateHuMo17SpeechEvidence(assets.speechEvidence, assets.audio.sha256) : null;',
+        1,
+        "V142_HUMO17_QUALITY_BUDGET_PRECEDENCE"
+    );
+
+    bridge = replaceCountOrAlready(
+        bridge,
         '    if (!Number.isFinite(hardBudgetUsd) || hardBudgetUsd <= 0 || hardBudgetUsd > 3) {',
         '    if (!Number.isFinite(hardBudgetUsd) || hardBudgetUsd <= 0 || hardBudgetUsd > 1.5) {',
         1,
