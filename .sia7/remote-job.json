@@ -1,12 +1,5 @@
 {
-  "jobId": "v142-budget-150-align-sia7-executor-cap-test-20260910-752",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": ".github/scripts/v142-final-contract-alignment.mjs",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "    let localVideoTests = fs.readFileSync(TEST_FILE, \"utf8\").replace(/\\r\\n/g, \"\\n\");\r\n    localVideoTests = transformNamedTest(\r\n        localVideoTests,\r\n        \"V142 HuMo17 physical core staging worker is explicit-authority budgeted and cleanup-verified\",",
-    "replace": "    let localVideoTests = fs.readFileSync(TEST_FILE, \"utf8\").replace(/\\r\\n/g, \"\\n\");\r\n    localVideoTests = transformNamedTest(\r\n        localVideoTests,\r\n        \"V142 SIA7 HuMo executor is typed, budget-capped, source-pinned and control-plane-only after certification\",\r\n        region => replaceCountOrAlready(\r\n            region,\r\n            '    assert.equal(workerSource.includes(\"SIA7_HUMO_MAX_COMPUTE_USD = 3\"), true);',\r\n            '    assert.equal(workerSource.includes(\"SIA7_HUMO_MAX_COMPUTE_USD = 1.5\"), true);',\r\n            1,\r\n            \"V142_SIA7_HUMO_MAX_COMPUTE_BUDGET_TEST\"\r\n        ),\r\n        \"V142_SIA7_HUMO_EXECUTOR_TEST\"\r\n    );\r\n    localVideoTests = transformNamedTest(\r\n        localVideoTests,\r\n        \"V142 HuMo17 physical core staging worker is explicit-authority budgeted and cleanup-verified\","
-  }
+  "jobId": "v142-bridge-health-20260911-chatgpt-01",
+  "operation": "bridge",
+  "endpoint": "/health"
 }
