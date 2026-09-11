@@ -1,153 +1,14 @@
 {
-  "jobId": "v142-bridge-health-20260911-chatgpt-03",
-  "completedAt": "2026-09-11T19:16:27.225Z",
+  "jobId": "v142-local-bridge-version-file-20260911-chatgpt-04",
+  "completedAt": "2026-09-11T19:18:45.767Z",
   "executionStarted": true,
-  "ok": true,
-  "httpStatus": 200,
-  "endpoint": "/health",
+  "ok": false,
+  "httpStatus": 503,
+  "endpoint": "/read",
   "payload": {
-    "ok": true,
-    "version": "2.45.0-native-mp4-reel-export-v138",
-    "policy": {
-      "authority": "full_repo_private_owner",
-      "safeZone": "advisory",
-      "rootContainment": true,
-      "emptyWrites": "blocked",
-      "failureMode": "closed"
-    },
-    "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app",
-    "actuators": {
-      "browser": {
-        "available": true,
-        "engine": "chrome.exe",
-        "actions": [
-          "inspect",
-          "screenshot",
-          "pdf",
-          "open",
-          "media"
-        ]
-      },
-      "speech": {
-        "available": true,
-        "provider": "windows-system-speech",
-        "platform": "win32",
-        "outputFormats": [
-          "wav"
-        ],
-        "physicallyVerified": true,
-        "cloudRequired": false,
-        "version": "1.0.0-local-windows-system-speech-v137",
-        "status": "LOCAL_SPEECH_READY"
-      },
-      "documents": {
-        "available": true,
-        "formats": [
-          "html",
-          "md",
-          "txt",
-          "csv",
-          "json",
-          "docx",
-          "xlsx",
-          "pptx",
-          "pdf"
-        ],
-        "nativeOffice": true
-      },
-      "repoWrite": {
-        "available": true,
-        "protocol": "prepare_authorize_consume_once",
-        "requires": [
-          "objectiveId",
-          "caseId",
-          "authorityId",
-          "controllerId",
-          "fingerprint",
-          "nonce",
-          "snapshot",
-          "matchCount"
-        ],
-        "postVerify": true,
-        "replayBlocked": true,
-        "gitReceiptsRequired": true,
-        "legacyFileContentWrite": false
-      },
-      "multimodalUploads": {
-        "available": true,
-        "transport": "chunked_progressive",
-        "maxFilesPerRequest": 30,
-        "maxFileBytes": 262144000,
-        "maxBatchBytes": 524288000,
-        "maxChunkBytes": 2097152,
-        "resumablePersistedArtifacts": true,
-        "artifactDownload": true,
-        "verifiedCount": 65,
-        "latest": {
-          "name": "1786314562898-2afed38829b6-Captura-de-pantalla-3614.png",
-          "bytes": 928674,
-          "updatedAt": "2026-08-09T22:29:21.307Z"
-        }
-      },
-      "imageGeneration": {
-        "available": true,
-        "persistedArtifacts": true,
-        "verifiedCount": 20,
-        "latest": {
-          "name": "jarvis-1786147244168.png",
-          "bytes": 1487814,
-          "updatedAt": "2026-08-08T00:00:44.171Z"
-        }
-      },
-      "artifactStudio": {
-        "available": true,
-        "versionedLedger": true,
-        "registeredCount": 85,
-        "latest": {
-          "artifactId": "ART-e8470c28-2ddd-4a9b-9995-54cb036878e5",
-          "studioVersion": "1.0.0-versioned-ledger",
-          "caseId": "CASE-8a1ed025-1234-4a9a-b19e-299ea18e7a24",
-          "objectiveId": "OBJ-df4997df-d0aa-454b-befd-78a0ad0a8fea",
-          "type": "landing",
-          "version": 1,
-          "lineageKey": ".jarvis-artifacts/pages/multiservicios-peninsulares-hmh-1786384745102.html",
-          "origin": "page.create",
-          "provider": "jarvis_page_artifact",
-          "model": "",
-          "file": ".jarvis-artifacts/pages/multiservicios-peninsulares-hmh-1786384745102.html",
-          "mimeType": "text/html",
-          "bytes": 5975,
-          "sha256": "5bacaf0fb7dca992456229fefc9e44746f79f9efe50852998c00c3161e39021a",
-          "createdAt": "2026-08-10T17:59:05.114Z",
-          "status": "PAGE_ARTIFACT_CREATED_VERIFIED",
-          "approval": {
-            "required": false,
-            "approved": true,
-            "approvedBy": "LOCAL_ARTIFACT_POLICY"
-          },
-          "editable": true,
-          "preview": true,
-          "downloadable": true,
-          "publishable": true,
-          "deploymentStatus": "NOT_DEPLOYED",
-          "originalFile": null,
-          "transformations": []
-        }
-      },
-      "webResearch": {
-        "available": true,
-        "grounded": true,
-        "engine": "duckduckgo-html-with-bing-rss-fallback"
-      },
-      "connectors": {
-        "available": true,
-        "adapters": [
-          "github",
-          "firebase"
-        ],
-        "verification": "live-read-only"
-      }
-    },
+    "ok": false,
+    "status": "BRIDGE_IDENTITY_INVALID",
+    "error": "BRIDGE_IDENTITY_INVALID",
     "identity": {
       "ok": false,
       "status": "BRIDGE_IDENTITY_INVALID",
@@ -165,7 +26,8 @@
         "head": "",
         "remote": ""
       }
-    }
+    },
+    "version": "2.45.0-native-mp4-reel-export-v138"
   },
   "committedFiles": [
     ".sia7/remote-result.json"
