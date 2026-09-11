@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-materialize-sia7-explicit-budget-20260911-02",
+  "jobId": "v142-cert-trigger-worker-path-20260911-03",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-github-worker.js",
+    "file": ".github/workflows/v142-mobile-web-research-recovery.yml",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    const hardBudgetUsd = Number(job.hardBudgetUsd ?? 1.5);",
-    "replace": "    const hardBudgetUsd = Number(job.hardBudgetUsd);"
+    "search": "      - 'jarvis-upload-bridge.js'\n      - 'jarvis-fs-bridge.js'",
+    "replace": "      - 'jarvis-upload-bridge.js'\n      - 'jarvis-github-worker.js'\n      - 'jarvis-fs-bridge.js'"
   }
 }
