@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-quality-remove-stale-core-shape-20260911-chatgpt-27",
-  "completedAt": "2026-09-12T01:31:11.375Z",
+  "jobId": "v142-quality-select-durable-core-evidence-20260911-chatgpt-28",
+  "completedAt": "2026-09-12T01:31:46.411Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 463175,
-  "bytesAfter": 461539,
+  "bytesBefore": 461539,
+  "bytesAfter": 461403,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
