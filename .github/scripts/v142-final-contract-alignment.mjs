@@ -15,7 +15,7 @@ const source = execFileSync(
 );
 
 const helperNeedle = `    if (beforeCount === 0 && countOf(source, after) >= expectedCount) return source;\n    throw new Error(\`\${label}_MATCH_COUNT_\${beforeCount}_EXPECTED_\${expectedCount}\`);`;
-const helperReplacement = `    if (beforeCount === 0 && countOf(source, after) >= expectedCount) return source;\n    if (label === "V142_HUMO17_OPERATION_ID" && beforeCount === 0 &&\n        source.includes('    const resolvedOperationId = String(operationId || path.posix.basename(assets.output, path.posix.extname(assets.output))).trim();')) return source;\n    throw new Error(\`\${label}_MATCH_COUNT_\${beforeCount}_EXPECTED_\${expectedCount}\`);`;
+const helperReplacement = `    if (beforeCount === 0 && countOf(source, after) >= expectedCount) return source;\n    if (label === "V142_HUMO17_OPERATION_ID" && beforeCount === 0 &&\n        source.includes('    const resolvedOperationId = String(operationId || path.posix.basename(assets.output, path.posix.extname(assets.output))).trim();')) return source;\n    if (label === "V142_HUMO17_QUALITY_STAGE_RECEIPT_IDENTITY" && beforeCount === 0 &&\n        source.includes('    const durableCoreEvidencePath = path.resolve(root, ".sia7", "humo17-quality-201f-final-preflight.json");') &&\n        source.includes('    const stageReceiptFile = "";')) return source;\n    throw new Error(\`\${label}_MATCH_COUNT_\${beforeCount}_EXPECTED_\${expectedCount}\`);`;
 
 if (source.split(helperNeedle).length - 1 !== 1) {
     throw new Error("V142_HUMO17_IDEMPOTENCE_PATCH_SOURCE_MISMATCH");
