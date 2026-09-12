@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-resize-preflight-20260911-chatgpt-33",
-  "completedAt": "2026-09-12T01:55:44.247Z",
+  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-placement-preflight-20260911-chatgpt-34",
+  "completedAt": "2026-09-12T01:57:19.636Z",
   "executionStarted": true,
   "ok": false,
   "error": "SIA7_HUMO17_CORE_STAGE_FAILED:HUMO17_L40S_PLACEMENT_UNAVAILABLE",
@@ -8,7 +8,6 @@
     "phase": "HUMO17_L40S_PLACEMENT_UNAVAILABLE",
     "paidReceipts": [],
     "logTail": [
-      "{\"ok\":true,\"status\":\"HUMO17_PERSISTENT_VOLUME_RESIZED\",\"networkVolumeId\":\"1qm5wczocl\",\"dataCenterId\":\"EU-NL-1\",\"sizeGb\":80,\"inferenceStarted\":false}",
       "{\"ok\":false,\"status\":\"HUMO17_L40S_PLACEMENT_UNAVAILABLE\",\"providerMessage\":null,\"podId\":null,\"inferenceStarted\":false}"
     ]
   },
