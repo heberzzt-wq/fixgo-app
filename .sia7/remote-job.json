@@ -1,11 +1,9 @@
 {
-  "jobId": "v142-durable-core-local-syntax-20260911-chatgpt-21",
-  "operation": "bridge",
-  "endpoint": "/run",
-  "body": {
-    "command": "npm run check:syntax",
-    "cwd": ".",
-    "timeoutMs": 120000,
-    "source": "chatgpt-v142-durable-core-cert"
-  }
+  "jobId": "v142-humo-identity-preflight-20260911-chatgpt-22",
+  "operation": "humo_identity_probe",
+  "expectedBaseSha": "3a9b714fdb6b05af3c95ce209f8ee8a59487263b",
+  "hardBudgetUsd": 1.5,
+  "monthlyStorageAuthorizedUsd": 5.6,
+  "fullEpisodeAuthorized": false,
+  "executePaid": false
 }
