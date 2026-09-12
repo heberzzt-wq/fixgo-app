@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-audit-durable-evidence-source-20260911-chatgpt-19",
+  "jobId": "v142-humo17-durable-evidence-contract-test-20260911-chatgpt-20",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "coreManifestVerified: true, coreStagePodId: stageReceipt.podId, coreStageReceiptSha256: createHash(\"sha256\").update(fs.readFileSync(stageReceiptPath)).digest(\"hex\")};",
-    "replace": "coreManifestVerified: true, coreStagePodId: stageReceipt.podId, coreStageReceiptSha256: durableCoreEvidence ? String(durableCoreEvidence.coreStageReceiptSha256 || \"\").trim().toLowerCase() : createHash(\"sha256\").update(fs.readFileSync(stageReceiptPath)).digest(\"hex\"), coreStageEvidenceSource};"
+    "search": "assert.equal(bridgeSource.includes('HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED'), true);",
+    "replace": "assert.equal(bridgeSource.includes('HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED'), true);\n    assert.equal(bridgeSource.includes('humo17-quality-201f-final-preflight.json'), true);\n    assert.equal(bridgeSource.includes('cheapCpuRecertificationRequired !== false'), true);\n    assert.equal(bridgeSource.includes('coreStageEvidenceSource = \\\"durable_zero_cost_preflight\\\"'), true);\n    assert.equal(bridgeSource.includes('if (!durableCoreEvidence && (stageReceipt.ok !== true'), true);\n    assert.equal(bridgeSource.includes('HUMO17_CORE_REUSED_AND_AUXILIARY_VERIFIED'), true);"
   }
 }
