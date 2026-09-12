@@ -9156,7 +9156,7 @@ export async function runHuMo17PersistentCoreStagingCli({
                 referenceSha256: runtimeProbeAssets.reference.sha256, audioSha256: runtimeProbeAssets.audio.sha256,
                 qualityProbe: runtimeProbeAssets.qualityProbe, speechValidated: runtimeProbeAssets.speechEvidence?.speechValidated === true, qualityCertified: false, preserveAspectRatio: true,
                 resourceCreated: false, inferenceStarted: false, networkVolumeRetained: true, canonicalSha,
-                coreManifestVerified: true, coreStagePodId: stageReceipt.podId, coreStageReceiptSha256: createHash("sha256").update(fs.readFileSync(stageReceiptPath)).digest("hex")};
+                coreManifestVerified: true, coreStagePodId: stageReceipt.podId, coreStageReceiptSha256: durableCoreEvidence ? String(durableCoreEvidence.coreStageReceiptSha256 || "").trim().toLowerCase() : createHash("sha256").update(fs.readFileSync(stageReceiptPath)).digest("hex"), coreStageEvidenceSource};
             log(result); return result;
         }
         if (env.JARVIS_HUMO17_RUNTIME_CI_VERIFIED_SHA !== canonicalSha) throw new Error("HUMO17_EXACT_HEAD_CI_REQUIRED");
