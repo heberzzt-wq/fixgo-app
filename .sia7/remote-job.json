@@ -1,11 +1,10 @@
 {
-  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-resize-preflight-20260911-chatgpt-33",
+  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-placement-preflight-20260911-chatgpt-34",
   "operation": "humo17_core_stage",
   "humanApproved": true,
   "executePaid": true,
   "qualityProbe": true,
   "qualityPreflightOnly": true,
-  "resizePersistentVolume": true,
   "fullEpisodeAuthorized": false,
   "expectedBaseSha": "f2a237de70410b7c7f9ea4b1771e5ba4316e1b23",
   "certifiedCodeSha": "f2a237de70410b7c7f9ea4b1771e5ba4316e1b23",
@@ -26,6 +25,6 @@
   "speechValidated": true,
   "promptParityRequired": true,
   "authorityPath": ".sia7/humo17-quality-ab-prompt-parity-201f-authority.json",
-  "authorityId": "v142-humo17-quality-ab-prompt-parity-201f-20260911-chatgpt-34-authority",
+  "authorityId": "v142-humo17-quality-ab-prompt-parity-201f-20260911-chatgpt-35-authority",
   "output": ".jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4"
 }
