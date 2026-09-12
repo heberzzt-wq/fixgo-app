@@ -1,9 +1,8 @@
 {
-  "jobId": "v142-humo-identity-preflight-20260911-chatgpt-11",
-  "operation": "humo_identity_probe",
+  "jobId": "v142-humo17-core-preflight-20260911-chatgpt-12",
+  "operation": "humo17_core_stage",
   "expectedBaseSha": "4f411de9c6e5a5292b3a4311867e750339ba732f",
   "hardBudgetUsd": 1.5,
-  "monthlyStorageAuthorizedUsd": 5.6,
-  "fullEpisodeAuthorized": false,
+  "maximumMinutes": 90,
   "executePaid": false
 }
