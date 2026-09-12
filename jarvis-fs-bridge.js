@@ -9068,7 +9068,7 @@ export async function runHuMo17PersistentCoreStagingCli({
     if (matches.length !== 1) throw new Error(`RUNPOD_HUMO17_VOLUME_MATCH_COUNT:${matches.length}`);
     let volume = matches[0];
     const requiredPersistentVolumeGb = Number(RUNPOD_HUMO17_CORE_CACHE_BASE.minimumNetworkVolumeGb || 80);
-    if (!runtimeProbeAuthorized && Number(volume.sizeGb || 0) < requiredPersistentVolumeGb) {
+    if (Number(volume.sizeGb || 0) < requiredPersistentVolumeGb) {
         if (!truthy(env.JARVIS_HUMO17_PERSISTENT_VOLUME_RESIZE_AUTHORIZED)) throw new Error("HUMO17_PERSISTENT_VOLUME_RESIZE_AUTHORITY_REQUIRED");
         await runRunpodctlJson(["network-volume", "update", volume.id, "--size", String(Math.ceil(requiredPersistentVolumeGb))], cliEnv);
         const resizedVolumes = normalizeRunpodctlNetworkVolumes(await runRunpodctlJson(["network-volume", "list"], cliEnv));
