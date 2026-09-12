@@ -1,5 +1,9 @@
 {
-  "jobId": "v142-bridge-health-20260911-chatgpt-08",
-  "operation": "bridge",
-  "endpoint": "/health"
+  "jobId": "v142-humo-identity-preflight-20260911-chatgpt-09",
+  "operation": "humo_identity_probe",
+  "expectedBaseSha": "fc843a984123cbfb1b1b3fbd107c1702c1eded16",
+  "hardBudgetUsd": 1.5,
+  "monthlyStorageAuthorizedUsd": 5.6,
+  "fullEpisodeAuthorized": false,
+  "executePaid": false
 }
