@@ -1,18 +1,28 @@
 {
-  "jobId": "v142-worker-refresh-remoteref-20260911-chatgpt-10",
-  "completedAt": "2026-09-12T00:21:15.387Z",
+  "jobId": "v142-humo-identity-preflight-20260911-chatgpt-11",
+  "completedAt": "2026-09-12T00:39:36.554Z",
   "executionStarted": true,
   "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "jarvis-github-worker.js",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 41768,
-  "bytesAfter": 41856,
-  "source": "sia7_github_worker_exact_patch_v1",
+  "operation": "humo_identity_probe",
+  "dryRun": true,
+  "status": "SIA7_HUMO_IDENTITY_PREFLIGHT_READY",
+  "certifiedBaseSha": "4f411de9c6e5a5292b3a4311867e750339ba732f",
+  "executionHeadSha": "d974b7a69208f802d375c01b54ec78eb0de865a4",
+  "controlPlaneOnlyChanges": [
+    ".sia7/remote-job.json"
+  ],
+  "hardBudgetUsd": 1.5,
+  "monthlyStorageAuthorizedUsd": 5.6,
+  "characterId": "CHAR_HEBERTO",
+  "durationSeconds": 3.88,
+  "referenceCount": 2,
+  "referenceSha256s": [
+    "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958",
+    "b401b476107521d9e3de3b267885bf91de956b644072a01e7373ab5476a3b6f3"
+  ],
+  "audioSha256": "9a075a37c56b6e0cd828a9b2a37a2fe3ee3f01c28cc7483f6a5d97ff96bd2bd5",
+  "resourceCreationPossible": false,
   "committedFiles": [
-    ".sia7/remote-result.json",
-    "jarvis-github-worker.js"
+    ".sia7/remote-result.json"
   ]
 }
