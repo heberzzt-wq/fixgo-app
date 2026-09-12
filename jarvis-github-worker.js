@@ -94,7 +94,12 @@ function countExactMatches(source = "", search = "") {
 }
 
 async function readRemoteJob() {
-    const fetchResult = await runGit(["fetch", "--quiet", REMOTE, BRANCH]);
+    const fetchResult = await runGit([
+        "fetch",
+        "--quiet",
+        REMOTE,
+        `+refs/heads/${BRANCH}:refs/remotes/${REMOTE}/${BRANCH}`
+    ]);
 
     if (!fetchResult.ok) {
         throw new Error(
