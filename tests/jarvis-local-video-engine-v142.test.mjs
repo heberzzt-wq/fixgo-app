@@ -172,6 +172,11 @@ test("V142 HuMo17 physical core staging worker is explicit-authority budgeted an
     assert.equal(bridgeSource.includes('JARVIS_HUMO17_CORE_STAGE_AUTHORIZED'), true);
     assert.equal(bridgeSource.includes('hardBudgetUsd > 1.5'), true);
     assert.equal(bridgeSource.includes('HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED'), true);
+    assert.equal(bridgeSource.includes('humo17-quality-201f-final-preflight.json'), true);
+    assert.equal(bridgeSource.includes('cheapCpuRecertificationRequired !== false'), true);
+    assert.equal(bridgeSource.includes('coreStageEvidenceSource = \"durable_zero_cost_preflight\"'), true);
+    assert.equal(bridgeSource.includes('if (!durableCoreEvidence && (stageReceipt.ok !== true'), true);
+    assert.equal(bridgeSource.includes('HUMO17_CORE_REUSED_AND_AUXILIARY_VERIFIED'), true);
     assert.equal(bridgeSource.includes('computeType: runtimeProbeAuthorized ? \"GPU\" : \"CPU\"'), true);
     assert.equal(bridgeSource.includes('dataCenterIds: [volume.dataCenterId]'), true);
     assert.equal(bridgeSource.includes('networkVolumeId: volume.id'), true);
