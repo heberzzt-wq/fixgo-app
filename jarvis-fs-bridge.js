@@ -9132,7 +9132,7 @@ export async function runHuMo17PersistentCoreStagingCli({
             coreStageEvidenceSource = "durable_zero_cost_preflight";
         }
         if ((!stageReceiptPath || !fs.existsSync(stageReceiptPath)) && !durableCoreEvidence) throw new Error("HUMO17_STAGE_RECEIPT_REQUIRED");
-        const stageReceipt = JSON.parse(fs.readFileSync(stageReceiptPath, "utf8"));
+        const stageReceipt = durableCoreEvidence || JSON.parse(fs.readFileSync(stageReceiptPath, "utf8"));
         if (stageReceipt.ok !== true || stageReceipt.physicalStageCertified !== true || stageReceipt.coreManifestVerified !== true ||
             stageReceipt.persistentRuntimeReady !== true || stageReceipt.offlinePaidBootstrapRequired !== true || stageReceipt.persistentRuntimeSystemToolsReady !== true || stageReceipt.persistentRuntimeProvisionImageTag !== RUNPOD_HUMO17_CORE_CACHE_BASE.provisionImageTag || stageReceipt.persistentRuntimeExpectedRegistryDigest !== RUNPOD_HUMO17_CORE_CACHE_BASE.expectedRegistryDigest || stageReceipt.persistentRuntimeOperatingSystem !== RUNPOD_HUMO17_CORE_CACHE_BASE.operatingSystem || !String(stageReceipt.persistentRuntimePythonVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.pythonVersionPrefix) || !String(stageReceipt.persistentRuntimeTorchVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.torchVersionPrefix) || !String(stageReceipt.persistentRuntimeTorchCudaVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.torchCudaVersionPrefix) || Number(stageReceipt.persistentRuntimeRequiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length ||
             stageReceipt.terminationVerified !== true || stageReceipt.networkVolumeRetained !== true ||
