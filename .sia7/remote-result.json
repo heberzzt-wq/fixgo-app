@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-humo17-durable-evidence-vars-20260911-chatgpt-14",
-  "completedAt": "2026-09-12T01:04:20.921Z",
+  "jobId": "v142-humo17-allow-durable-core-evidence-20260911-chatgpt-15",
+  "completedAt": "2026-09-12T01:05:16.481Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 459372,
-  "bytesAfter": 461076,
+  "bytesBefore": 461076,
+  "bytesAfter": 461102,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
