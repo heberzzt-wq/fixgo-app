@@ -1,8 +1,36 @@
 {
-  "jobId": "v142-humo17-core-preflight-20260911-chatgpt-23",
+  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-preflight-20260911-chatgpt-24",
   "operation": "humo17_core_stage",
+  "humanApproved": true,
+  "executePaid": true,
+  "qualityProbe": true,
+  "qualityPreflightOnly": true,
+  "fullEpisodeAuthorized": false,
   "expectedBaseSha": "3a9b714fdb6b05af3c95ce209f8ee8a59487263b",
+  "certifiedCodeSha": "3a9b714fdb6b05af3c95ce209f8ee8a59487263b",
+  "ciRun": 34663912935,
   "hardBudgetUsd": 1.5,
+  "providerBudgetSafetyRatio": 0.75,
   "maximumMinutes": 90,
-  "executePaid": false
+  "backend": "humo-17b-identity",
+  "gpu": "NVIDIA L40S",
+  "gpuCount": 1,
+  "maximumIdentityCount": 1,
+  "geometry": {
+    "width": 832,
+    "height": 480,
+    "fps": 25,
+    "frames": 201,
+    "durationSeconds": 8.04
+  },
+  "networkVolumeId": "1qm5wczocl",
+  "dataCenterId": "EU-NL-1",
+  "coreStageReceiptCommit": "c5461883e28a5f80ad6006e0a2d2ddd2b641d37c",
+  "referenceSha256": "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958",
+  "audioSha256": "bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184",
+  "speechValidated": true,
+  "promptParityRequired": true,
+  "authorityPath": ".sia7/humo17-quality-ab-prompt-parity-201f-authority.json",
+  "authorityId": "v142-humo17-quality-ab-prompt-parity-201f-20260911-chatgpt-24-authority",
+  "output": ".jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4"
 }
