@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-preflight-resize-path-20260911-chatgpt-31",
+  "jobId": "v142-humo17-preflight-resize-authority-20260911-chatgpt-32",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    if (!runtimeProbeAuthorized && Number(volume.sizeGb || 0) < requiredPersistentVolumeGb) {",
-    "replace": "    if (Number(volume.sizeGb || 0) < requiredPersistentVolumeGb) {"
+    "search": "JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: preflightOnly ? \"false\" : \"true\", JARVIS_RUNPOD_NETWORK_VOLUME_ID: \"1qm5wczocl\"",
+    "replace": "JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: preflightOnly ? \"false\" : \"true\", JARVIS_HUMO17_PERSISTENT_VOLUME_RESIZE_AUTHORIZED: control.resizePersistentVolume === true ? \"true\" : \"false\", JARVIS_RUNPOD_NETWORK_VOLUME_ID: \"1qm5wczocl\""
   }
 }
