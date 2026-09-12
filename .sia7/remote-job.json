@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-select-durable-core-evidence-20260911-chatgpt-16",
+  "jobId": "v142-humo17-physical-validation-conditional-20260911-chatgpt-17",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "const stageReceipt = JSON.parse(fs.readFileSync(stageReceiptPath, \"utf8\"));",
-    "replace": "const stageReceipt = durableCoreEvidence || JSON.parse(fs.readFileSync(stageReceiptPath, \"utf8\"));"
+    "search": "if (stageReceipt.ok !== true || stageReceipt.physicalStageCertified !== true || stageReceipt.coreManifestVerified !== true ||",
+    "replace": "if (!durableCoreEvidence && (stageReceipt.ok !== true || stageReceipt.physicalStageCertified !== true || stageReceipt.coreManifestVerified !== true ||"
   }
 }
