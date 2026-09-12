@@ -1,36 +1,12 @@
 {
-  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-preflight-20260911-chatgpt-24",
-  "operation": "humo17_core_stage",
+  "jobId": "v142-quality-durable-core-anchor-20260911-chatgpt-25",
+  "operation": "patch",
   "humanApproved": true,
-  "executePaid": true,
-  "qualityProbe": true,
-  "qualityPreflightOnly": true,
-  "fullEpisodeAuthorized": false,
-  "expectedBaseSha": "3a9b714fdb6b05af3c95ce209f8ee8a59487263b",
-  "certifiedCodeSha": "3a9b714fdb6b05af3c95ce209f8ee8a59487263b",
-  "ciRun": 34663912935,
-  "hardBudgetUsd": 1.5,
-  "providerBudgetSafetyRatio": 0.75,
-  "maximumMinutes": 90,
-  "backend": "humo-17b-identity",
-  "gpu": "NVIDIA L40S",
-  "gpuCount": 1,
-  "maximumIdentityCount": 1,
-  "geometry": {
-    "width": 832,
-    "height": 480,
-    "fps": 25,
-    "frames": 201,
-    "durationSeconds": 8.04
-  },
-  "networkVolumeId": "1qm5wczocl",
-  "dataCenterId": "EU-NL-1",
-  "coreStageReceiptCommit": "c5461883e28a5f80ad6006e0a2d2ddd2b641d37c",
-  "referenceSha256": "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958",
-  "audioSha256": "bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184",
-  "speechValidated": true,
-  "promptParityRequired": true,
-  "authorityPath": ".sia7/humo17-quality-ab-prompt-parity-201f-authority.json",
-  "authorityId": "v142-humo17-quality-ab-prompt-parity-201f-20260911-chatgpt-24-authority",
-  "output": ".jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4"
+  "patch": {
+    "file": "jarvis-fs-bridge.js",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "    const stageReceipt = JSON.parse(String(execFileSync(git, [\"show\", `${coreStageReceiptCommit}:.sia7/remote-result.json`], {cwd: root, encoding: \"utf8\", windowsHide: true, maxBuffer: 2 * 1024 * 1024})));",
+    "replace": "    const stageReceipt = JSON.parse(String(execFileSync(git, [\"show\", `${coreStageReceiptCommit}:.sia7/remote-result.json`], {cwd: root, encoding: \"utf8\", windowsHide: true, maxBuffer: 2 * 1024 * 1024})));\n    const durableCoreEvidencePath = path.resolve(root, \".sia7\", \"humo17-quality-201f-final-preflight.json\");\n    if (!fs.existsSync(durableCoreEvidencePath) || !fs.statSync(durableCoreEvidencePath).isFile() || fs.lstatSync(durableCoreEvidencePath).isSymbolicLink()) throw new Error(\"HUMO17_QUALITY_DURABLE_CORE_EVIDENCE_MISSING\");\n    const durableCoreEvidence = JSON.parse(fs.readFileSync(durableCoreEvidencePath, \"utf8\"));\n    const durableReceiptSha256 = String(durableCoreEvidence?.coreStageReceiptSha256 || \"\").trim().toLowerCase();\n    if (durableCoreEvidence?.ok !== true || durableCoreEvidence?.status !== \"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY\" || durableCoreEvidence?.cheapCpuRecertificationRequired !== false || durableCoreEvidence?.resourceCreated !== false || durableCoreEvidence?.inferenceStarted !== false || Number(durableCoreEvidence?.activePods) !== 0 || Number(durableCoreEvidence?.paidStaleReceipts) !== 0 || durableCoreEvidence?.terminationVerified !== true || durableCoreEvidence?.networkVolumeRetained !== true || durableCoreEvidence?.networkVolumeId !== \"1qm5wczocl\" || durableCoreEvidence?.volumeId !== \"1qm5wczocl\" || durableCoreEvidence?.dataCenterId !== \"EU-NL-1\" || durableCoreEvidence?.coreManifestVerified !== true || durableCoreEvidence?.coreStagePodId !== stageReceipt?.podId || !/^[a-f0-9]{64}$/.test(durableReceiptSha256)) throw new Error(\"HUMO17_QUALITY_DURABLE_CORE_EVIDENCE_INVALID\");\n    if (stageReceipt?.ok !== true || stageReceipt?.status !== \"HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED\" || stageReceipt?.physicalStageCertified !== true || stageReceipt?.coreManifestVerified !== true || stageReceipt?.terminationVerified !== true || stageReceipt?.networkVolumeRetained !== true || stageReceipt?.networkVolumeId !== \"1qm5wczocl\" || stageReceipt?.networkVolumeDataCenterId !== \"EU-NL-1\") throw new Error(\"HUMO17_QUALITY_HISTORICAL_CORE_ANCHOR_INVALID\");"
+  }
 }
