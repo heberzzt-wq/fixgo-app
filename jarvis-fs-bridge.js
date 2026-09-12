@@ -9138,7 +9138,7 @@ export async function runHuMo17PersistentCoreStagingCli({
             stageReceipt.terminationVerified !== true || stageReceipt.networkVolumeRetained !== true ||
             stageReceipt.networkVolumeId !== volume.id || stageReceipt.networkVolumeDataCenterId !== volume.dataCenterId ||
             stageReceipt.newPersistentBytes !== RUNPOD_HUMO17_CORE_CACHE_BASE.totalBytes ||
-            stageReceipt.combinedPersistentBytes !== RUNPOD_HUMO17_CORE_CACHE_BASE.combinedPersistentBytes) throw new Error("HUMO17_STAGE_RECEIPT_INVALID");
+            stageReceipt.combinedPersistentBytes !== RUNPOD_HUMO17_CORE_CACHE_BASE.combinedPersistentBytes)) throw new Error("HUMO17_STAGE_RECEIPT_INVALID");
         const discovery = createRunpodRemoteVideoAdapter({root: resolvedRoot,
             env: {...credential.env, JARVIS_REMOTE_GPU_PROVIDER: "runpod", JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA L40S",
                 JARVIS_RUNPOD_CLOUD_TYPE: "SECURE", JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false",
