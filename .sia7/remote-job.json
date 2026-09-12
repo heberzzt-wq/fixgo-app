@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-allow-durable-core-evidence-20260911-chatgpt-15",
+  "jobId": "v142-humo17-select-durable-core-evidence-20260911-chatgpt-16",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "if (!stageReceiptPath || !fs.existsSync(stageReceiptPath)) throw new Error(\"HUMO17_STAGE_RECEIPT_REQUIRED\");",
-    "replace": "if ((!stageReceiptPath || !fs.existsSync(stageReceiptPath)) && !durableCoreEvidence) throw new Error(\"HUMO17_STAGE_RECEIPT_REQUIRED\");"
+    "search": "const stageReceipt = JSON.parse(fs.readFileSync(stageReceiptPath, \"utf8\"));",
+    "replace": "const stageReceipt = durableCoreEvidence || JSON.parse(fs.readFileSync(stageReceiptPath, \"utf8\"));"
   }
 }
