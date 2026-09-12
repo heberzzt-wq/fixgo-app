@@ -1,5 +1,5 @@
 {
-  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-placement-preflight-20260911-chatgpt-36",
+  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-placement-preflight-20260911-chatgpt-37",
   "operation": "humo17_core_stage",
   "humanApproved": true,
   "executePaid": true,
@@ -25,6 +25,6 @@
   "speechValidated": true,
   "promptParityRequired": true,
   "authorityPath": ".sia7/humo17-quality-ab-prompt-parity-201f-authority.json",
-  "authorityId": "v142-humo17-quality-ab-prompt-parity-201f-20260911-chatgpt-37-authority",
+  "authorityId": "v142-humo17-quality-ab-prompt-parity-201f-20260911-chatgpt-38-authority",
   "output": ".jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4"
 }
