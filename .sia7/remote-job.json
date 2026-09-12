@@ -1,12 +1,9 @@
 {
-  "jobId": "v142-worker-refresh-remoteref-20260911-chatgpt-10",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": "jarvis-github-worker.js",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "    const fetchResult = await runGit([\"fetch\", \"--quiet\", REMOTE, BRANCH]);",
-    "replace": "    const fetchResult = await runGit([\n        \"fetch\",\n        \"--quiet\",\n        REMOTE,\n        `+refs/heads/${BRANCH}:refs/remotes/${REMOTE}/${BRANCH}`\n    ]);"
-  }
+  "jobId": "v142-humo-identity-preflight-20260911-chatgpt-11",
+  "operation": "humo_identity_probe",
+  "expectedBaseSha": "4f411de9c6e5a5292b3a4311867e750339ba732f",
+  "hardBudgetUsd": 1.5,
+  "monthlyStorageAuthorizedUsd": 5.6,
+  "fullEpisodeAuthorized": false,
+  "executePaid": false
 }
