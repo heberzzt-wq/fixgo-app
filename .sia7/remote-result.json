@@ -1,43 +1,28 @@
 {
-  "jobId": "v142-durable-core-local-syntax-20260911-chatgpt-21",
-  "completedAt": "2026-09-12T01:10:26.006Z",
+  "jobId": "v142-humo-identity-preflight-20260911-chatgpt-22",
+  "completedAt": "2026-09-12T01:12:44.237Z",
   "executionStarted": true,
-  "ok": false,
-  "httpStatus": 409,
-  "endpoint": "/run",
-  "payload": {
-    "ok": false,
-    "status": "BRIDGE_RELEASE_MISMATCH",
-    "error": "BRIDGE_RELEASE_MISMATCH",
-    "expectedReleaseId": "",
-    "actualReleaseId": "v94-source-grounded-research-v124-20260810",
-    "identity": {
-      "ok": true,
-      "status": "BRIDGE_IDENTITY_OK",
-      "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v122-bridge",
-      "contract": {
-        "ok": true,
-        "projectId": "fixgo-app",
-        "repository": "heberzzt-wq/fixgo-app",
-        "branch": "v94-media-v4n-negative-claims",
-        "releaseId": "v94-source-grounded-research-v124-20260810",
-        "contractPath": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v122-bridge\\jarvis-runtime-contract.json"
-      },
-      "git": {
-        "root": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v122-bridge",
-        "branch": "v94-media-v4n-negative-claims",
-        "head": "70d8751dc234d44ce711d26921371c4efa6236fa",
-        "remote": "https://github.com/heberzzt-wq/fixgo-app.git",
-        "clean": false
-      },
-      "identityMode": "branch_contract_head",
-      "contractHead": "70d8751dc234d44ce711d26921371c4efa6236fa",
-      "remoteVerified": true,
-      "repositoryMatches": true,
-      "worktreeClean": false
-    },
-    "version": "2.51.0-temporal-media-self-hosted-v142"
-  },
+  "ok": true,
+  "operation": "humo_identity_probe",
+  "dryRun": true,
+  "status": "SIA7_HUMO_IDENTITY_PREFLIGHT_READY",
+  "certifiedBaseSha": "3a9b714fdb6b05af3c95ce209f8ee8a59487263b",
+  "executionHeadSha": "614eefdcf6f7eb108fc54c0a246671b31cfacbe1",
+  "controlPlaneOnlyChanges": [
+    ".sia7/remote-job.json",
+    ".sia7/remote-result.json"
+  ],
+  "hardBudgetUsd": 1.5,
+  "monthlyStorageAuthorizedUsd": 5.6,
+  "characterId": "CHAR_HEBERTO",
+  "durationSeconds": 3.88,
+  "referenceCount": 2,
+  "referenceSha256s": [
+    "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958",
+    "b401b476107521d9e3de3b267885bf91de956b644072a01e7373ab5476a3b6f3"
+  ],
+  "audioSha256": "9a075a37c56b6e0cd828a9b2a37a2fe3ee3f01c28cc7483f6a5d97ff96bd2bd5",
+  "resourceCreationPossible": false,
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
