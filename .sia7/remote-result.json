@@ -1,18 +1,44 @@
 {
-  "jobId": "v142-humo17-durable-evidence-contract-test-20260911-chatgpt-20",
-  "completedAt": "2026-09-12T01:08:16.533Z",
+  "jobId": "v142-durable-core-local-syntax-20260911-chatgpt-21",
+  "completedAt": "2026-09-12T01:10:26.006Z",
   "executionStarted": true,
-  "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 425688,
-  "bytesAfter": 426175,
-  "source": "sia7_github_worker_exact_patch_v1",
+  "ok": false,
+  "httpStatus": 409,
+  "endpoint": "/run",
+  "payload": {
+    "ok": false,
+    "status": "BRIDGE_RELEASE_MISMATCH",
+    "error": "BRIDGE_RELEASE_MISMATCH",
+    "expectedReleaseId": "",
+    "actualReleaseId": "v94-source-grounded-research-v124-20260810",
+    "identity": {
+      "ok": true,
+      "status": "BRIDGE_IDENTITY_OK",
+      "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v122-bridge",
+      "contract": {
+        "ok": true,
+        "projectId": "fixgo-app",
+        "repository": "heberzzt-wq/fixgo-app",
+        "branch": "v94-media-v4n-negative-claims",
+        "releaseId": "v94-source-grounded-research-v124-20260810",
+        "contractPath": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v122-bridge\\jarvis-runtime-contract.json"
+      },
+      "git": {
+        "root": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v122-bridge",
+        "branch": "v94-media-v4n-negative-claims",
+        "head": "70d8751dc234d44ce711d26921371c4efa6236fa",
+        "remote": "https://github.com/heberzzt-wq/fixgo-app.git",
+        "clean": false
+      },
+      "identityMode": "branch_contract_head",
+      "contractHead": "70d8751dc234d44ce711d26921371c4efa6236fa",
+      "remoteVerified": true,
+      "repositoryMatches": true,
+      "worktreeClean": false
+    },
+    "version": "2.51.0-temporal-media-self-hosted-v142"
+  },
   "committedFiles": [
-    ".sia7/remote-result.json",
-    "tests/jarvis-local-video-engine-v142.test.mjs"
+    ".sia7/remote-result.json"
   ]
 }
