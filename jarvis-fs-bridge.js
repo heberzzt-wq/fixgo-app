@@ -9115,6 +9115,22 @@ export async function runHuMo17PersistentCoreStagingCli({
     if (runtimeProbeAuthorized) {
         if (volume.id !== "1qm5wczocl" || volume.dataCenterId !== "EU-NL-1") throw new Error("HUMO17_PINNED_VOLUME_REQUIRED");
         const stageReceiptPath = String(env.JARVIS_HUMO17_CORE_STAGE_RECEIPT || "").trim();
+        const durableCoreEvidencePath = path.join(resolvedRoot, ".sia7", "humo17-quality-201f-final-preflight.json");
+        let durableCoreEvidence = null;
+        let coreStageEvidenceSource = "physical_stage_receipt";
+        if ((!stageReceiptPath || !fs.existsSync(stageReceiptPath)) && fs.existsSync(durableCoreEvidencePath)) {
+            try { durableCoreEvidence = JSON.parse(fs.readFileSync(durableCoreEvidencePath, "utf8")); }
+            catch { throw new Error("HUMO17_DURABLE_CORE_EVIDENCE_INVALID"); }
+            const durableReceiptSha256 = String(durableCoreEvidence?.coreStageReceiptSha256 || "").trim().toLowerCase();
+            if (durableCoreEvidence?.ok !== true || durableCoreEvidence?.status !== "HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY" ||
+                durableCoreEvidence?.cheapCpuRecertificationRequired !== false || durableCoreEvidence?.resourceCreated !== false ||
+                durableCoreEvidence?.inferenceStarted !== false || Number(durableCoreEvidence?.activePods) !== 0 || Number(durableCoreEvidence?.paidStaleReceipts) !== 0 ||
+                durableCoreEvidence?.terminationVerified !== true || durableCoreEvidence?.networkVolumeRetained !== true ||
+                durableCoreEvidence?.networkVolumeId !== volume.id || durableCoreEvidence?.volumeId !== volume.id || durableCoreEvidence?.dataCenterId !== volume.dataCenterId ||
+                durableCoreEvidence?.coreManifestVerified !== true || !String(durableCoreEvidence?.coreStagePodId || "").trim() ||
+                !/^[a-f0-9]{64}$/.test(durableReceiptSha256)) throw new Error("HUMO17_DURABLE_CORE_EVIDENCE_INVALID");
+            coreStageEvidenceSource = "durable_zero_cost_preflight";
+        }
         if (!stageReceiptPath || !fs.existsSync(stageReceiptPath)) throw new Error("HUMO17_STAGE_RECEIPT_REQUIRED");
         const stageReceipt = JSON.parse(fs.readFileSync(stageReceiptPath, "utf8"));
         if (stageReceipt.ok !== true || stageReceipt.physicalStageCertified !== true || stageReceipt.coreManifestVerified !== true ||
