@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-restore-core-schema-20260912-chatgpt-58",
+  "jobId": "v142-humo17-restore-core-profile-20260912-chatgpt-59",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        schemaVersion: \"jarvis.model-cache.v142.humo17-persistent-runtime.2\",",
-    "replace": "        schemaVersion: \"jarvis.model-cache.v142.humo17-core.1\","
+    "search": "        profile: \"humo17-persistent-runtime-v2\",",
+    "replace": "        profile: \"humo17-fp8-core-v1\","
   }
 }
