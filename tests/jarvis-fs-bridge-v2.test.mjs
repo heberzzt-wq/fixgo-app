@@ -1677,6 +1677,9 @@ test("HuMo17 probe is single L40S, pinned, hash-bound, budgeted and distinct fro
     const shell = buildHuMo17RuntimeBootstrap(job);
     assert.match(shell, /CORE_NOT_CERTIFIED/); assert.match(shell, /ASSET_SHA256/);
     assert.ok(shell.includes("test -x /workspace/jarvis-v142/runtime/humo17/venv/bin/python"));
+    assert.match(shell, /RESULT_FILE=/);
+    assert.match(shell, /trap .* ERR/);
+    assert.match(shell, /HUMO17_BOOTSTRAP_FAILED_L/);
     assert.doesNotMatch(shell, /venv --system-site-packages/);
     assert.match(shell, /torch.__version__/);
     assert.doesNotMatch(shell, /pip install/);

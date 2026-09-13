@@ -1,18 +1,18 @@
 {
-  "jobId": "v142-humo17-bootstrap-durable-failure-receipt-20260912-chatgpt-46",
-  "completedAt": "2026-09-13T01:11:58.491Z",
+  "jobId": "v142-humo17-bootstrap-receipt-contract-test-20260912-chatgpt-47",
+  "completedAt": "2026-09-13T01:13:08.612Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "jarvis-fs-bridge.js",
+  "file": "tests/jarvis-fs-bridge-v2.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 461487,
-  "bytesAfter": 461957,
+  "bytesBefore": 91044,
+  "bytesAfter": 91179,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "jarvis-fs-bridge.js"
+    "tests/jarvis-fs-bridge-v2.test.mjs"
   ]
 }
