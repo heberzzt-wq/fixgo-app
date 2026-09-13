@@ -1,18 +1,18 @@
 {
-  "jobId": "v142-humo17-bootstrap-receipt-contract-test-20260912-chatgpt-47",
-  "completedAt": "2026-09-13T01:13:08.612Z",
+  "jobId": "v142-humo17-materializer-idempotence-20260912-chatgpt-48",
+  "completedAt": "2026-09-13T01:18:53.946Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "tests/jarvis-fs-bridge-v2.test.mjs",
+  "file": ".github/scripts/v142-final-contract-alignment.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 91044,
-  "bytesAfter": 91179,
+  "bytesBefore": 2566,
+  "bytesAfter": 2884,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "tests/jarvis-fs-bridge-v2.test.mjs"
+    ".github/scripts/v142-final-contract-alignment.mjs"
   ]
 }
