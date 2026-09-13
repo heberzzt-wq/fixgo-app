@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-restore-ephemeral-model-links-20260912-chatgpt-62",
+  "jobId": "v142-humo17-restore-proven-startup-env-20260912-chatgpt-63",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        \"    p=core/a['path']; verify(p,a); target=root/'models'/folders[a['role']]/j['assetNames'][a['role']]; assert target.exists() and target.resolve()==p.resolve(), 'HUMO17_PERSISTENT_MODEL_LINK_INVALID:'+a['role']\",",
-    "replace": "        \"    p=core/a['path']; verify(p,a); target=root/'models'/folders[a['role']]/j['assetNames'][a['role']]; target.parent.mkdir(parents=True,exist_ok=True); target.symlink_to(p)\","
+    "search": "        runtimeProbeAuthorized ? \"RUNTIME_ROOT=/workspace/jarvis-v142/runtime/humo17; SYSTEM_ROOT=$RUNTIME_ROOT/system; export PATH=$SYSTEM_ROOT/bin:$PATH\" : \"export DEBIAN_FRONTEND=noninteractive\",",
+    "replace": "        \"export DEBIAN_FRONTEND=noninteractive\","
   }
 }
