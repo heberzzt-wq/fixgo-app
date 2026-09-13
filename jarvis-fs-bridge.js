@@ -8900,7 +8900,7 @@ export function buildHuMo17RuntimeProbeJob({ assets, hardBudgetUsd, operationId,
         referenceSha256: assets.reference.sha256, audioSha256: assets.audio.sha256,
         referenceFile: "/tmp/jarvis-humo17/reference" + path.extname(assets.reference.file),
         audioFile: "/tmp/jarvis-humo17/audio.wav", outputFile: path.posix.join("/workspace/jarvis-v142/operations", resolvedOperationId, "probe.mp4"), resultFile: path.posix.join("/workspace/jarvis-v142/operations", resolvedOperationId, "result.json"), logFile: path.posix.join("/workspace/jarvis-v142/operations", resolvedOperationId, "probe.log"),
-        comfyRoot: "/workspace/jarvis-v142/runtime/humo17/ComfyUI",
+        comfyRoot: "/tmp/jarvis-humo17/ComfyUI",
         prompt: "The exact person in the reference image speaks the supplied audio, natural restrained facial motion. Preserve facial identity, age, hair and facial hair. One person only, no subtitles or watermark.",
         negativePrompt: "another person, identity change, subtitles, watermark, deformed face",
         assetNames: {
