@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-restore-proven-result-parser-20260912-chatgpt-67",
+  "jobId": "v142-humo17-restore-proven-ephemeral-path-20260912-chatgpt-68",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        \"RESULT_FILE=$(/workspace/jarvis-v142/runtime/humo17/venv/bin/python -c 'import json; print(json.load(open(\\\"job.json\\\"))[\\\"resultFile\\\"])')\",",
-    "replace": "        \"RESULT_FILE=$(/tmp/jarvis-humo17/venv/bin/python -c 'import json; print(json.load(open(\\\"job.json\\\"))[\\\"resultFile\\\"])')\","
+    "search": "        \"export PATH=/workspace/jarvis-v142/runtime/humo17/system/bin:/workspace/jarvis-v142/runtime/humo17/venv/bin:$PATH HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PIP_NO_INDEX=1\",",
+    "replace": "        \"export PATH=/tmp/jarvis-humo17/venv/bin:$PATH\","
   }
 }
