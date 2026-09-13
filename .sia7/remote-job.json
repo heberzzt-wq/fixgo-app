@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-bootstrap-durable-failure-receipt-20260912-chatgpt-46",
+  "jobId": "v142-humo17-bootstrap-receipt-contract-test-20260912-chatgpt-47",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "tests/jarvis-fs-bridge-v2.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        \"test -x /workspace/jarvis-v142/runtime/humo17/venv/bin/python\",",
-    "replace": "        \"test -x /workspace/jarvis-v142/runtime/humo17/venv/bin/python\",\n        \"RESULT_FILE=$(/workspace/jarvis-v142/runtime/humo17/venv/bin/python -c 'import json; print(json.load(open(\\\"job.json\\\"))[\\\"resultFile\\\"])')\",\n        \"trap 'rc=$?; mkdir -p \\\"$(dirname \\\"$RESULT_FILE\\\")\\\"; printf \\\"{\\\\\\\"ok\\\\\\\":false,\\\\\\\"backend\\\\\\\":\\\\\\\"humo-17b-identity\\\\\\\",\\\\\\\"inferenceStarted\\\\\\\":false,\\\\\\\"status\\\\\\\":\\\\\\\"HUMO17_BOOTSTRAP_FAILED_L%s\\\\\\\",\\\\\\\"error\\\\\\\":\\\\\\\"HUMO17_BOOTSTRAP_FAILED\\\\\\\"}\\\\n\\\" \\\"$LINENO\\\" > \\\"$RESULT_FILE\\\"; exit \\\"$rc\\\"' ERR\","
+    "search": "    assert.ok(shell.includes(\"test -x /workspace/jarvis-v142/runtime/humo17/venv/bin/python\"));",
+    "replace": "    assert.ok(shell.includes(\"test -x /workspace/jarvis-v142/runtime/humo17/venv/bin/python\"));\n    assert.match(shell, /RESULT_FILE=/);\n    assert.match(shell, /trap .* ERR/);\n    assert.match(shell, /HUMO17_BOOTSTRAP_FAILED_L/);"
   }
 }
