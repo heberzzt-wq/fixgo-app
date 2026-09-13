@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-restore-proven-ephemeral-path-20260912-chatgpt-68",
+  "jobId": "v142-humo17-restore-proven-comfy-checkout-20260912-chatgpt-69",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        \"export PATH=/workspace/jarvis-v142/runtime/humo17/system/bin:/workspace/jarvis-v142/runtime/humo17/venv/bin:$PATH HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PIP_NO_INDEX=1\",",
-    "replace": "        \"export PATH=/tmp/jarvis-humo17/venv/bin:$PATH\","
+    "search": "        `test \\\"$(cat /workspace/jarvis-v142/runtime/humo17/ComfyUI/.git/HEAD)\\\" = ${q(s.comfyUiRevision)}`,",
+    "replace": "        `git init -q ComfyUI && git -C ComfyUI fetch -q --depth 1 https://github.com/${s.comfyUiRepository}.git ${q(s.comfyUiRevision)} && git -C ComfyUI checkout -q --detach FETCH_HEAD`,"
   }
 }
