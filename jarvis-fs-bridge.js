@@ -9277,7 +9277,7 @@ export async function runHuMo17PersistentCoreStagingCli({
         ...buildHuMo17RemoteWatchdogStartup({deadlineMs:remoteDeadlineMs,source:remoteWatchdogSource}),
         "export DEBIAN_FRONTEND=noninteractive",
         "apt-get update -qq",
-        runtimeProbeAuthorized ? "$SYSTEM_ROOT/bin/ffmpeg -version >/dev/null && $SYSTEM_ROOT/bin/ffprobe -version >/dev/null" : "apt-get install -y -qq --no-install-recommends openssh-server ca-certificates python3 python3-venv python3-pip git curl ffmpeg",
+        "apt-get install -y -qq --no-install-recommends openssh-server ca-certificates python3 python3-venv python3-pip git curl ffmpeg",
         "mkdir -p /run/sshd /root/.ssh",
         "test -n \"${PUBLIC_KEY:-}\"",
         "printf '%s\\n' \"$PUBLIC_KEY\" > /root/.ssh/authorized_keys",
