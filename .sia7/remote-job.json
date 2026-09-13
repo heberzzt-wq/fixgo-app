@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-materializer-idempotence-20260912-chatgpt-48",
+  "jobId": "v142-humo17-core-aux-boundary-20260912-chatgpt-49",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": ".github/scripts/v142-final-contract-alignment.mjs",
+    "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        source.includes('    const resolvedOperationId = String(operationId || path.posix.basename(assets.output, path.posix.extname(assets.output))).trim();')) return source;\\n    throw new Error(\\`\\${label}_MATCH_COUNT_\\${beforeCount}_EXPECTED_\\${expectedCount}\\`);",
-    "replace": "        source.includes('    const resolvedOperationId = String(operationId || path.posix.basename(assets.output, path.posix.extname(assets.output))).trim();')) return source;\\n    if (label === \\\"V142_HUMO17_PREINSTALLED_VENV_TEST\\\" && beforeCount === 0 &&\\n        source.includes('    assert.ok(shell.includes(\\\"test -x /workspace/jarvis-v142/runtime/humo17/venv/bin/python\\\"));') &&\\n        source.includes('    assert.doesNotMatch(shell, /venv --system-site-packages/);')) return source;\\n    throw new Error(\\`\\${label}_MATCH_COUNT_\\${beforeCount}_EXPECTED_\\${expectedCount}\\`);"
+    "search": "        ...strategy.wrapperAuxiliaryAssets.map(file => Object.freeze({ ...file, sourcePath: file.path, path: `auxiliary/${file.path}` }))",
+    "replace": ""
   }
 }
