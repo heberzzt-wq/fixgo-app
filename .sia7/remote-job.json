@@ -6,7 +6,7 @@
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        \"for a in []:\\",",
-    "replace": "        \"for a in j['strategy']['wrapperAuxiliaryAssets']:\\","
+    "search": "for a in []:",
+    "replace": "for a in j['strategy']['wrapperAuxiliaryAssets']:"
   }
 }
