@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-humo17-restore-core-schema-20260912-chatgpt-58",
-  "completedAt": "2026-09-13T02:43:05.459Z",
+  "jobId": "v142-humo17-restore-core-profile-20260912-chatgpt-59",
+  "completedAt": "2026-09-13T02:43:40.365Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": "jarvis-local-video-engine.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 437222,
-  "bytesAfter": 437208,
+  "bytesBefore": 437208,
+  "bytesAfter": 437198,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
