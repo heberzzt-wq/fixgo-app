@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-ephemeral-aux-bootstrap-20260912-chatgpt-50",
+  "jobId": "v142-humo17-restore-physical-storage-min-20260912-chatgpt-51",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-fs-bridge.js",
+    "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "for a in []:",
-    "replace": "for a in j['strategy']['wrapperAuxiliaryAssets']:"
+    "search": "            minimumNetworkVolumeGb: 80,",
+    "replace": "            minimumNetworkVolumeGb: 50,"
   }
 }
