@@ -800,6 +800,25 @@ async function executeHuMo17CoreStageJob(job = {}) {
         }
         catch {}
     }
+    if (job.qualityProbe === true && job.qualityPreflightOnly === true) {
+        if (!execution.ok || parsed?.ok !== true || parsed?.status !== "HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY" || parsed?.resourceCreated !== false || parsed?.inferenceStarted !== false || Number(parsed?.activePods || 0) !== 0) {
+            const error = new Error(`SIA7_HUMO17_QUALITY_PREFLIGHT_FAILED:${parsed?.status || lines.slice(-8).join(" | ") || execution.code}`);
+            error.evidence = {phase: parsed?.status || "WORKER_PROCESS_FAILED", paidReceipts: [], logTail: lines.slice(-20)};
+            throw error;
+        }
+        return {
+            ...parsed,
+            operation: "humo17_core_stage",
+            dryRun: true,
+            certifiedBaseSha: expectedBaseSha,
+            executionHeadSha,
+            controlPlaneOnlyChanges: changedFiles,
+            hardBudgetUsd,
+            maximumMinutes,
+            resourceCreationPossible: false,
+            logTail: lines.slice(-20)
+        };
+    }
     if (!execution.ok || parsed?.ok !== true || parsed?.status !== "HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED") {
         const error=new Error(`SIA7_HUMO17_CORE_STAGE_FAILED:${parsed?.status || lines.slice(-8).join(" | ") || execution.code}`);
         const dir=path.join(REPO_ROOT,".jarvis-artifacts");
