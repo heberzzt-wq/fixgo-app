@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-restore-persistent-minimum-20260912-chatgpt-56",
+  "jobId": "v142-humo17-restore-persistent-volume-bytes-20260912-chatgpt-57",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            persistentMinimumNetworkVolumeGb: 80,",
-    "replace": "            persistentMinimumNetworkVolumeGb: 50,"
+    "search": "            persistentVolumeBytes: 85899345920,",
+    "replace": "            persistentVolumeBytes: 53687091200,"
   }
 }
