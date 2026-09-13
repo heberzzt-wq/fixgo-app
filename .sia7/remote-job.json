@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-restore-physical-storage-min-20260912-chatgpt-51",
+  "jobId": "v142-humo17-restore-split-storage-plan-20260912-chatgpt-52",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            minimumNetworkVolumeGb: 80,",
-    "replace": "            minimumNetworkVolumeGb: 50,"
+    "search": "            storagePlan: \"FULL_PERSISTENT_RUNTIME_80GB\",",
+    "replace": "            storagePlan: \"PERSISTENT_CORE_PLUS_EPHEMERAL_AUXILIARY_REQUIRED\","
   }
 }
