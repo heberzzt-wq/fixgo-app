@@ -1,12 +1,6 @@
 {
-  "jobId": "v142-humo17-test-min-volume-20260912-chatgpt-72",
+  "jobId": "v142-humo17-test-persistent-min-volume-20260912-chatgpt-73",
   "operation": "patch",
   "humanApproved": true,
-  "patch": {
-    "file": "tests/jarvis-local-video-engine-v142.test.mjs",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "    assert.equal(strategy.minimumNetworkVolumeGb, 80);",
-    "replace": "    assert.equal(strategy.minimumNetworkVolumeGb, 50);"
-  }
+  "patch": {"file":"tests/jarvis-local-video-engine-v142.test.mjs","dryRun":false,"expectedMatches":1,"search":"    assert.equal(strategy.persistentMinimumNetworkVolumeGb, 80);","replace":"    assert.equal(strategy.persistentMinimumNetworkVolumeGb, 50);"}
 }
