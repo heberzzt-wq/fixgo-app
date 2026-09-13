@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-core-aux-boundary-20260912-chatgpt-49",
+  "jobId": "v142-humo17-ephemeral-aux-bootstrap-20260912-chatgpt-50",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "jarvis-local-video-engine.js",
+    "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        ...strategy.wrapperAuxiliaryAssets.map(file => Object.freeze({ ...file, sourcePath: file.path, path: `auxiliary/${file.path}` }))",
-    "replace": ""
+    "search": "        \"for a in []:\\",",
+    "replace": "        \"for a in j['strategy']['wrapperAuxiliaryAssets']:\\","
   }
 }
