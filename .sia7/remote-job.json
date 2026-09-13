@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-restore-ephemeral-required-20260912-chatgpt-54",
+  "jobId": "v142-humo17-restore-capacity-truth-20260912-chatgpt-55",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            auxiliaryAssetsEphemeralRequired: false,",
-    "replace": "            auxiliaryAssetsEphemeralRequired: true,"
+    "search": "            capacityFitCertified: true,",
+    "replace": "            capacityFitCertified: false,"
   }
 }
