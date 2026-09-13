@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-restore-core-profile-20260912-chatgpt-59",
+  "jobId": "v142-humo17-separate-core-runtime-identity-20260912-chatgpt-60",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        profile: \"humo17-persistent-runtime-v2\",",
-    "replace": "        profile: \"humo17-fp8-core-v1\","
+    "search": "    const identity = [\"schemaVersion\", \"profile\", \"runtime\", \"targetGpuTypeId\", \"provisionImageTag\", \"expectedRegistryDigest\", \"operatingSystem\", \"pythonVersionPrefix\", \"torchVersionPrefix\", \"torchCudaVersionPrefix\", \"comfyUiRepository\", \"comfyUiRevision\", \"wrapperRepository\", \"wrapperRevision\", \"modelRepository\", \"modelRevision\", \"existingHuMoCacheProfile\", \"existingHuMoCacheTotalBytes\", \"minimumNetworkVolumeGb\", \"networkVolumeType\", \"totalBytes\", \"combinedPersistentBytes\", \"nominalVolumeBytes\", \"headroomBytes\", \"storagePlan\", \"cacheMutationPolicy\"];",
+    "replace": "    const identity = [\"schemaVersion\", \"profile\", \"runtime\", \"targetGpuTypeId\", \"comfyUiRepository\", \"comfyUiRevision\", \"wrapperRepository\", \"wrapperRevision\", \"modelRepository\", \"modelRevision\", \"existingHuMoCacheProfile\", \"existingHuMoCacheTotalBytes\", \"minimumNetworkVolumeGb\", \"networkVolumeType\", \"totalBytes\", \"combinedPersistentBytes\", \"nominalVolumeBytes\", \"headroomBytes\", \"storagePlan\", \"cacheMutationPolicy\"];"
   }
 }
