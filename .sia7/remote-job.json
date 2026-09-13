@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-restore-proven-comfy-checkout-20260912-chatgpt-69",
+  "jobId": "v142-humo17-restore-proven-wrapper-checkout-20260912-chatgpt-70",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        `test \\\"$(cat /workspace/jarvis-v142/runtime/humo17/ComfyUI/.git/HEAD)\\\" = ${q(s.comfyUiRevision)}`,",
-    "replace": "        `git init -q ComfyUI && git -C ComfyUI fetch -q --depth 1 https://github.com/${s.comfyUiRepository}.git ${q(s.comfyUiRevision)} && git -C ComfyUI checkout -q --detach FETCH_HEAD`,"
+    "search": "        `test \\\"$(cat /workspace/jarvis-v142/runtime/humo17/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper/.git/HEAD)\\\" = ${q(s.wrapperRevision)}`,",
+    "replace": "        `git init -q ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper && git -C ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper fetch -q --depth 1 https://github.com/${s.wrapperRepository}.git ${q(s.wrapperRevision)} && git -C ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper checkout -q --detach FETCH_HEAD`,"
   }
 }
