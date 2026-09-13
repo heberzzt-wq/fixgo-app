@@ -1,10 +1,11 @@
-{
-  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-placement-preflight-20260912-chatgpt-43",
+﻿{
+  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-20260912-chatgpt-44-paid",
+  "paidJobId": "v142-humo17-quality-ab-prompt-parity-201f-20260912-chatgpt-44-paid",
   "operation": "humo17_core_stage",
   "humanApproved": true,
   "executePaid": true,
   "qualityProbe": true,
-  "qualityPreflightOnly": true,
+  "qualityPreflightOnly": false,
   "fullEpisodeAuthorized": false,
   "expectedBaseSha": "505e3ffa786c634661a6e5d904d23b847d0e8f25",
   "certifiedCodeSha": "505e3ffa786c634661a6e5d904d23b847d0e8f25",
@@ -16,7 +17,13 @@
   "gpu": "NVIDIA L40S",
   "gpuCount": 1,
   "maximumIdentityCount": 1,
-  "geometry": {"width":832,"height":480,"fps":25,"frames":201,"durationSeconds":8.04},
+  "geometry": {
+    "width": 832,
+    "height": 480,
+    "fps": 25,
+    "frames": 201,
+    "durationSeconds": 8.04
+  },
   "networkVolumeId": "1qm5wczocl",
   "dataCenterId": "EU-NL-1",
   "coreStageReceiptCommit": "c5461883e28a5f80ad6006e0a2d2ddd2b641d37c",
@@ -25,6 +32,6 @@
   "speechValidated": true,
   "promptParityRequired": true,
   "authorityPath": ".sia7/humo17-quality-ab-prompt-parity-201f-authority.json",
-  "authorityId": "v142-humo17-quality-ab-prompt-parity-201f-20260911-chatgpt-39-authority",
+  "authorityId": "v142-humo17-quality-ab-prompt-parity-201f-20260912-chatgpt-44-authority",
   "output": ".jarvis-artifacts/videos/humo17-heberto-quality-ab-prompt-parity-201f.mp4"
 }
