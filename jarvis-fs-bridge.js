@@ -8947,7 +8947,7 @@ export function buildHuMo17RuntimeBootstrap(job) {
     ].join("\n");
     return [
         "set -euo pipefail", "cd /tmp/jarvis-humo17",
-        "test -x /workspace/jarvis-v142/runtime/humo17/venv/bin/python",
+        "python3 -m venv --system-site-packages /tmp/jarvis-humo17/venv",
         "RESULT_FILE=$(/workspace/jarvis-v142/runtime/humo17/venv/bin/python -c 'import json; print(json.load(open(\"job.json\"))[\"resultFile\"])')",
         "trap 'rc=$?; mkdir -p \"$(dirname \"$RESULT_FILE\")\"; printf \"{\\\"ok\\\":false,\\\"backend\\\":\\\"humo-17b-identity\\\",\\\"inferenceStarted\\\":false,\\\"status\\\":\\\"HUMO17_BOOTSTRAP_FAILED_L%s\\\",\\\"error\\\":\\\"HUMO17_BOOTSTRAP_FAILED\\\"}\\n\" \"$LINENO\" > \"$RESULT_FILE\"; exit \"$rc\"' ERR",
         "command -v nohup >/dev/null && command -v setsid >/dev/null && command -v timeout >/dev/null",
