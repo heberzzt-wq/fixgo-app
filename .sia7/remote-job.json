@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-restore-split-storage-plan-20260912-chatgpt-52",
+  "jobId": "v142-humo17-restore-ephemeral-aux-flags-20260912-chatgpt-53",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            storagePlan: \"FULL_PERSISTENT_RUNTIME_80GB\",",
-    "replace": "            storagePlan: \"PERSISTENT_CORE_PLUS_EPHEMERAL_AUXILIARY_REQUIRED\","
+    "search": "            auxiliaryAssetsPersistent: true,",
+    "replace": "            auxiliaryAssetsPersistent: false,"
   }
 }
