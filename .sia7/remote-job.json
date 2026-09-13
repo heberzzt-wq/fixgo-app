@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-restore-proven-startup-update-20260912-chatgpt-64",
+  "jobId": "v142-humo17-restore-proven-startup-tools-20260912-chatgpt-65",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        runtimeProbeAuthorized ? \"test -x /usr/sbin/sshd && test -x $SYSTEM_ROOT/bin/ffmpeg && test -x $SYSTEM_ROOT/bin/ffprobe\" : \"apt-get update -qq\",",
-    "replace": "        \"apt-get update -qq\","
+    "search": "        runtimeProbeAuthorized ? \"$SYSTEM_ROOT/bin/ffmpeg -version >/dev/null && $SYSTEM_ROOT/bin/ffprobe -version >/dev/null\" : \"apt-get install -y -qq --no-install-recommends openssh-server ca-certificates python3 python3-venv python3-pip git curl ffmpeg\",",
+    "replace": "        \"apt-get install -y -qq --no-install-recommends openssh-server ca-certificates python3 python3-venv python3-pip git curl ffmpeg\","
   }
 }
