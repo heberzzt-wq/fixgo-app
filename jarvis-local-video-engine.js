@@ -224,7 +224,7 @@ export const NEXT_IDENTITY_RUNTIME_CANDIDATES = Object.freeze({
             requiredBytesKeepingExistingCache: 54034931358,
             nominal50GiBBytes: 53687091200,
             nominal50GiBHeadroomBytes: -347840158,
-            minimumNetworkVolumeGb: 80,
+            minimumNetworkVolumeGb: 50,
             persistentMinimumNetworkVolumeGb: 80,
             persistentVolumeBytes: 85899345920,
             capacityFitCertified: true,
