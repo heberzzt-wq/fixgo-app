@@ -1,18 +1,18 @@
 {
-  "jobId": "v142-humo17-core-aux-boundary-20260912-chatgpt-49",
-  "completedAt": "2026-09-13T01:23:45.637Z",
+  "jobId": "v142-humo17-ephemeral-aux-bootstrap-20260912-chatgpt-50",
+  "completedAt": "2026-09-13T02:29:45.776Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "jarvis-local-video-engine.js",
+  "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 437337,
-  "bytesAfter": 437200,
+  "bytesBefore": 461957,
+  "bytesAfter": 461994,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "jarvis-local-video-engine.js"
+    "jarvis-fs-bridge.js"
   ]
 }
