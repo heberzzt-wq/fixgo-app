@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-worker-quality-preflight-status-20260912-chatgpt-39",
+  "jobId": "v142-worker-quality-preflight-status-20260912-chatgpt-40",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-github-worker.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "    if (!execution.ok || parsed?.ok !== true || parsed?.status !== \"HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED\") {\n        const error=new Error(`SIA7_HUMO17_CORE_STAGE_FAILED:${parsed?.status || lines.slice(-8).join(\" | \") || execution.code}`);",
-    "replace": "    if (job.qualityProbe === true && job.qualityPreflightOnly === true) {\n        if (!execution.ok || parsed?.ok !== true || parsed?.status !== \"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY\" || parsed?.resourceCreated !== false || parsed?.inferenceStarted !== false || Number(parsed?.activePods || 0) !== 0) {\n            const error = new Error(`SIA7_HUMO17_QUALITY_PREFLIGHT_FAILED:${parsed?.status || lines.slice(-8).join(\" | \") || execution.code}`);\n            error.evidence = {phase: parsed?.status || \"WORKER_PROCESS_FAILED\", paidReceipts: [], logTail: lines.slice(-20)};\n            throw error;\n        }\n        return {\n            ...parsed,\n            operation: \"humo17_core_stage\",\n            dryRun: true,\n            certifiedBaseSha: expectedBaseSha,\n            executionHeadSha,\n            controlPlaneOnlyChanges: changedFiles,\n            hardBudgetUsd,\n            maximumMinutes,\n            resourceCreationPossible: false,\n            logTail: lines.slice(-20)\n        };\n    }\n    if (!execution.ok || parsed?.ok !== true || parsed?.status !== \"HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED\") {\n        const error=new Error(`SIA7_HUMO17_CORE_STAGE_FAILED:${parsed?.status || lines.slice(-8).join(\" | \") || execution.code}`);"
+    "search": "    if (!execution.ok || parsed?.ok !== true || parsed?.status !== \"HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED\") {",
+    "replace": "    if (job.qualityProbe === true && job.qualityPreflightOnly === true) {\n        if (!execution.ok || parsed?.ok !== true || parsed?.status !== \"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY\" || parsed?.resourceCreated !== false || parsed?.inferenceStarted !== false || Number(parsed?.activePods || 0) !== 0) {\n            const error = new Error(`SIA7_HUMO17_QUALITY_PREFLIGHT_FAILED:${parsed?.status || lines.slice(-8).join(\" | \") || execution.code}`);\n            error.evidence = {phase: parsed?.status || \"WORKER_PROCESS_FAILED\", paidReceipts: [], logTail: lines.slice(-20)};\n            throw error;\n        }\n        return {\n            ...parsed,\n            operation: \"humo17_core_stage\",\n            dryRun: true,\n            certifiedBaseSha: expectedBaseSha,\n            executionHeadSha,\n            controlPlaneOnlyChanges: changedFiles,\n            hardBudgetUsd,\n            maximumMinutes,\n            resourceCreationPossible: false,\n            logTail: lines.slice(-20)\n        };\n    }\n    if (!execution.ok || parsed?.ok !== true || parsed?.status !== \"HUMO17_PERSISTENT_CORE_STAGED_AND_RELEASED\") {"
   }
 }
