@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-humo17-restore-proven-ephemeral-comfy-root-20260912-chatgpt-61",
-  "completedAt": "2026-09-13T02:46:40.659Z",
+  "jobId": "v142-humo17-restore-ephemeral-model-links-20260912-chatgpt-62",
+  "completedAt": "2026-09-13T02:47:05.937Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 461994,
-  "bytesAfter": 461975,
+  "bytesBefore": 461975,
+  "bytesAfter": 461937,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
