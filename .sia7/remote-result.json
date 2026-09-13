@@ -1,93 +1,10 @@
 {
-  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-20260912-chatgpt-44-paid",
-  "completedAt": "2026-09-13T00:51:41.664Z",
+  "jobId": "v142-humo17-bootstrap-durable-failure-receipt-20260912-chatgpt-45",
+  "completedAt": "2026-09-13T01:11:28.528Z",
   "executionStarted": true,
   "ok": false,
-  "error": "SIA7_HUMO17_CORE_STAGE_FAILED:HUMO17_REMOTE_EXITED_WITHOUT_SUCCESS:HUMO17_REMOTE_STARTED",
-  "evidence": {
-    "phase": "HUMO17_REMOTE_EXITED_WITHOUT_SUCCESS:HUMO17_REMOTE_STARTED",
-    "paidReceipts": [
-      {
-        "operationId": "humo17-probe-49c5745b-8b89-4a3f-8663-a7eb1fd63488",
-        "jobId": "v142-humo17-quality-ab-prompt-parity-201f-20260912-chatgpt-44-paid",
-        "podId": "9rp7y5x120pn4o",
-        "createdAtMs": 1789260653083,
-        "createdAt": "2026-09-13T00:50:53.083Z",
-        "hardBudgetUsd": 1.5,
-        "hourlyRateUsd": 1.09,
-        "providerBudgetKillSeconds": 3715,
-        "networkVolumeId": "1qm5wczocl",
-        "gpu": "NVIDIA L40S",
-        "gpuCount": 1,
-        "terminationVerified": true,
-        "status": "HUMO17_RUNTIME_GPU_POD_CREATED",
-        "schema": "jarvis.v142.paid-early-receipt.2",
-        "bootstrapState": "PAYLOAD_BLOCKED",
-        "computeType": "GPU",
-        "providerBudgetSafetyRatio": 0.75,
-        "remoteWatchdogDeadlineMs": 1789264334082,
-        "remoteWatchdogInstalled": true,
-        "remoteWatchdogVerified": true,
-        "inferenceStarted": true,
-        "bootstrapTransitions": [
-          {
-            "state": "REMOTE_WATCHDOG_INSTALLING",
-            "at": "2026-09-13T00:50:54.471Z"
-          },
-          {
-            "state": "REMOTE_WATCHDOG_INSTALLED",
-            "at": "2026-09-13T00:51:15.105Z"
-          },
-          {
-            "state": "REMOTE_WATCHDOG_VERIFIED",
-            "at": "2026-09-13T00:51:15.105Z"
-          },
-          {
-            "state": "PAYLOAD_ALLOWED",
-            "at": "2026-09-13T00:51:15.105Z"
-          },
-          {
-            "state": "PAYLOAD_BLOCKED",
-            "at": "2026-09-13T00:51:40.066Z"
-          }
-        ],
-        "deadlineMs": 1789264368083,
-        "localBudgetWatchdog": true,
-        "remoteBudgetWatchdog": true,
-        "remoteWatchdog": {
-          "podId": "9rp7y5x120pn4o",
-          "pid": 29,
-          "deadlineEpochSeconds": 1789264334,
-          "remoteBudgetWatchdogInstalled": true,
-          "remoteBudgetWatchdogVerified": true,
-          "terminationVerified": false,
-          "hostIndependent": true,
-          "mechanism": "pod_scoped_graphql_self_delete",
-          "inferenceStarted": false,
-          "remoteWatchdogTriggered": false,
-          "localWatchdogTriggered": false,
-          "armedAtEpochSeconds": 1789260658.956947,
-          "maximumRuntimeSeconds": 3675.0430517196655,
-          "status": "REMOTE_BUDGET_WATCHDOG_ARMED"
-        },
-        "remoteBudgetWatchdogInstalled": true,
-        "remoteBudgetWatchdogVerified": true,
-        "canonicalSha": "4e5f832aead5920ea94fbd1033659744efe009c0",
-        "networkVolumeRetained": true,
-        "estimatedCostUsd": 0.014698044444444443,
-        "error": "HUMO17_REMOTE_EXITED_WITHOUT_SUCCESS:HUMO17_REMOTE_STARTED",
-        "providerError": null,
-        "logTail": null
-      }
-    ],
-    "logTail": [
-      "{\"operationId\":\"humo17-probe-49c5745b-8b89-4a3f-8663-a7eb1fd63488\",\"jobId\":\"v142-humo17-quality-ab-prompt-parity-201f-20260912-chatgpt-44-paid\",\"podId\":\"9rp7y5x120pn4o\",\"createdAtMs\":1789260653083,\"createdAt\":\"2026-09-13T00:50:53.083Z\",\"hardBudgetUsd\":1.5,\"hourlyRateUsd\":1.09,\"providerBudgetKillSeconds\":3680,\"networkVolumeId\":\"1qm5wczocl\",\"gpu\":\"NVIDIA L40S\",\"gpuCount\":1,\"terminationVerified\":false,\"status\":\"HUMO17_RUNTIME_GPU_POD_CREATED\",\"schema\":\"jarvis.v142.paid-early-receipt.2\",\"bootstrapState\":\"POD_CREATED\",\"computeType\":\"GPU\",\"providerBudgetSafetyRatio\":0.75,\"remoteWatchdogDeadlineMs\":1789264334082,\"remoteWatchdogInstalled\":false,\"remoteWatchdogVerified\":false,\"inferenceStarted\":false}",
-      "{\"ok\":true,\"status\":\"HUMO17_LOCAL_BUDGET_WATCHDOG_ARMED\",\"gpu\":\"NVIDIA L40S\",\"gpuCount\":1,\"podId\":\"9rp7y5x120pn4o\",\"cpuFlavorId\":\"cpu3c\",\"dataCenterId\":\"EU-NL-1\",\"networkVolumeId\":\"1qm5wczocl\",\"hourlyRateUsd\":1.09,\"hardBudgetUsd\":1.5,\"maximumAuthorizedSeconds\":3715,\"providerBudgetKillSeconds\":3715,\"createdAt\":\"2026-09-13T00:50:53.083Z\",\"operationId\":\"humo17-probe-49c5745b-8b89-4a3f-8663-a7eb1fd63488\",\"jobId\":\"v142-humo17-quality-ab-prompt-parity-201f-20260912-chatgpt-44-paid\",\"terminationVerified\":false,\"inferenceStarted\":false}",
-      "{\"status\":\"HUMO17_REMOTE_BUDGET_WATCHDOG_VERIFIED\",\"podId\":\"9rp7y5x120pn4o\",\"remoteBudgetWatchdogInstalled\":true,\"remoteBudgetWatchdogVerified\":true,\"inferenceStarted\":false}",
-      "{\"ok\":false,\"status\":\"HUMO17_PERSISTENT_CORE_STAGE_FAILED_AND_RELEASED\",\"error\":\"HUMO17_REMOTE_EXITED_WITHOUT_SUCCESS:HUMO17_REMOTE_STARTED\",\"podId\":\"9rp7y5x120pn4o\",\"terminationVerified\":true,\"networkVolumeId\":\"1qm5wczocl\",\"networkVolumeRetained\":true,\"estimatedCostUsd\":0.014698044444444443,\"inferenceStarted\":true,\"providerError\":null,\"logTail\":null}",
-      "{\"ok\":false,\"status\":\"HUMO17_REMOTE_EXITED_WITHOUT_SUCCESS:HUMO17_REMOTE_STARTED\",\"providerMessage\":null,\"podId\":null,\"inferenceStarted\":false}"
-    ]
-  },
+  "error": "PATCH_MATCH_COUNT_MISMATCH:0:1",
+  "evidence": null,
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
