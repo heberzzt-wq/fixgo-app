@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-humo17-restore-persistent-volume-bytes-20260912-chatgpt-57",
-  "completedAt": "2026-09-13T02:42:26.117Z",
+  "jobId": "v142-humo17-restore-core-schema-20260912-chatgpt-58",
+  "completedAt": "2026-09-13T02:43:05.459Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -9,7 +9,7 @@
   "matchCount": 1,
   "expectedMatches": 1,
   "bytesBefore": 437222,
-  "bytesAfter": 437222,
+  "bytesAfter": 437208,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
