@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-restore-ephemeral-aux-flags-20260912-chatgpt-53",
+  "jobId": "v142-humo17-restore-ephemeral-required-20260912-chatgpt-54",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            auxiliaryAssetsPersistent: true,",
-    "replace": "            auxiliaryAssetsPersistent: false,"
+    "search": "            auxiliaryAssetsEphemeralRequired: false,",
+    "replace": "            auxiliaryAssetsEphemeralRequired: true,"
   }
 }
