@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-placement-preflight-20260912-chatgpt-42",
-  "completedAt": "2026-09-13T00:17:39.025Z",
+  "jobId": "v142-humo17-quality-ab-prompt-parity-201f-placement-preflight-20260912-chatgpt-43",
+  "completedAt": "2026-09-13T00:21:12.244Z",
   "executionStarted": true,
   "ok": false,
   "error": "SIA7_HUMO17_QUALITY_PREFLIGHT_FAILED:HUMO17_L40S_PLACEMENT_UNAVAILABLE",
