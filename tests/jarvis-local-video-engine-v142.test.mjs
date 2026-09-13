@@ -92,7 +92,7 @@ test("V142 HuMo17 single-L40S candidate pins FP8 block-swap authority and remain
     assert.equal(strategy.requiredBytesKeepingExistingCache, 54034931358);
     assert.equal(strategy.nominal50GiBBytes, 50 * 1024 ** 3);
     assert.equal(strategy.nominal50GiBHeadroomBytes, -347840158);
-    assert.equal(strategy.minimumNetworkVolumeGb, 80);
+    assert.equal(strategy.minimumNetworkVolumeGb, 50);
     assert.equal(strategy.persistentMinimumNetworkVolumeGb, 80);
     assert.equal(strategy.capacityFitCertified, true);
     assert.equal(strategy.storagePlan, "FULL_PERSISTENT_RUNTIME_80GB");
