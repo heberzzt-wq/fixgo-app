@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-humo17-restore-ephemeral-aux-flags-20260912-chatgpt-53",
-  "completedAt": "2026-09-13T02:39:30.256Z",
+  "jobId": "v142-humo17-restore-ephemeral-required-20260912-chatgpt-54",
+  "completedAt": "2026-09-13T02:40:00.435Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": "jarvis-local-video-engine.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 437221,
-  "bytesAfter": 437222,
+  "bytesBefore": 437222,
+  "bytesAfter": 437221,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
