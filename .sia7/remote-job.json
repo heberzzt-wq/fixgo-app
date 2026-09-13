@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-restore-proven-ephemeral-comfy-root-20260912-chatgpt-61",
+  "jobId": "v142-humo17-restore-ephemeral-model-links-20260912-chatgpt-62",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        comfyRoot: \"/workspace/jarvis-v142/runtime/humo17/ComfyUI\",",
-    "replace": "        comfyRoot: \"/tmp/jarvis-humo17/ComfyUI\","
+    "search": "        \"    p=core/a['path']; verify(p,a); target=root/'models'/folders[a['role']]/j['assetNames'][a['role']]; assert target.exists() and target.resolve()==p.resolve(), 'HUMO17_PERSISTENT_MODEL_LINK_INVALID:'+a['role']\",",
+    "replace": "        \"    p=core/a['path']; verify(p,a); target=root/'models'/folders[a['role']]/j['assetNames'][a['role']]; target.parent.mkdir(parents=True,exist_ok=True); target.symlink_to(p)\","
   }
 }
