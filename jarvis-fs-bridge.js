@@ -8951,7 +8951,7 @@ export function buildHuMo17RuntimeBootstrap(job) {
         "RESULT_FILE=$(/tmp/jarvis-humo17/venv/bin/python -c 'import json; print(json.load(open(\"job.json\"))[\"resultFile\"])')",
         "trap 'rc=$?; mkdir -p \"$(dirname \"$RESULT_FILE\")\"; printf \"{\\\"ok\\\":false,\\\"backend\\\":\\\"humo-17b-identity\\\",\\\"inferenceStarted\\\":false,\\\"status\\\":\\\"HUMO17_BOOTSTRAP_FAILED_L%s\\\",\\\"error\\\":\\\"HUMO17_BOOTSTRAP_FAILED\\\"}\\n\" \"$LINENO\" > \"$RESULT_FILE\"; exit \"$rc\"' ERR",
         "command -v nohup >/dev/null && command -v setsid >/dev/null && command -v timeout >/dev/null",
-        "export PATH=/workspace/jarvis-v142/runtime/humo17/system/bin:/workspace/jarvis-v142/runtime/humo17/venv/bin:$PATH HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PIP_NO_INDEX=1",
+        "export PATH=/tmp/jarvis-humo17/venv/bin:$PATH",
         "python -c 'import platform,torch; assert platform.python_version().startswith(\"3.12.\"), platform.python_version(); assert str(torch.__version__).startswith(\"2.8.0+cu128\"), torch.__version__; assert str(torch.version.cuda or \"\").startswith(\"12.8\"), torch.version.cuda; assert torch.cuda.is_available(), \"HUMO17_CUDA_UNAVAILABLE\"'",
         `test \"$(cat /workspace/jarvis-v142/runtime/humo17/ComfyUI/.git/HEAD)\" = ${q(s.comfyUiRevision)}`,
         `test \"$(cat /workspace/jarvis-v142/runtime/humo17/ComfyUI/custom_nodes/ComfyUI-WanVideoWrapper/.git/HEAD)\" = ${q(s.wrapperRevision)}`,

@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-humo17-restore-proven-result-parser-20260912-chatgpt-67",
-  "completedAt": "2026-09-13T02:49:26.003Z",
+  "jobId": "v142-humo17-restore-proven-ephemeral-path-20260912-chatgpt-68",
+  "completedAt": "2026-09-13T02:51:06.394Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": "jarvis-fs-bridge.js",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 461544,
-  "bytesAfter": 461525,
+  "bytesBefore": 461525,
+  "bytesAfter": 461402,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
