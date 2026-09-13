@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-restore-proven-startup-env-20260912-chatgpt-63",
+  "jobId": "v142-humo17-restore-proven-startup-update-20260912-chatgpt-64",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-fs-bridge.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        runtimeProbeAuthorized ? \"RUNTIME_ROOT=/workspace/jarvis-v142/runtime/humo17; SYSTEM_ROOT=$RUNTIME_ROOT/system; export PATH=$SYSTEM_ROOT/bin:$PATH\" : \"export DEBIAN_FRONTEND=noninteractive\",",
-    "replace": "        \"export DEBIAN_FRONTEND=noninteractive\","
+    "search": "        runtimeProbeAuthorized ? \"test -x /usr/sbin/sshd && test -x $SYSTEM_ROOT/bin/ffmpeg && test -x $SYSTEM_ROOT/bin/ffprobe\" : \"apt-get update -qq\",",
+    "replace": "        \"apt-get update -qq\","
   }
 }
