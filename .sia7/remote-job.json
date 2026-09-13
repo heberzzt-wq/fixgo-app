@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-humo17-restore-capacity-truth-20260912-chatgpt-55",
+  "jobId": "v142-humo17-restore-persistent-minimum-20260912-chatgpt-56",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "jarvis-local-video-engine.js",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            capacityFitCertified: true,",
-    "replace": "            capacityFitCertified: false,"
+    "search": "            persistentMinimumNetworkVolumeGb: 80,",
+    "replace": "            persistentMinimumNetworkVolumeGb: 50,"
   }
 }
