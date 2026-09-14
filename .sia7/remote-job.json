@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-index-privacy-link-20260914-chatgpt-74",
+  "jobId": "v142-index-delete-data-link-20260914-chatgpt-75",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "index.html",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            <a href=\"privacidad.html\" class=\"hover:text-white transition-colors\">Aviso de Privacidad</a>",
-    "replace": "            <a href=\"#privacidad\" onclick=\"document.getElementById('modalPrivacidad')?.classList.remove('hidden')\" class=\"hover:text-white transition-colors\">Aviso de Privacidad</a>"
+    "search": "            <a href=\"eliminar-datos.html\" class=\"hover:text-white transition-colors\">Eliminar Datos</a>",
+    "replace": "            <a href=\"#eliminar-datos\" onclick=\"document.getElementById('modalEliminacion')?.classList.remove('hidden')\" class=\"hover:text-white transition-colors\">Eliminar Datos</a>"
   }
 }
