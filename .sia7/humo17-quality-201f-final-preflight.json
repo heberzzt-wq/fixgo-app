@@ -86,5 +86,153 @@
       }
     ]
   },
-  "freshPlacementVerifiedBy": "runHuMo17PersistentCoreStagingCli required available=true before returning READY"
+  "freshPlacementVerifiedBy": "runHuMo17PersistentCoreStagingCli required available=true before returning READY",
+  "softwareReconciliation": {
+    "checkedAt": "2026-09-14T15:26:12.995Z",
+    "baseHead": "d8273119b9163e865322443ff5b3fa258165db74",
+    "codeHead": "5e0ef3a90ef1796d6167207f8df4088460a18500",
+    "workflowRun": 34862053088,
+    "status": "SOFTWARE_GREEN",
+    "softwarePreflight": "PASS",
+    "preflightScope": "local contracts, real input hashes and speech evidence; provider inventory read-only; no GPU availability or fresh GPU runtime certification",
+    "referenceSha256": "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958",
+    "audioSha256": "bff307fcaf47717bf1e4e5cf30c4072faa009158e195ea599baae614128d8184",
+    "geometry": {
+      "width": 832,
+      "height": 480,
+      "fps": 25,
+      "frames": 201,
+      "durationSeconds": 8.04
+    },
+    "storagePlan": {
+      "storagePlan": "PERSISTENT_CORE_PLUS_EPHEMERAL_AUXILIARY_REQUIRED",
+      "preserveExistingHuMoCache": true,
+      "existingHuMoCacheBytes": 22095109502,
+      "persistentNewAssets": [
+        {
+          "repository": "Kijai/WanVideo_comfy_fp8_scaled",
+          "revision": "0d987e66e7debb098970adb907d99c07c5aa2ac9",
+          "path": "HuMo/Wan2_1-HuMo-14B_fp8_e4m3fn_scaled_KJ.safetensors",
+          "bytes": 17892294098,
+          "sha256": "a67ed82a7c008892f9192cdc5b23bbfe2e2a8e2f87d0b5b8dfb0226fafec022d",
+          "precision": "fp8_e4m3fn_scaled",
+          "role": "video_transformer"
+        },
+        {
+          "repository": "Kijai/WanVideo_comfy",
+          "revision": "20d7d266a972317784a0dae4decd642ab3b2f6fe",
+          "path": "Lightx2v/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+          "bytes": 738005744,
+          "sha256": "85c4a61c30e0497aa44b91d93a893b624708461a56fe5485183b28fa07e2dfb3",
+          "strength": 1,
+          "mergeLoras": false,
+          "role": "distillation_lora"
+        }
+      ],
+      "persistentNewBytes": 18630299842,
+      "persistentTotalWithExistingCacheBytes": 40725409344,
+      "ephemeralAssets": [
+        {
+          "repository": "Kijai/WanVideo_comfy",
+          "revision": "922f4662eda47d7ebef46c0b3689aa1e0478315e",
+          "path": "umt5-xxl-enc-bf16.safetensors",
+          "bytes": 11361845464,
+          "sha256": "4fa971faf306cad919033d5bbe192e571dc08452f800cbf2ec3c73977c01b2cc",
+          "role": "text_encoder"
+        },
+        {
+          "repository": "Kijai/WanVideo_comfy",
+          "revision": "68e95be3ae932f8572ceec9b64ad8167be91d566",
+          "path": "Wan2_1_VAE_bf16.safetensors",
+          "bytes": 253806278,
+          "sha256": "1ab9a32cc2c740f6e39d80d367ce5dcc28db8c71b79b28670546b8973e9d75f9",
+          "role": "vae"
+        },
+        {
+          "repository": "Kijai/WanVideo_comfy",
+          "revision": "d45e290d88d212a8e78f8f45584a21a0f0e2457b",
+          "path": "HuMo/whisper_large_v3_encoder_fp16.safetensors",
+          "bytes": 1693870272,
+          "sha256": "fe5624f5db7413815a5decbc2afb1f7a8015f37519d6e9ae6dc7fad7c0c6c253",
+          "role": "audio_encoder"
+        }
+      ],
+      "ephemeralAssetsBytes": 13309522014,
+      "ephemeralWorkspaceReserveBytes": 8589934592,
+      "minimumEphemeralBytes": 21899456606,
+      "existingCacheMutationAuthorized": false,
+      "assetDownloadAuthorized": false
+    },
+    "activePods": 0,
+    "volume": {
+      "id": "1qm5wczocl",
+      "dataCenterId": "EU-NL-1",
+      "size": 80
+    },
+    "newPaidResources": 0,
+    "paidAuthorityRenewed": false,
+    "externalComputeCostUsd": 0,
+    "qualityCertified": false,
+    "productionDeployed": false,
+    "mainMerged": false,
+    "provenance": [
+      {
+        "commit": "de04a55ec578487080d39c438c8d614c9f7b1567",
+        "source": "Codex explicit run 345",
+        "evidence": "physical 201f generated; identity rejected"
+      },
+      {
+        "commit": "60a0f7b0",
+        "source": "SIA7 result v142-humo17-persistent-runtime-20260909-392",
+        "change": "FULL_PERSISTENT_RUNTIME_80GB introduced"
+      },
+      {
+        "commit": "72d96bf7",
+        "source": "SIA7 result v142-humo17-persistent-contract-20260909-424",
+        "change": "persistent runtime core profile introduced"
+      },
+      {
+        "commit": "d8273119",
+        "source": "SIA7 chatgpt-52 through chatgpt-73",
+        "change": "partial split storage restoration, stale tests remaining"
+      }
+    ],
+    "linux": "success",
+    "windows": "success",
+    "fullCI": "success",
+    "materialize": "skipped",
+    "deploy": "skipped",
+    "workflowUrl": "https://github.com/heberzzt-wq/fixgo-app/actions/runs/34862053088",
+    "remainingSoftwareFailure": null,
+    "materializerIdempotent": true,
+    "focusedTests": {
+      "passed": 20,
+      "failed": 0
+    },
+    "localFixtureRetry": {
+      "passed": 2,
+      "failed": 0,
+      "initialFailure": "Git object writes denied in two temporary test repositories; unchanged tests passed with bundled Git"
+    },
+    "historicalCertifiedVolumeGb": 50,
+    "currentProviderVolumeGb": 80,
+    "volumeResizedThisMission": false,
+    "persistentCoreBytes": 18630299842,
+    "combinedPersistentBytes": 40725409344,
+    "auxiliaryEphemeralBytes": 13309522014,
+    "nextPaidProbeLaunched": false,
+    "paidAuthorityConsumedPreviously": true,
+    "remainingScope": "No fresh physical auxiliary staging or GPU quality certification; B2C/B2B deferred by user",
+    "nextAction": "New explicit human authorization and fresh availability/budget preflight before any paid execution",
+    "localFullSuites": {
+      "tests": 383,
+      "passedInitial": 381,
+      "failedInitial": 2,
+      "retriedFailuresPassed": 2,
+      "remainingFailures": 0,
+      "initialSuiteExitCode": 1,
+      "retryExitCode": 0
+    },
+    "completedAt": "2026-09-14T15:30:13.063Z"
+  }
 }
