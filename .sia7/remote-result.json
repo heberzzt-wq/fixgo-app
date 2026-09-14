@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-retire-v138-linux-auto-cert-20260914-chatgpt-88",
-  "completedAt": "2026-09-14T17:04:24.270Z",
+  "jobId": "v142-retire-v138-windows-auto-cert-20260914-chatgpt-89",
+  "completedAt": "2026-09-14T17:04:56.335Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": ".github/workflows/v138-native-mp4-cert.yml",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 11763,
-  "bytesAfter": 11819,
+  "bytesBefore": 11819,
+  "bytesAfter": 11875,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",

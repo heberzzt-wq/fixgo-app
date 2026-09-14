@@ -118,6 +118,7 @@ jobs:
           echo 'V142_STAGING_CLEAN=true'
 
   windows-real-mp4:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: windows-latest
     timeout-minutes: 12
     steps:
