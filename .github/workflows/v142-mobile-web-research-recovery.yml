@@ -38,6 +38,7 @@ on:
       - 'panel-b2b-admin.html'
       - 'tests/b2c-rules-emulator.test.mjs'
       - 'tests/b2c-security-rules-contract.test.mjs'
+      - 'scripts/audit-b2c-production.mjs'
       - 'tests/auth-routing-consistency.test.mjs'
       - 'functions/secure-entry-alias.js'
       - 'functions/jarvis-video-operation-contract.js'
@@ -69,6 +70,31 @@ on:
       - 'tests/jarvis-reel-terminal-delivery-v142.test.mjs'
       - 'tests/jarvis-fs-bridge-v2.test.mjs'
       - 'tests/jarvis-series-continuity-v142.test.mjs'
+      - 'tests/jarvis-reel-researched-media-v132.test.mjs'
+      - 'tests/jarvis-reel-mission-fidelity-v133.test.mjs'
+      - 'tests/jarvis-reel-real-production-v134.test.mjs'
+      - 'tests/jarvis-real-media-reel-hydration-v127.test.mjs'
+      - 'tests/jarvis-master-session-authority.test.mjs'
+      - 'tests/jarvis-secure-session-v117.test.mjs'
+      - 'gestia-core/jarvis/jarvis.reel.presenter.js'
+      - 'tests/jarvis-mission-failure-precedence.test.mjs'
+      - 'tests/single-semantic-authority.test.mjs'
+      - 'package-lock.json'
+      - 'gestia-core/nexo/nexo.real-media.tools.js'
+      - 'nexo-web-media-bridge.js'
+      - 'tests/nexo-real-media-tools.test.mjs'
+      - 'gestia-terminal.html'
+      - 'tests/jarvis-marketing-terminal-delivery.e2e.test.mjs'
+      - 'gestia-core/auth/role-authority.js'
+      - 'gestia-core/jarvis/**'
+      - 'gestia-terminal.js'
+      - 'modules/terminal/**'
+      - 'tecnico.html'
+      - 'panel-tecnico.js'
+      - 'functions/b2c-*.js'
+      - 'functions/secure-entry.js'
+      - 'tests/b2c-*.test.mjs'
+      - 'tests/platform-release-authority.test.mjs'
   workflow_dispatch:
     inputs:
       deploy:
@@ -207,6 +233,9 @@ jobs:
             tests/jarvis-reel-native-mp4-v138.test.mjs \
             tests/jarvis-reel-terminal-delivery-v142.test.mjs
 
+      - name: Retained legacy media and session contracts
+        run: node --test --test-concurrency=1 tests/jarvis-reel-researched-media-v132.test.mjs tests/jarvis-reel-mission-fidelity-v133.test.mjs tests/jarvis-reel-real-production-v134.test.mjs tests/jarvis-real-media-reel-hydration-v127.test.mjs tests/jarvis-master-session-authority.test.mjs tests/jarvis-secure-session-v117.test.mjs
+
       - name: Full CI
         run: npm run ci:test
 
@@ -307,6 +336,9 @@ jobs:
       - name: Windows B2B and B2C security contracts
         shell: pwsh
         run: node --test tests/auth-routing-consistency.test.mjs tests/b2c-security-rules-contract.test.mjs
+      - name: Windows retained legacy media and session contracts
+        shell: pwsh
+        run: node --test --test-concurrency=1 tests/jarvis-reel-researched-media-v132.test.mjs tests/jarvis-reel-mission-fidelity-v133.test.mjs tests/jarvis-reel-real-production-v134.test.mjs tests/jarvis-real-media-reel-hydration-v127.test.mjs tests/jarvis-master-session-authority.test.mjs tests/jarvis-secure-session-v117.test.mjs tests/jarvis-reel-speech-v137.test.mjs tests/nexo-real-media-tools.test.mjs
       - name: Windows focal - upload bridge
         shell: pwsh
         run: node --test --test-concurrency=1 tests/jarvis-upload-bridge.test.mjs
@@ -316,6 +348,10 @@ jobs:
       - name: Windows focal - mission orchestrator
         shell: pwsh
         run: node --test --test-concurrency=1 tests/jarvis-mission-orchestrator.test.mjs
+
+      - name: Windows local bridge and worker authority
+        shell: pwsh
+        run: node --test --test-concurrency=1 --test-name-pattern="startup binds|SIA7 patch" tests/jarvis-fs-bridge-v2.test.mjs tests/jarvis-upload-bridge.test.mjs
       - name: Windows focal - local video engine V142
         shell: pwsh
         run: |

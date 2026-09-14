@@ -26,6 +26,8 @@ permissions:
 
 jobs:
   certify-v134:
+    # Historical certification remains manual; V142 owns current automatic coverage.
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
