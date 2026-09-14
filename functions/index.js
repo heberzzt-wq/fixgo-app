@@ -2425,6 +2425,8 @@ exports.registrarSalida = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('invalid-argument', 'Parámetros insuficientes para registrar salida.');
     }
 
+    await requireB2bTenant(context, condominioId, ['admin_b2b', 'asistente_admin', 'recepcion', 'seguridad', 'seguridad_interna', 'seguridad_24_7']);
+
     try {
         /**
          * 🛡️ GUARDA DE CONEXIÓN V5.56

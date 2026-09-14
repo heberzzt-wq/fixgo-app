@@ -142,7 +142,7 @@ test('B2B existing operations reject foreign tenants and inactive or unauthorize
     await assert.rejects(guard({},'a'),e=>e.code==='unauthenticated');
     profile={...profile,status:'documentos_pendientes'};
     await assert.rejects(guard(context,'a'),e=>e.code==='permission-denied');
-    for(const name of ['reservarCancha','crearAcceso','registrarIngresoPaquete','registrarSalidaPaquete','registrarIncidenciaAcceso']){
+    for(const name of ['reservarCancha','crearAcceso','registrarSalida','registrarIngresoPaquete','registrarSalidaPaquete','registrarIncidenciaAcceso']){
         const start=source.indexOf('exports.'+name+' =');
         const end=source.indexOf('\nexports.',start+1);
         assert.match(source.slice(start,end<0?undefined:end),/await requireB2bTenant\(context, condominioId/);
