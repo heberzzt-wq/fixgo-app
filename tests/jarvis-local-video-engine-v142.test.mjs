@@ -94,10 +94,11 @@ test("V142 HuMo17 single-L40S candidate pins FP8 block-swap authority and remain
     assert.equal(strategy.nominal50GiBHeadroomBytes, -347840158);
     assert.equal(strategy.minimumNetworkVolumeGb, 50);
     assert.equal(strategy.persistentMinimumNetworkVolumeGb, 50);
-    assert.equal(strategy.capacityFitCertified, true);
-    assert.equal(strategy.storagePlan, "FULL_PERSISTENT_RUNTIME_80GB");
-    assert.equal(strategy.auxiliaryAssetsPersistent, true);
-    assert.equal(strategy.auxiliaryAssetsEphemeralRequired, false);
+    assert.equal(strategy.capacityFitCertified, false);
+    assert.equal(strategy.persistentVolumeBytes, 53687091200);
+    assert.equal(strategy.storagePlan, "PERSISTENT_CORE_PLUS_EPHEMERAL_AUXILIARY_REQUIRED");
+    assert.equal(strategy.auxiliaryAssetsPersistent, false);
+    assert.equal(strategy.auxiliaryAssetsEphemeralRequired, true);
     assert.equal(strategy.optionalVocalSeparatorAuthorityPinned, false);
     assert.equal(strategy.physicalFitCertified, false);
     assert.equal(strategy.qualityCertified, false);
@@ -127,14 +128,16 @@ test("V142 next identity runtime preflight is zero-cost and remains fail-closed"
     assert.equal(result.capacity.ephemeralWorkspaceReserveBytes, 8589934592);
     assert.equal(result.capacity.minimumEphemeralBytes, 21899456606);
     assert.equal(result.capacity.splitPlanFitsNominalPersistentByBytes, true);
-    assert.equal(result.capacity.certified, true);
-    assert.equal(result.assetPlacementPlan.storagePlan, "FULL_PERSISTENT_RUNTIME_80GB");
+    assert.equal(result.capacity.certified, false);
+    assert.equal(result.assetPlacementPlan.storagePlan, "PERSISTENT_CORE_PLUS_EPHEMERAL_AUXILIARY_REQUIRED");
     assert.equal(result.assetPlacementPlan.preserveExistingHuMoCache, true);
-    assert.equal(result.assetPlacementPlan.persistentNewAssets.length, 5);
-    assert.equal(result.assetPlacementPlan.persistentNewBytes, 31939821856);
-    assert.equal(result.assetPlacementPlan.persistentTotalWithExistingCacheBytes, 54034931358);
-    assert.equal(result.assetPlacementPlan.ephemeralAssets.length, 0);
-    assert.equal(result.assetPlacementPlan.ephemeralAssetsBytes, 0);
+    assert.deepEqual(result.assetPlacementPlan.persistentNewAssets.map(a => a.role), ["video_transformer", "distillation_lora"]);
+    assert.equal(result.assetPlacementPlan.persistentNewAssets.length, 2);
+    assert.equal(result.assetPlacementPlan.persistentNewBytes, 18630299842);
+    assert.equal(result.assetPlacementPlan.persistentTotalWithExistingCacheBytes, 40725409344);
+    assert.deepEqual(result.assetPlacementPlan.ephemeralAssets.map(a => a.role), ["text_encoder", "vae", "audio_encoder"]);
+    assert.equal(result.assetPlacementPlan.ephemeralAssets.length, 3);
+    assert.equal(result.assetPlacementPlan.ephemeralAssetsBytes, 13309522014);
     assert.equal(result.assetPlacementPlan.minimumEphemeralBytes, 21899456606);
     assert.equal(result.assetPlacementPlan.existingCacheMutationAuthorized, false);
     assert.equal(result.assetPlacementPlan.assetDownloadAuthorized, false);
@@ -175,7 +178,7 @@ test("V142 HuMo17 physical core staging worker is explicit-authority budgeted an
     assert.equal(bridgeSource.includes('humo17-quality-201f-final-preflight.json'), true);
     assert.equal(bridgeSource.includes('cheapCpuRecertificationRequired !== false'), true);
     assert.equal(bridgeSource.includes('coreStageEvidenceSource = \"durable_zero_cost_preflight\"'), true);
-    assert.equal(bridgeSource.includes('if (!durableCoreEvidence && (stageReceipt.ok !== true'), true);
+    assert.equal(bridgeSource.includes('if (!durableCoreEvidence && !validateHuMo17CoreStageReceipt(stageReceipt, volume))'), true);
     assert.equal(bridgeSource.includes('HUMO17_CORE_REUSED_AND_AUXILIARY_VERIFIED'), true);
     assert.equal(bridgeSource.includes('computeType: runtimeProbeAuthorized ? \"GPU\" : \"CPU\"'), true);
     assert.equal(bridgeSource.includes('dataCenterIds: [volume.dataCenterId]'), true);
@@ -200,12 +203,14 @@ test("V142 HuMo17 physical core staging worker is explicit-authority budgeted an
 
 test("V142 HuMo17 persistent core cache is additive pinned and fail-closed", () => {
     const contract = RUNPOD_HUMO17_CORE_CACHE_BASE;
-    assert.equal(contract.profile, "humo17-persistent-runtime-v2");
-    assert.equal(contract.requiredFiles.length, 5);
-    assert.equal(contract.totalBytes, 31939821856);
-    assert.equal(contract.combinedPersistentBytes, 54034931358);
-    assert.equal(contract.headroomBytes, 31864414562);
-    assert.equal(contract.minimumNetworkVolumeGb, 80);
+    assert.equal(contract.schemaVersion, "jarvis.model-cache.v142.humo17-core.1");
+    assert.equal(contract.profile, "humo17-fp8-core-v1");
+    assert.equal(contract.requiredFiles.length, 2);
+    assert.deepEqual(contract.requiredFiles.map(a => a.role), ["video_transformer", "distillation_lora"]);
+    assert.equal(contract.totalBytes, 18630299842);
+    assert.equal(contract.combinedPersistentBytes, 40725409344);
+    assert.equal(contract.headroomBytes, 12961681856);
+    assert.equal(contract.minimumNetworkVolumeGb, 50);
     assert.equal(contract.cacheMutationPolicy, "ADD_ONLY_PRESERVE_EXISTING_HUMO_CACHE");
     assert.equal(contract.assetDownloadAuthorized, false);
     assert.equal(contract.physicalStageCertified, false);
@@ -245,7 +250,7 @@ test("V142 HuMo17 persistent core staging plan preserves legacy cache and never 
     const plan = buildHuMo17PersistentCoreStagingPlan({
         networkVolumeId: "humo-volume",
         dataCenterId: "EU-NL-1",
-        networkVolumeSizeGb: 80,
+        networkVolumeSizeGb: 50,
         networkVolumeType: "STANDARD",
         existingCacheEvidence: evidence
     });
@@ -254,10 +259,10 @@ test("V142 HuMo17 persistent core staging plan preserves legacy cache and never 
     assert.equal(plan.cacheMode, "ADD_ONLY_PERSISTENT_CORE");
     assert.equal(plan.preserveExistingHuMoCache, true);
     assert.equal(plan.existingHuMoCacheBytes, RUNPOD_HUMO_CACHE_BASE.totalBytes);
-    assert.equal(plan.newPersistentBytes, 31939821856);
-    assert.equal(plan.combinedPersistentBytes, 54034931358);
-    assert.equal(plan.headroomBytes, 31864414562);
-    assert.equal(plan.files.length, 5);
+    assert.equal(plan.newPersistentBytes, 18630299842);
+    assert.equal(plan.combinedPersistentBytes, 40725409344);
+    assert.equal(plan.headroomBytes, 12961681856);
+    assert.equal(plan.files.length, 2);
     assert.match(plan.files[0].destination, /humo17-fp8-core\/weights\/HuMo\/Wan2_1-HuMo-14B_fp8_e4m3fn_scaled_KJ\.safetensors$/);
     assert.match(plan.files[1].destination, /humo17-fp8-core\/loras\/Lightx2v\/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16\.safetensors$/);
     assert.equal(plan.cacheMutationPolicy, "ADD_ONLY_PRESERVE_EXISTING_HUMO_CACHE");
@@ -270,7 +275,7 @@ test("V142 HuMo17 persistent core staging plan preserves legacy cache and never 
     assert.equal(plan.externalEstimatedCostUsd, 0);
 
     const wrongCache = buildHuMo17PersistentCoreStagingPlan({
-        networkVolumeId: "humo-volume", dataCenterId: "EU-NL-1", networkVolumeSizeGb: 80, networkVolumeType: "STANDARD",
+        networkVolumeId: "humo-volume", dataCenterId: "EU-NL-1", networkVolumeSizeGb: 50, networkVolumeType: "STANDARD",
         existingCacheEvidence: { ...evidence, shaVerified: false }
     });
     assert.equal(wrongCache.ok, false);
@@ -278,7 +283,7 @@ test("V142 HuMo17 persistent core staging plan preserves legacy cache and never 
     assert.equal(wrongCache.resourceCreationPossible, false);
 
     const wrongType = buildHuMo17PersistentCoreStagingPlan({
-        networkVolumeId: "humo-volume", dataCenterId: "EU-NL-1", networkVolumeSizeGb: 80, networkVolumeType: "NVME", existingCacheEvidence: evidence
+        networkVolumeId: "humo-volume", dataCenterId: "EU-NL-1", networkVolumeSizeGb: 50, networkVolumeType: "NVME", existingCacheEvidence: evidence
     });
     assert.equal(wrongType.ok, false);
     assert.equal(wrongType.status, "HUMO17_NETWORK_VOLUME_TYPE_MISMATCH");
@@ -301,7 +306,7 @@ test("V142 HuMo17 staging bootstrap is prepared offline and protects the legacy 
     const plan = buildHuMo17PersistentCoreStagingPlan({
         networkVolumeId: "humo-volume",
         dataCenterId: "EU-NL-1",
-        networkVolumeSizeGb: 80,
+        networkVolumeSizeGb: 50,
         networkVolumeType: "STANDARD",
         existingCacheEvidence: evidence
     });
@@ -324,6 +329,7 @@ test("V142 HuMo17 staging bootstrap is prepared offline and protects the legacy 
     assert.match(prepared.script, /hf_hub_download/);
     assert.match(prepared.script, /existingCachePreserved':True/);
     assert.match(prepared.script, /physicalStageCertified':True/);
+    assert.doesNotMatch(prepared.script, /RUNTIME_ROOT|PYRUNTIME|runtime-manifest\.json|ComfyUI\/requirements/);
     assert.equal(prepared.script.includes('rm -rf \"$LEGACY_ROOT'), false);
     assert.equal(prepared.script.includes("api.runpod.io"), false);
     assert.equal(prepared.script.includes("nvidia-smi"), false);
@@ -8351,12 +8357,16 @@ test("V142 HuMo-17B and Phantom-Wan candidates are pinned but cannot create paid
 });
 
 
-test("V142 HuMo17 paid bootstrap is persistent, offline and checkpointed", () => {
+test("V142 HuMo17 bootstrap uses ephemeral runtime and auxiliaries with persistent verified core", () => {
     const bridge = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
     assert.equal(bridge.includes("git -C /workspace/jarvis-v142/runtime/humo17/ComfyUI rev-parse HEAD"), false);
-    assert.equal(bridge.includes("cat /workspace/jarvis-v142/runtime/humo17/ComfyUI/.git/HEAD"), true);
-    assert.equal(bridge.includes("PIP_NO_INDEX=1"), true);
-    assert.equal(bridge.includes("/workspace/jarvis-v142/runtime/humo17/runtime-manifest.json"), true);
+    const bootstrap = bridge.slice(bridge.indexOf("export function buildHuMo17RuntimeBootstrap("), bridge.indexOf("export async function runHuMo17PersistentCoreStagingCli("));
+    assert.ok(bootstrap.includes("/tmp/jarvis-humo17/venv"));
+    assert.ok(bootstrap.includes("for a in j['strategy']['wrapperAuxiliaryAssets']:"));
+    assert.ok(bootstrap.includes("verify(partial,a); partial.rename(p)"));
+    assert.ok(bootstrap.includes("target.symlink_to(p)"));
+    assert.ok(bootstrap.includes("HUMO17_BOOTSTRAP_FAILED_L"));
+    assert.doesNotMatch(bootstrap, /PIP_NO_INDEX|runtime-manifest\.json|\/runtime\/humo17/);
     assert.equal(bridge.includes('path.posix.join("/workspace/jarvis-v142/operations", resolvedOperationId, "probe.mp4")'), true);
     assert.equal(bridge.includes("nohup setsid timeout"), true);
     assert.equal(bridge.includes("HUMO17_REMOTE_POLL_TRANSIENT"), true);

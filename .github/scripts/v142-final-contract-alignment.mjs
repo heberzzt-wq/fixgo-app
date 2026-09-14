@@ -26,9 +26,28 @@ if (source.split(baselineNeedle).length - 1 !== 1) {
     throw new Error("V142_HUMO17_DURABLE_BASELINE_GUARD_SOURCE_MISMATCH");
 }
 
+// The historical quality aligner also rewrote the probe test to require an
+// unproven persistent runtime. Preserve the split-runtime test, not that rewrite.
+const probeTestNeedle = `        "HuMo17 probe is single L40S, pinned, hash-bound, budgeted and distinct from legacy",\n        region => {`;
+if (source.split(probeTestNeedle).length - 1 !== 1) {
+    throw new Error("V142_HUMO17_SPLIT_PROBE_GUARD_SOURCE_MISMATCH");
+}
+const probeTestReplacement = probeTestNeedle + `
+            if (bridge.includes("for a in j['strategy']['wrapperAuxiliaryAssets']:") &&
+                bridge.includes("python3 -m venv --system-site-packages /tmp/jarvis-humo17/venv")) {
+                if (!region.includes("verify(partial,a); partial.rename(p)") ||
+                    !region.includes("target.symlink_to(p)")) {
+                    throw new Error("V142_HUMO17_SPLIT_PROBE_TEST_REQUIRED");
+                }
+                return region;
+            }`;
 const patchedSource = source
     .replace(helperNeedle, helperReplacement)
-    .replace(baselineNeedle, baselineReplacement);
+    .replace(baselineNeedle, baselineReplacement)
+    .replace(probeTestNeedle, probeTestReplacement)
+    .replace('"V142 HuMo17 paid bootstrap is persistent, offline and checkpointed",',
+        '"V142 HuMo17 bootstrap uses ephemeral runtime and auxiliaries with persistent verified core",')
+    .replace('    humo17OfflineRuntimeAligned: true,', '    humo17SplitRuntimeAligned: true,');
 const tempScript = path.join(scriptDirectory, `.v142-final-contract-alignment-${process.pid}.mjs`);
 fs.writeFileSync(tempScript, patchedSource, "utf8");
 try {

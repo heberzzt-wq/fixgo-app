@@ -8964,6 +8964,16 @@ export function buildHuMo17RuntimeBootstrap(job) {
     ].join("\n");
 }
 
+export function validateHuMo17CoreStageReceipt(receipt, volume) {
+    // The certified stage covers model bytes, not a persistent Python runtime.
+    return receipt?.ok === true && receipt.physicalStageCertified === true &&
+        receipt.coreManifestVerified === true && receipt.terminationVerified === true &&
+        receipt.networkVolumeRetained === true && receipt.networkVolumeId === volume?.id &&
+        receipt.networkVolumeDataCenterId === volume?.dataCenterId &&
+        receipt.newPersistentBytes === RUNPOD_HUMO17_CORE_CACHE_BASE.totalBytes &&
+        receipt.combinedPersistentBytes === RUNPOD_HUMO17_CORE_CACHE_BASE.combinedPersistentBytes;
+}
+
 export async function runHuMo17PersistentCoreStagingCli({
     root = DEFAULT_ROOT,
     env = process.env,
@@ -9069,7 +9079,7 @@ export async function runHuMo17PersistentCoreStagingCli({
     const matches = volumes.filter(volume => volume.id === requestedVolumeId);
     if (matches.length !== 1) throw new Error(`RUNPOD_HUMO17_VOLUME_MATCH_COUNT:${matches.length}`);
     let volume = matches[0];
-    const requiredPersistentVolumeGb = Number(RUNPOD_HUMO17_CORE_CACHE_BASE.minimumNetworkVolumeGb || 80);
+    const requiredPersistentVolumeGb = Number(RUNPOD_HUMO17_CORE_CACHE_BASE.minimumNetworkVolumeGb || 50);
     if (Number(volume.sizeGb || 0) < requiredPersistentVolumeGb) {
         if (!truthy(env.JARVIS_HUMO17_PERSISTENT_VOLUME_RESIZE_AUTHORIZED)) throw new Error("HUMO17_PERSISTENT_VOLUME_RESIZE_AUTHORITY_REQUIRED");
         await runRunpodctlJson(["network-volume", "update", volume.id, "--size", String(Math.ceil(requiredPersistentVolumeGb))], cliEnv);
@@ -9135,12 +9145,7 @@ export async function runHuMo17PersistentCoreStagingCli({
         }
         if ((!stageReceiptPath || !fs.existsSync(stageReceiptPath)) && !durableCoreEvidence) throw new Error("HUMO17_STAGE_RECEIPT_REQUIRED");
         const stageReceipt = durableCoreEvidence || JSON.parse(fs.readFileSync(stageReceiptPath, "utf8"));
-        if (!durableCoreEvidence && (stageReceipt.ok !== true || stageReceipt.physicalStageCertified !== true || stageReceipt.coreManifestVerified !== true ||
-            stageReceipt.persistentRuntimeReady !== true || stageReceipt.offlinePaidBootstrapRequired !== true || stageReceipt.persistentRuntimeSystemToolsReady !== true || stageReceipt.persistentRuntimeProvisionImageTag !== RUNPOD_HUMO17_CORE_CACHE_BASE.provisionImageTag || stageReceipt.persistentRuntimeExpectedRegistryDigest !== RUNPOD_HUMO17_CORE_CACHE_BASE.expectedRegistryDigest || stageReceipt.persistentRuntimeOperatingSystem !== RUNPOD_HUMO17_CORE_CACHE_BASE.operatingSystem || !String(stageReceipt.persistentRuntimePythonVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.pythonVersionPrefix) || !String(stageReceipt.persistentRuntimeTorchVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.torchVersionPrefix) || !String(stageReceipt.persistentRuntimeTorchCudaVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.torchCudaVersionPrefix) || Number(stageReceipt.persistentRuntimeRequiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length ||
-            stageReceipt.terminationVerified !== true || stageReceipt.networkVolumeRetained !== true ||
-            stageReceipt.networkVolumeId !== volume.id || stageReceipt.networkVolumeDataCenterId !== volume.dataCenterId ||
-            stageReceipt.newPersistentBytes !== RUNPOD_HUMO17_CORE_CACHE_BASE.totalBytes ||
-            stageReceipt.combinedPersistentBytes !== RUNPOD_HUMO17_CORE_CACHE_BASE.combinedPersistentBytes)) throw new Error("HUMO17_STAGE_RECEIPT_INVALID");
+        if (!durableCoreEvidence && !validateHuMo17CoreStageReceipt(stageReceipt, volume)) throw new Error("HUMO17_STAGE_RECEIPT_INVALID");
         const discovery = createRunpodRemoteVideoAdapter({root: resolvedRoot,
             env: {...credential.env, JARVIS_REMOTE_GPU_PROVIDER: "runpod", JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA L40S",
                 JARVIS_RUNPOD_CLOUD_TYPE: "SECURE", JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false",
@@ -9537,10 +9542,6 @@ export async function runHuMo17PersistentCoreStagingCli({
         );
         const lines = manifestRaw.stdout.trim().split(/\r?\n/).filter(Boolean);
         manifest = JSON.parse(lines[0] || "{}");
-        const persistentRuntimeRaw = await runSsh(endpoint, `cat ${posixShellSingleQuote("/workspace/jarvis-v142/runtime/humo17/runtime-manifest.json")}`, 120000);
-        const persistentRuntime = JSON.parse(String(persistentRuntimeRaw.stdout || "{}").trim() || "{}");
-        if (persistentRuntime.runtimeReady !== true || persistentRuntime.networkVolumeId !== volume.id || persistentRuntime.dataCenterId !== volume.dataCenterId || persistentRuntime.comfyUiRevision !== RUNPOD_HUMO17_CORE_CACHE_BASE.comfyUiRevision || persistentRuntime.wrapperRevision !== RUNPOD_HUMO17_CORE_CACHE_BASE.wrapperRevision || Number(persistentRuntime.requiredAssetCount || 0) !== RUNPOD_HUMO17_CORE_CACHE_BASE.requiredFiles.length || persistentRuntime.offlinePaidBootstrapRequired !== true || persistentRuntime.systemToolsReady !== true || persistentRuntime.provisionImageTag !== RUNPOD_HUMO17_CORE_CACHE_BASE.provisionImageTag || persistentRuntime.expectedRegistryDigest !== RUNPOD_HUMO17_CORE_CACHE_BASE.expectedRegistryDigest || persistentRuntime.operatingSystem !== RUNPOD_HUMO17_CORE_CACHE_BASE.operatingSystem || !String(persistentRuntime.pythonVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.pythonVersionPrefix) || !String(persistentRuntime.torchVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.torchVersionPrefix) || !String(persistentRuntime.torchCudaVersion || "").startsWith(RUNPOD_HUMO17_CORE_CACHE_BASE.torchCudaVersionPrefix)) throw new Error("RUNPOD_HUMO17_PERSISTENT_RUNTIME_INVALID");
-        runtimePhysical = persistentRuntime;
         const legacyShaAfter = String(lines.at(-1) || "").trim().split(/\s+/)[0].toLowerCase();
         if (!validateHuMo17CoreCacheManifest(manifest)) {
             throw new Error("RUNPOD_HUMO17_CORE_MANIFEST_INVALID");

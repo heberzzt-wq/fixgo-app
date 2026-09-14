@@ -1676,20 +1676,41 @@ test("HuMo17 probe is single L40S, pinned, hash-bound, budgeted and distinct fro
     assert.throws(() => buildHuMo17RuntimeProbeJob({...options, assets: {...assets, output: "outside.mp4"}}), /OUTPUT/);
     const shell = buildHuMo17RuntimeBootstrap(job);
     assert.match(shell, /CORE_NOT_CERTIFIED/); assert.match(shell, /ASSET_SHA256/);
-    assert.ok(shell.includes("test -x /workspace/jarvis-v142/runtime/humo17/venv/bin/python"));
+    assert.ok(shell.includes("python3 -m venv --system-site-packages /tmp/jarvis-humo17/venv"));
     assert.match(shell, /RESULT_FILE=/);
     assert.match(shell, /trap .* ERR/);
     assert.match(shell, /HUMO17_BOOTSTRAP_FAILED_L/);
-    assert.doesNotMatch(shell, /venv --system-site-packages/);
+    assert.match(shell, /venv --system-site-packages/);
     assert.match(shell, /torch.__version__/);
-    assert.doesNotMatch(shell, /pip install/);
-    assert.match(shell, /PIP_NO_INDEX=1/);
+    assert.match(shell, /pip install.*ComfyUI\/requirements.txt/);
+    assert.doesNotMatch(shell, /PIP_NO_INDEX=1/);
     assert.ok(shell.indexOf("HUMO17_REQUIRED_NODES_MISSING") < shell.indexOf("urlopen"));
-    assert.equal(shell.indexOf("pip install"), -1);
-    assert.match(shell, /runtime-manifest\.json/); assert.doesNotMatch(shell, /download.*core|generate_1_7B/);
+    assert.ok(shell.includes(job.strategy.comfyUiRevision));
+    assert.ok(shell.includes(job.strategy.wrapperRevision));
+    assert.match(shell, /for a in j.*strategy.*wrapperAuxiliaryAssets/);
+    assert.ok(shell.includes("verify(partial,a); partial.rename(p)"));
+    assert.ok(shell.includes("verify(p,a); target="));
+    assert.ok(shell.includes("target.symlink_to(p)"));
+    assert.match(shell, /HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1/);
+    assert.doesNotMatch(shell, /runtime-manifest\.json|download.*core|generate_1_7B|torch==2\.5\.1/);
     assert.throws(() => buildHuMo17RuntimeBootstrap({...job, gpuCount: 2}), /AUTHORITY/);
 });
 
+
+test("HuMo17 physical split-stage receipt does not require an unproven persistent runtime", async () => {
+    const {validateHuMo17CoreStageReceipt: valid} = await import("../jarvis-fs-bridge.js");
+    const volume = {id: "1qm5wczocl", dataCenterId: "EU-NL-1"};
+    const receipt = {ok:true, physicalStageCertified:true, coreManifestVerified:true,
+        terminationVerified:true, networkVolumeRetained:true, networkVolumeId:volume.id,
+        networkVolumeDataCenterId:volume.dataCenterId, newPersistentBytes:18630299842,
+        combinedPersistentBytes:40725409344};
+    assert.equal(valid(receipt, volume), true);
+    for (const patch of [{ok:false},{physicalStageCertified:false},{coreManifestVerified:false},
+        {terminationVerified:false},{networkVolumeRetained:false},{networkVolumeId:"other"},
+        {networkVolumeDataCenterId:"EU-RO-1"},{newPersistentBytes:31939821856},
+        {combinedPersistentBytes:54034931358}]) assert.equal(valid({...receipt,...patch}, volume), false);
+    assert.equal(valid(null, volume), false);
+});
 
 test("HuMo17 cleanup verifies Pod absence and never deletes a retained volume", async () => {
     const {releaseHuMo17Pod} = await import("../jarvis-fs-bridge.js");
