@@ -1,18 +1,18 @@
 {
-  "jobId": "v142-hosting-static-autodeploy-20260914-chatgpt-93",
-  "completedAt": "2026-09-14T17:49:25.694Z",
+  "jobId": "v142-footer-terms-direct-modal-20260914-chatgpt-94",
+  "completedAt": "2026-09-14T17:50:11.062Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": ".github/workflows/v142-mobile-web-research-recovery.yml",
+  "file": "index.html",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 28768,
-  "bytesAfter": 28866,
+  "bytesBefore": 27264,
+  "bytesAfter": 27360,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    ".github/workflows/v142-mobile-web-research-recovery.yml"
+    "index.html"
   ]
 }
