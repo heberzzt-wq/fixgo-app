@@ -20,6 +20,18 @@ test("login delegates authenticated routing to the central Firebase router", () 
     assert.doesNotMatch(login, /window\.location\.href\s*=\s*[\r\n\s]*"tecnico\.html"/);
 });
 
+test("public index keeps legal notices addressable without dead pages", () => {
+    const index = fs.readFileSync(path.join(root, "index.html"), "utf8");
+
+    assert.match(index, /href="#privacidad"/);
+    assert.match(index, /href="#eliminar-datos"/);
+    assert.match(index, /id="modalPrivacidad"/);
+    assert.match(index, /id="modalEliminacion"/);
+    assert.match(index, /openLegalModalFromHash/);
+    assert.doesNotMatch(index, /href="privacidad\.html"/);
+    assert.doesNotMatch(index, /href="eliminar-datos\.html"/);
+});
+
 test("central router preserves privileged admin surfaces and role aliases", () => {
     const firebase = fs.readFileSync(path.join(root, "firebase.js"), "utf8");
 

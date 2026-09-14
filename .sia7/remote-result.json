@@ -1,18 +1,18 @@
 {
-  "jobId": "v142-policies-cash-conditional-20260914-chatgpt-83",
-  "completedAt": "2026-09-14T16:58:43.500Z",
+  "jobId": "v142-index-legal-routing-test-20260914-chatgpt-84",
+  "completedAt": "2026-09-14T16:59:45.630Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "politicas.html",
+  "file": "tests/auth-routing-consistency.test.mjs",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 6927,
-  "bytesAfter": 7080,
+  "bytesBefore": 16949,
+  "bytesAfter": 17479,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "politicas.html"
+    "tests/auth-routing-consistency.test.mjs"
   ]
 }
