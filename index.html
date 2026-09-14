@@ -277,6 +277,54 @@
         window.addEventListener('hashchange', openLegalModalFromHash);
         openLegalModalFromHash();
 
+        const legalModalIds = ['modalTerminosCliente', 'modalTerminosTecnico', 'modalPrivacidad', 'modalEliminacion'];
+        const closeLegalModal = (modal) => {
+            if (!modal) return;
+            modal.classList.add('hidden');
+            if (['#privacidad', '#eliminar-datos', '#terminos'].includes(window.location.hash)) {
+                history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+            }
+        };
+        const openLegalModal = (modalId, hash = '') => {
+            legalModalIds.forEach(id => document.getElementById(id)?.classList.add('hidden'));
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+            modal.classList.remove('hidden');
+            if (hash && window.location.hash !== hash) history.replaceState(null, '', hash);
+        };
+
+        document.querySelector('a[href="politicas.html"]')?.addEventListener('click', event => {
+            event.preventDefault();
+            openLegalModal('modalTerminosCliente', '#terminos');
+        });
+        document.querySelector('a[href="#privacidad"]')?.addEventListener('click', event => {
+            event.preventDefault();
+            openLegalModal('modalPrivacidad', '#privacidad');
+        });
+        document.querySelector('a[href="#eliminar-datos"]')?.addEventListener('click', event => {
+            event.preventDefault();
+            openLegalModal('modalEliminacion', '#eliminar-datos');
+        });
+
+        legalModalIds.forEach(id => {
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            modal.querySelectorAll('button[type="button"]').forEach(button => {
+                button.addEventListener('click', () => closeLegalModal(modal));
+            });
+            modal.addEventListener('click', event => {
+                if (event.target === modal) closeLegalModal(modal);
+            });
+        });
+
+        document.addEventListener('keydown', event => {
+            if (event.key !== 'Escape') return;
+            legalModalIds.forEach(id => {
+                const modal = document.getElementById(id);
+                if (modal && !modal.classList.contains('hidden')) closeLegalModal(modal);
+            });
+        });
+
         let deferredPrompt;
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
