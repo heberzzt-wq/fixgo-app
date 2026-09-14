@@ -74,7 +74,8 @@ const {
  */
 if (!admin.apps.length) {
     admin.initializeApp({
-        projectId: "fixgo-44e4d"
+        projectId: "fixgo-44e4d",
+        storageBucket: "fixgo-44e4d.firebasestorage.app"
     });
 }
 

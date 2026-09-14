@@ -232,3 +232,11 @@ test('offline B2B queue preserves failures and foreign-session records and route
     assert.doesNotMatch(code,/cacheLimpiar/);
     assert.match(source,/Cierre guardado, pendiente de sincronización/);
 });
+
+test('backend evidence verification uses the same default bucket as the client',()=>{
+    const client=fs.readFileSync(new URL('../firebase.js',import.meta.url),'utf8');
+    const server=fs.readFileSync(new URL('../functions/index.js',import.meta.url),'utf8');
+    const bucket=client.match(/storageBucket:\s*"([^"]+)"/)[1];
+    const initialization=server.slice(server.indexOf('admin.initializeApp('),server.indexOf('// B2B onboarding'));
+    assert.equal(initialization.match(/storageBucket:\s*"([^"]+)"/)[1],bucket);
+});
