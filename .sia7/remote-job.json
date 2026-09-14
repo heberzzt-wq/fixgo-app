@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-footer-legal-live-deploy-20260914-chatgpt-96",
+  "jobId": "v142-footer-deploy-gate-cleanup-20260914-chatgpt-97",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "index.html",
+    "file": ".github/workflows/v142-mobile-web-research-recovery.yml",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            <a href=\"#eliminar-datos\" onclick=\"document.getElementById('modalEliminacion')?.classList.remove('hidden')\" class=\"hover:text-white transition-colors\">Eliminar Datos</a>",
-    "replace": "            <a href=\"#eliminar-datos\" onclick=\"document.getElementById('modalEliminacion')?.classList.remove('hidden'); return false;\" class=\"hover:text-white transition-colors\">Eliminar Datos</a>"
+    "search": "    if: ${{ ((github.event_name == 'workflow_dispatch' && inputs.deploy == true) || (github.event_name == 'push' && github.event.head_commit.message == 'SIA7 result v142-footer-legal-live-deploy-20260914-chatgpt-96')) && always() && needs.certify-linux.result == 'success' && needs.certify-windows.result == 'success' && (needs.certify-linux.outputs.product_changed == 'false' || needs.materialize-v142.result == 'success') }}",
+    "replace": "    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy == true && always() && needs.certify-linux.result == 'success' && needs.certify-windows.result == 'success' && (needs.certify-linux.outputs.product_changed == 'false' || needs.materialize-v142.result == 'success') }}"
   }
 }
