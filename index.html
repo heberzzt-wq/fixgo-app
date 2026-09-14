@@ -266,6 +266,17 @@
         const btnDashboard = document.getElementById('btnDashboard');
         const btnLogoutIndex = document.getElementById('btnLogoutIndex');
 
+        const openLegalModalFromHash = () => {
+            const modalId = window.location.hash === '#privacidad'
+                ? 'modalPrivacidad'
+                : window.location.hash === '#eliminar-datos'
+                    ? 'modalEliminacion'
+                    : '';
+            if (modalId) document.getElementById(modalId)?.classList.remove('hidden');
+        };
+        window.addEventListener('hashchange', openLegalModalFromHash);
+        openLegalModalFromHash();
+
         let deferredPrompt;
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
