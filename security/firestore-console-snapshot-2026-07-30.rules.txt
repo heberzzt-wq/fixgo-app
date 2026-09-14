@@ -752,6 +752,11 @@ service cloud.firestore {
       }
     }
 
+    match /tenants/{tenantId} {
+      allow read: if isAdmin() || tenantMember(tenantId);
+      allow write: if isAdmin();
+    }
+
     match /gestia_system_modules/{moduloId} {
       allow read: if isAuth();
       allow write: if isAdmin();

@@ -154,3 +154,35 @@ test('canonical profile cannot replace the authenticated email or uid used by ro
     const source=fs.readFileSync(new URL('../firebase.js',import.meta.url),'utf8');
     assert.match(source,/\.\.\.data,\s*uid: user\.uid,\s*email: user\.email/);
 });
+
+test('tenant runtime uses canonical users profile without a fixed building or legacy membership', async()=>{
+    const {runInNewContext}=await import('node:vm');
+    const {webcrypto}=await import('node:crypto');
+    let source=fs.readFileSync(new URL('../gestia-core/core_auth_tenant_v1.js',import.meta.url),'utf8');
+    source=source.replace(/^import[\s\S]*?;\s*/gm,'').replace(/^export /gm,'');
+    const build=profile=>{
+        const reads=[];const tenants=[];
+        const user={uid:'operator-a',email:'operator@example.test',getIdTokenResult:async()=>({claims:{sub:'operator-a'}})};
+        const runtime=runInNewContext(source+'\nresolveTenantContext',{
+            auth:{currentUser:user},db:{},doc:(_, ...parts)=>parts.join('/'),
+            getDoc:async path=>{reads.push(path);return {exists:()=>!!profile,data:()=>profile};},
+            resolveGestiaRole,isGestiaMasterIdentity:()=>false,
+            resolveTenantV2:async (id,options)=>{assert.equal(options.allowCreate,false);tenants.push(id);return {id};},
+            crypto:webcrypto,TextEncoder,setTimeout,clearTimeout,
+            CustomEvent:class{},window:{dispatchEvent(){}},console:{log(){},error(){},warn(){}}
+        });
+        return {runtime,reads,tenants};
+    };
+    const valid=build({rol:'admin_b2b',tipo_cuenta:'B2B',status:'activo',edificioId:'building-b'});
+    const session=await valid.runtime({forceRefresh:true});
+    assert.equal(session.tenantId,'building-b');
+    assert.equal(session.role,'b2b_admin');
+    assert.equal(session.limits.godMode,false);
+    assert.deepEqual(valid.reads,['users/operator-a']);
+    assert.deepEqual(valid.tenants,['building-b']);
+    for(const profile of [null,{rol:'admin_b2b',tipo_cuenta:'B2B',status:'activo'}, {rol:'tecnico',tipo_cuenta:'B2B',status:'documentos_pendientes',edificioId:'b'}]){
+        const invalid=build(profile);
+        await assert.rejects(invalid.runtime({forceRefresh:true}),e=>e.code==='TENANT_AUTHORITY_REQUIRED');
+        assert.equal(invalid.tenants.length,0);
+    }
+});

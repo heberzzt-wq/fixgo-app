@@ -20,7 +20,8 @@ import { auth, db } from '/firebase.js';
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { resolveTenantV2 } from '/gestia-core/core_tenant_resolver_v2.js';
 import {
-    isGestiaMasterIdentity
+    isGestiaMasterIdentity,
+    resolveGestiaRole
 } from '/gestia-core/auth/role-authority.js?v=role-authority-v4-master-session-20260818';
 
 /**
@@ -113,7 +114,7 @@ export async function resolveTenantContext(options = { forceRefresh: false }) {
 
     if (!options.forceRefresh && SESSION_CACHE && (now - CACHE_TIME) < CACHE_TTL) {
         const user = auth.currentUser;
-        if (user) {
+        if (user && SESSION_CACHE.uid === user.uid) {
             try {
                 if (
                     SESSION_CACHE.authoritySource === "master_authenticated_email" &&
@@ -235,27 +236,18 @@ export async function resolveTenantContext(options = { forceRefresh: false }) {
         // Cuentas distintas a la identidad maestra conservan el control de perfiles.
         emitSia7(OP_ID, "DB_FETCH", "Buscando rango en búnker local...", "INFO");
 
-        const tenantIdBase = "uxmal39";
-        let userData = null;
-        let finalRole = "tecnico";
-
-        const adminRef = doc(db, "tenants", tenantIdBase, "admins", user.uid);
-        const adminSnap = await getDoc(adminRef);
-
-        if (adminSnap.exists()) {
-            emitSia7(OP_ID, "AUTH_SUCCESS", "Autoridad confirmada en subcolección 'admins'.", "SUCCESS");
-            userData = adminSnap.data();
-            finalRole = userData.rol || "arquitecto_supremo";
-        } else {
-            const techRef = doc(db, "tenants", tenantIdBase, "technicians", user.uid);
-            const techSnap = await getDoc(techRef);
-
-            if (!techSnap.exists()) {
-                emitSia7(OP_ID, "DB_ERROR", "Identidad no encontrada en uxmal39.", "ERROR");
-                throw { code: "USER_UNKNOWN", message: "Perfil no existe en el búnker." };
-            }
-            userData = techSnap.data();
+        const profileSnap = await getDoc(doc(db, "users", user.uid));
+        const userData = profileSnap.exists() ? profileSnap.data() : null;
+        const tenantIdBase = userData?.edificioId || userData?.tenantId;
+        const role = resolveGestiaRole({}, userData || {});
+        const allowedRoles = ['admin_b2b', 'asistente_admin', 'supervisor', 'tecnico', 'tecnico_gp',
+            'tecnico_interno', 'seguridad', 'seguridad_interna', 'seguridad_24_7', 'inquilino_b2b', 'recepcion', 'cliente'];
+        if (!userData || userData.tipo_cuenta !== 'B2B' || userData.status !== 'activo' ||
+            userData.suspendido === true || typeof tenantIdBase !== 'string' || !tenantIdBase.trim() ||
+            !allowedRoles.includes(role.roleReal)) {
+            throw { code: "TENANT_AUTHORITY_REQUIRED", message: "Perfil B2B activo y edificio autorizado requeridos." };
         }
+        const finalRole = role.role;
 
         const tenantResuelto = await resolveTenantV2(tenantIdBase, { allowCreate: false });
 

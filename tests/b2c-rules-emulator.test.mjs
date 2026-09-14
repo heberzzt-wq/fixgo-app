@@ -260,7 +260,7 @@ test("B2B niega claves, escalación y autoaprobación sin bloquear edición oper
 });
 
 test('tenant isolation covers existing B2B paths and service creation', async () => {
-    const paths=['empresas_b2b/other/areas/a','empresas_b2b/other/activos/a','flotilla_b2b/other/items/a','packages/other/items/a','gestia_records/other/orders/a','alertas_seguridad/other-a','servicios_b2b/other-a'];
+    const paths=['tenants/other','empresas_b2b/other/areas/a','empresas_b2b/other/activos/a','flotilla_b2b/other/items/a','packages/other/items/a','gestia_records/other/orders/a','alertas_seguridad/other-a','servicios_b2b/other-a'];
     await environment.withSecurityRulesDisabled(async context=>{
         const fixtureDb = context.firestore();
         for(const path of paths) await setDoc(doc(fixtureDb,path),{edificioId:'other',status:'pendiente'});
@@ -276,6 +276,8 @@ test('tenant isolation covers existing B2B paths and service creation', async ()
     await assertFails(updateDoc(doc(own,'servicios_b2b/own-create'),{status:'finalizado'}));
     await assertSucceeds(setDoc(doc(own,'packages/uxmal39/items/own'),{descripcion:'Paquete'}));
     await assertSucceeds(getDoc(doc(own,'packages/uxmal39/items/own')));
+    await assertSucceeds(getDoc(doc(own,'tenants/uxmal39')));
+    await assertFails(setDoc(doc(own,'tenants/uxmal39'),{status:'active'}));
 });
 
 
