@@ -1,18 +1,18 @@
 {
-  "jobId": "v142-retire-v137-auto-cert-20260914-chatgpt-87",
-  "completedAt": "2026-09-14T17:03:45.763Z",
+  "jobId": "v142-retire-v138-linux-auto-cert-20260914-chatgpt-88",
+  "completedAt": "2026-09-14T17:04:24.270Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": ".github/workflows/v137-reel-speech-cert.yml",
+  "file": ".github/workflows/v138-native-mp4-cert.yml",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 4548,
-  "bytesAfter": 4604,
+  "bytesBefore": 11763,
+  "bytesAfter": 11819,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    ".github/workflows/v137-reel-speech-cert.yml"
+    ".github/workflows/v138-native-mp4-cert.yml"
   ]
 }
