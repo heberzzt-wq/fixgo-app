@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-retire-v138-windows-auto-cert-20260914-chatgpt-89",
+  "jobId": "v142-retire-v139-auto-cert-20260914-chatgpt-90",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": ".github/workflows/v138-native-mp4-cert.yml",
+    "file": ".github/workflows/v139-real-reel-e2e-cert.yml",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "  windows-real-mp4:",
-    "replace": "  windows-real-mp4:\n    if: ${{ github.event_name == 'workflow_dispatch' }}"
+    "search": "  certify-v139:",
+    "replace": "  certify-v139:\n    if: ${{ github.event_name == 'workflow_dispatch' }}"
   }
 }
