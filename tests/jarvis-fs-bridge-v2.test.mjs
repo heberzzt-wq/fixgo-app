@@ -13,6 +13,7 @@ import {
     cancelChunkedUpload,
     completeChunkedUpload,
     createJarvisFsBridgeApp,
+    startJarvisFsBridge,
     createHuMoLanCacheInspector,
     createHuMoLanEphemeralStager,
     createSelfHostedSemanticEngine,
@@ -1915,4 +1916,75 @@ test('HuMo17 quality authority binds exact media, budget and HEAD and is consume
         assert.throws(()=>consumeHuMo17QualityAuthority({root,authority:a,context:c,operationId:'retry'}),/PAID_REPLAY_BLOCKED/);
     }finally{fs.rmSync(root,{recursive:true,force:true});}
     assert.throws(()=>assertHuMo17IndependentBudget(),/PAID_EXECUTION_DISABLED/);
+});
+
+
+test("filesystem bridge startup binds only IPv4 loopback", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-fs-bind-"));
+    const server = startJarvisFsBridge({ port: 0, root });
+    try {
+        await new Promise((resolve, reject) => { server.once("listening", resolve); server.once("error", reject); });
+        assert.equal(server.address().address, "127.0.0.1");
+        const response = await fetch(`http://127.0.0.1:${server.address().port}/health`);
+        assert.equal(response.status, 200);
+    } finally {
+        await new Promise(resolve => server.close(resolve));
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+
+test("SIA7 patch consumes existing exact bridge authorization and rejects legacy boolean/replay", async () => {
+    const { executePatchJob } = await import("../jarvis-github-worker.js");
+    const fixture = createBridgeIdentityFixture({ branch: "v5.9-polish" });
+    const root = fixture.root;
+    fs.writeFileSync(path.join(root, "fixture.txt"), "before before");
+    const server = createJarvisFsBridgeApp({ root }).listen(0, "127.0.0.1");
+    await new Promise(resolve => server.once("listening", resolve));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const post = async (route, body) => (await fetch(base + route, { method: "POST", headers: { "content-type": "application/json", "x-jarvis-release-id": "test-release" }, body: JSON.stringify(body) })).json();
+    let requests = 0;
+    const fetchImpl = async (_url, options) => { requests++; return fetch(base + "/write", options); };
+    const patch = { file: "fixture.txt", search: "before", replace: "after", expectedMatches: 2 };
+    try {
+        const preview = await executePatchJob({ patch: { ...patch, dryRun: true } }, { root, fetchImpl });
+        assert.equal(preview.matchCount, 2);
+        assert.match(preview.sha256Before, /^[a-f0-9]{64}$/);
+        await assert.rejects(executePatchJob({ humanApproved: true, patch }, { root, fetchImpl }), /ONE_TIME_AUTHORIZATION_REQUIRED/);
+        assert.equal(requests, 0);
+        assert.equal(fs.readFileSync(path.join(root, "fixture.txt"), "utf8"), "before before");
+        const prepared = await post("/write/prepare", { objectiveId: "fixture", caseId: "fixture", authorityId: "HEBERTO_MENDOZA", controllerId: "CODEX_SIA7", ...patch, matchCount: 2 });
+        assert.equal(prepared.ok, true, JSON.stringify(prepared));
+        const authorization = { ...prepared };
+        await assert.rejects(executePatchJob({ patch: { ...patch, authorization: { ...authorization, expectedSha256: "0".repeat(64) } } }, { root, fetchImpl }), /PATCH_AUTHORIZED_SNAPSHOT_MISMATCH/);
+        assert.equal(requests, 0);
+        await post("/write/authorize", { ...prepared, approvedBy: "HEBERTO_MENDOZA", approvalCommand: `AUTORIZO ${prepared.fingerprint}` });
+        const wrong = await post("/write", { ...authorization, file: "other.txt" });
+        assert.equal(wrong.error, "WRITE_AUTHORIZATION_PAYLOAD_MISMATCH");
+        const result = await executePatchJob({ patch: { ...patch, authorization } }, { root, fetchImpl });
+        assert.equal(result.receipt.verified, true);
+        assert.equal(fs.readFileSync(path.join(root, "fixture.txt"), "utf8"), "after after");
+        const replay = await post("/write", authorization);
+        assert.equal(replay.error, "WRITE_AUTHORIZATION_NOT_FOUND_OR_CONSUMED");
+        await assert.rejects(executePatchJob({ patch: { ...patch, file: "../outside", dryRun: true } }, { root, fetchImpl }), /PATH_OUTSIDE_REPO/);
+    } finally {
+        await new Promise(resolve => server.close(resolve));
+        fs.rmSync(fixture.fixtureRoot, { recursive: true, force: true });
+    }
+});
+
+test("SIA7 patch refuses symlink traversal before reading or requesting authority", async () => {
+    const { executePatchJob } = await import("../jarvis-github-worker.js");
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "sia7-symlink-root-"));
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "sia7-symlink-outside-"));
+    fs.writeFileSync(path.join(outside, "fixture.txt"), "before");
+    try {
+        fs.symlinkSync(outside, path.join(root, "linked"), process.platform === "win32" ? "junction" : "dir");
+        await assert.rejects(executePatchJob({ patch: { file: "linked/fixture.txt", search: "before", replace: "after", dryRun: true } }, { root }), /SYMLINK_WRITE_BLOCKED/);
+        assert.equal(fs.readFileSync(path.join(outside, "fixture.txt"), "utf8"), "before");
+    } finally {
+        fs.rmSync(path.join(root, "linked"), { recursive: true, force: true });
+        fs.rmSync(root, { recursive: true, force: true });
+        fs.rmSync(outside, { recursive: true, force: true });
+    }
 });

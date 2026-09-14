@@ -241,57 +241,53 @@ async function executeBridgeJob(job = {}) {
     };
 }
 
-function executePatchJob(job = {}) {
+export async function executePatchJob(job = {}, { root = REPO_ROOT, fetchImpl = fetch } = {}) {
     const patch = job.patch || job.body || {};
     const dryRun = patch.dryRun === true;
-
-    if (
-        !dryRun &&
-        job.humanApproved !== true &&
-        patch.humanApproved !== true
-    ) {
-        throw new Error("PATCH_HUMAN_APPROVAL_REQUIRED");
-    }
-
-    const { normalized, target } = resolveRepoFile(patch.file);
-
-    if (!fs.existsSync(target)) {
-        throw new Error("PATCH_FILE_NOT_FOUND");
-    }
-
+    const { resolveRepoPath, assertNoSymlinkPath, assertWriteContent, readJarvisRuntimeContract } = await import("./jarvis-fs-bridge.js");
+    const normalized = String(patch.file || "").trim().replaceAll("\\", "/");
+    const target = resolveRepoPath(normalized, root);
+    assertNoSymlinkPath(root, target);
+    if (!fs.existsSync(target)) throw new Error("PATCH_FILE_NOT_FOUND");
     const search = String(patch.search || "");
     const replace = String(patch.replace || "");
-
     if (!search) throw new Error("PATCH_SEARCH_REQUIRED");
-
     const source = fs.readFileSync(target, "utf8");
     const matchCount = countExactMatches(source, search);
     const expectedMatches = Number(patch.expectedMatches || 1);
-
-    if (matchCount !== expectedMatches) {
-        throw new Error(
-            `PATCH_MATCH_COUNT_MISMATCH:${matchCount}:${expectedMatches}`
-        );
-    }
-
-    const next = source.replace(search, replace);
+    if (matchCount !== expectedMatches) throw new Error(`PATCH_MATCH_COUNT_MISMATCH:${matchCount}:${expectedMatches}`);
+    const next = source.split(search).join(replace);
     if (next === source) throw new Error("PATCH_NO_CHANGE");
-
+    assertWriteContent(next);
+    const sha256Before = createHash("sha256").update(source).digest("hex");
+    const sha256After = createHash("sha256").update(next).digest("hex");
+    let receipt = null;
     if (!dryRun) {
-        fs.writeFileSync(target, next, "utf8");
+        const grant = patch.authorization || {};
+        if (!["fingerprint", "nonce", "objectiveId", "caseId"].every(key => typeof grant[key] === "string" && grant[key].trim())) {
+            throw new Error("PATCH_ONE_TIME_AUTHORIZATION_REQUIRED");
+        }
+        if (grant.snapshotSha256 !== sha256Before || grant.expectedSha256 !== sha256After) {
+            throw new Error("PATCH_AUTHORIZED_SNAPSHOT_MISMATCH");
+        }
+        const response = await fetchImpl(`${BRIDGE_URL}/write`, {
+            method: "POST", headers: { "content-type": "application/json", "x-jarvis-release-id": readJarvisRuntimeContract(root).releaseId },
+            signal: AbortSignal.timeout(30000),
+            body: JSON.stringify({ fingerprint: grant.fingerprint, nonce: grant.nonce,
+                objectiveId: grant.objectiveId, caseId: grant.caseId, file: normalized,
+                snapshotSha256: sha256Before, expectedSha256: sha256After })
+        });
+        receipt = await response.json();
+        if (!response.ok || receipt?.ok !== true) throw new Error(receipt?.error || "PATCH_AUTHORIZATION_CONSUME_FAILED");
+        assertNoSymlinkPath(root, target);
+        if (receipt.fingerprint !== grant.fingerprint || receipt.file !== normalized || receipt.verified !== true ||
+            receipt.outputSha256 !== sha256After || sha256File(target) !== sha256After) {
+            throw new Error("PATCH_POST_VERIFY_FAILED");
+        }
     }
-
-    return {
-        ok: true,
-        operation: "patch",
-        dryRun,
-        file: normalized,
-        matchCount,
-        expectedMatches,
-        bytesBefore: Buffer.byteLength(source, "utf8"),
-        bytesAfter: Buffer.byteLength(next, "utf8"),
-        source: "sia7_github_worker_exact_patch_v1"
-    };
+    return { ok: true, operation: "patch", dryRun, file: normalized, matchCount, expectedMatches,
+        bytesBefore: Buffer.byteLength(source, "utf8"), bytesAfter: Buffer.byteLength(next, "utf8"),
+        sha256Before, sha256After, receipt, source: "sia7_github_worker_exact_patch_v1" };
 }
 
 function sha256File(file) {

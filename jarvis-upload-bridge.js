@@ -1380,7 +1380,7 @@ export function startJarvisUploadBridge({
                 repoRoot
         });
 
-    return app.listen(port, () => {
+    return app.listen(port, "127.0.0.1", () => {
         console.log(
             `[JARVIS_UPLOAD_BRIDGE] ${JARVIS_UPLOAD_BRIDGE_VERSION} online http://localhost:${port}`
         );

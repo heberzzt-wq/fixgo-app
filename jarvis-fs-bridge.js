@@ -2528,7 +2528,7 @@ function readWriteSnapshot(safePath) {
     return { exists: true, bytes: stat.size, sha256: sha256Text(content), content };
 }
 
-function assertNoSymlinkPath(root, safePath) {
+export function assertNoSymlinkPath(root, safePath) {
     const repoRoot = path.resolve(root);
     const relativeParts = path.relative(repoRoot, safePath).split(path.sep).filter(Boolean);
     let current = repoRoot;
@@ -5852,6 +5852,11 @@ export function createJarvisFsBridgeApp({
             if (authorization.nonce !== nonce) throw new Error("WRITE_NONCE_MISMATCH");
             if (authorization.objectiveId !== objectiveId) throw new Error("WRITE_OBJECTIVE_MISMATCH");
             if (authorization.caseId !== caseId) throw new Error("WRITE_CASE_MISMATCH");
+            for (const field of ["file", "snapshotSha256", "expectedSha256"]) {
+                if (req.body[field] !== undefined && req.body[field] !== authorization[field]) {
+                    throw new Error("WRITE_AUTHORIZATION_PAYLOAD_MISMATCH");
+                }
+            }
             const safePath = resolveRepoPath(authorization.file, root);
             assertNoSymlinkPath(root, safePath);
             const snapshot = readWriteSnapshot(safePath);
@@ -7993,7 +7998,7 @@ export function startJarvisFsBridge({
             root
         });
 
-    return app.listen(port, () => {
+    return app.listen(port, "127.0.0.1", () => {
         console.log(
             `[JARVIS_FS_BRIDGE] v${JARVIS_FS_BRIDGE_VERSION} online http://localhost:${port}`
         );

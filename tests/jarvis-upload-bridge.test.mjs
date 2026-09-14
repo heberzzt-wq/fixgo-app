@@ -9,9 +9,24 @@ import { test } from "node:test";
 
 import {
     createJarvisUploadBridgeApp,
+    startJarvisUploadBridge,
     JARVIS_UPLOAD_BRIDGE_VERSION,
     runResilientLocalWebResearch
 } from "../jarvis-upload-bridge.js";
+
+test("upload bridge startup binds only IPv4 loopback", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-upload-bind-"));
+    const server = startJarvisUploadBridge({ port: 0, root });
+    try {
+        await new Promise((resolve, reject) => { server.once("listening", resolve); server.once("error", reject); });
+        assert.equal(server.address().address, "127.0.0.1");
+        const response = await fetch(`http://127.0.0.1:${server.address().port}/health`);
+        assert.equal(response.status, 200);
+    } finally {
+        await new Promise(resolve => server.close(resolve));
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
 
 function initializeBridgeRoot() {
     const root =
