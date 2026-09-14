@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-index-privacy-provider-language-20260914-chatgpt-78",
+  "jobId": "v142-index-client-payment-terms-20260914-chatgpt-79",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "index.html",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                <p><strong>4. Transferencia de Datos:</strong> Sus datos bancarios son procesados por pasarelas seguras bajo encriptación militar. Compartiremos datos con autoridades solo por requerimiento legal.</p>",
-    "replace": "                <p><strong>4. Proveedores y transferencias:</strong> Para mostrar mapas, ubicación y rutas utilizamos Google Maps Platform, que procesa la información técnica y de ubicación necesaria para prestar esas funciones conforme a sus propias políticas. Los datos de pago son procesados por proveedores especializados con sus controles de seguridad aplicables. Compartiremos datos con autoridades únicamente cuando exista una obligación legal.</p>"
+    "search": "                <p><strong>2. Presupuestos y Pagos:</strong> El Cliente pagará el 100% del costo del servicio directamente al Técnico, según lo acordado en sitio. Si el Cliente solicita la visita y rechaza la cotización con el Técnico ya en sitio, se compromete a pagar una tarifa fija de $550.00 MXN por concepto de diagnóstico y traslado.</p>",
+    "replace": "                <p><strong>2. Presupuestos y Pagos:</strong> El importe, la garantía inicial, el presupuesto y el método de pago aplicables serán los mostrados y autorizados en la plataforma para cada servicio. Cuando exista un cargo de visita, diagnóstico o traslado, su importe deberá mostrarse antes de que el Cliente confirme la operación; el Técnico no puede sustituir por su cuenta los montos autorizados en la plataforma.</p>"
   }
 }
