@@ -1,18 +1,18 @@
 {
-  "jobId": "v142-index-legal-routing-test-20260914-chatgpt-84",
-  "completedAt": "2026-09-14T16:59:45.630Z",
+  "jobId": "v142-retire-v131-auto-cert-20260914-chatgpt-85",
+  "completedAt": "2026-09-14T17:02:11.891Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "tests/auth-routing-consistency.test.mjs",
+  "file": ".github/workflows/v131-reel-semantic-media-binding-cert.yml",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 16949,
-  "bytesAfter": 17479,
+  "bytesBefore": 4544,
+  "bytesAfter": 4600,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "tests/auth-routing-consistency.test.mjs"
+    ".github/workflows/v131-reel-semantic-media-binding-cert.yml"
   ]
 }
