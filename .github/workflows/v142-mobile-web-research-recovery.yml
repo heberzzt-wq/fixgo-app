@@ -194,6 +194,17 @@ jobs:
       - name: Full CI
         run: npm run ci:test
 
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: B2B and B2C security contracts
+        run: node --test tests/auth-routing-consistency.test.mjs tests/b2c-security-rules-contract.test.mjs
+
+      - name: B2B and B2C Firestore and Storage emulator
+        run: npm run test:b2c-emulators
+
       - name: Detect materialization state
         id: patch-state
         shell: bash
@@ -277,6 +288,9 @@ jobs:
       - name: Windows focal - mobile web research recovery
         shell: pwsh
         run: node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs
+      - name: Windows B2B and B2C security contracts
+        shell: pwsh
+        run: node --test tests/auth-routing-consistency.test.mjs tests/b2c-security-rules-contract.test.mjs
       - name: Windows focal - upload bridge
         shell: pwsh
         run: node --test --test-concurrency=1 tests/jarvis-upload-bridge.test.mjs

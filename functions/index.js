@@ -78,6 +78,114 @@ if (!admin.apps.length) {
     });
 }
 
+// B2B onboarding stays in the existing backend. The client never selects authority.
+async function requireB2bTenant(context, tenant, roles = null) {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Inicia sesión.');
+    if (typeof tenant !== 'string' || !tenant || tenant.includes('/')) throw new functions.https.HttpsError('invalid-argument', 'Edificio inválido.');
+    const actor = (await admin.firestore().doc(`users/${context.auth.uid}`).get()).data();
+    if (actor?.tipo_cuenta !== 'B2B' || (actor.edificioId || actor.tenantId) !== tenant ||
+        actor.status !== 'activo' || actor.suspendido === true || (roles && !roles.includes(actor.rol))) {
+        throw new functions.https.HttpsError('permission-denied', 'Operación fuera de la autoridad del edificio.');
+    }
+    return actor;
+}
+
+async function completeB2bRegistration(data, context) {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Inicia sesión.');
+    const clave = String(data?.clave || '').trim();
+    if (!clave || clave.length > 256) throw new functions.https.HttpsError('invalid-argument', 'Clave inválida.');
+    const db = admin.firestore();
+    const uid = context.auth.uid;
+    const limitId = crypto.createHash('sha256').update(String(context.rawRequest?.ip || uid)).digest('hex');
+    await db.runTransaction(async tx => {
+        const limitRef = db.doc(`gestia_rate_limits/b2b_onboarding_${limitId}`);
+        const prior = (await tx.get(limitRef)).data() || {};
+        const now = Date.now();
+        const count = now - (prior.startedAt || 0) < 3600000 ? Number(prior.count || 0) : 0;
+        if (count >= 10) throw new functions.https.HttpsError('resource-exhausted', 'Espera antes de volver a intentar la clave.');
+        tx.set(limitRef, { count: count + 1, startedAt: count ? prior.startedAt : now });
+    });
+    const profileRef = db.doc(`users/${uid}`);
+    return db.runTransaction(async tx => {
+        const existing = await tx.get(profileRef);
+        const keys = await tx.get(db.collection('b2b_keys').where('key', '==', clave).limit(2));
+        const key = keys.size === 1 ? keys.docs[0] : null;
+        const binding = key?.data();
+        if (existing.exists) {
+            const profile = existing.data();
+            if (binding?.usedBy === uid && profile.rol === 'admin_b2b' && profile.edificioId === binding.edificioId) return { ok: true };
+            throw new functions.https.HttpsError('already-exists', 'El perfil ya existe.');
+        }
+        const email = String(context.auth.token.email || '').toLowerCase();
+        if (!binding || binding.usedBy || binding.revoked === true || binding.active === false ||
+            typeof binding.edificioId !== 'string' || !binding.edificioId.trim() ||
+            (binding.expiresAt && (!binding.expiresAt.toMillis || binding.expiresAt.toMillis() <= Date.now())) ||
+            (binding.email && String(binding.email).toLowerCase() !== email)) {
+            throw new functions.https.HttpsError('permission-denied', 'Clave no disponible para esta cuenta.');
+        }
+        tx.create(profileRef, {
+            uid, email, nombre: String(data.nombre || '').trim().slice(0, 160),
+            rol: 'admin_b2b', tipo_cuenta: 'B2B', sub_type: 'saas',
+            edificioId: binding.edificioId, edificioNombre: String(binding.edificioNombre || ''),
+            estado: 'activo', status: 'activo', disponible: false,
+            verificado: false, aprobado: false, expediente_completo: false,
+            creadoEn: admin.firestore.FieldValue.serverTimestamp()
+        });
+        tx.update(key.ref, { usedBy: uid, usedAt: admin.firestore.FieldValue.serverTimestamp() });
+        return { ok: true };
+    });
+}
+
+async function provisionB2bPersonnel(data, context) {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Inicia sesión.');
+    const allowedRoles = ['supervisor', 'tecnico', 'seguridad_24_7', 'inquilino_b2b', 'recepcion'];
+    if (!allowedRoles.includes(data?.rol)) throw new functions.https.HttpsError('permission-denied', 'Rol no autorizado.');
+    const email = String(data.email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+        throw new functions.https.HttpsError('invalid-argument', 'Correo inválido.');
+    }
+    const db = admin.firestore();
+    const preliminary = (await db.doc(`users/${context.auth.uid}`).get()).data();
+    if (preliminary?.rol !== 'admin_b2b' || preliminary.tipo_cuenta !== 'B2B' || preliminary.status !== 'activo' ||
+        preliminary.suspendido === true || typeof preliminary.edificioId !== 'string' || !preliminary.edificioId.trim()) {
+        throw new functions.https.HttpsError('permission-denied', 'Administrador de edificio requerido.');
+    }
+    // No default password or invitation secret is returned to the tenant administrator.
+    // The owner requests Firebase's password-reset email from the existing login screen.
+    const account = await admin.auth().createUser({ email, password: crypto.randomBytes(32).toString('base64url'), emailVerified: false });
+    try {
+      return await db.runTransaction(async tx => {
+        const requester = await tx.get(db.doc(`users/${context.auth.uid}`));
+        const actor = requester.data();
+        if (actor?.rol !== 'admin_b2b' || actor.tipo_cuenta !== 'B2B' || actor.status !== 'activo' || actor.suspendido === true ||
+            typeof actor.edificioId !== 'string' || !actor.edificioId.trim()) {
+            throw new functions.https.HttpsError('permission-denied', 'Administrador de edificio requerido.');
+        }
+        const targetRef = db.doc(`users/${account.uid}`);
+        const target = await tx.get(targetRef);
+        // Never repurpose an existing marketplace profile or a different tenant's user.
+        if (target.exists) throw new functions.https.HttpsError('already-exists', 'Esta cuenta ya tiene un perfil; requiere vinculación autorizada independiente.');
+        tx.create(targetRef, {
+            uid: account.uid, email, nombre: String(data.nombre || '').trim().slice(0, 160),
+            telefono: String(data.telefono || '').slice(0, 40), especialidad: String(data.especialidad || '').slice(0, 120),
+            rol: data.rol, tipo_cuenta: 'B2B', edificioId: actor.edificioId,
+            edificioNombre: String(actor.edificioNombre || ''),
+            estado: 'documentos_pendientes', status: 'documentos_pendientes',
+            disponible: false, verificado: false, aprobado: false, expediente_completo: false,
+            creadoPor: context.auth.uid, creadoEn: admin.firestore.FieldValue.serverTimestamp()
+        });
+        return { ok: true, uid: account.uid };
+      });
+    } catch (error) {
+        // Roll back only the Auth account created by this invocation, never an existing account.
+        await admin.auth().deleteUser(account.uid);
+        throw error;
+    }
+}
+
+exports.completeB2bRegistration = functions.https.onCall(completeB2bRegistration);
+exports.provisionB2bPersonnel = functions.https.onCall(provisionB2bPersonnel);
+
 // FACTORIES
 const firewallFactory = require("./firewall/firewall.v5");
 
@@ -2101,6 +2209,8 @@ exports.reservarCancha = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('invalid-argument', 'Faltan parámetros críticos para procesar la reserva.');
     }
 
+    await requireB2bTenant(context, condominioId, null);
+
     try {
         return await db.runTransaction(async (transaction) => {
             const reservasRef = db.collection("reservas");
@@ -2108,7 +2218,8 @@ exports.reservarCancha = functions.https.onCall(async (data, context) => {
             // 🛡️ 2. BÚSQUEDA DE TRASLAPES (Blindaje de Disponibilidad V5.55)
             // Verificamos colisiones de tiempo en el mismo espacio y fecha.
             const traslapeSnap = await transaction.get(
-                reservasRef.where("amenityId", "==", amenityId)
+                reservasRef.where("condominioId", "==", condominioId)
+                            .where("amenityId", "==", amenityId)
                             .where("fecha", "==", fecha)
                             .where("estado", "==", "confirmado")
             );
@@ -2201,6 +2312,8 @@ exports.crearAcceso = functions.https.onCall(async (data, context) => {
     if (!condominioId || !moduloId || !payload) {
         throw new functions.https.HttpsError('invalid-argument', 'Faltan parámetros críticos (condominio/modulo/payload).');
     }
+
+    await requireB2bTenant(context, condominioId, ['admin_b2b', 'asistente_admin', 'recepcion', 'seguridad', 'seguridad_interna', 'seguridad_24_7']);
 
     try {
         /**
@@ -2383,6 +2496,8 @@ exports.registrarIngresoPaquete = functions.https.onCall(async (data, context) =
         throw new functions.https.HttpsError('invalid-argument', 'Faltan parámetros críticos (condominio/residente/empresa).');
     }
 
+    await requireB2bTenant(context, condominioId, ['admin_b2b', 'asistente_admin', 'recepcion', 'seguridad', 'seguridad_interna', 'seguridad_24_7']);
+
     try {
         const paqueteRef = db.collection("packages").doc(condominioId).collection("items").doc();
         
@@ -2441,6 +2556,8 @@ exports.registrarSalidaPaquete = functions.https.onCall(async (data, context) =>
         throw new functions.https.HttpsError('invalid-argument', 'condominioId y paqueteId son obligatorios.');
     }
 
+    await requireB2bTenant(context, condominioId, ['admin_b2b', 'asistente_admin', 'recepcion', 'seguridad', 'seguridad_interna', 'seguridad_24_7']);
+
     try {
         const paqueteRef = db.collection("packages").doc(condominioId).collection("items").doc(paqueteId);
         
@@ -2485,6 +2602,8 @@ exports.registrarIncidenciaAcceso = functions.https.onCall(async (data, context)
     if (!condominioId || !tipo_incidencia) {
         throw new functions.https.HttpsError('invalid-argument', 'condominioId y tipo_incidencia son requeridos.');
     }
+
+    await requireB2bTenant(context, condominioId, ['admin_b2b', 'asistente_admin', 'recepcion', 'seguridad', 'seguridad_interna', 'seguridad_24_7']);
 
     try {
         const ref = db.collection("security_logs").doc();
@@ -3255,6 +3374,21 @@ exports.despachoTaticoB2B = functions.https.onCall(async (data, context) => {
         
         if (!userSnap.exists) {
             throw new functions.https.HttpsError('not-found', 'Técnico no localizado en la base de datos.');
+        }
+
+        const actorSnap = await db.collection("users").doc(context.auth.uid).get();
+        const actor = actorSnap.data();
+        const target = userSnap.data();
+        if (actor?.rol !== 'admin_b2b' || actor.tipo_cuenta !== 'B2B' || actor.status !== 'activo' ||
+            actor.suspendido === true || !actor.edificioId || target?.edificioId !== actor.edificioId) {
+            throw new functions.https.HttpsError('permission-denied', 'Despacho fuera del edificio autorizado.');
+        }
+        if (typeof ordenId !== 'string' || !ordenId || ordenId.includes('/')) {
+            throw new functions.https.HttpsError('invalid-argument', 'Orden requerida.');
+        }
+        const order = (await db.collection('servicios_b2b').doc(ordenId).get()).data();
+        if (order?.edificioId !== actor.edificioId || order?.tecnicoId !== uidDestino) {
+            throw new functions.https.HttpsError('permission-denied', 'La orden no pertenece al destinatario y edificio.');
         }
 
         const token = userSnap.data()?.fcmToken;

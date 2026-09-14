@@ -98,7 +98,11 @@ service cloud.firestore {
     }
 
     function userAuthorityFieldsUnchanged() {
-      return request.resource.data.rol == resource.data.rol &&
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'role', 'tenantId', 'edificioId', 'edificioNombre', 'empresa_id',
+        'authority', 'permissions', 'claims', 'admin', 'aprobado',
+        'expediente_completo', 'uid', 'email', 'sub_type'
+      ]) && request.resource.data.rol == resource.data.rol &&
         request.resource.data.tipo_cuenta == resource.data.tipo_cuenta &&
         (
           (
@@ -177,7 +181,11 @@ service cloud.firestore {
 
     function userTenant() {
       let data = userData();
-      return data != null ? (data.edificioId != null ? data.edificioId : data.tenantId) : null;
+      return data != null ? data.get('edificioId', data.get('tenantId', null)) : null;
+    }
+
+    function tenantMember(tenant) {
+      return isAuth() && userTipo() == 'B2B' && tenant is string && tenant.size() > 0 && userTenant() == tenant;
     }
 
     function b2cServiceExists(serviceId) {
@@ -268,12 +276,12 @@ service cloud.firestore {
         b2cStoredSignatureValid(serviceId, technicianId, data.get('signature', {}));
     }
 
-    match /{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == 'nNhwy3Mx4pTvc8TZVh1tyTMFwhC2';
+    match /{collectionName}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == 'nNhwy3Mx4pTvc8TZVh1tyTMFwhC2' && collectionName != 'b2b_keys';
     }
 
     match /b2b_keys/{keyId} {
-      allow read: if true;
+      allow read: if false;
       allow write: if isAdmin();
     }
 
@@ -288,6 +296,18 @@ service cloud.firestore {
         (
           request.auth.uid == userId &&
           request.resource.data.uid == userId &&
+          request.resource.data.tipo_cuenta == 'B2C' &&
+          request.resource.data.get('role', null) == null &&
+          request.resource.data.get('tenantId', null) == null &&
+          request.resource.data.get('edificioId', null) == null &&
+          request.resource.data.get('empresa_id', null) == null &&
+          request.resource.data.get('authority', null) == null &&
+          request.resource.data.get('admin', false) == false &&
+          request.resource.data.get('permissions', null) == null &&
+          request.resource.data.get('claims', null) == null &&
+          request.resource.data.get('aprobado', false) == false &&
+          request.resource.data.get('verificado', false) == false &&
+          request.resource.data.get('expediente_completo', false) == false &&
           (
             technicianInitialStateIsSafe(request.resource.data) ||
             (
@@ -298,20 +318,10 @@ service cloud.firestore {
               request.resource.data.get('pagos', {}).get('stripe_autorizado', true) == false &&
               request.resource.data.get('pagos', {}).get('efectivo_autorizado', true) == false &&
               request.resource.data.get('efectivo_autorizado', false) == false
-            ) ||
-            (
-              request.resource.data.rol == 'admin_b2b' &&
-              request.resource.data.tipo_cuenta == 'B2B' &&
-              request.resource.data.estado == 'activo' &&
-              request.resource.data.status == 'activo' &&
-              request.resource.data.b2b_key_id is string &&
-              exists(/databases/$(database)/documents/b2b_keys/$(request.resource.data.b2b_key_id)) &&
-              get(/databases/$(database)/documents/b2b_keys/$(request.resource.data.b2b_key_id)).data.edificioId == request.resource.data.edificioId
             )
           )
         ) ||
-        isAdmin() ||
-        (userRole() == 'admin_b2b' && request.resource.data.edificioId == userData().edificioId)
+        isAdmin()
       );
 
       allow update: if isAuth() && (
@@ -338,7 +348,11 @@ service cloud.firestore {
             )
           )
         ) ||
-        (userRole() == 'admin_b2b' && resource.data.edificioId == userData().edificioId)
+        (userRole() == 'admin_b2b' && userTipo() == 'B2B' &&
+          userTenant() != null && resource.data.get('edificioId', null) == userTenant() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'nombre', 'telefono', 'especialidad', 'actualizadoEn'
+          ]))
       );
     }
 
@@ -355,7 +369,7 @@ service cloud.firestore {
         isAdmin() ||
         resource.data.cliente_id == request.auth.uid ||
         resource.data.get('tecnico_id', null) == request.auth.uid ||
-        (resource.data.get('tipo', null) == 'mantenimiento' && isTecnico())
+        (resource.data.get('tipo', null) == 'mantenimiento' && isTecnico() && tenantMember(resource.data.get('edificioId', null)))
       );
 
       allow create: if isAuth() &&
@@ -366,7 +380,7 @@ service cloud.firestore {
         request.resource.data.get('sub_servicio', '') == 'GENERAL' &&
         get(/databases/$(database)/documents/configuracion/catalogo_global).data.get('maint_general', false) == true &&
         request.resource.data.cliente_id == request.auth.uid &&
-        userTipo() == 'B2B';
+        userTipo() == 'B2B' && tenantMember(request.resource.data.get('edificioId', null));
 
       allow update: if isAuth() && (
         isAdmin() ||
@@ -607,58 +621,81 @@ service cloud.firestore {
     }
 
     match /notificaciones_pendientes/{notiId} {
-      allow create: if isAuth() && (
-        isAdmin() ||
-        userRole() in [
-          'admin_b2b', 'ceo', 'admin', 'asistente_admin', 'recepcion',
-          'seguridad', 'seguridad_interna', 'seguridad_24_7'
-        ]
+      allow create: if isAdmin() || (
+        userRole() == 'admin_b2b' &&
+        tenantMember(get(/databases/$(database)/documents/users/$(request.resource.data.tecnicoId)).data.get('edificioId', null)) &&
+        get(/databases/$(database)/documents/servicios_b2b/$(request.resource.data.ordenId)).data.get('tecnicoId', null) == request.resource.data.tecnicoId &&
+        tenantMember(get(/databases/$(database)/documents/servicios_b2b/$(request.resource.data.ordenId)).data.get('edificioId', null)) &&
+        request.resource.data.get('audit_user', '') == request.auth.uid
       );
-      allow read: if isAuth();
+      allow read: if isAdmin() || (isAuth() && resource.data.get('tecnicoId', null) == request.auth.uid);
       allow update, delete: if isAdmin();
     }
 
     match /anuncios_b2b/{anuncioId} {
-      allow read: if isAuth() && (
-        isAdmin() ||
-        userData().edificioId == resource.data.edificioId ||
-        userRole() in ['admin_b2b', 'ceo', 'admin', 'asistente_admin', 'recepcion', 'seguridad', 'seguridad_interna', 'seguridad_24_7']
-      );
-      allow create: if isAuth() && (
-        isAdmin() ||
-        userRole() in ['admin_b2b', 'ceo', 'admin', 'asistente_admin', 'recepcion', 'seguridad', 'seguridad_interna', 'seguridad_24_7']
-      );
-      allow update, delete: if isAdmin() || (isAuth() && request.auth.uid == resource.data.autor_uid);
+      allow read: if isAdmin() || tenantMember(resource.data.get('edificioId', null));
+      allow create: if isAdmin() || (tenantMember(request.resource.data.get('edificioId', null)) &&
+        request.resource.data.get('autor_uid', '') == request.auth.uid &&
+        userRole() in ['admin_b2b', 'asistente_admin', 'recepcion', 'seguridad', 'seguridad_interna', 'seguridad_24_7']);
+      allow update: if isAdmin() || (tenantMember(resource.data.get('edificioId', null)) &&
+        request.auth.uid == resource.data.autor_uid &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['edificioId', 'autor_uid']));
+      allow delete: if isAdmin() || (tenantMember(resource.data.get('edificioId', null)) && request.auth.uid == resource.data.autor_uid);
     }
 
     match /alertas_seguridad/{document} {
-      allow read, write: if isAuth();
+      allow read, delete: if isAdmin() || tenantMember(resource.data.get('edificioId', null));
+      allow create: if isAdmin() || tenantMember(request.resource.data.get('edificioId', null));
+      allow update: if isAdmin() || (tenantMember(resource.data.get('edificioId', null)) &&
+        request.resource.data.get('edificioId', null) == resource.data.get('edificioId', null));
     }
 
     match /servicios_b2b/{servicioId} {
-      allow read: if isAuth() && (
-        isAdmin() || isTecnico() || userRole() == 'admin_b2b' || userTipo() == 'B2B'
+      allow read: if isAdmin() || tenantMember(resource.data.get('edificioId', null));
+      allow create: if isAdmin() || (
+        tenantMember(request.resource.data.get('edificioId', null)) &&
+        request.resource.data.get('status', '') == 'pendiente' &&
+        request.resource.data.keys().hasOnly([
+          'edificioId', 'edificioNombre', 'ubicacion_especifica', 'descripcion', 'prioridad',
+          'tecnicoId', 'tecnico_nombre', 'status', 'fecha_programada', 'equipo', 'tipo',
+          'fecha_creacion', 'creado_por', 'origen'
+        ]) &&
+        (request.resource.data.get('tecnicoId', null) == null || (
+          userRole() == 'admin_b2b' &&
+          get(/databases/$(database)/documents/users/$(request.resource.data.tecnicoId)).data.get('edificioId', null) == userTenant()
+        ))
       );
-      allow create: if isAuth() && (isAdmin() || isTecnico() || userTipo() == 'B2B');
-      allow update: if isAuth() && (
-        isAdmin() ||
-        (isTecnico() && userData().edificioId == resource.data.edificioId && tienePaseCaseta()) ||
-        (userTipo() == 'B2B' && resource.data.edificioId == userData().edificioId)
+      allow update: if isAdmin() || (
+        tenantMember(resource.data.get('edificioId', null)) && isTecnico() && tienePaseCaseta() &&
+        resource.data.get('tecnicoId', request.auth.uid) == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'diagnostico_inicial', 'foto_antes', 'foto_despues', 'fecha_diagnostico',
+          'materiales_utilizados', 'observaciones_finales', 'firma_conformidad', 'fecha_cierre', 'status'
+        ]) && (
+          request.resource.data.status == resource.data.status ||
+          (resource.data.status in ['pendiente', 'programado'] && request.resource.data.status == 'en_proceso' &&
+            isDocumentReference(request.resource.data.get('foto_antes', null))) ||
+          (resource.data.status == 'en_proceso' && request.resource.data.status == 'finalizado' &&
+            isDocumentReference(request.resource.data.get('foto_antes', null)) &&
+            isDocumentReference(request.resource.data.get('foto_despues', null)) &&
+            isDocumentReference(request.resource.data.get('firma_conformidad', null)))
+        )
       );
     }
 
     match /config_rutinas/{edificioId} {
-      allow read: if isAuth() && (isTecnico() || isAdmin() || userTipo() == 'B2B');
-      allow write: if isAdmin() || (isAuth() && userTipo() == 'B2B');
+      allow read: if isAdmin() || tenantMember(edificioId);
+      allow write: if isAdmin() || (tenantMember(edificioId) && userRole() == 'admin_b2b');
     }
 
     match /log_rutinas/{logId} {
-      allow read: if isAuth() && (isTecnico() || isAdmin() || userTipo() == 'B2B');
-      allow create: if isAuth() && isTecnico() && request.resource.data.tecnicoId == request.auth.uid && tienePaseCaseta();
+      allow read: if isAdmin() || tenantMember(resource.data.get('edificioId', null));
+      allow create: if tenantMember(request.resource.data.get('edificioId', null)) && isTecnico() && request.resource.data.tecnicoId == request.auth.uid && tienePaseCaseta();
     }
 
     match /bitacora_edificios/{bitId} {
-      allow read, create: if isAuth() && (isTecnico() || isAdmin() || userTipo() == 'B2B');
+      allow read: if isAdmin() || tenantMember(resource.data.get('edificioId', null));
+      allow create: if isAdmin() || tenantMember(request.resource.data.get('edificioId', null));
     }
 
     match /transacciones/{txId} {
@@ -677,14 +714,14 @@ service cloud.firestore {
     }
 
     match /empresas_b2b/{empresaId} {
-      allow read: if isAuth();
+      allow read: if isAdmin() || tenantMember(empresaId);
 
       match /areas/{areaId} {
-        allow read, write: if isAuth();
+        allow read, write: if isAdmin() || tenantMember(empresaId);
       }
 
       match /activos/{activoId} {
-        allow read: if isAuth();
+        allow read: if isAdmin() || tenantMember(empresaId);
         allow create, update: if isAuth() && (
           isAdmin() || (userRole() == 'admin_b2b' && userData().edificioId == empresaId)
         ) &&
@@ -692,12 +729,12 @@ service cloud.firestore {
         (!('especificaciones_tecnicas' in request.resource.data) || !('potencia_hp' in request.resource.data.especificaciones_tecnicas) || request.resource.data.especificaciones_tecnicas.potencia_hp is number);
 
         match /bitacora/{bitId} {
-          allow create, read: if isAuth();
+          allow create, read: if isAdmin() || tenantMember(empresaId);
         }
       }
 
       match /mantenimiento/{tareaId} {
-        allow read: if isAuth();
+        allow read: if isAdmin() || tenantMember(empresaId);
         allow create: if isAuth() && (
           isAdmin() || (userRole() == 'admin_b2b' && userData().edificioId == empresaId)
         ) && request.resource.data.keys().hasAll(['id_tarea', 'id_activo', 'sistema', 'frecuencia', 'estado']) &&
@@ -719,11 +756,11 @@ service cloud.firestore {
     }
 
     match /gestia_records/{tenantId} {
-      allow read: if true;
+      allow read: if isAdmin() || tenantMember(tenantId);
       match /{moduloId} {
-        allow read: if true;
+        allow read: if isAdmin() || tenantMember(tenantId);
         match /{docId} {
-          allow read, write: if true;
+          allow read, write: if isAdmin() || tenantMember(tenantId);
         }
       }
     }
@@ -743,15 +780,15 @@ service cloud.firestore {
     }
 
     match /flotilla_b2b/{tenantId}/{document=**} {
-      allow read, write: if isAuth();
+      allow read, write: if isAdmin() || tenantMember(tenantId);
     }
 
     match /packages/{tenantId}/items/{docId} {
-      allow read, write: if true;
+      allow read, write: if isAdmin() || tenantMember(tenantId);
     }
 
     match /packages/{tenantId}/{docId} {
-      allow read, write: if true;
+      allow read, write: if isAdmin() || tenantMember(tenantId);
     }
   }
 }

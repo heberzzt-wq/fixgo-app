@@ -17,7 +17,7 @@ test("users no permite lectura indiscriminada ni autoaprobación", () => {
 test("services reserva la creación B2C al backend y conserva B2B", () => {
     const servicesBlock = firestore.slice(firestore.indexOf("match /services/{serviceId}"), firestore.indexOf("match /notificaciones_pendientes"));
     assert.match(servicesBlock, /cliente_id == request\.auth\.uid/);
-    assert.match(servicesBlock, /B2C se crea sólo mediante createB2cService/);
+    assert.match(servicesBlock, /allow create: if isAuth\(\) &&\s*request\.resource\.data\.get\('metodo_pago', ''\) == 'b2b'/);
     assert.match(servicesBlock, /metodo_pago', ''\) == 'b2b'/);
     assert.match(servicesBlock, /userTipo\(\) == 'B2B'/);
     assert.match(servicesBlock, /categoria_id', ''\) == 'maint_general'/);
@@ -31,7 +31,7 @@ test("la bolsa B2C publica una proyección y el claim no se autoriza desde regla
     const marketplaceBlock = firestore.slice(firestore.indexOf("match /service_marketplace/{serviceId}"), firestore.indexOf("match /technician_active_services"));
     assert.match(marketplaceBlock, /allow read: if isOperationalTechnician\(\) \|\| isAdmin\(\)/);
     assert.doesNotMatch(marketplaceBlock, /allow create: if isAuth/);
-    assert.match(firestore, /El expediente completo permanece en services/);
+    assert.match(marketplaceBlock, /allow write: if isAdmin\(\)/);
 });
 
 test("retiros y transacciones financieras sólo se escriben desde backend", () => {
@@ -54,4 +54,13 @@ test("Storage protege expedientes y niega rutas no inventariadas", () => {
     assert.match(storage, /match \/\{allPaths=\*\*\}/);
     assert.match(storage, /allow read, write: if false/);
     assert.doesNotMatch(storage, /match \/b\/\{bucket\}\/o\s*\{\s*allow read, write: if request\.auth != null/);
+});
+
+test("B2B onboarding usa backend y no permite provisioning de autoridad desde el panel", () => {
+    const panel = fs.readFileSync(new URL('../panel-b2b-admin.js', import.meta.url), 'utf8');
+    const client = fs.readFileSync(new URL('../firebase.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(panel, /createUserWithEmailAndPassword|secondaryAuth|Uxmal39\*/);
+    assert.match(panel, /provisionB2bPersonnel/);
+    assert.doesNotMatch(client, /collection\(db, "b2b_keys"\)/);
+    assert.match(client, /completeB2bRegistration/);
 });

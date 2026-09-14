@@ -17,11 +17,7 @@ import { getPlatformServiceWorkerRegistration, initializePlatformRelease } from 
 initializePlatformRelease().catch(error => console.error("[GESTIA_RELEASE_AUTHORITY_FAILED]", error));
 
 import { 
-    initializeApp 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-
-import { 
-    getAuth, createUserWithEmailAndPassword, signOut 
+    signOut
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 
@@ -1159,33 +1155,12 @@ document.getElementById("formAltaPersonal").addEventListener("submit", async (e)
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> REGISTRANDO...';
 
     try {
-        const secondaryApp = initializeApp(app.options, "Secondary" + Date.now());
-        const secondaryAuth = getAuth(secondaryApp);
-        
-        // 🔥 CLAVE POR DEFECTO ACTUALIZADA A Uxmal39*
-        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, "Uxmal39*");
-        const nuevoUid = userCredential.user.uid;
-        await signOut(secondaryAuth);
-
-        await setDoc(doc(db, "users", nuevoUid), {
-            nombre: name,
-            email: email,
+        await httpsCallable(getFunctions(app), "provisionB2bPersonnel")({
+            nombre: name, email, rol,
             telefono: document.getElementById("regTelefono").value.trim(),
-            especialidad: document.getElementById("regEspecialidad").value,
-            rol: rol,
-            tipo_cuenta: "B2B",
-            edificioId: adminContext.edificioId,
-            edificioNombre: adminContext.edificioNombre || "Residencial",
-            estado: "activo",
-            status: "activo",
-            disponible: true,
-            verificado: true,
-            aprobado: true,
-            expediente_completo: true,
-            fecha_registro: serverTimestamp()
+            especialidad: document.getElementById("regEspecialidad").value
         });
-
-        alert(`✅ ${name} registrado con éxito.`);
+        alert(`✅ ${name}: cuenta creada, documentación pendiente. Debe establecer su contraseña usando la recuperación de acceso.`);
         document.getElementById("modalAltaPersonal").classList.add("hidden"); 
         document.getElementById("formAltaPersonal").reset();
 

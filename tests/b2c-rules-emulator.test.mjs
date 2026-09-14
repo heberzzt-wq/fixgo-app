@@ -1,10 +1,11 @@
 import fs from "node:fs";
 import test, { after, before } from "node:test";
 import { initializeTestEnvironment, assertFails, assertSucceeds } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes } from "firebase/storage";
 
 let environment;
+const firebaseConfig = JSON.parse(fs.readFileSync(new URL('../firebase.json', import.meta.url), 'utf8'));
 
 const documentRef = name => ({ storage_path: `expedientes/tech-1/${name}/current.png` });
 const operationalTechnician = {
@@ -25,16 +26,17 @@ const operationalTechnician = {
 before(async () => {
     environment = await initializeTestEnvironment({
         projectId: "fixgo-b2c-rules-test",
-        firestore: { rules: fs.readFileSync(new URL("../security/firestore-console-snapshot-2026-07-30.rules.txt", import.meta.url), "utf8") },
+        firestore: { rules: fs.readFileSync(new URL(`../${firebaseConfig.firestore.rules}`, import.meta.url), "utf8") },
         storage: { rules: fs.readFileSync(new URL("../security/storage-hardening-candidate.rules.txt", import.meta.url), "utf8") }
     });
+    await environment.clearFirestore();
     await environment.withSecurityRulesDisabled(async context => {
         const db = context.firestore();
         await setDoc(doc(db, "users/client-1"), {
             rol: "cliente", tipo_cuenta: "B2C", estado: "activo", status: "activo",
             pagos: { stripe_autorizado: false, efectivo_autorizado: true }
         });
-        await setDoc(doc(db, "users/b2b-1"), { rol: "cliente", tipo_cuenta: "B2B", estado: "activo", status: "activo" });
+        await setDoc(doc(db, "users/b2b-1"), { rol: "cliente", tipo_cuenta: "B2B", estado: "activo", status: "activo", edificioId: "uxmal39" });
         await setDoc(doc(db, "users/b2b-tech"), {
             rol: "tecnico", tipo_cuenta: "B2B", estado: "activo", status: "activo", edificioId: "uxmal39"
         });
@@ -99,11 +101,11 @@ test("creación B2C directa falla y el contrato B2B separado permanece", async (
     }));
     const b2bDb = environment.authenticatedContext("b2b-1").firestore();
     await assertSucceeds(setDoc(doc(b2bDb, "services/direct-b2b"), {
-        cliente_id: "b2b-1", metodo_pago: "b2b", estado: "pendiente",
+        cliente_id: "b2b-1", metodo_pago: "b2b", estado: "pendiente", edificioId: "uxmal39",
         tipo: "mantenimiento", categoria: "MAINT", categoria_id: "maint_general", sub_servicio: "GENERAL"
     }));
     await assertFails(setDoc(doc(b2bDb, "services/direct-b2b-road"), {
-        cliente_id: "b2b-1", metodo_pago: "b2b", estado: "pendiente",
+        cliente_id: "b2b-1", metodo_pago: "b2b", estado: "pendiente", edificioId: "uxmal39",
         tipo: "mantenimiento", categoria: "ROAD", categoria_id: "road_llanta", sub_servicio: "LLANTA"
     }));
 });
@@ -232,4 +234,46 @@ test("movimientos financieros B2C se reservan al backend", async () => {
     await assertFails(setDoc(doc(db, "transacciones/direct-client-write"), {
         tecnico_id: "tech-1", pago_tecnico: 999999, tipo: "abono"
     }));
+});
+
+test("B2B niega claves, escalación y autoaprobación sin bloquear edición operativa", async () => {
+    for (const context of [environment.unauthenticatedContext(), environment.authenticatedContext('b2b-tech'), environment.authenticatedContext('b2b-admin'), environment.authenticatedContext('nNhwy3Mx4pTvc8TZVh1tyTMFwhC2')]) {
+        const keyDb = context.firestore();
+        await assertFails(getDocs(collection(keyDb, 'b2b_keys')));
+        await assertFails(getDoc(doc(keyDb, 'b2b_keys/known-key')));
+    }
+    const manager = environment.authenticatedContext('b2b-admin').firestore();
+    for (const change of [{rol:'admin'}, {role:'ceo'}, {edificioId:'otro'}, {tenantId:'otro'}, {aprobado:true}, {verificado:true}, {expediente_completo:true}, {authority:'admin'}]) {
+        await assertFails(updateDoc(doc(manager, 'users/b2b-tech'), change));
+        await assertFails(updateDoc(doc(environment.authenticatedContext('b2b-tech').firestore(), 'users/b2b-tech'), change));
+    }
+    await assertSucceeds(updateDoc(doc(manager, 'users/b2b-tech'), {telefono:'5550100'}));
+    await assertFails(updateDoc(doc(manager, 'users/b2b-other'), {telefono:'5550100'}));
+    await assertFails(setDoc(doc(manager, 'users/new-admin'), {uid:'new-admin',rol:'admin',edificioId:'uxmal39'}));
+    for (const change of [{aprobado:true}, {verificado:true}, {role:'ceo'}, {edificioId:'uxmal39'}, {authority:'admin'}]) {
+        const uid = 'new-client-' + Object.keys(change)[0];
+        await assertFails(setDoc(doc(environment.authenticatedContext(uid).firestore(), 'users', uid), {
+            uid, rol:'cliente', tipo_cuenta:'B2C', estado:'activo', status:'activo',
+            pagos:{stripe_autorizado:false,efectivo_autorizado:false}, ...change
+        }));
+    }
+});
+
+test('tenant isolation covers existing B2B paths and service creation', async () => {
+    const paths=['empresas_b2b/other/areas/a','empresas_b2b/other/activos/a','flotilla_b2b/other/items/a','packages/other/items/a','gestia_records/other/orders/a','alertas_seguridad/other-a','servicios_b2b/other-a'];
+    await environment.withSecurityRulesDisabled(async context=>{
+        const fixtureDb = context.firestore();
+        for(const path of paths) await setDoc(doc(fixtureDb,path),{edificioId:'other',status:'pendiente'});
+    });
+    const own=environment.authenticatedContext('b2b-tech').firestore();
+    for(const path of paths){
+        await assertFails(getDoc(doc(own,path)));
+        await assertFails(setDoc(doc(own,path),{edificioId:'other',status:'pendiente'}));
+    }
+    await assertFails(setDoc(doc(own,'servicios_b2b/foreign-create'),{edificioId:'other',status:'pendiente'}));
+    await assertSucceeds(setDoc(doc(own,'servicios_b2b/own-create'),{edificioId:'uxmal39',status:'pendiente',descripcion:'Rutina'}));
+    await assertFails(updateDoc(doc(own,'servicios_b2b/own-create'),{edificioId:'other'}));
+    await assertFails(updateDoc(doc(own,'servicios_b2b/own-create'),{status:'finalizado'}));
+    await assertSucceeds(setDoc(doc(own,'packages/uxmal39/items/own'),{descripcion:'Paquete'}));
+    await assertSucceeds(getDoc(doc(own,'packages/uxmal39/items/own')));
 });

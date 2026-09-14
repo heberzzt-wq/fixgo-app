@@ -277,36 +277,7 @@ export function observarAuth(callback) {
 // 🔐 VALIDACIÓN CLAVE B2B
 // ======================================================
 
-export async function validarClaveB2B(clave) {
-
-    if (!clave) return null;
-
-    try {
-
-        const q = query(
-            collection(db, "b2b_keys"),
-            where("key", "==", clave),
-            limit(1)
-        );
-
-        const snap = await getDocs(q);
-
-        if (snap.empty) return null;
-
-        return { ...snap.docs[0].data(), _keyId: snap.docs[0].id };
-
-    } catch (e) {
-
-        console.error("Error validando clave B2B:", e);
-
-        return null;
-
-    }
-
-}
-
-
-
+// La clave se valida y consume exclusivamente en completeB2bRegistration.
 // ======================================================
 // 📝 REGISTRO BLINDADO (ATÓMICO V5.30 - NO CORTAR)
 // ======================================================
@@ -325,7 +296,9 @@ export async function registrarUsuario(
 
         console.log("🚀 Iniciando registro atómico para:", email);
 
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        const cred = b2bData && auth.currentUser?.email?.toLowerCase() === email.toLowerCase()
+            ? { user: auth.currentUser }
+            : await createUserWithEmailAndPassword(auth, email, password);
 
         const uid = cred.user.uid;
 
@@ -389,7 +362,11 @@ export async function registrarUsuario(
 
 
         // Escritura en Colección Maestra
-        await setDoc(doc(db, "users", uid), perfil);
+        if (b2bData) {
+            await httpsCallable(cloudFunctions, "completeB2bRegistration")({ clave: b2bData.clave, nombre });
+        } else {
+            await setDoc(doc(db, "users", uid), perfil);
+        }
 
 
         // users/{uid} es la única fuente de verdad para altas nuevas. Las colecciones

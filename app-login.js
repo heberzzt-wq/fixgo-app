@@ -23,6 +23,7 @@ const db =
 import {
 
     signInWithEmailAndPassword,
+    sendPasswordResetEmail,
 
     GoogleAuthProvider,
 
@@ -32,6 +33,17 @@ import {
 
 }
 from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+document.getElementById('btnResetPassword')?.addEventListener('click', async () => {
+    const email = document.querySelector('#formLogin [name="email"]')?.value.trim();
+    if (!email) { alert('Escribe tu correo para establecer o recuperar tu contraseña.'); return; }
+    try {
+        await sendPasswordResetEmail(auth, email);
+        alert('Si existe una cuenta para ese correo, recibirás las instrucciones de acceso.');
+    } catch (error) {
+        alert(error.code === 'auth/too-many-requests' ? 'Espera antes de volver a intentarlo.' : 'No se pudo solicitar la recuperación. Revisa el correo y tu conexión.');
+    }
+});
 
 import {
 

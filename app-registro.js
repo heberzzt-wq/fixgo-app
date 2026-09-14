@@ -26,7 +26,7 @@ import {
     updateDoc,
     serverTimestamp,
     observarAuth,
-    validarClaveB2B // 🔥 INYECCIÓN: Importamos el validador de llaves
+
 } from "./firebase.js";
 
 import {
@@ -284,16 +284,6 @@ if (btnRegistroCliente) {
                 btnRegistroCliente.innerHTML = '<i class="fas fa-key"></i> Verificando Clave B2B...';
                 btnRegistroCliente.disabled = true;
 
-                datosLlave = await validarClaveB2B(codigoB2B);
-
-                if (!datosLlave) {
-                    alert("❌ La Clave B2B ingresada es incorrecta o no existe. Verifica con tu corporativo.");
-                    btnRegistroCliente.innerHTML = textoOriginal;
-                    btnRegistroCliente.disabled = false;
-                    window.isRegisteringLocal = false;
-                    return; 
-                }
-                
                 esAdminB2B = true;
             }
 
@@ -322,8 +312,7 @@ if (btnRegistroCliente) {
                 subtipoFinal, 
                 null, // empresaId
                 esAdminB2B ? {
-                    edificioId: datosLlave.edificioId,
-                    edificioNombre: datosLlave.edificioNombre
+                    clave: codigoB2B
                 } : null
             );
 
