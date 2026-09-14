@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-index-delete-data-link-20260914-chatgpt-75",
+  "jobId": "v142-index-legal-deeplink-20260914-chatgpt-76",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "index.html",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "            <a href=\"eliminar-datos.html\" class=\"hover:text-white transition-colors\">Eliminar Datos</a>",
-    "replace": "            <a href=\"#eliminar-datos\" onclick=\"document.getElementById('modalEliminacion')?.classList.remove('hidden')\" class=\"hover:text-white transition-colors\">Eliminar Datos</a>"
+    "search": "        const btnLogoutIndex = document.getElementById('btnLogoutIndex');",
+    "replace": "        const btnLogoutIndex = document.getElementById('btnLogoutIndex');\n\n        const openLegalModalFromHash = () => {\n            const modalId = window.location.hash === '#privacidad'\n                ? 'modalPrivacidad'\n                : window.location.hash === '#eliminar-datos'\n                    ? 'modalEliminacion'\n                    : '';\n            if (modalId) document.getElementById(modalId)?.classList.remove('hidden');\n        };\n        window.addEventListener('hashchange', openLegalModalFromHash);\n        openLegalModalFromHash();"
   }
 }
