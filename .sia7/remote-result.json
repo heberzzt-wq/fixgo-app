@@ -1,18 +1,18 @@
 {
-  "jobId": "v142-footer-terms-direct-modal-20260914-chatgpt-94",
-  "completedAt": "2026-09-14T17:50:11.062Z",
+  "jobId": "v142-footer-one-shot-deploy-gate-20260914-chatgpt-95",
+  "completedAt": "2026-09-14T17:54:14.473Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": "index.html",
+  "file": ".github/workflows/v142-mobile-web-research-recovery.yml",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 27264,
-  "bytesAfter": 27360,
+  "bytesBefore": 28866,
+  "bytesAfter": 28908,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    "index.html"
+    ".github/workflows/v142-mobile-web-research-recovery.yml"
   ]
 }
