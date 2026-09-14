@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-index-legal-deeplink-20260914-chatgpt-76",
+  "jobId": "v142-index-privacy-maps-purpose-20260914-chatgpt-77",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "index.html",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        const btnLogoutIndex = document.getElementById('btnLogoutIndex');",
-    "replace": "        const btnLogoutIndex = document.getElementById('btnLogoutIndex');\n\n        const openLegalModalFromHash = () => {\n            const modalId = window.location.hash === '#privacidad'\n                ? 'modalPrivacidad'\n                : window.location.hash === '#eliminar-datos'\n                    ? 'modalEliminacion'\n                    : '';\n            if (modalId) document.getElementById(modalId)?.classList.remove('hidden');\n        };\n        window.addEventListener('hashchange', openLegalModalFromHash);\n        openLegalModalFromHash();"
+    "search": "                <p><strong>3. Finalidades:</strong> Conectar clientes con técnicos, procesar pagos, rastreo de seguridad durante el servicio, y validación de antecedentes (KYC).</p>",
+    "replace": "                <p><strong>3. Finalidades:</strong> Conectar clientes con técnicos, procesar pagos, habilitar el rastreo de seguridad durante servicios activos, mostrar ubicación y rutas operativas mediante Google Maps, y realizar validaciones de identidad y cumplimiento cuando correspondan.</p>"
   }
 }
