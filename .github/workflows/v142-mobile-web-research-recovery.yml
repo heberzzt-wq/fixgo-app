@@ -391,7 +391,7 @@ jobs:
 
   deploy-v142:
     needs: [certify-linux, certify-windows, materialize-v142]
-    if: ${{ ((github.event_name == 'workflow_dispatch' && inputs.deploy == true) || (github.event_name == 'push' && github.event.head_commit.message == 'SIA7 result v142-footer-legal-live-deploy-20260914-chatgpt-96')) && always() && needs.certify-linux.result == 'success' && needs.certify-windows.result == 'success' && (needs.certify-linux.outputs.product_changed == 'false' || needs.materialize-v142.result == 'success') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy == true && always() && needs.certify-linux.result == 'success' && needs.certify-windows.result == 'success' && (needs.certify-linux.outputs.product_changed == 'false' || needs.materialize-v142.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 55
     steps:
