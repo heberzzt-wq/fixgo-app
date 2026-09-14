@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-policies-cash-conditional-20260914-chatgpt-83",
+  "jobId": "v142-index-legal-routing-test-20260914-chatgpt-84",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "politicas.html",
+    "file": "tests/auth-routing-consistency.test.mjs",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                <li><strong class=\"text-gray-200\">Pago en Efectivo:</strong> Se realiza de forma directa al especialista únicamente al finalizar la reparación.</li>",
-    "replace": "                <li><strong class=\"text-gray-200\">Pago en Efectivo:</strong> Solo estará disponible cuando la plataforma lo habilite expresamente para el servicio o perfil correspondiente. Cualquier comisión, saldo o movimiento derivado de ese método quedará registrado por la plataforma para su conciliación.</li>"
+    "search": "test(\"central router preserves privileged admin surfaces and role aliases\", () => {",
+    "replace": "test(\"public index keeps legal notices addressable without dead pages\", () => {\n    const index = fs.readFileSync(path.join(root, \"index.html\"), \"utf8\");\n\n    assert.match(index, /href=\"#privacidad\"/);\n    assert.match(index, /href=\"#eliminar-datos\"/);\n    assert.match(index, /id=\"modalPrivacidad\"/);\n    assert.match(index, /id=\"modalEliminacion\"/);\n    assert.match(index, /openLegalModalFromHash/);\n    assert.doesNotMatch(index, /href=\"privacidad\\.html\"/);\n    assert.doesNotMatch(index, /href=\"eliminar-datos\\.html\"/);\n});\n\ntest(\"central router preserves privileged admin surfaces and role aliases\", () => {"
   }
 }
