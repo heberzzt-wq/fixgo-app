@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-index-privacy-maps-purpose-20260914-chatgpt-77",
+  "jobId": "v142-index-privacy-provider-language-20260914-chatgpt-78",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "index.html",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                <p><strong>3. Finalidades:</strong> Conectar clientes con técnicos, procesar pagos, rastreo de seguridad durante el servicio, y validación de antecedentes (KYC).</p>",
-    "replace": "                <p><strong>3. Finalidades:</strong> Conectar clientes con técnicos, procesar pagos, habilitar el rastreo de seguridad durante servicios activos, mostrar ubicación y rutas operativas mediante Google Maps, y realizar validaciones de identidad y cumplimiento cuando correspondan.</p>"
+    "search": "                <p><strong>4. Transferencia de Datos:</strong> Sus datos bancarios son procesados por pasarelas seguras bajo encriptación militar. Compartiremos datos con autoridades solo por requerimiento legal.</p>",
+    "replace": "                <p><strong>4. Proveedores y transferencias:</strong> Para mostrar mapas, ubicación y rutas utilizamos Google Maps Platform, que procesa la información técnica y de ubicación necesaria para prestar esas funciones conforme a sus propias políticas. Los datos de pago son procesados por proveedores especializados con sus controles de seguridad aplicables. Compartiremos datos con autoridades únicamente cuando exista una obligación legal.</p>"
   }
 }
