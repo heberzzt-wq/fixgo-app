@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-retire-v131-auto-cert-20260914-chatgpt-85",
+  "jobId": "v142-retire-v136-auto-cert-20260914-chatgpt-86",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": ".github/workflows/v131-reel-semantic-media-binding-cert.yml",
+    "file": ".github/workflows/v136-reel-media-source-recovery-cert.yml",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "  certify:",
-    "replace": "  certify:\n    if: ${{ github.event_name == 'workflow_dispatch' }}"
+    "search": "  certify-v136:",
+    "replace": "  certify-v136:\n    if: ${{ github.event_name == 'workflow_dispatch' }}"
   }
 }
