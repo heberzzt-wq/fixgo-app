@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-policies-visit-amount-20260914-chatgpt-81",
+  "jobId": "v142-policies-stripe-authorization-20260914-chatgpt-82",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "politicas.html",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                <li><strong class=\"text-gray-200\">El Costo de Visita ($550.00 MXN):</strong> El especialista evaluará el problema y presentará un presupuesto exacto. Si lo <strong>APRUEBA</strong>, el costo de visita se absorbe en el precio final. Si lo <strong>RECHAZA</strong>, deberá cubrir únicamente el cargo por concepto de \"Visita y Diagnóstico\" ($550.00 MXN).</li>",
-    "replace": "                <li><strong class=\"text-gray-200\">Visita y diagnóstico:</strong> Cuando un servicio contemple un cargo inicial, de visita, diagnóstico o traslado, el importe aplicable será el que la plataforma muestre antes de la confirmación. La cotización y cualquier saldo posterior deberán corresponder a los montos autorizados en la aplicación.</li>"
+    "search": "                <li><strong class=\"text-gray-200\">Pago Seguro (Stripe):</strong> Se realiza una retención temporal ($550) al solicitar. El cobro final se procesa automáticamente al terminar el trabajo.</li>",
+    "replace": "                <li><strong class=\"text-gray-200\">Pago Seguro (Stripe):</strong> Cuando el servicio use pago electrónico, la plataforma puede solicitar una garantía o autorización inicial por el importe mostrado antes de confirmar. El saldo autorizado se procesa mediante la autoridad financiera de la plataforma conforme al estado real del servicio.</li>"
   }
 }
