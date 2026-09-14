@@ -32,6 +32,8 @@ on:
       - 'app-registro.js'
       - 'app-login.js'
       - 'login.html'
+      - 'index.html'
+      - 'politicas.html'
       - 'panel-b2b-admin.js'
       - 'panel-b2b-admin.html'
       - 'tests/b2c-rules-emulator.test.mjs'
