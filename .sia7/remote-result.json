@@ -1,18 +1,18 @@
 {
-  "jobId": "v142-retire-v138-windows-auto-cert-20260914-chatgpt-89",
-  "completedAt": "2026-09-14T17:04:56.335Z",
+  "jobId": "v142-retire-v139-auto-cert-20260914-chatgpt-90",
+  "completedAt": "2026-09-14T17:05:30.305Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": ".github/workflows/v138-native-mp4-cert.yml",
+  "file": ".github/workflows/v139-real-reel-e2e-cert.yml",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 11819,
-  "bytesAfter": 11875,
+  "bytesBefore": 8041,
+  "bytesAfter": 8097,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    ".github/workflows/v138-native-mp4-cert.yml"
+    ".github/workflows/v139-real-reel-e2e-cert.yml"
   ]
 }
