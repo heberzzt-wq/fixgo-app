@@ -210,7 +210,11 @@ test('B2B closure verifies persisted order evidence and is backend-authoritative
     firestore.FieldValue={serverTimestamp:()=>123};
     class HttpsError extends Error{constructor(code,message){super(message);this.code=code;}}
     const code=source.slice(source.indexOf('async function completeB2bService'),source.indexOf('exports.completeB2bService'));
-    const handler=runInNewContext(code+'\ncompleteB2bService',{URL,admin:{firestore,storage:()=>({bucket:()=>({name:'test-bucket',file:()=>({getMetadata:async()=>{metadataReads++;return [{size:'100',contentType:'image/png',generation:'1',md5Hash:'digest'}];}})})})},functions:{https:{HttpsError}}});
+    const handler=runInNewContext(code+'\ncompleteB2bService',{URL,admin:{firestore,storage:()=>({bucket:bucketName=>{
+        // The package entry initializes Admin without storageBucket before loading index.js.
+        assert.equal(bucketName,'fixgo-44e4d.firebasestorage.app');
+        return {name:'test-bucket',file:()=>({getMetadata:async()=>{metadataReads++;return [{size:'100',contentType:'image/png',generation:'1',md5Hash:'digest'}];}})};
+    }})},functions:{https:{HttpsError}}});
     const ctx={auth:{uid:'tech'}};const payload={orderId:'order',firmaUrl:link('firmas/order/conformidad.png')};
     await assert.rejects(handler({...payload,firmaUrl:link('firmas/foreign/conformidad.png')},ctx),e=>e.code==='permission-denied');
     assert.equal(updates.length,0);

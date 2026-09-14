@@ -204,7 +204,8 @@ async function completeB2bService(data, context) {
         }
         if (order.status === 'finalizado' && order.cerrado_por_uid === context.auth.uid && order.firma_conformidad === data.firmaUrl) return { ok: true };
         if (order.status !== 'en_proceso') throw new functions.https.HttpsError('failed-precondition', 'La orden debe estar en proceso.');
-        const bucket = admin.storage().bucket();
+        // secure-entry initializes the default app first; do not depend on its bucket options.
+        const bucket = admin.storage().bucket("fixgo-44e4d.firebasestorage.app");
         const evidence = [
             [order.foto_antes, `evidencias/${orderId}/antes_`, 10 * 1024 * 1024],
             [order.foto_despues, `evidencias/${orderId}/despues_`, 10 * 1024 * 1024],

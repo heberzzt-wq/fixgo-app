@@ -1,13 +1,60 @@
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import fs from "node:fs";
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 
 const require = createRequire(import.meta.url);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const contract = require(path.join(root, "functions", "b2c-platform-contract.js"));
 const token = process.env.FIREBASE_ACCESS_TOKEN;
 const project = process.argv.find(value => value.startsWith("--project="))?.split("=")[1] || "fixgo-44e4d";
-if (!token) throw new Error("FIREBASE_ACCESS_TOKEN_REQUIRED");
+
+// Inspection only. Keep B2B deployment separate from V142's audiovisual deploy input.
+export const B2B_DEPLOY_FUNCTIONS = Object.freeze([
+    "completeB2bRegistration", "provisionB2bPersonnel", "completeB2bService",
+    "reservarCancha", "crearAcceso", "registrarSalida", "registrarIngresoPaquete",
+    "registrarSalidaPaquete", "registrarIncidenciaAcceso", "despachoTaticoB2B"
+]);
+
+export function buildB2bDeploymentCandidate({ branch, head, readFile = name => fs.readFileSync(path.join(root, name)) } = {}) {
+    if (branch !== "v94-media-v4n-negative-claims" || !/^[a-f0-9]{40}$/.test(head || "")) {
+        throw new Error("B2B_CANDIDATE_BRANCH_OR_HEAD_INVALID");
+    }
+    const config = JSON.parse(readFile("firebase.json").toString());
+    const aliases = JSON.parse(readFile(".firebaserc").toString());
+    if (aliases.projects?.default !== "fixgo-44e4d" ||
+        config.firestore?.rules !== "security/firestore-console-snapshot-2026-07-30.rules.txt" ||
+        config.storage?.rules !== "security/storage-hardening-candidate.rules.txt" ||
+        !config.functions?.some(item => item.source === "functions" && item.codebase === "default")) {
+        throw new Error("B2B_CANDIDATE_CONFIG_DRIFT");
+    }
+    const source = readFile("functions/index.js").toString();
+    for (const name of B2B_DEPLOY_FUNCTIONS) {
+        if (!source.includes(`exports.${name} =`)) throw new Error(`B2B_EXPORT_MISSING:${name}`);
+    }
+    const files = ["firebase.json", ".firebaserc", "functions/package.json", "functions/package-lock.json",
+        "functions/index.js", "functions/secure-entry.js", "functions/secure-entry-alias.js",
+        config.firestore.rules, config.storage.rules];
+    const sha256 = Object.fromEntries(files.map(file => [file, createHash("sha256").update(readFile(file)).digest("hex")]));
+    return {
+        project: "fixgo-44e4d", branch, head, readOnly: true, deployAuthorized: false,
+        sha256,
+        orderedCommandsAfterExplicitAuthorization: [
+            ["firebase", "deploy", "--project", "fixgo-44e4d", "--only", B2B_DEPLOY_FUNCTIONS.map(name => `functions:${name}`).join(",")],
+            ["firebase", "deploy", "--project", "fixgo-44e4d", "--only", "firestore:rules,storage"]
+        ],
+        excluded: ["hosting", "multiservicios", "api", "stripewebhook", "jarvisVideoGenerate", "RunPod", "AppCheck", "API keys"],
+        sharedRulesScope: "Firestore rules deploy as a complete file. The canonical file also includes existing B2C evidence/consent bindings absent from the September 1 live release; certify both B2B and B2C fixtures before approval.",
+        preconditions: ["Exact HEAD and clean tracked tree", "Fresh V142 Linux/Windows/Full CI and emulator PASS",
+            "Recompare production hashes and exports immediately before deploy", "Explicit user deployment authorization"],
+        postDeploy: ["All ten exports ACTIVE and correct entrypoints", "Deployed rule bytes match candidate",
+            "Rerun emulator negative/positive fixtures using downloaded deployed rules",
+            "Unauthenticated callable denial without data mutation", "Single-use key and evidence closure fixtures pass"],
+        rollback: "Stop on partial failure. Preserve receipts and release IDs; do not automatically restore insecure rules or delete accounts."
+    };
+}
 
 function decode(value) {
     if (!value || typeof value !== "object") return null;
@@ -42,6 +89,8 @@ async function listCollection(collectionId) {
     return documents;
 }
 
+async function auditAccounts() {
+if (!token) throw new Error("FIREBASE_ACCESS_TOKEN_REQUIRED");
 const [users, services] = await Promise.all([listCollection("users"), listCollection("services")]);
 const cashHistory = new Set(services
     .filter(item => contract.normalizeToken(item.data.metodo_pago) === contract.PAYMENT_METHODS.CASH)
@@ -92,3 +141,13 @@ process.stdout.write(`${JSON.stringify({
     technicians,
     customers
 }, null, 2)}\n`);
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+    if (process.argv.includes("--b2b-candidate")) {
+        const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8", timeout: 20000, windowsHide: true }).trim();
+        console.log(JSON.stringify(buildB2bDeploymentCandidate({ branch: git("branch", "--show-current"), head: git("rev-parse", "HEAD") }), null, 2));
+    } else {
+        await auditAccounts();
+    }
+}

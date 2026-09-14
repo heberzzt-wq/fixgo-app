@@ -1,9 +1,40 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
+import { buildB2bDeploymentCandidate } from "../scripts/audit-b2c-production.mjs";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const firestore = fs.readFileSync(new URL("../security/firestore-console-snapshot-2026-07-30.rules.txt", import.meta.url), "utf8");
 const storage = fs.readFileSync(new URL("../security/storage-hardening-candidate.rules.txt", import.meta.url), "utf8");
+
+test("B2B candidate is read-only and excludes unrelated deployment surfaces", () => {
+    const options = { branch: "v94-media-v4n-negative-claims", head: "a".repeat(40) };
+    const candidate = buildB2bDeploymentCandidate(options);
+    assert.equal(candidate.deployAuthorized, false);
+    assert.equal(candidate.readOnly, true);
+    const commands = candidate.orderedCommandsAfterExplicitAuthorization;
+    assert.equal(commands.length, 2);
+    assert.equal(commands[0].at(-1).split(",").length, 10);
+    assert.equal(commands[1].at(-1), "firestore:rules,storage");
+    assert.doesNotMatch(JSON.stringify(commands), /hosting|jarvisVideo|Semantic|stripewebhook|functions:api[," ]/);
+    assert.throws(() => buildB2bDeploymentCandidate({ ...options, branch: "main" }), /BRANCH_OR_HEAD/);
+    assert.throws(() => buildB2bDeploymentCandidate({ ...options, readFile: file => file === ".firebaserc" ? Buffer.from('{"projects":{"default":"foreign"}}') : fs.readFileSync(new URL('../'+file, import.meta.url)) }), /CONFIG_DRIFT/);
+    for (const hash of Object.values(candidate.sha256)) assert.match(hash, /^[a-f0-9]{64}$/);
+});
+
+test("Functions package entry exposes all ten B2B callables without invoking them", () => {
+    const script = `
+        const { createRequire } = require('node:module');
+        const req = createRequire(require('node:path').resolve('functions/package.json'));
+        req('dotenv').config = () => ({ parsed: {} });
+        console.log = console.warn = () => {};
+        const entry = req('./secure-entry-alias.js');
+        const names = ${JSON.stringify(buildB2bDeploymentCandidate({ branch: "v94-media-v4n-negative-claims", head: "a".repeat(40) }).orderedCommandsAfterExplicitAuthorization[0].at(-1).split(',').map(value => value.slice('functions:'.length)))};
+        if (!names.every(name => typeof entry[name] === 'function' && entry[name].__endpoint?.platform === 'gcfv1')) process.exit(1);
+    `;
+    execFileSync(process.execPath, ['-e', script], { cwd: fileURLToPath(new URL('../', import.meta.url)), timeout: 60000, windowsHide: true, stdio: 'pipe' });
+});
 
 test("users no permite lectura indiscriminada ni autoaprobación", () => {
     const usersBlock = firestore.slice(firestore.indexOf("match /users/{userId}"), firestore.indexOf("match /tecnicos/{userId}"));
