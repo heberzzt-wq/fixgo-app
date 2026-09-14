@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-fix-footer-legal-modals-20260914-chatgpt-91",
+  "jobId": "v142-hosting-static-trigger-20260914-chatgpt-92",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "index.html",
+    "file": ".github/workflows/v142-mobile-web-research-recovery.yml",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "        openLegalModalFromHash();",
-    "replace": "        openLegalModalFromHash();\n\n        const legalModalIds = ['modalTerminosCliente', 'modalTerminosTecnico', 'modalPrivacidad', 'modalEliminacion'];\n        const closeLegalModal = (modal) => {\n            if (!modal) return;\n            modal.classList.add('hidden');\n            if (['#privacidad', '#eliminar-datos', '#terminos'].includes(window.location.hash)) {\n                history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);\n            }\n        };\n        const openLegalModal = (modalId, hash = '') => {\n            legalModalIds.forEach(id => document.getElementById(id)?.classList.add('hidden'));\n            const modal = document.getElementById(modalId);\n            if (!modal) return;\n            modal.classList.remove('hidden');\n            if (hash && window.location.hash !== hash) history.replaceState(null, '', hash);\n        };\n\n        document.querySelector('a[href=\"politicas.html\"]')?.addEventListener('click', event => {\n            event.preventDefault();\n            openLegalModal('modalTerminosCliente', '#terminos');\n        });\n        document.querySelector('a[href=\"#privacidad\"]')?.addEventListener('click', event => {\n            event.preventDefault();\n            openLegalModal('modalPrivacidad', '#privacidad');\n        });\n        document.querySelector('a[href=\"#eliminar-datos\"]')?.addEventListener('click', event => {\n            event.preventDefault();\n            openLegalModal('modalEliminacion', '#eliminar-datos');\n        });\n\n        legalModalIds.forEach(id => {\n            const modal = document.getElementById(id);\n            if (!modal) return;\n            modal.querySelectorAll('button[type=\"button\"]').forEach(button => {\n                button.addEventListener('click', () => closeLegalModal(modal));\n            });\n            modal.addEventListener('click', event => {\n                if (event.target === modal) closeLegalModal(modal);\n            });\n        });\n\n        document.addEventListener('keydown', event => {\n            if (event.key !== 'Escape') return;\n            legalModalIds.forEach(id => {\n                const modal = document.getElementById(id);\n                if (modal && !modal.classList.contains('hidden')) closeLegalModal(modal);\n            });\n        });"
+    "search": "      - 'login.html'",
+    "replace": "      - 'login.html'\n      - 'index.html'\n      - 'politicas.html'"
   }
 }
