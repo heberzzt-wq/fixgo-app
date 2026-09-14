@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-index-technician-fee-terms-20260914-chatgpt-80",
+  "jobId": "v142-policies-visit-amount-20260914-chatgpt-81",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
-    "file": "index.html",
+    "file": "politicas.html",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                <p><strong>2. Tarifa de Gestión Operativa:</strong> El método principal de cobro es automatizado a través de nuestra pasarela segura <strong>Stripe</strong>. Al finalizar un servicio, el sistema transfiere sus ganancias a su cuenta bancaria, descontando la 'Tarifa de Gestión Integral' del 32%. Esta tarifa garantiza la infraestructura tecnológica (servidores en la nube, facturación Split Billing) y la adquisición continua de clientes. <br><br> <strong class=\"text-emerald-500\">Pagos en Efectivo (Exclusivo Nivel VIP):</strong> La habilitación para recibir pagos directos en efectivo está estrictamente reservada para Socios Pro que alcancen el estatus VIP. Solo en estos casos excepcionales, al recibir el 100% del pago en sitio, el 32% de la Tarifa de Gestión se reflejará como un 'Saldo Operativo' pendiente en su Billetera GestiaPremium, el cual deberá liquidarse periódicamente vía SPEI para mantener su cuenta activa.</p>",
-    "replace": "                <p><strong>2. Tarifa de Gestión Operativa:</strong> La tarifa de gestión aplicable a cada Socio Pro será la registrada por la plataforma para su perfil o servicio y se reflejará en la liquidación correspondiente; no debe inferirse una tasa distinta a la autorizada por el sistema. En pagos electrónicos, la liquidación se procesa mediante la autoridad financiera de la plataforma. Cuando el pago en efectivo esté habilitado para un servicio o perfil, la comisión de plataforma correspondiente quedará registrada como saldo o movimiento pendiente de conciliación conforme a las condiciones mostradas en la aplicación.</p>"
+    "search": "                <li><strong class=\"text-gray-200\">El Costo de Visita ($550.00 MXN):</strong> El especialista evaluará el problema y presentará un presupuesto exacto. Si lo <strong>APRUEBA</strong>, el costo de visita se absorbe en el precio final. Si lo <strong>RECHAZA</strong>, deberá cubrir únicamente el cargo por concepto de \"Visita y Diagnóstico\" ($550.00 MXN).</li>",
+    "replace": "                <li><strong class=\"text-gray-200\">Visita y diagnóstico:</strong> Cuando un servicio contemple un cargo inicial, de visita, diagnóstico o traslado, el importe aplicable será el que la plataforma muestre antes de la confirmación. La cotización y cualquier saldo posterior deberán corresponder a los montos autorizados en la aplicación.</li>"
   }
 }
