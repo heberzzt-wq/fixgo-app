@@ -87,6 +87,8 @@ service firebase.storage {
 
     function b2bTechnicianForOrder(orderId) {
       return sameB2BOrderTenant(orderId) &&
+        b2bOrderData(orderId).get('status', '') == 'en_proceso' &&
+        (b2bOrderData(orderId).get('tecnicoId', null) == null || b2bOrderData(orderId).get('tecnicoId', null) == request.auth.uid) &&
         userProfile().get('rol', '') in ["tecnico", "tecnico_gp", "tecnico_interno"];
     }
 

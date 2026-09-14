@@ -27,7 +27,7 @@ before(async () => {
     environment = await initializeTestEnvironment({
         projectId: "fixgo-b2c-rules-test",
         firestore: { rules: fs.readFileSync(new URL(`../${firebaseConfig.firestore.rules}`, import.meta.url), "utf8") },
-        storage: { rules: fs.readFileSync(new URL("../security/storage-hardening-candidate.rules.txt", import.meta.url), "utf8") }
+        storage: { rules: fs.readFileSync(new URL(`../${firebaseConfig.storage.rules}`, import.meta.url), "utf8") }
     });
     await environment.clearFirestore();
     await environment.withSecurityRulesDisabled(async context => {
@@ -38,7 +38,7 @@ before(async () => {
         });
         await setDoc(doc(db, "users/b2b-1"), { rol: "cliente", tipo_cuenta: "B2B", estado: "activo", status: "activo", edificioId: "uxmal39" });
         await setDoc(doc(db, "users/b2b-tech"), {
-            rol: "tecnico", tipo_cuenta: "B2B", estado: "activo", status: "activo", edificioId: "uxmal39"
+            rol: "tecnico", tipo_cuenta: "B2B", estado: "activo", status: "activo", edificioId: "uxmal39", tecnico_placas: "XYZ-123"
         });
         await setDoc(doc(db, "users/b2b-admin"), {
             rol: "admin_b2b", tipo_cuenta: "B2B", estado: "activo", status: "activo", edificioId: "uxmal39"
@@ -286,4 +286,18 @@ test('initial profile email is bound to authenticated identity', async () => {
     const profile={uid:'new-safe',email:'safe@example.test',rol:'cliente',tipo_cuenta:'B2C',estado:'activo',status:'activo',pagos:{stripe_autorizado:false,efectivo_autorizado:false}};
     await assertFails(setDoc(doc(db,'users/new-safe'),{...profile,email:'hebertoh-m@hotmail.com'}));
     await assertSucceeds(setDoc(doc(db,'users/new-safe'),profile));
+});
+
+
+test('B2B final state and signature become sealed after backend closure', async()=>{
+    await environment.withSecurityRulesDisabled(async context=>{
+        await setDoc(doc(context.firestore(),'servicios_b2b/sealed-order'),{edificioId:'uxmal39',tecnicoId:'b2b-tech',status:'en_proceso',foto_antes:'https://example.test/before',foto_despues:'https://example.test/after'});
+    });
+    const db=environment.authenticatedContext('b2b-tech').firestore();
+    await assertFails(updateDoc(doc(db,'servicios_b2b/sealed-order'),{status:'finalizado',firma_conformidad:'https://example.test/signature'}));
+    await environment.withSecurityRulesDisabled(async context=>{
+        await updateDoc(doc(context.firestore(),'servicios_b2b/sealed-order'),{status:'finalizado'});
+    });
+    await assertFails(updateDoc(doc(db,'servicios_b2b/sealed-order'),{foto_antes:'https://example.test/replaced'}));
+    await assertFails(uploadBytes(ref(environment.authenticatedContext('b2b-tech').storage(),'firmas/sealed-order/conformidad.png'),new Uint8Array([137,80,78,71]),{contentType:'image/png'}));
 });

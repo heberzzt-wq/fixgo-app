@@ -186,6 +186,56 @@ async function provisionB2bPersonnel(data, context) {
 exports.completeB2bRegistration = functions.https.onCall(completeB2bRegistration);
 exports.provisionB2bPersonnel = functions.https.onCall(provisionB2bPersonnel);
 
+async function completeB2bService(data, context) {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Inicia sesión.');
+    const orderId = String(data?.orderId || '');
+    if (!orderId || orderId.includes('/')) throw new functions.https.HttpsError('invalid-argument', 'Orden inválida.');
+    const db = admin.firestore();
+    return db.runTransaction(async tx => {
+        const orderRef = db.doc(`servicios_b2b/${orderId}`);
+        const order = (await tx.get(orderRef)).data();
+        const actor = (await tx.get(db.doc(`users/${context.auth.uid}`))).data();
+        if (!order || actor?.tipo_cuenta !== 'B2B' || actor.status !== 'activo' || actor.suspendido === true ||
+            !['tecnico', 'tecnico_gp', 'tecnico_interno'].includes(actor.rol) ||
+            !actor.edificioId || order.edificioId !== actor.edificioId ||
+            (order.tecnicoId && order.tecnicoId !== context.auth.uid)) {
+            throw new functions.https.HttpsError('permission-denied', 'Orden fuera de la autoridad del técnico.');
+        }
+        if (order.status === 'finalizado' && order.cerrado_por_uid === context.auth.uid && order.firma_conformidad === data.firmaUrl) return { ok: true };
+        if (order.status !== 'en_proceso') throw new functions.https.HttpsError('failed-precondition', 'La orden debe estar en proceso.');
+        const bucket = admin.storage().bucket();
+        const evidence = [
+            [order.foto_antes, `evidencias/${orderId}/antes_`, 10 * 1024 * 1024],
+            [order.foto_despues, `evidencias/${orderId}/despues_`, 10 * 1024 * 1024],
+            [data.firmaUrl, `firmas/${orderId}/conformidad.png`, 512 * 1024]
+        ];
+        const verified = [];
+        for (const [url, prefix, maxSize] of evidence) {
+            let parsed;
+            try { parsed = new URL(url); } catch { throw new functions.https.HttpsError('failed-precondition', 'Falta evidencia de cierre.'); }
+            const marker = `/v0/b/${bucket.name}/o/`;
+            const objectPath = decodeURIComponent(parsed.pathname.slice(marker.length));
+            if (parsed.protocol !== 'https:' || parsed.hostname !== 'firebasestorage.googleapis.com' ||
+                !parsed.pathname.startsWith(marker) || !objectPath.startsWith(prefix) ||
+                (prefix.endsWith('.png') ? objectPath !== prefix : !/^\d+\.jpg$/.test(objectPath.slice(prefix.length)))) {
+                throw new functions.https.HttpsError('permission-denied', 'Evidencia ajena a la orden.');
+            }
+            const [metadata] = await bucket.file(objectPath).getMetadata();
+            if (!(Number(metadata.size) > 0 && Number(metadata.size) <= maxSize) || !String(metadata.contentType).startsWith('image/')) {
+                throw new functions.https.HttpsError('failed-precondition', 'Evidencia vacía o inválida.');
+            }
+            verified.push({ path: objectPath, generation: metadata.generation, md5Hash: metadata.md5Hash || null });
+        }
+        tx.update(orderRef, {
+            status: 'finalizado', firma_conformidad: data.firmaUrl,
+            cerrado_por_uid: context.auth.uid, cierre_authority: 'completeB2bService',
+            evidencia_verificada: verified, fecha_cierre: admin.firestore.FieldValue.serverTimestamp()
+        });
+        return { ok: true };
+    });
+}
+exports.completeB2bService = functions.https.onCall(completeB2bService);
+
 // FACTORIES
 const firewallFactory = require("./firewall/firewall.v5");
 

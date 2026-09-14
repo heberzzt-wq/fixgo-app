@@ -7,7 +7,7 @@
  * =====================================================
  */
 
-import { auth, db, storage, signOut, GESTIA_FCM_VAPID_KEY } from "./firebase.js";
+import { auth, db, storage, app, signOut, GESTIA_FCM_VAPID_KEY } from "./firebase.js";
 import {
     getPlatformServiceWorkerRegistration,
     initializePlatformRelease
@@ -36,6 +36,40 @@ import {
 
 // Importación del motor de mensajería (El Radio B2B)
 import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
+
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
+
+async function cerrarOrdenB2b(orderId, data) {
+    let firmaUrl = data.firma_conformidad;
+    if (data.firma_pendiente) {
+        const signatureRef = ref(storage, `firmas/${orderId}/conformidad.png`);
+        try { firmaUrl = await getDownloadURL(signatureRef); }
+        catch(error) {
+            if(error.code!=='storage/object-not-found') throw error;
+            const blob = await (await fetch(data.firma_pendiente)).blob();
+            await uploadBytes(signatureRef, blob);
+            firmaUrl = await getDownloadURL(signatureRef);
+        }
+    }
+    return httpsCallable(getFunctions(app), 'completeB2bService')({orderId, firmaUrl});
+}
+
+function cachePendientes(store) {
+    return new Promise((resolve,reject)=>{
+        const tx=localDB.transaction(store,'readonly');
+        const object=tx.objectStore(store);
+        const keys=object.getAllKeys(); const values=object.getAll();
+        tx.oncomplete=()=>resolve(values.result.map((value,i)=>({key:keys.result[i],value})));
+        tx.onerror=reject;
+    });
+}
+function confirmarPendiente(store,key) {
+    return new Promise((resolve,reject)=>{
+        const tx=localDB.transaction(store,'readwrite');
+        tx.objectStore(store).delete(key);
+        tx.oncomplete=resolve;tx.onerror=reject;
+    });
+}
 
 /* =====================================================
     REGISTRO DE SERVICE WORKER (LA ANTENA B2B) - V5.32
@@ -204,7 +238,7 @@ SYNC QUEUE
 
 async function agregarSyncPendiente(data){
 
-await cacheGuardar("sync_queue",data);
+await cacheGuardar("sync_queue",{...data, actorUid:auth.currentUser?.uid});
 
 }
 
@@ -230,6 +264,7 @@ const tx=localDB.transaction("fotos_pendientes","readwrite");
 const store=tx.objectStore("fotos_pendientes");
 
 store.add({
+    actorUid: auth.currentUser?.uid,
     tipo: data.tipo,
     ordenId: data.ordenId,
     timestamp: data.timestamp,
@@ -245,38 +280,23 @@ tx.onerror=reject;
 
 
 async function procesarSyncPendiente(){
-
-if(!isOnline) return;
-
-const items=await cacheLeerTodos("sync_queue");
-
-if(items.length===0) return;
-
-console.log("🔄 Procesando sync offline:",items.length);
-
-for(const item of items){
-
-try{
-
-if(item.type==="update"){
-
-await updateDoc(
-doc(db,item.collection,item.id),
-item.data
-);
-
-}
-
-}catch(e){
-
-console.error("Sync error",e);
-
-}
-
-}
-
-await cacheLimpiar("sync_queue");
-
+    if(!isOnline) return;
+    const items=await cachePendientes('sync_queue');
+    for(const {key,value:item} of items){
+        if(!auth.currentUser || item.actorUid!==auth.currentUser.uid) continue;
+        try {
+            if(item.type!=='update') continue;
+            if(item.collection==='servicios_b2b' && item.data.status==='finalizado') {
+                await cerrarOrdenB2b(item.id,item.data);
+            } else {
+                const update={...item.data};
+                for(const field of ['foto_antes','foto_despues']) if(update[field]===null) delete update[field];
+                if('fecha_diagnostico' in update) update.fecha_diagnostico=serverTimestamp();
+                await updateDoc(doc(db,item.collection,item.id),update);
+            }
+            await confirmarPendiente('sync_queue',key);
+        } catch(e) { console.error('Sync pendiente conservado',e); }
+    }
 }
 
 /**
@@ -284,73 +304,27 @@ await cacheLimpiar("sync_queue");
  * para ser compatible con uploadBytes de Firebase.
  */
 async function procesarFotosPendientes(){
-
-if(!isOnline) return;
-
-const tx=localDB.transaction("fotos_pendientes","readonly");
-const store=tx.objectStore("fotos_pendientes");
-
-const req=store.getAll();
-
-req.onsuccess=async ()=>{
-
-const fotos=req.result;
-
-if(!fotos.length) return;
-
-console.log("📷 Subiendo fotos offline:",fotos.length);
-
-for(const foto of fotos){
-
-try{
-
-const path=`evidencias/${foto.ordenId}/${foto.tipo}_${foto.timestamp}.jpg`;
-
-const storageRef=ref(storage,path);
-
-// Convertimos el Base64 almacenado a Blob para la subida
-const response = await fetch(foto.base64);
-const blob = await response.blob();
-
-await uploadBytes(storageRef, blob);
-
-const url=await getDownloadURL(storageRef);
-
-const campo= foto.tipo==="antes" ? "foto_antes" : "foto_despues";
-
-await updateDoc(doc(db,"servicios_b2b",foto.ordenId),{
-[campo]:url
-});
-
-}catch(e){
-
-console.error("Error subiendo foto offline",e);
-
+    if(!isOnline) return;
+    const fotos=await cachePendientes('fotos_pendientes');
+    for(const {key,value:foto} of fotos){
+        if(!auth.currentUser || foto.actorUid!==auth.currentUser.uid) continue;
+        try {
+            const path=`evidencias/${foto.ordenId}/${foto.tipo}_${foto.timestamp}.jpg`;
+            const storageRef=ref(storage,path);
+            let url;
+            try { url=await getDownloadURL(storageRef); }
+            catch(error) {
+                if(error.code!=='storage/object-not-found') throw error;
+                const blob=await (await fetch(foto.base64)).blob();
+                await uploadBytes(storageRef,blob);
+                url=await getDownloadURL(storageRef);
+            }
+            const campo=foto.tipo==='antes' ? 'foto_antes' : 'foto_despues';
+            await updateDoc(doc(db,'servicios_b2b',foto.ordenId),{[campo]:url});
+            await confirmarPendiente('fotos_pendientes',key);
+        } catch(error) { console.error('Foto pendiente conservada',error); }
+    }
 }
-
-}
-
-await limpiarFotosPendientes();
-
-};
-
-}
-
-function limpiarFotosPendientes(){
-
-return new Promise((resolve,reject)=>{
-
-const tx=localDB.transaction("fotos_pendientes","readwrite");
-
-tx.objectStore("fotos_pendientes").clear();
-
-tx.oncomplete=resolve;
-tx.onerror=reject;
-
-});
-
-}
-
 
 /* =====================================================
 UTILIDADES UI
@@ -1859,14 +1833,14 @@ status:"finalizado",
 
 firma_conformidad:firmaUrl,
 
-fecha_cierre:serverTimestamp()
+firma_pendiente:isOnline ? null : canvas.toDataURL("image/png")
 
 };
 
 
 if(isOnline){
 
-await updateDoc(doc(db,"servicios_b2b",ordenId),dataUpdate);
+await cerrarOrdenB2b(ordenId,dataUpdate);
 
 }else{
 
@@ -1885,7 +1859,7 @@ data:dataUpdate
 }
 
 
-showToast("Servicio cerrado");
+showToast(isOnline ? "Servicio cerrado" : "Cierre guardado, pendiente de sincronización");
 
 window.location.reload();
 

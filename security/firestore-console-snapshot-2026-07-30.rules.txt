@@ -668,6 +668,7 @@ service cloud.firestore {
         ))
       );
       allow update: if isAdmin() || (
+        resource.data.status in ['pendiente', 'programado', 'en_proceso'] &&
         tenantMember(resource.data.get('edificioId', null)) && isTecnico() && tienePaseCaseta() &&
         resource.data.get('tecnicoId', request.auth.uid) == request.auth.uid &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -676,11 +677,7 @@ service cloud.firestore {
         ]) && (
           request.resource.data.status == resource.data.status ||
           (resource.data.status in ['pendiente', 'programado'] && request.resource.data.status == 'en_proceso' &&
-            isDocumentReference(request.resource.data.get('foto_antes', null))) ||
-          (resource.data.status == 'en_proceso' && request.resource.data.status == 'finalizado' &&
-            isDocumentReference(request.resource.data.get('foto_antes', null)) &&
-            isDocumentReference(request.resource.data.get('foto_despues', null)) &&
-            isDocumentReference(request.resource.data.get('firma_conformidad', null)))
+            isDocumentReference(request.resource.data.get('foto_antes', null)))
         )
       );
     }

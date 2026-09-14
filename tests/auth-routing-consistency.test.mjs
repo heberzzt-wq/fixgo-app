@@ -186,3 +186,49 @@ test('tenant runtime uses canonical users profile without a fixed building or le
         assert.equal(invalid.tenants.length,0);
     }
 });
+
+test('B2B closure verifies persisted order evidence and is backend-authoritative and idempotent',async()=>{
+    const {runInNewContext}=await import('node:vm');
+    const source=fs.readFileSync(new URL('../functions/index.js',import.meta.url),'utf8');
+    const link=path=>'https://firebasestorage.googleapis.com/v0/b/test-bucket/o/'+encodeURIComponent(path)+'?alt=media';
+    const order={edificioId:'a',tecnicoId:'tech',status:'en_proceso',foto_antes:link('evidencias/order/antes_1.jpg'),foto_despues:link('evidencias/order/despues_2.jpg')};
+    const actor={rol:'tecnico',tipo_cuenta:'B2B',status:'activo',edificioId:'a'};
+    let metadataReads=0;const updates=[];
+    const firestore=()=>({doc:path=>({path}),runTransaction:async callback=>callback({get:async ref=>({data:()=>ref.path.startsWith('users/')?actor:order}),update:(_,data)=>{updates.push(data);Object.assign(order,data);}})});
+    firestore.FieldValue={serverTimestamp:()=>123};
+    class HttpsError extends Error{constructor(code,message){super(message);this.code=code;}}
+    const code=source.slice(source.indexOf('async function completeB2bService'),source.indexOf('exports.completeB2bService'));
+    const handler=runInNewContext(code+'\ncompleteB2bService',{URL,admin:{firestore,storage:()=>({bucket:()=>({name:'test-bucket',file:()=>({getMetadata:async()=>{metadataReads++;return [{size:'100',contentType:'image/png',generation:'1',md5Hash:'digest'}];}})})})},functions:{https:{HttpsError}}});
+    const ctx={auth:{uid:'tech'}};const payload={orderId:'order',firmaUrl:link('firmas/order/conformidad.png')};
+    await assert.rejects(handler({...payload,firmaUrl:link('firmas/foreign/conformidad.png')},ctx),e=>e.code==='permission-denied');
+    assert.equal(updates.length,0);
+    actor.edificioId='b';
+    await assert.rejects(handler(payload,ctx),e=>e.code==='permission-denied');
+    actor.edificioId='a';
+    await handler(payload,ctx);
+    assert.equal(order.status,'finalizado');
+    assert.equal(order.cierre_authority,'completeB2bService');
+    assert.equal(order.evidencia_verificada.length,3);
+    const count=metadataReads;
+    await handler(payload,ctx);
+    assert.equal(updates.length,1);
+    assert.equal(metadataReads,count);
+});
+
+test('offline B2B queue preserves failures and foreign-session records and routes closure through backend',async()=>{
+    const {runInNewContext}=await import('node:vm');
+    const source=fs.readFileSync(new URL('../app-tecnico-b2b.js',import.meta.url),'utf8');
+    const code=source.slice(source.indexOf('async function procesarSyncPendiente(){'),source.indexOf('/**',source.indexOf('async function procesarSyncPendiente(){')));
+    const confirmed=[];const closed=[];
+    const rows=[
+      {key:1,value:{actorUid:'tech',type:'update',collection:'servicios_b2b',id:'failed',data:{foto_antes:null}}},
+      {key:2,value:{actorUid:'tech',type:'update',collection:'servicios_b2b',id:'done',data:{status:'finalizado',firma_pendiente:'image'}}},
+      {key:3,value:{actorUid:'other',type:'update',collection:'servicios_b2b',id:'foreign',data:{status:'finalizado'}}}
+    ];
+    const run=runInNewContext(code+'\nprocesarSyncPendiente',{isOnline:true,auth:{currentUser:{uid:'tech'}},db:{},doc:(_,collection,id)=>id,cachePendientes:async()=>rows,confirmarPendiente:async(_,key)=>confirmed.push(key),updateDoc:async()=>{throw Error('offline');},cerrarOrdenB2b:async id=>closed.push(id),serverTimestamp:()=>123,console:{error(){}}});
+    await run();
+    assert.deepEqual(confirmed,[2]);
+    assert.deepEqual(closed,['done']);
+    assert.doesNotMatch(code,/cacheLimpiar/);
+    assert.match(source,/Cierre guardado, pendiente de sincronización/);
+});
