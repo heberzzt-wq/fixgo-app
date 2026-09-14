@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-index-legal-deeplink-20260914-chatgpt-76",
-  "completedAt": "2026-09-14T16:53:08.570Z",
+  "jobId": "v142-index-privacy-maps-purpose-20260914-chatgpt-77",
+  "completedAt": "2026-09-14T16:53:50.888Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
@@ -8,8 +8,8 @@
   "file": "index.html",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 24378,
-  "bytesAfter": 24860,
+  "bytesBefore": 24860,
+  "bytesAfter": 24975,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
