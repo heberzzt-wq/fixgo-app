@@ -1,18 +1,18 @@
 {
-  "jobId": "v142-footer-one-shot-deploy-gate-20260914-chatgpt-95",
-  "completedAt": "2026-09-14T17:54:14.473Z",
+  "jobId": "v142-footer-legal-live-deploy-20260914-chatgpt-96",
+  "completedAt": "2026-09-14T17:54:46.199Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": ".github/workflows/v142-mobile-web-research-recovery.yml",
+  "file": "index.html",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 28866,
-  "bytesAfter": 28908,
+  "bytesBefore": 27360,
+  "bytesAfter": 27375,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    ".github/workflows/v142-mobile-web-research-recovery.yml"
+    "index.html"
   ]
 }
