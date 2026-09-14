@@ -1,18 +1,18 @@
 {
-  "jobId": "v142-retire-v131-auto-cert-20260914-chatgpt-85",
-  "completedAt": "2026-09-14T17:02:11.891Z",
+  "jobId": "v142-retire-v136-auto-cert-20260914-chatgpt-86",
+  "completedAt": "2026-09-14T17:02:47.480Z",
   "executionStarted": true,
   "ok": true,
   "operation": "patch",
   "dryRun": false,
-  "file": ".github/workflows/v131-reel-semantic-media-binding-cert.yml",
+  "file": ".github/workflows/v136-reel-media-source-recovery-cert.yml",
   "matchCount": 1,
   "expectedMatches": 1,
-  "bytesBefore": 4544,
-  "bytesAfter": 4600,
+  "bytesBefore": 6365,
+  "bytesAfter": 6421,
   "source": "sia7_github_worker_exact_patch_v1",
   "committedFiles": [
     ".sia7/remote-result.json",
-    ".github/workflows/v131-reel-semantic-media-binding-cert.yml"
+    ".github/workflows/v136-reel-media-source-recovery-cert.yml"
   ]
 }
