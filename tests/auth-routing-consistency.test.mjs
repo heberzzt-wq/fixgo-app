@@ -148,3 +148,9 @@ test('B2B existing operations reject foreign tenants and inactive or unauthorize
         assert.match(source.slice(start,end<0?undefined:end),/await requireB2bTenant\(context, condominioId/);
     }
 });
+
+
+test('canonical profile cannot replace the authenticated email or uid used by routing',()=>{
+    const source=fs.readFileSync(new URL('../firebase.js',import.meta.url),'utf8');
+    assert.match(source,/\.\.\.data,\s*uid: user\.uid,\s*email: user\.email/);
+});

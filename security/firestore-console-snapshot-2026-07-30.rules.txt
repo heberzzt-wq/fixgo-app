@@ -296,6 +296,8 @@ service cloud.firestore {
         (
           request.auth.uid == userId &&
           request.resource.data.uid == userId &&
+          request.auth.token.get('email', '') != '' &&
+          request.resource.data.get('email', '') == request.auth.token.email.lower() &&
           request.resource.data.tipo_cuenta == 'B2C' &&
           request.resource.data.get('role', null) == null &&
           request.resource.data.get('tenantId', null) == null &&

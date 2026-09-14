@@ -252,8 +252,8 @@ test("B2B niega claves, escalación y autoaprobación sin bloquear edición oper
     await assertFails(setDoc(doc(manager, 'users/new-admin'), {uid:'new-admin',rol:'admin',edificioId:'uxmal39'}));
     for (const change of [{aprobado:true}, {verificado:true}, {role:'ceo'}, {edificioId:'uxmal39'}, {authority:'admin'}]) {
         const uid = 'new-client-' + Object.keys(change)[0];
-        await assertFails(setDoc(doc(environment.authenticatedContext(uid).firestore(), 'users', uid), {
-            uid, rol:'cliente', tipo_cuenta:'B2C', estado:'activo', status:'activo',
+        await assertFails(setDoc(doc(environment.authenticatedContext(uid, {email: uid+'@example.test'}).firestore(), 'users', uid), {
+            uid, email:uid+'@example.test', rol:'cliente', tipo_cuenta:'B2C', estado:'activo', status:'activo',
             pagos:{stripe_autorizado:false,efectivo_autorizado:false}, ...change
         }));
     }
@@ -276,4 +276,12 @@ test('tenant isolation covers existing B2B paths and service creation', async ()
     await assertFails(updateDoc(doc(own,'servicios_b2b/own-create'),{status:'finalizado'}));
     await assertSucceeds(setDoc(doc(own,'packages/uxmal39/items/own'),{descripcion:'Paquete'}));
     await assertSucceeds(getDoc(doc(own,'packages/uxmal39/items/own')));
+});
+
+
+test('initial profile email is bound to authenticated identity', async () => {
+    const db=environment.authenticatedContext('new-safe',{email:'safe@example.test'}).firestore();
+    const profile={uid:'new-safe',email:'safe@example.test',rol:'cliente',tipo_cuenta:'B2C',estado:'activo',status:'activo',pagos:{stripe_autorizado:false,efectivo_autorizado:false}};
+    await assertFails(setDoc(doc(db,'users/new-safe'),{...profile,email:'hebertoh-m@hotmail.com'}));
+    await assertSucceeds(setDoc(doc(db,'users/new-safe'),profile));
 });

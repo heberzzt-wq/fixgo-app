@@ -244,7 +244,9 @@ export function observarAuth(callback) {
 
                 const finalUser = {
                     ...user,
-                    ...data
+                    ...data,
+                    uid: user.uid,
+                    email: user.email
                 };
 
                 console.log("💎 Perfil Identificado:", finalUser.rol);
