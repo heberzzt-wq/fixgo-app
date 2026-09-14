@@ -1,6 +1,12 @@
 {
-  "jobId": "v142-humo17-test-persistent-min-volume-20260912-chatgpt-73",
+  "jobId": "v142-index-privacy-link-20260914-chatgpt-74",
   "operation": "patch",
   "humanApproved": true,
-  "patch": {"file":"tests/jarvis-local-video-engine-v142.test.mjs","dryRun":false,"expectedMatches":1,"search":"    assert.equal(strategy.persistentMinimumNetworkVolumeGb, 80);","replace":"    assert.equal(strategy.persistentMinimumNetworkVolumeGb, 50);"}
+  "patch": {
+    "file": "index.html",
+    "dryRun": false,
+    "expectedMatches": 1,
+    "search": "            <a href=\"privacidad.html\" class=\"hover:text-white transition-colors\">Aviso de Privacidad</a>",
+    "replace": "            <a href=\"#privacidad\" onclick=\"document.getElementById('modalPrivacidad')?.classList.remove('hidden')\" class=\"hover:text-white transition-colors\">Aviso de Privacidad</a>"
+  }
 }
