@@ -8374,3 +8374,45 @@ test("V142 HuMo17 bootstrap uses ephemeral runtime and auxiliaries with persiste
     const runner = fs.readFileSync(new URL("../scripts/jarvis-local-video-wan22.py", import.meta.url), "utf8");
     for (const status of ["HUMO17_SAMPLER_COMPLETED","HUMO17_VAE_DECODE_COMPLETED","HUMO17_GEOMETRY_VERIFIED","HUMO17_CPU_TRANSFER_STARTED","HUMO17_CPU_TRANSFER_COMPLETED","HUMO17_FFMPEG_STARTED","HUMO17_FFMPEG_COMPLETED","HUMO17_FFPROBE_STARTED","HUMO17_FFPROBE_COMPLETED"]) assert.equal(runner.includes(status), true, status);
 });
+
+
+test("V142 worker quality preflight executes the bridge with no paid authority and exact assets", async () => {
+    const {executeHuMo17CoreStageJob} = await import("../jarvis-github-worker.js");
+    const sha = "a".repeat(40);
+    const job = {qualityProbe:true, qualityPreflightOnly:true, executePaid:false, humanApproved:false,
+        expectedBaseSha:sha, hardBudgetUsd:0.95, maximumMinutes:90,
+        geometry:{width:832,height:480,frames:201,fps:25,durationSeconds:8.04},
+        output:".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4",
+        runtimeProbe:{sourceRoot:"/fixture",referenceOutput:"reference.jpg",audioOutput:"voice.wav",speechEvidenceOutput:"speech.json",
+            referenceSha256:"b".repeat(64),audioSha256:"c".repeat(64),speechEvidenceSha256:"d".repeat(64)}};
+    let calls = 0;
+    const deps = {platform:"win32",head:async()=>sha,git:async()=>({ok:true,stdout:""}),run:async(exe,args,options)=>{
+        calls++;
+        assert.deepEqual(args.slice(0,2),["--input-type=module","--eval"]);
+        assert.match(args[2],/runHuMo17PersistentCoreStagingCli/);
+        assert.doesNotMatch(args[2],/resolveHuMo17QualityControlPlane/);
+        assert.equal(options.onLine,undefined);
+        const e=options.env;
+        assert.equal(e.JARVIS_HUMO17_RUNTIME_PROBE_PREFLIGHT_ONLY,"true");
+        assert.equal(e.JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED,"false");
+        assert.equal(e.JARVIS_HUMO17_PERSISTENT_VOLUME_RESIZE_AUTHORIZED,"false");
+        assert.equal(e.JARVIS_HUMO17_SINGLE_USE_AUTHORITY_FILE,"");
+        assert.equal(e.JARVIS_HUMO17_RUNTIME_CI_VERIFIED_SHA,sha);
+        for (const [field,key] of Object.entries({sourceRoot:"SOURCE_ROOT",referenceOutput:"REFERENCE_OUTPUT",referenceSha256:"REFERENCE_SHA256",audioOutput:"AUDIO_OUTPUT",audioSha256:"AUDIO_SHA256"})) assert.equal(e["JARVIS_HUMO17_RUNTIME_PROBE_"+key],job.runtimeProbe[field]);
+        assert.equal(e.JARVIS_HUMO17_SPEECH_EVIDENCE_OUTPUT,job.runtimeProbe.speechEvidenceOutput);
+        assert.equal(e.JARVIS_HUMO17_SPEECH_EVIDENCE_SHA256,job.runtimeProbe.speechEvidenceSha256);
+        assert.equal(e.JARVIS_HUMO17_RUNTIME_PROBE_OUTPUT,job.output);
+        return {ok:true,stdout:JSON.stringify({ok:true,status:"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY",resourceCreated:false,inferenceStarted:false,activePods:0})};
+    }};
+    const result=await executeHuMo17CoreStageJob(job,deps);
+    assert.equal(calls,1);assert.equal(result.paidAuthorityConsumed,false);assert.equal(result.resourceCreated,false);
+    await assert.rejects(executeHuMo17CoreStageJob({...job,expectedBaseSha:"e".repeat(40)},deps),/EXACT_HEAD/);
+    await assert.rejects(executeHuMo17CoreStageJob({...job,geometry:{...job.geometry,frames:97}},deps),/GEOMETRY/);
+    await assert.rejects(executeHuMo17CoreStageJob({...job,runtimeProbe:{...job.runtimeProbe,audioSha256:"invalid"}},deps),/HASH_REQUIRED/);
+    await assert.rejects(executeHuMo17CoreStageJob(job,{...deps,run:async()=>({ok:true,stdout:JSON.stringify({ok:true,status:"HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY",resourceCreated:true,inferenceStarted:false,activePods:0})})}),/QUALITY_PREFLIGHT_FAILED/);
+    assert.equal(calls,1);
+    const {buildHuMo17QualityPreflightEnv}=await import("../jarvis-github-worker.js");
+    const overridden=buildHuMo17QualityPreflightEnv(job,sha,{JARVIS_HUMO17_SINGLE_USE_AUTHORITY_FILE:"must-not-read.json",JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED:"true"});
+    assert.equal(overridden.JARVIS_HUMO17_SINGLE_USE_AUTHORITY_FILE,"");
+    assert.equal(overridden.JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED,"false");
+});

@@ -727,8 +727,47 @@ function recordPaidProgress(jobId,line) {
     }).catch(error=>console.error(error.message));
 }
 
-async function executeHuMo17CoreStageJob(job = {}) {
-    if (process.platform !== "win32") throw new Error("SIA7_HUMO17_WINDOWS_WORKER_REQUIRED");
+export function buildHuMo17QualityPreflightEnv(job, executionHeadSha, env = process.env) {
+    if (job.qualityProbe !== true || job.qualityPreflightOnly !== true) throw new Error("SIA7_HUMO17_ZERO_COST_MODE_REQUIRED");
+    if (!/^[a-f0-9]{40}$/.test(executionHeadSha) || job.expectedBaseSha !== executionHeadSha) throw new Error("SIA7_HUMO17_EXACT_HEAD_CI_REQUIRED");
+    const geometry = job.geometry || {};
+    if (Number(geometry.frames) !== 201 || Number(geometry.fps) !== 25 || Number(geometry.durationSeconds) !== 8.04 || Number(geometry.width) !== 832 || Number(geometry.height) !== 480) throw new Error("SIA7_HUMO17_QUALITY_GEOMETRY_INVALID");
+    const inputs = job.runtimeProbe || {};
+    for (const field of ["sourceRoot", "referenceOutput", "audioOutput", "speechEvidenceOutput"]) {
+        if (typeof inputs[field] !== "string" || !inputs[field].trim()) throw new Error("SIA7_HUMO17_QUALITY_INPUT_REQUIRED:" + field);
+    }
+    for (const field of ["referenceSha256", "audioSha256", "speechEvidenceSha256"]) {
+        if (!/^[a-f0-9]{64}$/.test(inputs[field] || "")) throw new Error("SIA7_HUMO17_QUALITY_HASH_REQUIRED:" + field);
+    }
+    if (job.output !== ".jarvis-artifacts/videos/humo17-heberto-quality-probe-201f.mp4") throw new Error("SIA7_HUMO17_QUALITY_OUTPUT_INVALID");
+    return {
+        ...env,
+        JARVIS_HUMO17_CORE_STAGE_AUTHORIZED: "true",
+        JARVIS_HUMO17_RUNTIME_PROBE_AUTHORIZED: "true",
+        JARVIS_HUMO17_RUNTIME_PROBE_PREFLIGHT_ONLY: "true",
+        JARVIS_HUMO17_QUALITY_PROBE_AUTHORIZED: "true",
+        JARVIS_HUMO17_RUNTIME_CI_VERIFIED_SHA: executionHeadSha,
+        JARVIS_HUMO17_CERTIFIED_CODE_SHA: executionHeadSha,
+        JARVIS_HUMO17_RUNTIME_PROBE_SOURCE_ROOT: inputs.sourceRoot,
+        JARVIS_HUMO17_RUNTIME_PROBE_REFERENCE_OUTPUT: inputs.referenceOutput,
+        JARVIS_HUMO17_RUNTIME_PROBE_REFERENCE_SHA256: inputs.referenceSha256,
+        JARVIS_HUMO17_RUNTIME_PROBE_AUDIO_OUTPUT: inputs.audioOutput,
+        JARVIS_HUMO17_RUNTIME_PROBE_AUDIO_SHA256: inputs.audioSha256,
+        JARVIS_HUMO17_SPEECH_EVIDENCE_OUTPUT: inputs.speechEvidenceOutput,
+        JARVIS_HUMO17_SPEECH_EVIDENCE_SHA256: inputs.speechEvidenceSha256,
+        JARVIS_HUMO17_RUNTIME_PROBE_OUTPUT: job.output,
+        JARVIS_HUMO17_CORE_STAGE_RECEIPT: "",
+        JARVIS_HUMO17_SINGLE_USE_AUTHORITY_FILE: "",
+        JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "false",
+        JARVIS_HUMO17_PERSISTENT_VOLUME_RESIZE_AUTHORIZED: "false",
+        JARVIS_RUNPOD_NETWORK_VOLUME_ID: "1qm5wczocl",
+        JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1"
+    };
+}
+
+export async function executeHuMo17CoreStageJob(job = {}, {platform = process.platform, head = currentHeadSha, git = runGit, run = runLocalProcess} = {}) {
+    const qualityPreflightOnly = job.qualityProbe === true && job.qualityPreflightOnly === true;
+    if (platform !== "win32") throw new Error("SIA7_HUMO17_WINDOWS_WORKER_REQUIRED");
     const hardBudgetUsd = Number(job.hardBudgetUsd);
     const maximumMinutes = Number(job.maximumMinutes ?? 90);
     if (!Number.isFinite(hardBudgetUsd) || hardBudgetUsd <= 0 || hardBudgetUsd > SIA7_HUMO_MAX_COMPUTE_USD) {
@@ -739,16 +778,16 @@ async function executeHuMo17CoreStageJob(job = {}) {
     }
     const expectedBaseSha = String(job.expectedBaseSha || "").trim().toLowerCase();
     if (!/^[a-f0-9]{40}$/.test(expectedBaseSha)) throw new Error("SIA7_HUMO17_CERTIFIED_BASE_SHA_REQUIRED");
-    const executionHeadSha = await currentHeadSha();
-    const ancestor = await runGit(["merge-base", "--is-ancestor", expectedBaseSha, executionHeadSha]);
+    const executionHeadSha = await head();
+    const ancestor = await git(["merge-base", "--is-ancestor", expectedBaseSha, executionHeadSha]);
     if (!ancestor.ok) throw new Error("SIA7_HUMO17_CERTIFIED_BASE_NOT_ANCESTOR");
-    const diff = await runGit(["diff", "--name-only", `${expectedBaseSha}..${executionHeadSha}`]);
+    const diff = await git(["diff", "--name-only", `${expectedBaseSha}..${executionHeadSha}`]);
     if (!diff.ok) throw new Error("SIA7_HUMO17_CERTIFIED_BASE_DIFF_FAILED");
     const changedFiles = String(diff.stdout || "").split(/\r?\n/).map(value => value.trim()).filter(Boolean);
     if (changedFiles.some(file => !file.startsWith(".sia7/"))) {
         throw new Error("SIA7_HUMO17_EXECUTION_HEAD_HAS_UNCERTIFIED_CODE");
     }
-    if (job.executePaid !== true) {
+    if (!qualityPreflightOnly && job.executePaid !== true) {
         return {
             ok: true,
             operation: "humo17_core_stage",
@@ -765,13 +804,15 @@ async function executeHuMo17CoreStageJob(job = {}) {
             inferenceStarted: false
         };
     }
-    if (job.humanApproved !== true) throw new Error("SIA7_HUMO17_CORE_STAGE_HUMAN_APPROVAL_REQUIRED");
-    const execution = await runLocalProcess(
+    if (!qualityPreflightOnly && job.humanApproved !== true) throw new Error("SIA7_HUMO17_CORE_STAGE_HUMAN_APPROVAL_REQUIRED");
+    const execution = await run(
         process.execPath,
-        ["jarvis-fs-bridge.js", "--humo17-core-stage"],
+        qualityPreflightOnly ? ["--input-type=module", "--eval",
+            'import {runHuMo17PersistentCoreStagingCli} from "./jarvis-fs-bridge.js"; try { const result = await runHuMo17PersistentCoreStagingCli({env:process.env}); console.log(JSON.stringify(result)); } catch (error) { console.error(JSON.stringify({ok:false,status:error.message,resourceCreated:false,inferenceStarted:false})); process.exitCode=1; }'
+        ] : ["jarvis-fs-bridge.js", "--humo17-core-stage"],
         {
             timeoutMs: Math.ceil((maximumMinutes + 5) * 60 * 1000),
-            onLine: line=>recordPaidProgress(job.jobId,line),
+            onLine: qualityPreflightOnly ? undefined : line=>recordPaidProgress(job.jobId,line),
             env: {
                 ...process.env,
                 JARVIS_HUMO17_CORE_STAGE_AUTHORIZED: "true",
@@ -780,7 +821,8 @@ async function executeHuMo17CoreStageJob(job = {}) {
                 JARVIS_HUMO17_CORE_STAGE_HARD_BUDGET_USD: String(hardBudgetUsd),
                 JARVIS_HUMO17_CORE_STAGE_MAX_MINUTES: String(maximumMinutes),
                 JARVIS_RUNPOD_NETWORK_VOLUME_ID: "1qm5wczocl",
-                JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1"
+                JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1",
+                ...(qualityPreflightOnly ? buildHuMo17QualityPreflightEnv(job, executionHeadSha, {}) : {})
             }
         }
     );
@@ -797,7 +839,7 @@ async function executeHuMo17CoreStageJob(job = {}) {
         catch {}
     }
     if (job.qualityProbe === true && job.qualityPreflightOnly === true) {
-        if (!execution.ok || parsed?.ok !== true || parsed?.status !== "HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY" || parsed?.resourceCreated !== false || parsed?.inferenceStarted !== false || Number(parsed?.activePods || 0) !== 0) {
+        if (!execution.ok || parsed?.ok !== true || parsed?.status !== "HUMO17_RUNTIME_ZERO_COST_PREFLIGHT_READY" || parsed?.resourceCreated !== false || parsed?.inferenceStarted !== false || parsed?.activePods !== 0) {
             const error = new Error(`SIA7_HUMO17_QUALITY_PREFLIGHT_FAILED:${parsed?.status || lines.slice(-8).join(" | ") || execution.code}`);
             error.evidence = {phase: parsed?.status || "WORKER_PROCESS_FAILED", paidReceipts: [], logTail: lines.slice(-20)};
             throw error;
@@ -812,6 +854,7 @@ async function executeHuMo17CoreStageJob(job = {}) {
             hardBudgetUsd,
             maximumMinutes,
             resourceCreationPossible: false,
+            paidAuthorityConsumed: false,
             logTail: lines.slice(-20)
         };
     }
