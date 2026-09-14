@@ -708,7 +708,18 @@ service cloud.firestore {
     }
 
     match /rastreo/{userId} {
-      allow read: if isAuth();
+      function ownsActiveAssignment() {
+        let lock = get(/databases/$(database)/documents/technician_active_services/$(userId)).data;
+        return lock != null && lock.get('estado', '') == 'activo' &&
+          b2cIsOwningCustomer(lock.service_id) &&
+          b2cService(lock.service_id).get('tecnico_id', null) == userId &&
+          !(b2cService(lock.service_id).get('estado', '') in ['finalizado', 'cancelado', 'liquidado', 'completado']);
+      }
+      allow read: if isAuth() && (
+        request.auth.uid == userId || isAdmin() ||
+        (userRole() == 'admin_b2b' && tenantMember(get(/databases/$(database)/documents/users/$(userId)).data.get('edificioId', null))) ||
+        ownsActiveAssignment()
+      );
       allow write: if isAuth() && (request.auth.uid == userId || isAdmin());
     }
 

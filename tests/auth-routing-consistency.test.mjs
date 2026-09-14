@@ -240,3 +240,25 @@ test('backend evidence verification uses the same default bucket as the client',
     const initialization=server.slice(server.indexOf('admin.initializeApp('),server.indexOf('// B2B onboarding'));
     assert.equal(initialization.match(/storageBucket:\s*"([^"]+)"/)[1],bucket);
 });
+
+test('offline photos retain failed Firestore updates and reuse uploaded immutable files on retry',async()=>{
+    const {runInNewContext}=await import('node:vm');
+    const source=fs.readFileSync(new URL('../app-tecnico-b2b.js',import.meta.url),'utf8');
+    const start=source.indexOf('async function procesarFotosPendientes(){');
+    const code=source.slice(start,source.indexOf('/* =====================================================',start));
+    const queue=new Map([[1,{actorUid:'tech',ordenId:'first',tipo:'antes',timestamp:1,base64:'image'}],[2,{actorUid:'tech',ordenId:'second',tipo:'despues',timestamp:2,base64:'image'}]]);
+    const files=new Set(['evidencias/second/despues_2.jpg']);let fail=true;let uploads=0;
+    const run=runInNewContext(code+'\nprocesarFotosPendientes',{
+        isOnline:true,auth:{currentUser:{uid:'tech'}},db:{},storage:{},
+        cachePendientes:async()=>[...queue].map(([key,value])=>({key,value})),
+        confirmarPendiente:async(_,key)=>queue.delete(key),ref:(_,path)=>path,doc:(_,__,id)=>id,
+        getDownloadURL:async path=>{if(!files.has(path))throw {code:'storage/object-not-found'};return 'https://storage.test/'+path;},
+        uploadBytes:async path=>{uploads++;files.add(path);},fetch:async()=>({blob:async()=>new Uint8Array([1])}),
+        updateDoc:async id=>{if(id==='first'&&fail)throw Error('network failure');},console:{error(){}}
+    });
+    await run();
+    assert.deepEqual([...queue.keys()],[1]);
+    fail=false;await run();
+    assert.equal(queue.size,0);
+    assert.equal(uploads,1);
+});

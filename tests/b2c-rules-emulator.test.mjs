@@ -301,3 +301,20 @@ test('B2B final state and signature become sealed after backend closure', async(
     await assertFails(updateDoc(doc(db,'servicios_b2b/sealed-order'),{foto_antes:'https://example.test/replaced'}));
     await assertFails(uploadBytes(ref(environment.authenticatedContext('b2b-tech').storage(),'firmas/sealed-order/conformidad.png'),new Uint8Array([137,80,78,71]),{contentType:'image/png'}));
 });
+
+test('GPS tracking is limited to the customer of the active backend assignment',async()=>{
+    await environment.withSecurityRulesDisabled(async context=>{
+        const db=context.firestore();
+        await setDoc(doc(db,'rastreo/tech-1'),{lat:21,lng:-86});
+        await setDoc(doc(db,'technician_active_services/tech-1'),{service_id:'svc-close',technician_id:'tech-1',estado:'activo'});
+    });
+    const customer=environment.authenticatedContext('client-1').firestore();
+    await assertSucceeds(getDoc(doc(customer,'rastreo/tech-1')));
+    await assertSucceeds(getDoc(doc(environment.authenticatedContext('tech-1').firestore(),'rastreo/tech-1')));
+    await assertFails(getDoc(doc(environment.authenticatedContext('b2b-other').firestore(),'rastreo/tech-1')));
+    await assertFails(getDoc(doc(environment.unauthenticatedContext().firestore(),'rastreo/tech-1')));
+    await environment.withSecurityRulesDisabled(async context=>{
+        await updateDoc(doc(context.firestore(),'technician_active_services/tech-1'),{estado:'inactivo'});
+    });
+    await assertFails(getDoc(doc(customer,'rastreo/tech-1')));
+});
