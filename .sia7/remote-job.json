@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-policies-stripe-authorization-20260914-chatgpt-82",
+  "jobId": "v142-policies-cash-conditional-20260914-chatgpt-83",
   "operation": "patch",
   "humanApproved": true,
   "patch": {
     "file": "politicas.html",
     "dryRun": false,
     "expectedMatches": 1,
-    "search": "                <li><strong class=\"text-gray-200\">Pago Seguro (Stripe):</strong> Se realiza una retención temporal ($550) al solicitar. El cobro final se procesa automáticamente al terminar el trabajo.</li>",
-    "replace": "                <li><strong class=\"text-gray-200\">Pago Seguro (Stripe):</strong> Cuando el servicio use pago electrónico, la plataforma puede solicitar una garantía o autorización inicial por el importe mostrado antes de confirmar. El saldo autorizado se procesa mediante la autoridad financiera de la plataforma conforme al estado real del servicio.</li>"
+    "search": "                <li><strong class=\"text-gray-200\">Pago en Efectivo:</strong> Se realiza de forma directa al especialista únicamente al finalizar la reparación.</li>",
+    "replace": "                <li><strong class=\"text-gray-200\">Pago en Efectivo:</strong> Solo estará disponible cuando la plataforma lo habilite expresamente para el servicio o perfil correspondiente. Cualquier comisión, saldo o movimiento derivado de ese método quedará registrado por la plataforma para su conciliación.</li>"
   }
 }
