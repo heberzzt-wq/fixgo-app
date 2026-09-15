@@ -1769,7 +1769,15 @@ test("HuMo17 quality probe rejects noise-only, blind segments, mismatched hashes
     assert.equal(job.referencePreprocessing.preserveAspectRatio,true);assert.equal(job.gpuCount,1);
     assert.equal(job.networkVolumeRetained,true);assert.equal(job.fullEpisodeAuthorized,false);
     const physicalJob=buildHuMo17RuntimeProbeJob({assets:{qualityProbe:false,reference:assets.reference,audio:assets.audio,output:".jarvis-artifacts/videos/physical.mp4"},hardBudgetUsd:1.5,paidAuthorized:true});
-    assert.equal(job.prompt,physicalJob.prompt);assert.equal(job.negativePrompt,physicalJob.negativePrompt);
+    assert.equal(physicalJob.prompt,"The exact person in the reference image speaks the supplied audio, natural restrained facial motion. Preserve facial identity, age, hair and facial hair. One person only, no subtitles or watermark.");
+    assert.equal(physicalJob.negativePrompt,"another person, identity change, subtitles, watermark, deformed face");
+    assert.notEqual(job.prompt,physicalJob.prompt);
+    assert.match(job.prompt,/transparent rectangular eyeglasses/);
+    assert.match(job.prompt,/sparse salt-and-pepper stubble/);
+    assert.match(job.prompt,/same clothing, background and daylight/);
+    assert.match(job.negativePrompt,/changing lighting/);
+    assert.equal(job.referenceSha256,physicalJob.referenceSha256);
+    assert.equal(job.audioSha256,physicalJob.audioSha256);
     assert.match(job.negativePrompt,/identity change/);assert.doesNotMatch(job.negativePrompt,/smooth plastic skin/);
     assert.equal(job.effectiveRuntimeConfig.seed,42);assert.equal(job.effectiveRuntimeConfig.steps,8);assert.equal(job.effectiveRuntimeConfig.scheduler,"lcm");
     assert.equal(job.effectiveRuntimeConfig.referencePreprocessing.preserveAspectRatio,true);

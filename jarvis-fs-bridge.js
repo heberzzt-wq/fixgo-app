@@ -8869,6 +8869,8 @@ export function buildHuMo17RuntimeProbeJob({ assets, hardBudgetUsd, operationId,
     if (!/^[a-zA-Z0-9._-]{1,120}$/.test(resolvedOperationId)) throw new Error("HUMO17_OPERATION_ID_INVALID");
     const speechEvidence = quality ? validateHuMo17SpeechEvidence(assets.speechEvidence, assets.audio.sha256) : null;
     const candidate = buildNextIdentityRuntimeCandidate({ backend: "humo-17b-identity" });
+    const prompt = quality ? "The exact person in the reference photograph speaks the supplied audio with restrained natural facial motion. Preserve the reference face proportions, jawline, nose, lips, transparent rectangular eyeglasses, short salt-and-pepper hair and sparse salt-and-pepper stubble. Keep natural skin texture and age, the same clothing, background and daylight throughout the shot. A relaxed neutral expression with small speech-driven mouth movements, no posed grin. One person only, fixed camera, no subtitles or watermark." : "The exact person in the reference image speaks the supplied audio, natural restrained facial motion. Preserve facial identity, age, hair and facial hair. One person only, no subtitles or watermark.";
+    const negativePrompt = quality ? "another person, identity change, subtitles, watermark, deformed face, changed eyeglass frames, sunglasses, dense beard, dyed hair, beauty filter, waxy skin, enlarged lips, exaggerated grin, exaggerated teeth, changing background, changing lighting" : "another person, identity change, subtitles, watermark, deformed face";
     return {
         operationId: resolvedOperationId, backend: "humo-17b-identity", model: "HuMo-17B", externalApiAllowed: false,
         paidAuthorized: true, fullEpisodeAuthorized: false, gpuCount: 1, maximumIdentityCount: 1,
@@ -8892,8 +8894,8 @@ export function buildHuMo17RuntimeProbeJob({ assets, hardBudgetUsd, operationId,
             audioScale: 1.0,
             audioCfgScale: 2.5,
             referenceConditioning: "HuMoEmbeds",
-            prompt: "The exact person in the reference image speaks the supplied audio, natural restrained facial motion. Preserve facial identity, age, hair and facial hair. One person only, no subtitles or watermark.",
-            negativePrompt: "another person, identity change, subtitles, watermark, deformed face",
+            prompt,
+            negativePrompt,
             referencePreprocessing: {preserveAspectRatio: true, method: "pad", width: 832, height: 480, interpolation: "LANCZOS", padColor: "white"},
             geometry: quality ? candidate.qualityProbeGeometry : candidate.probeGeometry,
             attentionMode: candidate.singleGpuStrategy.attentionMode,
@@ -8906,8 +8908,8 @@ export function buildHuMo17RuntimeProbeJob({ assets, hardBudgetUsd, operationId,
         referenceFile: "/tmp/jarvis-humo17/reference" + path.extname(assets.reference.file),
         audioFile: "/tmp/jarvis-humo17/audio.wav", outputFile: path.posix.join("/workspace/jarvis-v142/operations", resolvedOperationId, "probe.mp4"), resultFile: path.posix.join("/workspace/jarvis-v142/operations", resolvedOperationId, "result.json"), logFile: path.posix.join("/workspace/jarvis-v142/operations", resolvedOperationId, "probe.log"),
         comfyRoot: "/tmp/jarvis-humo17/ComfyUI",
-        prompt: "The exact person in the reference image speaks the supplied audio, natural restrained facial motion. Preserve facial identity, age, hair and facial hair. One person only, no subtitles or watermark.",
-        negativePrompt: "another person, identity change, subtitles, watermark, deformed face",
+        prompt,
+        negativePrompt,
         assetNames: {
             video_transformer: path.posix.basename(candidate.singleGpuStrategy.quantizedModel.path),
             distillation_lora: path.posix.basename(candidate.singleGpuStrategy.distillationLora.path),
