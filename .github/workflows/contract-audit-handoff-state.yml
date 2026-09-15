@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 4
+          fetch-depth: 5
           ref: v94-media-v4n-negative-claims
 
       - name: Patch Gemini runtime deterministically
@@ -129,11 +129,11 @@ jobs:
           planner_test, replaced = re.subn(
               r'\.thinkingBudget,\s*\n\s*0',
               '.thinkingLevel,\n                        "MINIMAL"',
-              planner_test,
-              count=1
+              planner_test
           )
-          if replaced != 1:
-              raise SystemExit(f'SEMANTIC_THINKING_ASSERT_REPLACEMENT_COUNT={replaced}')
+          if replaced < 1:
+              raise SystemExit('SEMANTIC_THINKING_ASSERTIONS_NOT_FOUND')
+          print('semantic_thinking_assertions_migrated=', replaced)
           planner_test_path.write_text(planner_test, encoding='utf-8')
 
           chain_test_path = Path('tests/jarvis-genai-provider-chain.test.cjs')
@@ -199,8 +199,6 @@ jobs:
           if re.search(r'(?m)^\s*temperature:', planner_text):
               raise SystemExit('SAMPLING_TEMPERATURE_REMAINS_IN_PLANNER')
           print('GEMINI_MIGRATION_PATCH_OK')
-          print('runtime_files_checked=', len(runtime_files))
-          print('test_files_checked=', len(test_files))
           PY
 
       - name: Inspect function-calling continuity surface
