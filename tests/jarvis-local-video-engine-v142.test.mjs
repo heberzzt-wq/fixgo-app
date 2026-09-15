@@ -8437,7 +8437,7 @@ test("V142 HuMo17 auxiliary downloader physically resumes and fails closed using
             if(mode.startsWith('http')&&n===1){res.writeHead(Number(mode.slice(4)));res.end();return;}
             if(mode==='bad-range'){res.writeHead(206,{'Content-Range':`bytes 0-${data.length-1}/${data.length}`,'Content-Length':data.length});res.end(data);return;}
             if(mode==='exhaust'||(mode==='transient'&&n===1)){res.writeHead(503);res.end();return;}
-            if(mode==='transient'&&n===2){res.writeHead(200,{'Content-Length':data.length});res.flushHeaders();timers.push(setTimeout(()=>res.end(data),400));return;}
+            if(mode==='transient'&&n===2){res.writeHead(200,{'Content-Length':data.length});res.flushHeaders();timers.push(setTimeout(()=>res.end(data),2500));return;}
             if(mode==='cut'&&n===1){res.writeHead(200,{'Content-Length':data.length});res.write(data.subarray(0,192*1024));timers.push(setTimeout(()=>res.destroy(),50));return;}
             const offset=Number((req.headers.range||'').match(/bytes=(\d+)-/)?.[1]||0);
             if(offset&&mode!=='ignore'){res.writeHead(206,{'Content-Length':data.length-offset,'Content-Range':`bytes ${offset}-${data.length-1}/${data.length}`});res.end(data.subarray(offset));}
@@ -8446,7 +8446,7 @@ test("V142 HuMo17 auxiliary downloader physically resumes and fails closed using
         await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
         try{
             const asset={role:'text_encoder',path:'fixture.bin',bytes:data.length,sha256:mode==='hash'?'0'.repeat(64):sha};
-            const program=buildHuMo17AuxiliaryDownloader()+"\nimport sys\na=json.loads(sys.argv[1])\ndownload_auxiliary(a,sys.argv[2],sys.argv[3],attempts=3,connect_timeout=2,read_timeout=0.15,backoff=0.05)\n";
+            const program=buildHuMo17AuxiliaryDownloader()+"\nimport sys\na=json.loads(sys.argv[1])\ndownload_auxiliary(a,sys.argv[2],sys.argv[3],attempts=3,connect_timeout=5,read_timeout="+(mode==='transient'?"1":"5")+",backoff=0.05)\n";
             const result=await new Promise((resolve,reject)=>{const child=spawn(python,['-c',program,JSON.stringify(asset),final,`http://127.0.0.1:${server.address().port}/asset`],{windowsHide:true});let out='',err='';const timeout=setTimeout(()=>{child.kill();reject(Error('FIXTURE_TIMEOUT'));},15000);child.stdout.on('data',b=>out+=b);child.stderr.on('data',b=>err+=b);child.on('error',e=>{clearTimeout(timeout);reject(e);});child.on('close',code=>{clearTimeout(timeout);resolve({code,out,err});});});
             if(['cut','ignore','transient'].includes(mode)||mode.startsWith('http')){
                 assert.equal(result.code,0,result.err);assert.deepEqual(fs.readFileSync(final),data);assert.equal(fs.existsSync(partial),false);
