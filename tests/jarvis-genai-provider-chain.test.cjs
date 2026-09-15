@@ -8,6 +8,7 @@ const {
     createJarvisGenAIProviderChain,
     isGroundingRedirectUrl,
     isPermanentProviderFailure,
+    normalizeGeminiModel,
     normalizeProviders,
     requestNeedsFreshness,
     resolveGroundingRedirectUrl,
@@ -65,7 +66,7 @@ test("provider chain continues from an empty developer plan to Vertex AI", async
         { name: "gemini-developer", ai: { models: { generateContent: async () => { calls.push("developer"); return { text: JSON.stringify({ toolCalls: [], missionComplete: false }) }; } } } },
         { name: "vertex-adc", ai: { models: { generateContent: async () => { calls.push("vertex"); return { functionCalls: [{ name: "jarvis_tool_0", args: { query: "ok" } }] }; } } } }
     ] });
-    const result = await chain.models.generateContent({ model: "gemini-3.6-flash", contents: "INSTRUCCION_ORIGINAL_INMUTABLE=plan", config: { tools: [{ functionDeclarations: [{ name: "jarvis_tool_0", parametersJsonSchema: { type: "object" } }] }], toolConfig: { functionCallingConfig: { mode: "ANY" } } } });
+    const result = await chain.models.generateContent({ model: "gemini-3.5-flash", contents: "INSTRUCCION_ORIGINAL_INMUTABLE=plan", config: { tools: [{ functionDeclarations: [{ name: "jarvis_tool_0", parametersJsonSchema: { type: "object" } }] }], toolConfig: { functionCallingConfig: { mode: "ANY" } } } });
     assert.deepEqual(calls, ["developer", "vertex"]);
     assert.equal(result.functionCalls[0].name, "jarvis_tool_0");
     assert.equal(chain.lastProvider, "vertex-adc");
@@ -263,6 +264,39 @@ test("provider request sanitation leaves Google Search alone and compacts functi
         },
         required: ["action"]
     });
+});
+
+test("Gemini migration normalizes retired models, thinking config, and preserves thought signatures", () => {
+    assert.equal(normalizeGeminiModel("gemini-2.5-flash"), "gemini-3.5-flash");
+    assert.equal(normalizeGeminiModel("gemini-3.6-flash"), "gemini-3.5-flash");
+    assert.equal(normalizeGeminiModel("gemini-3.5-flash"), "gemini-3.5-flash");
+    const request = {
+        model: "gemini-3.6-flash",
+        contents: [{
+            role: "model",
+            parts: [{
+                thoughtSignature: "opaque-thought-signature",
+                functionCall: { id: "call_1", name: "jarvis_tool_0", args: { query: "status" } }
+            }]
+        }, {
+            role: "user",
+            parts: [{
+                functionResponse: { id: "call_1", name: "jarvis_tool_0", response: { ok: true } }
+            }]
+        }],
+        config: {
+            temperature: 0.2,
+            thinkingConfig: { thinkingBudget: 0, includeThoughts: true }
+        }
+    };
+    const sanitized = sanitizeGenerateContentRequest(request);
+    assert.equal(sanitized.model, "gemini-3.5-flash");
+    assert.equal(sanitized.config.temperature, undefined);
+    assert.equal(sanitized.config.thinkingConfig.thinkingBudget, undefined);
+    assert.equal(sanitized.config.thinkingConfig.thinkingLevel, "MINIMAL");
+    assert.equal(sanitized.config.thinkingConfig.includeThoughts, true);
+    assert.equal(sanitized.contents[0].parts[0].thoughtSignature, "opaque-thought-signature");
+    assert.equal(sanitized.contents[1].parts[0].functionResponse.id, "call_1");
 });
 
 test("provider chain falls back to JSON planning when Vertex rejects function schema state size", async () => {

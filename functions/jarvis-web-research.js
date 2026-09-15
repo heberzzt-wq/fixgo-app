@@ -1,7 +1,7 @@
 "use strict";
 
 const DEFAULT_MODEL =
-    "gemini-2.5-flash";
+    "gemini-3.5-flash";
 
 const MAX_QUERY_LENGTH = 600;
 const MAX_SOURCES = 8;

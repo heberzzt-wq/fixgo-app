@@ -3,7 +3,7 @@
 const crypto = require("crypto");
 
 const VERSION = "1.4.0-verified-visual-claims";
-const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_MODEL = "gemini-3.5-flash";
 const ALLOWED_TYPES = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"]);
 const MAX_FILES = 8;
 const MAX_FILE_BYTES = 7 * 1024 * 1024;

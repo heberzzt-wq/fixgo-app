@@ -625,15 +625,14 @@ test("semantic response uses the authenticated provider chain and reports proven
             lastProvider: "vertex-adc",
             models: {
                 generateContent: async request => {
-                    assert.equal(request.model, "gemini-3.6-flash");
+                    assert.equal(request.model, "gemini-3.5-flash");
                     assert.equal(
                         request.config.maxOutputTokens,
                         3500
                     );
                     assert.equal(
                         request.config.thinkingConfig
-                            .thinkingBudget,
-                        0
+                            .thinkingLevel, "MINIMAL"
                     );
                     return { text: "Resultado integrado con evidencia." };
                 }
@@ -735,7 +734,7 @@ test("semantic planner preserves mixed tools and never grants prompt approval", 
     const result = await runJarvisSemanticPlanner({
         input: "analisa el repo y revisa conectores sin modificar nada", catalog,
         ai: { lastProvider: "gemini-developer", models: { generateContent: async request => {
-            assert.equal(request.model, "gemini-3.6-flash");
+            assert.equal(request.model, "gemini-3.5-flash");
             return { functionCalls: [{ name: "jarvis_tool_0", args: { query: "repo" } }, { name: "jarvis_tool_1", args: {} }, { name: "jarvis_tool_2", args: {} }] };
         } } }
     });
@@ -823,7 +822,7 @@ test("semantic planner uses the authenticated two-provider authority without a p
             lastProvider: "vertex-adc",
             models: {
                 generateContent: async request => {
-                    assert.equal(request.model, "gemini-3.6-flash");
+                    assert.equal(request.model, "gemini-3.5-flash");
                     assert.ok(request.contents.includes("INSTRUCCION_ORIGINAL_INMUTABLE="));
                     return {
                         functionCalls: [
@@ -1034,16 +1033,16 @@ test("Gemini creates a complete read-only mission contract before execution", as
                         /HERRAMIENTAS_INICIALES=repo\.search,connector\.list/
                     );
                     if (requestCount === 1) {
-                        assert.equal(request.config.thinkingConfig.thinkingBudget, 0);
+                        assert.equal(request.config.thinkingConfig.thinkingLevel, "MINIMAL");
                         assert.equal(request.config.maxOutputTokens, 4000);
                         assert.ok(request.contents.includes("CONTRATO_DE_MISION"));
                         assert.ok(request.contents.includes("todas las herramientas read-only y userArtifact necesarias"));
                     } else if (requestCount === 2) {
-                        assert.equal(request.config.thinkingConfig.thinkingBudget, 0);
+                        assert.equal(request.config.thinkingConfig.thinkingLevel, "MINIMAL");
                         assert.equal(request.config.maxOutputTokens, 3000);
                         assert.ok(request.contents.includes("AUDITORIA_SEMANTICA_DE_COBERTURA"));
                     } else {
-                        assert.equal(request.config.thinkingConfig.thinkingBudget, 256);
+                        assert.equal(request.config.thinkingConfig.thinkingLevel, "LOW");
                         assert.equal(request.config.maxOutputTokens, 4000);
                         assert.ok(request.contents.includes("MUESTRA_SEMANTICA_INDEPENDIENTE_DE_COBERTURA"));
                     }
@@ -1253,7 +1252,7 @@ test("Gemini reserves response budget for evidence-driven mission follow-ups", a
             lastProvider: "vertex-adc",
             models: {
                 generateContent: async request => {
-                    assert.equal(request.config.thinkingConfig.thinkingBudget, 0);
+                    assert.equal(request.config.thinkingConfig.thinkingLevel, "MINIMAL");
                     assert.equal(request.config.maxOutputTokens, 3000);
                     return {
                         functionCalls: [{
@@ -1307,7 +1306,7 @@ test("semantic planner accepts long and ten-page missions without losing mission
         ai: { lastProvider: "gemini-developer", models: { generateContent: async request => { providerRequest = request; return { functionCalls: [{ name: "jarvis_tool_1", args: {} }] }; } } }
     });
     assert.equal(result.toolCalls[0].name, "connector.list");
-    assert.equal(providerRequest.model, "gemini-3.6-flash");
+    assert.equal(providerRequest.model, "gemini-3.5-flash");
     assert.ok(String(providerRequest.contents).includes(longInstruction));
     assert.ok(String(providerRequest.contents).includes("MISSION-LONG-1"));
     assert.ok(String(providerRequest.contents).includes("No repitas una herramienta completada"));

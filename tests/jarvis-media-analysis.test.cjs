@@ -12,7 +12,7 @@ test("grounded media analysis sends real inline bytes and preserves evidence and
     let request;
     const ai = {
         getGenerativeModel(config) {
-            assert.equal(config.model, "gemini-2.5-flash");
+            assert.equal(config.model, "gemini-3.5-flash");
             return {
                 async generateContent(parts) {
                     request = parts;
@@ -91,7 +91,7 @@ test("grounded media analysis supports the deployed modern provider chain", asyn
         }
     });
 
-    assert.equal(request.model, "gemini-2.5-flash");
+    assert.equal(request.model, "gemini-3.5-flash");
     assert.equal(request.contents[0].parts[1].inlineData.mimeType, "image/png");
     assert.equal(result.provider, "vertex-adc");
     assert.equal(result.sources[0].description, "");

@@ -122,7 +122,7 @@ test("grounded web research sends Google Search configuration and returns eviden
 
     assert.equal(
         request.model,
-        "gemini-2.5-flash"
+        "gemini-3.5-flash"
     );
     assert.deepEqual(
         request.config.tools,

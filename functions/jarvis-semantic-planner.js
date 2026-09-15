@@ -1,7 +1,7 @@
 "use strict";
 
 const VERSION = "1.23.0-two-provider-failover-v142";
-const DEFAULT_GEMINI_MODEL = "gemini-3.6-flash";
+const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
 
 function wait(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -738,10 +738,9 @@ async function runGeminiSemanticPlanner({
                 ].join("\n")
             ].join("\n\n"),
             config: {
-                temperature: 0,
                 maxOutputTokens: 4000,
                 thinkingConfig: {
-                    thinkingBudget: 0
+                    thinkingLevel: "MINIMAL"
                 },
                 responseMimeType: "application/json"
             }
@@ -805,10 +804,9 @@ async function runGeminiSemanticPlanner({
                     ].join("\n")
                 ].join("\n\n"),
                 config: {
-                    temperature: 0,
                     maxOutputTokens: 3000,
                     thinkingConfig: {
-                        thinkingBudget: 0
+                        thinkingLevel: "MINIMAL"
                     },
                     responseMimeType: "application/json"
                 }
@@ -863,10 +861,9 @@ async function runGeminiSemanticPlanner({
                     ].join("\n")
                 ].join("\n\n"),
                 config: {
-                    temperature: 0,
                     maxOutputTokens: 4000,
                     thinkingConfig: {
-                        thinkingBudget: 256
+                        thinkingLevel: "LOW"
                     },
                     responseMimeType: "application/json"
                 }
@@ -950,10 +947,9 @@ async function runGeminiSemanticPlanner({
                 ].join("\n")
             ].join("\n\n"),
             config: {
-                temperature: 0,
                 maxOutputTokens: 3000,
                 thinkingConfig: {
-                    thinkingBudget: 0
+                    thinkingLevel: "MINIMAL"
                 },
                 responseMimeType: "application/json"
             }
@@ -1003,10 +999,9 @@ async function runGeminiSemanticPlanner({
                                 : ""
                         ].filter(Boolean).join("\n\n"),
                         config: {
-                            temperature: 0,
                             maxOutputTokens: 3000,
                             thinkingConfig: {
-                                thinkingBudget: 0
+                                thinkingLevel: "MINIMAL"
                             },
                             responseMimeType: "application/json"
                         }
@@ -1071,10 +1066,9 @@ async function runGeminiSemanticPlanner({
             `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
         ].join("\n\n"),
         config: {
-            temperature: 0,
             maxOutputTokens: 3000,
             thinkingConfig: {
-                thinkingBudget: 0
+                thinkingLevel: "MINIMAL"
             },
             tools: [{ functionDeclarations: buildGeminiModelTools(safeCatalog) }],
             toolConfig: {
@@ -1100,10 +1094,9 @@ async function runGeminiSemanticPlanner({
                 "AUDITORIA_FINAL_OBLIGATORIA: compara cada entregable pedido con completedTasks. Devuelve JSON. Si falta algo, incluye la siguiente toolCall real; solo si todo esta satisfecho usa missionComplete=true."
             ].join("\n\n"),
             config: {
-                temperature: 0,
                 maxOutputTokens: 3000,
                 thinkingConfig: {
-                    thinkingBudget: 0
+                    thinkingLevel: "MINIMAL"
                 },
                 responseMimeType: "application/json"
             }
@@ -1197,7 +1190,7 @@ async function runJarvisSemanticResponse({
                 contents: instruction,
                 config: {
                     maxOutputTokens: budget,
-                    thinkingConfig: { thinkingBudget: 0 },
+                    thinkingConfig: { thinkingLevel: "MINIMAL" },
                     systemInstruction: [
                         "Eres Jarvis, asistente multifuncional privado de Heberto Mendoza.",
                         "Responde en espanol natural, completo, directo y verificable.",

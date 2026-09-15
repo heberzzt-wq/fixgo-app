@@ -8,247 +8,43 @@ on:
       - '.github/workflows/contract-audit-handoff-state.yml'
 
 permissions:
-  contents: write
+  contents: read
 
-concurrency:
-  group: gemini-35-migration-v94
-  cancel-in-progress: false
+env:
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
 
 jobs:
-  migrate-certify-restore:
+  inspect:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: v94-media-v4n-negative-claims
-
-      - name: Patch Gemini runtime deterministically
+      - name: Reconstruct and inspect
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p /tmp/contract-audit
+          cat .github/candidates/contract-audit/chunk-00.txt .github/candidates/contract-audit/chunk-01.txt .github/candidates/contract-audit/chunk-02.txt .github/candidates/contract-audit/segment-05.txt .github/candidates/contract-audit/segment-06.txt .github/candidates/contract-audit/segment-07.txt .github/candidates/contract-audit/chunk-04.txt > /tmp/contract-audit/handoff.patch.gz.b64
+          base64 -d /tmp/contract-audit/handoff.patch.gz.b64 | gzip -d > /tmp/contract-audit/handoff.patch
+          echo "$HANDOFF_PATCH_SHA256  /tmp/contract-audit/handoff.patch" | sha256sum -c -
+          git checkout --detach "$BASE_SHA"
+          git apply /tmp/contract-audit/handoff.patch
           python3 - <<'PY'
           from pathlib import Path
-          import re
-
-          runtime_files = [p for p in Path('functions').rglob('*') if p.is_file() and p.suffix in {'.js', '.cjs', '.mjs'}]
-          test_files = [p for p in Path('tests').rglob('*') if p.is_file() and p.suffix in {'.js', '.cjs', '.mjs'}]
-
-          for path in runtime_files + test_files:
-              text = path.read_text(encoding='utf-8')
-              updated = text.replace('gemini-3.6-flash', 'gemini-3.5-flash').replace('gemini-2.5-flash', 'gemini-3.5-flash')
-              if path == Path('functions/index.js'):
-                  updated = updated.replace('Gemini 2.5 Flash', 'Gemini 3.5 Flash')
-                  updated = re.sub(r'(?m)^\s*temperature:\s*[^,\n]+,\n', '', updated)
-              if path == Path('functions/jarvis-semantic-planner.js'):
-                  updated = re.sub(r'(?m)^\s*temperature:\s*[^,\n]+,\n', '', updated)
-                  updated = re.sub(r'thinkingBudget:\s*0', 'thinkingLevel: "MINIMAL"', updated)
-                  updated = re.sub(r'thinkingBudget:\s*[1-9][0-9]*', 'thinkingLevel: "LOW"', updated)
-              if updated != text:
-                  path.write_text(updated, encoding='utf-8')
-
-          provider_path = Path('functions/jarvis-genai-provider-chain.js')
-          provider = provider_path.read_text(encoding='utf-8')
-          new_sanitizer = '''function normalizeGeminiModel(model = "") {
-              const value = String(model || "").trim();
-              if (value === "gemini-2.5-flash" || value === "gemini-3.6-flash") {
-                  return "gemini-3.5-flash";
-              }
-              return value;
-          }
-
-          function sanitizeGenerateContentRequest(request) {
-              const guardedRequest = applyFreshnessGuardToGroundedRequest(request);
-              const normalizedModel = normalizeGeminiModel(guardedRequest?.model);
-              const modelRequest = normalizedModel && normalizedModel !== guardedRequest?.model
-                  ? { ...guardedRequest, model: normalizedModel }
-                  : guardedRequest;
-              const sourceConfig = modelRequest?.config && typeof modelRequest.config === "object"
-                  ? modelRequest.config
-                  : null;
-              let sanitizedConfig = sourceConfig;
-              if (sourceConfig && String(modelRequest?.model || "").startsWith("gemini-3.")) {
-                  const {
-                      temperature: _temperature,
-                      topP: _topP,
-                      topK: _topK,
-                      frequencyPenalty: _frequencyPenalty,
-                      presencePenalty: _presencePenalty,
-                      thinkingConfig: sourceThinkingConfig,
-                      ...supported
-                  } = sourceConfig;
-                  let normalizedThinkingConfig = sourceThinkingConfig;
-                  if (sourceThinkingConfig && typeof sourceThinkingConfig === "object" && !Array.isArray(sourceThinkingConfig)) {
-                      const { thinkingBudget: legacyThinkingBudget, ...thinkingConfigRest } = sourceThinkingConfig;
-                      normalizedThinkingConfig = legacyThinkingBudget === undefined
-                          ? sourceThinkingConfig
-                          : {
-                              ...thinkingConfigRest,
-                              thinkingLevel: Number(legacyThinkingBudget) > 0 ? "LOW" : "MINIMAL"
-                          };
-                  }
-                  sanitizedConfig = {
-                      ...supported,
-                      ...(normalizedThinkingConfig ? { thinkingConfig: normalizedThinkingConfig } : {})
-                  };
-              }
-              const tools = sanitizedConfig?.tools;
-              if (!Array.isArray(tools)) {
-                  return sanitizedConfig === sourceConfig
-                      ? modelRequest
-                      : { ...modelRequest, config: sanitizedConfig };
-              }
-              let changed = sanitizedConfig !== sourceConfig || modelRequest !== guardedRequest;
-              const compactTools = tools.map(tool => {
-                  const declarations = tool?.functionDeclarations;
-                  if (!Array.isArray(declarations)) return tool;
-                  changed = true;
-                  return { ...tool, functionDeclarations: declarations.map(compactFunctionDeclaration) };
-              });
-              if (!changed) return modelRequest;
-              return { ...modelRequest, config: { ...(sanitizedConfig || {}), tools: compactTools } };
-          }'''
-          provider, replaced = re.subn(
-              r'function sanitizeGenerateContentRequest\(request\) \{.*?\n\}\n\n(?=function permanentProviderFailureReason)',
-              new_sanitizer + '\n\n',
-              provider,
-              count=1,
-              flags=re.S
-          )
-          if replaced != 1:
-              raise SystemExit(f'SANITIZER_REPLACEMENT_COUNT={replaced}')
-          export_marker = '    normalizeProviders,\n'
-          if export_marker not in provider:
-              raise SystemExit('PROVIDER_EXPORT_ANCHOR_NOT_FOUND')
-          provider = provider.replace(export_marker, '    normalizeGeminiModel,\n    normalizeProviders,\n', 1)
-          provider_path.write_text(provider, encoding='utf-8')
-
-          planner_test_path = Path('tests/jarvis-semantic-planner.test.cjs')
-          planner_test = planner_test_path.read_text(encoding='utf-8')
-          planner_test, minimal_replaced = re.subn(
-              r'\.thinkingBudget,\s*0',
-              '.thinkingLevel, "MINIMAL"',
-              planner_test
-          )
-          planner_test, low_replaced = re.subn(
-              r'\.thinkingBudget,\s*256',
-              '.thinkingLevel, "LOW"',
-              planner_test
-          )
-          if minimal_replaced < 1:
-              raise SystemExit('SEMANTIC_MINIMAL_THINKING_ASSERTIONS_NOT_FOUND')
-          print('semantic_minimal_assertions_migrated=', minimal_replaced)
-          print('semantic_low_assertions_migrated=', low_replaced)
-          planner_test_path.write_text(planner_test, encoding='utf-8')
-
-          chain_test_path = Path('tests/jarvis-genai-provider-chain.test.cjs')
-          chain_test = chain_test_path.read_text(encoding='utf-8')
-          import_marker = '    normalizeProviders,\n'
-          if import_marker not in chain_test:
-              raise SystemExit('CHAIN_TEST_IMPORT_ANCHOR_NOT_FOUND')
-          chain_test = chain_test.replace(import_marker, '    normalizeGeminiModel,\n    normalizeProviders,\n', 1)
-          insertion_marker = 'test("provider chain falls back to JSON planning when Vertex rejects function schema state size", async () => {'
-          if insertion_marker not in chain_test:
-              raise SystemExit('CHAIN_TEST_INSERTION_ANCHOR_NOT_FOUND')
-          migration_test = '''test("Gemini migration normalizes retired models, thinking config, and preserves thought signatures", () => {
-              assert.equal(normalizeGeminiModel("gemini-2.5-flash"), "gemini-3.5-flash");
-              assert.equal(normalizeGeminiModel("gemini-3.6-flash"), "gemini-3.5-flash");
-              assert.equal(normalizeGeminiModel("gemini-3.5-flash"), "gemini-3.5-flash");
-              const request = {
-                  model: "gemini-3.6-flash",
-                  contents: [{
-                      role: "model",
-                      parts: [{
-                          thoughtSignature: "opaque-thought-signature",
-                          functionCall: { id: "call_1", name: "jarvis_tool_0", args: { query: "status" } }
-                      }]
-                  }, {
-                      role: "user",
-                      parts: [{
-                          functionResponse: { id: "call_1", name: "jarvis_tool_0", response: { ok: true } }
-                      }]
-                  }],
-                  config: {
-                      temperature: 0.2,
-                      thinkingConfig: { thinkingBudget: 0, includeThoughts: true }
-                  }
-              };
-              const sanitized = sanitizeGenerateContentRequest(request);
-              assert.equal(sanitized.model, "gemini-3.5-flash");
-              assert.equal(sanitized.config.temperature, undefined);
-              assert.equal(sanitized.config.thinkingConfig.thinkingBudget, undefined);
-              assert.equal(sanitized.config.thinkingConfig.thinkingLevel, "MINIMAL");
-              assert.equal(sanitized.config.thinkingConfig.includeThoughts, true);
-              assert.equal(sanitized.contents[0].parts[0].thoughtSignature, "opaque-thought-signature");
-              assert.equal(sanitized.contents[1].parts[0].functionResponse.id, "call_1");
-          });
-
-          '''
-          chain_test = chain_test.replace(insertion_marker, migration_test + insertion_marker, 1)
-          chain_test_path.write_text(chain_test, encoding='utf-8')
-
-          old_runtime_refs = []
-          for path in runtime_files:
-              text = path.read_text(encoding='utf-8')
-              for legacy in ('gemini-2.5-flash', 'gemini-3.6-flash'):
-                  if legacy in text and path != provider_path:
-                      old_runtime_refs.append(f'{path}:{legacy}')
-          if old_runtime_refs:
-              raise SystemExit('LEGACY_RUNTIME_MODEL_REFERENCES=' + ','.join(old_runtime_refs))
-          provider_text = provider_path.read_text(encoding='utf-8')
-          if provider_text.count('gemini-2.5-flash') != 1 or provider_text.count('gemini-3.6-flash') != 1:
-              raise SystemExit('COMPATIBILITY_MODEL_REFERENCE_COUNT_INVALID')
-          planner_text = Path('functions/jarvis-semantic-planner.js').read_text(encoding='utf-8')
-          if 'thinkingBudget:' in planner_text:
-              raise SystemExit('LEGACY_THINKING_BUDGET_REMAINS_IN_PLANNER')
-          if re.search(r'(?m)^\s*temperature:', planner_text):
-              raise SystemExit('SAMPLING_TEMPERATURE_REMAINS_IN_PLANNER')
-          if '.thinkingBudget, 0' in planner_test or '.thinkingBudget, 256' in planner_test:
-              raise SystemExit('LEGACY_THINKING_ASSERTION_REMAINS')
-          print('GEMINI_MIGRATION_PATCH_OK')
+          composer = Path('gestia-core/response.composer.js').read_text()
+          speech = Path('jarvis-speech-artifact.js').read_text()
+          planner = Path('gestia-core/jarvis/jarvis.multifunction.planner.js').read_text()
+          v127 = Path('tests/jarvis-real-media-reel-hydration-v127.test.mjs').read_text()
+          v131 = Path('tests/nexo-real-media-semantic-binding-v131.test.mjs').read_text()
+          v136 = Path('tests/jarvis-reel-media-source-recovery-v136.test.mjs').read_text()
+          print('COMPOSER_OLD=', '!layers.some(layer => layer?.readyForProduction === false) &&' in composer)
+          print('COMPOSER_NEW=', ': !layers.some(layer => layer?.readyForProduction === false)' in composer)
+          print('SPEECH_OUTPUT_BEFORE_PLATFORM=', speech.find('const output = speechOutputPath') < speech.find('const platform = options.platform'))
+          print('V127_SOURCE_DECLARED=', 'sourceDeclared: true' in v127)
+          print('V131_SOURCE_DECLARED=', 'sourceDeclared: true' in v131)
+          print('V136_STALE_CACHE_LITERAL=', 'v137-local-speech-synthesis-20260812' in v136)
+          print('PLANNER_SINGLE_TOOL_RULE=', 'agrega solamente una herramienta' in planner)
+          print('PLANNER_COMPLETE_CHAIN_RULE=', 'agrega TODAS las herramientas necesarias' in planner)
           PY
-
-      - name: Inspect function-calling continuity surface
-        shell: bash
-        run: |
-          set -euo pipefail
-          grep -RInE --include='*.js' --include='*.cjs' --include='*.mjs' \
-            'functionResponse|function_response|thoughtSignature|thought_signature' functions tests || true
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install app dependencies
-        run: npm ci
-
-      - name: Install functions dependencies
-        run: npm ci --prefix functions
-
-      - name: Syntax gates
-        run: |
-          node --check functions/index.js
-          node --check functions/jarvis-semantic-planner.js
-          node --check functions/jarvis-genai-provider-chain.js
-
-      - name: Targeted Gemini migration tests
-        run: node --test tests/jarvis-semantic-planner.test.cjs tests/jarvis-genai-provider-chain.test.cjs
-
-      - name: Full CI certification
-        run: npm run ci:test
-
-      - name: Restore helper workflow and commit certified source only
-        shell: bash
-        run: |
-          set -euo pipefail
-          git checkout 218b02decf7eedb7113f8976d55dde5968161793 -- .github/workflows/contract-audit-handoff-state.yml
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add functions tests .github/workflows/contract-audit-handoff-state.yml
-          git diff --cached --check
-          git status --short
-          git commit -m 'fix(jarvis): migrate Gemini runtime to 3.5 Flash'
-          git push origin HEAD:v94-media-v4n-negative-claims

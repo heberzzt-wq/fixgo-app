@@ -188,25 +188,64 @@ function compactFunctionDeclaration(declaration = {}) {
     return result;
 }
 
+function normalizeGeminiModel(model = "") {
+    const value = String(model || "").trim();
+    if (value === "gemini-2.5-flash" || value === "gemini-3.6-flash") {
+        return "gemini-3.5-flash";
+    }
+    return value;
+}
+
 function sanitizeGenerateContentRequest(request) {
     const guardedRequest = applyFreshnessGuardToGroundedRequest(request);
-    const sourceConfig = guardedRequest?.config && typeof guardedRequest.config === "object" ? guardedRequest.config : null;
+    const normalizedModel = normalizeGeminiModel(guardedRequest?.model);
+    const modelRequest = normalizedModel && normalizedModel !== guardedRequest?.model
+        ? { ...guardedRequest, model: normalizedModel }
+        : guardedRequest;
+    const sourceConfig = modelRequest?.config && typeof modelRequest.config === "object"
+        ? modelRequest.config
+        : null;
     let sanitizedConfig = sourceConfig;
-    if (sourceConfig && String(guardedRequest?.model || "").startsWith("gemini-3.")) {
-        const { temperature: _temperature, topP: _topP, topK: _topK, frequencyPenalty: _frequencyPenalty, presencePenalty: _presencePenalty, ...supported } = sourceConfig;
-        sanitizedConfig = supported;
+    if (sourceConfig && String(modelRequest?.model || "").startsWith("gemini-3.")) {
+        const {
+            temperature: _temperature,
+            topP: _topP,
+            topK: _topK,
+            frequencyPenalty: _frequencyPenalty,
+            presencePenalty: _presencePenalty,
+            thinkingConfig: sourceThinkingConfig,
+            ...supported
+        } = sourceConfig;
+        let normalizedThinkingConfig = sourceThinkingConfig;
+        if (sourceThinkingConfig && typeof sourceThinkingConfig === "object" && !Array.isArray(sourceThinkingConfig)) {
+            const { thinkingBudget: legacyThinkingBudget, ...thinkingConfigRest } = sourceThinkingConfig;
+            normalizedThinkingConfig = legacyThinkingBudget === undefined
+                ? sourceThinkingConfig
+                : {
+                    ...thinkingConfigRest,
+                    thinkingLevel: Number(legacyThinkingBudget) > 0 ? "LOW" : "MINIMAL"
+                };
+        }
+        sanitizedConfig = {
+            ...supported,
+            ...(normalizedThinkingConfig ? { thinkingConfig: normalizedThinkingConfig } : {})
+        };
     }
     const tools = sanitizedConfig?.tools;
-    if (!Array.isArray(tools)) return sanitizedConfig === sourceConfig ? guardedRequest : { ...guardedRequest, config: sanitizedConfig };
-    let changed = sanitizedConfig !== sourceConfig;
+    if (!Array.isArray(tools)) {
+        return sanitizedConfig === sourceConfig
+            ? modelRequest
+            : { ...modelRequest, config: sanitizedConfig };
+    }
+    let changed = sanitizedConfig !== sourceConfig || modelRequest !== guardedRequest;
     const compactTools = tools.map(tool => {
         const declarations = tool?.functionDeclarations;
         if (!Array.isArray(declarations)) return tool;
         changed = true;
         return { ...tool, functionDeclarations: declarations.map(compactFunctionDeclaration) };
     });
-    if (!changed) return guardedRequest;
-    return { ...guardedRequest, config: { ...(sanitizedConfig || {}), tools: compactTools } };
+    if (!changed) return modelRequest;
+    return { ...modelRequest, config: { ...(sanitizedConfig || {}), tools: compactTools } };
 }
 
 function permanentProviderFailureReason(error) {
@@ -780,6 +819,7 @@ module.exports = {
     isPermanentProviderFailure,
     isSchemaStateExplosion,
     isTransientProviderFailure,
+    normalizeGeminiModel,
     normalizeProviders,
     permanentProviderFailureReason,
     requestNeedsFreshness,

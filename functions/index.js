@@ -676,9 +676,8 @@ Input: "${input}"
 `;
 
         const model = genAI.getGenerativeModel({
-            model: "gemini-3.6-flash",
+            model: "gemini-3.5-flash",
             generationConfig: {
-                temperature: 0.1,
                 responseMimeType: "application/json"
             }
         });
@@ -1720,9 +1719,8 @@ exports.gestiaArchitectV5 = functions
 
         if (operationMode === "tool_planner") {
           const plannerModel = genAI.getGenerativeModel({
-            model: "gemini-3.6-flash",
+            model: "gemini-3.5-flash",
             generationConfig: {
-              temperature: 0.05,
               maxOutputTokens: 1800,
               responseMimeType: "application/json"
             }
@@ -1843,11 +1841,10 @@ Reglas:
 MODULOS ACTUALES: [${modulos.join(", ")}]
 `;
 
-        // 🧠 6. Invocación IA V5.55 (Gemini 2.5 Flash)
+        // 🧠 6. Invocación IA V5.55 (Gemini 3.5 Flash)
         const model = genAI.getGenerativeModel({
-          model: "gemini-3.6-flash",
+          model: "gemini-3.5-flash",
           generationConfig: {
-            temperature: 0.1,
             maxOutputTokens: 3200,
             responseMimeType: "application/json"
           }
@@ -3548,12 +3545,11 @@ exports.jarvisConversacional = functions
             // 📜 CONSTITUCIÓN DE JARVIS (REGLAS ESTRICTAS DE DICCIÓN)
             const systemInstruction = "Eres Jarvis, la IA autónoma de asistencia operativa del Arquitecto Heberto para GestiaPremium. Tus respuestas DEBEN ser completas, directas y sin cortarse. Usa máximo 2 o 3 oraciones. Hablas para ser escuchado por voz: NO uses asteriscos ni markdown. TERMINA SIEMPRE tus ideas con un punto final.";
 
-            // 🧠 INVOCACIÓN IA V5.56 (Gemini 2.5 Flash)
+            // 🧠 INVOCACIÓN IA V5.56 (Gemini 3.5 Flash)
             const model = genAI.getGenerativeModel({
-                model: "gemini-3.6-flash",
+                model: "gemini-3.5-flash",
                 systemInstruction: systemInstruction,
                 generationConfig: {
-                    temperature: 0.6,
                     maxOutputTokens: 300
                 }
             });
