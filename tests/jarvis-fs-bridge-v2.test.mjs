@@ -1685,11 +1685,13 @@ test("HuMo17 probe is single L40S, pinned, hash-bound, budgeted and distinct fro
     assert.match(shell, /torch.__version__/);
     assert.match(shell, /pip install.*ComfyUI\/requirements.txt/);
     assert.doesNotMatch(shell, /PIP_NO_INDEX=1/);
-    assert.ok(shell.indexOf("HUMO17_REQUIRED_NODES_MISSING") < shell.indexOf("urlopen"));
+    assert.ok(shell.indexOf("HUMO17_REQUIRED_NODES_MISSING") < shell.indexOf("download_auxiliary(a,p,url)"));
     assert.ok(shell.includes(job.strategy.comfyUiRevision));
     assert.ok(shell.includes(job.strategy.wrapperRevision));
     assert.match(shell, /for a in j.*strategy.*wrapperAuxiliaryAssets/);
-    assert.ok(shell.includes("verify(partial,a); partial.rename(p)"));
+    assert.ok(shell.includes("aux_verify(partial, a)"));
+    assert.ok(shell.includes("partial.rename(p)"));
+    assert.ok(shell.includes("download_auxiliary(a,p,url)"));
     assert.ok(shell.includes("verify(p,a); target="));
     assert.ok(shell.includes("target.symlink_to(p)"));
     assert.match(shell, /HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1/);

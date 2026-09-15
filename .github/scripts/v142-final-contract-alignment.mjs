@@ -35,7 +35,9 @@ if (source.split(probeTestNeedle).length - 1 !== 1) {
 const probeTestReplacement = probeTestNeedle + `
             if (bridge.includes("for a in j['strategy']['wrapperAuxiliaryAssets']:") &&
                 bridge.includes("python3 -m venv --system-site-packages /tmp/jarvis-humo17/venv")) {
-                if (!region.includes("verify(partial,a); partial.rename(p)") ||
+                if (!region.includes("aux_verify(partial, a)") ||
+                    !region.includes("partial.rename(p)") ||
+                    !region.includes("download_auxiliary(a,p,url)") ||
                     !region.includes("target.symlink_to(p)")) {
                     throw new Error("V142_HUMO17_SPLIT_PROBE_TEST_REQUIRED");
                 }
