@@ -8363,7 +8363,8 @@ test("V142 HuMo17 bootstrap uses ephemeral runtime and auxiliaries with persiste
     const bootstrap = bridge.slice(bridge.indexOf("export function buildHuMo17RuntimeBootstrap("), bridge.indexOf("export async function runHuMo17PersistentCoreStagingCli("));
     assert.ok(bootstrap.includes("/tmp/jarvis-humo17/venv"));
     assert.ok(bootstrap.includes("for a in j['strategy']['wrapperAuxiliaryAssets']:"));
-    assert.ok(bootstrap.includes("verify(partial,a); partial.rename(p)"));
+    assert.ok(bootstrap.includes("download_auxiliary(a,p,url)"));
+    assert.ok(bootstrap.includes("buildHuMo17AuxiliaryDownloader()"));
     assert.ok(bootstrap.includes("target.symlink_to(p)"));
     assert.ok(bootstrap.includes("HUMO17_BOOTSTRAP_FAILED_L"));
     assert.doesNotMatch(bootstrap, /PIP_NO_INDEX|runtime-manifest\.json|\/runtime\/humo17/);
@@ -8415,4 +8416,54 @@ test("V142 worker quality preflight executes the bridge with no paid authority a
     const overridden=buildHuMo17QualityPreflightEnv(job,sha,{JARVIS_HUMO17_SINGLE_USE_AUTHORITY_FILE:"must-not-read.json",JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED:"true"});
     assert.equal(overridden.JARVIS_HUMO17_SINGLE_USE_AUTHORITY_FILE,"");
     assert.equal(overridden.JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED,"false");
+});
+
+
+test("V142 HuMo17 auxiliary downloader physically resumes and fails closed using local HTTP", async (t) => {
+    const {createServer} = await import("node:http");
+    const {spawn} = await import("node:child_process");
+    const {buildHuMo17AuxiliaryDownloader} = await import("../jarvis-fs-bridge.js");
+    const data = Buffer.alloc(512*1024);for(let i=0;i<data.length;i++)data[i]=(i*17+3)%251;
+    const sha = createHash("sha256").update(data).digest("hex");
+    const python = process.env.PYTHON || (process.platform === "win32" ? "python" : "python3");
+    async function scenario(name, mode) {
+        const root=fs.mkdtempSync(path.join(os.tmpdir(),"humo17-aux-")),final=path.join(root,"asset.bin"),partial=path.join(root,"asset.partial");
+        const requests=[],times=[],timers=[];
+        if(['ignore','bad-range'].includes(mode))fs.writeFileSync(partial,data.subarray(0,1024));
+        if(mode==='oversize')fs.writeFileSync(partial,Buffer.alloc(data.length+1));
+        const server=createServer((req,res)=>{
+            requests.push(req.headers.range||null);times.push(Date.now());const n=requests.length;
+            if(['401','403','404'].includes(mode)){res.writeHead(Number(mode));res.end();return;}
+            if(mode.startsWith('http')&&n===1){res.writeHead(Number(mode.slice(4)));res.end();return;}
+            if(mode==='bad-range'){res.writeHead(206,{'Content-Range':`bytes 0-${data.length-1}/${data.length}`,'Content-Length':data.length});res.end(data);return;}
+            if(mode==='exhaust'||(mode==='transient'&&n===1)){res.writeHead(503);res.end();return;}
+            if(mode==='transient'&&n===2){res.writeHead(200,{'Content-Length':data.length});res.flushHeaders();timers.push(setTimeout(()=>res.end(data),400));return;}
+            if(mode==='cut'&&n===1){res.writeHead(200,{'Content-Length':data.length});res.write(data.subarray(0,192*1024));timers.push(setTimeout(()=>res.destroy(),50));return;}
+            const offset=Number((req.headers.range||'').match(/bytes=(\d+)-/)?.[1]||0);
+            if(offset&&mode!=='ignore'){res.writeHead(206,{'Content-Length':data.length-offset,'Content-Range':`bytes ${offset}-${data.length-1}/${data.length}`});res.end(data.subarray(offset));}
+            else {res.writeHead(200,{'Content-Length':data.length});res.end(data);}
+        });
+        await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+        try{
+            const asset={role:'text_encoder',path:'fixture.bin',bytes:data.length,sha256:mode==='hash'?'0'.repeat(64):sha};
+            const program=buildHuMo17AuxiliaryDownloader()+"\nimport sys\na=json.loads(sys.argv[1])\ndownload_auxiliary(a,sys.argv[2],sys.argv[3],attempts=3,connect_timeout=2,read_timeout=0.15,backoff=0.05)\n";
+            const result=await new Promise((resolve,reject)=>{const child=spawn(python,['-c',program,JSON.stringify(asset),final,`http://127.0.0.1:${server.address().port}/asset`],{windowsHide:true});let out='',err='';const timeout=setTimeout(()=>{child.kill();reject(Error('FIXTURE_TIMEOUT'));},15000);child.stdout.on('data',b=>out+=b);child.stderr.on('data',b=>err+=b);child.on('error',e=>{clearTimeout(timeout);reject(e);});child.on('close',code=>{clearTimeout(timeout);resolve({code,out,err});});});
+            if(['cut','ignore','transient'].includes(mode)||mode.startsWith('http')){
+                assert.equal(result.code,0,result.err);assert.deepEqual(fs.readFileSync(final),data);assert.equal(fs.existsSync(partial),false);
+                assert.match(result.out,/HUMO17_AUX_SHA_VERIFIED/);assert.match(result.out,/HUMO17_AUX_DOWNLOAD_COMPLETED/);
+                assert.ok(result.out.indexOf('HUMO17_AUX_SHA_VERIFIED')<result.out.indexOf('HUMO17_AUX_DOWNLOAD_COMPLETED'));
+            }else {assert.notEqual(result.code,0);assert.equal(fs.existsSync(final),false);}
+            if(mode==='cut'){assert.equal(requests.length,2);assert.match(requests[1],/^bytes=[1-9][0-9]*-$/);assert.equal(Number(requests[1].match(/\d+/)[0]),192*1024);assert.match(result.out,/HUMO17_AUX_DOWNLOAD_RESUMED/);}
+            if(mode==='ignore'){assert.equal(requests[0],'bytes=1024-');assert.match(result.out,/HUMO17_AUX_RANGE_IGNORED_RESTART/);}
+            if(mode==='transient'){assert.equal(requests.length,3);assert.ok(times[1]-times[0]>=40);assert.ok(times[2]-times[1]>=90);assert.match(result.out,/TimeoutError/);}
+            if(['401','403','404'].includes(mode)){assert.equal(requests.length,1);assert.ok(result.err.includes('HUMO17_AUX_HTTP_'+mode));}
+            if(mode.startsWith('http'))assert.equal(requests.length,2);
+            if(mode==='bad-range'){assert.equal(requests.length,1);assert.match(result.err,/HUMO17_AUX_CONTENT_RANGE_INVALID/);}
+            if(mode==='hash'){assert.equal(requests.length,1);assert.match(result.err,/HUMO17_AUX_SHA_INVALID/);}
+            if(mode==='oversize'){assert.equal(requests.length,0);assert.match(result.err,/HUMO17_AUX_PARTIAL_OVERSIZE/);}
+            if(mode==='exhaust'){assert.equal(requests.length,3);assert.match(result.err,/HUMO17_AUX_DOWNLOAD_EXHAUSTED/);}
+            assert.doesNotMatch(result.out,/http:\/\/|Bearer/);
+        }finally {timers.forEach(clearTimeout);server.closeAllConnections();await new Promise(resolve=>server.close(resolve));fs.rmSync(root,{recursive:true,force:true});}
+    }
+    for(const mode of ['cut','ignore','transient','401','403','404','hash','oversize','exhaust','bad-range','http408','http429','http500','http502','http503','http504'])await t.test(mode,()=>scenario(mode,mode));
 });
