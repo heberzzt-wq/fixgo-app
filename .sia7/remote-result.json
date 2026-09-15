@@ -1,18 +1,44 @@
 {
-  "jobId": "v142-footer-deploy-gate-cleanup-20260914-chatgpt-97",
-  "completedAt": "2026-09-14T18:00:45.283Z",
+  "jobId": "v142-humo17-read-current-run-20260915-chatgpt-01",
+  "completedAt": "2026-09-15T18:43:14.525Z",
   "executionStarted": true,
-  "ok": true,
-  "operation": "patch",
-  "dryRun": false,
-  "file": ".github/workflows/v142-mobile-web-research-recovery.yml",
-  "matchCount": 1,
-  "expectedMatches": 1,
-  "bytesBefore": 28908,
-  "bytesAfter": 28768,
-  "source": "sia7_github_worker_exact_patch_v1",
+  "ok": false,
+  "httpStatus": 409,
+  "endpoint": "/read",
+  "payload": {
+    "ok": false,
+    "status": "BRIDGE_RELEASE_MISMATCH",
+    "error": "BRIDGE_RELEASE_MISMATCH",
+    "expectedReleaseId": "",
+    "actualReleaseId": "v94-source-grounded-research-v124-20260810",
+    "identity": {
+      "ok": true,
+      "status": "BRIDGE_IDENTITY_OK",
+      "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker",
+      "contract": {
+        "ok": true,
+        "projectId": "fixgo-app",
+        "repository": "heberzzt-wq/fixgo-app",
+        "branch": "v94-media-v4n-negative-claims",
+        "releaseId": "v94-source-grounded-research-v124-20260810",
+        "contractPath": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker\\jarvis-runtime-contract.json"
+      },
+      "git": {
+        "root": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
+        "branch": "v94-media-v4n-negative-claims",
+        "head": "41ec00e4d7e806eaca02efd5fc1f17aa6c44c87b",
+        "remote": "https://github.com/heberzzt-wq/fixgo-app.git",
+        "clean": false
+      },
+      "identityMode": "branch_contract_head",
+      "contractHead": "41ec00e4d7e806eaca02efd5fc1f17aa6c44c87b",
+      "remoteVerified": true,
+      "repositoryMatches": true,
+      "worktreeClean": false
+    },
+    "version": "2.51.0-temporal-media-self-hosted-v142"
+  },
   "committedFiles": [
-    ".sia7/remote-result.json",
-    ".github/workflows/v142-mobile-web-research-recovery.yml"
+    ".sia7/remote-result.json"
   ]
 }
