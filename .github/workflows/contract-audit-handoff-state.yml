@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 5
+          fetch-depth: 6
           ref: v94-media-v4n-negative-claims
 
       - name: Patch Gemini runtime deterministically
@@ -126,14 +126,20 @@ jobs:
 
           planner_test_path = Path('tests/jarvis-semantic-planner.test.cjs')
           planner_test = planner_test_path.read_text(encoding='utf-8')
-          planner_test, replaced = re.subn(
-              r'\.thinkingBudget,\s*\n\s*0',
-              '.thinkingLevel,\n                        "MINIMAL"',
+          planner_test, minimal_replaced = re.subn(
+              r'\.thinkingBudget,\s*0',
+              '.thinkingLevel, "MINIMAL"',
               planner_test
           )
-          if replaced < 1:
-              raise SystemExit('SEMANTIC_THINKING_ASSERTIONS_NOT_FOUND')
-          print('semantic_thinking_assertions_migrated=', replaced)
+          planner_test, low_replaced = re.subn(
+              r'\.thinkingBudget,\s*256',
+              '.thinkingLevel, "LOW"',
+              planner_test
+          )
+          if minimal_replaced < 1:
+              raise SystemExit('SEMANTIC_MINIMAL_THINKING_ASSERTIONS_NOT_FOUND')
+          print('semantic_minimal_assertions_migrated=', minimal_replaced)
+          print('semantic_low_assertions_migrated=', low_replaced)
           planner_test_path.write_text(planner_test, encoding='utf-8')
 
           chain_test_path = Path('tests/jarvis-genai-provider-chain.test.cjs')
@@ -198,6 +204,8 @@ jobs:
               raise SystemExit('LEGACY_THINKING_BUDGET_REMAINS_IN_PLANNER')
           if re.search(r'(?m)^\s*temperature:', planner_text):
               raise SystemExit('SAMPLING_TEMPERATURE_REMAINS_IN_PLANNER')
+          if '.thinkingBudget, 0' in planner_test or '.thinkingBudget, 256' in planner_test:
+              raise SystemExit('LEGACY_THINKING_ASSERTION_REMAINS')
           print('GEMINI_MIGRATION_PATCH_OK')
           PY
 
