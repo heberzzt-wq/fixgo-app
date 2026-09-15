@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 6
+          fetch-depth: 0
           ref: v94-media-v4n-negative-claims
 
       - name: Patch Gemini runtime deterministically
