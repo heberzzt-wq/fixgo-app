@@ -1,12 +1,9 @@
 {
-  "jobId": "v142-footer-deploy-gate-cleanup-20260914-chatgpt-97",
-  "operation": "patch",
-  "humanApproved": true,
-  "patch": {
-    "file": ".github/workflows/v142-mobile-web-research-recovery.yml",
-    "dryRun": false,
-    "expectedMatches": 1,
-    "search": "    if: ${{ ((github.event_name == 'workflow_dispatch' && inputs.deploy == true) || (github.event_name == 'push' && github.event.head_commit.message == 'SIA7 result v142-footer-legal-live-deploy-20260914-chatgpt-96')) && always() && needs.certify-linux.result == 'success' && needs.certify-windows.result == 'success' && (needs.certify-linux.outputs.product_changed == 'false' || needs.materialize-v142.result == 'success') }}",
-    "replace": "    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy == true && always() && needs.certify-linux.result == 'success' && needs.certify-windows.result == 'success' && (needs.certify-linux.outputs.product_changed == 'false' || needs.materialize-v142.result == 'success') }}"
+  "jobId": "v142-humo17-read-current-run-20260915-chatgpt-01",
+  "operation": "bridge",
+  "endpoint": "/read",
+  "body": {
+    "file": ".jarvis-artifacts/humo17-quality/201f-final-preflight.log",
+    "maxBytes": 300000
   }
 }
