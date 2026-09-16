@@ -11,17 +11,50 @@ import { ensureExecutableArtifactDependencies } from '../../gestia-core/jarvis/j
 import { runJarvisMission } from '../../gestia-core/jarvis/jarvis.mission.orchestrator.js';
 
 const require = createRequire(import.meta.url);
+const functionsRequire = createRequire(new URL('../../functions/package.json', import.meta.url));
+const { GoogleGenAI } = functionsRequire('@google/genai');
+const functionsRuntime = functionsRequire('firebase-functions/v1');
 const { runJarvisSemanticPlanner } = require('../../functions/jarvis-semantic-planner.js');
+const { createJarvisGenAIProviderChain } = require('../../functions/jarvis-genai-provider-chain.js');
 
 const SOURCE = 'https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004';
 const BRIDGE = 'http://127.0.0.1:3344';
 const REQUIRED_BRIDGE_VERSION = '2.38.0-page-no-contact-route';
 const expected = JSON.parse(fs.readFileSync('jarvis-runtime-contract.json', 'utf8'));
 
+function createAuthenticatedPlannerAI() {
+  let runtimeConfig = {};
+  try { runtimeConfig = functionsRuntime.config?.() || {}; } catch {}
+  const apiKey = String(
+    process.env.GEMINI_KEY ||
+    process.env.GEMINI_API_KEY ||
+    runtimeConfig?.gemini?.key ||
+    runtimeConfig?.gemini?.api_key ||
+    runtimeConfig?.google?.gemini_key ||
+    ''
+  ).trim();
+  const providers = [];
+  if (apiKey) {
+    providers.push({ name: 'gemini-developer', ai: new GoogleGenAI({ apiKey }) });
+  }
+  providers.push({
+    name: 'vertex-adc',
+    ai: new GoogleGenAI({
+      vertexai: true,
+      project: process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || 'fixgo-44e4d',
+      location: 'global',
+      apiVersion: 'v1'
+    })
+  });
+  return createJarvisGenAIProviderChain({ providers });
+}
+
+const plannerAI = createAuthenticatedPlannerAI();
 const canonicalSemanticPlanner = ({ input, catalog, missionState }) =>
   runJarvisSemanticPlanner({
     fetchImpl: fetch,
     simpleFetchImpl: null,
+    ai: plannerAI,
     input,
     catalog,
     missionState,

@@ -219,11 +219,18 @@ async function executeBridgeJob(job = {}) {
     const endpoint = normalizeEndpoint(job.endpoint || "/health");
     const method = endpoint === "/health" ? "GET" : "POST";
 
+    const releaseId = JSON.parse(
+        fs.readFileSync(path.resolve(REPO_ROOT, "jarvis-runtime-contract.json"), "utf8")
+    ).releaseId;
+
     const response = await fetch(`${BRIDGE_URL}${endpoint}`, {
         method,
         headers:
             method === "POST"
-                ? { "content-type": "application/json" }
+                ? {
+                    "content-type": "application/json",
+                    "x-jarvis-release-id": releaseId
+                }
                 : undefined,
         body:
             method === "POST"

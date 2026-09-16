@@ -8,93 +8,43 @@ on:
       - '.github/workflows/contract-audit-handoff-state.yml'
 
 permissions:
-  contents: write
+  contents: read
 
-concurrency:
-  group: v139-authenticated-planner-repair-v142
-  cancel-in-progress: false
+env:
+  BASE_SHA: 8de46c00565b041b006f6a33d81ff6c22a616846
+  HANDOFF_PATCH_SHA256: 0b357d2cb607276cf9ec9b65a66a23caf05379cdaaab22972bc9764f9407a98a
 
 jobs:
-  repair-certify-restore:
+  inspect:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: v94-media-v4n-negative-claims
-
-      - name: Patch existing V139 and SIA7 relay deterministically
+      - name: Reconstruct and inspect
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p /tmp/contract-audit
+          cat .github/candidates/contract-audit/chunk-00.txt .github/candidates/contract-audit/chunk-01.txt .github/candidates/contract-audit/chunk-02.txt .github/candidates/contract-audit/segment-05.txt .github/candidates/contract-audit/segment-06.txt .github/candidates/contract-audit/segment-07.txt .github/candidates/contract-audit/chunk-04.txt > /tmp/contract-audit/handoff.patch.gz.b64
+          base64 -d /tmp/contract-audit/handoff.patch.gz.b64 | gzip -d > /tmp/contract-audit/handoff.patch
+          echo "$HANDOFF_PATCH_SHA256  /tmp/contract-audit/handoff.patch" | sha256sum -c -
+          git checkout --detach "$BASE_SHA"
+          git apply /tmp/contract-audit/handoff.patch
           python3 - <<'PY'
           from pathlib import Path
-
-          v139_path = Path('.github/scripts/v139-canonical-real-reel.mjs')
-          v139 = v139_path.read_text(encoding='utf-8')
-          old_import = """const require = createRequire(import.meta.url);\nconst { runJarvisSemanticPlanner } = require('../../functions/jarvis-semantic-planner.js');\n"""
-          new_import = """const require = createRequire(import.meta.url);\nconst functionsRequire = createRequire(new URL('../../functions/package.json', import.meta.url));\nconst { GoogleGenAI } = functionsRequire('@google/genai');\nconst functionsRuntime = functionsRequire('firebase-functions/v1');\nconst { runJarvisSemanticPlanner } = require('../../functions/jarvis-semantic-planner.js');\nconst { createJarvisGenAIProviderChain } = require('../../functions/jarvis-genai-provider-chain.js');\n"""
-          if v139.count(old_import) != 1:
-              raise SystemExit(f'V139_IMPORT_ANCHOR_COUNT={v139.count(old_import)}')
-          v139 = v139.replace(old_import, new_import, 1)
-
-          old_planner = """const canonicalSemanticPlanner = ({ input, catalog, missionState }) =>\n  runJarvisSemanticPlanner({\n    fetchImpl: fetch,\n    simpleFetchImpl: null,\n    input,\n    catalog,\n    missionState,\n    timeoutMs: 60000\n  });\n"""
-          new_planner = """function createAuthenticatedPlannerAI() {\n  let runtimeConfig = {};\n  try { runtimeConfig = functionsRuntime.config?.() || {}; } catch {}\n  const apiKey = String(\n    process.env.GEMINI_KEY ||\n    process.env.GEMINI_API_KEY ||\n    runtimeConfig?.gemini?.key ||\n    runtimeConfig?.gemini?.api_key ||\n    runtimeConfig?.google?.gemini_key ||\n    ''\n  ).trim();\n  const providers = [];\n  if (apiKey) {\n    providers.push({ name: 'gemini-developer', ai: new GoogleGenAI({ apiKey }) });\n  }\n  providers.push({\n    name: 'vertex-adc',\n    ai: new GoogleGenAI({\n      vertexai: true,\n      project: process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || 'fixgo-44e4d',\n      location: 'global',\n      apiVersion: 'v1'\n    })\n  });\n  return createJarvisGenAIProviderChain({ providers });\n}\n\nconst plannerAI = createAuthenticatedPlannerAI();\nconst canonicalSemanticPlanner = ({ input, catalog, missionState }) =>\n  runJarvisSemanticPlanner({\n    fetchImpl: fetch,\n    simpleFetchImpl: null,\n    ai: plannerAI,\n    input,\n    catalog,\n    missionState,\n    timeoutMs: 60000\n  });\n"""
-          if v139.count(old_planner) != 1:
-              raise SystemExit(f'V139_PLANNER_ANCHOR_COUNT={v139.count(old_planner)}')
-          v139 = v139.replace(old_planner, new_planner, 1)
-          v139_path.write_text(v139, encoding='utf-8')
-
-          worker_path = Path('jarvis-github-worker.js')
-          worker = worker_path.read_text(encoding='utf-8')
-          old_headers = """    const response = await fetch(`${BRIDGE_URL}${endpoint}`, {\n        method,\n        headers:\n            method === \"POST\"\n                ? { \"content-type\": \"application/json\" }\n                : undefined,\n"""
-          new_headers = """    const releaseId = JSON.parse(\n        fs.readFileSync(path.resolve(REPO_ROOT, \"jarvis-runtime-contract.json\"), \"utf8\")\n    ).releaseId;\n\n    const response = await fetch(`${BRIDGE_URL}${endpoint}`, {\n        method,\n        headers:\n            method === \"POST\"\n                ? {\n                    \"content-type\": \"application/json\",\n                    \"x-jarvis-release-id\": releaseId\n                }\n                : undefined,\n"""
-          if worker.count(old_headers) != 1:
-              raise SystemExit(f'WORKER_HEADER_ANCHOR_COUNT={worker.count(old_headers)}')
-          worker = worker.replace(old_headers, new_headers, 1)
-          worker_path.write_text(worker, encoding='utf-8')
-
-          if 'ai: plannerAI' not in v139:
-              raise SystemExit('V139_AUTHENTICATED_AI_INJECTION_MISSING')
-          if 'x-jarvis-release-id' not in worker:
-              raise SystemExit('SIA7_RELEASE_HEADER_MISSING')
-          print('V139_AUTHENTICATED_PLANNER_PATCH_OK')
+          composer = Path('gestia-core/response.composer.js').read_text()
+          speech = Path('jarvis-speech-artifact.js').read_text()
+          planner = Path('gestia-core/jarvis/jarvis.multifunction.planner.js').read_text()
+          v127 = Path('tests/jarvis-real-media-reel-hydration-v127.test.mjs').read_text()
+          v131 = Path('tests/nexo-real-media-semantic-binding-v131.test.mjs').read_text()
+          v136 = Path('tests/jarvis-reel-media-source-recovery-v136.test.mjs').read_text()
+          print('COMPOSER_OLD=', '!layers.some(layer => layer?.readyForProduction === false) &&' in composer)
+          print('COMPOSER_NEW=', ': !layers.some(layer => layer?.readyForProduction === false)' in composer)
+          print('SPEECH_OUTPUT_BEFORE_PLATFORM=', speech.find('const output = speechOutputPath') < speech.find('const platform = options.platform'))
+          print('V127_SOURCE_DECLARED=', 'sourceDeclared: true' in v127)
+          print('V131_SOURCE_DECLARED=', 'sourceDeclared: true' in v131)
+          print('V136_STALE_CACHE_LITERAL=', 'v137-local-speech-synthesis-20260812' in v136)
+          print('PLANNER_SINGLE_TOOL_RULE=', 'agrega solamente una herramienta' in planner)
+          print('PLANNER_COMPLETE_CHAIN_RULE=', 'agrega TODAS las herramientas necesarias' in planner)
           PY
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install app dependencies
-        run: npm ci
-
-      - name: Install functions dependencies
-        run: npm ci --prefix functions
-
-      - name: Syntax and focused gates
-        run: |
-          node --check .github/scripts/v139-canonical-real-reel.mjs
-          node --check jarvis-github-worker.js
-          node --check functions/jarvis-semantic-planner.js
-          node --check functions/jarvis-genai-provider-chain.js
-          npm run worker:smoke
-          node --test tests/jarvis-semantic-planner.test.cjs tests/jarvis-genai-provider-chain.test.cjs
-
-      - name: Full CI certification
-        run: npm run ci:test
-
-      - name: Restore helper workflow and commit repaired source only
-        shell: bash
-        run: |
-          set -euo pipefail
-          git checkout 3ae2c74a11536bebafaaa4246dbc3efbb6b26605 -- .github/workflows/contract-audit-handoff-state.yml
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .github/scripts/v139-canonical-real-reel.mjs jarvis-github-worker.js .github/workflows/contract-audit-handoff-state.yml
-          git diff --cached --check
-          git status --short
-          git commit -m 'fix(jarvis): inject authenticated planner into V139'
-          git push origin HEAD:v94-media-v4n-negative-claims
