@@ -1,6 +1,11 @@
 {
-  "jobId": "v142-runtime-health-20260915-chatgpt-02",
+  "jobId": "v142-taqueria-provider-tests-20260916-chatgpt-03",
   "operation": "bridge",
-  "endpoint": "/health",
-  "body": {}
+  "endpoint": "/run",
+  "body": {
+    "command": "npm test",
+    "cwd": ".",
+    "timeoutMs": 1200000,
+    "source": "v142_taqueria_provider_cert"
+  }
 }
