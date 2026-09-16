@@ -1,9 +1,6 @@
 {
-  "jobId": "v142-humo17-read-current-run-20260915-chatgpt-01",
+  "jobId": "v142-runtime-health-20260915-chatgpt-02",
   "operation": "bridge",
-  "endpoint": "/read",
-  "body": {
-    "file": ".jarvis-artifacts/humo17-quality/201f-final-preflight.log",
-    "maxBytes": 300000
-  }
+  "endpoint": "/health",
+  "body": {}
 }
