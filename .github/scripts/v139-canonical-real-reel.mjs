@@ -271,11 +271,7 @@ No afirmes ni sugieras como hechos: "auténtico", "tradicional", "norteño", "sa
 
 Taquería El Dorado de esta publicación no usa trompo para esta identidad visual. No introduzcas trompo, pastor, un local ficticio, cocineros ficticios ni productos inventados.
 
-Investiga por tu cuenta toda la información pública útil que encuentres: ubicación, teléfono, horarios, redes sociales, servicios, productos, promociones u otros datos relevantes.
-
-Si algún dato importante no aparece inicialmente, intenta investigarlo por otros medios antes de darte por vencido.
-
-Si después de investigar realmente no puedes verificar algún dato importante, dime exactamente cuál falta y pregúntame si puedo proporcionártelo. No lo inventes.
+Una vez verificada la publicación exacta y la identidad @taqueria.eldorado, considera satisfecho web.research para esta misión. No hagas una segunda búsqueda amplia para teléfono, dirección, horarios, promociones ni otros datos que no sean necesarios para producir el reel. Si esos datos no aparecen en la fuente exacta, mantenlos como no verificados y continúa con marketing.plan, reel.plan, speech.synthesize, web.media.collect y reel.create sin mezclarlos con homónimos ni inventarlos.
 
 Separa claramente:
 
@@ -292,6 +288,7 @@ Luego crea un reel vertical profesional de aproximadamente 30 segundos para prom
 El reel debe:
 
 utilizar medios reales y verificables de la publicación indicada;
+planificar con sourceMediaPolicy=reuse y no solicitar imágenes artificiales cuando ya existe medio real verificable;
 tener formato vertical;
 incluir apertura, desarrollo y llamada a la acción;
 incluir textos/overlays;
