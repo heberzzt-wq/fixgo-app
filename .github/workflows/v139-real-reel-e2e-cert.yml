@@ -61,7 +61,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
-          ! git diff --name-only 45c9231715ad1d8f50756328c6e4128deebba581..HEAD | grep -E '^functions/'
+          ! git diff --name-only af38712231143b1e42f7d1b4deaad273dc6c2a15..HEAD | grep -E '^functions/'
 
       - name: Focal syntax contracts
         shell: bash
@@ -157,7 +157,7 @@ jobs:
         shell: pwsh
         run: |
           if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
-          $changed = git diff --name-only ffb83de3360b64a07655fb8d01bb26caae8998e4..HEAD
+          $changed = git diff --name-only af38712231143b1e42f7d1b4deaad273dc6c2a15..HEAD
           if ($changed -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
       - name: Start bridge and run canonical real-reel mission in same step
         shell: pwsh
