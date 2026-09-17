@@ -1,145 +1,16 @@
 {
-  "jobId": "v142-runtime-health-20260915-chatgpt-02",
-  "completedAt": "2026-09-16T02:29:08.592Z",
+  "jobId": "v142-humo17-read-current-run-20260915-chatgpt-01",
+  "completedAt": "2026-09-15T18:43:14.525Z",
   "executionStarted": true,
-  "ok": true,
-  "httpStatus": 200,
-  "endpoint": "/health",
+  "ok": false,
+  "httpStatus": 409,
+  "endpoint": "/read",
   "payload": {
-    "ok": true,
-    "version": "2.51.0-temporal-media-self-hosted-v142",
-    "policy": {
-      "authority": "full_repo_private_owner",
-      "safeZone": "advisory",
-      "rootContainment": true,
-      "emptyWrites": "blocked",
-      "failureMode": "closed"
-    },
-    "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker",
-    "actuators": {
-      "browser": {
-        "available": true,
-        "engine": "chrome.exe",
-        "actions": [
-          "inspect",
-          "screenshot",
-          "pdf",
-          "open",
-          "media"
-        ]
-      },
-      "speech": {
-        "available": true,
-        "provider": "windows-system-speech",
-        "platform": "win32",
-        "outputFormats": [
-          "wav"
-        ],
-        "physicallyVerified": true,
-        "cloudRequired": false,
-        "version": "1.0.0-local-windows-system-speech-v137",
-        "status": "LOCAL_SPEECH_READY"
-      },
-      "documents": {
-        "available": true,
-        "formats": [
-          "html",
-          "md",
-          "txt",
-          "csv",
-          "json",
-          "docx",
-          "xlsx",
-          "pptx",
-          "pdf"
-        ],
-        "nativeOffice": true
-      },
-      "repoWrite": {
-        "available": true,
-        "protocol": "prepare_authorize_consume_once",
-        "requires": [
-          "objectiveId",
-          "caseId",
-          "authorityId",
-          "controllerId",
-          "fingerprint",
-          "nonce",
-          "snapshot",
-          "matchCount"
-        ],
-        "postVerify": true,
-        "replayBlocked": true,
-        "gitReceiptsRequired": true,
-        "legacyFileContentWrite": false
-      },
-      "multimodalUploads": {
-        "available": true,
-        "transport": "chunked_progressive",
-        "maxFilesPerRequest": 30,
-        "maxFileBytes": 262144000,
-        "maxBatchBytes": 524288000,
-        "maxChunkBytes": 2097152,
-        "resumablePersistedArtifacts": true,
-        "artifactDownload": true,
-        "verifiedCount": 0,
-        "latest": null
-      },
-      "imageGeneration": {
-        "available": true,
-        "persistedArtifacts": true,
-        "verifiedCount": 0,
-        "latest": null
-      },
-      "artifactStudio": {
-        "available": true,
-        "versionedLedger": true,
-        "registeredCount": 16,
-        "latest": {
-          "artifactId": "ART-87e1d7d5-3cb4-499b-9aef-3686e5a9ee1c",
-          "studioVersion": "1.0.0-versioned-ledger",
-          "caseId": "",
-          "objectiveId": "",
-          "type": "report",
-          "version": 1,
-          "lineageKey": "https://www.tiktok.com/@taqueria.eldorado/video/7661751025384148245",
-          "origin": "web.media.collect",
-          "provider": "nexo_real_media_collector",
-          "model": "",
-          "file": ".jarvis-artifacts/web-media/www-tiktok-com/1789521847056/manifest.json",
-          "mimeType": "application/json",
-          "bytes": 1399,
-          "sha256": "7ad9114e9f141ede32b902b8b1fd6f8fb43362239034023d6ee0273304d057dd",
-          "createdAt": "2026-09-16T01:24:07.116Z",
-          "status": "WEB_REAL_MEDIA_REQUIREMENTS_UNMET",
-          "approval": {
-            "required": false,
-            "approved": true,
-            "approvedBy": "OWNER_EXPLICIT_MEDIA_REQUEST"
-          },
-          "editable": true,
-          "preview": true,
-          "downloadable": true,
-          "publishable": false,
-          "deploymentStatus": "NOT_DEPLOYED",
-          "originalFile": "https://www.tiktok.com/@taqueria.eldorado/video/7661751025384148245",
-          "transformations": []
-        }
-      },
-      "webResearch": {
-        "available": true,
-        "grounded": true,
-        "engine": "duckduckgo-html-with-bing-rss-fallback"
-      },
-      "connectors": {
-        "available": true,
-        "adapters": [
-          "github",
-          "firebase"
-        ],
-        "verification": "live-read-only"
-      }
-    },
+    "ok": false,
+    "status": "BRIDGE_RELEASE_MISMATCH",
+    "error": "BRIDGE_RELEASE_MISMATCH",
+    "expectedReleaseId": "",
+    "actualReleaseId": "v94-source-grounded-research-v124-20260810",
     "identity": {
       "ok": true,
       "status": "BRIDGE_IDENTITY_OK",
@@ -155,16 +26,17 @@
       "git": {
         "root": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
         "branch": "v94-media-v4n-negative-claims",
-        "head": "997e52a738cd4e84289d1db3bfbc1ff91b3bc3b2",
+        "head": "41ec00e4d7e806eaca02efd5fc1f17aa6c44c87b",
         "remote": "https://github.com/heberzzt-wq/fixgo-app.git",
         "clean": false
       },
       "identityMode": "branch_contract_head",
-      "contractHead": "997e52a738cd4e84289d1db3bfbc1ff91b3bc3b2",
+      "contractHead": "41ec00e4d7e806eaca02efd5fc1f17aa6c44c87b",
       "remoteVerified": true,
       "repositoryMatches": true,
       "worktreeClean": false
-    }
+    },
+    "version": "2.51.0-temporal-media-self-hosted-v142"
   },
   "committedFiles": [
     ".sia7/remote-result.json"
