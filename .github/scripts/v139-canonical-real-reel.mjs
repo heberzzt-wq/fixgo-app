@@ -260,6 +260,62 @@ function summarize(name, result) {
   };
 }
 
+function taqueriaBusinessMediaAsset(asset = {}) {
+  const sourceUrl = String(asset?.sourceUrl || '').toLowerCase();
+  const output = String(asset?.output || '').toLowerCase();
+  return !(
+    sourceUrl.includes('/perf_images/') ||
+    sourceUrl.includes('/performance.jpeg') ||
+    sourceUrl.includes('/performance.jpg') ||
+    output.endsWith('/performance.jpeg') ||
+    output.endsWith('/performance.jpg')
+  );
+}
+
+function sanitizeTaqueriaCollectedMedia(result = {}) {
+  const originalAssets = Array.isArray(result?.mediaAssets) ? result.mediaAssets : [];
+  const mediaAssets = originalAssets.filter(taqueriaBusinessMediaAsset);
+  const rejected = originalAssets.length - mediaAssets.length;
+  const images = mediaAssets.filter(item => item?.kind === 'image').length;
+  const videos = mediaAssets.filter(item => item?.kind === 'video').length;
+  const requirementsMet = images > 0 && videos > 0;
+  const allowedHashes = new Set(mediaAssets.map(item => String(item?.sha256 || '').toLowerCase()).filter(Boolean));
+  const sources = Array.isArray(result?.sources)
+    ? result.sources.filter(item => {
+        const hash = String(item?.sha256 || '').toLowerCase();
+        const sourceUrl = String(item?.url || item?.sourceUrl || '').toLowerCase();
+        const output = String(item?.output || '').toLowerCase();
+        if (sourceUrl.includes('/perf_images/') || /performance\.jpe?g(?:$|\?)/.test(sourceUrl)) return false;
+        if (output.endsWith('/performance.jpeg') || output.endsWith('/performance.jpg')) return false;
+        return !hash || allowedHashes.has(hash);
+      })
+    : result?.sources;
+  if (rejected > 0) {
+    console.log('V139_TIKTOK_INTERNAL_MEDIA_REJECTED', JSON.stringify({ rejected }));
+  }
+  const status = requirementsMet ? 'WEB_REAL_MEDIA_COLLECTED' : 'WEB_REAL_MEDIA_REQUIREMENTS_UNMET';
+  return {
+    ...result,
+    ok: requirementsMet,
+    objectiveSatisfied: requirementsMet,
+    blocked: !requirementsMet,
+    requirementsMet,
+    status,
+    mediaAssets,
+    sources,
+    counts: { images, videos, total: mediaAssets.length },
+    totalBytes: mediaAssets.reduce((sum, item) => sum + Number(item?.bytes || 0), 0),
+    envelope: result?.envelope && typeof result.envelope === 'object'
+      ? {
+          ...result.envelope,
+          status,
+          objectiveSatisfied: requirementsMet,
+          blocked: !requirementsMet
+        }
+      : result?.envelope
+  };
+}
+
 const SAFE_TAQUERIA_NARRATION = 'El Taco Macho viene calientito, rellenito y con el chile bien puesto. Con queso derretido y la carne que tú prefieras. Taquería El Dorado, Cancún. Conoce su perfil oficial @taqueria.eldorado.';
 
 function groundTaqueriaExecutionArgs(name, args = {}) {
@@ -318,7 +374,7 @@ function groundTaqueriaExecutionArgs(name, args = {}) {
         },
         {
           durationSeconds: 10,
-          visual: 'Cierre limpio con @taqueria.eldorado; usar logotipo sólo si su procedencia del perfil exacto está verificada.',
+          visual: 'Cierre limpio con @taqueria.eldorado; reutilizar sólo medio real del post exacto o logotipo/avatar si su procedencia del perfil exacto está verificada.',
           overlay: 'Taquería El Dorado · @taqueria.eldorado',
           voiceover: 'Taquería El Dorado, Cancún. Conoce su perfil oficial @taqueria.eldorado.',
           evidence: 'Identidad exacta @taqueria.eldorado y negocio indicado en la misión.'
@@ -387,6 +443,7 @@ const runtime = {
     const tool = registry.get(name);
     if (!tool?.execute) throw new Error(`TOOL_NOT_FOUND:${name}`);
     let result = await tool.execute(groundedArgs, context);
+    if (name === 'web.media.collect') result = sanitizeTaqueriaCollectedMedia(result);
     console.log('V139_TOOL_RESULT', JSON.stringify(summarize(name, result)));
     if (name === 'web.media.collect' && result?.objectiveSatisfied !== true) {
       for (let recoveryAttempt = 2; recoveryAttempt <= 3; recoveryAttempt += 1) {
@@ -405,6 +462,7 @@ const runtime = {
           maxImages: Math.max(5, Number(groundedArgs?.maxImages || 0)),
           maxVideos: Math.max(2, Number(groundedArgs?.maxVideos || 0))
         }, context);
+        result = sanitizeTaqueriaCollectedMedia(result);
         console.log('V139_TOOL_RESULT', JSON.stringify(summarize(name, result)));
         if (result?.objectiveSatisfied === true) break;
       }
@@ -696,6 +754,12 @@ if (!mediaText.includes('@taqueria.eldorado') && !mediaText.includes('7629216747
   throw new Error('V139_EXACT_TIKTOK_PROVENANCE_REQUIRED');
 }
 if (!mediaText.includes('video/mp4')) throw new Error('V139_REAL_MP4_SOURCE_MEDIA_REQUIRED');
+
+const reelPlan = [...mission.completedTasks].reverse().find(task => task.name === 'reel.plan');
+const reelPlanEvidenceText = JSON.stringify(reelPlan?.observation?.evidence || {});
+if (/perf_images|performance\.jpe?g|072eb46797f3ba5bd110aa8680bda408590a30e697ba80f53e4d34eed1990d90/i.test(reelPlanEvidenceText)) {
+  throw new Error('V139_TIKTOK_INTERNAL_MEDIA_MUST_NOT_BE_BOUND');
+}
 
 const reel = [...mission.completedTasks].reverse().find(task => task.name === 'reel.create');
 const reelOutput = String(reel?.observation?.artifact || reel?.observation?.evidence?.output || '');
