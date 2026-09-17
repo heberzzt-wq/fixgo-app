@@ -386,8 +386,29 @@ const runtime = {
     assertTaqueriaGroundedClaims(name, groundedArgs);
     const tool = registry.get(name);
     if (!tool?.execute) throw new Error(`TOOL_NOT_FOUND:${name}`);
-    const result = await tool.execute(groundedArgs, context);
+    let result = await tool.execute(groundedArgs, context);
     console.log('V139_TOOL_RESULT', JSON.stringify(summarize(name, result)));
+    if (name === 'web.media.collect' && result?.objectiveSatisfied !== true) {
+      for (let recoveryAttempt = 2; recoveryAttempt <= 3; recoveryAttempt += 1) {
+        console.log('V139_MEDIA_RECOVERY_ATTEMPT', JSON.stringify({
+          attempt: recoveryAttempt,
+          status: result?.status || null,
+          source: SOURCE
+        }));
+        await new Promise(resolve => setTimeout(resolve, 1500 * (recoveryAttempt - 1)));
+        result = await tool.execute({
+          ...groundedArgs,
+          url: SOURCE,
+          requireAnyVisual: true,
+          requireImages: true,
+          requireVideos: true,
+          maxImages: Math.max(5, Number(groundedArgs?.maxImages || 0)),
+          maxVideos: Math.max(2, Number(groundedArgs?.maxVideos || 0))
+        }, context);
+        console.log('V139_TOOL_RESULT', JSON.stringify(summarize(name, result)));
+        if (result?.objectiveSatisfied === true) break;
+      }
+    }
     return result;
   }
 };
