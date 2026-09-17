@@ -161,7 +161,7 @@ jobs:
         shell: pwsh
         run: |
           if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
-          $changed = git diff --name-only ffb83de3360b64a07655fb8d01bb26caae8998e4..HEAD
+          $changed = git diff --name-only dbe0a94b660008d4620f9ce4726ca66b2a5db555..HEAD
           if ($changed -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
       - name: Start bridge and run canonical real-reel mission in same step
         shell: pwsh
