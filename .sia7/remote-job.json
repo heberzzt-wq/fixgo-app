@@ -1,11 +1,11 @@
 {
-  "jobId": "v142-taqueria-v139-reel-20260916-chatgpt-15",
+  "jobId": "v142-taqueria-v139-reel-20260917-chatgpt-16",
   "operation": "bridge",
   "endpoint": "/run",
   "body": {
     "command": "npm test",
     "cwd": ".",
     "timeoutMs": 1200000,
-    "source": "v142_taqueria_v139_satisfied_tool_dedupe"
+    "source": "v142_taqueria_v139_authenticated_media_binding"
   }
 }
