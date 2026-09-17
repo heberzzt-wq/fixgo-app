@@ -20,6 +20,14 @@ const { createJarvisGenAIProviderChain } = require('../../functions/jarvis-genai
 const SOURCE = 'https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004';
 const BRIDGE = 'http://127.0.0.1:3344';
 const REQUIRED_BRIDGE_VERSION = '2.38.0-page-no-contact-route';
+const EXPECTED_TOOLS = Object.freeze([
+  'web.research',
+  'marketing.plan',
+  'reel.plan',
+  'speech.synthesize',
+  'web.media.collect',
+  'reel.create'
+]);
 const expected = JSON.parse(fs.readFileSync('jarvis-runtime-contract.json', 'utf8'));
 
 function createAuthenticatedPlannerAI() {
@@ -188,6 +196,38 @@ function summarize(name, result) {
   };
 }
 
+function assertTaqueriaGroundedClaims(name, args = {}) {
+  if (name === 'web.research' || name === 'web.media.collect') return;
+  const text = JSON.stringify(args || {})
+    .replace(/#estilosinaloa/gi, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  const prohibited = [
+    /autentic/,
+    /\bmejor\b/,
+    /referente/,
+    /tradicion/,
+    /tradicional/,
+    /norten/,
+    /ingredientes? fresc/,
+    /carne fresca/,
+    /sabor sinaloens/,
+    /estilo sinaloa/,
+    /100%[^\n]{0,30}sinaloa/,
+    /visitanos/,
+    /\bpide\b/,
+    /pidelo/,
+    /\borden(a|ar|alo)\b/,
+    /\btrompo\b/,
+    /\bal pastor\b/
+  ];
+  const hit = prohibited.find(pattern => pattern.test(text));
+  if (hit) {
+    throw new Error(`V139_UNSUPPORTED_TAQUERIA_CLAIM:${name}:${hit.source}`);
+  }
+}
+
 const registry = new Map();
 const runtime = {
   _registry: registry,
@@ -196,6 +236,7 @@ const runtime = {
   has(name) { return registry.has(name); },
   list() { return [...registry.values()]; },
   async execute(name, args = {}, context = {}) {
+    assertTaqueriaGroundedClaims(name, args);
     const tool = registry.get(name);
     if (!tool?.execute) throw new Error(`TOOL_NOT_FOUND:${name}`);
     const result = await tool.execute(args, context);
@@ -208,7 +249,7 @@ registerJarvisMultifunctionTools(runtime);
 registerJarvisActuatorTools(runtime);
 registerNexoRealMediaTools(runtime);
 
-for (const required of ['web.research', 'marketing.plan', 'reel.plan', 'speech.synthesize', 'web.media.collect', 'reel.create']) {
+for (const required of EXPECTED_TOOLS) {
   if (!runtime.has(required)) throw new Error(`V139_REGISTERED_TOOL_REQUIRED:${required}`);
 }
 
@@ -224,6 +265,12 @@ Primero investiga la publicación y el negocio utilizando únicamente informaci�
 
 Identifica correctamente qué negocio corresponde a la publicación y evita confundirlo con otros establecimientos de nombre parecido.
 
+La publicación exacta verificada dice: "El Taco Macho viene calientito, rellenito y con el chile bien puesto… Con queso derretido y la carne que tú prefieras." Los hashtags capturados son #estilosinaloa #cancun #tacos #fyp. Trata esos hashtags sólo como hashtags y jamás como prueba de autenticidad, tradición, origen, superioridad ni estilo factual del negocio o del producto.
+
+No afirmes ni sugieras como hechos: "auténtico", "tradicional", "norteño", "sabor sinaloense", "estilo Sinaloa", "el mejor", "referente", "ingredientes frescos", "carne fresca" ni equivalentes salvo que aparezca evidencia independiente y atribuible distinta del hashtag. No inventes teléfono, dirección, precios, promociones, horarios, premios ni disponibilidad de pedidos. No uses llamadas a la acción como "visítanos" o "pide ahora" si la ruta correspondiente no está verificada.
+
+Taquería El Dorado de esta publicación no usa trompo para esta identidad visual. No introduzcas trompo, pastor, un local ficticio, cocineros ficticios ni productos inventados.
+
 Investiga por tu cuenta toda la información pública útil que encuentres: ubicación, teléfono, horarios, redes sociales, servicios, productos, promociones u otros datos relevantes.
 
 Si algún dato importante no aparece inicialmente, intenta investigarlo por otros medios antes de darte por vencido.
@@ -238,7 +285,7 @@ inferencias o recomendaciones.
 
 Conserva las fuentes y la procedencia de la información.
 
-Después de investigar, crea una propuesta de marketing basada únicamente en los hechos realmente encontrados.
+Después de investigar, crea una propuesta de marketing basada únicamente en los hechos realmente encontrados. Para llenar campos creativos obligatorios del plan sin inventar hechos, formula el problema, promesa y diferenciador como objetivos de la pieza: captar atención sin inventar datos, mostrar el Taco Macho tal como aparece en la publicación y destacar únicamente queso derretido, carne a elección y el texto verificado. La llamada a la acción segura es conocer a Taquería El Dorado en @taqueria.eldorado.
 
 Luego crea un reel vertical profesional de aproximadamente 30 segundos para promocionar Taquería El Dorado.
 
@@ -253,6 +300,8 @@ producir un archivo final de video reproducible;
 no inventar teléfono, dirección, precios, promociones, horarios ni características;
 no sustituir silenciosamente el contenido real por imágenes inventadas;
 no publicar nada en ninguna red social.
+
+Intenta recuperar el avatar o logotipo original desde el perfil exacto @taqueria.eldorado usando medios con procedencia verificable. Si no puedes probar su procedencia, no generes, reconstruyas ni imites un logotipo y no bloquees el reel por ello.
 
 No quiero solamente un storyboard, un guion ni instrucciones para producirlo.
 
@@ -291,6 +340,7 @@ const plannedInitialCalls = await buildJarvisMultifunctionToolCalls(
     toolCatalog: missionToolCatalog,
     missionState: {
       phase: 'CURRENT_TURN',
+      requiredToolNames: EXPECTED_TOOLS,
       writeAllowed: false,
       userArtifactAllowed: true
     }
@@ -325,7 +375,7 @@ function compactObservation(observation = {}) {
 const mission = await runJarvisMission({
   instruction,
   initialToolCalls,
-  requiredToolNames: [...new Set(initialToolCalls.map(call => call.name))],
+  requiredToolNames: EXPECTED_TOOLS,
   maximumSteps: 20,
   maximumRetries: 2,
   timeoutMs: 360000,
@@ -413,8 +463,7 @@ if (mission.blockedTasks.length > 0) {
 }
 
 const completedNames = mission.completedTasks.map(task => task.name);
-const expectedTools = ['web.research', 'marketing.plan', 'reel.plan', 'speech.synthesize', 'web.media.collect', 'reel.create'];
-for (const name of expectedTools) {
+for (const name of EXPECTED_TOOLS) {
   if (!completedNames.includes(name)) throw new Error(`V139_COMPLETED_TOOL_REQUIRED:${name}`);
 }
 
