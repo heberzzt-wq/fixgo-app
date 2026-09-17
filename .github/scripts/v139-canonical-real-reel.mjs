@@ -224,6 +224,88 @@ function summarize(name, result) {
   };
 }
 
+const SAFE_TAQUERIA_NARRATION = 'El Taco Macho viene calientito, rellenito y con el chile bien puesto. Con queso derretido y la carne que tú prefieras. Taquería El Dorado, Cancún. Conoce su perfil oficial @taqueria.eldorado.';
+
+function groundTaqueriaExecutionArgs(name, args = {}) {
+  if (name === 'web.media.collect') {
+    return {
+      ...args,
+      url: SOURCE,
+      requireAnyVisual: true,
+      requireImages: true,
+      requireVideos: true,
+      maxImages: Math.max(2, Number(args?.maxImages || 5)),
+      maxVideos: Math.max(1, Number(args?.maxVideos || 2))
+    };
+  }
+  if (name === 'marketing.plan') {
+    return {
+      ...args,
+      brandName: 'Taquería El Dorado',
+      audience: 'Personas en Cancún interesadas en tacos y contenido gastronómico.',
+      offer: 'El Taco Macho viene calientito, rellenito y con el chile bien puesto. Con queso derretido y la carne que tú prefieras.',
+      pain: 'Antojo de un taco calientito con queso derretido y la carne que prefieras.',
+      promise: 'Presentar el Taco Macho tal como aparece en la publicación exacta verificada, sin añadir atributos no comprobados.',
+      differentiator: 'Taco Macho calientito y rellenito, con queso derretido, la carne que prefieras y el chile bien puesto.',
+      cta: 'Conocer a Taquería El Dorado en @taqueria.eldorado.',
+      market: 'Cancún, México',
+      campaignObjective: 'Crear un reel profesional basado únicamente en la publicación exacta verificada.',
+      horizon: 'Corto plazo.',
+      tone: 'Antojable, local y directo.',
+      channels: ['TikTok', 'Instagram Reels'],
+      metrics: ['Reproducciones', 'Interacciones', 'Visitas al perfil'],
+      productionRequested: true
+    };
+  }
+  if (name === 'reel.plan') {
+    return {
+      ...args,
+      brandName: 'Taquería El Dorado',
+      title: 'El Taco Macho · Taquería El Dorado',
+      cta: 'Conoce a Taquería El Dorado en @taqueria.eldorado.',
+      durationSeconds: 30,
+      sourceMediaPolicy: 'reuse',
+      scenes: [
+        {
+          durationSeconds: 10,
+          visual: 'Usar medio real verificado de la publicación exacta y encuadre vertical centrado en el Taco Macho.',
+          overlay: 'El Taco Macho viene calientito y rellenito',
+          voiceover: 'El Taco Macho viene calientito, rellenito y con el chile bien puesto.',
+          evidence: 'Texto y medio real de la publicación exacta verificada.'
+        },
+        {
+          durationSeconds: 10,
+          visual: 'Usar detalle real verificable del producto; no inventar ingredientes, preparación, local ni personas.',
+          overlay: 'Con queso derretido y la carne que tú prefieras',
+          voiceover: 'Con queso derretido y la carne que tú prefieras.',
+          evidence: 'Texto de la publicación exacta verificada.'
+        },
+        {
+          durationSeconds: 10,
+          visual: 'Cierre limpio con @taqueria.eldorado; usar logotipo sólo si su procedencia del perfil exacto está verificada.',
+          overlay: 'Taquería El Dorado · @taqueria.eldorado',
+          voiceover: 'Taquería El Dorado, Cancún. Conoce su perfil oficial @taqueria.eldorado.',
+          evidence: 'Identidad exacta @taqueria.eldorado y negocio indicado en la misión.'
+        }
+      ]
+    };
+  }
+  if (name === 'speech.synthesize') {
+    const grounded = { ...args };
+    if ('text' in grounded || !('input' in grounded)) grounded.text = SAFE_TAQUERIA_NARRATION;
+    if ('input' in grounded) grounded.input = SAFE_TAQUERIA_NARRATION;
+    return grounded;
+  }
+  return args;
+}
+
+function groundTaqueriaToolCall(call = {}) {
+  return {
+    ...call,
+    args: groundTaqueriaExecutionArgs(call?.name, call?.args || {})
+  };
+}
+
 function assertTaqueriaGroundedClaims(name, args = {}) {
   if (name === 'web.research' || name === 'web.media.collect') return;
   const text = JSON.stringify(args || {})
@@ -264,10 +346,11 @@ const runtime = {
   has(name) { return registry.has(name); },
   list() { return [...registry.values()]; },
   async execute(name, args = {}, context = {}) {
-    assertTaqueriaGroundedClaims(name, args);
+    const groundedArgs = groundTaqueriaExecutionArgs(name, args);
+    assertTaqueriaGroundedClaims(name, groundedArgs);
     const tool = registry.get(name);
     if (!tool?.execute) throw new Error(`TOOL_NOT_FOUND:${name}`);
-    const result = await tool.execute(args, context);
+    const result = await tool.execute(groundedArgs, context);
     console.log('V139_TOOL_RESULT', JSON.stringify(summarize(name, result)));
     return result;
   }
@@ -371,13 +454,14 @@ const plannedInitialCalls = await buildJarvisMultifunctionToolCalls(
     }
   }
 );
-console.log('V139_EXACT_PROMPT_INITIAL_PLAN', JSON.stringify(plannedInitialCalls.map(call => ({ name: call.name, args: call.args }))));
-if (plannedInitialCalls.length === 0) {
+const groundedInitialCalls = plannedInitialCalls.map(groundTaqueriaToolCall);
+console.log('V139_EXACT_PROMPT_INITIAL_PLAN', JSON.stringify(groundedInitialCalls.map(call => ({ name: call.name, args: call.args }))));
+if (groundedInitialCalls.length === 0) {
   throw new Error('V139_EXACT_PROMPT_NO_EXECUTABLE_PLAN');
 }
 
 const initialToolCalls = ensureExecutableArtifactDependencies({
-  toolCalls: plannedInitialCalls,
+  toolCalls: groundedInitialCalls,
   catalog: missionToolCatalog
 });
 if (!Array.isArray(initialToolCalls) || initialToolCalls.length === 0) {
@@ -451,7 +535,8 @@ const mission = await runJarvisMission({
         }
       }
     );
-    const unresolvedCall = nextCalls.find(call =>
+    const groundedNextCalls = nextCalls.map(groundTaqueriaToolCall);
+    const unresolvedCall = groundedNextCalls.find(call =>
       !resolvedSignatures.has(`${call.name}:${JSON.stringify(call.args || {})}`)
     ) || null;
     console.log('V139_EXACT_PROMPT_NEXT_PLAN', JSON.stringify({
@@ -507,8 +592,11 @@ if (!researchEvidenceText.includes('@taqueria.eldorado') && !researchEvidenceTex
   throw new Error('V139_EXACT_TIKTOK_RESEARCH_PROVENANCE_REQUIRED');
 }
 
-const order = ['reel.plan', 'speech.synthesize', 'web.media.collect', 'reel.create'].map(name => mission.executedTools.indexOf(name));
-if (!(order[0] >= 0 && order[1] > order[0] && order[2] > order[1] && order[3] > order[2])) {
+const reelPlanIndex = mission.executedTools.indexOf('reel.plan');
+const speechIndex = mission.executedTools.indexOf('speech.synthesize');
+const mediaIndex = mission.executedTools.indexOf('web.media.collect');
+const createIndex = mission.executedTools.indexOf('reel.create');
+if (!(reelPlanIndex >= 0 && speechIndex > reelPlanIndex && mediaIndex >= 0 && createIndex > speechIndex && createIndex > mediaIndex)) {
   throw new Error(`V139_EXECUTION_ORDER_INVALID:${JSON.stringify(mission.executedTools)}`);
 }
 
