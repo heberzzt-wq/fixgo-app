@@ -41,7 +41,7 @@ permissions:
 
 jobs:
   certify-v139:
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
     runs-on: ubuntu-latest
     timeout-minutes: 55
     steps:
@@ -138,7 +138,7 @@ jobs:
           echo 'V139_BOUNDED_LATENCY_PRESENTATION_GREEN=true'
 
   real-reel-e2e:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.external_reel == true }}
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.external_reel == true) }}
     runs-on: windows-latest
     timeout-minutes: 18
     steps:
