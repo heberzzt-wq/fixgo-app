@@ -118,6 +118,34 @@ globalThis.JarvisLocalBridge = {
   async requestJson(endpoint, payload = {}, options = {}) {
     const verified = await this.verifyIdentity();
     const timeoutMs = Math.max(5000, Number(options.timeoutMs || payload.timeoutMs || 30000));
+    if (endpoint === '/semantic/respond') {
+      try {
+        const { runJarvisSemanticResponse } = require('../../functions/jarvis-semantic-planner.js');
+        const semanticResult = await runJarvisSemanticResponse({
+          ai: plannerAI,
+          input: payload.input,
+          timeoutMs,
+          maxOutputTokens: payload.maxOutputTokens
+        });
+        return {
+          ...semanticResult,
+          httpOk: true,
+          httpStatus: 200,
+          bridgeIdentity: verified
+        };
+      }
+      catch (error) {
+        return {
+          ok: false,
+          status: 'V139_AUTHENTICATED_SEMANTIC_RESPONSE_FAILED',
+          error: error?.message || String(error),
+          fallbackAllowed: false,
+          httpOk: false,
+          httpStatus: 503,
+          bridgeIdentity: verified
+        };
+      }
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
