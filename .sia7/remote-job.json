@@ -1,11 +1,11 @@
 {
-  "jobId": "v142-taqueria-v139-grounded-reel-20260916-chatgpt-09",
-  "operation": "bridge",
-  "endpoint": "/run",
-  "body": {
-    "command": "npm test",
-    "cwd": ".",
-    "timeoutMs": 1200000,
-    "source": "v142_taqueria_v139_grounded_full_contract"
+  "jobId": "v142-v139-grounding-patch-dryrun-20260916-chatgpt-10",
+  "operation": "patch",
+  "patch": {
+    "file": ".github/scripts/v139-canonical-real-reel.mjs",
+    "search": "Investiga por tu cuenta toda la información pública útil que encuentres: ubicación, teléfono, horarios, redes sociales, servicios, productos, promociones u otros datos relevantes.\n\nSi algún dato importante no aparece inicialmente, intenta investigarlo por otros medios antes de darte por vencido.\n\nSi después de investigar realmente no puedes verificar algún dato importante, dime exactamente cuál falta y pregúntame si puedo proporcionártelo. No lo inventes.",
+    "replace": "Una vez verificada la publicación exacta y la identidad @taqueria.eldorado, considera satisfecho web.research para esta misión. No hagas una segunda búsqueda amplia para teléfono, dirección, horarios, promociones ni otros datos que no sean necesarios para producir el reel. Si esos datos no aparecen en la fuente exacta, mantenlos como no verificados y continúa con marketing.plan, reel.plan, speech.synthesize, web.media.collect y reel.create sin mezclarlos con homónimos ni inventarlos.",
+    "expectedMatches": 1,
+    "dryRun": true
   }
 }
