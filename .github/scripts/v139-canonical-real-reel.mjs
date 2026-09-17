@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { registerJarvisMultifunctionTools } from '../../gestia-core/jarvis/jarvis.multitool.pack.js';
 import { registerJarvisActuatorTools } from '../../gestia-core/jarvis/jarvis.actuator.pack.js';
@@ -29,6 +30,39 @@ const EXPECTED_TOOLS = Object.freeze([
   'reel.create'
 ]);
 const expected = JSON.parse(fs.readFileSync('jarvis-runtime-contract.json', 'utf8'));
+
+function commandAvailable(command) {
+  try {
+    execFileSync(process.platform === 'win32' ? 'where.exe' : 'which', [command], {
+      encoding: 'utf8',
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 10000
+    });
+    return true;
+  }
+  catch {
+    return false;
+  }
+}
+
+function ensureGithubActionsWindowsMediaTools() {
+  if (process.platform !== 'win32' || process.env.GITHUB_ACTIONS !== 'true') return;
+  if (commandAvailable('ffmpeg.exe') && commandAvailable('ffprobe.exe')) {
+    console.log('V139_GITHUB_ACTIONS_FFMPEG_READY=true');
+    return;
+  }
+  console.log('V139_GITHUB_ACTIONS_FFMPEG_BOOTSTRAP=true');
+  execFileSync('choco.exe', ['install', 'ffmpeg', '-y', '--no-progress', '--limit-output'], {
+    windowsHide: true,
+    stdio: 'inherit',
+    timeout: 240000
+  });
+  if (!commandAvailable('ffmpeg.exe') || !commandAvailable('ffprobe.exe')) {
+    throw new Error('V139_GITHUB_ACTIONS_FFMPEG_BOOTSTRAP_FAILED');
+  }
+  console.log('V139_GITHUB_ACTIONS_FFMPEG_READY=true');
+}
 
 function createAuthenticatedPlannerAI() {
   let runtimeConfig = {};
@@ -84,6 +118,8 @@ function versionAtLeast(actual = '', required = REQUIRED_BRIDGE_VERSION) {
   }
   return true;
 }
+
+ensureGithubActionsWindowsMediaTools();
 
 const healthResponse = await fetch(`${BRIDGE}/health`, { cache: 'no-store' });
 const bridgeHealth = await healthResponse.json();
@@ -433,6 +469,7 @@ cualquier limitación real encontrada.
 No declares éxito si el archivo final no existe realmente.`;
 
 const missionToolCatalog = runtime.list().filter(tool =>
+  EXPECTED_TOOLS.includes(tool?.name) &&
   tool?.name !== 'conversation.respond' &&
   (
     tool?.mutates !== true ||
