@@ -1,20 +1,170 @@
 {
-  "jobId": "v142-taqueria-v139-reel-20260917-chatgpt-16",
-  "completedAt": "2026-09-17T14:49:05.400Z",
+  "jobId": "v142-runtime-liveness-20260917-chatgpt-17",
+  "completedAt": "2026-09-17T22:01:11.207Z",
   "executionStarted": true,
-  "ok": false,
+  "ok": true,
   "httpStatus": 200,
-  "endpoint": "/run",
+  "endpoint": "/health",
   "payload": {
-    "ok": false,
-    "status": "FAILED",
-    "exitCode": 1,
-    "command": "npm test",
-    "stdout": "\n> gestia-premium@1.0.0 test\n> node .github/scripts/v139-canonical-real-reel.mjs\n\nV139_BRIDGE_IDENTITY {\"ok\":true,\"status\":\"BRIDGE_IDENTITY_OK\",\"expected\":{\"projectId\":\"fixgo-app\",\"repository\":\"heberzzt-wq/fixgo-app\",\"branch\":\"v94-media-v4n-negative-claims\",\"releaseId\":\"v94-source-grounded-research-v124-20260810\"},\"actual\":{\"ok\":true,\"status\":\"BRIDGE_IDENTITY_OK\",\"root\":\"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\",\"contract\":{\"ok\":true,\"projectId\":\"fixgo-app\",\"repository\":\"heberzzt-wq/fixgo-app\",\"branch\":\"v94-media-v4n-negative-claims\",\"releaseId\":\"v94-source-grounded-research-v124-20260810\",\"contractPath\":\"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\jarvis-runtime-contract.json\"},\"git\":{\"root\":\"C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker\",\"branch\":\"v94-media-v4n-negative-claims\",\"head\":\"36b13c88f74d5504384f203b58a928c896ea99db\",\"remote\":\"https://github.com/heberzzt-wq/fixgo-app.git\",\"clean\":false},\"identityMode\":\"branch_contract_head\",\"contractHead\":\"36b13c88f74d5504384f203b58a928c896ea99db\",\"remoteVerified\":true,\"repositoryMatches\":true,\"worktreeClean\":false},\"bridgeVersion\":\"2.51.0-temporal-media-self-hosted-v142\",\"requiredBridgeVersion\":\"2.38.0-page-no-contact-route\",\"bridgeVersionCompatible\":true}\n",
-    "stderr": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker\\functions\\jarvis-semantic-planner.js:1167\r\n        throw new Error(`SEMANTIC_AUTHENTICATED_PROVIDER_${message}`);\r\n              ^\r\n\r\nError: SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_PROVIDER_TIMEOUT\r\n    at runJarvisSemanticPlanner (C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker\\functions\\jarvis-semantic-planner.js:1167:15)\r\n    at async buildJarvisMultifunctionToolCalls (file:///C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker/gestia-core/jarvis/jarvis.multifunction.planner.js:2170:20)\r\n    at async file:///C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker/.github/scripts/v139-canonical-real-reel.mjs:360:29\r\n\r\nNode.js v24.19.0\r\n",
-    "durationMs": 93043,
-    "source": "v142_taqueria_v139_authenticated_media_binding",
-    "version": "2.51.0-temporal-media-self-hosted-v142"
+    "ok": true,
+    "version": "2.51.0-temporal-media-self-hosted-v142",
+    "policy": {
+      "authority": "full_repo_private_owner",
+      "safeZone": "advisory",
+      "rootContainment": true,
+      "emptyWrites": "blocked",
+      "failureMode": "closed"
+    },
+    "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker",
+    "actuators": {
+      "browser": {
+        "available": true,
+        "engine": "chrome.exe",
+        "actions": [
+          "inspect",
+          "screenshot",
+          "pdf",
+          "open",
+          "media"
+        ]
+      },
+      "speech": {
+        "available": true,
+        "provider": "windows-system-speech",
+        "platform": "win32",
+        "outputFormats": [
+          "wav"
+        ],
+        "physicallyVerified": true,
+        "cloudRequired": false,
+        "version": "1.0.0-local-windows-system-speech-v137",
+        "status": "LOCAL_SPEECH_READY"
+      },
+      "documents": {
+        "available": true,
+        "formats": [
+          "html",
+          "md",
+          "txt",
+          "csv",
+          "json",
+          "docx",
+          "xlsx",
+          "pptx",
+          "pdf"
+        ],
+        "nativeOffice": true
+      },
+      "repoWrite": {
+        "available": true,
+        "protocol": "prepare_authorize_consume_once",
+        "requires": [
+          "objectiveId",
+          "caseId",
+          "authorityId",
+          "controllerId",
+          "fingerprint",
+          "nonce",
+          "snapshot",
+          "matchCount"
+        ],
+        "postVerify": true,
+        "replayBlocked": true,
+        "gitReceiptsRequired": true,
+        "legacyFileContentWrite": false
+      },
+      "multimodalUploads": {
+        "available": true,
+        "transport": "chunked_progressive",
+        "maxFilesPerRequest": 30,
+        "maxFileBytes": 262144000,
+        "maxBatchBytes": 524288000,
+        "maxChunkBytes": 2097152,
+        "resumablePersistedArtifacts": true,
+        "artifactDownload": true,
+        "verifiedCount": 0,
+        "latest": null
+      },
+      "imageGeneration": {
+        "available": true,
+        "persistedArtifacts": true,
+        "verifiedCount": 0,
+        "latest": null
+      },
+      "artifactStudio": {
+        "available": true,
+        "versionedLedger": true,
+        "registeredCount": 30,
+        "latest": {
+          "artifactId": "ART-b3a8c3aa-62e3-4952-b0f8-3615c23790d5",
+          "studioVersion": "1.0.0-versioned-ledger",
+          "caseId": "",
+          "objectiveId": "",
+          "type": "report",
+          "version": 7,
+          "lineageKey": "https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004",
+          "origin": "web.media.collect",
+          "provider": "nexo_real_media_collector",
+          "model": "",
+          "file": ".jarvis-artifacts/web-media/www-tiktok-com/1789613110772/manifest.json",
+          "mimeType": "application/json",
+          "bytes": 1681,
+          "sha256": "a64b0ab08c7e04fb18ecb83d5b4c5727d58c651fd96ee18614c99cfd5dde0b3a",
+          "createdAt": "2026-09-17T02:45:10.783Z",
+          "status": "WEB_REAL_MEDIA_COLLECTED",
+          "approval": {
+            "required": false,
+            "approved": true,
+            "approvedBy": "OWNER_EXPLICIT_MEDIA_REQUEST"
+          },
+          "editable": true,
+          "preview": true,
+          "downloadable": true,
+          "publishable": false,
+          "deploymentStatus": "NOT_DEPLOYED",
+          "originalFile": "https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004",
+          "transformations": []
+        }
+      },
+      "webResearch": {
+        "available": true,
+        "grounded": true,
+        "engine": "duckduckgo-html-with-bing-rss-fallback"
+      },
+      "connectors": {
+        "available": true,
+        "adapters": [
+          "github",
+          "firebase"
+        ],
+        "verification": "live-read-only"
+      }
+    },
+    "identity": {
+      "ok": true,
+      "status": "BRIDGE_IDENTITY_OK",
+      "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker",
+      "contract": {
+        "ok": true,
+        "projectId": "fixgo-app",
+        "repository": "heberzzt-wq/fixgo-app",
+        "branch": "v94-media-v4n-negative-claims",
+        "releaseId": "v94-source-grounded-research-v124-20260810",
+        "contractPath": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker\\jarvis-runtime-contract.json"
+      },
+      "git": {
+        "root": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
+        "branch": "v94-media-v4n-negative-claims",
+        "head": "01511aa690709059b2f6da73ac0a4479eec33af2",
+        "remote": "https://heberzzt-wq@github.com/heberzzt-wq/fixgo-app.git",
+        "clean": false
+      },
+      "identityMode": "branch_contract_head",
+      "contractHead": "01511aa690709059b2f6da73ac0a4479eec33af2",
+      "remoteVerified": true,
+      "repositoryMatches": true,
+      "worktreeClean": false
+    }
   },
   "committedFiles": [
     ".sia7/remote-result.json"
