@@ -1,11 +1,11 @@
 {
-  "jobId": "v142-research-goal-patch-20260916-chatgpt-13",
+  "jobId": "v142-taqueria-v139-reel-20260916-chatgpt-14",
   "operation": "bridge",
   "endpoint": "/run",
   "body": {
-    "command": "node -e \"const fs=require('fs');const p='gestia-core/jarvis/jarvis.multifunction.planner.js';let s=fs.readFileSync(p,'utf8');const o=\\\"            webResearchOrdinal += 1;\\n            args = {\\n                ...args,\\n                researchGoal:\\n                    stableResearchGoal(\\n                        args.researchGoal,\\n                        webResearchOrdinal\\n                    )\\n            };\\n\\\";const n=\\\"            webResearchOrdinal += 1;\\n            const priorResearchCount = [\\n                ...(Array.isArray(context?.missionState?.completedTasks) ? context.missionState.completedTasks : []),\\n                ...(Array.isArray(context?.missionState?.pendingTasks) ? context.missionState.pendingTasks : []),\\n                ...(Array.isArray(context?.missionState?.blockedTasks) ? context.missionState.blockedTasks : [])\\n            ].filter(task => String(task?.name || \\\\\\\"\\\\\\\") === \\\\\\\"web.research\\\\\\\").length;\\n            args = {\\n                ...args,\\n                researchGoal:\\n                    stableResearchGoal(\\n                        \\\\\\\"\\\\\\\",\\n                        priorResearchCount + webResearchOrdinal\\n                    )\\n            };\\n\\\";if(!s.includes(o))throw new Error('V142_RESEARCH_GOAL_TARGET_NOT_FOUND');fs.writeFileSync(p,s.replace(o,n),'utf8');console.log('V142_RESEARCH_GOAL_PATCH_APPLIED');\"",
+    "command": "npm test",
     "cwd": ".",
-    "timeoutMs": 120000,
-    "source": "v142_research_goal_rotation_patch"
+    "timeoutMs": 1200000,
+    "source": "v142_taqueria_v139_post_research_advance"
   }
 }
