@@ -531,6 +531,30 @@ const mission = await runJarvisMission({
         `${item.name}:${JSON.stringify(item.args || {})}`
       )
     );
+    const requiredCompleted = missionState.requiredToolNames.every(name =>
+      missionState.completedTasks.some(item =>
+        item.name === name && item.observation?.objectiveSatisfied === true
+      )
+    );
+    const requiredBlocked = missionState.requiredToolNames.some(name =>
+      missionState.blockedTasks.some(item => item.name === name)
+    );
+    if (requiredCompleted && !requiredBlocked) {
+      console.log('V139_EXACT_PROMPT_NEXT_PLAN', JSON.stringify({
+        phase: 'DETERMINISTIC_VERIFIED_CLOSE',
+        missionComplete: true,
+        next: null
+      }));
+      return {
+        toolCalls: [],
+        missionComplete: true,
+        completionAssessment: {
+          status: 'V139_REQUIRED_TOOLS_VERIFIED',
+          requiredToolNames: missionState.requiredToolNames,
+          completedToolNames: missionState.completedTasks.map(item => item.name)
+        }
+      };
+    }
     const requiredResolved = missionState.requiredToolNames.every(name =>
       missionState.completedTasks.some(item => item.name === name) ||
       missionState.blockedTasks.some(item => item.name === name)
