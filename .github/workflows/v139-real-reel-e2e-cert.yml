@@ -157,8 +157,6 @@ jobs:
         run: npm ci
       - name: Install functions dependencies
         run: npm ci --prefix functions
-      - name: Install Firebase CLI
-        run: npm install --global firebase-tools
       - name: Guard branch and Functions unchanged
         shell: pwsh
         run: |
@@ -168,18 +166,21 @@ jobs:
       - name: Start bridge and run canonical real-reel mission in same step
         shell: pwsh
         env:
-          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
           GCLOUD_PROJECT: fixgo-44e4d
+          GOOGLE_CLOUD_PROJECT: fixgo-44e4d
         run: |
-          if (-not $env:GEMINI_KEY -and -not $env:GEMINI_API_KEY) {
-            if (-not $env:FIREBASE_TOKEN) { throw 'V139_FIREBASE_TOKEN_REQUIRED_FOR_SECRET_ACCESS' }
-            $secret = (& firebase functions:secrets:access GEMINI_KEY --project fixgo-44e4d --token $env:FIREBASE_TOKEN 2>$null | Out-String).Trim()
-            if (-not $secret) { throw 'V139_GEMINI_SECRET_ACCESS_EMPTY' }
-            Write-Output "::add-mask::$secret"
-            $env:GEMINI_KEY = $secret
-          }
+          if (-not $env:FIREBASE_TOKEN) { throw 'V139_FIREBASE_TOKEN_REQUIRED_FOR_VERTEX_ADC' }
+          $adcPath = Join-Path $env:RUNNER_TEMP 'v139-firebase-adc.json'
+          @{
+            type = 'authorized_user'
+            client_id = '563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com'
+            client_secret = 'j9iVZfS8kkCEFUPaAeJV0sAi'
+            refresh_token = $env:FIREBASE_TOKEN
+          } | ConvertTo-Json -Compress | Set-Content -LiteralPath $adcPath -Encoding utf8NoBOM
+          $env:GOOGLE_APPLICATION_CREDENTIALS = $adcPath
+          $env:GEMINI_KEY = ''
+          $env:GEMINI_API_KEY = ''
           $stdout = Join-Path $env:RUNNER_TEMP 'v139-bridge.stdout.log'
           $stderr = Join-Path $env:RUNNER_TEMP 'v139-bridge.stderr.log'
           $process = Start-Process -FilePath node -ArgumentList 'jarvis-fs-bridge.js' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
@@ -201,8 +202,9 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "V139_CANONICAL_MISSION_FAILED:$LASTEXITCODE" }
           }
           finally {
-            $env:GEMINI_KEY = ''
-            $env:GEMINI_API_KEY = ''
+            $env:GOOGLE_APPLICATION_CREDENTIALS = ''
+            $env:FIREBASE_TOKEN = ''
+            Remove-Item -LiteralPath $adcPath -Force -ErrorAction SilentlyContinue
             Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
             Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue | Select-Object -Last 120
             Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue | Select-Object -Last 120
