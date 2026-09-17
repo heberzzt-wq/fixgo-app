@@ -56,6 +56,8 @@ jobs:
           cache: npm
       - name: Install root dependencies
         run: npm ci
+      - name: Install functions dependencies
+        run: npm ci --prefix functions
       - name: Guard branch and Functions unchanged
         shell: bash
         run: |
@@ -138,7 +140,7 @@ jobs:
           echo 'V139_BOUNDED_LATENCY_PRESENTATION_GREEN=true'
 
   real-reel-e2e:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.external_reel == true }}
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.external_reel == true) }}
     runs-on: windows-latest
     timeout-minutes: 18
     steps:
@@ -153,6 +155,8 @@ jobs:
           cache: npm
       - name: Install root dependencies
         run: npm ci
+      - name: Install functions dependencies
+        run: npm ci --prefix functions
       - name: Guard branch and Functions unchanged
         shell: pwsh
         run: |
@@ -161,6 +165,10 @@ jobs:
           if ($changed -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
       - name: Start bridge and run canonical real-reel mission in same step
         shell: pwsh
+        env:
+          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GCLOUD_PROJECT: fixgo-44e4d
         run: |
           $stdout = Join-Path $env:RUNNER_TEMP 'v139-bridge.stdout.log'
           $stderr = Join-Path $env:RUNNER_TEMP 'v139-bridge.stderr.log'
