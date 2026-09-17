@@ -1,6 +1,8 @@
 {
-  "jobId": "v142-runtime-liveness-20260917-chatgpt-17",
+  "jobId": "v142-taqueria-v139-local-20260917-chatgpt-18",
   "operation": "bridge",
-  "endpoint": "/health",
-  "body": {}
+  "endpoint": "/run",
+  "body": {
+    "command": "npm test"
+  }
 }
