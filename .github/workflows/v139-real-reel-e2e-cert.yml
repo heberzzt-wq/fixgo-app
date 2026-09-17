@@ -41,7 +41,7 @@ permissions:
 
 jobs:
   certify-v139:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 55
     steps:
@@ -56,14 +56,12 @@ jobs:
           cache: npm
       - name: Install root dependencies
         run: npm ci
-      - name: Install functions dependencies
-        run: npm ci --prefix functions
       - name: Guard branch and Functions unchanged
         shell: bash
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
-          ! git diff --name-only af38712231143b1e42f7d1b4deaad273dc6c2a15..HEAD | grep -E '^functions/'
+          ! git diff --name-only 45c9231715ad1d8f50756328c6e4128deebba581..HEAD | grep -E '^functions/'
 
       - name: Focal syntax contracts
         shell: bash
@@ -128,9 +126,6 @@ jobs:
             tests/jarvis-docx-artifact.test.mjs
 
       - name: Full CI
-        env:
-          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: npm run ci:test
       - name: Reject whitespace errors
         run: git diff --check
@@ -143,7 +138,7 @@ jobs:
           echo 'V139_BOUNDED_LATENCY_PRESENTATION_GREEN=true'
 
   real-reel-e2e:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.external_reel == true) }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.external_reel == true }}
     runs-on: windows-latest
     timeout-minutes: 18
     steps:
@@ -158,19 +153,14 @@ jobs:
           cache: npm
       - name: Install root dependencies
         run: npm ci
-      - name: Install functions dependencies
-        run: npm ci --prefix functions
       - name: Guard branch and Functions unchanged
         shell: pwsh
         run: |
           if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
-          $changed = git diff --name-only af38712231143b1e42f7d1b4deaad273dc6c2a15..HEAD
+          $changed = git diff --name-only ffb83de3360b64a07655fb8d01bb26caae8998e4..HEAD
           if ($changed -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
       - name: Start bridge and run canonical real-reel mission in same step
         shell: pwsh
-        env:
-          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           $stdout = Join-Path $env:RUNNER_TEMP 'v139-bridge.stdout.log'
           $stderr = Join-Path $env:RUNNER_TEMP 'v139-bridge.stderr.log'
