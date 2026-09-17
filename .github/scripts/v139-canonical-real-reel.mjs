@@ -387,12 +387,18 @@ const mission = await runJarvisMission({
       missionState.blockedTasks.some(item => item.name === name)
     );
     const phase = requiredResolved ? 'COMPLETION_AUDIT' : 'MISSION_CONTRACT';
+    const researchSatisfied = missionState.completedTasks.some(item =>
+      item.name === 'web.research' && item.observation?.objectiveSatisfied === true
+    );
+    const plannerCatalog = researchSatisfied
+      ? missionToolCatalog.filter(tool => tool.name !== 'web.research')
+      : missionToolCatalog;
     const nextCalls = await buildJarvisMultifunctionToolCalls(
       originalInstruction,
       {
         throwOnUnavailable: true,
         semanticPlanner: canonicalSemanticPlanner,
-        toolCatalog: missionToolCatalog,
+        toolCatalog: plannerCatalog,
         missionState: {
           phase,
           missionId: missionState.missionId,
