@@ -92,16 +92,30 @@ function createAuthenticatedPlannerAI() {
 }
 
 const plannerAI = createAuthenticatedPlannerAI();
-const canonicalSemanticPlanner = ({ input, catalog, missionState }) =>
-  runJarvisSemanticPlanner({
-    fetchImpl: fetch,
-    simpleFetchImpl: null,
-    ai: plannerAI,
-    input,
-    catalog,
-    missionState,
-    timeoutMs: 60000
-  });
+const canonicalSemanticPlanner = async ({ input, catalog, missionState }) => {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await runJarvisSemanticPlanner({
+        fetchImpl: fetch,
+        simpleFetchImpl: null,
+        ai: plannerAI,
+        input,
+        catalog,
+        missionState,
+        timeoutMs: 60000
+      });
+    }
+    catch (error) {
+      const message = String(error?.message || error || '');
+      const retryable = /RESOURCE_EXHAUSTED|\b429\b/i.test(message);
+      if (!retryable || attempt >= 3) throw error;
+      const backoffMs = 3000 * attempt;
+      console.log('V139_SEMANTIC_RESOURCE_BACKOFF', JSON.stringify({ attempt, backoffMs }));
+      await new Promise(resolve => setTimeout(resolve, backoffMs));
+    }
+  }
+  throw new Error('V139_SEMANTIC_RETRY_EXHAUSTED');
+};
 
 function versionTuple(value = '') {
   const parts = String(value || '').trim().split('-')[0].split('.').slice(0, 3).map(Number);
@@ -597,6 +611,57 @@ function compactObservation(observation = {}) {
   };
 }
 
+function verifiedMissionTask(missionState, name) {
+  return [...missionState.completedTasks].reverse().find(item =>
+    item?.name === name && item?.observation?.objectiveSatisfied === true
+  ) || null;
+}
+
+function missionTaskBlocked(missionState, name) {
+  return missionState.blockedTasks.some(item => item?.name === name);
+}
+
+function deterministicSpeechCall() {
+  return groundTaqueriaToolCall({
+    name: 'speech.synthesize',
+    args: {
+      text: SAFE_TAQUERIA_NARRATION,
+      voice: 'es-MX-Standard-A',
+      language: 'es-MX',
+      output: 'narracion_taco_macho.wav',
+      objectiveId: 'speech_synthesis_narrative'
+    }
+  });
+}
+
+function deterministicReelCreateCall(reelPlanTask) {
+  const evidence = reelPlanTask?.observation?.evidence && typeof reelPlanTask.observation.evidence === 'object'
+    ? reelPlanTask.observation.evidence
+    : {};
+  const scenes = Array.isArray(evidence.scenes) && evidence.scenes.length > 0
+    ? evidence.scenes.map((scene, index) => ({
+        sceneNumber: index + 1,
+        durationSeconds: Math.max(1, Number(scene?.durationSeconds || 10)),
+        description: String(scene?.visual || scene?.description || '').trim(),
+        textOverlay: String(scene?.overlay || scene?.textOverlay || '').trim()
+      }))
+    : [
+        { sceneNumber: 1, durationSeconds: 10, description: 'Apertura con el Taco Macho usando el medio real verificado del post exacto.', textOverlay: 'El Taco Macho viene calientito y rellenito' },
+        { sceneNumber: 2, durationSeconds: 10, description: 'Detalle real del producto usando únicamente el medio verificado del post exacto.', textOverlay: 'Con queso derretido y la carne que tú prefieras' },
+        { sceneNumber: 3, durationSeconds: 10, description: 'Cierre con la identidad @taqueria.eldorado usando sólo medio real verificado.', textOverlay: 'Taquería El Dorado · @taqueria.eldorado' }
+      ];
+  return groundTaqueriaToolCall({
+    name: 'reel.create',
+    args: {
+      brandName: String(evidence.brandName || 'Taquería El Dorado'),
+      title: 'El Taco Macho',
+      cta: 'Conoce más en @taqueria.eldorado',
+      durationSeconds: Math.max(1, Number(evidence.durationSeconds || 30)),
+      scenes
+    }
+  });
+}
+
 const mission = await runJarvisMission({
   instruction,
   initialToolCalls,
@@ -610,6 +675,35 @@ const mission = await runJarvisMission({
         `${item.name}:${JSON.stringify(item.args || {})}`
       )
     );
+    const verifiedReelPlan = verifiedMissionTask(missionState, 'reel.plan');
+    const verifiedSpeech = verifiedMissionTask(missionState, 'speech.synthesize');
+    const verifiedReelCreate = verifiedMissionTask(missionState, 'reel.create');
+    if (verifiedReelPlan && !verifiedSpeech && !missionTaskBlocked(missionState, 'speech.synthesize')) {
+      const nextCall = deterministicSpeechCall();
+      console.log('V139_EXACT_PROMPT_NEXT_PLAN', JSON.stringify({
+        phase: 'DETERMINISTIC_POST_PLAN_SPEECH',
+        missionComplete: false,
+        next: { name: nextCall.name, args: nextCall.args }
+      }));
+      return {
+        toolCalls: [nextCall],
+        missionComplete: false,
+        completionAssessment: { status: 'V139_VERIFIED_PLAN_SPEECH_DEPENDENCY' }
+      };
+    }
+    if (verifiedReelPlan && verifiedSpeech && !verifiedReelCreate && !missionTaskBlocked(missionState, 'reel.create')) {
+      const nextCall = deterministicReelCreateCall(verifiedReelPlan);
+      console.log('V139_EXACT_PROMPT_NEXT_PLAN', JSON.stringify({
+        phase: 'DETERMINISTIC_POST_SPEECH_REEL_CREATE',
+        missionComplete: false,
+        next: { name: nextCall.name, args: nextCall.args }
+      }));
+      return {
+        toolCalls: [nextCall],
+        missionComplete: false,
+        completionAssessment: { status: 'V139_VERIFIED_SPEECH_REEL_CREATE_DEPENDENCY' }
+      };
+    }
     const requiredCompleted = missionState.requiredToolNames.every(name =>
       missionState.completedTasks.some(item =>
         item.name === name && item.observation?.objectiveSatisfied === true
