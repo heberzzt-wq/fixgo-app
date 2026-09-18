@@ -1,9 +1,9 @@
 {
-  "jobId": "v142-taqueria-wan22-syntax-20260918-chatgpt-36",
+  "jobId": "v142-taqueria-wan22-22s-local-20260918-chatgpt-37",
   "operation": "bridge",
   "endpoint": "/run",
   "body": {
-    "command": "npm run check:syntax",
-    "timeoutMs": 120000
+    "command": "npm test",
+    "timeoutMs": 1800000
   }
 }
