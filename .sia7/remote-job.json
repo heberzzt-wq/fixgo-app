@@ -1,11 +1,9 @@
 {
-  "jobId": "v142-taqueria-ledger-tail-20260917-chatgpt-29",
+  "jobId": "v142-taqueria-original-v139-local-20260918-chatgpt-30",
   "operation": "bridge",
-  "endpoint": "/read",
+  "endpoint": "/run",
   "body": {
-    "file": ".jarvis-artifacts/.ledger/artifacts.jsonl",
-    "startLine": 54,
-    "endLine": 73,
-    "maxBytes": 300000
+    "command": "npm test",
+    "timeoutMs": 600000
   }
 }
