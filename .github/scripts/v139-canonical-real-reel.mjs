@@ -24,9 +24,11 @@ const REQUIRED_BRIDGE_VERSION = '2.38.0-page-no-contact-route';
 const EXPECTED_TOOLS = Object.freeze([
   'web.research',
   'marketing.plan',
+  'document.create',
+  'web.media.collect',
+  'image.generate',
   'reel.plan',
   'speech.synthesize',
-  'web.media.collect',
   'reel.create'
 ]);
 const expected = JSON.parse(fs.readFileSync('jarvis-runtime-contract.json', 'utf8'));
@@ -360,7 +362,12 @@ function groundTaqueriaExecutionArgs(name, args = {}) {
       tone: 'Antojable, local y directo.',
       channels: ['TikTok', 'Instagram Reels'],
       metrics: ['Reproducciones', 'Interacciones', 'Visitas al perfil'],
-      productionRequested: true
+      productionRequested: true,
+      productionArtifacts: [
+        { id: 'taqueria-marketing-plan', type: 'document', toolName: 'document.create', format: 'md', label: 'Plan de marketing descargable' },
+        { id: 'taqueria-original-creative', type: 'image', toolName: 'image.generate', label: 'Creatividad visual original para reel' },
+        { id: 'taqueria-final-reel', type: 'reel', toolName: 'reel.create', label: 'Reel final original' }
+      ]
     };
   }
   if (name === 'reel.plan') {
@@ -621,6 +628,99 @@ function missionTaskBlocked(missionState, name) {
   return missionState.blockedTasks.some(item => item?.name === name);
 }
 
+function renderTaqueriaMarketingPlanMarkdown(marketingTask) {
+  const evidence = marketingTask?.observation?.evidence && typeof marketingTask.observation.evidence === 'object'
+    ? marketingTask.observation.evidence
+    : {};
+  const campaign = evidence.campaign && typeof evidence.campaign === 'object' ? evidence.campaign : {};
+  const plan = evidence.plan && typeof evidence.plan === 'object' ? evidence.plan : {};
+  const audience = String(campaign.audience || plan?.targetAudience?.primary || 'Personas en Cancún interesadas en tacos y contenido gastronómico.').trim();
+  const objective = String(campaign.objective || plan?.smartObjectives?.[0] || 'Crear una pieza audiovisual original basada únicamente en información verificable del Taco Macho.').trim();
+  const cta = String(campaign.cta || plan?.conversionAndCta?.primaryCta || 'Conocer a Taquería El Dorado en @taqueria.eldorado.').trim();
+  const channels = Array.isArray(campaign.channels) && campaign.channels.length > 0
+    ? campaign.channels
+    : ['TikTok', 'Instagram Reels'];
+  const metrics = Array.isArray(campaign.metrics) && campaign.metrics.length > 0
+    ? campaign.metrics
+    : ['Reproducciones', 'Interacciones', 'Visitas al perfil'];
+  return [
+    '# Plan de marketing — Taquería El Dorado',
+    '',
+    '## Base verificada',
+    `- Fuente principal: ${SOURCE}`,
+    '- Identidad verificada: @taqueria.eldorado.',
+    '- Mensaje del producto verificado: “El Taco Macho viene calientito, rellenito y con el chile bien puesto. Con queso derretido y la carne que tú prefieras.”',
+    '- Los hashtags #estilosinaloa #cancun #tacos #fyp se conservan sólo como hashtags; no prueban origen, tradición, autenticidad ni superioridad.',
+    '',
+    '## Objetivo',
+    objective,
+    '',
+    '## Audiencia de trabajo',
+    audience,
+    '',
+    '## Propuesta creativa',
+    '- Crear un reel NUEVO de aproximadamente 30 segundos.',
+    '- Usar la publicación oficial únicamente como evidencia y referencia de tono; no reutilizar su MP4, fotogramas ni audio en el resultado final.',
+    '- Producir tres visuales originales verticales para apertura, detalle gastronómico y cierre.',
+    '- Destacar únicamente atributos verificables: queso derretido, carne a elección y chile bien puesto.',
+    '- Mantener cualquier propuesta visual como creatividad publicitaria, no como documentación exacta de la apariencia física del producto.',
+    '',
+    '## Mensaje y llamada a la acción',
+    `- CTA segura: ${cta}`,
+    '- No usar teléfono, dirección, precios, promociones, horarios ni disponibilidad de pedidos mientras no estén verificados.',
+    '',
+    '## Canales',
+    ...channels.map(channel => `- ${channel}`),
+    '',
+    '## Métricas',
+    ...metrics.map(metric => `- ${metric}`),
+    '',
+    '## Entregables de esta misión',
+    '- Plan de marketing descargable.',
+    '- Tres creatividades visuales nuevas y persistidas.',
+    '- Narración WAV nueva.',
+    '- Reel vertical MP4 nuevo con las creatividades originales, overlays y audio sintetizado.',
+    '',
+    '## Límites de evidencia',
+    '- No afirmar “auténtico”, “tradicional”, “estilo Sinaloa”, “el mejor”, “ingredientes frescos” ni equivalentes sin evidencia independiente.',
+    '- No introducir trompo, pastor, local ficticio, cocineros ficticios, teléfono, dirección, precios, horarios o promociones no verificadas.',
+    ''
+  ].join('\n');
+}
+
+function deterministicMarketingDocumentCall(marketingTask) {
+  return groundTaqueriaToolCall({
+    name: 'document.create',
+    args: {
+      format: 'md',
+      output: '.jarvis-artifacts/documents/taqueria-el-dorado-plan-marketing.md',
+      title: 'Plan de marketing — Taquería El Dorado',
+      contentSource: 'marketing.plan',
+      content: renderTaqueriaMarketingPlanMarkdown(marketingTask),
+      objectiveId: 'taqueria_marketing_plan_artifact'
+    }
+  });
+}
+
+function deterministicOriginalImageCall(index) {
+  const prompts = [
+    'Fotografía publicitaria gastronómica ORIGINAL en formato vertical 9:16. Composición de estudio con un taco genérico servido caliente, queso derretido visible, carne como elemento principal y un acento de chile. No copiar fotogramas ni encuadres de TikTok. Sin personas, sin local, sin texto, sin logotipos, sin marcas de agua. Debe sentirse como una creatividad nueva y no como evidencia documental del producto exacto.',
+    'Creatividad gastronómica ORIGINAL vertical 9:16, plano macro distinto al anterior: queso derretido, textura de carne y un detalle de chile sobre un taco genérico. Iluminación comercial limpia, encuadre nuevo, sin personas, sin restaurante, sin texto, sin logotipos y sin reconstruir ningún fotograma de la publicación de referencia.',
+    'Composición publicitaria ORIGINAL vertical 9:16 para cierre de reel gastronómico: taco genérico con queso derretido y carne, fondo limpio con espacio negativo amplio para colocar después el texto de Taquería El Dorado. Sin texto incrustado, sin logotipos generados, sin personas, sin local ficticio y sin copiar la publicación fuente.'
+  ];
+  const scene = Math.max(1, Math.min(3, Number(index) || 1));
+  return groundTaqueriaToolCall({
+    name: 'image.generate',
+    args: {
+      prompt: prompts[scene - 1],
+      aspectRatio: '9:16',
+      imageSize: '1K',
+      output: `.jarvis-artifacts/images/taqueria-el-dorado-original-scene-${scene}.png`,
+      objectiveId: `taqueria_original_scene_${scene}`
+    }
+  });
+}
+
 function deterministicSpeechCall() {
   return groundTaqueriaToolCall({
     name: 'speech.synthesize',
@@ -675,9 +775,40 @@ const mission = await runJarvisMission({
         `${item.name}:${JSON.stringify(item.args || {})}`
       )
     );
+    const verifiedMarketing = verifiedMissionTask(missionState, 'marketing.plan');
+    const verifiedMarketingDocument = verifiedMissionTask(missionState, 'document.create');
+    const verifiedGeneratedImages = missionState.completedTasks.filter(item =>
+      item?.name === 'image.generate' && item?.observation?.objectiveSatisfied === true
+    );
     const verifiedReelPlan = verifiedMissionTask(missionState, 'reel.plan');
     const verifiedSpeech = verifiedMissionTask(missionState, 'speech.synthesize');
     const verifiedReelCreate = verifiedMissionTask(missionState, 'reel.create');
+    if (verifiedMarketing && !verifiedMarketingDocument && !missionTaskBlocked(missionState, 'document.create')) {
+      const nextCall = deterministicMarketingDocumentCall(verifiedMarketing);
+      console.log('V139_EXACT_PROMPT_NEXT_PLAN', JSON.stringify({
+        phase: 'DETERMINISTIC_MARKETING_ARTIFACT',
+        missionComplete: false,
+        next: { name: nextCall.name, args: { ...nextCall.args, content: '[MARKETING_PLAN_MARKDOWN]' } }
+      }));
+      return {
+        toolCalls: [nextCall],
+        missionComplete: false,
+        completionAssessment: { status: 'V139_MARKETING_DOCUMENT_REQUIRED' }
+      };
+    }
+    if (verifiedMarketingDocument && verifiedGeneratedImages.length < 3 && !missionTaskBlocked(missionState, 'image.generate')) {
+      const nextCall = deterministicOriginalImageCall(verifiedGeneratedImages.length + 1);
+      console.log('V139_EXACT_PROMPT_NEXT_PLAN', JSON.stringify({
+        phase: 'DETERMINISTIC_ORIGINAL_CREATIVE',
+        missionComplete: false,
+        next: { name: nextCall.name, args: nextCall.args }
+      }));
+      return {
+        toolCalls: [nextCall],
+        missionComplete: false,
+        completionAssessment: { status: 'V139_THREE_ORIGINAL_IMAGES_REQUIRED', completed: verifiedGeneratedImages.length }
+      };
+    }
     if (verifiedReelPlan && !verifiedSpeech && !missionTaskBlocked(missionState, 'speech.synthesize')) {
       const nextCall = deterministicSpeechCall();
       console.log('V139_EXACT_PROMPT_NEXT_PLAN', JSON.stringify({
@@ -817,6 +948,37 @@ for (const name of EXPECTED_TOOLS) {
   if (!completedNames.includes(name)) throw new Error(`V139_COMPLETED_TOOL_REQUIRED:${name}`);
 }
 
+const marketingDocument = [...mission.completedTasks].reverse().find(task => task.name === 'document.create');
+const marketingDocumentOutput = String(marketingDocument?.observation?.artifact || marketingDocument?.observation?.evidence?.output || marketingDocument?.observation?.output || '');
+if (!marketingDocumentOutput.endsWith('.md')) throw new Error(`V139_MARKETING_DOCUMENT_REQUIRED:${marketingDocumentOutput}`);
+const marketingDocumentPath = path.join(process.cwd(), marketingDocumentOutput);
+if (!fs.existsSync(marketingDocumentPath) || !fs.statSync(marketingDocumentPath).isFile()) throw new Error('V139_MARKETING_DOCUMENT_MISSING');
+const marketingDocumentBytes = fs.readFileSync(marketingDocumentPath);
+if (marketingDocumentBytes.length < 600) throw new Error(`V139_MARKETING_DOCUMENT_TOO_SMALL:${marketingDocumentBytes.length}`);
+const marketingDocumentSha = createHash('sha256').update(marketingDocumentBytes).digest('hex');
+console.log('V139_MARKETING_PLAN_ARTIFACT', JSON.stringify({ output: marketingDocumentOutput, bytes: marketingDocumentBytes.length, sha256: marketingDocumentSha }));
+
+const generatedImageTasks = mission.completedTasks.filter(task => task.name === 'image.generate');
+if (generatedImageTasks.length < 3) throw new Error(`V139_THREE_ORIGINAL_IMAGES_REQUIRED:${generatedImageTasks.length}`);
+const generatedImageEvidence = generatedImageTasks.slice(-3).map((task, index) => {
+  const evidence = task?.observation?.evidence && typeof task.observation.evidence === 'object'
+    ? task.observation.evidence
+    : {};
+  const output = String(task?.observation?.artifact || evidence.output || '');
+  const sha256 = String(evidence.sha256 || '').toLowerCase();
+  const bytes = Number(evidence.bytes || 0);
+  if (!/\.png$|\.jpe?g$/i.test(output)) throw new Error(`V139_ORIGINAL_IMAGE_OUTPUT_REQUIRED:${output}`);
+  if (!/^[a-f0-9]{64}$/.test(sha256)) throw new Error(`V139_ORIGINAL_IMAGE_SHA_REQUIRED:${sha256}`);
+  if (!(bytes > 0)) throw new Error(`V139_ORIGINAL_IMAGE_BYTES_REQUIRED:${bytes}`);
+  const physical = fs.readFileSync(path.join(process.cwd(), output));
+  if (createHash('sha256').update(physical).digest('hex') !== sha256) throw new Error(`V139_ORIGINAL_IMAGE_SHA_MISMATCH:${index + 1}`);
+  return { output, sha256, bytes };
+});
+if (new Set(generatedImageEvidence.map(item => item.sha256)).size !== 3) {
+  throw new Error('V139_ORIGINAL_IMAGES_MUST_BE_DISTINCT');
+}
+console.log('V139_ORIGINAL_IMAGE_ARTIFACTS', JSON.stringify(generatedImageEvidence));
+
 const researchTasks = mission.completedTasks.filter(task => task.name === 'web.research');
 const researchEvidenceText = JSON.stringify(researchTasks.map(task => ({
   args: task.args,
@@ -876,6 +1038,14 @@ if (reboundSourceHashes.length > 0) {
   throw new Error(`V139_SOURCE_MEDIA_REUSE_FORBIDDEN:${[...new Set(reboundSourceHashes)].join(',')}`);
 }
 
+const generatedImageHashes = new Set(generatedImageEvidence.map(item => item.sha256));
+const boundGeneratedHashes = (Array.isArray(reelPlanEvidence.scenes) ? reelPlanEvidence.scenes : [])
+  .map(scene => String(scene?.sourceMedia?.sha256 || '').toLowerCase())
+  .filter(hash => generatedImageHashes.has(hash));
+if (boundGeneratedHashes.length !== 3 || new Set(boundGeneratedHashes).size !== 3) {
+  throw new Error(`V139_REEL_PLAN_MUST_BIND_THREE_NEW_IMAGES:${boundGeneratedHashes.join(',')}`);
+}
+
 const reel = [...mission.completedTasks].reverse().find(task => task.name === 'reel.create');
 const reelOutput = String(reel?.observation?.artifact || reel?.observation?.evidence?.output || '');
 const reelMime = String(reel?.observation?.evidence?.mimeType || '');
@@ -895,6 +1065,8 @@ console.log('V139_EXACT_HUMAN_PROMPT=true');
 console.log('V139_SEMANTIC_PLAN_NOT_PRESEEDED=true');
 console.log('V139_RESEARCH_EXECUTED=true');
 console.log('V139_MARKETING_PLAN_EXECUTED=true');
+console.log('V139_MARKETING_PLAN_ARTIFACT_CREATED=true');
+console.log('V139_THREE_ORIGINAL_IMAGES_CREATED=true');
 console.log('V139_EXACT_SOURCE_MEDIA=true');
 console.log('V139_AUTOMATIC_SPEECH=true');
 console.log('V139_AUTOMATIC_MEDIA_DEPENDENCY=true');
