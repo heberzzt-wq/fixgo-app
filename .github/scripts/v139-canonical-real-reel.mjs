@@ -385,25 +385,25 @@ function groundTaqueriaExecutionArgs(name, args = {}) {
       brandName: 'Taquería El Dorado',
       title: 'El Taco Macho · Taquería El Dorado',
       cta: 'Conoce a Taquería El Dorado en @taqueria.eldorado.',
-      durationSeconds: 30,
+      durationSeconds: 22,
       sourceMediaPolicy: 'generated',
       scenes: [
         {
-          durationSeconds: 10,
+          durationSeconds: 8,
           visual: 'Crear una toma ORIGINAL vertical inspirada sólo en el ritmo promocional observado; no reutilizar fotogramas del post. Mostrar un taco genérico con queso derretido y carne a elección sin copiar el producto cuadro por cuadro.',
           overlay: 'El Taco Macho viene calientito y rellenito',
           voiceover: 'El Taco Macho viene calientito, rellenito y con el chile bien puesto.',
           evidence: 'Texto y medio real de la publicación exacta verificada.'
         },
         {
-          durationSeconds: 10,
+          durationSeconds: 7,
           visual: 'Crear una toma ORIGINAL de detalle gastronómico con queso derretido y carne a elección; no copiar encuadres, personas, local ni fotogramas del video fuente.',
           overlay: 'Con queso derretido y la carne que tú prefieras',
           voiceover: 'Con queso derretido y la carne que tú prefieras.',
           evidence: 'Texto de la publicación exacta verificada.'
         },
         {
-          durationSeconds: 10,
+          durationSeconds: 7,
           visual: 'Crear un cierre ORIGINAL con composición nueva y texto @taqueria.eldorado; sólo el avatar o logotipo oficial verificado puede reutilizarse como marca superpuesta, nunca el video fuente.',
           overlay: 'Taquería El Dorado · @taqueria.eldorado',
           voiceover: 'Taquería El Dorado, Cancún. Conoce su perfil oficial @taqueria.eldorado.',
@@ -731,7 +731,7 @@ Conserva las fuentes y la procedencia de la información.
 
 Después de investigar, crea una propuesta de marketing NUEVA basada únicamente en los hechos realmente encontrados. Para llenar campos creativos obligatorios del plan sin inventar hechos, formula el problema, promesa y diferenciador como objetivos de la pieza: captar atención con una ejecución distinta, crear visuales originales y destacar únicamente queso derretido, carne a elección y el chile bien puesto sin copiar la publicación. La llamada a la acción segura es conocer a Taquería El Dorado en @taqueria.eldorado.
 
-Luego crea un reel vertical profesional de aproximadamente 30 segundos para promocionar Taquería El Dorado.
+Luego crea un reel vertical profesional de aproximadamente 22 segundos para promocionar Taquería El Dorado.
 
 El reel debe:
 
@@ -863,7 +863,7 @@ function renderTaqueriaMarketingPlanMarkdown(marketingTask) {
     audience,
     '',
     '## Propuesta creativa',
-    '- Crear un reel NUEVO de aproximadamente 30 segundos.',
+    '- Crear un reel NUEVO de aproximadamente 22 segundos.',
     '- Usar la publicación oficial únicamente como evidencia y referencia de tono; no reutilizar su MP4, fotogramas ni audio en el resultado final.',
     '- Producir tres visuales originales verticales para apertura, detalle gastronómico y cierre.',
     '- Destacar únicamente atributos verificables: queso derretido, carne a elección y chile bien puesto.',
@@ -929,18 +929,27 @@ function deterministicWanVideoCall() {
   return groundTaqueriaToolCall({
     name: 'video.generate',
     args: {
-      prompt: 'Video publicitario gastronómico ORIGINAL, vertical 9:16. Animar la creatividad de referencia como una toma cinematográfica nueva: acercamiento suave de cámara a un taco genérico servido caliente, queso derretido visible, carne como elemento principal y un detalle de chile. Movimiento natural y apetitoso, vapor sutil, luz comercial limpia. Sin personas, sin restaurante, sin texto, sin logotipos, sin marcas de agua y sin copiar el video de TikTok.',
+      prompt: 'Video publicitario gastronómico ORIGINAL de 22 segundos, vertical 9:16, compuesto por tres segmentos continuos. Animar la creatividad de referencia como una secuencia cinematográfica nueva: acercamiento suave de cámara a un taco genérico servido caliente, queso derretido visible, carne como elemento principal y un detalle de chile. Movimiento natural y apetitoso, vapor sutil, luz comercial limpia. Sin personas, sin restaurante, sin texto, sin logotipos, sin marcas de agua y sin copiar el video de TikTok.',
       scenes: [
         {
-          prompt: 'Toma macro vertical ORIGINAL con movimiento de cámara suave sobre un taco genérico caliente, queso derretido, carne y detalle de chile; iluminación publicitaria, sin personas ni local.'
+          durationSeconds: 8,
+          prompt: 'Apertura vertical ORIGINAL: acercamiento cinematográfico suave a un taco genérico servido caliente, queso derretido visible, carne como protagonista y detalle de chile. Luz comercial limpia, vapor sutil, sin personas, sin local, sin texto.'
+        },
+        {
+          durationSeconds: 7,
+          prompt: 'Continuación ORIGINAL: plano macro distinto mostrando queso derretido y textura de carne con movimiento lateral lento de cámara. Mantener continuidad visual del taco, fondo neutro, sin manos, sin restaurante, sin texto.'
+        },
+        {
+          durationSeconds: 7,
+          prompt: 'Cierre ORIGINAL: movimiento de cámara ligeramente ascendente sobre el taco caliente, composición con espacio negativo para overlay posterior. Sin logotipo generado, sin personas, sin local ficticio, sin texto incrustado.'
         }
       ],
       referenceOutputs: ['.jarvis-artifacts/images/taqueria-el-dorado-fresh-v3-scene-1.png'],
       referenceMode: 'visual',
       aspectRatio: '9:16',
-      durationSeconds: 8,
-      output: '.jarvis-artifacts/videos/taqueria-el-dorado-wan22-l40s-pilot.mp4',
-      objectiveId: 'taqueria_wan22_l40s_pilot'
+      durationSeconds: 22,
+      output: '.jarvis-artifacts/videos/taqueria-el-dorado-wan22-l40s-22s.mp4',
+      objectiveId: 'taqueria_wan22_l40s_22s'
     }
   });
 }
@@ -1078,9 +1087,9 @@ function deterministicReelCreateCall(reelPlanTask, videoTask) {
         textOverlay: String(scene?.overlay || scene?.textOverlay || '').trim()
       }))
     : [
-        { sceneNumber: 1, durationSeconds: 10, description: 'Apertura ORIGINAL generada para el reel; no reutilizar el video fuente.', textOverlay: 'El Taco Macho entra en escena' },
-        { sceneNumber: 2, durationSeconds: 10, description: 'Detalle gastronómico ORIGINAL generado con queso derretido y carne a elección.', textOverlay: 'Queso derretido + carne a tu elección' },
-        { sceneNumber: 3, durationSeconds: 10, description: 'Cierre ORIGINAL de marca; sólo puede superponerse identidad oficial verificada.', textOverlay: 'Taquería El Dorado · @taqueria.eldorado' }
+        { sceneNumber: 1, durationSeconds: 8, description: 'Apertura ORIGINAL generada para el reel; no reutilizar el video fuente.', textOverlay: 'El Taco Macho entra en escena' },
+        { sceneNumber: 2, durationSeconds: 7, description: 'Detalle gastronómico ORIGINAL generado con queso derretido y carne a elección.', textOverlay: 'Queso derretido + carne a tu elección' },
+        { sceneNumber: 3, durationSeconds: 7, description: 'Cierre ORIGINAL de marca; sólo puede superponerse identidad oficial verificada.', textOverlay: 'Taquería El Dorado · @taqueria.eldorado' }
       ];
   const generatedVideoOutput = String(
     videoTask?.observation?.output ||
@@ -1155,14 +1164,14 @@ const mission = await runJarvisMission({
     if (verifiedGeneratedImages.length >= 3 && !verifiedGeneratedVideo && !missionTaskBlocked(missionState, 'video.generate')) {
       const nextCall = deterministicWanVideoCall();
       console.log('V139_EXACT_PROMPT_NEXT_PLAN', JSON.stringify({
-        phase: 'DETERMINISTIC_WAN22_L40S_PILOT',
+        phase: 'DETERMINISTIC_WAN22_L40S_22S',
         missionComplete: false,
         next: { name: nextCall.name, args: nextCall.args }
       }));
       return {
         toolCalls: [nextCall],
         missionComplete: false,
-        completionAssessment: { status: 'V139_WAN22_L40S_PILOT_REQUIRED' }
+        completionAssessment: { status: 'V139_WAN22_L40S_22S_REQUIRED' }
       };
     }
     if (verifiedReelPlan && !verifiedSpeech && !missionTaskBlocked(missionState, 'speech.synthesize')) {
@@ -1306,7 +1315,7 @@ const mission = await runJarvisMission({
       approved: true,
       approvedBy: 'HEBERTO_MENDOZA',
       approvedAt: new Date().toISOString(),
-      operationKey: '.jarvis-artifacts/videos/taqueria-el-dorado-wan22-l40s-pilot.mp4'
+      operationKey: '.jarvis-artifacts/videos/taqueria-el-dorado-wan22-l40s-22s.mp4'
     }
   },
   execute: async (call, context) =>
