@@ -458,6 +458,23 @@ function assertTaqueriaGroundedClaims(name, args = {}) {
   }
 }
 
+function isTransientImageGenerationFailure(value) {
+  const text = String(
+    value?.error ||
+    value?.message ||
+    value?.status ||
+    value ||
+    ''
+  ).toLowerCase();
+  return (
+    text.includes('resource_exhausted') ||
+    text.includes('quota') ||
+    text.includes('temporarily unavailable') ||
+    text.includes('timeout') ||
+    /(^|\D)(429|500|502|503|504)(\D|$)/.test(text)
+  );
+}
+
 const registry = new Map();
 const runtime = {
   _registry: registry,
@@ -470,12 +487,43 @@ const runtime = {
     assertTaqueriaGroundedClaims(name, groundedArgs);
     const tool = registry.get(name);
     if (!tool?.execute) throw new Error(`TOOL_NOT_FOUND:${name}`);
-    let result = await tool.execute(groundedArgs, context);
-    if (name === 'image.generate' && result?.status === 'AUTH_REQUIRED') {
-      const generated = await runJarvisImageGeneration({
-        ai: plannerAI,
-        input: groundedArgs
-      });
+    let result;
+    try {
+      result = await tool.execute(groundedArgs, context);
+    } catch (error) {
+      if (name !== 'image.generate' || !isTransientImageGenerationFailure(error)) throw error;
+      result = { ok: false, status: 'TOOL_FAILED', error: error?.message || String(error) };
+    }
+    if (
+      name === 'image.generate' &&
+      (result?.status === 'AUTH_REQUIRED' || isTransientImageGenerationFailure(result))
+    ) {
+      let generated = null;
+      let generationError = null;
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        if (attempt > 1) {
+          const delayMs = attempt === 2 ? 6000 : 15000;
+          console.log('V139_IMAGE_GENERATION_RETRY', JSON.stringify({
+            attempt,
+            delayMs,
+            reason: generationError?.message || result?.error || result?.status || null
+          }));
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+        try {
+          generated = await runJarvisImageGeneration({
+            ai: plannerAI,
+            input: groundedArgs
+          });
+          break;
+        } catch (error) {
+          generationError = error;
+          if (!isTransientImageGenerationFailure(error) || attempt === 3) throw error;
+        }
+      }
+      if (!generated?.imageBase64) {
+        throw generationError || new Error('V139_IMAGE_GENERATION_RETRY_EXHAUSTED');
+      }
       const persisted = await globalThis.JarvisLocalBridge.requestJson('/image', {
         imageBase64: generated.imageBase64,
         mimeType: generated.mimeType,
