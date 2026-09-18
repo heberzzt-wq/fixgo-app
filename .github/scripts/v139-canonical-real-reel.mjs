@@ -1032,9 +1032,6 @@ async function executeTaqueriaWan22(call, context = {}) {
     : [];
   const selected = candidates.find(candidate =>
     candidate?.gpuTypeId === 'NVIDIA L40S' &&
-    typeof candidate?.networkVolumeId === 'string' &&
-    candidate.networkVolumeId.trim() &&
-    candidate?.requiresCacheReplica !== true &&
     typeof candidate?.dataCenterId === 'string' &&
     candidate.dataCenterId.trim() &&
     Number(candidate?.hourlyRateUsd || 0) > 0 &&
@@ -1056,10 +1053,11 @@ async function executeTaqueriaWan22(call, context = {}) {
   console.log('V139_WAN22_L40S_PLACEMENT', JSON.stringify({
     gpuTypeId: selected.gpuTypeId,
     dataCenterId: selected.dataCenterId,
-    networkVolumeId: selected.networkVolumeId,
+    networkVolumeId: selected.networkVolumeId || null,
     hourlyRateUsd: Number(selected.hourlyRateUsd),
     stockStatus: selected.stockStatus || null,
     cacheStatus: selected.cacheStatus || null,
+    ephemeralOneShot: selected.requiresCacheReplica === true || !selected.networkVolumeId,
     hardBudgetUsd: 1.5,
     stopRatio: 0.9
   }));
@@ -1067,9 +1065,12 @@ async function executeTaqueriaWan22(call, context = {}) {
   const env = {
     ...baseEnv,
     JARVIS_RUNPOD_GPU_TYPE_ID: selected.gpuTypeId,
-    JARVIS_RUNPOD_NETWORK_VOLUME_ID: selected.networkVolumeId,
     JARVIS_RUNPOD_DATACENTER_ID: selected.dataCenterId,
     JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: String(Number(selected.hourlyRateUsd)),
+    JARVIS_RUNPOD_VOLUME_DISK_GB: '100',
+    ...(selected.networkVolumeId
+      ? { JARVIS_RUNPOD_NETWORK_VOLUME_ID: selected.networkVolumeId }
+      : {}),
     JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: 'true'
   };
   const previousPaid = process.env.JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED;
