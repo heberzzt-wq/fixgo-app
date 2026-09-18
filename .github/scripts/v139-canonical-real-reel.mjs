@@ -115,7 +115,7 @@ const canonicalSemanticPlanner = async ({ input, catalog, missionState }) => {
     }
     catch (error) {
       const message = String(error?.message || error || '');
-      const retryable = /RESOURCE_EXHAUSTED|\b429\b/i.test(message);
+      const retryable = /RESOURCE_EXHAUSTED|SEMANTIC_PROVIDER_TIMEOUT|DEADLINE_EXCEEDED|SERVICE_UNAVAILABLE|TEMPORARILY_UNAVAILABLE|\b(?:429|500|502|503|504)\b/i.test(message);
       if (!retryable || attempt >= 3) throw error;
       const backoffMs = 3000 * attempt;
       console.log('V139_SEMANTIC_RESOURCE_BACKOFF', JSON.stringify({ attempt, backoffMs }));
