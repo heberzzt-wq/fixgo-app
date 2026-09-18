@@ -458,7 +458,9 @@ function assertTaqueriaGroundedClaims(name, args = {}) {
     .toLowerCase();
   text = text
     .replace(/\b(?:no|sin)\b[^.;\n]{0,80}\b(?:trompo|al pastor)\b/g, '')
-    .replace(/\b(?:evitar|prohibir|prohibido|prohibida)\b[^.;\n]{0,80}\b(?:trompo|al pastor)\b/g, '');
+    .replace(/\b(?:evitar|prohibir|prohibido|prohibida)\b[^.;\n]{0,80}\b(?:trompo|al pastor)\b/g, '')
+    .replace(/\b(?:evitar|evita|evite|sin|no usar|no afirmar)\b[^.;\n]{0,120}\bautentic(?:idad|o|a|os|as)?\b[^.;\n]{0,80}/g, '')
+    .replace(/\bautenticidad no comprobada\b/g, '');
   const prohibited = [
     /autentic/,
     /\bmejor\b/,
