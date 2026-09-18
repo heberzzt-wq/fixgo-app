@@ -1,23 +1,27 @@
 {
-  "jobId": "v142-humo17-core-preflight-20260917-chatgpt-24",
-  "completedAt": "2026-09-18T00:56:33.064Z",
+  "jobId": "v142-humo-identity-preflight-20260917-chatgpt-25",
+  "completedAt": "2026-09-18T00:58:53.354Z",
   "executionStarted": true,
   "ok": true,
-  "operation": "humo17_core_stage",
+  "operation": "humo_identity_probe",
   "dryRun": true,
-  "status": "SIA7_HUMO17_CORE_STAGE_PREFLIGHT_READY",
-  "certifiedBaseSha": "0da360390f31b0462e5d36e9db4dc511ff0f9a43",
-  "executionHeadSha": "716019e3b9f2c39907f8a4179c1702eeb6d2746d",
+  "status": "SIA7_HUMO_IDENTITY_PREFLIGHT_READY",
+  "certifiedBaseSha": "0a9d613f3da8f1cefcc8fdca2647440b6903a726",
+  "executionHeadSha": "9cb6d541e1a19cfcc7367a5dcd5e50b02f6fde89",
   "controlPlaneOnlyChanges": [
-    ".sia7/remote-job.json",
-    ".sia7/remote-result.json"
+    ".sia7/remote-job.json"
   ],
   "hardBudgetUsd": 1.5,
-  "maximumMinutes": 90,
-  "networkVolumeId": "1qm5wczocl",
-  "dataCenterId": "EU-NL-1",
+  "monthlyStorageAuthorizedUsd": 5.6,
+  "characterId": "CHAR_HEBERTO",
+  "durationSeconds": 3.88,
+  "referenceCount": 2,
+  "referenceSha256s": [
+    "a3151d2eefde02659f80deb64277a68ac55f3cfebb5fcb68019d6eb05678e958",
+    "b401b476107521d9e3de3b267885bf91de956b644072a01e7373ab5476a3b6f3"
+  ],
+  "audioSha256": "9a075a37c56b6e0cd828a9b2a37a2fe3ee3f01c28cc7483f6a5d97ff96bd2bd5",
   "resourceCreationPossible": false,
-  "inferenceStarted": false,
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
