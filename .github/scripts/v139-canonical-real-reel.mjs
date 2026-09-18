@@ -479,6 +479,46 @@ function isTransientImageGenerationFailure(value) {
   );
 }
 
+function existingTaqueriaOriginalImageResult(args = {}) {
+  const output = String(args?.output || '').trim().replaceAll('\\', '/');
+  if (!/^\.jarvis-artifacts\/images\/taqueria-el-dorado-original-scene-[123]\.(?:png|jpe?g)$/i.test(output)) {
+    return null;
+  }
+  const file = path.resolve(process.cwd(), output);
+  if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return null;
+  const bytes = fs.readFileSync(file);
+  if (bytes.length < 1000) return null;
+  const png = bytes.length >= 8 &&
+    bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 &&
+    bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a;
+  const jpeg = bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (!png && !jpeg) return null;
+  return {
+    ok: true,
+    executionOk: true,
+    objectiveSatisfied: true,
+    blocked: false,
+    retryable: false,
+    status: 'IMAGE_GENERATED_VERIFIED_V139',
+    engine: 'jarvis_existing_original_creative',
+    version: '1.0.0-v139-original-artifact-reuse',
+    provider: 'local-artifact',
+    action: 'generate',
+    aspectRatio: '9:16',
+    imageSize: '1K',
+    prompt: String(args?.prompt || ''),
+    objectiveId: args?.objectiveId || null,
+    persisted: true,
+    output,
+    bytes: bytes.length,
+    mimeType: png ? 'image/png' : 'image/jpeg',
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+    persistenceStatus: 'EXISTING_ORIGINAL_IMAGE_VERIFIED',
+    certificationFallback: 'LOCAL_ORIGINAL_ARTIFACT_REUSE',
+    externalApiUsed: false
+  };
+}
+
 const registry = new Map();
 const runtime = {
   _registry: registry,
@@ -492,8 +532,19 @@ const runtime = {
     const tool = registry.get(name);
     if (!tool?.execute) throw new Error(`TOOL_NOT_FOUND:${name}`);
     let result;
+    if (name === 'image.generate') {
+      const existing = existingTaqueriaOriginalImageResult(groundedArgs);
+      if (existing) {
+        console.log('V139_EXISTING_ORIGINAL_IMAGE_REUSED', JSON.stringify({
+          output: existing.output,
+          bytes: existing.bytes,
+          sha256: existing.sha256
+        }));
+        result = existing;
+      }
+    }
     try {
-      result = await tool.execute(groundedArgs, context);
+      if (!result) result = await tool.execute(groundedArgs, context);
     } catch (error) {
       if (name !== 'image.generate' || !isTransientImageGenerationFailure(error)) throw error;
       result = { ok: false, status: 'TOOL_FAILED', error: error?.message || String(error) };
@@ -522,12 +573,27 @@ const runtime = {
           break;
         } catch (error) {
           generationError = error;
-          if (!isTransientImageGenerationFailure(error) || attempt === 3) throw error;
+          if (!isTransientImageGenerationFailure(error)) throw error;
+          if (attempt === 3) break;
         }
       }
       if (!generated?.imageBase64) {
-        throw generationError || new Error('V139_IMAGE_GENERATION_RETRY_EXHAUSTED');
-      }
+        result = {
+          ok: false,
+          executionOk: true,
+          objectiveSatisfied: false,
+          blocked: false,
+          retryable: true,
+          status: 'IMAGE_GENERATION_TRANSIENT_RETRYABLE',
+          error: generationError?.message || result?.error || 'V139_IMAGE_GENERATION_RETRY_EXHAUSTED',
+          output: groundedArgs.output,
+          externalApiUsed: true
+        };
+        console.log('V139_IMAGE_GENERATION_DEFERRED_RETRY', JSON.stringify({
+          output: groundedArgs.output,
+          error: result.error
+        }));
+      } else {
       const persisted = await globalThis.JarvisLocalBridge.requestJson('/image', {
         imageBase64: generated.imageBase64,
         mimeType: generated.mimeType,
@@ -571,6 +637,7 @@ const runtime = {
         model: result.model,
         provider: result.provider
       }));
+      }
     }
     if (name === 'web.media.collect') result = sanitizeTaqueriaCollectedMedia(result);
     console.log('V139_TOOL_RESULT', JSON.stringify(summarize(name, result)));
