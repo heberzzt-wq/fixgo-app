@@ -948,7 +948,7 @@ const mission = await runJarvisMission({
   requiredToolNames: EXPECTED_TOOLS,
   maximumSteps: 20,
   maximumRetries: 2,
-  timeoutMs: 360000,
+  timeoutMs: 720000,
   planner: async ({ originalInstruction, mission: missionState }) => {
     const resolvedSignatures = new Set(
       [...missionState.completedTasks, ...missionState.blockedTasks].map(item =>
@@ -1099,11 +1099,20 @@ const mission = await runJarvisMission({
       next: unresolvedCall ? { name: unresolvedCall.name, args: unresolvedCall.args } : null
     }));
     if (unresolvedCall) {
+      const toolCalls =
+        unresolvedCall.name === 'reel.plan' && verifiedGeneratedImages.length >= 3
+          ? [unresolvedCall]
+          : ensureExecutableArtifactDependencies({
+              toolCalls: [unresolvedCall],
+              catalog: missionToolCatalog
+            });
+      if (unresolvedCall.name === 'reel.plan' && verifiedGeneratedImages.length >= 3) {
+        console.log('V139_REEL_PLAN_REUSES_EXISTING_ORIGINAL_IMAGES', JSON.stringify({
+          generatedImageCount: verifiedGeneratedImages.length
+        }));
+      }
       return {
-        toolCalls: ensureExecutableArtifactDependencies({
-          toolCalls: [unresolvedCall],
-          catalog: missionToolCatalog
-        }),
+        toolCalls,
         missionComplete: false,
         completionAssessment: nextCalls.completionAssessment || null
       };
