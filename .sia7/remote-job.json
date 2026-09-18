@@ -1,9 +1,9 @@
 {
-  "jobId": "v142-taqueria-wan22-read-failure-20260918-chatgpt-38",
+  "jobId": "v142-taqueria-wan22-22s-local-20260918-chatgpt-39",
   "operation": "bridge",
-  "endpoint": "/read",
+  "endpoint": "/run",
   "body": {
-    "file": ".jarvis-artifacts/.video-worker/operations/4aca528b-fe9c-47e1-89de-ddbe1c13b282.json",
-    "maxBytes": 300000
+    "command": "npm test",
+    "timeoutMs": 1800000
   }
 }
