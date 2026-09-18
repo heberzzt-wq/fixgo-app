@@ -471,6 +471,10 @@ function isTransientImageGenerationFailure(value) {
     text.includes('quota') ||
     text.includes('temporarily unavailable') ||
     text.includes('timeout') ||
+    text.includes('fetch failed') ||
+    text.includes('network') ||
+    text.includes('econnreset') ||
+    text.includes('socket hang up') ||
     /(^|\D)(429|500|502|503|504)(\D|$)/.test(text)
   );
 }
