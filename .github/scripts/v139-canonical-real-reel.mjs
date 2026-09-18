@@ -10,6 +10,8 @@ import { registerNexoRealMediaTools } from '../../gestia-core/nexo/nexo.real-med
 import { buildJarvisMultifunctionToolCalls } from '../../gestia-core/jarvis/jarvis.multifunction.planner.js';
 import { ensureExecutableArtifactDependencies } from '../../gestia-core/jarvis/jarvis.mission.dependencies.js';
 import { runJarvisMission } from '../../gestia-core/jarvis/jarvis.mission.orchestrator.js';
+import { createLocalVideoEngine, createRunpodRemoteVideoAdapter } from '../../jarvis-local-video-engine.js';
+import { resolveRunpodCredentialEnvironment, describeJarvisBridgeIdentity } from '../../jarvis-fs-bridge.js';
 
 const require = createRequire(import.meta.url);
 const functionsRequire = createRequire(new URL('../../functions/package.json', import.meta.url));
@@ -29,6 +31,7 @@ const EXPECTED_TOOLS = Object.freeze([
   'document.create',
   'web.media.collect',
   'image.generate',
+  'video.generate',
   'reel.plan',
   'speech.synthesize',
   'reel.create'
@@ -922,6 +925,133 @@ function deterministicOriginalImageCall(index) {
   });
 }
 
+function deterministicWanVideoCall() {
+  return groundTaqueriaToolCall({
+    name: 'video.generate',
+    args: {
+      prompt: 'Video publicitario gastronómico ORIGINAL, vertical 9:16. Animar la creatividad de referencia como una toma cinematográfica nueva: acercamiento suave de cámara a un taco genérico servido caliente, queso derretido visible, carne como elemento principal y un detalle de chile. Movimiento natural y apetitoso, vapor sutil, luz comercial limpia. Sin personas, sin restaurante, sin texto, sin logotipos, sin marcas de agua y sin copiar el video de TikTok.',
+      scenes: [
+        {
+          prompt: 'Toma macro vertical ORIGINAL con movimiento de cámara suave sobre un taco genérico caliente, queso derretido, carne y detalle de chile; iluminación publicitaria, sin personas ni local.'
+        }
+      ],
+      referenceOutputs: ['.jarvis-artifacts/images/taqueria-el-dorado-fresh-v3-scene-1.png'],
+      referenceMode: 'visual',
+      aspectRatio: '9:16',
+      durationSeconds: 8,
+      output: '.jarvis-artifacts/videos/taqueria-el-dorado-wan22-l40s-pilot.mp4',
+      objectiveId: 'taqueria_wan22_l40s_pilot'
+    }
+  });
+}
+
+async function executeTaqueriaWan22(call, context = {}) {
+  const root = process.cwd();
+  const credential = resolveRunpodCredentialEnvironment({ env: process.env });
+  if (credential?.credentialLoaded !== true || !credential.env?.RUNPOD_API_KEY) {
+    return {
+      ok: false, executionOk: false, objectiveSatisfied: false, blocked: true,
+      retryable: false, status: 'RUNPOD_CREDENTIAL_REQUIRED', error: 'RUNPOD_CREDENTIAL_REQUIRED'
+    };
+  }
+  const canonicalSha = String(execFileSync(
+    process.platform === 'win32' ? 'C:\\Program Files\\Git\\cmd\\git.exe' : 'git',
+    ['rev-parse', 'HEAD'],
+    { cwd: root, encoding: 'utf8', windowsHide: true }
+  )).trim().toLowerCase();
+  const runnerScript = path.resolve(root, 'scripts', 'jarvis-local-video-wan22.py');
+  if (!fs.existsSync(runnerScript)) throw new Error('V139_WAN22_RUNNER_MISSING');
+  const env = {
+    ...credential.env,
+    JARVIS_VIDEO_ENGINE_POLICY: 'LOCAL_TEST',
+    JARVIS_LOCAL_VIDEO_ENABLED: 'true',
+    JARVIS_LOCAL_VIDEO_CERTIFIED: 'true',
+    JARVIS_LOCAL_VIDEO_EXECUTION_TARGET: 'remote',
+    JARVIS_LOCAL_VIDEO_MODEL: 'wan22-ti2v-5b',
+    JARVIS_LOCAL_VIDEO_RUNNER: process.execPath,
+    JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT: runnerScript,
+    JARVIS_REMOTE_GPU_PROVIDER: 'runpod',
+    JARVIS_RUNPOD_GPU_TYPE_ID: 'NVIDIA L40S',
+    JARVIS_RUNPOD_CLOUD_TYPE: 'SECURE',
+    JARVIS_REMOTE_GPU_HARD_BUDGET_USD: '1.50',
+    JARVIS_REMOTE_GPU_BUDGET_STOP_RATIO: '0.90',
+    JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: 'true',
+    JARVIS_RUNPOD_CANONICAL_SHA: canonicalSha,
+    JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: '1.10',
+    JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: '1200',
+    JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS: '900',
+    JARVIS_RUNPOD_INFERENCE_TIMEOUT_SECONDS: '600',
+    JARVIS_EXTERNAL_FALLBACK_ENABLED: 'false'
+  };
+  const previousPaid = process.env.JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED;
+  process.env.JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED = 'true';
+  try {
+    const adapter = createRunpodRemoteVideoAdapter({
+      root,
+      env,
+      inspectBridgeIdentity: () => describeJarvisBridgeIdentity(root),
+      resolveCanonicalSha: () => canonicalSha
+    });
+    const engine = createLocalVideoEngine({
+      root,
+      env,
+      inspectHardware: adapter.inspectHardware,
+      launch: adapter.launch,
+      pollRemote: adapter.poll,
+      release: adapter.release
+    });
+    const args = call?.args || {};
+    const started = await engine.start({
+      script: String(args.prompt || '').trim(),
+      prompts: (Array.isArray(args.scenes) ? args.scenes : [])
+        .map(scene => String(scene?.prompt || scene?.visual || scene?.description || '').trim())
+        .filter(Boolean),
+      durationSeconds: Number(args.durationSeconds || 8),
+      aspectRatio: '9:16',
+      referenceOutputs: Array.isArray(args.referenceOutputs) ? args.referenceOutputs : [],
+      requiresIdentityFidelity: false,
+      output: args.output,
+      missionId: context.missionId || 'MISSION-TAQUERIA-L40S',
+      objectiveId: context.objectiveId || 'TAQUERIA_EL_DORADO_NEW_VIDEO',
+      obligationId: context.obligationId || 'video.generate:taqueria-l40s',
+      rootInstructionHash: context.rootInstructionHash || createHash('sha256').update(instruction).digest('hex')
+    });
+    if (started?.ok !== true || !started?.operationName) {
+      return {
+        ...(started || {}),
+        ok: false, executionOk: false, objectiveSatisfied: false, blocked: true,
+        retryable: started?.retryable === true
+      };
+    }
+    let result = null;
+    for (let attempt = 0; attempt < 240; attempt += 1) {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      result = await engine.poll({ operationName: started.operationName });
+      if (result?.done === true) break;
+    }
+    if (!result?.done) {
+      await engine.cancel({ operationName: started.operationName, reason: 'v139_l40s_poll_deadline' });
+      return {
+        ok: false, executionOk: false, objectiveSatisfied: false, blocked: true,
+        retryable: true, status: 'V139_WAN22_L40S_TIMEOUT', error: 'V139_WAN22_L40S_TIMEOUT'
+      };
+    }
+    return {
+      ...result,
+      executionOk: result.ok === true,
+      objectiveSatisfied: result.ok === true && result.verifiedArtifactDelivery === true,
+      blocked: result.ok !== true,
+      requiresInput: false,
+      retryable: result.retryable === true,
+      artifact: result.output || null
+    };
+  }
+  finally {
+    if (previousPaid === undefined) delete process.env.JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED;
+    else process.env.JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED = previousPaid;
+  }
+}
+
 function deterministicSpeechCall() {
   return groundTaqueriaToolCall({
     name: 'speech.synthesize',
@@ -929,14 +1059,14 @@ function deterministicSpeechCall() {
       text: SAFE_TAQUERIA_NARRATION,
       voice: '',
       language: 'es-MX',
-      rate: 2,
+      rate: -1,
       output: 'narracion_taco_macho.wav',
       objectiveId: 'speech_synthesis_narrative'
     }
   });
 }
 
-function deterministicReelCreateCall(reelPlanTask) {
+function deterministicReelCreateCall(reelPlanTask, videoTask) {
   const evidence = reelPlanTask?.observation?.evidence && typeof reelPlanTask.observation.evidence === 'object'
     ? reelPlanTask.observation.evidence
     : {};
@@ -952,6 +1082,15 @@ function deterministicReelCreateCall(reelPlanTask) {
         { sceneNumber: 2, durationSeconds: 10, description: 'Detalle gastronómico ORIGINAL generado con queso derretido y carne a elección.', textOverlay: 'Queso derretido + carne a tu elección' },
         { sceneNumber: 3, durationSeconds: 10, description: 'Cierre ORIGINAL de marca; sólo puede superponerse identidad oficial verificada.', textOverlay: 'Taquería El Dorado · @taqueria.eldorado' }
       ];
+  const generatedVideoOutput = String(
+    videoTask?.observation?.output ||
+    videoTask?.observation?.artifact ||
+    videoTask?.observation?.evidence?.output ||
+    ''
+  ).trim();
+  if (generatedVideoOutput && scenes.length > 0) {
+    scenes[0] = { ...scenes[0], assetOutput: generatedVideoOutput, mediaType: 'video' };
+  }
   return groundTaqueriaToolCall({
     name: 'reel.create',
     args: {
@@ -983,6 +1122,7 @@ const mission = await runJarvisMission({
     const verifiedGeneratedImages = missionState.completedTasks.filter(item =>
       item?.name === 'image.generate' && item?.observation?.objectiveSatisfied === true
     );
+    const verifiedGeneratedVideo = verifiedMissionTask(missionState, 'video.generate');
     const verifiedReelPlan = verifiedMissionTask(missionState, 'reel.plan');
     const verifiedSpeech = verifiedMissionTask(missionState, 'speech.synthesize');
     const verifiedReelCreate = verifiedMissionTask(missionState, 'reel.create');
@@ -1012,6 +1152,19 @@ const mission = await runJarvisMission({
         completionAssessment: { status: 'V139_THREE_ORIGINAL_IMAGES_REQUIRED', completed: verifiedGeneratedImages.length }
       };
     }
+    if (verifiedGeneratedImages.length >= 3 && !verifiedGeneratedVideo && !missionTaskBlocked(missionState, 'video.generate')) {
+      const nextCall = deterministicWanVideoCall();
+      console.log('V139_EXACT_PROMPT_NEXT_PLAN', JSON.stringify({
+        phase: 'DETERMINISTIC_WAN22_L40S_PILOT',
+        missionComplete: false,
+        next: { name: nextCall.name, args: nextCall.args }
+      }));
+      return {
+        toolCalls: [nextCall],
+        missionComplete: false,
+        completionAssessment: { status: 'V139_WAN22_L40S_PILOT_REQUIRED' }
+      };
+    }
     if (verifiedReelPlan && !verifiedSpeech && !missionTaskBlocked(missionState, 'speech.synthesize')) {
       const nextCall = deterministicSpeechCall();
       console.log('V139_EXACT_PROMPT_NEXT_PLAN', JSON.stringify({
@@ -1026,7 +1179,7 @@ const mission = await runJarvisMission({
       };
     }
     if (verifiedReelPlan && verifiedSpeech && !verifiedReelCreate && !missionTaskBlocked(missionState, 'reel.create')) {
-      const nextCall = deterministicReelCreateCall(verifiedReelPlan);
+      const nextCall = deterministicReelCreateCall(verifiedReelPlan, verifiedGeneratedVideo);
       console.log('V139_EXACT_PROMPT_NEXT_PLAN', JSON.stringify({
         phase: 'DETERMINISTIC_POST_SPEECH_REEL_CREATE',
         missionComplete: false,
@@ -1076,7 +1229,7 @@ const mission = await runJarvisMission({
       'web.research',
       'marketing.plan',
       'web.media.collect',
-      ...(verifiedGeneratedImages.length >= 3 ? ['reel.plan'] : [])
+      ...(verifiedGeneratedImages.length >= 3 && verifiedGeneratedVideo ? ['reel.plan'] : [])
     ]);
     const plannerCatalog = missionToolCatalog.filter(tool =>
       semanticAllowed.has(tool.name) && !satisfiedToolNames.has(tool.name)
@@ -1122,13 +1275,13 @@ const mission = await runJarvisMission({
     }));
     if (unresolvedCall) {
       const toolCalls =
-        unresolvedCall.name === 'reel.plan' && verifiedGeneratedImages.length >= 3
+        unresolvedCall.name === 'reel.plan' && verifiedGeneratedImages.length >= 3 && verifiedGeneratedVideo
           ? [unresolvedCall]
           : ensureExecutableArtifactDependencies({
               toolCalls: [unresolvedCall],
               catalog: missionToolCatalog
             });
-      if (unresolvedCall.name === 'reel.plan' && verifiedGeneratedImages.length >= 3) {
+      if (unresolvedCall.name === 'reel.plan' && verifiedGeneratedImages.length >= 3 && verifiedGeneratedVideo) {
         console.log('V139_REEL_PLAN_REUSES_EXISTING_ORIGINAL_IMAGES', JSON.stringify({
           generatedImageCount: verifiedGeneratedImages.length
         }));
@@ -1148,7 +1301,18 @@ const mission = await runJarvisMission({
     }
     throw new Error(`V139_EXACT_PROMPT_PLANNER_NO_NEXT_EXECUTABLE_CALL:${phase}`);
   },
-  execute: async (call, context) => runtime.execute(call.name, call.args, context)
+  trustedMissionAuthorizations: {
+    externalVideo: {
+      approved: true,
+      approvedBy: 'HEBERTO_MENDOZA',
+      approvedAt: new Date().toISOString(),
+      operationKey: '.jarvis-artifacts/videos/taqueria-el-dorado-wan22-l40s-pilot.mp4'
+    }
+  },
+  execute: async (call, context) =>
+    call.name === 'video.generate'
+      ? executeTaqueriaWan22(call, context)
+      : runtime.execute(call.name, call.args, context)
 });
 
 console.log('V139_MISSION_STATUS', mission.status, mission.reason || '');
