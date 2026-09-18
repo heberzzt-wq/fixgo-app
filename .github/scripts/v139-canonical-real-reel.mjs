@@ -330,7 +330,7 @@ function sanitizeTaqueriaCollectedMedia(result = {}) {
   };
 }
 
-const SAFE_TAQUERIA_NARRATION = 'Cuando el antojo pide queso derretido y carne a tu elección, el Taco Macho entra en escena. Un taco para verlo de cerca, con el chile bien puesto. Taquería El Dorado, Cancún. Conoce más en @taqueria.eldorado.';
+const SAFE_TAQUERIA_NARRATION = 'Cuando el antojo busca queso derretido y carne a tu elección, el Taco Macho entra en escena. Una nueva mirada al queso, la carne y el chile bien puesto. Taquería El Dorado, Cancún. Conoce más en @taqueria.eldorado.';
 
 function groundTaqueriaExecutionArgs(name, args = {}) {
   if (name === 'web.media.collect') {
@@ -351,11 +351,11 @@ function groundTaqueriaExecutionArgs(name, args = {}) {
       audience: 'Personas en Cancún interesadas en tacos y contenido gastronómico.',
       offer: 'El Taco Macho viene calientito, rellenito y con el chile bien puesto. Con queso derretido y la carne que tú prefieras.',
       pain: 'Antojo de un taco calientito con queso derretido y la carne que prefieras.',
-      promise: 'Presentar el Taco Macho tal como aparece en la publicación exacta verificada, sin añadir atributos no comprobados.',
+      promise: 'Crear una pieza audiovisual original basada únicamente en atributos verificados del Taco Macho, sin reutilizar el video fuente ni añadir hechos no comprobados.',
       differentiator: 'Taco Macho calientito y rellenito, con queso derretido, la carne que prefieras y el chile bien puesto.',
       cta: 'Conocer a Taquería El Dorado en @taqueria.eldorado.',
       market: 'Cancún, México',
-      campaignObjective: 'Crear un reel profesional basado únicamente en la publicación exacta verificada.',
+      campaignObjective: 'Crear un reel profesional NUEVO, con visuales originales, usando la publicación exacta sólo como referencia de hechos y estilo promocional.',
       horizon: 'Corto plazo.',
       tone: 'Antojable, local y directo.',
       channels: ['TikTok', 'Instagram Reels'],
@@ -521,7 +521,7 @@ inferencias o recomendaciones.
 
 Conserva las fuentes y la procedencia de la información.
 
-Después de investigar, crea una propuesta de marketing basada únicamente en los hechos realmente encontrados. Para llenar campos creativos obligatorios del plan sin inventar hechos, formula el problema, promesa y diferenciador como objetivos de la pieza: captar atención sin inventar datos, mostrar el Taco Macho tal como aparece en la publicación y destacar únicamente queso derretido, carne a elección y el texto verificado. La llamada a la acción segura es conocer a Taquería El Dorado en @taqueria.eldorado.
+Después de investigar, crea una propuesta de marketing NUEVA basada únicamente en los hechos realmente encontrados. Para llenar campos creativos obligatorios del plan sin inventar hechos, formula el problema, promesa y diferenciador como objetivos de la pieza: captar atención con una ejecución distinta, crear visuales originales y destacar únicamente queso derretido, carne a elección y el chile bien puesto sin copiar la publicación. La llamada a la acción segura es conocer a Taquería El Dorado en @taqueria.eldorado.
 
 Luego crea un reel vertical profesional de aproximadamente 30 segundos para promocionar Taquería El Dorado.
 
