@@ -5785,9 +5785,9 @@ export function createRunpodRemoteVideoAdapter({
         try {
             await assertNoExistingOperationPod(job);
             const networkVolume = persistentCache?.volume || await resolveNetworkVolume(job.operationId);
-            const selectedDataCenterId = networkVolume?.dataCenterId || (
-                runtimeCertificationOnly ? runtimeCertificationDataCenterId : null
-            );
+            const selectedDataCenterId = networkVolume?.dataCenterId ||
+                runtimeCertificationDataCenterId ||
+                null;
             const availability = await queryAvailability(selectedDataCenterId, job.operationId);
             const zeroCostPrecheck = lifecycle
                 ? (runtimeCertificationOnly
