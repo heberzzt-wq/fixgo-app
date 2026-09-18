@@ -972,7 +972,11 @@ async function executeTaqueriaWan22(call, context = {}) {
   )).trim().toLowerCase();
   const runnerScript = path.resolve(root, 'scripts', 'jarvis-local-video-wan22.py');
   if (!fs.existsSync(runnerScript)) throw new Error('V139_WAN22_RUNNER_MISSING');
-  const env = {
+
+  const args = call?.args || {};
+  const rootInstructionHash = context.rootInstructionHash ||
+    createHash('sha256').update(instruction).digest('hex');
+  const baseEnv = {
     ...credential.env,
     JARVIS_VIDEO_ENGINE_POLICY: 'LOCAL_TEST',
     JARVIS_LOCAL_VIDEO_ENABLED: 'true',
@@ -982,17 +986,91 @@ async function executeTaqueriaWan22(call, context = {}) {
     JARVIS_LOCAL_VIDEO_RUNNER: process.execPath,
     JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT: runnerScript,
     JARVIS_REMOTE_GPU_PROVIDER: 'runpod',
-    JARVIS_RUNPOD_GPU_TYPE_ID: 'NVIDIA L40S',
     JARVIS_RUNPOD_CLOUD_TYPE: 'SECURE',
     JARVIS_REMOTE_GPU_HARD_BUDGET_USD: '1.50',
     JARVIS_REMOTE_GPU_BUDGET_STOP_RATIO: '0.90',
-    JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: 'true',
     JARVIS_RUNPOD_CANONICAL_SHA: canonicalSha,
     JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: '1.10',
     JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: '1200',
     JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS: '900',
     JARVIS_RUNPOD_INFERENCE_TIMEOUT_SECONDS: '600',
     JARVIS_EXTERNAL_FALLBACK_ENABLED: 'false'
+  };
+
+  const preflightEnv = {
+    ...baseEnv,
+    JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: 'false'
+  };
+  const preflightAdapter = createRunpodRemoteVideoAdapter({
+    root,
+    env: preflightEnv,
+    inspectBridgeIdentity: () => describeJarvisBridgeIdentity(root),
+    resolveCanonicalSha: () => canonicalSha
+  });
+  const preflightOperationId = `taqueria-wan22-preflight-${Date.now()}`;
+  const preflightJob = {
+    operationId: preflightOperationId,
+    operationName: `local-video/${preflightOperationId}`,
+    executionTarget: 'remote',
+    backend: 'wan22-ti2v-5b',
+    model: 'Wan2.2-TI2V-5B',
+    missionId: context.missionId || 'MISSION-TAQUERIA-L40S',
+    objectiveId: context.objectiveId || 'TAQUERIA_EL_DORADO_NEW_VIDEO',
+    obligationId: context.obligationId || 'video.generate:taqueria-l40s',
+    rootInstructionHash,
+    externalApiAllowed: false,
+    referenceOutputs: Array.isArray(args.referenceOutputs) ? args.referenceOutputs : [],
+    referenceFiles: (Array.isArray(args.referenceOutputs) ? args.referenceOutputs : [])
+      .map(output => path.resolve(root, output)),
+    sourceReferenceOutputs: Array.isArray(args.referenceOutputs) ? args.referenceOutputs : [],
+    sourceReferenceFiles: (Array.isArray(args.referenceOutputs) ? args.referenceOutputs : [])
+      .map(output => path.resolve(root, output))
+  };
+  const preflight = await preflightAdapter.inspectLiveZeroCostPrecheck({ job: preflightJob });
+  const candidates = Array.isArray(preflight?.placement?.candidates)
+    ? preflight.placement.candidates
+    : [];
+  const selected = candidates.find(candidate =>
+    candidate?.gpuTypeId === 'NVIDIA L40S' &&
+    typeof candidate?.networkVolumeId === 'string' &&
+    candidate.networkVolumeId.trim() &&
+    candidate?.requiresCacheReplica !== true &&
+    typeof candidate?.dataCenterId === 'string' &&
+    candidate.dataCenterId.trim() &&
+    Number(candidate?.hourlyRateUsd || 0) > 0 &&
+    Number(candidate.hourlyRateUsd) <= 1.10
+  ) || null;
+  if (preflight?.ok !== true || !selected) {
+    return {
+      ...(preflight || {}),
+      ok: false,
+      executionOk: false,
+      objectiveSatisfied: false,
+      blocked: true,
+      retryable: true,
+      status: preflight?.status || 'V139_WAN22_L40S_EXACT_PLACEMENT_UNAVAILABLE',
+      error: preflight?.status || 'V139_WAN22_L40S_EXACT_PLACEMENT_UNAVAILABLE'
+    };
+  }
+
+  console.log('V139_WAN22_L40S_PLACEMENT', JSON.stringify({
+    gpuTypeId: selected.gpuTypeId,
+    dataCenterId: selected.dataCenterId,
+    networkVolumeId: selected.networkVolumeId,
+    hourlyRateUsd: Number(selected.hourlyRateUsd),
+    stockStatus: selected.stockStatus || null,
+    cacheStatus: selected.cacheStatus || null,
+    hardBudgetUsd: 1.5,
+    stopRatio: 0.9
+  }));
+
+  const env = {
+    ...baseEnv,
+    JARVIS_RUNPOD_GPU_TYPE_ID: selected.gpuTypeId,
+    JARVIS_RUNPOD_NETWORK_VOLUME_ID: selected.networkVolumeId,
+    JARVIS_RUNPOD_DATACENTER_ID: selected.dataCenterId,
+    JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: String(Number(selected.hourlyRateUsd)),
+    JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: 'true'
   };
   const previousPaid = process.env.JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED;
   process.env.JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED = 'true';
@@ -1011,7 +1089,6 @@ async function executeTaqueriaWan22(call, context = {}) {
       pollRemote: adapter.poll,
       release: adapter.release
     });
-    const args = call?.args || {};
     const started = await engine.start({
       script: String(args.prompt || '').trim(),
       prompts: (Array.isArray(args.scenes) ? args.scenes : [])
@@ -1025,7 +1102,7 @@ async function executeTaqueriaWan22(call, context = {}) {
       missionId: context.missionId || 'MISSION-TAQUERIA-L40S',
       objectiveId: context.objectiveId || 'TAQUERIA_EL_DORADO_NEW_VIDEO',
       obligationId: context.obligationId || 'video.generate:taqueria-l40s',
-      rootInstructionHash: context.rootInstructionHash || createHash('sha256').update(instruction).digest('hex')
+      rootInstructionHash
     });
     if (started?.ok !== true || !started?.operationName) {
       return {
