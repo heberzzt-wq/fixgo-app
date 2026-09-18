@@ -1,9 +1,9 @@
 {
-  "jobId": "v142-sia7-backoff-syntax-20260917-chatgpt-23",
-  "operation": "bridge",
-  "endpoint": "/run",
-  "body": {
-    "command": "npm run check:syntax",
-    "timeoutMs": 120000
-  }
+  "jobId": "v142-humo17-core-preflight-20260917-chatgpt-24",
+  "operation": "humo17_core_stage",
+  "expectedBaseSha": "0da360390f31b0462e5d36e9db4dc511ff0f9a43",
+  "hardBudgetUsd": 1.5,
+  "maximumMinutes": 90,
+  "executePaid": false,
+  "humanApproved": false
 }
