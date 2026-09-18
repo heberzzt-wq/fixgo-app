@@ -147,7 +147,7 @@ for (const forbidden of ["pollinations", "runSimpleSemanticPlanner", "requestMod
 }
 write(P.semanticTest, semanticTest);
 
-let chainTest = read(P.chainTest).split('"gemini-2.5-flash"').join('"gemini-3.5-flash"');
+let chainTest = read(P.chainTest);
 const chainParsed = testBlocks(chainTest);
 const chainKept = [];
 for (const block of chainParsed.blocks) {
