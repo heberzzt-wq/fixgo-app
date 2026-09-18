@@ -968,7 +968,9 @@ export function createWorkerPoller({
     persist = persistWorkerResult,
     readLocalResult = readLocalWorkerResult,
     log = (...args) => console.log(...args),
-    reportError = (...args) => console.error(...args)
+    reportError = (...args) => console.error(...args),
+    now = () => Date.now(),
+    retryDelay = workerRetryDelayMs
 } = {}) {
     let lastJobId = "";
     let polling = false;
@@ -981,7 +983,7 @@ export function createWorkerPoller({
         let currentJob = null;
         try {
             await reconcile(); // Always reconcile local paid receipts even while GitHub transport is backing off.
-            if (Date.now() < retryNotBefore) return;
+            if (now() < retryNotBefore) return;
             // A failed publication must never replay an operation (especially a paid one).
             if (pendingResult) {
                 await sync();
@@ -1024,8 +1026,8 @@ export function createWorkerPoller({
         catch (error) {
             consecutiveTransportFailures += 1;
             const classification = classifyWorkerTransportError(error);
-            const delayMs = workerRetryDelayMs(classification, consecutiveTransportFailures);
-            retryNotBefore = Date.now() + delayMs;
+            const delayMs = retryDelay(classification, consecutiveTransportFailures);
+            retryNotBefore = now() + delayMs;
             reportError("[SIA7_REMOTE_WORKER_BACKOFF]", JSON.stringify({
                 classification,
                 delayMs,
