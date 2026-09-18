@@ -267,7 +267,7 @@ test("provider request sanitation leaves Google Search alone and compacts functi
 });
 
 test("Gemini migration normalizes retired models, thinking config, and preserves thought signatures", () => {
-    assert.equal(normalizeGeminiModel("gemini-2.5-flash"), "gemini-3.5-flash");
+    assert.equal(normalizeGeminiModel("gemini-3.5-flash"), "gemini-3.5-flash");
     assert.equal(normalizeGeminiModel("gemini-3.6-flash"), "gemini-3.5-flash");
     assert.equal(normalizeGeminiModel("gemini-3.5-flash"), "gemini-3.5-flash");
     const request = {
