@@ -425,9 +425,30 @@ function groundTaqueriaToolCall(call = {}) {
   };
 }
 
+function taqueriaPublicClaimSurface(name, args = {}) {
+  if (name === 'reel.create') {
+    return {
+      brandName: args?.brandName,
+      title: args?.title,
+      cta: args?.cta,
+      scenes: Array.isArray(args?.scenes)
+        ? args.scenes.map(scene => ({
+            description: scene?.description,
+            textOverlay: scene?.textOverlay,
+            voiceover: scene?.voiceover
+          }))
+        : []
+    };
+  }
+  if (name === 'speech.synthesize') {
+    return { text: args?.text, input: args?.input };
+  }
+  return args || {};
+}
+
 function assertTaqueriaGroundedClaims(name, args = {}) {
   if (name === 'web.research' || name === 'web.media.collect') return;
-  let text = JSON.stringify(args || {})
+  let text = JSON.stringify(taqueriaPublicClaimSurface(name, args))
     .replace(/#estilosinaloa/gi, '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
