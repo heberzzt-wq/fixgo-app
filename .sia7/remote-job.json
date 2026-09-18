@@ -1,5 +1,5 @@
 {
-  "jobId": "v142-taqueria-runpod-state-read-a-20260918-chatgpt-52",
+  "jobId": "v142-taqueria-runpod-state-read-current-20260918-chatgpt-53",
   "operation": "bridge",
   "endpoint": "/read",
   "body": {
