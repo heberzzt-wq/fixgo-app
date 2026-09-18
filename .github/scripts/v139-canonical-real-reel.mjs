@@ -19,6 +19,7 @@ const { runJarvisSemanticPlanner } = require('../../functions/jarvis-semantic-pl
 const { createJarvisGenAIProviderChain } = require('../../functions/jarvis-genai-provider-chain.js');
 const { runJarvisImageGeneration } = require('../../functions/jarvis-image-generation.js');
 
+const V139_ORIGINAL_CREATIVE_CONTRACT = 'taqueria-original-generated-v2';
 const SOURCE = 'https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004';
 const BRIDGE = 'http://127.0.0.1:3344';
 const REQUIRED_BRIDGE_VERSION = '2.38.0-page-no-contact-route';
@@ -170,6 +171,7 @@ const identity = {
   bridgeVersionCompatible: true
 };
 console.log('V139_BRIDGE_IDENTITY', JSON.stringify(identity));
+console.log('V139_ORIGINAL_CREATIVE_CONTRACT', V139_ORIGINAL_CREATIVE_CONTRACT);
 
 globalThis.JarvisLocalBridge = {
   async verifyIdentity() { return identity; },
