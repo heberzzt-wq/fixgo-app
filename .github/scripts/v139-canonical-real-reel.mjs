@@ -19,7 +19,7 @@ const { runJarvisSemanticPlanner } = require('../../functions/jarvis-semantic-pl
 const { createJarvisGenAIProviderChain } = require('../../functions/jarvis-genai-provider-chain.js');
 const { runJarvisImageGeneration } = require('../../functions/jarvis-image-generation.js');
 
-const V139_ORIGINAL_CREATIVE_CONTRACT = 'taqueria-original-generated-v2';
+const V139_ORIGINAL_CREATIVE_CONTRACT = 'taqueria-original-generated-v3-fresh';
 const SOURCE = 'https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004';
 const BRIDGE = 'http://127.0.0.1:3344';
 const REQUIRED_BRIDGE_VERSION = '2.38.0-page-no-contact-route';
@@ -340,7 +340,7 @@ function sanitizeTaqueriaCollectedMedia(result = {}) {
   };
 }
 
-const SAFE_TAQUERIA_NARRATION = 'Cuando el antojo busca queso derretido y carne a tu elección, el Taco Macho entra en escena. Una nueva mirada al queso, la carne y el chile bien puesto. Taquería El Dorado, Cancún. Conoce más en @taqueria.eldorado.';
+const SAFE_TAQUERIA_NARRATION = '¿Queso derretido, carne a tu elección y el chile bien puesto? Así entra el Taco Macho. Calientito, rellenito y con todo el protagonismo en pantalla. Taquería El Dorado, Cancún. Encuentra su perfil oficial en @taqueria.eldorado.';
 
 function groundTaqueriaExecutionArgs(name, args = {}) {
   if (name === 'web.media.collect') {
@@ -504,7 +504,7 @@ function isTransientImageGenerationFailure(value) {
 
 function existingTaqueriaOriginalImageResult(args = {}) {
   const output = String(args?.output || '').trim().replaceAll('\\', '/');
-  if (!/^\.jarvis-artifacts\/images\/taqueria-el-dorado-original-scene-[123]\.(?:png|jpe?g)$/i.test(output)) {
+  if (!/^\.jarvis-artifacts\/images\/taqueria-el-dorado-fresh-v3-scene-[123]\.(?:png|jpe?g)$/i.test(output)) {
     return null;
   }
   const file = path.resolve(process.cwd(), output);
@@ -916,7 +916,7 @@ function deterministicOriginalImageCall(index) {
       prompt: prompts[scene - 1],
       aspectRatio: '9:16',
       imageSize: '1K',
-      output: `.jarvis-artifacts/images/taqueria-el-dorado-original-scene-${scene}.png`,
+      output: `.jarvis-artifacts/images/taqueria-el-dorado-fresh-v3-scene-${scene}.png`,
       objectiveId: `taqueria_original_scene_${scene}`
     }
   });
@@ -927,8 +927,9 @@ function deterministicSpeechCall() {
     name: 'speech.synthesize',
     args: {
       text: SAFE_TAQUERIA_NARRATION,
-      voice: 'es-MX-Standard-A',
+      voice: '',
       language: 'es-MX',
+      rate: 2,
       output: 'narracion_taco_macho.wav',
       objectiveId: 'speech_synthesis_narrative'
     }
