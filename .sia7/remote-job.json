@@ -1,9 +1,6 @@
 {
-  "jobId": "v142-taqueria-original-v139-syntax-20260918-chatgpt-33",
+  "jobId": "v142-taqueria-original-v139-local-20260918-chatgpt-31",
   "operation": "bridge",
-  "endpoint": "/run",
-  "body": {
-    "command": "npm run check:syntax",
-    "timeoutMs": 120000
-  }
+  "endpoint": "/health",
+  "body": {}
 }
