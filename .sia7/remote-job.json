@@ -1,6 +1,12 @@
 {
-  "jobId": "v142-runtime-liveness-20260918-chatgpt-49",
+  "jobId": "v142-taqueria-runpod-state-grep-20260918-chatgpt-50",
   "operation": "bridge",
-  "endpoint": "/health",
-  "body": {}
+  "endpoint": "/grep",
+  "body": {
+    "term": "podId",
+    "cwd": ".jarvis-artifacts/.video-worker/runpod",
+    "maxFiles": 200,
+    "maxFileSizeBytes": 1000000,
+    "maxMatches": 100
+  }
 }
