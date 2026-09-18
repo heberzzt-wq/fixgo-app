@@ -927,6 +927,37 @@ function readLocalWorkerResult() {
     return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
+function classifyWorkerTransportError(error) {
+    const message = String(error?.message || error || "").toLowerCase();
+    if (
+        message.includes("could not read username") ||
+        message.includes("authentication failed") ||
+        message.includes("credential") ||
+        message.includes("terminal prompts disabled")
+    ) {
+        return "AUTH_REQUIRED";
+    }
+    if (
+        message.includes("could not resolve host") ||
+        message.includes("failed to connect") ||
+        message.includes("connection was reset") ||
+        message.includes("connection reset") ||
+        message.includes("timed out") ||
+        message.includes("timeout") ||
+        message.includes("network")
+    ) {
+        return "NETWORK_TRANSIENT";
+    }
+    return "OTHER_TRANSIENT";
+}
+
+function workerRetryDelayMs(classification, failureCount) {
+    if (classification === "AUTH_REQUIRED") return 5 * 60 * 1000;
+    const base = classification === "NETWORK_TRANSIENT" ? 15000 : 10000;
+    const exponent = Math.max(0, Math.min(Number(failureCount || 1) - 1, 5));
+    return Math.min(base * (2 ** exponent), 5 * 60 * 1000);
+}
+
 export function createWorkerPoller({
     reconcile = async () => {const {reconcileHuMo17PaidReceipts}=await import("./jarvis-fs-bridge.js");return reconcileHuMo17PaidReceipts({root:REPO_ROOT});},
     readJob = readRemoteJob,
@@ -942,18 +973,23 @@ export function createWorkerPoller({
     let lastJobId = "";
     let polling = false;
     let pendingResult = null;
+    let retryNotBefore = 0;
+    let consecutiveTransportFailures = 0;
     return async function pollOnce() {
         if (polling) return;
         polling = true;
         let currentJob = null;
         try {
-            await reconcile(); // Before GitHub, pending publication or any new job, including after sleep.
+            await reconcile(); // Always reconcile local paid receipts even while GitHub transport is backing off.
+            if (Date.now() < retryNotBefore) return;
             // A failed publication must never replay an operation (especially a paid one).
             if (pendingResult) {
                 await sync();
                 await publish(pendingResult);
                 log("[SIA7_REMOTE_RESULT_PUBLISHED]", JSON.stringify({jobId: pendingResult.jobId, path: RESULT_PATH}));
                 pendingResult = null;
+                retryNotBefore = 0;
+                consecutiveTransportFailures = 0;
                 return;
             }
             currentJob = await readJob();
@@ -982,9 +1018,21 @@ export function createWorkerPoller({
             await publish(pendingResult);
             log("[SIA7_REMOTE_RESULT_PUBLISHED]", JSON.stringify({jobId: currentJob.jobId, path: RESULT_PATH}));
             pendingResult = null;
+            retryNotBefore = 0;
+            consecutiveTransportFailures = 0;
         }
         catch (error) {
-            reportError("[SIA7_REMOTE_WORKER_ERROR]", error.message);
+            consecutiveTransportFailures += 1;
+            const classification = classifyWorkerTransportError(error);
+            const delayMs = workerRetryDelayMs(classification, consecutiveTransportFailures);
+            retryNotBefore = Date.now() + delayMs;
+            reportError("[SIA7_REMOTE_WORKER_BACKOFF]", JSON.stringify({
+                classification,
+                delayMs,
+                failureCount: consecutiveTransportFailures,
+                pendingJobId: pendingResult?.jobId || currentJob?.jobId || null,
+                error: error?.message || String(error)
+            }));
         }
         finally {
             polling = false;
