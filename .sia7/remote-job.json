@@ -1,11 +1,11 @@
 {
-  "jobId": "v142-taqueria-ledger-count-20260917-chatgpt-28",
+  "jobId": "v142-taqueria-ledger-tail-20260917-chatgpt-29",
   "operation": "bridge",
   "endpoint": "/read",
   "body": {
     "file": ".jarvis-artifacts/.ledger/artifacts.jsonl",
-    "startLine": 1,
-    "endLine": 1,
-    "maxBytes": 200000
+    "startLine": 54,
+    "endLine": 73,
+    "maxBytes": 300000
   }
 }
