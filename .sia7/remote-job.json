@@ -1,10 +1,9 @@
 {
-  "jobId": "v142-humo-identity-preflight-20260917-chatgpt-25",
-  "operation": "humo_identity_probe",
-  "expectedBaseSha": "0a9d613f3da8f1cefcc8fdca2647440b6903a726",
-  "hardBudgetUsd": 1.5,
-  "monthlyStorageAuthorizedUsd": 5.6,
-  "executePaid": false,
-  "humanApproved": false,
-  "fullEpisodeAuthorized": false
+  "jobId": "v142-taqueria-v139-stable-local-20260917-chatgpt-26",
+  "operation": "bridge",
+  "endpoint": "/run",
+  "body": {
+    "command": "npm test",
+    "timeoutMs": 600000
+  }
 }
