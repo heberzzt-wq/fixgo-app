@@ -330,7 +330,7 @@ function sanitizeTaqueriaCollectedMedia(result = {}) {
   };
 }
 
-const SAFE_TAQUERIA_NARRATION = 'El Taco Macho viene calientito, rellenito y con el chile bien puesto. Con queso derretido y la carne que tú prefieras. Taquería El Dorado, Cancún. Conoce su perfil oficial @taqueria.eldorado.';
+const SAFE_TAQUERIA_NARRATION = 'Cuando el antojo pide queso derretido y carne a tu elección, el Taco Macho entra en escena. Un taco para verlo de cerca, con el chile bien puesto. Taquería El Dorado, Cancún. Conoce más en @taqueria.eldorado.';
 
 function groundTaqueriaExecutionArgs(name, args = {}) {
   if (name === 'web.media.collect') {
@@ -370,25 +370,25 @@ function groundTaqueriaExecutionArgs(name, args = {}) {
       title: 'El Taco Macho · Taquería El Dorado',
       cta: 'Conoce a Taquería El Dorado en @taqueria.eldorado.',
       durationSeconds: 30,
-      sourceMediaPolicy: 'reuse',
+      sourceMediaPolicy: 'generated',
       scenes: [
         {
           durationSeconds: 10,
-          visual: 'Usar medio real verificado de la publicación exacta y encuadre vertical centrado en el Taco Macho.',
+          visual: 'Crear una toma ORIGINAL vertical inspirada sólo en el ritmo promocional observado; no reutilizar fotogramas del post. Mostrar un taco genérico con queso derretido y carne a elección sin copiar el producto cuadro por cuadro.',
           overlay: 'El Taco Macho viene calientito y rellenito',
           voiceover: 'El Taco Macho viene calientito, rellenito y con el chile bien puesto.',
           evidence: 'Texto y medio real de la publicación exacta verificada.'
         },
         {
           durationSeconds: 10,
-          visual: 'Usar detalle real verificable del producto; no inventar ingredientes, preparación, local ni personas.',
+          visual: 'Crear una toma ORIGINAL de detalle gastronómico con queso derretido y carne a elección; no copiar encuadres, personas, local ni fotogramas del video fuente.',
           overlay: 'Con queso derretido y la carne que tú prefieras',
           voiceover: 'Con queso derretido y la carne que tú prefieras.',
           evidence: 'Texto de la publicación exacta verificada.'
         },
         {
           durationSeconds: 10,
-          visual: 'Cierre limpio con @taqueria.eldorado; reutilizar sólo medio real del post exacto o logotipo/avatar si su procedencia del perfil exacto está verificada.',
+          visual: 'Crear un cierre ORIGINAL con composición nueva y texto @taqueria.eldorado; sólo el avatar o logotipo oficial verificado puede reutilizarse como marca superpuesta, nunca el video fuente.',
           overlay: 'Taquería El Dorado · @taqueria.eldorado',
           voiceover: 'Taquería El Dorado, Cancún. Conoce su perfil oficial @taqueria.eldorado.',
           evidence: 'Identidad exacta @taqueria.eldorado y negocio indicado en la misión.'
@@ -527,15 +527,15 @@ Luego crea un reel vertical profesional de aproximadamente 30 segundos para prom
 
 El reel debe:
 
-utilizar medios reales y verificables de la publicación indicada;
-planificar con sourceMediaPolicy=reuse y no solicitar imágenes artificiales cuando ya existe medio real verificable;
+analizar los medios reales y verificables de la publicación indicada únicamente como REFERENCIA de estilo, ritmo, encuadres y tono;
+planificar con sourceMediaPolicy=generated y producir material visual NUEVO; los MP4/JPEG del post exacto no pueden aparecer como escenas del reel final;
 tener formato vertical;
 incluir apertura, desarrollo y llamada a la acción;
 incluir textos/overlays;
 incluir narración de voz;
 producir un archivo final de video reproducible;
 no inventar teléfono, dirección, precios, promociones, horarios ni características;
-no sustituir silenciosamente el contenido real por imágenes inventadas;
+no copiar, recortar, reencodificar ni reutilizar fotogramas o audio del post exacto como contenido final; cualquier visual generado debe ser una creación nueva y no una reconstrucción cuadro por cuadro;
 no publicar nada en ninguna red social.
 
 Intenta recuperar el avatar o logotipo original desde el perfil exacto @taqueria.eldorado usando medios con procedencia verificable. Si no puedes probar su procedencia, no generes, reconstruyas ni imites un logotipo y no bloquees el reel por ello.
@@ -646,9 +646,9 @@ function deterministicReelCreateCall(reelPlanTask) {
         textOverlay: String(scene?.overlay || scene?.textOverlay || '').trim()
       }))
     : [
-        { sceneNumber: 1, durationSeconds: 10, description: 'Apertura con el Taco Macho usando el medio real verificado del post exacto.', textOverlay: 'El Taco Macho viene calientito y rellenito' },
-        { sceneNumber: 2, durationSeconds: 10, description: 'Detalle real del producto usando únicamente el medio verificado del post exacto.', textOverlay: 'Con queso derretido y la carne que tú prefieras' },
-        { sceneNumber: 3, durationSeconds: 10, description: 'Cierre con la identidad @taqueria.eldorado usando sólo medio real verificado.', textOverlay: 'Taquería El Dorado · @taqueria.eldorado' }
+        { sceneNumber: 1, durationSeconds: 10, description: 'Apertura ORIGINAL generada para el reel; no reutilizar el video fuente.', textOverlay: 'El Taco Macho entra en escena' },
+        { sceneNumber: 2, durationSeconds: 10, description: 'Detalle gastronómico ORIGINAL generado con queso derretido y carne a elección.', textOverlay: 'Queso derretido + carne a tu elección' },
+        { sceneNumber: 3, durationSeconds: 10, description: 'Cierre ORIGINAL de marca; sólo puede superponerse identidad oficial verificada.', textOverlay: 'Taquería El Dorado · @taqueria.eldorado' }
       ];
   return groundTaqueriaToolCall({
     name: 'reel.create',
@@ -853,6 +853,27 @@ const reelPlan = [...mission.completedTasks].reverse().find(task => task.name ==
 const reelPlanEvidenceText = JSON.stringify(reelPlan?.observation?.evidence || {});
 if (/perf_images|performance\.jpe?g|072eb46797f3ba5bd110aa8680bda408590a30e697ba80f53e4d34eed1990d90/i.test(reelPlanEvidenceText)) {
   throw new Error('V139_TIKTOK_INTERNAL_MEDIA_MUST_NOT_BE_BOUND');
+}
+
+const sourceMediaEvidence = media?.observation?.evidence && typeof media.observation.evidence === 'object'
+  ? media.observation.evidence
+  : {};
+const sourceMediaHashes = new Set(
+  (Array.isArray(sourceMediaEvidence.mediaAssets) ? sourceMediaEvidence.mediaAssets : [])
+    .map(item => String(item?.sha256 || '').toLowerCase())
+    .filter(value => /^[a-f0-9]{64}$/.test(value))
+);
+const reelPlanEvidence = reelPlan?.observation?.evidence && typeof reelPlan.observation.evidence === 'object'
+  ? reelPlan.observation.evidence
+  : {};
+if (String(reelPlanEvidence.sourceMediaPolicy || '').toLowerCase() !== 'generated') {
+  throw new Error('V139_ORIGINAL_CREATIVE_POLICY_REQUIRED');
+}
+const reboundSourceHashes = (Array.isArray(reelPlanEvidence.scenes) ? reelPlanEvidence.scenes : [])
+  .map(scene => String(scene?.sourceMedia?.sha256 || '').toLowerCase())
+  .filter(hash => sourceMediaHashes.has(hash));
+if (reboundSourceHashes.length > 0) {
+  throw new Error(`V139_SOURCE_MEDIA_REUSE_FORBIDDEN:${[...new Set(reboundSourceHashes)].join(',')}`);
 }
 
 const reel = [...mission.completedTasks].reverse().find(task => task.name === 'reel.create');
