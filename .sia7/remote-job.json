@@ -1,9 +1,6 @@
 {
-  "jobId": "v142-taqueria-v139-fresh-v3-local-20260918-chatgpt-28",
+  "jobId": "v142-runtime-liveness-20260918-chatgpt-34",
   "operation": "bridge",
-  "endpoint": "/run",
-  "body": {
-    "command": "npm test",
-    "timeoutMs": 900000
-  }
+  "endpoint": "/health",
+  "body": {}
 }
