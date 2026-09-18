@@ -1628,34 +1628,49 @@ test("V142 HuMo runtime certification does not hard-pin a default datacenter", (
 });
 
 
-test("SIA7 retries synchronization before execution without consuming the job", async () => {
+test("SIA7 backs off synchronization failures before execution without consuming the job", async () => {
     const { createWorkerPoller } = await import("../jarvis-github-worker.js");
-    let syncs = 0, executions = 0, publications = 0;
+    let syncs = 0, executions = 0, publications = 0, reads = 0, clock = 0;
     const poll = createWorkerPoller({reconcile:async()=>{},
-        readJob: async () => ({jobId: "retry-control"}), readResultId: async () => "",
+        readJob: async () => { reads++; return {jobId: "retry-control"}; }, readResultId: async () => "",
         sync: async () => { if (++syncs === 1) throw new Error("network offline"); },
         execute: async () => { executions++; return {ok: true}; },
         publish: async () => { publications++; }, persist: () => {}, readLocalResult: () => null,
-        log: () => {}, reportError: () => {}
+        log: () => {}, reportError: () => {}, now: () => clock
     });
-    await poll(); assert.equal(executions, 0); assert.equal(publications, 0);
-    await poll(); await poll(); assert.equal(executions, 1); assert.equal(publications, 1);
+    await poll();
+    assert.equal(executions, 0); assert.equal(publications, 0); assert.equal(reads, 1);
+    await poll();
+    assert.equal(executions, 0); assert.equal(publications, 0); assert.equal(reads, 1);
+    clock = 15000;
+    await poll();
+    assert.equal(executions, 1); assert.equal(publications, 1); assert.equal(reads, 2);
 });
 
-test("SIA7 publication retry and restart never replay an executed paid operation", async () => {
+test("SIA7 publication backoff and restart never replay an executed paid operation", async () => {
     const { createWorkerPoller } = await import("../jarvis-github-worker.js");
-    let executions = 0, publications = 0, local = null;
+    let executions = 0, publications = 0, local = null, clock = 0;
     const deps = {
         readJob: async () => ({jobId: "paid-once"}), readResultId: async () => "",
         sync: async () => {}, execute: async () => { executions++; return {ok: true, podId: "fixture"}; },
         publish: async () => { if (++publications === 1) throw new Error("push failed"); },
         persist: value => { local = value; }, readLocalResult: () => local,
-        log: () => {}, reportError: () => {}
+        log: () => {}, reportError: () => {}, now: () => clock
     };
     const poll = createWorkerPoller({...deps,reconcile:async()=>{}});
-    await poll(); await poll(); assert.equal(executions, 1); assert.equal(publications, 2);
+    await poll();
+    assert.equal(executions, 1); assert.equal(publications, 1);
+    await poll();
+    assert.equal(executions, 1); assert.equal(publications, 1);
+    clock = 10000;
+    await poll();
+    assert.equal(executions, 1); assert.equal(publications, 2);
+
     const restarted = createWorkerPoller({...deps,reconcile:async()=>{}});
-    await restarted(); await restarted(); assert.equal(executions, 1); assert.equal(publications, 3);
+    await restarted();
+    assert.equal(executions, 1); assert.equal(publications, 2);
+    await restarted();
+    assert.equal(executions, 1); assert.equal(publications, 3);
 });
 
 
@@ -1894,11 +1909,24 @@ test("HuMo17 recovery deletes only recorded Pods and persists verified absence",
     } finally {fs.rmSync(root,{recursive:true,force:true});}
 });
 
-test("SIA7 reconciles before GitHub and never reads jobs while recovery fails", async () => {
+test("SIA7 reconciles before GitHub and honors backoff while recovery transport fails", async () => {
     const {createWorkerPoller}=await import("../jarvis-github-worker.js");
-    const calls=[];let fail=true;
-    const poll=createWorkerPoller({reconcile:async()=>{calls.push("recover");if(fail)throw Error("offline");},readJob:async()=>{calls.push("read");return null;},readResultId:async()=>"",reportError:()=>{}});
-    await poll();assert.deepEqual(calls,["recover"]);fail=false;await poll();assert.deepEqual(calls,["recover","recover","read"]);
+    const calls=[];let fail=true,clock=0;
+    const poll=createWorkerPoller({
+        reconcile:async()=>{calls.push("recover");if(fail)throw Error("offline");},
+        readJob:async()=>{calls.push("read");return null;},
+        readResultId:async()=>"",
+        reportError:()=>{},
+        now:()=>clock
+    });
+    await poll();
+    assert.deepEqual(calls,["recover"]);
+    fail=false;
+    await poll();
+    assert.deepEqual(calls,["recover","recover"]);
+    clock=15000;
+    await poll();
+    assert.deepEqual(calls,["recover","recover","recover","read"]);
 });
 
 test("SIA7 early Pod receipt preserves budget and GPU identity without provider secrets", async () => {
