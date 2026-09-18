@@ -1,21 +1,10 @@
 {
-  "jobId": "v142-taqueria-wan22-syntax-20260918-chatgpt-40",
-  "completedAt": "2026-09-18T19:45:31.485Z",
+  "jobId": "v142-taqueria-wan22-22s-local-20260918-chatgpt-41",
+  "completedAt": "2026-09-18T19:52:22.536Z",
   "executionStarted": true,
-  "ok": true,
-  "httpStatus": 200,
-  "endpoint": "/run",
-  "payload": {
-    "ok": true,
-    "status": "PASSED",
-    "exitCode": 0,
-    "command": "npm run check:syntax",
-    "stdout": "\n> gestia-premium@1.0.0 check:syntax\n> node --check gestia-core/jarvis/jarvis.marketing.engine.js && node --check gestia-core/jarvis/jarvis.business.engine.js && node --check gestia-core/jarvis/jarvis.company.registry.js && node --check gestia-core/jarvis/jarvis.scanner.engine.js && node --check gestia-core/jarvis/jarvis.autofix.engine.js && node --check gestia-core/jarvis/jarvis.autopatch.engine.js && node --check gestia-core/jarvis/jarvis.autonomy.engine.js && node --check gestia-core/jarvis/jarvis.sovereign.authority.js && node --check gestia-core/jarvis/jarvis.page.creator.js && node --check gestia-core/jarvis/jarvis.media.ingestion.js && node --check gestia-core/jarvis/jarvis.document.validator.js && node --check gestia-core/nexo/nexo.real-media.tools.js && node --check nexo-web-media-bridge.js && node --check gestia-core/hubs/execution.hub.js && node --check gestia-core/hubs/repo.hub.js && node --check gestia-core/hubs/security.hub.js && node --check gestia-core/authority/authority.registry.js && node --check gestia-core/jarvis.kernel.js && node --check gestia-core/repo/resource.registry.js && node --check gestia-core/gestia.runtime.v7.js && node --check gestia-core/syntax-validator.engine.js && node --check modules/terminal/patch-workflow.js && node --check modules/terminal/repo-cognition.js && node --check modules/terminal/runtime-governance.js && node --check modules/terminal/runtime-persistence.js && node --check modules/terminal/runtime-event-bus.js && node --check modules/terminal/runtime-repair-health.js && node --check modules/terminal/runtime-platform.js && node --check modules/terminal/runtime-daemons.js && node --check modules/terminal/runtime-snapshot-daemon.js && node --check functions/index.js && node --check functions/jarvis-intent-runtime-v7.cjs && node --check functions/repo-write-auth.js && node --check functions/repo-syntax-validator.js && node --check functions/repo-semantic-tool-planner.js && node --check gestia-core/operations-executor.engine.js && node --check gestia-core/plans.engine.js && node --check gestia-terminal.js && node --check jarvis-docx-artifact.js && node --check jarvis-local-video-engine.js && node --check jarvis-fs-bridge.js && node --check jarvis-upload-bridge.js && node --check jarvis-github-worker.js && node --check sw.js && node --check test-runtime.js && npm run bridge:smoke && npm run worker:smoke\n\n\n> gestia-premium@1.0.0 bridge:smoke\n> node -e \"import('./jarvis-upload-bridge.js').then(async m=>{const server=m.startJarvisUploadBridge({port:0});await new Promise((resolve,reject)=>{if(server.listening)return resolve();server.once('listening',resolve);server.once('error',reject);});await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));console.log('[JARVIS_BRIDGE_SMOKE] ok');}).catch(error=>{console.error(error);process.exit(1);})\"\n\n[JARVIS_UPLOAD_BRIDGE] 1.6.0-direct-anchor-verification-v142 online http://localhost:0\n[JARVIS_UPLOAD_BRIDGE_ROOT] C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker\n[JARVIS_BRIDGE_SMOKE] ok\n\n> gestia-premium@1.0.0 worker:smoke\n> node -e \"import('./jarvis-github-worker.js').then(async m=>{const poll=m.createWorkerPoller({reconcile:async()=>{},readJob:async()=>null,readResultId:async()=>'',sync:async()=>{},execute:async()=>({ok:true}),publish:async()=>{},persist:()=>{},readLocalResult:()=>null,log:()=>{},reportError:()=>{}});await poll();console.log('[SIA7_WORKER_SMOKE] ok');}).catch(error=>{console.error(error);process.exit(1);})\"\n\n[SIA7_WORKER_SMOKE] ok\n",
-    "stderr": "",
-    "durationMs": 48286,
-    "source": "jarvis_local_bridge",
-    "version": "2.51.0-temporal-media-self-hosted-v142"
-  },
+  "ok": false,
+  "error": "fetch failed",
+  "evidence": null,
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
