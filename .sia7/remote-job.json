@@ -1,12 +1,9 @@
 {
-  "jobId": "v142-taqueria-runpod-output-grep-20260918-chatgpt-51",
+  "jobId": "v142-taqueria-runpod-state-read-a-20260918-chatgpt-52",
   "operation": "bridge",
-  "endpoint": "/grep",
+  "endpoint": "/read",
   "body": {
-    "term": "taqueria-el-dorado-wan22-l40s-22s.mp4",
-    "cwd": ".jarvis-artifacts/.video-worker/runpod",
-    "maxFiles": 200,
-    "maxFileSizeBytes": 1000000,
-    "maxMatches": 50
+    "file": ".jarvis-artifacts/.video-worker/runpod/acffb4c3-04cb-40f3-9933-7629caa4c318.json",
+    "maxBytes": 500000
   }
 }
