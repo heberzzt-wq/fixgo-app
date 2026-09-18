@@ -31,6 +31,11 @@ const EXPECTED_TOOLS = Object.freeze([
   'speech.synthesize',
   'reel.create'
 ]);
+const SEMANTIC_INITIAL_TOOLS = Object.freeze([
+  'web.research',
+  'marketing.plan',
+  'web.media.collect'
+]);
 const expected = JSON.parse(fs.readFileSync('jarvis-runtime-contract.json', 'utf8'));
 
 function commandAvailable(command) {
@@ -421,11 +426,14 @@ function groundTaqueriaToolCall(call = {}) {
 
 function assertTaqueriaGroundedClaims(name, args = {}) {
   if (name === 'web.research' || name === 'web.media.collect') return;
-  const text = JSON.stringify(args || {})
+  let text = JSON.stringify(args || {})
     .replace(/#estilosinaloa/gi, '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
+  text = text
+    .replace(/\b(?:no|sin)\b[^.;\n]{0,80}\b(?:trompo|al pastor)\b/g, '')
+    .replace(/\b(?:evitar|prohibir|prohibido|prohibida)\b[^.;\n]{0,80}\b(?:trompo|al pastor)\b/g, '');
   const prohibited = [
     /autentic/,
     /\bmejor\b/,
@@ -576,6 +584,9 @@ const missionToolCatalog = runtime.list().filter(tool =>
     (tool?.userArtifact === true && tool?.requiresApproval !== true)
   )
 );
+const initialSemanticToolCatalog = missionToolCatalog.filter(tool =>
+  SEMANTIC_INITIAL_TOOLS.includes(tool?.name)
+);
 
 const plannedInitialCalls = await buildJarvisMultifunctionToolCalls(
   instruction,
@@ -599,7 +610,7 @@ if (groundedInitialCalls.length === 0) {
 
 const initialToolCalls = ensureExecutableArtifactDependencies({
   toolCalls: groundedInitialCalls,
-  catalog: missionToolCatalog
+  catalog: initialSemanticToolCatalog
 });
 if (!Array.isArray(initialToolCalls) || initialToolCalls.length === 0) {
   throw new Error('V139_EXACT_PROMPT_NO_INITIAL_TOOLS_AFTER_EXISTING_DEPENDENCIES');
@@ -682,8 +693,8 @@ function renderTaqueriaMarketingPlanMarkdown(marketingTask) {
     '- Reel vertical MP4 nuevo con las creatividades originales, overlays y audio sintetizado.',
     '',
     '## Límites de evidencia',
-    '- No afirmar “auténtico”, “tradicional”, “estilo Sinaloa”, “el mejor”, “ingredientes frescos” ni equivalentes sin evidencia independiente.',
-    '- No introducir trompo, pastor, local ficticio, cocineros ficticios, teléfono, dirección, precios, horarios o promociones no verificadas.',
+    '- No agregar afirmaciones factuales distintas de las sustentadas por la publicación exacta y la identidad verificada.',
+    '- No agregar datos operativos, instalaciones, personal, preparación, precios, horarios o promociones que no estén verificados.',
     ''
   ].join('\n');
 }
@@ -776,6 +787,7 @@ const mission = await runJarvisMission({
       )
     );
     const verifiedMarketing = verifiedMissionTask(missionState, 'marketing.plan');
+    const verifiedReferenceMedia = verifiedMissionTask(missionState, 'web.media.collect');
     const verifiedMarketingDocument = verifiedMissionTask(missionState, 'document.create');
     const verifiedGeneratedImages = missionState.completedTasks.filter(item =>
       item?.name === 'image.generate' && item?.observation?.objectiveSatisfied === true
@@ -783,7 +795,7 @@ const mission = await runJarvisMission({
     const verifiedReelPlan = verifiedMissionTask(missionState, 'reel.plan');
     const verifiedSpeech = verifiedMissionTask(missionState, 'speech.synthesize');
     const verifiedReelCreate = verifiedMissionTask(missionState, 'reel.create');
-    if (verifiedMarketing && !verifiedMarketingDocument && !missionTaskBlocked(missionState, 'document.create')) {
+    if (verifiedMarketing && verifiedReferenceMedia && !verifiedMarketingDocument && !missionTaskBlocked(missionState, 'document.create')) {
       const nextCall = deterministicMarketingDocumentCall(verifiedMarketing);
       console.log('V139_EXACT_PROMPT_NEXT_PLAN', JSON.stringify({
         phase: 'DETERMINISTIC_MARKETING_ARTIFACT',
@@ -796,7 +808,7 @@ const mission = await runJarvisMission({
         completionAssessment: { status: 'V139_MARKETING_DOCUMENT_REQUIRED' }
       };
     }
-    if (verifiedMarketingDocument && verifiedGeneratedImages.length < 3 && !missionTaskBlocked(missionState, 'image.generate')) {
+    if (verifiedMarketingDocument && verifiedReferenceMedia && verifiedGeneratedImages.length < 3 && !missionTaskBlocked(missionState, 'image.generate')) {
       const nextCall = deterministicOriginalImageCall(verifiedGeneratedImages.length + 1);
       console.log('V139_EXACT_PROMPT_NEXT_PLAN', JSON.stringify({
         phase: 'DETERMINISTIC_ORIGINAL_CREATIVE',
@@ -869,7 +881,15 @@ const mission = await runJarvisMission({
         .filter(item => item.observation?.objectiveSatisfied === true)
         .map(item => item.name)
     );
-    const plannerCatalog = missionToolCatalog.filter(tool => !satisfiedToolNames.has(tool.name));
+    const semanticAllowed = new Set([
+      'web.research',
+      'marketing.plan',
+      'web.media.collect',
+      ...(verifiedGeneratedImages.length >= 3 ? ['reel.plan'] : [])
+    ]);
+    const plannerCatalog = missionToolCatalog.filter(tool =>
+      semanticAllowed.has(tool.name) && !satisfiedToolNames.has(tool.name)
+    );
     const nextCalls = await buildJarvisMultifunctionToolCalls(
       originalInstruction,
       {
