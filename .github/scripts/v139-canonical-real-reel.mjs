@@ -709,7 +709,7 @@ function renderTaqueriaMarketingPlanMarkdown(marketingTask) {
     `- Fuente principal: ${SOURCE}`,
     '- Identidad verificada: @taqueria.eldorado.',
     '- Mensaje del producto verificado: “El Taco Macho viene calientito, rellenito y con el chile bien puesto. Con queso derretido y la carne que tú prefieras.”',
-    '- Los hashtags #estilosinaloa #cancun #tacos #fyp se conservan sólo como hashtags; no prueban origen, tradición, autenticidad ni superioridad.',
+    '- Los hashtags #estilosinaloa #cancun #tacos #fyp se conservan sólo como hashtags; no prueban atributos factuales adicionales del negocio o del producto.',
     '',
     '## Objetivo',
     objective,
