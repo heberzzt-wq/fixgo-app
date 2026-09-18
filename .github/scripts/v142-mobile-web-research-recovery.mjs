@@ -45,7 +45,7 @@ need(read(P.core), 'call?.name === "speech.synthesize"', "speech-grounding");
 need(read(P.core), 'call?.name === "reel.plan"', "reel-grounding");
 need(read(P.multitool), 'status: "GROUNDED_LOCAL_FALLBACK"', "local-research");
 
-let index = read(P.index).split('"gemini-2.5-flash"').join('"gemini-3.6-flash"');
+let index = read(P.index).split('"gemini-2.5-flash"').join('"gemini-3.5-flash"');
 const providerFn = index.indexOf("function getPlannerGenAI");
 let dev = index.indexOf('name: "gemini-developer"', providerFn);
 let vertex = index.indexOf('name: "vertex-adc"', providerFn);
@@ -60,7 +60,7 @@ write(P.index, index);
 
 let semantic = read(P.semantic)
   .replace('const VERSION = "1.22.0-mission-isolation";', 'const VERSION = "1.23.0-two-provider-failover-v142";')
-  .replace('const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";', 'const DEFAULT_GEMINI_MODEL = "gemini-3.6-flash";')
+  .replace('const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";', 'const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";')
   .replace('const DEFAULT_ENDPOINT = "https://text.pollinations.ai/openai";\n', '');
 if (semantic.includes("async function requestModel(")) semantic = replaceSection(semantic, "async function requestModel(", "function isSafeToolName(", "", "public-request-model");
 if (semantic.includes("async function runSimpleSemanticPlanner(")) semantic = replaceSection(semantic, "async function runSimpleSemanticPlanner(", "async function runJarvisSemanticPlanner(", "", "simple-public-planner");
@@ -76,7 +76,7 @@ semantic = replaceSection(semantic, "async function runJarvisSemanticResponse(",
 for (const forbidden of ["text.pollinations.ai", "openai-fast", "pollinations-simple-json", "DEFAULT_ENDPOINT", "runSimpleSemanticPlanner", "requestModel"]) {
   if (semantic.includes(forbidden)) throw new Error(`V142_THIRD_PROVIDER_REMAINS:${forbidden}`);
 }
-need(semantic, 'const DEFAULT_GEMINI_MODEL = "gemini-3.6-flash";', "gemini-3.6");
+need(semantic, 'const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";', "gemini-3.5");
 write(P.semantic, semantic);
 
 let chain = read(P.chain);
@@ -109,7 +109,7 @@ write(P.chain, chain);
 let semanticTest = read(P.semanticTest)
   .replace("    requestModel,\n", "")
   .replace("    runSimpleSemanticPlanner,\n", "")
-  .split('"gemini-2.5-flash"').join('"gemini-3.6-flash"');
+  .split('"gemini-2.5-flash"').join('"gemini-3.5-flash"');
 const catalogStart = semanticTest.indexOf("\nconst catalog = [");
 const catalogEnd = catalogStart >= 0 ? semanticTest.indexOf("\n];", catalogStart) : -1;
 if (catalogStart < 0 || catalogEnd < 0) throw new Error("V142_SHARED_CATALOG_MISSING");
@@ -123,11 +123,11 @@ for (const block of parsed.blocks) {
     continue;
   }
   if (block.startsWith('test("semantic planner preserves mixed tools and never grants prompt approval"')) {
-    kept.push(`test("semantic planner preserves mixed tools and never grants prompt approval", async () => {\n    const result = await runJarvisSemanticPlanner({\n        input: "analisa el repo y revisa conectores sin modificar nada", catalog,\n        ai: { lastProvider: "gemini-developer", models: { generateContent: async request => {\n            assert.equal(request.model, "gemini-3.6-flash");\n            return { functionCalls: [{ name: "jarvis_tool_0", args: { query: "repo" } }, { name: "jarvis_tool_1", args: {} }, { name: "jarvis_tool_2", args: {} }] };\n        } } }\n    });\n    assert.deepEqual(result.toolCalls.map(call => call.name), ["repo.search", "connector.list", "system.supervision.runNow"]);\n    assert.equal(result.toolCalls[2].mutates, true);\n    assert.equal(result.toolCalls[2].approved, false);\n});\n\n`);
+    kept.push(`test("semantic planner preserves mixed tools and never grants prompt approval", async () => {\n    const result = await runJarvisSemanticPlanner({\n        input: "analisa el repo y revisa conectores sin modificar nada", catalog,\n        ai: { lastProvider: "gemini-developer", models: { generateContent: async request => {\n            assert.equal(request.model, "gemini-3.5-flash");\n            return { functionCalls: [{ name: "jarvis_tool_0", args: { query: "repo" } }, { name: "jarvis_tool_1", args: {} }, { name: "jarvis_tool_2", args: {} }] };\n        } } }\n    });\n    assert.deepEqual(result.toolCalls.map(call => call.name), ["repo.search", "connector.list", "system.supervision.runNow"]);\n    assert.equal(result.toolCalls[2].mutates, true);\n    assert.equal(result.toolCalls[2].approved, false);\n});\n\n`);
     continue;
   }
   if (block.startsWith('test("semantic planner accepts long and ten-page missions without losing mission state"')) {
-    kept.push(`test("semantic planner accepts long and ten-page missions without losing mission state", async () => {\n    const longInstruction = Array.from({ length: 500 }, (_, index) => \`Pagina y requisito \${index}: conservar evidencia.\`).join("\\n");\n    assert.ok(longInstruction.length > 1600);\n    let providerRequest = null;\n    const result = await runJarvisSemanticPlanner({\n        input: longInstruction, catalog,\n        missionState: { missionId: "MISSION-LONG-1", completedTasks: [{ name: "repo.search", args: { query: "evidencia" } }], pendingTasks: [], blockedTasks: [], writeAllowed: false },\n        ai: { lastProvider: "gemini-developer", models: { generateContent: async request => { providerRequest = request; return { functionCalls: [{ name: "jarvis_tool_1", args: {} }] }; } } }\n    });\n    assert.equal(result.toolCalls[0].name, "connector.list");\n    assert.equal(providerRequest.model, "gemini-3.6-flash");\n    assert.ok(String(providerRequest.contents).includes(longInstruction));\n    assert.ok(String(providerRequest.contents).includes("MISSION-LONG-1"));\n    assert.ok(String(providerRequest.contents).includes("No repitas una herramienta completada"));\n});\n\n`);
+    kept.push(`test("semantic planner accepts long and ten-page missions without losing mission state", async () => {\n    const longInstruction = Array.from({ length: 500 }, (_, index) => \`Pagina y requisito \${index}: conservar evidencia.\`).join("\\n");\n    assert.ok(longInstruction.length > 1600);\n    let providerRequest = null;\n    const result = await runJarvisSemanticPlanner({\n        input: longInstruction, catalog,\n        missionState: { missionId: "MISSION-LONG-1", completedTasks: [{ name: "repo.search", args: { query: "evidencia" } }], pendingTasks: [], blockedTasks: [], writeAllowed: false },\n        ai: { lastProvider: "gemini-developer", models: { generateContent: async request => { providerRequest = request; return { functionCalls: [{ name: "jarvis_tool_1", args: {} }] }; } } }\n    });\n    assert.equal(result.toolCalls[0].name, "connector.list");\n    assert.equal(providerRequest.model, "gemini-3.5-flash");\n    assert.ok(String(providerRequest.contents).includes(longInstruction));\n    assert.ok(String(providerRequest.contents).includes("MISSION-LONG-1"));\n    assert.ok(String(providerRequest.contents).includes("No repitas una herramienta completada"));\n});\n\n`);
     continue;
   }
   const legacyPublic =
@@ -147,19 +147,19 @@ for (const forbidden of ["pollinations", "runSimpleSemanticPlanner", "requestMod
 }
 write(P.semanticTest, semanticTest);
 
-let chainTest = read(P.chainTest).split('"gemini-2.5-flash"').join('"gemini-3.6-flash"');
+let chainTest = read(P.chainTest).split('"gemini-2.5-flash"').join('"gemini-3.5-flash"');
 const chainParsed = testBlocks(chainTest);
 const chainKept = [];
 for (const block of chainParsed.blocks) {
   if (block.startsWith('test("provider chain continues from an invalid developer key to Vertex AI"')) {
-    chainKept.push(`test("provider chain continues from an empty developer plan to Vertex AI", async () => {\n    const calls = [];\n    const chain = createJarvisGenAIProviderChain({ providers: [\n        { name: "gemini-developer", ai: { models: { generateContent: async () => { calls.push("developer"); return { text: JSON.stringify({ toolCalls: [], missionComplete: false }) }; } } } },\n        { name: "vertex-adc", ai: { models: { generateContent: async () => { calls.push("vertex"); return { functionCalls: [{ name: "jarvis_tool_0", args: { query: "ok" } }] }; } } } }\n    ] });\n    const result = await chain.models.generateContent({ model: "gemini-3.6-flash", contents: "INSTRUCCION_ORIGINAL_INMUTABLE=plan", config: { tools: [{ functionDeclarations: [{ name: "jarvis_tool_0", parametersJsonSchema: { type: "object" } }] }], toolConfig: { functionCallingConfig: { mode: "ANY" } } } });\n    assert.deepEqual(calls, ["developer", "vertex"]);\n    assert.equal(result.functionCalls[0].name, "jarvis_tool_0");\n    assert.equal(chain.lastProvider, "vertex-adc");\n});\n\n`);
+    chainKept.push(`test("provider chain continues from an empty developer plan to Vertex AI", async () => {\n    const calls = [];\n    const chain = createJarvisGenAIProviderChain({ providers: [\n        { name: "gemini-developer", ai: { models: { generateContent: async () => { calls.push("developer"); return { text: JSON.stringify({ toolCalls: [], missionComplete: false }) }; } } } },\n        { name: "vertex-adc", ai: { models: { generateContent: async () => { calls.push("vertex"); return { functionCalls: [{ name: "jarvis_tool_0", args: { query: "ok" } }] }; } } } }\n    ] });\n    const result = await chain.models.generateContent({ model: "gemini-3.5-flash", contents: "INSTRUCCION_ORIGINAL_INMUTABLE=plan", config: { tools: [{ functionDeclarations: [{ name: "jarvis_tool_0", parametersJsonSchema: { type: "object" } }] }], toolConfig: { functionCallingConfig: { mode: "ANY" } } } });\n    assert.deepEqual(calls, ["developer", "vertex"]);\n    assert.equal(result.functionCalls[0].name, "jarvis_tool_0");\n    assert.equal(chain.lastProvider, "vertex-adc");\n});\n\n`);
     continue;
   }
   chainKept.push(block);
 }
 chainTest = chainParsed.prefix + chainKept.join("");
-if (!chainTest.includes('model: "gemini-3.6-flash"')) {
-  chainTest = chainTest.replace("    const functionRequest = {\n        config: {", "    const functionRequest = {\n        model: \"gemini-3.6-flash\",\n        config: {\n            temperature: 0,\n            topP: 0.9,");
+if (!chainTest.includes('model: "gemini-3.5-flash"')) {
+  chainTest = chainTest.replace("    const functionRequest = {\n        config: {", "    const functionRequest = {\n        model: \"gemini-3.5-flash\",\n        config: {\n            temperature: 0,\n            topP: 0.9,");
   chainTest = chainTest.replace("    const declaration = sanitized.config.tools[0].functionDeclarations[0];\n\n    assert.notEqual(sanitized, functionRequest);", "    const declaration = sanitized.config.tools[0].functionDeclarations[0];\n\n    assert.notEqual(sanitized, functionRequest);\n    assert.equal(sanitized.config.temperature, undefined);\n    assert.equal(sanitized.config.topP, undefined);");
 }
 write(P.chainTest, chainTest);
@@ -169,7 +169,7 @@ console.log(JSON.stringify({
   status: "V142_TWO_PROVIDER_SEMANTIC_CONSOLIDATION_APPLIED",
   primaryProvider: "gemini-developer",
   secondaryProvider: "vertex-adc",
-  model: "gemini-3.6-flash",
+  model: "gemini-3.5-flash",
   publicFallbackRemoved: true,
   semanticEmptyTriggersFailover: true,
   longMissionCoveragePreserved: true,
