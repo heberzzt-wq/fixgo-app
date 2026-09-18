@@ -1,12 +1,9 @@
 {
-  "jobId": "v142-taqueria-artifact-ledger-20260917-chatgpt-26",
+  "jobId": "v142-taqueria-artifact-exists-20260917-chatgpt-27",
   "operation": "bridge",
-  "endpoint": "/grep",
+  "endpoint": "/read",
   "body": {
-    "term": "el-taco-macho-taqueria-el-dorado-1789684039924.mp4",
-    "cwd": ".jarvis-artifacts/.ledger",
-    "maxFiles": 50,
-    "maxFileSizeBytes": 2000000,
-    "maxMatches": 20
+    "file": ".jarvis-artifacts/reels/el-taco-macho-taqueria-el-dorado-1789684039924.mp4",
+    "maxBytes": 1
   }
 }
