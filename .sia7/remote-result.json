@@ -1,10 +1,175 @@
 {
-  "jobId": "v142-taqueria-wan22-ephemeral-l40s-retry2-20260918-chatgpt-57",
-  "completedAt": "2026-09-19T00:46:17.311Z",
+  "jobId": "v142-taqueria-worker-resync-20260918-chatgpt-58a",
+  "completedAt": "2026-09-19T00:55:22.441Z",
   "executionStarted": true,
-  "ok": false,
-  "error": "fetch failed",
-  "evidence": null,
+  "ok": true,
+  "httpStatus": 200,
+  "endpoint": "/health",
+  "payload": {
+    "ok": true,
+    "version": "2.51.0-temporal-media-self-hosted-v142",
+    "policy": {
+      "authority": "full_repo_private_owner",
+      "safeZone": "advisory",
+      "rootContainment": true,
+      "emptyWrites": "blocked",
+      "failureMode": "closed"
+    },
+    "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker",
+    "actuators": {
+      "browser": {
+        "available": true,
+        "engine": "chrome.exe",
+        "actions": [
+          "inspect",
+          "screenshot",
+          "pdf",
+          "open",
+          "media"
+        ]
+      },
+      "speech": {
+        "available": true,
+        "provider": "windows-system-speech",
+        "platform": "win32",
+        "outputFormats": [
+          "wav"
+        ],
+        "physicallyVerified": true,
+        "cloudRequired": false,
+        "version": "1.0.0-local-windows-system-speech-v137",
+        "status": "LOCAL_SPEECH_READY"
+      },
+      "documents": {
+        "available": true,
+        "formats": [
+          "html",
+          "md",
+          "txt",
+          "csv",
+          "json",
+          "docx",
+          "xlsx",
+          "pptx",
+          "pdf"
+        ],
+        "nativeOffice": true
+      },
+      "repoWrite": {
+        "available": true,
+        "protocol": "prepare_authorize_consume_once",
+        "requires": [
+          "objectiveId",
+          "caseId",
+          "authorityId",
+          "controllerId",
+          "fingerprint",
+          "nonce",
+          "snapshot",
+          "matchCount"
+        ],
+        "postVerify": true,
+        "replayBlocked": true,
+        "gitReceiptsRequired": true,
+        "legacyFileContentWrite": false
+      },
+      "multimodalUploads": {
+        "available": true,
+        "transport": "chunked_progressive",
+        "maxFilesPerRequest": 30,
+        "maxFileBytes": 262144000,
+        "maxBatchBytes": 524288000,
+        "maxChunkBytes": 2097152,
+        "resumablePersistedArtifacts": true,
+        "artifactDownload": true,
+        "verifiedCount": 0,
+        "latest": null
+      },
+      "imageGeneration": {
+        "available": true,
+        "persistedArtifacts": true,
+        "verifiedCount": 5,
+        "latest": {
+          "name": "taqueria-el-dorado-fresh-v3-scene-3.png",
+          "bytes": 1400046,
+          "updatedAt": "2026-09-18T19:14:13.412Z"
+        }
+      },
+      "artifactStudio": {
+        "available": true,
+        "versionedLedger": true,
+        "registeredCount": 168,
+        "latest": {
+          "artifactId": "ART-5e19a5cb-84b0-42cd-974b-64090559a89c",
+          "studioVersion": "1.0.0-versioned-ledger",
+          "caseId": "CASE-fa2ad067-abc8-4554-a57e-cf4bd524fc32",
+          "objectiveId": "OBJ-e847d491-ebed-421b-994a-9b244c394702",
+          "type": "md",
+          "version": 8,
+          "lineageKey": ".jarvis-artifacts/documents/taqueria-el-dorado-plan-marketing.md",
+          "origin": "document.create",
+          "provider": "jarvis_document_engine",
+          "model": "",
+          "file": ".jarvis-artifacts/documents/taqueria-el-dorado-plan-marketing.md",
+          "mimeType": "text/markdown",
+          "bytes": 2155,
+          "sha256": "184d98760c8f49a8f843909585a42a077e5c1cf7bf4094ee29b60e7fdc80ad4d",
+          "createdAt": "2026-09-19T00:42:39.154Z",
+          "status": "DOCUMENT_CREATED",
+          "approval": {
+            "required": false,
+            "approved": true,
+            "approvedBy": "LOCAL_ARTIFACT_POLICY"
+          },
+          "editable": true,
+          "preview": false,
+          "downloadable": true,
+          "publishable": false,
+          "deploymentStatus": "NOT_DEPLOYED",
+          "originalFile": null,
+          "transformations": []
+        }
+      },
+      "webResearch": {
+        "available": true,
+        "grounded": true,
+        "engine": "duckduckgo-html-with-bing-rss-fallback"
+      },
+      "connectors": {
+        "available": true,
+        "adapters": [
+          "github",
+          "firebase"
+        ],
+        "verification": "live-read-only"
+      }
+    },
+    "identity": {
+      "ok": true,
+      "status": "BRIDGE_IDENTITY_OK",
+      "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker",
+      "contract": {
+        "ok": true,
+        "projectId": "fixgo-app",
+        "repository": "heberzzt-wq/fixgo-app",
+        "branch": "v94-media-v4n-negative-claims",
+        "releaseId": "v94-source-grounded-research-v124-20260810",
+        "contractPath": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker\\jarvis-runtime-contract.json"
+      },
+      "git": {
+        "root": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
+        "branch": "v94-media-v4n-negative-claims",
+        "head": "2a6486d40c5b8695b597cf28a21257d1945470ae",
+        "remote": "https://heberzzt-wq@github.com/heberzzt-wq/fixgo-app.git",
+        "clean": false
+      },
+      "identityMode": "branch_contract_head",
+      "contractHead": "2a6486d40c5b8695b597cf28a21257d1945470ae",
+      "remoteVerified": true,
+      "repositoryMatches": true,
+      "worktreeClean": false
+    }
+  },
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
