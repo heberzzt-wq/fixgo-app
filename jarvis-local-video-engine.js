@@ -3043,6 +3043,52 @@ export function createRunpodRemoteVideoAdapter({
         };
     }
 
+    function recentEphemeralWanRegistryVerification(imageProfile) {
+        const authorized =
+            configuredRemoteBackend() === WAN22_TI2V_5B.backend &&
+            ephemeralOneShotAuthorized === true &&
+            !networkVolumeId &&
+            booleanValue(env.JARVIS_RUNPOD_REGISTRY_RECEIPT_FALLBACK_AUTHORIZED, false);
+        if (!authorized || !fs.existsSync(stateRoot)) return null;
+        const maxAgeMs = 3 * 60 * 60 * 1000;
+        const nowMs = now().getTime();
+        const candidates = fs.readdirSync(stateRoot)
+            .filter(name => name.endsWith(".json"))
+            .map(name => {
+                try { return readJson(path.join(stateRoot, name)); }
+                catch { return null; }
+            })
+            .filter(Boolean)
+            .filter(state => state.phase === "TERMINATED" && state.terminationVerified === true)
+            .map(state => state.registryVerification ? ({ state, verification: state.registryVerification }) : null)
+            .filter(Boolean)
+            .filter(({ verification }) =>
+                verification.registry === imageProfile.registry &&
+                verification.repository === imageProfile.repository &&
+                verification.tag === imageProfile.tag &&
+                verification.expectedDigest === imageProfile.expectedRegistryDigest &&
+                verification.observedDigest === imageProfile.expectedRegistryDigest &&
+                verification.status === "REGISTRY_DIGEST_VERIFIED" &&
+                verification.platform?.os === "linux" &&
+                verification.platform?.architecture === "amd64" &&
+                Number.isFinite(Date.parse(verification.checkedAt)) &&
+                nowMs - Date.parse(verification.checkedAt) >= 0 &&
+                nowMs - Date.parse(verification.checkedAt) <= maxAgeMs
+            )
+            .sort((a, b) => Date.parse(b.verification.checkedAt) - Date.parse(a.verification.checkedAt));
+        if (!candidates.length) return null;
+        const verification = normalizedRegistryVerification(imageProfile, candidates[0].verification);
+        return {
+            ...verification,
+            indexDigest: candidates[0].verification.indexDigest || null,
+            platform: { os: "linux", architecture: "amd64" },
+            source: "RECENT_LOCAL_VERIFIED_RECEIPT",
+            receiptOperationId: candidates[0].state.operationId || null,
+            receiptPodId: candidates[0].state.podId || null,
+            fallbackAuthorized: true
+        };
+    }
+
     async function resolveRegistryVerification(imageProfile) {
         if (imageProfile.registry !== "registry-1.docker.io") {
             throw new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
@@ -3141,6 +3187,8 @@ export function createRunpodRemoteVideoAdapter({
         }
         catch(error) {
             if (error?.message === "RUNPOD_REGISTRY_DIGEST_MISMATCH") throw error;
+            const recent = recentEphemeralWanRegistryVerification(imageProfile);
+            if (recent) return recent;
             throw new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
         }
     }
