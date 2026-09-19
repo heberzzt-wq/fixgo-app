@@ -1637,6 +1637,42 @@ test("SIA7 worker targets the bridge IPv4 loopback authority", () => {
     assert.equal(packageJson.scripts.bridge.includes("bridge=http://localhost:3344"), false);
 });
 
+test("SIA7 long bridge runs use native HTTP transport with command-bound timeout", async () => {
+    const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
+    assert.match(workerSource, /endpoint === "\/run"/);
+    assert.match(workerSource, /requestLocalBridgeJson/);
+    assert.match(workerSource, /Number\(job\.body\?\.timeoutMs \|\| 120000\) \+ 60000/);
+    const { requestLocalBridgeJson } = await import("../jarvis-github-worker.js");
+    const http = await import("node:http");
+    const server = http.createServer((_req, res) => {
+        setTimeout(() => {
+            res.writeHead(200, { "content-type": "application/json" });
+            res.end(JSON.stringify({ ok: true, status: "PASSED", delayed: true }));
+        }, 50);
+    });
+    await new Promise((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    try {
+        const result = await requestLocalBridgeJson(
+            `http://127.0.0.1:${server.address().port}/run`,
+            {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ command: "fixture" }),
+                timeoutMs: 5000
+            }
+        );
+        assert.equal(result.ok, true);
+        assert.equal(result.status, 200);
+        assert.deepEqual(result.payload, { ok: true, status: "PASSED", delayed: true });
+    }
+    finally {
+        await new Promise(resolve => server.close(resolve));
+    }
+});
+
 test("SIA7 backs off synchronization failures before execution without consuming the job", async () => {
     const { createWorkerPoller } = await import("../jarvis-github-worker.js");
     let syncs = 0, executions = 0, publications = 0, reads = 0, clock = 0;
