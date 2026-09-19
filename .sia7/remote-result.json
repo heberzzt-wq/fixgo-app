@@ -1,70 +1,35 @@
 {
-  "jobId": "v142-audit-b2b-personnel-activation-20260918-chatgpt-98",
-  "completedAt": "2026-09-19T04:28:36.431Z",
+  "jobId": "v142-audit-b2c-client-callable-wiring-20260918-chatgpt-99",
+  "completedAt": "2026-09-19T04:30:54.999Z",
   "executionStarted": true,
   "ok": true,
   "httpStatus": 200,
   "endpoint": "/grep",
   "payload": {
     "ok": true,
-    "term": "documentos_pendientes",
+    "term": "crearServicioB2C",
     "totalFilesScanned": 701,
-    "totalMatches": 11,
+    "totalMatches": 4,
     "matches": [
-      {
-        "file": ".jarvis-artifacts/b2b-hardening-35b0610f/closure.json",
-        "line": 954,
-        "snippet": "\"content\": \"// GESTIA_RELEASE_SHA:bc6209a3b4d15ade643b6ca8247fa6e92c578999 B2C_CONTRACT_SHA256:457884fed2d3b9decd5b5e3a20b83deb36bff490260753fc52cad0bbaeac30f0\\n// FUENTE AUTORITATIVA VERSIONADA. No desplegar sin ejecutar las pruebas de reg"
-      },
-      {
-        "file": ".jarvis-artifacts/b2b-hardening-35b0610f/closure.json",
-        "line": 4104,
-        "snippet": "\"content\": \"// FUENTE AUTORITATIVA VERSIONADA. No desplegar sin ejecutar las pruebas de reglas.\\r\\nrules_version = '2';\\r\\nservice cloud.firestore {\\r\\n  match /databases/{database}/documents {\\r\\n\\r\\n    function isAuth() {\\r\\n      return"
-      },
       {
         "file": ".sia7/remote-job.json",
         "line": 6,
-        "snippet": "\"term\": \"documentos_pendientes\","
+        "snippet": "\"term\": \"crearServicioB2C\","
       },
       {
-        "file": "functions/generated/b2c-platform-contract.cjs",
-        "line": 58,
-        "snippet": "DOCUMENTS_PENDING: \"documentos_pendientes\","
-      },
-      {
-        "file": "functions/index.js",
-        "line": 174,
-        "snippet": "estado: 'documentos_pendientes', status: 'documentos_pendientes',"
-      },
-      {
-        "file": "gestia-core/contracts/b2c-platform-contract.js",
-        "line": 58,
-        "snippet": "DOCUMENTS_PENDING: \"documentos_pendientes\","
-      },
-      {
-        "file": "security/firestore-console-snapshot-2026-07-30.rules.txt",
-        "line": 94,
-        "snippet": "data.estado in ['registro_iniciado', 'documentos_pendientes'] &&"
-      },
-      {
-        "file": "security/firestore-console-snapshot-2026-07-30.rules.txt",
+        "file": "firebase.js",
         "line": 114,
-        "snippet": "resource.data.estado in ['registro_iniciado', 'documentos_pendientes', 'rechazado'] &&"
+        "snippet": "export async function crearServicioB2C(payload) {"
       },
       {
-        "file": "tests/auth-routing-consistency.test.mjs",
-        "line": 97,
-        "snippet": "assert.equal(profile.status,'documentos_pendientes');"
+        "file": "panel-cliente.js",
+        "line": 26,
+        "snippet": "crearServicioB2C,"
       },
       {
-        "file": "tests/auth-routing-consistency.test.mjs",
-        "line": 155,
-        "snippet": "profile={...profile,status:'documentos_pendientes'};"
-      },
-      {
-        "file": "tests/auth-routing-consistency.test.mjs",
-        "line": 195,
-        "snippet": "for(const profile of [null,{rol:'admin_b2b',tipo_cuenta:'B2B',status:'activo'}, {rol:'tecnico',tipo_cuenta:'B2B',status:'documentos_pendientes',edificioId:'b'}]){"
+        "file": "panel-cliente.js",
+        "line": 517,
+        "snippet": "await crearServicioB2C({"
       }
     ],
     "source": "jarvis_fs_bridge_grep_v1",
