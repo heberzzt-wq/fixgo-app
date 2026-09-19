@@ -3043,25 +3043,32 @@ export function createRunpodRemoteVideoAdapter({
         };
     }
 
-    function recentEphemeralWanRegistryVerification(imageProfile) {
-        const authorized =
-            configuredRemoteBackend() === WAN22_TI2V_5B.backend &&
-            ephemeralOneShotAuthorized === true &&
-            !networkVolumeId &&
-            booleanValue(env.JARVIS_RUNPOD_REGISTRY_RECEIPT_FALLBACK_AUTHORIZED, false);
-        if (!authorized || !fs.existsSync(stateRoot)) return null;
+    function recentEphemeralWanRegistryVerification(imageProfile, diagnostics = null) {
+        const backend = configuredRemoteBackend();
+        const backendMatches = backend === WAN22_TI2V_5B.backend;
+        const ephemeralAuthorized = ephemeralOneShotAuthorized === true;
+        const noNetworkVolume = !networkVolumeId;
+        const receiptFallbackAuthorized = booleanValue(
+            env.JARVIS_RUNPOD_REGISTRY_RECEIPT_FALLBACK_AUTHORIZED,
+            false
+        );
+        const stateRootExists = fs.existsSync(stateRoot);
         const maxAgeMs = 3 * 60 * 60 * 1000;
         const nowMs = now().getTime();
-        const candidates = fs.readdirSync(stateRoot)
-            .filter(name => name.endsWith(".json"))
-            .map(name => {
-                try { return readJson(path.join(stateRoot, name)); }
-                catch { return null; }
-            })
-            .filter(Boolean)
+        const rawStates = stateRootExists
+            ? fs.readdirSync(stateRoot)
+                .filter(name => name.endsWith(".json"))
+                .map(name => {
+                    try { return readJson(path.join(stateRoot, name)); }
+                    catch { return null; }
+                })
+                .filter(Boolean)
+            : [];
+        const terminated = rawStates
             .filter(state => state.phase === "TERMINATED" && state.terminationVerified === true)
             .map(state => state.registryVerification ? ({ state, verification: state.registryVerification }) : null)
-            .filter(Boolean)
+            .filter(Boolean);
+        const candidates = terminated
             .filter(({ verification }) =>
                 verification.registry === imageProfile.registry &&
                 verification.repository === imageProfile.repository &&
@@ -3075,8 +3082,52 @@ export function createRunpodRemoteVideoAdapter({
                 nowMs - Date.parse(verification.checkedAt) >= 0 &&
                 nowMs - Date.parse(verification.checkedAt) <= maxAgeMs
             )
-            .sort((a, b) => Date.parse(b.verification.checkedAt) - Date.parse(a.verification.checkedAt));
-        if (!candidates.length) return null;
+            .sort((x, y) => Date.parse(y.verification.checkedAt) - Date.parse(x.verification.checkedAt));
+        if (diagnostics && typeof diagnostics === "object") {
+            Object.assign(diagnostics, {
+                backend,
+                expectedBackend: WAN22_TI2V_5B.backend,
+                backendMatches,
+                ephemeralAuthorized,
+                noNetworkVolume,
+                receiptFallbackAuthorized,
+                stateRootExists,
+                rawStateCount: rawStates.length,
+                terminatedReceiptCount: terminated.length,
+                candidateCount: candidates.length,
+                nowIso: new Date(nowMs).toISOString(),
+                maxAgeMs,
+                imageProfile: {
+                    registry: imageProfile?.registry || null,
+                    repository: imageProfile?.repository || null,
+                    tag: imageProfile?.tag || null,
+                    expectedRegistryDigest: imageProfile?.expectedRegistryDigest || null
+                },
+                receiptSummary: terminated.slice(0, 10).map(({ state, verification }) => ({
+                    operationId: state.operationId || null,
+                    podId: state.podId || null,
+                    checkedAt: verification.checkedAt || null,
+                    ageMs: Number.isFinite(Date.parse(verification.checkedAt))
+                        ? nowMs - Date.parse(verification.checkedAt)
+                        : null,
+                    registry: verification.registry || null,
+                    repository: verification.repository || null,
+                    tag: verification.tag || null,
+                    expectedDigest: verification.expectedDigest || null,
+                    observedDigest: verification.observedDigest || null,
+                    status: verification.status || null,
+                    platform: verification.platform || null
+                }))
+            });
+        }
+        if (
+            !backendMatches ||
+            !ephemeralAuthorized ||
+            !noNetworkVolume ||
+            !receiptFallbackAuthorized ||
+            !stateRootExists ||
+            !candidates.length
+        ) return null;
         const verification = normalizedRegistryVerification(imageProfile, candidates[0].verification);
         return {
             ...verification,
@@ -3187,9 +3238,12 @@ export function createRunpodRemoteVideoAdapter({
         }
         catch(error) {
             if (error?.message === "RUNPOD_REGISTRY_DIGEST_MISMATCH") throw error;
-            const recent = recentEphemeralWanRegistryVerification(imageProfile);
+            const registryFallbackDiagnostics = {};
+            const recent = recentEphemeralWanRegistryVerification(imageProfile, registryFallbackDiagnostics);
             if (recent) return recent;
-            throw new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
+            const failure = new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
+            failure.registryFallbackDiagnostics = registryFallbackDiagnostics;
+            throw failure;
         }
     }
     function assertPaidResourceCreationAuthority() {
@@ -3874,7 +3928,8 @@ export function createRunpodRemoteVideoAdapter({
                 status: error?.message || "RUNPOD_ZERO_COST_PRECHECK_FAILED",
                 error: error?.message || "RUNPOD_ZERO_COST_PRECHECK_FAILED",
                 paidResourceCreationAuthorized,
-                paidResourceCreationPossible: false
+                paidResourceCreationPossible: false,
+                registryFallbackDiagnostics: error?.registryFallbackDiagnostics || null
             };
         }
     }
