@@ -1,9 +1,6 @@
 {
-  "jobId": "v142-taqueria-wan22-ephemeral-l40s-retry2-20260918-chatgpt-57",
+  "jobId": "v142-taqueria-worker-resync-20260918-chatgpt-58a",
   "operation": "bridge",
-  "endpoint": "/run",
-  "body": {
-    "command": "npm test",
-    "timeoutMs": 1800000
-  }
+  "endpoint": "/health",
+  "body": {}
 }
