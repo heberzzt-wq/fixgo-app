@@ -1,18 +1,22 @@
 {
-  "jobId": "v142-taqueria-wan22-start-20260918-chatgpt-69",
-  "completedAt": "2026-09-19T01:57:25.621Z",
+  "jobId": "v142-taqueria-paid-l40s-authority-cert-20260918-chatgpt-70",
+  "completedAt": "2026-09-19T01:58:25.323Z",
   "executionStarted": true,
   "ok": false,
-  "phase": "ZERO_COST_PRECHECK",
-  "status": "RUNPOD_GPU_TYPE_EXPLICIT_AUTHORIZATION_REQUIRED",
-  "error": "RUNPOD_GPU_TYPE_EXPLICIT_AUTHORIZATION_REQUIRED",
-  "paidResourceCreationAuthorized": true,
-  "paidResourceCreationPossible": false,
-  "operation": "wan22_taqueria_start",
-  "resourceCreated": false,
-  "inferenceStarted": false,
-  "referenceOutput": ".jarvis-artifacts/images/taqueria-el-dorado-fresh-v3-scene-1.png",
-  "referenceSha256": "d36ce99af24850baedafd04f03144988ccca9bb11e734abc1771d2634bcc7b41",
+  "httpStatus": 400,
+  "endpoint": "/run",
+  "payload": {
+    "ok": false,
+    "status": "COMMAND_NOT_ALLOWED",
+    "error": "COMMAND_NOT_ALLOWED",
+    "command": "npm run check:syntax && node --test tests/jarvis-fs-bridge-v2.test.mjs",
+    "allowedCommands": [
+      "npm run check:syntax",
+      "npm test",
+      "npm run ci:test"
+    ],
+    "version": "2.51.0-temporal-media-self-hosted-v142"
+  },
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
