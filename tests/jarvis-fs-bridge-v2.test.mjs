@@ -1712,6 +1712,17 @@ test("Taqueria Wan ephemeral registry fallback is exact, recent and isolated fro
     assert.match(engineSource, /source: "RECENT_LOCAL_VERIFIED_RECEIPT"/);
 });
 
+test("Taqueria runtime binds paid and registry fallback authority inside its exact runtime block", () => {
+    const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
+    const start = workerSource.indexOf("async function taqueriaWan22Runtime");
+    const end = workerSource.indexOf("\nasync function executeWan22TaqueriaStartJob", start);
+    assert.ok(start >= 0 && end > start);
+    const runtimeBlock = workerSource.slice(start, end);
+    assert.match(runtimeBlock, /JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "true"/);
+    assert.match(runtimeBlock, /JARVIS_RUNPOD_REGISTRY_RECEIPT_FALLBACK_AUTHORIZED: "true"/);
+    assert.match(runtimeBlock, /fetchImpl: \(url, options\) => guardedRunpodFetch\(url, options, env\)/);
+});
+
 test("Taqueria paid RunPod guard consumes the scoped runtime authority without mutating global defaults", () => {
     const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
     const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
