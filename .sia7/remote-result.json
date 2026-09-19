@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-taqueria-preflight-receipt-first-loaded-20260918-chatgpt-88",
-  "completedAt": "2026-09-19T03:50:48.805Z",
+  "jobId": "v142-taqueria-preflight-receipt-first-live-20260918-chatgpt-89",
+  "completedAt": "2026-09-19T03:59:09.745Z",
   "executionStarted": true,
   "ok": false,
   "phase": "ZERO_COST_PRECHECK",
