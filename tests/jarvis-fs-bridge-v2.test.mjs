@@ -1697,6 +1697,21 @@ test("SIA7 long bridge runs use native HTTP transport with command-bound timeout
     }
 });
 
+test("Taqueria Wan ephemeral registry fallback is exact, recent and isolated from HuMo", () => {
+    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
+    assert.match(engineSource, /function recentEphemeralWanRegistryVerification\(/);
+    assert.match(engineSource, /configuredRemoteBackend\(\) === WAN22_TI2V_5B\.backend/);
+    assert.match(engineSource, /ephemeralOneShotAuthorized === true/);
+    assert.match(engineSource, /!networkVolumeId/);
+    assert.match(engineSource, /JARVIS_RUNPOD_REGISTRY_RECEIPT_FALLBACK_AUTHORIZED/);
+    assert.match(engineSource, /3 \* 60 \* 60 \* 1000/);
+    assert.match(engineSource, /verification\.observedDigest === imageProfile\.expectedRegistryDigest/);
+    assert.match(engineSource, /state\.phase === "TERMINATED" && state\.terminationVerified === true/);
+    assert.match(workerSource, /JARVIS_RUNPOD_REGISTRY_RECEIPT_FALLBACK_AUTHORIZED: "true"/);
+    assert.match(engineSource, /source: "RECENT_LOCAL_VERIFIED_RECEIPT"/);
+});
+
 test("Taqueria paid RunPod guard consumes the scoped runtime authority without mutating global defaults", () => {
     const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
     const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
