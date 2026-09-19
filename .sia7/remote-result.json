@@ -1,20 +1,174 @@
 {
-  "jobId": "v142-wan-ephemeral-stage-syntax-20260918-chatgpt-62a",
-  "completedAt": "2026-09-19T01:14:32.722Z",
+  "jobId": "v142-health-after-worker-restart-20260918-chatgpt-63a",
+  "completedAt": "2026-09-19T01:36:02.990Z",
   "executionStarted": true,
   "ok": true,
   "httpStatus": 200,
-  "endpoint": "/run",
+  "endpoint": "/health",
   "payload": {
     "ok": true,
-    "status": "PASSED",
-    "exitCode": 0,
-    "command": "npm run check:syntax",
-    "stdout": "\n> gestia-premium@1.0.0 check:syntax\n> node --check gestia-core/jarvis/jarvis.marketing.engine.js && node --check gestia-core/jarvis/jarvis.business.engine.js && node --check gestia-core/jarvis/jarvis.company.registry.js && node --check gestia-core/jarvis/jarvis.scanner.engine.js && node --check gestia-core/jarvis/jarvis.autofix.engine.js && node --check gestia-core/jarvis/jarvis.autopatch.engine.js && node --check gestia-core/jarvis/jarvis.autonomy.engine.js && node --check gestia-core/jarvis/jarvis.sovereign.authority.js && node --check gestia-core/jarvis/jarvis.page.creator.js && node --check gestia-core/jarvis/jarvis.media.ingestion.js && node --check gestia-core/jarvis/jarvis.document.validator.js && node --check gestia-core/nexo/nexo.real-media.tools.js && node --check nexo-web-media-bridge.js && node --check gestia-core/hubs/execution.hub.js && node --check gestia-core/hubs/repo.hub.js && node --check gestia-core/hubs/security.hub.js && node --check gestia-core/authority/authority.registry.js && node --check gestia-core/jarvis.kernel.js && node --check gestia-core/repo/resource.registry.js && node --check gestia-core/gestia.runtime.v7.js && node --check gestia-core/syntax-validator.engine.js && node --check modules/terminal/patch-workflow.js && node --check modules/terminal/repo-cognition.js && node --check modules/terminal/runtime-governance.js && node --check modules/terminal/runtime-persistence.js && node --check modules/terminal/runtime-event-bus.js && node --check modules/terminal/runtime-repair-health.js && node --check modules/terminal/runtime-platform.js && node --check modules/terminal/runtime-daemons.js && node --check modules/terminal/runtime-snapshot-daemon.js && node --check functions/index.js && node --check functions/jarvis-intent-runtime-v7.cjs && node --check functions/repo-write-auth.js && node --check functions/repo-syntax-validator.js && node --check functions/repo-semantic-tool-planner.js && node --check gestia-core/operations-executor.engine.js && node --check gestia-core/plans.engine.js && node --check gestia-terminal.js && node --check jarvis-docx-artifact.js && node --check jarvis-local-video-engine.js && node --check jarvis-fs-bridge.js && node --check jarvis-upload-bridge.js && node --check jarvis-github-worker.js && node --check sw.js && node --check test-runtime.js && npm run bridge:smoke && npm run worker:smoke\n\n\n> gestia-premium@1.0.0 bridge:smoke\n> node -e \"import('./jarvis-upload-bridge.js').then(async m=>{const server=m.startJarvisUploadBridge({port:0});await new Promise((resolve,reject)=>{if(server.listening)return resolve();server.once('listening',resolve);server.once('error',reject);});await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));console.log('[JARVIS_BRIDGE_SMOKE] ok');}).catch(error=>{console.error(error);process.exit(1);})\"\n\n[JARVIS_UPLOAD_BRIDGE] 1.6.0-direct-anchor-verification-v142 online http://localhost:0\n[JARVIS_UPLOAD_BRIDGE_ROOT] C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker\n[JARVIS_BRIDGE_SMOKE] ok\n\n> gestia-premium@1.0.0 worker:smoke\n> node -e \"import('./jarvis-github-worker.js').then(async m=>{const poll=m.createWorkerPoller({reconcile:async()=>{},readJob:async()=>null,readResultId:async()=>'',sync:async()=>{},execute:async()=>({ok:true}),publish:async()=>{},persist:()=>{},readLocalResult:()=>null,log:()=>{},reportError:()=>{}});await poll();console.log('[SIA7_WORKER_SMOKE] ok');}).catch(error=>{console.error(error);process.exit(1);})\"\n\n[SIA7_WORKER_SMOKE] ok\n",
-    "stderr": "",
-    "durationMs": 52324,
-    "source": "jarvis_local_bridge",
-    "version": "2.51.0-temporal-media-self-hosted-v142"
+    "version": "2.51.0-temporal-media-self-hosted-v142",
+    "policy": {
+      "authority": "full_repo_private_owner",
+      "safeZone": "advisory",
+      "rootContainment": true,
+      "emptyWrites": "blocked",
+      "failureMode": "closed"
+    },
+    "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker",
+    "actuators": {
+      "browser": {
+        "available": true,
+        "engine": "chrome.exe",
+        "actions": [
+          "inspect",
+          "screenshot",
+          "pdf",
+          "open",
+          "media"
+        ]
+      },
+      "speech": {
+        "available": true,
+        "provider": "windows-system-speech",
+        "platform": "win32",
+        "outputFormats": [
+          "wav"
+        ],
+        "physicallyVerified": true,
+        "cloudRequired": false,
+        "version": "1.0.0-local-windows-system-speech-v137",
+        "status": "LOCAL_SPEECH_READY"
+      },
+      "documents": {
+        "available": true,
+        "formats": [
+          "html",
+          "md",
+          "txt",
+          "csv",
+          "json",
+          "docx",
+          "xlsx",
+          "pptx",
+          "pdf"
+        ],
+        "nativeOffice": true
+      },
+      "repoWrite": {
+        "available": true,
+        "protocol": "prepare_authorize_consume_once",
+        "requires": [
+          "objectiveId",
+          "caseId",
+          "authorityId",
+          "controllerId",
+          "fingerprint",
+          "nonce",
+          "snapshot",
+          "matchCount"
+        ],
+        "postVerify": true,
+        "replayBlocked": true,
+        "gitReceiptsRequired": true,
+        "legacyFileContentWrite": false
+      },
+      "multimodalUploads": {
+        "available": true,
+        "transport": "chunked_progressive",
+        "maxFilesPerRequest": 30,
+        "maxFileBytes": 262144000,
+        "maxBatchBytes": 524288000,
+        "maxChunkBytes": 2097152,
+        "resumablePersistedArtifacts": true,
+        "artifactDownload": true,
+        "verifiedCount": 0,
+        "latest": null
+      },
+      "imageGeneration": {
+        "available": true,
+        "persistedArtifacts": true,
+        "verifiedCount": 5,
+        "latest": {
+          "name": "taqueria-el-dorado-fresh-v3-scene-3.png",
+          "bytes": 1400046,
+          "updatedAt": "2026-09-18T19:14:13.412Z"
+        }
+      },
+      "artifactStudio": {
+        "available": true,
+        "versionedLedger": true,
+        "registeredCount": 175,
+        "latest": {
+          "artifactId": "ART-e82ce603-2625-4107-946e-af8b15657e73",
+          "studioVersion": "1.0.0-versioned-ledger",
+          "caseId": "CASE-9b80d2b5-7f00-454d-8ab0-5a4d17790601",
+          "objectiveId": "OBJ-c3465feb-082e-4f39-ab63-ed43a790e573",
+          "type": "md",
+          "version": 9,
+          "lineageKey": ".jarvis-artifacts/documents/taqueria-el-dorado-plan-marketing.md",
+          "origin": "document.create",
+          "provider": "jarvis_document_engine",
+          "model": "",
+          "file": ".jarvis-artifacts/documents/taqueria-el-dorado-plan-marketing.md",
+          "mimeType": "text/markdown",
+          "bytes": 2155,
+          "sha256": "184d98760c8f49a8f843909585a42a077e5c1cf7bf4094ee29b60e7fdc80ad4d",
+          "createdAt": "2026-09-19T00:57:29.442Z",
+          "status": "DOCUMENT_CREATED",
+          "approval": {
+            "required": false,
+            "approved": true,
+            "approvedBy": "LOCAL_ARTIFACT_POLICY"
+          },
+          "editable": true,
+          "preview": false,
+          "downloadable": true,
+          "publishable": false,
+          "deploymentStatus": "NOT_DEPLOYED",
+          "originalFile": null,
+          "transformations": []
+        }
+      },
+      "webResearch": {
+        "available": true,
+        "grounded": true,
+        "engine": "duckduckgo-html-with-bing-rss-fallback"
+      },
+      "connectors": {
+        "available": true,
+        "adapters": [
+          "github",
+          "firebase"
+        ],
+        "verification": "live-read-only"
+      }
+    },
+    "identity": {
+      "ok": true,
+      "status": "BRIDGE_IDENTITY_OK",
+      "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker",
+      "contract": {
+        "ok": true,
+        "projectId": "fixgo-app",
+        "repository": "heberzzt-wq/fixgo-app",
+        "branch": "v94-media-v4n-negative-claims",
+        "releaseId": "v94-source-grounded-research-v124-20260810",
+        "contractPath": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker\\jarvis-runtime-contract.json"
+      },
+      "git": {
+        "root": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
+        "branch": "v94-media-v4n-negative-claims",
+        "head": "201a2b6f0a2808629d23bdb94a7f5380df346288",
+        "remote": "https://heberzzt-wq@github.com/heberzzt-wq/fixgo-app.git",
+        "clean": false
+      },
+      "identityMode": "branch_contract_head",
+      "contractHead": "201a2b6f0a2808629d23bdb94a7f5380df346288",
+      "remoteVerified": true,
+      "repositoryMatches": true,
+      "worktreeClean": false
+    }
   },
   "committedFiles": [
     ".sia7/remote-result.json"
