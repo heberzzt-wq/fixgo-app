@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-const BRIDGE_URL = process.env.JARVIS_FS_BRIDGE_URL || "http://localhost:3344";
+const BRIDGE_URL = process.env.JARVIS_FS_BRIDGE_URL || "http://127.0.0.1:3344";
 const REMOTE = process.env.SIA7_REMOTE || "origin";
 const BRANCH = process.env.SIA7_BRANCH || "v94-media-v4n-negative-claims";
 const JOB_PATH = process.env.SIA7_JOB_PATH || ".sia7/remote-job.json";
