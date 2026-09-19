@@ -1685,10 +1685,26 @@ test("SIA7 Taqueria paid Wan lifecycle is split into explicit start and poll ope
     assert.match(workerSource, /requiresIdentityFidelity: false/);
     assert.match(workerSource, /candidate\.gpuTypeId === "NVIDIA L40S"/);
     assert.match(workerSource, /Number\(candidate\.hourlyRateUsd\) <= 1\.10/);
+    assert.match(workerSource, /JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1"/);
+    assert.match(workerSource, /JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "1\.10"/);
+    assert.match(workerSource, /JARVIS_RUNPOD_EPHEMERAL_ONE_SHOT_AUTHORIZED/);
     assert.match(workerSource, /maximumHardBudgetUsd: 1\.5/);
     assert.match(workerSource, /await runtime\.engine\.poll\(\{ operationName \}\)/);
     assert.doesNotMatch(workerSource, /wan22_taqueria_start"[\s\S]{0,1200}humo-17b-identity/);
 });
+
+test("V142 paid ephemeral placement stays explicit and does not weaken persistent cache authority", () => {
+    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    assert.match(engineSource, /JARVIS_RUNPOD_EPHEMERAL_ONE_SHOT_AUTHORIZED/);
+    assert.match(engineSource, /const exactEphemeralOneShot =/);
+    assert.match(engineSource, /candidate\.networkVolumeId === null/);
+    assert.match(engineSource, /candidate\.dataCenterId === runtimeCertificationDataCenterId/);
+    assert.match(engineSource, /candidate\.requiresCacheReplica === true/);
+    assert.match(engineSource, /candidate\.cacheStatus === "CACHE_MISS"/);
+    assert.match(engineSource, /networkVolumeId \? candidate\.networkVolumeId === networkVolumeId/);
+    assert.match(engineSource, /RUNPOD_EXACT_PAID_PLACEMENT_AUTHORITY_REQUIRED/);
+});
+
 
 
 test("SIA7 backs off synchronization failures before execution without consuming the job", async () => {
