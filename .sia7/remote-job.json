@@ -1,12 +1,11 @@
 {
-  "jobId": "v142-runpod-cost-audit-20260918-chatgpt-92",
+  "jobId": "v142-delete-humo-network-volume-20260918-chatgpt-93",
   "operation": "bridge",
-  "endpoint": "/grep",
+  "endpoint": "/run",
   "body": {
-    "term": "gpuRentalEstimatedCost",
-    "cwd": ".jarvis-artifacts/.video-worker/runpod",
-    "maxFiles": 500,
-    "maxFileSizeBytes": 500000,
-    "maxMatches": 200
+    "command": "npm run check:syntax",
+    "cwd": ".",
+    "timeoutMs": 120000,
+    "source": "runpod_volume_cleanup"
   }
 }
