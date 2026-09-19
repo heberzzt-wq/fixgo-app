@@ -1018,6 +1018,7 @@ async function executeWan22TaqueriaPreflightJob(job = {}) {
         JARVIS_REMOTE_GPU_HARD_BUDGET_USD: String(hardBudgetUsd),
         JARVIS_REMOTE_GPU_BUDGET_STOP_RATIO: "0.90",
         JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "true",
+        JARVIS_RUNPOD_REGISTRY_RECEIPT_FALLBACK_AUTHORIZED: "true",
         JARVIS_RUNPOD_CANONICAL_SHA: executionHeadSha,
         JARVIS_EXTERNAL_FALLBACK_ENABLED: "false"
     };
