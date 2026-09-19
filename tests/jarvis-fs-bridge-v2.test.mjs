@@ -1637,6 +1637,18 @@ test("SIA7 worker targets the bridge IPv4 loopback authority", () => {
     assert.equal(packageJson.scripts.bridge.includes("bridge=http://localhost:3344"), false);
 });
 
+
+
+test("Windows bridge child processes inherit the canonical Git executable path", () => {
+    const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
+    assert.match(bridgeSource, /function bridgeChildEnvironment\(/);
+    assert.match(bridgeSource, /C:\\\\Program Files\\\\Git\\\\cmd/);
+    assert.match(bridgeSource, /env\.PATH = resolvedPath/);
+    assert.match(bridgeSource, /env\.Path = resolvedPath/);
+    assert.match(bridgeSource, /bridgeChildEnvironment\(\{[\s\S]*?GIT_TERMINAL_PROMPT/);
+    assert.match(bridgeSource, /bridgeChildEnvironment\(\{[\s\S]*?CI:/);
+});
+
 test("SIA7 long bridge runs use native HTTP transport with command-bound timeout", async () => {
     const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
     assert.match(workerSource, /endpoint === "\/run"/);
