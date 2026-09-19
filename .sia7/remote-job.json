@@ -1,9 +1,9 @@
 {
-  "jobId": "v142-taqueria-paid-l40s-authority-cert-20260918-chatgpt-70",
+  "jobId": "v142-taqueria-paid-l40s-syntax-20260918-chatgpt-71",
   "operation": "bridge",
   "endpoint": "/run",
   "body": {
-    "command": "npm run check:syntax && node --test tests/jarvis-fs-bridge-v2.test.mjs",
-    "timeoutMs": 900000
+    "command": "npm run check:syntax",
+    "timeoutMs": 240000
   }
 }
