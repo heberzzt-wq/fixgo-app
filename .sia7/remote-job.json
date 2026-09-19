@@ -1,12 +1,11 @@
 {
-  "jobId": "v142-audit-b2c-document-persistence-20260918-chatgpt-95",
+  "jobId": "v142-b2c-production-readonly-audit-20260918-chatgpt-96",
   "operation": "bridge",
-  "endpoint": "/grep",
+  "endpoint": "/run",
   "body": {
-    "term": "expedientes/",
+    "command": "npm run check:syntax",
     "cwd": ".",
-    "maxFiles": 1200,
-    "maxFileSizeBytes": 800000,
-    "maxMatches": 120
+    "timeoutMs": 120000,
+    "source": "b2c_production_readonly_audit"
   }
 }
