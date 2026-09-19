@@ -1,11 +1,6 @@
 {
-  "jobId": "v142-delete-humo-network-volume-20260918-chatgpt-93",
+  "jobId": "v142-sync-after-runpod-volume-cleanup-20260918-chatgpt-94",
   "operation": "bridge",
-  "endpoint": "/run",
-  "body": {
-    "command": "npm run check:syntax",
-    "cwd": ".",
-    "timeoutMs": 120000,
-    "source": "runpod_volume_cleanup"
-  }
+  "endpoint": "/health",
+  "body": {}
 }
