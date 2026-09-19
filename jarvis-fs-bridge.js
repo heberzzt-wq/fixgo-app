@@ -3017,6 +3017,29 @@ export function applyReadLineRange(
     };
 }
 
+function bridgeChildEnvironment(overrides = {}) {
+    const env = {
+        ...process.env,
+        ...overrides
+    };
+    if (process.platform === "win32") {
+        const gitCmd = "C:\\Program Files\\Git\\cmd";
+        const inheritedPath = String(env.PATH || env.Path || process.env.PATH || process.env.Path || "").trim();
+        const entries = inheritedPath
+            .split(path.delimiter)
+            .map(value => value.trim())
+            .filter(Boolean);
+        if (fs.existsSync(path.join(gitCmd, "git.exe")) &&
+            !entries.some(value => value.toLowerCase() === gitCmd.toLowerCase())) {
+            entries.unshift(gitCmd);
+        }
+        const resolvedPath = entries.join(path.delimiter);
+        env.PATH = resolvedPath;
+        env.Path = resolvedPath;
+    }
+    return env;
+}
+
 async function runGitWorkflowCommand({
     args = [],
     cwd = ".",
@@ -3079,11 +3102,10 @@ async function runGitWorkflowCommand({
                             "pipe"
                         ],
                     env:
-                        {
-                            ...process.env,
+                        bridgeChildEnvironment({
                             GIT_TERMINAL_PROMPT:
                                 "0"
-                        }
+                        })
                 }
             );
 
@@ -5960,11 +5982,10 @@ export function createJarvisFsBridgeApp({
                                 "pipe"
                             ],
                         env:
-                            {
-                                ...process.env,
+                            bridgeChildEnvironment({
                                 CI:
                                     "true"
-                            }
+                            })
                     }
                 );
 
