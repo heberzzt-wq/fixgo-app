@@ -1,90 +1,90 @@
 {
-  "jobId": "v142-taqueria-runpod-podid-grep-after-58-20260918-chatgpt-59b",
-  "completedAt": "2026-09-19T01:02:51.588Z",
+  "jobId": "v142-taqueria-runpod-createdat-grep-after-58-20260918-chatgpt-59c",
+  "completedAt": "2026-09-19T01:04:04.670Z",
   "executionStarted": true,
   "ok": true,
   "httpStatus": 200,
   "endpoint": "/grep",
   "payload": {
     "ok": true,
-    "term": "podId",
+    "term": "createdAt",
     "totalFilesScanned": 20,
     "totalMatches": 15,
     "matches": [
       {
-        "file": "06859cba-9082-437a-9bc9-037e9e61ddd3/job.json",
-        "line": 128,
-        "snippet": "\"podId\": \"ys08rhfupwuome\","
-      },
-      {
         "file": "06859cba-9082-437a-9bc9-037e9e61ddd3.json",
-        "line": 4,
-        "snippet": "\"podId\": \"4vmbdakagst853\","
-      },
-      {
-        "file": "30fa0c3c-ceca-45bd-8e11-bd543dbcb26b/job.json",
-        "line": 128,
-        "snippet": "\"podId\": \"ys08rhfupwuome\","
+        "line": 75,
+        "snippet": "\"createdAt\": \"2026-09-07T21:02:05.586Z\","
       },
       {
         "file": "30fa0c3c-ceca-45bd-8e11-bd543dbcb26b.json",
-        "line": 4,
-        "snippet": "\"podId\": \"n0x65ntnpv19nh\","
+        "line": 193,
+        "snippet": "\"createdAt\": \"2026-09-07T04:21:13.261Z\","
+      },
+      {
+        "file": "3ce52675-2294-4c20-9d3d-bdf9a06f0389/job.json",
+        "line": 46,
+        "snippet": "\"createdAt\": \"2026-09-19T00:21:59.737Z\""
       },
       {
         "file": "3ce52675-2294-4c20-9d3d-bdf9a06f0389.json",
-        "line": 4,
-        "snippet": "\"podId\": \"nqi8l7t7oel45w\","
-      },
-      {
-        "file": "9e7dc322-2804-4c99-bb73-1e760ad242e1/job.json",
-        "line": 128,
-        "snippet": "\"podId\": \"ys08rhfupwuome\","
+        "line": 62,
+        "snippet": "\"createdAt\": \"2026-09-19T00:22:07.741Z\","
       },
       {
         "file": "9e7dc322-2804-4c99-bb73-1e760ad242e1.json",
-        "line": 4,
-        "snippet": "\"podId\": \"2kai45sbx77gbs\","
+        "line": 75,
+        "snippet": "\"createdAt\": \"2026-09-07T21:21:08.364Z\","
+      },
+      {
+        "file": "acffb4c3-04cb-40f3-9933-7629caa4c318/job.json",
+        "line": 46,
+        "snippet": "\"createdAt\": \"2026-09-18T21:26:21.755Z\""
       },
       {
         "file": "acffb4c3-04cb-40f3-9933-7629caa4c318.json",
-        "line": 4,
-        "snippet": "\"podId\": \"3859dzpi5fthr4\","
-      },
-      {
-        "file": "b46910cf-7fa0-4c0f-b9e8-6af5d23051d5/job.json",
-        "line": 137,
-        "snippet": "\"podId\": \"ys08rhfupwuome\","
+        "line": 62,
+        "snippet": "\"createdAt\": \"2026-09-18T21:26:28.188Z\","
       },
       {
         "file": "b46910cf-7fa0-4c0f-b9e8-6af5d23051d5.json",
-        "line": 4,
-        "snippet": "\"podId\": \"0aqqvwiuxhpxr6\","
+        "line": 75,
+        "snippet": "\"createdAt\": \"2026-09-08T02:28:05.403Z\","
+      },
+      {
+        "file": "bdfbc7d5-597b-4178-b51d-e434576267fb/job.json",
+        "line": 46,
+        "snippet": "\"createdAt\": \"2026-09-19T00:42:50.602Z\""
       },
       {
         "file": "bdfbc7d5-597b-4178-b51d-e434576267fb.json",
-        "line": 4,
-        "snippet": "\"podId\": \"zxos516mht18g8\","
-      },
-      {
-        "file": "e71403a8-80fe-4d2e-9c88-0a553f7e5ba6/job.json",
-        "line": 128,
-        "snippet": "\"podId\": \"ys08rhfupwuome\","
+        "line": 62,
+        "snippet": "\"createdAt\": \"2026-09-19T00:42:57.807Z\","
       },
       {
         "file": "e71403a8-80fe-4d2e-9c88-0a553f7e5ba6.json",
-        "line": 4,
-        "snippet": "\"podId\": \"t5sa2r0qw7djue\","
+        "line": 75,
+        "snippet": "\"createdAt\": \"2026-09-07T21:40:00.315Z\","
+      },
+      {
+        "file": "f88feb1d-699c-46be-bcf7-75f0c4960904/job.json",
+        "line": 46,
+        "snippet": "\"createdAt\": \"2026-09-18T19:49:29.355Z\""
       },
       {
         "file": "f88feb1d-699c-46be-bcf7-75f0c4960904.json",
-        "line": 4,
-        "snippet": "\"podId\": \"uptz94gnbscrnd\","
+        "line": 62,
+        "snippet": "\"createdAt\": \"2026-09-18T19:49:36.596Z\","
+      },
+      {
+        "file": "fcfebdc2-ecd9-443e-9359-5129821c206f/job.json",
+        "line": 46,
+        "snippet": "\"createdAt\": \"2026-09-19T00:57:38.776Z\""
       },
       {
         "file": "fcfebdc2-ecd9-443e-9359-5129821c206f.json",
-        "line": 4,
-        "snippet": "\"podId\": \"xgpf0ekxl9dv8w\","
+        "line": 62,
+        "snippet": "\"createdAt\": \"2026-09-19T00:57:45.980Z\","
       }
     ],
     "source": "jarvis_fs_bridge_grep_v1",
