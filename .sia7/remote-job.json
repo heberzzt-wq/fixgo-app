@@ -1,12 +1,12 @@
 {
-  "jobId": "v142-audit-b2b-personnel-activation-20260918-chatgpt-98",
+  "jobId": "v142-audit-b2c-client-callable-wiring-20260918-chatgpt-99",
   "operation": "bridge",
   "endpoint": "/grep",
   "body": {
-    "term": "documentos_pendientes",
+    "term": "crearServicioB2C",
     "cwd": ".",
     "maxFiles": 1200,
-    "maxFileSizeBytes": 900000,
-    "maxMatches": 180
+    "maxFileSizeBytes": 1000000,
+    "maxMatches": 120
   }
 }
