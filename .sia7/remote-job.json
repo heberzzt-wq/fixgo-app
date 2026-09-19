@@ -1,12 +1,9 @@
 {
-  "jobId": "v142-taqueria-runpod-createdat-grep-after-58-20260918-chatgpt-59c",
+  "jobId": "v142-taqueria-runpod-state-read-after-58-20260918-chatgpt-59d",
   "operation": "bridge",
-  "endpoint": "/grep",
+  "endpoint": "/read",
   "body": {
-    "term": "createdAt",
-    "cwd": ".jarvis-artifacts/.video-worker/runpod",
-    "maxFiles": 400,
-    "maxFileSizeBytes": 1000000,
-    "maxMatches": 200
+    "file": ".jarvis-artifacts/.video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+    "maxBytes": 500000
   }
 }
