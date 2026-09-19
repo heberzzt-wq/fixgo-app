@@ -2368,6 +2368,10 @@ export function createRunpodRemoteVideoAdapter({
         env.JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED,
         false
     );
+    const ephemeralOneShotAuthorized = booleanValue(
+        env.JARVIS_RUNPOD_EPHEMERAL_ONE_SHOT_AUTHORIZED,
+        false
+    );
     const rawHardBudgetUsd = String(env.JARVIS_REMOTE_GPU_HARD_BUDGET_USD || "").trim();
     const hardBudgetExplicit = rawHardBudgetUsd.length > 0 && Number.isFinite(Number(rawHardBudgetUsd)) &&
         Number(rawHardBudgetUsd) > 0 && Number(rawHardBudgetUsd) <= RUNPOD_MAX_EXPLICIT_HARD_BUDGET_USD;
@@ -3479,12 +3483,25 @@ export function createRunpodRemoteVideoAdapter({
         }
         let selected = candidates[0];
         if (paidResourceCreationAuthorized) {
-            if (!gpuTypeId || !networkVolumeId) {
+            const exactEphemeralOneShot =
+                ephemeralOneShotAuthorized &&
+                !networkVolumeId &&
+                Boolean(runtimeCertificationDataCenterId);
+            if (!gpuTypeId || (!networkVolumeId && !exactEphemeralOneShot)) {
                 throw new Error("RUNPOD_EXACT_PAID_PLACEMENT_AUTHORITY_REQUIRED");
             }
             selected = candidates.find(candidate =>
                 candidate.gpuTypeId === gpuTypeId &&
-                candidate.networkVolumeId === networkVolumeId
+                (
+                    networkVolumeId
+                        ? candidate.networkVolumeId === networkVolumeId
+                        : (
+                            candidate.networkVolumeId === null &&
+                            candidate.dataCenterId === runtimeCertificationDataCenterId &&
+                            candidate.requiresCacheReplica === true &&
+                            candidate.cacheStatus === "CACHE_MISS"
+                        )
+                )
             );
             if (!selected) throw new Error("RUNPOD_AUTHORIZED_PLACEMENT_UNAVAILABLE");
             if (selected.hourlyRateUsd > configuredTotalHourlyRateUsd) {
