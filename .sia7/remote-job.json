@@ -1,6 +1,9 @@
 {
-  "jobId": "v142-runtime-liveness-20260918-chatgpt-56",
+  "jobId": "v142-taqueria-wan22-ephemeral-l40s-retry2-20260918-chatgpt-57",
   "operation": "bridge",
-  "endpoint": "/health",
-  "body": {}
+  "endpoint": "/run",
+  "body": {
+    "command": "npm test",
+    "timeoutMs": 1800000
+  }
 }
