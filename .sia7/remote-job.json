@@ -1,6 +1,12 @@
 {
-  "jobId": "v142-materialize-final-taqueria-preflight-alignment-20260918-chatgpt-91",
+  "jobId": "v142-runpod-cost-audit-20260918-chatgpt-92",
   "operation": "bridge",
-  "endpoint": "/health",
-  "body": {}
+  "endpoint": "/grep",
+  "body": {
+    "term": "gpuRentalEstimatedCost",
+    "cwd": ".jarvis-artifacts/.video-worker/runpod",
+    "maxFiles": 500,
+    "maxFileSizeBytes": 500000,
+    "maxMatches": 200
+  }
 }
