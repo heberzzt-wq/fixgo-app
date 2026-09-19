@@ -1,9 +1,6 @@
 {
-  "jobId": "v142-wan-ephemeral-stage-syntax-20260918-chatgpt-62a",
+  "jobId": "v142-health-after-worker-restart-20260918-chatgpt-63a",
   "operation": "bridge",
-  "endpoint": "/run",
-  "body": {
-    "command": "npm run check:syntax",
-    "timeoutMs": 240000
-  }
+  "endpoint": "/health",
+  "body": {}
 }
