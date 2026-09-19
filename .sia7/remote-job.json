@@ -1,6 +1,8 @@
 {
-  "jobId": "v142-taqueria-zero-cost-preflight-now-20260918-chatgpt-76",
-  "operation": "wan22_taqueria_preflight",
+  "jobId": "v142-taqueria-wan22-start-now-20260918-chatgpt-77",
+  "operation": "wan22_taqueria_start",
+  "executePaid": true,
+  "humanApproved": true,
   "hardBudgetUsd": 1.5,
   "referenceOutput": ".jarvis-artifacts/images/taqueria-el-dorado-fresh-v3-scene-1.png",
   "referenceSha256": "d36ce99af24850baedafd04f03144988ccca9bb11e734abc1771d2634bcc7b41",
