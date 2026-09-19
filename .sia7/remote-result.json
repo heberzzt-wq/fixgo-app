@@ -1,22 +1,19 @@
 {
-  "jobId": "v142-git-status-before-paid-retry-20260918-chatgpt-63b",
-  "completedAt": "2026-09-19T01:36:35.098Z",
+  "jobId": "v142-taqueria-zero-cost-preflight-after-fixes-20260918-chatgpt-64",
+  "completedAt": "2026-09-19T01:38:17.794Z",
   "executionStarted": true,
   "ok": false,
-  "httpStatus": 200,
-  "endpoint": "/git",
-  "payload": {
-    "ok": false,
-    "status": "GIT_STATUS_FAILED",
-    "error": "spawn git ENOENT",
-    "command": "git status --short --branch",
-    "stdout": "",
-    "stderr": "",
-    "durationMs": 14,
-    "source": "jarvis_fs_bridge_git_v7",
-    "version": "2.51.0-temporal-media-self-hosted-v142",
-    "action": "status"
-  },
+  "phase": "ZERO_COST_PRECHECK",
+  "status": "RUNPOD_EXACT_PAID_PLACEMENT_AUTHORITY_REQUIRED",
+  "error": "RUNPOD_EXACT_PAID_PLACEMENT_AUTHORITY_REQUIRED",
+  "paidResourceCreationAuthorized": true,
+  "paidResourceCreationPossible": false,
+  "operation": "wan22_taqueria_preflight",
+  "dryRun": true,
+  "inferenceStarted": false,
+  "resourceCreated": false,
+  "referenceOutput": ".jarvis-artifacts/images/taqueria-el-dorado-fresh-v3-scene-1.png",
+  "referenceSha256": "d36ce99af24850baedafd04f03144988ccca9bb11e734abc1771d2634bcc7b41",
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
