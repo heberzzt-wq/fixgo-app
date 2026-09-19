@@ -1697,6 +1697,16 @@ test("SIA7 long bridge runs use native HTTP transport with command-bound timeout
     }
 });
 
+test("Taqueria paid RunPod guard consumes the scoped runtime authority without mutating global defaults", () => {
+    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
+    assert.match(engineSource, /guardedRunpodFetch\(url, options=\{\}, runtimeEnv=process\.env\)/);
+    assert.match(engineSource, /runtimeEnv\?\.JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED/);
+    assert.match(workerSource, /fetchImpl: \(url, options\) => guardedRunpodFetch\(url, options, env\)/);
+    assert.match(workerSource, /JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "true"/);
+    assert.match(engineSource, /RUNPOD_PAID_EXECUTION_AUTHORIZED = false/);
+});
+
 test("SIA7 Taqueria paid Wan lifecycle is split into explicit start and poll operations", () => {
     const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
     assert.match(workerSource, /operation === "wan22_taqueria_start"/);
