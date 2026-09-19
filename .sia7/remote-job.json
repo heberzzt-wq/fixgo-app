@@ -1,9 +1,6 @@
 {
-  "jobId": "v142-taqueria-placement-full-test-20260918-chatgpt-66",
+  "jobId": "v142-health-after-final-worker-reload-20260918-chatgpt-67",
   "operation": "bridge",
-  "endpoint": "/run",
-  "body": {
-    "command": "npm test",
-    "timeoutMs": 1800000
-  }
+  "endpoint": "/health",
+  "body": {}
 }
