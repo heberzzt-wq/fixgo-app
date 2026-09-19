@@ -1086,6 +1086,219 @@ async function executeWan22TaqueriaPreflightJob(job = {}) {
     };
 }
 
+
+const SIA7_TAQUERIA_WAN22_OUTPUT = ".jarvis-artifacts/videos/taqueria-el-dorado-wan22-l40s-22s.mp4";
+const SIA7_TAQUERIA_WAN22_REFERENCE = ".jarvis-artifacts/images/taqueria-el-dorado-fresh-v3-scene-1.png";
+const SIA7_TAQUERIA_WAN22_PROMPT = "Video publicitario gastronómico ORIGINAL de 22 segundos, vertical 9:16, compuesto por tres segmentos continuos. Animar la creatividad de referencia como una secuencia cinematográfica nueva: acercamiento suave de cámara a un taco genérico servido caliente, queso derretido visible, carne como elemento principal y un detalle de chile. Movimiento natural y apetitoso, vapor sutil, luz comercial limpia. Sin personas, sin restaurante, sin texto, sin logotipos, sin marcas de agua y sin copiar el video de TikTok.";
+const SIA7_TAQUERIA_WAN22_SCENES = Object.freeze([
+    "Apertura vertical ORIGINAL: acercamiento cinematográfico suave a un taco genérico servido caliente, queso derretido visible, carne como protagonista y detalle de chile. Luz comercial limpia, vapor sutil, sin personas, sin local, sin texto.",
+    "Continuación ORIGINAL: plano macro distinto mostrando queso derretido y textura de carne con movimiento lateral lento de cámara. Mantener continuidad visual del taco, fondo neutro, sin manos, sin restaurante, sin texto.",
+    "Cierre ORIGINAL: movimiento de cámara ligeramente ascendente sobre el taco caliente, composición con espacio negativo para overlay posterior. Sin logotipo generado, sin personas, sin local ficticio, sin texto incrustado."
+]);
+
+function taqueriaWan22Reference(job = {}) {
+    const referenceOutput = String(job.referenceOutput || SIA7_TAQUERIA_WAN22_REFERENCE).trim().replaceAll("\\", "/");
+    if (referenceOutput !== SIA7_TAQUERIA_WAN22_REFERENCE) {
+        throw new Error("SIA7_WAN22_TAQUERIA_REFERENCE_NOT_AUTHORIZED");
+    }
+    const referenceFile = path.resolve(REPO_ROOT, referenceOutput);
+    if (!referenceFile.startsWith(REPO_ROOT + path.sep) || !fs.existsSync(referenceFile) || !fs.statSync(referenceFile).isFile()) {
+        throw new Error("SIA7_WAN22_REFERENCE_MISSING");
+    }
+    const observedReferenceSha256 = sha256File(referenceFile);
+    const expectedReferenceSha256 = String(job.referenceSha256 || "").trim().toLowerCase();
+    if (expectedReferenceSha256 && expectedReferenceSha256 !== observedReferenceSha256) {
+        throw new Error("SIA7_WAN22_REFERENCE_SHA_MISMATCH");
+    }
+    return { referenceOutput, referenceFile, observedReferenceSha256 };
+}
+
+function taqueriaWan22Budget(job = {}) {
+    const hardBudgetUsd = Number(job.hardBudgetUsd);
+    if (!Number.isFinite(hardBudgetUsd) || hardBudgetUsd <= 0 || hardBudgetUsd > 1.5) {
+        throw new Error("SIA7_WAN22_BUDGET_INVALID");
+    }
+    return hardBudgetUsd;
+}
+
+async function taqueriaWan22Runtime(job = {}, {
+    executionHeadSha = "",
+    dataCenterId = "",
+    hourlyRateUsd = 0,
+    networkVolumeId = ""
+} = {}) {
+    const { resolveRunpodCredentialEnvironment, describeJarvisBridgeIdentity } = await import("./jarvis-fs-bridge.js");
+    const { createRunpodRemoteVideoAdapter, createLocalVideoEngine } = await import("./jarvis-local-video-engine.js");
+    const credential = resolveRunpodCredentialEnvironment({ env: process.env });
+    if (credential?.credentialLoaded !== true || !credential.env?.RUNPOD_API_KEY) {
+        throw new Error("RUNPOD_CREDENTIAL_REQUIRED");
+    }
+    const canonicalSha = String(executionHeadSha || await currentHeadSha()).trim().toLowerCase();
+    const hardBudgetUsd = taqueriaWan22Budget(job);
+    const env = {
+        ...credential.env,
+        JARVIS_VIDEO_ENGINE_POLICY: "LOCAL_TEST",
+        JARVIS_LOCAL_VIDEO_ENABLED: "true",
+        JARVIS_LOCAL_VIDEO_CERTIFIED: "true",
+        JARVIS_LOCAL_VIDEO_EXECUTION_TARGET: "remote",
+        JARVIS_LOCAL_VIDEO_MODEL: "wan22-ti2v-5b",
+        JARVIS_LOCAL_VIDEO_RUNNER: process.execPath,
+        JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT: path.resolve(REPO_ROOT, "scripts", "jarvis-local-video-wan22.py"),
+        JARVIS_REMOTE_GPU_PROVIDER: "runpod",
+        JARVIS_RUNPOD_CLOUD_TYPE: "SECURE",
+        JARVIS_REMOTE_GPU_HARD_BUDGET_USD: String(hardBudgetUsd),
+        JARVIS_REMOTE_GPU_BUDGET_STOP_RATIO: "0.90",
+        JARVIS_RUNPOD_CANONICAL_SHA: canonicalSha,
+        JARVIS_LOCAL_VIDEO_TIMEOUT_SECONDS: "1200",
+        JARVIS_RUNPOD_BOOTSTRAP_TIMEOUT_SECONDS: "900",
+        JARVIS_RUNPOD_INFERENCE_TIMEOUT_SECONDS: "600",
+        JARVIS_EXTERNAL_FALLBACK_ENABLED: "false",
+        JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "true",
+        ...(dataCenterId ? { JARVIS_RUNPOD_DATACENTER_ID: dataCenterId } : {}),
+        ...(hourlyRateUsd > 0 ? { JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: String(hourlyRateUsd) } : {}),
+        JARVIS_RUNPOD_VOLUME_DISK_GB: "100",
+        ...(networkVolumeId ? { JARVIS_RUNPOD_NETWORK_VOLUME_ID: networkVolumeId } : {})
+    };
+    const adapter = createRunpodRemoteVideoAdapter({
+        root: REPO_ROOT,
+        env,
+        inspectBridgeIdentity: () => describeJarvisBridgeIdentity(REPO_ROOT),
+        resolveCanonicalSha: () => canonicalSha
+    });
+    const engine = createLocalVideoEngine({
+        root: REPO_ROOT,
+        env,
+        inspectHardware: adapter.inspectHardware,
+        launch: adapter.launch,
+        pollRemote: adapter.poll,
+        release: adapter.release
+    });
+    return { adapter, engine, env, canonicalSha, hardBudgetUsd };
+}
+
+async function executeWan22TaqueriaStartJob(job = {}) {
+    if (process.platform !== "win32") throw new Error("SIA7_WAN22_WINDOWS_WORKER_REQUIRED");
+    if (job.executePaid !== true || job.humanApproved !== true) {
+        throw new Error("SIA7_WAN22_PAID_AUTHORITY_REQUIRED");
+    }
+    if (String(job.output || SIA7_TAQUERIA_WAN22_OUTPUT).trim().replaceAll("\\", "/") !== SIA7_TAQUERIA_WAN22_OUTPUT) {
+        throw new Error("SIA7_WAN22_OUTPUT_NOT_AUTHORIZED");
+    }
+    const reference = taqueriaWan22Reference(job);
+    const executionHeadSha = await currentHeadSha();
+    const runtime = await taqueriaWan22Runtime(job, { executionHeadSha });
+    const preflightJob = {
+        operationId: randomUUID(),
+        operationName: "local-video/taqueria-preflight",
+        executionTarget: "remote",
+        backend: "wan22-ti2v-5b",
+        model: "Wan2.2-TI2V-5B",
+        missionId: String(job.jobId || "SIA7_WAN22_TAQUERIA"),
+        objectiveId: "TAQUERIA_EL_DORADO_NEW_VIDEO",
+        obligationId: "video.generate:taqueria-el-dorado-l40s-pilot",
+        rootInstructionHash: createHash("sha256").update("TAQUERIA_EL_DORADO_WAN22_L40S_PILOT").digest("hex"),
+        externalApiAllowed: false,
+        referenceOutputs: [reference.referenceOutput],
+        referenceFiles: [reference.referenceFile],
+        sourceReferenceOutputs: [reference.referenceOutput],
+        sourceReferenceFiles: [reference.referenceFile]
+    };
+    const preflight = await runtime.adapter.inspectLiveZeroCostPrecheck({ job: preflightJob });
+    const candidates = Array.isArray(preflight?.placement?.candidates) ? preflight.placement.candidates : [];
+    const selected = candidates.find(candidate =>
+        candidate?.gpuTypeId === "NVIDIA L40S" &&
+        typeof candidate?.dataCenterId === "string" &&
+        candidate.dataCenterId.trim() &&
+        Number(candidate?.hourlyRateUsd || 0) > 0 &&
+        Number(candidate.hourlyRateUsd) <= 1.10
+    ) || null;
+    if (preflight?.ok !== true || !selected) {
+        return {
+            ...(preflight || {}),
+            ok: false,
+            operation: "wan22_taqueria_start",
+            status: preflight?.status || "SIA7_WAN22_L40S_EXACT_PLACEMENT_UNAVAILABLE",
+            resourceCreated: false,
+            inferenceStarted: false,
+            referenceOutput: reference.referenceOutput,
+            referenceSha256: reference.observedReferenceSha256
+        };
+    }
+    const paid = await taqueriaWan22Runtime(job, {
+        executionHeadSha,
+        dataCenterId: selected.dataCenterId,
+        hourlyRateUsd: Number(selected.hourlyRateUsd),
+        networkVolumeId: selected.networkVolumeId || ""
+    });
+    const rootInstructionHash = createHash("sha256").update("TAQUERIA_EL_DORADO_WAN22_L40S_PILOT").digest("hex");
+    const started = await paid.engine.start({
+        script: SIA7_TAQUERIA_WAN22_PROMPT,
+        prompts: [...SIA7_TAQUERIA_WAN22_SCENES],
+        durationSeconds: 22,
+        aspectRatio: "9:16",
+        referenceOutputs: [reference.referenceOutput],
+        requiresIdentityFidelity: false,
+        output: SIA7_TAQUERIA_WAN22_OUTPUT,
+        missionId: String(job.jobId || "MISSION-TAQUERIA-L40S"),
+        objectiveId: "TAQUERIA_EL_DORADO_NEW_VIDEO",
+        obligationId: "video.generate:taqueria-l40s",
+        rootInstructionHash
+    });
+    return {
+        ...started,
+        operation: "wan22_taqueria_start",
+        status: started?.ok === true ? "SIA7_WAN22_TAQUERIA_STARTED" : started?.status,
+        executionHeadSha,
+        referenceOutput: reference.referenceOutput,
+        referenceSha256: reference.observedReferenceSha256,
+        output: SIA7_TAQUERIA_WAN22_OUTPUT,
+        selectedGpuTypeId: selected.gpuTypeId,
+        dataCenterId: selected.dataCenterId,
+        hourlyRateUsd: Number(selected.hourlyRateUsd),
+        networkVolumeId: selected.networkVolumeId || null,
+        hardBudgetUsd: runtime.hardBudgetUsd,
+        maximumSpendBeforeCleanupUsd: Number(preflight?.economics?.maximumSpendBeforeCleanupUsd || 0),
+        paidAuthority: {
+            humanApproved: true,
+            executePaid: true,
+            maximumHardBudgetUsd: 1.5
+        }
+    };
+}
+
+async function executeWan22TaqueriaPollJob(job = {}) {
+    if (process.platform !== "win32") throw new Error("SIA7_WAN22_WINDOWS_WORKER_REQUIRED");
+    const operationName = String(job.operationName || "").trim();
+    if (!/^local-video\/[a-f0-9-]{36}$/i.test(operationName)) {
+        throw new Error("SIA7_WAN22_OPERATION_NAME_REQUIRED");
+    }
+    const executionHeadSha = String(job.executionHeadSha || "").trim().toLowerCase();
+    if (!/^[a-f0-9]{40}$/.test(executionHeadSha)) throw new Error("SIA7_WAN22_EXECUTION_HEAD_REQUIRED");
+    const dataCenterId = String(job.dataCenterId || "").trim();
+    const hourlyRateUsd = Number(job.hourlyRateUsd);
+    if (!dataCenterId || !Number.isFinite(hourlyRateUsd) || hourlyRateUsd <= 0 || hourlyRateUsd > 1.10) {
+        throw new Error("SIA7_WAN22_PLACEMENT_RECEIPT_REQUIRED");
+    }
+    const runtime = await taqueriaWan22Runtime(job, {
+        executionHeadSha,
+        dataCenterId,
+        hourlyRateUsd,
+        networkVolumeId: String(job.networkVolumeId || "").trim()
+    });
+    const result = await runtime.engine.poll({ operationName });
+    return {
+        ...result,
+        operation: "wan22_taqueria_poll",
+        executionHeadSha,
+        operationName,
+        dataCenterId,
+        hourlyRateUsd,
+        networkVolumeId: String(job.networkVolumeId || "").trim() || null,
+        hardBudgetUsd: runtime.hardBudgetUsd,
+        output: result?.output || SIA7_TAQUERIA_WAN22_OUTPUT
+    };
+}
+
 async function executeJob(job = {}) {
     const operation = String(job.operation || "bridge").trim();
 
@@ -1107,6 +1320,14 @@ async function executeJob(job = {}) {
 
     if (operation === "wan22_taqueria_preflight") {
         return await executeWan22TaqueriaPreflightJob(job);
+    }
+
+    if (operation === "wan22_taqueria_start") {
+        return await executeWan22TaqueriaStartJob(job);
+    }
+
+    if (operation === "wan22_taqueria_poll") {
+        return await executeWan22TaqueriaPollJob(job);
     }
 
     return await executeBridgeJob(job);
