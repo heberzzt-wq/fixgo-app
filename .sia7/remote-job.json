@@ -1,11 +1,6 @@
 {
-  "jobId": "v142-b2c-production-readonly-audit-20260918-chatgpt-96",
+  "jobId": "v142-sync-after-b2c-readonly-audit-20260918-chatgpt-97",
   "operation": "bridge",
-  "endpoint": "/run",
-  "body": {
-    "command": "npm run check:syntax",
-    "cwd": ".",
-    "timeoutMs": 120000,
-    "source": "b2c_production_readonly_audit"
-  }
+  "endpoint": "/health",
+  "body": {}
 }
