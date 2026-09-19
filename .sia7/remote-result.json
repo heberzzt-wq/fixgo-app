@@ -1,174 +1,74 @@
 {
-  "jobId": "v142-sync-after-b2c-readonly-audit-20260918-chatgpt-97",
-  "completedAt": "2026-09-19T04:27:32.534Z",
+  "jobId": "v142-audit-b2b-personnel-activation-20260918-chatgpt-98",
+  "completedAt": "2026-09-19T04:28:36.431Z",
   "executionStarted": true,
   "ok": true,
   "httpStatus": 200,
-  "endpoint": "/health",
+  "endpoint": "/grep",
   "payload": {
     "ok": true,
-    "version": "2.51.0-temporal-media-self-hosted-v142",
-    "policy": {
-      "authority": "full_repo_private_owner",
-      "safeZone": "advisory",
-      "rootContainment": true,
-      "emptyWrites": "blocked",
-      "failureMode": "closed"
-    },
-    "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker",
-    "actuators": {
-      "browser": {
-        "available": true,
-        "engine": "chrome.exe",
-        "actions": [
-          "inspect",
-          "screenshot",
-          "pdf",
-          "open",
-          "media"
-        ]
+    "term": "documentos_pendientes",
+    "totalFilesScanned": 701,
+    "totalMatches": 11,
+    "matches": [
+      {
+        "file": ".jarvis-artifacts/b2b-hardening-35b0610f/closure.json",
+        "line": 954,
+        "snippet": "\"content\": \"// GESTIA_RELEASE_SHA:bc6209a3b4d15ade643b6ca8247fa6e92c578999 B2C_CONTRACT_SHA256:457884fed2d3b9decd5b5e3a20b83deb36bff490260753fc52cad0bbaeac30f0\\n// FUENTE AUTORITATIVA VERSIONADA. No desplegar sin ejecutar las pruebas de reg"
       },
-      "speech": {
-        "available": true,
-        "provider": "windows-system-speech",
-        "platform": "win32",
-        "outputFormats": [
-          "wav"
-        ],
-        "physicallyVerified": true,
-        "cloudRequired": false,
-        "version": "1.0.0-local-windows-system-speech-v137",
-        "status": "LOCAL_SPEECH_READY"
+      {
+        "file": ".jarvis-artifacts/b2b-hardening-35b0610f/closure.json",
+        "line": 4104,
+        "snippet": "\"content\": \"// FUENTE AUTORITATIVA VERSIONADA. No desplegar sin ejecutar las pruebas de reglas.\\r\\nrules_version = '2';\\r\\nservice cloud.firestore {\\r\\n  match /databases/{database}/documents {\\r\\n\\r\\n    function isAuth() {\\r\\n      return"
       },
-      "documents": {
-        "available": true,
-        "formats": [
-          "html",
-          "md",
-          "txt",
-          "csv",
-          "json",
-          "docx",
-          "xlsx",
-          "pptx",
-          "pdf"
-        ],
-        "nativeOffice": true
+      {
+        "file": ".sia7/remote-job.json",
+        "line": 6,
+        "snippet": "\"term\": \"documentos_pendientes\","
       },
-      "repoWrite": {
-        "available": true,
-        "protocol": "prepare_authorize_consume_once",
-        "requires": [
-          "objectiveId",
-          "caseId",
-          "authorityId",
-          "controllerId",
-          "fingerprint",
-          "nonce",
-          "snapshot",
-          "matchCount"
-        ],
-        "postVerify": true,
-        "replayBlocked": true,
-        "gitReceiptsRequired": true,
-        "legacyFileContentWrite": false
+      {
+        "file": "functions/generated/b2c-platform-contract.cjs",
+        "line": 58,
+        "snippet": "DOCUMENTS_PENDING: \"documentos_pendientes\","
       },
-      "multimodalUploads": {
-        "available": true,
-        "transport": "chunked_progressive",
-        "maxFilesPerRequest": 30,
-        "maxFileBytes": 262144000,
-        "maxBatchBytes": 524288000,
-        "maxChunkBytes": 2097152,
-        "resumablePersistedArtifacts": true,
-        "artifactDownload": true,
-        "verifiedCount": 0,
-        "latest": null
+      {
+        "file": "functions/index.js",
+        "line": 174,
+        "snippet": "estado: 'documentos_pendientes', status: 'documentos_pendientes',"
       },
-      "imageGeneration": {
-        "available": true,
-        "persistedArtifacts": true,
-        "verifiedCount": 5,
-        "latest": {
-          "name": "taqueria-el-dorado-fresh-v3-scene-3.png",
-          "bytes": 1400046,
-          "updatedAt": "2026-09-18T19:14:13.412Z"
-        }
+      {
+        "file": "gestia-core/contracts/b2c-platform-contract.js",
+        "line": 58,
+        "snippet": "DOCUMENTS_PENDING: \"documentos_pendientes\","
       },
-      "artifactStudio": {
-        "available": true,
-        "versionedLedger": true,
-        "registeredCount": 182,
-        "latest": {
-          "artifactId": "ART-2b39ea39-8abb-4010-bce7-c8d66950736e",
-          "studioVersion": "1.0.0-versioned-ledger",
-          "caseId": "CASE-33aa4235-ce6a-47b7-ae8d-a8aa1ee24d25",
-          "objectiveId": "OBJ-291b1dfa-3497-4f08-903d-9848263fe8fe",
-          "type": "md",
-          "version": 10,
-          "lineageKey": ".jarvis-artifacts/documents/taqueria-el-dorado-plan-marketing.md",
-          "origin": "document.create",
-          "provider": "jarvis_document_engine",
-          "model": "",
-          "file": ".jarvis-artifacts/documents/taqueria-el-dorado-plan-marketing.md",
-          "mimeType": "text/markdown",
-          "bytes": 2155,
-          "sha256": "184d98760c8f49a8f843909585a42a077e5c1cf7bf4094ee29b60e7fdc80ad4d",
-          "createdAt": "2026-09-19T01:45:34.833Z",
-          "status": "DOCUMENT_CREATED",
-          "approval": {
-            "required": false,
-            "approved": true,
-            "approvedBy": "LOCAL_ARTIFACT_POLICY"
-          },
-          "editable": true,
-          "preview": false,
-          "downloadable": true,
-          "publishable": false,
-          "deploymentStatus": "NOT_DEPLOYED",
-          "originalFile": null,
-          "transformations": []
-        }
+      {
+        "file": "security/firestore-console-snapshot-2026-07-30.rules.txt",
+        "line": 94,
+        "snippet": "data.estado in ['registro_iniciado', 'documentos_pendientes'] &&"
       },
-      "webResearch": {
-        "available": true,
-        "grounded": true,
-        "engine": "duckduckgo-html-with-bing-rss-fallback"
+      {
+        "file": "security/firestore-console-snapshot-2026-07-30.rules.txt",
+        "line": 114,
+        "snippet": "resource.data.estado in ['registro_iniciado', 'documentos_pendientes', 'rechazado'] &&"
       },
-      "connectors": {
-        "available": true,
-        "adapters": [
-          "github",
-          "firebase"
-        ],
-        "verification": "live-read-only"
+      {
+        "file": "tests/auth-routing-consistency.test.mjs",
+        "line": 97,
+        "snippet": "assert.equal(profile.status,'documentos_pendientes');"
+      },
+      {
+        "file": "tests/auth-routing-consistency.test.mjs",
+        "line": 155,
+        "snippet": "profile={...profile,status:'documentos_pendientes'};"
+      },
+      {
+        "file": "tests/auth-routing-consistency.test.mjs",
+        "line": 195,
+        "snippet": "for(const profile of [null,{rol:'admin_b2b',tipo_cuenta:'B2B',status:'activo'}, {rol:'tecnico',tipo_cuenta:'B2B',status:'documentos_pendientes',edificioId:'b'}]){"
       }
-    },
-    "identity": {
-      "ok": true,
-      "status": "BRIDGE_IDENTITY_OK",
-      "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker",
-      "contract": {
-        "ok": true,
-        "projectId": "fixgo-app",
-        "repository": "heberzzt-wq/fixgo-app",
-        "branch": "v94-media-v4n-negative-claims",
-        "releaseId": "v94-source-grounded-research-v124-20260810",
-        "contractPath": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker\\jarvis-runtime-contract.json"
-      },
-      "git": {
-        "root": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
-        "branch": "v94-media-v4n-negative-claims",
-        "head": "62b5e7b0e321243ce6d1f3eafe813fcd231dadff",
-        "remote": "https://heberzzt-wq@github.com/heberzzt-wq/fixgo-app.git",
-        "clean": false
-      },
-      "identityMode": "branch_contract_head",
-      "contractHead": "62b5e7b0e321243ce6d1f3eafe813fcd231dadff",
-      "remoteVerified": true,
-      "repositoryMatches": true,
-      "worktreeClean": false
-    }
+    ],
+    "source": "jarvis_fs_bridge_grep_v1",
+    "version": "2.51.0-temporal-media-self-hosted-v142"
   },
   "committedFiles": [
     ".sia7/remote-result.json"
