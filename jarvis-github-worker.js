@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { request as httpRequest } from "node:http";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -215,6 +216,65 @@ function normalizeEndpoint(value = "") {
     return endpoint;
 }
 
+export function requestLocalBridgeJson(url, {
+    method = "GET",
+    headers = {},
+    body = null,
+    timeoutMs = 60000,
+    requestImpl = httpRequest
+} = {}) {
+    return new Promise((resolve, reject) => {
+        let settled = false;
+        let responseBytes = 0;
+        const chunks = [];
+        const request = requestImpl(url, { method, headers }, response => {
+            response.on("data", chunk => {
+                const bytes = Buffer.from(chunk);
+                responseBytes += bytes.length;
+                if (responseBytes > 4 * 1024 * 1024) {
+                    request.destroy(new Error("BRIDGE_RESPONSE_TOO_LARGE"));
+                    return;
+                }
+                chunks.push(bytes);
+            });
+            response.once("error", error => {
+                if (settled) return;
+                settled = true;
+                reject(error);
+            });
+            response.once("end", () => {
+                if (settled) return;
+                let payload;
+                try {
+                    payload = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+                }
+                catch {
+                    settled = true;
+                    reject(new Error("BRIDGE_RESPONSE_INVALID_JSON"));
+                    return;
+                }
+                settled = true;
+                const status = Number(response.statusCode || 0);
+                resolve({
+                    ok: status >= 200 && status < 300,
+                    status,
+                    payload
+                });
+            });
+        });
+        request.setTimeout(Math.max(5000, Number(timeoutMs) || 60000), () => {
+            request.destroy(new Error("BRIDGE_REQUEST_TIMEOUT"));
+        });
+        request.once("error", error => {
+            if (settled) return;
+            settled = true;
+            reject(error);
+        });
+        if (body !== null && body !== undefined) request.write(body);
+        request.end();
+    });
+}
+
 async function executeBridgeJob(job = {}) {
     const endpoint = normalizeEndpoint(job.endpoint || "/health");
     const method = endpoint === "/health" ? "GET" : "POST";
@@ -222,6 +282,33 @@ async function executeBridgeJob(job = {}) {
     const releaseId = JSON.parse(
         fs.readFileSync(path.resolve(REPO_ROOT, "jarvis-runtime-contract.json"), "utf8")
     ).releaseId;
+    const requestBody =
+        method === "POST"
+            ? JSON.stringify(job.body || {})
+            : null;
+
+    if (endpoint === "/run") {
+        const response = await requestLocalBridgeJson(`${BRIDGE_URL}${endpoint}`, {
+            method,
+            headers: {
+                "content-type": "application/json",
+                "content-length": String(Buffer.byteLength(requestBody || "")),
+                "x-jarvis-release-id": releaseId
+            },
+            body: requestBody,
+            timeoutMs: Math.max(
+                60000,
+                Number(job.body?.timeoutMs || 120000) + 60000
+            )
+        });
+        const payload = response.payload;
+        return {
+            ok: response.ok && payload?.ok !== false,
+            httpStatus: response.status,
+            endpoint,
+            payload
+        };
+    }
 
     const response = await fetch(`${BRIDGE_URL}${endpoint}`, {
         method,
@@ -232,10 +319,7 @@ async function executeBridgeJob(job = {}) {
                     "x-jarvis-release-id": releaseId
                 }
                 : undefined,
-        body:
-            method === "POST"
-                ? JSON.stringify(job.body || {})
-                : undefined
+        body: requestBody
     });
 
     const payload = await response.json();
