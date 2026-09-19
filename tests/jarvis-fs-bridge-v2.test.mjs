@@ -1724,6 +1724,17 @@ test("Taqueria Wan ephemeral registry fallback is exact, recent and isolated fro
     assert.match(engineSource, /source: "RECENT_LOCAL_VERIFIED_RECEIPT"/);
 });
 
+test("Taqueria standalone preflight carries the same registry fallback authority", () => {
+    const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
+    const start = workerSource.indexOf("async function executeWan22TaqueriaPreflightJob");
+    const end = workerSource.indexOf("\n\nconst SIA7_TAQUERIA_WAN22_OUTPUT", start);
+    assert.ok(start >= 0 && end > start);
+    const preflightBlock = workerSource.slice(start, end);
+    assert.match(preflightBlock, /JARVIS_RUNPOD_REGISTRY_RECEIPT_FALLBACK_AUTHORIZED: "true"/);
+    assert.match(preflightBlock, /JARVIS_RUNPOD_EPHEMERAL_ONE_SHOT_AUTHORIZED: "true"/);
+    assert.match(preflightBlock, /fetchImpl: \(url, options\) => guardedRunpodFetch\(url, options, env\)/);
+});
+
 test("Taqueria runtime binds paid and registry fallback authority inside its exact runtime block", () => {
     const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
     const start = workerSource.indexOf("async function taqueriaWan22Runtime");
