@@ -1,27 +1,193 @@
 {
-  "jobId": "v142-taqueria-runpod-state-refresh-58-20260918-chatgpt-59e",
-  "completedAt": "2026-09-19T01:05:09.770Z",
+  "jobId": "v142-taqueria-operation-grep-after-58-20260918-chatgpt-59f",
+  "completedAt": "2026-09-19T01:05:49.614Z",
   "executionStarted": true,
   "ok": true,
   "httpStatus": 200,
-  "endpoint": "/read",
+  "endpoint": "/grep",
   "payload": {
     "ok": true,
-    "file": ".jarvis-artifacts/.video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
-    "path": ".jarvis-artifacts/.video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
-    "size": 16060,
-    "totalSize": 16060,
-    "content": "{\n  \"schemaVersion\": \"1.8.0-v142-single-authority\",\n  \"provider\": \"runpod\",\n  \"podId\": \"xgpf0ekxl9dv8w\",\n  \"remoteJobId\": \"runpod/xgpf0ekxl9dv8w/fcfebdc2-ecd9-443e-9359-5129821c206f\",\n  \"phase\": \"BOOTSTRAPPING\",\n  \"gpuTypeId\": \"NVIDIA L40S\",\n  \"vramGb\": 48,\n  \"providerVramGb\": 48,\n  \"hourlyRateUsd\": 1.09,\n  \"hardBudgetUsd\": 1.5,\n  \"budgetStopRatio\": 0.9,\n  \"maximumSpendBeforeCleanupUsd\": 1.35,\n  \"maximumAuthorizedSeconds\": 4458,\n  \"networkVolumeId\": null,\n  \"networkVolumeRetentionAuthorized\": false,\n  \"persistentCacheVerification\": null,\n  \"localCacheTransferPrecheck\": null,\n  \"networkVolumeDataCenterId\": null,\n  \"networkVolumeSizeGb\": null,\n  \"dataCenterId\": \"EU-NL-1\",\n  \"runtimeCertificationOnly\": false,\n  \"backend\": \"wan22-ti2v-5b\",\n  \"model\": \"Wan2.2-TI2V-5B\",\n  \"runtimeKind\": \"wan22\",\n  \"cacheProfile\": \"wan22-ti2v-5b-l40s\",\n  \"modelContractRevision\": \"921dbaf3f1674a56f47e83fb80a34bac8a8f203e\",\n  \"computeCapabilityRequired\": \"8.9\",\n  \"expectedCacheStatus\": \"CACHE_MISS\",\n  \"provisionImageTag\": \"runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404\",\n  \"provisionImageNameSent\": \"runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404\",\n  \"provisionDockerStartCmd\": null,\n  \"expectedRegistryDigest\": \"sha256:4d1721e62b56d345c83b4fd6090664be6daf9312caab5b2e76f23d8231941851\",\n  \"runtimeIdentity\": {\n    \"operatingSystem\": \"ubuntu-24.04\",\n    \"pythonVersionPrefix\": \"3.12.\",\n    \"torchVersionPrefix\": \"2.8.0+cu128\",\n    \"torchCudaVersionPrefix\": \"12.8\",\n    \"ffmpegRequired\": true,\n    \"nvccRequired\": false,\n    \"flashAttentionCudaRequired\": true\n  },\n  \"registryVerification\": {\n    \"registry\": \"registry-1.docker.io\",\n    \"repository\": \"runpod/pytorch\",\n    \"tag\": \"1.0.2-cu1281-torch280-ubuntu2404\",\n    \"expectedDigest\": \"sha256:4d1721e62b56d345c83b4fd6090664be6daf9312caab5b2e76f23d8231941851\",\n    \"observedDigest\": \"sha256:4d1721e62b56d345c83b4fd6090664be6daf9312caab5b2e76f23d8231941851\",\n    \"checkedAt\": \"2026-09-19T00:57:42.285Z\",\n    \"status\": \"REGISTRY_DIGEST_VERIFIED\",\n    \"indexDigest\": \"sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35\",\n    \"platform\": {\n      \"os\": \"linux\",\n      \"architecture\": \"amd64\"\n    }\n  },\n  \"cacheStatus\": \"CACHE_POPULATING\",\n  \"bootstrapTimeoutSeconds\": 900,\n  \"humoTorchStageTimeoutSeconds\": 120,\n  \"inferenceTimeoutSeconds\": 600,\n  \"provisionedAt\": \"2026-09-19T00:57:45.980Z\",\n  \"createdAt\": \"2026-09-19T00:57:45.980Z\",\n  \"operationId\": \"fcfebdc2-ecd9-443e-9359-5129821c206f\",\n  \"operationName\": \"local-video/fcfebdc2-ecd9-443e-9359-5129821c206f\",\n  \"missionId\": \"MISSION-760dfdbf-750c-4eb6-ad3d-ac0173a238fb\",\n  \"objectiveId\": \"OBJ-c3465feb-082e-4f39-ab63-ed43a790e573\",\n  \"obligationId\": \"video.generate\",\n  \"rootInstructionHash\": \"d2ddb0ea218f79c1992bb7ac907ba3f3abd5af1672725bd6213c4b105f445981\",\n  \"zeroCostPrecheck\": {\n    \"ok\": true,\n    \"phase\": \"ZERO_COST_PRECHECK\",\n    \"canonicalSha\": \"4c50929d1597147cead6f7a463f2353f07df0e42\",\n    \"bridgeIdentity\": \"BRIDGE_IDENTITY_OK\",\n    \"policy\": \"LOCAL_TEST\",\n    \"backend\": \"wan22-ti2v-5b\",\n    \"status\": \"ZERO_COST_PRECHECK_READY\",\n    \"paidResourceCreationAuthorized\": true,\n    \"paidResourceCreationPossible\": true,\n    \"zeroCostChecks\": [\n      \"canonicalSha\",\n      \"bridgeIdentity\",\n      \"localTestPolicy\",\n      \"wan22Backend\",\n      \"registryImageDigest\",\n      \"modelRevision\",\n      \"requirementsSha256\",\n      \"modelFileManifest\",\n      \"workspaceCapacity\",\n      \"networkVolumeContract\",\n      \"dataCenterCompatibility\",\n      \"explicitGpuRequest\",\n      \"economicBudget\",\n      \"noExternalFallback\",\n      \"referenceAssetIntegrity\",\n      \"durableIdentity\",\n      \"localDuplicateObligation\",\n      \"sanitizedProvisionPayload\"\n    ],\n    \"physicalPaidChecks\": [\n      \"physicalSelectedGpu\",\n      \"exactComputeCapability\",\n      \"cuda\",\n      \"python312\",\n      \"torch28Cu128\",\n      \"ffmpeg\",\n      \"flashAttention\",\n      \"flashAttentionCudaOperation\",\n      \"pythonImports\",\n      \"pipCheck\",\n      \"cudaOperation\",\n      \"wanGenerateHelp\",\n      \"mountedCache\",\n      \"physicalModelIntegrity\"\n    ],\n    \"payload\": {\n      \"cloudType\": \"SECURE\",\n      \"computeType\": \"GPU\",\n      \"containerDiskInGb\": 30,\n      \"volumeMountPath\": \"/workspace\",\n      \"gpuCount\": 1,\n      \"gpuTypeIds\": [\n        \"NVIDIA L40S\"\n      ],\n      \"gpuTypePriority\": \"custom\",\n      \"imageName\": \"runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404\",\n      \"interruptible\": false,\n      \"minRAMPerGPU\": 62,\n      \"minVCPUPerGPU\": 16,\n      \"ports\": [\n        \"22/tcp\"\n      ],\n      \"supportPublicIp\": true,\n      \"name\": \"jarvis-v142-9cc4f7e1f11267987af24b4d\",\n      \"env\": {\n        \"PUBLIC_KEY\": \"[EPHEMERAL_PUBLIC_KEY]\",\n        \"JARVIS_OPERATION_ID\": \"fcfebdc2-ecd9-443e-9359-5129821c206f\",\n        \"JARVIS_OBLIGATION_FINGERPRINT\": \"9cc4f7e1f11267987af24b4d478e5a9009c459f54784e0d739a6c1628bde00cd\"\n      },\n      \"volumeInGb\": 100\n    },\n    \"placement\": null,\n    \"economics\": {\n      \"hourlyRateUsd\": 1.09,\n      \"hardBudgetUsd\": 1.5,\n      \"stopRatio\": 0.9,\n      \"maximumSpendBeforeCleanupUsd\": 1.35,\n      \"maximumAuthorizedSeconds\": 4458\n    },\n    \"cache\": {\n      \"profile\": \"wan22-ti2v-5b-l40s\",\n      \"expectedStatus\": \"CACHE_MISS\",\n      \"modelBytes\": 34203123497,\n      \"workspaceReserveBytes\": 8589934592,\n      \"peakWorkspaceBytes\": 42793058089,\n      \"minimumNetworkVolumeGb\": 50,\n      \"modelPath\": \"/workspace/jarvis-v142/cache/wan22-ti2v-5b/model\",\n      \"repositoryPath\": \"/workspace/jarvis-v142/cache/wan22-ti2v-5b/Wan2.2\",\n      \"virtualEnvironmentPath\": \"/workspace/jarvis-v142/cache/wan22-ti2v-5b/venv\",\n      \"huggingFaceMetadataPath\": \"/workspace/jarvis-v142/cache/wan22-ti2v-5b/model/.cache/huggingface\",\n      \"temporaryBuildPath\": \"/tmp\"\n    },\n    \"assets\": [\n      {\n        \"output\": \".jarvis-artifacts/images/taqueria-el-dorado-fresh-v3-scene-1.png\",\n        \"role\": \"source\",\n        \"bytes\": 1782391,\n        \"sha256\": \"d36ce99af24850baedafd04f03144988ccca9bb11e734abc1771d2634bcc7b41\",\n        \"remoteFile\": \"/workspace/jarvis-v142/operations/fcfebdc2-ecd9-443e-9359-5129821c206f/assets/0-taqueria-el-dorado-fresh-v3-scene-1.png\"\n      }\n    ],\n    \"contract\": {\n      \"gpuTypeId\": \"NVIDIA L40S\",\n      \"computeCapability\": \"8.9\",\n      \"provisionImageTag\": \"runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404\",\n      \"expectedRegistryDigest\": \"sha256:4d1721e62b56d345c83b4fd6090664be6daf9312caab5b2e76f23d8231941851\",\n      \"registryVerification\": {\n        \"registry\": \"registry-1.docker.io\",\n        \"repository\": \"runpod/pytorch\",\n        \"tag\": \"1.0.2-cu1281-torch280-ubuntu2404\",\n        \"expectedDigest\": \"sha256:4d1721e62b56d345c83b4fd6090664be6daf9312caab5b2e76f23d8231941851\",\n        \"observedDigest\": \"sha256:4d1721e62b56d345c83b4fd6090664be6daf9312caab5b2e76f23d8231941851\",\n        \"checkedAt\": \"2026-09-19T00:57:42.285Z\",\n        \"status\": \"REGISTRY_DIGEST_VERIFIED\"\n      },\n      \"runtimeIdentity\": {\n        \"operatingSystem\": \"ubuntu-24.04\",\n        \"pythonVersionPrefix\": \"3.12.\",\n        \"torchVersionPrefix\": \"2.8.0+cu128\",\n        \"torchCudaVersionPrefix\": \"12.8\",\n        \"ffmpegRequired\": true,\n        \"nvccRequired\": false,\n        \"flashAttentionCudaRequired\": true\n      },\n      \"modelRepository\": \"Wan-AI/Wan2.2-TI2V-5B\",\n      \"modelRevision\": \"921dbaf3f1674a56f47e83fb80a34bac8a8f203e\",\n      \"wanRepositoryRevision\": \"42bf4cfaa384bc21833865abc2f9e6c0e67233dc\",\n      \"requirementsSha256\": \"8338a62490c93cfbf908bb289bbaa3fb104e5606415bb48cca6cae5175313c44\",\n      \"requiredFiles\": [\n        {\n          \"path\": \"Wan2.2_VAE.pth\",\n          \"bytes\": 2818839170,\n          \"sha256\": \"20eb789667fa5e60e7516bf509512f6cb61f01b0aa0695eadaea930c13892b36\"\n        },\n        {\n          \"path\": \"config.json\",\n          \"bytes\": 251,\n          \"sha256\": \"d1fea36899d00c2501b836c13ad65af56e2f9529ba622e50886d3f5c3e6c02bc\"\n        },\n        {\n          \"path\": \"configuration.json\",\n          \"bytes\": 43,\n          \"sha256\": \"a6b66993e9da0feaba8d42d06b21ad9cfaf7d8b591f32fd639ae35b7f5d2d859\"\n        },\n        {\n          \"path\": \"diffusion_pytorch_model-00001-of-00003.safetensors\",\n          \"bytes\": 9825014472,\n          \"sha256\": \"720b06c4ade5e87c1246bba8ac95b664c638749cd9b102cf84d823bb44c026a1\"\n        },\n        {\n          \"path\": \"diffusion_pytorch_model-00002-of-00003.safetensors\",\n          \"bytes\": 9995661736,\n          \"sha256\": \"09ec5ef720d8396f6cfa51fbdcbdb2327e37722afd6e89fd38f1e7e5e782c283\"\n        },\n        {\n          \"path\": \"diffusion_pytorch_model-00003-of-00003.safetensors\",\n          \"bytes\": 178558176,\n          \"sha256\": \"6306f7894c345de9093ad588771c2abfaeb668a81f7a6d9a918bd26ba3568e49\"\n        },\n        {\n          \"path\": \"diffusion_pytorch_model.safetensors.index.json\",\n          \"bytes\": 72865,\n          \"sha256\": \"bfa2337f1163e195d24151a72298daf34a620543898109be47e414c8daa5b3fe\"\n        },\n        {\n          \"path\": \"google/umt5-xxl/special_tokens_map.json\",\n          \"bytes\": 6623,\n          \"sha256\": \"7b8a9f5040adb67b5805abdfd42c1f8d0f3d0e711f10726580eb3789cd0ad61d\"\n        },\n        {\n          \"path\": \"google/umt5-xxl/spiece.model\",\n          \"bytes\": 4548313,\n          \"sha256\": \"e3909a67b780650b35cf529ac782ad2b6b26e6d1f849d3fbb6a872905f452458\"\n        },\n        {\n          \"path\": \"google/umt5-xxl/tokenizer.json\",\n          \"bytes\": 16837417,\n          \"sha256\": \"6e197b4d3dbd71da14b4eb255f4fa91c9c1f2068b20a2de2472967ca3d22602b\"\n        },\n        {\n          \"path\": \"google/umt5-xxl/tokenizer_config.json\",\n          \"bytes\": 61728,\n          \"sha256\": \"ed9a3a8b0faa71a70a32847e0435fe036e6e112d4df4edb7bb48a921e344dc05\"\n        },\n        {\n          \"path\": \"models_t5_umt5-xxl-enc-bf16.pth\",\n          \"bytes\": 11361920418,\n          \"sha256\": \"7cace0da2b446bbbbc57d031ab6cf163a3d59b366da94e5afe36745b746fd81d\"\n        }\n      ]\n    }\n  },\n  \"cacheRoot\": \"/workspace/jarvis-v142/cache/wan22-ti2v-5b\",\n  \"repositoryDir\": \"/workspace/jarvis-v142/cache/wan22-ti2v-5b/Wan2.2\",\n  \"weightsDir\": \"/workspace/jarvis-v142/cache/wan22-ti2v-5b/model\",\n  \"wan21Dir\": null,\n  \"whisperDir\": null,\n  \"separatorFile\": null,\n  \"venvDir\": \"/workspace/jarvis-v142/cache/wan22-ti2v-5b/venv\",\n  \"operationDir\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\runpod\\\\fcfebdc2-ecd9-443e-9359-5129821c206f\",\n  \"privateKeyFile\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\runpod\\\\fcfebdc2-ecd9-443e-9359-5129821c206f\\\\ssh-key\",\n  \"publicKeyFile\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\runpod\\\\fcfebdc2-ecd9-443e-9359-5129821c206f\\\\ssh-key.pub\",\n  \"publicKey\": \"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGqlt2aaGN3RDST+RfcuP2VIRBJq/fDIIQv/85RbAB7M jarvis-fcfebdc2-ecd9-443e-9359-5129821c206f\",\n  \"knownHostsFile\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\runpod\\\\fcfebdc2-ecd9-443e-9359-5129821c206f\\\\known-hosts\",\n  \"localJobFile\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\runpod\\\\fcfebdc2-ecd9-443e-9359-5129821c206f\\\\job.json\",\n  \"localRunnerFile\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\runpod\\\\fcfebdc2-ecd9-443e-9359-5129821c206f\\\\jarvis-local-video-wan22.py\",\n  \"bootstrapFile\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\runpod\\\\fcfebdc2-ecd9-443e-9359-5129821c206f\\\\bootstrap.sh\",\n  \"remoteOperationDir\": \"/workspace/jarvis-v142/operations/fcfebdc2-ecd9-443e-9359-5129821c206f\",\n  \"remoteResultFile\": \"/workspace/jarvis-v142/operations/fcfebdc2-ecd9-443e-9359-5129821c206f/result.json\",\n  \"remoteOutputFile\": \"/workspace/jarvis-v142/operations/fcfebdc2-ecd9-443e-9359-5129821c206f/output.mp4\",\n  \"assets\": [\n    {\n      \"file\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\images\\\\taqueria-el-dorado-fresh-v3-scene-1.png\",\n      \"output\": \".jarvis-artifacts/images/taqueria-el-dorado-fresh-v3-scene-1.png\",\n      \"role\": \"source\",\n      \"bytes\": 1782391,\n      \"sha256\": \"d36ce99af24850baedafd04f03144988ccca9bb11e734abc1771d2634bcc7b41\",\n      \"remoteFile\": \"/workspace/jarvis-v142/operations/fcfebdc2-ecd9-443e-9359-5129821c206f/assets/0-taqueria-el-dorado-fresh-v3-scene-1.png\",\n      \"stagingFile\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\runpod\\\\fcfebdc2-ecd9-443e-9359-5129821c206f\\\\assets\\\\0-taqueria-el-dorado-fresh-v3-scene-1.png\"\n    }\n  ],\n  \"stageTimeline\": {\n    \"provision\": {\n      \"status\": \"READY\",\n      \"startedAt\": \"2026-09-19T00:57:45.980Z\",\n      \"completedAt\": \"2026-09-19T00:57:45.980Z\"\n    },\n    \"podReady\": {\n      \"status\": \"READY\",\n      \"startedAt\": \"2026-09-19T00:57:58.097Z\",\n      \"completedAt\": \"2026-09-19T00:57:58.097Z\",\n      \"publicIp\": \"91.199.227.82\",\n      \"sshPort\": 15557\n    },\n    \"bootstrap\": {\n      \"status\": \"RUNNING\",\n      \"startedAt\": \"2026-09-19T00:58:45.521Z\"\n    },\n    \"WAN_REPOSITORY\": {\n      \"status\": \"RUNNING\",\n      \"startedAt\": \"2026-09-19T00:58:53.703Z\",\n      \"cacheStatus\": \"CACHE_POPULATING\",\n      \"modelBytes\": 0,\n      \"lastProgressAt\": \"2026-09-19T00:58:46.511170Z\"\n    },\n    \"PYTHON_REQUIREMENTS\": {\n      \"status\": \"RUNNING\",\n      \"startedAt\": \"2026-09-19T00:59:18.016Z\",\n      \"cacheStatus\": \"CACHE_POPULATING\",\n      \"modelBytes\": 0,\n      \"lastProgressAt\": \"2026-09-19T00:59:10.778914Z\"\n    }\n  },\n  \"assetManifest\": [\n    {\n      \"output\": \".jarvis-artifacts/images/taqueria-el-dorado-fresh-v3-scene-1.png\",\n      \"localFile\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\runpod\\\\fcfebdc2-ecd9-443e-9359-5129821c206f\\\\assets\\\\0-taqueria-el-dorado-fresh-v3-scene-1.png\",\n      \"remoteFile\": \"/workspace/jarvis-v142/operations/fcfebdc2-ecd9-443e-9359-5129821c206f/assets/0-taqueria-el-dorado-fresh-v3-scene-1.png\",\n      \"bytes\": 1782391,\n      \"sha256\": \"d36ce99af24850baedafd04f03144988ccca9bb11e734abc1771d2634bcc7b41\",\n      \"role\": \"source\"\n    }\n  ],\n  \"gpuRentalSeconds\": 445.416,\n  \"gpuRentalEstimatedCost\": 0.13486206666666667,\n  \"externalComputeMeter\": {\n    \"schemaVersion\": \"jarvis.external-compute-meter.v1\",\n    \"provider\": \"runpod\",\n    \"resourceType\": \"GPU\",\n    \"resourceId\": \"xgpf0ekxl9dv8w\",\n    \"resourceProfile\": \"NVIDIA L40S\",\n    \"dataCenterId\": \"EU-NL-1\",\n    \"startedAt\": \"2026-09-19T00:57:45.980Z\",\n    \"measuredAt\": \"2026-09-19T01:05:11.396Z\",\n    \"elapsedSeconds\": 445.416,\n    \"hourlyRateUsd\": 1.09,\n    \"estimatedCostUsd\": 0.13486206666666667,\n    \"hardBudgetUsd\": 1.5,\n    \"maximumSpendBeforeCleanupUsd\": 1.35,\n    \"status\": \"RUNNING\"\n  },\n  \"updatedAt\": \"2026-09-19T01:05:11.396Z\",\n  \"publicIp\": \"91.199.227.82\",\n  \"sshPort\": 15557,\n  \"baseHealth\": {\n    \"operatingSystem\": \"ubuntu-24.04\",\n    \"python\": true,\n    \"pythonVersion\": \"3.12.3\",\n    \"torch\": true,\n    \"torchVersion\": \"2.8.0+cu128\",\n    \"torchCudaVersion\": \"12.8\",\n    \"cuda\": true,\n    \"gpuName\": \"NVIDIA L40S\",\n    \"computeCapability\": \"8.9\",\n    \"cudaProbe\": true,\n    \"vramBytes\": 47665709056,\n    \"vramGb\": 44.39,\n    \"freeDiskGb\": 175051.27,\n    \"cudaImageVersion\": \"\",\n    \"ffmpeg\": true,\n    \"ffprobe\": true,\n    \"nvcc\": false\n  },\n  \"physicalHealthVerified\": true,\n  \"bootstrapStartedAt\": \"2026-09-19T00:58:45.521Z\",\n  \"lastBootstrapProgressAt\": \"2026-09-19T00:59:10.778914Z\",\n  \"bootstrapProgress\": {\n    \"stage\": \"PYTHON_REQUIREMENTS\",\n    \"status\": \"RUNNING\",\n    \"cacheStatus\": \"CACHE_POPULATING\",\n    \"modelBytes\": 0,\n    \"at\": \"2026-09-19T00:59:10.778914Z\"\n  }\n}\n",
-    "partial": false,
-    "startLine": 1,
-    "endLine": 384,
-    "totalLines": 384,
-    "lineRange": {
-      "startLine": 1,
-      "endLine": 384,
-      "totalLines": 384
-    },
-    "source": "jarvis_fs_bridge_read_v1",
+    "term": "fcfebdc2-ecd9-443e-9359-5129821c206f",
+    "totalFilesScanned": 252,
+    "totalMatches": 35,
+    "matches": [
+      {
+        "file": ".video-worker/jobs/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 3,
+        "snippet": "\"operationId\": \"fcfebdc2-ecd9-443e-9359-5129821c206f\","
+      },
+      {
+        "file": ".video-worker/jobs/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 4,
+        "snippet": "\"operationName\": \"local-video/fcfebdc2-ecd9-443e-9359-5129821c206f\","
+      },
+      {
+        "file": ".video-worker/operations/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 3,
+        "snippet": "\"operationId\": \"fcfebdc2-ecd9-443e-9359-5129821c206f\","
+      },
+      {
+        "file": ".video-worker/operations/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 4,
+        "snippet": "\"operationName\": \"local-video/fcfebdc2-ecd9-443e-9359-5129821c206f\","
+      },
+      {
+        "file": ".video-worker/operations/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 7,
+        "snippet": "\"jobFile\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\jobs\\\\fcfebdc2-ecd9-443e-9359-5129821c206f.json\","
+      },
+      {
+        "file": ".video-worker/operations/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 8,
+        "snippet": "\"resultFile\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\results\\\\fcfebdc2-ecd9-443e-9359-5129821c206f.json\","
+      },
+      {
+        "file": ".video-worker/operations/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 39,
+        "snippet": "\"remoteJobId\": \"runpod/xgpf0ekxl9dv8w/fcfebdc2-ecd9-443e-9359-5129821c206f\","
+      },
+      {
+        "file": ".video-worker/operations/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 51,
+        "snippet": "\"operationName\": \"local-video/fcfebdc2-ecd9-443e-9359-5129821c206f\","
+      },
+      {
+        "file": ".video-worker/operations/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 127,
+        "snippet": "\"remoteFile\": \"/workspace/jarvis-v142/operations/fcfebdc2-ecd9-443e-9359-5129821c206f/assets/0-taqueria-el-dorado-fresh-v3-scene-1.png\","
+      },
+      {
+        "file": ".video-worker/operations/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 133,
+        "snippet": "\"remoteJobId\": \"runpod/xgpf0ekxl9dv8w/fcfebdc2-ecd9-443e-9359-5129821c206f\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f/job.json",
+        "line": 3,
+        "snippet": "\"operationId\": \"fcfebdc2-ecd9-443e-9359-5129821c206f\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f/job.json",
+        "line": 4,
+        "snippet": "\"operationName\": \"local-video/fcfebdc2-ecd9-443e-9359-5129821c206f\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f/job.json",
+        "line": 20,
+        "snippet": "\"outputFile\": \"/workspace/jarvis-v142/operations/fcfebdc2-ecd9-443e-9359-5129821c206f/output.mp4\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f/job.json",
+        "line": 25,
+        "snippet": "\"/workspace/jarvis-v142/operations/fcfebdc2-ecd9-443e-9359-5129821c206f/assets/0-taqueria-el-dorado-fresh-v3-scene-1.png\""
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f/job.json",
+        "line": 31,
+        "snippet": "\"/workspace/jarvis-v142/operations/fcfebdc2-ecd9-443e-9359-5129821c206f/assets/0-taqueria-el-dorado-fresh-v3-scene-1.png\""
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 5,
+        "snippet": "\"remoteJobId\": \"runpod/xgpf0ekxl9dv8w/fcfebdc2-ecd9-443e-9359-5129821c206f\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 63,
+        "snippet": "\"operationId\": \"fcfebdc2-ecd9-443e-9359-5129821c206f\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 64,
+        "snippet": "\"operationName\": \"local-video/fcfebdc2-ecd9-443e-9359-5129821c206f\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 136,
+        "snippet": "\"JARVIS_OPERATION_ID\": \"fcfebdc2-ecd9-443e-9359-5129821c206f\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 168,
+        "snippet": "\"remoteFile\": \"/workspace/jarvis-v142/operations/fcfebdc2-ecd9-443e-9359-5129821c206f/assets/0-taqueria-el-dorado-fresh-v3-scene-1.png\""
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 269,
+        "snippet": "\"operationDir\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\runpod\\\\fcfebdc2-ecd9-443e-9359-5129821c206f\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 270,
+        "snippet": "\"privateKeyFile\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\runpod\\\\fcfebdc2-ecd9-443e-9359-5129821c206f\\\\ssh-key\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 271,
+        "snippet": "\"publicKeyFile\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\runpod\\\\fcfebdc2-ecd9-443e-9359-5129821c206f\\\\ssh-key.pub\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 272,
+        "snippet": "\"publicKey\": \"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGqlt2aaGN3RDST+RfcuP2VIRBJq/fDIIQv/85RbAB7M jarvis-fcfebdc2-ecd9-443e-9359-5129821c206f\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 273,
+        "snippet": "\"knownHostsFile\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\runpod\\\\fcfebdc2-ecd9-443e-9359-5129821c206f\\\\known-hosts\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 274,
+        "snippet": "\"localJobFile\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\runpod\\\\fcfebdc2-ecd9-443e-9359-5129821c206f\\\\job.json\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 275,
+        "snippet": "\"localRunnerFile\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\runpod\\\\fcfebdc2-ecd9-443e-9359-5129821c206f\\\\jarvis-local-video-wan22.py\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 276,
+        "snippet": "\"bootstrapFile\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\runpod\\\\fcfebdc2-ecd9-443e-9359-5129821c206f\\\\bootstrap.sh\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 277,
+        "snippet": "\"remoteOperationDir\": \"/workspace/jarvis-v142/operations/fcfebdc2-ecd9-443e-9359-5129821c206f\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 278,
+        "snippet": "\"remoteResultFile\": \"/workspace/jarvis-v142/operations/fcfebdc2-ecd9-443e-9359-5129821c206f/result.json\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 279,
+        "snippet": "\"remoteOutputFile\": \"/workspace/jarvis-v142/operations/fcfebdc2-ecd9-443e-9359-5129821c206f/output.mp4\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 287,
+        "snippet": "\"remoteFile\": \"/workspace/jarvis-v142/operations/fcfebdc2-ecd9-443e-9359-5129821c206f/assets/0-taqueria-el-dorado-fresh-v3-scene-1.png\","
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 288,
+        "snippet": "\"stagingFile\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\runpod\\\\fcfebdc2-ecd9-443e-9359-5129821c206f\\\\assets\\\\0-taqueria-el-dorado-fresh-v3"
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 326,
+        "snippet": "\"localFile\": \"C:\\\\Users\\\\heber\\\\Documents\\\\Codex\\\\2026-06-17\\\\estas-conectado-a-github-y-a\\\\work\\\\fixgo-app-v142-worker\\\\.jarvis-artifacts\\\\.video-worker\\\\runpod\\\\fcfebdc2-ecd9-443e-9359-5129821c206f\\\\assets\\\\0-taqueria-el-dorado-fresh-v3-s"
+      },
+      {
+        "file": ".video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 327,
+        "snippet": "\"remoteFile\": \"/workspace/jarvis-v142/operations/fcfebdc2-ecd9-443e-9359-5129821c206f/assets/0-taqueria-el-dorado-fresh-v3-scene-1.png\","
+      }
+    ],
+    "source": "jarvis_fs_bridge_grep_v1",
     "version": "2.51.0-temporal-media-self-hosted-v142"
   },
   "committedFiles": [
