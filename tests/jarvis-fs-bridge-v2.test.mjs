@@ -1639,6 +1639,18 @@ test("SIA7 worker targets the bridge IPv4 loopback authority", () => {
 
 
 
+test("npm bridge syncs the checkout before importing long-lived bridge modules", () => {
+    const packageJson = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+    const bridgeScript = String(packageJson.scripts.bridge || "");
+    const syncIndex = bridgeScript.indexOf("spawnSync(git,['pull','--rebase','--autostash'");
+    const uploadImportIndex = bridgeScript.indexOf("import('./jarvis-upload-bridge.js')");
+    const workerImportIndex = bridgeScript.indexOf("import('./jarvis-github-worker.js')");
+    assert.ok(syncIndex >= 0, "bridge launcher must pre-sync Git");
+    assert.ok(uploadImportIndex > syncIndex, "upload bridge import must happen after Git sync");
+    assert.ok(workerImportIndex > syncIndex, "worker import must happen after Git sync");
+    assert.match(bridgeScript, /C:\\\\Program Files\\\\Git\\\\cmd\\\\git\.exe/);
+});
+
 test("Windows bridge child processes inherit the canonical Git executable path", () => {
     const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
     assert.match(bridgeSource, /function bridgeChildEnvironment\(/);
