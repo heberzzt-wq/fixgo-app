@@ -1,6 +1,12 @@
 {
-  "jobId": "v142-sync-after-b2c-readonly-audit-20260918-chatgpt-97",
+  "jobId": "v142-audit-b2b-personnel-activation-20260918-chatgpt-98",
   "operation": "bridge",
-  "endpoint": "/health",
-  "body": {}
+  "endpoint": "/grep",
+  "body": {
+    "term": "documentos_pendientes",
+    "cwd": ".",
+    "maxFiles": 1200,
+    "maxFileSizeBytes": 900000,
+    "maxMatches": 180
+  }
 }
