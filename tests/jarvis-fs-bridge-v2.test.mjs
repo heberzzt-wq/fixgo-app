@@ -1673,6 +1673,24 @@ test("SIA7 long bridge runs use native HTTP transport with command-bound timeout
     }
 });
 
+test("SIA7 Taqueria paid Wan lifecycle is split into explicit start and poll operations", () => {
+    const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
+    assert.match(workerSource, /operation === "wan22_taqueria_start"/);
+    assert.match(workerSource, /operation === "wan22_taqueria_poll"/);
+    assert.match(workerSource, /job\.executePaid !== true \|\| job\.humanApproved !== true/);
+    assert.match(workerSource, /SIA7_WAN22_PAID_AUTHORITY_REQUIRED/);
+    assert.match(workerSource, /SIA7_TAQUERIA_WAN22_OUTPUT/);
+    assert.match(workerSource, /taqueria-el-dorado-wan22-l40s-22s\.mp4/);
+    assert.match(workerSource, /durationSeconds: 22/);
+    assert.match(workerSource, /requiresIdentityFidelity: false/);
+    assert.match(workerSource, /candidate\.gpuTypeId === "NVIDIA L40S"/);
+    assert.match(workerSource, /Number\(candidate\.hourlyRateUsd\) <= 1\.10/);
+    assert.match(workerSource, /maximumHardBudgetUsd: 1\.5/);
+    assert.match(workerSource, /await runtime\.engine\.poll\(\{ operationName \}\)/);
+    assert.doesNotMatch(workerSource, /wan22_taqueria_start"[\s\S]{0,1200}humo-17b-identity/);
+});
+
+
 test("SIA7 backs off synchronization failures before execution without consuming the job", async () => {
     const { createWorkerPoller } = await import("../jarvis-github-worker.js");
     let syncs = 0, executions = 0, publications = 0, reads = 0, clock = 0;
