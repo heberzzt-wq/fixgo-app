@@ -1,6 +1,12 @@
 {
-  "jobId": "v142-sync-after-runpod-volume-cleanup-20260918-chatgpt-94",
+  "jobId": "v142-audit-b2c-document-persistence-20260918-chatgpt-95",
   "operation": "bridge",
-  "endpoint": "/health",
-  "body": {}
+  "endpoint": "/grep",
+  "body": {
+    "term": "expedientes/",
+    "cwd": ".",
+    "maxFiles": 1200,
+    "maxFileSizeBytes": 800000,
+    "maxMatches": 120
+  }
 }
