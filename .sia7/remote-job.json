@@ -1,9 +1,12 @@
 {
-  "jobId": "v142-taqueria-wan22-ephemeral-l40s-retry3-20260918-chatgpt-58",
+  "jobId": "v142-taqueria-runpod-state-grep-after-58-20260918-chatgpt-59a",
   "operation": "bridge",
-  "endpoint": "/run",
+  "endpoint": "/grep",
   "body": {
-    "command": "npm test",
-    "timeoutMs": 1800000
+    "term": "taqueria-el-dorado-wan22-l40s-22s.mp4",
+    "cwd": ".jarvis-artifacts/.video-worker/runpod",
+    "maxFiles": 300,
+    "maxFileSizeBytes": 1000000,
+    "maxMatches": 100
   }
 }
