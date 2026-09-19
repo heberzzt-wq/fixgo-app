@@ -741,6 +741,7 @@ async function executeHuMoIdentityProbeJob(job = {}) {
     const childEnv = {
         ...process.env,
         JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "true",
+        JARVIS_RUNPOD_REGISTRY_RECEIPT_FALLBACK_AUTHORIZED: "true",
         JARVIS_HUMO_IDENTITY_PROBE_PAID_EXECUTION_AUTHORIZED: "true",
         JARVIS_HUMO_IDENTITY_PROBE_HARD_BUDGET_USD: String(hardBudgetUsd),
         JARVIS_HUMO_IDENTITY_PROBE_DURATION_SECONDS: "8",
