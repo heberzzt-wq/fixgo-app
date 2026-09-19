@@ -1685,6 +1685,7 @@ test("SIA7 Taqueria paid Wan lifecycle is split into explicit start and poll ope
     assert.match(workerSource, /requiresIdentityFidelity: false/);
     assert.match(workerSource, /candidate\?\.gpuTypeId === "NVIDIA L40S"/);
     assert.match(workerSource, /Number\(candidate\.hourlyRateUsd\) <= 1\.10/);
+    assert.match(workerSource, /JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA L40S"/);
     assert.match(workerSource, /JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1"/);
     assert.match(workerSource, /JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "1\.10"/);
     assert.match(workerSource, /JARVIS_RUNPOD_EPHEMERAL_ONE_SHOT_AUTHORIZED/);
