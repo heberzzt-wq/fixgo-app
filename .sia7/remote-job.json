@@ -1,9 +1,8 @@
 {
-  "jobId": "v142-read-prior-runpod-registry-receipt-20260918-chatgpt-81",
-  "operation": "bridge",
-  "endpoint": "/read",
-  "body": {
-    "file": ".jarvis-artifacts/.video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
-    "maxBytes": 300000
-  }
+  "jobId": "v142-taqueria-preflight-registry-fallback-loaded-20260918-chatgpt-82",
+  "operation": "wan22_taqueria_preflight",
+  "hardBudgetUsd": 1.5,
+  "referenceOutput": ".jarvis-artifacts/images/taqueria-el-dorado-fresh-v3-scene-1.png",
+  "referenceSha256": "d36ce99af24850baedafd04f03144988ccca9bb11e734abc1771d2634bcc7b41",
+  "output": ".jarvis-artifacts/videos/taqueria-el-dorado-wan22-l40s-22s.mp4"
 }
