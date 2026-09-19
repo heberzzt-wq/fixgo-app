@@ -1,6 +1,9 @@
 {
-  "jobId": "v142-health-after-final-path-reload-20260918-chatgpt-73",
+  "jobId": "v142-taqueria-final-ci-after-path-reload-20260918-chatgpt-74",
   "operation": "bridge",
-  "endpoint": "/health",
-  "body": {}
+  "endpoint": "/run",
+  "body": {
+    "command": "npm run ci:test",
+    "timeoutMs": 1800000
+  }
 }
