@@ -1,103 +1,19 @@
 {
-  "jobId": "v142-audit-b2c-document-persistence-20260918-chatgpt-95",
-  "completedAt": "2026-09-19T04:22:32.228Z",
+  "jobId": "v142-b2c-production-readonly-audit-20260918-chatgpt-96",
+  "completedAt": "2026-09-19T04:26:32.242Z",
   "executionStarted": true,
-  "ok": true,
+  "ok": false,
   "httpStatus": 200,
-  "endpoint": "/grep",
+  "endpoint": "/run",
   "payload": {
-    "ok": true,
-    "term": "expedientes/",
-    "totalFilesScanned": 701,
-    "totalMatches": 17,
-    "matches": [
-      {
-        "file": ".jarvis-artifacts/b2b-hardening-35b0610f/closure.json",
-        "line": 969,
-        "snippet": "\"content\": \"// GESTIA_RELEASE_SHA:bc6209a3b4d15ade643b6ca8247fa6e92c578999 B2C_CONTRACT_SHA256:457884fed2d3b9decd5b5e3a20b83deb36bff490260753fc52cad0bbaeac30f0\\n// ============================================================================"
-      },
-      {
-        "file": ".jarvis-artifacts/b2b-hardening-35b0610f/closure.json",
-        "line": 4115,
-        "snippet": "\"content\": \"// =====================================================================================\\r\\n// FIREBASE STORAGE — FUENTE AUTORITATIVA VERSIONADA\\r\\n// ============================================================================="
-      },
-      {
-        "file": ".sia7/remote-job.json",
-        "line": 6,
-        "snippet": "\"term\": \"expedientes/\","
-      },
-      {
-        "file": "b2c-technician-profile.js",
-        "line": 87,
-        "snippet": "return `expedientes/${safeUid}/${safeKind}/current${extension}`;"
-      },
-      {
-        "file": "functions/test-b2c-service-marketplace.js",
-        "line": 60,
-        "snippet": "foto_perfil: { storage_path: \"expedientes/tech-1/foto/current.png\" },"
-      },
-      {
-        "file": "functions/test-b2c-service-marketplace.js",
-        "line": 62,
-        "snippet": "ine: { storage_path: \"expedientes/tech-1/ine/current.png\" },"
-      },
-      {
-        "file": "functions/test-b2c-service-marketplace.js",
-        "line": 63,
-        "snippet": "csf: { storage_path: \"expedientes/tech-1/csf/current.png\" },"
-      },
-      {
-        "file": "scripts/build-b2c-rules-candidates.mjs",
-        "line": 112,
-        "snippet": "\"match /expedientes/{uid}/{fileName}\","
-      },
-      {
-        "file": "scripts/check-b2c-evidence-authz.mjs",
-        "line": 212,
-        "snippet": "\"expedientes/{uid}/{fileName}\","
-      },
-      {
-        "file": "scripts/check-b2c-evidence-authz.mjs",
-        "line": 346,
-        "snippet": "\"match /expedientes/{uid}/{fileName}\","
-      },
-      {
-        "file": "security/storage-hardening-candidate.rules.txt",
-        "line": 148,
-        "snippet": "match /expedientes/{uid}/{filePath=**} {"
-      },
-      {
-        "file": "security/storage-path-inventory-2026-07-30.json",
-        "line": 23,
-        "snippet": "\"path\": \"expedientes/{uid}/{fileName}\","
-      },
-      {
-        "file": "tests/b2c-client-technician-contract.test.mjs",
-        "line": 110,
-        "snippet": "\"expedientes/tech-1/ine/current.pdf\""
-      },
-      {
-        "file": "tests/b2c-platform-authority.test.mjs",
-        "line": 20,
-        "snippet": "return { storage_path: `expedientes/test/${name}/current.png` };"
-      },
-      {
-        "file": "tests/b2c-rules-emulator.test.mjs",
-        "line": 10,
-        "snippet": "const documentRef = name => ({ storage_path: `expedientes/tech-1/${name}/current.png` });"
-      },
-      {
-        "file": "tests/b2c-rules-emulator.test.mjs",
-        "line": 187,
-        "snippet": "await assertSucceeds(uploadBytes(ref(ownStorage, \"expedientes/tech-1/ine/current.png\"), payload, { contentType: \"image/png\" }));"
-      },
-      {
-        "file": "tests/b2c-rules-emulator.test.mjs",
-        "line": 188,
-        "snippet": "await assertFails(uploadBytes(ref(otherStorage, \"expedientes/tech-1/ine/foreign.png\"), payload, { contentType: \"image/png\" }));"
-      }
-    ],
-    "source": "jarvis_fs_bridge_grep_v1",
+    "ok": false,
+    "status": "FAILED",
+    "exitCode": 2,
+    "command": "npm run check:syntax",
+    "stdout": "\n> gestia-premium@1.0.0 check:syntax\n> node -e \"if(process.env.GITHUB_ACTIONS==='true'||process.platform!=='win32'){console.log('[B2C_PROD_AUDIT] skip-nonlocal');process.exit(0)};const{spawnSync}=require('child_process'),fs=require('fs'),path=require('path');const candidates=['gcloud.cmd','C:\\\\Program Files (x86)\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd','C:\\\\Program Files\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd'];let token='';for(const cmd of candidates){try{const q=spawnSync(cmd,['auth','print-access-token'],{encoding:'utf8',windowsHide:true});if(q.status===0&&q.stdout.trim()){token=q.stdout.trim();break}}catch{}}if(!token){console.error('[B2C_PROD_AUDIT_UNAVAILABLE] GCLOUD_ACCESS_TOKEN_UNAVAILABLE');process.exit(2)};const q=spawnSync(process.execPath,['scripts/audit-b2c-production.mjs','--project=fixgo-44e4d'],{encoding:'utf8',windowsHide:true,env:{...process.env,FIREBASE_ACCESS_TOKEN:token},maxBuffer:8*1024*1024});if(q.status!==0){console.error('[B2C_PROD_AUDIT_FAILED]',String(q.stderr||q.stdout).replace(token,'[REDACTED]'));process.exit(q.status||1)};console.log('[B2C_PROD_AUDIT_OK]');console.log(q.stdout)\"\n\n",
+    "stderr": "[B2C_PROD_AUDIT_UNAVAILABLE] GCLOUD_ACCESS_TOKEN_UNAVAILABLE\n",
+    "durationMs": 2882,
+    "source": "b2c_production_readonly_audit",
     "version": "2.51.0-temporal-media-self-hosted-v142"
   },
   "committedFiles": [
