@@ -1,9 +1,9 @@
 {
-  "jobId": "v142-taqueria-operation-refresh-after-transport-fix-20260918-chatgpt-61",
+  "jobId": "v142-wan-ephemeral-stage-syntax-20260918-chatgpt-62a",
   "operation": "bridge",
-  "endpoint": "/read",
+  "endpoint": "/run",
   "body": {
-    "file": ".jarvis-artifacts/.video-worker/operations/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
-    "maxBytes": 500000
+    "command": "npm run check:syntax",
+    "timeoutMs": 240000
   }
 }
