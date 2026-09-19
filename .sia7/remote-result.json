@@ -1,40 +1,90 @@
 {
-  "jobId": "v142-taqueria-runpod-state-grep-after-58-20260918-chatgpt-59a",
-  "completedAt": "2026-09-19T01:02:04.989Z",
+  "jobId": "v142-taqueria-runpod-podid-grep-after-58-20260918-chatgpt-59b",
+  "completedAt": "2026-09-19T01:02:51.588Z",
   "executionStarted": true,
   "ok": true,
   "httpStatus": 200,
   "endpoint": "/grep",
   "payload": {
     "ok": true,
-    "term": "taqueria-el-dorado-wan22-l40s-22s.mp4",
+    "term": "podId",
     "totalFilesScanned": 20,
-    "totalMatches": 5,
+    "totalMatches": 15,
     "matches": [
       {
-        "file": "3ce52675-2294-4c20-9d3d-bdf9a06f0389/job.json",
-        "line": 19,
-        "snippet": "\"output\": \".jarvis-artifacts/videos/taqueria-el-dorado-wan22-l40s-22s.mp4\","
+        "file": "06859cba-9082-437a-9bc9-037e9e61ddd3/job.json",
+        "line": 128,
+        "snippet": "\"podId\": \"ys08rhfupwuome\","
       },
       {
-        "file": "acffb4c3-04cb-40f3-9933-7629caa4c318/job.json",
-        "line": 19,
-        "snippet": "\"output\": \".jarvis-artifacts/videos/taqueria-el-dorado-wan22-l40s-22s.mp4\","
+        "file": "06859cba-9082-437a-9bc9-037e9e61ddd3.json",
+        "line": 4,
+        "snippet": "\"podId\": \"4vmbdakagst853\","
       },
       {
-        "file": "bdfbc7d5-597b-4178-b51d-e434576267fb/job.json",
-        "line": 19,
-        "snippet": "\"output\": \".jarvis-artifacts/videos/taqueria-el-dorado-wan22-l40s-22s.mp4\","
+        "file": "30fa0c3c-ceca-45bd-8e11-bd543dbcb26b/job.json",
+        "line": 128,
+        "snippet": "\"podId\": \"ys08rhfupwuome\","
       },
       {
-        "file": "f88feb1d-699c-46be-bcf7-75f0c4960904/job.json",
-        "line": 19,
-        "snippet": "\"output\": \".jarvis-artifacts/videos/taqueria-el-dorado-wan22-l40s-22s.mp4\","
+        "file": "30fa0c3c-ceca-45bd-8e11-bd543dbcb26b.json",
+        "line": 4,
+        "snippet": "\"podId\": \"n0x65ntnpv19nh\","
       },
       {
-        "file": "fcfebdc2-ecd9-443e-9359-5129821c206f/job.json",
-        "line": 19,
-        "snippet": "\"output\": \".jarvis-artifacts/videos/taqueria-el-dorado-wan22-l40s-22s.mp4\","
+        "file": "3ce52675-2294-4c20-9d3d-bdf9a06f0389.json",
+        "line": 4,
+        "snippet": "\"podId\": \"nqi8l7t7oel45w\","
+      },
+      {
+        "file": "9e7dc322-2804-4c99-bb73-1e760ad242e1/job.json",
+        "line": 128,
+        "snippet": "\"podId\": \"ys08rhfupwuome\","
+      },
+      {
+        "file": "9e7dc322-2804-4c99-bb73-1e760ad242e1.json",
+        "line": 4,
+        "snippet": "\"podId\": \"2kai45sbx77gbs\","
+      },
+      {
+        "file": "acffb4c3-04cb-40f3-9933-7629caa4c318.json",
+        "line": 4,
+        "snippet": "\"podId\": \"3859dzpi5fthr4\","
+      },
+      {
+        "file": "b46910cf-7fa0-4c0f-b9e8-6af5d23051d5/job.json",
+        "line": 137,
+        "snippet": "\"podId\": \"ys08rhfupwuome\","
+      },
+      {
+        "file": "b46910cf-7fa0-4c0f-b9e8-6af5d23051d5.json",
+        "line": 4,
+        "snippet": "\"podId\": \"0aqqvwiuxhpxr6\","
+      },
+      {
+        "file": "bdfbc7d5-597b-4178-b51d-e434576267fb.json",
+        "line": 4,
+        "snippet": "\"podId\": \"zxos516mht18g8\","
+      },
+      {
+        "file": "e71403a8-80fe-4d2e-9c88-0a553f7e5ba6/job.json",
+        "line": 128,
+        "snippet": "\"podId\": \"ys08rhfupwuome\","
+      },
+      {
+        "file": "e71403a8-80fe-4d2e-9c88-0a553f7e5ba6.json",
+        "line": 4,
+        "snippet": "\"podId\": \"t5sa2r0qw7djue\","
+      },
+      {
+        "file": "f88feb1d-699c-46be-bcf7-75f0c4960904.json",
+        "line": 4,
+        "snippet": "\"podId\": \"uptz94gnbscrnd\","
+      },
+      {
+        "file": "fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 4,
+        "snippet": "\"podId\": \"xgpf0ekxl9dv8w\","
       }
     ],
     "source": "jarvis_fs_bridge_grep_v1",
