@@ -16,13 +16,13 @@ export function assertRunpodPaidAdmission({hardCapCertified,paidExecutionAuthori
     if(hardCapCertified!==true)throw Error('RUNPOD_HARD_CAP_NOT_CERTIFIED');
     if(paidExecutionAuthorized!==true)throw Error('RUNPOD_PAID_EXECUTION_DISABLED');
 }
-export async function guardedRunpodFetch(url, options={}) {
+export async function guardedRunpodFetch(url, options={}, runtimeEnv=process.env) {
     const parsed=new URL(url);
     const creation=String(options.method||'GET').toUpperCase()==='POST' &&
         (/\/pods\/?$/.test(parsed.pathname) || /podFindAndDeployOnDemand|podRentInterruptable/.test(String(options.body||'')));
     const runtimePaidExecutionAuthorized =
         RUNPOD_PAID_EXECUTION_AUTHORIZED === true ||
-        String(process.env.JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED || "").trim().toLowerCase() === "true";
+        String(runtimeEnv?.JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED || "").trim().toLowerCase() === "true";
     if(creation)assertRunpodPaidAdmission({
         hardCapCertified:RUNPOD_HARD_CAP_CERTIFIED,
         paidExecutionAuthorized:runtimePaidExecutionAuthorized
