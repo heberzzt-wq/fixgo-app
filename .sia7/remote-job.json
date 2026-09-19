@@ -1,10 +1,7 @@
 {
-  "jobId": "v142-git-status-before-paid-retry-20260918-chatgpt-63b",
-  "operation": "bridge",
-  "endpoint": "/git",
-  "body": {
-    "action": "status",
-    "cwd": ".",
-    "timeoutMs": 120000
-  }
+  "jobId": "v142-taqueria-zero-cost-preflight-after-fixes-20260918-chatgpt-64",
+  "operation": "wan22_taqueria_preflight",
+  "hardBudgetUsd": 1.5,
+  "referenceOutput": ".jarvis-artifacts/images/taqueria-el-dorado-fresh-v3-scene-1.png",
+  "referenceSha256": "d36ce99af24850baedafd04f03144988ccca9bb11e734abc1771d2634bcc7b41"
 }
