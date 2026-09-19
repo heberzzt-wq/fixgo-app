@@ -1,9 +1,9 @@
 {
-  "jobId": "v142-taqueria-runpod-state-read-current-20260918-chatgpt-54",
+  "jobId": "v142-taqueria-wan22-ephemeral-l40s-retry-20260918-chatgpt-55",
   "operation": "bridge",
-  "endpoint": "/read",
+  "endpoint": "/run",
   "body": {
-    "file": ".jarvis-artifacts/.video-worker/runpod/acffb4c3-04cb-40f3-9933-7629caa4c318.json",
-    "maxBytes": 500000
+    "command": "npm test",
+    "timeoutMs": 1800000
   }
 }
