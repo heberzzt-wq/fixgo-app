@@ -1,9 +1,6 @@
 {
-  "jobId": "v142-taqueria-final-ci-after-path-reload-20260918-chatgpt-74",
+  "jobId": "v142-bridge-bootstrap-presync-materialize-20260918-chatgpt-75",
   "operation": "bridge",
-  "endpoint": "/run",
-  "body": {
-    "command": "npm run ci:test",
-    "timeoutMs": 1800000
-  }
+  "endpoint": "/health",
+  "body": {}
 }
