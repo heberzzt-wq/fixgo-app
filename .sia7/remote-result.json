@@ -1,28 +1,174 @@
 {
-  "jobId": "v142-local-fallback-receipt-inspect-20260918-chatgpt-86",
-  "completedAt": "2026-09-19T03:47:19.672Z",
+  "jobId": "v142-materialize-receipt-first-registry-20260918-chatgpt-87",
+  "completedAt": "2026-09-19T03:49:59.022Z",
   "executionStarted": true,
   "ok": true,
   "httpStatus": 200,
-  "endpoint": "/read",
+  "endpoint": "/health",
   "payload": {
     "ok": true,
-    "file": ".jarvis-artifacts/.video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
-    "path": ".jarvis-artifacts/.video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
-    "size": 3459,
-    "totalSize": 34822,
-    "content": "{\n  \"schemaVersion\": \"1.8.0-v142-single-authority\",\n  \"provider\": \"runpod\",\n  \"podId\": \"xgpf0ekxl9dv8w\",\n  \"remoteJobId\": \"runpod/xgpf0ekxl9dv8w/fcfebdc2-ecd9-443e-9359-5129821c206f\",\n  \"phase\": \"TERMINATED\",\n  \"gpuTypeId\": \"NVIDIA L40S\",\n  \"vramGb\": 48,\n  \"providerVramGb\": 48,\n  \"hourlyRateUsd\": 1.09,\n  \"hardBudgetUsd\": 1.5,\n  \"budgetStopRatio\": 0.9,\n  \"maximumSpendBeforeCleanupUsd\": 1.35,\n  \"maximumAuthorizedSeconds\": 4458,\n  \"networkVolumeId\": null,\n  \"networkVolumeRetentionAuthorized\": false,\n  \"persistentCacheVerification\": null,\n  \"localCacheTransferPrecheck\": null,\n  \"networkVolumeDataCenterId\": null,\n  \"networkVolumeSizeGb\": null,\n  \"dataCenterId\": \"EU-NL-1\",\n  \"runtimeCertificationOnly\": false,\n  \"backend\": \"wan22-ti2v-5b\",\n  \"model\": \"Wan2.2-TI2V-5B\",\n  \"runtimeKind\": \"wan22\",\n  \"cacheProfile\": \"wan22-ti2v-5b-l40s\",\n  \"modelContractRevision\": \"921dbaf3f1674a56f47e83fb80a34bac8a8f203e\",\n  \"computeCapabilityRequired\": \"8.9\",\n  \"expectedCacheStatus\": \"CACHE_MISS\",\n  \"provisionImageTag\": \"runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404\",\n  \"provisionImageNameSent\": \"runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404\",\n  \"provisionDockerStartCmd\": null,\n  \"expectedRegistryDigest\": \"sha256:4d1721e62b56d345c83b4fd6090664be6daf9312caab5b2e76f23d8231941851\",\n  \"runtimeIdentity\": {\n    \"operatingSystem\": \"ubuntu-24.04\",\n    \"pythonVersionPrefix\": \"3.12.\",\n    \"torchVersionPrefix\": \"2.8.0+cu128\",\n    \"torchCudaVersionPrefix\": \"12.8\",\n    \"ffmpegRequired\": true,\n    \"nvccRequired\": false,\n    \"flashAttentionCudaRequired\": true\n  },\n  \"registryVerification\": {\n    \"registry\": \"registry-1.docker.io\",\n    \"repository\": \"runpod/pytorch\",\n    \"tag\": \"1.0.2-cu1281-torch280-ubuntu2404\",\n    \"expectedDigest\": \"sha256:4d1721e62b56d345c83b4fd6090664be6daf9312caab5b2e76f23d8231941851\",\n    \"observedDigest\": \"sha256:4d1721e62b56d345c83b4fd6090664be6daf9312caab5b2e76f23d8231941851\",\n    \"checkedAt\": \"2026-09-19T00:57:42.285Z\",\n    \"status\": \"REGISTRY_DIGEST_VERIFIED\",\n    \"indexDigest\": \"sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35\",\n    \"platform\": {\n      \"os\": \"linux\",\n      \"architecture\": \"amd64\"\n    }\n  },\n  \"cacheStatus\": \"CACHE_POPULATING\",\n  \"bootstrapTimeoutSeconds\": 900,\n  \"humoTorchStageTimeoutSeconds\": 120,\n  \"inferenceTimeoutSeconds\": 600,\n  \"provisionedAt\": \"2026-09-19T00:57:45.980Z\",\n  \"createdAt\": \"2026-09-19T00:57:45.980Z\",\n  \"operationId\": \"fcfebdc2-ecd9-443e-9359-5129821c206f\",\n  \"operationName\": \"local-video/fcfebdc2-ecd9-443e-9359-5129821c206f\",\n  \"missionId\": \"MISSION-760dfdbf-750c-4eb6-ad3d-ac0173a238fb\",\n  \"objectiveId\": \"OBJ-c3465feb-082e-4f39-ab63-ed43a790e573\",\n  \"obligationId\": \"video.generate\",\n  \"rootInstructionHash\": \"d2ddb0ea218f79c1992bb7ac907ba3f3abd5af1672725bd6213c4b105f445981\",\n  \"zeroCostPrecheck\": {\n    \"ok\": true,\n    \"phase\": \"ZERO_COST_PRECHECK\",\n    \"canonicalSha\": \"4c50929d1597147cead6f7a463f2353f07df0e42\",\n    \"bridgeIdentity\": \"BRIDGE_IDENTITY_OK\",\n    \"policy\": \"LOCAL_TEST\",\n    \"backend\": \"wan22-ti2v-5b\",\n    \"status\": \"ZERO_COST_PRECHECK_READY\",\n    \"paidResourceCreationAuthorized\": true,\n    \"paidResourceCreationPossible\": true,\n    \"zeroCostChecks\": [\n      \"canonicalSha\",\n      \"bridgeIdentity\",\n      \"localTestPolicy\",\n      \"wan22Backend\",\n      \"registryImageDigest\",\n      \"modelRevision\",\n      \"requirementsSha256\",\n      \"modelFileManifest\",\n      \"workspaceCapacity\",\n      \"networkVolumeContract\",\n      \"dataCenterCompatibility\",",
-    "partial": true,
-    "startLine": 1,
-    "endLine": 90,
-    "totalLines": 593,
-    "lineRange": {
-      "startLine": 1,
-      "endLine": 90,
-      "totalLines": 593
+    "version": "2.51.0-temporal-media-self-hosted-v142",
+    "policy": {
+      "authority": "full_repo_private_owner",
+      "safeZone": "advisory",
+      "rootContainment": true,
+      "emptyWrites": "blocked",
+      "failureMode": "closed"
     },
-    "source": "jarvis_fs_bridge_read_v1",
-    "version": "2.51.0-temporal-media-self-hosted-v142"
+    "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker",
+    "actuators": {
+      "browser": {
+        "available": true,
+        "engine": "chrome.exe",
+        "actions": [
+          "inspect",
+          "screenshot",
+          "pdf",
+          "open",
+          "media"
+        ]
+      },
+      "speech": {
+        "available": true,
+        "provider": "windows-system-speech",
+        "platform": "win32",
+        "outputFormats": [
+          "wav"
+        ],
+        "physicallyVerified": true,
+        "cloudRequired": false,
+        "version": "1.0.0-local-windows-system-speech-v137",
+        "status": "LOCAL_SPEECH_READY"
+      },
+      "documents": {
+        "available": true,
+        "formats": [
+          "html",
+          "md",
+          "txt",
+          "csv",
+          "json",
+          "docx",
+          "xlsx",
+          "pptx",
+          "pdf"
+        ],
+        "nativeOffice": true
+      },
+      "repoWrite": {
+        "available": true,
+        "protocol": "prepare_authorize_consume_once",
+        "requires": [
+          "objectiveId",
+          "caseId",
+          "authorityId",
+          "controllerId",
+          "fingerprint",
+          "nonce",
+          "snapshot",
+          "matchCount"
+        ],
+        "postVerify": true,
+        "replayBlocked": true,
+        "gitReceiptsRequired": true,
+        "legacyFileContentWrite": false
+      },
+      "multimodalUploads": {
+        "available": true,
+        "transport": "chunked_progressive",
+        "maxFilesPerRequest": 30,
+        "maxFileBytes": 262144000,
+        "maxBatchBytes": 524288000,
+        "maxChunkBytes": 2097152,
+        "resumablePersistedArtifacts": true,
+        "artifactDownload": true,
+        "verifiedCount": 0,
+        "latest": null
+      },
+      "imageGeneration": {
+        "available": true,
+        "persistedArtifacts": true,
+        "verifiedCount": 5,
+        "latest": {
+          "name": "taqueria-el-dorado-fresh-v3-scene-3.png",
+          "bytes": 1400046,
+          "updatedAt": "2026-09-18T19:14:13.412Z"
+        }
+      },
+      "artifactStudio": {
+        "available": true,
+        "versionedLedger": true,
+        "registeredCount": 182,
+        "latest": {
+          "artifactId": "ART-2b39ea39-8abb-4010-bce7-c8d66950736e",
+          "studioVersion": "1.0.0-versioned-ledger",
+          "caseId": "CASE-33aa4235-ce6a-47b7-ae8d-a8aa1ee24d25",
+          "objectiveId": "OBJ-291b1dfa-3497-4f08-903d-9848263fe8fe",
+          "type": "md",
+          "version": 10,
+          "lineageKey": ".jarvis-artifacts/documents/taqueria-el-dorado-plan-marketing.md",
+          "origin": "document.create",
+          "provider": "jarvis_document_engine",
+          "model": "",
+          "file": ".jarvis-artifacts/documents/taqueria-el-dorado-plan-marketing.md",
+          "mimeType": "text/markdown",
+          "bytes": 2155,
+          "sha256": "184d98760c8f49a8f843909585a42a077e5c1cf7bf4094ee29b60e7fdc80ad4d",
+          "createdAt": "2026-09-19T01:45:34.833Z",
+          "status": "DOCUMENT_CREATED",
+          "approval": {
+            "required": false,
+            "approved": true,
+            "approvedBy": "LOCAL_ARTIFACT_POLICY"
+          },
+          "editable": true,
+          "preview": false,
+          "downloadable": true,
+          "publishable": false,
+          "deploymentStatus": "NOT_DEPLOYED",
+          "originalFile": null,
+          "transformations": []
+        }
+      },
+      "webResearch": {
+        "available": true,
+        "grounded": true,
+        "engine": "duckduckgo-html-with-bing-rss-fallback"
+      },
+      "connectors": {
+        "available": true,
+        "adapters": [
+          "github",
+          "firebase"
+        ],
+        "verification": "live-read-only"
+      }
+    },
+    "identity": {
+      "ok": true,
+      "status": "BRIDGE_IDENTITY_OK",
+      "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker",
+      "contract": {
+        "ok": true,
+        "projectId": "fixgo-app",
+        "repository": "heberzzt-wq/fixgo-app",
+        "branch": "v94-media-v4n-negative-claims",
+        "releaseId": "v94-source-grounded-research-v124-20260810",
+        "contractPath": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker\\jarvis-runtime-contract.json"
+      },
+      "git": {
+        "root": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
+        "branch": "v94-media-v4n-negative-claims",
+        "head": "a2c12d0e4aee82f8d11d3f98f8333b15e9f48a48",
+        "remote": "https://heberzzt-wq@github.com/heberzzt-wq/fixgo-app.git",
+        "clean": false
+      },
+      "identityMode": "branch_contract_head",
+      "contractHead": "a2c12d0e4aee82f8d11d3f98f8333b15e9f48a48",
+      "remoteVerified": true,
+      "repositoryMatches": true,
+      "worktreeClean": false
+    }
   },
   "committedFiles": [
     ".sia7/remote-result.json"
