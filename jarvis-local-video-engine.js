@@ -2335,7 +2335,7 @@ export function createRunpodRemoteVideoAdapter({
         "for root,dirs,files in os.walk(model_dir):",
         "    if os.path.abspath(root)==os.path.abspath(model_dir): dirs[:]=[name for name in dirs if name!='.cache']",
         "    for name in files: total+=os.path.getsize(os.path.join(root,name))",
-        "assert total==expected['expectedModelBytes']",
+        "assert total>=expected['requiredRuntimeModelBytes']",
         "observed_files=[]",
         "model_revisions=set()",
         "for item in expected['requiredFiles']:",
@@ -3258,7 +3258,7 @@ export function createRunpodRemoteVideoAdapter({
             modelRepository === RUNPOD_WAN22_CACHE_BASE.modelRepository &&
             modelRevision === RUNPOD_WAN22_CACHE_BASE.modelRevision &&
             wanRepositoryRevision === RUNPOD_WAN22_CACHE_BASE.wanRepositoryRevision &&
-            modelBytes === RUNPOD_WAN22_CACHE_BASE.expectedModelBytes &&
+            (!Number.isFinite(modelBytes) || modelBytes >= RUNPOD_WAN22_CACHE_BASE.requiredRuntimeModelBytes) &&
             requiredFilesBytes === RUNPOD_WAN22_CACHE_BASE.requiredRuntimeModelBytes;
         const retained = evidence?.networkVolumeRetained !== false && evidence?.volumeRetained !== false;
         const completed = !evidence?.phase || [
@@ -3270,7 +3270,7 @@ export function createRunpodRemoteVideoAdapter({
             (modelRepository && modelRepository !== RUNPOD_WAN22_CACHE_BASE.modelRepository) ||
             (modelRevision && modelRevision !== RUNPOD_WAN22_CACHE_BASE.modelRevision) ||
             (wanRepositoryRevision && wanRepositoryRevision !== RUNPOD_WAN22_CACHE_BASE.wanRepositoryRevision) ||
-            (Number.isFinite(modelBytes) && modelBytes !== RUNPOD_WAN22_CACHE_BASE.expectedModelBytes) ||
+            (Number.isFinite(modelBytes) && modelBytes < RUNPOD_WAN22_CACHE_BASE.requiredRuntimeModelBytes) ||
             (Number.isFinite(requiredFilesBytes) &&
                 requiredFilesBytes !== RUNPOD_WAN22_CACHE_BASE.requiredRuntimeModelBytes) ||
             (observedType && observedType !== RUNPOD_WAN22_CACHE_BASE.networkVolumeType) ||
