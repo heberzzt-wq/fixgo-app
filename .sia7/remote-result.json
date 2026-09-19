@@ -1,174 +1,99 @@
 {
-  "jobId": "v142-materialize-final-taqueria-preflight-alignment-20260918-chatgpt-91",
-  "completedAt": "2026-09-19T04:01:39.949Z",
+  "jobId": "v142-runpod-cost-audit-20260918-chatgpt-92",
+  "completedAt": "2026-09-19T04:05:58.460Z",
   "executionStarted": true,
   "ok": true,
   "httpStatus": 200,
-  "endpoint": "/health",
+  "endpoint": "/grep",
   "payload": {
     "ok": true,
-    "version": "2.51.0-temporal-media-self-hosted-v142",
-    "policy": {
-      "authority": "full_repo_private_owner",
-      "safeZone": "advisory",
-      "rootContainment": true,
-      "emptyWrites": "blocked",
-      "failureMode": "closed"
-    },
-    "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker",
-    "actuators": {
-      "browser": {
-        "available": true,
-        "engine": "chrome.exe",
-        "actions": [
-          "inspect",
-          "screenshot",
-          "pdf",
-          "open",
-          "media"
-        ]
+    "term": "gpuRentalEstimatedCost",
+    "totalFilesScanned": 22,
+    "totalMatches": 16,
+    "matches": [
+      {
+        "file": "06859cba-9082-437a-9bc9-037e9e61ddd3/job.json",
+        "line": 141,
+        "snippet": "\"gpuRentalEstimatedCost\": 0.0775114138888889"
       },
-      "speech": {
-        "available": true,
-        "provider": "windows-system-speech",
-        "platform": "win32",
-        "outputFormats": [
-          "wav"
-        ],
-        "physicallyVerified": true,
-        "cloudRequired": false,
-        "version": "1.0.0-local-windows-system-speech-v137",
-        "status": "LOCAL_SPEECH_READY"
+      {
+        "file": "06859cba-9082-437a-9bc9-037e9e61ddd3.json",
+        "line": 258,
+        "snippet": "\"gpuRentalEstimatedCost\": 0.20627462777777777,"
       },
-      "documents": {
-        "available": true,
-        "formats": [
-          "html",
-          "md",
-          "txt",
-          "csv",
-          "json",
-          "docx",
-          "xlsx",
-          "pptx",
-          "pdf"
-        ],
-        "nativeOffice": true
+      {
+        "file": "30fa0c3c-ceca-45bd-8e11-bd543dbcb26b/job.json",
+        "line": 141,
+        "snippet": "\"gpuRentalEstimatedCost\": 0.0775114138888889"
       },
-      "repoWrite": {
-        "available": true,
-        "protocol": "prepare_authorize_consume_once",
-        "requires": [
-          "objectiveId",
-          "caseId",
-          "authorityId",
-          "controllerId",
-          "fingerprint",
-          "nonce",
-          "snapshot",
-          "matchCount"
-        ],
-        "postVerify": true,
-        "replayBlocked": true,
-        "gitReceiptsRequired": true,
-        "legacyFileContentWrite": false
+      {
+        "file": "30fa0c3c-ceca-45bd-8e11-bd543dbcb26b.json",
+        "line": 323,
+        "snippet": "\"gpuRentalEstimatedCost\": 0.029303136111111117,"
       },
-      "multimodalUploads": {
-        "available": true,
-        "transport": "chunked_progressive",
-        "maxFilesPerRequest": 30,
-        "maxFileBytes": 262144000,
-        "maxBatchBytes": 524288000,
-        "maxChunkBytes": 2097152,
-        "resumablePersistedArtifacts": true,
-        "artifactDownload": true,
-        "verifiedCount": 0,
-        "latest": null
+      {
+        "file": "3ce52675-2294-4c20-9d3d-bdf9a06f0389.json",
+        "line": 351,
+        "snippet": "\"gpuRentalEstimatedCost\": 0.19110667222222225,"
       },
-      "imageGeneration": {
-        "available": true,
-        "persistedArtifacts": true,
-        "verifiedCount": 5,
-        "latest": {
-          "name": "taqueria-el-dorado-fresh-v3-scene-3.png",
-          "bytes": 1400046,
-          "updatedAt": "2026-09-18T19:14:13.412Z"
-        }
+      {
+        "file": "9e7dc322-2804-4c99-bb73-1e760ad242e1/job.json",
+        "line": 141,
+        "snippet": "\"gpuRentalEstimatedCost\": 0.0775114138888889"
       },
-      "artifactStudio": {
-        "available": true,
-        "versionedLedger": true,
-        "registeredCount": 182,
-        "latest": {
-          "artifactId": "ART-2b39ea39-8abb-4010-bce7-c8d66950736e",
-          "studioVersion": "1.0.0-versioned-ledger",
-          "caseId": "CASE-33aa4235-ce6a-47b7-ae8d-a8aa1ee24d25",
-          "objectiveId": "OBJ-291b1dfa-3497-4f08-903d-9848263fe8fe",
-          "type": "md",
-          "version": 10,
-          "lineageKey": ".jarvis-artifacts/documents/taqueria-el-dorado-plan-marketing.md",
-          "origin": "document.create",
-          "provider": "jarvis_document_engine",
-          "model": "",
-          "file": ".jarvis-artifacts/documents/taqueria-el-dorado-plan-marketing.md",
-          "mimeType": "text/markdown",
-          "bytes": 2155,
-          "sha256": "184d98760c8f49a8f843909585a42a077e5c1cf7bf4094ee29b60e7fdc80ad4d",
-          "createdAt": "2026-09-19T01:45:34.833Z",
-          "status": "DOCUMENT_CREATED",
-          "approval": {
-            "required": false,
-            "approved": true,
-            "approvedBy": "LOCAL_ARTIFACT_POLICY"
-          },
-          "editable": true,
-          "preview": false,
-          "downloadable": true,
-          "publishable": false,
-          "deploymentStatus": "NOT_DEPLOYED",
-          "originalFile": null,
-          "transformations": []
-        }
+      {
+        "file": "9e7dc322-2804-4c99-bb73-1e760ad242e1.json",
+        "line": 251,
+        "snippet": "\"gpuRentalEstimatedCost\": 0.18883220555555558,"
       },
-      "webResearch": {
-        "available": true,
-        "grounded": true,
-        "engine": "duckduckgo-html-with-bing-rss-fallback"
+      {
+        "file": "acffb4c3-04cb-40f3-9933-7629caa4c318.json",
+        "line": 343,
+        "snippet": "\"gpuRentalEstimatedCost\": 0.15300208888888892,"
       },
-      "connectors": {
-        "available": true,
-        "adapters": [
-          "github",
-          "firebase"
-        ],
-        "verification": "live-read-only"
+      {
+        "file": "b46910cf-7fa0-4c0f-b9e8-6af5d23051d5/job.json",
+        "line": 150,
+        "snippet": "\"gpuRentalEstimatedCost\": 0.0775114138888889"
+      },
+      {
+        "file": "b46910cf-7fa0-4c0f-b9e8-6af5d23051d5.json",
+        "line": 268,
+        "snippet": "\"gpuRentalEstimatedCost\": 0.8010979222222223,"
+      },
+      {
+        "file": "bdfbc7d5-597b-4178-b51d-e434576267fb.json",
+        "line": 327,
+        "snippet": "\"gpuRentalEstimatedCost\": 0.12077230277777777,"
+      },
+      {
+        "file": "e6ca3ca7-db2f-45a0-9cea-5a97e6995633.json",
+        "line": 361,
+        "snippet": "\"gpuRentalEstimatedCost\": 0.15890383333333338,"
+      },
+      {
+        "file": "e71403a8-80fe-4d2e-9c88-0a553f7e5ba6/job.json",
+        "line": 141,
+        "snippet": "\"gpuRentalEstimatedCost\": 0.0775114138888889"
+      },
+      {
+        "file": "e71403a8-80fe-4d2e-9c88-0a553f7e5ba6.json",
+        "line": 251,
+        "snippet": "\"gpuRentalEstimatedCost\": 0.35873625833333334,"
+      },
+      {
+        "file": "f88feb1d-699c-46be-bcf7-75f0c4960904.json",
+        "line": 336,
+        "snippet": "\"gpuRentalEstimatedCost\": 0.08456280555555556,"
+      },
+      {
+        "file": "fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+        "line": 350,
+        "snippet": "\"gpuRentalEstimatedCost\": 0.20219318333333336,"
       }
-    },
-    "identity": {
-      "ok": true,
-      "status": "BRIDGE_IDENTITY_OK",
-      "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker",
-      "contract": {
-        "ok": true,
-        "projectId": "fixgo-app",
-        "repository": "heberzzt-wq/fixgo-app",
-        "branch": "v94-media-v4n-negative-claims",
-        "releaseId": "v94-source-grounded-research-v124-20260810",
-        "contractPath": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker\\jarvis-runtime-contract.json"
-      },
-      "git": {
-        "root": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
-        "branch": "v94-media-v4n-negative-claims",
-        "head": "0010d75a3df295db607b3ce7f182068c5c6cb86b",
-        "remote": "https://heberzzt-wq@github.com/heberzzt-wq/fixgo-app.git",
-        "clean": false
-      },
-      "identityMode": "branch_contract_head",
-      "contractHead": "0010d75a3df295db607b3ce7f182068c5c6cb86b",
-      "remoteVerified": true,
-      "repositoryMatches": true,
-      "worktreeClean": false
-    }
+    ],
+    "source": "jarvis_fs_bridge_grep_v1",
+    "version": "2.51.0-temporal-media-self-hosted-v142"
   },
   "committedFiles": [
     ".sia7/remote-result.json"
