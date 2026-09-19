@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-taqueria-zero-cost-preflight-loaded-20260918-chatgpt-79",
-  "completedAt": "2026-09-19T03:05:23.110Z",
+  "jobId": "v142-taqueria-zero-cost-preflight-registry-retry-20260918-chatgpt-80",
+  "completedAt": "2026-09-19T03:06:18.162Z",
   "executionStarted": true,
   "ok": false,
   "phase": "ZERO_COST_PRECHECK",
