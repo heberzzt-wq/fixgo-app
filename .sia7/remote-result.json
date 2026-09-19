@@ -1,6 +1,6 @@
 {
-  "jobId": "v142-taqueria-preflight-exact-runtime-loaded-20260918-chatgpt-84",
-  "completedAt": "2026-09-19T03:33:26.553Z",
+  "jobId": "v142-taqueria-preflight-after-exact-binding-reload-20260918-chatgpt-85",
+  "completedAt": "2026-09-19T03:34:27.322Z",
   "executionStarted": true,
   "ok": false,
   "phase": "ZERO_COST_PRECHECK",
