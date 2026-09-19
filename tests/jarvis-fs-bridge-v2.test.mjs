@@ -1630,8 +1630,11 @@ test("V142 HuMo runtime certification does not hard-pin a default datacenter", (
 
 test("SIA7 worker targets the bridge IPv4 loopback authority", () => {
     const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
+    const packageJson = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
     assert.equal(workerSource.includes('const BRIDGE_URL = process.env.JARVIS_FS_BRIDGE_URL || "http://127.0.0.1:3344";'), true);
     assert.equal(workerSource.includes('http://localhost:3344'), false);
+    assert.equal(packageJson.scripts.bridge.includes("bridge=http://127.0.0.1:3344"), true);
+    assert.equal(packageJson.scripts.bridge.includes("bridge=http://localhost:3344"), false);
 });
 
 test("SIA7 backs off synchronization failures before execution without consuming the job", async () => {
