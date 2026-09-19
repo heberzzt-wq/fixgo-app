@@ -1043,6 +1043,7 @@ async function executeWan22TaqueriaPreflightJob(job = {}) {
     const adapter = createRunpodRemoteVideoAdapter({
         root: REPO_ROOT,
         env,
+        fetchImpl: (url, options) => guardedRunpodFetch(url, options, env),
         inspectBridgeIdentity: () => describeJarvisBridgeIdentity(REPO_ROOT),
         resolveCanonicalSha: () => executionHeadSha
     });
@@ -1133,7 +1134,7 @@ async function taqueriaWan22Runtime(job = {}, {
     networkVolumeId = ""
 } = {}) {
     const { resolveRunpodCredentialEnvironment, describeJarvisBridgeIdentity } = await import("./jarvis-fs-bridge.js");
-    const { createRunpodRemoteVideoAdapter, createLocalVideoEngine } = await import("./jarvis-local-video-engine.js");
+    const { createRunpodRemoteVideoAdapter, createLocalVideoEngine, guardedRunpodFetch } = await import("./jarvis-local-video-engine.js");
     const credential = resolveRunpodCredentialEnvironment({ env: process.env });
     if (credential?.credentialLoaded !== true || !credential.env?.RUNPOD_API_KEY) {
         throw new Error("RUNPOD_CREDENTIAL_REQUIRED");
