@@ -1,6 +1,8 @@
 {
-  "jobId": "v142-materialize-exact-taqueria-runtime-binding-20260918-chatgpt-83",
-  "operation": "bridge",
-  "endpoint": "/health",
-  "body": {}
+  "jobId": "v142-taqueria-preflight-exact-runtime-loaded-20260918-chatgpt-84",
+  "operation": "wan22_taqueria_preflight",
+  "hardBudgetUsd": 1.5,
+  "referenceOutput": ".jarvis-artifacts/images/taqueria-el-dorado-fresh-v3-scene-1.png",
+  "referenceSha256": "d36ce99af24850baedafd04f03144988ccca9bb11e734abc1771d2634bcc7b41",
+  "output": ".jarvis-artifacts/videos/taqueria-el-dorado-wan22-l40s-22s.mp4"
 }
