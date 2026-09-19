@@ -1,6 +1,10 @@
 {
-  "jobId": "v142-health-after-worker-restart-20260918-chatgpt-63a",
+  "jobId": "v142-git-status-before-paid-retry-20260918-chatgpt-63b",
   "operation": "bridge",
-  "endpoint": "/health",
-  "body": {}
+  "endpoint": "/git",
+  "body": {
+    "action": "status",
+    "cwd": ".",
+    "timeoutMs": 120000
+  }
 }
