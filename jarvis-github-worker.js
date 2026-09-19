@@ -1162,6 +1162,7 @@ async function taqueriaWan22Runtime(job = {}, {
         JARVIS_RUNPOD_INFERENCE_TIMEOUT_SECONDS: "600",
         JARVIS_EXTERNAL_FALLBACK_ENABLED: "false",
         JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "true",
+        JARVIS_RUNPOD_REGISTRY_RECEIPT_FALLBACK_AUTHORIZED: "true",
         JARVIS_RUNPOD_DATACENTER_ID: dataCenterId || SIA7_TAQUERIA_WAN22_DATACENTER,
         JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: String(
             hourlyRateUsd > 0 ? hourlyRateUsd : SIA7_TAQUERIA_WAN22_MAX_HOURLY_USD
@@ -1173,6 +1174,7 @@ async function taqueriaWan22Runtime(job = {}, {
     const adapter = createRunpodRemoteVideoAdapter({
         root: REPO_ROOT,
         env,
+        fetchImpl: (url, options) => guardedRunpodFetch(url, options, env),
         inspectBridgeIdentity: () => describeJarvisBridgeIdentity(REPO_ROOT),
         resolveCanonicalSha: () => canonicalSha
     });
