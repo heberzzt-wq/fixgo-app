@@ -1,5 +1,5 @@
 {
-  "jobId": "v142-taqueria-zero-cost-preflight-loaded-20260918-chatgpt-79",
+  "jobId": "v142-taqueria-zero-cost-preflight-registry-retry-20260918-chatgpt-80",
   "operation": "wan22_taqueria_preflight",
   "hardBudgetUsd": 1.5,
   "referenceOutput": ".jarvis-artifacts/images/taqueria-el-dorado-fresh-v3-scene-1.png",
