@@ -1011,6 +1011,9 @@ async function executeWan22TaqueriaPreflightJob(job = {}) {
         JARVIS_REMOTE_GPU_PROVIDER: "runpod",
         JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA L40S",
         JARVIS_RUNPOD_CLOUD_TYPE: "SECURE",
+        JARVIS_RUNPOD_DATACENTER_ID: "EU-NL-1",
+        JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: "1.10",
+        JARVIS_RUNPOD_EPHEMERAL_ONE_SHOT_AUTHORIZED: "true",
         JARVIS_REMOTE_GPU_HARD_BUDGET_USD: String(hardBudgetUsd),
         JARVIS_REMOTE_GPU_BUDGET_STOP_RATIO: "0.90",
         JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "true",
@@ -1089,6 +1092,8 @@ async function executeWan22TaqueriaPreflightJob(job = {}) {
 
 const SIA7_TAQUERIA_WAN22_OUTPUT = ".jarvis-artifacts/videos/taqueria-el-dorado-wan22-l40s-22s.mp4";
 const SIA7_TAQUERIA_WAN22_REFERENCE = ".jarvis-artifacts/images/taqueria-el-dorado-fresh-v3-scene-1.png";
+const SIA7_TAQUERIA_WAN22_DATACENTER = "EU-NL-1";
+const SIA7_TAQUERIA_WAN22_MAX_HOURLY_USD = 1.10;
 const SIA7_TAQUERIA_WAN22_PROMPT = "Video publicitario gastronómico ORIGINAL de 22 segundos, vertical 9:16, compuesto por tres segmentos continuos. Animar la creatividad de referencia como una secuencia cinematográfica nueva: acercamiento suave de cámara a un taco genérico servido caliente, queso derretido visible, carne como elemento principal y un detalle de chile. Movimiento natural y apetitoso, vapor sutil, luz comercial limpia. Sin personas, sin restaurante, sin texto, sin logotipos, sin marcas de agua y sin copiar el video de TikTok.";
 const SIA7_TAQUERIA_WAN22_SCENES = Object.freeze([
     "Apertura vertical ORIGINAL: acercamiento cinematográfico suave a un taco genérico servido caliente, queso derretido visible, carne como protagonista y detalle de chile. Luz comercial limpia, vapor sutil, sin personas, sin local, sin texto.",
@@ -1154,9 +1159,12 @@ async function taqueriaWan22Runtime(job = {}, {
         JARVIS_RUNPOD_INFERENCE_TIMEOUT_SECONDS: "600",
         JARVIS_EXTERNAL_FALLBACK_ENABLED: "false",
         JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED: "true",
-        ...(dataCenterId ? { JARVIS_RUNPOD_DATACENTER_ID: dataCenterId } : {}),
-        ...(hourlyRateUsd > 0 ? { JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: String(hourlyRateUsd) } : {}),
+        JARVIS_RUNPOD_DATACENTER_ID: dataCenterId || SIA7_TAQUERIA_WAN22_DATACENTER,
+        JARVIS_RUNPOD_TOTAL_HOURLY_RATE_USD: String(
+            hourlyRateUsd > 0 ? hourlyRateUsd : SIA7_TAQUERIA_WAN22_MAX_HOURLY_USD
+        ),
         JARVIS_RUNPOD_VOLUME_DISK_GB: "100",
+        JARVIS_RUNPOD_EPHEMERAL_ONE_SHOT_AUTHORIZED: networkVolumeId ? "false" : "true",
         ...(networkVolumeId ? { JARVIS_RUNPOD_NETWORK_VOLUME_ID: networkVolumeId } : {})
     };
     const adapter = createRunpodRemoteVideoAdapter({
@@ -1186,7 +1194,11 @@ async function executeWan22TaqueriaStartJob(job = {}) {
     }
     const reference = taqueriaWan22Reference(job);
     const executionHeadSha = await currentHeadSha();
-    const runtime = await taqueriaWan22Runtime(job, { executionHeadSha });
+    const runtime = await taqueriaWan22Runtime(job, {
+        executionHeadSha,
+        dataCenterId: SIA7_TAQUERIA_WAN22_DATACENTER,
+        hourlyRateUsd: SIA7_TAQUERIA_WAN22_MAX_HOURLY_USD
+    });
     const preflightJob = {
         operationId: randomUUID(),
         operationName: "local-video/taqueria-preflight",
