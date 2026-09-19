@@ -1697,6 +1697,18 @@ test("SIA7 long bridge runs use native HTTP transport with command-bound timeout
     }
 });
 
+test("Taqueria Wan registry verification prefers the exact recent local receipt before registry network", () => {
+    const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
+    const resolveStart = engineSource.indexOf("async function resolveRegistryVerification");
+    const resolveEnd = engineSource.indexOf("function assertPaidResourceCreationAuthority", resolveStart);
+    assert.ok(resolveStart >= 0 && resolveEnd > resolveStart);
+    const resolveBlock = engineSource.slice(resolveStart, resolveEnd);
+    const receiptIndex = resolveBlock.indexOf("recentEphemeralWanRegistryVerification(imageProfile)");
+    const registryIndex = resolveBlock.indexOf('imageProfile.registry !== "registry-1.docker.io"');
+    assert.ok(receiptIndex >= 0 && registryIndex > receiptIndex);
+    assert.match(engineSource, /const maxAgeMs = 6 \* 60 \* 60 \* 1000/);
+});
+
 test("Taqueria Wan ephemeral registry fallback is exact, recent and isolated from HuMo", () => {
     const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
     const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
