@@ -3829,8 +3829,20 @@ test("V142 RunPod adapter provisions one L40S Pod, transfers physical assets, re
         bootstrap,
         new RegExp(RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].modelRevision)
     );
-    assert.doesNotMatch(bootstrap, /MODEL_DOWNLOAD/);
-    assert.doesNotMatch(bootstrap, /"\$VENV\/bin\/hf" download/);
+    assert.match(bootstrap, /EPHEMERAL_MODEL_STAGING=1/);
+    assert.match(bootstrap, /MODEL_CACHE_READY=0/);
+    assert.match(bootstrap, /progress MODEL_DOWNLOAD RUNNING CACHE_POPULATING/);
+    assert.equal(
+        bootstrap.includes(
+            `"$VENV/bin/hf" download ${RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].modelRepository} --revision ${RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].modelRevision} --local-dir "$MODEL_DIR" &`
+        ),
+        true
+    );
+    assert.ok(
+        bootstrap.indexOf("progress MODEL_DOWNLOAD RUNNING CACHE_POPULATING")
+            < bootstrap.indexOf("progress MODEL_VALIDATION RUNNING CACHE_POPULATING")
+    );
+    assert.match(bootstrap, /RUNPOD_WAN22_PERSISTENT_CACHE_STAGING_REQUIRED/);
     assert.doesNotMatch(bootstrap, /actual\.get\(k\)==expected\.get\(k\)|json\.dumps\(expected/);
     assert.match(bootstrap, /observed_files\.append\(\{'path':item\['path'\],'bytes':size,'sha256':sha256\}\)/);
     assert.match(bootstrap, /assert size==item\['bytes'\] and sha256==item\['sha256'\]/);
@@ -3882,6 +3894,8 @@ test("V142 RunPod adapter provisions one L40S Pod, transfers physical assets, re
     assert.match(bootstrap, /flashAttentionCudaProbe/);
     assert.match(bootstrap, /MODEL_MANIFEST/);
     assert.doesNotMatch(bootstrap, /MODEL_CACHE_VALID/);
+    assert.match(bootstrap, /assert total>=expected\[\'requiredRuntimeModelBytes\'\]/);
+    assert.match(bootstrap, /assert sum\(item\[\'bytes\'\] for item in expected\[\'requiredFiles\'\]\)==expected\[\'requiredRuntimeModelBytes\'\]/);
     assert.match(bootstrap, /progress MODEL_VALIDATION RUNNING CACHE_POPULATING/);
     assert.match(bootstrap, /python3 "\$MODEL_PREFLIGHT" .* "\$MODEL_MANIFEST" "\$JARVIS_OPERATION_ID"/);
     assert.match(bootstrap, /progress MODEL_VALIDATION READY CACHE_MODEL_READY/);
