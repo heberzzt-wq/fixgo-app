@@ -2969,7 +2969,7 @@ test("V142 CPU model staging bootstrap is Ubuntu-minimal safe and structurally c
     assert.doesNotMatch(bootstrap, /requirements\.txt|--requirement|pip check/i);
     assert.match(bootstrap, /test -d \/workspace && test -w \/workspace/);
     assert.match(bootstrap, /os\.replace\(tmp,manifest_path\)/);
-    assert.match(bootstrap, /assert total==expected\['expectedModelBytes'\]/);
+    assert.match(bootstrap, /assert total>=expected\['requiredRuntimeModelBytes'\]/);
     assert.match(bootstrap, /assert sum\(item\['bytes'\] for item in expected\['requiredFiles'\]\)==expected\['requiredRuntimeModelBytes'\]/);
     for (const item of RUNPOD_WAN22_GPU_PROFILES["NVIDIA L40S"].requiredFiles) {
         assert.match(bootstrap, new RegExp(item.sha256));
@@ -3054,6 +3054,9 @@ test("V142 CPU model staging bootstrap is Ubuntu-minimal safe and structurally c
         fs.mkdirSync(path.dirname(target), { recursive: true });
         fs.writeFileSync(target, item.bytes);
     }
+    const auxiliaryFile = path.join(fixtureModel, "README.md");
+    const auxiliaryBytes = Buffer.from("auxiliary metadata is not runtime authority\n");
+    fs.writeFileSync(auxiliaryFile, auxiliaryBytes);
     const fixtureContract = {
         modelRepository: "fixture/Wan2.2-TI2V-5B",
         modelRevision: "fixture-model-revision",
@@ -3095,7 +3098,11 @@ test("V142 CPU model staging bootstrap is Ubuntu-minimal safe and structurally c
         source: "huggingface_local_dir_metadata"
     });
     assert.equal(observedManifest.wanRepositoryRevision, observedWanRevision);
-    assert.equal(observedManifest.modelBytes, fixtureContract.expectedModelBytes);
+    assert.equal(
+        observedManifest.modelBytes,
+        fixtureContract.expectedModelBytes + auxiliaryBytes.length,
+        "auxiliary model-tree files may vary without weakening required runtime file hashes"
+    );
     assert.equal(observedManifest.requiredFilesBytes, fixtureContract.requiredRuntimeModelBytes);
     assert.equal(observedManifest.modelByteNamespace, "model_tree_excluding_root_huggingface_cache");
     assert.deepEqual(
