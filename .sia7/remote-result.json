@@ -1,19 +1,29 @@
 {
-  "jobId": "v142-taqueria-preflight-after-exact-binding-reload-20260918-chatgpt-85",
-  "completedAt": "2026-09-19T03:34:27.322Z",
+  "jobId": "v142-local-fallback-receipt-inspect-20260918-chatgpt-86",
+  "completedAt": "2026-09-19T03:47:19.672Z",
   "executionStarted": true,
-  "ok": false,
-  "phase": "ZERO_COST_PRECHECK",
-  "status": "RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE",
-  "error": "RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE",
-  "paidResourceCreationAuthorized": true,
-  "paidResourceCreationPossible": false,
-  "operation": "wan22_taqueria_preflight",
-  "dryRun": true,
-  "inferenceStarted": false,
-  "resourceCreated": false,
-  "referenceOutput": ".jarvis-artifacts/images/taqueria-el-dorado-fresh-v3-scene-1.png",
-  "referenceSha256": "d36ce99af24850baedafd04f03144988ccca9bb11e734abc1771d2634bcc7b41",
+  "ok": true,
+  "httpStatus": 200,
+  "endpoint": "/read",
+  "payload": {
+    "ok": true,
+    "file": ".jarvis-artifacts/.video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+    "path": ".jarvis-artifacts/.video-worker/runpod/fcfebdc2-ecd9-443e-9359-5129821c206f.json",
+    "size": 3459,
+    "totalSize": 34822,
+    "content": "{\n  \"schemaVersion\": \"1.8.0-v142-single-authority\",\n  \"provider\": \"runpod\",\n  \"podId\": \"xgpf0ekxl9dv8w\",\n  \"remoteJobId\": \"runpod/xgpf0ekxl9dv8w/fcfebdc2-ecd9-443e-9359-5129821c206f\",\n  \"phase\": \"TERMINATED\",\n  \"gpuTypeId\": \"NVIDIA L40S\",\n  \"vramGb\": 48,\n  \"providerVramGb\": 48,\n  \"hourlyRateUsd\": 1.09,\n  \"hardBudgetUsd\": 1.5,\n  \"budgetStopRatio\": 0.9,\n  \"maximumSpendBeforeCleanupUsd\": 1.35,\n  \"maximumAuthorizedSeconds\": 4458,\n  \"networkVolumeId\": null,\n  \"networkVolumeRetentionAuthorized\": false,\n  \"persistentCacheVerification\": null,\n  \"localCacheTransferPrecheck\": null,\n  \"networkVolumeDataCenterId\": null,\n  \"networkVolumeSizeGb\": null,\n  \"dataCenterId\": \"EU-NL-1\",\n  \"runtimeCertificationOnly\": false,\n  \"backend\": \"wan22-ti2v-5b\",\n  \"model\": \"Wan2.2-TI2V-5B\",\n  \"runtimeKind\": \"wan22\",\n  \"cacheProfile\": \"wan22-ti2v-5b-l40s\",\n  \"modelContractRevision\": \"921dbaf3f1674a56f47e83fb80a34bac8a8f203e\",\n  \"computeCapabilityRequired\": \"8.9\",\n  \"expectedCacheStatus\": \"CACHE_MISS\",\n  \"provisionImageTag\": \"runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404\",\n  \"provisionImageNameSent\": \"runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404\",\n  \"provisionDockerStartCmd\": null,\n  \"expectedRegistryDigest\": \"sha256:4d1721e62b56d345c83b4fd6090664be6daf9312caab5b2e76f23d8231941851\",\n  \"runtimeIdentity\": {\n    \"operatingSystem\": \"ubuntu-24.04\",\n    \"pythonVersionPrefix\": \"3.12.\",\n    \"torchVersionPrefix\": \"2.8.0+cu128\",\n    \"torchCudaVersionPrefix\": \"12.8\",\n    \"ffmpegRequired\": true,\n    \"nvccRequired\": false,\n    \"flashAttentionCudaRequired\": true\n  },\n  \"registryVerification\": {\n    \"registry\": \"registry-1.docker.io\",\n    \"repository\": \"runpod/pytorch\",\n    \"tag\": \"1.0.2-cu1281-torch280-ubuntu2404\",\n    \"expectedDigest\": \"sha256:4d1721e62b56d345c83b4fd6090664be6daf9312caab5b2e76f23d8231941851\",\n    \"observedDigest\": \"sha256:4d1721e62b56d345c83b4fd6090664be6daf9312caab5b2e76f23d8231941851\",\n    \"checkedAt\": \"2026-09-19T00:57:42.285Z\",\n    \"status\": \"REGISTRY_DIGEST_VERIFIED\",\n    \"indexDigest\": \"sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35\",\n    \"platform\": {\n      \"os\": \"linux\",\n      \"architecture\": \"amd64\"\n    }\n  },\n  \"cacheStatus\": \"CACHE_POPULATING\",\n  \"bootstrapTimeoutSeconds\": 900,\n  \"humoTorchStageTimeoutSeconds\": 120,\n  \"inferenceTimeoutSeconds\": 600,\n  \"provisionedAt\": \"2026-09-19T00:57:45.980Z\",\n  \"createdAt\": \"2026-09-19T00:57:45.980Z\",\n  \"operationId\": \"fcfebdc2-ecd9-443e-9359-5129821c206f\",\n  \"operationName\": \"local-video/fcfebdc2-ecd9-443e-9359-5129821c206f\",\n  \"missionId\": \"MISSION-760dfdbf-750c-4eb6-ad3d-ac0173a238fb\",\n  \"objectiveId\": \"OBJ-c3465feb-082e-4f39-ab63-ed43a790e573\",\n  \"obligationId\": \"video.generate\",\n  \"rootInstructionHash\": \"d2ddb0ea218f79c1992bb7ac907ba3f3abd5af1672725bd6213c4b105f445981\",\n  \"zeroCostPrecheck\": {\n    \"ok\": true,\n    \"phase\": \"ZERO_COST_PRECHECK\",\n    \"canonicalSha\": \"4c50929d1597147cead6f7a463f2353f07df0e42\",\n    \"bridgeIdentity\": \"BRIDGE_IDENTITY_OK\",\n    \"policy\": \"LOCAL_TEST\",\n    \"backend\": \"wan22-ti2v-5b\",\n    \"status\": \"ZERO_COST_PRECHECK_READY\",\n    \"paidResourceCreationAuthorized\": true,\n    \"paidResourceCreationPossible\": true,\n    \"zeroCostChecks\": [\n      \"canonicalSha\",\n      \"bridgeIdentity\",\n      \"localTestPolicy\",\n      \"wan22Backend\",\n      \"registryImageDigest\",\n      \"modelRevision\",\n      \"requirementsSha256\",\n      \"modelFileManifest\",\n      \"workspaceCapacity\",\n      \"networkVolumeContract\",\n      \"dataCenterCompatibility\",",
+    "partial": true,
+    "startLine": 1,
+    "endLine": 90,
+    "totalLines": 593,
+    "lineRange": {
+      "startLine": 1,
+      "endLine": 90,
+      "totalLines": 593
+    },
+    "source": "jarvis_fs_bridge_read_v1",
+    "version": "2.51.0-temporal-media-self-hosted-v142"
+  },
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
