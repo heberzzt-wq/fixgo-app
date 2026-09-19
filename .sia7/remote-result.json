@@ -1,20 +1,174 @@
 {
-  "jobId": "v142-delete-humo-network-volume-20260918-chatgpt-93",
-  "completedAt": "2026-09-19T04:14:57.143Z",
+  "jobId": "v142-sync-after-runpod-volume-cleanup-20260918-chatgpt-94",
+  "completedAt": "2026-09-19T04:16:17.484Z",
   "executionStarted": true,
   "ok": true,
   "httpStatus": 200,
-  "endpoint": "/run",
+  "endpoint": "/health",
   "payload": {
     "ok": true,
-    "status": "PASSED",
-    "exitCode": 0,
-    "command": "npm run check:syntax",
-    "stdout": "\n> gestia-premium@1.0.0 check:syntax\n> node -e \"if(process.env.GITHUB_ACTIONS==='true'||process.platform!=='win32'){console.log('[RUNPOD_VOLUME_CLEANUP] skip-nonlocal');process.exit(0)};import('./jarvis-fs-bridge.js').then(m=>{const{spawnSync}=require('child_process'),path=require('path'),fs=require('fs'),crypto=require('crypto');const c=m.resolveRunpodCredentialEnvironment({env:process.env});if(!c.credentialLoaded||!c.env.RUNPOD_API_KEY)throw Error('RUNPOD_CREDENTIAL_REQUIRED');const exe=path.join(c.env.LOCALAPPDATA,'PeninsulaTech','Jarvis','tools','runpodctl-v2.7.1-windows-amd64.exe');if(!fs.existsSync(exe))throw Error('RUNPODCTL_NOT_FOUND');if(crypto.createHash('sha256').update(fs.readFileSync(exe)).digest('hex')!=='d0be7de83ba023392bc3d680eec44e45f1cbb3bc9d6bf117b0f575078d3e9443')throw Error('RUNPODCTL_SHA256_MISMATCH');const run=a=>{const q=spawnSync(exe,a,{encoding:'utf8',windowsHide:true,env:{...c.env,RUNPOD_API_KEY:c.env.RUNPOD_API_KEY}});if(q.status!==0)throw Error('RUNPODCTL_FAILED:'+String(q.stderr||q.stdout).replace(/\\\\s+/g,' ').slice(0,300));try{return q.stdout.trim()?JSON.parse(q.stdout):null}catch{throw Error('RUNPODCTL_JSON_INVALID')}};const norm=p=>{const raw=Array.isArray(p)?p:Array.isArray(p?.networkVolumes)?p.networkVolumes:Array.isArray(p?.items)?p.items:(p&&typeof p==='object'?[p]:[]);return raw.map(v=>({id:String(v?.id||'').trim(),name:String(v?.name||'').trim(),sizeGb:Number(v?.size??v?.sizeGb??v?.sizeInGb??0),dataCenterId:String(v?.dataCenterId||v?.dataCenter?.id||v?.dataCenter||'').trim(),type:String(v?.type||v?.volumeType||'STANDARD').trim().toUpperCase()})).filter(v=>v.id)};const before=norm(run(['network-volume','list'])),matches=before.filter(v=>v.id==='1qm5wczocl');if(matches.length!==1)throw Error('TARGET_MATCH_COUNT:'+matches.length);const v=matches[0];if(v.dataCenterId!=='EU-NL-1'||v.type!=='STANDARD'||v.sizeGb<50)throw Error('TARGET_IDENTITY_MISMATCH:'+JSON.stringify(v));console.log('[RUNPOD_VOLUME_DELETE_TARGET]',JSON.stringify(v));const del=run(['network-volume','delete','1qm5wczocl']);console.log('[RUNPOD_VOLUME_DELETE_RESPONSE]',JSON.stringify(del));const after=norm(run(['network-volume','list']));if(after.some(x=>x.id==='1qm5wczocl'))throw Error('RUNPOD_VOLUME_DELETE_NOT_VERIFIED');console.log('[RUNPOD_VOLUME_DELETE_VERIFIED]',JSON.stringify({id:'1qm5wczocl',absent:true,remainingVolumes:after.map(x=>({id:x.id,name:x.name,sizeGb:x.sizeGb,dataCenterId:x.dataCenterId,type:x.type}))}));}).catch(e=>{console.error('[RUNPOD_VOLUME_CLEANUP_FAILED]',e.message);process.exit(1)})\"\n\n[RUNPOD_VOLUME_DELETE_TARGET] {\"id\":\"1qm5wczocl\",\"name\":\"jarvis-v142-humo-1-7b-eu-nl-1\",\"sizeGb\":80,\"dataCenterId\":\"EU-NL-1\",\"type\":\"STANDARD\"}\n[RUNPOD_VOLUME_DELETE_RESPONSE] {\"deleted\":true,\"id\":\"1qm5wczocl\"}\n[RUNPOD_VOLUME_DELETE_VERIFIED] {\"id\":\"1qm5wczocl\",\"absent\":true,\"remainingVolumes\":[]}\n",
-    "stderr": "",
-    "durationMs": 29163,
-    "source": "runpod_volume_cleanup",
-    "version": "2.51.0-temporal-media-self-hosted-v142"
+    "version": "2.51.0-temporal-media-self-hosted-v142",
+    "policy": {
+      "authority": "full_repo_private_owner",
+      "safeZone": "advisory",
+      "rootContainment": true,
+      "emptyWrites": "blocked",
+      "failureMode": "closed"
+    },
+    "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker",
+    "actuators": {
+      "browser": {
+        "available": true,
+        "engine": "chrome.exe",
+        "actions": [
+          "inspect",
+          "screenshot",
+          "pdf",
+          "open",
+          "media"
+        ]
+      },
+      "speech": {
+        "available": true,
+        "provider": "windows-system-speech",
+        "platform": "win32",
+        "outputFormats": [
+          "wav"
+        ],
+        "physicallyVerified": true,
+        "cloudRequired": false,
+        "version": "1.0.0-local-windows-system-speech-v137",
+        "status": "LOCAL_SPEECH_READY"
+      },
+      "documents": {
+        "available": true,
+        "formats": [
+          "html",
+          "md",
+          "txt",
+          "csv",
+          "json",
+          "docx",
+          "xlsx",
+          "pptx",
+          "pdf"
+        ],
+        "nativeOffice": true
+      },
+      "repoWrite": {
+        "available": true,
+        "protocol": "prepare_authorize_consume_once",
+        "requires": [
+          "objectiveId",
+          "caseId",
+          "authorityId",
+          "controllerId",
+          "fingerprint",
+          "nonce",
+          "snapshot",
+          "matchCount"
+        ],
+        "postVerify": true,
+        "replayBlocked": true,
+        "gitReceiptsRequired": true,
+        "legacyFileContentWrite": false
+      },
+      "multimodalUploads": {
+        "available": true,
+        "transport": "chunked_progressive",
+        "maxFilesPerRequest": 30,
+        "maxFileBytes": 262144000,
+        "maxBatchBytes": 524288000,
+        "maxChunkBytes": 2097152,
+        "resumablePersistedArtifacts": true,
+        "artifactDownload": true,
+        "verifiedCount": 0,
+        "latest": null
+      },
+      "imageGeneration": {
+        "available": true,
+        "persistedArtifacts": true,
+        "verifiedCount": 5,
+        "latest": {
+          "name": "taqueria-el-dorado-fresh-v3-scene-3.png",
+          "bytes": 1400046,
+          "updatedAt": "2026-09-18T19:14:13.412Z"
+        }
+      },
+      "artifactStudio": {
+        "available": true,
+        "versionedLedger": true,
+        "registeredCount": 182,
+        "latest": {
+          "artifactId": "ART-2b39ea39-8abb-4010-bce7-c8d66950736e",
+          "studioVersion": "1.0.0-versioned-ledger",
+          "caseId": "CASE-33aa4235-ce6a-47b7-ae8d-a8aa1ee24d25",
+          "objectiveId": "OBJ-291b1dfa-3497-4f08-903d-9848263fe8fe",
+          "type": "md",
+          "version": 10,
+          "lineageKey": ".jarvis-artifacts/documents/taqueria-el-dorado-plan-marketing.md",
+          "origin": "document.create",
+          "provider": "jarvis_document_engine",
+          "model": "",
+          "file": ".jarvis-artifacts/documents/taqueria-el-dorado-plan-marketing.md",
+          "mimeType": "text/markdown",
+          "bytes": 2155,
+          "sha256": "184d98760c8f49a8f843909585a42a077e5c1cf7bf4094ee29b60e7fdc80ad4d",
+          "createdAt": "2026-09-19T01:45:34.833Z",
+          "status": "DOCUMENT_CREATED",
+          "approval": {
+            "required": false,
+            "approved": true,
+            "approvedBy": "LOCAL_ARTIFACT_POLICY"
+          },
+          "editable": true,
+          "preview": false,
+          "downloadable": true,
+          "publishable": false,
+          "deploymentStatus": "NOT_DEPLOYED",
+          "originalFile": null,
+          "transformations": []
+        }
+      },
+      "webResearch": {
+        "available": true,
+        "grounded": true,
+        "engine": "duckduckgo-html-with-bing-rss-fallback"
+      },
+      "connectors": {
+        "available": true,
+        "adapters": [
+          "github",
+          "firebase"
+        ],
+        "verification": "live-read-only"
+      }
+    },
+    "identity": {
+      "ok": true,
+      "status": "BRIDGE_IDENTITY_OK",
+      "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker",
+      "contract": {
+        "ok": true,
+        "projectId": "fixgo-app",
+        "repository": "heberzzt-wq/fixgo-app",
+        "branch": "v94-media-v4n-negative-claims",
+        "releaseId": "v94-source-grounded-research-v124-20260810",
+        "contractPath": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker\\jarvis-runtime-contract.json"
+      },
+      "git": {
+        "root": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
+        "branch": "v94-media-v4n-negative-claims",
+        "head": "893f87e0c72101bc0316316a77da68f31250b5bb",
+        "remote": "https://heberzzt-wq@github.com/heberzzt-wq/fixgo-app.git",
+        "clean": false
+      },
+      "identityMode": "branch_contract_head",
+      "contractHead": "893f87e0c72101bc0316316a77da68f31250b5bb",
+      "remoteVerified": true,
+      "repositoryMatches": true,
+      "worktreeClean": false
+    }
   },
   "committedFiles": [
     ".sia7/remote-result.json"
