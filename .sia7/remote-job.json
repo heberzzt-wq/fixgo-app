@@ -1,10 +1,9 @@
 {
-  "jobId": "v142-taqueria-wan22-start-20260918-chatgpt-69",
-  "operation": "wan22_taqueria_start",
-  "executePaid": true,
-  "humanApproved": true,
-  "hardBudgetUsd": 1.5,
-  "referenceOutput": ".jarvis-artifacts/images/taqueria-el-dorado-fresh-v3-scene-1.png",
-  "referenceSha256": "d36ce99af24850baedafd04f03144988ccca9bb11e734abc1771d2634bcc7b41",
-  "output": ".jarvis-artifacts/videos/taqueria-el-dorado-wan22-l40s-22s.mp4"
+  "jobId": "v142-taqueria-paid-l40s-authority-cert-20260918-chatgpt-70",
+  "operation": "bridge",
+  "endpoint": "/run",
+  "body": {
+    "command": "npm run check:syntax && node --test tests/jarvis-fs-bridge-v2.test.mjs",
+    "timeoutMs": 900000
+  }
 }
