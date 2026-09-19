@@ -1,5 +1,5 @@
 {
-  "jobId": "v142-taqueria-preflight-exact-runtime-loaded-20260918-chatgpt-84",
+  "jobId": "v142-taqueria-preflight-after-exact-binding-reload-20260918-chatgpt-85",
   "operation": "wan22_taqueria_preflight",
   "hardBudgetUsd": 1.5,
   "referenceOutput": ".jarvis-artifacts/images/taqueria-el-dorado-fresh-v3-scene-1.png",
