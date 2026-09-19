@@ -3053,7 +3053,7 @@ export function createRunpodRemoteVideoAdapter({
             false
         );
         const stateRootExists = fs.existsSync(stateRoot);
-        const maxAgeMs = 3 * 60 * 60 * 1000;
+        const maxAgeMs = 6 * 60 * 60 * 1000;
         const nowMs = now().getTime();
         const rawStates = stateRootExists
             ? fs.readdirSync(stateRoot)
@@ -3141,6 +3141,8 @@ export function createRunpodRemoteVideoAdapter({
     }
 
     async function resolveRegistryVerification(imageProfile) {
+        const preverifiedReceipt = recentEphemeralWanRegistryVerification(imageProfile);
+        if (preverifiedReceipt) return preverifiedReceipt;
         if (imageProfile.registry !== "registry-1.docker.io") {
             throw new Error("RUNPOD_REGISTRY_DIGEST_UNVERIFIABLE");
         }
