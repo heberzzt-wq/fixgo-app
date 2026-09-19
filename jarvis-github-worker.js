@@ -1150,6 +1150,7 @@ async function taqueriaWan22Runtime(job = {}, {
         JARVIS_LOCAL_VIDEO_RUNNER: process.execPath,
         JARVIS_LOCAL_VIDEO_RUNNER_SCRIPT: path.resolve(REPO_ROOT, "scripts", "jarvis-local-video-wan22.py"),
         JARVIS_REMOTE_GPU_PROVIDER: "runpod",
+        JARVIS_RUNPOD_GPU_TYPE_ID: "NVIDIA L40S",
         JARVIS_RUNPOD_CLOUD_TYPE: "SECURE",
         JARVIS_REMOTE_GPU_HARD_BUDGET_USD: String(hardBudgetUsd),
         JARVIS_REMOTE_GPU_BUDGET_STOP_RATIO: "0.90",
