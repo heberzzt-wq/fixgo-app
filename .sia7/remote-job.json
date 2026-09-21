@@ -1,11 +1,10 @@
 {
-  "jobId": "v142-release-locate-git-contract-20260921-chatgpt-99",
+  "jobId": "v142-release-status-20260921-chatgpt-100",
   "operation": "bridge",
-  "endpoint": "/grep",
+  "endpoint": "/git",
   "body": {
-    "term": "app.post(\"/git\"",
+    "action": "status",
     "cwd": ".",
-    "maxFiles": 800,
-    "maxMatches": 20
+    "timeoutMs": 120000
   }
 }
