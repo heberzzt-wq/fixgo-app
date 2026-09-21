@@ -1,11 +1,11 @@
 {
-  "jobId": "v142-codex-hardening-report-read-20260921-chatgpt-97",
+  "jobId": "v142-release-locate-run-contract-20260921-chatgpt-98",
   "operation": "bridge",
-  "endpoint": "/read",
+  "endpoint": "/grep",
   "body": {
-    "file": "docs/v142-platform-hardening-20260921.md",
-    "startLine": 1,
-    "endLine": 1200,
-    "maxBytes": 900000
+    "term": "/run",
+    "cwd": ".",
+    "maxFiles": 800,
+    "maxMatches": 80
   }
 }
