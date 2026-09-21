@@ -1,12 +1,11 @@
 {
-  "jobId": "v142-b2c-forensic-finalize-callers-20260921-chatgpt-97",
+  "jobId": "v142-codex-hardening-report-read-20260921-chatgpt-97",
   "operation": "bridge",
-  "endpoint": "/grep",
+  "endpoint": "/read",
   "body": {
-    "term": "finalizarServicioBlindado",
-    "cwd": ".",
-    "maxFiles": 1400,
-    "maxFileSizeBytes": 900000,
-    "maxMatches": 120
+    "file": "docs/v142-platform-hardening-20260921.md",
+    "startLine": 1,
+    "endLine": 1200,
+    "maxBytes": 900000
   }
 }
