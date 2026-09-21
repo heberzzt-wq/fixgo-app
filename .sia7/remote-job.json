@@ -1,11 +1,11 @@
 {
-  "jobId": "v142-release-locate-run-contract-20260921-chatgpt-98",
+  "jobId": "v142-release-locate-git-contract-20260921-chatgpt-99",
   "operation": "bridge",
   "endpoint": "/grep",
   "body": {
-    "term": "/run",
+    "term": "app.post(\"/git\"",
     "cwd": ".",
     "maxFiles": 800,
-    "maxMatches": 80
+    "maxMatches": 20
   }
 }
