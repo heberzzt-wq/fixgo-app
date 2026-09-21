@@ -1,12 +1,10 @@
 {
-  "jobId": "v142-audit-b2c-client-callable-wiring-20260918-chatgpt-99",
+  "jobId": "v142-b2c-b2b-live-release-inspect-20260921-chatgpt-100",
   "operation": "bridge",
-  "endpoint": "/grep",
+  "endpoint": "/browser",
   "body": {
-    "term": "crearServicioB2C",
-    "cwd": ".",
-    "maxFiles": 1200,
-    "maxFileSizeBytes": 1000000,
-    "maxMatches": 120
+    "action": "inspect",
+    "url": "https://fixgo-44e4d.web.app/release-manifest.json",
+    "timeoutMs": 30000
   }
 }
