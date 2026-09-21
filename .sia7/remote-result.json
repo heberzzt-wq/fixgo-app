@@ -1,24 +1,21 @@
 {
-  "jobId": "v142-release-locate-git-contract-20260921-chatgpt-99",
-  "completedAt": "2026-09-21T23:55:41.284Z",
+  "jobId": "v142-release-status-20260921-chatgpt-100",
+  "completedAt": "2026-09-21T23:57:00.080Z",
   "executionStarted": true,
   "ok": true,
   "httpStatus": 200,
-  "endpoint": "/grep",
+  "endpoint": "/git",
   "payload": {
     "ok": true,
-    "term": "app.post(\"/git\"",
-    "totalFilesScanned": 715,
-    "totalMatches": 1,
-    "matches": [
-      {
-        "file": "jarvis-fs-bridge.js",
-        "line": 7617,
-        "snippet": "app.post(\"/git\", async (req, res) => {"
-      }
-    ],
-    "source": "jarvis_fs_bridge_grep_v1",
-    "version": "2.51.0-temporal-media-self-hosted-v142"
+    "status": "GIT_STATUS_OK",
+    "exitCode": 0,
+    "command": "git status --short --branch",
+    "stdout": "## v94-media-v4n-negative-claims...origin/v94-media-v4n-negative-claims\n M .github/workflows/v142-mobile-web-research-recovery.yml\n M .sia7/remote-result.json\n M app-tecnico-b2b.js\n M firebase.js\n M functions/b2c-platform-authority.js\n M functions/b2c-service-settlement.js\n M functions/b2c-technician-approval.js\n M functions/generated/b2c-platform-contract.cjs\n M functions/index.js\n M functions/secure-entry.js\n M functions/test-b2c-service-settlement.js\n M gestia-core/auth/role-authority.js\n M gestia-core/contracts/b2c-platform-contract.js\n M gestia-core/core_auth_tenant_v1.js\n M gestia-render.js\n M package.json\n M panel-admin.js\n M panel-b2b-admin.js\n M panel-tecnico.js\n M scripts/audit-b2c-production.mjs\n M scripts/smoke-platform-release.mjs\n M security/firestore-console-snapshot-2026-07-30.rules.txt\n M security/storage-hardening-candidate.rules.txt\n M tests/auth-routing-consistency.test.mjs\n M tests/b2c-rules-emulator.test.mjs\n M tests/b2c-security-rules-contract.test.mjs\n M tests/jarvis-document-extraction-bridge.test.mjs\n M tests/jarvis-fs-bridge-v2.test.mjs\n M tests/jarvis-multifunction-tools.test.mjs\n M tests/jarvis-upload-bridge.test.mjs\n?? .sia7/humo17-quality-345-authority.json\n?? angel-gamedev-remote.ps1\n?? angel-hardware.json\n?? b2b-offline-authority.js\n?? b2b-supervisor-session.js\n?? docs/v142-platform-hardening-20260921.md\n?? expediente-b2b.html\n?? expediente-b2b.js\n?? functions/b2b-personnel-kyc.js\n?? functions/test-b2c-panel-recovery.cjs\n?? panel-supervisor-b2b.html\n?? panel-supervisor-b2b.js\n?? tests/b2b-offline-authority.test.mjs\n?? tests/b2b-personnel-kyc.test.cjs\n?? tests/b2b-render-authority.test.mjs\n?? tests/b2b-supervisor-session.test.mjs\n?? tests/secure-financial-entry.test.mjs\n",
+    "stderr": "",
+    "durationMs": 575,
+    "source": "jarvis_fs_bridge_git_v7",
+    "version": "2.51.0-temporal-media-self-hosted-v142",
+    "action": "status"
   },
   "committedFiles": [
     ".sia7/remote-result.json"
