@@ -1,10 +1,12 @@
 {
-  "jobId": "v142-b2c-b2b-live-release-inspect-20260921-chatgpt-100",
+  "jobId": "v142-b2c-forensic-finalize-callers-20260921-chatgpt-97",
   "operation": "bridge",
-  "endpoint": "/browser",
+  "endpoint": "/grep",
   "body": {
-    "action": "inspect",
-    "url": "https://fixgo-44e4d.web.app/release-manifest.json",
-    "timeoutMs": 30000
+    "term": "finalizarServicioBlindado",
+    "cwd": ".",
+    "maxFiles": 1400,
+    "maxFileSizeBytes": 900000,
+    "maxMatches": 120
   }
 }
