@@ -1,10 +1,11 @@
 {
-  "jobId": "v142-release-diff-20260921-chatgpt-101",
+  "jobId": "v142-release-local-ci-20260921-chatgpt-102",
   "operation": "bridge",
-  "endpoint": "/git",
+  "endpoint": "/run",
   "body": {
-    "action": "diff",
+    "command": "npm run ci:test",
     "cwd": ".",
-    "timeoutMs": 120000
+    "timeoutMs": 900000,
+    "source": "v142_release_local_ci"
   }
 }
