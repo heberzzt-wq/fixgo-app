@@ -1,9 +1,9 @@
 {
-  "jobId": "v142-release-status-20260921-chatgpt-100",
+  "jobId": "v142-release-diff-20260921-chatgpt-101",
   "operation": "bridge",
   "endpoint": "/git",
   "body": {
-    "action": "status",
+    "action": "diff",
     "cwd": ".",
     "timeoutMs": 120000
   }
