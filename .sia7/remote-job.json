@@ -1,11 +1,10 @@
 {
-  "jobId": "v142-release-git-status-20260921-chatgpt-106",
+  "jobId": "v142-release-git-status-native-20260921-chatgpt-107",
   "operation": "bridge",
-  "endpoint": "/run",
+  "endpoint": "/git",
   "body": {
-    "command": "git status --short",
+    "action": "status",
     "cwd": ".",
-    "timeoutMs": 60000,
-    "source": "v142_release_git_status"
+    "timeoutMs": 120000
   }
 }
