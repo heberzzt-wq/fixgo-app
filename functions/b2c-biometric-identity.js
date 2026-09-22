@@ -85,7 +85,7 @@ async function verifyIdentityStorage({ bucket, uid, profile }) {
         try { [metadata] = await bucket.file(storagePath).getMetadata(); }
         catch { throw new Error(`IDENTITY_STORAGE_OBJECT_UNAVAILABLE:${kind}`); }
         if (!metadata?.generation ||
-            !["image/jpeg", "image/png", "image/webp"].includes(metadata.contentType) ||
+            metadata.contentType !== "image/jpeg" ||
             !(Number(metadata.size) >= 16 * 1024 && Number(metadata.size) <= 10 * 1024 * 1024)) {
             throw new Error(`IDENTITY_STORAGE_OBJECT_INVALID:${kind}`);
         }
@@ -115,19 +115,43 @@ async function downloadIdentityBuffers(bucket, verified) {
 async function createHumanBiometricRuntime() {
     if (!runtimePromise) {
         runtimePromise = (async () => {
-            const tf = require("@tensorflow/tfjs-node");
-            const HumanModule = require("@vladmandic/human");
+            const fs = require("node:fs");
+            const { fileURLToPath } = require("node:url");
+            const tf = require("@tensorflow/tfjs-core");
+            require("@tensorflow/tfjs-converter");
+            require("@tensorflow/tfjs-backend-cpu");
+            require("@tensorflow/tfjs-backend-wasm");
+            const jpeg = require("jpeg-js");
+            const HumanModule = require("@vladmandic/human/dist/human.node-wasm.js");
             const Human = HumanModule.default || HumanModule.Human || HumanModule;
-            const humanEntry = require.resolve("@vladmandic/human");
+            const humanEntry = require.resolve("@vladmandic/human/dist/human.node-wasm.js");
             const humanRoot = path.resolve(path.dirname(humanEntry), "..");
             const modelBasePath = `file://${path.join(humanRoot, "models").replace(/\\/g, "/")}/`;
+
+            const nativeFetch = globalThis.fetch;
+            globalThis.fetch = async (resource, init) => {
+                const url = typeof resource === "string" ? resource : resource?.url;
+                if (url?.startsWith("file://")) {
+                    const filePath = fileURLToPath(url);
+                    const data = await fs.promises.readFile(filePath);
+                    const contentType = filePath.endsWith(".json") ? "application/json" : "application/octet-stream";
+                    return new Response(data, { status: 200, headers: { "content-type": contentType } });
+                }
+                return nativeFetch(resource, init);
+            };
+
+            await tf.setBackend("cpu");
+            await tf.ready();
+            HumanModule.env?.updateBackend?.();
+
             const human = new Human({
-                backend: "tensorflow",
+                backend: "cpu",
                 modelBasePath,
                 cacheSensitivity: 0,
                 debug: false,
-                async: true,
-                filter: { enabled: true, equalization: true, autoBrightness: true },
+                async: false,
+                softwareKernels: true,
+                filter: { enabled: false },
                 gesture: { enabled: false },
                 face: {
                     enabled: true,
@@ -153,9 +177,19 @@ async function createHumanBiometricRuntime() {
             await human.load();
 
             const analyze = async buffer => {
-                const decoded = tf.node.decodeImage(buffer, 3);
+                const decoded = jpeg.decode(buffer, { useTArray: true, formatAsRGBA: true });
+                if (!decoded?.width || !decoded?.height || !decoded?.data) {
+                    throw new Error("IDENTITY_JPEG_DECODE_FAILED");
+                }
+                const rgb = new Uint8Array(decoded.width * decoded.height * 3);
+                for (let src = 0, dst = 0; src < decoded.data.length; src += 4) {
+                    rgb[dst++] = decoded.data[src];
+                    rgb[dst++] = decoded.data[src + 1];
+                    rgb[dst++] = decoded.data[src + 2];
+                }
+                const tensor = tf.tensor3d(rgb, [decoded.height, decoded.width, 3], "int32");
                 try {
-                    const result = await human.detect(decoded);
+                    const result = await human.detect(tensor);
                     const faces = Array.isArray(result?.face) ? result.face : [];
                     return {
                         faceCount: faces.length,
@@ -170,7 +204,7 @@ async function createHumanBiometricRuntime() {
                         }))
                     };
                 } finally {
-                    tf.dispose(decoded);
+                    tensor.dispose();
                 }
             };
 
