@@ -1,11 +1,11 @@
 {
-  "jobId": "v142-release-local-ci-rerun-20260921-chatgpt-104",
+  "jobId": "v142-release-inspect-local-state-20260921-chatgpt-105",
   "operation": "bridge",
   "endpoint": "/run",
   "body": {
-    "command": "npm run ci:test",
+    "command": "git status --short && git diff --stat && git diff --name-only",
     "cwd": ".",
-    "timeoutMs": 900000,
-    "source": "v142_release_local_ci_rerun"
+    "timeoutMs": 120000,
+    "source": "v142_release_inspect_local_state"
   }
 }
