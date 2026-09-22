@@ -116,6 +116,8 @@ before(async () => {
         await setDoc(doc(db, "servicios_b2b/order-1"), {
             edificioId: "uxmal39", tecnicoId: "b2b-tech", status: "en_proceso"
         });
+        await setDoc(doc(db, "b2c_identity_registry/hidden"), { embedding: [1,2,3], status: "active" });
+        await setDoc(doc(db, "b2c_identity_audit/audit-1"), { status: "verified" });
     });
 });
 after(async () => environment?.cleanup());
@@ -128,17 +130,14 @@ test("cliente B2C no puede mutar autorizaciones de pago", async () => {
 });
 
 test("biometric registry and audit are server-only", async () => {
-    await environment.withSecurityRulesDisabled(async ctx => {
-        await setDoc(doc(ctx.firestore(), "b2c_identity_registry/hidden"), { embedding: [1,2,3], status: "active" });
-        await setDoc(doc(ctx.firestore(), "b2c_identity_audit/audit-1"), { status: "verified" });
-    });
     for (const context of [
         environment.authenticatedContext("client-1"),
         environment.authenticatedContext("tech-1"),
         environment.authenticatedContext("nNhwy3Mx4pTvc8TZVh1tyTMFwhC2")
     ]) {
-        await assertFails(getDoc(doc(context.firestore(), "b2c_identity_registry/hidden")));
-        await assertFails(getDoc(doc(context.firestore(), "b2c_identity_audit/audit-1")));
+        const db = context.firestore();
+        await assertFails(getDoc(doc(db, "b2c_identity_registry/hidden")));
+        await assertFails(getDoc(doc(db, "b2c_identity_audit/audit-1")));
     }
 });
 
