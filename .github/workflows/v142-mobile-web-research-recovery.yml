@@ -437,112 +437,160 @@ jobs:
           git commit -m 'fix(jarvis): materialize V142 audiovisual closeout'
           git push origin "HEAD:${TARGET_BRANCH}"
 
-  deploy-v142:
+deploy-v142:
     needs: [certify-linux, certify-windows, materialize-v142]
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy == true && always() && needs.certify-linux.result == 'success' && needs.certify-windows.result == 'success' && (needs.certify-linux.outputs.product_changed == 'false' || needs.materialize-v142.result == 'success') }}
+    if: ${{ always() && needs.certify-linux.result == 'success' && needs.certify-windows.result == 'success' && (needs.certify-linux.outputs.product_changed == 'false' || needs.materialize-v142.result == 'success') && ((github.event_name == 'workflow_dispatch' && inputs.deploy == true) || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'release(platform): authorize coordinated B2C B2B deploy'))) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@v4
         with:
           ref: v94-media-v4n-negative-claims
           fetch-depth: 0
+
+      - name: Verify authorized release lineage
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$GITHUB_SHA" HEAD
+          echo "DEPLOY_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
+
       - name: Install dependencies
         run: |
           npm ci
           npm ci --prefix functions
-      - name: Re-certify materialized bytes
+
+      - name: Re-certify materialized platform bytes
+        shell: bash
         run: |
+          set -euo pipefail
           node .github/scripts/v142-mobile-web-research-recovery.mjs
           node .github/scripts/v142-final-contract-alignment.mjs
           node .github/scripts/v142-reel-closeout.mjs
           git diff --exit-code
-          node --check gestia-core/tools.bridge.js
-          node --check gestia-core/tools.runtime.js
-          node --check gestia-core/jarvis/jarvis.mission.orchestrator.js
-          node --check gestia-core/jarvis/jarvis.mission.planner-state.js
-          node --check gestia-core/jarvis/jarvis.mission.dependencies.js
-          node --check gestia-core/jarvis/jarvis.reel.media-binder.js
-          node --check gestia-core/jarvis/jarvis.actuator.pack.js
-          node --check functions/secure-entry-alias.js
-          node --check functions/jarvis-video-operation-contract.js
-          node --check jarvis-artifact-studio.js
-          node --check jarvis-fs-bridge.js
-          node --check jarvis-local-video-engine.js
-          python3 -c "import ast,pathlib; ast.parse(pathlib.Path('scripts/jarvis-local-video-wan22.py').read_text(encoding='utf-8'))"
-          node --check modules/terminal/jarvis-attachments.js
-          node --input-type=module -e "import fs from 'node:fs'; const s=fs.readFileSync('modules/terminal/jarvis-attachments.js','utf8'); const c=s.slice(s.indexOf('function clear()'),s.indexOf('function observationTool')); if(!s.includes('artifactObjectUrls: new Set()')||!s.includes('state.artifactObjectUrls.add(objectUrl)')||!s.includes('persistentArtifactDownloads: true')||c.includes('artifactObjectUrls')) throw new Error('V142_ARTIFACT_DOWNLOAD_LIFECYCLE_INVALID');"
-          node --test --test-concurrency=1 tests/jarvis-mobile-web-research-recovery-v142.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/jarvis-local-video-engine-v142.test.mjs tests/jarvis-video-reference-mission-continuity-v142.test.mjs tests/jarvis-video-operation-contract-v142.test.cjs tests/jarvis-series-continuity-v142.test.mjs tests/jarvis-reel-media-binder-v131.test.mjs tests/jarvis-reel-native-mp4-v138.test.mjs tests/jarvis-reel-terminal-delivery-v142.test.mjs
-      - name: Install Firebase CLI
-        run: npm install -g firebase-tools
-      - name: Inspect jarvisVideoGenerate production logs
-        if: ${{ needs.certify-linux.outputs.video_function_changed == 'true' }}
-        continue-on-error: true
+          npm run test:platform-hardening
+          npm run test:b2c-platform
+
+      - name: Install pinned Firebase CLI
+        run: npm install -g firebase-tools@15.10.1
+
+      - name: Prepare exact release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run prepare:release
+          test "$(jq -r '.git_sha' release-manifest.json)" = "$DEPLOY_SHA"
+          test "$(jq -r '.firestore.rules' firebase.release.json)" = "security/firestore-release.generated.rules.txt"
+          test "$(jq -r '.storage.rules' firebase.release.json)" = "security/storage-release.generated.rules.txt"
+          grep -F "GESTIA_RELEASE_SHA:$DEPLOY_SHA" security/firestore-release.generated.rules.txt
+          grep -F "GESTIA_RELEASE_SHA:$DEPLOY_SHA" security/storage-release.generated.rules.txt
+
+      - name: Mint short-lived rules smoke access token
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
           test -n "$FIREBASE_TOKEN"
-          firebase functions:log --only jarvisVideoGenerate --lines 100 --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
-      - name: Deploy V142 video function only
-        if: ${{ needs.certify-linux.outputs.video_function_changed == 'true' }}
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          module_path="$(npm root -g)/firebase-tools/lib/apiv2.js"
+          test -f "$module_path"
+          node - "$module_path" <<'NODE'
+          const fs = require("node:fs");
+          const api = require(process.argv[2]);
+          api.setRefreshToken(process.env.FIREBASE_TOKEN);
+          api.getAccessToken().then(token => {
+            if (!token) throw new Error("FIREBASE_ACCESS_TOKEN_EMPTY");
+            process.stdout.write(`::add-mask::${token}\n`);
+            fs.appendFileSync(process.env.GITHUB_ENV, `FIREBASE_ACCESS_TOKEN=${token}\n`);
+          }).catch(error => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Build FixGo-only coordinated release config
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$FIREBASE_TOKEN"
-          firebase deploy --only functions:jarvisVideoGenerate --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
-      - name: Verify V142 video function deployment
-        if: ${{ needs.certify-linux.outputs.video_function_changed == 'true' }}
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          deployed=$(firebase functions:list --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive)
-          grep -F 'jarvisVideoGenerate' <<<"$deployed"
-      - name: Deploy V142 semantic function only
-        if: ${{ needs.certify-linux.outputs.semantic_function_changed == 'true' }}
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$FIREBASE_TOKEN"
-          firebase deploy --only functions:jarvisSemanticPlan --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
-      - name: Verify V142 semantic function deployment
-        if: ${{ needs.certify-linux.outputs.semantic_function_changed == 'true' }}
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          deployed=$(firebase functions:list --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive)
-          grep -F 'jarvisSemanticPlan' <<<"$deployed"
-      - name: Deploy V142 Hosting FIXGO only
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$FIREBASE_TOKEN"
-          config_path="$PWD/.firebase-v142-fixgo-only.json"
-          trap 'rm -f "$config_path"' EXIT
-          jq --arg site "$FIREBASE_SITE_ID" '{hosting: [.hosting[] | select(.site == $site)]}' firebase.json > "$config_path"
+          config_path="$RUNNER_TEMP/firebase-release-fixgo-only.json"
+          jq --arg site "$FIREBASE_SITE_ID" '
+            {
+              firestore: .firestore,
+              storage: .storage,
+              functions: .functions,
+              hosting: [
+                .hosting[]
+                | select(.site == $site)
+                | .ignore = ((.ignore // []) + [
+                    "firebase.release.json",
+                    ".firebase-release-*.json",
+                    "security/**",
+                    "scripts/**",
+                    "docs/**"
+                  ] | unique)
+              ]
+            }
+          ' firebase.release.json > "$config_path"
           test "$(jq '.hosting | length' "$config_path")" = "1"
           test "$(jq -r '.hosting[0].site' "$config_path")" = "$FIREBASE_SITE_ID"
+          test "$(jq -r '.firestore.rules' "$config_path")" = "security/firestore-release.generated.rules.txt"
+          test "$(jq -r '.storage.rules' "$config_path")" = "security/storage-release.generated.rules.txt"
           forbidden_multi='multi''servicios'
-          ! grep -Fq "$forbidden_multi" "$config_path"
-          firebase deploy --config "$config_path" --only hosting --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive
-      - name: Smoke production
-        run: curl --fail --silent --show-error --location "https://${FIREBASE_SITE_ID}.web.app/" >/dev/null
-      - name: Publish green status
+          ! grep -Fiq "$forbidden_multi" "$config_path"
+          echo "FIXGO_RELEASE_CONFIG=$config_path" >> "$GITHUB_ENV"
+
+      - name: Deploy coordinated FixGo platform release
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy \
+            --config "$FIXGO_RELEASE_CONFIG" \
+            --only functions,firestore:rules,storage,hosting \
+            --project "$FIREBASE_PROJECT_ID" \
+            --token "$FIREBASE_TOKEN" \
+            --non-interactive
+
+      - name: Verify critical deployed Functions
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          deployed="$(firebase functions:list --project "$FIREBASE_PROJECT_ID" --token "$FIREBASE_TOKEN" --non-interactive)"
+          for fn in \
+            api onServiceCompleted reconciliarLiquidacionB2C \
+            createB2cService approveB2cTechnician claimB2cService cancelB2cService \
+            submitB2cQuote respondB2cQuote \
+            completeB2bRegistration provisionB2bPersonnel completeB2bService \
+            submitB2bPersonnelKyc reviewB2bPersonnelKyc; do
+            grep -F "$fn" <<<"$deployed"
+          done
+
+      - name: Smoke exact production release
+        env:
+          FIREBASE_ACCESS_TOKEN: ${{ env.FIREBASE_ACCESS_TOKEN }}
+        run: npm run smoke:release -- --project="$FIREBASE_PROJECT_ID"
+
+      - name: Read-only B2C production audit
+        env:
+          FIREBASE_ACCESS_TOKEN: ${{ env.FIREBASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          audit="$RUNNER_TEMP/b2c-production-audit.json"
+          node scripts/audit-b2c-production.mjs --project="$FIREBASE_PROJECT_ID" > "$audit"
+          jq '{project,read_only,totals,technician_classifications,customer_classifications}' "$audit"
+          rm -f "$audit"
+
+      - name: Publish coordinated release green status
         continue-on-error: true
         shell: bash
         env:
@@ -550,10 +598,16 @@ jobs:
         run: |
           set -euo pipefail
           target="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          payload=$(jq -n --arg state success --arg context 'v142-mobile-web-research-recovery' --arg description "run=${GITHUB_RUN_ID} V142 reel + mini-drama production green" --arg target_url "$target" '{state:$state,context:$context,description:$description,target_url:$target_url}')
+          payload=$(jq -n \
+            --arg state success \
+            --arg context 'v142-mobile-web-research-recovery' \
+            --arg description "run=${GITHUB_RUN_ID} coordinated B2C/B2B release green" \
+            --arg target_url "$target" \
+            '{state:$state,context:$context,description:$description,target_url:$target_url}')
           curl --fail-with-body --silent --show-error --location -X POST \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${DEPLOY_SHA}" \
             -d "$payload" >/dev/null
+
