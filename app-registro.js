@@ -426,7 +426,7 @@ const identitySteps = [
     { key: "selfie_right", title: "Prueba de vida · gira a tu derecha", hint: "Gira suavemente la cabeza hacia tu derecha.", tip: "Último paso. Mantén buena iluminación y evita mover el teléfono.", facing: "user", frame: "face", fileName: "selfie-derecha.jpg" }
 ];
 
-const identityCaptureState = { stepIndex: 0, stream: null, complete: false, files: {} };
+const identityCaptureState = { stepIndex: 0, stream: null, complete: false, files: {}, target: null };
 
 function stopIdentityCamera() {
     if (identityCaptureState.stream) {
@@ -535,8 +535,13 @@ async function captureIdentityFrame() {
         identityCaptureState.complete = true;
         stopIdentityCamera();
         $("modalIdentidadTecnico").classList.add("hidden");
-        $("identitySummary").innerHTML = '<i class="fas fa-circle-check text-emerald-400 mr-2"></i><strong class="text-emerald-300">Identidad capturada.</strong> Pendiente de validación KYC.';
-        $("btnIniciarIdentidad").innerHTML = '<i class="fas fa-rotate mr-2"></i> REPETIR VERIFICACIÓN';
+        const isCustomerIdentity = identityCaptureState.target === "cliente";
+        const summary = $(isCustomerIdentity ? "identitySummaryCliente" : "identitySummary");
+        const restartButton = $(isCustomerIdentity ? "btnIniciarIdentidadCliente" : "btnIniciarIdentidad");
+        if (summary) {
+            summary.innerHTML = '<i class="fas fa-circle-check text-emerald-400 mr-2"></i><strong class="text-emerald-300">Identidad capturada.</strong> Pendiente de validación segura.';
+        }
+        if (restartButton) restartButton.innerHTML = '<i class="fas fa-rotate mr-2"></i> REPETIR VERIFICACIÓN';
         renderIdentityProgress();
         return;
     }
@@ -544,11 +549,14 @@ async function captureIdentityFrame() {
     await openIdentityCameraForStep();
 }
 
-async function startIdentityFlow() {
-    if (!$("chkBiometriaTecnico")?.checked) {
+async function startIdentityFlow(target) {
+    if (!["cliente", "tecnico"].includes(target)) throw new Error("IDENTITY_CAPTURE_TARGET_INVALID");
+    const consent = $(target === "cliente" ? "chkBiometriaCliente" : "chkBiometriaTecnico");
+    if (!consent?.checked) {
         alert("Antes de abrir la cámara, acepta la autorización de captura de identidad.");
         return;
     }
+    identityCaptureState.target = target;
     identityCaptureState.stepIndex = 0;
     identityCaptureState.complete = false;
     identityCaptureState.files = {};
@@ -566,7 +574,8 @@ function cancelIdentityFlow() {
     $("modalIdentidadTecnico")?.classList.add("hidden");
 }
 
-$("btnIniciarIdentidad")?.addEventListener("click", startIdentityFlow);
+$("btnIniciarIdentidad")?.addEventListener("click", () => startIdentityFlow("tecnico"));
+$("btnIniciarIdentidadCliente")?.addEventListener("click", () => startIdentityFlow("cliente"));
 $("btnCapturarIdentidad")?.addEventListener("click", captureIdentityFrame);
 $("btnCancelarIdentidad")?.addEventListener("click", cancelIdentityFlow);
 window.addEventListener("beforeunload", stopIdentityCamera);
@@ -661,7 +670,7 @@ if (btnRegistroTecnico) {
         if (!$("chkBiometriaTecnico")?.checked) {
             alert("🔐 Debes autorizar la captura de identidad para continuar."); return;
         }
-        if (!identityCaptureState.complete || !archivoFotoPerfil || !archivoINE || !archivoINEReverso || !archivoSelfieIzquierda || !archivoSelfieDerecha) {
+        if (!identityCaptureState.complete || identityCaptureState.target !== "tecnico" || !archivoFotoPerfil || !archivoINE || !archivoINEReverso || !archivoSelfieIzquierda || !archivoSelfieDerecha) {
             alert("🪪 Completa la verificación guiada: INE frente/reverso y prueba de vida facial."); return;
         }
         if (!archivoCSF) {
@@ -746,6 +755,23 @@ if (btnRegistroTecnico) {
                     });
             }
 
+            await setDoc(userRef, {
+                "kyc.identity_capture_status": "captured_pending_verification",
+                "kyc.identity_capture_completed_at": serverTimestamp(),
+                actualizadoEn: serverTimestamp()
+            }, { merge: true });
+
+            btnRegistroTecnico.innerHTML = '<i class="fas fa-fingerprint fa-pulse"></i> Verificando identidad…';
+            const identityResult = await verificarIdentidadB2C();
+            if (identityResult?.status !== "verified") {
+                const duplicate = identityResult?.status === "duplicate_suspected";
+                alert(duplicate
+                    ? "🛡️ Detectamos una posible identidad duplicada. El expediente quedó bloqueado para revisión administrativa."
+                    : "🛡️ La biometría requiere revisión humana. El expediente quedó guardado pero no puede operar todavía.");
+                window.location.href = "tecnico.html";
+                return;
+            }
+
             const currentProfile = (await getDoc(userRef)).data() || {};
             const reviewPatch = buildTechnicianReviewPatch({
                 ...currentProfile,
@@ -761,9 +787,8 @@ if (btnRegistroTecnico) {
                 "documentos.fecha_actualizacion": serverTimestamp(),
                 "kyc.ultimo_error": null,
                 "kyc.identity_required": true,
-                "kyc.identity_verified": false,
                 "kyc.identity_version": IDENTITY_CAPTURE_VERSION,
-                "kyc.identity_capture_status": "captured_pending_review",
+                "kyc.identity_capture_status": "machine_verified_pending_admin",
                 "kyc.identity_capture_completed_at": serverTimestamp(),
                 actualizadoEn: serverTimestamp()
             });
@@ -838,55 +863,11 @@ if (btnGoogle) {
             const docSnap = await getDoc(doc(db, "users", user.uid));
             
             if (!docSnap.exists()) {
-                window.isRegisteringLocal = true; // Bloquea redirección prematura
-                const esTecnico = confirm("¿Eres TÉCNICO? [ACEPTAR] = SÍ / [CANCELAR] = CLIENTE");
-                const rolSeleccionado = esTecnico ? "tecnico" : "cliente";
-                
-                const nombreSeguro = escaparHTML(user.displayName || "Usuario de Google");
-                const fotoGoogle = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(nombreSeguro)}&background=random`;
-
-                const emailSeguro = String(user.email || "").trim().toLowerCase();
-                const perfilBase = esTecnico
-                    ? {
-                        ...createTechnicianRegistrationProfile({
-                            uid: user.uid,
-                            email: emailSeguro,
-                            nombre: nombreSeguro,
-                            provider: "google"
-                        }),
-                        foto_perfil: fotoGoogle,
-                        creadoEn: serverTimestamp(),
-                        actualizadoEn: serverTimestamp()
-                    }
-                    : {
-                        uid: user.uid,
-                        nombre: nombreSeguro,
-                        email: emailSeguro,
-                        rol: rolSeleccionado,
-                        sub_type: "marketplace",
-                        tipo_cuenta: "B2C",
-                        foto_perfil: fotoGoogle,
-                        estado: "activo",
-                        status: "activo",
-                        wallet: 0,
-                        currency: "MXN",
-                        creadoEn: serverTimestamp(),
-                        actualizadoEn: serverTimestamp()
-                    };
-
-                if (esTecnico) {
-                    perfilBase.skills = [];
-                }
-
-                await setDoc(doc(db, "users", user.uid), perfilBase);
-                
-                if(esTecnico) {
-                    alert("⚠️ Aviso: Tu perfil base fue creado con Google. Por seguridad y cumplimiento (KYC), deberás contactar al Administrador para subir tu INE, CSF, Licencia y Placas antes de ser aprobado.");
-                } else {
-                    alert("⚠️ Aviso: Deberás agregar una tarjeta en tu panel para solicitar servicios (Garantía de Servicio).");
-                }
-
-                window.location.href = esTecnico ? "tecnico.html" : "cliente.html";
+                window.isRegisteringLocal = true;
+                await signOut(auth);
+                alert("🛡️ Las altas nuevas B2C requieren INE y biometría en vivo. Regístrate con el formulario seguro; después podrás vincular Google desde tu cuenta.");
+                window.location.href = "registro.html";
+                return;
             }
         } catch (error) {
             alert("Error con Google. Intenta nuevamente.");
