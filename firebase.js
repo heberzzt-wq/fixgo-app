@@ -378,6 +378,25 @@ export async function registrarUsuario(
             : perfilBase;
 
         if (rol === "cliente" && perfilBase.tipo_cuenta === "B2C") {
+            perfil.estado = "identidad_pendiente";
+            perfil.status = "identidad_pendiente";
+            perfil.foto_perfil = null;
+            perfil.documentos = {
+                ine: null,
+                ine_reverso: null,
+                selfie_liveness_left: null,
+                selfie_liveness_right: null
+            };
+            perfil.kyc = {
+                estado: "identidad_pendiente",
+                aprobado: false,
+                identity_required: true,
+                identity_verified: false,
+                identity_machine_verified: false,
+                identity_machine_status: "pending_capture",
+                identity_version: "b2c-bank-identity-v1",
+                identity_capture_status: "pending_capture"
+            };
             perfil.pagos = {
                 stripe_autorizado: false,
                 efectivo_autorizado: false
