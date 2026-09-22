@@ -179,9 +179,15 @@ jobs:
           cache: npm
 
       - name: Install dependencies
+        shell: bash
         run: |
+          set -euo pipefail
           npm ci
-          npm ci --prefix functions
+          if [ "$GITHUB_REF" = "refs/heads/b2c-bank-identity-capture-v142" ] && ! grep -Fq '"@vladmandic/human"' functions/package-lock.json; then
+            npm install --prefix functions
+          else
+            npm ci --prefix functions
+          fi
 
       - name: Apply deterministic V142 patches
         run: |
@@ -271,6 +277,20 @@ jobs:
       - name: B2C forensic Firestore and Storage emulators
         run: npm run test:b2c-forensic-emulators
 
+      - name: Persist biometric dependency lock
+        if: ${{ github.ref == 'refs/heads/b2c-bank-identity-capture-v142' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- functions/package.json functions/package-lock.json; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add functions/package.json functions/package-lock.json
+          git commit -m 'build(b2c): materialize biometric dependency lock'
+          git push origin "HEAD:b2c-bank-identity-capture-v142"
+
       - name: Detect materialization state
         id: patch-state
         shell: bash
@@ -327,8 +347,13 @@ jobs:
         run: |
           npm ci
           if ($LASTEXITCODE -ne 0) { throw 'ROOT_NPM_CI_FAILED' }
-          npm ci --prefix functions
-          if ($LASTEXITCODE -ne 0) { throw 'FUNCTIONS_NPM_CI_FAILED' }
+          $lock = Get-Content functions/package-lock.json -Raw
+          if ($env:GITHUB_REF -eq 'refs/heads/b2c-bank-identity-capture-v142' -and -not $lock.Contains('"@vladmandic/human"')) {
+            npm install --prefix functions
+          } else {
+            npm ci --prefix functions
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'FUNCTIONS_DEPENDENCY_INSTALL_FAILED' }
       - name: Apply deterministic V142 patches
         run: |
           node .github/scripts/v142-mobile-web-research-recovery.mjs
