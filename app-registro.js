@@ -17,7 +17,8 @@ import {
     auth, 
     db, 
     storage, 
-    registrarUsuario, 
+    registrarUsuario,
+    verificarIdentidadB2C,
     signInWithEmailAndPassword, 
     signOut, 
     doc, 
@@ -234,8 +235,10 @@ if ($("btnCerrarTerminosTecnico")) {
 const btnRegistroCliente = $("btnRegistroCliente");
 const codigoB2BInput = document.querySelector('#formRegistroCliente [name="codigoB2B"]');
 codigoB2BInput?.addEventListener("input", () => {
+    const hasB2BCode = Boolean(codigoB2BInput.value.trim());
     const stripeSection = document.getElementById("stripeRegistroClienteB2B");
-    stripeSection?.classList.toggle("hidden", !codigoB2BInput.value.trim());
+    stripeSection?.classList.toggle("hidden", !hasB2BCode);
+    document.getElementById("identityVerificationCardCliente")?.classList.toggle("hidden", hasB2BCode);
 });
 
 if (btnRegistroCliente) {
@@ -266,6 +269,17 @@ if (btnRegistroCliente) {
         const termsAceptados = document.getElementById("chkTerminosCliente")?.checked;
         if (!termsAceptados) {
             alert("⚖️ Obligatorio: Debes marcar la casilla aceptando los Términos y Condiciones de Uso para Clientes."); 
+            return;
+        }
+
+        const requiereIdentidadB2C = !codigoB2B;
+        if (requiereIdentidadB2C && !$("chkBiometriaCliente")?.checked) {
+            alert("🔐 Debes autorizar la verificación de identidad para crear una cuenta B2C.");
+            return;
+        }
+        if (requiereIdentidadB2C && (!identityCaptureState.complete || identityCaptureState.target !== "cliente" ||
+            !archivoFotoPerfil || !archivoINE || !archivoINEReverso || !archivoSelfieIzquierda || !archivoSelfieDerecha)) {
+            alert("🪪 Completa INE frente/reverso y la prueba de vida antes de crear tu cuenta.");
             return;
         }
 
@@ -331,6 +345,43 @@ if (btnRegistroCliente) {
                 } : {}),
                 actualizadoEn: serverTimestamp()
             }, { merge: true });
+
+            if (!esAdminB2B) {
+                const uid = usuarioAuth.uid;
+                const userRef = doc(db, "users", uid);
+                const confirmarCampo = patch => async () => {
+                    await setDoc(userRef, patch, { merge: true });
+                };
+
+                btnRegistroCliente.innerHTML = '<i class="fas fa-cloud-upload-alt animate-bounce"></i> Protegiendo identidad…';
+                await subirDocumentoExpedienteRecuperable(uid, "foto_perfil", archivoFotoPerfil,
+                    async (url) => confirmarCampo({ foto_perfil: url })());
+                await subirDocumentoExpedienteRecuperable(uid, "ine", archivoINE,
+                    async (url) => confirmarCampo({ documentos: { ine: url } })());
+                await subirDocumentoExpedienteRecuperable(uid, "ine_reverso", archivoINEReverso,
+                    async (url) => confirmarCampo({ documentos: { ine_reverso: url } })());
+                await subirDocumentoExpedienteRecuperable(uid, "selfie_liveness_left", archivoSelfieIzquierda,
+                    async (url) => confirmarCampo({ documentos: { selfie_liveness_left: url } })());
+                await subirDocumentoExpedienteRecuperable(uid, "selfie_liveness_right", archivoSelfieDerecha,
+                    async (url) => confirmarCampo({ documentos: { selfie_liveness_right: url } })());
+
+                await setDoc(userRef, {
+                    "kyc.identity_capture_status": "captured_pending_verification",
+                    "kyc.identity_capture_completed_at": serverTimestamp(),
+                    actualizadoEn: serverTimestamp()
+                }, { merge: true });
+
+                btnRegistroCliente.innerHTML = '<i class="fas fa-fingerprint fa-pulse"></i> Verificando identidad…';
+                const identityResult = await verificarIdentidadB2C();
+                if (identityResult?.status !== "verified") {
+                    const duplicate = identityResult?.status === "duplicate_suspected";
+                    alert(duplicate
+                        ? "🛡️ Tu identidad requiere revisión porque existe una coincidencia con otro expediente. La cuenta no puede operar hasta que Administración la revise."
+                        : "🛡️ La verificación automática requiere revisión humana. Tus datos quedaron guardados y la cuenta seguirá bloqueada hasta validación.");
+                    window.location.href = "cliente.html";
+                    return;
+                }
+            }
 
             alert(`✅ ¡Registro Exitoso, ${nombre}!\n\nBienvenido a GestiaPremium. Tu perfil de ${esAdminB2B ? 'Administrador B2B' : 'Cliente'} ha sido creado.`);
             
