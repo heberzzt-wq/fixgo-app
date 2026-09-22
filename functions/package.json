@@ -26,8 +26,12 @@
     "firebase-functions": "^7.2.5",
     "pdfkit": "^0.17.2",
     "stripe": "^20.4.1",
-    "@tensorflow/tfjs-node": "4.22.0",
-    "@vladmandic/human": "3.3.6"
+    "@vladmandic/human": "3.3.6",
+    "@tensorflow/tfjs-core": "4.22.0",
+    "@tensorflow/tfjs-converter": "4.22.0",
+    "@tensorflow/tfjs-backend-cpu": "4.22.0",
+    "@tensorflow/tfjs-backend-wasm": "4.22.0",
+    "jpeg-js": "0.4.4"
   },
   "overrides": {
     "uuid": "^11.1.1"
