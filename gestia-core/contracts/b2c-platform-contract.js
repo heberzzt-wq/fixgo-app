@@ -14,7 +14,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function createContract() {
     "use strict";
 
-    const CONTRACT_VERSION = "b2c-platform-contract-v3-identity";
+    const CONTRACT_VERSION = "b2c-platform-contract-v2";
     const EVENT_MARKETPLACE_SERVICE_AVAILABLE = "marketplace_service_available";
     const B2C_SKILL_VERTICALS = Object.freeze(["fix", "road", "tech"]);
     const SERVICE_VERTICAL_LABELS = Object.freeze({
