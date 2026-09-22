@@ -139,7 +139,11 @@ service cloud.firestore {
         request.resource.data.get('kyc', {}).get('identity_verified', false) == resource.data.get('kyc', {}).get('identity_verified', false) &&
         request.resource.data.get('kyc', {}).get('identity_verified_by', null) == resource.data.get('kyc', {}).get('identity_verified_by', null) &&
         request.resource.data.get('kyc', {}).get('identity_verified_at', null) == resource.data.get('kyc', {}).get('identity_verified_at', null) &&
-        request.resource.data.get('kyc', {}).get('identity_verification_method', null) == resource.data.get('kyc', {}).get('identity_verification_method', null);
+        request.resource.data.get('kyc', {}).get('identity_verification_method', null) == resource.data.get('kyc', {}).get('identity_verification_method', null) &&
+        request.resource.data.get('kyc', {}).get('identity_machine_verified', false) == resource.data.get('kyc', {}).get('identity_machine_verified', false) &&
+        request.resource.data.get('kyc', {}).get('identity_machine_status', null) == resource.data.get('kyc', {}).get('identity_machine_status', null) &&
+        request.resource.data.get('kyc', {}).get('identity_engine_version', null) == resource.data.get('kyc', {}).get('identity_engine_version', null) &&
+        request.resource.data.get('kyc', {}).get('identity_capture_digest', null) == resource.data.get('kyc', {}).get('identity_capture_digest', null);
     }
 
     function serviceFinancialFieldsUnchanged() {
@@ -315,12 +319,24 @@ service cloud.firestore {
     }
 
     match /{collectionName}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == 'nNhwy3Mx4pTvc8TZVh1tyTMFwhC2' && collectionName != 'b2b_keys';
+      allow read, write: if request.auth != null &&
+        request.auth.uid == 'nNhwy3Mx4pTvc8TZVh1tyTMFwhC2' &&
+        collectionName != 'b2b_keys' &&
+        collectionName != 'b2c_identity_registry' &&
+        collectionName != 'b2c_identity_audit';
     }
 
     match /b2b_keys/{keyId} {
       allow read: if false;
       allow write: if isAdmin();
+    }
+
+    match /b2c_identity_registry/{identityId} {
+      allow read, write: if false;
+    }
+
+    match /b2c_identity_audit/{auditId} {
+      allow read, write: if false;
     }
 
     match /users/{userId} {
@@ -354,9 +370,15 @@ service cloud.firestore {
             technicianInitialStateIsSafe(request.resource.data) ||
             (
               request.resource.data.rol == 'cliente' &&
-              request.resource.data.estado == 'activo' &&
-              request.resource.data.status == 'activo' &&
+              request.resource.data.estado == 'identidad_pendiente' &&
+              request.resource.data.status == 'identidad_pendiente' &&
               request.resource.data.tipo_cuenta == 'B2C' &&
+              request.resource.data.get('kyc', {}).get('estado', '') == 'identidad_pendiente' &&
+              request.resource.data.get('kyc', {}).get('aprobado', true) == false &&
+              request.resource.data.get('kyc', {}).get('identity_required', false) == true &&
+              request.resource.data.get('kyc', {}).get('identity_verified', true) == false &&
+              request.resource.data.get('kyc', {}).get('identity_machine_verified', true) == false &&
+              request.resource.data.get('kyc', {}).get('identity_version', '') == 'b2c-bank-identity-v1' &&
               request.resource.data.get('pagos', {}).get('stripe_autorizado', true) == false &&
               request.resource.data.get('pagos', {}).get('efectivo_autorizado', true) == false &&
               request.resource.data.get('efectivo_autorizado', false) == false
