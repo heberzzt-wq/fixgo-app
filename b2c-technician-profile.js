@@ -10,6 +10,10 @@ if (!contract) throw new Error("B2C_PLATFORM_CONTRACT_UNAVAILABLE");
 
 export const TECHNICIAN_KYC_STATES = contract.TECHNICIAN_STATES;
 export const TECHNICIAN_IDENTITY_VERSION = "b2c-bank-identity-v1";
+export const MEXICAN_CLABE_VERSION = contract.MEXICAN_CLABE_VERSION;
+export const inspectMexicanClabe = contract.inspectMexicanClabe;
+export const normalizeMexicanClabe = contract.normalizeMexicanClabe;
+export const calculateMexicanClabeCheckDigit = contract.calculateMexicanClabeCheckDigit;
 
 function text(value, fallback = "") {
     const normalized = String(value ?? "").trim();
@@ -54,7 +58,16 @@ export function createTechnicianRegistrationProfile({ uid, email, nombre, provid
         },
         vehiculo: { tipo: "", placas: "" },
         documentos: { ine: null, ine_reverso: null, selfie_liveness_left: null, selfie_liveness_right: null, csf: null, licencia: null, certificados: [] },
-        datos_bancarios: { banco: "", clabe: "", titular: text(nombre, "Usuario Nuevo") },
+        datos_bancarios: {
+            banco: "",
+            clabe: "",
+            titular: text(nombre, "Usuario Nuevo"),
+            banking_version: MEXICAN_CLABE_VERSION,
+            institucion_clave: "",
+            institucion_key: "",
+            institucion_nombre: "",
+            catalog_source: contract.MEXICAN_CLABE_CATALOG_SOURCE
+        },
         skills: [],
         nivel: "BRONCE",
         reputacion: 5,

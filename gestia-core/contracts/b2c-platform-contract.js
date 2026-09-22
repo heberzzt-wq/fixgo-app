@@ -141,6 +141,149 @@
         paso_corriente: "road_corriente"
     });
 
+    const MEXICAN_CLABE_VERSION = "mx-clabe-v1";
+    const MEXICAN_CLABE_CATALOG_SOURCE = "BANXICO_CEP_SCL_2026-09-22";
+    const CLABE_INSTITUTIONS = Object.freeze({
+        "001": Object.freeze({ key: "2001", name: "BANXICO" }),
+        "002": Object.freeze({ key: "40002", name: "BANAMEX" }),
+        "006": Object.freeze({ key: "37006", name: "BANCOMEXT" }),
+        "009": Object.freeze({ key: "37009", name: "BANOBRAS" }),
+        "012": Object.freeze({ key: "40012", name: "BBVA MEXICO" }),
+        "014": Object.freeze({ key: "40014", name: "SANTANDER" }),
+        "019": Object.freeze({ key: "37019", name: "BANJERCITO" }),
+        "021": Object.freeze({ key: "40021", name: "HSBC" }),
+        "030": Object.freeze({ key: "40030", name: "BAJIO" }),
+        "036": Object.freeze({ key: "40036", name: "INBURSA" }),
+        "042": Object.freeze({ key: "40042", name: "MIFEL" }),
+        "044": Object.freeze({ key: "40044", name: "SCOTIABANK" }),
+        "058": Object.freeze({ key: "40058", name: "BANREGIO" }),
+        "059": Object.freeze({ key: "40059", name: "INVEX" }),
+        "060": Object.freeze({ key: "40060", name: "BANSI" }),
+        "062": Object.freeze({ key: "40062", name: "AFIRME" }),
+        "072": Object.freeze({ key: "40072", name: "BANORTE" }),
+        "106": Object.freeze({ key: "40106", name: "BANK OF AMERICA" }),
+        "108": Object.freeze({ key: "40108", name: "MUFG" }),
+        "110": Object.freeze({ key: "40110", name: "JP MORGAN" }),
+        "112": Object.freeze({ key: "40112", name: "BMONEX" }),
+        "113": Object.freeze({ key: "40113", name: "VE POR MAS" }),
+        "124": Object.freeze({ key: "40124", name: "CITI MEXICO" }),
+        "127": Object.freeze({ key: "40127", name: "AZTECA" }),
+        "128": Object.freeze({ key: "40128", name: "KAPITAL" }),
+        "129": Object.freeze({ key: "40129", name: "BARCLAYS" }),
+        "130": Object.freeze({ key: "40130", name: "COMPARTAMOS" }),
+        "132": Object.freeze({ key: "40132", name: "MULTIVA BANCO" }),
+        "133": Object.freeze({ key: "40133", name: "ACTINVER" }),
+        "135": Object.freeze({ key: "37135", name: "NAFIN" }),
+        "136": Object.freeze({ key: "40136", name: "INTERCAM BANCO" }),
+        "137": Object.freeze({ key: "40137", name: "BANCOPPEL" }),
+        "138": Object.freeze({ key: "40138", name: "UALA" }),
+        "140": Object.freeze({ key: "40140", name: "CONSUBANCO" }),
+        "141": Object.freeze({ key: "40141", name: "VOLKSWAGEN" }),
+        "145": Object.freeze({ key: "40145", name: "BBASE" }),
+        "147": Object.freeze({ key: "40147", name: "BANKAOOL" }),
+        "148": Object.freeze({ key: "40148", name: "PAGATODO" }),
+        "150": Object.freeze({ key: "40150", name: "INMOBILIARIO" }),
+        "151": Object.freeze({ key: "40151", name: "DONDE" }),
+        "152": Object.freeze({ key: "40152", name: "BANCREA" }),
+        "154": Object.freeze({ key: "40154", name: "BANCO COVALTO" }),
+        "155": Object.freeze({ key: "40155", name: "ICBC" }),
+        "156": Object.freeze({ key: "40156", name: "SABADELL" }),
+        "157": Object.freeze({ key: "40157", name: "SHINHAN" }),
+        "158": Object.freeze({ key: "40158", name: "MIZUHO BANK" }),
+        "159": Object.freeze({ key: "40159", name: "BANK OF CHINA" }),
+        "160": Object.freeze({ key: "40160", name: "BANCO S3" }),
+        "166": Object.freeze({ key: "37166", name: "BaBien" }),
+        "167": Object.freeze({ key: "40167", name: "HEY BANCO" }),
+        "168": Object.freeze({ key: "37168", name: "HIPOTECARIA FED" }),
+        "170": Object.freeze({ key: "40170", name: "REVOLUT BANK" }),
+        "600": Object.freeze({ key: "90600", name: "MONEXCB" }),
+        "601": Object.freeze({ key: "90601", name: "GBM" }),
+        "602": Object.freeze({ key: "90602", name: "MASARI" }),
+        "605": Object.freeze({ key: "90605", name: "VALUE" }),
+        "616": Object.freeze({ key: "90616", name: "FINAMEX" }),
+        "617": Object.freeze({ key: "90617", name: "VALMEX" }),
+        "620": Object.freeze({ key: "90620", name: "PROFUTURO" }),
+        "631": Object.freeze({ key: "90631", name: "TRF" }),
+        "634": Object.freeze({ key: "90634", name: "FINCOMUN" }),
+        "638": Object.freeze({ key: "40638", name: "NUBANK" }),
+        "646": Object.freeze({ key: "90646", name: "STP" }),
+        "652": Object.freeze({ key: "90652", name: "CREDICAPITAL" }),
+        "653": Object.freeze({ key: "90653", name: "KUSPIT" }),
+        "656": Object.freeze({ key: "90656", name: "UNAGRA" }),
+        "659": Object.freeze({ key: "90659", name: "ASP INTEGRA OPC" }),
+        "660": Object.freeze({ key: "90660", name: "Altor" }),
+        "661": Object.freeze({ key: "90661", name: "KLAR" }),
+        "670": Object.freeze({ key: "90670", name: "LIBERTAD" }),
+        "677": Object.freeze({ key: "90677", name: "CAJA POP MEXICA" }),
+        "680": Object.freeze({ key: "90680", name: "CRISTOBAL COLON" }),
+        "683": Object.freeze({ key: "90683", name: "CAJA TELEFONIST" }),
+        "684": Object.freeze({ key: "90684", name: "TRANSFER" }),
+        "685": Object.freeze({ key: "90685", name: "FONDO (FIRA)" }),
+        "688": Object.freeze({ key: "90688", name: "CREDICLUB" }),
+        "699": Object.freeze({ key: "90699", name: "FONDEADORA" }),
+        "703": Object.freeze({ key: "90703", name: "TESORED" }),
+        "706": Object.freeze({ key: "90706", name: "ARCUS FI" }),
+        "710": Object.freeze({ key: "90710", name: "NVIO" }),
+        "714": Object.freeze({ key: "90714", name: "PPBALANCEMX" }),
+        "715": Object.freeze({ key: "90715", name: "CASHI CUENTA" }),
+        "720": Object.freeze({ key: "90720", name: "MexPago" }),
+        "721": Object.freeze({ key: "90721", name: "albo" }),
+        "722": Object.freeze({ key: "90722", name: "Mercado Pago W" }),
+        "723": Object.freeze({ key: "90723", name: "Cuenca" }),
+        "725": Object.freeze({ key: "90725", name: "COOPDESARROLLO" }),
+        "727": Object.freeze({ key: "90727", name: "TRANSFER DIRECT" }),
+        "728": Object.freeze({ key: "90728", name: "SPIN BY OXXO" }),
+        "729": Object.freeze({ key: "90729", name: "Dep y Pag Dig" }),
+        "730": Object.freeze({ key: "90730", name: "Clip" }),
+        "732": Object.freeze({ key: "90732", name: "Peibo" }),
+        "734": Object.freeze({ key: "90734", name: "FINCO PAY" }),
+        "738": Object.freeze({ key: "90738", name: "FINTOC" }),
+        "901": Object.freeze({ key: "90901", name: "CLS" }),
+        "902": Object.freeze({ key: "90902", name: "INDEVAL" }),
+        "903": Object.freeze({ key: "90903", name: "CoDi Valida" })
+    });
+
+    function normalizeMexicanClabe(value) {
+        return String(value ?? "").replace(/\s+/g, "");
+    }
+
+    function calculateMexicanClabeCheckDigit(first17) {
+        const digits = normalizeMexicanClabe(first17);
+        if (!/^\d{17}$/.test(digits)) return null;
+        const weights = [3, 7, 1];
+        let sum = 0;
+        for (let index = 0; index < 17; index += 1) {
+            sum += (Number(digits[index]) * weights[index % 3]) % 10;
+        }
+        return (10 - (sum % 10)) % 10;
+    }
+
+    function inspectMexicanClabe(value) {
+        const digits = normalizeMexicanClabe(value);
+        const formatValid = /^\d{18}$/.test(digits);
+        const institutionCode = digits.slice(0, 3);
+        const institution = CLABE_INSTITUTIONS[institutionCode] || null;
+        const expectedCheckDigit = /^\d{17}/.test(digits)
+            ? calculateMexicanClabeCheckDigit(digits.slice(0, 17))
+            : null;
+        const actualCheckDigit = formatValid ? Number(digits[17]) : null;
+        const checksumValid = formatValid && expectedCheckDigit === actualCheckDigit;
+        return Object.freeze({
+            digits,
+            masked: formatValid ? `${digits.slice(0, 3)} ••• •••••••${digits.slice(-4)}` : "",
+            formatValid,
+            checksumValid,
+            valid: formatValid && checksumValid && Boolean(institution),
+            institutionCode,
+            institutionKey: institution?.key || null,
+            institutionName: institution?.name || null,
+            catalogSource: MEXICAN_CLABE_CATALOG_SOURCE,
+            expectedCheckDigit,
+            actualCheckDigit
+        });
+    }
+
+
     function text(value, fallback = "") {
         const normalized = String(value ?? "").trim();
         return normalized || fallback;
@@ -255,8 +398,13 @@
             },
             datos_bancarios: {
                 banco: text(raw.datos_bancarios?.banco ?? raw.banco ?? raw.banco_nombre),
-                clabe: text(raw.datos_bancarios?.clabe ?? raw.clabe ?? raw.clabe_interbancaria),
-                titular: text(raw.datos_bancarios?.titular ?? raw.nombre)
+                clabe: normalizeMexicanClabe(raw.datos_bancarios?.clabe ?? raw.clabe ?? raw.clabe_interbancaria),
+                titular: text(raw.datos_bancarios?.titular ?? raw.nombre),
+                banking_version: text(raw.datos_bancarios?.banking_version),
+                institucion_clave: text(raw.datos_bancarios?.institucion_clave),
+                institucion_key: text(raw.datos_bancarios?.institucion_key),
+                institucion_nombre: text(raw.datos_bancarios?.institucion_nombre),
+                catalog_source: text(raw.datos_bancarios?.catalog_source)
             },
             kyc: {
                 ...(raw.kyc || {}),
@@ -285,6 +433,14 @@
         const profile = normalizeTechnicianProfile(raw);
         const pedestrian = profile.vehiculo.tipo === "peaton";
         const identityRequired = profile.kyc?.identity_required === true;
+        const clabeInspection = inspectMexicanClabe(profile.datos_bancarios.clabe);
+        const smartBanking = profile.datos_bancarios.banking_version === MEXICAN_CLABE_VERSION;
+        const smartBankMatches = !smartBanking || (
+            clabeInspection.valid &&
+            profile.datos_bancarios.banco === clabeInspection.institutionName &&
+            profile.datos_bancarios.institucion_clave === clabeInspection.institutionCode &&
+            profile.datos_bancarios.institucion_key === clabeInspection.institutionKey
+        );
         const required = {
             foto_perfil: isDocumentReference(profile.foto_perfil),
             ine: isDocumentReference(profile.documentos.ine),
@@ -294,8 +450,8 @@
                 selfie_liveness_right: isDocumentReference(profile.documentos.selfie_liveness_right)
             } : {}),
             csf: isDocumentReference(profile.documentos.csf),
-            banco: Boolean(profile.datos_bancarios.banco),
-            clabe: /^\d{18}$/.test(profile.datos_bancarios.clabe),
+            banco: smartBanking ? smartBankMatches : Boolean(profile.datos_bancarios.banco),
+            clabe: smartBanking ? clabeInspection.valid : /^\d{18}$/.test(profile.datos_bancarios.clabe),
             vehiculo_tipo: Boolean(profile.vehiculo.tipo),
             placas: pedestrian || Boolean(profile.vehiculo.placas),
             licencia: pedestrian || isDocumentReference(profile.documentos.licencia)
@@ -311,6 +467,9 @@
             complete: missing.length === 0,
             identityRequired,
             identityVerified: profile.kyc?.identity_verified === true,
+            bankingVersion: profile.datos_bancarios.banking_version || null,
+            bankingInspection: clabeInspection,
+            smartBanking,
             certificatesOptional: true
         };
     }
@@ -581,6 +740,9 @@
 
     return Object.freeze({
         CONTRACT_VERSION,
+        MEXICAN_CLABE_VERSION,
+        MEXICAN_CLABE_CATALOG_SOURCE,
+        CLABE_INSTITUTIONS,
         B2C_SKILL_VERTICALS,
         DESTINATION_SOURCES,
         EVENT_MARKETPLACE_SERVICE_AVAILABLE,
@@ -592,6 +754,9 @@
         TECHNICIAN_LEGACY_FIELDS,
         TECHNICIAN_STATES,
         assertPaymentMethodAllowed,
+        calculateMexicanClabeCheckDigit,
+        inspectMexicanClabe,
+        normalizeMexicanClabe,
         buildMarketplaceListing,
         getServiceDefinition,
         isB2BAccountProfile,
