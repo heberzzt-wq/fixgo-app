@@ -50,7 +50,7 @@ function createApproveTechnicianHandler({ admin, db, functions }) {
             }
             const rawProfile = snapshot.data() || {};
             const profile = platformContract.normalizeTechnicianProfile(rawProfile);
-            if (profile.rol !== "tecnico") {
+            if (rawProfile.tipo_cuenta === "B2B" || profile.rol !== "tecnico") {
                 throw new functions.https.HttpsError("failed-precondition", "El perfil no corresponde a un técnico B2C.");
             }
             const state = profile.estado;

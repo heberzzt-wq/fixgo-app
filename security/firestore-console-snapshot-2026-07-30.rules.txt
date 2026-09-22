@@ -127,8 +127,18 @@ service cloud.firestore {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'retencion_inicial', 'costo_final', 'monto_total', 'pago_estado',
         'stripe_session_id', 'stripe_payment_intent', 'saldo_pagado',
-        'ledger_transaction_id', 'liquidacion_estado', 'fecha_liquidacion'
-      ]);
+        'ledger_transaction_id', 'liquidacion_estado', 'fecha_liquidacion',
+        'monto_pagado', 'tasa_comision_aplicada', 'comision_asignada', 'monto_tecnico_fijo',
+        'liquidado', 'comision_aplicada_tecnico', 'comision_aplicada_plataforma',
+        'settlement_method', 'settlement_version', 'settlement_reconciled',
+        'liquidacion_bloqueada', 'liquidacion_codigo', 'liquidacion_bloqueo_codigo',
+        'b2c_financial_hold', 'revision_administrativa', 'clientType', 'client_type',
+        'edificioId', 'tenantId', 'empresa_id', 'empresaId', 'contrato_id', 'contratoId'
+      ]) &&
+        (resource.data.get('llegada_revision_requerida', false) != true || request.resource.data.get('llegada_revision_requerida', false) == true) &&
+        (resource.data.get('ausencia_cliente_revision_requerida', false) != true || request.resource.data.get('ausencia_cliente_revision_requerida', false) == true) &&
+        (resource.data.get('diagnostico_revision_requerida', false) != true || request.resource.data.get('diagnostico_revision_requerida', false) == true) &&
+        (resource.data.get('trabajo_revision_requerida', false) != true || request.resource.data.get('trabajo_revision_requerida', false) == true);
     }
 
     function customerServiceUpdateIsSafe() {
@@ -181,11 +191,22 @@ service cloud.firestore {
 
     function userTenant() {
       let data = userData();
-      return data != null ? data.get('edificioId', data.get('tenantId', null)) : null;
+      return data != null ? data.get('edificioId', null) : null;
     }
 
     function tenantMember(tenant) {
-      return isAuth() && userTipo() == 'B2B' && tenant is string && tenant.size() > 0 && userTenant() == tenant;
+      return isAuth() && userTipo() == 'B2B' && userData().get('status', '') == 'activo' &&
+        userData().get('estado', 'activo') == 'activo' && userData().get('suspendido', false) != true &&
+        userRole() in ['admin_b2b', 'asistente_admin', 'supervisor', 'tecnico', 'tecnico_gp', 'tecnico_interno', 'seguridad', 'seguridad_interna', 'seguridad_24_7', 'inquilino_b2b', 'recepcion', 'cliente'] &&
+        tenant is string && tenant.size() > 0 && userTenant() == tenant;
+    }
+
+    function tenantManager(tenant) {
+      return tenantMember(tenant) && userRole() in ['admin_b2b', 'asistente_admin'];
+    }
+
+    function tenantReception(tenant) {
+      return tenantMember(tenant) && userRole() in ['admin_b2b', 'asistente_admin', 'recepcion', 'seguridad', 'seguridad_interna', 'seguridad_24_7'];
     }
 
     function b2cServiceExists(serviceId) {
@@ -289,7 +310,7 @@ service cloud.firestore {
       allow read: if isAuth() && (
         request.auth.uid == userId ||
         isAdmin() ||
-        (userRole() == 'admin_b2b' && resource.data.edificioId == userData().edificioId)
+        (userRole() == 'admin_b2b' && tenantMember(resource.data.get('edificioId', null)))
       );
 
       allow create: if isAuth() && (
@@ -310,6 +331,8 @@ service cloud.firestore {
           request.resource.data.get('aprobado', false) == false &&
           request.resource.data.get('verificado', false) == false &&
           request.resource.data.get('expediente_completo', false) == false &&
+          !request.resource.data.keys().hasAny(['comision_asignada', 'saldo_virtual', 'saldo_actual', 'saldo_virtual_actualizado_at', 'comision']) &&
+          request.resource.data.get('wallet', 0) == 0 &&
           (
             technicianInitialStateIsSafe(request.resource.data) ||
             (
@@ -331,10 +354,11 @@ service cloud.firestore {
         (
           request.auth.uid == userId &&
           userAuthorityFieldsUnchanged() &&
+          (resource.data.tipo_cuenta != 'B2B' || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['documentos', 'foto_perfil', 'datos_bancarios', 'kyc'])) &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
             'rol', 'tipo_cuenta', 'suspendido', 'verificado',
             'nivel', 'reputacion', 'servicios_completados', 'wallet', 'currency',
-            'comision', 'aprobadoEn', 'pagos', 'efectivo_autorizado',
+            'comision', 'comision_asignada', 'saldo_virtual', 'saldo_actual', 'saldo_virtual_actualizado_at', 'aprobadoEn', 'pagos', 'efectivo_autorizado',
             'vehiculo_tipo', 'placas', 'logistica'
           ]) &&
           !request.resource.data.get('documentos', {}).diff(
@@ -350,8 +374,7 @@ service cloud.firestore {
             )
           )
         ) ||
-        (userRole() == 'admin_b2b' && userTipo() == 'B2B' &&
-          userTenant() != null && resource.data.get('edificioId', null) == userTenant() &&
+        (userRole() == 'admin_b2b' && tenantMember(resource.data.get('edificioId', null)) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'nombre', 'telefono', 'especialidad', 'actualizadoEn'
           ]))
@@ -405,7 +428,7 @@ service cloud.firestore {
         ) ||
         (
           resource.data.get('tipo', null) == 'mantenimiento' &&
-          isTecnico() &&
+          tenantMember(resource.data.get('edificioId', null)) && isTecnico() &&
           request.resource.data.get('tipo', null) == 'mantenimiento' &&
           request.resource.data.get('cliente_id', null) == resource.data.get('cliente_id', null) &&
           request.resource.data.get('metodo_pago', null) == resource.data.get('metodo_pago', null) &&
@@ -646,9 +669,10 @@ service cloud.firestore {
     }
 
     match /alertas_seguridad/{document} {
-      allow read, delete: if isAdmin() || tenantMember(resource.data.get('edificioId', null));
+      allow read: if isAdmin() || tenantMember(resource.data.get('edificioId', null));
+      allow delete: if isAdmin() || tenantManager(resource.data.get('edificioId', null));
       allow create: if isAdmin() || tenantMember(request.resource.data.get('edificioId', null));
-      allow update: if isAdmin() || (tenantMember(resource.data.get('edificioId', null)) &&
+      allow update: if isAdmin() || (tenantReception(resource.data.get('edificioId', null)) &&
         request.resource.data.get('edificioId', null) == resource.data.get('edificioId', null));
     }
 
@@ -664,13 +688,18 @@ service cloud.firestore {
         ]) &&
         (request.resource.data.get('tecnicoId', null) == null || (
           userRole() == 'admin_b2b' &&
-          get(/databases/$(database)/documents/users/$(request.resource.data.tecnicoId)).data.get('edificioId', null) == userTenant()
+          get(/databases/$(database)/documents/users/$(request.resource.data.tecnicoId)).data.get('edificioId', null) == userTenant() &&
+          get(/databases/$(database)/documents/users/$(request.resource.data.tecnicoId)).data.get('tipo_cuenta', '') == 'B2B' &&
+          get(/databases/$(database)/documents/users/$(request.resource.data.tecnicoId)).data.get('rol', '') in ['tecnico', 'tecnico_gp', 'tecnico_interno'] &&
+          get(/databases/$(database)/documents/users/$(request.resource.data.tecnicoId)).data.get('status', '') == 'activo' &&
+          get(/databases/$(database)/documents/users/$(request.resource.data.tecnicoId)).data.get('estado', 'activo') == 'activo' &&
+          get(/databases/$(database)/documents/users/$(request.resource.data.tecnicoId)).data.get('suspendido', false) != true
         ))
       );
       allow update: if isAdmin() || (
         resource.data.status in ['pendiente', 'programado', 'en_proceso'] &&
         tenantMember(resource.data.get('edificioId', null)) && isTecnico() && tienePaseCaseta() &&
-        resource.data.get('tecnicoId', request.auth.uid) == request.auth.uid &&
+        resource.data.get('tecnicoId', null) == request.auth.uid &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'diagnostico_inicial', 'foto_antes', 'foto_despues', 'fecha_diagnostico',
           'materiales_utilizados', 'observaciones_finales', 'firma_conformidad', 'fecha_cierre', 'status'
@@ -727,33 +756,35 @@ service cloud.firestore {
       allow read: if isAdmin() || tenantMember(empresaId);
 
       match /areas/{areaId} {
-        allow read, write: if isAdmin() || tenantMember(empresaId);
+        allow read: if isAdmin() || tenantMember(empresaId);
+        allow write: if isAdmin() || tenantManager(empresaId);
       }
 
       match /activos/{activoId} {
         allow read: if isAdmin() || tenantMember(empresaId);
         allow create, update: if isAuth() && (
-          isAdmin() || (userRole() == 'admin_b2b' && userData().edificioId == empresaId)
+          isAdmin() || tenantManager(empresaId)
         ) &&
         (!('especificaciones_tecnicas' in request.resource.data) || request.resource.data.especificaciones_tecnicas is map) &&
         (!('especificaciones_tecnicas' in request.resource.data) || !('potencia_hp' in request.resource.data.especificaciones_tecnicas) || request.resource.data.especificaciones_tecnicas.potencia_hp is number);
 
         match /bitacora/{bitId} {
-          allow create, read: if isAdmin() || tenantMember(empresaId);
+          allow read: if isAdmin() || tenantMember(empresaId);
+          allow create: if isAdmin() || tenantManager(empresaId) || (tenantMember(empresaId) && isTecnico());
         }
       }
 
       match /mantenimiento/{tareaId} {
         allow read: if isAdmin() || tenantMember(empresaId);
         allow create: if isAuth() && (
-          isAdmin() || (userRole() == 'admin_b2b' && userData().edificioId == empresaId)
+          isAdmin() || tenantManager(empresaId)
         ) && request.resource.data.keys().hasAll(['id_tarea', 'id_activo', 'sistema', 'frecuencia', 'estado']) &&
         request.resource.data.estado in ['pendiente', 'en_proceso', 'completado'] &&
         !('potencia_hp' in request.resource.data) && !('voltaje' in request.resource.data);
         allow update: if isAuth() && (
           isAdmin() ||
-          (userRole() == 'admin_b2b' && userData().edificioId == empresaId) ||
-          (isTecnico() && userData().edificioId == empresaId && tienePaseCaseta())
+          tenantManager(empresaId) ||
+          (isTecnico() && tenantMember(empresaId) && tienePaseCaseta())
         ) &&
         (!('estado' in request.resource.data) || request.resource.data.estado in ['pendiente', 'en_proceso', 'completado']) &&
         !('potencia_hp' in request.resource.data);
@@ -775,15 +806,15 @@ service cloud.firestore {
       match /{moduloId} {
         allow read: if isAdmin() || tenantMember(tenantId);
         match /{docId} {
-          allow read, write: if isAdmin() || tenantMember(tenantId);
+          allow read: if isAdmin() || tenantMember(tenantId);
+          allow write: if isAdmin() || tenantManager(tenantId);
         }
       }
     }
 
     match /condominios/{condoId} {
       function accesoCondominio() {
-        let edificio = userTenant();
-        return edificio != null && edificio == condoId;
+        return tenantMember(condoId);
       }
       allow read: if isAuth() && (isAdmin() || accesoCondominio());
       allow write: if isAdmin();
@@ -795,15 +826,18 @@ service cloud.firestore {
     }
 
     match /flotilla_b2b/{tenantId}/{document=**} {
-      allow read, write: if isAdmin() || tenantMember(tenantId);
+      allow read: if isAdmin() || tenantMember(tenantId);
+      allow write: if isAdmin() || tenantManager(tenantId);
     }
 
     match /packages/{tenantId}/items/{docId} {
-      allow read, write: if isAdmin() || tenantMember(tenantId);
+      allow read: if isAdmin() || tenantMember(tenantId);
+      allow write: if isAdmin() || tenantReception(tenantId);
     }
 
     match /packages/{tenantId}/{docId} {
-      allow read, write: if isAdmin() || tenantMember(tenantId);
+      allow read: if isAdmin() || tenantMember(tenantId);
+      allow write: if isAdmin() || tenantReception(tenantId);
     }
   }
 }

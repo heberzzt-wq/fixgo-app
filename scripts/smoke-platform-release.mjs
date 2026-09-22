@@ -60,6 +60,9 @@ if (unique.length !== 1 || unique[0] !== manifest.git_sha) {
 if (functionIdentity.b2c_contract_sha256 !== manifest.b2c_contract_sha256) {
     throw new Error("B2C_CONTRACT_HASH_MISMATCH");
 }
+if (functionIdentity.financial_authority !== "secure-entry" || !functionIdentity.settlement_version) {
+    throw new Error("SECURE_FINANCIAL_ENTRY_NOT_CERTIFIED");
+}
 process.stdout.write(`${JSON.stringify({ ok: true, origin, release_sha: manifest.git_sha, surfaces }, null, 2)}\n`);
 
 export { assertedSha };

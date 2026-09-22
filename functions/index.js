@@ -84,8 +84,8 @@ async function requireB2bTenant(context, tenant, roles = null) {
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Inicia sesión.');
     if (typeof tenant !== 'string' || !tenant || tenant.includes('/')) throw new functions.https.HttpsError('invalid-argument', 'Edificio inválido.');
     const actor = (await admin.firestore().doc(`users/${context.auth.uid}`).get()).data();
-    if (actor?.tipo_cuenta !== 'B2B' || (actor.edificioId || actor.tenantId) !== tenant ||
-        actor.status !== 'activo' || actor.suspendido === true || (roles && !roles.includes(actor.rol))) {
+    if (actor?.tipo_cuenta !== 'B2B' || actor.edificioId !== tenant ||
+        actor.status !== 'activo' || (actor.estado && actor.estado !== 'activo') || actor.suspendido === true || (roles && !roles.includes(actor.rol))) {
         throw new functions.https.HttpsError('permission-denied', 'Operación fuera de la autoridad del edificio.');
     }
     return actor;
@@ -147,7 +147,7 @@ async function provisionB2bPersonnel(data, context) {
     }
     const db = admin.firestore();
     const preliminary = (await db.doc(`users/${context.auth.uid}`).get()).data();
-    if (preliminary?.rol !== 'admin_b2b' || preliminary.tipo_cuenta !== 'B2B' || preliminary.status !== 'activo' ||
+    if (preliminary?.rol !== 'admin_b2b' || preliminary.tipo_cuenta !== 'B2B' || preliminary.status !== 'activo' || (preliminary.estado && preliminary.estado !== 'activo') ||
         preliminary.suspendido === true || typeof preliminary.edificioId !== 'string' || !preliminary.edificioId.trim()) {
         throw new functions.https.HttpsError('permission-denied', 'Administrador de edificio requerido.');
     }
@@ -158,7 +158,7 @@ async function provisionB2bPersonnel(data, context) {
       return await db.runTransaction(async tx => {
         const requester = await tx.get(db.doc(`users/${context.auth.uid}`));
         const actor = requester.data();
-        if (actor?.rol !== 'admin_b2b' || actor.tipo_cuenta !== 'B2B' || actor.status !== 'activo' || actor.suspendido === true ||
+        if (actor?.rol !== 'admin_b2b' || actor.tipo_cuenta !== 'B2B' || actor.status !== 'activo' || (actor.estado && actor.estado !== 'activo') || actor.suspendido === true ||
             typeof actor.edificioId !== 'string' || !actor.edificioId.trim()) {
             throw new functions.https.HttpsError('permission-denied', 'Administrador de edificio requerido.');
         }
@@ -186,6 +186,13 @@ async function provisionB2bPersonnel(data, context) {
 
 exports.completeB2bRegistration = functions.https.onCall(completeB2bRegistration);
 exports.provisionB2bPersonnel = functions.https.onCall(provisionB2bPersonnel);
+const personnelKyc = require('./b2b-personnel-kyc').createB2bPersonnelKycHandlers({
+    admin, db: admin.firestore(), functions,
+    bucket: admin.storage().bucket('fixgo-44e4d.firebasestorage.app')
+});
+exports.submitB2bPersonnelKyc = functions.https.onCall(personnelKyc.submitB2bPersonnelKyc);
+exports.reviewB2bPersonnelKyc = functions.https.onCall(personnelKyc.reviewB2bPersonnelKyc);
+
 
 async function completeB2bService(data, context) {
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Inicia sesión.');
@@ -196,10 +203,10 @@ async function completeB2bService(data, context) {
         const orderRef = db.doc(`servicios_b2b/${orderId}`);
         const order = (await tx.get(orderRef)).data();
         const actor = (await tx.get(db.doc(`users/${context.auth.uid}`))).data();
-        if (!order || actor?.tipo_cuenta !== 'B2B' || actor.status !== 'activo' || actor.suspendido === true ||
+        if (!order || actor?.tipo_cuenta !== 'B2B' || actor.status !== 'activo' || (actor.estado && actor.estado !== 'activo') || actor.suspendido === true ||
             !['tecnico', 'tecnico_gp', 'tecnico_interno'].includes(actor.rol) ||
             !actor.edificioId || order.edificioId !== actor.edificioId ||
-            (order.tecnicoId && order.tecnicoId !== context.auth.uid)) {
+            order.tecnicoId !== context.auth.uid) {
             throw new functions.https.HttpsError('permission-denied', 'Orden fuera de la autoridad del técnico.');
         }
         if (order.status === 'finalizado' && order.cerrado_por_uid === context.auth.uid && order.firma_conformidad === data.firmaUrl) return { ok: true };
@@ -960,277 +967,10 @@ async function internalCreateModule(params) {
  * ACTUALIZACIÓN V5.55: Sincronización con el flujo de autoridad determinística.
  * --------------------------------------------------------------------------------------
  */
-app.post("/create-checkout-session", async (req, res) => {
-    // 🛡️ 0. DESPERTAR EL MOTOR (Lazy-Load Injection)
-    initCore();
-
-    const traceId = `trace_checkout_${Date.now()}`;
-    
-    try {
-        // 🛡️ 1. VALIDACIÓN DE AUTORIDAD (SENTINEL V5.55)
-        const sessionAuth = await firewallV5(req);
-        
-        if (!sessionAuth || !sessionAuth.authorized) {
-            await reportSentinelMetric('security_unauth_checkout_attempt');
-            console.error(`🚫 [CHECKOUT_DENIED] Autoridad no confirmada. Trace: ${traceId}`);
-            return res.status(401).json({ 
-                error: "ACCESO_DENEGADO: Autoridad insuficiente para generar cobros.",
-                traceId 
-            });
-        }
-
-        const { serviceId, descripcion, monto, tipo_pago, clientType } = req.body;
-        const currentTenantId = sessionAuth.tenantId;
-
-        // 🛡️ 2. VALIDACIÓN DE CONTRATO
-        if (!serviceId || !monto || isNaN(monto) || monto <= 0) {
-            console.error(`🚫 [CHECKOUT_REJECTED] Payload inválido. Trace: ${traceId}`);
-            return res.status(400).json({ 
-                error: "CONTRATO_INVALIDO: serviceId y monto positivo son obligatorios.",
-                traceId 
-            });
-        }
-
-        console.log(JSON.stringify({
-            level: "INFO",
-            message: `🏗️ [STRIPE_START] Generando sesión de pago V5.55`,
-            serviceId,
-            tenantId: currentTenantId,
-            traceId,
-            engine: "SENTINEL_CORE"
-        }));
-
-        // 🏗️ 3. CREACIÓN DE SESIÓN EN STRIPE (Usando Singleton 'stripe')
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ['card'],
-            line_items: [{
-                price_data: {
-                    currency: 'mxn',
-                    product_data: {
-                        name: descripcion || 'Servicio GestiaPremium',
-                        description: `ID Seguimiento: ${serviceId} | Modo: ${clientType || 'ON_DEMAND'}`,
-                    },
-                    unit_amount: Math.round(monto * 100),
-                },
-                quantity: 1,
-            }],
-            mode: 'payment',
-            success_url: 'https://fixgo-44e4d.web.app/cliente.html?pago=exito&serviceId=' + serviceId,
-            cancel_url: 'https://fixgo-44e4d.web.app/cliente.html?pago=cancelado',
-            metadata: {
-                serviceId: serviceId, 
-                tipo_pago: tipo_pago || 'garantia_inicial',
-                clientType: clientType || 'ON_DEMAND',
-                tenantId: currentTenantId,
-                traceId: traceId,
-                version_core: "V5.55_FINAL"
-            }
-        });
-
-        // 🛰️ 4. TELEMETRÍA PRE-REDIRECCIÓN
-        await reportSentinelMetric('checkout_sessions_generated');
-
-        return res.json({ 
-            id: session.id, 
-            url: session.url, 
-            traceId 
-        });
-
-    } catch (error) {
-        await reportSentinelMetric('checkout_fatal_errors');
-        console.error(JSON.stringify({
-            level: "ERROR",
-            message: "Fallo en Generador de Checkout Stripe V5.55",
-            error: error.message,
-            traceId,
-            module: "FINANZAS_V5_55"
-        }));
-        
-        return res.status(500).json({ 
-            error: "ERROR_INTERNO_SENTINEL: No se pudo procesar la solicitud de pago.", 
-            traceId 
-        });
-    }
-});
-
-// ======================================================================================
-// 🧩 MÓDULO 2: FINANZAS - WEBHOOK MULTIMODAL (V5.55 FINAL CORE)
-// ======================================================================================
-/**
- * OBJETIVO: Procesamiento de pagos con triple capa de idempotencia y Radar desacoplado.
- * ACTUALIZACIÓN V5.55: Sincronización de trazabilidad con Architect Engine y Sentinel Core.
- * --------------------------------------------------------------------------------------
- */
-
-// 🛡️ MIDDLEWARE DE AISLAMIENTO: Protege la integridad del rawBody para la firma de Stripe
-app.post(["/", "/webhook", "/stripe-webhook"], express.raw({ type: 'application/json' }), async (req, res) => {
-    // 🛡️ 0. DESPERTAR EL MOTOR (Lazy-Load Injection)
-    initCore();
-
-    const traceId = `trace_webhook_${Date.now()}`;
-    let event;
-
-    // 🛡️ 1. VALIDACIÓN DE FIRMA (CAPA 0 - SEGURIDAD)
-    try {
-        const sig = req.headers['stripe-signature'];
-        // Usamos el singleton 'stripe' inicializado por initCore
-        event = stripe.webhooks.constructEvent(
-            req.body, // express.raw inyecta el buffer aquí
-            sig,
-            process.env.STRIPE_WEBHOOK_SECRET
-        );
-    } catch (err) {
-        await reportSentinelMetric('webhook_signature_errors');
-        console.error(JSON.stringify({
-            level: "ERROR",
-            message: "Firma de webhook inválida",
-            error: err.message,
-            traceId,
-            context: "STRIPE_SIGNATURE_VERIFY"
-        }));
-        return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-
-    // 🛡️ 2. FILTRO DE IDEMPOTENCIA DE EVENTO (Nivel Infraestructura Atómica)
-    const eventId = event.id;
-    const eventLogRef = db.collection("stripe_events").doc(eventId);
-
-    try {
-        /**
-         * ⚡ FIX V5.55: Usamos .create() para evitar Race Conditions.
-         * Si el documento ya existe, Firebase detiene el proceso atómicamente.
-         */
-        await eventLogRef.create({
-            processedAt: admin.firestore.FieldValue.serverTimestamp(),
-            type: event.type,
-            traceId: traceId,
-            version_core: "V5.55_FINAL"
-        });
-
-        // 🧠 3. PROCESAMIENTO DE LÓGICA DE NEGOCIO
-        if (event.type === 'checkout.session.completed') {
-            const session = event.data.object;
-            const { serviceId, tipo_pago, clientType, tenantId } = session.metadata;
-            const montoTotal = Number(session.amount_total || 0) / 100;
-
-            if (!serviceId) {
-                // ⚠️ FASE 5: DEAD-LETTER LOGIC (Captura de huérfanos)
-                await db.collection("failed_events").add({
-                    type: event.type,
-                    payload: session,
-                    error: "CRITICAL_ERROR: Metadata serviceId missing",
-                    traceId,
-                    createdAt: admin.firestore.FieldValue.serverTimestamp()
-                });
-                throw new Error("CRITICAL_ERROR: Metadata serviceId missing");
-            }
-
-            const ticketRef = db.collection("services").doc(serviceId);
-            const ticketSnap = await ticketRef.get();
-
-            if (!ticketSnap.exists) {
-                await reportSentinelMetric('revenue_orphan_attempts');
-                return res.status(404).send({ error: "Service not found", serviceId, traceId });
-            }
-
-            const ticketData = ticketSnap.data();
-
-            // 🛡️ 4. VALIDACIÓN CROSS-TENANT (SENTINEL V5.55)
-            if (ticketData.tenantId !== tenantId) {
-                await reportSentinelMetric('revenue_cross_tenant_attack');
-                console.error(`🚫 [ALERTA] Intento de contaminación Multi-tenant detectado. Service: ${serviceId} | Tenant: ${tenantId}`);
-                return res.status(403).send({ error: "SECURITY_VIOLATION: Tenant mismatch", traceId });
-            }
-
-            // 🛡️ 5. GUARDAS DE ESTADO TERMINAL (Sentinel Core)
-            const estadosProhibidos = ["finalizado", "cancelado", "archivado"];
-            if (estadosProhibidos.includes(ticketData.estado)) {
-                await reportSentinelMetric('revenue_terminal_state_blocked', montoTotal);
-                console.error(`🚫 [BLOQUEO] Pago en estado terminal: ${ticketData.estado} | Service: ${serviceId}`);
-                return res.status(200).send({ received: true, status: "blocked_terminal_state", traceId });
-            }
-
-            // --- Lógica de Transición de Estados Hardened ---
-            let nuevoEstado = ticketData.estado;
-            if (tipo_pago === "garantia_inicial" && (ticketData.estado === "iniciado_stripe" || ticketData.estado === "cotizando")) {
-                nuevoEstado = "pendiente";
-            } else if (tipo_pago === "liquidacion_saldo" && (ticketData.estado === "procesando_saldo" || ticketData.estado === "cotizando")) {
-                nuevoEstado = "trabajando";
-            }
-
-            const comisionGestia = (clientType === "ON_DEMAND") ? parseFloat((montoTotal * 0.32).toFixed(2)) : 0;
-            const notaIdempotencia = `Pago: ${tipo_pago} | Event: ${eventId} | Trace: ${traceId}`;
-
-            // ⚡ 6. EJECUCIÓN ATÓMICA (BATCH COMMIT V5.55)
-            const batch = db.batch();
-
-            batch.update(ticketRef, {
-                estado: nuevoEstado,
-                metodo_pago: "stripe",
-                ultimo_pago_id: session.id,
-                fecha_pago: admin.firestore.FieldValue.serverTimestamp(),
-                monto_pagado: admin.firestore.FieldValue.increment(montoTotal),
-                'auditoria.ultimo_trace_pago': traceId,
-                'auditoria.version_core': "V5.55_FINAL"
-            });
-
-            const transRef = db.collection("transacciones").doc();
-            batch.set(transRef, {
-                servicio_id: serviceId,
-                tenantId: tenantId,
-                client_type: clientType,
-                monto_total: montoTotal,
-                comision_gestia: comisionGestia,
-                tipo_pago: tipo_pago,
-                metodo: "stripe",
-                stripe_session_id: session.id,
-                stripe_event_id: eventId,
-                fecha: admin.firestore.FieldValue.serverTimestamp(),
-                estado: "completado",
-                nota: notaIdempotencia,
-                traceId: traceId,
-                version: "V5.55_FINAL"
-            });
-
-            await batch.commit();
-
-            // 🛰️ 7. TELEMETRÍA POST-COMMIT (RADAR)
-            await reportSentinelMetric('revenue_total_processed', montoTotal);
-            await reportSentinelMetric('stripe_webhooks_success');
-
-            console.log(JSON.stringify({
-                level: "SUCCESS",
-                message: "Transacción financiera sellada V5.55",
-                serviceId,
-                montoTotal,
-                traceId
-            }));
-        }
-
-        return res.status(200).send({ received: true, traceId });
-
-    } catch (err) {
-        // Manejo de colisión de idempotencia
-        if (err.code === 6 || err.message.includes("already exists")) {
-            await reportSentinelMetric('stripe_duplicates_blocked');
-            console.log(`♻️ [IDEMPOTENCIA] Evento ${eventId} bloqueado en escritura. Finalizando.`);
-            return res.status(200).send({ received: true, status: "event_already_processed", traceId });
-        }
-
-        await reportSentinelMetric('revenue_fatal_errors');
-        console.error(JSON.stringify({
-            level: "FATAL",
-            error: err.message,
-            traceId,
-            module: "WEBHOOK_FINANCIERO_V5_55"
-        }));
-
-        return res.status(500).send({ 
-            error: "Internal Sentinel Error", 
-            traceId,
-            retry: true 
-        });
-    }
+// Financial requests must enter through secure-entry-alias.js. A future
+// entrypoint regression must fail closed rather than revive legacy balances.
+app.post(["/create-checkout-session", "/", "/webhook", "/stripe-webhook"], (_req, res) => {
+    return res.status(503).json({ error: "SECURE_FINANCIAL_ENTRY_REQUIRED" });
 });
 
 // 🏁 EXPORTACIÓN CENTRALIZADA (Fix V5.55: Punto de entrada Express)
@@ -1246,128 +986,9 @@ exports.api = functions.https.onRequest(app);
  */
 exports.onServiceCompleted = functions.firestore
     .document('services/{serviceId}')
-    .onUpdate(async (change, context) => {
-        // 🛡️ 0. DESPERTAR EL MOTOR (Trigger Event Injection)
-        initCore();
-
-        const newData = change.after.data();
-        const oldData = change.before.data();
-        const serviceId = context.params.serviceId;
-        const traceId = `trace_cierre_${serviceId}_${Date.now()}`;
-
-        // 🛡️ 1. GUARDA DE IDEMPOTENCIA DE NEGOCIO (Sentinel Core V5.55)
-        if (newData.liquidado === true || oldData.estado === 'finalizado' || newData.estado !== 'finalizado') {
-            return null; 
-        }
-
-        console.log(JSON.stringify({
-            level: "INFO",
-            message: `🚀 [CIERRE V5.55] Iniciando liquidación atómica`,
-            serviceId,
-            traceId,
-            engine: "SENTINEL_FINAL_CORE"
-        }));
-
-        try {
-            const techId = newData.tecnico_id;
-            const montoTotal = parseFloat((newData.monto_total || 0).toFixed(2));
-            const clientType = newData.clientType || 'ON_DEMAND';
-
-            // 💸 2. CÁLCULO DETERMINÍSTICO DE COMISIONES
-            let comisionTecnico = 0;
-            let comisionGestia = 0;
-
-            if (clientType === 'ON_DEMAND') {
-                comisionGestia = parseFloat((montoTotal * 0.32).toFixed(2));
-                comisionTecnico = parseFloat((montoTotal * 0.68).toFixed(2));
-            } else if (clientType === 'B2B_UXMAL') {
-                // Preservamos lógica UXMAL: monto fijo o factor 0.85
-                comisionTecnico = parseFloat((newData.monto_tecnico_fijo || (montoTotal * 0.85)).toFixed(2)); 
-                comisionGestia = parseFloat((montoTotal - comisionTecnico).toFixed(2));
-            }
-
-            const batch = db.batch();
-
-            // 🛡️ 3. REGISTRO DE TRANSACCIÓN DETERMINÍSTICO (V5.55 Hardened)
-            const transId = `txn_split_${serviceId}`;
-            const transRef = db.collection("transacciones").doc(transId);
-            
-            batch.set(transRef, {
-                payout_id: transId,
-                servicio_id: serviceId,
-                tecnico_id: techId || 'sistema',
-                monto_total: montoTotal,
-                ganancia_tecnico: comisionTecnico,
-                ganancia_gestia: comisionGestia,
-                fecha: admin.firestore.FieldValue.serverTimestamp(),
-                tipo: "cierre_servicio_split",
-                client_type: clientType,
-                estado: "auditado",
-                traceId: traceId,
-                version_core: "V5.55_FINAL",
-                nota: `Liquidación automática: ${clientType} | Trace: ${traceId}`
-            });
-
-            // ⚡ 4. ACTUALIZACIÓN DE WALLET (Atómica)
-            if (techId) {
-                const techRef = db.collection("tecnicos").doc(techId);
-                batch.update(techRef, {
-                    'wallet.saldo_pendiente': admin.firestore.FieldValue.increment(comisionTecnico),
-                    'wallet.total_ganado': admin.firestore.FieldValue.increment(comisionTecnico),
-                    'estadisticas.servicios_completados': admin.firestore.FieldValue.increment(1),
-                    'ultimo_servicio': serviceId,
-                    'fecha_ultima_ganancia': admin.firestore.FieldValue.serverTimestamp(),
-                    'auditoria.ultimo_trace_pago': traceId,
-                    'auditoria.version_core': "V5.55_FINAL"
-                });
-            }
-
-            // ✅ 5. CIERRE DE CICLO EN EL SERVICIO
-            const serviceRef = change.after.ref;
-            batch.update(serviceRef, {
-                liquidado: true,
-                fecha_liquidacion: admin.firestore.FieldValue.serverTimestamp(),
-                comision_aplicada_tecnico: comisionTecnico,
-                trace_liquidacion: traceId,
-                metadata_cierre: {
-                    version_core: "V5.55_FINAL",
-                    engine: "Sentinel_Final_Core",
-                    traceId: traceId
-                }
-            });
-
-            await batch.commit();
-
-            // 🛰️ 6. TELEMETRÍA POST-COMMIT
-            await reportSentinelMetric('service_liquidation_success');
-            if (comisionGestia > 0) {
-                await reportSentinelMetric('gestia_revenue_collected', comisionGestia);
-            }
-            
-            console.log(JSON.stringify({
-                level: "SUCCESS",
-                message: "Liquidación sellada V5.55",
-                serviceId,
-                techId,
-                ganancia: comisionTecnico,
-                traceId
-            }));
-
-            return null;
-
-        } catch (error) {
-            await reportSentinelMetric('service_liquidation_fatal');
-            console.error(JSON.stringify({
-                level: "FATAL",
-                message: "Error Crítico en Liquidación V5.55",
-                error: error.message,
-                serviceId,
-                traceId,
-                module: "onServiceCompleted_V5_55"
-            }));
-            
-            return null;
-        }
+    .onUpdate(async () => {
+        // No financial writes are permitted through the retired entrypoint.
+        throw new Error("SECURE_FINANCIAL_ENTRY_REQUIRED");
     });
 
 // ======================================================================================
@@ -3431,7 +3052,7 @@ exports.despachoTaticoB2B = functions.https.onCall(async (data, context) => {
         const actor = actorSnap.data();
         const target = userSnap.data();
         if (actor?.rol !== 'admin_b2b' || actor.tipo_cuenta !== 'B2B' || actor.status !== 'activo' ||
-            actor.suspendido === true || !actor.edificioId || target?.edificioId !== actor.edificioId) {
+            (actor.estado && actor.estado !== 'activo') || actor.suspendido === true || !actor.edificioId || target?.edificioId !== actor.edificioId) {
             throw new functions.https.HttpsError('permission-denied', 'Despacho fuera del edificio autorizado.');
         }
         if (typeof ordenId !== 'string' || !ordenId || ordenId.includes('/')) {

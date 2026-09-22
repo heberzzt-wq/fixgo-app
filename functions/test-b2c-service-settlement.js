@@ -7,7 +7,8 @@ const {
     calculateSettlement,
     assertPaymentCoverage,
     existingLedgerValid,
-    createB2CServiceSettlementEngine
+    createB2CServiceSettlementEngine,
+    createB2CServiceReconciliationHandler
 } = require("./b2c-service-settlement");
 
 function expectCode(fn, expectedCode) {
@@ -194,6 +195,7 @@ expectCode(
 
 function createFakeSettlementDb(initial = {}) {
     const data = new Map(Object.entries(initial));
+    let autoId = 0;
 
     function applyPatch(current = {}, patch = {}) {
         const next = { ...current };
@@ -225,7 +227,7 @@ function createFakeSettlementDb(initial = {}) {
 
     function collection(path) {
         return {
-            doc(id) {
+            doc(id = `auto_${++autoId}`) {
                 return document(`${path}/${id}`);
             }
         };
@@ -302,7 +304,7 @@ function createFakeSettlementDb(initial = {}) {
         admin,
         db: fakeDb,
         financialPolicy: {
-            assertNoFinancialBlock: () => true,
+            assertNoFinancialBlock: require("./b2c-financial-policy").assertNoFinancialBlock,
             assignedTechnician: service => service.tecnico_id
         }
     });
@@ -326,6 +328,57 @@ function createFakeSettlementDb(initial = {}) {
         1
     );
 
+    // Retry recovers only after backend payment evidence changes, using the same ledger key.
+    const servicePath = `services/${serviceId}`;
+    const baseline = fakeDb.data.get(servicePath);
+    fakeDb.data.set(servicePath, { ...baseline, liquidado: false, cierre_financiero_pendiente_backend: true,
+        monto_pagado: 100, liquidacion_bloqueada: true });
+    fakeDb.data.delete(`transacciones/txn_split_${serviceId}`);
+    const retry = createB2CServiceReconciliationHandler({
+        db: fakeDb, admin, settleCompletedService: engine,
+        authorize: async context => { if (context.auth?.token?.admin !== true) throw new Error("ADMIN_REQUIRED"); }
+    });
+    const adminContext = { auth: { uid: "admin_1", token: { admin: true } } };
+    await assert.rejects(retry({ serviceId, reason: "verify payment" }, { auth: { uid: technicianId } }), /ADMIN_REQUIRED/);
+    assert.equal([...fakeDb.data.keys()].filter(path => path.includes("settlement_reconciliation_attempts")).length, 0);
+    await assert.rejects(retry({ serviceId, reason: "verify payment", monto_pagado: 1000 }, adminContext), /STRIPE_PAYMENT_INCOMPLETE/);
+    assert.equal(fakeDb.data.has(`transacciones/txn_split_${serviceId}`), false);
+    assert.equal(fakeDb.data.get(servicePath).liquidacion_bloqueada, true);
+    fakeDb.data.set(servicePath, { ...fakeDb.data.get(servicePath), monto_pagado: 1000 });
+    const recovered = await retry({ serviceId, reason: "payment verified by backend" }, adminContext);
+    assert.equal(recovered.status, "settled");
+    const completedCount = fakeDb.data.get(`users/${technicianId}`).servicios_completados;
+    assert.equal((await retry({ serviceId, reason: "repeat request" }, adminContext)).status, "already_settled");
+    assert.equal(fakeDb.data.get(`users/${technicianId}`).servicios_completados, completedCount);
+    const attempts = [...fakeDb.data.entries()].filter(([path]) => path.includes("settlement_reconciliation_attempts")).map(([, value]) => value);
+    assert.deepEqual(attempts.map(attempt => attempt.status), ["blocked", "settled", "already_settled"]);
+    assert.ok(attempts.every(attempt => attempt.actor_id === "admin_1" && attempt.reason));
+    fakeDb.data.set(servicePath, { ...fakeDb.data.get(servicePath), liquidado: false,
+        cierre_financiero_pendiente_backend: true, b2c_financial_hold: { active: true } });
+    await assert.rejects(retry({ serviceId, reason: "hold must remain" }, adminContext), /FINANCIAL_HOLD_OR_REVIEW_PENDING/);
+    assert.equal(fakeDb.data.get(servicePath).b2c_financial_hold.active, true);
+    fakeDb.data.set(servicePath, { ...fakeDb.data.get(servicePath), b2c_financial_hold: { active: false } });
+    fakeDb.data.delete(bindingPath);
+    await assert.rejects(retry({ serviceId, reason: "missing evidence" }, adminContext), /FINAL_EVIDENCE_BINDING_INVALID/);
+    assert.equal(fakeDb.data.get(`users/${technicianId}`).servicios_completados, completedCount);
+    // Deterministic interleaving: another attempt commits after our attempt fails,
+    // before failure bookkeeping. The old failure must not block the settled service.
+    const originalTransaction = fakeDb.runTransaction.bind(fakeDb);
+    let failOnce = true;
+    fakeDb.runTransaction = async callback => {
+        if (failOnce) {
+            failOnce = false;
+            fakeDb.data.set(servicePath, { ...fakeDb.data.get(servicePath), liquidado: true,
+                cierre_financiero_pendiente_backend: false, liquidacion_bloqueada: false,
+                liquidacion_bloqueo_codigo: null });
+            throw new Error("STALE_ATTEMPT_FAILED");
+        }
+        return originalTransaction(callback);
+    };
+    await assert.rejects(engine({ serviceId }), /STALE_ATTEMPT_FAILED/);
+    assert.equal(fakeDb.data.get(servicePath).liquidado, true);
+    assert.equal(fakeDb.data.get(servicePath).liquidacion_bloqueada, false);
+    assert.equal(fakeDb.data.get(servicePath).liquidacion_bloqueo_codigo, null);
     console.log("B2C SERVICE SETTLEMENT ENGINE: PASS — comisión canónica, ledger y estadísticas son idempotentes.");
 })().catch(error => {
     console.error(error);

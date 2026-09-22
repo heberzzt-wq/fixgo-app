@@ -95,6 +95,18 @@ on:
       - 'functions/secure-entry.js'
       - 'tests/b2c-*.test.mjs'
       - 'tests/platform-release-authority.test.mjs'
+      - 'tests/secure-financial-entry.test.mjs'
+      - 'tests/b2b-*.test.*'
+      - 'functions/b2b-personnel-kyc.js'
+      - 'functions/test-b2c-panel-recovery.cjs'
+      - 'gestia-core/contracts/b2c-platform-contract.js'
+      - 'b2b-offline-authority.js'
+      - 'b2b-supervisor-session.js'
+      - 'expediente-b2b.html'
+      - 'expediente-b2b.js'
+      - 'panel-supervisor-b2b.html'
+      - 'panel-supervisor-b2b.js'
+      - 'gestia-render.js'
   workflow_dispatch:
     inputs:
       deploy:

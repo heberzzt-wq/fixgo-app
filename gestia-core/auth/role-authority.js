@@ -111,6 +111,21 @@ function normalizePage(pathname = "") {
     return page || "index";
 }
 
+// Shared by the tenant runtime and direct B2B portals. Profile email is never
+// an authority source here: privileged identity belongs to Firebase Auth.
+export function resolveB2bProfileAuthority(profile = {}, { roles = [], tenantId } = {}) {
+    const allowedRoles = ['admin_b2b', 'asistente_admin', 'supervisor', 'tecnico', 'tecnico_gp',
+        'tecnico_interno', 'seguridad', 'seguridad_interna', 'seguridad_24_7', 'inquilino_b2b', 'recepcion', 'cliente'];
+    const roleReal = String(profile?.rol || profile?.role || '').trim().toLowerCase();
+    const building = typeof profile?.edificioId === 'string' ? profile.edificioId.trim() : '';
+    const authorized = profile?.tipo_cuenta === 'B2B' && profile.status === 'activo' &&
+        (profile.estado === undefined || profile.estado === 'activo') && profile.suspendido !== true &&
+        Boolean(building) && allowedRoles.includes(roleReal) &&
+        (!roles.length || roles.includes(roleReal)) && (tenantId === undefined || tenantId === building);
+    return { authorized, tenantId: building, role: ROLE_ALIASES[roleReal] || roleReal,
+        roleReal, reason: authorized ? 'active_b2b_profile' : 'TENANT_AUTHORITY_REQUIRED' };
+}
+
 export function resolveGestiaRouteDecision({
     user = {},
     metadata = user,
@@ -205,9 +220,19 @@ export function resolveGestiaRouteDecision({
             : redirect("admin.html", "admin_surface_protection");
     }
 
+    if (isB2BAccount || ['b2b_admin', 'inquilino_b2b', 'seguridad', 'seguridad_interna', 'seguridad_24_7', 'recepcion', 'supervisor'].includes(role)) {
+        const authority = resolveB2bProfileAuthority(metadata);
+        if (!authority.authorized) {
+            return page === 'expediente-b2b'
+                ? stay('b2b_authority_required')
+                : redirect('expediente-b2b.html', 'b2b_authority_required');
+        }
+    }
+
     if (
         [
             "seguridad",
+            "seguridad_interna",
             "recepcion",
             "seguridad_24_7"
         ].includes(role)
@@ -227,6 +252,12 @@ export function resolveGestiaRouteDecision({
         return page === "panel-b2b-admin"
             ? stay("b2b_admin_surface_allowed")
             : redirect("panel-b2b-admin.html", "b2b_admin_surface_protection");
+    }
+
+    if (role === "supervisor") {
+        return page === "panel-supervisor-b2b"
+            ? stay("b2b_supervisor_surface_allowed")
+            : redirect("panel-supervisor-b2b.html", "b2b_supervisor_surface_protection");
     }
 
     if (role === "inquilino_b2b") {

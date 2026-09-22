@@ -267,6 +267,16 @@
         };
     }
 
+    // Building personnel use the same expediente and states, without marketplace vehicle/payroll requirements.
+    function personnelKycRequirements(raw = {}) {
+        const required = {
+            foto_perfil: isDocumentReference(raw.foto_perfil),
+            ine: isDocumentReference(raw.documentos?.ine)
+        };
+        const missing = Object.keys(required).filter(key => !required[key]);
+        return { required, missing, complete: missing.length === 0 };
+    }
+
     function technicianKycRequirements(raw = {}) {
         const profile = normalizeTechnicianProfile(raw);
         const pedestrian = profile.vehiculo.tipo === "peaton";
@@ -583,6 +593,7 @@
         technicianEligibility,
         technicianProvidesServiceCoverage,
         technicianKycRequirements,
+        personnelKycRequirements,
         technicianMigration
     });
 });

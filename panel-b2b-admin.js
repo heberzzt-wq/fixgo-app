@@ -1,3 +1,5 @@
+import { b2bCacheDatabaseName } from "./b2b-offline-authority.js";
+import { resolveB2bProfileAuthority } from "./gestia-core/auth/role-authority.js";
 /**
  * =====================================================
  * GESTIA PREMIUM - NOC B2B CABINA DE MANDO
@@ -33,6 +35,7 @@ import {
 
 
 let adminContext = null;
+let initializedTenant = null;
 
 
 /* =====================================================
@@ -206,16 +209,17 @@ actualizarInterfazRed(navigator.onLine);
 /* =====================================================
     INDEXED DB CACHE ENGINE
    ===================================================== */
-const DB_NAME = "gestia_cache";
-const DB_VERSION = 2; 
+
+const DB_VERSION = 3;
 let localDB;
 
-function initLocalDB() {
+function initLocalDB(uid, tenantId) {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        const request = indexedDB.open(b2bCacheDatabaseName(uid, tenantId) + ".admin", DB_VERSION);
 
         request.onupgradeneeded = e => {
             const db = e.target.result;
+            if (!db.objectStoreNames.contains("legacy_imports")) db.createObjectStore("legacy_imports", { keyPath: "id" });
             if (!db.objectStoreNames.contains("tareas")) {
                 db.createObjectStore("tareas", { keyPath: "id" });
             }
@@ -365,6 +369,13 @@ function escucharPlantillaRealTime(edificioId) {
                     </button>
                 </td>
             `;
+            if (emp.estado === 'pendiente_revision' && emp.status === 'pendiente_revision') {
+                const review = document.createElement('button');
+                review.textContent = 'Revisar expediente';
+                review.className = 'text-emerald-400 ml-4';
+                review.onclick = () => revisarExpedientePersonal(empId);
+                row.lastElementChild.append(review);
+            }
             tabla.appendChild(row);
         });
 
@@ -390,7 +401,8 @@ window.verDetalleTecnico = async (tecnicoId) => {
         const techSnap = await getDoc(doc(db, "users", tecnicoId));
         if (!techSnap.exists()) return;
         const data = techSnap.data();
-        const tenantId = "uxmal39"; // Ajustado a tu tenant
+        const tenantId = adminContext?.edificioId;
+        if (!resolveB2bProfileAuthority(adminContext, { roles: ['admin_b2b'], tenantId: data.edificioId }).authorized) return;
 
         // 2. MOTOR DE CRUCE: VEHÍCULOS (flotilla_b2b/uxmal39/vehiculos)
         // Buscamos si algún vehículo tiene el UID del técnico o su nombre
@@ -1092,13 +1104,19 @@ auth.onAuthStateChanged(async (userAuth) => {
         return;
     }
 
-    await initLocalDB();
+    if (localDB) { localDB.close(); localDB = null; adminContext = null; window.location.reload(); return; }
+    onSnapshot(doc(db, "users", userAuth.uid), async (docSnap) => {
 
-    onSnapshot(doc(db, "users", userAuth.uid), (docSnap) => {
+        if (!docSnap.exists()) { adminContext = null; window.location.replace('login.html'); return; }
 
-        if (!docSnap.exists()) return;
-
-        adminContext = docSnap.data();
+        const fresh = docSnap.data();
+        const authority = resolveB2bProfileAuthority(fresh, { roles: ['admin_b2b'] });
+        if (!authority.authorized) { adminContext = null; window.location.replace('expediente-b2b.html'); return; }
+        if (initializedTenant && initializedTenant !== authority.tenantId) { window.location.reload(); return; }
+        adminContext = fresh;
+        if (initializedTenant) return;
+        initializedTenant = authority.tenantId;
+        await initLocalDB(userAuth.uid, authority.tenantId);
 
         if (!adminContext.edificioId) {
             const panel = document.getElementById("panelAdminB2B");
@@ -1654,3 +1672,31 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 });
+
+async function revisarExpedientePersonal(personnelId) {
+    try {
+        const profile = (await getDoc(doc(db, 'users', personnelId))).data();
+        if (!profile || !resolveB2bProfileAuthority(adminContext, { roles: ['admin_b2b'], tenantId: profile.edificioId }).authorized) throw new Error('Expediente fuera de tu edificio.');
+        const modal = document.createElement('dialog');
+        modal.style.cssText = 'background:#15221d;color:white;border:1px solid #357356;border-radius:18px;padding:28px;max-width:540px;width:90%';
+        const title = document.createElement('h2'); title.textContent = `Expediente de ${profile.nombre || 'personal'}`; modal.append(title);
+        for (const [label, url] of [['Identificación oficial', profile.documentos?.ine], ['Foto de rostro', profile.foto_perfil]]) {
+            const link = document.createElement('a'); link.textContent = `Abrir ${label}`; link.href = url || '#'; link.target = '_blank'; link.rel = 'noopener'; link.style.cssText = 'display:block;margin:18px 0;color:#7df0b0'; modal.append(link);
+        }
+        const instructions = document.createElement('p'); instructions.textContent = 'Revisa que la identificación corresponda a la persona y sea legible antes de aprobar.'; modal.append(instructions);
+        const reason = document.createElement('textarea'); reason.placeholder = 'Correcciones necesarias (obligatorio si devuelves el expediente)'; reason.style.cssText = 'display:block;width:100%;color:black;margin:16px 0'; modal.append(reason);
+        const feedback = document.createElement('p'); feedback.setAttribute('role', 'status'); modal.append(feedback);
+        for (const [decision, label] of [['approve', 'Aprobar acceso'], ['return', 'Solicitar correcciones']]) {
+            const button = document.createElement('button'); button.textContent = label; button.style.cssText = 'padding:12px;margin:8px;background:#245a42;border-radius:8px';
+            button.onclick = async () => {
+                const buttons = [...modal.querySelectorAll('button')]; buttons.forEach(item => { item.disabled = true; });
+                try {
+                    await httpsCallable(getFunctions(app), 'reviewB2bPersonnelKyc')({ personnelId, decision, reason: reason.value });
+                    modal.close(); modal.remove(); showToast(decision === 'approve' ? 'Expediente aprobado' : 'Correcciones solicitadas');
+                } catch (error) { feedback.textContent = error.message; buttons.forEach(item => { item.disabled = false; }); }
+            }; modal.append(button);
+        }
+        const close = document.createElement('button'); close.textContent = 'Cerrar'; close.onclick = () => { modal.close(); modal.remove(); }; modal.append(close);
+        document.body.append(modal); modal.showModal();
+    } catch (error) { showToast(error.message, true); }
+}

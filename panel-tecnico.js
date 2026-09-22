@@ -30,7 +30,7 @@ import {
     GESTIA_FCM_VAPID_KEY
 } from "./firebase.js";
 
-import { getDocs, arrayUnion, runTransaction, limit, increment } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getDocs, arrayUnion, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
@@ -38,6 +38,7 @@ import { escaparHTML, calcularDistancia, sonarAlerta, lanzarNotificacionPush, pr
 import { getPlatformServiceWorkerRegistration } from "./platform-release.js";
 import {
     TECHNICIAN_KYC_STATES,
+    buildTechnicianReviewPatch,
     assertTechnicianCanOperate,
     dispatchMarketplaceEventForTechnician,
     getTechnicianKycRequirements,
@@ -464,7 +465,9 @@ export async function iniciarPanelTecnico(user) {
         }
     });
 
+    let expedienteUploadBusy = false;
     window.completarDocumentosTecnico = async (uid) => {
+        if (expedienteUploadBusy) return;
         const btn = document.getElementById("btnCompletarDocs");
         
         const iFoto = document.getElementById("compFoto")?.files[0];
@@ -481,7 +484,7 @@ export async function iniciarPanelTecnico(user) {
         const reqFoto = document.getElementById("compFoto") && !iFoto;
         const reqINE = document.getElementById("compINE") && !iINE;
         const reqCSF = document.getElementById("compCSF") && !iCSF;
-        const tipoVehiculoSeleccionado = String(vVehiculo || vehiculoTipo || "").toLowerCase();
+        const tipoVehiculoSeleccionado = String(vVehiculo || perfilTecnicoActual.vehiculo?.tipo || "").toLowerCase();
         const seleccionPeaton = tipoVehiculoSeleccionado === "peaton" || tipoVehiculoSeleccionado === "peatón";
         const reqLicencia = !seleccionPeaton && document.getElementById("compLicencia") && !iLicencia;
         const reqBanco = document.getElementById("compBanco") && !vBanco;
@@ -499,41 +502,48 @@ export async function iniciarPanelTecnico(user) {
             return;
         }
 
+        expedienteUploadBusy = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SUBIENDO A LA NUBE...';
         btn.disabled = true;
 
         try {
-            const subirAStorage = async (file, path) => {
-                if (!file) return null;
-                const storageRef = ref(storage, path);
-                await uploadBytes(storageRef, file);
-                return await getDownloadURL(storageRef);
-            };
-
+            if (uid !== user.uid) throw new Error("TECHNICIAN_OWNER_MISMATCH");
+            const userRef = doc(db, "users", uid);
             const updates = {};
             updates['documentos.fecha_actualizacion'] = serverTimestamp();
-
-            if (iFoto) {
-                const urlF = await subirAStorage(iFoto, storagePathForTechnicianDocument(uid, "foto_perfil", iFoto.name));
-                updates['foto_perfil'] = urlF;
-            }
-            if (iINE) {
-                const urlI = await subirAStorage(iINE, storagePathForTechnicianDocument(uid, "ine", iINE.name));
-                updates['documentos.ine'] = urlI;
-            }
-            if (iCSF) {
-                const urlC = await subirAStorage(iCSF, storagePathForTechnicianDocument(uid, "csf", iCSF.name));
-                updates['documentos.csf'] = urlC;
-            }
-            if (iLicencia) {
-                const urlL = await subirAStorage(iLicencia, storagePathForTechnicianDocument(uid, "licencia", iLicencia.name));
-                updates['documentos.licencia'] = urlL;
-            }
-            if (iCertificado) {
-                const urlCert = await subirAStorage(iCertificado, storagePathForTechnicianDocument(uid, `certificado_${Date.now()}`, iCertificado.name));
-                updates['documentos.certificados'] = arrayUnion(urlCert);
-            }
-            
+            // Confirm each file before starting the next upload. Reload only asks for missing files.
+            const subirConfirmado = async (kind, file, field, multiple = false) => {
+                if (!file) return;
+                const path = storagePathForTechnicianDocument(uid, kind, file.name);
+                const prefix = `kyc.uploads.${kind}`;
+                await updateDoc(userRef, {
+                    "kyc.estado": TECHNICIAN_KYC_STATES.DOCUMENTS_PENDING,
+                    "kyc.upload_actual": kind,
+                    [`${prefix}.estado`]: "subiendo",
+                    [`${prefix}.storage_path`]: path,
+                    [`${prefix}.actualizado_at`]: serverTimestamp(),
+                    disponible: false
+                });
+                try {
+                    const storageRef = ref(storage, path);
+                    await uploadBytes(storageRef, file);
+                    const url = await getDownloadURL(storageRef);
+                    await updateDoc(userRef, {
+                        [field]: multiple ? arrayUnion(url) : url,
+                        "kyc.upload_actual": null,
+                        [`${prefix}.estado`]: "confirmado",
+                        [`${prefix}.url`]: url,
+                        [`${prefix}.actualizado_at`]: serverTimestamp()
+                    });
+                } catch (error) {
+                    await updateDoc(userRef, {
+                        "kyc.upload_actual": null,
+                        "kyc.ultimo_error": { documento: kind, codigo: String(error.code || "UPLOAD_FAILED").slice(0, 120) },
+                        [`${prefix}.estado`]: "upload_failed"
+                    }).catch(() => {});
+                    throw error;
+                }
+            };
             if (vBanco) updates['datos_bancarios.banco'] = vBanco;
             if (vClabe) updates['datos_bancarios.clabe'] = vClabe;
             if (vVehiculo) updates['vehiculo.tipo'] = vVehiculo.toLowerCase();
@@ -544,14 +554,19 @@ export async function iniciarPanelTecnico(user) {
                 updates['vehiculo.placas'] = placasLimpias;
             }
 
-            updates['estado'] = TECHNICIAN_KYC_STATES.PENDING_REVIEW;
-            updates['status'] = TECHNICIAN_KYC_STATES.PENDING_REVIEW;
-            updates['disponible'] = false;
-            updates['kyc.estado'] = TECHNICIAN_KYC_STATES.PENDING_REVIEW;
-            updates['kyc.aprobado'] = false;
-            updates['kyc.ultimo_error'] = null;
+            await updateDoc(userRef, updates);
+            await subirConfirmado("foto_perfil", iFoto, "foto_perfil");
+            await subirConfirmado("ine", iINE, "documentos.ine");
+            await subirConfirmado("csf", iCSF, "documentos.csf");
+            await subirConfirmado("licencia", iLicencia, "documentos.licencia");
+            await subirConfirmado(`certificado_${Date.now()}`, iCertificado, "documentos.certificados", true);
 
-            await updateDoc(doc(db, "users", uid), updates);
+            const currentProfile = (await getDoc(userRef)).data() || {};
+            const reviewPatch = buildTechnicianReviewPatch(currentProfile);
+            await updateDoc(userRef, { ...reviewPatch, "kyc.ultimo_error": null });
+            if (reviewPatch.estado !== TECHNICIAN_KYC_STATES.PENDING_REVIEW) {
+                throw new Error("TECHNICIAN_DOCUMENTS_INCOMPLETE");
+            }
             alert("✅ ¡Expediente Completado!\n\nLos documentos se han subido con éxito. El Administrador validará tu cuenta en breve.");
             
         } catch (error) {
@@ -559,6 +574,8 @@ export async function iniciarPanelTecnico(user) {
             alert("Error al subir los documentos. Asegúrate de tener conexión a internet estable.");
             btn.innerHTML = '<i class="fas fa-cloud-upload-alt text-lg"></i> REINTENTAR SUBIDA';
             btn.disabled = false;
+        } finally {
+            expedienteUploadBusy = false;
         }
     };
 
@@ -1671,165 +1688,10 @@ if (!isTechnicianSkillCompatible(tecnico, s)) return;
         `;
         document.body.insertAdjacentHTML('beforeend', html);
         
+        // Secure chronology bridge replaces this handler after checking evidence and signature.
+        // If it is unavailable, the legacy form must never write ledger, balances or final state.
         document.getElementById("btnSubirEvidencia").onclick = async () => {
-            const fA1 = document.getElementById("fileA1").files[0];
-            const fA2 = document.getElementById("fileA2").files[0];
-            const fD1 = document.getElementById("fileD1").files[0];
-            const fD2 = document.getElementById("fileD2").files[0];
-
-            if(!fA1 || !fD1) { alert(" ⚠ Es obligatorio subir al menos la FOTO 1 del ANTES y la FOTO 1 del DESPUÉS."); return; }
-
-            if (!storage) {
-                alert("❌ Error: Firebase Storage no está configurado. Contacta a soporte técnico.");
-                return;
-            }
-
-            const btn = document.getElementById("btnSubirEvidencia");
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> SUBIENDO AL SERVIDOR CLOUD...';
-            btn.disabled = true;
-            
-            try {
-                const subirImagenAStorage = async (file, nombreAsignado) => {
-                    if(!file) return null;
-                    const storageRef = ref(storage, `servicios/${id}/${nombreAsignado}_${Date.now()}.jpg`);
-                    await uploadBytes(storageRef, file);
-                    const url = await getDownloadURL(storageRef);
-                    return url;
-                };
-
-                const [urlA1, urlA2, urlD1, urlD2] = await Promise.all([
-                    subirImagenAStorage(fA1, 'antes_1'),
-                    subirImagenAStorage(fA2, 'antes_2'),
-                    subirImagenAStorage(fD1, 'despues_1'),
-                    subirImagenAStorage(fD2, 'despues_2')
-                ]);
-
-                btn.innerHTML = '<i class="fas fa-cog fa-spin"></i> FINALIZANDO COBRO...';
-                
-                const timestampMetadatos = new Date().toISOString();
-                const userAgentCorto = navigator.userAgent.substring(0, 50);
-                
-                const servicioSnap = await getDoc(doc(db, "services", id));
-                const servicioData = servicioSnap.data();
-                const costoTotal = servicioData.costo_final || 0;
-
-                const tecnicoSnap = await getDoc(doc(db, "users", user.uid));
-                let tasaComision = 0.30;
-                if (tecnicoSnap.exists() && tecnicoSnap.data().comision_asignada) {
-                    tasaComision = parseFloat(tecnicoSnap.data().comision_asignada);
-                }
-
-                const comisionFixGoPura = costoTotal * tasaComision; 
-                const aporteGarantia = costoTotal * 0.02; 
-                const retencionIVA = costoTotal * 0.08; 
-                const retencionISR = costoTotal * 0.10; 
-                
-                let deudaTecnico = 0;
-                if (servicioData.metodo_pago === "stripe") {
-                    deudaTecnico = (costoTotal - (costoTotal * tasaComision)); 
-                } else {
-                    deudaTecnico = -(costoTotal * tasaComision);
-                }
-
-                const canvas = document.getElementById("canvasFirma");
-                const firmaData = canvas ? canvas.toDataURL("image/png") : null;
-
-               await runTransaction(db, async (transaction) => {
-                    const servicioRef = doc(db, "services", id);
-                    const tecnicoRef = doc(db, "users", user.uid);
-                    // 🔥 REFERENCIA AL PERFIL DE JORGE (CLIENTE)
-                    const clienteRef = doc(db, "users", servicioData.cliente_id); 
-
-                    const sSnap = await transaction.get(servicioRef);
-                    if (!sSnap.exists()) throw "ERROR_NO_EXISTE";
-                    if (sSnap.data().estado !== "trabajando") throw "ERROR_ESTADO_INVALIDO";
-
-                    // 🔥 1. COBRO B2B: DESCONTO DE SALDO VIRTUAL A JORGE 🔥
-                    if (servicioData.metodo_pago === "b2b") {
-                        const cSnap = await transaction.get(clienteRef);
-                        if (cSnap.exists()) {
-                            const saldoActual = cSnap.data().saldo_virtual || 0;
-                            const nuevoSaldo = saldoActual - costoTotal;
-                            
-                            // Actualizamos el saldo de Jorge en su documento personal
-                            transaction.update(clienteRef, { saldo_virtual: nuevoSaldo });
-                            console.log(`🎯 [B2B] Cobro exitoso. Nuevo Saldo de Jorge: $${nuevoSaldo}`);
-                        }
-                    }
-
-                    transaction.update(servicioRef, {
-                        estado: "finalizado",
-                        finalizado_at: serverTimestamp(),
-                        folio_fiscal: "FX-" + Math.random().toString(36).substr(2, 9).toUpperCase(),
-                        evidencia: { 
-                            antes1: urlA1,
-                            antes2: urlA2 || null,
-                            despues1: urlD1,
-                            despues2: urlD2 || null,
-                            firma_cliente: firmaData, 
-                            metadatos: {
-                                fecha_captura: timestampMetadatos,
-                                dispositivo_tecnico: userAgentCorto,
-                                certificacion_legal: true,
-                                almacenamiento: "Google Cloud Storage + Firebase Auth"
-                            }
-                        },
-                        desglose: {
-                            subtotal: (costoTotal / 1.16).toFixed(2),
-                            iva: (costoTotal - (costoTotal / 1.16)).toFixed(2),
-                            total: costoTotal
-                        }
-                    });
-
-                    // 🔥 2. REGISTRO CONTABLE (Efectivo vs. Digitales/B2B) 🔥
-                    const transRef = doc(collection(db, "transacciones"));
-                    
-                    if (servicioData.metodo_pago === "efectivo") {
-                        transaction.set(transRef, {
-                            servicio_id: id,
-                            tecnico_id: user.uid, 
-                            monto_total: costoTotal,
-                            comision_fixgo: comisionFixGoPura, 
-                            aporte_garantia: aporteGarantia, 
-                            retencion_iva: retencionIVA, 
-                            retencion_isr: retencionISR, 
-                            pago_tecnico: deudaTecnico, 
-                            fecha: serverTimestamp(),
-                            tipo: "ingreso_servicio",
-                            metodo_pago: "efectivo"
-                        });
-                    } else {
-                        // Aquí entran STRIPE y B2B: El sistema abona la lana a Jonathan
-                        transaction.set(transRef, {
-                            servicio_id: id,
-                            tecnico_id: user.uid,
-                            monto_total: 0, 
-                            pago_tecnico: Math.abs(deudaTecnico), 
-                            fecha: serverTimestamp(),
-                            tipo: servicioData.metodo_pago === "b2b" ? "abono_b2b" : "abono_stripe",
-                            descripcion: `Liquidación por servicio pagado vía ${servicioData.metodo_pago.toUpperCase()}`
-                        });
-                    }
-
-                    transaction.update(tecnicoRef, {
-                        reputacion: increment(0.1), 
-                        servicios_completados: increment(1)
-                    });
-                });
-
-                let textoMapa = "Disponible";
-                const rastreoRef = doc(db, "rastreo", user.uid);
-                await setDoc(rastreoRef, { estado: textoMapa }, { merge: true });
-
-                document.getElementById("modalEvidencia").remove();
-                alert(" ✅ ¡CÍRCULO DE SEGURIDAD CERRADO!\n\n1. Firma resguardada.\n2. Evidencia en Cloud.\n3. Finanzas liquidadas.\n4. Reputación aumentada.");
-                
-            } catch (e) {
-                console.error("Error crítico subiendo evidencia a Storage:", e);
-                alert("Error de conexión al servidor Cloud. Revisa tu internet e intenta de nuevo.");
-                btn.innerText = "REINTENTAR SUBIDA";
-                btn.disabled = false;
-            }
+            alert("El cierre seguro todavía no está listo. Recarga la página e inténtalo de nuevo.");
         };
 
         setTimeout(() => {

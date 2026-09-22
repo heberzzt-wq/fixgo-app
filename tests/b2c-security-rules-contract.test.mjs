@@ -15,7 +15,7 @@ test("B2B candidate is read-only and excludes unrelated deployment surfaces", ()
     assert.equal(candidate.readOnly, true);
     const commands = candidate.orderedCommandsAfterExplicitAuthorization;
     assert.equal(commands.length, 2);
-    assert.equal(commands[0].at(-1).split(",").length, 10);
+    assert.equal(commands[0].at(-1).split(",").length, 12);
     assert.equal(commands[1].at(-1), "firestore:rules,storage");
     assert.doesNotMatch(JSON.stringify(commands), /hosting|jarvisVideo|Semantic|stripewebhook|functions:api[," ]/);
     assert.throws(() => buildB2bDeploymentCandidate({ ...options, branch: "main" }), /BRANCH_OR_HEAD/);
@@ -23,7 +23,7 @@ test("B2B candidate is read-only and excludes unrelated deployment surfaces", ()
     for (const hash of Object.values(candidate.sha256)) assert.match(hash, /^[a-f0-9]{64}$/);
 });
 
-test("Functions package entry exposes all ten B2B callables without invoking them", () => {
+test("Functions package entry exposes all twelve B2B callables without invoking them", () => {
     const script = `
         const { createRequire } = require('node:module');
         const req = createRequire(require('node:path').resolve('functions/package.json'));

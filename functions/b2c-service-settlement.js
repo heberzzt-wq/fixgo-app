@@ -32,6 +32,7 @@ function sameMoney(left, right) {
 }
 
 function bindingValid(binding = {}, serviceId, technicianId) {
+    if (!binding || typeof binding !== "object") return false;
     return Boolean(
         safeText(binding.service_id, 160) === safeText(serviceId, 160) &&
         safeText(binding.technician_id, 160) === safeText(technicianId, 160) &&
@@ -374,24 +375,62 @@ function createB2CServiceSettlementEngine({
         } catch (error) {
             await reportMetric("service_liquidation_blocked");
 
-            const serviceSnapshot = await serviceRef.get();
-            if (serviceSnapshot.exists) {
+            // A successful concurrent retry wins over an older failed attempt.
+            // Read and mark atomically so the failure cannot restore a stale block.
+            await db.runTransaction(async transaction => {
+                const serviceSnapshot = await transaction.get(serviceRef);
+                if (!serviceSnapshot.exists) return;
                 const current = serviceSnapshot.data();
+                if (current.liquidado === true || current.cierre_financiero_pendiente_backend !== true) return;
                 const blockCode = safeText(error.code || error.message, 160);
                 if (
                     current.liquidacion_bloqueada !== true ||
                     current.liquidacion_bloqueo_codigo !== blockCode
                 ) {
-                    await serviceRef.set({
+                    transaction.update(serviceRef, {
                         liquidacion_bloqueada: true,
                         liquidacion_bloqueo_codigo: blockCode,
                         liquidacion_bloqueada_at:
                             admin.firestore.FieldValue.serverTimestamp(),
                         settlement_version: B2C_SERVICE_SETTLEMENT_VERSION
-                    }, { merge: true });
+                    });
                 }
-            }
+            });
 
+            throw error;
+        }
+    };
+}
+
+/** Explicit administrative retry; never clears holds or accepts client financial values. */
+function createB2CServiceReconciliationHandler({ db, admin, settleCompletedService, authorize }) {
+    if (!db || !admin || typeof settleCompletedService !== "function" || typeof authorize !== "function") {
+        throw new Error("RECONCILIATION_DEPENDENCY_MISSING");
+    }
+    return async function reconcileService(data = {}, context = {}) {
+        await authorize(context);
+        const actorId = safeText(context.auth?.uid, 160);
+        if (!actorId) throw new Error("RECONCILIATION_ACTOR_REQUIRED");
+        const serviceId = safeText(data.serviceId, 160);
+        const reason = safeText(data.reason, 500);
+        if (!serviceId || serviceId.includes("/") || !reason) {
+            throw new Error("RECONCILIATION_INPUT_INVALID");
+        }
+        const serviceRef = db.collection("services").doc(serviceId);
+        const snapshot = await serviceRef.get();
+        if (!snapshot.exists) throw new Error("SERVICE_NOT_FOUND");
+        const auditRef = serviceRef.collection("settlement_reconciliation_attempts").doc();
+        // Audit must persist before any retry can create financial effects.
+        await auditRef.set({ actor_id: actorId, reason, status: "requested",
+            requested_at: admin.firestore.FieldValue.serverTimestamp() });
+        try {
+            const result = await settleCompletedService({ serviceId });
+            await auditRef.set({ status: result.status, ledger_id: result.ledgerId || null,
+                completed_at: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+            return { serviceId, status: result.status, ledgerId: result.ledgerId || null };
+        } catch (error) {
+            await auditRef.set({ status: "blocked", code: safeText(error.code || error.message, 160),
+                completed_at: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
             throw error;
         }
     };
@@ -407,5 +446,6 @@ module.exports = {
     calculateSettlement,
     assertPaymentCoverage,
     existingLedgerValid,
-    createB2CServiceSettlementEngine
+    createB2CServiceSettlementEngine,
+    createB2CServiceReconciliationHandler
 };

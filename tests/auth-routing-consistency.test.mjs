@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
     resolveGestiaRole,
+    resolveB2bProfileAuthority,
     resolveGestiaRouteDecision
 } from "../gestia-core/auth/role-authority.js";
 
@@ -54,7 +55,7 @@ test("central router preserves privileged admin surfaces and role aliases", () =
     assert.equal(resolveGestiaRole({}, { rol: "asistente_admin" }).role, "b2b_admin");
     assert.equal(
         resolveGestiaRouteDecision({
-            user: { rol: "cliente", sub_type: "saas" },
+            user: { rol: "cliente", sub_type: "saas", tipo_cuenta: "B2B", status: "activo", edificioId: "a" },
             pathname: "/login.html"
         }).target,
         "app-inquilino.html"
@@ -178,25 +179,48 @@ test('tenant runtime uses canonical users profile without a fixed building or le
         const runtime=runInNewContext(source+'\nresolveTenantContext',{
             auth:{currentUser:user},db:{},doc:(_, ...parts)=>parts.join('/'),
             getDoc:async path=>{reads.push(path);return {exists:()=>!!profile,data:()=>profile};},
-            resolveGestiaRole,isGestiaMasterIdentity:()=>false,
+            resolveGestiaRole,resolveB2bProfileAuthority,isGestiaMasterIdentity:()=>false,
             resolveTenantV2:async (id,options)=>{assert.equal(options.allowCreate,false);tenants.push(id);return {id};},
             crypto:webcrypto,TextEncoder,setTimeout,clearTimeout,
             CustomEvent:class{},window:{dispatchEvent(){}},console:{log(){},error(){},warn(){}}
         });
         return {runtime,reads,tenants};
     };
-    const valid=build({rol:'admin_b2b',tipo_cuenta:'B2B',status:'activo',edificioId:'building-b'});
+    const mutableProfile = {rol:'admin_b2b',tipo_cuenta:'B2B',status:'activo',edificioId:'building-b'};
+    const valid=build(mutableProfile);
     const session=await valid.runtime({forceRefresh:true});
     assert.equal(session.tenantId,'building-b');
     assert.equal(session.role,'b2b_admin');
     assert.equal(session.limits.godMode,false);
     assert.deepEqual(valid.reads,['users/operator-a']);
     assert.deepEqual(valid.tenants,['building-b']);
+    mutableProfile.suspendido = true;
+    await assert.rejects(valid.runtime(), e => e.code === 'TENANT_AUTHORITY_REQUIRED');
+    assert.equal(valid.reads.length, 2, 'unchanged claims must not cache suspended profile authority');
     for(const profile of [null,{rol:'admin_b2b',tipo_cuenta:'B2B',status:'activo'}, {rol:'tecnico',tipo_cuenta:'B2B',status:'documentos_pendientes',edificioId:'b'}]){
         const invalid=build(profile);
         await assert.rejects(invalid.runtime({forceRefresh:true}),e=>e.code==='TENANT_AUTHORITY_REQUIRED');
         assert.equal(invalid.tenants.length,0);
     }
+});
+
+test('B2B profile authority is shared, denies pending/suspended/wrong tenant or role, and does not trust profile email', () => {
+    const base = {tipo_cuenta:'B2B', rol:'tecnico', status:'activo', edificioId:'a'};
+    assert.equal(resolveB2bProfileAuthority(base, {roles:['tecnico'], tenantId:'a'}).authorized, true);
+    for (const patch of [{status:'documentos_pendientes'}, {status:'pendiente_revision'}, {estado:'suspendido'},
+        {suspendido:true}, {tipo_cuenta:'B2C'}, {edificioId:''}, {rol:'admin'}]) {
+        assert.equal(resolveB2bProfileAuthority({...base,...patch}).authorized, false);
+    }
+    assert.equal(resolveB2bProfileAuthority(base,{tenantId:'b'}).authorized,false);
+    assert.equal(resolveB2bProfileAuthority(base,{roles:['admin_b2b']}).authorized,false);
+    assert.equal(resolveB2bProfileAuthority({...base,email:'hebertoh-m@hotmail.com'}).role,'tecnico');
+    for (const rol of ['tecnico','admin_b2b','recepcion','inquilino_b2b']) {
+        const decision = resolveGestiaRouteDecision({user:{...base,rol,status:'documentos_pendientes'},pathname:'/login.html'});
+        assert.equal(decision.target,'expediente-b2b.html');
+    }
+    assert.equal(resolveGestiaRouteDecision({user:base,pathname:'/tecnico-b2b.html'}).redirect,false);
+    assert.equal(resolveGestiaRouteDecision({user:{...base,rol:'supervisor'},pathname:'/login.html'}).target,'panel-supervisor-b2b.html');
+    assert.equal(resolveGestiaRouteDecision({user:{...base,rol:'seguridad_interna'},pathname:'/login.html'}).target,'gestia-modulo.html?mod=seguridad_accesos_b2b');
 });
 
 test('B2B closure verifies persisted order evidence and is backend-authoritative and idempotent',async()=>{
@@ -221,6 +245,11 @@ test('B2B closure verifies persisted order evidence and is backend-authoritative
     actor.edificioId='b';
     await assert.rejects(handler(payload,ctx),e=>e.code==='permission-denied');
     actor.edificioId='a';
+    delete order.tecnicoId;
+    await assert.rejects(handler(payload,ctx),e=>e.code==='permission-denied');
+    order.tecnicoId='tech'; actor.estado='suspendido';
+    await assert.rejects(handler(payload,ctx),e=>e.code==='permission-denied');
+    actor.estado='activo';
     await handler(payload,ctx);
     assert.equal(order.status,'finalizado');
     assert.equal(order.cierre_authority,'completeB2bService');
@@ -237,11 +266,12 @@ test('offline B2B queue preserves failures and foreign-session records and route
     const code=source.slice(source.indexOf('async function procesarSyncPendiente(){'),source.indexOf('/**',source.indexOf('async function procesarSyncPendiente(){')));
     const confirmed=[];const closed=[];
     const rows=[
-      {key:1,value:{actorUid:'tech',type:'update',collection:'servicios_b2b',id:'failed',data:{foto_antes:null}}},
-      {key:2,value:{actorUid:'tech',type:'update',collection:'servicios_b2b',id:'done',data:{status:'finalizado',firma_pendiente:'image'}}},
-      {key:3,value:{actorUid:'other',type:'update',collection:'servicios_b2b',id:'foreign',data:{status:'finalizado'}}}
+      {key:1,value:{actorUid:'tech',tenantId:'a',type:'update',collection:'servicios_b2b',id:'failed',data:{foto_antes:null}}},
+      {key:2,value:{actorUid:'tech',tenantId:'a',type:'update',collection:'servicios_b2b',id:'done',data:{status:'finalizado',firma_pendiente:'image'}}},
+      {key:3,value:{actorUid:'other',tenantId:'a',type:'update',collection:'servicios_b2b',id:'foreign',data:{status:'finalizado'}}},
+      {key:4,value:{actorUid:'tech',tenantId:'b',type:'update',collection:'servicios_b2b',id:'foreign-tenant',data:{status:'finalizado'}}}
     ];
-    const run=runInNewContext(code+'\nprocesarSyncPendiente',{isOnline:true,auth:{currentUser:{uid:'tech'}},db:{},doc:(_,collection,id)=>id,cachePendientes:async()=>rows,confirmarPendiente:async(_,key)=>confirmed.push(key),updateDoc:async()=>{throw Error('offline');},cerrarOrdenB2b:async id=>closed.push(id),serverTimestamp:()=>123,console:{error(){}}});
+    const run=runInNewContext(code+'\nprocesarSyncPendiente',{isOnline:true,localDB:{},edificioIdGlobal:'a',auth:{currentUser:{uid:'tech'}},db:{},doc:(_,collection,id)=>id,cachePendientes:async()=>rows,confirmarPendiente:async(_,key)=>confirmed.push(key),updateDoc:async()=>{throw Error('offline');},cerrarOrdenB2b:async id=>closed.push(id),serverTimestamp:()=>123,console:{error(){}}});
     await run();
     assert.deepEqual(confirmed,[2]);
     assert.deepEqual(closed,['done']);
@@ -262,10 +292,10 @@ test('offline photos retain failed Firestore updates and reuse uploaded immutabl
     const source=fs.readFileSync(new URL('../app-tecnico-b2b.js',import.meta.url),'utf8');
     const start=source.indexOf('async function procesarFotosPendientes(){');
     const code=source.slice(start,source.indexOf('/* =====================================================',start));
-    const queue=new Map([[1,{actorUid:'tech',ordenId:'first',tipo:'antes',timestamp:1,base64:'image'}],[2,{actorUid:'tech',ordenId:'second',tipo:'despues',timestamp:2,base64:'image'}]]);
+    const queue=new Map([[1,{actorUid:'tech',tenantId:'a',ordenId:'first',tipo:'antes',timestamp:1,base64:'image'}],[2,{actorUid:'tech',tenantId:'a',ordenId:'second',tipo:'despues',timestamp:2,base64:'image'}],[3,{actorUid:'tech',tenantId:'b',ordenId:'other-tenant',tipo:'antes',timestamp:3,base64:'image'}]]);
     const files=new Set(['evidencias/second/despues_2.jpg']);let fail=true;let uploads=0;
     const run=runInNewContext(code+'\nprocesarFotosPendientes',{
-        isOnline:true,auth:{currentUser:{uid:'tech'}},db:{},storage:{},
+        isOnline:true,localDB:{},edificioIdGlobal:'a',auth:{currentUser:{uid:'tech'}},db:{},storage:{},
         cachePendientes:async()=>[...queue].map(([key,value])=>({key,value})),
         confirmarPendiente:async(_,key)=>queue.delete(key),ref:(_,path)=>path,doc:(_,__,id)=>id,
         getDownloadURL:async path=>{if(!files.has(path))throw {code:'storage/object-not-found'};return 'https://storage.test/'+path;},
@@ -273,8 +303,8 @@ test('offline photos retain failed Firestore updates and reuse uploaded immutabl
         updateDoc:async id=>{if(id==='first'&&fail)throw Error('network failure');},console:{error(){}}
     });
     await run();
-    assert.deepEqual([...queue.keys()],[1]);
+    assert.deepEqual([...queue.keys()],[1,3]);
     fail=false;await run();
-    assert.equal(queue.size,0);
+    assert.deepEqual([...queue.keys()],[3]);
     assert.equal(uploads,1);
 });

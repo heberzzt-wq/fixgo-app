@@ -37,10 +37,13 @@ service firebase.storage {
     }
 
     function sameTenant(tenantId) {
-      return signedIn() && (
-        userProfile().get('edificioId', '') == tenantId ||
-        userProfile().get('tenantId', '') == tenantId
-      );
+      return signedIn() && tenantId is string && tenantId.size() > 0 &&
+        userProfile().get('tipo_cuenta', '') == 'B2B' &&
+        userProfile().get('status', '') == 'activo' &&
+        userProfile().get('estado', 'activo') == 'activo' &&
+        userProfile().get('suspendido', false) != true &&
+        userProfile().get('rol', '') in ['admin_b2b', 'asistente_admin', 'supervisor', 'tecnico', 'tecnico_gp', 'tecnico_interno', 'seguridad', 'seguridad_interna', 'seguridad_24_7', 'inquilino_b2b', 'recepcion', 'cliente'] &&
+        userProfile().get('edificioId', '') == tenantId;
     }
 
     function b2bManagerForTenant(tenantId) {
@@ -79,17 +82,20 @@ service firebase.storage {
     }
 
     function sameB2BOrderTenant(orderId) {
-      return signedIn() && (
-        userProfile().get('edificioId', '') == b2bOrderData(orderId).edificioId ||
-        userProfile().get('tenantId', '') == b2bOrderData(orderId).edificioId
-      );
+      return sameTenant(b2bOrderData(orderId).edificioId);
     }
 
     function b2bTechnicianForOrder(orderId) {
       return sameB2BOrderTenant(orderId) &&
-        b2bOrderData(orderId).get('status', '') == 'en_proceso' &&
-        (b2bOrderData(orderId).get('tecnicoId', null) == null || b2bOrderData(orderId).get('tecnicoId', null) == request.auth.uid) &&
+        b2bOrderData(orderId).get('status', '') in ['pendiente', 'programado', 'en_proceso'] &&
+        b2bOrderData(orderId).get('tecnicoId', null) == request.auth.uid &&
         userProfile().get('rol', '') in ["tecnico", "tecnico_gp", "tecnico_interno"];
+    }
+
+    function b2bKycReviewer(uid) {
+      let subject = firestore.get(/databases/(default)/documents/users/$(uid)).data;
+      return subject.get('tipo_cuenta', '') == 'B2B' &&
+        sameTenant(subject.get('edificioId', '')) && userProfile().get('rol', '') == 'admin_b2b';
     }
 
     // Evidencia sellada que debe ser procesable por canvas/dHash.
@@ -146,13 +152,18 @@ service firebase.storage {
 
     // Expedientes KYC del técnico. Mantiene 10 MB por compatibilidad legacy.
     match /expedientes/{uid}/{filePath=**} {
-       allow read: if authorizedAdmin() ||
+       allow read: if authorizedAdmin() || b2bKycReviewer(uid) ||
         (signedIn() && request.auth.uid == uid);
 
-      allow create, update: if (
-         authorizedAdmin() ||
-        (signedIn() && request.auth.uid == uid)
-      ) && validDocument(10 * 1024 * 1024);
+      allow create: if resource == null && (authorizedAdmin() || (signedIn() && request.auth.uid == uid &&
+        (userProfile().get('tipo_cuenta', '') != 'B2B' ||
+          (userProfile().get('status', '') in ['registro_iniciado', 'documentos_pendientes', 'rechazado'] &&
+           userProfile().get('suspendido', false) != true))
+      )) && validDocument(10 * 1024 * 1024);
+
+      allow update: if (authorizedAdmin() || (signedIn() && request.auth.uid == uid &&
+        userProfile().get('tipo_cuenta', '') != 'B2B'
+      )) && validDocument(10 * 1024 * 1024);
 
        allow delete: if authorizedAdmin();
     }
@@ -260,7 +271,7 @@ service firebase.storage {
     match /evidencias/{orderId}/{fileName} {
       allow read: if masterAdmin() || sameB2BOrderTenant(orderId);
 
-      allow create: if sameB2BOrderTenant(orderId) &&
+      allow create: if b2bTechnicianForOrder(orderId) &&
         fileName.matches("(antes|despues)_[0-9]+\\.jpg") &&
         validImage(10 * 1024 * 1024);
 
@@ -273,6 +284,7 @@ service firebase.storage {
       allow read: if authorizedAdmin() || sameB2BOrderTenant(orderId);
 
       allow create, update: if b2bTechnicianForOrder(orderId) &&
+        b2bOrderData(orderId).get('status', '') == 'en_proceso' &&
         fileName == "conformidad.png" &&
         validImage(512 * 1024);
 

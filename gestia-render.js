@@ -1,3 +1,5 @@
+import { resolveTenantContext } from "./gestia-core/core_auth_tenant_v1.js";
+import { resolveB2bProfileAuthority } from "./gestia-core/auth/role-authority.js";
 /**
  * ======================================================================================
  * GESTIAPREMIUM 2026 - GESTIA RENDER ENGINE V7.3 (THE ABSOLUTE SOVEREIGN)
@@ -121,8 +123,12 @@ export async function initGestiaRender(moduloId, containerId) {
         </div>
     `;
 
+    let renderUid = null;
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
+        if (renderUid && user?.uid !== renderUid) { Lifecycle.destroy(); container.replaceChildren(); window.location.reload(); return; }
+        renderUid = user?.uid || null;
         if (!user) {
+            Lifecycle.destroy(); condominioIdActual = null; rolUsuarioActual = null; container.replaceChildren();
             emitirPulsoHUD("AUTH", "FAILED");
             window.location.href = 'login.html';
             return;
@@ -131,26 +137,27 @@ export async function initGestiaRender(moduloId, containerId) {
         emitirPulsoHUD("AUTH", "RESOLVED", user.uid.substring(0, 6));
 
         try {
-            const userRef = doc(db, "users", user.uid);
-            const userSnap = await getDoc(userRef);
-
-            if (!userSnap.exists()) {
-                container.innerHTML = `ERROR: Usuario no registrado`;
-                return;
-            }
-
-            const userData = userSnap.data();
-            rolUsuarioActual = userData.rol || null;
-            condominioIdActual = userData.edificioId || userData.condominioId || userData.residencialId || "UXMAL39";
-
-            if (['super_admin', 'ceo', 'arquitecto_supremo'].includes(rolUsuarioActual)) {
-                condominioIdActual = "UXMAL39";
-                emitirPulsoHUD("MODE", "SUPREMO");
+            let renderAuthorized = true;
+            const authority = await resolveTenantContext({ forceRefresh: true });
+            if (!authority.authorized || authority.uid !== user.uid || auth.currentUser?.uid !== user.uid || !authority.tenantId) throw new Error('TENANT_AUTHORITY_REQUIRED');
+            rolUsuarioActual = authority.role;
+            condominioIdActual = authority.tenantId;
+            if (authority.authoritySource === 'profile') {
+                const stopProfile = onSnapshot(doc(db, 'users', user.uid), snapshot => {
+                    const fresh = resolveB2bProfileAuthority(snapshot.data(), { tenantId: condominioIdActual });
+                    if (!fresh.authorized || fresh.role !== authority.role) {
+                        renderAuthorized = false;
+                        Lifecycle.destroy(); condominioIdActual = null; rolUsuarioActual = null;
+                        container.replaceChildren(); window.location.replace('expediente-b2b.html');
+                    }
+                }, () => { renderAuthorized = false; Lifecycle.destroy(); container.textContent = 'No se pudo verificar tu acceso.'; });
+                Lifecycle.register(stopProfile);
             }
 
             const moduloSnap = await getDoc(doc(db, "gestia_system_modules", moduloId));
             if (!moduloSnap.exists()) throw new Error("MODULE_NOT_FOUND");
             const esquemaModulo = moduloSnap.data();
+            if (!renderAuthorized || auth.currentUser?.uid !== user.uid) return;
 
             renderizarUIBase(esquemaModulo, container);
             conectarDatosEnVivo(esquemaModulo, moduloId, condominioIdActual);

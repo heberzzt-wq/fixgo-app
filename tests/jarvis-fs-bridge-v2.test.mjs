@@ -37,6 +37,10 @@ import {
     readArtifactPayload
 } from "../jarvis-fs-bridge.js";
 
+// Match the bridge's Windows Git authority; the bundled Git can fail object writes.
+const gitExecutable = process.platform === "win32" && fs.existsSync("C:/Program Files/Git/cmd/git.exe")
+    ? "C:/Program Files/Git/cmd/git.exe" : "git";
+
 function createBridgeIdentityFixture({
     repository = "test-owner/fixgo-test",
     branch = "v94-media-v4n-negative-claims"
@@ -47,14 +51,14 @@ function createBridgeIdentityFixture({
     const root = path.join(fixtureRoot, "worktree");
     const remoteRoot = path.join(fixtureRoot, "remote.git");
     fs.mkdirSync(root);
-    execFileSync("git", ["init", "--bare", remoteRoot], {
+    execFileSync(gitExecutable, ["init", "--bare", remoteRoot], {
         stdio: "ignore"
     });
-    execFileSync("git", ["init", "-b", branch], {
+    execFileSync(gitExecutable, ["init", "-b", branch], {
         cwd: root,
         stdio: "ignore"
     });
-    const runGit = args => execFileSync("git", args, {
+    const runGit = args => execFileSync(gitExecutable, ["-c", "protocol.allow=never", "-c", "protocol.file.allow=always", ...args], {
         cwd: root,
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"]
@@ -63,6 +67,7 @@ function createBridgeIdentityFixture({
     runGit(["config", "user.name", "Jarvis Identity Test"]);
     const canonicalRemote = `https://github.com/${repository}.git`;
     runGit(["remote", "add", "origin", canonicalRemote]);
+    runGit(["remote", "set-url", "--push", "origin", pathToFileURL(remoteRoot).href]);
     runGit([
         "config",
         `url.${pathToFileURL(remoteRoot).href}.insteadOf`,
@@ -1207,7 +1212,7 @@ test("bridge identity fails closed without live remote branch verification", () 
         const head = fixture.runGit(["rev-parse", "HEAD"]);
         fixture.runGit(["checkout", "--detach", head]);
         execFileSync(
-            "git",
+            gitExecutable,
             [
                 "--git-dir",
                 fixture.remoteRoot,
@@ -1713,7 +1718,8 @@ test("Taqueria Wan ephemeral registry fallback is exact, recent and isolated fro
     const engineSource = fs.readFileSync(new URL("../jarvis-local-video-engine.js", import.meta.url), "utf8");
     const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
     assert.match(engineSource, /function recentEphemeralWanRegistryVerification\(/);
-    assert.match(engineSource, /const backend = configuredRemoteBackend\(\)/);\n    assert.match(engineSource, /const backendMatches = backend === WAN22_TI2V_5B\.backend/);
+    assert.match(engineSource, /const backend = configuredRemoteBackend\(\)/);
+    assert.match(engineSource, /const backendMatches = backend === WAN22_TI2V_5B\.backend/);
     assert.match(engineSource, /ephemeralOneShotAuthorized === true/);
     assert.match(engineSource, /!networkVolumeId/);
     assert.match(engineSource, /JARVIS_RUNPOD_REGISTRY_RECEIPT_FALLBACK_AUTHORIZED/);
@@ -1727,7 +1733,7 @@ test("Taqueria Wan ephemeral registry fallback is exact, recent and isolated fro
 test("Taqueria standalone preflight carries the same registry fallback authority", () => {
     const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
     const start = workerSource.indexOf("async function executeWan22TaqueriaPreflightJob");
-    const end = workerSource.indexOf("\n\nconst SIA7_TAQUERIA_WAN22_OUTPUT", start);
+    const end = workerSource.indexOf("const SIA7_TAQUERIA_WAN22_OUTPUT", start);
     assert.ok(start >= 0 && end > start);
     const preflightBlock = workerSource.slice(start, end);
     assert.match(preflightBlock, /JARVIS_RUNPOD_REGISTRY_RECEIPT_FALLBACK_AUTHORIZED: "true"/);

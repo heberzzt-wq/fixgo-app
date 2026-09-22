@@ -2,7 +2,7 @@ import fs from "node:fs";
 import test, { after, before } from "node:test";
 import { initializeTestEnvironment, assertFails, assertSucceeds } from "@firebase/rules-unit-testing";
 import { collection, getDocs, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
-import { ref, uploadBytes } from "firebase/storage";
+import { ref, uploadBytes, getMetadata } from "firebase/storage";
 
 let environment;
 const firebaseConfig = JSON.parse(fs.readFileSync(new URL('../firebase.json', import.meta.url), 'utf8'));
@@ -274,7 +274,8 @@ test('tenant isolation covers existing B2B paths and service creation', async ()
     await assertSucceeds(setDoc(doc(own,'servicios_b2b/own-create'),{edificioId:'uxmal39',status:'pendiente',descripcion:'Rutina'}));
     await assertFails(updateDoc(doc(own,'servicios_b2b/own-create'),{edificioId:'other'}));
     await assertFails(updateDoc(doc(own,'servicios_b2b/own-create'),{status:'finalizado'}));
-    await assertSucceeds(setDoc(doc(own,'packages/uxmal39/items/own'),{descripcion:'Paquete'}));
+    await assertFails(setDoc(doc(own,'packages/uxmal39/items/own'),{descripcion:'Paquete'}));
+    await assertSucceeds(setDoc(doc(environment.authenticatedContext('b2b-admin').firestore(),'packages/uxmal39/items/own'),{descripcion:'Paquete'}));
     await assertSucceeds(getDoc(doc(own,'packages/uxmal39/items/own')));
     await assertSucceeds(getDoc(doc(own,'tenants/uxmal39')));
     await assertFails(setDoc(doc(own,'tenants/uxmal39'),{status:'active'}));
@@ -317,4 +318,102 @@ test('GPS tracking is limited to the customer of the active backend assignment',
         await updateDoc(doc(context.firestore(),'technician_active_services/tech-1'),{estado:'inactivo'});
     });
     await assertFails(getDoc(doc(customer,'rastreo/tech-1')));
+});
+
+
+test('B2B pending, suspended, missing status and foreign tenants cannot operate', async () => {
+    const invalid = [
+        {status:'pendiente_revision'}, {suspendido:true}, {estado:'suspendido'},
+        {status:null}, {tipo_cuenta:'B2C'}, {edificioId:'otro'}, {edificioId:null, tenantId:'uxmal39'}
+    ];
+    for (const [index, extra] of invalid.entries()) {
+        const uid='blocked-b2b-'+index;
+        await environment.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(),'users',uid), {rol:'admin_b2b',tipo_cuenta:'B2B',status:'activo',estado:'activo',edificioId:'uxmal39',...extra});
+        });
+        const db=environment.authenticatedContext(uid).firestore();
+        for (const path of ['servicios_b2b/order-1','users/b2b-tech','tenants/uxmal39','condominios/uxmal39']) await assertFails(getDoc(doc(db,path)));
+        await assertFails(setDoc(doc(db,'packages/uxmal39/items',uid),{status:'recibido'}));
+        await assertFails(setDoc(doc(db,'empresas_b2b/uxmal39/areas',uid),{nombre:'Zona'}));
+        await assertFails(uploadBytes(ref(environment.authenticatedContext(uid).storage(),'pases_digitales/uxmal39/'+uid+'.html'),new Uint8Array([1]),{contentType:'text/html'}));
+    }
+});
+
+test('B2B action roles and exact assignment protect evidence and signatures', async () => {
+    await environment.withSecurityRulesDisabled(async ctx => {
+        const db=ctx.firestore();
+        await setDoc(doc(db,'users/b2b-reception'),{rol:'recepcion',tipo_cuenta:'B2B',status:'activo',edificioId:'uxmal39'});
+        await setDoc(doc(db,'users/b2b-unassigned'),{rol:'tecnico',tipo_cuenta:'B2B',status:'activo',estado:'activo',edificioId:'uxmal39'});
+        await setDoc(doc(db,'servicios_b2b/unassigned-order'),{edificioId:'uxmal39',status:'en_proceso'});
+        await setDoc(doc(db,'servicios_b2b/before-order'),{edificioId:'uxmal39',status:'pendiente',tecnicoId:'b2b-tech'});
+    });
+    const reception=environment.authenticatedContext('b2b-reception').firestore();
+    await assertSucceeds(setDoc(doc(reception,'packages/uxmal39/items/reception'),{status:'recibido'}));
+    await assertFails(setDoc(doc(reception,'flotilla_b2b/uxmal39/vehiculos/foreign-role'),{placas:'X'}));
+    const image=new Uint8Array([137,80,78,71]);
+    for (const uid of ['b2b-1','b2b-admin','b2b-unassigned','b2b-other']) {
+        const storage=environment.authenticatedContext(uid).storage();
+        await assertFails(uploadBytes(ref(storage,'evidencias/order-1/antes_123.jpg'),image,{contentType:'image/jpeg'}));
+        await assertFails(uploadBytes(ref(storage,'firmas/order-1/conformidad.png'),image,{contentType:'image/png'}));
+    }
+    const tech=environment.authenticatedContext('b2b-tech').storage();
+    await assertSucceeds(uploadBytes(ref(tech,'evidencias/before-order/antes_123.jpg'),image,{contentType:'image/jpeg'}));
+    await assertFails(uploadBytes(ref(tech,'firmas/before-order/conformidad.png'),image,{contentType:'image/png'}));
+    await assertFails(uploadBytes(ref(tech,'evidencias/unassigned-order/antes_123.jpg'),image,{contentType:'image/jpeg'}));
+    await assertFails(uploadBytes(ref(tech,'firmas/unassigned-order/conformidad.png'),image,{contentType:'image/png'}));
+    await environment.withSecurityRulesDisabled(async ctx => updateDoc(doc(ctx.firestore(),'users/b2b-unassigned'),{suspendido:true}));
+    await environment.withSecurityRulesDisabled(async ctx => setDoc(doc(ctx.firestore(),'servicios_b2b/suspended-order'),{edificioId:'uxmal39',status:'en_proceso',tecnicoId:'b2b-unassigned'}));
+    await assertFails(uploadBytes(ref(environment.authenticatedContext('b2b-unassigned').storage(),'evidencias/suspended-order/antes_123.jpg'),image,{contentType:'image/jpeg'}));
+});
+
+
+test('B2B KYC own uploads are immutable and reviewer reads stay in tenant', async () => {
+    await environment.withSecurityRulesDisabled(async ctx => {
+        const db=ctx.firestore();
+        await setDoc(doc(db,'users/kyc-pending'),{rol:'tecnico',tipo_cuenta:'B2B',status:'documentos_pendientes',estado:'documentos_pendientes',edificioId:'uxmal39'});
+        await setDoc(doc(db,'users/foreign-admin'),{rol:'admin_b2b',tipo_cuenta:'B2B',status:'activo',estado:'activo',edificioId:'otro'});
+    });
+    const pending=environment.authenticatedContext('kyc-pending');
+    const pendingDb=pending.firestore();
+    const path='expedientes/kyc-pending/b2b/ine/123.pdf';
+    const payload=new Uint8Array([37,80,68,70]);
+    await assertSucceeds(uploadBytes(ref(pending.storage(),path),payload,{contentType:'application/pdf'}));
+    await assertFails(uploadBytes(ref(pending.storage(),path),new Uint8Array([37,80,68,70,1]),{contentType:'application/pdf'}));
+    await assertSucceeds(getMetadata(ref(environment.authenticatedContext('b2b-admin').storage(),path)));
+    await assertFails(getMetadata(ref(environment.authenticatedContext('foreign-admin').storage(),path)));
+    await assertFails(updateDoc(doc(pendingDb,'users/kyc-pending'),{documentos:{ine:'forged'}}));
+    await assertFails(updateDoc(doc(pendingDb,'users/kyc-pending'),{status:'activo',estado:'activo'}));
+    await environment.withSecurityRulesDisabled(async ctx=>updateDoc(doc(ctx.firestore(),'users/kyc-pending'),{status:'pendiente_revision',estado:'pendiente_revision'}));
+    await assertFails(uploadBytes(ref(pending.storage(),'expedientes/kyc-pending/b2b/ine/456.pdf'),payload,{contentType:'application/pdf'}));
+});
+
+
+test('B2C settlement inputs and balances cannot be forged before closure', async () => {
+    const tech=environment.authenticatedContext('tech-1').firestore();
+    const customer=environment.authenticatedContext('client-1').firestore();
+    for (const field of ['comision_asignada','saldo_virtual','saldo_actual']) {
+        const uid='financial-create-'+field;
+        const db=environment.authenticatedContext(uid,{email:uid+'@example.test'}).firestore();
+        await assertFails(setDoc(doc(db,'users',uid),{uid,email:uid+'@example.test',rol:'cliente',tipo_cuenta:'B2C',estado:'activo',status:'activo',pagos:{stripe_autorizado:false,efectivo_autorizado:false},[field]:999999}));
+    }
+    for (const [uid,db] of [['tech-1',tech],['client-1',customer]]) {
+        for (const field of ['comision_asignada','saldo_virtual','saldo_actual','saldo_virtual_actualizado_at']) {
+            await assertFails(updateDoc(doc(db,'users',uid),{[field]:999999}));
+        }
+    }
+    for (const field of ['monto_pagado','tasa_comision_aplicada','comision_asignada','monto_tecnico_fijo','liquidado','comision_aplicada_tecnico','comision_aplicada_plataforma','settlement_method','settlement_version','settlement_reconciled','liquidacion_bloqueada','liquidacion_codigo','b2c_financial_hold','revision_administrativa','clientType','client_type','tenantId','edificioId','empresa_id','empresaId','contrato_id','contratoId']) {
+        await assertFails(updateDoc(doc(tech,'services/svc-close'),{[field]:999999}));
+    }
+    await assertSucceeds(updateDoc(doc(tech,'services/svc-close'),{observaciones_finales:'Trabajo revisado'}));
+});
+
+
+test('financial review requests stay set until an administrative decision', async () => {
+    const tech=environment.authenticatedContext('tech-1').firestore();
+    for (const field of ['llegada_revision_requerida','ausencia_cliente_revision_requerida','diagnostico_revision_requerida','trabajo_revision_requerida']) {
+        await assertSucceeds(updateDoc(doc(tech,'services/svc-close'),{[field]:true}));
+        await assertFails(updateDoc(doc(tech,'services/svc-close'),{[field]:false}));
+    }
+    const customer=environment.authenticatedContext('client-1').firestore();
+    await assertFails(updateDoc(doc(customer,'services/svc-close'),{llegada_revision_requerida:false}));
 });

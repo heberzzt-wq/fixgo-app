@@ -14,6 +14,7 @@ const project = process.argv.find(value => value.startsWith("--project="))?.spli
 // Inspection only. Keep B2B deployment separate from V142's audiovisual deploy input.
 export const B2B_DEPLOY_FUNCTIONS = Object.freeze([
     "completeB2bRegistration", "provisionB2bPersonnel", "completeB2bService",
+    "submitB2bPersonnelKyc", "reviewB2bPersonnelKyc",
     "reservarCancha", "crearAcceso", "registrarSalida", "registrarIngresoPaquete",
     "registrarSalidaPaquete", "registrarIncidenciaAcceso", "despachoTaticoB2B"
 ]);
@@ -36,6 +37,7 @@ export function buildB2bDeploymentCandidate({ branch, head, readFile = name => f
     }
     const files = ["firebase.json", ".firebaserc", "functions/package.json", "functions/package-lock.json",
         "functions/index.js", "functions/secure-entry.js", "functions/secure-entry-alias.js",
+        "functions/b2b-personnel-kyc.js", "functions/generated/b2c-platform-contract.cjs",
         config.firestore.rules, config.storage.rules];
     const sha256 = Object.fromEntries(files.map(file => [file, createHash("sha256").update(readFile(file)).digest("hex")]));
     return {
@@ -49,7 +51,7 @@ export function buildB2bDeploymentCandidate({ branch, head, readFile = name => f
         sharedRulesScope: "Firestore rules deploy as a complete file. The canonical file also includes existing B2C evidence/consent bindings absent from the September 1 live release; certify both B2B and B2C fixtures before approval.",
         preconditions: ["Exact HEAD and clean tracked tree", "Fresh V142 Linux/Windows/Full CI and emulator PASS",
             "Recompare production hashes and exports immediately before deploy", "Explicit user deployment authorization"],
-        postDeploy: ["All ten exports ACTIVE and correct entrypoints", "Deployed rule bytes match candidate",
+        postDeploy: ["All declared exports ACTIVE and correct entrypoints", "Deployed rule bytes match candidate",
             "Rerun emulator negative/positive fixtures using downloaded deployed rules",
             "Unauthenticated callable denial without data mutation", "Single-use key and evidence closure fixtures pass"],
         rollback: "Stop on partial failure. Preserve receipts and release IDs; do not automatically restore insecure rules or delete accounts."

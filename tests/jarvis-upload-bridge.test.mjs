@@ -14,6 +14,10 @@ import {
     runResilientLocalWebResearch
 } from "../jarvis-upload-bridge.js";
 
+// Match the bridge's Windows Git authority; the bundled Git can fail object writes.
+const gitExecutable = process.platform === "win32" && fs.existsSync("C:/Program Files/Git/cmd/git.exe")
+    ? "C:/Program Files/Git/cmd/git.exe" : "git";
+
 test("upload bridge startup binds only IPv4 loopback", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-upload-bind-"));
     const server = startJarvisUploadBridge({ port: 0, root });
@@ -38,7 +42,7 @@ function initializeBridgeRoot() {
         );
 
     execFileSync(
-        "git",
+        gitExecutable,
         ["init", "-b", "v5.9-polish"],
         {
             cwd:
@@ -48,31 +52,31 @@ function initializeBridgeRoot() {
         }
     );
     execFileSync(
-        "git",
+        gitExecutable,
         ["config", "user.email", "jarvis-upload@example.invalid"],
         { cwd: root, stdio: "ignore" }
     );
     execFileSync(
-        "git",
+        gitExecutable,
         ["config", "user.name", "Jarvis Upload Test"],
         { cwd: root, stdio: "ignore" }
     );
     const remoteRoot =
         path.join(root, ".git", "test-remote.git");
     execFileSync(
-        "git",
+        gitExecutable,
         ["init", "--bare", remoteRoot],
         { stdio: "ignore" }
     );
     const canonicalRemote =
         "https://github.com/test-owner/fixgo-test.git";
     execFileSync(
-        "git",
+        gitExecutable,
         ["remote", "add", "origin", canonicalRemote],
         { cwd: root, stdio: "ignore" }
     );
     execFileSync(
-        "git",
+        gitExecutable,
         [
             "config",
             `url.${pathToFileURL(remoteRoot).href}.insteadOf`,
@@ -80,6 +84,15 @@ function initializeBridgeRoot() {
         ],
         { cwd: root, stdio: "ignore" }
     );
+
+    // Retain canonical fetch identity, but never permit fixture pushes over a network.
+    const localRemoteUrl = pathToFileURL(remoteRoot).href;
+    execFileSync(gitExecutable, ["remote", "set-url", "--push", "origin", localRemoteUrl], {
+        cwd: root, stdio: "pipe"
+    });
+    assert.equal(execFileSync(gitExecutable, ["remote", "get-url", "--push", "origin"], {
+        cwd: root, encoding: "utf8"
+    }).trim(), localRemoteUrl);
 
     fs.writeFileSync(
         path.join(
@@ -99,19 +112,19 @@ function initializeBridgeRoot() {
         "utf8"
     );
     execFileSync(
-        "git",
+        gitExecutable,
         ["add", "jarvis-runtime-contract.json"],
         { cwd: root, stdio: "ignore" }
     );
     execFileSync(
-        "git",
+        gitExecutable,
         ["commit", "-m", "initialize bridge identity"],
         { cwd: root, stdio: "ignore" }
     );
     execFileSync(
-        "git",
-        ["push", "-u", "origin", "v5.9-polish"],
-        { cwd: root, stdio: "ignore" }
+        gitExecutable,
+        ["-c", "protocol.allow=never", "-c", "protocol.file.allow=always", "push", "-u", "origin", "v5.9-polish"],
+        { cwd: root, stdio: "pipe" }
     );
 
     return root;

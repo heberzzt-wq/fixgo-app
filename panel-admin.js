@@ -23,7 +23,8 @@ import {
  getDoc,
  aprobarTecnicoB2C,
  actualizarPermisosPagoB2C,
- ejecutarAccionNocB2C
+ ejecutarAccionNocB2C,
+ reconciliarLiquidacionB2C
 } from "./firebase.js";
 import {
  normalizeTechnicianProfile,
@@ -58,6 +59,54 @@ export async function iniciarPanelAdmin(user) {
  console.error("🛑 ALERTA DE SEGURIDAD GESTIAPREMIUM: Intento de acceso no autorizado al Panel Admin.");
  alert("🔒 ACCESO DENEGADO.");
  return;
+ }
+
+ // Keep blocked settlements visible independently of the recent activity limit.
+ const activity = document.getElementById("listaTransacciones");
+ if (activity && !document.getElementById("liquidacionesPendientes")) {
+ const section = document.createElement("section");
+ section.id = "liquidacionesPendientes";
+ section.className = "rounded-xl border border-amber-500/30 p-4 my-4";
+ const heading = document.createElement("h3");
+ heading.textContent = "Liquidaciones pendientes de validación";
+ const rows = document.createElement("div");
+ section.append(heading, rows);
+ activity.parentElement.appendChild(section);
+ onSnapshot(query(collection(db, "services"), where("cierre_financiero_pendiente_backend", "==", true), limit(100)), snap => {
+ rows.replaceChildren();
+ for (const service of snap.docs) {
+ const data = service.data();
+ if (data.liquidado === true || data.estado !== "finalizado") continue;
+ const row = document.createElement("div");
+ row.className = "border-b border-white/10 py-3";
+ const description = document.createElement("p");
+ description.textContent = `${service.id} · ${data.liquidacion_bloqueo_codigo || 'Pendiente'}`;
+ const button = document.createElement("button");
+ button.className = "rounded bg-amber-700 px-3 py-2 text-sm";
+ button.textContent = "Revalidar liquidación";
+ const result = document.createElement("p");
+ button.addEventListener("click", async () => {
+ const reason = window.prompt("Motivo del reintento y corrección realizada:");
+ if (!reason?.trim()) return;
+ button.disabled = true;
+ try {
+ const response = await reconciliarLiquidacionB2C({ serviceId: service.id, reason: reason.trim() });
+ result.textContent = ['settled', 'already_settled'].includes(response.status)
+ ? 'Liquidación verificada.' : `Resultado: ${response.status}`;
+ } catch (error) {
+ result.textContent = `No se liquidó: ${error.details?.code || error.message}`;
+ } finally { button.disabled = false; }
+ });
+ row.append(description, button, result);
+ rows.appendChild(row);
+ }
+ if (!rows.children.length) rows.textContent = "No hay liquidaciones pendientes.";
+ if (snap.size === 100) {
+ const note = document.createElement("p");
+ note.textContent = "Se muestran hasta 100 pendientes; al resolverlos aparecerán los siguientes.";
+ rows.appendChild(note);
+ }
+ }, error => adminListenerError("SETTLEMENT", rows, "No fue posible consultar liquidaciones pendientes.", error));
  }
 
  const elementos = {

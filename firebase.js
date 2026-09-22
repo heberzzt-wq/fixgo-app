@@ -129,6 +129,11 @@ export async function actualizarGatewaysPagoB2C(stripe_activo, efectivo_activo) 
     return result.data;
 }
 
+export async function reconciliarLiquidacionB2C(payload) {
+    const reconcile = httpsCallable(cloudFunctions, "reconciliarLiquidacionB2C");
+    return (await reconcile(payload)).data;
+}
+
 export async function ejecutarAccionNocB2C(payload) {
     const executeAction = httpsCallable(cloudFunctions, "executeB2cAdminNocAction");
     const result = await executeAction(payload);

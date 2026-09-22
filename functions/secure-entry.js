@@ -28,8 +28,11 @@ const financialPolicy = require("./b2c-financial-policy");
 const platformContract = require("./b2c-platform-contract");
 const {
     B2C_SERVICE_SETTLEMENT_VERSION,
-    createB2CServiceSettlementEngine
+    createB2CServiceSettlementEngine,
+    createB2CServiceReconciliationHandler
 } = require("./b2c-service-settlement");
+const { isAuthorizedAdmin } = require("./b2c-technician-approval");
+const { getReleaseIdentity } = require("./release-identity");
 
 const SECURE_FUNCTIONS_ENTRY_VERSION = "1.0.0";
 const PROJECT_ID = "fixgo-44e4d";
@@ -501,6 +504,17 @@ secureApi.use(applyCors);
 secureApi.use(express.json({ limit: "1mb" }));
 secureApi.post("/create-checkout-session", createAuthoritativeCheckout);
 
+secureApi.get(["/release-identity", "/api/release-identity"], (_req, res) => {
+    const identity = getReleaseIdentity();
+    res.set("Cache-Control", "no-store");
+    return res.status(identity.prepared ? 200 : 503).json({
+        ...identity,
+        financial_authority: "secure-entry",
+        secure_entry_version: SECURE_FUNCTIONS_ENTRY_VERSION,
+        settlement_version: B2C_SERVICE_SETTLEMENT_VERSION
+    });
+});
+
 secureApi.use((req, res) => {
     if (typeof legacyExports.api !== "function") {
         return res.status(503).json({
@@ -557,8 +571,27 @@ const secureOnServiceCompleted = functions.firestore
         return null;
     });
 
+const reconcileSettlement = createB2CServiceReconciliationHandler({
+    db, admin, settleCompletedService,
+    authorize: async context => {
+        if (!context?.auth?.uid) throw new functions.https.HttpsError("unauthenticated", "Se requiere sesión administrativa.");
+        const actor = await db.collection("users").doc(context.auth.uid).get();
+        if (!isAuthorizedAdmin(context, actor.data() || {})) {
+            throw new functions.https.HttpsError("permission-denied", "Sólo administración puede reintentar liquidaciones.");
+        }
+    }
+});
+
 module.exports = {
     ...legacyExports,
     api: functions.https.onRequest(secureApi),
-    onServiceCompleted: secureOnServiceCompleted
+    onServiceCompleted: secureOnServiceCompleted,
+    reconciliarLiquidacionB2C: functions.https.onCall(async (data, context) => {
+        try { return await reconcileSettlement(data, context); }
+        catch (error) {
+            if (error instanceof functions.https.HttpsError) throw error;
+            const code = safeText(error.code || error.message, 160);
+            throw new functions.https.HttpsError("failed-precondition", "La liquidación continúa pendiente de validación.", { code });
+        }
+    })
 };

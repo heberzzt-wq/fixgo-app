@@ -10,17 +10,21 @@ import {
     createJarvisFsBridgeApp
 } from "../jarvis-fs-bridge.js";
 
+const fixtureGit = process.platform === 'win32' && fs.existsSync('C:/Program Files/Git/cmd/git.exe')
+    ? 'C:/Program Files/Git/cmd/git.exe' : 'git';
+
 function initFixture() {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-extract-bridge-"));
-    execFileSync("git", ["init"], { cwd: root, stdio: "ignore" });
-    execFileSync("git", ["checkout", "-b", "v94-doc-extract-test"], { cwd: root, stdio: "ignore" });
-    execFileSync("git", ["config", "user.name", "Jarvis Bridge Test"], { cwd: root, stdio: "ignore" });
-    execFileSync("git", ["config", "user.email", "jarvis-bridge-test@example.invalid"], { cwd: root, stdio: "ignore" });
+    execFileSync(fixtureGit, ["init"], { cwd: root, stdio: "ignore" });
+    execFileSync(fixtureGit, ["checkout", "-b", "v94-doc-extract-test"], { cwd: root, stdio: "ignore" });
+    execFileSync(fixtureGit, ["config", "user.name", "Jarvis Bridge Test"], { cwd: root, stdio: "ignore" });
+    execFileSync(fixtureGit, ["config", "user.email", "jarvis-bridge-test@example.invalid"], { cwd: root, stdio: "ignore" });
     const remoteRoot = path.join(root, ".git", "test-remote.git");
-    execFileSync("git", ["init", "--bare", remoteRoot], { stdio: "ignore" });
+    execFileSync(fixtureGit, ["init", "--bare", remoteRoot], { stdio: "ignore" });
     const canonicalRemote = "https://github.com/test-owner/fixgo-app.git";
-    execFileSync("git", ["remote", "add", "origin", canonicalRemote], { cwd: root, stdio: "ignore" });
-    execFileSync("git", [
+    execFileSync(fixtureGit, ["remote", "add", "origin", canonicalRemote], { cwd: root, stdio: "ignore" });
+    execFileSync(fixtureGit, ["remote", "set-url", "--push", "origin", pathToFileURL(remoteRoot).href], { cwd: root, stdio: "pipe" });
+    execFileSync(fixtureGit, [
         "config",
         `url.${pathToFileURL(remoteRoot).href}.insteadOf`,
         canonicalRemote
@@ -41,9 +45,9 @@ function initFixture() {
         "utf8"
     );
     fs.writeFileSync(path.join(root, "fixture.txt"), "bridge identity fixture\n", "utf8");
-    execFileSync("git", ["add", "jarvis-runtime-contract.json", "fixture.txt"], { cwd: root, stdio: "ignore" });
-    execFileSync("git", ["commit", "-m", "test: initialize bridge identity fixture"], { cwd: root, stdio: "ignore" });
-    execFileSync("git", ["push", "-u", "origin", "v94-doc-extract-test"], { cwd: root, stdio: "ignore" });
+    execFileSync(fixtureGit, ["add", "jarvis-runtime-contract.json", "fixture.txt"], { cwd: root, stdio: "ignore" });
+    execFileSync(fixtureGit, ["commit", "-m", "test: initialize bridge identity fixture"], { cwd: root, stdio: "ignore" });
+    execFileSync(fixtureGit, ["-c", "protocol.allow=never", "-c", "protocol.file.allow=always", "push", "-u", "origin", "v94-doc-extract-test"], { cwd: root, stdio: "pipe" });
     return root;
 }
 

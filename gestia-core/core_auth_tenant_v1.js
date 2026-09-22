@@ -21,7 +21,8 @@ import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-
 import { resolveTenantV2 } from '/gestia-core/core_tenant_resolver_v2.js';
 import {
     isGestiaMasterIdentity,
-    resolveGestiaRole
+    resolveGestiaRole,
+    resolveB2bProfileAuthority
 } from '/gestia-core/auth/role-authority.js?v=role-authority-v4-master-session-20260818';
 
 /**
@@ -132,7 +133,10 @@ export async function resolveTenantContext(options = { forceRefresh: false }) {
                 const tokenCheck = await user.getIdTokenResult(false);
                 const currentFingerprint = stableStringify(tokenCheck.claims);
 
-                if (currentFingerprint === SESSION_CACHE.claimsFingerprint) {
+                // Tenant suspension and KYC changes do not change Auth claims.
+                // Only administrative claim sessions can reuse the claim cache;
+                // ordinary B2B sessions re-read their authoritative profile.
+                if (SESSION_CACHE.authoritySource === "admin_claim" && currentFingerprint === SESSION_CACHE.claimsFingerprint) {
                     emitSia7(OP_ID, "CACHE_HIT", "Integridad y Sincronía validadas. Cache activa.", "SUCCESS");
                     return SESSION_CACHE;
                 }
@@ -238,16 +242,12 @@ export async function resolveTenantContext(options = { forceRefresh: false }) {
 
         const profileSnap = await getDoc(doc(db, "users", user.uid));
         const userData = profileSnap.exists() ? profileSnap.data() : null;
-        const tenantIdBase = userData?.edificioId || userData?.tenantId;
-        const role = resolveGestiaRole({}, userData || {});
-        const allowedRoles = ['admin_b2b', 'asistente_admin', 'supervisor', 'tecnico', 'tecnico_gp',
-            'tecnico_interno', 'seguridad', 'seguridad_interna', 'seguridad_24_7', 'inquilino_b2b', 'recepcion', 'cliente'];
-        if (!userData || userData.tipo_cuenta !== 'B2B' || userData.status !== 'activo' ||
-            userData.suspendido === true || typeof tenantIdBase !== 'string' || !tenantIdBase.trim() ||
-            !allowedRoles.includes(role.roleReal)) {
+        const authority = resolveB2bProfileAuthority(userData);
+        const tenantIdBase = authority.tenantId;
+        if (!authority.authorized) {
             throw { code: "TENANT_AUTHORITY_REQUIRED", message: "Perfil B2B activo y edificio autorizado requeridos." };
         }
-        const finalRole = role.role;
+        const finalRole = authority.role;
 
         const tenantResuelto = await resolveTenantV2(tenantIdBase, { allowCreate: false });
 

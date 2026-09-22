@@ -359,14 +359,28 @@ function createAdminNocActionHandler({ admin, db, functions }) {
         }
 
         if (action === "restore_technician") {
-            await technicianRef.set({
-                estado: platformContract.TECHNICIAN_STATES.ACTIVE,
-                status: platformContract.TECHNICIAN_STATES.ACTIVE,
-                disponible: false,
-                restoredByNoc: now,
-                restoredByNocActor: actorId
-            }, { merge: true });
-            return { ok: true, action, technicianId };
+            // Restoring a sanction cannot substitute for the KYC approval workflow.
+            return db.runTransaction(async transaction => {
+                const current = (await transaction.get(technicianRef)).data() || {};
+                const kyc = current.tipo_cuenta === "B2B"
+                    ? platformContract.personnelKycRequirements(current)
+                    : platformContract.technicianKycRequirements(current);
+                if (platformContract.normalizeToken(current.rol || current.role) !== 'tecnico' ||
+                    !kyc.complete || current.kyc?.aprobado !== true ||
+                    !["suspendido", "suspendido_grave", "baneado_permanente"].includes(current.estado) ||
+                    current.status !== current.estado) {
+                    throw callableError(functions, "failed-precondition", "Sólo se restaura una sanción de un expediente previamente aprobado y completo.");
+                }
+                transaction.set(technicianRef, {
+                    estado: platformContract.TECHNICIAN_STATES.ACTIVE,
+                    status: platformContract.TECHNICIAN_STATES.ACTIVE,
+                    disponible: false,
+                    suspendido: false,
+                    restoredByNoc: now,
+                    restoredByNocActor: actorId
+                }, { merge: true });
+                return { ok: true, action, technicianId };
+            });
         }
 
         if (action === "apply_strike") {

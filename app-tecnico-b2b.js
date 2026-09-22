@@ -1,3 +1,5 @@
+import { b2bCacheDatabaseName, recoverLegacyB2bQueues } from "./b2b-offline-authority.js";
+import { resolveB2bProfileAuthority } from "./gestia-core/auth/role-authority.js";
 /**
  * =====================================================
  * GESTIA PREMIUM
@@ -129,20 +131,21 @@ showToast("Modo Offline activado",true);
 INDEXED DB CACHE ENGINE
 ===================================================== */
 
-const DB_NAME="gestia_cache";
-const DB_VERSION=2;
+
+const DB_VERSION=3;
 
 let localDB;
 
-function initLocalDB(){
+function initLocalDB(uid, tenantId){
 
 return new Promise((resolve,reject)=>{
 
-const request=indexedDB.open(DB_NAME,DB_VERSION);
+const request=indexedDB.open(b2bCacheDatabaseName(uid, tenantId) + ".technician",DB_VERSION);
 
 request.onupgradeneeded=e=>{
 
 const db=e.target.result;
+if(!db.objectStoreNames.contains("legacy_imports")) db.createObjectStore("legacy_imports",{keyPath:"id"});
 
 if(!db.objectStoreNames.contains("tareas")){
 db.createObjectStore("tareas",{keyPath:"id"});
@@ -238,7 +241,7 @@ SYNC QUEUE
 
 async function agregarSyncPendiente(data){
 
-await cacheGuardar("sync_queue",{...data, actorUid:auth.currentUser?.uid});
+await cacheGuardar("sync_queue",{...data, actorUid:auth.currentUser?.uid, tenantId:edificioIdGlobal});
 
 }
 
@@ -265,6 +268,7 @@ const store=tx.objectStore("fotos_pendientes");
 
 store.add({
     actorUid: auth.currentUser?.uid,
+    tenantId: edificioIdGlobal,
     tipo: data.tipo,
     ordenId: data.ordenId,
     timestamp: data.timestamp,
@@ -280,10 +284,10 @@ tx.onerror=reject;
 
 
 async function procesarSyncPendiente(){
-    if(!isOnline) return;
+    if(!isOnline || !localDB || !edificioIdGlobal) return;
     const items=await cachePendientes('sync_queue');
     for(const {key,value:item} of items){
-        if(!auth.currentUser || item.actorUid!==auth.currentUser.uid) continue;
+        if(!auth.currentUser || item.actorUid!==auth.currentUser.uid || item.tenantId!==edificioIdGlobal) continue;
         try {
             if(item.type!=='update') continue;
             if(item.collection==='servicios_b2b' && item.data.status==='finalizado') {
@@ -304,10 +308,10 @@ async function procesarSyncPendiente(){
  * para ser compatible con uploadBytes de Firebase.
  */
 async function procesarFotosPendientes(){
-    if(!isOnline) return;
+    if(!isOnline || !localDB || !edificioIdGlobal) return;
     const fotos=await cachePendientes('fotos_pendientes');
     for(const {key,value:foto} of fotos){
-        if(!auth.currentUser || foto.actorUid!==auth.currentUser.uid) continue;
+        if(!auth.currentUser || foto.actorUid!==auth.currentUser.uid || foto.tenantId!==edificioIdGlobal) continue;
         try {
             const path=`evidencias/${foto.ordenId}/${foto.tipo}_${foto.timestamp}.jpg`;
             const storageRef=ref(storage,path);
@@ -616,6 +620,7 @@ window.validarPaseCaseta=validarPaseCaseta;
 
 auth.onAuthStateChanged(async (user) => {
 
+    if (localDB) { localDB.close(); localDB = null; edificioIdGlobal = null; window.location.reload(); return; }
     if (!user) {
         // Si no hay sesión, redirección inmediata
         window.location.href = "login.html";
@@ -623,8 +628,7 @@ auth.onAuthStateChanged(async (user) => {
     }
 
     // 1. Inicialización de Entorno Local
-    await initLocalDB();
-    inicializarBottomSheet();
+    // Cache opens only after the profile passes the tenant authority gate.
 
     try {
         // 2. Extracción de Credenciales Operativas
@@ -637,17 +641,25 @@ auth.onAuthStateChanged(async (user) => {
 
         const data = userDoc.data();
 
-        if (!data || !data.edificioId) {
-            alert("🚨 Perfil sin nodo de edificio asignado. Contacta al NOC.");
-            return;
+        const authority = resolveB2bProfileAuthority(data, { roles: ['tecnico', 'tecnico_gp', 'tecnico_interno'] });
+        if (!authority.authorized) { window.location.replace('expediente-b2b.html'); return; }
+        edificioIdGlobal = authority.tenantId;
+        await initLocalDB(user.uid, authority.tenantId);
+        inicializarBottomSheet();
+        if (isOnline) {
+            try {
+                const recovery = await recoverLegacyB2bQueues(indexedDB, localDB, {
+                    uid: user.uid, tenantId: authority.tenantId,
+                    readOrder: async id => (await getDoc(doc(db, 'servicios_b2b', id))).data()
+                });
+                if (recovery.retained) showToast('Hay pendientes antiguos conservados que requieren validar su edificio.', true);
+            } catch (error) { console.error('Pendientes antiguos conservados', error); }
         }
+        onSnapshot(doc(db, 'users', user.uid), snapshot => {
+            const fresh = resolveB2bProfileAuthority(snapshot.data(), { roles: ['tecnico', 'tecnico_gp', 'tecnico_interno'], tenantId: edificioIdGlobal });
+            if (!fresh.authorized) window.location.replace('expediente-b2b.html');
+        });
 
-        // -----------------------------------------------------
-        // NORMALIZACIÓN QUIRÚRGICA DE ID
-        // -----------------------------------------------------
-        // Garantizamos match con el despacho del Admin (case insensitive y sin espacios)
-        edificioIdGlobal = data.edificioId.toLowerCase().trim().replace(/\s+/g, '');
-        
         console.log("🛠️ Nodo Operativo Conectado:", edificioIdGlobal);
         // -----------------------------------------------------
 
@@ -898,7 +910,7 @@ async function cargarRutinaPreventiva(){
 
 if(!edificioIdGlobal) return;
 
-if(!isOnline) return;
+if(!isOnline || !localDB || !edificioIdGlobal) return;
 
 try{
 
@@ -915,7 +927,7 @@ console.error("Error rutinas preventivas",e);
 
 async function sincronizarRutinasMaestras(){
 
-if(!isOnline) return;
+if(!isOnline || !localDB || !edificioIdGlobal) return;
 
 const inicioDia=new Date();
 
