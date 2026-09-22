@@ -191,48 +191,6 @@ jobs:
           npm ci
           npm ci --prefix functions
 
-      - name: Read-only App Check enforcement diagnostic
-        shell: bash
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: |
-          set -euo pipefail
-          test -n "$FIREBASE_TOKEN"
-          npm install -g firebase-tools@15.25.1 >/dev/null
-          module_path="$(npm root -g)/firebase-tools/lib/apiv2.js"
-          token_file="$RUNNER_TEMP/firebase-access-token.txt"
-          test -f "$module_path"
-          node - "$module_path" "$token_file" <<'NODE'
-          const fs = require("node:fs");
-          const api = require(process.argv[2]);
-          const tokenFile = process.argv[3];
-          api.setRefreshToken(process.env.FIREBASE_TOKEN);
-          api.getAccessToken().then(token => {
-            if (!token) throw new Error("FIREBASE_ACCESS_TOKEN_EMPTY");
-            fs.writeFileSync(tokenFile, token, { mode: 0o600 });
-          }).catch(error => {
-            console.error(error?.message || error);
-            process.exit(1);
-          });
-          NODE
-          FIREBASE_ACCESS_TOKEN="$(cat "$token_file")"
-          test -n "$FIREBASE_ACCESS_TOKEN"
-          echo "::add-mask::$FIREBASE_ACCESS_TOKEN"
-          project_json="$RUNNER_TEMP/firebase-project.json"
-          curl --fail-with-body --silent --show-error \
-            -H "Authorization: Bearer $FIREBASE_ACCESS_TOKEN" \
-            "https://firebase.googleapis.com/v1beta1/projects/$FIREBASE_PROJECT_ID" \
-            -o "$project_json"
-          project_number="$(jq -r '.projectNumber // empty' "$project_json")"
-          test -n "$project_number"
-          services_json="$RUNNER_TEMP/appcheck-services.json"
-          curl --fail-with-body --silent --show-error \
-            -H "Authorization: Bearer $FIREBASE_ACCESS_TOKEN" \
-            "https://firebaseappcheck.googleapis.com/v1/projects/$project_number/services" \
-            -o "$services_json"
-          jq '{services: [(.services // [])[] | {name, enforcementMode, replayProtectionEnforcementMode}]}' "$services_json"
-          rm -f "$project_json" "$services_json" "$token_file"
-
 
       - name: Apply deterministic V142 patches
         run: |
