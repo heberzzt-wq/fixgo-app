@@ -7,6 +7,8 @@ import {
     createTechnicianRegistrationProfile,
     dispatchMarketplaceEventForTechnician,
     getTechnicianKycRequirements,
+    inspectMexicanClabe,
+    MEXICAN_CLABE_VERSION,
     normalizeTechnicianProfile,
     storagePathForTechnicianDocument,
     TECHNICIAN_KYC_STATES
@@ -50,6 +52,54 @@ test("email/password y Google parten del mismo contrato técnico no operativo", 
         assert.equal(profile.disponible, false);
         assert.deepEqual(profile.documentos.certificados, []);
     }
+});
+
+test("CLABE mexicana valida checksum y detecta institución desde catálogo Banxico", () => {
+    const info = inspectMexicanClabe("002180032240946700");
+    assert.equal(info.formatValid, true);
+    assert.equal(info.checksumValid, true);
+    assert.equal(info.valid, true);
+    assert.equal(info.institutionCode, "002");
+    assert.equal(info.institutionName, "BANAMEX");
+    assert.equal(info.institutionKey, "40002");
+    assert.equal(info.catalogSource, "BANXICO_CEP_SCL_2026-09-22");
+
+    const badChecksum = inspectMexicanClabe("002180032240946701");
+    assert.equal(badChecksum.formatValid, true);
+    assert.equal(badChecksum.checksumValid, false);
+    assert.equal(badChecksum.valid, false);
+
+    const unknown = inspectMexicanClabe("999180032240946700");
+    assert.equal(unknown.institutionName, null);
+    assert.equal(unknown.valid, false);
+});
+
+test("smart banking exige que banco y claves deriven de la CLABE", () => {
+    const base = completeProfile();
+    const smart = {
+        ...base,
+        datos_bancarios: {
+            banco: "BANAMEX",
+            clabe: "002180032240946700",
+            titular: "Ana",
+            banking_version: MEXICAN_CLABE_VERSION,
+            institucion_clave: "002",
+            institucion_key: "40002",
+            institucion_nombre: "BANAMEX",
+            catalog_source: "BANXICO_CEP_SCL_2026-09-22"
+        }
+    };
+    const valid = getTechnicianKycRequirements(smart);
+    assert.equal(valid.required.banco, true);
+    assert.equal(valid.required.clabe, true);
+    assert.equal(valid.bankingInspection.valid, true);
+
+    const forged = getTechnicianKycRequirements({
+        ...smart,
+        datos_bancarios: { ...smart.datos_bancarios, banco: "SANTANDER" }
+    });
+    assert.equal(forged.complete, false);
+    assert.equal(forged.required.banco, false);
 });
 
 test("KYC canónico conserva vehículo y certificados plurales", () => {
@@ -241,6 +291,13 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(registration, /CUSTOMER_IDENTITY|identityResult/);
     assert.match(registration, /Las altas nuevas B2C requieren INE y biometría en vivo/);
     assert.match(registrationHtml, /INE \+ biometría facial/);
+    assert.match(registrationHtml, /Banco pendiente de detectar/);
+    assert.match(registrationHtml, /id="clabeTecnico"/);
+    assert.doesNotMatch(registrationHtml, /name="banco" placeholder="Nombre del Banco"/);
+    assert.match(registration, /inspectMexicanClabe/);
+    assert.match(registration, /MEXICAN_CLABE_VERSION/);
+    assert.match(technician, /compClabeBankStatus/);
+    assert.doesNotMatch(technician, /id="compBanco"/);
     assert.doesNotMatch(registration, /skill_maint/);
     assert.doesNotMatch(registration, /email:\s*email\.toLowerCase\(\)/);
     assert.match(technician, /collection\(db, "service_marketplace"\)/);
