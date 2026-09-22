@@ -93,6 +93,10 @@ export async function devolverExpedienteTecnicoB2C(technicianId, reason, documen
     return (await httpsCallable(cloudFunctions, 'returnB2cTechnicianKyc')({ technicianId, reason, documents })).data;
 }
 
+export async function verificarIdentidadB2C() {
+    return (await httpsCallable(cloudFunctions, "verifyB2cIdentity")({})).data;
+}
+
 export async function aprobarTecnicoB2C(technicianId) {
     const approve = httpsCallable(cloudFunctions, "approveB2cTechnician");
     const result = await approve({ technicianId });
