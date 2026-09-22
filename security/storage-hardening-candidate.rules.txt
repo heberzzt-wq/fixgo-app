@@ -150,19 +150,19 @@ service firebase.storage {
       ];
     }
 
-    // Expedientes KYC del técnico. Mantiene 10 MB por compatibilidad legacy.
+    // Expedientes KYC/identidad B2C. Mantiene 10 MB por compatibilidad legacy.
     match /expedientes/{uid}/{filePath=**} {
        allow read: if authorizedAdmin() || b2bKycReviewer(uid) ||
         (signedIn() && request.auth.uid == uid);
 
       allow create: if resource == null && (authorizedAdmin() || (signedIn() && request.auth.uid == uid &&
-        (userProfile().get('status', '') in ['registro_iniciado', 'documentos_pendientes', 'rechazado'] &&
+        (userProfile().get('status', '') in ['registro_iniciado', 'documentos_pendientes', 'rechazado', 'identidad_pendiente', 'identidad_revision'] &&
            userProfile().get('suspendido', false) != true)
       )) && validDocument(10 * 1024 * 1024);
 
       allow update: if (authorizedAdmin() || (signedIn() && request.auth.uid == uid &&
         userProfile().get('tipo_cuenta', '') != 'B2B' &&
-        userProfile().get('status', '') in ['registro_iniciado', 'documentos_pendientes', 'rechazado'] &&
+        userProfile().get('status', '') in ['registro_iniciado', 'documentos_pendientes', 'rechazado', 'identidad_pendiente', 'identidad_revision'] &&
         userProfile().get('suspendido', false) != true
       )) && validDocument(10 * 1024 * 1024);
 
