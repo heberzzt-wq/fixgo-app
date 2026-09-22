@@ -517,7 +517,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          config_path="$RUNNER_TEMP/firebase-release-fixgo-only.json"
+          config_path="$PWD/.firebase-release-fixgo-only.json"
           jq --arg site "$FIREBASE_SITE_ID" '
             {
               firestore: .firestore,
