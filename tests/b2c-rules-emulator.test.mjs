@@ -48,6 +48,39 @@ before(async () => {
         });
         await setDoc(doc(db, "users/tech-1"), operationalTechnician);
         await setDoc(doc(db, "users/tech-off"), { ...operationalTechnician, disponible: false });
+        await setDoc(doc(db, "users/tech-identity-pending"), {
+            rol: "tecnico",
+            tipo_cuenta: "B2C",
+            email: "identity@example.test",
+            uid: "tech-identity-pending",
+            sub_type: "marketplace",
+            estado: "documentos_pendientes",
+            status: "documentos_pendientes",
+            disponible: false,
+            suspendido: false,
+            kyc: {
+                aprobado: false,
+                estado: "documentos_pendientes",
+                identity_required: true,
+                identity_verified: false,
+                identity_version: "b2c-bank-identity-v1"
+            },
+            foto_perfil: documentRef("foto"),
+            documentos: {
+                ine: documentRef("ine"),
+                ine_reverso: documentRef("ine_reverso"),
+                selfie_liveness_left: documentRef("selfie_liveness_left"),
+                selfie_liveness_right: documentRef("selfie_liveness_right"),
+                csf: documentRef("csf"),
+                licencia: null,
+                certificados: []
+            },
+            datos_bancarios: { banco: "Banco", clabe: "012345678901234567" },
+            vehiculo: { tipo: "peaton", placas: null },
+            skills: ["fix_plomeria"],
+            wallet: 0,
+            currency: "MXN"
+        });
         await setDoc(doc(db, "configuracion/catalogo_global"), { maint_general: true });
         await setDoc(doc(db, "service_marketplace/svc-1"), { service_id: "svc-1", estado: "disponible" });
         await setDoc(doc(db, "platform_events/marketplace_service_available_svc-1"), {
@@ -92,6 +125,22 @@ test("cliente B2C no puede mutar autorizaciones de pago", async () => {
     await assertSucceeds(getDoc(doc(db, "users/client-1")));
     await assertFails(updateDoc(doc(db, "users/client-1"), { "pagos.efectivo_autorizado": false }));
     await assertFails(updateDoc(doc(db, "users/client-1"), { efectivo_autorizado: true }));
+});
+
+test("técnico pendiente no puede desactivar ni autoaprobar identidad biométrica", async () => {
+    const db = environment.authenticatedContext("tech-identity-pending", {
+        email: "identity@example.test"
+    }).firestore();
+    await assertSucceeds(getDoc(doc(db, "users/tech-identity-pending")));
+    await assertFails(updateDoc(doc(db, "users/tech-identity-pending"), {
+        "kyc.identity_required": false
+    }));
+    await assertFails(updateDoc(doc(db, "users/tech-identity-pending"), {
+        "kyc.identity_verified": true
+    }));
+    await assertFails(updateDoc(doc(db, "users/tech-identity-pending"), {
+        "kyc.identity_version": "tampered"
+    }));
 });
 
 test("creación B2C directa falla y el contrato B2B separado permanece", async () => {
