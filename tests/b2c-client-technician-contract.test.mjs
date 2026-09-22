@@ -357,3 +357,14 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.equal(firebaseConfig.firestore.rules, "security/firestore-console-snapshot-2026-07-30.rules.txt");
     assert.equal(firebaseConfig.storage.rules, "security/storage-hardening-candidate.rules.txt");
 });
+
+
+test("release gate keeps mobile identity capture bank-style without document zoom crop", () => {
+    const html = fs.readFileSync(new URL("../registro.html", import.meta.url), "utf8");
+    const registration = fs.readFileSync(new URL("../app-registro.js", import.meta.url), "utf8");
+    assert.match(html, /identity-camera-stage\[data-frame="document"\] video\s*\{[\s\S]*?object-fit:\s*contain/);
+    assert.match(html, /#modalIdentidadTecnico\s*\{[\s\S]*?height:\s*100dvh/);
+    assert.match(html, /viewport-fit=cover/);
+    assert.match(registration, /stage\.dataset\.frame = step\.frame/);
+    assert.match(registration, /identity-modal-open/);
+});
