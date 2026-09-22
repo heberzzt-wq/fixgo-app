@@ -321,3 +321,13 @@ test('offline photos retain failed Firestore updates and reuse uploaded immutabl
     assert.deepEqual([...queue.keys()],[3]);
     assert.equal(uploads,1);
 });
+
+
+test("release gate keeps incomplete B2C identity on same-account recovery after login", () => {
+    const login = fs.readFileSync(path.join(root, "app-login.js"), "utf8");
+    const registration = fs.readFileSync(path.join(root, "app-registro.js"), "utf8");
+    assert.match(login, /LOGIN_IDENTITY_RECOVERY/);
+    assert.match(login, /customerIdentityNeedsCapture\(profile\)/);
+    assert.match(registration, /login\.html\?resume=cliente-identity/);
+    assert.match(registration, /REANUDAR IDENTIDAD EN ESTA CUENTA/);
+});
