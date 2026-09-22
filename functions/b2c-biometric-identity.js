@@ -122,10 +122,12 @@ async function createHumanBiometricRuntime() {
             require("@tensorflow/tfjs-backend-cpu");
             require("@tensorflow/tfjs-backend-wasm");
             const jpeg = require("jpeg-js");
-            const HumanModule = require("@vladmandic/human/dist/human.node-wasm");
+            const humanMainEntry = require.resolve("@vladmandic/human");
+            const humanDist = path.dirname(humanMainEntry);
+            const humanWasmEntry = path.join(humanDist, "human.node-wasm.js");
+            const HumanModule = require(humanWasmEntry);
             const Human = HumanModule.default || HumanModule.Human || HumanModule;
-            const humanEntry = require.resolve("@vladmandic/human/dist/human.node-wasm");
-            const humanRoot = path.resolve(path.dirname(humanEntry), "..");
+            const humanRoot = path.resolve(humanDist, "..");
             const modelBasePath = `file://${path.join(humanRoot, "models").replace(/\\/g, "/")}/`;
 
             const nativeFetch = globalThis.fetch;
