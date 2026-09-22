@@ -436,11 +436,15 @@ function createRequestB2cWithdrawalHandler({ admin, db, functions, now = () => D
         const profileRef = db.collection("users").doc(technicianId);
         const ledgerQuery = db.collection("transacciones").where("tecnico_id", "==", technicianId);
         const withdrawalsQuery = db.collection("retiros").where("tecnico_id", "==", technicianId);
+        // Stable per-technician guard closes the phantom-insert race between two
+        // simultaneous withdrawal requests. Historical/random withdrawal ids remain intact.
+        const guardRef = db.collection("withdrawal_guards").doc(technicianId);
         const withdrawalRef = db.collection("retiros").doc();
 
         return db.runTransaction(async transaction => {
-            const [profileSnapshot, ledgerSnapshot, withdrawalsSnapshot] = await Promise.all([
+            const [profileSnapshot, guardSnapshot, ledgerSnapshot, withdrawalsSnapshot] = await Promise.all([
                 transaction.get(profileRef),
+                transaction.get(guardRef),
                 transaction.get(ledgerQuery),
                 transaction.get(withdrawalsQuery)
             ]);
@@ -448,6 +452,20 @@ function createRequestB2cWithdrawalHandler({ admin, db, functions, now = () => D
             if (!profileSnapshot.exists || !platformContract.technicianEligibility(profile, { requireAvailable: false }).ok) {
                 throw new functions.https.HttpsError("failed-precondition", "La cuenta técnica no está habilitada para retiros.");
             }
+
+            const guardedWithdrawalId = clean(
+                guardSnapshot.exists ? guardSnapshot.data()?.pending_withdrawal_id : "",
+                180
+            );
+            if (guardedWithdrawalId) {
+                const guardedSnapshot = await transaction.get(
+                    db.collection("retiros").doc(guardedWithdrawalId)
+                );
+                if (guardedSnapshot.exists && clean(guardedSnapshot.data()?.estado, 40) === "pendiente") {
+                    throw new functions.https.HttpsError("already-exists", "Ya existe un retiro pendiente.");
+                }
+            }
+
             const withdrawals = withdrawalsSnapshot.docs.map(snapshot => snapshot.data() || {});
             if (withdrawals.some(withdrawal => clean(withdrawal.estado, 40) === "pendiente")) {
                 throw new functions.https.HttpsError("already-exists", "Ya existe un retiro pendiente.");
@@ -458,8 +476,11 @@ function createRequestB2cWithdrawalHandler({ admin, db, functions, now = () => D
                 now()
             );
             const amount = Math.round(requestedAmount * 100) / 100;
-            if (amount > Math.round(available * 100) / 100) {
-                throw new functions.https.HttpsError("failed-precondition", "El monto supera el saldo disponible.");
+            if (amount <= 0 || amount > Math.round(available * 100) / 100) {
+                throw new functions.https.HttpsError(
+                    amount <= 0 ? "invalid-argument" : "failed-precondition",
+                    amount <= 0 ? "El monto solicitado no es válido." : "El monto supera el saldo disponible."
+                );
             }
             transaction.set(withdrawalRef, {
                 tecnico_id: technicianId,
@@ -470,6 +491,11 @@ function createRequestB2cWithdrawalHandler({ admin, db, functions, now = () => D
                 authority: "solicitarRetiro",
                 contract_version: platformContract.CONTRACT_VERSION
             });
+            transaction.set(guardRef, {
+                pending_withdrawal_id: withdrawalRef.id,
+                authority: "solicitarRetiro",
+                updated_at: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
             return { ok: true, withdrawalId: withdrawalRef.id, amount };
         });
     };

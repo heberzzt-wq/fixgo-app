@@ -222,10 +222,22 @@ function createFakeDb() {
         functions: { https: { HttpsError } },
         now: () => Date.parse("2026-08-31T12:00:00Z")
     });
+    await assert.rejects(
+        withdrawalHandler({ amount: -500 }, { auth: { uid: "tech-1" } }),
+        error => error.code === "invalid-argument"
+    );
+    await assert.rejects(
+        withdrawalHandler({ amount: 0 }, { auth: { uid: "tech-1" } }),
+        error => error.code === "invalid-argument"
+    );
     const withdrawal = await withdrawalHandler({ amount: 500 }, { auth: { uid: "tech-1" } });
     assert.equal(withdrawal.ok, true);
     assert.equal(withdrawal.amount, 500);
     assert.equal(withdrawalDb.data.get(`retiros/${withdrawal.withdrawalId}`).estado, "pendiente");
+    assert.equal(
+        withdrawalDb.data.get("withdrawal_guards/tech-1").pending_withdrawal_id,
+        withdrawal.withdrawalId
+    );
     await assert.rejects(
         withdrawalHandler({ amount: 1 }, { auth: { uid: "tech-1" } }),
         error => error.code === "already-exists"

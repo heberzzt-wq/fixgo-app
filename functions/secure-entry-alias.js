@@ -15,6 +15,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { GoogleGenAI, GenerateVideosOperation } = require("@google/genai");
 const secureExports = require("./secure-entry.js");
+const { createLegacySecurityHotfix } = require("./legacy-security-hotfix.js");
 const {
     classifyCompletedVideoOperation
 } = require("./jarvis-video-operation-contract.js");
@@ -665,8 +666,14 @@ const jarvisVideoGenerate = functions
         }
     });
 
+const legacySecurityHotfix = createLegacySecurityHotfix({
+    functions,
+    canonicalExports: secureExports
+});
+
 module.exports = {
     ...secureExports,
+    ...legacySecurityHotfix,
     stripewebhook: stripeWebhookProxy,
     jarvisVideoGenerate
 };

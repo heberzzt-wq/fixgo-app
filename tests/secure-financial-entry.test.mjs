@@ -16,7 +16,7 @@ test('Firebase package loads the secure financial exports while preserving platf
     assert.equal(entry.onServiceCompleted, secure.onServiceCompleted);
     assert.notEqual(entry.api, legacy.api);
     assert.notEqual(entry.onServiceCompleted, legacy.onServiceCompleted);
-    for (const name of ['reconciliarLiquidacionB2C','approveB2cTechnician','completeB2bService','submitB2bPersonnelKyc','reviewB2bPersonnelKyc','jarvisSemanticPlan','jarvisVideoGenerate']) {
+    for (const name of ['reconciliarLiquidacionB2C','approveB2cTechnician','completeB2bService','submitB2bPersonnelKyc','reviewB2bPersonnelKyc','jarvisSemanticPlan','jarvisVideoGenerate','requestPayout','generarModulo','procesarCierreServicio']) {
         assert.equal(typeof entry[name], 'function', name);
     }
 });
@@ -62,4 +62,40 @@ test('financial retry is exposed through the canonical Firebase client to the ad
     const panel = fs.readFileSync(new URL('../panel-admin.js',import.meta.url),'utf8');
     assert.match(client,/httpsCallable\(cloudFunctions, "reconciliarLiquidacionB2C"\)/);
     assert.match(panel,/await reconciliarLiquidacionB2C\(\{ serviceId: service.id, reason: reason.trim\(\) \}\)/);
+});
+
+
+test('legacy payout name is the canonical withdrawal and rejects negative amounts before data access', async () => {
+    assert.equal(entry.requestPayout, entry.solicitarRetiro);
+    await assert.rejects(
+        entry.requestPayout.run({ amount: -1 }, { auth: { uid: 'legacy-tech' } }),
+        error => error.code === 'invalid-argument'
+    );
+});
+
+test('legacy public generator is retired without provider execution', async () => {
+    const server = http.createServer(entry.generarModulo);
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+        const response = await fetch(`http://127.0.0.1:${server.address().port}/`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: '{}'
+        });
+        assert.equal(response.status, 410);
+        assert.equal((await response.json()).error, 'LEGACY_GENERATOR_RETIRED');
+    } finally {
+        await new Promise(resolve => server.close(resolve));
+    }
+});
+
+test('legacy close name cannot return fictitious success', async () => {
+    if (typeof entry.completeB2cService === 'function') {
+        assert.equal(entry.procesarCierreServicio, entry.completeB2cService);
+        return;
+    }
+    await assert.rejects(
+        entry.procesarCierreServicio.run({}, { auth: { uid: 'legacy-tech' } }),
+        error => error.code === 'failed-precondition'
+    );
 });
