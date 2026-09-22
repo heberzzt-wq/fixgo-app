@@ -43,6 +43,13 @@ test("users no permite lectura indiscriminada ni autoaprobación", () => {
     assert.match(usersBlock, /userAuthorityFieldsUnchanged\(\)/);
     assert.match(firestore, /aprobado_por/);
     assert.match(firestore, /request\.resource\.data\.estado == 'pendiente_revision'/);
+    assert.match(firestore, /function technicianIdentityIsComplete\(data\)/);
+    assert.match(firestore, /identity_required/);
+    assert.match(firestore, /identity_verified/);
+    assert.match(firestore, /ine_reverso/);
+    assert.match(firestore, /selfie_liveness_left/);
+    assert.match(firestore, /selfie_liveness_right/);
+    assert.match(firestore, /identity_verification_method/);
 });
 
 test("services reserva la creación B2C al backend y conserva B2B", () => {
