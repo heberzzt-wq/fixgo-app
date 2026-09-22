@@ -24,6 +24,7 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 const legacyExports = require("./index.js");
+const { createLegacySecurityExports } = require("./legacy-security-hotfix");
 const financialPolicy = require("./b2c-financial-policy");
 const platformContract = require("./b2c-platform-contract");
 const {
@@ -584,6 +585,7 @@ const reconcileSettlement = createB2CServiceReconciliationHandler({
 
 module.exports = {
     ...legacyExports,
+    ...createLegacySecurityExports({ functions, admin, requestWithdrawal: legacyExports.solicitarRetiro }),
     api: functions.https.onRequest(secureApi),
     onServiceCompleted: secureOnServiceCompleted,
     reconciliarLiquidacionB2C: functions.https.onCall(async (data, context) => {

@@ -222,12 +222,12 @@ function createFakeDb() {
         functions: { https: { HttpsError } },
         now: () => Date.parse("2026-08-31T12:00:00Z")
     });
-    const withdrawal = await withdrawalHandler({ amount: 500 }, { auth: { uid: "tech-1" } });
+    const withdrawal = await withdrawalHandler({ amount: 500, requestId: "withdrawal-test-500" }, { auth: { uid: "tech-1" } });
     assert.equal(withdrawal.ok, true);
     assert.equal(withdrawal.amount, 500);
     assert.equal(withdrawalDb.data.get(`retiros/${withdrawal.withdrawalId}`).estado, "pendiente");
     await assert.rejects(
-        withdrawalHandler({ amount: 1 }, { auth: { uid: "tech-1" } }),
+        withdrawalHandler({ amount: 1, requestId: "withdrawal-test-001" }, { auth: { uid: "tech-1" } }),
         error => error.code === "already-exists"
     );
     assert.equal([...withdrawalDb.data.keys()].some(path => path.startsWith("tecnicos/")), false);

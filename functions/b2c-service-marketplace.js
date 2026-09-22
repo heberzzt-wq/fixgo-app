@@ -429,24 +429,38 @@ function createRequestB2cWithdrawalHandler({ admin, db, functions, now = () => D
             throw new functions.https.HttpsError("unauthenticated", "Se requiere una sesión técnica.");
         }
         const requestedAmount = Number(data?.amount);
-        if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
+        if (typeof data?.amount !== "number" || !Number.isFinite(requestedAmount) || Math.round(requestedAmount * 100) <= 0 || !Number.isSafeInteger(Math.round(requestedAmount * 100))) {
             throw new functions.https.HttpsError("invalid-argument", "El monto solicitado no es válido.");
         }
+        const requestId = data?.requestId;
+        if (typeof requestId !== "string" || !/^[A-Za-z0-9_-]{8,128}$/.test(requestId)) {
+            throw new functions.https.HttpsError("invalid-argument", "Se requiere requestId estable para reintentos seguros.");
+        }
+        const amount = Math.round(requestedAmount * 100) / 100;
 
         const profileRef = db.collection("users").doc(technicianId);
         const ledgerQuery = db.collection("transacciones").where("tecnico_id", "==", technicianId);
         const withdrawalsQuery = db.collection("retiros").where("tecnico_id", "==", technicianId);
-        const withdrawalRef = db.collection("retiros").doc();
+        const withdrawalId = `withdrawal_${crypto.createHash("sha256").update(`${technicianId}\0${requestId}`).digest("hex")}`;
+        const withdrawalRef = db.collection("retiros").doc(withdrawalId);
 
         return db.runTransaction(async transaction => {
-            const [profileSnapshot, ledgerSnapshot, withdrawalsSnapshot] = await Promise.all([
+            const [profileSnapshot, ledgerSnapshot, withdrawalsSnapshot, existingWithdrawal] = await Promise.all([
                 transaction.get(profileRef),
                 transaction.get(ledgerQuery),
-                transaction.get(withdrawalsQuery)
+                transaction.get(withdrawalsQuery),
+                transaction.get(withdrawalRef)
             ]);
             const profile = profileSnapshot.exists ? profileSnapshot.data() || {} : {};
             if (!profileSnapshot.exists || !platformContract.technicianEligibility(profile, { requireAvailable: false }).ok) {
                 throw new functions.https.HttpsError("failed-precondition", "La cuenta técnica no está habilitada para retiros.");
+            }
+            if (existingWithdrawal.exists) {
+                const existing = existingWithdrawal.data();
+                if (existing.tecnico_id !== technicianId || existing.monto !== amount) {
+                    throw new functions.https.HttpsError("invalid-argument", "requestId ya pertenece a otro importe.");
+                }
+                return { ok: true, withdrawalId, amount, replay: true };
             }
             const withdrawals = withdrawalsSnapshot.docs.map(snapshot => snapshot.data() || {});
             if (withdrawals.some(withdrawal => clean(withdrawal.estado, 40) === "pendiente")) {
@@ -457,7 +471,6 @@ function createRequestB2cWithdrawalHandler({ admin, db, functions, now = () => D
                 withdrawals,
                 now()
             );
-            const amount = Math.round(requestedAmount * 100) / 100;
             if (amount > Math.round(available * 100) / 100) {
                 throw new functions.https.HttpsError("failed-precondition", "El monto supera el saldo disponible.");
             }
