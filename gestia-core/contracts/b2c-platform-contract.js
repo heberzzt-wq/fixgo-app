@@ -14,7 +14,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function createContract() {
     "use strict";
 
-    const CONTRACT_VERSION = "b2c-platform-contract-v2";
+    const CONTRACT_VERSION = "b2c-platform-contract-v3-identity";
     const EVENT_MARKETPLACE_SERVICE_AVAILABLE = "marketplace_service_available";
     const B2C_SKILL_VERTICALS = Object.freeze(["fix", "road", "tech"]);
     const SERVICE_VERTICAL_LABELS = Object.freeze({
@@ -244,6 +244,9 @@
             },
             documentos: {
                 ine: raw.documentos?.ine ?? raw.ine ?? raw.ine_url ?? raw.identificacion ?? null,
+                ine_reverso: raw.documentos?.ine_reverso ?? null,
+                selfie_liveness_left: raw.documentos?.selfie_liveness_left ?? null,
+                selfie_liveness_right: raw.documentos?.selfie_liveness_right ?? null,
                 csf: raw.documentos?.csf ?? raw.csf ?? raw.csf_url ?? raw.constancia ?? null,
                 licencia: raw.documentos?.licencia ?? raw.licencia ?? null,
                 certificados: canonicalCertificates.length > 0
@@ -281,9 +284,15 @@
     function technicianKycRequirements(raw = {}) {
         const profile = normalizeTechnicianProfile(raw);
         const pedestrian = profile.vehiculo.tipo === "peaton";
+        const identityRequired = profile.kyc?.identity_required === true;
         const required = {
             foto_perfil: isDocumentReference(profile.foto_perfil),
             ine: isDocumentReference(profile.documentos.ine),
+            ...(identityRequired ? {
+                ine_reverso: isDocumentReference(profile.documentos.ine_reverso),
+                selfie_liveness_left: isDocumentReference(profile.documentos.selfie_liveness_left),
+                selfie_liveness_right: isDocumentReference(profile.documentos.selfie_liveness_right)
+            } : {}),
             csf: isDocumentReference(profile.documentos.csf),
             banco: Boolean(profile.datos_bancarios.banco),
             clabe: /^\d{18}$/.test(profile.datos_bancarios.clabe),
@@ -300,6 +309,8 @@
             required,
             missing,
             complete: missing.length === 0,
+            identityRequired,
+            identityVerified: profile.kyc?.identity_verified === true,
             certificatesOptional: true
         };
     }
@@ -309,6 +320,9 @@
         const profile = result.profile;
         if (profile.rol !== "tecnico") return { ok: false, reason: "TECHNICIAN_ROLE_REQUIRED", profile };
         if (!result.complete) return { ok: false, reason: "KYC_INCOMPLETE", missing: result.missing, profile };
+        if (profile.kyc?.identity_required === true && profile.kyc?.identity_verified !== true) {
+            return { ok: false, reason: "IDENTITY_VERIFICATION_REQUIRED", profile };
+        }
         if (profile.suspendido) return { ok: false, reason: "TECHNICIAN_SUSPENDED", profile };
         if (new Set([profile.estado, profile.status, profile.kyc.estado]).size !== 1) return { ok: false, reason: "TECHNICIAN_STATE_CONFLICT", profile };
         if (profile.estado !== TECHNICIAN_STATES.ACTIVE || profile.status !== TECHNICIAN_STATES.ACTIVE || profile.kyc.aprobado !== true) {
