@@ -243,6 +243,35 @@ test("binding de cierre sólo lo puede sellar el técnico asignado con evidencia
     }));
 });
 
+test("Storage permite primer alta KYC propia sin depender de perfil Firestore y bloquea overwrite", async () => {
+    const ownerStorage = environment.authenticatedContext("fresh-kyc-owner", {
+        email: "fresh-kyc-owner@example.test"
+    }).storage();
+    const foreignStorage = environment.authenticatedContext("fresh-kyc-foreign", {
+        email: "fresh-kyc-foreign@example.test"
+    }).storage();
+    const payload = new Uint8Array([255, 216, 255, 224, 0, 16, 74, 70, 73, 70]);
+
+    const canonical = ref(ownerStorage, "expedientes/fresh-kyc-owner/foto_perfil/current.jpg");
+    await assertSucceeds(uploadBytes(canonical, payload, { contentType: "image/jpeg" }));
+    await assertFails(uploadBytes(canonical, payload, { contentType: "image/jpeg" }));
+    await assertFails(uploadBytes(
+        ref(foreignStorage, "expedientes/fresh-kyc-owner/ine/current.jpg"),
+        payload,
+        { contentType: "image/jpeg" }
+    ));
+    await assertFails(uploadBytes(
+        ref(ownerStorage, "expedientes/fresh-kyc-owner/otro/current.jpg"),
+        payload,
+        { contentType: "image/jpeg" }
+    ));
+    await assertFails(uploadBytes(
+        ref(ownerStorage, "expedientes/fresh-kyc-owner/ine/not-current.jpg"),
+        payload,
+        { contentType: "image/jpeg" }
+    ));
+});
+
 test("Storage permite expediente propio válido y niega expediente ajeno", async () => {
     await environment.withSecurityRulesDisabled(async ctx => setDoc(doc(ctx.firestore(),"users/kyc-upload"), {...operationalTechnician,status:"documentos_pendientes",estado:"documentos_pendientes",kyc:{aprobado:false}}));
     const ownStorage = environment.authenticatedContext("kyc-upload").storage();

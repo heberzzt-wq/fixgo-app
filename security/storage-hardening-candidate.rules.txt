@@ -150,6 +150,200 @@ service firebase.storage {
       ];
     }
 
+    // Primer alta KYC B2C: no depende de lectura cruzada de Firestore.
+    // Sólo el dueño autenticado puede crear los slots canónicos `current.*`.
+    // La sustitución posterior permanece gobernada por el match general y el estado del perfil.
+    match /expedientes/{uid}/{kind}/{fileName} {
+      allow create: if resource == null &&
+        signedIn() &&
+        request.auth.uid == uid &&
+        request.auth.token.get('email', '') != '' &&
+        kind in [
+          'foto_perfil',
+          'ine',
+          'ine_reverso',
+          'selfie_liveness_left',
+          'selfie_liveness_right',
+          'csf',
+          'licencia'
+        ] &&
+        fileName.matches('^current\\.(jpg|jpeg|png|webp|heic|heif|pdf)       allow read: if authorizedAdmin() || b2bKycReviewer(uid) ||
+        (signedIn() && request.auth.uid == uid);
+
+      allow create: if resource == null && (authorizedAdmin() || (signedIn() && request.auth.uid == uid &&
+        (userProfile().get('status', '') in ['registro_iniciado', 'documentos_pendientes', 'rechazado', 'identidad_pendiente', 'identidad_revision'] &&
+           userProfile().get('suspendido', false) != true)
+      )) && validDocument(10 * 1024 * 1024);
+
+      allow update: if (authorizedAdmin() || (signedIn() && request.auth.uid == uid &&
+        userProfile().get('tipo_cuenta', '') != 'B2B' &&
+        userProfile().get('status', '') in ['registro_iniciado', 'documentos_pendientes', 'rechazado', 'identidad_pendiente', 'identidad_revision'] &&
+        userProfile().get('suspendido', false) != true
+      )) && validDocument(10 * 1024 * 1024);
+
+       allow delete: if authorizedAdmin();
+    }
+
+    // Compatibilidad con la ruta plana vigente del formulario cliente.
+    match /solicitudes_iniciales/{fileName} {
+      allow read: if authorizedAdmin() ||
+        (signedIn() && fileName.matches(request.auth.uid + "_.*"));
+
+      allow create: if signedIn() &&
+        fileName.matches(request.auth.uid + "_.*") &&
+        validLegacyImage(10 * 1024 * 1024);
+
+      allow update: if false;
+      allow delete: if authorizedAdmin();
+    }
+
+    // Foto inicial de nuevas solicitudes: propietario al reservar y partes del folio al leer.
+    match /service_initial/{serviceId}/{customerId}/problem/{fileName} {
+      allow read: if authorizedAdmin() || serviceParty(serviceId);
+
+      allow create: if signedIn() &&
+        customerId == request.auth.uid &&
+        validLegacyImage(10 * 1024 * 1024);
+
+      allow update: if false;
+      allow delete: if authorizedAdmin() || owningCustomer(serviceId);
+    }
+
+    // Evidencia de cierre B2C legacy y firma económica.
+    match /servicios/{serviceId}/{fileName} {
+      allow read: if serviceParty(serviceId);
+
+      allow create: if resource == null && (
+        masterAdmin() || assignedTechnician(serviceId)
+      ) && (
+        (
+          fileName.matches("customer_signature_.*\\.png") &&
+          validImage(512 * 1024) &&
+          request.resource.metadata.serviceId == serviceId &&
+          request.resource.metadata.actorUid == request.auth.uid &&
+          request.resource.metadata.actorRole == "tecnico" &&
+          request.resource.metadata.eventType == "customer_signature" &&
+          request.resource.metadata.base64Persisted == "false"
+        ) ||
+        (
+          !fileName.matches("customer_signature_.*\\.png") &&
+          validImage(10 * 1024 * 1024)
+        )
+      );
+
+      allow update: if false;
+      allow delete: if masterAdmin();
+    }
+
+    // Evidencia B2C sellada del técnico: 2 MB foto, 6 MB video.
+    match /b2c_evidence/{serviceId}/{actorUid}/{eventType}/{fileName} {
+      allow read: if serviceParty(serviceId);
+
+      allow create: if resource == null && assignedTechnician(serviceId) &&
+        actorUid == request.auth.uid &&
+        request.resource.metadata.actorUid == request.auth.uid &&
+        request.resource.metadata.actorRole == "tecnico" &&
+        request.resource.metadata.serviceId == serviceId &&
+        request.resource.metadata.eventType == eventType &&
+        (
+          (technicianPhotoEvent(eventType) && validImage(2 * 1024 * 1024)) ||
+          (technicianVideoEvent(eventType) && validVideo(6 * 1024 * 1024))
+        );
+
+      allow update: if false;
+      allow delete: if masterAdmin();
+    }
+
+    // Disputa del cliente confinada al mismo folio: máximo 2 MB.
+    match /b2c_customer_evidence/{serviceId}/{customerId}/arrival_dispute/{fileName} {
+      allow read: if serviceParty(serviceId);
+
+      allow create: if owningCustomer(serviceId) &&
+        customerId == request.auth.uid &&
+        validImage(2 * 1024 * 1024) &&
+        request.resource.metadata.actorUid == request.auth.uid &&
+        request.resource.metadata.actorRole == "cliente" &&
+        request.resource.metadata.serviceId == serviceId &&
+        request.resource.metadata.eventType == "customer_arrival_dispute" &&
+        request.resource.metadata.dedupScope == "service_only" &&
+        request.resource.metadata.dedupBackendPending == "true";
+
+      allow update: if false;
+      allow delete: if masterAdmin();
+    }
+
+    // Fotografías de reportes B2B del inquilino. Mantiene 10 MB por compatibilidad.
+    match /edificios/{edificioId}/reportes/{fileName} {
+      allow read: if masterAdmin() || sameTenant(edificioId);
+
+      allow create: if sameTenant(edificioId) &&
+        validLegacyImage(10 * 1024 * 1024);
+
+      allow update: if false;
+      allow delete: if masterAdmin();
+    }
+
+    // Antes/después B2B, incluyendo reintentos offline. Pendiente compresor B2B propio.
+    match /evidencias/{orderId}/{fileName} {
+      allow read: if masterAdmin() || sameB2BOrderTenant(orderId);
+
+      allow create: if b2bTechnicianForOrder(orderId) &&
+        fileName.matches("(antes|despues)_[0-9]+\\.jpg") &&
+        validImage(10 * 1024 * 1024);
+
+      allow update: if false;
+      allow delete: if masterAdmin();
+    }
+
+    // Firma de conformidad B2B vigente: un PNG estable por orden.
+    match /firmas/{orderId}/{fileName} {
+      allow read: if authorizedAdmin() || sameB2BOrderTenant(orderId);
+
+      allow create, update: if b2bTechnicianForOrder(orderId) &&
+        b2bOrderData(orderId).get('status', '') == 'en_proceso' &&
+        fileName == "conformidad.png" &&
+        validImage(512 * 1024);
+
+      allow delete: if authorizedAdmin();
+    }
+
+    // Avatar operativo B2B. El técnico sólo administra su propia imagen.
+    match /perfiles_tecnicos/{fileName} {
+      allow read: if authorizedAdmin() ||
+        (signedIn() && fileName == request.auth.uid + ".jpg");
+
+      allow create, update: if signedIn() &&
+        fileName == request.auth.uid + ".jpg" &&
+        userProfile().get('rol', '') in ["tecnico", "tecnico_gp", "tecnico_interno"] &&
+        validLegacyImage(10 * 1024 * 1024);
+
+      allow delete: if authorizedAdmin() ||
+        (signedIn() && fileName == request.auth.uid + ".jpg");
+    }
+
+    // Pase digital que genera el panel B2B para compartir por vínculo tokenizado.
+    match /pases_digitales/{edificioId}/{fileName} {
+      allow read: if b2bManagerForTenant(edificioId);
+
+      allow create, update: if b2bManagerForTenant(edificioId) &&
+        request.resource != null &&
+        request.resource.size > 0 &&
+        request.resource.size <= 512 * 1024 &&
+        request.resource.contentType == "text/html";
+
+      allow delete: if b2bManagerForTenant(edificioId);
+    }
+
+    // Cualquier ruta no inventariada queda denegada.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+) &&
+        validDocument(10 * 1024 * 1024);
+    }
+
     // Expedientes KYC/identidad B2C. Mantiene 10 MB por compatibilidad legacy.
     match /expedientes/{uid}/{filePath=**} {
        allow read: if authorizedAdmin() || b2bKycReviewer(uid) ||
