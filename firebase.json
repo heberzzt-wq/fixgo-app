@@ -76,7 +76,12 @@
         "firebase-adminsdk-*.json",
         "google-services.json",
         "GoogleService-Info.plist",
-        "*.md"
+        "*.md",
+        "firebase.release.json",
+        ".firebase-release-*.json",
+        "security/**",
+        "scripts/**",
+        "docs/**"
       ],
       "cleanUrls": false,
       "trailingSlash": false,

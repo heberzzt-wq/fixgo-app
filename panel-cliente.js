@@ -11,6 +11,7 @@
 
 import {
     db,
+    auth,
     storage, 
     doc,
     updateDoc,
@@ -33,7 +34,7 @@ import { runTransaction, limit } from "https://www.gstatic.com/firebasejs/10.8.0
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
 // Sistema Nervioso Compartido
-import { escaparHTML, cargarLibreriaPDF, urlABase64, sonarAlerta, lanzarNotificacionPush } from "./app-utils.js";
+import { escaparHTML, urlHttpsParaHTML, cargarLibreriaPDF, urlABase64, sonarAlerta, lanzarNotificacionPush } from "./app-utils.js";
 
 // Sistema Facility Management (B2B)
 import { iniciarSelectorB2B, obtenerMetadatosB2B } from "./modulo-b2b.js";
@@ -44,6 +45,7 @@ import {
     getConfirmedServiceDestination
 } from "./b2c-destination.js";
 import "./gestia-core/contracts/b2c-platform-contract.js";
+import { reserveB2cRequest, completeB2cRequest, assertB2cRequestActor } from './b2c-request-recovery.js';
 
 const platformContract = globalThis.GestiaB2CPlatformContract;
 if (!platformContract) throw new Error("B2C_PLATFORM_CONTRACT_UNAVAILABLE");
@@ -451,7 +453,26 @@ export async function iniciarPanelCliente(user) {
                     }
                 }
 
-                const serviceRef = doc(collection(db, "services"));
+                let recoveryReceipt = null;
+                let serviceRef;
+                try {
+                    assertB2cRequestActor(user.uid, auth.currentUser?.uid);
+                    if (metodoSeleccionado !== 'b2b') {
+                        recoveryReceipt = await reserveB2cRequest({
+                            uid: user.uid,
+                            payload: { categoriaFull, direccion, descripcion, destino, reqFac, datosFac, flagUrgencia, linkManualText, flagPrivada,
+                                metodoSeleccionado, foto: archivoFoto ? { size: archivoFoto.size, type: archivoFoto.type, modified: archivoFoto.lastModified } : null },
+                            newId: () => doc(collection(db, 'services')).id
+                        });
+                    }
+                    serviceRef = recoveryReceipt ? doc(db, 'services', recoveryReceipt.serviceId) : doc(collection(db, 'services'));
+                } catch (error) {
+                    alert('No se pudo preparar una solicitud recuperable. Comprueba tu sesión y el almacenamiento del navegador.');
+                    btn.disabled = false;
+                    btn.innerHTML = textoOriginal;
+                    isSubmitting = false;
+                    return;
+                }
                 let urlFotoDescargada = null;
                 let fotoUploadEstado = archivoFoto ? "pendiente" : "no_proporcionada";
                 if (archivoFoto && storage) {
@@ -514,6 +535,7 @@ if (metodoSeleccionado === "b2b") {
                     if (metodoSeleccionado === "b2b") {
                         await setDoc(serviceRef, { ...payloadTicket, tipo: "mantenimiento" });
                     } else {
+                        assertB2cRequestActor(user.uid, auth.currentUser?.uid);
                         await crearServicioB2C({
                             serviceId: serviceRef.id,
                             ...payloadTicket,
@@ -523,6 +545,7 @@ if (metodoSeleccionado === "b2b") {
                             },
                             created_at: null
                         });
+                        completeB2cRequest(recoveryReceipt);
                     }
                     const docRef = serviceRef;
 
@@ -558,7 +581,7 @@ if (metodoSeleccionado === "b2b") {
                         alert("✅ ¡SOLICITUD B2B CONFIRMADA!\n\nTu servicio ha sido registrado con cargo a tu contrato. El saldo se descontará de tu bolsa virtual al finalizar el trabajo.");
                     } else {
                         if(flagUrgencia) {
-                            alert(" 🚨 ¡DESPLIEGUE PRIORITARIO ACTIVADO!\n\nNuestras unidades están en camino. Recuerda que la cotización final incluirá la tarifa de contingencia por atención express 24/7.");
+                            alert("Solicitud urgente registrada. Estamos buscando un técnico disponible; todavía no hay una unidad asignada. Revisa y acepta la cotización antes de iniciar el trabajo.");
                         } else {
                             alert(" ✅ ¡Solicitud Confirmada!\n\nEl pago se realizará en EFECTIVO directamente al técnico.\nNuestro sistema está buscando a la unidad más cercana...");
                         }
@@ -670,9 +693,9 @@ if (metodoSeleccionado === "b2b") {
                 if (s.detalles_cotizacion && s.detalles_cotizacion.length > 0) {
                     const filas = s.detalles_cotizacion.map(item => `
                     <tr>
-                        <td>${item.cantidad} ${escaparHTML(item.unidad)}</td>
+                        <td>${escaparHTML(item.cantidad)} ${escaparHTML(item.unidad)}</td>
                         <td>${escaparHTML(item.descripcion)}</td>
-                        <td class="quote-num">$${item.precio}</td>
+                        <td class="quote-num">$${escaparHTML(item.precio)}</td>
                         <td class="quote-num text-white">$${(item.cantidad * item.precio).toFixed(2)}</td>
                     </tr>
                     `).join('');
@@ -699,7 +722,7 @@ if (metodoSeleccionado === "b2b") {
                     </div>
                     `;
                 } else {
-                    htmlTabla = `<p class="text-white text-2xl font-black mt-1">$${s.costo_final || 0}</p>`;
+                    htmlTabla = `<p class="text-white text-2xl font-black mt-1">$${escaparHTML(s.costo_final || 0)}</p>`;
                 }
 
                 const reporteDiagnosticoHTML = s.diagnostico ? `
@@ -710,11 +733,11 @@ if (metodoSeleccionado === "b2b") {
                 ` : '';
 
                 let textoCobroCotizacion = s.metodo_pago === 'stripe'
-                    ? `<p class="legal-note mt-2 text-blue-400 font-bold"><i class="fas fa-credit-card"></i> El saldo final será cobrado automáticamente a tu tarjeta vía STRIPE.</p>`
+                    ? `<p class="legal-note mt-2 text-blue-400 font-bold"><i class="fas fa-credit-card"></i> Completa el pago del saldo mediante Stripe antes de comenzar el trabajo.</p>`
                     : `<p class="legal-note mt-2 text-emerald-500 font-bold"><i class="fas fa-hand-holding-usd"></i> Pago en EFECTIVO directo al técnico al finalizar.</p>`;
 
-                let saldoPendiente = (s.costo_final || 0) - (s.retencion_inicial || 0);
-                if (saldoPendiente < 0) saldoPendiente = 0;
+                let saldoPendiente = (Number(s.costo_final) || 0) - (Number(s.monto_pagado) || 0);
+                if (!Number.isFinite(saldoPendiente) || saldoPendiente < 0) saldoPendiente = 0;
 
                 let btnAprobarHTML = "";
                 if (s.metodo_pago === 'stripe' && saldoPendiente > 0) {
@@ -754,8 +777,8 @@ if (metodoSeleccionado === "b2b") {
                 if (s.desglose) {
                     subtotalHtml = `
                     <div class="text-[10px] text-gray-400 font-mono mb-2 space-y-1">
-                        <div class="flex justify-between"><span>Subtotal:</span> <span>$${s.desglose.subtotal}</span></div>
-                        <div class="flex justify-between"><span>IVA (16%):</span> <span>$${s.desglose.iva}</span></div>
+                        <div class="flex justify-between"><span>Subtotal:</span> <span>$${escaparHTML(s.desglose.subtotal)}</span></div>
+                        <div class="flex justify-between"><span>IVA (16%):</span> <span>$${escaparHTML(s.desglose.iva)}</span></div>
                     </div>`;
                 }
 
@@ -768,23 +791,23 @@ if (metodoSeleccionado === "b2b") {
                     <div class="mb-4 bg-black/40 p-3 rounded-lg border border-white/5">
                         ${subtotalHtml}
                         <div class="flex justify-between text-lg text-emerald-400 font-black border-t border-white/10 pt-2 mt-1">
-                            <span>TOTAL PAGADO:</span>
+                            <span>TOTAL DEL SERVICIO:</span>
                             <span>$${(s.costo_final || 0).toFixed(2)}</span>
                         </div>
                     </div>
                     <p class="text-[9px] text-gray-500 mb-2 font-bold uppercase">EVIDENCIA FOTOGRÁFICA (Cloud):</p>
                     <div class="grid grid-cols-4 gap-1 mb-4">
-                        ${f_a1 ? `<div class="relative h-16"><img src="${f_a1}" class="w-full h-full object-cover rounded border border-zinc-700"></div>` : ''}
-                        ${f_a2 ? `<div class="relative h-16"><img src="${f_a2}" class="w-full h-full object-cover rounded border border-zinc-700"></div>` : ''}
-                        ${f_d1 ? `<div class="relative h-16"><img src="${f_d1}" class="w-full h-full object-cover rounded border border-zinc-700"></div>` : ''}
-                        ${f_d2 ? `<div class="relative h-16"><img src="${f_d2}" class="w-full h-full object-cover rounded border border-zinc-700"></div>` : ''}
+                        ${urlHttpsParaHTML(f_a1) ? `<div class="relative h-16"><img src="${urlHttpsParaHTML(f_a1)}" class="w-full h-full object-cover rounded border border-zinc-700"></div>` : ''}
+                        ${urlHttpsParaHTML(f_a2) ? `<div class="relative h-16"><img src="${urlHttpsParaHTML(f_a2)}" class="w-full h-full object-cover rounded border border-zinc-700"></div>` : ''}
+                        ${urlHttpsParaHTML(f_d1) ? `<div class="relative h-16"><img src="${urlHttpsParaHTML(f_d1)}" class="w-full h-full object-cover rounded border border-zinc-700"></div>` : ''}
+                        ${urlHttpsParaHTML(f_d2) ? `<div class="relative h-16"><img src="${urlHttpsParaHTML(f_d2)}" class="w-full h-full object-cover rounded border border-zinc-700"></div>` : ''}
                     </div>
                     
                     <button onclick="window.generarPDF('${id}')" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-3 rounded-lg font-bold border border-white/10 transition-all flex items-center justify-center gap-2 shadow-lg mb-3">
                         <i class="fas fa-file-download text-red-500"></i> DESCARGAR REPORTE OFICIAL
                     </button>
                     
-                    <button onclick="window.abrirModalGarantia('${id}', '${s.tecnico_id}')" class="w-full bg-black border border-orange-500 hover:bg-orange-900/40 text-orange-500 text-xs py-3 rounded-lg font-bold transition-all flex items-center justify-center gap-2 shadow-[0_0_10px_rgba(249,115,22,0.2)]">
+                    <button onclick="window.abrirModalGarantia('${id}', ${escaparHTML(JSON.stringify(String(s.tecnico_id || "")))})" class="w-full bg-black border border-orange-500 hover:bg-orange-900/40 text-orange-500 text-xs py-3 rounded-lg font-bold transition-all flex items-center justify-center gap-2 shadow-[0_0_10px_rgba(249,115,22,0.2)]">
                         <i class="fas fa-shield-alt"></i> SOLICITAR GARANTÍA / REPORTAR FALLA
                     </button>
 
@@ -796,7 +819,7 @@ if (metodoSeleccionado === "b2b") {
             let headerStatus = `<span class="text-[10px] font-bold text-yellow-500 animate-pulse">BUSCANDO...</span>`;
             let dotColor = "bg-yellow-500";
             if (s.estado !== "pendiente") {
-                headerStatus = `<span class="text-[10px] font-bold text-blue-400 uppercase">${s.estado.replace('_', ' ')}</span>`;
+                headerStatus = `<span class="text-[10px] font-bold text-blue-400 uppercase">${escaparHTML(String(s.estado || '').replace('_', ' '))}</span>`;
                 dotColor = "bg-blue-500";
                 if(s.estado === "finalizado") { headerStatus = `<span class="text-[10px] font-bold text-emerald-500">FINALIZADO</span>`; dotColor = "bg-emerald-500"; }
                 if(s.estado === "cancelado") { headerStatus = `<span class="text-[10px] font-bold text-red-500">CANCELADO</span>`; dotColor = "bg-red-500"; }
@@ -812,10 +835,10 @@ if (metodoSeleccionado === "b2b") {
 
             const badgeUrgencia = s.urgencia ? `<span class="bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-[0_0_8px_rgba(220,38,38,0.8)] uppercase ml-2"><i class="fas fa-fire"></i> EMERGENCIA</span>` : '';
 
-            const imgInicialHTML = s.foto_problema ? `
+            const imgInicialHTML = urlHttpsParaHTML(s.foto_problema) ? `
             <div class="mt-3 mb-3 p-2 bg-black/50 border border-zinc-800 rounded-xl">
                 <p class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-2"><i class="fas fa-camera"></i> Foto del Problema:</p>
-                <img src="${s.foto_problema}" class="w-full h-32 object-cover rounded-lg border border-zinc-700">
+                <img src="${urlHttpsParaHTML(s.foto_problema)}" class="w-full h-32 object-cover rounded-lg border border-zinc-700">
             </div>` : '';
 
           // 🔥 LOGÍSTICA PARA CASETA (EDICIÓN CANCÚN - SIN QR INTERNO) 🔥
@@ -838,18 +861,18 @@ if (metodoSeleccionado === "b2b") {
                         <div class="grid grid-cols-2 gap-3 mb-3">
                             <div class="bg-black/60 p-3 rounded-lg border border-zinc-800">
                                 <p class="text-[8px] text-gray-500 uppercase font-bold mb-1">Vehículo / Modelo</p>
-                                <p class="text-xs text-white font-bold uppercase truncate">${techVehiculo}</p>
+                                <p class="text-xs text-white font-bold uppercase truncate">${escaparHTML(techVehiculo)}</p>
                             </div>
                             <div class="bg-black/60 p-3 rounded-lg border border-zinc-800 relative cursor-pointer active:scale-95 transition-transform" 
-                                 onclick="navigator.clipboard.writeText('${techPlacas}'); alert('Placas copiadas: ${techPlacas}');">
+                                 onclick="navigator.clipboard.writeText(${escaparHTML(JSON.stringify(String(techPlacas)))}); alert(${escaparHTML(JSON.stringify("Placas copiadas: " + techPlacas))});">
                                 <p class="text-[8px] text-gray-500 uppercase font-bold mb-1">Placas (Toca p/ copiar)</p>
-                                <p class="text-xs text-emerald-400 font-mono font-black">${techPlacas.toUpperCase()}</p>
+                                <p class="text-xs text-emerald-400 font-mono font-black">${escaparHTML(String(techPlacas).toUpperCase())}</p>
                                 <i class="fas fa-copy absolute right-2 top-2 text-[8px] text-zinc-600"></i>
                             </div>
                         </div>
                         
                         <div class="bg-zinc-900 p-2 rounded-lg text-center border border-zinc-800/50">
-                            <p class="text-[9px] text-gray-400 font-bold uppercase">Nombre del Técnico: <span class="text-white">${techNombre}</span></p>
+                            <p class="text-[9px] text-gray-400 font-bold uppercase">Nombre del Técnico: <span class="text-white">${escaparHTML(techNombre)}</span></p>
                         </div>
                     </div>`;
                 } else {
@@ -860,12 +883,12 @@ if (metodoSeleccionado === "b2b") {
                             <div class="w-8 h-8 bg-zinc-800 rounded-full flex items-center justify-center text-gray-400"><i class="fas fa-car"></i></div>
                             <div>
                                 <p class="text-[9px] text-gray-500 uppercase font-bold">Vehículo en ruta</p>
-                                <p class="text-xs text-white font-bold uppercase">${techVehiculo}</p>
+                                <p class="text-xs text-white font-bold uppercase">${escaparHTML(techVehiculo)}</p>
                             </div>
                         </div>
                         <div class="text-right">
                             <p class="text-[9px] text-gray-500 uppercase font-bold">Placas</p>
-                            <p class="text-xs text-emerald-400 font-mono font-bold border border-emerald-500/30 px-2 py-0.5 rounded bg-emerald-500/10">${techPlacas}</p>
+                            <p class="text-xs text-emerald-400 font-mono font-bold border border-emerald-500/30 px-2 py-0.5 rounded bg-emerald-500/10">${escaparHTML(techPlacas)}</p>
                         </div>
                     </div>`;
                 }

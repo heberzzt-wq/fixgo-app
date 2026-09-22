@@ -240,8 +240,8 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(client, /cancelarServicioB2C/);
     assert.match(client, /s\.estado === "pendiente" && !s\.tecnico_id && s\.tipo !== "mantenimiento"/);
     const customerCancellation = client.slice(
-        client.indexOf("window.cancelarTicketFantasma"),
-        client.indexOf("window.iniciarPagoSaldo")
+        client.indexOf("window.cancelarTicketFantasma = async"),
+        client.indexOf("window.iniciarPagoSaldo = async")
     );
     assert.match(customerCancellation, /cancelarServicioB2C\(id,/);
     assert.doesNotMatch(customerCancellation, /updateDoc\(/);

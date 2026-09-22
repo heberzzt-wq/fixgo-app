@@ -76,6 +76,10 @@ function createSubmitB2cQuoteHandler({ admin, db, functions }) {
             if (service.diagnostico_cotizacion_desbloqueada !== true || !service.diagnostico_inicial_evidencia) {
                 throw callableError(functions, "failed-precondition", "Falta la evidencia diagnóstica sellada.");
             }
+            const profileSnapshot = await transaction.get(db.collection("users").doc(technicianId));
+            if (!profileSnapshot.exists || !platformContract.technicianEligibility(profileSnapshot.data() || {}, { requireAvailable: false }).ok) {
+                throw callableError(functions, "failed-precondition", "La cuenta técnica no está habilitada para cotizar.");
+            }
             const timestamp = admin.firestore.FieldValue.serverTimestamp();
             transaction.update(serviceRef, {
                 estado: platformContract.SERVICE_STATES.QUOTING,
@@ -99,7 +103,8 @@ function createRespondB2cQuoteHandler({ admin, db, functions }) {
         const customerId = context?.auth?.uid;
         if (!customerId) throw callableError(functions, "unauthenticated", "Se requiere sesión de cliente.");
         const serviceId = clean(data?.serviceId, 160);
-        const accepted = data?.accepted === true;
+        if (typeof data?.accepted !== "boolean") throw callableError(functions, "invalid-argument", "accepted debe ser booleano.");
+        const accepted = data.accepted;
         if (!serviceId) throw callableError(functions, "invalid-argument", "serviceId es obligatorio.");
 
         return db.runTransaction(async transaction => {
@@ -128,7 +133,10 @@ function createRespondB2cQuoteHandler({ admin, db, functions }) {
             }
 
             const total = Number(service.costo_final || 0);
-            const credited = Math.max(0, Number(service.monto_pagado ?? service.retencion_inicial ?? 0));
+            const credited = Number(service.monto_pagado ?? 0);
+            if (!Number.isFinite(total) || total <= 0 || !Number.isFinite(credited) || credited < 0) {
+                throw callableError(functions, "failed-precondition", "El monto de la cotización o el pago confirmado es inválido.");
+            }
             const due = Math.round(Math.max(0, total - credited) * 100) / 100;
             const requiresPayment = service.metodo_pago === platformContract.PAYMENT_METHODS.STRIPE && due > 0.009;
             const nextState = requiresPayment

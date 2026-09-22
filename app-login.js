@@ -100,6 +100,16 @@ onAuthStateChanged(
             );
 
             if (!role) {
+                if (!snap.exists()) {
+                    let recovery = document.getElementById('registration-recovery');
+                    if (!recovery) {
+                        recovery = document.createElement('p'); recovery.id = 'registration-recovery';
+                        const link = document.createElement('a'); link.href = 'registro.html';
+                        link.textContent = 'Completar registro de esta cuenta';
+                        recovery.append('Tu sesión está iniciada, pero falta guardar tu perfil. ', link);
+                        (document.getElementById('formLogin') || document.body).append(recovery);
+                    }
+                }
                 console.warn(
                     "⚠️ [LOGIN_ROLE_PENDING] Perfil sin rol confirmado"
                 );

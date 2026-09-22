@@ -22,6 +22,7 @@ import {
  setDoc,
  getDoc,
  aprobarTecnicoB2C,
+ devolverExpedienteTecnicoB2C,
  actualizarPermisosPagoB2C,
  ejecutarAccionNocB2C,
  reconciliarLiquidacionB2C
@@ -1125,31 +1126,14 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  };
 
  window.adminCambiarFotoTecnico = async (uid) => {
- const fileInput = document.createElement('input');
- fileInput.type = 'file';
- fileInput.accept = 'image/*';
- fileInput.onchange = async (e) => {
- const file = e.target.files[0];
- if(!file) return;
- const reader = new FileReader();
- reader.onload = async (event) => {
- try {
- await updateDoc(doc(db, "users", uid), {
- foto_perfil: event.target.result,
- fotoPerfil: event.target.result 
- });
- alert("✅ Foto del técnico actualizada exitosamente por el Administrador.");
- const modal = document.getElementById('modalExpediente');
- if(modal) modal.remove();
- window.verExpediente(uid); 
- } catch(err) {
- console.error("Error subiendo foto:", err);
- alert("Error al actualizar la foto de perfil en el servidor.");
+ let profile;
+ try { profile = (await getDoc(doc(db, 'users', uid))).data(); } catch { return alert('No se pudo verificar el expediente. Reintenta con conexión.'); }
+ if (!profile) return alert('Expediente no encontrado.');
+ if (profile.kyc?.aprobado === true || profile.estado === 'activo') {
+   return alert('La foto de identidad aprobada está protegida. Requiere una recertificación administrativa; no se sustituye desde el avatar.');
  }
- };
- reader.readAsDataURL(file);
- };
- fileInput.click();
+ if (['pendiente_revision', 'documentos_subidos'].includes(profile.estado)) return window.devolverExpedienteTecnico(uid, 'foto_perfil');
+ alert('El técnico puede subir la foto desde Completar expediente. La identidad se valida con archivos de Storage, no con imágenes pegadas.');
  };
 
  // 🔥 EXPEDIENTES LIMPIADOS: Solo lee de 'users'
@@ -1261,6 +1245,7 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
 
  <div class="mt-6">
  ${btnAprobarModal}
+ ${['pendiente_revision', 'documentos_subidos'].includes(perfilCanonico.estado) ? `<button onclick="window.devolverExpedienteTecnico('${uid}')" class="w-full mt-3 p-3 text-orange-300 border border-orange-700 rounded">SOLICITAR CORRECCIONES</button>` : ''}
  <button onclick="document.getElementById('modalExpediente').remove()" class="w-full mt-2 bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-lg">
  CERRAR EXPEDIENTE
  </button>
@@ -1274,6 +1259,18 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  }
  };
 
+ window.devolverExpedienteTecnico = async (uid, defaultDocuments = 'ine') => {
+ const reason = prompt('Explica qué debe corregir el técnico:');
+ if (!reason) return;
+ const selected = prompt('Documentos a reemplazar separados por coma: foto_perfil, ine, csf, licencia', defaultDocuments);
+ if (!selected) return;
+ try {
+   await devolverExpedienteTecnicoB2C(uid, reason, selected.split(',').map(value => value.trim()).filter(Boolean));
+   document.getElementById('modalExpediente')?.remove();
+   alert('Expediente devuelto. El técnico puede reemplazar los documentos solicitados.');
+ } catch (error) { alert(error.message || 'No se pudo devolver el expediente.'); }
+ };
+
  window.aprobarTecnico = async (uid) => {
  if(!confirm("¿Estás seguro de aprobar a este técnico? Tendrá acceso inmediato a ver solicitudes y aceptar trabajos.")) return;
  try {
@@ -1282,7 +1279,7 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  alert(" ✅ Técnico Aprobado y Activado exitosamente.");
  } catch (error) {
  console.error(error);
- alert("Error al aprobar técnico en base de datos.");
+ alert(error.message || "Error al aprobar técnico en base de datos.");
  }
  };
 

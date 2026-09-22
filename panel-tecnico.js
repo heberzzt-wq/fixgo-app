@@ -34,7 +34,7 @@ import { getDocs, arrayUnion, limit } from "https://www.gstatic.com/firebasejs/1
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
 import { iniciarTracking, detenerTracking } from "./gps-motor.js";
-import { escaparHTML, calcularDistancia, sonarAlerta, lanzarNotificacionPush, procesarEventoNotificacion, probarAlertaTecnicoLocal, cargarLibreriaPDF, urlABase64 } from "./app-utils.js";
+import { escaparHTML, urlHttpsParaHTML, calcularDistancia, sonarAlerta, lanzarNotificacionPush, procesarEventoNotificacion, probarAlertaTecnicoLocal, cargarLibreriaPDF, urlABase64 } from "./app-utils.js";
 import { getPlatformServiceWorkerRegistration } from "./platform-release.js";
 import {
     TECHNICIAN_KYC_STATES,
@@ -47,6 +47,7 @@ import {
     storagePathForTechnicianDocument
 } from "./b2c-technician-profile.js";
 import { getConfirmedServiceDestination } from "./b2c-destination.js";
+import { technicianCommissionReference, COMMISSION_REFERENCE_NOTICE } from "./b2c-commission-display.js";
 
 let notificationRuntimeState = {
     permission: "verificando",
@@ -219,12 +220,11 @@ export async function iniciarPanelTecnico(user) {
                 elementos.seccionBolsa.parentNode.insertBefore(tracker, elementos.seccionBolsa);
             }
 
-            const comisionActual = data.comision_asignada ? parseFloat(data.comision_asignada) : 0.30;
-            const gananciaNetaPorcentaje = Math.round((1 - comisionActual) * 100); 
+            const gananciaNetaPorcentaje = technicianCommissionReference(data.comision_asignada);
             
-            let sigNivel = ""; let reqSvcs = 0; let reqRep = 0; let beneSig = 0;
-            if (nivel === "BRONCE") { sigNivel = "PLATA"; reqSvcs = 20; reqRep = 4.5; beneSig = 73; }
-            else if (nivel === "PLATA") { sigNivel = "ORO"; reqSvcs = 50; reqRep = 4.8; beneSig = 76; }
+            let sigNivel = ""; let reqSvcs = 0; let reqRep = 0;
+            if (nivel === "BRONCE") { sigNivel = "PLATA"; reqSvcs = 20; reqRep = 4.5; }
+            else if (nivel === "PLATA") { sigNivel = "ORO"; reqSvcs = 50; reqRep = 4.8; }
             else { sigNivel = "ÉLITE"; } 
 
             let progresoHTML = "";
@@ -232,7 +232,8 @@ export async function iniciarPanelTecnico(user) {
                 const pctSvcs = Math.min((svcs / reqSvcs) * 100, 100);
                 progresoHTML = `
                 <div class="border-t border-zinc-800 pt-3 mt-2">
-                    <p class="text-[10px] text-gray-400 mb-1">Próxima meta: <span class="text-white font-bold">${sigNivel} (Ganas el ${beneSig}%)</span></p>
+                    <p class="text-[10px] text-gray-400 mb-1">Próxima meta: <span class="text-white font-bold">${sigNivel}</span></p>
+                    <p class="text-[9px] text-gray-500 mb-2">Ascenso sujeto a revisión administrativa y strikes; alcanzar estas metas no cambia tu tarifa automáticamente.</p>
                     <div class="flex justify-between text-[9px] font-bold mb-1">
                         <span class="${svcs >= reqSvcs ? 'text-emerald-500' : 'text-blue-400'}">${svcs}/${reqSvcs} Servicios</span>
                         <span class="${reputacion >= reqRep ? 'text-emerald-500' : 'text-blue-400'}">⭐ ${reputacion.toFixed(1)}/${reqRep.toFixed(1)}</span>
@@ -253,8 +254,9 @@ export async function iniciarPanelTecnico(user) {
             <div class="bg-black border ${nivel === 'ORO' ? 'border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.1)]' : 'border-zinc-800'} rounded-xl p-4 mb-4 shadow-lg animate-fade-in">
                 <div class="flex justify-between items-center mb-2">
                     <div>
-                        <p class="text-[9px] text-gray-500 uppercase font-bold tracking-widest">Tu Tasa de Ganancia</p>
-                        <p class="text-2xl font-black text-emerald-400">${gananciaNetaPorcentaje}% <span class="text-[10px] text-gray-500 font-normal">Libres para ti</span></p>
+                        <p class="text-[9px] text-gray-500 uppercase font-bold tracking-widest">Referencia de participación</p>
+                        <p class="text-2xl font-black text-emerald-400">${gananciaNetaPorcentaje === null ? "Por revisar" : `${gananciaNetaPorcentaje}%`}</p>
+                        <p class="text-[9px] text-gray-500">${COMMISSION_REFERENCE_NOTICE}</p>
                     </div>
                     <div class="text-right">
                         <p class="text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-1">Estatus Actual</p>
@@ -311,18 +313,19 @@ export async function iniciarPanelTecnico(user) {
             return; 
         }
 
-        const ineUrl = perfilCanonico.documentos.ine;
-        const csfUrl = perfilCanonico.documentos.csf;
-        const fotoUrl = perfilCanonico.foto_perfil;
+        const ineUrl = perfilCanonico.estado === TECHNICIAN_KYC_STATES.REJECTED && perfilCanonico.kyc.faltantes?.includes('ine') ? null : perfilCanonico.documentos.ine;
+        const csfUrl = perfilCanonico.estado === TECHNICIAN_KYC_STATES.REJECTED && perfilCanonico.kyc.faltantes?.includes('csf') ? null : perfilCanonico.documentos.csf;
+        const correcciones = perfilCanonico.estado === TECHNICIAN_KYC_STATES.REJECTED ? new Set(perfilCanonico.kyc.faltantes || []) : new Set();
+        const fotoUrl = correcciones.has('foto_perfil') ? null : perfilCanonico.foto_perfil;
         const banco = perfilCanonico.datos_bancarios.banco;
         const clabe = perfilCanonico.datos_bancarios.clabe;
         const vehiculoTipo = perfilCanonico.vehiculo.tipo;
         const placas = perfilCanonico.vehiculo.placas;
-        const licenciaUrl = perfilCanonico.documentos.licencia;
+        const licenciaUrl = correcciones.has('licencia') ? null : perfilCanonico.documentos.licencia;
         const certificados = perfilCanonico.documentos.certificados;
         const esPeaton = kycResult.pedestrian;
         
-        const faltaInfo = !kycResult.complete;
+        const faltaInfo = !kycResult.complete || [TECHNICIAN_KYC_STATES.DOCUMENTS_PENDING, TECHNICIAN_KYC_STATES.REGISTRATION_STARTED, TECHNICIAN_KYC_STATES.REJECTED].includes(perfilCanonico.estado);
 
         if (faltaInfo) {
             if(elementos.statusLabel) {
@@ -339,6 +342,7 @@ export async function iniciarPanelTecnico(user) {
             if(elementos.seccionBolsa) {
                 elementos.seccionBolsa.classList.remove("hidden");
                 elementos.seccionBolsa.innerHTML = `
+                    <p class="text-orange-300 p-3">${escaparHTML(perfilCanonico.kyc.observaciones || 'Completa o reenvía tu expediente. Los archivos guardados se conservan.')}</p>
                     <div class="p-6 bg-orange-900/10 border border-orange-500/50 rounded-2xl shadow-xl shadow-orange-900/20 animate-fade-in">
                         <div class="text-center mb-6">
                             <i class="fas fa-file-signature text-orange-500 text-4xl mb-3"></i>
@@ -351,25 +355,25 @@ export async function iniciarPanelTecnico(user) {
                                 <label class="block text-[10px] font-bold ${fotoUrl ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
                                     1. Foto de Perfil (Selfie) ${fotoUrl ? '✅ CUBIERTO' : '❌ FALTANTE'}
                                 </label>
-                                ${fotoUrl ? '<p class="text-[10px] text-gray-500">Documento en regla y validado.</p>' : '<input type="file" id="compFoto" accept="image/*" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
+                                ${fotoUrl ? '<p class="text-[10px] text-gray-500">Archivo guardado; sujeto a revisión.</p>' : '<input type="file" id="compFoto" accept="image/*" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
                             </div>
                             <div class="bg-black p-4 rounded-xl border ${ineUrl ? 'border-emerald-900/50' : 'border-red-900/50'}">
                                 <label class="block text-[10px] font-bold ${ineUrl ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
                                     2. Identificación Oficial (INE Frontal) ${ineUrl ? '✅ CUBIERTO' : '❌ FALTANTE'}
                                 </label>
-                                ${ineUrl ? '<p class="text-[10px] text-gray-500">Documento en regla y validado.</p>' : '<input type="file" id="compINE" accept="image/*" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
+                                ${ineUrl ? '<p class="text-[10px] text-gray-500">Archivo guardado; sujeto a revisión.</p>' : '<input type="file" id="compINE" accept="image/*" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
                             </div>
                             <div class="bg-black p-4 rounded-xl border ${csfUrl ? 'border-emerald-900/50' : 'border-red-900/50'}">
                                 <label class="block text-[10px] font-bold ${csfUrl ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
                                     3. Constancia de Situación Fiscal (CSF) ${csfUrl ? '✅ CUBIERTO' : '❌ FALTANTE'}
                                 </label>
-                                ${csfUrl ? '<p class="text-[10px] text-gray-500">Documento en regla y validado.</p>' : '<input type="file" id="compCSF" accept="image/*, application/pdf" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
+                                ${csfUrl ? '<p class="text-[10px] text-gray-500">Archivo guardado; sujeto a revisión.</p>' : '<input type="file" id="compCSF" accept="image/*, application/pdf" class="text-xs text-gray-300 file:bg-zinc-800 file:text-white file:border-0 file:py-1 file:px-3 file:rounded-lg w-full">'}
                             </div>
                             <div class="bg-black p-4 rounded-xl border ${banco && clabe ? 'border-emerald-900/50' : 'border-red-900/50'}">
                                 <label class="block text-[10px] font-bold ${banco && clabe ? 'text-emerald-500' : 'text-red-500'} mb-2 uppercase tracking-widest">
                                     4. Datos Bancarios ${banco && clabe ? '✅ CUBIERTO' : '❌ FALTANTE'}
                                 </label>
-                                ${banco && clabe ? '<p class="text-[10px] text-gray-500">Datos registrados y validados.</p>' : `
+                                ${banco && clabe ? '<p class="text-[10px] text-gray-500">Datos guardados; sujetos a revisión.</p>' : `
                                 <input type="text" id="compBanco" placeholder="Nombre del Banco" class="mb-2 w-full text-xs text-white bg-zinc-800 border-0 py-2 px-3 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none">
                                 <input type="text" id="compClabe" placeholder="Cuenta CLABE (18 dígitos)" class="w-full text-xs text-white bg-zinc-800 border-0 py-2 px-3 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none">
                                 `}
@@ -530,6 +534,7 @@ export async function iniciarPanelTecnico(user) {
                     const url = await getDownloadURL(storageRef);
                     await updateDoc(userRef, {
                         [field]: multiple ? arrayUnion(url) : url,
+                        "kyc.faltantes": (perfilTecnicoActual.kyc?.faltantes || []).filter(item => item !== kind),
                         "kyc.upload_actual": null,
                         [`${prefix}.estado`]: "confirmado",
                         [`${prefix}.url`]: url,
@@ -753,7 +758,7 @@ export async function iniciarPanelTecnico(user) {
                     if (diffHoras >= 24) esRetenido = false;
                 }
 
-                const badgeStatus = '<span class="bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 text-[8px] px-2 py-0.5 rounded font-black tracking-widest uppercase"><i class="fas fa-check-circle"></i> COBRADO</span>';
+                const badgeStatus = '<span class="bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 text-[8px] px-2 py-0.5 rounded font-black tracking-widest uppercase"><i class="fas fa-check-circle"></i> FINALIZADO</span>';
 
                 const item = document.createElement("div");
                 item.className = "bg-zinc-900 border border-zinc-800 p-3 rounded-xl shadow-lg mb-3";
@@ -766,7 +771,7 @@ export async function iniciarPanelTecnico(user) {
                 <div class="flex justify-between items-end">
                     <div>
                         <p class="text-[9px] text-gray-500 mb-1"><i class="fas fa-calendar-alt"></i> ${fechaFormat}</p>
-                        <p class="text-[9px] text-gray-500"><i class="fas fa-hashtag"></i> Folio: ${s.folio_fiscal || id.substring(0,6).toUpperCase()}</p>
+                        <p class="text-[9px] text-gray-500"><i class="fas fa-hashtag"></i> Folio: ${escaparHTML(s.folio_fiscal || id.substring(0,6).toUpperCase())}</p>
                     </div>
                 </div>
                 <div class="flex justify-between items-end mt-3 pt-3 border-t border-zinc-800/50">
@@ -859,13 +864,13 @@ if (!isTechnicianSkillCompatible(tecnico, s)) return;
                 let badgeUrgencia = s.urgencia ? `<span class="bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase shadow-[0_0_8px_rgba(220,38,38,0.8)] ml-2 animate-pulse"><i class="fas fa-fire"></i> EMERGENCIA</span>` : '';
                 
                 let previewFotoHTML = '';
-                if (s.foto_problema) {
+                if (urlHttpsParaHTML(s.foto_problema)) {
                     previewFotoHTML = `
                     <div class="mt-3 mb-3">
                         <p class="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-2"><i class="fas fa-camera"></i> Evidencia Inicial del Cliente:</p>
                         <div class="w-full h-40 rounded-xl overflow-hidden border border-blue-900/50 relative">
-                            <img src="${s.foto_problema}" class="w-full h-full object-cover">
-                            <a href="${s.foto_problema}" target="_blank" class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm text-white px-3 py-1 rounded text-[9px] font-bold border border-white/20 hover:bg-black transition-colors"><i class="fas fa-expand"></i> VER COMPLETA</a>
+                            <img src="${urlHttpsParaHTML(s.foto_problema)}" class="w-full h-full object-cover">
+                            <a href="${urlHttpsParaHTML(s.foto_problema)}" target="_blank" class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm text-white px-3 py-1 rounded text-[9px] font-bold border border-white/20 hover:bg-black transition-colors"><i class="fas fa-expand"></i> VER COMPLETA</a>
                         </div>
                     </div>`;
                 }
@@ -920,14 +925,14 @@ if (!isTechnicianSkillCompatible(tecnico, s)) return;
     <div class="pl-2 mb-2 mt-1 md:mt-3">
 
         <h3 class="text-white font-black text-base md:text-lg leading-tight mb-2 tracking-wide uppercase break-words">
-            ${s.titulo || "Tarea sin título"}
+            ${escaparHTML(s.titulo || "Tarea sin título")}
         </h3>
 
         <p class="text-zinc-300 text-xs md:text-sm flex items-center gap-2 font-medium bg-zinc-900/50 p-2 rounded-lg border border-zinc-800 inline-flex flex-wrap mb-2 max-w-full">
             <i class="fas fa-microchip text-amber-500 shrink-0"></i>
             Equipo:
             <span class="text-amber-400 font-bold break-all">
-                ${s.activoId || "No especificado"}
+                ${escaparHTML(s.activoId || "No especificado")}
             </span>
         </p>
 
@@ -1250,7 +1255,7 @@ if (!isTechnicianSkillCompatible(tecnico, s)) return;
                 </button>` : ''}
                 
                 ${s.metodo_pago === 'efectivo' && !s.es_garantia ? `
-                <button onclick="window.abrirModalDisputa('${id}', '${s.cliente_id}')" class="w-full mt-3 bg-black border border-red-600 text-red-500 hover:bg-red-900/40 font-bold py-3 rounded-xl text-xs uppercase flex items-center justify-center gap-2 transition-all shadow-[0_0_10px_rgba(220,38,38,0.2)]">
+                <button onclick="window.abrirModalDisputa('${id}', ${escaparHTML(JSON.stringify(String(s.cliente_id || "")))})" class="w-full mt-3 bg-black border border-red-600 text-red-500 hover:bg-red-900/40 font-bold py-3 rounded-xl text-xs uppercase flex items-center justify-center gap-2 transition-all shadow-[0_0_10px_rgba(220,38,38,0.2)]">
                     <i class="fas fa-exclamation-triangle animate-pulse"></i> EL CLIENTE NO QUIERE PAGAR EN EFECTIVO
                 </button>
                 ` : ''}
@@ -1279,13 +1284,13 @@ if (!isTechnicianSkillCompatible(tecnico, s)) return;
             }
 
             let fotoMisionActivaHTML = '';
-            if (s.foto_problema) {
+            if (urlHttpsParaHTML(s.foto_problema)) {
                 fotoMisionActivaHTML = `
                 <div class="mt-3 mb-3">
                     <p class="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-2"><i class="fas fa-camera"></i> Evidencia del Cliente:</p>
                     <div class="w-full h-40 rounded-xl overflow-hidden border border-blue-900/50 relative">
-                        <img src="${s.foto_problema}" class="w-full h-full object-cover">
-                        <a href="${s.foto_problema}" target="_blank" class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm text-white px-3 py-1 rounded text-[9px] font-bold border border-white/20 hover:bg-black transition-colors"><i class="fas fa-expand"></i> VER COMPLETA</a>
+                        <img src="${urlHttpsParaHTML(s.foto_problema)}" class="w-full h-full object-cover">
+                        <a href="${urlHttpsParaHTML(s.foto_problema)}" target="_blank" class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm text-white px-3 py-1 rounded text-[9px] font-bold border border-white/20 hover:bg-black transition-colors"><i class="fas fa-expand"></i> VER COMPLETA</a>
                     </div>
                 </div>`;
             }
@@ -1294,7 +1299,7 @@ if (!isTechnicianSkillCompatible(tecnico, s)) return;
             card.className = `bg-zinc-900 border ${s.estado === 'cancelado' ? 'border-red-500' : (s.urgencia || s.es_garantia ? 'border-red-500 shadow-[0_0_15px_rgba(220,38,38,0.2)]' : 'border-blue-500/50')} p-6 rounded-2xl relative overflow-hidden mb-4 shadow-xl`;
             card.innerHTML = `
             <div class="absolute top-0 right-0 ${s.estado === 'cancelado' || s.es_garantia ? 'bg-red-600' : 'bg-blue-600'} text-white text-[10px] font-black px-3 py-1 rounded-bl-xl uppercase">
-                ${s.es_garantia ? 'GARANTÍA' : s.estado.replace('_', ' ')}
+                ${s.es_garantia ? 'GARANTÍA' : escaparHTML(String(s.estado || '').replace('_', ' '))}
             </div>
             <h3 class="text-xl font-black text-white mb-1 uppercase">${escaparHTML(categoriaSafe)} ${s.urgencia ? '<span class="text-red-500 ml-1" title="Emergencia"><i class="fas fa-fire animate-pulse"></i></span>' : ''}</h3>
             <p class="text-gray-400 text-sm mb-4">
@@ -1315,7 +1320,7 @@ if (!isTechnicianSkillCompatible(tecnico, s)) return;
                 <a href="https://waze.com/ul?q=${destinoWaze}" target="_blank" class="flex-1 bg-blue-500 hover:bg-blue-400 text-white font-bold py-3 rounded-xl text-center text-sm transition-colors ${s.estado === 'cancelado' ? 'pointer-events-none opacity-50' : ''}">
                     <i class="fab fa-waze"></i> IR CON WAZE
                 </a>
-                <a href="tel:${s.cliente_telefono}" class="bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 px-4 rounded-xl text-center transition-colors">
+                <a href="tel:${escaparHTML(String(s.cliente_telefono || '').replace(/[^+0-9() -]/g, ''))}" class="bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 px-4 rounded-xl text-center transition-colors">
                     <i class="fas fa-phone"></i>
                 </a>
             </div>
@@ -1542,7 +1547,7 @@ if (!isTechnicianSkillCompatible(tecnico, s)) return;
                     row.className = "flex justify-between items-start border-b border-zinc-800 py-2 text-xs last:border-0 animate-fade-in";
                     row.innerHTML = `
                     <div class="flex-1">
-                        <p class="text-white font-bold"><span class="text-emerald-500">${item.cantidad} ${escaparHTML(item.unidad)}</span> ${escaparHTML(item.descripcion)}</p>
+                        <p class="text-white font-bold"><span class="text-emerald-500">${escaparHTML(item.cantidad)} ${escaparHTML(item.unidad)}</span> ${escaparHTML(item.descripcion)}</p>
                         <p class="text-gray-500 text-[10px]">$${item.precio_final.toFixed(2)} c/u ${isPremiumActivo ? `<span class="text-emerald-500 ml-1">(Ajustado)</span>` : ''}</p>
                     </div>
                     <div class="text-right">
@@ -1951,26 +1956,29 @@ if (!isTechnicianSkillCompatible(tecnico, s)) return;
     };
 
     window.cambiarFotoPerfil = async (uid) => {
+        if (uid !== user.uid) return alert('Sólo puedes actualizar tu propio expediente.');
+        const editable = profile => ['registro_iniciado', 'documentos_pendientes', 'rechazado'].includes(profile?.estado) && profile.status === profile.estado && profile.kyc?.aprobado !== true && profile.suspendido !== true;
+        const userRef = doc(db, 'users', uid);
+        let profile;
+        try { profile = (await getDoc(userRef)).data(); } catch { return alert('No se pudo verificar tu expediente. Revisa tu conexión y reintenta.'); }
+        if (!editable(profile)) return alert('La foto forma parte de tu expediente en revisión o aprobado. Solicita revisión administrativa para cambiarla.');
         const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = 'image/*';
-        fileInput.onchange = async (e) => {
-            const file = e.target.files[0];
-            if(!file) return;
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-                try {
-                    await updateDoc(doc(db, "users", uid), {
-                        foto_perfil: event.target.result,
-                        fotoPerfil: event.target.result 
-                    });
-                    alert("✅ Foto de perfil actualizada correctamente.");
-                } catch(err) {
-                    console.error("Error subiendo foto:", err);
-                    alert("Error al actualizar la foto de perfil en el servidor.");
-                }
-            };
-            reader.readAsDataURL(file);
+        fileInput.type = 'file'; fileInput.accept = 'image/jpeg,image/png,image/webp';
+        fileInput.onchange = async event => {
+            const file = event.target.files[0];
+            if (!file) return;
+            if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size <= 0 || file.size > 10 * 1024 * 1024) return alert('Usa una foto JPG, PNG o WEBP de hasta 10 MB.');
+            try {
+                if (!editable((await getDoc(userRef)).data())) throw new Error('El expediente ya no está disponible para edición.');
+                const path = storagePathForTechnicianDocument(uid, 'foto_perfil', file.name);
+                const object = ref(storage, path);
+                await uploadBytes(object, file, { contentType: file.type });
+                const url = await getDownloadURL(object);
+                await updateDoc(userRef, { foto_perfil: url,
+                    'kyc.uploads.foto_perfil': { estado: 'confirmado', storage_path: path, url, actualizado_at: serverTimestamp() },
+                    'kyc.faltantes': (profile.kyc?.faltantes || []).filter(kind => kind !== 'foto_perfil') });
+                alert('Foto guardada en tu expediente, pendiente de revisión.');
+            } catch (error) { alert(error.message || 'No se pudo guardar la foto. Puedes reintentar.'); }
         };
         fileInput.click();
     };

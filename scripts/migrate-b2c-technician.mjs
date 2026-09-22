@@ -57,6 +57,14 @@ function encode(value) {
     throw new Error(`UNSUPPORTED_FIRESTORE_VALUE:${typeof value}`);
 }
 
+// Retain Firestore timestamp types inside unchanged approval/audit fields.
+function encodeWithSource(value, source) {
+    if (source?.timestampValue && value === source.timestampValue) return source;
+    if (Array.isArray(value)) return { arrayValue: { values: value.map((entry, index) => encodeWithSource(entry, source?.arrayValue?.values?.[index])) } };
+    if (value && typeof value === 'object') return { mapValue: { fields: Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined).map(([key, entry]) => [key, encodeWithSource(entry, source?.mapValue?.fields?.[key])])) } };
+    return encode(value);
+}
+
 const documentUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(project)}/databases/(default)/documents/users/${encodeURIComponent(technicianId)}`;
 const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 const response = await fetch(documentUrl, { headers });
@@ -83,6 +91,14 @@ if (migration.classification !== expectedClassification) {
 if (!apply) {
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
 } else {
+    if (migration.classification === 'requires_review') throw new Error('MIGRATION_HUMAN_REVIEW_REQUIRED');
+    if (!sourceDocument.updateTime) throw new Error('MIGRATION_SOURCE_VERSION_REQUIRED');
+    const stable = value => value && typeof value === 'object'
+        ? Array.isArray(value) ? value.map(stable) : Object.fromEntries(Object.keys(value).sort().map(key => [key, stable(value[key])])) : value;
+    if (Object.entries(migration.canonical).every(([key, value]) => JSON.stringify(stable(raw[key])) === JSON.stringify(stable(value)))) {
+        process.stdout.write(`${JSON.stringify({ ...summary, applied: false, unchanged: true }, null, 2)}\n`);
+        process.exit(0);
+    }
     const appliedAt = new Date().toISOString();
     const fields = {
         ...migration.canonical,
@@ -100,14 +116,14 @@ if (!apply) {
         actualizadoEn: appliedAt
     };
     const query = new URLSearchParams();
-    for (const field of [...Object.keys(fields), ...migration.legacyFields]) {
+    for (const field of Object.keys(fields)) {
         query.append("updateMask.fieldPaths", field);
     }
     query.set("currentDocument.updateTime", sourceDocument.updateTime);
     const updateResponse = await fetch(`${documentUrl}?${query}`, {
         method: "PATCH",
         headers,
-        body: JSON.stringify({ fields: Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, encode(value)])) })
+        body: JSON.stringify({ fields: Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, encodeWithSource(value, sourceDocument.fields?.[key])])) })
     });
     if (!updateResponse.ok) throw new Error(`FIRESTORE_WRITE_HTTP_${updateResponse.status}`);
     const updated = await updateResponse.json();

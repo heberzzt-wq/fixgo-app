@@ -25,6 +25,16 @@ export const escaparHTML = (str) => {
         .replace(/'/g, '&#039;');
 };
 
+/** HTTPS exclusivamente; devuelve un atributo HTML seguro, no HTML ni JavaScript. */
+export const urlHttpsParaHTML = (value) => {
+    if (typeof value !== 'string' || !value.trim()) return '';
+    try {
+        const url = new URL(value);
+        if (url.protocol !== 'https:' || url.username || url.password) return '';
+        return escaparHTML(url.href);
+    } catch { return ''; }
+};
+
 /**
  * 🦈 SISTEMA ANTIFRAUDE MILITAR (SHARK MODE)
  * Fórmula de Haversine para calcular distancia en metros entre dos coordenadas GPS

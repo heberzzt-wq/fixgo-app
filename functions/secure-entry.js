@@ -30,9 +30,10 @@ const platformContract = require("./b2c-platform-contract");
 const {
     B2C_SERVICE_SETTLEMENT_VERSION,
     createB2CServiceSettlementEngine,
+    createB2cOperationalClosureHandler,
     createB2CServiceReconciliationHandler
 } = require("./b2c-service-settlement");
-const { isAuthorizedAdmin } = require("./b2c-technician-approval");
+const { isAuthorizedAdmin, createReturnTechnicianHandler } = require("./b2c-technician-approval");
 const { getReleaseIdentity } = require("./release-identity");
 
 const SECURE_FUNCTIONS_ENTRY_VERSION = "1.0.0";
@@ -195,7 +196,7 @@ async function createAuthoritativeCheckout(req, res) {
         const baseUrl = allowedClientBase(req);
         const stripe = getStripe();
         const description = safeText(
-            req.body?.descripcion || serviceData.descripcion,
+            serviceData.descripcion,
             180
         ) || "Servicio GestiaPremium";
         const clientType = safeText(
@@ -237,18 +238,19 @@ async function createAuthoritativeCheckout(req, res) {
                 authoritativeAmount:
                     validation.authoritativeAmount.toFixed(2),
                 policyVersion: validation.policyVersion,
-                secureEntryVersion: SECURE_FUNCTIONS_ENTRY_VERSION,
-                traceId
+                secureEntryVersion: SECURE_FUNCTIONS_ENTRY_VERSION
             }
         }, {
             idempotencyKey
         });
 
-        if (paymentType === "liquidacion_saldo" && serviceData.estado === "cotizando") {
+        try {
             await db.runTransaction(async transaction => {
                 const currentSnapshot = await transaction.get(serviceRef);
                 if (!currentSnapshot.exists) throw new Error("SERVICE_NOT_FOUND");
-                if (currentSnapshot.data().estado === "cotizando") {
+                financialPolicy.assertCustomerCheckout({ ticketData: currentSnapshot.data(), actorUid: actor.uid,
+                    paymentType, requestedAmount: validation.authoritativeAmount });
+                if (paymentType === "liquidacion_saldo" && currentSnapshot.data().estado === "cotizando") {
                     transaction.update(serviceRef, {
                         estado: "procesando_saldo",
                         checkout_saldo_session_id: session.id,
@@ -257,6 +259,10 @@ async function createAuthoritativeCheckout(req, res) {
                     });
                 }
             });
+        } catch (error) {
+            // A concurrent cancellation/quote change must not return a stale payable URL.
+            await stripe.checkout.sessions.expire(session.id).catch(() => {});
+            throw error;
         }
 
         await db.collection("payment_checkout_audit").doc(idempotencyKey).set({
@@ -336,11 +342,21 @@ async function processAuthoritativeWebhook(req, res) {
     }
 
     const eventRef = db.collection("stripe_events").doc(event.id);
+    const failedEventRef = db.collection("failed_events").doc(event.id);
 
     try {
         const result = await db.runTransaction(async (transaction) => {
-            const eventSnapshot = await transaction.get(eventRef);
+            const [eventSnapshot, failedEventSnapshot] = await Promise.all([
+                transaction.get(eventRef), transaction.get(failedEventRef)
+            ]);
+            const resolveFailure = () => {
+                if (failedEventSnapshot.exists) transaction.set(failedEventRef, {
+                    retry_required: false, resolved_at: admin.firestore.FieldValue.serverTimestamp(),
+                    resolution: 'processed', resolved_by_event_id: event.id
+                }, { merge: true });
+            };
             if (eventSnapshot.exists) {
+                resolveFailure();
                 return { status: "already_processed" };
             }
 
@@ -359,6 +375,20 @@ async function processAuthoritativeWebhook(req, res) {
             }
 
             const session = event.data.object;
+            if (session.payment_status !== "paid" || session.currency !== "mxn" || session.mode !== "payment") {
+                throw new Error("WEBHOOK_PAYMENT_NOT_PAID_MXN");
+            }
+            const sessionId = safeText(session.id, 180);
+            if (!sessionId || sessionId.includes('/')) throw new Error("WEBHOOK_SESSION_INVALID");
+            const sessionRef = db.collection("stripe_sessions").doc(sessionId);
+            const sessionSnapshot = await transaction.get(sessionRef);
+            if (sessionSnapshot.exists) {
+                resolveFailure();
+                transaction.set(eventRef, { event_id: event.id, processed: true, financial_effect: false,
+                    session_id: sessionId, duplicate_session: true,
+                    processed_at: admin.firestore.FieldValue.serverTimestamp() });
+                return { status: "already_processed_session" };
+            }
             const metadata = session.metadata || {};
             const serviceId = safeText(metadata.serviceId, 160);
             const paymentType = safeText(metadata.tipo_pago, 80);
@@ -452,6 +482,10 @@ async function processAuthoritativeWebhook(req, res) {
                 secure_entry_version: SECURE_FUNCTIONS_ENTRY_VERSION,
                 processed_at: admin.firestore.FieldValue.serverTimestamp()
             });
+            transaction.set(sessionRef, { service_id: serviceId, event_id: event.id,
+                payment_type: paymentType, transaction_id: transactionRef.id,
+                processed_at: admin.firestore.FieldValue.serverTimestamp() });
+            resolveFailure();
 
             return {
                 status: "processed",
@@ -473,15 +507,19 @@ async function processAuthoritativeWebhook(req, res) {
             message: error.message
         });
 
-        await db.collection("failed_events").doc(event?.id || traceId).set({
-            event_id: event?.id || null,
-            event_type: event?.type || null,
-            error_code: safeText(error.code || error.message, 180),
-            retry_required: true,
-            trace_id: traceId,
-            secure_entry_version: SECURE_FUNCTIONS_ENTRY_VERSION,
-            created_at: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
+        // An older failed attempt must not reactivate retry after a concurrent successful commit.
+        await db.runTransaction(async transaction => {
+            const [processed, failure] = await Promise.all([transaction.get(eventRef), transaction.get(failedEventRef)]);
+            const resolved = processed.exists && processed.data().processed === true;
+            transaction.set(failedEventRef, {
+                event_id: event.id, event_type: event.type,
+                error_code: safeText(error.code || error.message, 180),
+                retry_required: !resolved, trace_id: traceId,
+                secure_entry_version: SECURE_FUNCTIONS_ENTRY_VERSION,
+                created_at: failure.exists ? failure.data().created_at : admin.firestore.FieldValue.serverTimestamp(),
+                ...(resolved ? { resolved_at: admin.firestore.FieldValue.serverTimestamp(), resolution: 'processed', resolved_by_event_id: event.id } : {})
+            }, { merge: true });
+        });
 
         return res.status(500).json({
             received: false,
@@ -583,11 +621,23 @@ const reconcileSettlement = createB2CServiceReconciliationHandler({
     }
 });
 
+const completeOperationalService = createB2cOperationalClosureHandler({ admin, db, financialPolicy });
+const completeB2cService = functions.https.onCall(async (data, context) => {
+    try { return await completeOperationalService(data, context); }
+    catch (error) {
+        const code = safeText(error.code || error.message, 160);
+        throw new functions.https.HttpsError(code === 'AUTH_REQUIRED' ? 'unauthenticated' : 'failed-precondition',
+            'El cierre requiere identidad, estado y evidencia válidos.', { code });
+    }
+});
+
 module.exports = {
     ...legacyExports,
-    ...createLegacySecurityExports({ functions, admin, requestWithdrawal: legacyExports.solicitarRetiro }),
     api: functions.https.onRequest(secureApi),
     onServiceCompleted: secureOnServiceCompleted,
+    completeB2cService,
+    ...createLegacySecurityExports({ functions, admin, requestWithdrawal: legacyExports.solicitarRetiro, completeService: completeB2cService }),
+    returnB2cTechnicianKyc: functions.https.onCall(createReturnTechnicianHandler({ admin, db, functions })),
     reconciliarLiquidacionB2C: functions.https.onCall(async (data, context) => {
         try { return await reconcileSettlement(data, context); }
         catch (error) {

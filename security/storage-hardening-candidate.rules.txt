@@ -156,13 +156,14 @@ service firebase.storage {
         (signedIn() && request.auth.uid == uid);
 
       allow create: if resource == null && (authorizedAdmin() || (signedIn() && request.auth.uid == uid &&
-        (userProfile().get('tipo_cuenta', '') != 'B2B' ||
-          (userProfile().get('status', '') in ['registro_iniciado', 'documentos_pendientes', 'rechazado'] &&
-           userProfile().get('suspendido', false) != true))
+        (userProfile().get('status', '') in ['registro_iniciado', 'documentos_pendientes', 'rechazado'] &&
+           userProfile().get('suspendido', false) != true)
       )) && validDocument(10 * 1024 * 1024);
 
       allow update: if (authorizedAdmin() || (signedIn() && request.auth.uid == uid &&
-        userProfile().get('tipo_cuenta', '') != 'B2B'
+        userProfile().get('tipo_cuenta', '') != 'B2B' &&
+        userProfile().get('status', '') in ['registro_iniciado', 'documentos_pendientes', 'rechazado'] &&
+        userProfile().get('suspendido', false) != true
       )) && validDocument(10 * 1024 * 1024);
 
        allow delete: if authorizedAdmin();
@@ -197,7 +198,7 @@ service firebase.storage {
     match /servicios/{serviceId}/{fileName} {
       allow read: if serviceParty(serviceId);
 
-      allow create: if (
+      allow create: if resource == null && (
         masterAdmin() || assignedTechnician(serviceId)
       ) && (
         (
@@ -223,7 +224,7 @@ service firebase.storage {
     match /b2c_evidence/{serviceId}/{actorUid}/{eventType}/{fileName} {
       allow read: if serviceParty(serviceId);
 
-      allow create: if assignedTechnician(serviceId) &&
+      allow create: if resource == null && assignedTechnician(serviceId) &&
         actorUid == request.auth.uid &&
         request.resource.metadata.actorUid == request.auth.uid &&
         request.resource.metadata.actorRole == "tecnico" &&

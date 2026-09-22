@@ -108,6 +108,9 @@ function fakeSnapshot(id, value) {
 
 function createFakeDb() {
     const data = new Map([
+        ["configuracion/pagos", { efectivo_activo: true }],
+        ["configuracion/catalogo_global", { fix_plomeria: true }],
+        ["users/customer", { rol: "cliente", tipo_cuenta: "B2C", pagos: { efectivo_autorizado: true } }],
         ["users/tech-1", operational],
         ["users/tech-2", { ...operational, nombre: "Segundo" }],
         ["services/svc-race", {
@@ -252,6 +255,13 @@ function createFakeDb() {
         serviceId: "svc-race"
     });
     assert.equal(enabledResult.published, true);
+    marketplaceDb.data.set("users/customer", { pagos: { efectivo_autorizado: true }, suspendido: true });
+    const suspendedResult = await syncMarketplaceService({ admin, db: marketplaceDb.db, serviceId: "svc-race" });
+    assert.equal(suspendedResult.reason, "CUSTOMER_SUSPENDED");
+    assert.equal(marketplaceDb.data.has("service_marketplace/svc-race"), false);
+    marketplaceDb.data.set("users/customer", { pagos: { efectivo_autorizado: true }, suspendido: false });
+    await syncMarketplaceService({ admin, db: marketplaceDb.db, serviceId: "svc-race" });
+
     marketplaceDb.data.set("configuracion/catalogo_global", { fix_plomeria: false });
     const disabledResult = await syncMarketplaceService({
         admin,

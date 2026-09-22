@@ -58,7 +58,7 @@ assert.deepEqual(
 
 assert.deepEqual(
     assertCustomerCheckout({
-        ticketData: baseTicket({ estado: "iniciado_stripe" }),
+        ticketData: baseTicket({ estado: "iniciado_stripe", monto_pagado: 0 }),
         actorUid: "customer_1",
         paymentType: "garantia_inicial",
         requestedAmount: 350
@@ -73,7 +73,7 @@ assert.deepEqual(
 
 expectCode(
     () => assertCustomerCheckout({
-        ticketData: baseTicket({ estado: "iniciado_stripe" }),
+        ticketData: baseTicket({ estado: "iniciado_stripe", monto_pagado: 0 }),
         actorUid: "attacker",
         paymentType: "garantia_inicial",
         requestedAmount: 350
@@ -83,7 +83,7 @@ expectCode(
 
 expectCode(
     () => assertCustomerCheckout({
-        ticketData: baseTicket({ estado: "iniciado_stripe" }),
+        ticketData: baseTicket({ estado: "iniciado_stripe", monto_pagado: 0 }),
         actorUid: "customer_1",
         paymentType: "garantia_inicial",
         requestedAmount: 1
@@ -127,7 +127,7 @@ expectCode(
 
 assert.equal(
     assertWebhookTransition({
-        ticketData: baseTicket({ estado: "iniciado_stripe" }),
+        ticketData: baseTicket({ estado: "iniciado_stripe", monto_pagado: 0 }),
         paymentType: "garantia_inicial",
         paidAmount: 350
     }).nextState,
@@ -167,3 +167,7 @@ expectCode(
 console.log(
     "B2C FINANCIAL POLICY TEST: PASS — montos autoritativos, identidad, holds y transiciones protegidos."
 );
+
+expectCode(() => assertCustomerCheckout({ticketData:baseTicket(),actorUid:'customer_1',paymentType:'garantia_inicial',requestedAmount:350}), 'INITIAL_PAYMENT_ALREADY_CREDITED');
+expectCode(() => assertWebhookTransition({ticketData:baseTicket(),paymentType:'garantia_inicial',paidAmount:350}), 'INITIAL_PAYMENT_ALREADY_CREDITED');
+expectCode(() => assertCustomerCheckout({ticketData:baseTicket({metodo_pago:'efectivo'}),actorUid:'customer_1',paymentType:'liquidacion_saldo',requestedAmount:1000}), 'STRIPE_SERVICE_METHOD_REQUIRED');

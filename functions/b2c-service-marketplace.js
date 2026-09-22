@@ -129,6 +129,17 @@ function createClaimB2cServiceHandler({ admin, db, functions, now = () => Date.n
             if (service.metodo_pago === "stripe" && !service.fecha_pago) {
                 throw new functions.https.HttpsError("failed-precondition", "El pago inicial aún no fue confirmado por Stripe.");
             }
+            // Discovery is eventually consistent; revalidate live authority in this claim transaction.
+            const [paymentConfigSnapshot, catalogSnapshot, customerSnapshot] = await Promise.all([
+                transaction.get(db.collection("configuracion").doc("pagos")),
+                transaction.get(db.collection("configuracion").doc("catalogo_global")),
+                transaction.get(db.collection("users").doc(clean(service.cliente_id) || "_missing_customer"))
+            ]);
+            const customer = customerSnapshot.data() || {};
+            const payment = platformContract.assertPaymentMethodAllowed(service.metodo_pago, paymentConfigSnapshot.data() || {}, customer);
+            if (!customerSnapshot.exists || customer.suspendido === true || !payment.ok || !platformContract.isServiceCategoryEnabled(service, catalogSnapshot.data() || {})) {
+                throw new functions.https.HttpsError("failed-precondition", "La categoría o el método de pago ya no están autorizados.");
+            }
             if (!isCompatible(profile, service)) {
                 throw new functions.https.HttpsError("permission-denied", "El servicio no es compatible con las especialidades del técnico.");
             }
@@ -140,7 +151,17 @@ function createClaimB2cServiceHandler({ admin, db, functions, now = () => Date.n
             const hasActiveService = activeSnapshot.docs.some(snapshot =>
                 snapshot.id !== serviceId && ACTIVE_SERVICE_STATES.has(snapshot.data()?.estado)
             );
-            if (lockSnapshot.exists || hasActiveService) {
+            let staleTerminalLock = false;
+            if (lockSnapshot.exists) {
+                const lockedServiceId = clean(lockSnapshot.data()?.service_id);
+                if (lockedServiceId && !lockedServiceId.includes("/")) {
+                    const lockedServiceSnapshot = await transaction.get(db.collection("services").doc(lockedServiceId));
+                    const lockedService = lockedServiceSnapshot.data() || {};
+                    staleTerminalLock = lockedServiceSnapshot.exists && lockedService.tecnico_id === technicianId &&
+                        ["finalizado", "cancelado", "liquidado", "archivado"].includes(lockedService.estado);
+                }
+            }
+            if ((lockSnapshot.exists && !staleTerminalLock) || hasActiveService) {
                 throw new functions.https.HttpsError("failed-precondition", "El técnico ya tiene un servicio activo.");
             }
 
@@ -274,6 +295,10 @@ function createCancelB2cServiceHandler({ admin, db, functions }) {
                 throw new functions.https.HttpsError("permission-denied", "La cuenta autenticada no puede cancelar o liberar este servicio.");
             }
 
+            if (![platformContract.SERVICE_STATES.ASSIGNED, platformContract.SERVICE_STATES.EN_ROUTE, platformContract.SERVICE_STATES.ON_SITE].includes(serviceState)) {
+                throw new functions.https.HttpsError("failed-precondition", "El servicio ya tiene cotización o trabajo iniciado. Requiere cancelación y revisión administrativa; no se republicará ni se reembolsará automáticamente.");
+            }
+
             const profileRef = db.collection("users").doc(actorId);
             const lockRef = db.collection("technician_active_services").doc(actorId);
             const penaltyRef = db.collection("transacciones").doc(`cancel_${serviceId}_${actorId}`);
@@ -303,6 +328,8 @@ function createCancelB2cServiceHandler({ admin, db, functions }) {
                 marketplace_revision: Math.max(0, Number(service.marketplace_revision) || 0) + 1,
                 liberado_por_tecnico_at: timestamp,
                 liberado_por_tecnico_motivo: reason,
+                diagnostico_cotizacion_desbloqueada: false,
+                diagnostico_inicial_evidencia: null,
                 "auditoria.cancel_authority": "cancelB2cService",
                 "auditoria.cancel_actor": "tecnico"
             });
@@ -369,7 +396,7 @@ async function syncMarketplaceService({ admin, db, serviceId }) {
         };
         const evaluatedService = { ...service, payment_authority: authority };
         const categoryEnabled = platformContract.isServiceCategoryEnabled(service, catalogConfig);
-        const shouldPublish = categoryEnabled && platformContract.shouldPublishMarketplace(evaluatedService);
+        const shouldPublish = customer.suspendido !== true && categoryEnabled && platformContract.shouldPublishMarketplace(evaluatedService);
         const currentSignature = paymentAuthoritySignature(service.payment_authority);
         const nextSignature = paymentAuthoritySignature(authority);
         if (currentSignature !== nextSignature) {
@@ -385,7 +412,7 @@ async function syncMarketplaceService({ admin, db, serviceId }) {
             if (listingSnapshot.exists) transaction.delete(listingRef);
             return {
                 published: false,
-                reason: categoryEnabled
+                reason: customer.suspendido === true ? "CUSTOMER_SUSPENDED" : categoryEnabled
                     ? (payment.ok ? "SERVICE_NOT_ELIGIBLE" : payment.reason)
                     : "SERVICE_CATEGORY_DISABLED"
             };
@@ -513,7 +540,8 @@ function createResyncCustomerPaymentsHandler({ admin, db }) {
         const before = change.before.data() || {};
         const after = change.after.data() || {};
         if (JSON.stringify(before.pagos || {}) === JSON.stringify(after.pagos || {}) &&
-            before.efectivo_autorizado === after.efectivo_autorizado) return null;
+            before.efectivo_autorizado === after.efectivo_autorizado &&
+            before.suspendido === after.suspendido) return null;
         const services = await db.collection("services").where("cliente_id", "==", context.params.userId).get();
         for (const snapshot of services.docs) {
             if (snapshot.data()?.estado === "pendiente") {

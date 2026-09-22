@@ -34,7 +34,7 @@ const validBinding = {
     signature: {
         present: true,
         sha256: "c".repeat(64),
-        storage_path: "servicios/service_1/customer_signature.png",
+        storage_path: "servicios/service_1/customer_signature_1.png",
         download_url: "https://example.test/signature.png",
         base64_persisted: false
     }
@@ -284,7 +284,10 @@ function createFakeSettlementDb(initial = {}) {
         [bindingPath]: {
             ...validBinding,
             service_id: serviceId,
-            technician_id: technicianId
+            technician_id: technicianId,
+            before: {...validBinding.before, storage_path: 'b2c_evidence/'+serviceId+'/'+technicianId+'/work_before/a.jpg'},
+            after: {...validBinding.after, storage_path: 'b2c_evidence/'+serviceId+'/'+technicianId+'/work_after/b.jpg'},
+            signature: {...validBinding.signature, storage_path: 'servicios/'+serviceId+'/customer_signature_1.png'}
         },
         [`users/${technicianId}`]: {
             comision_asignada: 0.30,
@@ -303,6 +306,7 @@ function createFakeSettlementDb(initial = {}) {
     const engine = createB2CServiceSettlementEngine({
         admin,
         db: fakeDb,
+        verifyEvidence: async () => ({ verifiedByUnitFixture: true }),
         financialPolicy: {
             assertNoFinancialBlock: require("./b2c-financial-policy").assertNoFinancialBlock,
             assignedTechnician: service => service.tecnico_id

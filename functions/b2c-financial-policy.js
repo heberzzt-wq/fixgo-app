@@ -18,6 +18,7 @@ function safeText(value, maxLength = 180) {
 }
 
 function finiteNumber(value) {
+    if (value === null || value === undefined || typeof value === "boolean" || (typeof value === "string" && !value.trim())) return null;
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : null;
 }
@@ -33,7 +34,7 @@ function money(value, code = "AMOUNT_INVALID") {
 }
 
 function sameMoney(left, right) {
-    return Math.abs(Number(left) - Number(right)) <= 0.01;
+    return finiteNumber(left) !== null && finiteNumber(right) !== null && Math.round(Number(left) * 100) === Math.round(Number(right) * 100);
 }
 
 function reviewClosed(ticketData, key) {
@@ -168,9 +169,12 @@ function assertCustomerCheckout({
 
     const type = safeText(paymentType, 80);
     const state = safeText(ticketData.estado, 80);
+    if (ticketData.metodo_pago !== 'stripe') throw new Error('STRIPE_SERVICE_METHOD_REQUIRED');
+    assertNoFinancialBlock(ticketData);
     let authoritativeAmount;
 
     if (type === "garantia_inicial") {
+        if (Number(ticketData.monto_pagado || 0) > 0) throw new Error('INITIAL_PAYMENT_ALREADY_CREDITED');
         if (![platformContract.SERVICE_STATES.STRIPE_STARTED, platformContract.SERVICE_STATES.QUOTING].includes(state)) {
             const error = new Error("INVALID_INITIAL_PAYMENT_STATE");
             error.code = "INVALID_INITIAL_PAYMENT_STATE";
@@ -216,8 +220,11 @@ function assertWebhookTransition({
     const type = safeText(paymentType, 80);
     const state = safeText(ticketData.estado, 80);
     const paid = money(paidAmount, "PAID_AMOUNT_INVALID");
+    if (ticketData.metodo_pago !== 'stripe') throw new Error('STRIPE_SERVICE_METHOD_REQUIRED');
+    assertNoFinancialBlock(ticketData);
 
     if (type === "garantia_inicial") {
+        if (Number(ticketData.monto_pagado || 0) > 0) throw new Error('INITIAL_PAYMENT_ALREADY_CREDITED');
         const expected = initialAuthorizationAmount(ticketData);
         if (!sameMoney(expected, paid)) {
             const error = new Error("WEBHOOK_INITIAL_AMOUNT_MISMATCH");

@@ -63,3 +63,19 @@ test('financial retry is exposed through the canonical Firebase client to the ad
     assert.match(client,/httpsCallable\(cloudFunctions, "reconciliarLiquidacionB2C"\)/);
     assert.match(panel,/await reconciliarLiquidacionB2C\(\{ serviceId: service.id, reason: reason.trim\(\) \}\)/);
 });
+
+
+test('legacy financial and closure names share canonical handlers',()=>{
+    assert.equal(entry.requestPayout,entry.solicitarRetiro);
+    assert.equal(entry.procesarCierreServicio,entry.completeB2cService);
+});
+
+test('retired unauthenticated module generator has no provider path',async()=>{
+    const app=require('express')(); app.use(entry.generarModulo);
+    const server=http.createServer(app);
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    try {
+        const response=await fetch(`http://127.0.0.1:${server.address().port}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({prompt:'must not invoke provider'})});
+        assert.equal(response.status,401);assert.equal((await response.json()).error,'AUTH_REQUIRED');
+    } finally {await new Promise(resolve=>server.close(resolve));}
+});
