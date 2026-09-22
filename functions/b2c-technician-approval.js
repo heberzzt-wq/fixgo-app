@@ -105,6 +105,25 @@ function createApproveTechnicianHandler({ admin, db, functions, bucket }) {
 
             const evidencias = await verifyTechnicianStorage({ bucket: bucket || admin.storage().bucket('fixgo-44e4d.firebasestorage.app'), technicianId, profile, functions });
             if (alreadyApproved) return { ok: true, technicianId, estado: 'activo', alreadyApproved: true };
+
+            const identityRequired = rawProfile.kyc?.identity_required === true;
+            const identityRegistryRef = db.collection("b2c_identity_registry").doc(technicianId);
+            let identityRegistry = null;
+            if (identityRequired) {
+                const registrySnapshot = await transaction.get(identityRegistryRef);
+                identityRegistry = registrySnapshot.exists ? registrySnapshot.data() || {} : null;
+                if (rawProfile.kyc?.identity_machine_verified !== true ||
+                    rawProfile.kyc?.identity_machine_status !== "verified" ||
+                    rawProfile.kyc?.identity_engine_version !== "human-local-v1" ||
+                    !rawProfile.kyc?.identity_capture_digest ||
+                    !identityRegistry ||
+                    identityRegistry.status !== "pending_admin_review" ||
+                    identityRegistry.engine_version !== "human-local-v1" ||
+                    identityRegistry.capture_digest !== rawProfile.kyc.identity_capture_digest) {
+                    throw new functions.https.HttpsError("failed-precondition", "IDENTITY_MACHINE_VERIFICATION_REQUIRED");
+                }
+            }
+
             const now = admin.firestore.FieldValue.serverTimestamp();
             transaction.update(technicianRef, {
                 estado: platformContract.TECHNICIAN_STATES.ACTIVE,
@@ -120,7 +139,7 @@ function createApproveTechnicianHandler({ admin, db, functions, bucket }) {
                 "kyc.identity_verified": profile.kyc?.identity_required === true ? true : (rawProfile.kyc?.identity_verified === true),
                 "kyc.identity_verified_by": profile.kyc?.identity_required === true ? context.auth.uid : (rawProfile.kyc?.identity_verified_by || null),
                 "kyc.identity_verified_at": profile.kyc?.identity_required === true ? now : (rawProfile.kyc?.identity_verified_at || null),
-                "kyc.identity_verification_method": profile.kyc?.identity_required === true ? "manual_admin_review_v1" : (rawProfile.kyc?.identity_verification_method || null),
+                "kyc.identity_verification_method": identityRequired ? "human-local-v1+admin-review" : (rawProfile.kyc?.identity_verification_method || null),
                 "kyc.aprobado_por": context.auth.uid,
                 "kyc.aprobado_at": now,
                 "kyc.faltantes": [],
@@ -128,6 +147,14 @@ function createApproveTechnicianHandler({ admin, db, functions, bucket }) {
                 aprobadoEn: now,
                 actualizadoEn: now
             });
+            if (identityRequired) {
+                transaction.set(identityRegistryRef, {
+                    status: "active",
+                    admin_reviewed_by: context.auth.uid,
+                    admin_reviewed_at: now,
+                    updated_at: now
+                }, { merge: true });
+            }
             return { ok: true, technicianId, estado: "activo" };
         });
     };
@@ -158,6 +185,8 @@ function createReturnTechnicianHandler({ admin, db, functions }) {
             tx.update(target, { estado: 'rechazado', status: 'rechazado', disponible: false, verificado: false,
                 'kyc.estado': 'rechazado', 'kyc.aprobado': false,
                 'kyc.identity_verified': documents.some(kind => ['foto_perfil', 'ine', 'ine_reverso', 'selfie_liveness_left', 'selfie_liveness_right'].includes(kind)) ? false : (raw.kyc?.identity_verified === true),
+                'kyc.identity_machine_verified': documents.some(kind => ['foto_perfil', 'ine', 'ine_reverso', 'selfie_liveness_left', 'selfie_liveness_right'].includes(kind)) ? false : (raw.kyc?.identity_machine_verified === true),
+                'kyc.identity_machine_status': documents.some(kind => ['foto_perfil', 'ine', 'ine_reverso', 'selfie_liveness_left', 'selfie_liveness_right'].includes(kind)) ? 'pending_reverification' : (raw.kyc?.identity_machine_status || null),
                 'kyc.faltantes': documents,
                 'kyc.observaciones': reason, 'kyc.evidencias': evidencias,
                 'kyc.revisado_por': context.auth.uid, 'kyc.revisado_at': admin.firestore.FieldValue.serverTimestamp() });
