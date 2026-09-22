@@ -26,6 +26,7 @@ import {
     getDoc,
     crearServicioB2C,
     cancelarServicioB2C,
+    verificarIdentidadB2C,
     responderCotizacionB2C
 } from "./firebase.js";
 
@@ -89,31 +90,105 @@ export async function iniciarPanelCliente(user) {
         toggleUrgencia: document.getElementById("toggleUrgencia")
     };
 
+    const identityStatus = String(user.kyc?.identity_machine_status || "pending").trim();
+    const identityReasons = Array.isArray(user.kyc?.identity_machine_reasons)
+        ? user.kyc.identity_machine_reasons
+            .map(reason => String(reason || "").trim())
+            .filter(Boolean)
+            .slice(0, 8)
+        : [];
     const identityBlocked = user.tipo_cuenta === "B2C" &&
         user.kyc?.identity_required === true &&
         (user.kyc?.identity_verified !== true ||
          user.kyc?.identity_machine_verified !== true ||
-         user.kyc?.identity_machine_status !== "verified");
+         identityStatus !== "verified");
 
     if (identityBlocked) {
         const banner = document.createElement("section");
         banner.id = "clienteIdentityReviewBanner";
         banner.className = "mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-100";
-        const duplicate = user.kyc?.identity_machine_status === "duplicate_suspected";
+        const duplicate = identityStatus === "duplicate_suspected";
+        const reasonMarkup = identityReasons.length > 0
+            ? `<p id="clienteIdentityMachineReason" class="mt-2 rounded-xl border border-amber-400/20 bg-black/20 px-3 py-2 text-[10px] font-mono text-amber-100/80">Diagnóstico: ${identityReasons.map(reason => escaparHTML(reason)).join(" · ")}</p>`
+            : '<p id="clienteIdentityMachineReason" class="mt-2 text-[10px] text-amber-100/55">Todavía no existe un diagnóstico automático persistido.</p>';
+        const retryMarkup = duplicate
+            ? ""
+            : `<button id="clienteIdentityRetryButton" type="button" class="mt-3 inline-flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100 active:scale-95">
+                    <i class="fas fa-rotate"></i> REINTENTAR VALIDACIÓN AUTOMÁTICA
+               </button>`;
         banner.innerHTML = `
             <div class="flex items-start gap-3">
                 <i class="fas fa-user-shield mt-1 text-amber-400"></i>
-                <div>
+                <div class="min-w-0 flex-1">
                     <p class="font-black">${duplicate ? "Identidad en revisión de seguridad" : "Verificación de identidad pendiente"}</p>
                     <p class="mt-1 text-xs text-amber-100/75">
                         ${duplicate
                             ? "Detectamos una coincidencia que debe revisar una persona. No se permiten solicitudes mientras se resuelve."
-                            : "Tu expediente está protegido y todavía no puede crear servicios. Si la verificación automática no concluyó, soporte podrá revisarlo."}
+                            : "Tu expediente está protegido y todavía no puede crear servicios. Puedes reintentar la validación automática usando las evidencias ya guardadas."}
                     </p>
+                    ${reasonMarkup}
+                    ${retryMarkup}
+                    <p id="clienteIdentityRetryStatus" class="mt-2 text-[10px] font-bold text-amber-100/70" aria-live="polite"></p>
                 </div>
             </div>`;
         const anchor = el.form?.parentElement || document.querySelector("main");
         anchor?.prepend(banner);
+
+        const retryButton = banner.querySelector("#clienteIdentityRetryButton");
+        const retryStatus = banner.querySelector("#clienteIdentityRetryStatus");
+        retryButton?.addEventListener("click", async () => {
+            if (!auth.currentUser || auth.currentUser.uid !== user.uid) {
+                if (retryStatus) retryStatus.textContent = "La sesión cambió. Vuelve a iniciar sesión antes de verificar identidad.";
+                return;
+            }
+
+            retryButton.disabled = true;
+            retryButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> VALIDANDO EVIDENCIAS…';
+            if (retryStatus) retryStatus.textContent = "Analizando INE, rostro, prueba de vida y coincidencias…";
+
+            try {
+                const result = await verificarIdentidadB2C();
+                const status = String(result?.status || "unknown");
+                const reasons = Array.isArray(result?.reasons)
+                    ? result.reasons
+                        .map(reason => String(reason || "").trim())
+                        .filter(Boolean)
+                        .slice(0, 8)
+                    : [];
+
+                if (status === "verified") {
+                    if (retryStatus) retryStatus.textContent = "✅ Identidad verificada automáticamente. Actualizando tu sesión…";
+                    setTimeout(() => window.location.reload(), 700);
+                    return;
+                }
+
+                if (status === "duplicate_suspected") {
+                    if (retryStatus) retryStatus.textContent = "🛡️ Coincidencia biométrica detectada. El expediente requiere revisión administrativa.";
+                    retryButton.remove();
+                    return;
+                }
+
+                if (retryStatus) {
+                    retryStatus.textContent = reasons.length > 0
+                        ? `Revisión requerida: ${reasons.join(" · ")}`
+                        : "La validación automática requiere revisión. No se habilitaron servicios.";
+                }
+            }
+            catch (error) {
+                console.error("[B2C_CUSTOMER_IDENTITY_RETRY]", error);
+                const code = String(error?.code || "IDENTITY_RETRY_FAILED")
+                    .replace(/[^a-zA-Z0-9_:\/.-]/g, "")
+                    .slice(0, 120);
+                if (retryStatus) retryStatus.textContent = `No se pudo completar la validación automática (${code}).`;
+            }
+            finally {
+                if (retryButton?.isConnected) {
+                    retryButton.disabled = false;
+                    retryButton.innerHTML = '<i class="fas fa-rotate"></i> REINTENTAR VALIDACIÓN AUTOMÁTICA';
+                }
+            }
+        });
+
         if (el.form) {
             el.form.setAttribute("aria-disabled", "true");
             el.form.classList.add("opacity-50");
