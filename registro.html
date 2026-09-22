@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>GestiaPremium | Registro Maestro V6.0</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -36,27 +36,232 @@
         }
 
         /* KYC bancario: captura guiada de identidad */
-        .identity-shell { background: radial-gradient(circle at top, rgba(16,185,129,.12), transparent 42%), #070707; }
-        .identity-camera-stage { position: relative; overflow: hidden; border-radius: 1.75rem; background: #000; min-height: 420px; }
-        .identity-camera-stage video { width: 100%; height: min(62vh, 560px); object-fit: cover; display: block; }
-        .identity-camera-stage video[data-facing="user"] { transform: scaleX(-1); }
-        .identity-scrim { position: absolute; inset: 0; box-shadow: inset 0 0 0 9999px rgba(0,0,0,.42); pointer-events: none; }
-        .identity-frame { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); z-index: 3; pointer-events: none; }
-        .identity-frame.document { width: 84%; aspect-ratio: 1.586/1; border: 2px solid rgba(255,255,255,.95); border-radius: 1.25rem; box-shadow: 0 0 0 1px rgba(16,185,129,.65), 0 0 38px rgba(16,185,129,.20); }
-        .identity-frame.face { width: min(62%, 290px); aspect-ratio: .76/1; border: 3px solid rgba(255,255,255,.95); border-radius: 48% 48% 45% 45% / 42% 42% 58% 58%; box-shadow: 0 0 0 1px rgba(16,185,129,.75), 0 0 42px rgba(16,185,129,.28); }
-        .identity-frame::before,.identity-frame::after { content:""; position:absolute; width:38px; height:38px; border-color:#34d399; }
-        .identity-frame::before { left:-5px; top:-5px; border-left:5px solid #34d399; border-top:5px solid #34d399; border-radius:10px 0 0 0; }
-        .identity-frame::after { right:-5px; bottom:-5px; border-right:5px solid #34d399; border-bottom:5px solid #34d399; border-radius:0 0 10px 0; }
+        html.identity-modal-open,
+        body.identity-modal-open {
+            overflow: hidden;
+            overscroll-behavior: none;
+        }
+        .identity-shell {
+            background: radial-gradient(circle at top, rgba(16,185,129,.12), transparent 42%), #070707;
+        }
+        .identity-modal-viewport {
+            min-height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .identity-dialog {
+            width: 100%;
+            max-width: 42rem;
+            border-radius: 2rem;
+            border: 1px solid rgba(16,185,129,.25);
+            background: #101010;
+            box-shadow: 0 24px 80px rgba(0,0,0,.65);
+            overflow: hidden;
+        }
+        .identity-modal-header {
+            padding: 1.25rem 1.25rem;
+            border-bottom: 1px solid #27272a;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+        .identity-modal-content {
+            padding: 1rem;
+        }
+        .identity-camera-stage {
+            position: relative;
+            overflow: hidden;
+            border-radius: 1.75rem;
+            background: #000;
+            min-height: 420px;
+            isolation: isolate;
+        }
+        .identity-camera-stage video {
+            width: 100%;
+            height: min(62vh, 560px);
+            object-fit: cover;
+            object-position: center center;
+            display: block;
+            background: #000;
+        }
+        .identity-camera-stage[data-frame="document"] video {
+            object-fit: contain;
+        }
+        .identity-camera-stage[data-frame="face"] video {
+            object-fit: cover;
+        }
+        .identity-camera-stage video[data-facing="user"] {
+            transform: scaleX(-1);
+        }
+        .identity-scrim {
+            position: absolute;
+            inset: 0;
+            box-shadow: inset 0 0 0 9999px rgba(0,0,0,.42);
+            pointer-events: none;
+        }
+        .identity-frame {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%,-50%);
+            z-index: 3;
+            pointer-events: none;
+        }
+        .identity-frame.document {
+            width: min(84%, 520px);
+            aspect-ratio: 1.586 / 1;
+            border: 2px solid rgba(255,255,255,.95);
+            border-radius: 1.25rem;
+            box-shadow: 0 0 0 1px rgba(16,185,129,.65), 0 0 38px rgba(16,185,129,.20);
+        }
+        .identity-frame.face {
+            width: min(62%, 290px);
+            aspect-ratio: .76 / 1;
+            border: 3px solid rgba(255,255,255,.95);
+            border-radius: 48% 48% 45% 45% / 42% 42% 58% 58%;
+            box-shadow: 0 0 0 1px rgba(16,185,129,.75), 0 0 42px rgba(16,185,129,.28);
+        }
+        .identity-frame::before,
+        .identity-frame::after {
+            content:"";
+            position:absolute;
+            width:38px;
+            height:38px;
+            border-color:#34d399;
+        }
+        .identity-frame::before {
+            left:-5px;
+            top:-5px;
+            border-left:5px solid #34d399;
+            border-top:5px solid #34d399;
+            border-radius:10px 0 0 0;
+        }
+        .identity-frame::after {
+            right:-5px;
+            bottom:-5px;
+            border-right:5px solid #34d399;
+            border-bottom:5px solid #34d399;
+            border-radius:0 0 10px 0;
+        }
         .identity-step { transition: all .25s ease; }
         .identity-step.is-active { border-color:#34d399; background:rgba(16,185,129,.12); color:#d1fae5; }
         .identity-step.is-done { border-color:#10b981; background:#064e3b; color:#ecfdf5; }
         .identity-step.is-done .identity-step-dot { background:#34d399; color:#052e16; }
         .identity-capture-button { box-shadow: 0 14px 34px rgba(16,185,129,.24); }
+
         @media (max-width: 640px) {
-            .identity-camera-stage { min-height: 360px; border-radius: 1.25rem; }
-            .identity-camera-stage video { height: 56vh; min-height: 360px; }
-            .identity-frame.document { width: 91%; }
-            .identity-frame.face { width: 64%; }
+            #modalIdentidadTecnico {
+                width: 100dvw;
+                height: 100dvh;
+                padding: 0 !important;
+                overflow: hidden;
+            }
+            .identity-modal-viewport {
+                width: 100%;
+                height: 100dvh;
+                min-height: 0;
+                align-items: stretch;
+                justify-content: stretch;
+            }
+            .identity-dialog {
+                max-width: none;
+                height: 100dvh;
+                min-height: 0;
+                border: 0;
+                border-radius: 0;
+                display: flex;
+                flex-direction: column;
+            }
+            .identity-modal-header {
+                flex: 0 0 auto;
+                padding:
+                    max(.75rem, env(safe-area-inset-top))
+                    1rem
+                    .7rem;
+                gap: .75rem;
+            }
+            #identityModalTitle {
+                font-size: 1.05rem;
+                line-height: 1.25rem;
+            }
+            #identityModalHint {
+                margin-top: .35rem;
+                font-size: .72rem;
+                line-height: 1rem;
+            }
+            .identity-modal-content {
+                flex: 1 1 auto;
+                min-height: 0;
+                overflow: hidden;
+                padding:
+                    .75rem
+                    .75rem
+                    max(.75rem, env(safe-area-inset-bottom));
+                display: flex;
+                flex-direction: column;
+            }
+            .identity-camera-stage {
+                flex: 1 1 auto;
+                min-height: 0;
+                height: auto;
+                border-radius: 1rem;
+            }
+            .identity-camera-stage video {
+                width: 100%;
+                height: 100%;
+                min-height: 0;
+            }
+            .identity-camera-stage[data-frame="document"] video {
+                object-fit: contain;
+            }
+            .identity-camera-stage[data-frame="face"] video {
+                object-fit: cover;
+            }
+            .identity-frame.document {
+                width: min(88%, 520px);
+                max-height: 62%;
+            }
+            .identity-frame.face {
+                width: min(60%, 270px);
+                max-height: 72%;
+            }
+            .identity-progress {
+                flex: 0 0 auto;
+                margin-top: .65rem !important;
+            }
+            .identity-tip {
+                flex: 0 0 auto;
+                margin-top: .65rem !important;
+                padding: .65rem .8rem !important;
+                font-size: .68rem !important;
+                line-height: .95rem;
+            }
+            .identity-capture-button {
+                flex: 0 0 auto;
+                margin-top: .65rem !important;
+                padding-top: .85rem !important;
+                padding-bottom: .85rem !important;
+            }
+            .identity-privacy-copy {
+                flex: 0 0 auto;
+                margin-top: .45rem !important;
+                font-size: .58rem !important;
+                line-height: .8rem;
+            }
+        }
+
+        @media (max-width: 640px) and (max-height: 700px) {
+            #identityModalHint {
+                display: none;
+            }
+            .identity-tip {
+                display: none;
+            }
+            .identity-frame.document {
+                width: min(84%, 460px);
+            }
         }
 
     </style>
@@ -348,9 +553,9 @@
         </section>
 
         <div id="modalIdentidadTecnico" class="fixed inset-0 z-[150] hidden identity-shell bg-black/95 p-3 sm:p-6 overflow-y-auto">
-            <div class="min-h-full flex items-center justify-center">
-                <div class="w-full max-w-2xl rounded-[2rem] border border-emerald-500/25 bg-[#101010] shadow-2xl overflow-hidden">
-                    <div class="px-5 sm:px-7 py-5 border-b border-zinc-800 flex items-start justify-between gap-4">
+            <div class="identity-modal-viewport">
+                <div class="identity-dialog">
+                    <div class="identity-modal-header">
                         <div>
                             <p id="identityModalEyebrow" class="text-[10px] uppercase tracking-[0.24em] text-emerald-400 font-black">Identidad 1 de 5</p>
                             <h3 id="identityModalTitle" class="text-xl sm:text-2xl font-black mt-1">Captura tu INE por el frente</h3>
@@ -359,8 +564,8 @@
                         <button type="button" id="btnCancelarIdentidad" class="w-10 h-10 shrink-0 rounded-full border border-zinc-700 text-gray-400 hover:text-white hover:bg-white/5" aria-label="Cerrar captura"><i class="fas fa-times"></i></button>
                     </div>
 
-                    <div class="p-4 sm:p-6">
-                        <div class="identity-camera-stage">
+                    <div class="identity-modal-content">
+                        <div class="identity-camera-stage" data-frame="document">
                             <video id="identityVideo" autoplay playsinline muted></video>
                             <canvas id="identityCanvas" class="hidden"></canvas>
                             <div class="identity-scrim"></div>
@@ -370,7 +575,7 @@
                             </div>
                         </div>
 
-                        <div class="mt-5 grid grid-cols-5 gap-2">
+                        <div class="identity-progress mt-5 grid grid-cols-5 gap-2">
                             <div class="h-1.5 rounded-full bg-emerald-500" id="identityBar0"></div>
                             <div class="h-1.5 rounded-full bg-zinc-800" id="identityBar1"></div>
                             <div class="h-1.5 rounded-full bg-zinc-800" id="identityBar2"></div>
@@ -378,7 +583,7 @@
                             <div class="h-1.5 rounded-full bg-zinc-800" id="identityBar4"></div>
                         </div>
 
-                        <div class="mt-5 rounded-2xl bg-zinc-900 border border-zinc-800 px-4 py-3 text-xs text-gray-400">
+                        <div class="identity-tip mt-5 rounded-2xl bg-zinc-900 border border-zinc-800 px-4 py-3 text-xs text-gray-400">
                             <i class="fas fa-lightbulb text-amber-400 mr-2"></i>
                             <span id="identityTip">Usa buena luz y limpia el lente antes de comenzar.</span>
                         </div>
@@ -386,7 +591,7 @@
                         <button type="button" id="btnCapturarIdentidad" class="identity-capture-button mt-5 w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-black font-black py-4 rounded-2xl transition-all" disabled>
                             <i class="fas fa-camera mr-2"></i> CAPTURAR
                         </button>
-                        <p class="mt-3 text-center text-[10px] text-gray-500">La cámara sólo se activa durante este proceso. Las imágenes se cargan al expediente protegido después de crear tu cuenta.</p>
+                        <p class="identity-privacy-copy mt-3 text-center text-[10px] text-gray-500">La cámara sólo se activa durante este proceso. Las imágenes se cargan al expediente protegido después de crear tu cuenta.</p>
                     </div>
                 </div>
             </div>

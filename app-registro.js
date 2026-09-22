@@ -633,6 +633,7 @@ async function openIdentityCameraForStep() {
     const captureButton = $("btnCapturarIdentidad");
     const cameraStatus = $("identityCameraStatus");
     const guide = $("identityGuide");
+    const stage = video?.closest(".identity-camera-stage");
 
     stopIdentityCamera();
     captureButton.disabled = true;
@@ -641,6 +642,8 @@ async function openIdentityCameraForStep() {
     $("identityModalHint").textContent = step.hint;
     $("identityTip").textContent = step.tip;
     guide.className = `identity-frame ${step.frame}`;
+    if (stage) stage.dataset.frame = step.frame;
+    video.dataset.frame = step.frame;
     video.dataset.facing = step.facing;
     cameraStatus.innerHTML = '<i class="fas fa-circle-notch fa-spin text-emerald-400 mr-2"></i>Activando cámara…';
     renderIdentityProgress();
@@ -652,8 +655,14 @@ async function openIdentityCameraForStep() {
     }
 
     try {
+        const documentCapture = step.frame === "document";
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: step.facing }, width: { ideal: 1280 }, height: { ideal: 720 } },
+            video: {
+                facingMode: { ideal: step.facing },
+                width: { ideal: documentCapture ? 1920 : 1280 },
+                height: { ideal: documentCapture ? 1080 : 1280 },
+                ...(documentCapture ? { aspectRatio: { ideal: 16 / 9 } } : {})
+            },
             audio: false
         });
         identityCaptureState.stream = stream;
@@ -707,7 +716,7 @@ async function captureIdentityFrame() {
     if (identityCaptureState.stepIndex >= identitySteps.length) {
         identityCaptureState.complete = true;
         stopIdentityCamera();
-        $("modalIdentidadTecnico").classList.add("hidden");
+        closeIdentityModal();
         const isCustomerIdentity = identityCaptureState.target === "cliente";
         const summary = $(isCustomerIdentity ? "identitySummaryCliente" : "identitySummary");
         const restartButton = $(isCustomerIdentity ? "btnIniciarIdentidadCliente" : "btnIniciarIdentidad");
@@ -739,12 +748,20 @@ async function startIdentityFlow(target) {
     archivoSelfieIzquierda = null;
     archivoSelfieDerecha = null;
     $("modalIdentidadTecnico").classList.remove("hidden");
+    document.documentElement.classList.add("identity-modal-open");
+    document.body.classList.add("identity-modal-open");
     await openIdentityCameraForStep();
+}
+
+function closeIdentityModal() {
+    $("modalIdentidadTecnico")?.classList.add("hidden");
+    document.documentElement.classList.remove("identity-modal-open");
+    document.body.classList.remove("identity-modal-open");
 }
 
 function cancelIdentityFlow() {
     stopIdentityCamera();
-    $("modalIdentidadTecnico")?.classList.add("hidden");
+    closeIdentityModal();
 }
 
 $("btnIniciarIdentidad")?.addEventListener("click", () => startIdentityFlow("tecnico"));

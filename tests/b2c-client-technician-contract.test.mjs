@@ -291,6 +291,14 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(registration, /selfie_liveness_left/);
     assert.match(registration, /selfie_liveness_right/);
     assert.match(registrationHtml, /modalIdentidadTecnico/);
+    assert.match(registrationHtml, /viewport-fit=cover/);
+    assert.match(registrationHtml, /100dvh/);
+    assert.match(registrationHtml, /identity-camera-stage\[data-frame="document"\] video/);
+    assert.match(registrationHtml, /object-fit:\s*contain/);
+    assert.match(registrationHtml, /identity-modal-content/);
+    assert.match(registration, /stage\.dataset\.frame = step\.frame/);
+    assert.match(registration, /identity-modal-open/);
+    assert.match(registration, /aspectRatio:\s*\{\s*ideal:\s*16 \/ 9\s*\}/);
     assert.match(registrationHtml, /chkBiometriaTecnico/);
     assert.match(registrationHtml, /btnIniciarIdentidadCliente/);
     assert.match(registrationHtml, /chkBiometriaCliente/);
