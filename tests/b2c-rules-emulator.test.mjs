@@ -127,6 +127,21 @@ test("cliente B2C no puede mutar autorizaciones de pago", async () => {
     await assertFails(updateDoc(doc(db, "users/client-1"), { efectivo_autorizado: true }));
 });
 
+test("biometric registry and audit are server-only", async () => {
+    await environment.withSecurityRulesDisabled(async ctx => {
+        await setDoc(doc(ctx.firestore(), "b2c_identity_registry/hidden"), { embedding: [1,2,3], status: "active" });
+        await setDoc(doc(ctx.firestore(), "b2c_identity_audit/audit-1"), { status: "verified" });
+    });
+    for (const context of [
+        environment.authenticatedContext("client-1"),
+        environment.authenticatedContext("tech-1"),
+        environment.authenticatedContext("nNhwy3Mx4pTvc8TZVh1tyTMFwhC2")
+    ]) {
+        await assertFails(getDoc(doc(context.firestore(), "b2c_identity_registry/hidden")));
+        await assertFails(getDoc(doc(context.firestore(), "b2c_identity_audit/audit-1")));
+    }
+});
+
 test("técnico pendiente no puede desactivar ni autoaprobar identidad biométrica", async () => {
     const db = environment.authenticatedContext("tech-identity-pending", {
         email: "identity@example.test"
@@ -332,11 +347,37 @@ test('tenant isolation covers existing B2B paths and service creation', async ()
 });
 
 
-test('initial profile email is bound to authenticated identity', async () => {
+test('new B2C customer must be born identity-pending and bound to authenticated email', async () => {
     const db=environment.authenticatedContext('new-safe',{email:'safe@example.test'}).firestore();
-    const profile={uid:'new-safe',email:'safe@example.test',rol:'cliente',tipo_cuenta:'B2C',estado:'activo',status:'activo',pagos:{stripe_autorizado:false,efectivo_autorizado:false}};
-    await assertFails(setDoc(doc(db,'users/new-safe'),{...profile,email:'hebertoh-m@hotmail.com'}));
-    await assertSucceeds(setDoc(doc(db,'users/new-safe'),profile));
+    const pending={
+        uid:'new-safe',
+        email:'safe@example.test',
+        rol:'cliente',
+        sub_type:'marketplace',
+        tipo_cuenta:'B2C',
+        estado:'identidad_pendiente',
+        status:'identidad_pendiente',
+        wallet:0,
+        currency:'MXN',
+        foto_perfil:null,
+        documentos:{ine:null,ine_reverso:null,selfie_liveness_left:null,selfie_liveness_right:null},
+        kyc:{
+            estado:'identidad_pendiente',
+            aprobado:false,
+            identity_required:true,
+            identity_verified:false,
+            identity_machine_verified:false,
+            identity_machine_status:'pending_capture',
+            identity_version:'b2c-bank-identity-v1',
+            identity_capture_status:'pending_capture'
+        },
+        pagos:{stripe_autorizado:false,efectivo_autorizado:false}
+    };
+    await assertFails(setDoc(doc(db,'users/new-safe'),{...pending,email:'hebertoh-m@hotmail.com'}));
+    await assertFails(setDoc(doc(db,'users/new-safe'),{...pending,estado:'activo',status:'activo','kyc.estado':'activo'}));
+    await assertSucceeds(setDoc(doc(db,'users/new-safe'),pending));
+    await assertFails(updateDoc(doc(db,'users/new-safe'),{'kyc.identity_machine_verified':true}));
+    await assertFails(updateDoc(doc(db,'users/new-safe'),{'kyc.identity_verified':true}));
 });
 
 
