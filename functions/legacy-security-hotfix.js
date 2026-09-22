@@ -17,12 +17,15 @@ function createLegacySecurityHotfix({ functions, canonicalExports } = {}) {
 
     // Historical public AI generator is retired. No provider is initialized or called.
     const generarModulo = functions.https.onRequest((_req, res) => {
-        res.set?.("Cache-Control", "no-store");
-        return res.status(410).json({
+        const body = JSON.stringify({
             ok: false,
             error: "LEGACY_GENERATOR_RETIRED",
             authority: "secure-entry"
         });
+        res.statusCode = 410;
+        res.setHeader("Cache-Control", "no-store");
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        return res.end(body);
     });
 
     // Prefer the physically verified B2C close when it exists. Until that
