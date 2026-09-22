@@ -79,7 +79,7 @@ function harness() {
                     const store = stores.get(write.target.collection) || new Map();
                     stores.set(write.target.collection, store);
                     const current = store.get(write.target.id) || {};
-                    const next = write.type === 'set' && !write.options?.merge ? {} : structuredClone(current);
+                    const next = write.type === 'set' && !write.options?.merge ? {} : current;
                     for (const [key, value] of Object.entries(write.value)) {
                         const parts = key.split('.');
                         let cursor = next;
