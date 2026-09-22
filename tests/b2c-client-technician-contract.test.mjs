@@ -212,6 +212,8 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     const firebaseConfig = JSON.parse(fs.readFileSync(new URL("../firebase.json", import.meta.url), "utf8"));
     assert.doesNotMatch(client, /SOBRESCRIBIMOS EL GPS|SNIPER DEL MAPA INTERACTIVO/);
     assert.match(client, /confirmDestination/);
+    assert.match(client, /clienteIdentityReviewBanner/);
+    assert.match(client, /identityBlocked/);
     assert.match(html, /btnExpandirMapa/);
     assert.match(html, /mapa-expandido/);
     assert.match(client, /platformContract\.SERVICE_CATALOG/);
