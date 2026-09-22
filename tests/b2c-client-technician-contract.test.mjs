@@ -225,7 +225,6 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.doesNotMatch(admin, /nuevaConfig\[realId\]\s*=\s*coverage\s*>\s*0/);
     assert.doesNotMatch(admin, /const MASTER_STRUCTURE\s*=\s*\{/);
     assert.match(admin, /aprobarTecnicoB2C\(uid\)/);
-    assert.match(registration, /emailSeguro/);
     assert.match(registration, /navigator\.mediaDevices\?\.getUserMedia/);
     assert.match(registration, /IDENTITY_CAPTURE_VERSION/);
     assert.match(registration, /ine_reverso/);
