@@ -1,10 +1,6 @@
 {
-  "jobId": "v142-release-git-status-native-20260921-chatgpt-107",
+  "jobId": "v142-b2c-e2e-health-20260922-chatgpt-108",
   "operation": "bridge",
-  "endpoint": "/git",
-  "body": {
-    "action": "status",
-    "cwd": ".",
-    "timeoutMs": 120000
-  }
+  "endpoint": "/health",
+  "body": {}
 }
