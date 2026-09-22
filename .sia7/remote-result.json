@@ -1,10 +1,10 @@
 {
-  "jobId": "v142-release-inspect-local-state-20260921-chatgpt-105",
-  "completedAt": "2026-09-22T00:10:44.300Z",
+  "jobId": "v142-release-git-status-native-20260921-chatgpt-107",
+  "completedAt": "2026-09-22T00:28:52.439Z",
   "executionStarted": true,
   "ok": false,
   "httpStatus": 503,
-  "endpoint": "/run",
+  "endpoint": "/git",
   "payload": {
     "ok": false,
     "status": "BRIDGE_IDENTITY_INVALID",
@@ -24,12 +24,12 @@
       "git": {
         "root": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
         "branch": "v94-media-v4n-negative-claims",
-        "head": "232f8e8696760ce441fef77b19d8dc8cefc846ec",
+        "head": "a272f3e4eca9d847a619f154121b6e9e551795e3",
         "remote": "https://heberzzt-wq@github.com/heberzzt-wq/fixgo-app.git",
         "clean": false
       },
       "identityMode": "invalid",
-      "contractHead": "252c7d56623894e5784d62fc96cc3a3ed0ec8da5",
+      "contractHead": "a725bde3590fceafb9805cb1b7fd9b459ea3a9ac",
       "remoteVerified": true,
       "repositoryMatches": true,
       "worktreeClean": false
