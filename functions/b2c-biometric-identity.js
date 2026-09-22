@@ -309,6 +309,30 @@ function createVerifyB2cIdentityHandler({
             return { ok: true, status: "verified", replay: true, identityVersion: IDENTITY_CAPTURE_VERSION };
         }
 
+        const attemptsRef = db.collection("b2c_identity_attempts").doc(uid);
+        const attemptNowMs = Date.now();
+        await db.runTransaction(async transaction => {
+            const snapshot = await transaction.get(attemptsRef);
+            const state = snapshot.exists ? snapshot.data() || {} : {};
+            const windowStartedMs = Number(state.window_started_ms || 0);
+            const lastAttemptMs = Number(state.last_attempt_ms || 0);
+            const withinWindow = windowStartedMs > 0 && attemptNowMs - windowStartedMs < 60 * 60 * 1000;
+            const attempts = withinWindow ? Number(state.attempts || 0) : 0;
+            if (lastAttemptMs > 0 && attemptNowMs - lastAttemptMs < 15 * 1000) {
+                throw new functions.https.HttpsError("resource-exhausted", "Espera unos segundos antes de repetir la verificación.");
+            }
+            if (withinWindow && attempts >= 5) {
+                throw new functions.https.HttpsError("resource-exhausted", "Límite temporal de verificaciones alcanzado. Intenta más tarde.");
+            }
+            transaction.set(attemptsRef, {
+                uid,
+                window_started_ms: withinWindow ? windowStartedMs : attemptNowMs,
+                attempts: attempts + 1,
+                last_attempt_ms: attemptNowMs,
+                updated_at: now()
+            }, { merge: true });
+        });
+
         const storageBucket = bucket || admin.storage().bucket("fixgo-44e4d.firebasestorage.app");
         let verified;
         let buffers;
