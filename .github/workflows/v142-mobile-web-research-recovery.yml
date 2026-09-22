@@ -3,7 +3,7 @@ name: v142 mobile web research recovery
 
 on:
   push:
-    branches: [v94-media-v4n-negative-claims]
+    branches: [v94-media-v4n-negative-claims, b2c-bank-identity-capture-v142]
     paths:
       - '.github/workflows/v142-mobile-web-research-recovery.yml'
       - '.github/scripts/v142-mobile-web-research-recovery.mjs'
@@ -413,7 +413,7 @@ jobs:
 
   materialize-v142:
     needs: [certify-linux, certify-windows]
-    if: ${{ needs.certify-linux.outputs.product_changed == 'true' && success() }}
+    if: ${{ github.ref == 'refs/heads/v94-media-v4n-negative-claims' && needs.certify-linux.outputs.product_changed == 'true' && success() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -447,7 +447,7 @@ jobs:
 
   deploy-v142:
     needs: [certify-linux, certify-windows, materialize-v142]
-    if: ${{ always() && needs.certify-linux.result == 'success' && needs.certify-windows.result == 'success' && (needs.certify-linux.outputs.product_changed == 'false' || needs.materialize-v142.result == 'success') && ((github.event_name == 'workflow_dispatch' && inputs.deploy == true) || (github.event_name == 'push' && contains(github.event.head_commit.message, 'authorize coordinated B2C B2B deploy'))) }}
+    if: ${{ github.ref == 'refs/heads/v94-media-v4n-negative-claims' && always() && needs.certify-linux.result == 'success' && needs.certify-windows.result == 'success' && (needs.certify-linux.outputs.product_changed == 'false' || needs.materialize-v142.result == 'success') && ((github.event_name == 'workflow_dispatch' && inputs.deploy == true) || (github.event_name == 'push' && contains(github.event.head_commit.message, 'authorize coordinated B2C B2B deploy'))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 70
     steps:
