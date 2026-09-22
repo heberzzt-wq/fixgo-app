@@ -93,6 +93,7 @@ on:
       - 'panel-tecnico.js'
       - 'functions/b2c-*.js'
       - 'functions/secure-entry.js'
+      - 'functions/legacy-security-hotfix.js'
       - 'tests/b2c-*.test.mjs'
       - 'tests/platform-release-authority.test.mjs'
       - 'tests/secure-financial-entry.test.mjs'
