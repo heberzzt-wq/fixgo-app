@@ -1,11 +1,11 @@
 {
-  "jobId": "v142-release-read-timeout-test-20260921-chatgpt-103",
+  "jobId": "v142-release-local-ci-rerun-20260921-chatgpt-104",
   "operation": "bridge",
-  "endpoint": "/read",
+  "endpoint": "/run",
   "body": {
-    "file": "tests/b2c-security-rules-contract.test.mjs",
-    "startLine": 1,
-    "endLine": 90,
-    "maxBytes": 100000
+    "command": "npm run ci:test",
+    "cwd": ".",
+    "timeoutMs": 900000,
+    "source": "v142_release_local_ci_rerun"
   }
 }
