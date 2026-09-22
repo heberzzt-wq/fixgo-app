@@ -5,8 +5,8 @@ class HttpsError extends Error { constructor(code, message) { super(message); th
 function harness() {
     const objects = new Map();
     const url = kind => `https://firebasestorage.googleapis.com/v0/b/test-bucket/o/${encodeURIComponent(`expedientes/tech/${kind}/current.png`)}?alt=media&token=fake`;
-    for (const kind of ['foto_perfil', 'ine', 'csf']) objects.set(`expedientes/tech/${kind}/current.png`, { size: '128', contentType: 'image/png', generation: '1', metageneration: '1', md5Hash: 'hash' });
-    const profile = { rol: 'tecnico', tipo_cuenta: 'B2C', estado: 'pendiente_revision', status: 'pendiente_revision', disponible: false, kyc: { estado: 'pendiente_revision', aprobado: false }, foto_perfil: url('foto_perfil'), documentos: { ine: url('ine'), csf: url('csf'), certificados: [] }, vehiculo: { tipo: 'peaton' }, datos_bancarios: { banco: 'test', clabe: '012345678901234567' }, skills: ['fix'] };
+    for (const kind of ['foto_perfil', 'ine', 'ine_reverso', 'selfie_liveness_left', 'selfie_liveness_right', 'csf']) objects.set(`expedientes/tech/${kind}/current.png`, { size: '128', contentType: 'image/png', generation: '1', metageneration: '1', md5Hash: 'hash' });
+    const profile = { rol: 'tecnico', tipo_cuenta: 'B2C', estado: 'pendiente_revision', status: 'pendiente_revision', disponible: false, kyc: { estado: 'pendiente_revision', aprobado: false, identity_required: true, identity_verified: false, identity_version: 'b2c-bank-identity-v1' }, foto_perfil: url('foto_perfil'), documentos: { ine: url('ine'), ine_reverso: url('ine_reverso'), selfie_liveness_left: url('selfie_liveness_left'), selfie_liveness_right: url('selfie_liveness_right'), csf: url('csf'), certificados: [] }, vehiculo: { tipo: 'peaton' }, datos_bancarios: { banco: 'test', clabe: '012345678901234567' }, skills: ['fix'] };
     const users = new Map([['tech', profile], ['admin', { rol: 'admin' }], ['other', { rol: 'tecnico' }]]);
     let writes = 0;
     const ref = id => ({ id, async get() { return { exists: users.has(id), data: () => structuredClone(users.get(id)) }; } });
@@ -49,7 +49,13 @@ test('contradictory state and suspended profile cannot be normalized into approv
 test('concurrent retries approve once and pin Storage generations without availability', async () => {
     const h = harness(); const results = await Promise.all([h.approve(), h.approve()]);
     assert.equal(h.writes(), 1); assert.equal(results.filter(r => r.alreadyApproved).length, 1);
-    assert.equal(h.profile.kyc.evidencias.ine.generation, '1'); assert.equal(h.profile.disponible, false);
+    assert.equal(h.profile.kyc.evidencias.ine.generation, '1');
+    assert.equal(h.profile.kyc.evidencias.ine_reverso.generation, '1');
+    assert.equal(h.profile.kyc.evidencias.selfie_liveness_left.generation, '1');
+    assert.equal(h.profile.kyc.evidencias.selfie_liveness_right.generation, '1');
+    assert.equal(h.profile.kyc.identity_verified, true);
+    assert.equal(h.profile.kyc.identity_verification_method, 'manual_admin_review_v1');
+    assert.equal(h.profile.disponible, false);
 });
 test('non-admin and self approval cannot activate technician', async () => {
     const h = harness(); await assert.rejects(h.approve('other'), { code: 'permission-denied' }); await assert.rejects(h.approve('tech'), { code: 'permission-denied' });
@@ -65,4 +71,22 @@ test('administrative return preserves documents, rejects non-admin and requires 
     h.profile.estado = h.profile.status = h.profile.kyc.estado = 'pendiente_revision';
     await h.approve(); assert.equal(h.profile.estado, 'activo');
     await assert.rejects(h.returnDocs(), { code: 'failed-precondition' });
+});
+
+
+test('new banking KYC cannot approve without INE reverse and liveness captures', async () => {
+    for (const kind of ['ine_reverso', 'selfie_liveness_left', 'selfie_liveness_right']) {
+        const h = harness();
+        h.profile.documentos[kind] = null;
+        await assert.rejects(h.approve(), { code: 'failed-precondition' });
+        assert.equal(h.writes(), 0);
+    }
+});
+
+test('biometric evidence must remain image-only', async () => {
+    for (const kind of ['ine_reverso', 'selfie_liveness_left', 'selfie_liveness_right']) {
+        const h = harness();
+        Object.assign(h.objects.get(`expedientes/tech/${kind}/current.png`), { contentType: 'application/pdf' });
+        await assert.rejects(h.approve(), { code: 'failed-precondition' });
+    }
 });
