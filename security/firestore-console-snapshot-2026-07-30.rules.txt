@@ -323,7 +323,8 @@ service cloud.firestore {
         request.auth.uid == 'nNhwy3Mx4pTvc8TZVh1tyTMFwhC2' &&
         collectionName != 'b2b_keys' &&
         collectionName != 'b2c_identity_registry' &&
-        collectionName != 'b2c_identity_audit';
+        collectionName != 'b2c_identity_audit' &&
+        collectionName != 'b2c_identity_attempts';
     }
 
     match /b2b_keys/{keyId} {
@@ -336,6 +337,10 @@ service cloud.firestore {
     }
 
     match /b2c_identity_audit/{auditId} {
+      allow read, write: if false;
+    }
+
+    match /b2c_identity_attempts/{attemptId} {
       allow read, write: if false;
     }
 
