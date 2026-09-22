@@ -9,6 +9,7 @@ const contract = globalThis.GestiaB2CPlatformContract;
 if (!contract) throw new Error("B2C_PLATFORM_CONTRACT_UNAVAILABLE");
 
 export const TECHNICIAN_KYC_STATES = contract.TECHNICIAN_STATES;
+export const TECHNICIAN_IDENTITY_VERSION = "b2c-bank-identity-v1";
 
 function text(value, fallback = "") {
     const normalized = String(value ?? "").trim();
@@ -46,10 +47,13 @@ export function createTechnicianRegistrationProfile({ uid, email, nombre, provid
             aprobado: false,
             provider,
             intentos_upload: 0,
-            faltantes: ["foto_perfil", "ine", "csf", "banco", "clabe", "vehiculo_tipo"]
+            identity_required: true,
+            identity_verified: false,
+            identity_version: TECHNICIAN_IDENTITY_VERSION,
+            faltantes: ["foto_perfil", "ine", "ine_reverso", "selfie_liveness_left", "selfie_liveness_right", "csf", "banco", "clabe", "vehiculo_tipo"]
         },
         vehiculo: { tipo: "", placas: "" },
-        documentos: { ine: null, csf: null, licencia: null, certificados: [] },
+        documentos: { ine: null, ine_reverso: null, selfie_liveness_left: null, selfie_liveness_right: null, csf: null, licencia: null, certificados: [] },
         datos_bancarios: { banco: "", clabe: "", titular: text(nombre, "Usuario Nuevo") },
         skills: [],
         nivel: "BRONCE",
