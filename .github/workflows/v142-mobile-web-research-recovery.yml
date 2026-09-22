@@ -191,6 +191,20 @@ jobs:
           npm ci
           npm ci --prefix functions
 
+      - name: Read-only App Check enforcement diagnostic
+        shell: bash
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          npx --yes firebase-tools@15.25.1 appcheck:services:list \
+            --project "$FIREBASE_PROJECT_ID" \
+            --token "$FIREBASE_TOKEN" \
+            --json > "$RUNNER_TEMP/appcheck-services.json"
+          jq '{services: [.result[]? | {name, enforcementMode, replayProtectionEnforcementMode}]}' "$RUNNER_TEMP/appcheck-services.json"
+          rm -f "$RUNNER_TEMP/appcheck-services.json"
+
       - name: Apply deterministic V142 patches
         run: |
           node .github/scripts/v142-mobile-web-research-recovery.mjs
