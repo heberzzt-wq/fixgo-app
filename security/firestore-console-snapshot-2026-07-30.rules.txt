@@ -133,12 +133,17 @@ service cloud.firestore {
         'settlement_method', 'settlement_version', 'settlement_reconciled',
         'liquidacion_bloqueada', 'liquidacion_codigo', 'liquidacion_bloqueo_codigo',
         'b2c_financial_hold', 'revision_administrativa', 'clientType', 'client_type',
+        'cierre_operativo_completado', 'cierre_financiero_pendiente_backend', 'cierre_legacy_financiero_ejecutado',
+        'work_evidence_binding_path', 'evidencia_verificada', 'folio_fiscal', 'desglose',
         'edificioId', 'tenantId', 'empresa_id', 'empresaId', 'contrato_id', 'contratoId'
       ]) &&
         (resource.data.get('llegada_revision_requerida', false) != true || request.resource.data.get('llegada_revision_requerida', false) == true) &&
         (resource.data.get('ausencia_cliente_revision_requerida', false) != true || request.resource.data.get('ausencia_cliente_revision_requerida', false) == true) &&
         (resource.data.get('diagnostico_revision_requerida', false) != true || request.resource.data.get('diagnostico_revision_requerida', false) == true) &&
-        (resource.data.get('trabajo_revision_requerida', false) != true || request.resource.data.get('trabajo_revision_requerida', false) == true);
+        (resource.data.get('trabajo_revision_requerida', false) != true || request.resource.data.get('trabajo_revision_requerida', false) == true) &&
+        (resource.data.get('llegada_resolucion_automatica_bloqueada', false) != true || request.resource.data.get('llegada_resolucion_automatica_bloqueada', false) == true) &&
+        (resource.data.get('llegada_cliente_respuesta', '') != 'ubicacion_disputada' || request.resource.data.get('llegada_cliente_respuesta', '') == 'ubicacion_disputada') &&
+        (!resource.data.get('ausencia_cliente_estado', '').matches('.*pendiente_revision.*') || request.resource.data.get('ausencia_cliente_estado', '') == resource.data.get('ausencia_cliente_estado', ''));
     }
 
     function customerServiceUpdateIsSafe() {
@@ -164,14 +169,7 @@ service cloud.firestore {
       let allowed =
         (before == 'asignado' && after == 'en_camino') ||
         (before == 'en_camino' && after == 'en_sitio') ||
-        (
-          before == 'trabajando' &&
-          after == 'finalizado' &&
-          request.resource.data.get('cierre_operativo_completado', false) == true &&
-          request.resource.data.get('cierre_financiero_pendiente_backend', false) == true &&
-          request.resource.data.get('cierre_legacy_financiero_ejecutado', true) == false &&
-          request.resource.data.get('work_evidence_binding_path', null) is string
-        );
+        false;
       return (same || allowed) &&
         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
           'cliente_id', 'cliente_nombre', 'cliente_telefono', 'metodo_pago',
@@ -354,6 +352,9 @@ service cloud.firestore {
         (
           request.auth.uid == userId &&
           userAuthorityFieldsUnchanged() &&
+          request.resource.data.get('kyc', {}).get('evidencias', {}) == resource.data.get('kyc', {}).get('evidencias', {}) &&
+          (resource.data.rol != 'tecnico' || resource.data.status in ['registro_iniciado', 'documentos_pendientes', 'rechazado'] ||
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['documentos', 'foto_perfil', 'vehiculo', 'datos_bancarios', 'kyc'])) &&
           (resource.data.tipo_cuenta != 'B2B' || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['documentos', 'foto_perfil', 'datos_bancarios', 'kyc'])) &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
             'rol', 'tipo_cuenta', 'suspendido', 'verificado',

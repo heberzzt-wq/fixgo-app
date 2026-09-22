@@ -200,7 +200,7 @@
     }
 
     function normalizeState(raw = {}) {
-        const state = normalizeToken(raw.kyc?.estado ?? raw.estado ?? raw.status);
+        const state = normalizeToken(raw.estado ?? raw.status ?? raw.kyc?.estado);
         if (["pendiente", "en_revision"].includes(state)) return TECHNICIAN_STATES.PENDING_REVIEW;
         return state || TECHNICIAN_STATES.DOCUMENTS_PENDING;
     }
@@ -221,14 +221,15 @@
             ? raw.documentos.certificados.filter(isDocumentReference)
             : [];
         const legacyCertificate = raw.documentos?.certificado ?? raw.certificado;
-        const approved = legacyApprovalEvidence(raw);
-        const role = normalizeToken(raw.rol ?? raw.role) || "tecnico";
+        // Legacy flags remain readable for audit, never an approval authority.
+        const approved = raw.kyc?.aprobado === true;
+        const role = normalizeToken(raw.rol ?? raw.role);
 
         return {
             ...raw,
             rol: role,
             estado: state,
-            status: state,
+            status: raw.status ? normalizeState({ estado: raw.status }) : state,
             disponible: raw.disponible === true,
             suspendido: raw.suspendido === true || state === TECHNICIAN_STATES.SUSPENDED,
             foto_perfil: raw.foto_perfil ?? raw.fotoPerfil ?? raw.foto ?? null,
@@ -256,7 +257,7 @@
             },
             kyc: {
                 ...(raw.kyc || {}),
-                estado: state,
+                estado: raw.kyc?.estado ? normalizeState({ estado: raw.kyc.estado }) : state,
                 aprobado: approved
             },
             nivel: text(raw.nivel, "BRONCE").toUpperCase(),
@@ -309,6 +310,7 @@
         if (profile.rol !== "tecnico") return { ok: false, reason: "TECHNICIAN_ROLE_REQUIRED", profile };
         if (!result.complete) return { ok: false, reason: "KYC_INCOMPLETE", missing: result.missing, profile };
         if (profile.suspendido) return { ok: false, reason: "TECHNICIAN_SUSPENDED", profile };
+        if (new Set([profile.estado, profile.status, profile.kyc.estado]).size !== 1) return { ok: false, reason: "TECHNICIAN_STATE_CONFLICT", profile };
         if (profile.estado !== TECHNICIAN_STATES.ACTIVE || profile.status !== TECHNICIAN_STATES.ACTIVE || profile.kyc.aprobado !== true) {
             return { ok: false, reason: "KYC_APPROVAL_REQUIRED", profile };
         }
@@ -506,8 +508,12 @@
         const canonicalShape = Boolean(
             raw.vehiculo && raw.documentos && raw.datos_bancarios && raw.kyc && Array.isArray(raw.skills)
         );
-        const approvalConflict = normalizeToken(raw.estado) === TECHNICIAN_STATES.ACTIVE && normalized.kyc.aprobado !== true;
-        const classification = approvalConflict || normalizeToken(raw.rol ?? raw.role) !== "tecnico"
+        const approvalConflict = normalized.estado === TECHNICIAN_STATES.ACTIVE && raw.kyc?.aprobado !== true;
+        const stateConflict = new Set([normalized.estado, normalized.status, normalized.kyc.estado]).size !== 1;
+        const legacyApproval = legacyApprovalEvidence(raw) && raw.kyc?.aprobado !== true;
+        const wrongAccount = isB2BAccountProfile(raw) || normalizeToken(raw.tipo_cuenta) !== 'b2c';
+        const roleConflict = raw.rol && raw.role && normalizeToken(raw.rol) !== normalizeToken(raw.role);
+        const classification = approvalConflict || stateConflict || legacyApproval || wrongAccount || roleConflict || normalizeToken(raw.rol ?? raw.role) !== "tecnico"
             ? "requires_review"
             : canonicalShape && !hasLegacyShape
                 ? "canonical"
@@ -518,21 +524,23 @@
             reasons: [
                 ...(hasLegacyShape ? ["LEGACY_FIELDS_PRESENT"] : []),
                 ...(approvalConflict ? ["ACTIVE_WITHOUT_APPROVAL_EVIDENCE"] : []),
+                ...(stateConflict ? ["TECHNICIAN_STATE_CONFLICT"] : []),
+                ...(legacyApproval ? ["LEGACY_APPROVAL_REQUIRES_REVIEW"] : []),
+                ...(wrongAccount ? ["B2C_ACCOUNT_REQUIRED"] : []),
+                ...(roleConflict ? ["TECHNICIAN_ROLE_CONFLICT"] : []),
                 ...(!requirements.complete ? [`KYC_MISSING:${requirements.missing.join(",")}`] : [])
             ],
             canonical: {
                 rol: normalized.rol,
                 estado: normalized.estado,
                 status: normalized.status,
+                foto_perfil: normalized.foto_perfil,
                 kyc: normalized.kyc,
                 skills: normalized.skills,
                 vehiculo: normalized.vehiculo,
                 documentos: normalized.documentos,
                 datos_bancarios: normalized.datos_bancarios,
-                disponible: normalized.disponible,
-                nivel: normalized.nivel,
-                reputacion: normalized.reputacion,
-                servicios_completados: normalized.servicios_completados
+                disponible: normalized.disponible
             }
         };
     }

@@ -1,0 +1,1375 @@
+{
+  "observed_at": "2026-09-22T01:50:22.699Z",
+  "baseline": "3a81f4b2635ca767e04d5f6d2b87fd2091f7e7ca",
+  "read_only": true,
+  "totals": {
+    "users": 28,
+    "services": 3,
+    "technicians": 7,
+    "customers": 5
+  },
+  "technicians": [
+    {
+      "account": "T1",
+      "classification": "auto_migratable",
+      "reasons": [
+        "KYC_MISSING:foto_perfil,ine,csf,banco,clabe,vehiculo_tipo,placas,licencia"
+      ],
+      "fields_present": [
+        "rol",
+        "status",
+        "estado",
+        "verificado",
+        "aprobadoEn"
+      ],
+      "canonical_write_keys": [
+        "rol",
+        "estado",
+        "status",
+        "kyc",
+        "skills",
+        "vehiculo",
+        "documentos",
+        "datos_bancarios",
+        "disponible",
+        "nivel",
+        "reputacion",
+        "servicios_completados"
+      ],
+      "candidate_classification": "requires_review",
+      "candidate_reasons": [
+        "ACTIVE_WITHOUT_APPROVAL_EVIDENCE",
+        "LEGACY_APPROVAL_REQUIRES_REVIEW",
+        "B2C_ACCOUNT_REQUIRED",
+        "KYC_MISSING:foto_perfil,ine,csf,banco,clabe,vehiculo_tipo,placas,licencia"
+      ],
+      "status": "activo",
+      "kyc_status": "other_or_absent",
+      "canonical_approval": false,
+      "legacy_verified": true,
+      "legacy_approval_timestamp": true,
+      "available": false,
+      "eligibility": "KYC_INCOMPLETE",
+      "document_keys": [],
+      "kyc_keys": [],
+      "vehicle_keys": [],
+      "legacy_vehicle_keys": []
+    },
+    {
+      "account": "T2",
+      "classification": "auto_migratable",
+      "reasons": [
+        "LEGACY_FIELDS_PRESENT"
+      ],
+      "fields_present": [
+        "rol",
+        "status",
+        "estado",
+        "vehiculo",
+        "logistica",
+        "documentos",
+        "verificado",
+        "aprobadoEn"
+      ],
+      "canonical_write_keys": [
+        "rol",
+        "estado",
+        "status",
+        "kyc",
+        "skills",
+        "vehiculo",
+        "documentos",
+        "datos_bancarios",
+        "disponible",
+        "nivel",
+        "reputacion",
+        "servicios_completados"
+      ],
+      "candidate_classification": "requires_review",
+      "candidate_reasons": [
+        "LEGACY_FIELDS_PRESENT",
+        "ACTIVE_WITHOUT_APPROVAL_EVIDENCE",
+        "LEGACY_APPROVAL_REQUIRES_REVIEW",
+        "B2C_ACCOUNT_REQUIRED"
+      ],
+      "status": "activo",
+      "kyc_status": "other_or_absent",
+      "canonical_approval": false,
+      "legacy_verified": true,
+      "legacy_approval_timestamp": true,
+      "available": true,
+      "eligibility": "eligible",
+      "document_keys": [
+        "csf",
+        "certificados",
+        "fecha_subida",
+        "certificado",
+        "ine",
+        "licencia",
+        "fecha_actualizacion"
+      ],
+      "kyc_keys": [],
+      "vehicle_keys": [
+        "placas",
+        "tipo"
+      ],
+      "legacy_vehicle_keys": [
+        "vehiculo",
+        "placas"
+      ]
+    },
+    {
+      "account": "T3",
+      "classification": "auto_migratable",
+      "reasons": [
+        "KYC_MISSING:foto_perfil,ine,csf,banco,clabe,vehiculo_tipo,placas,licencia"
+      ],
+      "fields_present": [
+        "rol",
+        "status",
+        "estado",
+        "verificado",
+        "aprobadoEn"
+      ],
+      "canonical_write_keys": [
+        "rol",
+        "estado",
+        "status",
+        "kyc",
+        "skills",
+        "vehiculo",
+        "documentos",
+        "datos_bancarios",
+        "disponible",
+        "nivel",
+        "reputacion",
+        "servicios_completados"
+      ],
+      "candidate_classification": "requires_review",
+      "candidate_reasons": [
+        "ACTIVE_WITHOUT_APPROVAL_EVIDENCE",
+        "LEGACY_APPROVAL_REQUIRES_REVIEW",
+        "B2C_ACCOUNT_REQUIRED",
+        "KYC_MISSING:foto_perfil,ine,csf,banco,clabe,vehiculo_tipo,placas,licencia"
+      ],
+      "status": "activo",
+      "kyc_status": "other_or_absent",
+      "canonical_approval": false,
+      "legacy_verified": true,
+      "legacy_approval_timestamp": true,
+      "available": false,
+      "eligibility": "KYC_INCOMPLETE",
+      "document_keys": [],
+      "kyc_keys": [],
+      "vehicle_keys": [],
+      "legacy_vehicle_keys": []
+    },
+    {
+      "account": "T4",
+      "classification": "canonical",
+      "reasons": [],
+      "fields_present": [
+        "rol",
+        "status",
+        "estado",
+        "tipo_cuenta",
+        "vehiculo",
+        "kyc",
+        "documentos",
+        "verificado",
+        "aprobadoEn"
+      ],
+      "canonical_write_keys": [
+        "rol",
+        "estado",
+        "status",
+        "kyc",
+        "skills",
+        "vehiculo",
+        "documentos",
+        "datos_bancarios",
+        "disponible",
+        "nivel",
+        "reputacion",
+        "servicios_completados"
+      ],
+      "candidate_classification": "canonical",
+      "candidate_reasons": [],
+      "status": "activo",
+      "kyc_status": "activo",
+      "canonical_approval": true,
+      "legacy_verified": true,
+      "legacy_approval_timestamp": true,
+      "available": true,
+      "eligibility": "eligible",
+      "document_keys": [
+        "certificados",
+        "licencia",
+        "ine",
+        "csf"
+      ],
+      "kyc_keys": [
+        "estado",
+        "aprobado"
+      ],
+      "vehicle_keys": [
+        "placas",
+        "tipo"
+      ],
+      "legacy_vehicle_keys": []
+    },
+    {
+      "account": "T5",
+      "classification": "auto_migratable",
+      "reasons": [
+        "KYC_MISSING:foto_perfil,ine,csf,banco,clabe,vehiculo_tipo,placas,licencia"
+      ],
+      "fields_present": [
+        "rol",
+        "status",
+        "estado",
+        "verificado",
+        "aprobadoEn"
+      ],
+      "canonical_write_keys": [
+        "rol",
+        "estado",
+        "status",
+        "kyc",
+        "skills",
+        "vehiculo",
+        "documentos",
+        "datos_bancarios",
+        "disponible",
+        "nivel",
+        "reputacion",
+        "servicios_completados"
+      ],
+      "candidate_classification": "requires_review",
+      "candidate_reasons": [
+        "ACTIVE_WITHOUT_APPROVAL_EVIDENCE",
+        "LEGACY_APPROVAL_REQUIRES_REVIEW",
+        "B2C_ACCOUNT_REQUIRED",
+        "KYC_MISSING:foto_perfil,ine,csf,banco,clabe,vehiculo_tipo,placas,licencia"
+      ],
+      "status": "activo",
+      "kyc_status": "other_or_absent",
+      "canonical_approval": false,
+      "legacy_verified": true,
+      "legacy_approval_timestamp": true,
+      "available": false,
+      "eligibility": "KYC_INCOMPLETE",
+      "document_keys": [],
+      "kyc_keys": [],
+      "vehicle_keys": [],
+      "legacy_vehicle_keys": []
+    },
+    {
+      "account": "T6",
+      "classification": "auto_migratable",
+      "reasons": [
+        "KYC_MISSING:foto_perfil,ine,csf,banco,clabe,vehiculo_tipo,placas,licencia"
+      ],
+      "fields_present": [
+        "rol",
+        "status",
+        "estado",
+        "verificado",
+        "aprobadoEn"
+      ],
+      "canonical_write_keys": [
+        "rol",
+        "estado",
+        "status",
+        "kyc",
+        "skills",
+        "vehiculo",
+        "documentos",
+        "datos_bancarios",
+        "disponible",
+        "nivel",
+        "reputacion",
+        "servicios_completados"
+      ],
+      "candidate_classification": "requires_review",
+      "candidate_reasons": [
+        "ACTIVE_WITHOUT_APPROVAL_EVIDENCE",
+        "LEGACY_APPROVAL_REQUIRES_REVIEW",
+        "B2C_ACCOUNT_REQUIRED",
+        "KYC_MISSING:foto_perfil,ine,csf,banco,clabe,vehiculo_tipo,placas,licencia"
+      ],
+      "status": "activo",
+      "kyc_status": "other_or_absent",
+      "canonical_approval": false,
+      "legacy_verified": true,
+      "legacy_approval_timestamp": true,
+      "available": false,
+      "eligibility": "KYC_INCOMPLETE",
+      "document_keys": [],
+      "kyc_keys": [],
+      "vehicle_keys": [],
+      "legacy_vehicle_keys": []
+    },
+    {
+      "account": "T7",
+      "classification": "canonical",
+      "reasons": [],
+      "fields_present": [
+        "rol",
+        "status",
+        "estado",
+        "tipo_cuenta",
+        "vehiculo",
+        "kyc",
+        "documentos"
+      ],
+      "canonical_write_keys": [
+        "rol",
+        "estado",
+        "status",
+        "kyc",
+        "skills",
+        "vehiculo",
+        "documentos",
+        "datos_bancarios",
+        "disponible",
+        "nivel",
+        "reputacion",
+        "servicios_completados"
+      ],
+      "candidate_classification": "canonical",
+      "candidate_reasons": [],
+      "status": "pendiente_revision",
+      "kyc_status": "pendiente_revision",
+      "canonical_approval": false,
+      "legacy_verified": false,
+      "legacy_approval_timestamp": false,
+      "available": false,
+      "eligibility": "KYC_APPROVAL_REQUIRED",
+      "document_keys": [
+        "certificados",
+        "csf",
+        "licencia",
+        "ine"
+      ],
+      "kyc_keys": [
+        "intentos_upload",
+        "estado",
+        "aprobado",
+        "provider",
+        "faltantes"
+      ],
+      "vehicle_keys": [
+        "placas",
+        "tipo"
+      ],
+      "legacy_vehicle_keys": []
+    }
+  ],
+  "customers": [
+    {
+      "account": "C1",
+      "classification": "requires_review",
+      "reasons": [
+        "STRIPE_ADMIN_DECISION_REQUIRED",
+        "CASH_ADMIN_DECISION_REQUIRED"
+      ],
+      "proposed": {
+        "stripe_autorizado": false,
+        "efectivo_autorizado": false
+      },
+      "fields_present": [
+        "rol",
+        "status",
+        "estado",
+        "tipo_cuenta"
+      ],
+      "payment_permissions": {
+        "stripe": false,
+        "efectivo": false,
+        "legacy_cash": false
+      },
+      "has_cash_history": false
+    },
+    {
+      "account": "C2",
+      "classification": "canonical",
+      "reasons": [],
+      "proposed": {
+        "stripe_autorizado": false,
+        "efectivo_autorizado": true
+      },
+      "fields_present": [
+        "rol",
+        "status",
+        "estado",
+        "pagos"
+      ],
+      "payment_permissions": {
+        "stripe": false,
+        "efectivo": true,
+        "legacy_cash": false
+      },
+      "has_cash_history": true
+    },
+    {
+      "account": "C3",
+      "classification": "requires_review",
+      "reasons": [
+        "STRIPE_ADMIN_DECISION_REQUIRED",
+        "CASH_ADMIN_DECISION_REQUIRED"
+      ],
+      "proposed": {
+        "stripe_autorizado": false,
+        "efectivo_autorizado": false
+      },
+      "fields_present": [
+        "rol"
+      ],
+      "payment_permissions": {
+        "stripe": false,
+        "efectivo": false,
+        "legacy_cash": false
+      },
+      "has_cash_history": false
+    },
+    {
+      "account": "C4",
+      "classification": "requires_review",
+      "reasons": [
+        "STRIPE_ADMIN_DECISION_REQUIRED",
+        "CASH_ADMIN_DECISION_REQUIRED"
+      ],
+      "proposed": {
+        "stripe_autorizado": false,
+        "efectivo_autorizado": false
+      },
+      "fields_present": [
+        "rol"
+      ],
+      "payment_permissions": {
+        "stripe": false,
+        "efectivo": false,
+        "legacy_cash": false
+      },
+      "has_cash_history": false
+    },
+    {
+      "account": "C5",
+      "classification": "requires_review",
+      "reasons": [
+        "STRIPE_ADMIN_DECISION_REQUIRED",
+        "CASH_ADMIN_DECISION_REQUIRED"
+      ],
+      "proposed": {
+        "stripe_autorizado": false,
+        "efectivo_autorizado": false
+      },
+      "fields_present": [
+        "rol",
+        "status",
+        "estado",
+        "tipo_cuenta"
+      ],
+      "payment_permissions": {
+        "stripe": false,
+        "efectivo": false,
+        "legacy_cash": false
+      },
+      "has_cash_history": true
+    }
+  ],
+  "services": [
+    {
+      "service": "S1",
+      "estado": "pendiente",
+      "method": "efectivo",
+      "customer": "C2",
+      "technician": "unassigned_or_other",
+      "fields_present": [
+        "cliente_id"
+      ],
+      "category": "fix_plomeria",
+      "confirmed_destination": true,
+      "paid_amount_present": false,
+      "liquidated": false,
+      "linked_ledger_count": 0,
+      "canonical_ledger_present": false,
+      "work_binding_exists": false
+    },
+    {
+      "service": "S2",
+      "estado": "finalizado",
+      "method": "efectivo",
+      "customer": "C2",
+      "technician": "T4",
+      "fields_present": [
+        "cliente_id",
+        "tecnico_id"
+      ],
+      "category": "fix_ac",
+      "confirmed_destination": false,
+      "paid_amount_present": false,
+      "liquidated": false,
+      "linked_ledger_count": 1,
+      "canonical_ledger_present": false,
+      "work_binding_exists": false
+    },
+    {
+      "service": "S3",
+      "estado": "pendiente",
+      "tipo": "b2c_e2e_sintetico",
+      "method": "efectivo",
+      "customer": "C5",
+      "technician": "unassigned_or_other",
+      "fields_present": [
+        "cliente_id"
+      ],
+      "category": "unknown",
+      "confirmed_destination": true,
+      "paid_amount_present": false,
+      "liquidated": false,
+      "linked_ledger_count": 0,
+      "canonical_ledger_present": false,
+      "work_binding_exists": false
+    }
+  ],
+  "config": [
+    {
+      "document": "catalogo_global",
+      "keys": [
+        "fix_ac",
+        "tech_elevador",
+        "road_mecanico",
+        "tech_planta",
+        "fix_fumigacion",
+        "road_cerrajero",
+        "road_llanta",
+        "fix_jardin",
+        "road_grua",
+        "fix_pintura",
+        "fix_alberca",
+        "tech_alarma",
+        "tech_acceso",
+        "updatedAt",
+        "gasto_marketing",
+        "road_corriente",
+        "tech_solar",
+        "tech_cctv",
+        "maint_general",
+        "fix_plomeria",
+        "fix_electricidad"
+      ],
+      "boolean_flags": {
+        "fix_ac": true,
+        "tech_elevador": false,
+        "road_mecanico": false,
+        "tech_planta": false,
+        "fix_fumigacion": false,
+        "road_cerrajero": true,
+        "road_llanta": true,
+        "fix_jardin": false,
+        "road_grua": false,
+        "fix_pintura": false,
+        "fix_alberca": false,
+        "tech_alarma": true,
+        "tech_acceso": true,
+        "road_corriente": false,
+        "tech_solar": false,
+        "tech_cctv": true,
+        "maint_general": true,
+        "fix_plomeria": true,
+        "fix_electricidad": true
+      }
+    },
+    {
+      "document": "pagos",
+      "keys": [
+        "efectivo_activo",
+        "stripe_activo"
+      ],
+      "boolean_flags": {
+        "efectivo_activo": true,
+        "stripe_activo": false
+      }
+    }
+  ],
+  "ledger": {
+    "documents": 14
+  },
+  "kyc_storage": [
+    {
+      "account": "T1",
+      "checks": {
+        "foto_perfil": {
+          "status": "missing_reference"
+        },
+        "ine": {
+          "status": "missing_reference"
+        },
+        "csf": {
+          "status": "missing_reference"
+        },
+        "licencia": {
+          "status": "missing_reference"
+        }
+      }
+    },
+    {
+      "account": "T2",
+      "checks": {
+        "foto_perfil": {
+          "status": "exists",
+          "owner_path": true,
+          "size": 8761735,
+          "content_type": "image/jpeg",
+          "generation_present": true,
+          "approval_generation_pinned": false
+        },
+        "ine": {
+          "status": "exists",
+          "owner_path": true,
+          "size": 8761735,
+          "content_type": "image/jpeg",
+          "generation_present": true,
+          "approval_generation_pinned": false
+        },
+        "csf": {
+          "status": "exists",
+          "owner_path": true,
+          "size": 352594,
+          "content_type": "image/png",
+          "generation_present": true,
+          "approval_generation_pinned": false
+        },
+        "licencia": {
+          "status": "exists",
+          "owner_path": true,
+          "size": 352594,
+          "content_type": "image/png",
+          "generation_present": true,
+          "approval_generation_pinned": false
+        }
+      }
+    },
+    {
+      "account": "T3",
+      "checks": {
+        "foto_perfil": {
+          "status": "missing_reference"
+        },
+        "ine": {
+          "status": "missing_reference"
+        },
+        "csf": {
+          "status": "missing_reference"
+        },
+        "licencia": {
+          "status": "missing_reference"
+        }
+      }
+    },
+    {
+      "account": "T4",
+      "checks": {
+        "foto_perfil": {
+          "status": "exists",
+          "owner_path": true,
+          "size": 8651,
+          "content_type": "image/jpeg",
+          "generation_present": true,
+          "approval_generation_pinned": false
+        },
+        "ine": {
+          "status": "exists",
+          "owner_path": true,
+          "size": 8541,
+          "content_type": "image/jpeg",
+          "generation_present": true,
+          "approval_generation_pinned": false
+        },
+        "csf": {
+          "status": "exists",
+          "owner_path": true,
+          "size": 5613,
+          "content_type": "image/png",
+          "generation_present": true,
+          "approval_generation_pinned": false
+        },
+        "licencia": {
+          "status": "exists",
+          "owner_path": true,
+          "size": 11270,
+          "content_type": "image/jpeg",
+          "generation_present": true,
+          "approval_generation_pinned": false
+        }
+      }
+    },
+    {
+      "account": "T5",
+      "checks": {
+        "foto_perfil": {
+          "status": "missing_reference"
+        },
+        "ine": {
+          "status": "missing_reference"
+        },
+        "csf": {
+          "status": "missing_reference"
+        },
+        "licencia": {
+          "status": "missing_reference"
+        }
+      }
+    },
+    {
+      "account": "T6",
+      "checks": {
+        "foto_perfil": {
+          "status": "missing_reference"
+        },
+        "ine": {
+          "status": "missing_reference"
+        },
+        "csf": {
+          "status": "missing_reference"
+        },
+        "licencia": {
+          "status": "missing_reference"
+        }
+      }
+    },
+    {
+      "account": "T7",
+      "checks": {
+        "foto_perfil": {
+          "status": "noncanonical_reference"
+        },
+        "ine": {
+          "status": "noncanonical_reference"
+        },
+        "csf": {
+          "status": "noncanonical_reference"
+        },
+        "licencia": {
+          "status": "missing_reference"
+        }
+      }
+    }
+  ],
+  "notifications": {
+    "profiles_with_token": 9,
+    "unique_tokens": 9,
+    "shared_token_account_groups": []
+  },
+  "failed_events": {
+    "count": 0,
+    "retry_required": 0
+  },
+  "hosting_assets": [
+    {
+      "file": "sw.js",
+      "sha256": "78eec79ef4aa37e25e26132d2982dbc448f8acb818c04e9a23143891f37d74fc",
+      "matches_release_bytes": true,
+      "cache_control": "no-cache"
+    },
+    {
+      "file": "platform-release.js",
+      "sha256": "408b750c92e14edea7e5e661937f91403a048edaa3789aeea069c2fbad4e31bd",
+      "matches_release_bytes": true,
+      "cache_control": "no-cache"
+    },
+    {
+      "file": "firebase.js",
+      "sha256": "a8159353561e8a5055390cf9474680685d1f0c1e45519d1c0919b42ae011caa5",
+      "matches_release_bytes": true,
+      "cache_control": "no-cache"
+    },
+    {
+      "file": "panel-cliente.js",
+      "sha256": "0a4e918c81d93b58ba1e12498f7fb6316f75b02f7cd69c62fce4e0f655de1cc9",
+      "matches_release_bytes": true,
+      "cache_control": "no-cache"
+    },
+    {
+      "file": "panel-tecnico.js",
+      "sha256": "4496ce8646be1e7021e0c630da132de643ff535f247f7fac7bd98c2f17572cb6",
+      "matches_release_bytes": true,
+      "cache_control": "no-cache"
+    },
+    {
+      "file": "tecnico.html",
+      "sha256": "7ef43aa1ea0ea19918daeede4abcb6ced1c07e322236c4bceed1d2166596e420",
+      "matches_release_bytes": true,
+      "cache_control": "no-cache, no-store, must-revalidate"
+    },
+    {
+      "file": "cliente.html",
+      "sha256": "b4610f557532e6f923f3b6a457f0189de44902b9451ae6f251b6e4fca935082a",
+      "matches_release_bytes": true,
+      "cache_control": "no-cache, no-store, must-revalidate"
+    },
+    {
+      "file": "gestia-core/contracts/b2c-platform-contract.js",
+      "sha256": "4a0084fa309a850a40a0639f70097e230711ac4c3918e67f2734db18a2d9e80d",
+      "matches_release_bytes": true,
+      "cache_control": "no-cache"
+    }
+  ],
+  "catalog": [
+    {
+      "category": "road_llanta",
+      "enabled": true,
+      "compatible_available_deployed": 0,
+      "compatible_available_candidate": 0
+    },
+    {
+      "category": "road_cerrajero",
+      "enabled": true,
+      "compatible_available_deployed": 0,
+      "compatible_available_candidate": 0
+    },
+    {
+      "category": "road_grua",
+      "enabled": false,
+      "compatible_available_deployed": 0,
+      "compatible_available_candidate": 0
+    },
+    {
+      "category": "road_mecanico",
+      "enabled": false,
+      "compatible_available_deployed": 0,
+      "compatible_available_candidate": 0
+    },
+    {
+      "category": "road_corriente",
+      "enabled": false,
+      "compatible_available_deployed": 0,
+      "compatible_available_candidate": 0
+    },
+    {
+      "category": "fix_electricidad",
+      "enabled": true,
+      "compatible_available_deployed": 2,
+      "compatible_available_candidate": 1
+    },
+    {
+      "category": "fix_plomeria",
+      "enabled": true,
+      "compatible_available_deployed": 2,
+      "compatible_available_candidate": 1
+    },
+    {
+      "category": "fix_ac",
+      "enabled": true,
+      "compatible_available_deployed": 2,
+      "compatible_available_candidate": 1
+    },
+    {
+      "category": "fix_jardin",
+      "enabled": false,
+      "compatible_available_deployed": 2,
+      "compatible_available_candidate": 1
+    },
+    {
+      "category": "fix_pintura",
+      "enabled": false,
+      "compatible_available_deployed": 2,
+      "compatible_available_candidate": 1
+    },
+    {
+      "category": "fix_alberca",
+      "enabled": false,
+      "compatible_available_deployed": 2,
+      "compatible_available_candidate": 1
+    },
+    {
+      "category": "fix_fumigacion",
+      "enabled": false,
+      "compatible_available_deployed": 2,
+      "compatible_available_candidate": 1
+    },
+    {
+      "category": "maint_general",
+      "enabled": true,
+      "compatible_available_deployed": 0,
+      "compatible_available_candidate": 0
+    },
+    {
+      "category": "tech_cctv",
+      "enabled": true,
+      "compatible_available_deployed": 1,
+      "compatible_available_candidate": 0
+    },
+    {
+      "category": "tech_alarma",
+      "enabled": true,
+      "compatible_available_deployed": 1,
+      "compatible_available_candidate": 0
+    },
+    {
+      "category": "tech_acceso",
+      "enabled": true,
+      "compatible_available_deployed": 1,
+      "compatible_available_candidate": 0
+    },
+    {
+      "category": "tech_elevador",
+      "enabled": false,
+      "compatible_available_deployed": 1,
+      "compatible_available_candidate": 0
+    },
+    {
+      "category": "tech_planta",
+      "enabled": false,
+      "compatible_available_deployed": 1,
+      "compatible_available_candidate": 0
+    },
+    {
+      "category": "tech_solar",
+      "enabled": false,
+      "compatible_available_deployed": 1,
+      "compatible_available_candidate": 0
+    }
+  ],
+  "rules": {
+    "cloud.firestore": {
+      "sha_marker": "3a81f4b2635ca767e04d5f6d2b87fd2091f7e7ca",
+      "sha256": "dddd78ff47b2208ade492bc2dfa6d86f8ab3d3940d158fc5af850055927536a6",
+      "matches_deployed_source_ignoring_stamp": true
+    },
+    "firebase.storage/fixgo-44e4d.firebasestorage.app": {
+      "sha_marker": "3a81f4b2635ca767e04d5f6d2b87fd2091f7e7ca",
+      "sha256": "7590bbd8e08db4a8ac2df8b4d4955d756986c18b741c5e0e7dabc221943ee4bf",
+      "matches_deployed_source_ignoring_stamp": true
+    }
+  },
+  "functions": [
+    {
+      "name": "respondB2cQuote",
+      "status": "ACTIVE",
+      "entryPoint": "respondB2cQuote",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:04.335Z"
+    },
+    {
+      "name": "registrarIncidenciaAcceso",
+      "status": "ACTIVE",
+      "entryPoint": "registrarIncidenciaAcceso",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:01:12.469Z"
+    },
+    {
+      "name": "robotPreventivo_v2",
+      "status": "ACTIVE",
+      "entryPoint": "robotPreventivo_v2",
+      "runtime": "nodejs20",
+      "eventType": "google.pubsub.topic.publish",
+      "updated_at": "2026-07-13T22:15:52.514151071Z"
+    },
+    {
+      "name": "submitB2cQuote",
+      "status": "ACTIVE",
+      "entryPoint": "submitB2cQuote",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:06.096Z"
+    },
+    {
+      "name": "crearAcceso",
+      "status": "ACTIVE",
+      "entryPoint": "crearAcceso",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:01:14.729Z"
+    },
+    {
+      "name": "validarCierreIA",
+      "status": "ACTIVE",
+      "entryPoint": "validarCierreIA",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:01:10.955Z"
+    },
+    {
+      "name": "approveB2cTechnician",
+      "status": "ACTIVE",
+      "entryPoint": "approveB2cTechnician",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:01:19.098Z"
+    },
+    {
+      "name": "jarvisConversacional",
+      "status": "ACTIVE",
+      "entryPoint": "jarvisConversacional",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:44.830Z"
+    },
+    {
+      "name": "jarvisWebResearch",
+      "status": "ACTIVE",
+      "entryPoint": "jarvisWebResearch",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:47.153Z"
+    },
+    {
+      "name": "jarvisSemanticRespond",
+      "status": "ACTIVE",
+      "entryPoint": "jarvisSemanticRespond",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:43.420Z"
+    },
+    {
+      "name": "setB2cCustomerPaymentPermissions",
+      "status": "ACTIVE",
+      "entryPoint": "setB2cCustomerPaymentPermissions",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:11.022Z"
+    },
+    {
+      "name": "repoCommitReadFile",
+      "status": "ACTIVE",
+      "entryPoint": "repoCommitReadFile",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:13.943Z"
+    },
+    {
+      "name": "onScheduleMantenimiento",
+      "status": "ACTIVE",
+      "entryPoint": "onScheduleMantenimiento",
+      "runtime": "nodejs22",
+      "eventType": "google.pubsub.topic.publish",
+      "updated_at": "2026-09-22T01:01:16.303Z"
+    },
+    {
+      "name": "reviewB2bPersonnelKyc",
+      "status": "ACTIVE",
+      "entryPoint": "reviewB2bPersonnelKyc",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:07.689265153Z"
+    },
+    {
+      "name": "reconciliarLiquidacionB2C",
+      "status": "ACTIVE",
+      "entryPoint": "reconciliarLiquidacionB2C",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:06.738706128Z"
+    },
+    {
+      "name": "createB2cService",
+      "status": "ACTIVE",
+      "entryPoint": "createB2cService",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:04.265Z"
+    },
+    {
+      "name": "executeB2cAdminNocAction",
+      "status": "ACTIVE",
+      "entryPoint": "executeB2cAdminNocAction",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:01:17.068Z"
+    },
+    {
+      "name": "limpiarSesionesHuerfanas",
+      "status": "ACTIVE",
+      "entryPoint": "limpiarSesionesHuerfanas",
+      "runtime": "nodejs22",
+      "eventType": "google.pubsub.topic.publish",
+      "updated_at": "2026-09-22T01:02:11.661Z"
+    },
+    {
+      "name": "dispatchB2cMarketplaceNotification",
+      "status": "ACTIVE",
+      "entryPoint": "dispatchB2cMarketplaceNotification",
+      "runtime": "nodejs22",
+      "eventType": "providers/cloud.firestore/eventTypes/document.create",
+      "updated_at": "2026-09-22T01:01:15.885Z"
+    },
+    {
+      "name": "createGestiaModule",
+      "status": "ACTIVE",
+      "entryPoint": "createGestiaModule",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:01:20.361Z"
+    },
+    {
+      "name": "resyncB2cCustomerPayments",
+      "status": "ACTIVE",
+      "entryPoint": "resyncB2cCustomerPayments",
+      "runtime": "nodejs22",
+      "eventType": "providers/cloud.firestore/eventTypes/document.update",
+      "updated_at": "2026-09-22T01:02:10.926Z"
+    },
+    {
+      "name": "solicitarRetiro",
+      "status": "ACTIVE",
+      "entryPoint": "solicitarRetiro",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:15.468Z"
+    },
+    {
+      "name": "migrateB2cTechnicianProfile",
+      "status": "ACTIVE",
+      "entryPoint": "migrateB2cTechnicianProfile",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:02.793Z"
+    },
+    {
+      "name": "despachoTaticoB2B",
+      "status": "ACTIVE",
+      "entryPoint": "despachoTaticoB2B",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:14.521Z"
+    },
+    {
+      "name": "onPackageReceived",
+      "status": "ACTIVE",
+      "entryPoint": "onPackageReceived",
+      "runtime": "nodejs22",
+      "eventType": "providers/cloud.firestore/eventTypes/document.create",
+      "updated_at": "2026-09-22T01:02:06.548Z"
+    },
+    {
+      "name": "releaseB2cTechnicianLock",
+      "status": "ACTIVE",
+      "entryPoint": "releaseB2cTechnicianLock",
+      "runtime": "nodejs22",
+      "eventType": "providers/cloud.firestore/eventTypes/document.update",
+      "updated_at": "2026-09-22T01:01:28.987Z"
+    },
+    {
+      "name": "repoCommitBackupFile",
+      "status": "ACTIVE",
+      "entryPoint": "repoCommitBackupFile",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:15.233Z"
+    },
+    {
+      "name": "robotPredictivo_v2",
+      "status": "ACTIVE",
+      "entryPoint": "robotPredictivo_v2",
+      "runtime": "nodejs20",
+      "eventType": "google.pubsub.topic.publish",
+      "updated_at": "2026-07-13T22:15:52.820414260Z"
+    },
+    {
+      "name": "procesarCierreServicio",
+      "status": "ACTIVE",
+      "entryPoint": "procesarCierreServicio",
+      "runtime": "nodejs20",
+      "updated_at": "2026-07-13T22:15:52.848706579Z"
+    },
+    {
+      "name": "submitB2bPersonnelKyc",
+      "status": "ACTIVE",
+      "entryPoint": "submitB2bPersonnelKyc",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:10.986777192Z"
+    },
+    {
+      "name": "repoCommitEngineHealth",
+      "status": "ACTIVE",
+      "entryPoint": "repoCommitEngineHealth",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:01:11.585Z"
+    },
+    {
+      "name": "registrarSalida",
+      "status": "ACTIVE",
+      "entryPoint": "registrarSalida",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:01:32.816Z"
+    },
+    {
+      "name": "registrarIngresoPaquete",
+      "status": "ACTIVE",
+      "entryPoint": "registrarIngresoPaquete",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:01:29.699Z"
+    },
+    {
+      "name": "completeB2bRegistration",
+      "status": "ACTIVE",
+      "entryPoint": "completeB2bRegistration",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:05.596Z"
+    },
+    {
+      "name": "jarvisDailySupervisor",
+      "status": "ACTIVE",
+      "entryPoint": "jarvisDailySupervisor",
+      "runtime": "nodejs22",
+      "eventType": "google.pubsub.topic.publish",
+      "updated_at": "2026-09-22T01:02:34.704Z"
+    },
+    {
+      "name": "gestiaArchitectV5",
+      "status": "ACTIVE",
+      "entryPoint": "gestiaArchitectV5",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:20.866Z"
+    },
+    {
+      "name": "reservarCancha",
+      "status": "ACTIVE",
+      "entryPoint": "reservarCancha",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:03.587Z"
+    },
+    {
+      "name": "claimB2cService",
+      "status": "ACTIVE",
+      "entryPoint": "claimB2cService",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:01.883Z"
+    },
+    {
+      "name": "generarModulo",
+      "status": "ACTIVE",
+      "entryPoint": "generarModulo",
+      "runtime": "nodejs20",
+      "updated_at": "2026-07-13T22:15:53.096345403Z"
+    },
+    {
+      "name": "jarvisSupervisionStatus",
+      "status": "ACTIVE",
+      "entryPoint": "jarvisSupervisionStatus",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:55.174Z"
+    },
+    {
+      "name": "resyncB2cMarketplaceConfig",
+      "status": "ACTIVE",
+      "entryPoint": "resyncB2cMarketplaceConfig",
+      "runtime": "nodejs22",
+      "eventType": "providers/cloud.firestore/eventTypes/document.write",
+      "updated_at": "2026-09-22T01:02:07.203Z"
+    },
+    {
+      "name": "jarvisSupervisionRunNow",
+      "status": "ACTIVE",
+      "entryPoint": "jarvisSupervisionRunNow",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:40.654Z"
+    },
+    {
+      "name": "repoCommitWriteFile",
+      "status": "ACTIVE",
+      "entryPoint": "repoCommitWriteFile",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:01:24.711Z"
+    },
+    {
+      "name": "generarModuloIA",
+      "status": "ACTIVE",
+      "entryPoint": "generarModuloIA",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:25.169Z"
+    },
+    {
+      "name": "syncB2cMarketplace",
+      "status": "ACTIVE",
+      "entryPoint": "syncB2cMarketplace",
+      "runtime": "nodejs22",
+      "eventType": "providers/cloud.firestore/eventTypes/document.write",
+      "updated_at": "2026-09-22T01:01:33.229Z"
+    },
+    {
+      "name": "repoCommitListRoot",
+      "status": "ACTIVE",
+      "entryPoint": "repoCommitListRoot",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:03.554Z"
+    },
+    {
+      "name": "jarvisImageGenerate",
+      "status": "ACTIVE",
+      "entryPoint": "jarvisImageGenerate",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:22.318Z"
+    },
+    {
+      "name": "jarvisVideoGenerate",
+      "status": "ACTIVE",
+      "entryPoint": "jarvisVideoGenerate",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:41.796Z"
+    },
+    {
+      "name": "provisionB2bPersonnel",
+      "status": "ACTIVE",
+      "entryPoint": "provisionB2bPersonnel",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:01:28.205Z"
+    },
+    {
+      "name": "registrarSalidaPaquete",
+      "status": "ACTIVE",
+      "entryPoint": "registrarSalidaPaquete",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:01:22.190Z"
+    },
+    {
+      "name": "api",
+      "status": "ACTIVE",
+      "entryPoint": "api",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:01:28.784Z"
+    },
+    {
+      "name": "setB2cGlobalPaymentGateways",
+      "status": "ACTIVE",
+      "entryPoint": "setB2cGlobalPaymentGateways",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:01:23.771Z"
+    },
+    {
+      "name": "cancelB2cService",
+      "status": "ACTIVE",
+      "entryPoint": "cancelB2cService",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:21.814Z"
+    },
+    {
+      "name": "completeB2bService",
+      "status": "ACTIVE",
+      "entryPoint": "completeB2bService",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:15.674Z"
+    },
+    {
+      "name": "jarvisSemanticPlan",
+      "status": "ACTIVE",
+      "entryPoint": "jarvisSemanticPlan",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:04.320Z"
+    },
+    {
+      "name": "jarvisMediaAnalyze",
+      "status": "ACTIVE",
+      "entryPoint": "jarvisMediaAnalyze",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:22.819Z"
+    },
+    {
+      "name": "onServiceCompleted",
+      "status": "ACTIVE",
+      "entryPoint": "onServiceCompleted",
+      "runtime": "nodejs22",
+      "eventType": "providers/cloud.firestore/eventTypes/document.update",
+      "updated_at": "2026-09-22T01:02:06.183Z"
+    },
+    {
+      "name": "requestPayout",
+      "status": "ACTIVE",
+      "entryPoint": "requestPayout",
+      "runtime": "nodejs20",
+      "updated_at": "2026-07-13T22:15:53.401578849Z"
+    },
+    {
+      "name": "stripewebhook",
+      "status": "ACTIVE",
+      "entryPoint": "stripewebhook",
+      "runtime": "nodejs22",
+      "updated_at": "2026-09-22T01:02:08.812828196Z"
+    }
+  ]
+}

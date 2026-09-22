@@ -1178,21 +1178,10 @@ exports.validarCierreIA = functions.https.onCall(async (data, context) => {
     }
 
     // 🛡️ 2. IDEMPOTENCIA POR INTENCIÓN (V5.55 HARDENED)
-    const operationId = generateOperationId(notas_cierre, tenantId || "GLOBAL");
+    const operationId = generateOperationId(notas_cierre, `${userId}:${serviceId}`);
     const opRef = db.collection("gestia_ia_operations").doc(operationId);
 
     try {
-        const existingOp = await opRef.get();
-        if (existingOp.exists) {
-            console.log(`♻️ [IA_REUSE] Reutilizando validación previa: ${operationId}`);
-            return { 
-                aprobado: existingOp.data().result.aprobado, 
-                token_validacion: existingOp.data().result.token_validacion,
-                reused: true,
-                status: "REUSED_FROM_SENTINEL_CACHE"
-            };
-        }
-
         const serviceRef = db.collection("services").doc(serviceId);
 
         // ⚡ 3. TRANSACCIÓN DE VALIDACIÓN Y SELLADO ATÓMICO (V5.55)
@@ -1202,16 +1191,22 @@ exports.validarCierreIA = functions.https.onCall(async (data, context) => {
 
             const serviceData = serviceSnap.data();
 
-            // Guarda de Estado Terminal
-            const estadosTerminales = ['finalizado', 'cancelado', 'liquidado'];
-            if (estadosTerminales.includes(serviceData.estado)) {
-                return { aprobado: true, mensaje: "Servicio ya procesado.", status: "ALREADY_TERMINAL" };
-            }
-
             // Guarda de Autoría
             if (serviceData.tecnico_id !== userId) {
                 await reportSentinelMetric('ia_auth_mismatch');
                 return { aprobado: false, motivo: "No eres el técnico asignado.", status: "AUTH_FAIL" };
+            }
+
+            const estadosTerminales = ['finalizado', 'cancelado', 'liquidado'];
+            if (estadosTerminales.includes(serviceData.estado)) {
+                return { aprobado: true, mensaje: "Servicio ya procesado.", status: "ALREADY_TERMINAL" };
+            }
+            // Cache is scoped to the authenticated actor and service and read only after authorization.
+            const existingOp = await transaction.get(opRef);
+            const cached = existingOp.data();
+            if (existingOp.exists && cached?.userId === userId && cached?.serviceId === serviceId) {
+                return { aprobado: cached.result.aprobado, token_validacion: cached.result.token_validacion,
+                    reused: true, status: 'REUSED_FROM_SENTINEL_CACHE' };
             }
 
             // 🧠 4. MOTOR SEMÁNTICO (V5.55 HARDENED)
@@ -1245,21 +1240,14 @@ exports.validarCierreIA = functions.https.onCall(async (data, context) => {
                 'auditoria_ia.version_core': "V5.55_FINAL"
             });
 
-            return { aprobado: true, token_validacion: token, status: "SUCCESS" };
+            const result = { aprobado: true, token_validacion: token, status: "SUCCESS" };
+            transaction.set(opRef, { operationId, type: 'closure_validation', serviceId, userId, result,
+                traceId, version: 'V5.55_FINAL', createdAt: admin.firestore.FieldValue.serverTimestamp() });
+            return result;
         });
 
         // 🛡️ 6. REGISTRO DE OPERACIÓN (Persistencia de Cache)
         if (validationResult.status === "SUCCESS") {
-            await opRef.set({
-                operationId,
-                type: "closure_validation",
-                serviceId,
-                userId,
-                result: validationResult,
-                traceId: traceId,
-                version: "V5.55_FINAL",
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
             await reportSentinelMetric('ia_validation_success');
         } else if (validationResult.status === "CONTENT_REJECTED") {
             await reportSentinelMetric('ia_validation_low_quality');

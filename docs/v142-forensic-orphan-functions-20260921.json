@@ -1,0 +1,128 @@
+{
+  "readOnly": true,
+  "sourceMethod": "Cloud Functions v1 generateDownloadUrl; official signed download; source never executed",
+  "metadata": [
+    {
+      "name": "projects/fixgo-44e4d/locations/us-central1/functions/robotPreventivo_v2",
+      "updated": "2026-07-13T22:15:52.514151071Z",
+      "version": "6",
+      "entryPoint": "robotPreventivo_v2",
+      "runtime": "nodejs20",
+      "serviceAccount": "fixgo-44e4d@appspot.gserviceaccount.com",
+      "eventType": "google.pubsub.topic.publish",
+      "httpsTrigger": false,
+      "status": "ACTIVE",
+      "sourceZip": "C:\\Users\\heber\\AppData\\Local\\Temp\\fixgo-orphan-source-ffca4956b1ad4c2a862486c2af725af4\\robotPreventivo_v2.zip",
+      "sha256": "676D9FDB3F3D4F8EE71494E224038D965D49EF3FBE85223454A1BA89B3F940EE",
+      "entrySource": "src/index.js",
+      "entrySourceSha256": "37a89de257554df999d1e81b6c7536af0dfe130e42742cf09c19ce62b8d63cfa",
+      "schedulerSource": "src/scheduler_rutinas.js",
+      "schedulerDeclaration": [
+        {
+          "line": 258,
+          "text": "exports.schedulerRutinasPreventivas_v2 = functions.pubsub.schedule(\"0 2 * * *\")"
+        }
+      ]
+    },
+    {
+      "name": "projects/fixgo-44e4d/locations/us-central1/functions/robotPredictivo_v2",
+      "updated": "2026-07-13T22:15:52.820414260Z",
+      "version": "6",
+      "entryPoint": "robotPredictivo_v2",
+      "runtime": "nodejs20",
+      "serviceAccount": "fixgo-44e4d@appspot.gserviceaccount.com",
+      "eventType": "google.pubsub.topic.publish",
+      "httpsTrigger": false,
+      "status": "ACTIVE",
+      "sourceZip": "C:\\Users\\heber\\AppData\\Local\\Temp\\fixgo-orphan-source-ffca4956b1ad4c2a862486c2af725af4\\robotPredictivo_v2.zip",
+      "sha256": "676D9FDB3F3D4F8EE71494E224038D965D49EF3FBE85223454A1BA89B3F940EE",
+      "entrySource": "src/index.js",
+      "entrySourceSha256": "37a89de257554df999d1e81b6c7536af0dfe130e42742cf09c19ce62b8d63cfa",
+      "schedulerSource": "src/scheduler_predictivo.js",
+      "schedulerDeclaration": [
+        {
+          "line": 281,
+          "text": "exports.schedulerAnalisisFallas_v2 = functions.pubsub.schedule(\"0 3 * * *\")"
+        }
+      ]
+    },
+    {
+      "name": "projects/fixgo-44e4d/locations/us-central1/functions/procesarCierreServicio",
+      "updated": "2026-07-13T22:15:52.848706579Z",
+      "version": "9",
+      "entryPoint": "procesarCierreServicio",
+      "runtime": "nodejs20",
+      "serviceAccount": "fixgo-44e4d@appspot.gserviceaccount.com",
+      "eventType": null,
+      "httpsTrigger": true,
+      "status": "ACTIVE",
+      "sourceZip": "C:\\Users\\heber\\AppData\\Local\\Temp\\fixgo-orphan-source-ffca4956b1ad4c2a862486c2af725af4\\procesarCierreServicio.zip",
+      "sha256": "676D9FDB3F3D4F8EE71494E224038D965D49EF3FBE85223454A1BA89B3F940EE",
+      "entrySource": "src/index.js",
+      "entrySourceSha256": "37a89de257554df999d1e81b6c7536af0dfe130e42742cf09c19ce62b8d63cfa"
+    },
+    {
+      "name": "projects/fixgo-44e4d/locations/us-central1/functions/generarModulo",
+      "updated": "2026-07-13T22:15:53.096345403Z",
+      "version": "12",
+      "entryPoint": "generarModulo",
+      "runtime": "nodejs20",
+      "serviceAccount": "fixgo-44e4d@appspot.gserviceaccount.com",
+      "eventType": null,
+      "httpsTrigger": true,
+      "status": "ACTIVE",
+      "sourceZip": "C:\\Users\\heber\\AppData\\Local\\Temp\\fixgo-orphan-source-ffca4956b1ad4c2a862486c2af725af4\\generarModulo.zip",
+      "sha256": "CC4DAE713A4D90A18C773FE08D15D5C31F0846FD49FBE47EFFEC03CF9FF05EFD",
+      "entrySource": "src/index.js",
+      "entrySourceSha256": "fe538847a6e3172503cd6b9a4aa65830802d74b00ec3c2e087c109a2232f8518"
+    },
+    {
+      "name": "projects/fixgo-44e4d/locations/us-central1/functions/requestPayout",
+      "updated": "2026-07-13T22:15:53.401578849Z",
+      "version": "12",
+      "entryPoint": "requestPayout",
+      "runtime": "nodejs20",
+      "serviceAccount": "fixgo-44e4d@appspot.gserviceaccount.com",
+      "eventType": null,
+      "httpsTrigger": true,
+      "status": "ACTIVE",
+      "sourceZip": "C:\\Users\\heber\\AppData\\Local\\Temp\\fixgo-orphan-source-ffca4956b1ad4c2a862486c2af725af4\\requestPayout.zip",
+      "sha256": "676D9FDB3F3D4F8EE71494E224038D965D49EF3FBE85223454A1BA89B3F940EE",
+      "entrySource": "src/index.js",
+      "entrySourceSha256": "37a89de257554df999d1e81b6c7536af0dfe130e42742cf09c19ce62b8d63cfa"
+    }
+  ],
+  "impact": {
+    "withdrawals": {
+      "sameActorAmountStatusGroups": 0,
+      "negative": 0,
+      "missingAmount": 0,
+      "nonfiniteOrInvalid": 0,
+      "pending": 0,
+      "zero": 0,
+      "boundedIncomplete": false,
+      "count": 0
+    },
+    "iam": [
+      {
+        "name": "requestPayout",
+        "publicInvoker": true,
+        "authenticatedPublicInvoker": false,
+        "bindingCount": 1
+      },
+      {
+        "name": "procesarCierreServicio",
+        "publicInvoker": true,
+        "authenticatedPublicInvoker": false,
+        "bindingCount": 1
+      },
+      {
+        "name": "generarModulo",
+        "publicInvoker": true,
+        "authenticatedPublicInvoker": false,
+        "bindingCount": 1
+      }
+    ],
+    "observedAt": "2026-09-22T01:40:03.8108982Z"
+  }
+}

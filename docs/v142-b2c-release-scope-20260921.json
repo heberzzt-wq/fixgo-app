@@ -1,0 +1,63 @@
+{
+  "deploy_authorized": false,
+  "launch_ready": false,
+  "project": "fixgo-44e4d",
+  "hosting_site": "fixgo-44e4d",
+  "branch": "v94-media-v4n-negative-claims",
+  "observed_production_sha": "3a81f4b2635ca767e04d5f6d2b87fd2091f7e7ca",
+  "candidate_sha": null,
+  "reason_candidate_sha_null": "See local two-commit preparation and git history; no deployed candidate certified.",
+  "functions_to_include_in_coordinated_review": [
+    "api",
+    "stripewebhook",
+    "onServiceCompleted",
+    "reconciliarLiquidacionB2C",
+    "completeB2cService",
+    "procesarCierreServicio",
+    "solicitarRetiro",
+    "requestPayout",
+    "generarModulo",
+    "approveB2cTechnician",
+    "returnB2cTechnicianKyc",
+    "migrateB2cTechnicianProfile",
+    "createB2cService",
+    "claimB2cService",
+    "cancelB2cService",
+    "releaseB2cTechnicianLock",
+    "submitB2cQuote",
+    "respondB2cQuote",
+    "syncB2cMarketplace",
+    "resyncB2cMarketplaceConfig",
+    "resyncB2cCustomerPayments",
+    "dispatchB2cMarketplaceNotification",
+    "executeB2cAdminNocAction",
+    "validarCierreIA"
+  ],
+  "rules": [
+    "security/firestore-console-snapshot-2026-07-30.rules.txt",
+    "security/storage-hardening-candidate.rules.txt"
+  ],
+  "exclude": [
+    "multiservicios",
+    "robotPreventivo_v2",
+    "robotPredictivo_v2",
+    "production_data_migrations",
+    "paid_provider_operations"
+  ],
+  "constraints": [
+    "Explicit authorization required before any deployment.",
+    "Review exact source SHA and generated release artifacts after integration; do not stamp the old HEAD as a new repair release.",
+    "Existing workflow allowlists must include the legacy names being replaced, otherwise vulnerable deployed code remains active.",
+    "Do not blindly deploy or delete all Functions; preserve B2B schedulers and unrelated Jarvis functions.",
+    "Hosting, Functions and Rules must be coordinated; old clients fail closed when the new backend-only closure rule is installed.",
+    "Data migration is separately authorized and must not be combined with deployment by inference.",
+    "After an authorized release, re-read remote sources or versions for replaced legacy functions and verify negative authorization without financial writes."
+  ],
+  "hotfix_commit": "fe33ec3c",
+  "hotfix_functions": [
+    "requestPayout",
+    "solicitarRetiro",
+    "generarModulo",
+    "procesarCierreServicio"
+  ]
+}

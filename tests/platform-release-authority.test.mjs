@@ -95,10 +95,14 @@ test("technician page routes close and B2B start through existing canonical auth
     assert.match(source, /b2c_evidence\/\$\{serviceId\}\/\$\{uid\}\/\$\{eventType\}/);
     assert.match(source, /button\.id === "btnSubirEvidencia"/);
     assert.match(source, /event\.stopImmediatePropagation\(\)/);
-    assert.match(source, /cierre_operativo_completado:\s*true/);
-    assert.match(source, /cierre_financiero_pendiente_backend:\s*true/);
-    assert.match(source, /cierre_legacy_financiero_ejecutado:\s*false/);
-    assert.match(source, /work_evidence_binding_path:\s*bindingRef\.path/);
+    const close = source.slice(source.indexOf('async function canonicalClose('),source.indexOf('async function canonicalB2BStart('));
+    assert.match(close, /await cerrarServicioB2C\(\{ serviceId \}\)/);
+    assert.doesNotMatch(close, /estado:\s*["']finalizado["']/);
+    assert.match(close, /priorBinding\.exists\(\)/);
+    const backend = fs.readFileSync(new URL('../functions/b2c-service-settlement.js', import.meta.url),'utf8');
+    assert.match(backend, /cierre_operativo_completado:\s*true/);
+    assert.match(backend, /cierre_financiero_pendiente_backend:\s*true/);
+    assert.match(backend, /cierre_legacy_financiero_ejecutado:\s*false/);
     assert.match(source, /base64_persisted:\s*false/);
     assert.match(source, /data\.cliente_id !== initial\.cliente_id/);
     assert.doesNotMatch(source, /cliente_id:\s*["']admin_residencial["']/);

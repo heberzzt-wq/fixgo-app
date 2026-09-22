@@ -9,6 +9,8 @@
  * ======================================================
  */
 
+import { reserveB2cRequest, completeB2cRequest, assertB2cRequestActor } from './b2c-request-recovery.js';
+
 import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
@@ -87,6 +89,10 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 const cloudFunctions = getFunctions(app);
 
+export async function devolverExpedienteTecnicoB2C(technicianId, reason, documents) {
+    return (await httpsCallable(cloudFunctions, 'returnB2cTechnicianKyc')({ technicianId, reason, documents })).data;
+}
+
 export async function aprobarTecnicoB2C(technicianId) {
     const approve = httpsCallable(cloudFunctions, "approveB2cTechnician");
     const result = await approve({ technicianId });
@@ -106,8 +112,25 @@ export async function cancelarServicioB2C(serviceId, reason) {
 }
 
 export async function solicitarRetiroB2C(amount) {
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+        throw new Error('B2C_WITHDRAWAL_AMOUNT_INVALID');
+    }
+    const uid = auth.currentUser?.uid;
+    assertB2cRequestActor(uid, auth.currentUser?.uid);
+    const recoveryStorage = globalThis.localStorage;
+    const receipt = await reserveB2cRequest({
+        uid, payload: { purpose: 'withdrawal', amount }, storage: recoveryStorage,
+        newId: () => globalThis.crypto.randomUUID()
+    });
+    if (!/^[A-Za-z0-9_-]{8,128}$/.test(receipt.serviceId)
+        || recoveryStorage.getItem(receipt.key) !== receipt.serviceId) {
+        throw new Error('B2C_RECOVERY_UNAVAILABLE');
+    }
     const requestWithdrawal = httpsCallable(cloudFunctions, "solicitarRetiro");
-    const result = await requestWithdrawal({ amount });
+    assertB2cRequestActor(uid, auth.currentUser?.uid);
+    const result = await requestWithdrawal({ amount, requestId: receipt.serviceId });
+    if (result.data?.ok !== true) throw new Error('B2C_WITHDRAWAL_UNCONFIRMED');
+    completeB2cRequest(receipt, recoveryStorage);
     return result.data;
 }
 
@@ -115,6 +138,10 @@ export async function crearServicioB2C(payload) {
     const createService = httpsCallable(cloudFunctions, "createB2cService");
     const result = await createService(payload);
     return result.data;
+}
+
+export async function cerrarServicioB2C(payload) {
+    return (await httpsCallable(cloudFunctions, 'completeB2cService')(payload)).data;
 }
 
 export async function actualizarPermisosPagoB2C(customerId, stripe_autorizado, efectivo_autorizado) {
@@ -303,9 +330,15 @@ export async function registrarUsuario(
 
         console.log("🚀 Iniciando registro atómico para:", email);
 
-        const cred = b2bData && auth.currentUser?.email?.toLowerCase() === email.toLowerCase()
-            ? { user: auth.currentUser }
-            : await createUserWithEmailAndPassword(auth, email, password);
+        // Retry only the authenticated owner of an incomplete registration, never overwrite a profile.
+        const sameSession = auth.currentUser?.email?.toLowerCase() === email.toLowerCase();
+        const prior = sameSession ? await getDoc(doc(db, 'users', auth.currentUser.uid)) : null;
+        if (!b2bData && prior?.exists()) {
+            const existing = prior.data();
+            if (existing.rol !== rol || existing.tipo_cuenta !== 'B2C') throw new Error('REGISTRATION_EXISTING_PROFILE_MISMATCH');
+            return auth.currentUser;
+        }
+        const cred = sameSession ? { user: auth.currentUser } : await createUserWithEmailAndPassword(auth, email, password);
 
         const uid = cred.user.uid;
 

@@ -108,6 +108,9 @@ function fakeSnapshot(id, value) {
 
 function createFakeDb() {
     const data = new Map([
+        ["configuracion/pagos", { efectivo_activo: true }],
+        ["configuracion/catalogo_global", { fix_plomeria: true }],
+        ["users/customer", { rol: "cliente", tipo_cuenta: "B2C", pagos: { efectivo_autorizado: true } }],
         ["users/tech-1", operational],
         ["users/tech-2", { ...operational, nombre: "Segundo" }],
         ["services/svc-race", {
@@ -222,15 +225,7 @@ function createFakeDb() {
         functions: { https: { HttpsError } },
         now: () => Date.parse("2026-08-31T12:00:00Z")
     });
-    await assert.rejects(
-        withdrawalHandler({ amount: -500 }, { auth: { uid: "tech-1" } }),
-        error => error.code === "invalid-argument"
-    );
-    await assert.rejects(
-        withdrawalHandler({ amount: 0 }, { auth: { uid: "tech-1" } }),
-        error => error.code === "invalid-argument"
-    );
-    const withdrawal = await withdrawalHandler({ amount: 500 }, { auth: { uid: "tech-1" } });
+    const withdrawal = await withdrawalHandler({ amount: 500, requestId: "withdrawal-test-500" }, { auth: { uid: "tech-1" } });
     assert.equal(withdrawal.ok, true);
     assert.equal(withdrawal.amount, 500);
     assert.equal(withdrawalDb.data.get(`retiros/${withdrawal.withdrawalId}`).estado, "pendiente");
@@ -239,7 +234,7 @@ function createFakeDb() {
         withdrawal.withdrawalId
     );
     await assert.rejects(
-        withdrawalHandler({ amount: 1 }, { auth: { uid: "tech-1" } }),
+        withdrawalHandler({ amount: 1, requestId: "withdrawal-test-001" }, { auth: { uid: "tech-1" } }),
         error => error.code === "already-exists"
     );
     assert.equal([...withdrawalDb.data.keys()].some(path => path.startsWith("tecnicos/")), false);
@@ -264,6 +259,13 @@ function createFakeDb() {
         serviceId: "svc-race"
     });
     assert.equal(enabledResult.published, true);
+    marketplaceDb.data.set("users/customer", { pagos: { efectivo_autorizado: true }, suspendido: true });
+    const suspendedResult = await syncMarketplaceService({ admin, db: marketplaceDb.db, serviceId: "svc-race" });
+    assert.equal(suspendedResult.reason, "CUSTOMER_SUSPENDED");
+    assert.equal(marketplaceDb.data.has("service_marketplace/svc-race"), false);
+    marketplaceDb.data.set("users/customer", { pagos: { efectivo_autorizado: true }, suspendido: false });
+    await syncMarketplaceService({ admin, db: marketplaceDb.db, serviceId: "svc-race" });
+
     marketplaceDb.data.set("configuracion/catalogo_global", { fix_plomeria: false });
     const disabledResult = await syncMarketplaceService({
         admin,

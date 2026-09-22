@@ -46,30 +46,31 @@ function createB2cServiceHandler({ admin, db, functions }) {
             throw callableError(functions, "failed-precondition", "B2B conserva su autoridad contractual independiente.");
         }
 
-        const customerRef = db.collection("users").doc(customerId);
-        const configRef = db.collection("configuracion").doc("pagos");
-        const catalogRef = db.collection("configuracion").doc("catalogo_global");
-        const [customerSnapshot, configSnapshot, catalogSnapshot] = await Promise.all([
-            customerRef.get(),
-            configRef.get(),
-            catalogRef.get()
-        ]);
-        if (!customerSnapshot.exists) throw callableError(functions, "failed-precondition", "Perfil de cliente no disponible.");
-        const customer = customerSnapshot.data() || {};
-        if (platformContract.normalizeToken(customer.rol || customer.role) !== "cliente" || customer.tipo_cuenta === "B2B") {
-            throw callableError(functions, "permission-denied", "La identidad no corresponde a un cliente B2C.");
-        }
-        const config = configSnapshot.exists ? configSnapshot.data() || {} : {};
-        const payment = platformContract.assertPaymentMethodAllowed(method, config, customer);
-        if (!payment.ok) {
-            throw callableError(functions, "failed-precondition", payment.reason);
-        }
-        const destination = platformContract.normalizeDestination(data?.destino);
-        if (!destination) throw callableError(functions, "invalid-argument", "DESTINATION_CONFIRMATION_REQUIRED");
-        const categoryId = platformContract.normalizeCategoryKey({
-            categoria_id: data?.categoria_id,
-            categoria: data?.categoria,
-            sub_servicio: data?.sub_servicio
+        return db.runTransaction(async transaction => {
+            const customerRef = db.collection("users").doc(customerId);
+            const configRef = db.collection("configuracion").doc("pagos");
+            const catalogRef = db.collection("configuracion").doc("catalogo_global");
+            const [customerSnapshot, configSnapshot, catalogSnapshot] = await Promise.all([
+                transaction.get(customerRef),
+                transaction.get(configRef),
+                transaction.get(catalogRef)
+            ]);
+            if (!customerSnapshot.exists) throw callableError(functions, "failed-precondition", "Perfil de cliente no disponible.");
+            const customer = customerSnapshot.data() || {};
+            if (platformContract.normalizeToken(customer.rol || customer.role) !== "cliente" || customer.tipo_cuenta === "B2B" || customer.suspendido === true) {
+                throw callableError(functions, "permission-denied", "La identidad no corresponde a un cliente B2C.");
+            }
+            const config = configSnapshot.exists ? configSnapshot.data() || {} : {};
+            const payment = platformContract.assertPaymentMethodAllowed(method, config, customer);
+            if (!payment.ok) {
+                throw callableError(functions, "failed-precondition", payment.reason);
+            }
+            const destination = platformContract.normalizeDestination(data?.destino);
+            if (!destination) throw callableError(functions, "invalid-argument", "DESTINATION_CONFIRMATION_REQUIRED");
+            const categoryId = platformContract.normalizeCategoryKey({
+                categoria_id: data?.categoria_id,
+                categoria: data?.categoria,
+                sub_servicio: data?.sub_servicio
         });
         if (!categoryId || !categoryId.includes("_")) {
             throw callableError(functions, "invalid-argument", "SERVICE_CATEGORY_INVALID");
@@ -137,7 +138,7 @@ function createB2cServiceHandler({ admin, db, functions }) {
             }
         };
 
-        const result = await db.runTransaction(async transaction => {
+        const result = await (async () => {
             const current = await transaction.get(serviceRef);
             if (current.exists) {
                 const existing = current.data() || {};
@@ -148,7 +149,7 @@ function createB2cServiceHandler({ admin, db, functions }) {
             }
             transaction.create(serviceRef, payload);
             return { created: true, estado: state };
-        });
+        })();
         return {
             ok: true,
             serviceId,
@@ -157,6 +158,7 @@ function createB2cServiceHandler({ admin, db, functions }) {
             created: result.created,
             contractVersion: platformContract.CONTRACT_VERSION
         };
+        });
     };
 }
 
@@ -452,34 +454,35 @@ function createMigrateTechnicianProfileHandler({ admin, db, functions }) {
         if (!technicianId) throw callableError(functions, "invalid-argument", "technicianId es obligatorio.");
         const apply = data?.apply === true;
         const ref = db.collection("users").doc(technicianId);
-        const snapshot = await ref.get();
-        if (!snapshot.exists) throw callableError(functions, "not-found", "Técnico no encontrado.");
-        const raw = snapshot.data() || {};
-        const migration = platformContract.technicianMigration(raw);
-        if (!apply) return { ok: true, applied: false, technicianId, ...migration };
-        if (migration.classification === "requires_review" && data?.reviewConfirmed !== true) {
-            throw callableError(functions, "failed-precondition", "MIGRATION_REVIEW_CONFIRMATION_REQUIRED");
-        }
-        const now = admin.firestore.FieldValue.serverTimestamp();
-        const legacyDeletes = Object.fromEntries(
-            migration.legacyFields.map(field => [field, admin.firestore.FieldValue.delete()])
-        );
-        await ref.set({
-            ...migration.canonical,
-            ...legacyDeletes,
-            migration: {
-                ...(raw.migration || {}),
-                b2c_contract_v1: {
-                    applied: true,
-                    applied_at: now,
-                    applied_by: actorId,
-                    source_classification: migration.classification,
-                    source_reasons: migration.reasons
-                }
-            },
-            actualizadoEn: now
-        }, { merge: true });
-        return { ok: true, applied: true, technicianId, classification: migration.classification };
+        return db.runTransaction(async transaction => {
+            const snapshot = await transaction.get(ref);
+            if (!snapshot.exists) throw callableError(functions, "not-found", "Técnico no encontrado.");
+            const raw = snapshot.data() || {};
+            const migration = platformContract.technicianMigration(raw);
+            if (!apply) return { ok: true, applied: false, technicianId, ...migration };
+            if (migration.classification === "requires_review") {
+                throw callableError(functions, "failed-precondition", "MIGRATION_REVIEW_CONFIRMATION_REQUIRED");
+            }
+            const stable = value => value && typeof value === 'object'
+                ? Array.isArray(value) ? value.map(stable) : Object.fromEntries(Object.keys(value).sort().map(key => [key, stable(value[key])])) : value;
+            const unchanged = Object.entries(migration.canonical).every(([key, value]) => JSON.stringify(stable(raw[key])) === JSON.stringify(stable(value)));
+            if (unchanged) return { ok: true, applied: false, unchanged: true, technicianId, classification: migration.classification };
+            const now = admin.firestore.FieldValue.serverTimestamp();
+            // Preserve source aliases until a separately reviewed migration proves they are unused.
+            transaction.set(ref, {
+                ...migration.canonical,
+                migration: {
+                    ...(raw.migration || {}),
+                    b2c_contract_v1: {
+                        applied: true, applied_at: now, applied_by: actorId,
+                        source_classification: migration.classification,
+                        source_reasons: migration.reasons
+                    }
+                },
+                actualizadoEn: now
+            }, { merge: true });
+            return { ok: true, applied: true, technicianId, classification: migration.classification };
+        });
     };
 }
 

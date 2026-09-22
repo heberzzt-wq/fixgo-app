@@ -1,0 +1,55 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import '../gestia-core/contracts/b2c-platform-contract.js';
+const contract = globalThis.GestiaB2CPlatformContract;
+const source = fs.readFileSync(new URL('../firebase.js', import.meta.url), 'utf8');
+const registration = source.slice(source.indexOf('export async function registrarUsuario'), source.indexOf('// 📦 EXPORTS MAESTROS')).replace('export async', 'async');
+function harness() {
+    const profiles = new Map(); let creates = 0; let failWrite = true;
+    const auth = { currentUser: null };
+    const scope = { auth, db: {}, console: { log() {}, error() {} }, doc: (_, __, uid) => uid,
+        getDoc: async uid => ({ exists: () => profiles.has(uid), data: () => profiles.get(uid) }),
+        createUserWithEmailAndPassword: async (_, email) => { creates++; auth.currentUser = { uid: 'owner', email }; return { user: auth.currentUser }; },
+        createTechnicianRegistrationProfile: ({ uid, email }) => ({ uid, email, rol: 'tecnico', tipo_cuenta: 'B2C', estado: 'documentos_pendientes', status: 'documentos_pendientes', kyc: { aprobado: false }, disponible: false }),
+        serverTimestamp: () => 'now', updateProfile: async () => {},
+        setDoc: async (uid, profile) => { if (failWrite) throw new Error('network'); profiles.set(uid, structuredClone(profile)); }
+    };
+    vm.runInNewContext(registration + '\nglobalThis.register=registrarUsuario;', scope);
+    return { profiles, auth, creates: () => creates, online: () => { failWrite = false; }, register: rol => scope.register('owner@example.test', 'fixture', rol || 'tecnico', 'fixture') };
+}
+test('Auth created before Firestore outage resumes same authenticated owner without duplicate account', async () => {
+    const h = harness(); await assert.rejects(h.register(), /network/); assert.equal(h.creates(), 1); assert.equal(h.profiles.size, 0);
+    h.online(); await h.register(); assert.equal(h.creates(), 1); assert.equal(h.profiles.get('owner').kyc.aprobado, false);
+    h.profiles.get('owner').wallet = 42; await h.register(); assert.equal(h.profiles.get('owner').wallet, 42);
+    await assert.rejects(h.register('cliente'), /REGISTRATION_EXISTING_PROFILE_MISMATCH/);
+});
+test('actual technician panel exposes resubmit after final-write failure and replaces only requested files', () => {
+    const panel = fs.readFileSync(new URL('../panel-tecnico.js', import.meta.url), 'utf8');
+    const segment = panel.slice(panel.indexOf('        const ineUrl = perfilCanonico.estado'), panel.indexOf('        if (faltaInfo) {'));
+    const base = { rol: 'tecnico', estado: 'documentos_pendientes', status: 'documentos_pendientes', foto_perfil: 'photo', documentos: { ine: 'ine', csf: 'csf' }, datos_bancarios: { banco: 'bank', clabe: '012345678901234567' }, vehiculo: { tipo: 'peaton' }, kyc: { estado: 'documentos_pendientes', aprobado: false } };
+    function view(profile) {
+        const kycResult = contract.technicianKycRequirements(profile);
+        return vm.runInNewContext(segment + '\n({faltaInfo,ineUrl,csfUrl,fotoUrl})', { perfilCanonico: kycResult.profile, kycResult, TECHNICIAN_KYC_STATES: contract.TECHNICIAN_STATES });
+    }
+    assert.equal(view(base).faltaInfo, true);
+    const rejected = { ...base, estado: 'rechazado', status: 'rechazado', kyc: { estado: 'rechazado', aprobado: false, faltantes: ['ine'] } };
+    const ui = view(rejected); assert.equal(ui.faltaInfo, true); assert.equal(ui.ineUrl, null); assert.equal(ui.csfUrl, 'csf');
+});
+test('identity photo widgets block approved replacements and admin routes review back to technician', async () => {
+    const panel = fs.readFileSync(new URL('../panel-admin.js', import.meta.url), 'utf8');
+    const code = panel.slice(panel.indexOf(' window.adminCambiarFotoTecnico ='), panel.indexOf(' // 🔥 EXPEDIENTES'));
+    let profile = { estado: 'activo', kyc: { aprobado: true } }; const messages = []; const returned = [];
+    const scope = { window: { devolverExpedienteTecnico: (...args) => returned.push(args) }, db: {}, doc: () => 'tech', getDoc: async () => ({ data: () => profile }), alert: message => messages.push(message) };
+    vm.runInNewContext(code, scope); await scope.window.adminCambiarFotoTecnico('tech');
+    assert.equal(returned.length, 0); assert.match(messages[0], /protegida/);
+    profile = { estado: 'pendiente_revision', kyc: { aprobado: false } }; await scope.window.adminCambiarFotoTecnico('tech');
+    assert.deepEqual(returned, [['tech', 'foto_perfil']]);
+    const tech = fs.readFileSync(new URL('../panel-tecnico.js', import.meta.url), 'utf8');
+    const photo = tech.slice(tech.indexOf('    window.cambiarFotoPerfil ='), tech.indexOf('    window.cambiarLogoFactura ='));
+    let uploads = 0; let writes = 0;
+    const techScope = { window: {}, user: { uid: 'tech' }, db: {}, doc: () => 'tech', getDoc: async () => ({ data: () => ({ estado: 'activo', status: 'activo', kyc: { aprobado: true } }) }), alert() {}, uploadBytes() { uploads++; }, updateDoc() { writes++; }, document: { createElement() { throw Error('must not prompt upload'); } } };
+    vm.runInNewContext(photo, techScope); await techScope.window.cambiarFotoPerfil('tech');
+    assert.equal(uploads, 0); assert.equal(writes, 0);
+});

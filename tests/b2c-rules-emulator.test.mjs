@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import test, { after, before } from "node:test";
 import { initializeTestEnvironment, assertFails, assertSucceeds } from "@firebase/rules-unit-testing";
-import { collection, getDocs, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getMetadata } from "firebase/storage";
 
 let environment;
@@ -181,10 +181,11 @@ test("binding de cierre sólo lo puede sellar el técnico asignado con evidencia
 });
 
 test("Storage permite expediente propio válido y niega expediente ajeno", async () => {
-    const ownStorage = environment.authenticatedContext("tech-1").storage();
+    await environment.withSecurityRulesDisabled(async ctx => setDoc(doc(ctx.firestore(),"users/kyc-upload"), {...operationalTechnician,status:"documentos_pendientes",estado:"documentos_pendientes",kyc:{aprobado:false}}));
+    const ownStorage = environment.authenticatedContext("kyc-upload").storage();
     const otherStorage = environment.authenticatedContext("client-1").storage();
     const payload = new Uint8Array([137, 80, 78, 71]);
-    await assertSucceeds(uploadBytes(ref(ownStorage, "expedientes/tech-1/ine/current.png"), payload, { contentType: "image/png" }));
+    await assertSucceeds(uploadBytes(ref(ownStorage, "expedientes/kyc-upload/ine/current.png"), payload, { contentType: "image/png" }));
     await assertFails(uploadBytes(ref(otherStorage, "expedientes/tech-1/ine/foreign.png"), payload, { contentType: "image/png" }));
     await assertFails(uploadBytes(ref(ownStorage, "unexpected/path.bin"), payload, { contentType: "application/octet-stream" }));
 });
@@ -417,3 +418,106 @@ test('financial review requests stay set until an administrative decision', asyn
     const customer=environment.authenticatedContext('client-1').firestore();
     await assertFails(updateDoc(doc(customer,'services/svc-close'),{llegada_revision_requerida:false}));
 });
+
+
+test('B2C KYC approved evidence cannot be replaced or forged by its owner', async()=>{
+    const actor=environment.authenticatedContext('tech-1'); const db=actor.firestore();
+    for (const patch of [{documentos:{ine:'forged'}},{foto_perfil:'forged'},{vehiculo:{tipo:'moto',placas:'X'}},{'kyc.evidencias':{ine:{generation:'forged'}}}]) await assertFails(updateDoc(doc(db,'users/tech-1'),patch));
+    await assertFails(uploadBytes(ref(actor.storage(),'expedientes/tech-1/ine/approved-replacement.png'),new Uint8Array([1]),{contentType:'image/png'}));
+});
+
+
+test('B2C client cannot forge operational closure even with a binding reference',async()=>{
+    const db=environment.authenticatedContext('tech-1').firestore();
+    await assertFails(updateDoc(doc(db,'services/svc-close'),{estado:'finalizado',cierre_operativo_completado:true,cierre_financiero_pendiente_backend:true,cierre_legacy_financiero_ejecutado:false,work_evidence_binding_path:'services/svc-close/work_evidence_bindings/current'}));
+});
+
+// Exact service update shapes from panel-tecnico, arrival integration and client arrival modules.
+// Client SDK + loaded production candidate rules; Admin is used only to seed assigned services.
+for (const disputed of [false, true]) {
+    test(`operational Rules positive arrival ${disputed ? 'dispute' : 'received'}`, async () => {
+        const id = `rules-arrival-${disputed ? 'dispute' : 'received'}`;
+        await environment.withSecurityRulesDisabled(async ctx => setDoc(doc(ctx.firestore(), `services/${id}`), {
+            tipo: 'b2c', cliente_id: 'client-1', tecnico_id: 'tech-1', estado: 'asignado',
+            metodo_pago: 'efectivo', categoria: 'FIX', categoria_id: 'fix_plomeria', sub_servicio: 'PLOMERIA',
+            destino: {direccion: 'Destino', confirmado_por_cliente: true}, coords: {lat: 21.16, lng: -86.85},
+            monto_pagado: 100, retencion_inicial: 100, costo_final: 500
+        }));
+        const tech = environment.authenticatedContext('tech-1').firestore();
+        const client = environment.authenticatedContext('client-1').firestore();
+        const techRef = doc(tech, `services/${id}`);
+        const clientRef = doc(client, `services/${id}`);
+        const now = () => serverTimestamp();
+        await assertSucceeds(updateDoc(techRef, {estado: 'en_camino'}));
+        await assertSucceeds(setDoc(doc(tech, 'rastreo/tech-1'), {estado: 'En Ruta'}, {merge:true}));
+        const sha = 'c'.repeat(64);
+        async function event(db, uid, role, kind) {
+            const path = role === 'cliente'
+                ? `b2c_customer_evidence/${id}/${uid}/arrival_dispute/photo.jpg`
+                : `b2c_evidence/${id}/${uid}/${kind}/photo.jpg`;
+            const upload = await assertSucceeds(uploadBytes(ref(environment.authenticatedContext(uid).storage(), path),
+                new Uint8Array([255,216,255,217]), {contentType:'image/jpeg', customMetadata:{
+                    serviceId:id, actorUid:uid, actorRole:role, eventType:kind, sha256:sha,
+                    ...(role === 'cliente' ? {dedupScope:'service_only',dedupBackendPending:'true'} : {})
+                }}));
+            const url = `http://127.0.0.1:9299/v0/b/fixgo-b2c-rules-test.appspot.com/o/${encodeURIComponent(path)}?alt=media`;
+            const eventId = `${kind}-event`;
+            if (role === 'cliente') {
+                const hashRef = doc(db, `services/${id}/customer_evidence_hashes/${sha}`);
+                await assertSucceeds(setDoc(hashRef, {sha256:sha,perceptual_hash:null,customer_id:uid,evidence_id:kind,
+                    state:'reserved',scope:'service_only',retry_count:0,dedup_backend_pending:true,created_at:now(),updated_at:now()}));
+                await assertSucceeds(setDoc(doc(db, `services/${id}/evidence_events/${eventId}`), {
+                    service_id:id,evidence_id:kind,event_type:kind,actor_uid:uid,actor_role:role,
+                    captured_at_client:new Date().toISOString(),captured_at_server:now(),
+                    gps:{status:'verified',reason:null,lat:21.16,lng:-86.85,accuracy_m:5,distance_to_destination_m:3},
+                    media:{kind:'image',content_type:'image/jpeg',size_bytes:4,capture_method:'in_app_camera',consent:{accepted:true}},
+                    fingerprint:{sha256:sha,perceptual_hash:null,perceptual_algorithm:null,scope:'service_only',dedup_backend_pending:true},
+                    storage:{path,download_url:url,generation:upload.metadata.generation},time_authority:null,
+                    review_required:true,module_version:'1.0.0',created_at:now()
+                }));
+                await assertSucceeds(updateDoc(hashRef, {state:'active',storage_path:path,
+                    storage_generation:upload.metadata.generation,confirmed_at:now(),updated_at:now()}));
+                return {event_document_id:eventId,evidence_id:kind,download_url:url,storage_path:path,sha256:sha,perceptual_hash:null};
+            }
+            await assertSucceeds(setDoc(doc(db, `services/${id}/evidence_events/${eventId}`), {
+                schemaVersion:1, engineVersion:'1.0.0', serviceId:id, evidenceId:kind, eventType:kind,
+                actor:{uid,role}, capturedAtClient:new Date().toISOString(), serverTimestampRequired:true,
+                gps:{lat:21.16,lng:-86.85,accuracyM:5}, arrival:{status:'verified',distanceM:3},
+                media:{size:4,contentType:'image/jpeg'}, sha256:sha, storagePath:path, downloadUrl:url, fallbackReason:null,
+                dedup:{status:'unique',reason:'no_match',perceptualDistance:null}, registry:{id:kind,state:'committed'},
+                storage:{generation:upload.metadata.generation,sizeBytes:4,contentType:'image/jpeg',md5Hash:upload.metadata.md5Hash || null},
+                orchestratorVersion:'1.0.0',capturedAtServer:now(),createdAt:now()
+            }));
+            return {evidence_event_id:eventId,evidence_id:kind,event_type:kind,download_url:url,storage_path:path,sha256:sha,perceptual_hash:null};
+        }
+        const arrival = await event(tech, 'tech-1', 'tecnico', 'arrival');
+        await assertSucceeds(updateDoc(techRef, {
+            estado:'en_sitio', en_sitio_at:now(), llegada_validacion_version:'1.0.0', llegada_revision_requerida:false,
+            llegada_notificacion_estado:'pendiente', llegada_cliente_respuesta:'pendiente',
+            evidencia_llegada:{...arrival,metodo:'camera_gps_verified',gps_verificado:true,fallback_reason:null,
+                tecnico_lat:21.16,tecnico_lng:-86.85,precision_m:5,distancia_destino_m:3,destino_lat:21.16,destino_lng:-86.85,
+                capturada_at_cliente:new Date().toISOString(),sellada_at_servidor:now()}
+        }));
+        await assertSucceeds(setDoc(doc(tech,'rastreo/tech-1'), {estado:'En Sitio',service_id:id,
+            llegada_evidencia_id:'arrival',llegada_revision_requerida:false,ultima_actualizacion:now()}, {merge:true}));
+        await assertSucceeds(updateDoc(clientRef, {llegada_notificacion_estado:'mostrada',llegada_notificacion_mostrada_at:now(),
+            llegada_notificacion_version:'1.0.1',llegada_espera_segundos:300}));
+        if (!disputed) {
+            await assertSucceeds(updateDoc(clientRef, {llegada_cliente_respuesta:'recibido',llegada_cliente_respuesta_at:now(),
+                llegada_notificacion_estado:'respondida',llegada_revision_requerida:false,llegada_disputa_cliente:null}));
+        } else {
+            const evidence = await event(client,'client-1','cliente','customer_arrival_dispute');
+            await assertSucceeds(updateDoc(clientRef, {
+                llegada_cliente_respuesta:'ubicacion_disputada',llegada_cliente_respuesta_at:now(),llegada_notificacion_estado:'disputada',
+                llegada_revision_requerida:true,llegada_resolucion_automatica_bloqueada:true,
+                llegada_disputa_cliente:{motivo:'cliente_reporta_tecnico_no_visible_en_destino',creada_at:now(),version:'1.0.0',media_status:'photo_stored',
+                    evidence_strength:'strong',customer_presence_verified:true,gps_status:'verified',gps_reason:null,
+                    cliente_lat:21.16,cliente_lng:-86.85,precision_m:5,distancia_destino_m:3,dedup_scope:'service_only',dedup_backend_pending:true,
+                    time_authority:null,evidencia:{...evidence,sealed_at_server:now()}}
+            }));
+        }
+        const final = (await assertSucceeds(getDoc(clientRef))).data();
+        if (final.estado !== 'en_sitio' || final.llegada_cliente_respuesta !== (disputed ? 'ubicacion_disputada' : 'recibido') || final.monto_pagado !== 100) throw new Error('Operational state/payment regression');
+        if (disputed && (final.llegada_revision_requerida !== true || final.llegada_resolucion_automatica_bloqueada !== true)) throw new Error('Dispute lost review hold');
+    });
+}

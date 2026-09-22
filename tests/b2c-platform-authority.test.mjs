@@ -23,6 +23,7 @@ function documentRef(name) {
 function approvedTechnician(overrides = {}) {
     return {
         rol: "tecnico",
+        tipo_cuenta: "B2C",
         estado: "activo",
         status: "activo",
         disponible: true,
@@ -196,7 +197,7 @@ test("technician eligibility covers canonical, legacy, pending, suspended, incom
     const legacy = approvedTechnician({ vehiculo: undefined, kyc: undefined });
     legacy.verificado = true;
     legacy.logistica = { vehiculo: "MOTOCICLETA", placas: "LEG-123" };
-    assert.equal(browserContract.technicianEligibility(legacy).ok, true);
+    assert.equal(browserContract.technicianEligibility(legacy).ok, false, "legacy approval is audit evidence, not operating authority");
     assert.equal(browserContract.normalizeTechnicianProfile(legacy).vehiculo.placas, "LEG-123");
 
     assert.equal(
