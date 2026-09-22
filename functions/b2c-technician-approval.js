@@ -28,6 +28,11 @@ function isAuthorizedAdmin(context, actorProfile = {}) {
 async function verifyTechnicianStorage({ bucket, technicianId, profile, functions }) {
     const invalid = message => { throw new functions.https.HttpsError('failed-precondition', message); };
     const references = { foto_perfil: profile.foto_perfil, ine: profile.documentos.ine, csf: profile.documentos.csf };
+    if (profile.kyc?.identity_required === true) {
+        references.ine_reverso = profile.documentos.ine_reverso;
+        references.selfie_liveness_left = profile.documentos.selfie_liveness_left;
+        references.selfie_liveness_right = profile.documentos.selfie_liveness_right;
+    }
     if (profile.vehiculo.tipo !== 'peaton') references.licencia = profile.documentos.licencia;
     const verified = {};
     for (const [kind, reference] of Object.entries(references)) {
@@ -46,7 +51,8 @@ async function verifyTechnicianStorage({ bucket, technicianId, profile, function
         if (typeof path !== 'string' || !path.startsWith(`expedientes/${technicianId}/`) || path.includes('..') || path.endsWith('/')) invalid(`KYC_STORAGE_OWNER_MISMATCH:${kind}`);
         let metadata;
         try { [metadata] = await bucket.file(path).getMetadata(); } catch { invalid(`KYC_STORAGE_OBJECT_UNAVAILABLE:${kind}`); }
-        const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', ...(kind === 'foto_perfil' ? [] : ['application/pdf'])];
+        const imageOnly = new Set(['foto_perfil', 'ine_reverso', 'selfie_liveness_left', 'selfie_liveness_right']);
+        const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', ...(imageOnly.has(kind) ? [] : ['application/pdf'])];
         if (!metadata?.generation || !allowed.includes(metadata.contentType) || !(Number(metadata.size) > 0 && Number(metadata.size) <= 10 * 1024 * 1024)) invalid(`KYC_STORAGE_OBJECT_INVALID:${kind}`);
         const prior = profile.kyc?.evidencias?.[kind];
         if (prior && (prior.storage_path !== path || String(prior.generation) !== String(metadata.generation))) invalid(`KYC_STORAGE_GENERATION_CHANGED:${kind}`);
@@ -111,6 +117,10 @@ function createApproveTechnicianHandler({ admin, db, functions, bucket }) {
                 verificado: true,
                 "kyc.estado": platformContract.TECHNICIAN_STATES.ACTIVE,
                 "kyc.aprobado": true,
+                "kyc.identity_verified": profile.kyc?.identity_required === true ? true : (rawProfile.kyc?.identity_verified === true),
+                "kyc.identity_verified_by": profile.kyc?.identity_required === true ? context.auth.uid : (rawProfile.kyc?.identity_verified_by || null),
+                "kyc.identity_verified_at": profile.kyc?.identity_required === true ? now : (rawProfile.kyc?.identity_verified_at || null),
+                "kyc.identity_verification_method": profile.kyc?.identity_required === true ? "manual_admin_review_v1" : (rawProfile.kyc?.identity_verification_method || null),
                 "kyc.aprobado_por": context.auth.uid,
                 "kyc.aprobado_at": now,
                 "kyc.faltantes": [],
@@ -129,7 +139,7 @@ function createReturnTechnicianHandler({ admin, db, functions }) {
         const technicianId = String(data?.technicianId || '').trim();
         const reason = String(data?.reason || '').trim().slice(0, 500);
         const documents = [...new Set(Array.isArray(data?.documents) ? data.documents : [])];
-        if (!technicianId || technicianId.includes('/') || reason.length < 8 || !documents.length || documents.some(kind => !['foto_perfil', 'ine', 'csf', 'licencia'].includes(kind))) {
+        if (!technicianId || technicianId.includes('/') || reason.length < 8 || !documents.length || documents.some(kind => !['foto_perfil', 'ine', 'ine_reverso', 'selfie_liveness_left', 'selfie_liveness_right', 'csf', 'licencia'].includes(kind))) {
             throw new functions.https.HttpsError('invalid-argument', 'Indica motivo y documentos a corregir.');
         }
         return db.runTransaction(async tx => {
@@ -146,7 +156,9 @@ function createReturnTechnicianHandler({ admin, db, functions }) {
             const evidencias = { ...(raw.kyc?.evidencias || {}) };
             for (const kind of documents) delete evidencias[kind];
             tx.update(target, { estado: 'rechazado', status: 'rechazado', disponible: false, verificado: false,
-                'kyc.estado': 'rechazado', 'kyc.aprobado': false, 'kyc.faltantes': documents,
+                'kyc.estado': 'rechazado', 'kyc.aprobado': false,
+                'kyc.identity_verified': documents.some(kind => ['foto_perfil', 'ine', 'ine_reverso', 'selfie_liveness_left', 'selfie_liveness_right'].includes(kind)) ? false : (raw.kyc?.identity_verified === true),
+                'kyc.faltantes': documents,
                 'kyc.observaciones': reason, 'kyc.evidencias': evidencias,
                 'kyc.revisado_por': context.auth.uid, 'kyc.revisado_at': admin.firestore.FieldValue.serverTimestamp() });
             return { ok: true, technicianId, estado: 'rechazado' };
