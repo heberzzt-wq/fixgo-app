@@ -218,9 +218,49 @@
                             <input type="text" name="placas" placeholder="Número de Placas (Opcional si vas a pie)" class="uber-input w-full px-4 py-3 rounded-xl outline-none focus:border-emerald-500 font-mono uppercase">
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <input type="text" name="banco" placeholder="Nombre del Banco" required class="uber-input w-full px-5 py-4 rounded-2xl">
-                            <input type="text" name="clabe" placeholder="CLABE (18 dígitos)" maxlength="18" required class="uber-input w-full px-5 py-4 rounded-2xl font-mono">
+                        <div class="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
+                            <div class="flex items-start justify-between gap-4 mb-4">
+                                <div>
+                                    <p class="text-[10px] uppercase tracking-[0.22em] text-blue-400 font-black">Cuenta para recibir retiros</p>
+                                    <h3 class="text-base font-black mt-1">CLABE interbancaria</h3>
+                                    <p class="text-xs text-gray-400 mt-1">Escribe tu CLABE y detectaremos automáticamente la institución. No necesitas seleccionar el banco.</p>
+                                </div>
+                                <div class="w-11 h-11 shrink-0 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center">
+                                    <i class="fas fa-building-columns text-blue-400"></i>
+                                </div>
+                            </div>
+
+                            <input
+                                id="clabeTecnico"
+                                type="text"
+                                name="clabe"
+                                inputmode="numeric"
+                                autocomplete="off"
+                                placeholder="18 dígitos"
+                                maxlength="18"
+                                required
+                                aria-describedby="clabeTecnicoStatus"
+                                class="uber-input w-full px-5 py-4 rounded-2xl font-mono tracking-[0.13em] text-lg"
+                            >
+                            <input type="hidden" name="banco" id="bancoTecnico" value="">
+
+                            <div id="clabeBankCard" class="mt-3 rounded-2xl border border-zinc-800 bg-black/30 p-4 transition-all" aria-live="polite">
+                                <div class="flex items-center gap-3">
+                                    <div id="clabeBankIcon" class="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-500">
+                                        <i class="fas fa-building-columns"></i>
+                                    </div>
+                                    <div class="min-w-0 flex-1">
+                                        <p id="clabeBankName" class="font-black text-sm text-zinc-400">Banco pendiente de detectar</p>
+                                        <p id="clabeTecnicoStatus" class="text-[10px] text-zinc-500 mt-0.5">Ingresa los 18 dígitos de tu CLABE.</p>
+                                    </div>
+                                    <i id="clabeBankCheck" class="fas fa-shield-halved text-zinc-600"></i>
+                                </div>
+                            </div>
+
+                            <div class="mt-3 flex items-center justify-between gap-3 text-[10px] text-zinc-500">
+                                <span><i class="fas fa-user-shield mr-1"></i> Titular: <strong id="clabeTitularTecnico" class="text-zinc-300">se tomará de tu identidad</strong></span>
+                                <span class="whitespace-nowrap"><i class="fas fa-lock mr-1"></i> CLABE protegida</span>
+                            </div>
                         </div>
 
                         <div class="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
