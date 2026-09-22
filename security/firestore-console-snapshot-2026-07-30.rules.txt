@@ -60,6 +60,18 @@ service cloud.firestore {
         ));
     }
 
+    function technicianIdentityIsComplete(data) {
+      let kyc = data.get('kyc', {});
+      let documents = data.get('documentos', {});
+      let required = kyc.get('identity_required', false) == true;
+      return required != true || (
+        kyc.get('identity_verified', false) == true &&
+        isDocumentReference(documents.get('ine_reverso', null)) &&
+        isDocumentReference(documents.get('selfie_liveness_left', null)) &&
+        isDocumentReference(documents.get('selfie_liveness_right', null))
+      );
+    }
+
     function technicianKycIsComplete(data) {
       let vehicle = data.get('vehiculo', {});
       let documents = data.get('documentos', {});
@@ -69,8 +81,776 @@ service cloud.firestore {
         isDocumentReference(documents.get('ine', null)) &&
         isDocumentReference(documents.get('csf', null)) &&
         banking.get('banco', '') is string && banking.get('banco', '').size() > 0 &&
-        banking.get('clabe', '') is string && banking.get('clabe', '').matches('^[0-9]{18}$') &&
+        banking.get('clabe', '') is string && banking.get('clabe', '').matches('^[0-9]{18}
+
+    function isOperationalTechnician() {
+      let data = userData();
+      return data != null &&
+        data.rol in ['tecnico', 'tecnico_gp', 'tecnico_interno'] &&
+        data.estado == 'activo' &&
+        data.status == 'activo' &&
+        data.get('kyc', {}).get('aprobado', false) == true &&
+        data.get('suspendido', false) != true &&
+        data.get('disponible', false) == true &&
+        technicianKycIsComplete(data);
+    }
+
+    function technicianInitialStateIsSafe(data) {
+      return data.rol == 'tecnico' &&
+        data.estado in ['registro_iniciado', 'documentos_pendientes'] &&
+        data.status == data.estado &&
+        data.disponible == false &&
+        data.kyc.aprobado == false;
+    }
+
+    function userAuthorityFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'role', 'tenantId', 'edificioId', 'edificioNombre', 'empresa_id',
+        'authority', 'permissions', 'claims', 'admin', 'aprobado',
+        'expediente_completo', 'uid', 'email', 'sub_type'
+      ]) && request.resource.data.rol == resource.data.rol &&
+        request.resource.data.tipo_cuenta == resource.data.tipo_cuenta &&
+        (
+          (
+            request.resource.data.estado == resource.data.estado &&
+            request.resource.data.status == resource.data.status
+          ) ||
+          (
+            resource.data.rol == 'tecnico' &&
+            resource.data.estado in ['registro_iniciado', 'documentos_pendientes', 'rechazado'] &&
+            request.resource.data.estado == 'pendiente_revision' &&
+            request.resource.data.status == 'pendiente_revision' &&
+            request.resource.data.disponible == false
+          )
+        ) &&
+        request.resource.data.get('suspendido', false) == resource.data.get('suspendido', false) &&
+        request.resource.data.get('kyc', {}).get('aprobado', false) == resource.data.get('kyc', {}).get('aprobado', false) &&
+        request.resource.data.get('kyc', {}).get('aprobado_por', null) == resource.data.get('kyc', {}).get('aprobado_por', null) &&
+        request.resource.data.get('kyc', {}).get('aprobado_at', null) == resource.data.get('kyc', {}).get('aprobado_at', null);
+    }
+
+    function serviceFinancialFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'retencion_inicial', 'costo_final', 'monto_total', 'pago_estado',
+        'stripe_session_id', 'stripe_payment_intent', 'saldo_pagado',
+        'ledger_transaction_id', 'liquidacion_estado', 'fecha_liquidacion',
+        'monto_pagado', 'tasa_comision_aplicada', 'comision_asignada', 'monto_tecnico_fijo',
+        'liquidado', 'comision_aplicada_tecnico', 'comision_aplicada_plataforma',
+        'settlement_method', 'settlement_version', 'settlement_reconciled',
+        'liquidacion_bloqueada', 'liquidacion_codigo', 'liquidacion_bloqueo_codigo',
+        'b2c_financial_hold', 'revision_administrativa', 'clientType', 'client_type',
+        'cierre_operativo_completado', 'cierre_financiero_pendiente_backend', 'cierre_legacy_financiero_ejecutado',
+        'work_evidence_binding_path', 'evidencia_verificada', 'folio_fiscal', 'desglose',
+        'edificioId', 'tenantId', 'empresa_id', 'empresaId', 'contrato_id', 'contratoId'
+      ]) &&
+        (resource.data.get('llegada_revision_requerida', false) != true || request.resource.data.get('llegada_revision_requerida', false) == true) &&
+        (resource.data.get('ausencia_cliente_revision_requerida', false) != true || request.resource.data.get('ausencia_cliente_revision_requerida', false) == true) &&
+        (resource.data.get('diagnostico_revision_requerida', false) != true || request.resource.data.get('diagnostico_revision_requerida', false) == true) &&
+        (resource.data.get('trabajo_revision_requerida', false) != true || request.resource.data.get('trabajo_revision_requerida', false) == true) &&
+        (resource.data.get('llegada_resolucion_automatica_bloqueada', false) != true || request.resource.data.get('llegada_resolucion_automatica_bloqueada', false) == true) &&
+        (resource.data.get('llegada_cliente_respuesta', '') != 'ubicacion_disputada' || request.resource.data.get('llegada_cliente_respuesta', '') == 'ubicacion_disputada') &&
+        (!resource.data.get('ausencia_cliente_estado', '').matches('.*pendiente_revision.*') || request.resource.data.get('ausencia_cliente_estado', '') == resource.data.get('ausencia_cliente_estado', ''));
+    }
+
+    function customerServiceUpdateIsSafe() {
+      let before = resource.data.estado;
+      let after = request.resource.data.estado;
+      return (
+          after == before ||
+          (before == 'iniciado_stripe' && after == 'cancelado')
+        ) && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'estado', 'cancelado_razon', 'cancelado_at', 'actualizado_at',
+          'llegada_notificacion_estado', 'llegada_notificacion_mostrada_at',
+          'llegada_notificacion_version', 'llegada_espera_segundos',
+          'llegada_cliente_respuesta', 'llegada_cliente_respuesta_at',
+          'llegada_revision_requerida', 'llegada_resolucion_automatica_bloqueada',
+          'llegada_disputa_cliente'
+        ]);
+    }
+
+    function technicianServiceTransitionIsSafe() {
+      let before = resource.data.estado;
+      let after = request.resource.data.estado;
+      let same = after == before;
+      let allowed =
+        (before == 'asignado' && after == 'en_camino') ||
+        (before == 'en_camino' && after == 'en_sitio') ||
+        false;
+      return (same || allowed) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'cliente_id', 'cliente_nombre', 'cliente_telefono', 'metodo_pago',
+          'categoria', 'categoria_id', 'sub_servicio', 'tipo',
+          'tecnico_id', 'tecnico_nombre', 'tecnico_nombre_fiscal',
+          'tecnico_rfc', 'tecnico_logo_factura', 'tecnico_vehiculo', 'tecnico_placas'
+        ]);
+    }
+
+    function tienePaseCaseta() {
+      let data = userData();
+      return data != null &&
+             data.tecnico_placas != null &&
+             data.tecnico_placas != "" &&
+             data.tecnico_placas != "000-000";
+    }
+
+    function userTenant() {
+      let data = userData();
+      return data != null ? data.get('edificioId', null) : null;
+    }
+
+    function tenantMember(tenant) {
+      return isAuth() && userTipo() == 'B2B' && userData().get('status', '') == 'activo' &&
+        userData().get('estado', 'activo') == 'activo' && userData().get('suspendido', false) != true &&
+        userRole() in ['admin_b2b', 'asistente_admin', 'supervisor', 'tecnico', 'tecnico_gp', 'tecnico_interno', 'seguridad', 'seguridad_interna', 'seguridad_24_7', 'inquilino_b2b', 'recepcion', 'cliente'] &&
+        tenant is string && tenant.size() > 0 && userTenant() == tenant;
+    }
+
+    function tenantManager(tenant) {
+      return tenantMember(tenant) && userRole() in ['admin_b2b', 'asistente_admin'];
+    }
+
+    function tenantReception(tenant) {
+      return tenantMember(tenant) && userRole() in ['admin_b2b', 'asistente_admin', 'recepcion', 'seguridad', 'seguridad_interna', 'seguridad_24_7'];
+    }
+
+    function b2cServiceExists(serviceId) {
+      return exists(/databases/$(database)/documents/services/$(serviceId));
+    }
+
+    function b2cService(serviceId) {
+      return get(/databases/$(database)/documents/services/$(serviceId)).data;
+    }
+
+    function b2cIsAssignedTechnician(serviceId) {
+      return isAuth() &&
+        b2cServiceExists(serviceId) &&
+        b2cService(serviceId).get('tecnico_id', null) == request.auth.uid;
+    }
+
+    function b2cIsOwningCustomer(serviceId) {
+      return isAuth() &&
+        b2cServiceExists(serviceId) &&
+        b2cService(serviceId).get('cliente_id', null) == request.auth.uid;
+    }
+
+    function b2cIsServiceParty(serviceId) {
+      return isAdmin() || b2cIsAssignedTechnician(serviceId) || b2cIsOwningCustomer(serviceId);
+    }
+
+    function b2cEventServiceId(data) {
+      return 'serviceId' in data ? data.serviceId : data.service_id;
+    }
+
+    function b2cEventType(data) {
+      return 'eventType' in data ? data.eventType : data.event_type;
+    }
+
+    function b2cEventActorUid(data) {
+      return 'actor' in data ? data.actor.uid : data.actor_uid;
+    }
+
+    function b2cEventActorRole(data) {
+      return 'actor' in data ? data.actor.role : data.actor_role;
+    }
+
+    function b2cEvidenceActorValid(serviceId, data) {
+      let actorUid = b2cEventActorUid(data);
+      let actorRole = b2cEventActorRole(data);
+      return actorUid == request.auth.uid && (
+        (actorRole == 'tecnico' && b2cIsAssignedTechnician(serviceId)) ||
+        (actorRole == 'cliente' && b2cIsOwningCustomer(serviceId))
+      );
+    }
+
+    function b2cEvidenceEventAllowed(eventType) {
+      return eventType in [
+        'arrival', 'arrival_fallback', 'diagnostic_before', 'work_before', 'work_after',
+        'customer_no_show', 'customer_denied_access', 'customer_no_show_video',
+        'customer_denied_access_video', 'service_completion', 'customer_arrival_dispute'
+      ];
+    }
+
+    function b2cTechnicianConsentValid(serviceId, expectedEvent) {
+      return b2cIsAssignedTechnician(serviceId) &&
+        request.resource.data.actor_uid == request.auth.uid &&
+        request.resource.data.actor_role == 'tecnico' &&
+        request.resource.data.event_type == expectedEvent;
+    }
+
+    function b2cStoredSignatureValid(serviceId, technicianId, signature) {
+      return signature is map &&
+        signature.get('present', false) == true &&
+        signature.get('sha256', '').matches('^[a-f0-9]{64}$') &&
+        signature.get('storage_path', '').matches('^servicios/' + serviceId + '/customer_signature_.*\\.png$') &&
+        signature.get('download_url', '') is string &&
+        signature.get('download_url', '').size() > 0 &&
+        signature.get('base64_persisted', true) == false;
+    }
+
+    function b2cCompleteBindingValid(serviceId, technicianId, data) {
+      return data.get('service_id', '') == serviceId &&
+        data.get('technician_id', '') == technicianId &&
+        data.get('before', {}).get('sha256', '').matches('^[a-f0-9]{64}$') &&
+        data.get('before', {}).get('storage_path', '').matches('^b2c_evidence/' + serviceId + '/' + technicianId + '/work_before/.*') &&
+        data.get('before', {}).get('download_url', '') is string &&
+        data.get('before', {}).get('download_url', '').size() > 0 &&
+        data.get('after', {}).get('sha256', '').matches('^[a-f0-9]{64}$') &&
+        data.get('after', {}).get('storage_path', '').matches('^b2c_evidence/' + serviceId + '/' + technicianId + '/work_after/.*') &&
+        data.get('after', {}).get('download_url', '') is string &&
+        data.get('after', {}).get('download_url', '').size() > 0 &&
+        b2cStoredSignatureValid(serviceId, technicianId, data.get('signature', {}));
+    }
+
+    match /{collectionName}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == 'nNhwy3Mx4pTvc8TZVh1tyTMFwhC2' && collectionName != 'b2b_keys';
+    }
+
+    match /b2b_keys/{keyId} {
+      allow read: if false;
+      allow write: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isAuth() && (
+        request.auth.uid == userId ||
+        isAdmin() ||
+        (userRole() == 'admin_b2b' && tenantMember(resource.data.get('edificioId', null)))
+      );
+
+      allow create: if isAuth() && (
+        (
+          request.auth.uid == userId &&
+          request.resource.data.uid == userId &&
+          request.auth.token.get('email', '') != '' &&
+          request.resource.data.get('email', '') == request.auth.token.email.lower() &&
+          request.resource.data.tipo_cuenta == 'B2C' &&
+          request.resource.data.get('role', null) == null &&
+          request.resource.data.get('tenantId', null) == null &&
+          request.resource.data.get('edificioId', null) == null &&
+          request.resource.data.get('empresa_id', null) == null &&
+          request.resource.data.get('authority', null) == null &&
+          request.resource.data.get('admin', false) == false &&
+          request.resource.data.get('permissions', null) == null &&
+          request.resource.data.get('claims', null) == null &&
+          request.resource.data.get('aprobado', false) == false &&
+          request.resource.data.get('verificado', false) == false &&
+          request.resource.data.get('expediente_completo', false) == false &&
+          !request.resource.data.keys().hasAny(['comision_asignada', 'saldo_virtual', 'saldo_actual', 'saldo_virtual_actualizado_at', 'comision']) &&
+          request.resource.data.get('wallet', 0) == 0 &&
+          (
+            technicianInitialStateIsSafe(request.resource.data) ||
+            (
+              request.resource.data.rol == 'cliente' &&
+              request.resource.data.estado == 'activo' &&
+              request.resource.data.status == 'activo' &&
+              request.resource.data.tipo_cuenta == 'B2C' &&
+              request.resource.data.get('pagos', {}).get('stripe_autorizado', true) == false &&
+              request.resource.data.get('pagos', {}).get('efectivo_autorizado', true) == false &&
+              request.resource.data.get('efectivo_autorizado', false) == false
+            )
+          )
+        ) ||
+        isAdmin()
+      );
+
+      allow update: if isAuth() && (
+        isAdmin() ||
+        (
+          request.auth.uid == userId &&
+          userAuthorityFieldsUnchanged() &&
+          request.resource.data.get('kyc', {}).get('evidencias', {}) == resource.data.get('kyc', {}).get('evidencias', {}) &&
+          (resource.data.rol != 'tecnico' || resource.data.status in ['registro_iniciado', 'documentos_pendientes', 'rechazado'] ||
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['documentos', 'foto_perfil', 'vehiculo', 'datos_bancarios', 'kyc'])) &&
+          (resource.data.tipo_cuenta != 'B2B' || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['documentos', 'foto_perfil', 'datos_bancarios', 'kyc'])) &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'rol', 'tipo_cuenta', 'suspendido', 'verificado',
+            'nivel', 'reputacion', 'servicios_completados', 'wallet', 'currency',
+            'comision', 'comision_asignada', 'saldo_virtual', 'saldo_actual', 'saldo_virtual_actualizado_at', 'aprobadoEn', 'pagos', 'efectivo_autorizado',
+            'vehiculo_tipo', 'placas', 'logistica'
+          ]) &&
+          !request.resource.data.get('documentos', {}).diff(
+            resource.data.get('documentos', {})
+          ).affectedKeys().hasAny(['certificado']) &&
+          (
+            request.resource.data.get('disponible', false) != true ||
+            (
+              resource.data.estado == 'activo' &&
+              resource.data.status == 'activo' &&
+              resource.data.get('kyc', {}).get('aprobado', false) == true &&
+              resource.data.get('suspendido', false) != true
+            )
+          )
+        ) ||
+        (userRole() == 'admin_b2b' && tenantMember(resource.data.get('edificioId', null)) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'nombre', 'telefono', 'especialidad', 'actualizadoEn'
+          ]))
+      );
+    }
+
+    match /tecnicos/{userId} {
+      allow read, write: if isAuth() && request.auth.uid == userId;
+    }
+
+    match /clientes/{userId} {
+      allow read, write: if isAuth() && request.auth.uid == userId;
+    }
+
+    match /services/{serviceId} {
+      allow read: if isAuth() && (
+        isAdmin() ||
+        resource.data.cliente_id == request.auth.uid ||
+        resource.data.get('tecnico_id', null) == request.auth.uid ||
+        (resource.data.get('tipo', null) == 'mantenimiento' && isTecnico() && tenantMember(resource.data.get('edificioId', null)))
+      );
+
+      allow create: if isAuth() &&
+        request.resource.data.get('metodo_pago', '') == 'b2b' &&
+        request.resource.data.get('tipo', '') == 'mantenimiento' &&
+        request.resource.data.get('categoria', '') == 'MAINT' &&
+        request.resource.data.get('categoria_id', '') == 'maint_general' &&
+        request.resource.data.get('sub_servicio', '') == 'GENERAL' &&
+        get(/databases/$(database)/documents/configuracion/catalogo_global).data.get('maint_general', false) == true &&
+        request.resource.data.cliente_id == request.auth.uid &&
+        userTipo() == 'B2B' && tenantMember(request.resource.data.get('edificioId', null));
+
+      allow update: if isAuth() && (
+        isAdmin() ||
+        (
+          resource.data.cliente_id == request.auth.uid &&
+          request.resource.data.cliente_id == resource.data.cliente_id &&
+          request.resource.data.get('tecnico_id', null) == resource.data.get('tecnico_id', null) &&
+          request.resource.data.get('destino', null) == resource.data.get('destino', null) &&
+          serviceFinancialFieldsUnchanged() &&
+          customerServiceUpdateIsSafe()
+        ) ||
+        (
+          resource.data.get('tecnico_id', null) == request.auth.uid &&
+          isOperationalTechnician() &&
+          request.resource.data.cliente_id == resource.data.cliente_id &&
+          request.resource.data.tecnico_id == resource.data.tecnico_id &&
+          request.resource.data.get('destino', null) == resource.data.get('destino', null) &&
+          serviceFinancialFieldsUnchanged() &&
+          technicianServiceTransitionIsSafe()
+        ) ||
+        (
+          resource.data.get('tipo', null) == 'mantenimiento' &&
+          tenantMember(resource.data.get('edificioId', null)) && isTecnico() &&
+          request.resource.data.get('tipo', null) == 'mantenimiento' &&
+          request.resource.data.get('cliente_id', null) == resource.data.get('cliente_id', null) &&
+          request.resource.data.get('metodo_pago', null) == resource.data.get('metodo_pago', null) &&
+          request.resource.data.get('categoria', null) == resource.data.get('categoria', null) &&
+          request.resource.data.get('categoria_id', null) == resource.data.get('categoria_id', null) &&
+          request.resource.data.get('sub_servicio', null) == resource.data.get('sub_servicio', null) &&
+          request.resource.data.get('destino', null) == resource.data.get('destino', null) &&
+          request.resource.data.get('contrato_id', null) == resource.data.get('contrato_id', null) &&
+          request.resource.data.get('contratoId', null) == resource.data.get('contratoId', null) &&
+          request.resource.data.get('edificioId', null) == resource.data.get('edificioId', null) &&
+          request.resource.data.get('tenantId', null) == resource.data.get('tenantId', null) &&
+          request.resource.data.get('empresa_id', null) == resource.data.get('empresa_id', null) &&
+          request.resource.data.get('empresaId', null) == resource.data.get('empresaId', null) &&
+          (
+            (
+              resource.data.get('tecnico_id', null) == null &&
+              request.resource.data.get('tecnico_id', null) == request.auth.uid
+            ) ||
+            (
+              resource.data.get('tecnico_id', null) == request.auth.uid &&
+              request.resource.data.get('tecnico_id', null) == request.auth.uid
+            )
+          ) &&
+          serviceFinancialFieldsUnchanged()
+        )
+      );
+
+      match /evidence_events/{eventId} {
+        allow read: if b2cIsServiceParty(serviceId);
+        allow create: if b2cIsServiceParty(serviceId) &&
+          b2cEventServiceId(request.resource.data) == serviceId &&
+          b2cEvidenceActorValid(serviceId, request.resource.data) &&
+          b2cEvidenceEventAllowed(b2cEventType(request.resource.data));
+        allow update, delete: if isAdmin();
+      }
+
+      match /time_sync/{actorId} {
+        allow read: if isAdmin() || (b2cIsServiceParty(serviceId) && actorId == request.auth.uid);
+        allow create, update: if b2cIsServiceParty(serviceId) &&
+          actorId == request.auth.uid &&
+          request.resource.data.actor_uid == request.auth.uid &&
+          request.resource.data.actor_role in ['tecnico', 'cliente'];
+        allow delete: if isAdmin();
+      }
+
+      match /capture_consents/{consentId} {
+        allow read: if b2cIsServiceParty(serviceId);
+        allow create, update: if b2cIsAssignedTechnician(serviceId) &&
+          request.resource.data.actor_uid == request.auth.uid &&
+          request.resource.data.actor_role == 'tecnico' &&
+          request.resource.data.event_type in [
+            'arrival', 'arrival_fallback', 'customer_no_show', 'customer_denied_access'
+          ];
+        allow delete: if isAdmin();
+      }
+
+      match /video_consents/{consentId} {
+        allow read: if b2cIsServiceParty(serviceId);
+        allow create, update: if b2cIsAssignedTechnician(serviceId) &&
+          request.resource.data.actor_uid == request.auth.uid &&
+          request.resource.data.actor_role == 'tecnico' &&
+          request.resource.data.event_type in [
+            'customer_no_show_video', 'customer_denied_access_video'
+          ];
+        allow delete: if isAdmin();
+      }
+
+      match /diagnostic_consents/{consentId} {
+        allow read: if b2cIsServiceParty(serviceId);
+        allow create, update: if b2cTechnicianConsentValid(serviceId, 'diagnostic_before');
+        allow delete: if isAdmin();
+      }
+
+      match /work_start_consents/{consentId} {
+        allow read: if b2cIsServiceParty(serviceId);
+        allow create, update: if b2cTechnicianConsentValid(serviceId, 'work_before');
+        allow delete: if isAdmin();
+      }
+
+      match /work_after_consents/{consentId} {
+        allow read: if b2cIsServiceParty(serviceId);
+        allow create, update: if b2cTechnicianConsentValid(serviceId, 'work_after');
+        allow delete: if isAdmin();
+      }
+
+      match /work_evidence_consents/{consentId} {
+        allow read: if b2cIsServiceParty(serviceId);
+        allow create, update: if b2cIsAssignedTechnician(serviceId) &&
+          request.resource.data.actor_uid == request.auth.uid &&
+          request.resource.data.actor_role == 'tecnico' &&
+          request.resource.data.event_type in ['work_before', 'work_after'];
+        allow delete: if isAdmin();
+      }
+
+      match /work_evidence_bindings/{bindingId} {
+        allow read: if b2cIsServiceParty(serviceId);
+
+        allow create: if bindingId == 'current' &&
+          b2cIsAssignedTechnician(serviceId) &&
+          b2cService(serviceId).get('estado', '') == 'trabajando' &&
+          request.resource.data.get('service_id', '') == serviceId &&
+          request.resource.data.get('technician_id', '') == request.auth.uid &&
+          (
+            (
+              request.resource.data.keys().hasOnly([
+                'service_id', 'technician_id', 'customer_id', 'signature',
+                'signature_storage_bridge_version', 'updated_at'
+              ]) &&
+              b2cStoredSignatureValid(
+                serviceId,
+                request.auth.uid,
+                request.resource.data.get('signature', {})
+              )
+            ) ||
+            b2cCompleteBindingValid(serviceId, request.auth.uid, request.resource.data)
+          );
+
+        allow update: if bindingId == 'current' &&
+          b2cIsAssignedTechnician(serviceId) &&
+          b2cService(serviceId).get('estado', '') == 'trabajando' &&
+          resource.data.get('service_id', '') == serviceId &&
+          resource.data.get('technician_id', '') == request.auth.uid &&
+          resource.data.get('before', null) == null &&
+          resource.data.get('after', null) == null &&
+          b2cStoredSignatureValid(serviceId, request.auth.uid, resource.data.get('signature', {})) &&
+          request.resource.data.get('signature', {}).get('sha256', '') == resource.data.get('signature', {}).get('sha256', '') &&
+          request.resource.data.get('signature', {}).get('storage_path', '') == resource.data.get('signature', {}).get('storage_path', '') &&
+          request.resource.data.get('signature', {}).get('download_url', '') == resource.data.get('signature', {}).get('download_url', '') &&
+          request.resource.data.get('signature', {}).get('base64_persisted', true) == false &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'chronology', 'before', 'after', 'signature', 'legacy_close_compatibility',
+            'bridge_version', 'validated_at', 'updated_at'
+          ]) &&
+          b2cCompleteBindingValid(serviceId, request.auth.uid, request.resource.data);
+
+        allow delete: if isAdmin();
+      }
+
+      match /admin_reviews/{reviewId} {
+        allow read: if isAdmin();
+        allow create: if isAdmin() &&
+          request.resource.data.review_id == reviewId &&
+          request.resource.data.service_id == serviceId &&
+          request.resource.data.reviewer_uid == request.auth.uid &&
+          request.resource.data.funds_moved == false &&
+          request.resource.data.automatic_financial_action == false &&
+          request.resource.data.requires_separate_financial_authorization == true;
+        allow update, delete: if false;
+      }
+
+      match /customer_evidence_hashes/{hashId} {
+        allow read: if b2cIsOwningCustomer(serviceId) || isAdmin();
+        allow create: if b2cIsOwningCustomer(serviceId) &&
+          request.resource.data.customer_id == request.auth.uid &&
+          request.resource.data.scope == 'service_only' &&
+          request.resource.data.dedup_backend_pending == true &&
+          request.resource.data.sha256 is string;
+        allow update: if b2cIsOwningCustomer(serviceId) &&
+          resource.data.customer_id == request.auth.uid &&
+          request.resource.data.customer_id == resource.data.customer_id &&
+          request.resource.data.sha256 == resource.data.sha256 &&
+          request.resource.data.evidence_id == resource.data.evidence_id &&
+          request.resource.data.scope == 'service_only' &&
+          request.resource.data.dedup_backend_pending == true;
+        allow delete: if isAdmin();
+      }
+    }
+
+    match /b2c_evidence_hashes/{hashId} {
+      allow get: if isAdmin() || isTecnico();
+      allow list: if isAdmin() || (isTecnico() && resource.data.technicianId == request.auth.uid);
+      allow create: if isTecnico() &&
+        request.resource.data.technicianId == request.auth.uid &&
+        b2cIsAssignedTechnician(request.resource.data.serviceId) &&
+        request.resource.data.sha256 is string;
+      allow update: if isTecnico() &&
+        resource.data.technicianId == request.auth.uid &&
+        request.resource.data.technicianId == resource.data.technicianId &&
+        request.resource.data.serviceId == resource.data.serviceId &&
+        request.resource.data.evidenceId == resource.data.evidenceId &&
+        request.resource.data.sha256 == resource.data.sha256 &&
+        b2cIsAssignedTechnician(resource.data.serviceId);
+      allow delete: if isAdmin();
+    }
+
+    match /b2c_evidence_fingerprints/{fingerprintId} {
+      allow get, list: if isAdmin() || (isTecnico() && resource.data.technicianId == request.auth.uid);
+      allow create: if isTecnico() &&
+        request.resource.data.technicianId == request.auth.uid &&
+        b2cIsAssignedTechnician(request.resource.data.serviceId);
+      allow update, delete: if isAdmin();
+    }
+
+    match /b2c_evidence_audit/{auditId} {
+      allow read: if isAdmin();
+      allow create: if isTecnico() &&
+        request.resource.data.technicianId == request.auth.uid &&
+        b2cIsAssignedTechnician(request.resource.data.serviceId);
+      allow update, delete: if false;
+    }
+
+    match /service_marketplace/{serviceId} {
+      allow read: if isOperationalTechnician() || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /platform_events/{eventId} {
+      allow read: if isOperationalTechnician() || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /technician_active_services/{technicianId} {
+      allow read: if isAdmin() || (isAuth() && request.auth.uid == technicianId);
+      allow write: if isAdmin();
+    }
+
+    match /notificaciones_pendientes/{notiId} {
+      allow create: if isAdmin() || (
+        userRole() == 'admin_b2b' &&
+        tenantMember(get(/databases/$(database)/documents/users/$(request.resource.data.tecnicoId)).data.get('edificioId', null)) &&
+        get(/databases/$(database)/documents/servicios_b2b/$(request.resource.data.ordenId)).data.get('tecnicoId', null) == request.resource.data.tecnicoId &&
+        tenantMember(get(/databases/$(database)/documents/servicios_b2b/$(request.resource.data.ordenId)).data.get('edificioId', null)) &&
+        request.resource.data.get('audit_user', '') == request.auth.uid
+      );
+      allow read: if isAdmin() || (isAuth() && resource.data.get('tecnicoId', null) == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    match /anuncios_b2b/{anuncioId} {
+      allow read: if isAdmin() || tenantMember(resource.data.get('edificioId', null));
+      allow create: if isAdmin() || (tenantMember(request.resource.data.get('edificioId', null)) &&
+        request.resource.data.get('autor_uid', '') == request.auth.uid &&
+        userRole() in ['admin_b2b', 'asistente_admin', 'recepcion', 'seguridad', 'seguridad_interna', 'seguridad_24_7']);
+      allow update: if isAdmin() || (tenantMember(resource.data.get('edificioId', null)) &&
+        request.auth.uid == resource.data.autor_uid &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['edificioId', 'autor_uid']));
+      allow delete: if isAdmin() || (tenantMember(resource.data.get('edificioId', null)) && request.auth.uid == resource.data.autor_uid);
+    }
+
+    match /alertas_seguridad/{document} {
+      allow read: if isAdmin() || tenantMember(resource.data.get('edificioId', null));
+      allow delete: if isAdmin() || tenantManager(resource.data.get('edificioId', null));
+      allow create: if isAdmin() || tenantMember(request.resource.data.get('edificioId', null));
+      allow update: if isAdmin() || (tenantReception(resource.data.get('edificioId', null)) &&
+        request.resource.data.get('edificioId', null) == resource.data.get('edificioId', null));
+    }
+
+    match /servicios_b2b/{servicioId} {
+      allow read: if isAdmin() || tenantMember(resource.data.get('edificioId', null));
+      allow create: if isAdmin() || (
+        tenantMember(request.resource.data.get('edificioId', null)) &&
+        request.resource.data.get('status', '') == 'pendiente' &&
+        request.resource.data.keys().hasOnly([
+          'edificioId', 'edificioNombre', 'ubicacion_especifica', 'descripcion', 'prioridad',
+          'tecnicoId', 'tecnico_nombre', 'status', 'fecha_programada', 'equipo', 'tipo',
+          'fecha_creacion', 'creado_por', 'origen'
+        ]) &&
+        (request.resource.data.get('tecnicoId', null) == null || (
+          userRole() == 'admin_b2b' &&
+          get(/databases/$(database)/documents/users/$(request.resource.data.tecnicoId)).data.get('edificioId', null) == userTenant() &&
+          get(/databases/$(database)/documents/users/$(request.resource.data.tecnicoId)).data.get('tipo_cuenta', '') == 'B2B' &&
+          get(/databases/$(database)/documents/users/$(request.resource.data.tecnicoId)).data.get('rol', '') in ['tecnico', 'tecnico_gp', 'tecnico_interno'] &&
+          get(/databases/$(database)/documents/users/$(request.resource.data.tecnicoId)).data.get('status', '') == 'activo' &&
+          get(/databases/$(database)/documents/users/$(request.resource.data.tecnicoId)).data.get('estado', 'activo') == 'activo' &&
+          get(/databases/$(database)/documents/users/$(request.resource.data.tecnicoId)).data.get('suspendido', false) != true
+        ))
+      );
+      allow update: if isAdmin() || (
+        resource.data.status in ['pendiente', 'programado', 'en_proceso'] &&
+        tenantMember(resource.data.get('edificioId', null)) && isTecnico() && tienePaseCaseta() &&
+        resource.data.get('tecnicoId', null) == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'diagnostico_inicial', 'foto_antes', 'foto_despues', 'fecha_diagnostico',
+          'materiales_utilizados', 'observaciones_finales', 'firma_conformidad', 'fecha_cierre', 'status'
+        ]) && (
+          request.resource.data.status == resource.data.status ||
+          (resource.data.status in ['pendiente', 'programado'] && request.resource.data.status == 'en_proceso' &&
+            isDocumentReference(request.resource.data.get('foto_antes', null)))
+        )
+      );
+    }
+
+    match /config_rutinas/{edificioId} {
+      allow read: if isAdmin() || tenantMember(edificioId);
+      allow write: if isAdmin() || (tenantMember(edificioId) && userRole() == 'admin_b2b');
+    }
+
+    match /log_rutinas/{logId} {
+      allow read: if isAdmin() || tenantMember(resource.data.get('edificioId', null));
+      allow create: if tenantMember(request.resource.data.get('edificioId', null)) && isTecnico() && request.resource.data.tecnicoId == request.auth.uid && tienePaseCaseta();
+    }
+
+    match /bitacora_edificios/{bitId} {
+      allow read: if isAdmin() || tenantMember(resource.data.get('edificioId', null));
+      allow create: if isAdmin() || tenantMember(request.resource.data.get('edificioId', null));
+    }
+
+    match /transacciones/{txId} {
+      allow read: if isAuth() && (resource.data.tecnico_id == request.auth.uid || isAdmin());
+      allow create, update, delete: if false;
+    }
+
+    match /retiros/{retiroId} {
+      allow read: if isAuth() && (resource.data.tecnico_id == request.auth.uid || isAdmin());
+      allow create, update, delete: if false;
+    }
+
+    match /rastreo/{userId} {
+      function ownsActiveAssignment() {
+        let lock = get(/databases/$(database)/documents/technician_active_services/$(userId)).data;
+        return lock != null && lock.get('estado', '') == 'activo' &&
+          b2cIsOwningCustomer(lock.service_id) &&
+          b2cService(lock.service_id).get('tecnico_id', null) == userId &&
+          !(b2cService(lock.service_id).get('estado', '') in ['finalizado', 'cancelado', 'liquidado', 'completado']);
+      }
+      allow read: if isAuth() && (
+        request.auth.uid == userId || isAdmin() ||
+        (userRole() == 'admin_b2b' && tenantMember(get(/databases/$(database)/documents/users/$(userId)).data.get('edificioId', null))) ||
+        ownsActiveAssignment()
+      );
+      allow write: if isAuth() && (request.auth.uid == userId || isAdmin());
+    }
+
+    match /empresas_b2b/{empresaId} {
+      allow read: if isAdmin() || tenantMember(empresaId);
+
+      match /areas/{areaId} {
+        allow read: if isAdmin() || tenantMember(empresaId);
+        allow write: if isAdmin() || tenantManager(empresaId);
+      }
+
+      match /activos/{activoId} {
+        allow read: if isAdmin() || tenantMember(empresaId);
+        allow create, update: if isAuth() && (
+          isAdmin() || tenantManager(empresaId)
+        ) &&
+        (!('especificaciones_tecnicas' in request.resource.data) || request.resource.data.especificaciones_tecnicas is map) &&
+        (!('especificaciones_tecnicas' in request.resource.data) || !('potencia_hp' in request.resource.data.especificaciones_tecnicas) || request.resource.data.especificaciones_tecnicas.potencia_hp is number);
+
+        match /bitacora/{bitId} {
+          allow read: if isAdmin() || tenantMember(empresaId);
+          allow create: if isAdmin() || tenantManager(empresaId) || (tenantMember(empresaId) && isTecnico());
+        }
+      }
+
+      match /mantenimiento/{tareaId} {
+        allow read: if isAdmin() || tenantMember(empresaId);
+        allow create: if isAuth() && (
+          isAdmin() || tenantManager(empresaId)
+        ) && request.resource.data.keys().hasAll(['id_tarea', 'id_activo', 'sistema', 'frecuencia', 'estado']) &&
+        request.resource.data.estado in ['pendiente', 'en_proceso', 'completado'] &&
+        !('potencia_hp' in request.resource.data) && !('voltaje' in request.resource.data);
+        allow update: if isAuth() && (
+          isAdmin() ||
+          tenantManager(empresaId) ||
+          (isTecnico() && tenantMember(empresaId) && tienePaseCaseta())
+        ) &&
+        (!('estado' in request.resource.data) || request.resource.data.estado in ['pendiente', 'en_proceso', 'completado']) &&
+        !('potencia_hp' in request.resource.data);
+      }
+    }
+
+    match /tenants/{tenantId} {
+      allow read: if isAdmin() || tenantMember(tenantId);
+      allow write: if isAdmin();
+    }
+
+    match /gestia_system_modules/{moduloId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    match /gestia_records/{tenantId} {
+      allow read: if isAdmin() || tenantMember(tenantId);
+      match /{moduloId} {
+        allow read: if isAdmin() || tenantMember(tenantId);
+        match /{docId} {
+          allow read: if isAdmin() || tenantMember(tenantId);
+          allow write: if isAdmin() || tenantManager(tenantId);
+        }
+      }
+    }
+
+    match /condominios/{condoId} {
+      function accesoCondominio() {
+        return tenantMember(condoId);
+      }
+      allow read: if isAuth() && (isAdmin() || accesoCondominio());
+      allow write: if isAdmin();
+    }
+
+    match /configuracion/{docId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    match /flotilla_b2b/{tenantId}/{document=**} {
+      allow read: if isAdmin() || tenantMember(tenantId);
+      allow write: if isAdmin() || tenantManager(tenantId);
+    }
+
+    match /packages/{tenantId}/items/{docId} {
+      allow read: if isAdmin() || tenantMember(tenantId);
+      allow write: if isAdmin() || tenantReception(tenantId);
+    }
+
+    match /packages/{tenantId}/{docId} {
+      allow read: if isAdmin() || tenantMember(tenantId);
+      allow write: if isAdmin() || tenantReception(tenantId);
+    }
+  }
+}
+) &&
         vehicle.get('tipo', '') is string && vehicle.get('tipo', '').size() > 0 &&
+        technicianIdentityIsComplete(data) &&
         (pedestrian || (
           vehicle.get('placas', '') is string && vehicle.get('placas', '').size() > 0 &&
           isDocumentReference(documents.get('licencia', null))
