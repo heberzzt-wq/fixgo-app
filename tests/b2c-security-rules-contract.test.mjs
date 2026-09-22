@@ -54,6 +54,7 @@ test("users no permite lectura indiscriminada ni autoaprobación", () => {
     assert.match(firestore, /identity_machine_verified/);
     assert.match(firestore, /match \/b2c_identity_registry\/\{identityId\}/);
     assert.match(firestore, /match \/b2c_identity_audit\/\{auditId\}/);
+    assert.match(firestore, /match \/b2c_identity_attempts\/\{attemptId\}/);
 });
 
 test("services reserva la creación B2C al backend y conserva B2B", () => {
