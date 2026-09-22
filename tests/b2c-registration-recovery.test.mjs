@@ -31,7 +31,12 @@ test('actual technician panel exposes resubmit after final-write failure and rep
     const base = { rol: 'tecnico', estado: 'documentos_pendientes', status: 'documentos_pendientes', foto_perfil: 'photo', documentos: { ine: 'ine', csf: 'csf' }, datos_bancarios: { banco: 'bank', clabe: '012345678901234567' }, vehiculo: { tipo: 'peaton' }, kyc: { estado: 'documentos_pendientes', aprobado: false } };
     function view(profile) {
         const kycResult = contract.technicianKycRequirements(profile);
-        return vm.runInNewContext(segment + '\n({faltaInfo,ineUrl,csfUrl,fotoUrl})', { perfilCanonico: kycResult.profile, kycResult, TECHNICIAN_KYC_STATES: contract.TECHNICIAN_STATES });
+        return vm.runInNewContext(segment + '\n({faltaInfo,ineUrl,csfUrl,fotoUrl})', {
+            perfilCanonico: kycResult.profile,
+            kycResult,
+            inspectMexicanClabe: contract.inspectMexicanClabe,
+            TECHNICIAN_KYC_STATES: contract.TECHNICIAN_STATES
+        });
     }
     assert.equal(view(base).faltaInfo, true);
     const rejected = { ...base, estado: 'rechazado', status: 'rechazado', kyc: { estado: 'rechazado', aprobado: false, faltantes: ['ine'] } };
