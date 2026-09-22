@@ -137,8 +137,16 @@ function createClaimB2cServiceHandler({ admin, db, functions, now = () => Date.n
             ]);
             const customer = customerSnapshot.data() || {};
             const payment = platformContract.assertPaymentMethodAllowed(service.metodo_pago, paymentConfigSnapshot.data() || {}, customer);
-            if (!customerSnapshot.exists || customer.suspendido === true || !payment.ok || !platformContract.isServiceCategoryEnabled(service, catalogSnapshot.data() || {})) {
-                throw new functions.https.HttpsError("failed-precondition", "La categoría o el método de pago ya no están autorizados.");
+            const customerIdentityBlocked = customer.kyc?.identity_required === true &&
+                (customer.kyc?.identity_verified !== true ||
+                 customer.kyc?.identity_machine_verified !== true ||
+                 customer.kyc?.identity_machine_status !== "verified" ||
+                 customer.estado !== "activo" ||
+                 customer.status !== "activo");
+            if (!customerSnapshot.exists || customer.suspendido === true || customerIdentityBlocked ||
+                !payment.ok || !platformContract.isServiceCategoryEnabled(service, catalogSnapshot.data() || {})) {
+                throw new functions.https.HttpsError("failed-precondition",
+                    customerIdentityBlocked ? "CUSTOMER_IDENTITY_VERIFICATION_REQUIRED" : "La categoría o el método de pago ya no están autorizados.");
             }
             if (!isCompatible(profile, service)) {
                 throw new functions.https.HttpsError("permission-denied", "El servicio no es compatible con las especialidades del técnico.");

@@ -27,6 +27,9 @@ const completeProfile = (overrides = {}) => ({
     vehiculo: { tipo: "auto", placas: "ABC123" },
     documentos: {
         ine: "https://storage/ine.pdf",
+        ine_reverso: "https://storage/ine-reverso.jpg",
+        selfie_liveness_left: "https://storage/selfie-left.jpg",
+        selfie_liveness_right: "https://storage/selfie-right.jpg",
         csf: "https://storage/csf.pdf",
         licencia: "https://storage/licencia.pdf",
         certificados: []
@@ -42,6 +45,8 @@ test("email/password y Google parten del mismo contrato técnico no operativo", 
         assert.equal(profile.estado, TECHNICIAN_KYC_STATES.DOCUMENTS_PENDING);
         assert.equal(profile.status, TECHNICIAN_KYC_STATES.DOCUMENTS_PENDING);
         assert.equal(profile.kyc.aprobado, false);
+        assert.equal(profile.kyc.identity_required, true);
+        assert.equal(profile.kyc.identity_verified, false);
         assert.equal(profile.disponible, false);
         assert.deepEqual(profile.documentos.certificados, []);
     }
@@ -82,8 +87,12 @@ test("peatón no requiere placas ni licencia ni certificados", () => {
 });
 
 test("un técnico no opera antes de aprobación ni durante suspensión", () => {
-    assert.equal(assertTechnicianCanOperate(completeProfile()).reason, "KYC_APPROVAL_REQUIRED");
-    const active = completeProfile({ estado: "activo", status: "activo", kyc: { estado: "activo", aprobado: true } });
+    assert.equal(assertTechnicianCanOperate(completeProfile()).reason, "IDENTITY_VERIFICATION_REQUIRED");
+    const active = completeProfile({
+        estado: "activo",
+        status: "activo",
+        kyc: { estado: "activo", aprobado: true, identity_required: true, identity_verified: true }
+    });
     assert.equal(assertTechnicianCanOperate(active).ok, true);
     assert.equal(assertTechnicianCanOperate({ ...active, suspendido: true }).reason, "TECHNICIAN_SUSPENDED");
 });
@@ -194,6 +203,7 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     const html = fs.readFileSync(new URL("../cliente.html", import.meta.url), "utf8");
     const admin = fs.readFileSync(new URL("../panel-admin.js", import.meta.url), "utf8");
     const registration = fs.readFileSync(new URL("../app-registro.js", import.meta.url), "utf8");
+    const registrationHtml = fs.readFileSync(new URL("../registro.html", import.meta.url), "utf8");
     const technician = fs.readFileSync(new URL("../panel-tecnico.js", import.meta.url), "utf8");
     const alerts = fs.readFileSync(new URL("../alert-engine.js", import.meta.url), "utf8");
     const utilities = fs.readFileSync(new URL("../app-utils.js", import.meta.url), "utf8");
@@ -202,6 +212,8 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     const firebaseConfig = JSON.parse(fs.readFileSync(new URL("../firebase.json", import.meta.url), "utf8"));
     assert.doesNotMatch(client, /SOBRESCRIBIMOS EL GPS|SNIPER DEL MAPA INTERACTIVO/);
     assert.match(client, /confirmDestination/);
+    assert.match(client, /clienteIdentityReviewBanner/);
+    assert.match(client, /identityBlocked/);
     assert.match(html, /btnExpandirMapa/);
     assert.match(html, /mapa-expandido/);
     assert.match(client, /platformContract\.SERVICE_CATALOG/);
@@ -215,7 +227,20 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.doesNotMatch(admin, /nuevaConfig\[realId\]\s*=\s*coverage\s*>\s*0/);
     assert.doesNotMatch(admin, /const MASTER_STRUCTURE\s*=\s*\{/);
     assert.match(admin, /aprobarTecnicoB2C\(uid\)/);
-    assert.match(registration, /emailSeguro/);
+    assert.match(registration, /navigator\.mediaDevices\?\.getUserMedia/);
+    assert.match(registration, /IDENTITY_CAPTURE_VERSION/);
+    assert.match(registration, /ine_reverso/);
+    assert.match(registration, /selfie_liveness_left/);
+    assert.match(registration, /selfie_liveness_right/);
+    assert.match(registrationHtml, /modalIdentidadTecnico/);
+    assert.match(registrationHtml, /chkBiometriaTecnico/);
+    assert.match(registrationHtml, /btnIniciarIdentidadCliente/);
+    assert.match(registrationHtml, /chkBiometriaCliente/);
+    assert.match(registration, /identityCaptureState\.target/);
+    assert.match(registration, /verificarIdentidadB2C\(\)/);
+    assert.match(registration, /CUSTOMER_IDENTITY|identityResult/);
+    assert.match(registration, /Las altas nuevas B2C requieren INE y biometría en vivo/);
+    assert.match(registrationHtml, /INE \+ biometría facial/);
     assert.doesNotMatch(registration, /skill_maint/);
     assert.doesNotMatch(registration, /email:\s*email\.toLowerCase\(\)/);
     assert.match(technician, /collection\(db, "service_marketplace"\)/);

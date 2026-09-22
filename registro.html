@@ -34,6 +34,31 @@
             display: none !important;
             pointer-events: none;
         }
+
+        /* KYC bancario: captura guiada de identidad */
+        .identity-shell { background: radial-gradient(circle at top, rgba(16,185,129,.12), transparent 42%), #070707; }
+        .identity-camera-stage { position: relative; overflow: hidden; border-radius: 1.75rem; background: #000; min-height: 420px; }
+        .identity-camera-stage video { width: 100%; height: min(62vh, 560px); object-fit: cover; display: block; }
+        .identity-camera-stage video[data-facing="user"] { transform: scaleX(-1); }
+        .identity-scrim { position: absolute; inset: 0; box-shadow: inset 0 0 0 9999px rgba(0,0,0,.42); pointer-events: none; }
+        .identity-frame { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); z-index: 3; pointer-events: none; }
+        .identity-frame.document { width: 84%; aspect-ratio: 1.586/1; border: 2px solid rgba(255,255,255,.95); border-radius: 1.25rem; box-shadow: 0 0 0 1px rgba(16,185,129,.65), 0 0 38px rgba(16,185,129,.20); }
+        .identity-frame.face { width: min(62%, 290px); aspect-ratio: .76/1; border: 3px solid rgba(255,255,255,.95); border-radius: 48% 48% 45% 45% / 42% 42% 58% 58%; box-shadow: 0 0 0 1px rgba(16,185,129,.75), 0 0 42px rgba(16,185,129,.28); }
+        .identity-frame::before,.identity-frame::after { content:""; position:absolute; width:38px; height:38px; border-color:#34d399; }
+        .identity-frame::before { left:-5px; top:-5px; border-left:5px solid #34d399; border-top:5px solid #34d399; border-radius:10px 0 0 0; }
+        .identity-frame::after { right:-5px; bottom:-5px; border-right:5px solid #34d399; border-bottom:5px solid #34d399; border-radius:0 0 10px 0; }
+        .identity-step { transition: all .25s ease; }
+        .identity-step.is-active { border-color:#34d399; background:rgba(16,185,129,.12); color:#d1fae5; }
+        .identity-step.is-done { border-color:#10b981; background:#064e3b; color:#ecfdf5; }
+        .identity-step.is-done .identity-step-dot { background:#34d399; color:#052e16; }
+        .identity-capture-button { box-shadow: 0 14px 34px rgba(16,185,129,.24); }
+        @media (max-width: 640px) {
+            .identity-camera-stage { min-height: 360px; border-radius: 1.25rem; }
+            .identity-camera-stage video { height: 56vh; min-height: 360px; }
+            .identity-frame.document { width: 91%; }
+            .identity-frame.face { width: 64%; }
+        }
+
     </style>
 </head>
 <body class="text-white min-h-screen flex flex-col">
@@ -118,6 +143,29 @@
                             <p class="text-[10px] text-gray-500 mt-2">Sólo se solicita para una vinculación B2B. Los clientes B2C reciben sus permisos de pago desde Administración.</p>
                         </div>
 
+                        <div id="identityVerificationCardCliente" class="bg-zinc-900 p-5 rounded-2xl border border-indigo-500/25 shadow-[0_0_40px_rgba(99,102,241,0.06)]">
+                            <div class="flex items-start justify-between gap-4 mb-4">
+                                <div>
+                                    <p class="text-[10px] uppercase tracking-[0.22em] text-indigo-400 font-black">Identidad B2C</p>
+                                    <h3 class="text-lg font-black mt-1">INE + biometría facial</h3>
+                                    <p class="text-xs text-gray-400 mt-2 leading-relaxed">Una persona sólo puede mantener una identidad B2C operativa. La validación ocurre antes de habilitar solicitudes.</p>
+                                </div>
+                                <div class="w-11 h-11 shrink-0 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center">
+                                    <i class="fas fa-user-shield text-indigo-400"></i>
+                                </div>
+                            </div>
+                            <button type="button" id="btnIniciarIdentidadCliente" class="w-full bg-indigo-500 hover:bg-indigo-400 text-white font-black py-4 rounded-2xl text-sm transition-all flex items-center justify-center gap-3">
+                                <i class="fas fa-camera"></i> VERIFICAR MI IDENTIDAD
+                            </button>
+                            <div id="identitySummaryCliente" class="mt-3 rounded-xl border border-zinc-800 bg-black/30 px-4 py-3 text-xs text-gray-400">
+                                <i class="fas fa-lock text-indigo-400 mr-2"></i> Pendiente de captura
+                            </div>
+                            <label class="flex items-start gap-3 mt-4 cursor-pointer">
+                                <input type="checkbox" id="chkBiometriaCliente" class="w-5 h-5 mt-0.5 accent-indigo-500 rounded">
+                                <span class="text-xs text-gray-300 leading-relaxed">Autorizo la captura de INE y rostro para KYC, prueba de vida y prevención de cuentas duplicadas. Una coincidencia sospechosa pasa a revisión humana.</span>
+                            </label>
+                        </div>
+
                         <label class="flex items-start gap-3 py-2 cursor-pointer">
                             <input type="checkbox" id="chkTerminosCliente" class="w-5 h-5 mt-0.5 accent-indigo-500 rounded">
                             <span class="text-xs text-gray-400 leading-tight">He leído y acepto los <button type="button" onclick="document.getElementById('modalTerminosCliente').classList.remove('hidden')" class="text-indigo-400 underline font-bold">Términos y Condiciones</button> y el <button type="button" onclick="document.getElementById('modalPrivacidad').classList.remove('hidden')" class="text-indigo-400 underline font-bold">Aviso de Privacidad</button>.</span>
@@ -193,39 +241,58 @@
                             </div>
                         </div>
 
-                        <div class="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
-                            <label class="block text-xs font-bold text-gray-400 mb-3 uppercase"><i class="fas fa-file-contract"></i> Expediente Digital (Obligatorio)</label>
-                            
-                            <div class="space-y-3">
-                                <button type="button" id="btnSubirFoto" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-lg text-sm transition-colors border border-zinc-600 flex items-center justify-center gap-2">
-                                    <i class="fas fa-camera text-gray-400"></i> Subir Foto de Perfil (Selfie)
-                                </button>
-                                <input type="file" id="inputFoto" accept="image/*" class="hidden">
-
-                                <div class="grid grid-cols-2 gap-3">
-                                    <button type="button" id="btnSubirINE" class="bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-lg text-xs transition-colors border border-zinc-600 flex items-center justify-center gap-2">
-                                        <i class="fas fa-id-badge text-indigo-400"></i> INE Frontal
-                                    </button>
-                                    <input type="file" id="inputINE" accept="image/*" class="hidden">
-                                    
-                                    <button type="button" id="btnSubirCSF" class="bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-lg text-xs transition-colors border border-zinc-600 flex items-center justify-center gap-2">
-                                        <i class="fas fa-file-invoice-dollar text-indigo-400"></i> Constancia SF
-                                    </button>
-                                    <input type="file" id="inputCSF" accept="image/*, application/pdf" class="hidden">
+                        <div id="identityVerificationCard" class="bg-zinc-900 p-5 rounded-2xl border border-emerald-500/25 shadow-[0_0_40px_rgba(16,185,129,0.06)]">
+                            <div class="flex items-start justify-between gap-4 mb-4">
+                                <div>
+                                    <p class="text-[10px] uppercase tracking-[0.22em] text-emerald-400 font-black">Verificación de identidad</p>
+                                    <h3 class="text-lg font-black mt-1">INE + biometría facial</h3>
+                                    <p class="text-xs text-gray-400 mt-2 leading-relaxed">Captura guiada con cámara. Tu cuenta no puede operar hasta que identidad y expediente sean revisados.</p>
                                 </div>
+                                <div class="w-11 h-11 shrink-0 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+                                    <i class="fas fa-shield-halved text-emerald-400"></i>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-5 gap-2 mb-4" aria-label="Progreso de verificación de identidad">
+                                <div id="identityStep0" class="identity-step rounded-xl border border-zinc-700 p-2 text-center text-[9px] text-gray-500"><span class="identity-step-dot mx-auto mb-1 flex w-5 h-5 items-center justify-center rounded-full bg-zinc-800 font-black">1</span>INE frente</div>
+                                <div id="identityStep1" class="identity-step rounded-xl border border-zinc-700 p-2 text-center text-[9px] text-gray-500"><span class="identity-step-dot mx-auto mb-1 flex w-5 h-5 items-center justify-center rounded-full bg-zinc-800 font-black">2</span>INE reverso</div>
+                                <div id="identityStep2" class="identity-step rounded-xl border border-zinc-700 p-2 text-center text-[9px] text-gray-500"><span class="identity-step-dot mx-auto mb-1 flex w-5 h-5 items-center justify-center rounded-full bg-zinc-800 font-black">3</span>Selfie</div>
+                                <div id="identityStep3" class="identity-step rounded-xl border border-zinc-700 p-2 text-center text-[9px] text-gray-500"><span class="identity-step-dot mx-auto mb-1 flex w-5 h-5 items-center justify-center rounded-full bg-zinc-800 font-black">4</span>Izquierda</div>
+                                <div id="identityStep4" class="identity-step rounded-xl border border-zinc-700 p-2 text-center text-[9px] text-gray-500"><span class="identity-step-dot mx-auto mb-1 flex w-5 h-5 items-center justify-center rounded-full bg-zinc-800 font-black">5</span>Derecha</div>
+                            </div>
+
+                            <button type="button" id="btnIniciarIdentidad" class="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black py-4 rounded-2xl text-sm transition-all flex items-center justify-center gap-3">
+                                <i class="fas fa-camera"></i> INICIAR VERIFICACIÓN SEGURA
+                            </button>
+                            <div id="identitySummary" class="mt-3 rounded-xl border border-zinc-800 bg-black/30 px-4 py-3 text-xs text-gray-400">
+                                <i class="fas fa-lock text-emerald-500 mr-2"></i> Pendiente de captura
+                            </div>
+                        </div>
+
+                        <div class="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
+                            <label class="block text-xs font-bold text-gray-400 mb-3 uppercase"><i class="fas fa-folder-open"></i> Documentos complementarios</label>
+                            <div class="space-y-3">
+                                <button type="button" id="btnSubirCSF" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-lg text-sm transition-colors border border-zinc-600 flex items-center justify-center gap-2">
+                                    <i class="fas fa-file-invoice-dollar text-indigo-400"></i> Constancia de Situación Fiscal
+                                </button>
+                                <input type="file" id="inputCSF" accept="image/*, application/pdf" class="hidden">
 
                                 <button type="button" id="btnSubirLicencia" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-lg text-sm transition-colors border border-zinc-600 flex items-center justify-center gap-2">
-                                    <i class="fas fa-id-card text-blue-400"></i> Subir Licencia de Conducir
+                                    <i class="fas fa-id-card text-blue-400"></i> Licencia de Conducir
                                 </button>
                                 <input type="file" id="inputLicencia" accept="image/*" class="hidden">
 
                                 <button type="button" id="btnSubirCertificados" class="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-lg text-sm transition-colors border border-zinc-600 flex items-center justify-center gap-2">
-                                    <i class="fas fa-certificate text-purple-400"></i> Subir Certificados/DC-3 (Múltiple)
+                                    <i class="fas fa-certificate text-purple-400"></i> Certificados / DC-3 (Opcional)
                                 </button>
                                 <input type="file" id="inputCertificados" accept="application/pdf, image/*" multiple class="hidden">
                             </div>
                         </div>
 
+                        <label class="flex items-start gap-3 py-2 mt-4 cursor-pointer rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                            <input type="checkbox" id="chkBiometriaTecnico" class="w-5 h-5 mt-0.5 accent-emerald-500 rounded">
+                            <span class="text-xs text-gray-300 leading-relaxed"><strong class="text-white">Autorizo la captura de identidad.</strong> Acepto la captura de INE y rostro para validación KYC, prueba de vida y prevención de cuentas duplicadas. Una coincidencia sospechosa requiere revisión administrativa antes de bloquear o aprobar definitivamente.</span>
+                        </label>
                         <label class="flex items-start gap-3 py-2 mt-4 cursor-pointer">
                             <input type="checkbox" id="chkTerminosTecnico" class="w-5 h-5 mt-0.5 accent-emerald-500 rounded">
                             <span class="text-xs text-gray-400 leading-tight">Al registrarme como Socio, acepto los <button type="button" onclick="document.getElementById('modalTerminosTecnico').classList.remove('hidden')" class="text-emerald-400 underline font-bold">Términos y Condiciones</button> y el <button type="button" onclick="document.getElementById('modalPrivacidad').classList.remove('hidden')" class="text-emerald-400 underline font-bold">Aviso de Privacidad</button>.</span>
@@ -239,6 +306,51 @@
             </div>
 
         </section>
+
+        <div id="modalIdentidadTecnico" class="fixed inset-0 z-[150] hidden identity-shell bg-black/95 p-3 sm:p-6 overflow-y-auto">
+            <div class="min-h-full flex items-center justify-center">
+                <div class="w-full max-w-2xl rounded-[2rem] border border-emerald-500/25 bg-[#101010] shadow-2xl overflow-hidden">
+                    <div class="px-5 sm:px-7 py-5 border-b border-zinc-800 flex items-start justify-between gap-4">
+                        <div>
+                            <p id="identityModalEyebrow" class="text-[10px] uppercase tracking-[0.24em] text-emerald-400 font-black">Identidad 1 de 5</p>
+                            <h3 id="identityModalTitle" class="text-xl sm:text-2xl font-black mt-1">Captura tu INE por el frente</h3>
+                            <p id="identityModalHint" class="text-xs sm:text-sm text-gray-400 mt-2">Coloca la credencial completa dentro del marco y evita reflejos.</p>
+                        </div>
+                        <button type="button" id="btnCancelarIdentidad" class="w-10 h-10 shrink-0 rounded-full border border-zinc-700 text-gray-400 hover:text-white hover:bg-white/5" aria-label="Cerrar captura"><i class="fas fa-times"></i></button>
+                    </div>
+
+                    <div class="p-4 sm:p-6">
+                        <div class="identity-camera-stage">
+                            <video id="identityVideo" autoplay playsinline muted></video>
+                            <canvas id="identityCanvas" class="hidden"></canvas>
+                            <div class="identity-scrim"></div>
+                            <div id="identityGuide" class="identity-frame document"></div>
+                            <div class="absolute z-10 left-1/2 -translate-x-1/2 bottom-4 whitespace-nowrap rounded-full bg-black/70 border border-white/10 px-4 py-2 text-[11px] font-bold text-white backdrop-blur-md">
+                                <span id="identityCameraStatus"><i class="fas fa-circle-notch fa-spin text-emerald-400 mr-2"></i>Activando cámara…</span>
+                            </div>
+                        </div>
+
+                        <div class="mt-5 grid grid-cols-5 gap-2">
+                            <div class="h-1.5 rounded-full bg-emerald-500" id="identityBar0"></div>
+                            <div class="h-1.5 rounded-full bg-zinc-800" id="identityBar1"></div>
+                            <div class="h-1.5 rounded-full bg-zinc-800" id="identityBar2"></div>
+                            <div class="h-1.5 rounded-full bg-zinc-800" id="identityBar3"></div>
+                            <div class="h-1.5 rounded-full bg-zinc-800" id="identityBar4"></div>
+                        </div>
+
+                        <div class="mt-5 rounded-2xl bg-zinc-900 border border-zinc-800 px-4 py-3 text-xs text-gray-400">
+                            <i class="fas fa-lightbulb text-amber-400 mr-2"></i>
+                            <span id="identityTip">Usa buena luz y limpia el lente antes de comenzar.</span>
+                        </div>
+
+                        <button type="button" id="btnCapturarIdentidad" class="identity-capture-button mt-5 w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-black font-black py-4 rounded-2xl transition-all" disabled>
+                            <i class="fas fa-camera mr-2"></i> CAPTURAR
+                        </button>
+                        <p class="mt-3 text-center text-[10px] text-gray-500">La cámara sólo se activa durante este proceso. Las imágenes se cargan al expediente protegido después de crear tu cuenta.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <div id="modalTerminosCliente" class="fixed inset-0 bg-black/95 z-[100] hidden flex items-center justify-center p-4">
             <div class="bg-zinc-900 w-full max-w-2xl rounded-3xl p-6 border border-zinc-700 shadow-2xl flex flex-col max-h-[80vh]">
@@ -284,8 +396,8 @@
                 </div>
                 <div class="overflow-y-auto text-xs text-gray-400 space-y-4 pr-2 flex-1">
                     <p><strong>1. Identidad y Domicilio:</strong> GestiaPremium es el responsable del tratamiento y protección de sus datos personales.</p>
-                    <p><strong>2. Datos Recabados:</strong> Nombre, fotos (perfil, INE, CSF, Licencia), teléfono, correo, y Datos Sensibles como su Ubicación GPS en tiempo real y CLABE interbancaria.</p>
-                    <p><strong>3. Finalidades:</strong> Conectar clientes con técnicos, procesar pagos, rastreo de seguridad durante el servicio, y validación de antecedentes (KYC).</p>
+                    <p><strong>2. Datos Recabados:</strong> Nombre, teléfono, correo, INE, CSF, licencia, CLABE, ubicación y, para Socios Pro, capturas faciales y señales de prueba de vida utilizadas para verificar identidad.</p>
+                    <p><strong>3. Finalidades:</strong> Conectar clientes con técnicos, procesar pagos, seguridad operativa y KYC. La evidencia facial se usa para validación de identidad y prevención de cuentas duplicadas; una posible coincidencia requiere revisión administrativa antes de aprobar o bloquear definitivamente.</p>
                     <p><strong>4. Transferencia de Datos:</strong> Sus datos bancarios son procesados por Stripe bajo encriptación militar. Compartiremos datos con autoridades solo por requerimiento legal.</p>
                     <p><strong>5. Derechos ARCO:</strong> Puede ejercer sus derechos de Acceso, Rectificación, Cancelación u Oposición contactando a soporte técnico en la plataforma.</p>
                 </div>

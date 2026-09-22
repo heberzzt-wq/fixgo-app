@@ -33,6 +33,7 @@ const {
     createB2CServiceReconciliationHandler
 } = require("./b2c-service-settlement");
 const { isAuthorizedAdmin, createReturnTechnicianHandler } = require("./b2c-technician-approval");
+const { createVerifyB2cIdentityHandler } = require("./b2c-biometric-identity");
 const { getReleaseIdentity } = require("./release-identity");
 
 const SECURE_FUNCTIONS_ENTRY_VERSION = "1.0.0";
@@ -620,6 +621,15 @@ const reconcileSettlement = createB2CServiceReconciliationHandler({
     }
 });
 
+const verifyB2cIdentity = functions
+    .runWith({ timeoutSeconds: 120, memory: "2GB" })
+    .https.onCall(createVerifyB2cIdentityHandler({
+        admin,
+        db,
+        functions,
+        bucket: admin.storage().bucket("fixgo-44e4d.firebasestorage.app")
+    }));
+
 const completeOperationalService = createB2cOperationalClosureHandler({ admin, db, financialPolicy });
 const completeB2cService = functions.https.onCall(async (data, context) => {
     try { return await completeOperationalService(data, context); }
@@ -635,6 +645,7 @@ module.exports = {
     api: functions.https.onRequest(secureApi),
     onServiceCompleted: secureOnServiceCompleted,
     completeB2cService,
+    verifyB2cIdentity,
     returnB2cTechnicianKyc: functions.https.onCall(createReturnTechnicianHandler({ admin, db, functions })),
     reconciliarLiquidacionB2C: functions.https.onCall(async (data, context) => {
         try { return await reconcileSettlement(data, context); }

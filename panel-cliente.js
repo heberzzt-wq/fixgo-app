@@ -89,6 +89,42 @@ export async function iniciarPanelCliente(user) {
         toggleUrgencia: document.getElementById("toggleUrgencia")
     };
 
+    const identityBlocked = user.tipo_cuenta === "B2C" &&
+        user.kyc?.identity_required === true &&
+        (user.kyc?.identity_verified !== true ||
+         user.kyc?.identity_machine_verified !== true ||
+         user.kyc?.identity_machine_status !== "verified");
+
+    if (identityBlocked) {
+        const banner = document.createElement("section");
+        banner.id = "clienteIdentityReviewBanner";
+        banner.className = "mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-100";
+        const duplicate = user.kyc?.identity_machine_status === "duplicate_suspected";
+        banner.innerHTML = `
+            <div class="flex items-start gap-3">
+                <i class="fas fa-user-shield mt-1 text-amber-400"></i>
+                <div>
+                    <p class="font-black">${duplicate ? "Identidad en revisión de seguridad" : "Verificación de identidad pendiente"}</p>
+                    <p class="mt-1 text-xs text-amber-100/75">
+                        ${duplicate
+                            ? "Detectamos una coincidencia que debe revisar una persona. No se permiten solicitudes mientras se resuelve."
+                            : "Tu expediente está protegido y todavía no puede crear servicios. Si la verificación automática no concluyó, soporte podrá revisarlo."}
+                    </p>
+                </div>
+            </div>`;
+        const anchor = el.form?.parentElement || document.querySelector("main");
+        anchor?.prepend(banner);
+        if (el.form) {
+            el.form.setAttribute("aria-disabled", "true");
+            el.form.classList.add("opacity-50");
+            const submit = el.form.querySelector("button[type='submit']");
+            if (submit) {
+                submit.disabled = true;
+                submit.innerHTML = '<i class="fas fa-lock"></i> IDENTIDAD EN REVISIÓN';
+            }
+        }
+    }
+
     // Estado global de pagos para el blindaje final
     let configGlobalPagos = { stripe_activo: false, efectivo_activo: false };
     let permisosPagoEfectivos = platformContract.resolvePaymentPermissions(configGlobalPagos, user);
@@ -129,7 +165,7 @@ export async function iniciarPanelCliente(user) {
    function actualizarBotonPagoUI(metodo) {
         const btn = el.form?.querySelector("button[type='submit']");
         if (!btn) return;
-        if (!isSubmitting) btn.disabled = false;
+        if (!isSubmitting && !identityBlocked) btn.disabled = false;
 
         if (metodo === 'b2b') {
             btn.innerHTML = `<i class="fas fa-handshake"></i> SOLICITAR CON CARGO A CONTRATO`;
@@ -340,6 +376,11 @@ export async function iniciarPanelCliente(user) {
     if (el.form) {
         el.form.addEventListener("submit", async (e) => {
             e.preventDefault();
+
+            if (identityBlocked) {
+                alert("🛡️ Tu identidad todavía está en revisión. No puedes crear servicios hasta que quede verificada.");
+                return;
+            }
 
             // Candado contra doble clic rápido
             if (isSubmitting) return; 

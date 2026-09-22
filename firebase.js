@@ -93,6 +93,10 @@ export async function devolverExpedienteTecnicoB2C(technicianId, reason, documen
     return (await httpsCallable(cloudFunctions, 'returnB2cTechnicianKyc')({ technicianId, reason, documents })).data;
 }
 
+export async function verificarIdentidadB2C() {
+    return (await httpsCallable(cloudFunctions, "verifyB2cIdentity")({})).data;
+}
+
 export async function aprobarTecnicoB2C(technicianId) {
     const approve = httpsCallable(cloudFunctions, "approveB2cTechnician");
     const result = await approve({ technicianId });
@@ -374,6 +378,25 @@ export async function registrarUsuario(
             : perfilBase;
 
         if (rol === "cliente" && perfilBase.tipo_cuenta === "B2C") {
+            perfil.estado = "identidad_pendiente";
+            perfil.status = "identidad_pendiente";
+            perfil.foto_perfil = null;
+            perfil.documentos = {
+                ine: null,
+                ine_reverso: null,
+                selfie_liveness_left: null,
+                selfie_liveness_right: null
+            };
+            perfil.kyc = {
+                estado: "identidad_pendiente",
+                aprobado: false,
+                identity_required: true,
+                identity_verified: false,
+                identity_machine_verified: false,
+                identity_machine_status: "pending_capture",
+                identity_version: "b2c-bank-identity-v1",
+                identity_capture_status: "pending_capture"
+            };
             perfil.pagos = {
                 stripe_autorizado: false,
                 efectivo_autorizado: false
