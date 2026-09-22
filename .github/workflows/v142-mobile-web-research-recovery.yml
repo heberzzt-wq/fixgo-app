@@ -189,7 +189,7 @@ jobs:
         run: |
           set -euo pipefail
           npm ci
-          if [ "$GITHUB_REF" = "refs/heads/b2c-bank-identity-capture-v142" ] && ! grep -Fq '"@vladmandic/human"' functions/package-lock.json; then
+          if [ "$GITHUB_REF" = "refs/heads/b2c-bank-identity-capture-v142" ]; then
             npm install --prefix functions
           else
             npm ci --prefix functions
@@ -353,8 +353,7 @@ jobs:
         run: |
           npm ci
           if ($LASTEXITCODE -ne 0) { throw 'ROOT_NPM_CI_FAILED' }
-          $lock = Get-Content functions/package-lock.json -Raw
-          if ($env:GITHUB_REF -eq 'refs/heads/b2c-bank-identity-capture-v142' -and -not $lock.Contains('"@vladmandic/human"')) {
+          if ($env:GITHUB_REF -eq 'refs/heads/b2c-bank-identity-capture-v142') {
             npm install --prefix functions
           } else {
             npm ci --prefix functions
