@@ -50,6 +50,10 @@ test("users no permite lectura indiscriminada ni autoaprobación", () => {
     assert.match(firestore, /selfie_liveness_left/);
     assert.match(firestore, /selfie_liveness_right/);
     assert.match(firestore, /identity_verification_method/);
+    assert.match(firestore, /estado == 'identidad_pendiente'/);
+    assert.match(firestore, /identity_machine_verified/);
+    assert.match(firestore, /match \/b2c_identity_registry\/\{identityId\}/);
+    assert.match(firestore, /match \/b2c_identity_audit\/\{auditId\}/);
 });
 
 test("services reserva la creación B2C al backend y conserva B2B", () => {
@@ -83,6 +87,8 @@ test("Storage protege expedientes y niega rutas no inventariadas", () => {
     assert.match(expedienteBlock, /request\.auth\.uid == uid/);
     assert.match(expedienteBlock, /authorizedAdmin\(\)/);
     assert.match(expedienteBlock, /validDocument/);
+    assert.match(expedienteBlock, /identidad_pendiente/);
+    assert.match(expedienteBlock, /identidad_revision/);
     assert.match(storage, /match \/service_initial\/\{serviceId\}\/\{customerId\}/);
     assert.match(storage, /match \/firmas\/\{orderId\}\/\{fileName\}/);
     assert.match(storage, /match \/perfiles_tecnicos\/\{fileName\}/);
