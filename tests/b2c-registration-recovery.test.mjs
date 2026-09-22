@@ -58,3 +58,21 @@ test('identity photo widgets block approved replacements and admin routes review
     vm.runInNewContext(photo, techScope); await techScope.window.cambiarFotoPerfil('tech');
     assert.equal(uploads, 0); assert.equal(writes, 0);
 });
+
+
+test('customer identity upload failure resumes the same authenticated B2C account', () => {
+    const registration = fs.readFileSync(new URL('../app-registro.js', import.meta.url), 'utf8');
+    const customer = fs.readFileSync(new URL('../panel-cliente.js', import.meta.url), 'utf8');
+
+    assert.match(customer, /identityEvidenceComplete/);
+    assert.match(customer, /REANUDAR CAPTURA DE IDENTIDAD/);
+    assert.match(customer, /registro\.html\?resume=cliente-identity/);
+
+    assert.match(registration, /clienteIdentityResumeRequested/);
+    assert.match(registration, /clienteIdentityResumeProfile/);
+    assert.match(registration, /resumeExistingCustomer/);
+    assert.match(registration, /__SESSION_REUSE_ONLY__/);
+    assert.match(registration, /kycState:\s*"identidad_pendiente"/);
+    assert.match(registration, /REANUDAR IDENTIDAD EN ESTA CUENTA/);
+    assert.match(registration, /auth\.currentUser\?\.uid === clienteIdentityResumeProfile\.uid/);
+});
