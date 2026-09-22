@@ -251,8 +251,8 @@ let clienteIdentityResumeProfile = null;
 if (clienteIdentityResumeRequested) {
     onAuthStateChanged(auth, async (sessionUser) => {
         if (!sessionUser) {
-            alert("🔐 Inicia sesión con la cuenta existente para reanudar tu verificación de identidad.");
-            window.location.href = "login.html";
+            alert("🔐 Por seguridad necesitamos reautenticar esta cuenta antes de continuar la identidad.");
+            window.location.replace("login.html?resume=cliente-identity");
             return;
         }
 

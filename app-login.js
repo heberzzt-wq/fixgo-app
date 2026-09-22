@@ -20,6 +20,31 @@ const auth =
 const db =
     FirebaseCore.db;
 
+const loginParams =
+    new URLSearchParams(window.location.search);
+
+const customerIdentityResumeRequested =
+    loginParams.get("resume") === "cliente-identity";
+
+function customerIdentityNeedsCapture(profile = {}) {
+    if (
+        profile?.rol !== "cliente" ||
+        profile?.tipo_cuenta !== "B2C" ||
+        profile?.kyc?.identity_required !== true ||
+        profile?.kyc?.identity_verified === true
+    ) {
+        return false;
+    }
+
+    return !(
+        profile?.foto_perfil &&
+        profile?.documentos?.ine &&
+        profile?.documentos?.ine_reverso &&
+        profile?.documentos?.selfie_liveness_left &&
+        profile?.documentos?.selfie_liveness_right
+    );
+}
+
 import {
 
     signInWithEmailAndPassword,
@@ -113,6 +138,16 @@ onAuthStateChanged(
                 console.warn(
                     "⚠️ [LOGIN_ROLE_PENDING] Perfil sin rol confirmado"
                 );
+                return;
+            }
+
+            const resumeCustomerIdentity =
+                customerIdentityNeedsCapture(profile) &&
+                (customerIdentityResumeRequested || profile?.kyc?.identity_machine_status === "pending_capture");
+
+            if (resumeCustomerIdentity) {
+                console.log("🪪 [LOGIN_IDENTITY_RECOVERY] Reanudando misma cuenta B2C", user.uid);
+                window.location.replace("registro.html?resume=cliente-identity");
                 return;
             }
 

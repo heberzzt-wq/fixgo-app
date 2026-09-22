@@ -21,6 +21,19 @@ test("login delegates authenticated routing to the central Firebase router", () 
     assert.doesNotMatch(login, /window\.location\.href\s*=\s*[\r\n\s]*"tecnico\.html"/);
 });
 
+
+test("login preserves B2C identity recovery across required reauthentication", () => {
+    const login = fs.readFileSync(path.join(root, "app-login.js"), "utf8");
+    const registration = fs.readFileSync(path.join(root, "app-registro.js"), "utf8");
+
+    assert.match(login, /customerIdentityNeedsCapture/);
+    assert.match(login, /customerIdentityResumeRequested/);
+    assert.match(login, /identity_machine_status === "pending_capture"/);
+    assert.match(login, /window\.location\.replace\("registro\.html\?resume=cliente-identity"\)/);
+    assert.match(registration, /login\.html\?resume=cliente-identity/);
+    assert.doesNotMatch(registration, /clienteIdentityResumeRequested[\s\S]{0,900}window\.location\.href = "login\.html"/);
+});
+
 test("public index keeps legal notices addressable without dead pages", () => {
     const index = fs.readFileSync(path.join(root, "index.html"), "utf8");
 
