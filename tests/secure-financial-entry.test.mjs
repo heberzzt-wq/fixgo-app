@@ -74,19 +74,17 @@ test('legacy payout name is the canonical withdrawal and rejects negative amount
 });
 
 test('legacy public generator is retired without provider execution', async () => {
-    const server = http.createServer(entry.generarModulo);
-    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-    try {
-        const response = await fetch(`http://127.0.0.1:${server.address().port}/`, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: '{}'
-        });
-        assert.equal(response.status, 410);
-        assert.equal((await response.json()).error, 'LEGACY_GENERATOR_RETIRED');
-    } finally {
-        await new Promise(resolve => server.close(resolve));
-    }
+    let statusCode = null;
+    let payload = null;
+    const response = {
+        set() { return this; },
+        status(code) { statusCode = code; return this; },
+        json(body) { payload = body; return body; }
+    };
+    await entry.generarModulo.run({ method: 'POST', headers: {} }, response);
+    assert.equal(statusCode, 410);
+    assert.equal(payload.error, 'LEGACY_GENERATOR_RETIRED');
+    assert.equal(payload.authority, 'secure-entry');
 });
 
 test('legacy close name cannot return fictitious success', async () => {
