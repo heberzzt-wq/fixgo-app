@@ -233,6 +233,12 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(registration, /selfie_liveness_right/);
     assert.match(registrationHtml, /modalIdentidadTecnico/);
     assert.match(registrationHtml, /chkBiometriaTecnico/);
+    assert.match(registrationHtml, /btnIniciarIdentidadCliente/);
+    assert.match(registrationHtml, /chkBiometriaCliente/);
+    assert.match(registration, /identityCaptureState\.target/);
+    assert.match(registration, /verificarIdentidadB2C\(\)/);
+    assert.match(registration, /CUSTOMER_IDENTITY|identityResult/);
+    assert.match(registration, /Las altas nuevas B2C requieren INE y biometría en vivo/);
     assert.match(registrationHtml, /INE \+ biometría facial/);
     assert.doesNotMatch(registration, /skill_maint/);
     assert.doesNotMatch(registration, /email:\s*email\.toLowerCase\(\)/);
