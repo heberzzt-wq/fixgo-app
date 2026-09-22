@@ -20,7 +20,8 @@ import {
     registrarUsuario,
     verificarIdentidadB2C,
     signInWithEmailAndPassword, 
-    signOut, 
+    signOut,
+    onAuthStateChanged,
     doc, 
     getDoc, 
     setDoc, 
@@ -90,13 +91,20 @@ const subirAStorage = async (file, path) => {
     return await getDownloadURL(storageRef);
 };
 
-async function subirDocumentoExpedienteRecuperable(uid, kind, file, onConfirmed) {
+async function subirDocumentoExpedienteRecuperable(
+    uid,
+    kind,
+    file,
+    onConfirmed,
+    { kycState = TECHNICIAN_KYC_STATES.DOCUMENTS_PENDING } = {}
+) {
     if (!file) return null;
     const storagePath = storagePathForTechnicianDocument(uid, kind, file.name);
     const userRef = doc(db, "users", uid);
     await setDoc(userRef, {
         kyc: {
-            estado: TECHNICIAN_KYC_STATES.DOCUMENTS_PENDING,
+            estado: kycState,
+            ultimo_error: null,
             upload_actual: kind,
             uploads: {
                 [kind]: {
@@ -129,7 +137,7 @@ async function subirDocumentoExpedienteRecuperable(uid, kind, file, onConfirmed)
         await setDoc(userRef, {
             disponible: false,
             kyc: {
-                estado: TECHNICIAN_KYC_STATES.DOCUMENTS_PENDING,
+                estado: kycState,
                 upload_actual: null,
                 ultimo_error: {
                     documento: kind,
@@ -236,6 +244,62 @@ if ($("btnCerrarTerminosTecnico")) {
 // ======================================================
 const btnRegistroCliente = $("btnRegistroCliente");
 const codigoB2BInput = document.querySelector('#formRegistroCliente [name="codigoB2B"]');
+const clienteIdentityResumeRequested =
+    new URLSearchParams(window.location.search).get("resume") === "cliente-identity";
+let clienteIdentityResumeProfile = null;
+
+if (clienteIdentityResumeRequested) {
+    onAuthStateChanged(auth, async (sessionUser) => {
+        if (!sessionUser) {
+            alert("🔐 Inicia sesión con la cuenta existente para reanudar tu verificación de identidad.");
+            window.location.href = "login.html";
+            return;
+        }
+
+        const snapshot = await getDoc(doc(db, "users", sessionUser.uid));
+        const profile = snapshot.exists() ? snapshot.data() || {} : {};
+        if (profile.rol !== "cliente" || profile.tipo_cuenta !== "B2C") {
+            alert("⚠️ Esta sesión no corresponde a un cliente B2C recuperable.");
+            window.location.href = "index.html";
+            return;
+        }
+        if (profile.kyc?.identity_verified === true &&
+            profile.kyc?.identity_machine_status === "verified") {
+            window.location.href = "cliente.html";
+            return;
+        }
+
+        clienteIdentityResumeProfile = {
+            uid: sessionUser.uid,
+            email: String(sessionUser.email || profile.email || "").toLowerCase()
+        };
+
+        const form = document.getElementById("formRegistroCliente");
+        const nombreInput = form?.querySelector('[name="nombre"]');
+        const emailInput = form?.querySelector('[name="email"]');
+        const passwordInput = form?.querySelector('[name="password"]');
+        const telefonoInput = form?.querySelector('[name="telefono"]');
+        if (nombreInput) nombreInput.value = profile.nombre || "";
+        if (emailInput) {
+            emailInput.value = clienteIdentityResumeProfile.email;
+            emailInput.readOnly = true;
+        }
+        if (telefonoInput) telefonoInput.value = profile.telefono || "";
+        if (passwordInput) {
+            passwordInput.value = "";
+            passwordInput.required = false;
+            passwordInput.placeholder = "No requerida: sesión activa";
+        }
+        if (codigoB2BInput) {
+            codigoB2BInput.value = "";
+            codigoB2BInput.disabled = true;
+        }
+        document.getElementById("identityVerificationCardCliente")?.classList.remove("hidden");
+        if (btnRegistroCliente) {
+            btnRegistroCliente.innerHTML = '<i class="fas fa-user-shield"></i> REANUDAR IDENTIDAD EN ESTA CUENTA';
+        }
+    });
+}
 codigoB2BInput?.addEventListener("input", () => {
     const hasB2BCode = Boolean(codigoB2BInput.value.trim());
     const stripeSection = document.getElementById("stripeRegistroClienteB2B");
@@ -257,14 +321,24 @@ if (btnRegistroCliente) {
         const password = form.querySelector('[name="password"]')?.value.trim();
         const telefono = escaparHTML(form.querySelector('[name="telefono"]')?.value.trim());
         const codigoB2B = escaparHTML(form.querySelector('[name="codigoB2B"]')?.value.trim().toUpperCase()) || null;
+        const resumeExistingCustomer = Boolean(
+            clienteIdentityResumeRequested &&
+            clienteIdentityResumeProfile?.uid &&
+            auth.currentUser?.uid === clienteIdentityResumeProfile.uid &&
+            email === clienteIdentityResumeProfile.email
+        );
 
-        if (!nombre || !email || !password || !telefono) {
+        if (!nombre || !email || !telefono || (!resumeExistingCustomer && !password)) {
             alert("⚠️ Por favor, completa todos los campos personales."); 
             return;
         }
 
-        if (!validarPassword(password)) {
+        if (!resumeExistingCustomer && !validarPassword(password)) {
             alert("🔒 SEGURIDAD: La contraseña debe tener mínimo 8 caracteres, incluir al menos 1 mayúscula y 1 número."); 
+            return;
+        }
+        if (resumeExistingCustomer && codigoB2B) {
+            alert("🛡️ La recuperación de identidad B2C no permite convertir la cuenta a B2B.");
             return;
         }
         
@@ -322,7 +396,7 @@ if (btnRegistroCliente) {
             // 🚀 REGISTRO ATÓMICO: Inyectamos edificioId desde el nacimiento del usuario
             usuarioAuth = await registrarUsuario(
                 email, 
-                password, 
+                resumeExistingCustomer ? "__SESSION_REUSE_ONLY__" : password, 
                 rolFinal, 
                 nombre, 
                 subtipoFinal, 
@@ -357,15 +431,20 @@ if (btnRegistroCliente) {
 
                 btnRegistroCliente.innerHTML = '<i class="fas fa-cloud-upload-alt animate-bounce"></i> Protegiendo identidad…';
                 await subirDocumentoExpedienteRecuperable(uid, "foto_perfil", archivoFotoPerfil,
-                    async (url) => confirmarCampo({ foto_perfil: url })());
+                    async (url) => confirmarCampo({ foto_perfil: url })(),
+                    { kycState: "identidad_pendiente" });
                 await subirDocumentoExpedienteRecuperable(uid, "ine", archivoINE,
-                    async (url) => confirmarCampo({ documentos: { ine: url } })());
+                    async (url) => confirmarCampo({ documentos: { ine: url } })(),
+                    { kycState: "identidad_pendiente" });
                 await subirDocumentoExpedienteRecuperable(uid, "ine_reverso", archivoINEReverso,
-                    async (url) => confirmarCampo({ documentos: { ine_reverso: url } })());
+                    async (url) => confirmarCampo({ documentos: { ine_reverso: url } })(),
+                    { kycState: "identidad_pendiente" });
                 await subirDocumentoExpedienteRecuperable(uid, "selfie_liveness_left", archivoSelfieIzquierda,
-                    async (url) => confirmarCampo({ documentos: { selfie_liveness_left: url } })());
+                    async (url) => confirmarCampo({ documentos: { selfie_liveness_left: url } })(),
+                    { kycState: "identidad_pendiente" });
                 await subirDocumentoExpedienteRecuperable(uid, "selfie_liveness_right", archivoSelfieDerecha,
-                    async (url) => confirmarCampo({ documentos: { selfie_liveness_right: url } })());
+                    async (url) => confirmarCampo({ documentos: { selfie_liveness_right: url } })(),
+                    { kycState: "identidad_pendiente" });
 
                 await setDoc(userRef, {
                     "kyc.identity_capture_status": "captured_pending_verification",
@@ -395,7 +474,7 @@ if (btnRegistroCliente) {
             console.error("❌ Error Crítico en Registro Cliente:", error);
             
             if (usuarioAuth) {
-                alert("⚠️ Tu identidad ya quedó registrada. Inicia sesión para completar los datos pendientes sin crear otra cuenta.");
+                alert("⚠️ Tu cuenta permanece registrada. Reanuda la identidad en esta misma sesión; no crees otra cuenta.");
             } else {
                 manejarErroresAuth(error);
             }
@@ -816,11 +895,11 @@ if (btnRegistroTecnico) {
                 nivel: "BRONCE",
                 reputacion: 5.0,
                 servicios_completados: 0,
-                estado: TECHNICIAN_KYC_STATES.DOCUMENTS_PENDING,
+                estado: kycState,
                 status: TECHNICIAN_KYC_STATES.DOCUMENTS_PENDING,
                 disponible: false,
                 kyc: {
-                    estado: TECHNICIAN_KYC_STATES.DOCUMENTS_PENDING,
+                    estado: kycState,
                     aprobado: false,
                     ultimo_error: null,
                     identity_required: true,

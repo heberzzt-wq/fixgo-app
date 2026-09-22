@@ -269,6 +269,9 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(client, /identity_machine_reasons/);
     assert.match(client, /verificarIdentidadB2C\(\)/);
     assert.match(client, /REINTENTAR VALIDACIÓN AUTOMÁTICA/);
+    assert.match(client, /REANUDAR CAPTURA DE IDENTIDAD/);
+    assert.match(client, /identityEvidenceComplete/);
+    assert.match(client, /registro\.html\?resume=cliente-identity/);
     assert.match(html, /btnExpandirMapa/);
     assert.match(html, /mapa-expandido/);
     assert.match(client, /platformContract\.SERVICE_CATALOG/);
@@ -292,6 +295,10 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(registrationHtml, /btnIniciarIdentidadCliente/);
     assert.match(registrationHtml, /chkBiometriaCliente/);
     assert.match(registration, /identityCaptureState\.target/);
+    assert.match(registration, /cliente-identity/);
+    assert.match(registration, /resumeExistingCustomer/);
+    assert.match(registration, /__SESSION_REUSE_ONLY__/);
+    assert.match(registration, /kycState: "identidad_pendiente"/);
     assert.match(registration, /verificarIdentidadB2C\(\)/);
     assert.match(registration, /CUSTOMER_IDENTITY|identityResult/);
     assert.match(registration, /Las altas nuevas B2C requieren INE y biometría en vivo/);

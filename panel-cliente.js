@@ -97,6 +97,13 @@ export async function iniciarPanelCliente(user) {
             .filter(Boolean)
             .slice(0, 8)
         : [];
+    const identityEvidenceComplete = Boolean(
+        user.foto_perfil &&
+        user.documentos?.ine &&
+        user.documentos?.ine_reverso &&
+        user.documentos?.selfie_liveness_left &&
+        user.documentos?.selfie_liveness_right
+    );
     const identityBlocked = user.tipo_cuenta === "B2C" &&
         user.kyc?.identity_required === true &&
         (user.kyc?.identity_verified !== true ||
@@ -114,7 +121,7 @@ export async function iniciarPanelCliente(user) {
         const retryMarkup = duplicate
             ? ""
             : `<button id="clienteIdentityRetryButton" type="button" class="mt-3 inline-flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100 active:scale-95">
-                    <i class="fas fa-rotate"></i> REINTENTAR VALIDACIÓN AUTOMÁTICA
+                    <i class="fas fa-rotate"></i> ${identityEvidenceComplete ? "REINTENTAR VALIDACIÓN AUTOMÁTICA" : "REANUDAR CAPTURA DE IDENTIDAD"}
                </button>`;
         banner.innerHTML = `
             <div class="flex items-start gap-3">
@@ -124,7 +131,9 @@ export async function iniciarPanelCliente(user) {
                     <p class="mt-1 text-xs text-amber-100/75">
                         ${duplicate
                             ? "Detectamos una coincidencia que debe revisar una persona. No se permiten solicitudes mientras se resuelve."
-                            : "Tu expediente está protegido y todavía no puede crear servicios. Puedes reintentar la validación automática usando las evidencias ya guardadas."}
+                            : identityEvidenceComplete
+                                ? "Tu expediente está protegido y todavía no puede crear servicios. Puedes reintentar la validación automática usando las evidencias ya guardadas."
+                                : "La cuenta ya existe, pero faltan evidencias de identidad. Reanuda la captura en la misma cuenta; no se creará otra identidad."}
                     </p>
                     ${reasonMarkup}
                     ${retryMarkup}
@@ -139,6 +148,11 @@ export async function iniciarPanelCliente(user) {
         retryButton?.addEventListener("click", async () => {
             if (!auth.currentUser || auth.currentUser.uid !== user.uid) {
                 if (retryStatus) retryStatus.textContent = "La sesión cambió. Vuelve a iniciar sesión antes de verificar identidad.";
+                return;
+            }
+
+            if (!identityEvidenceComplete) {
+                window.location.href = "registro.html?resume=cliente-identity";
                 return;
             }
 
