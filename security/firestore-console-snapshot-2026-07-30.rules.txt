@@ -126,7 +126,13 @@ service cloud.firestore {
         request.resource.data.get('suspendido', false) == resource.data.get('suspendido', false) &&
         request.resource.data.get('kyc', {}).get('aprobado', false) == resource.data.get('kyc', {}).get('aprobado', false) &&
         request.resource.data.get('kyc', {}).get('aprobado_por', null) == resource.data.get('kyc', {}).get('aprobado_por', null) &&
-        request.resource.data.get('kyc', {}).get('aprobado_at', null) == resource.data.get('kyc', {}).get('aprobado_at', null);
+        request.resource.data.get('kyc', {}).get('aprobado_at', null) == resource.data.get('kyc', {}).get('aprobado_at', null) &&
+        request.resource.data.get('kyc', {}).get('identity_required', false) == resource.data.get('kyc', {}).get('identity_required', false) &&
+        request.resource.data.get('kyc', {}).get('identity_version', null) == resource.data.get('kyc', {}).get('identity_version', null) &&
+        request.resource.data.get('kyc', {}).get('identity_verified', false) == resource.data.get('kyc', {}).get('identity_verified', false) &&
+        request.resource.data.get('kyc', {}).get('identity_verified_by', null) == resource.data.get('kyc', {}).get('identity_verified_by', null) &&
+        request.resource.data.get('kyc', {}).get('identity_verified_at', null) == resource.data.get('kyc', {}).get('identity_verified_at', null) &&
+        request.resource.data.get('kyc', {}).get('identity_verification_method', null) == resource.data.get('kyc', {}).get('identity_verification_method', null);
     }
 
     function serviceFinancialFieldsUnchanged() {
