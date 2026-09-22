@@ -437,7 +437,7 @@ jobs:
           git commit -m 'fix(jarvis): materialize V142 audiovisual closeout'
           git push origin "HEAD:${TARGET_BRANCH}"
 
-deploy-v142:
+  deploy-v142:
     needs: [certify-linux, certify-windows, materialize-v142]
     if: ${{ always() && needs.certify-linux.result == 'success' && needs.certify-windows.result == 'success' && (needs.certify-linux.outputs.product_changed == 'false' || needs.materialize-v142.result == 'success') && ((github.event_name == 'workflow_dispatch' && inputs.deploy == true) || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'release(platform): authorize coordinated B2C B2B deploy'))) }}
     runs-on: ubuntu-latest
