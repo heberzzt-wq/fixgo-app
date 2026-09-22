@@ -571,9 +571,24 @@ jobs:
             createB2cService approveB2cTechnician claimB2cService cancelB2cService \
             submitB2cQuote respondB2cQuote \
             completeB2bRegistration provisionB2bPersonnel completeB2bService \
-            submitB2bPersonnelKyc reviewB2bPersonnelKyc; do
+            submitB2bPersonnelKyc reviewB2bPersonnelKyc \
+            requestPayout generarModulo procesarCierreServicio; do
             grep -F "$fn" <<<"$deployed"
           done
+
+      - name: Verify retired legacy generator is inert
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$RUNNER_TEMP/legacy-generator-canary.json"
+          code="$(curl --silent --show-error --output "$body" --write-out '%{http_code}' \
+            --request POST \
+            --header 'content-type: application/json' \
+            --data '{}' \
+            "https://us-central1-${FIREBASE_PROJECT_ID}.cloudfunctions.net/generarModulo")"
+          test "$code" = "410"
+          jq -e '.error == "LEGACY_GENERATOR_RETIRED" and .authority == "secure-entry"' "$body" >/dev/null
+          rm -f "$body"
 
       - name: Smoke exact production release
         env:
