@@ -386,3 +386,12 @@ test("release gate keeps mobile identity capture bank-style without document zoo
     assert.match(registration, /stage\.dataset\.frame = step\.frame/);
     assert.match(registration, /identity-modal-open/);
 });
+
+
+test("release gate recaptures only failed biometric evidence and hides raw reason codes", () => {
+    const client = fs.readFileSync(new URL("../panel-cliente.js", import.meta.url), "utf8");
+    assert.match(client, /RECAPTURAR PRUEBA DE VIDA/);
+    assert.match(client, /failedStepKeys\.has\(step\.key\)/);
+    assert.match(client, /describeIdentityReview/);
+    assert.match(client, /targetedRecaptureAvailable/);
+});
