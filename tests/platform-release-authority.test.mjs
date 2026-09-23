@@ -140,3 +140,15 @@ test("release gate requires explicit Hosting finalization before production smok
     assert.ok(smoke > finalizer);
     assert.match(workflow.slice(finalizer, smoke), /--only hosting/);
 });
+
+
+test("release gate keeps digest-aware biometric recapture bounded and fresh-capture aware", () => {
+    const biometric = fs.readFileSync(new URL("../functions/b2c-biometric-identity.js", import.meta.url), "utf8");
+    const client = fs.readFileSync(new URL("../panel-cliente.js", import.meta.url), "utf8");
+    assert.match(biometric, /evaluateIdentityAttemptState/);
+    assert.match(biometric, /IDENTITY_SAME_CAPTURE_LIMIT = 2/);
+    assert.match(biometric, /IDENTITY_FRESH_CAPTURE_LIMIT = 5/);
+    assert.match(biometric, /last_capture_digest/);
+    assert.match(client, /RECAPTURAR BIOMETRÍA FACIAL/);
+    assert.match(client, /effectiveIdentityStepKeys/);
+});
