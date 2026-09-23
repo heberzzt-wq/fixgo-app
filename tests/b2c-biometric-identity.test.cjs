@@ -297,6 +297,13 @@ test("release gate lets fresh recapture continue while stale evidence remains bo
 });
 
 
+test("biometric profile writes use transaction.update for dotted Firestore field paths", () => {
+    const source = require("node:fs").readFileSync(require("node:path").resolve(__dirname, "../functions/b2c-biometric-identity.js"), "utf8");
+    assert.match(source, /transaction\.update\(profileRef, publicPatch\)/);
+    assert.doesNotMatch(source, /transaction\.set\(profileRef, publicPatch, \{ merge: true \}\)/);
+    assert.match(source, /transaction\.update\(profileRef, \{[\s\S]*?"kyc\.identity_machine_status"/);
+});
+
 test("rejected recapture is audit-only and canonical profile promotion is reserved for verified status", () => {
     const source = require("node:fs").readFileSync(require("node:path").resolve(__dirname, "../functions/b2c-biometric-identity.js"), "utf8");
     assert.match(source, /const promotedRecapturePatch =\s*status === "verified"\s*\? recaptureProfilePatch\(recaptureEvidence\)\s*:\s*\{\}/s);

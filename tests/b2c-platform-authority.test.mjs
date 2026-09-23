@@ -47,6 +47,16 @@ function approvedTechnician(overrides = {}) {
     };
 }
 
+test("customer identity admin decisions update nested kyc field paths instead of creating dotted top-level keys", () => {
+    const source = fs.readFileSync(path.join(root, "functions", "b2c-platform-authority.js"), "utf8");
+    const block = source.slice(
+        source.indexOf('if (["approve_customer_identity", "request_customer_identity_recapture"].includes(action))'),
+        source.indexOf('const technicianId = clean(data?.technicianId')
+    );
+    assert.match(block, /transaction\.update\(customerRef, \{/);
+    assert.doesNotMatch(block, /transaction\.set\(customerRef, \{[\s\S]*?"kyc\.identity_verified"/);
+});
+
 test("customer manual identity approval is auditable and does not fake machine verification", () => {
     const source = fs.readFileSync(path.join(root, "functions", "b2c-platform-authority.js"), "utf8");
     const actionBlock = source.slice(

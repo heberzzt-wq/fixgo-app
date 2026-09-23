@@ -403,7 +403,7 @@ function createAdminNocActionHandler({ admin, db, functions }) {
                         throw callableError(functions, "failed-precondition", "El expediente no está listo para aprobación manual segura.");
                     }
 
-                    transaction.set(customerRef, {
+                    transaction.update(customerRef, {
                         foto_perfil: selfieUrl,
                         estado: "activo",
                         status: "activo",
@@ -418,14 +418,14 @@ function createAdminNocActionHandler({ admin, db, functions }) {
                         "kyc.identity_review_decision_reason": reason,
                         "kyc.identity_review_decided_at": now,
                         "kyc.identity_verification_method": "admin_manual_review"
-                    }, { merge: true });
+                    });
                     transaction.set(registryRef, {
                         status: "active",
                         manual_review: true,
                         updated_at: now
                     }, { merge: true });
                 } else {
-                    transaction.set(customerRef, {
+                    transaction.update(customerRef, {
                         estado: "identidad_revision",
                         status: "identidad_revision",
                         disponible: false,
@@ -438,7 +438,7 @@ function createAdminNocActionHandler({ admin, db, functions }) {
                         "kyc.identity_review_status": "recapture_required",
                         "kyc.identity_review_decision_reason": reason,
                         "kyc.identity_review_decided_at": now
-                    }, { merge: true });
+                    });
                     if (registrySnapshot.exists) {
                         transaction.set(registryRef, {
                             status: "pending_admin_review",

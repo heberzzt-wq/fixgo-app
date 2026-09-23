@@ -726,13 +726,13 @@ function createVerifyB2cIdentityHandler({
                     engine_version: BIOMETRIC_ENGINE_VERSION,
                     created_at: now()
                 });
-                transaction.set(profileRef, {
+                transaction.update(profileRef, {
                     disponible: false,
                     "kyc.identity_machine_verified": false,
                     "kyc.identity_machine_status": "review_required",
                     "kyc.identity_machine_reasons": ["IDENTITY_REGISTRY_CAPACITY_REVIEW_REQUIRED"],
                     "kyc.identity_machine_checked_at": now()
-                }, { merge: true });
+                });
                 return { status: "review_required", reasons: ["IDENTITY_REGISTRY_CAPACITY_REVIEW_REQUIRED"] };
             }
 
@@ -831,7 +831,9 @@ function createVerifyB2cIdentityHandler({
                 }
             }
 
-            transaction.set(profileRef, publicPatch, { merge: true });
+            // update() is required here because publicPatch intentionally uses
+            // Firestore field paths such as "kyc.identity_verified" and "documentos.ine".
+            transaction.update(profileRef, publicPatch);
             transaction.set(auditRef, {
                 uid,
                 role,
