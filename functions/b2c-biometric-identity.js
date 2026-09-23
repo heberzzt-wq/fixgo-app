@@ -654,9 +654,13 @@ function createVerifyB2cIdentityHandler({
             }
 
             const timestamp = now();
+            const promotedRecapturePatch =
+                status === "verified"
+                    ? recaptureProfilePatch(recaptureEvidence)
+                    : {};
             const publicPatch = {
                 disponible: false,
-                ...recaptureProfilePatch(recaptureEvidence),
+                ...promotedRecapturePatch,
                 "kyc.identity_machine_status": status,
                 "kyc.identity_machine_verified": status === "verified",
                 "kyc.identity_machine_reasons": reasons,
@@ -664,7 +668,13 @@ function createVerifyB2cIdentityHandler({
                 "kyc.identity_machine_checked_at": timestamp,
                 "kyc.identity_capture_digest": digest,
                 "kyc.identity_capture_status": Object.keys(recaptureEvidence).length > 0
-                    ? "recaptured_pending_verification"
+                    ? (
+                        status === "verified"
+                            ? "recaptured_verified"
+                            : status === "duplicate_suspected"
+                                ? "recaptured_duplicate_review"
+                                : "recaptured_review_required"
+                    )
                     : profile.kyc?.identity_capture_status || "captured_pending_verification",
                 "kyc.identity_capture_completed_at": Object.keys(recaptureEvidence).length > 0
                     ? timestamp

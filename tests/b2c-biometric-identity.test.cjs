@@ -237,6 +237,14 @@ test("release gate lets fresh recapture continue while stale evidence remains bo
 });
 
 
+test("rejected recapture is audit-only and canonical profile promotion is reserved for verified status", () => {
+    const source = require("node:fs").readFileSync(require("node:path").resolve(__dirname, "../functions/b2c-biometric-identity.js"), "utf8");
+    assert.match(source, /const promotedRecapturePatch =\s*status === "verified"\s*\? recaptureProfilePatch\(recaptureEvidence\)\s*:\s*\{\}/s);
+    assert.match(source, /"recaptured_review_required"/);
+    assert.match(source, /"recaptured_duplicate_review"/);
+    assert.match(source, /"recaptured_verified"/);
+});
+
 test("immutable biometric recapture paths are owner-confined and map to canonical profile fields", () => {
     const uid = "owner-1";
     const bucketName = "fixgo-44e4d.firebasestorage.app";

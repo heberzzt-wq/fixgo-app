@@ -487,20 +487,19 @@ export async function iniciarPanelCliente(user) {
         const result = await verificarIdentidadB2C({ recaptureEvidence });
         customerIdentityRecovery.pendingUpload = false;
 
-        for (const step of changedSteps) {
-            const adopted = recaptureEvidence[step.key];
-            if (!adopted?.url) continue;
-            const patch = step.patch(adopted.url);
-            if (patch.foto_perfil) user.foto_perfil = patch.foto_perfil;
-            if (patch.documentos) {
-                user.documentos = {
-                    ...(user.documentos || {}),
-                    ...patch.documentos
-                };
-            }
-        }
-
         if (result?.status === "verified") {
+            for (const step of changedSteps) {
+                const adopted = recaptureEvidence[step.key];
+                if (!adopted?.url) continue;
+                const patch = step.patch(adopted.url);
+                if (patch.foto_perfil) user.foto_perfil = patch.foto_perfil;
+                if (patch.documentos) {
+                    user.documentos = {
+                        ...(user.documentos || {}),
+                        ...patch.documentos
+                    };
+                }
+            }
             if (status) status.textContent = "✅ Identidad verificada. Activando tu cuenta…";
             setTimeout(() => window.location.reload(), 800);
             return;
