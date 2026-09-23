@@ -224,14 +224,37 @@ function recaptureProfilePatch(recapture = {}) {
     return patch;
 }
 
-async function verifyIdentityStorage({ bucket, uid, profile }) {
-    const references = {
+const CUSTOMER_IDENTITY_EVIDENCE_KINDS = Object.freeze([
+    "selfie_front",
+    "ine_front",
+    "ine_back"
+]);
+
+const TECHNICIAN_IDENTITY_EVIDENCE_KINDS = Object.freeze([
+    "selfie_front",
+    "ine_front",
+    "ine_back",
+    "selfie_left",
+    "selfie_right"
+]);
+
+function identityEvidenceKindsForRole(role) {
+    return role === "cliente"
+        ? [...CUSTOMER_IDENTITY_EVIDENCE_KINDS]
+        : [...TECHNICIAN_IDENTITY_EVIDENCE_KINDS];
+}
+
+async function verifyIdentityStorage({ bucket, uid, profile, role = "tecnico" }) {
+    const allReferences = {
         selfie_front: profile.foto_perfil,
         ine_front: profile.documentos?.ine,
         ine_back: profile.documentos?.ine_reverso,
         selfie_left: profile.documentos?.selfie_liveness_left,
         selfie_right: profile.documentos?.selfie_liveness_right
     };
+    const references = Object.fromEntries(
+        identityEvidenceKindsForRole(role).map(kind => [kind, allReferences[kind]])
+    );
     const verified = {};
     for (const [kind, reference] of Object.entries(references)) {
         const storagePath = referenceStoragePath(reference, bucket.name, uid, kind);
@@ -411,6 +434,40 @@ function biometricQualityMetrics(quality = {}) {
     };
 }
 
+function assessCustomerIdentityAnalyses({ analyses, similarity }) {
+    const reasons = [];
+    const quality = {};
+
+    for (const kind of ["ine_front", "selfie_front"]) {
+        const checked = primaryFace(analyses[kind], kind, { requireLive: false });
+        quality[kind] = checked.face || null;
+        reasons.push(...checked.reasons);
+    }
+
+    const qualityMetrics = biometricQualityMetrics(quality);
+    if (reasons.length) {
+        return { status: "review_required", reasons, quality, metrics: qualityMetrics };
+    }
+
+    const front = quality.selfie_front;
+    const ine = quality.ine_front;
+    const idMatch = similarity(front.embedding, ine.embedding);
+    if (idMatch < THRESHOLDS.idDocumentMatch) reasons.push("SELFIE_INE_FACE_MISMATCH");
+
+    const yawFront = radiansToDegrees(front.yaw);
+    if (Math.abs(yawFront) > THRESHOLDS.frontYawMaxDeg) reasons.push("SELFIE_FRONT_NOT_CENTERED");
+
+    return {
+        status: reasons.length ? "review_required" : "verified",
+        reasons,
+        embedding: front.embedding,
+        metrics: {
+            selfie_ine_similarity: roundScore(idMatch),
+            ...qualityMetrics
+        }
+    };
+}
+
 function assessIdentityAnalyses({ analyses, hashes, similarity }) {
     const reasons = [];
     const quality = {};
@@ -521,6 +578,10 @@ function createVerifyB2cIdentityHandler({
                 uid,
                 bucketName: storageBucket.name
             });
+            const allowedKinds = new Set(identityEvidenceKindsForRole(role));
+            recaptureEvidence = Object.fromEntries(
+                Object.entries(recaptureEvidence).filter(([kind]) => allowedKinds.has(kind))
+            );
             verificationProfile = applyRecaptureEvidenceToProfile(profile, recaptureEvidence);
         } catch (error) {
             throw new functions.https.HttpsError(
@@ -533,7 +594,12 @@ function createVerifyB2cIdentityHandler({
         let verified;
         let buffers;
         try {
-            verified = await verifyIdentityStorage({ bucket: storageBucket, uid, profile: verificationProfile });
+            verified = await verifyIdentityStorage({
+                bucket: storageBucket,
+                uid,
+                profile: verificationProfile,
+                role
+            });
             buffers = await downloadIdentityBuffers(storageBucket, verified);
         } catch (error) {
             await profileRef.set({
@@ -600,13 +666,18 @@ function createVerifyB2cIdentityHandler({
         try {
             runtime = await runtimeFactory();
             const analyses = {};
-            for (const kind of ["ine_front", "selfie_front", "selfie_left", "selfie_right"]) {
+            const analysisKinds = role === "cliente"
+                ? ["ine_front", "selfie_front"]
+                : ["ine_front", "selfie_front", "selfie_left", "selfie_right"];
+            for (const kind of analysisKinds) {
                 analyses[kind] = await runtime.analyze(buffers[kind]);
             }
             const hashes = Object.fromEntries(
                 Object.entries(buffers).map(([kind, buffer]) => [kind, crypto.createHash("sha256").update(buffer).digest("hex")])
             );
-            assessment = assessIdentityAnalyses({ analyses, hashes, similarity: runtime.similarity });
+            assessment = role === "cliente"
+                ? assessCustomerIdentityAnalyses({ analyses, similarity: runtime.similarity })
+                : assessIdentityAnalyses({ analyses, hashes, similarity: runtime.similarity });
         } catch (error) {
             console.error("[B2C_BIOMETRIC_ENGINE_FAILED]", { uid, code: safeText(error.code || error.message, 160) });
             assessment = { status: "review_required", reasons: ["BIOMETRIC_ENGINE_UNAVAILABLE"], metrics: {} };
@@ -747,6 +818,10 @@ module.exports = {
     IDENTITY_CAPTURE_VERSION,
     REGISTRY_LIMIT,
     THRESHOLDS,
+    CUSTOMER_IDENTITY_EVIDENCE_KINDS,
+    TECHNICIAN_IDENTITY_EVIDENCE_KINDS,
+    identityEvidenceKindsForRole,
+    assessCustomerIdentityAnalyses,
     assessIdentityAnalyses,
     bestRegistryMatch,
     captureDigest,

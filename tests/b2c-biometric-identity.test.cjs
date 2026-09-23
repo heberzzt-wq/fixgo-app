@@ -2,6 +2,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
     THRESHOLDS,
+    identityEvidenceKindsForRole,
+    assessCustomerIdentityAnalyses,
     assessIdentityAnalyses,
     bestRegistryMatch,
     captureDigest,
@@ -44,6 +46,21 @@ function validAnalyses() {
         selfie_right: face({ embeddingValue: 0.97, yaw: 0.30 })
     };
 }
+
+test("customer verification uses INE plus one frontal selfie without static-frame liveness gates", () => {
+    const analyses = {
+        ine_front: face({ embeddingValue: 0.95 }),
+        selfie_front: face({ embeddingValue: 1, real: 0.05, live: 0.04, yaw: 0 })
+    };
+    const result = assessCustomerIdentityAnalyses({ analyses, similarity });
+    assert.equal(result.status, "verified");
+    assert.deepEqual(result.reasons, []);
+    assert.ok(result.metrics.selfie_ine_similarity >= THRESHOLDS.idDocumentMatch);
+    assert.equal(result.metrics.selfie_front_real, 0.05);
+    assert.equal(result.metrics.selfie_front_live, 0.04);
+    assert.deepEqual(identityEvidenceKindsForRole("cliente"), ["selfie_front", "ine_front", "ine_back"]);
+    assert.deepEqual(identityEvidenceKindsForRole("tecnico"), ["selfie_front", "ine_front", "ine_back", "selfie_left", "selfie_right"]);
+});
 
 test("biometric assessment verifies one live person matching INE with opposite head turns", () => {
     const result = assessIdentityAnalyses({

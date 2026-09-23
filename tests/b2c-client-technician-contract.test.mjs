@@ -285,9 +285,16 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(client, /REANUDAR CAPTURA DE IDENTIDAD/);
     assert.match(client, /identityEvidenceComplete/);
     assert.match(client, /identityStepKeysFromReasons/);
+    assert.match(client, /Legacy static-frame liveness results are not customer gates anymore/);
+    const customerIdentitySteps = client.slice(client.indexOf("const customerIdentityAllSteps"), client.indexOf("function identityStepKeysFromReasons"));
+    assert.doesNotMatch(customerIdentitySteps, /selfie_left|selfie_right|selfie_liveness_left|selfie_liveness_right/);
+    const customerRegistration = registration.slice(registration.indexOf("if (btnRegistroCliente)"), registration.indexOf("// ======================================================\n// B. LÓGICA DE TÉCNICOS"));
+    assert.doesNotMatch(customerRegistration, /selfie_liveness_left|selfie_liveness_right|archivoSelfieIzquierda|archivoSelfieDerecha/);
+    assert.match(registration, /function identityStepsForTarget\(target\)/);
+    assert.match(registration, /target === "cliente"[\s\S]*?identitySteps\.slice\(0, 3\)/);
     assert.match(client, /describeIdentityReview/);
     assert.match(client, /targetedRecaptureAvailable/);
-    assert.match(client, /RECAPTURAR PRUEBA DE VIDA/);
+    assert.match(client, /RECAPTURAR SELFIE/);
     assert.match(client, /failedStepKeys\.has\(step\.key\)/);
     assert.match(client, /startCustomerIdentityRecovery\([\s\S]*reasonsOverride = identityReasons,[\s\S]*stepKeysOverride = null[\s\S]*\)/);
     assert.match(client, /identityStepKeysFromReasons\(reasonsOverride\)/);
@@ -430,10 +437,11 @@ test("release gate keeps mobile identity capture bank-style without document zoo
 
 test("release gate recaptures only failed biometric evidence and hides raw reason codes", () => {
     const client = fs.readFileSync(new URL("../panel-cliente.js", import.meta.url), "utf8");
-    assert.match(client, /RECAPTURAR PRUEBA DE VIDA/);
+    assert.match(client, /RECAPTURAR SELFIE/);
     assert.match(client, /failedStepKeys\.has\(step\.key\)/);
     assert.match(client, /describeIdentityReview/);
     assert.match(client, /targetedRecaptureAvailable/);
+    assert.match(client, /Legacy static-frame liveness results are not customer gates anymore/);
 });
 
 

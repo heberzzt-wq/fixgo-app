@@ -127,84 +127,43 @@ export async function iniciarPanelCliente(user) {
             fileName: "selfie-frente.jpg",
             exists: () => Boolean(user.foto_perfil),
             patch: url => ({ foto_perfil: url })
-        },
-        {
-            key: "selfie_left",
-            kind: "selfie_liveness_left",
-            title: "Prueba de vida · izquierda",
-            hint: "Conserva la misma distancia y gira suavemente la cabeza hacia tu izquierda.",
-            tip: "Mantén hombros de frente. El sistema necesita ver el giro, no un primer plano.",
-            facing: "user",
-            frame: "face",
-            fileName: "selfie-izquierda.jpg",
-            exists: () => Boolean(user.documentos?.selfie_liveness_left),
-            patch: url => ({ documentos: { selfie_liveness_left: url } })
-        },
-        {
-            key: "selfie_right",
-            kind: "selfie_liveness_right",
-            title: "Prueba de vida · derecha",
-            hint: "Conserva la misma distancia y gira suavemente la cabeza hacia tu derecha.",
-            tip: "Último paso. Mantén el teléfono quieto, buena iluminación y algo de hombros visible.",
-            facing: "user",
-            frame: "face",
-            fileName: "selfie-derecha.jpg",
-            exists: () => Boolean(user.documentos?.selfie_liveness_right),
-            patch: url => ({ documentos: { selfie_liveness_right: url } })
         }
     ];
 
     function identityStepKeysFromReasons(reasons = []) {
         const keys = new Set();
-        const add = key => {
-            if (["ine_front", "selfie_front", "selfie_left", "selfie_right"].includes(key)) keys.add(key);
-        };
-
         for (const rawReason of reasons) {
             const reason = String(rawReason || "").trim();
-            const suffix = reason.match(/:(ine_front|selfie_front|selfie_left|selfie_right)$/)?.[1];
-            if (suffix) add(suffix);
 
-            if (reason === "LIVENESS_LEFT_IDENTITY_MISMATCH") add("selfie_left");
-            if (reason === "LIVENESS_RIGHT_IDENTITY_MISMATCH") add("selfie_right");
+            // Legacy static-frame liveness results are not customer gates anymore.
+            if (/^FACE_(?:LIVENESS|ANTISPOOF)_LOW:/.test(reason) || reason.startsWith("LIVENESS_")) {
+                continue;
+            }
+
+            const suffix = reason.match(/:(ine_front|selfie_front)$/)?.[1];
+            if (suffix) keys.add(suffix);
+
             if (reason === "SELFIE_INE_FACE_MISMATCH") {
-                add("ine_front");
-                add("selfie_front");
+                keys.add("ine_front");
+                keys.add("selfie_front");
             }
-            if (reason === "SELFIE_FRONT_NOT_CENTERED") add("selfie_front");
-            if (reason === "LIVENESS_HEAD_TURN_TOO_SMALL" || reason === "LIVENESS_HEAD_TURNS_NOT_OPPOSITE") {
-                add("selfie_left");
-                add("selfie_right");
-            }
-            if (reason === "LIVENESS_DUPLICATE_FRAME") {
-                add("selfie_front");
-                add("selfie_left");
-                add("selfie_right");
-            }
+            if (reason === "SELFIE_FRONT_NOT_CENTERED") keys.add("selfie_front");
         }
-
         return keys;
     }
 
     function describeIdentityReview(reasons = [], failedKeys = new Set()) {
         const labels = {
             ine_front: "INE frente",
-            selfie_front: "selfie frontal",
-            selfie_left: "giro a la izquierda",
-            selfie_right: "giro a la derecha"
+            selfie_front: "selfie frontal"
         };
         const failed = [...failedKeys].map(key => labels[key]).filter(Boolean);
-        const allFace = failed.length > 0 && [...failedKeys].every(key => key.startsWith("selfie_"));
-        const livenessIssue = reasons.some(reason => /LIVENESS|ANTISPOOF/.test(String(reason || "")));
 
-        if (failed.length > 0 && allFace && livenessIssue) {
-            return `La prueba de vida no alcanzó el nivel requerido en ${failed.join(" y ")}. Repite sólo ${failed.length === 1 ? "esa toma" : "esas tomas"} con buena luz, el rostro descubierto y el teléfono estable.`;
-        }
         if (failed.length > 0) {
             return `Necesitamos repetir únicamente: ${failed.join(", ")}. El resto de tu expediente permanece guardado.`;
         }
         if (reasons.length > 0) {
-            return "La validación automática requiere una nueva revisión de identidad. Tus evidencias permanecen protegidas.";
+            return "La validación anterior pertenece al flujo biométrico anterior. Revalida con tu INE y selfie frontal.";
         }
         return "Todavía no existe un diagnóstico automático persistido.";
     }
@@ -254,8 +213,6 @@ export async function iniciarPanelCliente(user) {
         if (stepKey === "ine_front") return user.documentos?.ine || "";
         if (stepKey === "ine_back") return user.documentos?.ine_reverso || "";
         if (stepKey === "selfie_front") return user.foto_perfil || "";
-        if (stepKey === "selfie_left") return user.documentos?.selfie_liveness_left || "";
-        if (stepKey === "selfie_right") return user.documentos?.selfie_liveness_right || "";
         return "";
     }
 
@@ -263,9 +220,7 @@ export async function iniciarPanelCliente(user) {
         return ({
             ine_front: "INE · frente",
             ine_back: "INE · reverso",
-            selfie_front: "Selfie frontal",
-            selfie_left: "Giro izquierda",
-            selfie_right: "Giro derecha"
+            selfie_front: "Selfie frontal"
         })[stepKey] || stepKey;
     }
 
@@ -483,7 +438,7 @@ export async function iniciarPanelCliente(user) {
             recaptureEvidence[step.key] = uploaded;
         }
 
-        if (status) status.textContent = "Validando INE, rostro, prueba de vida y duplicados…";
+        if (status) status.textContent = "Validando INE, rostro y coincidencias…";
         const result = await verificarIdentidadB2C({ recaptureEvidence });
         customerIdentityRecovery.pendingUpload = false;
 
@@ -690,16 +645,14 @@ export async function iniciarPanelCliente(user) {
     const identityEvidenceComplete = Boolean(
         user.foto_perfil &&
         user.documentos?.ine &&
-        user.documentos?.ine_reverso &&
-        user.documentos?.selfie_liveness_left &&
-        user.documentos?.selfie_liveness_right
+        user.documentos?.ine_reverso
     );
     const failedIdentityStepKeys = identityStepKeysFromReasons(identityReasons);
     const fallbackIdentityStepKeys =
         identityEvidenceComplete &&
         identityReasons.length === 0 &&
         ["review_required", "pending_capture"].includes(identityStatus)
-            ? new Set(["selfie_front", "selfie_left", "selfie_right"])
+            ? new Set(["selfie_front"])
             : new Set();
     const effectiveIdentityStepKeys =
         failedIdentityStepKeys.size > 0
@@ -720,7 +673,7 @@ export async function iniciarPanelCliente(user) {
         : fallbackBiometricRecapture
             ? "RECAPTURAR BIOMETRÍA FACIAL"
             : targetedRecaptureAvailable
-                ? (targetedRecaptureIsFaceOnly ? "RECAPTURAR PRUEBA DE VIDA" : "RECAPTURAR EVIDENCIA RECHAZADA")
+                ? (targetedRecaptureIsFaceOnly ? "RECAPTURAR SELFIE" : "RECAPTURAR EVIDENCIA RECHAZADA")
                 : "REINTENTAR VALIDACIÓN AUTOMÁTICA";
     const identityBlocked = user.tipo_cuenta === "B2C" &&
         user.kyc?.identity_required === true &&
@@ -793,7 +746,7 @@ export async function iniciarPanelCliente(user) {
 
             retryButton.disabled = true;
             retryButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> VALIDANDO EVIDENCIAS…';
-            if (retryStatus) retryStatus.textContent = "Analizando INE, rostro, prueba de vida y coincidencias…";
+            if (retryStatus) retryStatus.textContent = "Analizando INE, rostro y coincidencias…";
 
             try {
                 const result = await verificarIdentidadB2C();

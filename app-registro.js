@@ -354,8 +354,8 @@ if (btnRegistroCliente) {
             return;
         }
         if (requiereIdentidadB2C && (!identityCaptureState.complete || identityCaptureState.target !== "cliente" ||
-            !archivoFotoPerfil || !archivoINE || !archivoINEReverso || !archivoSelfieIzquierda || !archivoSelfieDerecha)) {
-            alert("🪪 Completa INE frente/reverso y la prueba de vida antes de crear tu cuenta.");
+            !archivoFotoPerfil || !archivoINE || !archivoINEReverso)) {
+            alert("🪪 Completa INE frente/reverso y una selfie frontal antes de crear tu cuenta.");
             return;
         }
 
@@ -438,12 +438,6 @@ if (btnRegistroCliente) {
                     { kycState: "identidad_pendiente" });
                 await subirDocumentoExpedienteRecuperable(uid, "ine_reverso", archivoINEReverso,
                     async (url) => confirmarCampo({ documentos: { ine_reverso: url } })(),
-                    { kycState: "identidad_pendiente" });
-                await subirDocumentoExpedienteRecuperable(uid, "selfie_liveness_left", archivoSelfieIzquierda,
-                    async (url) => confirmarCampo({ documentos: { selfie_liveness_left: url } })(),
-                    { kycState: "identidad_pendiente" });
-                await subirDocumentoExpedienteRecuperable(uid, "selfie_liveness_right", archivoSelfieDerecha,
-                    async (url) => confirmarCampo({ documentos: { selfie_liveness_right: url } })(),
                     { kycState: "identidad_pendiente" });
 
                 await setDoc(userRef, {
@@ -603,12 +597,19 @@ const identitySteps = [
     { key: "selfie_right", title: "Prueba de vida · gira a tu derecha", hint: "Conserva la misma distancia y gira suavemente la cabeza hacia tu derecha.", tip: "Último paso. Mantén buena iluminación, cabeza completa y parte de los hombros visibles.", facing: "user", frame: "face", fileName: "selfie-derecha.jpg" }
 ];
 
+function identityStepsForTarget(target) {
+    return target === "cliente"
+        ? identitySteps.slice(0, 3)
+        : identitySteps;
+}
+
 const identityCaptureState = {
     stepIndex: 0,
     stream: null,
     complete: false,
     files: {},
     target: null,
+    steps: identitySteps,
     retakeOnlyKey: null,
     previewUrls: {}
 };
@@ -623,15 +624,27 @@ function stopIdentityCamera() {
 }
 
 function renderIdentityProgress() {
+    const activeSteps = identityCaptureState.steps;
+    const progressGrid = $("identityBar0")?.parentElement;
+    if (progressGrid) {
+        progressGrid.style.gridTemplateColumns = `repeat(${activeSteps.length}, minmax(0, 1fr))`;
+    }
+
     identitySteps.forEach((step, index) => {
+        const visible = index < activeSteps.length;
         const card = $("identityStep" + index);
         const bar = $("identityBar" + index);
+        card?.classList.toggle("hidden", !visible);
+        bar?.classList.toggle("hidden", !visible);
+        if (!visible) return;
+
+        const activeStep = activeSteps[index];
         if (card) {
-            card.classList.toggle("is-done", Boolean(identityCaptureState.files[step.key]));
+            card.classList.toggle("is-done", Boolean(identityCaptureState.files[activeStep.key]));
             card.classList.toggle("is-active", !identityCaptureState.complete && index === identityCaptureState.stepIndex);
         }
         if (bar) {
-            const done = Boolean(identityCaptureState.files[step.key]);
+            const done = Boolean(identityCaptureState.files[activeStep.key]);
             const active = !identityCaptureState.complete && index === identityCaptureState.stepIndex;
             bar.className = "h-1.5 rounded-full " + (done || active ? "bg-emerald-500" : "bg-zinc-800");
         }
@@ -639,7 +652,7 @@ function renderIdentityProgress() {
 }
 
 async function openIdentityCameraForStep() {
-    const step = identitySteps[identityCaptureState.stepIndex];
+    const step = identityCaptureState.steps[identityCaptureState.stepIndex];
     if (!step) return;
     const video = $("identityVideo");
     const captureButton = $("btnCapturarIdentidad");
@@ -649,7 +662,7 @@ async function openIdentityCameraForStep() {
 
     stopIdentityCamera();
     captureButton.disabled = true;
-    $("identityModalEyebrow").textContent = `Identidad ${identityCaptureState.stepIndex + 1} de ${identitySteps.length}`;
+    $("identityModalEyebrow").textContent = `Identidad ${identityCaptureState.stepIndex + 1} de ${identityCaptureState.steps.length}`;
     $("identityModalTitle").textContent = step.title;
     $("identityModalHint").textContent = step.hint;
     $("identityTip").textContent = step.tip;
@@ -744,8 +757,9 @@ function renderIdentityReview() {
     const status = $("identityReviewStatus");
     if (!grid || !confirm) return;
 
-    const allReady = identitySteps.every(step => Boolean(identityCaptureState.files[step.key]));
-    grid.innerHTML = identitySteps.map(step => {
+    const activeSteps = identityCaptureState.steps;
+    const allReady = activeSteps.every(step => Boolean(identityCaptureState.files[step.key]));
+    grid.innerHTML = activeSteps.map(step => {
         const url = identityPreviewUrl(step.key);
         const ready = Boolean(url);
         return `
@@ -773,7 +787,7 @@ function renderIdentityReview() {
     grid.querySelectorAll("[data-identity-retake]").forEach(button => {
         button.addEventListener("click", async () => {
             const key = button.dataset.identityRetake;
-            const index = identitySteps.findIndex(step => step.key === key);
+            const index = identityCaptureState.steps.findIndex(step => step.key === key);
             if (index < 0) return;
             identityCaptureState.retakeOnlyKey = key;
             identityCaptureState.stepIndex = index;
@@ -810,7 +824,7 @@ function showIdentityReview() {
 }
 
 async function captureIdentityFrame() {
-    const step = identitySteps[identityCaptureState.stepIndex];
+    const step = identityCaptureState.steps[identityCaptureState.stepIndex];
     const video = $("identityVideo");
     const canvas = $("identityCanvas");
     if (!step || !video || !canvas || video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
@@ -838,15 +852,15 @@ async function captureIdentityFrame() {
 
     if (identityCaptureState.retakeOnlyKey) {
         identityCaptureState.retakeOnlyKey = null;
-        identityCaptureState.complete = identitySteps.every(item => Boolean(identityCaptureState.files[item.key]));
+        identityCaptureState.complete = identityCaptureState.steps.every(item => Boolean(identityCaptureState.files[item.key]));
         stopIdentityCamera();
         showIdentityReview();
         renderIdentityProgress();
         return;
     }
 
-    if (identityCaptureState.stepIndex >= identitySteps.length) {
-        identityCaptureState.complete = identitySteps.every(item => Boolean(identityCaptureState.files[item.key]));
+    if (identityCaptureState.stepIndex >= identityCaptureState.steps.length) {
+        identityCaptureState.complete = identityCaptureState.steps.every(item => Boolean(identityCaptureState.files[item.key]));
         stopIdentityCamera();
         showIdentityReview();
         renderIdentityProgress();
@@ -864,6 +878,7 @@ async function startIdentityFlow(target) {
         return;
     }
     identityCaptureState.target = target;
+    identityCaptureState.steps = identityStepsForTarget(target);
     identityCaptureState.stepIndex = 0;
     identityCaptureState.complete = false;
     identityCaptureState.retakeOnlyKey = null;
@@ -900,7 +915,7 @@ $("btnIniciarIdentidadCliente")?.addEventListener("click", () => startIdentityFl
 $("btnCapturarIdentidad")?.addEventListener("click", captureIdentityFrame);
 $("btnCancelarIdentidad")?.addEventListener("click", cancelIdentityFlow);
 $("btnConfirmarIdentidad")?.addEventListener("click", () => {
-    const ready = identitySteps.every(step => Boolean(identityCaptureState.files[step.key]));
+    const ready = identityCaptureState.steps.every(step => Boolean(identityCaptureState.files[step.key]));
     if (!ready) {
         renderIdentityReview();
         return;
