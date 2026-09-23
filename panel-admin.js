@@ -1480,66 +1480,81 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  const modal = document.getElementById("modalCatalogo");
  const container = document.getElementById("gridConfiguracion");
  if (modal) modal.classList.remove("hidden");
- 
- const docRef = doc(db, "configuracion", "catalogo_global");
- const docSnap = await getDoc(docRef);
- let config = {}; 
- if(docSnap.exists()) config = docSnap.data();
- let coverageProfiles = null;
- try {
-  coverageProfiles = await cargarPerfilesCoberturaCatalogo();
- } catch (error) {
-  console.warn("[PANEL_ADMIN_CATALOG_COVERAGE_UNAVAILABLE]", error);
- }
+ if (!container) return;
 
  const MASTER_STRUCTURE = platformContract.SERVICE_CATALOG;
+ let config = {};
 
- if (container) {
- container.innerHTML = "";
- // 🔥 INYECCIÓN: INPUT PARA PRESUPUESTO MARKETING
- let html = `
- <div class="mb-4 bg-blue-900/10 rounded-xl border border-blue-500/30 overflow-hidden shadow-lg p-4 col-span-1 md:col-span-2">
- <h4 class="text-blue-400 font-bold text-xs md:text-sm uppercase tracking-widest mb-3 flex items-center gap-2"><i class="fas fa-bullhorn"></i> Presupuesto Marketing (Mensual)</h4>
- <div class="flex items-center bg-black p-3 rounded-lg border border-zinc-800">
- <span class="text-emerald-500 font-bold mr-2">$</span>
- <input type="number" id="cfg_gasto_marketing" class="bg-transparent text-white font-bold w-full focus:outline-none" placeholder="Ej. 5000" value="${config.gasto_marketing || 0}">
- <span class="text-gray-500 text-xs ml-2">MXN</span>
- </div>
- <p class="text-[9px] text-gray-500 mt-2">Este valor se usará para calcular el CAC (Costo de Adquisición de Cliente) en tiempo real en el dashboard.</p>
- </div>
- `;
- let indexCat = 0;
- 
- for (const [vertical, servicios] of Object.entries(MASTER_STRUCTURE)) {
- const categoria = platformContract.SERVICE_VERTICAL_LABELS[vertical] || vertical.toUpperCase();
- const catId = `cat_admin_${indexCat}`;
- const isHidden = indexCat === 0 ? "" : "hidden";
- const isRotated = indexCat === 0 ? "rotate-180" : "";
+ const renderCatalog = () => {
+  container.innerHTML = "";
+  let html = `
+  <div class="mb-4 bg-blue-900/10 rounded-xl border border-blue-500/30 overflow-hidden shadow-lg p-4 col-span-1 md:col-span-2">
+   <h4 class="text-blue-400 font-bold text-xs md:text-sm uppercase tracking-widest mb-3 flex items-center gap-2"><i class="fas fa-bullhorn"></i> Presupuesto Marketing (Mensual)</h4>
+   <div class="flex items-center bg-black p-3 rounded-lg border border-zinc-800">
+    <span class="text-emerald-500 font-bold mr-2">$</span>
+    <input type="number" id="cfg_gasto_marketing" class="bg-transparent text-white font-bold w-full focus:outline-none" placeholder="Ej. 5000" value="${config.gasto_marketing || 0}">
+    <span class="text-gray-500 text-xs ml-2">MXN</span>
+   </div>
+   <p class="text-[9px] text-gray-500 mt-2">Este valor se usará para calcular el CAC (Costo de Adquisición de Cliente) en tiempo real en el dashboard.</p>
+  </div>`;
 
- html += `
- <div class="mb-3 bg-zinc-900/80 rounded-xl border border-zinc-800 overflow-hidden shadow-lg">
- <div class="p-4 flex justify-between items-center cursor-pointer hover:bg-zinc-800/80 transition-colors" onclick="window.toggleCategoriaAdmin('${catId}')">
- <h4 class="text-emerald-500 font-bold text-xs md:text-sm uppercase tracking-widest">${categoria}</h4>
- <div class="bg-black/50 p-2 rounded-lg">
- <i id="icon_${catId}" class="fas fa-chevron-down text-gray-400 transition-transform duration-300 ${isRotated}"></i>
- </div>
- </div>
- <div id="${catId}" class="${isHidden} p-4 pt-0 space-y-3 border-t border-zinc-800/50 mt-2">`;
- 
- servicios.forEach(srv => {
- const coverage = Array.isArray(coverageProfiles)
-  ? platformContract.serviceCoverageCount(srv.id, coverageProfiles)
-  : null;
- const isChecked = config[srv.id] === true;
- html += generarSwitchGranular(srv.id, srv.label, isChecked, coverage, platformContract.serviceAudience(srv.id));
- });
- 
- html += `</div></div>`;
- indexCat++;
- }
- container.innerHTML = html;
- }
+  let indexCat = 0;
+  for (const [vertical, servicios] of Object.entries(MASTER_STRUCTURE)) {
+   const categoria = platformContract.SERVICE_VERTICAL_LABELS[vertical] || vertical.toUpperCase();
+   const catId = `cat_admin_${indexCat}`;
+   const isHidden = indexCat === 0 ? "" : "hidden";
+   const isRotated = indexCat === 0 ? "rotate-180" : "";
+
+   html += `
+   <div class="mb-3 bg-zinc-900/80 rounded-xl border border-zinc-800 overflow-hidden shadow-lg">
+    <div class="p-4 flex justify-between items-center cursor-pointer hover:bg-zinc-800/80 transition-colors" onclick="window.toggleCategoriaAdmin('${catId}')">
+     <h4 class="text-emerald-500 font-bold text-xs md:text-sm uppercase tracking-widest">${categoria}</h4>
+     <div class="bg-black/50 p-2 rounded-lg">
+      <i id="icon_${catId}" class="fas fa-chevron-down text-gray-400 transition-transform duration-300 ${isRotated}"></i>
+     </div>
+    </div>
+    <div id="${catId}" class="${isHidden} p-4 pt-0 space-y-3 border-t border-zinc-800/50 mt-2">`;
+
+   servicios.forEach(srv => {
+    const isChecked = config[srv.id] === true;
+    html += generarSwitchGranular(srv.id, srv.label, isChecked, null, platformContract.serviceAudience(srv.id));
+   });
+
+   html += `</div></div>`;
+   indexCat++;
+  }
+  container.innerHTML = html;
  };
+
+ try {
+  const docSnap = await getDoc(doc(db, "configuracion", "catalogo_global"));
+  if (docSnap.exists()) config = docSnap.data() || {};
+  renderCatalog();
+ } catch (error) {
+  console.error("[PANEL_ADMIN_CATALOG_CONFIG_READ_FAILED]", error);
+  container.innerHTML = '<p class="rounded-xl border border-red-500/30 bg-red-950/20 p-4 text-center text-xs font-bold text-red-300">No fue posible leer el catálogo. Cierra y vuelve a abrir esta ventana.</p>';
+  return;
+ }
+
+ // Coverage is informative only; never block catalog switches while user profiles load.
+ void cargarPerfilesCoberturaCatalogo()
+  .then(coverageProfiles => {
+   for (const [vertical, servicios] of Object.entries(MASTER_STRUCTURE)) {
+    void vertical;
+    for (const srv of servicios) {
+     const coverage = platformContract.serviceCoverageCount(srv.id, coverageProfiles);
+     const label = document.getElementById(`coverage_${srv.id}`);
+     if (!label) continue;
+     const audienceLabel = platformContract.serviceAudience(srv.id) === "b2b" ? "B2B" : "B2C";
+     label.textContent = `${audienceLabel} · ${coverage} técnico${coverage === 1 ? "" : "s"} con cobertura`;
+     label.className = `block mt-1 text-[8px] font-black uppercase tracking-wider ${coverage === 0 ? "text-amber-400" : "text-emerald-400"}`;
+    }
+   }
+  })
+  .catch(error => {
+   console.warn("[PANEL_ADMIN_CATALOG_COVERAGE_UNAVAILABLE]", error);
+  });
+};
 
  window.toggleCategoriaAdmin = (catId) => {
  const content = document.getElementById(catId);
@@ -1716,7 +1731,7 @@ function generarSwitchGranular(id, label, checked, coverage = null, audience = n
   : "cobertura no disponible";
  return `
  <div class="flex justify-between items-center bg-black p-3 rounded-lg border border-zinc-800">
- <span class="text-gray-300 text-xs md:text-sm font-medium">${label}<small class="block mt-1 text-[8px] font-black uppercase tracking-wider ${coverage === 0 ? 'text-amber-400' : 'text-emerald-400'}">${audienceLabel} · ${coverageLabel}</small></span>
+ <span class="text-gray-300 text-xs md:text-sm font-medium">${label}<small id="coverage_${id}" class="block mt-1 text-[8px] font-black uppercase tracking-wider ${coverage === 0 ? 'text-amber-400' : 'text-emerald-400'}">${audienceLabel} · ${coverageLabel}</small></span>
  <label class="relative inline-flex items-center cursor-pointer">
  <input type="checkbox" id="cfg_${id}" class="sr-only peer" ${checked ? 'checked' : ''} data-coverage="${coverage ?? ''}">
  <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>

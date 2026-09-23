@@ -362,6 +362,10 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.doesNotMatch(client, /const DEFINICION_VERTICALES\s*=\s*\{/);
     assert.match(admin, /platformContract\.SERVICE_CATALOG/);
     assert.match(admin, /platformContract\.serviceCoverageCount/);
+    assert.match(admin, /renderCatalog\(\)/);
+    assert.match(admin, /Coverage is informative only; never block catalog switches/);
+    assert.match(admin, /void cargarPerfilesCoberturaCatalogo\(\)/);
+    assert.match(admin, /coverage_\$\{id\}/);
     assert.match(admin, /nuevaConfig\[realId\]\s*=\s*input\.checked/);
     assert.doesNotMatch(admin, /nuevaConfig\[realId\]\s*=\s*coverage\s*>\s*0/);
     assert.doesNotMatch(admin, /const MASTER_STRUCTURE\s*=\s*\{/);
