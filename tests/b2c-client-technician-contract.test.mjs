@@ -329,6 +329,10 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(client, /ENVIAR A REVISIÓN/);
     assert.match(client, /identity_manual_verified/);
     assert.match(client, /admin_manual_review/);
+    assert.match(client, /customerIdentityAuthorityVerified/);
+    assert.match(client, /B2C_CUSTOMER_IDENTITY_AUTHORITY_CHANGED/);
+    assert.match(client, /onSnapshot\(\s*doc\(db, "users", user\.uid\)/);
+    assert.match(client, /window\.location\.reload\(\)/);
     assert.match(admin, /customerIdentityReviewQueue/);
     assert.match(admin, /approve_customer_identity/);
     assert.match(admin, /request_customer_identity_recapture/);

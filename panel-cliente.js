@@ -744,18 +744,41 @@ export async function iniciarPanelCliente(user) {
             : targetedRecaptureAvailable
                 ? (targetedRecaptureIsFaceOnly ? "RECAPTURAR SELFIE" : "RECAPTURAR EVIDENCIA RECHAZADA")
                 : "REINTENTAR VALIDACIÓN AUTOMÁTICA";
-    const automaticIdentityApproved =
-        user.kyc?.identity_machine_verified === true &&
-        identityStatus === "verified";
-    const manualIdentityApproved =
-        user.kyc?.identity_manual_verified === true &&
-        user.kyc?.identity_verification_method === "admin_manual_review";
-    const identityAuthorityVerified =
-        user.kyc?.identity_verified === true &&
-        (automaticIdentityApproved || manualIdentityApproved);
+    const customerIdentityAuthorityVerified = profile => {
+        const profileStatus = String(profile?.kyc?.identity_machine_status || "pending").trim();
+        const automaticApproved =
+            profile?.kyc?.identity_machine_verified === true &&
+            profileStatus === "verified";
+        const manualApproved =
+            profile?.kyc?.identity_manual_verified === true &&
+            profile?.kyc?.identity_verification_method === "admin_manual_review";
+        return profile?.kyc?.identity_verified === true &&
+            (automaticApproved || manualApproved);
+    };
+
+    const identityAuthorityVerified = customerIdentityAuthorityVerified(user);
     const identityBlocked = user.tipo_cuenta === "B2C" &&
         user.kyc?.identity_required === true &&
         !identityAuthorityVerified;
+
+    let observedIdentityAuthority = identityAuthorityVerified;
+    const unsubscribeIdentityAuthority = onSnapshot(
+        doc(db, "users", user.uid),
+        snapshot => {
+            if (!snapshot.exists()) return;
+            const freshProfile = snapshot.data() || {};
+            const freshAuthority = customerIdentityAuthorityVerified(freshProfile);
+            if (freshAuthority === observedIdentityAuthority) return;
+            observedIdentityAuthority = freshAuthority;
+            console.info("[B2C_CUSTOMER_IDENTITY_AUTHORITY_CHANGED]", {
+                verified: freshAuthority,
+                method: freshProfile.kyc?.identity_verification_method || null
+            });
+            window.location.reload();
+        },
+        error => console.warn("[B2C_CUSTOMER_IDENTITY_AUTHORITY_LISTENER_FAILED]", error)
+    );
+    window.addEventListener("beforeunload", () => unsubscribeIdentityAuthority(), { once: true });
 
     if (identityBlocked) {
         const banner = document.createElement("section");
