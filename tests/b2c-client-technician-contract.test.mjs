@@ -491,8 +491,10 @@ test("face capture keeps a wider field of view and never crops the selfie previe
 
 test("release gate keeps identity evidence user-reviewable before any biometric submit", () => {
     const client = fs.readFileSync(new URL("../panel-cliente.js", import.meta.url), "utf8");
+    const clientHtml = fs.readFileSync(new URL("../cliente.html", import.meta.url), "utf8");
     const registration = fs.readFileSync(new URL("../app-registro.js", import.meta.url), "utf8");
-    assert.match(client, /VERIFICAR MI IDENTIDAD/);
+    assert.match(clientHtml, /VERIFICAR MI IDENTIDAD/);
+    assert.match(client, /clientIdentityVerifyReviewedButton/);
     assert.match(client, /showCustomerIdentityReview/);
     assert.match(client, /data-client-identity-remove/);
     assert.match(client, /data-client-identity-retake/);
