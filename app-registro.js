@@ -599,7 +599,15 @@ const identitySteps = [
     { key: "selfie_right", title: "Prueba de vida · gira a tu derecha", hint: "Gira suavemente la cabeza hacia tu derecha.", tip: "Último paso. Mantén buena iluminación y evita mover el teléfono.", facing: "user", frame: "face", fileName: "selfie-derecha.jpg" }
 ];
 
-const identityCaptureState = { stepIndex: 0, stream: null, complete: false, files: {}, target: null };
+const identityCaptureState = {
+    stepIndex: 0,
+    stream: null,
+    complete: false,
+    files: {},
+    target: null,
+    retakeOnlyKey: null,
+    previewUrls: {}
+};
 
 function stopIdentityCamera() {
     if (identityCaptureState.stream) {
@@ -678,12 +686,123 @@ async function openIdentityCameraForStep() {
 }
 
 function mapIdentityFile(stepKey, file) {
+    const previousPreview = identityCaptureState.previewUrls[stepKey];
+    if (previousPreview) URL.revokeObjectURL(previousPreview);
+    identityCaptureState.previewUrls[stepKey] = null;
     identityCaptureState.files[stepKey] = file;
     if (stepKey === "ine_front") archivoINE = file;
     if (stepKey === "ine_back") archivoINEReverso = file;
     if (stepKey === "selfie_front") archivoFotoPerfil = file;
     if (stepKey === "selfie_left") archivoSelfieIzquierda = file;
     if (stepKey === "selfie_right") archivoSelfieDerecha = file;
+}
+
+function clearIdentityFile(stepKey) {
+    const preview = identityCaptureState.previewUrls[stepKey];
+    if (preview) URL.revokeObjectURL(preview);
+    identityCaptureState.previewUrls[stepKey] = null;
+    delete identityCaptureState.files[stepKey];
+    if (stepKey === "ine_front") archivoINE = null;
+    if (stepKey === "ine_back") archivoINEReverso = null;
+    if (stepKey === "selfie_front") archivoFotoPerfil = null;
+    if (stepKey === "selfie_left") archivoSelfieIzquierda = null;
+    if (stepKey === "selfie_right") archivoSelfieDerecha = null;
+    identityCaptureState.complete = false;
+}
+
+function identityPreviewUrl(stepKey) {
+    const file = identityCaptureState.files[stepKey];
+    if (!file) return "";
+    if (!identityCaptureState.previewUrls[stepKey]) {
+        identityCaptureState.previewUrls[stepKey] = URL.createObjectURL(file);
+    }
+    return identityCaptureState.previewUrls[stepKey];
+}
+
+function identityReviewLabel(step) {
+    return ({
+        ine_front: "INE · frente",
+        ine_back: "INE · reverso",
+        selfie_front: "Selfie frontal",
+        selfie_left: "Giro izquierda",
+        selfie_right: "Giro derecha"
+    })[step.key] || step.title;
+}
+
+function showIdentityCaptureView() {
+    $("identityCaptureView")?.classList.remove("hidden");
+    $("identityReviewView")?.classList.add("hidden");
+}
+
+function renderIdentityReview() {
+    const grid = $("identityReviewGrid");
+    const confirm = $("btnConfirmarIdentidad");
+    const status = $("identityReviewStatus");
+    if (!grid || !confirm) return;
+
+    const allReady = identitySteps.every(step => Boolean(identityCaptureState.files[step.key]));
+    grid.innerHTML = identitySteps.map(step => {
+        const url = identityPreviewUrl(step.key);
+        const ready = Boolean(url);
+        return `
+            <article class="rounded-2xl border ${ready ? "border-emerald-500/30" : "border-amber-500/35"} bg-zinc-950/80 overflow-hidden">
+                <div class="aspect-[4/3] bg-black flex items-center justify-center overflow-hidden">
+                    ${ready
+                        ? `<img src="${url}" alt="${identityReviewLabel(step)}" class="w-full h-full ${step.frame === "document" ? "object-contain" : "object-cover"}">`
+                        : '<div class="text-center text-zinc-600 text-xs px-3"><i class="fas fa-image text-2xl mb-2 block"></i>Sin captura</div>'}
+                </div>
+                <div class="p-3">
+                    <p class="text-xs font-black text-white">${identityReviewLabel(step)}</p>
+                    <p class="text-[9px] mt-1 ${ready ? "text-emerald-400" : "text-amber-300"}">${ready ? "Lista para revisión" : "Debes volver a capturarla"}</p>
+                    <div class="mt-3 grid ${ready ? "grid-cols-2" : "grid-cols-1"} gap-2">
+                        <button type="button" data-identity-retake="${step.key}" class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-[10px] font-black text-emerald-200">
+                            <i class="fas fa-camera-rotate mr-1"></i> ${ready ? "REPETIR" : "CAPTURAR"}
+                        </button>
+                        ${ready ? `<button type="button" data-identity-remove="${step.key}" class="rounded-xl border border-red-500/25 bg-red-500/10 px-2 py-2 text-[10px] font-black text-red-200">
+                            <i class="fas fa-trash-can mr-1"></i> QUITAR
+                        </button>` : ""}
+                    </div>
+                </div>
+            </article>`;
+    }).join("");
+
+    grid.querySelectorAll("[data-identity-retake]").forEach(button => {
+        button.addEventListener("click", async () => {
+            const key = button.dataset.identityRetake;
+            const index = identitySteps.findIndex(step => step.key === key);
+            if (index < 0) return;
+            identityCaptureState.retakeOnlyKey = key;
+            identityCaptureState.stepIndex = index;
+            identityCaptureState.complete = false;
+            showIdentityCaptureView();
+            await openIdentityCameraForStep();
+        });
+    });
+
+    grid.querySelectorAll("[data-identity-remove]").forEach(button => {
+        button.addEventListener("click", () => {
+            clearIdentityFile(button.dataset.identityRemove);
+            renderIdentityReview();
+            renderIdentityProgress();
+        });
+    });
+
+    confirm.disabled = !allReady;
+    if (status) {
+        status.textContent = allReady
+            ? "Si todo se ve bien, confirma estas capturas. Todavía no se han enviado a validación."
+            : "Falta al menos una evidencia. Captúrala antes de continuar.";
+    }
+}
+
+function showIdentityReview() {
+    stopIdentityCamera();
+    $("identityCaptureView")?.classList.add("hidden");
+    $("identityReviewView")?.classList.remove("hidden");
+    $("identityModalEyebrow").textContent = "Revisión previa";
+    $("identityModalTitle").textContent = "Revisa tu identidad";
+    $("identityModalHint").textContent = "Puedes repetir o quitar cualquier foto antes de continuar.";
+    renderIdentityReview();
 }
 
 async function captureIdentityFrame() {
@@ -713,17 +832,19 @@ async function captureIdentityFrame() {
     identityCaptureState.stepIndex += 1;
     renderIdentityProgress();
 
-    if (identityCaptureState.stepIndex >= identitySteps.length) {
-        identityCaptureState.complete = true;
+    if (identityCaptureState.retakeOnlyKey) {
+        identityCaptureState.retakeOnlyKey = null;
+        identityCaptureState.complete = identitySteps.every(item => Boolean(identityCaptureState.files[item.key]));
         stopIdentityCamera();
-        closeIdentityModal();
-        const isCustomerIdentity = identityCaptureState.target === "cliente";
-        const summary = $(isCustomerIdentity ? "identitySummaryCliente" : "identitySummary");
-        const restartButton = $(isCustomerIdentity ? "btnIniciarIdentidadCliente" : "btnIniciarIdentidad");
-        if (summary) {
-            summary.innerHTML = '<i class="fas fa-circle-check text-emerald-400 mr-2"></i><strong class="text-emerald-300">Identidad capturada.</strong> Pendiente de validación segura.';
-        }
-        if (restartButton) restartButton.innerHTML = '<i class="fas fa-rotate mr-2"></i> REPETIR VERIFICACIÓN';
+        showIdentityReview();
+        renderIdentityProgress();
+        return;
+    }
+
+    if (identityCaptureState.stepIndex >= identitySteps.length) {
+        identityCaptureState.complete = identitySteps.every(item => Boolean(identityCaptureState.files[item.key]));
+        stopIdentityCamera();
+        showIdentityReview();
         renderIdentityProgress();
         return;
     }
@@ -741,6 +862,11 @@ async function startIdentityFlow(target) {
     identityCaptureState.target = target;
     identityCaptureState.stepIndex = 0;
     identityCaptureState.complete = false;
+    identityCaptureState.retakeOnlyKey = null;
+    for (const url of Object.values(identityCaptureState.previewUrls || {})) {
+        if (url) URL.revokeObjectURL(url);
+    }
+    identityCaptureState.previewUrls = {};
     identityCaptureState.files = {};
     archivoFotoPerfil = null;
     archivoINE = null;
@@ -748,6 +874,7 @@ async function startIdentityFlow(target) {
     archivoSelfieIzquierda = null;
     archivoSelfieDerecha = null;
     $("modalIdentidadTecnico").classList.remove("hidden");
+    showIdentityCaptureView();
     document.documentElement.classList.add("identity-modal-open");
     document.body.classList.add("identity-modal-open");
     await openIdentityCameraForStep();
@@ -768,6 +895,23 @@ $("btnIniciarIdentidad")?.addEventListener("click", () => startIdentityFlow("tec
 $("btnIniciarIdentidadCliente")?.addEventListener("click", () => startIdentityFlow("cliente"));
 $("btnCapturarIdentidad")?.addEventListener("click", captureIdentityFrame);
 $("btnCancelarIdentidad")?.addEventListener("click", cancelIdentityFlow);
+$("btnConfirmarIdentidad")?.addEventListener("click", () => {
+    const ready = identitySteps.every(step => Boolean(identityCaptureState.files[step.key]));
+    if (!ready) {
+        renderIdentityReview();
+        return;
+    }
+    identityCaptureState.complete = true;
+    closeIdentityModal();
+    const isCustomerIdentity = identityCaptureState.target === "cliente";
+    const summary = $(isCustomerIdentity ? "identitySummaryCliente" : "identitySummary");
+    const restartButton = $(isCustomerIdentity ? "btnIniciarIdentidadCliente" : "btnIniciarIdentidad");
+    if (summary) {
+        summary.innerHTML = '<i class="fas fa-circle-check text-emerald-400 mr-2"></i><strong class="text-emerald-300">Capturas revisadas.</strong> Listas para validación segura.';
+    }
+    if (restartButton) restartButton.innerHTML = '<i class="fas fa-images mr-2"></i> REVISAR / REPETIR CAPTURAS';
+    renderIdentityProgress();
+});
 window.addEventListener("beforeunload", stopIdentityCamera);
 
 if ($("btnSubirCSF")) {

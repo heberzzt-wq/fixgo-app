@@ -214,9 +214,13 @@ export async function iniciarPanelCliente(user) {
         stepIndex: 0,
         files: new Map(),
         uploaded: new Map(),
+        previewUrls: new Map(),
+        excludedKeys: new Set(),
+        recommendedKeys: new Set(),
         stream: null,
         running: false,
-        pendingUpload: false
+        pendingUpload: false,
+        retakeOnlyKey: null
     };
 
     function stopCustomerIdentityCamera() {
@@ -244,6 +248,135 @@ export async function iniciarPanelCliente(user) {
         const label = document.getElementById("clientIdentityProgressText");
         if (bar) bar.style.width = `${percentage}%`;
         if (label) label.textContent = total > 0 ? `${current}/${total}` : "LISTO";
+    }
+
+    function customerIdentityExistingUrl(stepKey) {
+        if (stepKey === "ine_front") return user.documentos?.ine || "";
+        if (stepKey === "ine_back") return user.documentos?.ine_reverso || "";
+        if (stepKey === "selfie_front") return user.foto_perfil || "";
+        if (stepKey === "selfie_left") return user.documentos?.selfie_liveness_left || "";
+        if (stepKey === "selfie_right") return user.documentos?.selfie_liveness_right || "";
+        return "";
+    }
+
+    function customerIdentityStepLabel(stepKey) {
+        return ({
+            ine_front: "INE · frente",
+            ine_back: "INE · reverso",
+            selfie_front: "Selfie frontal",
+            selfie_left: "Giro izquierda",
+            selfie_right: "Giro derecha"
+        })[stepKey] || stepKey;
+    }
+
+    function customerIdentityPreviewUrl(step) {
+        const localFile = customerIdentityRecovery.files.get(step.key);
+        if (localFile) {
+            let url = customerIdentityRecovery.previewUrls.get(step.key);
+            if (!url) {
+                url = URL.createObjectURL(localFile);
+                customerIdentityRecovery.previewUrls.set(step.key, url);
+            }
+            return url;
+        }
+        if (customerIdentityRecovery.excludedKeys.has(step.key)) return "";
+        return customerIdentityRecovery.uploaded.get(step.key)?.url || customerIdentityExistingUrl(step.key);
+    }
+
+    function clearCustomerIdentityPreview(stepKey) {
+        const url = customerIdentityRecovery.previewUrls.get(stepKey);
+        if (url) URL.revokeObjectURL(url);
+        customerIdentityRecovery.previewUrls.delete(stepKey);
+        customerIdentityRecovery.files.delete(stepKey);
+        customerIdentityRecovery.uploaded.delete(stepKey);
+        customerIdentityRecovery.excludedKeys.add(stepKey);
+    }
+
+    function showCustomerIdentityCaptureView() {
+        document.getElementById("clientIdentityCaptureView")?.classList.remove("hidden");
+        document.getElementById("clientIdentityReviewView")?.classList.add("hidden");
+    }
+
+    function renderCustomerIdentityReview() {
+        const grid = document.getElementById("clientIdentityReviewGrid");
+        const verifyButton = document.getElementById("clientIdentityVerifyReviewedButton");
+        const status = document.getElementById("clientIdentityReviewStatus");
+        if (!grid || !verifyButton) return;
+
+        const allReady = customerIdentityAllSteps.every(step => Boolean(customerIdentityPreviewUrl(step)));
+        const hasChanges = customerIdentityRecovery.files.size > 0;
+        grid.innerHTML = customerIdentityAllSteps.map(step => {
+            const url = customerIdentityPreviewUrl(step);
+            const ready = Boolean(url);
+            const changed = customerIdentityRecovery.files.has(step.key);
+            const recommended = customerIdentityRecovery.recommendedKeys.has(step.key);
+            return `
+                <article class="rounded-2xl border ${recommended ? "border-amber-400/50" : ready ? "border-emerald-500/25" : "border-red-500/30"} bg-zinc-950/80 overflow-hidden">
+                    <div class="aspect-[4/3] bg-black flex items-center justify-center overflow-hidden relative">
+                        ${ready
+                            ? `<img src="${url}" alt="${customerIdentityStepLabel(step.key)}" class="w-full h-full ${step.frame === "document" ? "object-contain" : "object-cover"}">`
+                            : '<div class="text-center text-zinc-600 text-xs px-3"><i class="fas fa-image text-2xl mb-2 block"></i>Sin evidencia seleccionada</div>'}
+                        ${recommended ? '<span class="absolute top-2 left-2 rounded-full bg-amber-400 text-black text-[8px] font-black px-2 py-1">REVISAR</span>' : ""}
+                        ${changed ? '<span class="absolute top-2 right-2 rounded-full bg-emerald-500 text-black text-[8px] font-black px-2 py-1">NUEVA</span>' : ""}
+                    </div>
+                    <div class="p-3">
+                        <p class="text-xs font-black text-white">${customerIdentityStepLabel(step.key)}</p>
+                        <p class="text-[9px] mt-1 ${ready ? "text-zinc-400" : "text-red-300"}">${ready ? (changed ? "Nueva captura seleccionada" : "Evidencia actual") : "Debes volver a capturarla"}</p>
+                        <div class="mt-3 grid ${ready ? "grid-cols-2" : "grid-cols-1"} gap-2">
+                            <button type="button" data-client-identity-retake="${step.key}" class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-[10px] font-black text-emerald-200">
+                                <i class="fas fa-camera-rotate mr-1"></i> ${ready ? "REPETIR" : "CAPTURAR"}
+                            </button>
+                            ${ready ? `<button type="button" data-client-identity-remove="${step.key}" class="rounded-xl border border-red-500/25 bg-red-500/10 px-2 py-2 text-[10px] font-black text-red-200">
+                                <i class="fas fa-trash-can mr-1"></i> QUITAR
+                            </button>` : ""}
+                        </div>
+                    </div>
+                </article>`;
+        }).join("");
+
+        grid.querySelectorAll("[data-client-identity-retake]").forEach(button => {
+            button.addEventListener("click", async () => {
+                const key = button.dataset.clientIdentityRetake;
+                const step = customerIdentityAllSteps.find(item => item.key === key);
+                if (!step) return;
+                clearCustomerIdentityPreview(key);
+                customerIdentityRecovery.excludedKeys.delete(key);
+                customerIdentityRecovery.retakeOnlyKey = key;
+                customerIdentityRecovery.steps = [step];
+                customerIdentityRecovery.stepIndex = 0;
+                showCustomerIdentityCaptureView();
+                await openCustomerIdentityCameraStep();
+            });
+        });
+
+        grid.querySelectorAll("[data-client-identity-remove]").forEach(button => {
+            button.addEventListener("click", () => {
+                clearCustomerIdentityPreview(button.dataset.clientIdentityRemove);
+                renderCustomerIdentityReview();
+            });
+        });
+
+        verifyButton.disabled = !allReady || !hasChanges;
+        if (status) {
+            status.textContent = !allReady
+                ? "Falta una evidencia. Captúrala antes de verificar."
+                : !hasChanges
+                    ? "Para evitar revalidar las mismas fotos, repite al menos una evidencia antes de verificar de nuevo."
+                    : "Revisa bien todo. Sólo las evidencias marcadas como NUEVA sustituirán la selección vigente.";
+        }
+    }
+
+    function showCustomerIdentityReview() {
+        stopCustomerIdentityCamera();
+        document.getElementById("clientIdentityCaptureView")?.classList.add("hidden");
+        document.getElementById("clientIdentityReviewView")?.classList.remove("hidden");
+        const eyebrow = document.getElementById("clientIdentityEyebrow");
+        const title = document.getElementById("clientIdentityTitle");
+        const hint = document.getElementById("clientIdentityHint");
+        if (eyebrow) eyebrow.textContent = "Revisión previa";
+        if (title) title.textContent = "Revisa tu identidad";
+        if (hint) hint.textContent = "Puedes reemplazar INE o cualquier selfie antes de verificar.";
+        renderCustomerIdentityReview();
     }
 
     async function openCustomerIdentityCameraStep() {
@@ -318,8 +451,11 @@ export async function iniciarPanelCliente(user) {
         }
         if (status) status.textContent = "Protegiendo evidencias nuevas sin sobrescribir tu historial…";
 
+        const changedSteps = customerIdentityAllSteps.filter(step => customerIdentityRecovery.files.has(step.key));
+        if (changedSteps.length === 0) throw new Error("CUSTOMER_IDENTITY_RECAPTURE_REQUIRED");
+
         const recaptureEvidence = {};
-        for (const step of customerIdentityRecovery.steps) {
+        for (const step of changedSteps) {
             const file = customerIdentityRecovery.files.get(step.key);
             if (!file) throw new Error(`CUSTOMER_IDENTITY_FILE_MISSING:${step.kind}`);
 
@@ -382,6 +518,10 @@ export async function iniciarPanelCliente(user) {
             const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.9));
             if (!blob || blob.size < 16 * 1024) throw new Error("CUSTOMER_IDENTITY_CAPTURE_TOO_SMALL");
 
+            const previousPreview = customerIdentityRecovery.previewUrls.get(step.key);
+            if (previousPreview) URL.revokeObjectURL(previousPreview);
+            customerIdentityRecovery.previewUrls.delete(step.key);
+            customerIdentityRecovery.excludedKeys.delete(step.key);
             customerIdentityRecovery.files.set(
                 step.key,
                 new File([blob], step.fileName, { type: "image/jpeg", lastModified: Date.now() })
@@ -389,10 +529,16 @@ export async function iniciarPanelCliente(user) {
             customerIdentityRecovery.stepIndex += 1;
             renderCustomerIdentityRecoveryProgress();
 
+            if (customerIdentityRecovery.retakeOnlyKey) {
+                customerIdentityRecovery.retakeOnlyKey = null;
+                stopCustomerIdentityCamera();
+                showCustomerIdentityReview();
+                return;
+            }
+
             if (customerIdentityRecovery.stepIndex >= customerIdentityRecovery.steps.length) {
                 stopCustomerIdentityCamera();
-                customerIdentityRecovery.pendingUpload = true;
-                await persistCustomerIdentityRecovery();
+                showCustomerIdentityReview();
                 return;
             }
             await openCustomerIdentityCameraStep();
@@ -421,27 +567,50 @@ export async function iniciarPanelCliente(user) {
         customerIdentityRecovery.stepIndex = 0;
         customerIdentityRecovery.files = new Map();
         customerIdentityRecovery.uploaded = new Map();
+        for (const url of customerIdentityRecovery.previewUrls.values()) {
+            if (url) URL.revokeObjectURL(url);
+        }
+        customerIdentityRecovery.previewUrls = new Map();
+        customerIdentityRecovery.excludedKeys = new Set();
+        customerIdentityRecovery.recommendedKeys = new Set(failedStepKeys);
         customerIdentityRecovery.running = false;
         customerIdentityRecovery.pendingUpload = false;
-
-        if (customerIdentityRecovery.steps.length === 0) {
-            const bannerStatus = document.getElementById("clienteIdentityRetryStatus");
-            if (bannerStatus) bannerStatus.textContent = "Tus evidencias ya existen. Ejecutando validación automática…";
-            const result = await verificarIdentidadB2C();
-            if (result?.status === "verified") window.location.reload();
-            else if (bannerStatus) bannerStatus.textContent = `Validación: ${String(result?.status || "review_required")}`;
-            return;
-        }
+        customerIdentityRecovery.retakeOnlyKey = null;
 
         document.getElementById("clientIdentityModal")?.classList.remove("hidden");
         document.documentElement.classList.add("client-identity-modal-open");
         document.body.classList.add("client-identity-modal-open");
         const status = document.getElementById("clientIdentityRecoveryStatus");
         if (status) status.textContent = "";
-        await openCustomerIdentityCameraStep();
+
+        const missingSteps = customerIdentityAllSteps.filter(step => !step.exists());
+        if (missingSteps.length > 0) {
+            customerIdentityRecovery.steps = missingSteps;
+            customerIdentityRecovery.stepIndex = 0;
+            showCustomerIdentityCaptureView();
+            await openCustomerIdentityCameraStep();
+            return;
+        }
+
+        showCustomerIdentityReview();
     }
 
     document.getElementById("clientIdentityCancelButton")?.addEventListener("click", closeCustomerIdentityModal);
+    document.getElementById("clientIdentityVerifyReviewedButton")?.addEventListener("click", () => {
+        customerIdentityRecovery.pendingUpload = true;
+        showCustomerIdentityCaptureView();
+        const status = document.getElementById("clientIdentityRecoveryStatus");
+        if (status) status.textContent = "Preparando evidencias seleccionadas…";
+        persistCustomerIdentityRecovery().catch(error => {
+            console.error("[B2C_CUSTOMER_IDENTITY_REVIEW_VERIFY]", error);
+            customerIdentityRecovery.pendingUpload = true;
+            showCustomerIdentityReview();
+            const reviewStatus = document.getElementById("clientIdentityReviewStatus");
+            if (reviewStatus) {
+                reviewStatus.textContent = `No se pudo verificar (${String(error?.code || error?.message || "VERIFY_FAILED").slice(0, 100)}). Tus nuevas capturas siguen disponibles para reintentar.`;
+            }
+        });
+    });
     document.getElementById("clientIdentityCaptureButton")?.addEventListener("click", () => {
         const task = customerIdentityRecovery.pendingUpload
             ? persistCustomerIdentityRecovery()

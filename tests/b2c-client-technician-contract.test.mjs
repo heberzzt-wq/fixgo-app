@@ -301,6 +301,14 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(client, /customerIdentityRecovery\.uploaded/);
     assert.match(client, /customerIdentityRecovery\.pendingUpload/);
     assert.match(client, /REINTENTAR SUBIDA/);
+    assert.match(client, /clientIdentityReviewGrid/);
+    assert.match(client, /clientIdentityVerifyReviewedButton/);
+    assert.match(client, /showCustomerIdentityReview/);
+    assert.match(client, /data-client-identity-retake/);
+    assert.match(client, /data-client-identity-remove/);
+    assert.match(client, /CUSTOMER_IDENTITY_RECAPTURE_REQUIRED/);
+    assert.match(html, /id="clientIdentityReviewView"/);
+    assert.match(html, /VERIFICAR MI IDENTIDAD/);
     assert.doesNotMatch(client, /storagePathForTechnicianDocument\(user\.uid, step\.kind, file\.name\)/);
     assert.match(client, /FACE_ANTISPOOF_LOW|LIVENESS/);
     assert.doesNotMatch(client, /registro\.html\?resume=cliente-identity/);
@@ -337,6 +345,13 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(registrationHtml, /btnIniciarIdentidadCliente/);
     assert.match(registrationHtml, /chkBiometriaCliente/);
     assert.match(registration, /identityCaptureState\.target/);
+    assert.match(registration, /showIdentityReview/);
+    assert.match(registration, /renderIdentityReview/);
+    assert.match(registration, /data-identity-retake/);
+    assert.match(registration, /data-identity-remove/);
+    assert.match(registration, /btnConfirmarIdentidad/);
+    assert.match(registrationHtml, /id="identityReviewView"/);
+    assert.match(registrationHtml, /USAR ESTAS CAPTURAS/);
     assert.match(registration, /cliente-identity/);
     assert.match(registration, /resumeExistingCustomer/);
     assert.match(registration, /__SESSION_REUSE_ONLY__/);

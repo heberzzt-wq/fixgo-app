@@ -542,6 +542,7 @@
                 </div>
 
                 <div class="client-identity-content p-4 sm:p-6">
+                    <div id="clientIdentityCaptureView" class="flex flex-col min-h-0 flex-1">
                     <div id="clientIdentityCameraStage" class="client-identity-camera" data-frame="document">
                         <video id="clientIdentityVideo" autoplay playsinline muted></video>
                         <canvas id="clientIdentityCanvas" class="hidden"></canvas>
@@ -567,6 +568,20 @@
                         <i class="fas fa-camera mr-2"></i> CAPTURAR
                     </button>
                     <p id="clientIdentityRecoveryStatus" class="mt-2 text-center text-[10px] font-bold text-zinc-400" aria-live="polite"></p>
+                    </div>
+
+                    <div id="clientIdentityReviewView" class="hidden min-h-0 flex-1 overflow-y-auto">
+                        <div class="mb-4">
+                            <p class="text-[10px] uppercase tracking-[0.24em] text-emerald-400 font-black">Tu expediente actual</p>
+                            <h4 class="text-xl font-black mt-1">Revisa antes de verificar</h4>
+                            <p class="text-xs text-gray-400 mt-2">Puedes reemplazar INE o cualquier selfie. La evidencia anterior queda protegida como historial; la nueva será la vigente para esta validación.</p>
+                        </div>
+                        <div id="clientIdentityReviewGrid" class="grid grid-cols-2 gap-3"></div>
+                        <p id="clientIdentityReviewStatus" class="mt-4 text-center text-[11px] font-bold text-amber-200/80" aria-live="polite"></p>
+                        <button type="button" id="clientIdentityVerifyReviewedButton" class="mt-4 w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-black font-black py-4 rounded-2xl transition-all" disabled>
+                            <i class="fas fa-fingerprint mr-2"></i> VERIFICAR MI IDENTIDAD
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

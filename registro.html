@@ -565,6 +565,7 @@
                     </div>
 
                     <div class="identity-modal-content">
+                        <div id="identityCaptureView" class="flex flex-col min-h-0">
                         <div class="identity-camera-stage" data-frame="document">
                             <video id="identityVideo" autoplay playsinline muted></video>
                             <canvas id="identityCanvas" class="hidden"></canvas>
@@ -592,6 +593,21 @@
                             <i class="fas fa-camera mr-2"></i> CAPTURAR
                         </button>
                         <p class="identity-privacy-copy mt-3 text-center text-[10px] text-gray-500">La cámara sólo se activa durante este proceso. Las imágenes se cargan al expediente protegido después de crear tu cuenta.</p>
+                        </div>
+
+                        <div id="identityReviewView" class="hidden min-h-0 overflow-y-auto">
+                            <div class="mb-4">
+                                <p class="text-[10px] uppercase tracking-[0.24em] text-emerald-400 font-black">Antes de verificar</p>
+                                <h4 class="text-xl font-black mt-1">Revisa tu identidad</h4>
+                                <p class="text-xs text-gray-400 mt-2">Comprueba cada imagen. Puedes quitar o repetir cualquier toma antes de usarla para KYC.</p>
+                            </div>
+                            <div id="identityReviewGrid" class="grid grid-cols-2 gap-3"></div>
+                            <p id="identityReviewStatus" class="mt-4 text-center text-[11px] font-bold text-amber-200/80" aria-live="polite"></p>
+                            <button type="button" id="btnConfirmarIdentidad" class="mt-4 w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-black font-black py-4 rounded-2xl transition-all" disabled>
+                                <i class="fas fa-shield-check mr-2"></i> USAR ESTAS CAPTURAS
+                            </button>
+                            <p class="mt-2 text-center text-[10px] text-gray-500">Nada se envía al motor biométrico hasta que confirmes tus capturas y completes el registro.</p>
+                        </div>
                     </div>
                 </div>
             </div>
