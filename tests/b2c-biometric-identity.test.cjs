@@ -4,7 +4,8 @@ const {
     THRESHOLDS,
     assessIdentityAnalyses,
     bestRegistryMatch,
-    captureDigest
+    captureDigest,
+    evaluateIdentityAttemptState
 } = require("../functions/b2c-biometric-identity");
 
 const embedding = value => Array.from({ length: 128 }, () => value);
@@ -125,4 +126,67 @@ test("capture digest is deterministic but changes with identity bytes", () => {
     assert.equal(first, reordered);
     assert.notEqual(first, changed);
     assert.match(first, /^[a-f0-9]{64}$/);
+});
+
+
+test("biometric rate limit separates stale revalidation from fresh recapture", () => {
+    const now = 1_000_000;
+    const digestA = "a".repeat(64);
+    const digestB = "b".repeat(64);
+
+    const legacySaturated = {
+        window_started_ms: now - 10_000,
+        last_attempt_ms: now - 20_000,
+        attempts: 5
+    };
+    const migratedFresh = evaluateIdentityAttemptState(legacySaturated, {
+        nowMs: now,
+        digest: digestB
+    });
+    assert.equal(migratedFresh.allowed, true);
+    assert.equal(migratedFresh.sameCapture, false);
+    assert.equal(migratedFresh.patch.fresh_capture_attempts, 1);
+    assert.equal(migratedFresh.patch.same_capture_attempts, 1);
+
+    const sameTwice = {
+        window_started_ms: now - 50_000,
+        last_attempt_ms: now - 20_000,
+        last_capture_digest: digestA,
+        fresh_capture_attempts: 1,
+        same_capture_attempts: 2,
+        attempts: 2
+    };
+    const staleBlocked = evaluateIdentityAttemptState(sameTwice, {
+        nowMs: now,
+        digest: digestA
+    });
+    assert.equal(staleBlocked.allowed, false);
+    assert.equal(staleBlocked.reason, "same_capture_limit");
+
+    const newCapture = evaluateIdentityAttemptState(sameTwice, {
+        nowMs: now,
+        digest: digestB
+    });
+    assert.equal(newCapture.allowed, true);
+    assert.equal(newCapture.patch.fresh_capture_attempts, 2);
+    assert.equal(newCapture.patch.same_capture_attempts, 1);
+});
+
+test("biometric fresh recapture limit remains bounded per hour", () => {
+    const now = 2_000_000;
+    const state = {
+        window_started_ms: now - 30_000,
+        last_attempt_ms: now - 20_000,
+        last_capture_digest: "a".repeat(64),
+        fresh_capture_attempts: 5,
+        same_capture_attempts: 1,
+        attempts: 9
+    };
+    const result = evaluateIdentityAttemptState(state, {
+        nowMs: now,
+        digest: "b".repeat(64)
+    });
+    assert.equal(result.allowed, false);
+    assert.equal(result.reason, "fresh_capture_limit");
+    assert.ok(result.retryAfterMs > 0);
 });

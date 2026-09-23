@@ -290,6 +290,11 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(client, /identityStepKeysFromReasons\(reasonsOverride\)/);
     assert.match(client, /await startCustomerIdentityRecovery\(reasons\)/);
     assert.match(client, /ABRIENDO RECAPTURA/);
+    assert.match(client, /fallbackIdentityStepKeys/);
+    assert.match(client, /effectiveIdentityStepKeys/);
+    assert.match(client, /RECAPTURAR BIOMETRÍA FACIAL/);
+    assert.match(client, /stepKeysOverride instanceof Set/);
+    assert.match(client, /resource-exhausted/);
     assert.match(client, /FACE_ANTISPOOF_LOW|LIVENESS/);
     assert.doesNotMatch(client, /registro\.html\?resume=cliente-identity/);
     assert.match(client, /login\.html\?resume=cliente-identity/);

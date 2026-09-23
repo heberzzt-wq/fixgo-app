@@ -6,6 +6,10 @@ const path = require("node:path");
 const BIOMETRIC_ENGINE_VERSION = "human-local-v1";
 const IDENTITY_CAPTURE_VERSION = "b2c-bank-identity-v1";
 const REGISTRY_LIMIT = 5000;
+const IDENTITY_ATTEMPT_WINDOW_MS = 60 * 60 * 1000;
+const IDENTITY_ATTEMPT_COOLDOWN_MS = 15 * 1000;
+const IDENTITY_FRESH_CAPTURE_LIMIT = 5;
+const IDENTITY_SAME_CAPTURE_LIMIT = 2;
 const THRESHOLDS = Object.freeze({
     faceConfidence: 0.60,
     antispoof: 0.60,
@@ -41,6 +45,77 @@ function captureDigest(buffers) {
         hash.update("\0");
     }
     return hash.digest("hex");
+}
+
+function evaluateIdentityAttemptState(state = {}, { nowMs = Date.now(), digest } = {}) {
+    if (!/^[a-f0-9]{64}$/.test(String(digest || ""))) {
+        throw new Error("IDENTITY_CAPTURE_DIGEST_REQUIRED");
+    }
+
+    const windowStartedMs = Number(state.window_started_ms || 0);
+    const lastAttemptMs = Number(state.last_attempt_ms || 0);
+    const withinWindow =
+        windowStartedMs > 0 &&
+        nowMs - windowStartedMs < IDENTITY_ATTEMPT_WINDOW_MS;
+
+    const legacyAttempts = withinWindow ? Number(state.attempts || 0) : 0;
+    const freshCaptureAttempts = withinWindow ? Number(state.fresh_capture_attempts || 0) : 0;
+    const sameCapture =
+        withinWindow &&
+        String(state.last_capture_digest || "") === String(digest);
+    const sameCaptureAttempts =
+        sameCapture
+            ? Number(state.same_capture_attempts || 0)
+            : 0;
+
+    if (
+        lastAttemptMs > 0 &&
+        nowMs - lastAttemptMs < IDENTITY_ATTEMPT_COOLDOWN_MS
+    ) {
+        return {
+            allowed: false,
+            reason: "cooldown",
+            retryAfterMs: IDENTITY_ATTEMPT_COOLDOWN_MS - (nowMs - lastAttemptMs)
+        };
+    }
+
+    if (sameCapture && sameCaptureAttempts >= IDENTITY_SAME_CAPTURE_LIMIT) {
+        return {
+            allowed: false,
+            reason: "same_capture_limit",
+            retryAfterMs: 0
+        };
+    }
+
+    if (!sameCapture && freshCaptureAttempts >= IDENTITY_FRESH_CAPTURE_LIMIT) {
+        return {
+            allowed: false,
+            reason: "fresh_capture_limit",
+            retryAfterMs: Math.max(
+                0,
+                IDENTITY_ATTEMPT_WINDOW_MS - (nowMs - windowStartedMs)
+            )
+        };
+    }
+
+    return {
+        allowed: true,
+        sameCapture,
+        patch: {
+            window_started_ms: withinWindow ? windowStartedMs : nowMs,
+            attempts: legacyAttempts + 1,
+            fresh_capture_attempts:
+                sameCapture
+                    ? freshCaptureAttempts
+                    : freshCaptureAttempts + 1,
+            same_capture_attempts:
+                sameCapture
+                    ? sameCaptureAttempts + 1
+                    : 1,
+            last_attempt_ms: nowMs,
+            last_capture_digest: digest
+        }
+    };
 }
 
 function referenceStoragePath(reference, bucketName, uid, kind) {
@@ -345,30 +420,6 @@ function createVerifyB2cIdentityHandler({
             return { ok: true, status: "verified", replay: true, identityVersion: IDENTITY_CAPTURE_VERSION };
         }
 
-        const attemptsRef = db.collection("b2c_identity_attempts").doc(uid);
-        const attemptNowMs = Date.now();
-        await db.runTransaction(async transaction => {
-            const snapshot = await transaction.get(attemptsRef);
-            const state = snapshot.exists ? snapshot.data() || {} : {};
-            const windowStartedMs = Number(state.window_started_ms || 0);
-            const lastAttemptMs = Number(state.last_attempt_ms || 0);
-            const withinWindow = windowStartedMs > 0 && attemptNowMs - windowStartedMs < 60 * 60 * 1000;
-            const attempts = withinWindow ? Number(state.attempts || 0) : 0;
-            if (lastAttemptMs > 0 && attemptNowMs - lastAttemptMs < 15 * 1000) {
-                throw new functions.https.HttpsError("resource-exhausted", "Espera unos segundos antes de repetir la verificación.");
-            }
-            if (withinWindow && attempts >= 5) {
-                throw new functions.https.HttpsError("resource-exhausted", "Límite temporal de verificaciones alcanzado. Intenta más tarde.");
-            }
-            transaction.set(attemptsRef, {
-                uid,
-                window_started_ms: withinWindow ? windowStartedMs : attemptNowMs,
-                attempts: attempts + 1,
-                last_attempt_ms: attemptNowMs,
-                updated_at: now()
-            }, { merge: true });
-        });
-
         const storageBucket = bucket || admin.storage().bucket("fixgo-44e4d.firebasestorage.app");
         let verified;
         let buffers;
@@ -385,6 +436,55 @@ function createVerifyB2cIdentityHandler({
             }, { merge: true });
             return { ok: true, status: "review_required", reasons: [safeText(error.message, 160)] };
         }
+
+        const digest = captureDigest(buffers);
+        const attemptsRef = db.collection("b2c_identity_attempts").doc(uid);
+        const attemptNowMs = Date.now();
+        await db.runTransaction(async transaction => {
+            const snapshot = await transaction.get(attemptsRef);
+            const state = snapshot.exists ? snapshot.data() || {} : {};
+            const decision = evaluateIdentityAttemptState(state, {
+                nowMs: attemptNowMs,
+                digest
+            });
+
+            if (!decision.allowed) {
+                if (decision.reason === "cooldown") {
+                    throw new functions.https.HttpsError(
+                        "resource-exhausted",
+                        "Espera unos segundos antes de repetir la verificación.",
+                        {
+                            reason: decision.reason,
+                            retryAfterMs: decision.retryAfterMs
+                        }
+                    );
+                }
+                if (decision.reason === "same_capture_limit") {
+                    throw new functions.https.HttpsError(
+                        "resource-exhausted",
+                        "Estas mismas evidencias ya se verificaron varias veces. Recaptura las tomas indicadas.",
+                        {
+                            reason: decision.reason,
+                            retryAfterMs: 0
+                        }
+                    );
+                }
+                throw new functions.https.HttpsError(
+                    "resource-exhausted",
+                    "Límite temporal de recapturas alcanzado. Intenta más tarde.",
+                    {
+                        reason: decision.reason,
+                        retryAfterMs: decision.retryAfterMs
+                    }
+                );
+            }
+
+            transaction.set(attemptsRef, {
+                uid,
+                ...decision.patch,
+                updated_at: now()
+            }, { merge: true });
+        });
 
         let runtime;
         let assessment;
@@ -403,7 +503,6 @@ function createVerifyB2cIdentityHandler({
             assessment = { status: "review_required", reasons: ["BIOMETRIC_ENGINE_UNAVAILABLE"], metrics: {} };
         }
 
-        const digest = captureDigest(buffers);
         const registryRef = db.collection("b2c_identity_registry").doc(uid);
         const auditRef = db.collection("b2c_identity_audit").doc();
         const result = await db.runTransaction(async transaction => {
@@ -522,6 +621,7 @@ module.exports = {
     assessIdentityAnalyses,
     bestRegistryMatch,
     captureDigest,
+    evaluateIdentityAttemptState,
     createHumanBiometricRuntime,
     createVerifyB2cIdentityHandler,
     verifyIdentityStorage

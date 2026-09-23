@@ -419,13 +419,19 @@ export async function iniciarPanelCliente(user) {
         }
     }
 
-    async function startCustomerIdentityRecovery(reasonsOverride = identityReasons) {
+    async function startCustomerIdentityRecovery(
+        reasonsOverride = identityReasons,
+        stepKeysOverride = null
+    ) {
         if (!auth.currentUser || auth.currentUser.uid !== user.uid) {
             window.location.href = "login.html?resume=cliente-identity";
             return;
         }
 
-        const failedStepKeys = identityStepKeysFromReasons(reasonsOverride);
+        const failedStepKeys =
+            stepKeysOverride instanceof Set
+                ? stepKeysOverride
+                : identityStepKeysFromReasons(reasonsOverride);
         customerIdentityRecovery.steps = customerIdentityAllSteps.filter(
             step => !step.exists() || failedStepKeys.has(step.key)
         );
@@ -476,16 +482,33 @@ export async function iniciarPanelCliente(user) {
         user.documentos?.selfie_liveness_right
     );
     const failedIdentityStepKeys = identityStepKeysFromReasons(identityReasons);
-    const targetedRecaptureAvailable = failedIdentityStepKeys.size > 0;
+    const fallbackIdentityStepKeys =
+        identityEvidenceComplete &&
+        identityReasons.length === 0 &&
+        ["review_required", "pending_capture"].includes(identityStatus)
+            ? new Set(["selfie_front", "selfie_left", "selfie_right"])
+            : new Set();
+    const effectiveIdentityStepKeys =
+        failedIdentityStepKeys.size > 0
+            ? failedIdentityStepKeys
+            : fallbackIdentityStepKeys;
+    const targetedRecaptureAvailable = effectiveIdentityStepKeys.size > 0;
     const targetedRecaptureIsFaceOnly =
         targetedRecaptureAvailable &&
-        [...failedIdentityStepKeys].every(key => key.startsWith("selfie_"));
-    const identityReasonSummary = describeIdentityReview(identityReasons, failedIdentityStepKeys);
+        [...effectiveIdentityStepKeys].every(key => key.startsWith("selfie_"));
+    const fallbackBiometricRecapture =
+        failedIdentityStepKeys.size === 0 &&
+        fallbackIdentityStepKeys.size > 0;
+    const identityReasonSummary = fallbackBiometricRecapture
+        ? "La verificación anterior no dejó un diagnóstico utilizable. Repite sólo la biometría facial; tu INE permanece guardada."
+        : describeIdentityReview(identityReasons, failedIdentityStepKeys);
     const recoveryButtonLabel = !identityEvidenceComplete
         ? "REANUDAR CAPTURA DE IDENTIDAD"
-        : targetedRecaptureAvailable
-            ? (targetedRecaptureIsFaceOnly ? "RECAPTURAR PRUEBA DE VIDA" : "RECAPTURAR EVIDENCIA RECHAZADA")
-            : "REINTENTAR VALIDACIÓN AUTOMÁTICA";
+        : fallbackBiometricRecapture
+            ? "RECAPTURAR BIOMETRÍA FACIAL"
+            : targetedRecaptureAvailable
+                ? (targetedRecaptureIsFaceOnly ? "RECAPTURAR PRUEBA DE VIDA" : "RECAPTURAR EVIDENCIA RECHAZADA")
+                : "REINTENTAR VALIDACIÓN AUTOMÁTICA";
     const identityBlocked = user.tipo_cuenta === "B2C" &&
         user.kyc?.identity_required === true &&
         (user.kyc?.identity_verified !== true ||
@@ -513,9 +536,11 @@ export async function iniciarPanelCliente(user) {
                             ? "Detectamos una coincidencia que debe revisar una persona. No se permiten solicitudes mientras se resuelve."
                             : !identityEvidenceComplete
                                 ? "La cuenta ya existe, pero faltan evidencias de identidad. Reanuda la captura en la misma cuenta; no se creará otra identidad."
-                                : targetedRecaptureAvailable
-                                    ? "La validación detectó una o más tomas que deben repetirse. No necesitas volver a capturar todo tu expediente."
-                                    : "Tu expediente está protegido y todavía no puede crear servicios. Puedes reintentar la validación automática usando las evidencias ya guardadas."}
+                                : fallbackBiometricRecapture
+                                    ? "La validación quedó pendiente sin un diagnóstico recuperable. Repite únicamente la biometría facial; no volveremos a pedir tu INE."
+                                    : targetedRecaptureAvailable
+                                        ? "La validación detectó una o más tomas que deben repetirse. No necesitas volver a capturar todo tu expediente."
+                                        : "Tu expediente está protegido y todavía no puede crear servicios. Puedes reintentar la validación automática usando las evidencias ya guardadas."}
                     </p>
                     ${reasonMarkup}
                     ${retryMarkup}
@@ -537,7 +562,10 @@ export async function iniciarPanelCliente(user) {
                 retryButton.disabled = true;
                 retryButton.innerHTML = '<i class="fas fa-camera"></i> ABRIENDO CÁMARA…';
                 try {
-                    await startCustomerIdentityRecovery();
+                    await startCustomerIdentityRecovery(
+                        identityReasons,
+                        effectiveIdentityStepKeys
+                    );
                 } catch (error) {
                     console.error("[B2C_CUSTOMER_IDENTITY_RECOVERY]", error);
                     if (retryStatus) retryStatus.textContent = "No se pudo abrir la captura. Revisa el permiso de cámara e intenta otra vez.";
@@ -592,7 +620,11 @@ export async function iniciarPanelCliente(user) {
                 const code = String(error?.code || "IDENTITY_RETRY_FAILED")
                     .replace(/[^a-zA-Z0-9_:\/.-]/g, "")
                     .slice(0, 120);
-                if (retryStatus) retryStatus.textContent = `No se pudo completar la validación automática (${code}).`;
+                if (retryStatus) {
+                    retryStatus.textContent = code.includes("resource-exhausted")
+                        ? "Se alcanzó el límite de revalidaciones sobre esta evidencia. Recaptura la biometría para continuar con fotos nuevas."
+                        : `No se pudo completar la validación automática (${code}).`;
+                }
             }
             finally {
                 if (retryButton?.isConnected) {
