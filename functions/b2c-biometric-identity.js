@@ -233,7 +233,9 @@ const CUSTOMER_IDENTITY_EVIDENCE_KINDS = Object.freeze([
 const TECHNICIAN_IDENTITY_EVIDENCE_KINDS = Object.freeze([
     "selfie_front",
     "ine_front",
-    "ine_back"
+    "ine_back",
+    "selfie_left",
+    "selfie_right"
 ]);
 
 function identityEvidenceKindsForRole(role) {
@@ -664,13 +666,18 @@ function createVerifyB2cIdentityHandler({
         try {
             runtime = await runtimeFactory();
             const analyses = {};
-            for (const kind of ["ine_front", "selfie_front"]) {
+            const analysisKinds = role === "cliente"
+                ? ["ine_front", "selfie_front"]
+                : ["ine_front", "selfie_front", "selfie_left", "selfie_right"];
+            for (const kind of analysisKinds) {
                 analyses[kind] = await runtime.analyze(buffers[kind]);
             }
-            assessment = assessCustomerIdentityAnalyses({
-                analyses,
-                similarity: runtime.similarity
-            });
+            const hashes = Object.fromEntries(
+                Object.entries(buffers).map(([kind, buffer]) => [kind, crypto.createHash("sha256").update(buffer).digest("hex")])
+            );
+            assessment = role === "cliente"
+                ? assessCustomerIdentityAnalyses({ analyses, similarity: runtime.similarity })
+                : assessIdentityAnalyses({ analyses, hashes, similarity: runtime.similarity });
         } catch (error) {
             console.error("[B2C_BIOMETRIC_ENGINE_FAILED]", { uid, code: safeText(error.code || error.message, 160) });
             assessment = { status: "review_required", reasons: ["BIOMETRIC_ENGINE_UNAVAILABLE"], metrics: {} };

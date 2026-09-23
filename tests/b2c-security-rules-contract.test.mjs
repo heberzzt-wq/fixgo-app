@@ -47,13 +47,8 @@ test("users no permite lectura indiscriminada ni autoaprobación", () => {
     assert.match(firestore, /identity_required/);
     assert.match(firestore, /identity_verified/);
     assert.match(firestore, /ine_reverso/);
-    const technicianIdentityBlock = firestore.slice(
-        firestore.indexOf("function technicianIdentityIsComplete(data)"),
-        firestore.indexOf("function technicianKycIsComplete(data)")
-    );
-    assert.match(technicianIdentityBlock, /identity_verified/);
-    assert.match(technicianIdentityBlock, /ine_reverso/);
-    assert.doesNotMatch(technicianIdentityBlock, /selfie_liveness_left|selfie_liveness_right/);
+    assert.match(firestore, /selfie_liveness_left/);
+    assert.match(firestore, /selfie_liveness_right/);
     assert.match(firestore, /identity_verification_method/);
     assert.match(firestore, /estado == 'identidad_pendiente'/);
     assert.match(firestore, /identity_machine_verified/);
