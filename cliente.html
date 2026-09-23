@@ -2,7 +2,7 @@
 <html lang="es" class="gestia-auth-pending">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>GestiaPremium | Solicitar Servicio</title>
@@ -46,6 +46,146 @@
             box-shadow: 0 0 0 9999px rgba(0, 0, 0, .82), 0 24px 80px rgba(0, 0, 0, .75);
         }
         .hidden { display: none !important; }
+
+        html.client-identity-modal-open,
+        body.client-identity-modal-open {
+            overflow: hidden;
+            overscroll-behavior: none;
+        }
+        .client-identity-shell {
+            background: radial-gradient(circle at top, rgba(16,185,129,.12), transparent 42%), #050505;
+        }
+        .client-identity-dialog {
+            width: 100%;
+            max-width: 42rem;
+            max-height: min(94dvh, 860px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-radius: 2rem;
+            border: 1px solid rgba(16,185,129,.28);
+            background: #101010;
+            box-shadow: 0 24px 80px rgba(0,0,0,.72);
+        }
+        .client-identity-camera {
+            position: relative;
+            flex: 1 1 auto;
+            min-height: 380px;
+            overflow: hidden;
+            border-radius: 1.4rem;
+            background: #000;
+            isolation: isolate;
+        }
+        .client-identity-camera video {
+            width: 100%;
+            height: 100%;
+            min-height: 380px;
+            object-position: center;
+            display: block;
+            background: #000;
+        }
+        .client-identity-camera[data-frame="document"] video { object-fit: contain; }
+        .client-identity-camera[data-frame="face"] video { object-fit: cover; }
+        .client-identity-camera video[data-facing="user"] { transform: scaleX(-1); }
+        .client-identity-guide {
+            position: absolute;
+            z-index: 3;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%,-50%);
+            pointer-events: none;
+            border: 2px solid rgba(255,255,255,.96);
+            box-shadow: 0 0 0 1px rgba(16,185,129,.70), 0 0 40px rgba(16,185,129,.22);
+        }
+        .client-identity-guide.document {
+            width: min(86%, 520px);
+            aspect-ratio: 1.586 / 1;
+            border-radius: 1.1rem;
+        }
+        .client-identity-guide.face {
+            width: min(60%, 280px);
+            aspect-ratio: .76 / 1;
+            border-radius: 48% 48% 45% 45% / 42% 42% 58% 58%;
+        }
+        .client-identity-guide::before,
+        .client-identity-guide::after {
+            content: "";
+            position: absolute;
+            width: 34px;
+            height: 34px;
+        }
+        .client-identity-guide::before {
+            left: -5px;
+            top: -5px;
+            border-left: 5px solid #34d399;
+            border-top: 5px solid #34d399;
+            border-radius: 10px 0 0 0;
+        }
+        .client-identity-guide::after {
+            right: -5px;
+            bottom: -5px;
+            border-right: 5px solid #34d399;
+            border-bottom: 5px solid #34d399;
+            border-radius: 0 0 10px 0;
+        }
+        @media (max-width: 640px) {
+            #clientIdentityModal {
+                width: 100dvw;
+                height: 100dvh;
+                padding: 0 !important;
+            }
+            .client-identity-dialog {
+                width: 100%;
+                max-width: none;
+                height: 100dvh;
+                max-height: none;
+                border: 0;
+                border-radius: 0;
+            }
+            .client-identity-header {
+                padding:
+                    max(.75rem, env(safe-area-inset-top))
+                    1rem
+                    .7rem !important;
+            }
+            .client-identity-content {
+                flex: 1 1 auto;
+                min-height: 0;
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+                padding:
+                    .7rem
+                    .75rem
+                    max(.75rem, env(safe-area-inset-bottom)) !important;
+            }
+            .client-identity-camera {
+                flex: 1 1 auto;
+                min-height: 0;
+                border-radius: 1rem;
+            }
+            .client-identity-camera video {
+                min-height: 0;
+                height: 100%;
+            }
+            .client-identity-guide.document {
+                width: min(88%, 520px);
+                max-height: 62%;
+            }
+            .client-identity-guide.face {
+                width: min(58%, 260px);
+                max-height: 72%;
+            }
+            #clientIdentityTip {
+                margin-top: .55rem !important;
+                padding: .6rem .75rem !important;
+            }
+            #clientIdentityCaptureButton {
+                margin-top: .6rem !important;
+                padding-top: .85rem !important;
+                padding-bottom: .85rem !important;
+            }
+        }
     </style>
 </head>
 <body class="text-white min-h-screen pb-20">
@@ -386,6 +526,51 @@
     </main>
 
     <audio id="audioAlerta" src="https://fixgo.app/assets/sounds/alert.mp3" preload="auto" class="hidden"></audio>
+
+    <div id="clientIdentityModal" class="fixed inset-0 z-[180] hidden client-identity-shell bg-black/95 p-3 sm:p-6">
+        <div class="w-full h-full flex items-center justify-center">
+            <div class="client-identity-dialog">
+                <div class="client-identity-header px-5 sm:px-7 py-5 border-b border-zinc-800 flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                        <p id="clientIdentityEyebrow" class="text-[10px] uppercase tracking-[0.24em] text-emerald-400 font-black">Identidad</p>
+                        <h3 id="clientIdentityTitle" class="text-xl sm:text-2xl font-black mt-1">Reanudar identidad</h3>
+                        <p id="clientIdentityHint" class="text-xs sm:text-sm text-gray-400 mt-2">Completa únicamente lo pendiente en esta misma cuenta.</p>
+                    </div>
+                    <button type="button" id="clientIdentityCancelButton" class="w-10 h-10 shrink-0 rounded-full border border-zinc-700 text-gray-400 hover:text-white hover:bg-white/5" aria-label="Cerrar captura">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <div class="client-identity-content p-4 sm:p-6">
+                    <div id="clientIdentityCameraStage" class="client-identity-camera" data-frame="document">
+                        <video id="clientIdentityVideo" autoplay playsinline muted></video>
+                        <canvas id="clientIdentityCanvas" class="hidden"></canvas>
+                        <div id="clientIdentityGuide" class="client-identity-guide document"></div>
+                        <div class="absolute z-10 left-1/2 -translate-x-1/2 bottom-3 whitespace-nowrap rounded-full bg-black/75 border border-white/10 px-4 py-2 text-[11px] font-bold text-white backdrop-blur-md">
+                            <span id="clientIdentityCameraStatus"><i class="fas fa-circle-notch fa-spin text-emerald-400 mr-2"></i>Preparando cámara…</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 flex items-center justify-between gap-3">
+                        <div class="flex-1 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                            <div id="clientIdentityProgressBar" class="h-full bg-emerald-500 transition-all" style="width:0%"></div>
+                        </div>
+                        <span id="clientIdentityProgressText" class="text-[10px] font-black text-zinc-400">0/0</span>
+                    </div>
+
+                    <div id="clientIdentityTip" class="mt-3 rounded-2xl bg-zinc-900 border border-zinc-800 px-4 py-3 text-xs text-gray-400">
+                        <i class="fas fa-lightbulb text-amber-400 mr-2"></i>
+                        <span id="clientIdentityTipText">Usa buena luz y limpia el lente.</span>
+                    </div>
+
+                    <button type="button" id="clientIdentityCaptureButton" class="mt-3 w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-black font-black py-4 rounded-2xl transition-all" disabled>
+                        <i class="fas fa-camera mr-2"></i> CAPTURAR
+                    </button>
+                    <p id="clientIdentityRecoveryStatus" class="mt-2 text-center text-[10px] font-bold text-zinc-400" aria-live="polite"></p>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div id="modalGarantiaCliente" class="fixed inset-0 bg-black/95 z-[90] hidden flex-col p-4 animate-fade-in justify-center items-center backdrop-blur-sm">
         <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-6 border border-orange-500/50 shadow-2xl relative">

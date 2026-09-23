@@ -263,6 +263,16 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.doesNotMatch(client, /SOBRESCRIBIMOS EL GPS|SNIPER DEL MAPA INTERACTIVO/);
     assert.match(client, /confirmDestination/);
     assert.match(client, /clienteIdentityReviewBanner/);
+    assert.match(client, /startCustomerIdentityRecovery/);
+    assert.match(client, /clientIdentityModal/);
+    assert.match(client, /navigator\.mediaDevices\?\.getUserMedia/);
+    assert.match(client, /storagePathForTechnicianDocument/);
+    assert.match(client, /persistCustomerIdentityRecovery/);
+    assert.doesNotMatch(client, /window\.location\.href = "registro\.html\?resume=cliente-identity"/);
+    assert.match(html, /id="clientIdentityModal"/);
+    assert.match(html, /client-identity-camera\[data-frame="document"\] video/);
+    assert.match(html, /object-fit:\s*contain/);
+    assert.match(html, /height:\s*100dvh/);
     assert.match(client, /identityBlocked/);
     assert.match(client, /clienteIdentityMachineReason/);
     assert.match(client, /clienteIdentityRetryButton/);

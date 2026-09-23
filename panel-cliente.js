@@ -47,6 +47,7 @@ import {
 } from "./b2c-destination.js";
 import "./gestia-core/contracts/b2c-platform-contract.js";
 import { reserveB2cRequest, completeB2cRequest, assertB2cRequestActor } from './b2c-request-recovery.js';
+import { storagePathForTechnicianDocument } from "./b2c-technician-profile.js";
 
 const platformContract = globalThis.GestiaB2CPlatformContract;
 if (!platformContract) throw new Error("B2C_PLATFORM_CONTRACT_UNAVAILABLE");
@@ -89,6 +90,319 @@ export async function iniciarPanelCliente(user) {
         inputFoto: document.getElementById("fotoProblemaCliente"),
         toggleUrgencia: document.getElementById("toggleUrgencia")
     };
+
+    const customerIdentityAllSteps = [
+        {
+            key: "ine_front",
+            kind: "ine",
+            title: "INE · frente",
+            hint: "Coloca la credencial completa dentro del marco, horizontal y sin reflejos.",
+            tip: "No acerques demasiado el teléfono. Deben verse las cuatro esquinas.",
+            facing: "environment",
+            frame: "document",
+            fileName: "ine-frente.jpg",
+            exists: () => Boolean(user.documentos?.ine),
+            patch: url => ({ documentos: { ine: url } })
+        },
+        {
+            key: "ine_back",
+            kind: "ine_reverso",
+            title: "INE · reverso",
+            hint: "Voltea la credencial y mantenla completa dentro del marco.",
+            tip: "Evita sombras y reflejos sobre códigos o texto.",
+            facing: "environment",
+            frame: "document",
+            fileName: "ine-reverso.jpg",
+            exists: () => Boolean(user.documentos?.ine_reverso),
+            patch: url => ({ documentos: { ine_reverso: url } })
+        },
+        {
+            key: "selfie_front",
+            kind: "foto_perfil",
+            title: "Selfie de verificación",
+            hint: "Mira de frente y mantén el rostro dentro del óvalo.",
+            tip: "Retira gorra, lentes oscuros o cubrebocas y usa luz frontal uniforme.",
+            facing: "user",
+            frame: "face",
+            fileName: "selfie-frente.jpg",
+            exists: () => Boolean(user.foto_perfil),
+            patch: url => ({ foto_perfil: url })
+        },
+        {
+            key: "selfie_left",
+            kind: "selfie_liveness_left",
+            title: "Prueba de vida · izquierda",
+            hint: "Gira suavemente la cabeza hacia tu izquierda.",
+            tip: "Mantén hombros de frente y no salgas del óvalo.",
+            facing: "user",
+            frame: "face",
+            fileName: "selfie-izquierda.jpg",
+            exists: () => Boolean(user.documentos?.selfie_liveness_left),
+            patch: url => ({ documentos: { selfie_liveness_left: url } })
+        },
+        {
+            key: "selfie_right",
+            kind: "selfie_liveness_right",
+            title: "Prueba de vida · derecha",
+            hint: "Gira suavemente la cabeza hacia tu derecha.",
+            tip: "Último paso. Mantén el teléfono quieto y buena iluminación.",
+            facing: "user",
+            frame: "face",
+            fileName: "selfie-derecha.jpg",
+            exists: () => Boolean(user.documentos?.selfie_liveness_right),
+            patch: url => ({ documentos: { selfie_liveness_right: url } })
+        }
+    ];
+
+    const customerIdentityRecovery = {
+        steps: [],
+        stepIndex: 0,
+        files: new Map(),
+        stream: null,
+        running: false
+    };
+
+    function stopCustomerIdentityCamera() {
+        if (customerIdentityRecovery.stream) {
+            for (const track of customerIdentityRecovery.stream.getTracks()) track.stop();
+            customerIdentityRecovery.stream = null;
+        }
+        const video = document.getElementById("clientIdentityVideo");
+        if (video) video.srcObject = null;
+    }
+
+    function closeCustomerIdentityModal() {
+        stopCustomerIdentityCamera();
+        document.getElementById("clientIdentityModal")?.classList.add("hidden");
+        document.documentElement.classList.remove("client-identity-modal-open");
+        document.body.classList.remove("client-identity-modal-open");
+    }
+
+    function renderCustomerIdentityRecoveryProgress() {
+        const total = customerIdentityRecovery.steps.length;
+        const done = customerIdentityRecovery.files.size;
+        const current = Math.min(done + 1, total);
+        const percentage = total > 0 ? Math.round((done / total) * 100) : 100;
+        const bar = document.getElementById("clientIdentityProgressBar");
+        const label = document.getElementById("clientIdentityProgressText");
+        if (bar) bar.style.width = `${percentage}%`;
+        if (label) label.textContent = total > 0 ? `${current}/${total}` : "LISTO";
+    }
+
+    async function openCustomerIdentityCameraStep() {
+        const step = customerIdentityRecovery.steps[customerIdentityRecovery.stepIndex];
+        if (!step) return;
+
+        const video = document.getElementById("clientIdentityVideo");
+        const capture = document.getElementById("clientIdentityCaptureButton");
+        const cameraStatus = document.getElementById("clientIdentityCameraStatus");
+        const guide = document.getElementById("clientIdentityGuide");
+        const stage = document.getElementById("clientIdentityCameraStage");
+
+        stopCustomerIdentityCamera();
+        if (capture) capture.disabled = true;
+        if (stage) stage.dataset.frame = step.frame;
+        if (guide) guide.className = `client-identity-guide ${step.frame}`;
+        if (video) {
+            video.dataset.facing = step.facing;
+            video.dataset.frame = step.frame;
+        }
+        const eyebrow = document.getElementById("clientIdentityEyebrow");
+        const title = document.getElementById("clientIdentityTitle");
+        const hint = document.getElementById("clientIdentityHint");
+        const tip = document.getElementById("clientIdentityTipText");
+        if (eyebrow) eyebrow.textContent = `Evidencia ${customerIdentityRecovery.stepIndex + 1} de ${customerIdentityRecovery.steps.length}`;
+        if (title) title.textContent = step.title;
+        if (hint) hint.textContent = step.hint;
+        if (tip) tip.textContent = step.tip;
+        if (cameraStatus) cameraStatus.innerHTML = '<i class="fas fa-circle-notch fa-spin text-emerald-400 mr-2"></i>Activando cámara…';
+        renderCustomerIdentityRecoveryProgress();
+
+        if (!navigator.mediaDevices?.getUserMedia) {
+            if (cameraStatus) cameraStatus.textContent = "Cámara no disponible";
+            throw new Error("CUSTOMER_IDENTITY_CAMERA_UNAVAILABLE");
+        }
+
+        const documentCapture = step.frame === "document";
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: { ideal: step.facing },
+                width: { ideal: documentCapture ? 1920 : 1280 },
+                height: { ideal: documentCapture ? 1080 : 1280 },
+                ...(documentCapture ? { aspectRatio: { ideal: 16 / 9 } } : {})
+            },
+            audio: false
+        });
+        customerIdentityRecovery.stream = stream;
+        video.srcObject = stream;
+        await video.play();
+        if (cameraStatus) cameraStatus.innerHTML = '<i class="fas fa-circle text-emerald-400 mr-2 text-[8px]"></i>Cámara lista';
+        if (capture) capture.disabled = false;
+    }
+
+    async function persistCustomerIdentityRecovery() {
+        const status = document.getElementById("clientIdentityRecoveryStatus");
+        const capture = document.getElementById("clientIdentityCaptureButton");
+        const userRef = doc(db, "users", user.uid);
+
+        if (capture) capture.disabled = true;
+        if (status) status.textContent = "Protegiendo evidencias en tu expediente…";
+
+        for (const step of customerIdentityRecovery.steps) {
+            const file = customerIdentityRecovery.files.get(step.key);
+            if (!file) throw new Error(`CUSTOMER_IDENTITY_FILE_MISSING:${step.kind}`);
+
+            const storagePath = storagePathForTechnicianDocument(user.uid, step.kind, file.name);
+            await setDoc(userRef, {
+                kyc: {
+                    estado: "identidad_pendiente",
+                    upload_actual: step.kind,
+                    ultimo_error: null,
+                    uploads: {
+                        [step.kind]: {
+                            estado: "subiendo",
+                            storage_path: storagePath,
+                            actualizado_at: serverTimestamp()
+                        }
+                    }
+                }
+            }, { merge: true });
+
+            const objectRef = ref(storage, storagePath);
+            await uploadBytes(objectRef, file);
+            const url = await getDownloadURL(objectRef);
+            await setDoc(userRef, step.patch(url), { merge: true });
+            await setDoc(userRef, {
+                kyc: {
+                    estado: "identidad_pendiente",
+                    upload_actual: null,
+                    uploads: {
+                        [step.kind]: {
+                            estado: "confirmado",
+                            storage_path: storagePath,
+                            url,
+                            actualizado_at: serverTimestamp()
+                        }
+                    }
+                }
+            }, { merge: true });
+        }
+
+        await setDoc(userRef, {
+            kyc: {
+                estado: "identidad_pendiente",
+                identity_capture_status: "captured_pending_verification",
+                identity_capture_completed_at: serverTimestamp(),
+                upload_actual: null,
+                ultimo_error: null
+            },
+            actualizadoEn: serverTimestamp()
+        }, { merge: true });
+
+        if (status) status.textContent = "Validando INE, rostro, prueba de vida y duplicados…";
+        const result = await verificarIdentidadB2C();
+
+        if (result?.status === "verified") {
+            if (status) status.textContent = "✅ Identidad verificada. Activando tu cuenta…";
+            setTimeout(() => window.location.reload(), 800);
+            return;
+        }
+
+        if (result?.status === "duplicate_suspected") {
+            if (status) status.textContent = "🛡️ Coincidencia biométrica detectada. El expediente pasó a revisión administrativa.";
+            setTimeout(() => window.location.reload(), 1400);
+            return;
+        }
+
+        const reasons = Array.isArray(result?.reasons)
+            ? result.reasons.map(value => String(value || "").trim()).filter(Boolean).slice(0, 8)
+            : [];
+        if (status) {
+            status.textContent = reasons.length
+                ? `Revisión requerida: ${reasons.join(" · ")}`
+                : "La validación automática requiere revisión.";
+        }
+        setTimeout(() => window.location.reload(), 1800);
+    }
+
+    async function captureCustomerIdentityFrame() {
+        if (customerIdentityRecovery.running) return;
+        const step = customerIdentityRecovery.steps[customerIdentityRecovery.stepIndex];
+        const video = document.getElementById("clientIdentityVideo");
+        const canvas = document.getElementById("clientIdentityCanvas");
+        const capture = document.getElementById("clientIdentityCaptureButton");
+        if (!step || !video || !canvas || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return;
+
+        customerIdentityRecovery.running = true;
+        if (capture) capture.disabled = true;
+        try {
+            const width = Math.min(video.videoWidth, 1600);
+            const scale = width / video.videoWidth;
+            const height = Math.round(video.videoHeight * scale);
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext("2d", { alpha: false });
+            context.drawImage(video, 0, 0, width, height);
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.9));
+            if (!blob || blob.size < 16 * 1024) throw new Error("CUSTOMER_IDENTITY_CAPTURE_TOO_SMALL");
+
+            customerIdentityRecovery.files.set(
+                step.key,
+                new File([blob], step.fileName, { type: "image/jpeg", lastModified: Date.now() })
+            );
+            customerIdentityRecovery.stepIndex += 1;
+            renderCustomerIdentityRecoveryProgress();
+
+            if (customerIdentityRecovery.stepIndex >= customerIdentityRecovery.steps.length) {
+                stopCustomerIdentityCamera();
+                await persistCustomerIdentityRecovery();
+                return;
+            }
+            await openCustomerIdentityCameraStep();
+        } finally {
+            customerIdentityRecovery.running = false;
+            if (capture && customerIdentityRecovery.stepIndex < customerIdentityRecovery.steps.length) capture.disabled = false;
+        }
+    }
+
+    async function startCustomerIdentityRecovery() {
+        if (!auth.currentUser || auth.currentUser.uid !== user.uid) {
+            window.location.href = "login.html?resume=cliente-identity";
+            return;
+        }
+
+        customerIdentityRecovery.steps = customerIdentityAllSteps.filter(step => !step.exists());
+        customerIdentityRecovery.stepIndex = 0;
+        customerIdentityRecovery.files = new Map();
+        customerIdentityRecovery.running = false;
+
+        if (customerIdentityRecovery.steps.length === 0) {
+            const bannerStatus = document.getElementById("clienteIdentityRetryStatus");
+            if (bannerStatus) bannerStatus.textContent = "Tus evidencias ya existen. Ejecutando validación automática…";
+            const result = await verificarIdentidadB2C();
+            if (result?.status === "verified") window.location.reload();
+            else if (bannerStatus) bannerStatus.textContent = `Validación: ${String(result?.status || "review_required")}`;
+            return;
+        }
+
+        document.getElementById("clientIdentityModal")?.classList.remove("hidden");
+        document.documentElement.classList.add("client-identity-modal-open");
+        document.body.classList.add("client-identity-modal-open");
+        const status = document.getElementById("clientIdentityRecoveryStatus");
+        if (status) status.textContent = "";
+        await openCustomerIdentityCameraStep();
+    }
+
+    document.getElementById("clientIdentityCancelButton")?.addEventListener("click", closeCustomerIdentityModal);
+    document.getElementById("clientIdentityCaptureButton")?.addEventListener("click", () => {
+        captureCustomerIdentityFrame().catch(error => {
+            console.error("[B2C_CUSTOMER_IDENTITY_CAPTURE]", error);
+            const status = document.getElementById("clientIdentityRecoveryStatus");
+            if (status) status.textContent = `No se pudo completar la captura (${String(error?.code || error?.message || "CAPTURE_FAILED").slice(0, 100)}).`;
+        });
+    });
+
+    window.addEventListener("beforeunload", stopCustomerIdentityCamera, { once: true });
 
     const identityStatus = String(user.kyc?.identity_machine_status || "pending").trim();
     const identityReasons = Array.isArray(user.kyc?.identity_machine_reasons)
@@ -152,7 +466,19 @@ export async function iniciarPanelCliente(user) {
             }
 
             if (!identityEvidenceComplete) {
-                window.location.href = "registro.html?resume=cliente-identity";
+                retryButton.disabled = true;
+                retryButton.innerHTML = '<i class="fas fa-camera"></i> ABRIENDO CÁMARA…';
+                try {
+                    await startCustomerIdentityRecovery();
+                } catch (error) {
+                    console.error("[B2C_CUSTOMER_IDENTITY_RECOVERY]", error);
+                    if (retryStatus) retryStatus.textContent = "No se pudo abrir la captura. Revisa el permiso de cámara e intenta otra vez.";
+                } finally {
+                    if (retryButton?.isConnected) {
+                        retryButton.disabled = false;
+                        retryButton.innerHTML = '<i class="fas fa-rotate"></i> REANUDAR CAPTURA DE IDENTIDAD';
+                    }
+                }
                 return;
             }
 
