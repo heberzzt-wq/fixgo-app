@@ -455,3 +455,20 @@ test("release gate keeps customer biometric recapture immutable and server-adopt
     assert.match(backend, /normalizeRecaptureEvidence/);
     assert.match(backend, /recaptureProfilePatch/);
 });
+
+
+test("release gate requires evidence review and individual retake before biometric verification", () => {
+    const client = fs.readFileSync(new URL("../panel-cliente.js", import.meta.url), "utf8");
+    const clientHtml = fs.readFileSync(new URL("../cliente.html", import.meta.url), "utf8");
+    const registration = fs.readFileSync(new URL("../app-registro.js", import.meta.url), "utf8");
+    const registrationHtml = fs.readFileSync(new URL("../registro.html", import.meta.url), "utf8");
+
+    assert.match(client, /showCustomerIdentityReview/);
+    assert.match(client, /data-client-identity-retake/);
+    assert.match(client, /data-client-identity-remove/);
+    assert.match(clientHtml, /clientIdentityVerifyReviewedButton/);
+    assert.match(registration, /showIdentityReview/);
+    assert.match(registration, /data-identity-retake/);
+    assert.match(registration, /data-identity-remove/);
+    assert.match(registrationHtml, /btnConfirmarIdentidad/);
+});
