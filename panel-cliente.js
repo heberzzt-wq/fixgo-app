@@ -515,12 +515,6 @@ export async function iniciarPanelCliente(user) {
             return;
         }
 
-        if (result?.status === "manual_review_required") {
-            if (status) status.textContent = "🧑‍💼 Tu identidad quedó enviada a revisión humana. No necesitas tomar más fotos.";
-            setTimeout(() => window.location.reload(), 1000);
-            return;
-        }
-
         const reasons = Array.isArray(result?.reasons)
             ? result.reasons.map(value => String(value || "").trim()).filter(Boolean).slice(0, 8)
             : [];
@@ -729,31 +723,29 @@ export async function iniciarPanelCliente(user) {
     const targetedRecaptureIsFaceOnly =
         targetedRecaptureAvailable &&
         [...effectiveIdentityStepKeys].every(key => key.startsWith("selfie_"));
-    const manualReviewPending = identityStatus === "manual_review_required";
-    const identityReasonSummary = manualReviewPending
-        ? "La comparación automática necesita revisión humana. Tus evidencias ya están guardadas; no necesitas tomar más fotos."
+    const legacyManualReviewMigration = identityStatus === "manual_review_required";
+    const identityReasonSummary = legacyManualReviewMigration
+        ? "Esta cuenta quedó en una revisión administrativa del flujo anterior. La resolveremos automáticamente con las evidencias ya guardadas."
         : noDiagnosticRevalidation
             ? "La validación anterior no dejó un diagnóstico utilizable. Reintentaremos con las evidencias ya guardadas; no necesitas tomar otra foto."
             : mismatchRevalidation
-                ? "La selfie es técnicamente utilizable, pero la comparación automática con tu INE necesita revisión humana."
+                ? "La comparación con una INE antigua quedó como señal de auditoría; el cliente no requiere autorización administrativa."
                 : describeIdentityReview(identityReasons, failedIdentityStepKeys);
     const recoveryButtonLabel = !identityEvidenceComplete
         ? "REANUDAR CAPTURA DE IDENTIDAD"
-        : mismatchRevalidation
-            ? "ENVIAR A REVISIÓN"
-            : targetedRecaptureAvailable
-                ? (targetedRecaptureIsFaceOnly ? "RECAPTURAR SELFIE" : "RECAPTURAR EVIDENCIA RECHAZADA")
-                : "REINTENTAR VALIDACIÓN AUTOMÁTICA";
+        : legacyManualReviewMigration
+            ? "FINALIZAR VALIDACIÓN AUTOMÁTICA"
+            : mismatchRevalidation
+                ? "REINTENTAR VALIDACIÓN AUTOMÁTICA"
+                : targetedRecaptureAvailable
+                    ? (targetedRecaptureIsFaceOnly ? "RECAPTURAR SELFIE" : "RECAPTURAR EVIDENCIA RECHAZADA")
+                    : "REINTENTAR VALIDACIÓN AUTOMÁTICA";
     const customerIdentityAuthorityVerified = profile => {
         const profileStatus = String(profile?.kyc?.identity_machine_status || "pending").trim();
         const automaticApproved =
             profile?.kyc?.identity_machine_verified === true &&
             profileStatus === "verified";
-        const manualApproved =
-            profile?.kyc?.identity_manual_verified === true &&
-            profile?.kyc?.identity_verification_method === "admin_manual_review";
-        return profile?.kyc?.identity_verified === true &&
-            (automaticApproved || manualApproved);
+        return profile?.kyc?.identity_verified === true && automaticApproved;
     };
 
     const identityAuthorityVerified = customerIdentityAuthorityVerified(user);
@@ -786,7 +778,7 @@ export async function iniciarPanelCliente(user) {
         banner.className = "mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-100";
         const duplicate = identityStatus === "duplicate_suspected";
         const reasonMarkup = `<p id="clienteIdentityMachineReason" class="mt-2 rounded-xl border border-amber-400/20 bg-black/20 px-3 py-2 text-[11px] leading-relaxed text-amber-100/80">${escaparHTML(identityReasonSummary)}</p>`;
-        const retryMarkup = duplicate || manualReviewPending
+        const retryMarkup = duplicate
             ? ""
             : `<button id="clienteIdentityRetryButton" type="button" class="mt-3 inline-flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100 active:scale-95">
                     <i class="fas fa-rotate"></i> ${recoveryButtonLabel}
@@ -795,12 +787,12 @@ export async function iniciarPanelCliente(user) {
             <div class="flex items-start gap-3">
                 <i class="fas fa-user-shield mt-1 text-amber-400"></i>
                 <div class="min-w-0 flex-1">
-                    <p class="font-black">${manualReviewPending ? "Identidad en revisión administrativa" : duplicate ? "Identidad en revisión de seguridad" : "Verificación de identidad pendiente"}</p>
+                    <p class="font-black">${duplicate ? "Identidad en revisión de seguridad" : "Verificación de identidad pendiente"}</p>
                     <p class="mt-1 text-xs text-amber-100/75">
-                        ${manualReviewPending
-                            ? "Tus evidencias ya fueron enviadas a Administración. No necesitas repetir INE ni selfie mientras se revisa."
-                            : duplicate
-                                ? "Detectamos una coincidencia que debe revisar una persona. No se permiten solicitudes mientras se resuelve."
+                        ${duplicate
+                            ? "Detectamos una coincidencia biométrica de seguridad. No se permiten solicitudes mientras se resuelve ese posible duplicado."
+                            : legacyManualReviewMigration
+                                ? "El cliente no requiere autorización de Admin. Finalizaremos automáticamente el estado anterior con las evidencias ya guardadas."
                                 : !identityEvidenceComplete
                                     ? "La cuenta ya existe, pero faltan evidencias de identidad. Reanuda la captura en la misma cuenta; no se creará otra identidad."
                                     : noDiagnosticRevalidation
@@ -873,13 +865,6 @@ export async function iniciarPanelCliente(user) {
                     return;
                 }
 
-                if (status === "manual_review_required") {
-                    if (retryStatus) retryStatus.textContent = "🧑‍💼 Expediente enviado a revisión humana. Ya no necesitas repetir fotos.";
-                    retryButton.remove();
-                    setTimeout(() => window.location.reload(), 900);
-                    return;
-                }
-
                 const failedKeys = identityStepKeysFromReasons(reasons);
                 if (retryStatus) {
                     retryStatus.textContent = describeIdentityReview(reasons, failedKeys);
@@ -911,6 +896,10 @@ export async function iniciarPanelCliente(user) {
                 }
             }
         });
+
+        if (legacyManualReviewMigration && retryButton) {
+            queueMicrotask(() => retryButton.click());
+        }
 
         if (el.form) {
             el.form.setAttribute("aria-disabled", "true");

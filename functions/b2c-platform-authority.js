@@ -63,12 +63,9 @@ function createB2cServiceHandler({ admin, db, functions }) {
             const automaticIdentityApproved =
                 customer.kyc?.identity_machine_verified === true &&
                 customer.kyc?.identity_machine_status === "verified";
-            const manualIdentityApproved =
-                customer.kyc?.identity_manual_verified === true &&
-                customer.kyc?.identity_verification_method === "admin_manual_review";
             if (customer.kyc?.identity_required === true &&
                 (customer.kyc?.identity_verified !== true ||
-                 (!automaticIdentityApproved && !manualIdentityApproved) ||
+                 !automaticIdentityApproved ||
                  customer.estado !== "activo" ||
                  customer.status !== "activo")) {
                 throw callableError(functions, "failed-precondition", "CUSTOMER_IDENTITY_VERIFICATION_REQUIRED");
@@ -360,105 +357,6 @@ function createAdminNocActionHandler({ admin, db, functions }) {
                     autorizado_por: actorId
                 });
                 return { ok: true, action, customerId, enabled, balance, auditId: auditRef.id };
-            });
-        }
-
-        if (["approve_customer_identity", "request_customer_identity_recapture"].includes(action)) {
-            const customerId = clean(data?.customerId, 160);
-            const reason = clean(data?.reason, 500);
-            if (!customerId) throw callableError(functions, "invalid-argument", "customerId es obligatorio.");
-            if (reason.length < 6) throw callableError(functions, "invalid-argument", "La revisión de identidad requiere un motivo auditable.");
-
-            const customerRef = db.collection("users").doc(customerId);
-            const registryRef = db.collection("b2c_identity_registry").doc(customerId);
-            const auditRef = db.collection("b2c_identity_admin_audit").doc();
-
-            return db.runTransaction(async transaction => {
-                const [customerSnapshot, registrySnapshot] = await Promise.all([
-                    transaction.get(customerRef),
-                    transaction.get(registryRef)
-                ]);
-                if (!customerSnapshot.exists) throw callableError(functions, "not-found", "Cliente no encontrado.");
-                const customer = customerSnapshot.data() || {};
-                if (
-                    platformContract.normalizeToken(customer.rol || customer.role) !== "cliente" ||
-                    customer.tipo_cuenta === "B2B"
-                ) {
-                    throw callableError(functions, "failed-precondition", "El perfil no corresponde a un cliente B2C.");
-                }
-
-                const reviewEvidence = customer.kyc?.identity_review_evidence || {};
-                const selfieUrl = clean(reviewEvidence.selfie_front, 2200);
-                const ineFrontUrl = clean(reviewEvidence.ine_front || customer.documentos?.ine, 2200);
-                const ineBackUrl = clean(reviewEvidence.ine_back || customer.documentos?.ine_reverso, 2200);
-
-                if (action === "approve_customer_identity") {
-                    if (
-                        customer.kyc?.identity_machine_status !== "manual_review_required" ||
-                        customer.kyc?.identity_review_status !== "pending" ||
-                        !selfieUrl || !ineFrontUrl || !ineBackUrl ||
-                        !registrySnapshot.exists ||
-                        !Array.isArray(registrySnapshot.data()?.embedding)
-                    ) {
-                        throw callableError(functions, "failed-precondition", "El expediente no está listo para aprobación manual segura.");
-                    }
-
-                    transaction.update(customerRef, {
-                        foto_perfil: selfieUrl,
-                        estado: "activo",
-                        status: "activo",
-                        disponible: false,
-                        "kyc.estado": "activo",
-                        "kyc.identity_verified": true,
-                        "kyc.identity_verified_at": now,
-                        "kyc.identity_manual_verified": true,
-                        "kyc.identity_manual_verified_at": now,
-                        "kyc.identity_manual_verified_by": actorId,
-                        "kyc.identity_review_status": "approved",
-                        "kyc.identity_review_decision_reason": reason,
-                        "kyc.identity_review_decided_at": now,
-                        "kyc.identity_verification_method": "admin_manual_review"
-                    });
-                    transaction.set(registryRef, {
-                        status: "active",
-                        manual_review: true,
-                        updated_at: now
-                    }, { merge: true });
-                } else {
-                    transaction.update(customerRef, {
-                        estado: "identidad_revision",
-                        status: "identidad_revision",
-                        disponible: false,
-                        "kyc.estado": "identidad_revision",
-                        "kyc.identity_verified": false,
-                        "kyc.identity_manual_verified": false,
-                        "kyc.identity_machine_status": "review_required",
-                        "kyc.identity_machine_verified": false,
-                        "kyc.identity_machine_reasons": ["ADMIN_SELFIE_RECAPTURE_REQUIRED"],
-                        "kyc.identity_review_status": "recapture_required",
-                        "kyc.identity_review_decision_reason": reason,
-                        "kyc.identity_review_decided_at": now
-                    });
-                    if (registrySnapshot.exists) {
-                        transaction.set(registryRef, {
-                            status: "pending_admin_review",
-                            updated_at: now
-                        }, { merge: true });
-                    }
-                }
-
-                transaction.create(auditRef, {
-                    customer_id: customerId,
-                    action,
-                    reason,
-                    actor_id: actorId,
-                    machine_status: customer.kyc?.identity_machine_status || null,
-                    machine_reasons: Array.isArray(customer.kyc?.identity_machine_reasons)
-                        ? customer.kyc.identity_machine_reasons.slice(0, 8)
-                        : [],
-                    created_at: now
-                });
-                return { ok: true, action, customerId };
             });
         }
 

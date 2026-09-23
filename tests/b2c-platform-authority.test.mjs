@@ -47,27 +47,16 @@ function approvedTechnician(overrides = {}) {
     };
 }
 
-test("customer identity admin decisions update nested kyc field paths instead of creating dotted top-level keys", () => {
+test("B2C customer service creation accepts automatic identity only; admin approval is technician-only", () => {
     const source = fs.readFileSync(path.join(root, "functions", "b2c-platform-authority.js"), "utf8");
-    const block = source.slice(
-        source.indexOf('if (["approve_customer_identity", "request_customer_identity_recapture"].includes(action))'),
-        source.indexOf('const technicianId = clean(data?.technicianId')
+    const serviceBlock = source.slice(
+        source.indexOf("function createB2cServiceHandler"),
+        source.indexOf("function createSetCustomerPaymentPermissionsHandler")
     );
-    assert.match(block, /transaction\.update\(customerRef, \{/);
-    assert.doesNotMatch(block, /transaction\.set\(customerRef, \{[\s\S]*?"kyc\.identity_verified"/);
-});
-
-test("customer manual identity approval is auditable and does not fake machine verification", () => {
-    const source = fs.readFileSync(path.join(root, "functions", "b2c-platform-authority.js"), "utf8");
-    const actionBlock = source.slice(
-        source.indexOf('if (["approve_customer_identity", "request_customer_identity_recapture"].includes(action))'),
-        source.indexOf('const technicianId = clean(data?.technicianId')
-    );
-    assert.match(actionBlock, /kyc\.identity_manual_verified/);
-    assert.match(actionBlock, /admin_manual_review/);
-    assert.match(actionBlock, /b2c_identity_admin_audit/);
-    assert.match(actionBlock, /request_customer_identity_recapture/);
-    assert.doesNotMatch(actionBlock, /"kyc\.identity_machine_verified": true/);
+    assert.match(serviceBlock, /identity_machine_verified/);
+    assert.match(serviceBlock, /identity_machine_status === "verified"/);
+    assert.doesNotMatch(serviceBlock, /identity_manual_verified|admin_manual_review/);
+    assert.doesNotMatch(source, /approve_customer_identity|request_customer_identity_recapture/);
 });
 
 test("browser and Functions consume the same neutral authority", () => {

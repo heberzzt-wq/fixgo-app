@@ -4,7 +4,6 @@ const {
     THRESHOLDS,
     IDENTITY_ATTEMPT_POLICY_VERSION,
     identityEvidenceKindsForRole,
-    resolveIdentityReviewStatus,
     assessCustomerIdentityAnalyses,
     assessIdentityAnalyses,
     bestRegistryMatch,
@@ -67,19 +66,23 @@ test("attempt policy migration resets stale legacy counters without deleting his
     assert.equal(result.patch.same_capture_attempts, 1);
 });
 
-test("a clean customer face/INE mismatch escalates to human review instead of an endless selfie loop", () => {
-    assert.equal(
-        resolveIdentityReviewStatus("cliente", "review_required", ["SELFIE_INE_FACE_MISMATCH"]),
-        "manual_review_required"
-    );
-    assert.equal(
-        resolveIdentityReviewStatus("cliente", "review_required", ["SELFIE_INE_FACE_MISMATCH", "SELFIE_FRONT_NOT_CENTERED"]),
-        "review_required"
-    );
-    assert.equal(
-        resolveIdentityReviewStatus("tecnico", "review_required", ["SELFIE_INE_FACE_MISMATCH"]),
-        "review_required"
-    );
+test("customer selfie/INE mismatch is advisory while technician mismatch remains blocking", () => {
+    const analyses = {
+        ine_front: face({ embeddingValue: 0.10 }),
+        selfie_front: face({ embeddingValue: 1.00, yaw: 0 })
+    };
+    const customer = assessCustomerIdentityAnalyses({ analyses, similarity });
+    assert.equal(customer.status, "verified");
+    assert.deepEqual(customer.reasons, []);
+    assert.deepEqual(customer.warnings, ["SELFIE_INE_FACE_MISMATCH"]);
+
+    const technician = assessCustomerIdentityAnalyses({
+        analyses,
+        similarity,
+        strictDocumentMatch: true
+    });
+    assert.equal(technician.status, "review_required");
+    assert.ok(technician.reasons.includes("SELFIE_INE_FACE_MISMATCH"));
 });
 
 test("customer and technician automatic identity use the same three-evidence contract", () => {

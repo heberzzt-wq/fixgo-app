@@ -244,19 +244,6 @@ function identityReviewEvidence(profile = {}) {
     };
 }
 
-function resolveIdentityReviewStatus(role, status, reasons = []) {
-    const normalized = Array.isArray(reasons) ? reasons.map(value => safeText(value, 160)).filter(Boolean) : [];
-    if (
-        role === "cliente" &&
-        status === "review_required" &&
-        normalized.length === 1 &&
-        normalized[0] === "SELFIE_INE_FACE_MISMATCH"
-    ) {
-        return "manual_review_required";
-    }
-    return status;
-}
-
 const CUSTOMER_IDENTITY_EVIDENCE_KINDS = Object.freeze([
     "selfie_front",
     "ine_front",
@@ -465,8 +452,9 @@ function biometricQualityMetrics(quality = {}) {
     };
 }
 
-function assessCustomerIdentityAnalyses({ analyses, similarity }) {
+function assessCustomerIdentityAnalyses({ analyses, similarity, strictDocumentMatch = false }) {
     const reasons = [];
+    const warnings = [];
     const quality = {};
 
     for (const kind of ["ine_front", "selfie_front"]) {
@@ -483,7 +471,10 @@ function assessCustomerIdentityAnalyses({ analyses, similarity }) {
     const front = quality.selfie_front;
     const ine = quality.ine_front;
     const idMatch = similarity(front.embedding, ine.embedding);
-    if (idMatch < THRESHOLDS.idDocumentMatch) reasons.push("SELFIE_INE_FACE_MISMATCH");
+    if (idMatch < THRESHOLDS.idDocumentMatch) {
+        if (strictDocumentMatch) reasons.push("SELFIE_INE_FACE_MISMATCH");
+        else warnings.push("SELFIE_INE_FACE_MISMATCH");
+    }
 
     const yawFront = radiansToDegrees(front.yaw);
     if (Math.abs(yawFront) > THRESHOLDS.frontYawMaxDeg) reasons.push("SELFIE_FRONT_NOT_CENTERED");
@@ -491,6 +482,7 @@ function assessCustomerIdentityAnalyses({ analyses, similarity }) {
     return {
         status: reasons.length ? "review_required" : "verified",
         reasons,
+        warnings,
         embedding: front.embedding,
         metrics: {
             selfie_ine_similarity: roundScore(idMatch),
@@ -644,9 +636,15 @@ function createVerifyB2cIdentityHandler({
         }
 
         const digest = captureDigest(buffers);
+        const legacyClientManualReview =
+            role === "cliente" &&
+            profile.kyc?.identity_machine_status === "manual_review_required" &&
+            Array.isArray(profile.kyc?.identity_machine_reasons) &&
+            profile.kyc.identity_machine_reasons.length === 1 &&
+            profile.kyc.identity_machine_reasons[0] === "SELFIE_INE_FACE_MISMATCH";
         const attemptsRef = db.collection("b2c_identity_attempts").doc(uid);
         const attemptNowMs = Date.now();
-        await db.runTransaction(async transaction => {
+        if (!legacyClientManualReview) await db.runTransaction(async transaction => {
             const snapshot = await transaction.get(attemptsRef);
             const state = snapshot.exists ? snapshot.data() || {} : {};
             const decision = evaluateIdentityAttemptState(state, {
@@ -702,7 +700,8 @@ function createVerifyB2cIdentityHandler({
             }
             assessment = assessCustomerIdentityAnalyses({
                 analyses,
-                similarity: runtime.similarity
+                similarity: runtime.similarity,
+                strictDocumentMatch: role === "tecnico"
             });
         } catch (error) {
             console.error("[B2C_BIOMETRIC_ENGINE_FAILED]", { uid, code: safeText(error.code || error.message, 160) });
@@ -745,11 +744,10 @@ function createVerifyB2cIdentityHandler({
                     status = "duplicate_suspected";
                     reasons.push("IDENTITY_DUPLICATE_SUSPECTED");
                 } else if (duplicate?.similarity >= THRESHOLDS.duplicateReview) {
-                    status = "review_required";
-                    reasons.push("IDENTITY_SIMILARITY_REVIEW_REQUIRED");
+                    status = role === "cliente" ? "duplicate_suspected" : "review_required";
+                    reasons.push(role === "cliente" ? "IDENTITY_DUPLICATE_SUSPECTED" : "IDENTITY_SIMILARITY_REVIEW_REQUIRED");
                 }
             }
-            status = resolveIdentityReviewStatus(role, status, reasons);
 
             const timestamp = now();
             const promotedRecapturePatch =
@@ -762,6 +760,7 @@ function createVerifyB2cIdentityHandler({
                 "kyc.identity_machine_status": status,
                 "kyc.identity_machine_verified": status === "verified",
                 "kyc.identity_machine_reasons": reasons,
+                "kyc.identity_machine_warnings": Array.isArray(assessment.warnings) ? assessment.warnings : [],
                 "kyc.identity_machine_metrics": assessment.metrics || {},
                 "kyc.identity_machine_checked_at": timestamp,
                 "kyc.identity_capture_digest": digest,
@@ -771,14 +770,10 @@ function createVerifyB2cIdentityHandler({
                             ? "recaptured_verified"
                             : status === "duplicate_suspected"
                                 ? "recaptured_duplicate_review"
-                                : status === "manual_review_required"
-                                    ? "recaptured_manual_review"
-                                    : "recaptured_review_required"
+                                : "recaptured_review_required"
                     )
                     : (
-                        status === "manual_review_required"
-                            ? "captured_manual_review"
-                            : profile.kyc?.identity_capture_status || "captured_pending_verification"
+                        profile.kyc?.identity_capture_status || "captured_pending_verification"
                     ),
                 "kyc.identity_capture_completed_at": Object.keys(recaptureEvidence).length > 0
                     ? timestamp
@@ -787,7 +782,7 @@ function createVerifyB2cIdentityHandler({
             };
 
             if (
-                ["verified", "manual_review_required"].includes(status) &&
+                status === "verified" &&
                 Array.isArray(assessment.embedding) &&
                 assessment.embedding.length >= 128
             ) {
@@ -821,14 +816,6 @@ function createVerifyB2cIdentityHandler({
                 publicPatch["kyc.estado"] = publicPatch.estado;
                 publicPatch["kyc.identity_verified"] = false;
                 publicPatch["kyc.identity_duplicate_suspected"] = status === "duplicate_suspected";
-                if (status === "manual_review_required" && role === "cliente") {
-                    publicPatch["kyc.identity_review_status"] = "pending";
-                    publicPatch["kyc.identity_review_requested_at"] = timestamp;
-                    publicPatch["kyc.identity_review_evidence"] = {
-                        ...identityReviewEvidence(verificationProfile),
-                        submitted_at: timestamp
-                    };
-                }
             }
 
             // update() is required here because publicPatch intentionally uses
@@ -883,7 +870,6 @@ module.exports = {
     applyRecaptureEvidenceToProfile,
     recaptureProfilePatch,
     identityReviewEvidence,
-    resolveIdentityReviewStatus,
     createHumanBiometricRuntime,
     createVerifyB2cIdentityHandler,
     verifyIdentityStorage
