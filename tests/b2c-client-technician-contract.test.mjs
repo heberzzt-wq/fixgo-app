@@ -298,8 +298,8 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
         client.indexOf('if (reason === "SELFIE_INE_FACE_MISMATCH")'),
         client.indexOf('if (reason === "SELFIE_FRONT_NOT_CENTERED")')
     );
-    assert.match(mismatchRecovery, /keys\.add\("selfie_front"\)/);
-    assert.doesNotMatch(mismatchRecovery, /keys\.add\("ine_front"\)/);
+    assert.doesNotMatch(mismatchRecovery, /keys\.add\("selfie_front"\)|keys\.add\("ine_front"\)/);
+    assert.match(mismatchRecovery, /human review/);
     const customerIdentitySteps = client.slice(client.indexOf("const customerIdentityAllSteps"), client.indexOf("function identityStepKeysFromReasons"));
     assert.doesNotMatch(customerIdentitySteps, /selfie_left|selfie_right|selfie_liveness_left|selfie_liveness_right/);
     const customerRegistration = registration.slice(registration.indexOf("if (btnRegistroCliente)"), registration.indexOf("// ======================================================\n// B. LÓGICA DE TÉCNICOS"));
@@ -314,9 +314,10 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(client, /identityStepKeysFromReasons\(reasonsOverride\)/);
     assert.match(client, /await startCustomerIdentityRecovery\(reasons\)/);
     assert.match(client, /ABRIENDO RECAPTURA/);
-    assert.match(client, /fallbackIdentityStepKeys/);
+    assert.match(client, /noDiagnosticRevalidation/);
+    assert.match(client, /mismatchRevalidation/);
     assert.match(client, /effectiveIdentityStepKeys/);
-    assert.match(client, /RECAPTURAR BIOMETRÍA FACIAL/);
+    assert.match(client, /REINTENTAR VALIDACIÓN AUTOMÁTICA/);
     assert.match(client, /stepKeysOverride instanceof Set/);
     assert.match(client, /resource-exhausted/);
     assert.match(client, /customerIdentityAttemptError/);
