@@ -270,6 +270,9 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(client, /persistCustomerIdentityRecovery/);
     assert.doesNotMatch(client, /window\.location\.href = "registro\.html\?resume=cliente-identity"/);
     assert.match(html, /id="clientIdentityModal"/);
+    assert.match(html, /#clientIdentityVerifyReviewedButton\s*\{[\s\S]*?position:\s*sticky/);
+    assert.match(html, /bottom:\s*max\(\.75rem, env\(safe-area-inset-bottom\)\)/);
+    assert.match(html, /id="clientIdentityReviewView"[^>]*pb-24/);
     assert.match(html, /client-identity-camera\[data-frame="document"\] video/);
     assert.match(html, /object-fit:\s*contain/);
     assert.match(html, /height:\s*100dvh/);
