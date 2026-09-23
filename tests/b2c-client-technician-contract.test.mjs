@@ -470,6 +470,10 @@ test("release gate requires evidence review and individual retake before biometr
     assert.match(client, /data-client-identity-retake/);
     assert.match(client, /data-client-identity-remove/);
     assert.match(clientHtml, /clientIdentityVerifyReviewedButton/);
+    assert.match(client, /missingRecommendedKeys/);
+    assert.match(client, /recommendedRetakesComplete/);
+    assert.match(client, /CUSTOMER_IDENTITY_REQUIRED_RETAKES_PENDING/);
+    assert.match(client, /repite todas las tomas marcadas REVISAR/);
     assert.match(registration, /showIdentityReview/);
     assert.match(registration, /data-identity-retake/);
     assert.match(registration, /data-identity-remove/);

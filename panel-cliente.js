@@ -305,6 +305,12 @@ export async function iniciarPanelCliente(user) {
 
         const allReady = customerIdentityAllSteps.every(step => Boolean(customerIdentityPreviewUrl(step)));
         const hasChanges = customerIdentityRecovery.files.size > 0;
+        const missingRecommendedKeys = [...customerIdentityRecovery.recommendedKeys]
+            .filter(key => !customerIdentityRecovery.files.has(key));
+        const recommendedRetakesComplete = missingRecommendedKeys.length === 0;
+        const missingRecommendedLabels = missingRecommendedKeys
+            .map(customerIdentityStepLabel)
+            .join(", ");
         grid.innerHTML = customerIdentityAllSteps.map(step => {
             const url = customerIdentityPreviewUrl(step);
             const ready = Boolean(url);
@@ -356,13 +362,15 @@ export async function iniciarPanelCliente(user) {
             });
         });
 
-        verifyButton.disabled = !allReady || !hasChanges;
+        verifyButton.disabled = !allReady || !hasChanges || !recommendedRetakesComplete;
         if (status) {
             status.textContent = !allReady
                 ? "Falta una evidencia. Captúrala antes de verificar."
                 : !hasChanges
                     ? "Para evitar revalidar las mismas fotos, repite al menos una evidencia antes de verificar de nuevo."
-                    : "Revisa bien todo. Sólo las evidencias marcadas como NUEVA sustituirán la selección vigente.";
+                    : !recommendedRetakesComplete
+                        ? `Antes de verificar, repite todas las tomas marcadas REVISAR. Falta: ${missingRecommendedLabels}.`
+                        : "Revisa bien todo. Sólo las evidencias marcadas como NUEVA sustituirán la selección vigente.";
         }
     }
 
@@ -453,6 +461,12 @@ export async function iniciarPanelCliente(user) {
 
         const changedSteps = customerIdentityAllSteps.filter(step => customerIdentityRecovery.files.has(step.key));
         if (changedSteps.length === 0) throw new Error("CUSTOMER_IDENTITY_RECAPTURE_REQUIRED");
+
+        const missingRecommendedKeys = [...customerIdentityRecovery.recommendedKeys]
+            .filter(key => !customerIdentityRecovery.files.has(key));
+        if (missingRecommendedKeys.length > 0) {
+            throw new Error(`CUSTOMER_IDENTITY_REQUIRED_RETAKES_PENDING:${missingRecommendedKeys.join(",")}`);
+        }
 
         const recaptureEvidence = {};
         for (const step of changedSteps) {
