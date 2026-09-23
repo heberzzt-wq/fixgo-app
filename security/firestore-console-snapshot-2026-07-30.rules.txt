@@ -66,9 +66,7 @@ service cloud.firestore {
       let required = kyc.get('identity_required', false) == true;
       return required != true || (
         kyc.get('identity_verified', false) == true &&
-        isDocumentReference(documents.get('ine_reverso', null)) &&
-        isDocumentReference(documents.get('selfie_liveness_left', null)) &&
-        isDocumentReference(documents.get('selfie_liveness_right', null))
+        isDocumentReference(documents.get('ine_reverso', null))
       );
     }
 
