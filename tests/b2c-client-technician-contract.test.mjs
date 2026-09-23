@@ -30,6 +30,8 @@ const completeProfile = (overrides = {}) => ({
     documentos: {
         ine: "https://storage/ine.pdf",
         ine_reverso: "https://storage/ine-reverso.jpg",
+        selfie_liveness_left: "https://storage/selfie-left.jpg",
+        selfie_liveness_right: "https://storage/selfie-right.jpg",
         csf: "https://storage/csf.pdf",
         licencia: "https://storage/licencia.pdf",
         certificados: []
@@ -98,16 +100,6 @@ test("smart banking exige que banco y claves deriven de la CLABE", () => {
     });
     assert.equal(forged.complete, false);
     assert.equal(forged.required.banco, false);
-});
-
-test("KYC técnico queda completo sin giros laterales y conserva revisión administrativa", () => {
-    const profile = completeProfile();
-    const result = getTechnicianKycRequirements(profile);
-    assert.equal(result.required.ine_reverso, true);
-    assert.equal("selfie_liveness_left" in result.required, false);
-    assert.equal("selfie_liveness_right" in result.required, false);
-    assert.equal(result.complete, true);
-    assert.equal(buildTechnicianReviewPatch(profile).estado, TECHNICIAN_KYC_STATES.PENDING_REVIEW);
 });
 
 test("KYC canónico conserva vehículo y certificados plurales", () => {
@@ -298,8 +290,8 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.doesNotMatch(customerIdentitySteps, /selfie_left|selfie_right|selfie_liveness_left|selfie_liveness_right/);
     const customerRegistration = registration.slice(registration.indexOf("if (btnRegistroCliente)"), registration.indexOf("// ======================================================\n// B. LÓGICA DE TÉCNICOS"));
     assert.doesNotMatch(customerRegistration, /selfie_liveness_left|selfie_liveness_right|archivoSelfieIzquierda|archivoSelfieDerecha/);
-    assert.match(registration, /function identityStepsForTarget\(target\)[\s\S]*?return identitySteps/);
-    assert.doesNotMatch(registration, /key:\s*"selfie_left"|key:\s*"selfie_right"/);
+    assert.match(registration, /function identityStepsForTarget\(target\)/);
+    assert.match(registration, /target === "cliente"[\s\S]*?identitySteps\.slice\(0, 3\)/);
     assert.match(client, /describeIdentityReview/);
     assert.match(client, /targetedRecaptureAvailable/);
     assert.match(client, /RECAPTURAR SELFIE/);
@@ -348,6 +340,8 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(registration, /navigator\.mediaDevices\?\.getUserMedia/);
     assert.match(registration, /IDENTITY_CAPTURE_VERSION/);
     assert.match(registration, /ine_reverso/);
+    assert.match(registration, /selfie_liveness_left/);
+    assert.match(registration, /selfie_liveness_right/);
     assert.match(registrationHtml, /modalIdentidadTecnico/);
     assert.match(registrationHtml, /viewport-fit=cover/);
     assert.match(registrationHtml, /100dvh/);
@@ -541,5 +535,3 @@ test("release gate keeps identity evidence user-reviewable before any biometric 
 // V142 coordinated release authorization: rejected recaptures remain audit-only until verified
 
 // V142 coordinated release authorization: customer identity uses INE plus one frontal selfie
-
-// V142 coordinated release authorization: customer and technician use INE plus frontal selfie
