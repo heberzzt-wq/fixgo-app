@@ -207,13 +207,13 @@ service firebase.storage {
        allow read: if authorizedAdmin() || b2bKycReviewer(uid) ||
         (signedIn() && request.auth.uid == uid);
 
-      allow create: if !filePath.matches("recaptures/.*") &&
+      allow create: if request.path[2] != 'recaptures' &&
         resource == null && (authorizedAdmin() || (signedIn() && request.auth.uid == uid &&
         (userProfile().get('status', '') in ['registro_iniciado', 'documentos_pendientes', 'rechazado', 'identidad_pendiente', 'identidad_revision'] &&
            userProfile().get('suspendido', false) != true)
       )) && validDocument(10 * 1024 * 1024);
 
-      allow update: if !filePath.matches("recaptures/.*") &&
+      allow update: if request.path[2] != 'recaptures' &&
         (authorizedAdmin() || (signedIn() && request.auth.uid == uid &&
         userProfile().get('tipo_cuenta', '') != 'B2B' &&
         userProfile().get('status', '') in ['registro_iniciado', 'documentos_pendientes', 'rechazado', 'identidad_pendiente', 'identidad_revision'] &&
