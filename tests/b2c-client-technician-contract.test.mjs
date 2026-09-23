@@ -296,7 +296,7 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(client, /Legacy static-frame liveness results are not customer gates anymore/);
     const mismatchRecovery = client.slice(
         client.indexOf('if (reason === "SELFIE_INE_FACE_MISMATCH")'),
-        client.indexOf('if (reason === "SELFIE_FRONT_NOT_CENTERED")')
+        client.indexOf('if (reason === "ADMIN_SELFIE_RECAPTURE_REQUIRED")')
     );
     assert.doesNotMatch(mismatchRecovery, /keys\.add\("selfie_front"\)|keys\.add\("ine_front"\)/);
     assert.match(mismatchRecovery, /human review/);
