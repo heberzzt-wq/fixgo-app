@@ -533,3 +533,5 @@ test("release gate keeps identity evidence user-reviewable before any biometric 
 // V142 coordinated release authorization: fresh rejected selfies plus active-liveness composition
 
 // V142 coordinated release authorization: rejected recaptures remain audit-only until verified
+
+// V142 coordinated release authorization: customer identity uses INE plus one frontal selfie
