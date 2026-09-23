@@ -144,7 +144,9 @@ export async function iniciarPanelCliente(user) {
             if (suffix) keys.add(suffix);
 
             if (reason === "SELFIE_INE_FACE_MISMATCH") {
-                keys.add("ine_front");
+                // A mismatch does not invalidate an already accepted INE capture.
+                // Retry the live user-facing evidence first; INE is only recaptured
+                // when the engine reports an INE-specific quality/face failure.
                 keys.add("selfie_front");
             }
             if (reason === "SELFIE_FRONT_NOT_CENTERED") keys.add("selfie_front");

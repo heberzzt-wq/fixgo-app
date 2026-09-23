@@ -294,6 +294,12 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(client, /identityEvidenceComplete/);
     assert.match(client, /identityStepKeysFromReasons/);
     assert.match(client, /Legacy static-frame liveness results are not customer gates anymore/);
+    const mismatchRecovery = client.slice(
+        client.indexOf('if (reason === "SELFIE_INE_FACE_MISMATCH")'),
+        client.indexOf('if (reason === "SELFIE_FRONT_NOT_CENTERED")')
+    );
+    assert.match(mismatchRecovery, /keys\.add\("selfie_front"\)/);
+    assert.doesNotMatch(mismatchRecovery, /keys\.add\("ine_front"\)/);
     const customerIdentitySteps = client.slice(client.indexOf("const customerIdentityAllSteps"), client.indexOf("function identityStepKeysFromReasons"));
     assert.doesNotMatch(customerIdentitySteps, /selfie_left|selfie_right|selfie_liveness_left|selfie_liveness_right/);
     const customerRegistration = registration.slice(registration.indexOf("if (btnRegistroCliente)"), registration.indexOf("// ======================================================\n// B. LÓGICA DE TÉCNICOS"));
