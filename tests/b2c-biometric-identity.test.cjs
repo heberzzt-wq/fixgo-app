@@ -188,16 +188,18 @@ test("head-turn proof requires distinct opposing poses from same person", () => 
     assert.ok(result.reasons.includes("LIVENESS_HEAD_TURNS_NOT_OPPOSITE"));
 });
 
-test("1:N registry returns strongest eligible other identity and ignores same uid", () => {
+test("1:N registry is global across cliente/tecnico, ignores same uid and inactive identities", () => {
     const docs = [
-        { id: "self", data: () => ({ status: "active", embedding: embedding(1) }) },
-        { id: "other-low", data: () => ({ status: "active", embedding: embedding(0.7) }) },
-        { id: "other-high", data: () => ({ status: "pending_admin_review", embedding: embedding(0.95) }) },
-        { id: "inactive", data: () => ({ status: "rejected", embedding: embedding(1) }) }
+        { id: "self", data: () => ({ role: "tecnico", status: "active", embedding: embedding(1) }) },
+        { id: "other-tech", data: () => ({ role: "tecnico", status: "pending_admin_review", embedding: embedding(0.7) }) },
+        { id: "existing-client", data: () => ({ role: "cliente", status: "active", embedding: embedding(0.95) }) },
+        { id: "inactive", data: () => ({ role: "cliente", status: "rejected", embedding: embedding(1) }) }
     ];
     const match = bestRegistryMatch(docs, embedding(1), similarity, "self");
-    assert.equal(match.uid, "other-high");
+    assert.equal(match.uid, "existing-client");
     assert.equal(match.similarity, 0.95);
+    assert.equal(THRESHOLDS.duplicateReview, 0.58);
+    assert.equal(THRESHOLDS.duplicateSuspected, 0.72);
     assert.ok(match.similarity >= THRESHOLDS.duplicateSuspected);
 });
 

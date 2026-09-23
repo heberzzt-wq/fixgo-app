@@ -29,9 +29,9 @@ async function verifyTechnicianStorage({ bucket, technicianId, profile, function
     const invalid = message => { throw new functions.https.HttpsError('failed-precondition', message); };
     const references = { foto_perfil: profile.foto_perfil, ine: profile.documentos.ine, csf: profile.documentos.csf };
     if (profile.kyc?.identity_required === true) {
+        // Current B2C identity contract: INE front + INE reverse + frontal selfie.
+        // foto_perfil is the frontal selfie; legacy lateral captures are not approval gates.
         references.ine_reverso = profile.documentos.ine_reverso;
-        references.selfie_liveness_left = profile.documentos.selfie_liveness_left;
-        references.selfie_liveness_right = profile.documentos.selfie_liveness_right;
     }
     if (profile.vehiculo.tipo !== 'peaton') references.licencia = profile.documentos.licencia;
     const verified = {};
@@ -51,7 +51,7 @@ async function verifyTechnicianStorage({ bucket, technicianId, profile, function
         if (typeof path !== 'string' || !path.startsWith(`expedientes/${technicianId}/`) || path.includes('..') || path.endsWith('/')) invalid(`KYC_STORAGE_OWNER_MISMATCH:${kind}`);
         let metadata;
         try { [metadata] = await bucket.file(path).getMetadata(); } catch { invalid(`KYC_STORAGE_OBJECT_UNAVAILABLE:${kind}`); }
-        const imageOnly = new Set(['foto_perfil', 'ine_reverso', 'selfie_liveness_left', 'selfie_liveness_right']);
+        const imageOnly = new Set(['foto_perfil', 'ine_reverso']);
         const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', ...(imageOnly.has(kind) ? [] : ['application/pdf'])];
         if (!metadata?.generation || !allowed.includes(metadata.contentType) || !(Number(metadata.size) > 0 && Number(metadata.size) <= 10 * 1024 * 1024)) invalid(`KYC_STORAGE_OBJECT_INVALID:${kind}`);
         const prior = profile.kyc?.evidencias?.[kind];

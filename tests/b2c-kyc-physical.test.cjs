@@ -5,7 +5,7 @@ class HttpsError extends Error { constructor(code, message) { super(message); th
 function harness() {
     const objects = new Map();
     const url = kind => `https://firebasestorage.googleapis.com/v0/b/test-bucket/o/${encodeURIComponent(`expedientes/tech/${kind}/current.png`)}?alt=media&token=fake`;
-    for (const kind of ['foto_perfil', 'ine', 'ine_reverso', 'selfie_liveness_left', 'selfie_liveness_right', 'csf']) {
+    for (const kind of ['foto_perfil', 'ine', 'ine_reverso', 'csf']) {
         objects.set(`expedientes/tech/${kind}/current.png`, {
             size: '128', contentType: 'image/png', generation: '1', metageneration: '1', md5Hash: 'hash'
         });
@@ -29,8 +29,6 @@ function harness() {
         documentos: {
             ine: url('ine'),
             ine_reverso: url('ine_reverso'),
-            selfie_liveness_left: url('selfie_liveness_left'),
-            selfie_liveness_right: url('selfie_liveness_right'),
             csf: url('csf'),
             certificados: []
         },
@@ -155,8 +153,8 @@ test('concurrent retries approve once and pin Storage generations without availa
     assert.equal(h.writes(), 2); assert.equal(results.filter(r => r.alreadyApproved).length, 1);
     assert.equal(h.profile.kyc.evidencias.ine.generation, '1');
     assert.equal(h.profile.kyc.evidencias.ine_reverso.generation, '1');
-    assert.equal(h.profile.kyc.evidencias.selfie_liveness_left.generation, '1');
-    assert.equal(h.profile.kyc.evidencias.selfie_liveness_right.generation, '1');
+    assert.equal(h.profile.kyc.evidencias.selfie_liveness_left, undefined);
+    assert.equal(h.profile.kyc.evidencias.selfie_liveness_right, undefined);
     assert.equal(h.profile.kyc.identity_verified, true);
     assert.equal(h.profile.kyc.identity_verification_method, 'human-local-v1+admin-review');
     assert.equal(h.profile.disponible, false);
@@ -180,17 +178,22 @@ test('administrative return preserves documents, rejects non-admin and requires 
 });
 
 
-test('new banking KYC cannot approve without INE reverse and liveness captures', async () => {
-    for (const kind of ['ine_reverso', 'selfie_liveness_left', 'selfie_liveness_right']) {
-        const h = harness();
-        h.profile.documentos[kind] = null;
-        await assert.rejects(h.approve(), { code: 'failed-precondition' });
-        assert.equal(h.writes(), 0);
-    }
+test('new banking KYC requires INE reverse but does not require legacy lateral selfies', async () => {
+    const missingReverse = harness();
+    missingReverse.profile.documentos.ine_reverso = null;
+    await assert.rejects(missingReverse.approve(), { code: 'failed-precondition' });
+    assert.equal(missingReverse.writes(), 0);
+
+    const noLaterals = harness();
+    delete noLaterals.profile.documentos.selfie_liveness_left;
+    delete noLaterals.profile.documentos.selfie_liveness_right;
+    const result = await noLaterals.approve();
+    assert.equal(result.estado, 'activo');
+    assert.equal(noLaterals.profile.kyc.aprobado, true);
 });
 
 test('biometric evidence must remain image-only', async () => {
-    for (const kind of ['ine_reverso', 'selfie_liveness_left', 'selfie_liveness_right']) {
+    for (const kind of ['foto_perfil', 'ine_reverso']) {
         const h = harness();
         Object.assign(h.objects.get(`expedientes/tech/${kind}/current.png`), { contentType: 'application/pdf' });
         await assert.rejects(h.approve(), { code: 'failed-precondition' });
