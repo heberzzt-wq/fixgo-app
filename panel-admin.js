@@ -53,6 +53,17 @@ function documentReferenceUrl(value) {
  return null;
 }
 
+function safeHttpsDocumentUrl(value) {
+ const raw = documentReferenceUrl(value);
+ if (!raw) return null;
+ try {
+  const parsed = new URL(raw);
+  return parsed.protocol === "https:" ? parsed.href : null;
+ } catch {
+  return null;
+ }
+}
+
 export async function iniciarPanelAdmin(user) {
  console.log(" 🛡️ Iniciando Panel de Administrador (Modo BI V5.18.5 - Support Desk Activo)...");
  
@@ -181,6 +192,152 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  </button>
  `;
  elementos.lista.parentElement.insertBefore(adminToolbar, elementos.lista);
+ }
+
+ if (elementos.lista && !document.getElementById("customerIdentityReviewQueue")) {
+  const section = document.createElement("section");
+  section.id = "customerIdentityReviewQueue";
+  section.className = "mb-4 rounded-2xl border border-amber-500/30 bg-amber-950/10 p-4";
+  section.innerHTML = `
+   <div class="mb-3 flex items-center justify-between gap-3">
+    <div>
+     <p class="text-[10px] font-black uppercase tracking-widest text-amber-300">Revisión humana de identidad B2C</p>
+     <p class="text-[10px] text-zinc-500">Sólo expedientes que la comparación automática no pudo resolver.</p>
+    </div>
+    <span id="customerIdentityReviewCount" class="rounded-full bg-amber-500/15 px-2 py-1 text-[10px] font-black text-amber-300">0</span>
+   </div>
+   <div id="customerIdentityReviewRows" class="space-y-3"></div>`;
+  elementos.lista.parentElement.insertBefore(section, elementos.lista);
+
+  const rows = section.querySelector("#customerIdentityReviewRows");
+  const count = section.querySelector("#customerIdentityReviewCount");
+  const reviewQuery = query(
+   collection(db, "users"),
+   where("kyc.identity_machine_status", "==", "manual_review_required"),
+   limit(50)
+  );
+
+  onSnapshot(reviewQuery, snap => {
+   rows.replaceChildren();
+   let visible = 0;
+
+   for (const customerDoc of snap.docs) {
+    const data = customerDoc.data() || {};
+    if (platformContract.normalizeToken(data.rol || data.role) !== "cliente" || data.tipo_cuenta === "B2B") continue;
+    visible += 1;
+
+    const evidence = data.kyc?.identity_review_evidence || {};
+    const media = [
+     ["INE frente", safeHttpsDocumentUrl(evidence.ine_front || data.documentos?.ine)],
+     ["INE reverso", safeHttpsDocumentUrl(evidence.ine_back || data.documentos?.ine_reverso)],
+     ["Selfie pendiente", safeHttpsDocumentUrl(evidence.selfie_front)]
+    ];
+
+    const card = document.createElement("article");
+    card.className = "rounded-xl border border-amber-500/25 bg-black/30 p-3";
+    const header = document.createElement("div");
+    header.innerHTML = `
+     <p class="text-sm font-black text-white">${escaparHTML(data.nombre || "Cliente")}</p>
+     <p class="text-[10px] text-zinc-500">${escaparHTML(data.email || customerDoc.id)}</p>
+     <p class="mt-1 text-[10px] text-amber-200/80">${escaparHTML((data.kyc?.identity_machine_reasons || []).join(" · ") || "Comparación automática inconclusa")}</p>`;
+    card.appendChild(header);
+
+    const mediaGrid = document.createElement("div");
+    mediaGrid.className = "mt-3 grid grid-cols-3 gap-2";
+    for (const [label, url] of media) {
+     const tile = document.createElement(url ? "a" : "div");
+     tile.className = "overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950";
+     if (url) {
+      tile.href = url;
+      tile.target = "_blank";
+      tile.rel = "noopener noreferrer";
+     }
+     const caption = document.createElement("p");
+     caption.className = "px-2 py-1 text-[9px] font-bold text-zinc-400";
+     caption.textContent = label;
+     if (url) {
+      const image = document.createElement("img");
+      image.src = url;
+      image.alt = label;
+      image.className = "aspect-[4/3] w-full object-contain bg-black";
+      tile.append(image, caption);
+     } else {
+      const missing = document.createElement("div");
+      missing.className = "flex aspect-[4/3] items-center justify-center text-[9px] text-red-300";
+      missing.textContent = "Sin evidencia";
+      tile.append(missing, caption);
+     }
+     mediaGrid.appendChild(tile);
+    }
+    card.appendChild(mediaGrid);
+
+    const actions = document.createElement("div");
+    actions.className = "mt-3 grid grid-cols-2 gap-2";
+    const approve = document.createElement("button");
+    approve.className = "rounded-lg bg-emerald-500 px-3 py-2 text-[10px] font-black text-black";
+    approve.textContent = "APROBAR IDENTIDAD";
+    const recapture = document.createElement("button");
+    recapture.className = "rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[10px] font-black text-amber-200";
+    recapture.textContent = "PEDIR NUEVA SELFIE";
+
+    approve.addEventListener("click", async () => {
+     const reason = window.prompt("Motivo de aprobación manual de identidad:");
+     if (!reason?.trim()) return;
+     approve.disabled = true;
+     recapture.disabled = true;
+     try {
+      await ejecutarAccionNocB2C({
+       action: "approve_customer_identity",
+       customerId: customerDoc.id,
+       reason: reason.trim()
+      });
+      alert("✅ Identidad del cliente aprobada y auditada.");
+     } catch (error) {
+      console.error("[ADMIN_CUSTOMER_IDENTITY_APPROVE_FAILED]", error);
+      alert("No se pudo aprobar la identidad.");
+      approve.disabled = false;
+      recapture.disabled = false;
+     }
+    });
+
+    recapture.addEventListener("click", async () => {
+     const reason = window.prompt("Explica por qué debe repetir la selfie:");
+     if (!reason?.trim()) return;
+     approve.disabled = true;
+     recapture.disabled = true;
+     try {
+      await ejecutarAccionNocB2C({
+       action: "request_customer_identity_recapture",
+       customerId: customerDoc.id,
+       reason: reason.trim()
+      });
+      alert("📸 Se solicitó únicamente una nueva selfie.");
+     } catch (error) {
+      console.error("[ADMIN_CUSTOMER_IDENTITY_RECAPTURE_FAILED]", error);
+      alert("No se pudo solicitar la nueva selfie.");
+      approve.disabled = false;
+      recapture.disabled = false;
+     }
+    });
+
+    actions.append(approve, recapture);
+    card.appendChild(actions);
+    rows.appendChild(card);
+   }
+
+   if (count) count.textContent = String(visible);
+   if (!visible) {
+    const empty = document.createElement("p");
+    empty.className = "text-xs italic text-zinc-500";
+    empty.textContent = "No hay clientes esperando revisión humana.";
+    rows.appendChild(empty);
+   }
+  }, error => adminListenerError(
+   "CUSTOMER_IDENTITY_REVIEW",
+   rows,
+   "No fue posible cargar la cola de identidad de clientes.",
+   error
+  ));
  }
 
  window.buscarYAutorizarCliente = async () => {

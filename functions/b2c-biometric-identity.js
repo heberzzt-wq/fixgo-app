@@ -230,6 +230,33 @@ function recaptureProfilePatch(recapture = {}) {
     return patch;
 }
 
+function identityReferenceUrl(reference) {
+    if (typeof reference === "string") return safeText(reference, 2200);
+    if (reference && typeof reference === "object") return safeText(reference.url, 2200);
+    return "";
+}
+
+function identityReviewEvidence(profile = {}) {
+    return {
+        selfie_front: identityReferenceUrl(profile.foto_perfil),
+        ine_front: identityReferenceUrl(profile.documentos?.ine),
+        ine_back: identityReferenceUrl(profile.documentos?.ine_reverso)
+    };
+}
+
+function resolveIdentityReviewStatus(role, status, reasons = []) {
+    const normalized = Array.isArray(reasons) ? reasons.map(value => safeText(value, 160)).filter(Boolean) : [];
+    if (
+        role === "cliente" &&
+        status === "review_required" &&
+        normalized.length === 1 &&
+        normalized[0] === "SELFIE_INE_FACE_MISMATCH"
+    ) {
+        return "manual_review_required";
+    }
+    return status;
+}
+
 const CUSTOMER_IDENTITY_EVIDENCE_KINDS = Object.freeze([
     "selfie_front",
     "ine_front",
@@ -722,6 +749,7 @@ function createVerifyB2cIdentityHandler({
                     reasons.push("IDENTITY_SIMILARITY_REVIEW_REQUIRED");
                 }
             }
+            status = resolveIdentityReviewStatus(role, status, reasons);
 
             const timestamp = now();
             const promotedRecapturePatch =
@@ -743,20 +771,30 @@ function createVerifyB2cIdentityHandler({
                             ? "recaptured_verified"
                             : status === "duplicate_suspected"
                                 ? "recaptured_duplicate_review"
-                                : "recaptured_review_required"
+                                : status === "manual_review_required"
+                                    ? "recaptured_manual_review"
+                                    : "recaptured_review_required"
                     )
-                    : profile.kyc?.identity_capture_status || "captured_pending_verification",
+                    : (
+                        status === "manual_review_required"
+                            ? "captured_manual_review"
+                            : profile.kyc?.identity_capture_status || "captured_pending_verification"
+                    ),
                 "kyc.identity_capture_completed_at": Object.keys(recaptureEvidence).length > 0
                     ? timestamp
                     : profile.kyc?.identity_capture_completed_at || timestamp,
                 "kyc.identity_engine_version": BIOMETRIC_ENGINE_VERSION
             };
 
-            if (status === "verified") {
+            if (
+                ["verified", "manual_review_required"].includes(status) &&
+                Array.isArray(assessment.embedding) &&
+                assessment.embedding.length >= 128
+            ) {
                 transaction.set(registryRef, {
                     uid,
                     role,
-                    status: role === "cliente" ? "active" : "pending_admin_review",
+                    status: status === "verified" && role === "cliente" ? "active" : "pending_admin_review",
                     embedding: assessment.embedding,
                     capture_digest: digest,
                     engine_version: BIOMETRIC_ENGINE_VERSION,
@@ -764,6 +802,9 @@ function createVerifyB2cIdentityHandler({
                     created_at: timestamp,
                     updated_at: timestamp
                 }, { merge: true });
+            }
+
+            if (status === "verified") {
                 if (role === "cliente") {
                     publicPatch.estado = "activo";
                     publicPatch.status = "activo";
@@ -771,6 +812,8 @@ function createVerifyB2cIdentityHandler({
                     publicPatch["kyc.identity_verified"] = true;
                     publicPatch["kyc.identity_verified_at"] = timestamp;
                     publicPatch["kyc.identity_verification_method"] = `${BIOMETRIC_ENGINE_VERSION}:automatic`;
+                    publicPatch["kyc.identity_manual_verified"] = false;
+                    publicPatch["kyc.identity_review_status"] = "not_required";
                 }
             } else {
                 publicPatch.estado = role === "cliente" ? "identidad_revision" : "rechazado";
@@ -778,6 +821,14 @@ function createVerifyB2cIdentityHandler({
                 publicPatch["kyc.estado"] = publicPatch.estado;
                 publicPatch["kyc.identity_verified"] = false;
                 publicPatch["kyc.identity_duplicate_suspected"] = status === "duplicate_suspected";
+                if (status === "manual_review_required" && role === "cliente") {
+                    publicPatch["kyc.identity_review_status"] = "pending";
+                    publicPatch["kyc.identity_review_requested_at"] = timestamp;
+                    publicPatch["kyc.identity_review_evidence"] = {
+                        ...identityReviewEvidence(verificationProfile),
+                        submitted_at: timestamp
+                    };
+                }
             }
 
             transaction.set(profileRef, publicPatch, { merge: true });
@@ -829,6 +880,8 @@ module.exports = {
     normalizeRecaptureEvidence,
     applyRecaptureEvidenceToProfile,
     recaptureProfilePatch,
+    identityReviewEvidence,
+    resolveIdentityReviewStatus,
     createHumanBiometricRuntime,
     createVerifyB2cIdentityHandler,
     verifyIdentityStorage

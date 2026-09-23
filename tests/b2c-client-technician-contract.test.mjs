@@ -324,6 +324,14 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(client, /same_capture_limit/);
     assert.match(client, /fresh_capture_limit/);
     assert.match(client, /No necesitas tomar otra foto/);
+    assert.match(client, /manual_review_required/);
+    assert.match(client, /ENVIAR A REVISIÓN/);
+    assert.match(client, /identity_manual_verified/);
+    assert.match(client, /admin_manual_review/);
+    assert.match(admin, /customerIdentityReviewQueue/);
+    assert.match(admin, /approve_customer_identity/);
+    assert.match(admin, /request_customer_identity_recapture/);
+    assert.doesNotMatch(client, /Repite únicamente la biometría facial; no volveremos a pedir tu INE/);
     assert.doesNotMatch(client, /new Set\(\["selfie_front", "selfie_left", "selfie_right"\]\)/);
     assert.match(client, /customerIdentityRecapturePath/);
     assert.match(client, /\/recaptures\/\$\{kind\}\/capture-/);

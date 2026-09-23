@@ -144,11 +144,10 @@ export async function iniciarPanelCliente(user) {
             if (suffix) keys.add(suffix);
 
             if (reason === "SELFIE_INE_FACE_MISMATCH") {
-                // A mismatch does not invalidate an already accepted INE capture.
-                // Retry the live user-facing evidence first; INE is only recaptured
-                // when the engine reports an INE-specific quality/face failure.
-                keys.add("selfie_front");
+                // A technically valid face/INE mismatch goes to human review; do not loop selfies.
+                continue;
             }
+            if (reason === "ADMIN_SELFIE_RECAPTURE_REQUIRED") keys.add("selfie_front");
             if (reason === "SELFIE_FRONT_NOT_CENTERED") keys.add("selfie_front");
         }
         return keys;
@@ -516,6 +515,12 @@ export async function iniciarPanelCliente(user) {
             return;
         }
 
+        if (result?.status === "manual_review_required") {
+            if (status) status.textContent = "🧑‍💼 Tu identidad quedó enviada a revisión humana. No necesitas tomar más fotos.";
+            setTimeout(() => window.location.reload(), 1000);
+            return;
+        }
+
         const reasons = Array.isArray(result?.reasons)
             ? result.reasons.map(value => String(value || "").trim()).filter(Boolean).slice(0, 8)
             : [];
@@ -711,38 +716,46 @@ export async function iniciarPanelCliente(user) {
         user.documentos?.ine_reverso
     );
     const failedIdentityStepKeys = identityStepKeysFromReasons(identityReasons);
-    const fallbackIdentityStepKeys =
+    const noDiagnosticRevalidation =
         identityEvidenceComplete &&
         identityReasons.length === 0 &&
-        ["review_required", "pending_capture"].includes(identityStatus)
-            ? new Set(["selfie_front"])
-            : new Set();
-    const effectiveIdentityStepKeys =
-        failedIdentityStepKeys.size > 0
-            ? failedIdentityStepKeys
-            : fallbackIdentityStepKeys;
+        ["review_required", "pending_capture"].includes(identityStatus);
+    const mismatchRevalidation =
+        identityEvidenceComplete &&
+        identityReasons.includes("SELFIE_INE_FACE_MISMATCH") &&
+        identityStatus !== "manual_review_required";
+    const effectiveIdentityStepKeys = failedIdentityStepKeys;
     const targetedRecaptureAvailable = effectiveIdentityStepKeys.size > 0;
     const targetedRecaptureIsFaceOnly =
         targetedRecaptureAvailable &&
         [...effectiveIdentityStepKeys].every(key => key.startsWith("selfie_"));
-    const fallbackBiometricRecapture =
-        failedIdentityStepKeys.size === 0 &&
-        fallbackIdentityStepKeys.size > 0;
-    const identityReasonSummary = fallbackBiometricRecapture
-        ? "La verificación anterior no dejó un diagnóstico utilizable. Repite sólo la biometría facial; tu INE permanece guardada."
-        : describeIdentityReview(identityReasons, failedIdentityStepKeys);
+    const manualReviewPending = identityStatus === "manual_review_required";
+    const identityReasonSummary = manualReviewPending
+        ? "La comparación automática necesita revisión humana. Tus evidencias ya están guardadas; no necesitas tomar más fotos."
+        : noDiagnosticRevalidation
+            ? "La validación anterior no dejó un diagnóstico utilizable. Reintentaremos con las evidencias ya guardadas; no necesitas tomar otra foto."
+            : mismatchRevalidation
+                ? "La selfie es técnicamente utilizable, pero la comparación automática con tu INE necesita revisión humana."
+                : describeIdentityReview(identityReasons, failedIdentityStepKeys);
     const recoveryButtonLabel = !identityEvidenceComplete
         ? "REANUDAR CAPTURA DE IDENTIDAD"
-        : fallbackBiometricRecapture
-            ? "RECAPTURAR BIOMETRÍA FACIAL"
+        : mismatchRevalidation
+            ? "ENVIAR A REVISIÓN"
             : targetedRecaptureAvailable
                 ? (targetedRecaptureIsFaceOnly ? "RECAPTURAR SELFIE" : "RECAPTURAR EVIDENCIA RECHAZADA")
                 : "REINTENTAR VALIDACIÓN AUTOMÁTICA";
+    const automaticIdentityApproved =
+        user.kyc?.identity_machine_verified === true &&
+        identityStatus === "verified";
+    const manualIdentityApproved =
+        user.kyc?.identity_manual_verified === true &&
+        user.kyc?.identity_verification_method === "admin_manual_review";
+    const identityAuthorityVerified =
+        user.kyc?.identity_verified === true &&
+        (automaticIdentityApproved || manualIdentityApproved);
     const identityBlocked = user.tipo_cuenta === "B2C" &&
         user.kyc?.identity_required === true &&
-        (user.kyc?.identity_verified !== true ||
-         user.kyc?.identity_machine_verified !== true ||
-         identityStatus !== "verified");
+        !identityAuthorityVerified;
 
     if (identityBlocked) {
         const banner = document.createElement("section");
@@ -750,7 +763,7 @@ export async function iniciarPanelCliente(user) {
         banner.className = "mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-100";
         const duplicate = identityStatus === "duplicate_suspected";
         const reasonMarkup = `<p id="clienteIdentityMachineReason" class="mt-2 rounded-xl border border-amber-400/20 bg-black/20 px-3 py-2 text-[11px] leading-relaxed text-amber-100/80">${escaparHTML(identityReasonSummary)}</p>`;
-        const retryMarkup = duplicate
+        const retryMarkup = duplicate || manualReviewPending
             ? ""
             : `<button id="clienteIdentityRetryButton" type="button" class="mt-3 inline-flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100 active:scale-95">
                     <i class="fas fa-rotate"></i> ${recoveryButtonLabel}
@@ -759,17 +772,21 @@ export async function iniciarPanelCliente(user) {
             <div class="flex items-start gap-3">
                 <i class="fas fa-user-shield mt-1 text-amber-400"></i>
                 <div class="min-w-0 flex-1">
-                    <p class="font-black">${duplicate ? "Identidad en revisión de seguridad" : "Verificación de identidad pendiente"}</p>
+                    <p class="font-black">${manualReviewPending ? "Identidad en revisión administrativa" : duplicate ? "Identidad en revisión de seguridad" : "Verificación de identidad pendiente"}</p>
                     <p class="mt-1 text-xs text-amber-100/75">
-                        ${duplicate
-                            ? "Detectamos una coincidencia que debe revisar una persona. No se permiten solicitudes mientras se resuelve."
-                            : !identityEvidenceComplete
-                                ? "La cuenta ya existe, pero faltan evidencias de identidad. Reanuda la captura en la misma cuenta; no se creará otra identidad."
-                                : fallbackBiometricRecapture
-                                    ? "La validación quedó pendiente sin un diagnóstico recuperable. Repite únicamente la biometría facial; no volveremos a pedir tu INE."
-                                    : targetedRecaptureAvailable
-                                        ? "La validación detectó una o más tomas que deben repetirse. No necesitas volver a capturar todo tu expediente."
-                                        : "Tu expediente está protegido y todavía no puede crear servicios. Puedes reintentar la validación automática usando las evidencias ya guardadas."}
+                        ${manualReviewPending
+                            ? "Tus evidencias ya fueron enviadas a Administración. No necesitas repetir INE ni selfie mientras se revisa."
+                            : duplicate
+                                ? "Detectamos una coincidencia que debe revisar una persona. No se permiten solicitudes mientras se resuelve."
+                                : !identityEvidenceComplete
+                                    ? "La cuenta ya existe, pero faltan evidencias de identidad. Reanuda la captura en la misma cuenta; no se creará otra identidad."
+                                    : noDiagnosticRevalidation
+                                        ? "Reintentaremos la validación con lo que ya está guardado; no volveremos a pedir tu INE ni otra selfie por este motivo."
+                                        : mismatchRevalidation
+                                            ? "La comparación automática necesita revisión humana. Envía el expediente existente; no tomes otra foto."
+                                            : targetedRecaptureAvailable
+                                                ? "La validación detectó una toma técnicamente deficiente que sí debe repetirse."
+                                                : "Tu expediente está protegido y todavía no puede crear servicios. Puedes reintentar la validación automática usando las evidencias ya guardadas."}
                     </p>
                     ${reasonMarkup}
                     ${retryMarkup}
@@ -830,6 +847,13 @@ export async function iniciarPanelCliente(user) {
                 if (status === "duplicate_suspected") {
                     if (retryStatus) retryStatus.textContent = "🛡️ Coincidencia biométrica detectada. El expediente requiere revisión administrativa.";
                     retryButton.remove();
+                    return;
+                }
+
+                if (status === "manual_review_required") {
+                    if (retryStatus) retryStatus.textContent = "🧑‍💼 Expediente enviado a revisión humana. Ya no necesitas repetir fotos.";
+                    retryButton.remove();
+                    setTimeout(() => window.location.reload(), 900);
                     return;
                 }
 

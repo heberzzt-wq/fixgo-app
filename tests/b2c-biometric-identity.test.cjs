@@ -4,6 +4,7 @@ const {
     THRESHOLDS,
     IDENTITY_ATTEMPT_POLICY_VERSION,
     identityEvidenceKindsForRole,
+    resolveIdentityReviewStatus,
     assessCustomerIdentityAnalyses,
     assessIdentityAnalyses,
     bestRegistryMatch,
@@ -64,6 +65,21 @@ test("attempt policy migration resets stale legacy counters without deleting his
     assert.equal(result.patch.policy_version, IDENTITY_ATTEMPT_POLICY_VERSION);
     assert.equal(result.patch.fresh_capture_attempts, 1);
     assert.equal(result.patch.same_capture_attempts, 1);
+});
+
+test("a clean customer face/INE mismatch escalates to human review instead of an endless selfie loop", () => {
+    assert.equal(
+        resolveIdentityReviewStatus("cliente", "review_required", ["SELFIE_INE_FACE_MISMATCH"]),
+        "manual_review_required"
+    );
+    assert.equal(
+        resolveIdentityReviewStatus("cliente", "review_required", ["SELFIE_INE_FACE_MISMATCH", "SELFIE_FRONT_NOT_CENTERED"]),
+        "review_required"
+    );
+    assert.equal(
+        resolveIdentityReviewStatus("tecnico", "review_required", ["SELFIE_INE_FACE_MISMATCH"]),
+        "review_required"
+    );
 });
 
 test("customer and technician automatic identity use the same three-evidence contract", () => {

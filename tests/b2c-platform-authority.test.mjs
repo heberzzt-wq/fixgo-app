@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -45,6 +46,19 @@ function approvedTechnician(overrides = {}) {
         ...overrides
     };
 }
+
+test("customer manual identity approval is auditable and does not fake machine verification", () => {
+    const source = fs.readFileSync(path.join(root, "functions", "b2c-platform-authority.js"), "utf8");
+    const actionBlock = source.slice(
+        source.indexOf('if (["approve_customer_identity", "request_customer_identity_recapture"].includes(action))'),
+        source.indexOf('const technicianId = clean(data?.technicianId')
+    );
+    assert.match(actionBlock, /kyc\.identity_manual_verified/);
+    assert.match(actionBlock, /admin_manual_review/);
+    assert.match(actionBlock, /b2c_identity_admin_audit/);
+    assert.match(actionBlock, /request_customer_identity_recapture/);
+    assert.doesNotMatch(actionBlock, /"kyc\.identity_machine_verified": true/);
+});
 
 test("browser and Functions consume the same neutral authority", () => {
     assert.equal(browserContract.CONTRACT_VERSION, backendContract.CONTRACT_VERSION);
