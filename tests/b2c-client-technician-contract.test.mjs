@@ -399,3 +399,12 @@ test("release gate recaptures only failed biometric evidence and hides raw reaso
     assert.match(client, /describeIdentityReview/);
     assert.match(client, /targetedRecaptureAvailable/);
 });
+
+
+test("release gate opens targeted recapture from fresh biometric reasons in the same click", () => {
+    const client = fs.readFileSync(new URL("../panel-cliente.js", import.meta.url), "utf8");
+    assert.match(client, /startCustomerIdentityRecovery\(reasonsOverride = identityReasons\)/);
+    assert.match(client, /identityStepKeysFromReasons\(reasonsOverride\)/);
+    assert.match(client, /await startCustomerIdentityRecovery\(reasons\)/);
+    assert.match(client, /ABRIENDO RECAPTURA/);
+});
