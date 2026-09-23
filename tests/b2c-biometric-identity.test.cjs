@@ -72,16 +72,18 @@ test("low liveness, spoof signal, reused frame or selfie/INE mismatch fail close
     });
     assert.equal(r1.status, "review_required");
     assert.ok(r1.reasons.includes("FACE_LIVENESS_LOW:selfie_front"));
+    assert.equal(r1.metrics.selfie_front_live, 0.2);
 
     const spoof = validAnalyses();
-    spoof.selfie_left.faces[0].real = 0.1;
+    spoof.selfie_front.faces[0].real = 0.1;
     const r2 = assessIdentityAnalyses({
         analyses: spoof,
         hashes: { selfie_front: "a", selfie_left: "b", selfie_right: "c" },
         similarity
     });
     assert.equal(r2.status, "review_required");
-    assert.ok(r2.reasons.includes("FACE_ANTISPOOF_LOW:selfie_left"));
+    assert.ok(r2.reasons.includes("FACE_ANTISPOOF_LOW:selfie_front"));
+    assert.equal(r2.metrics.selfie_front_real, 0.1);
 
     const mismatch = validAnalyses();
     mismatch.ine_front.faces[0].embedding = embedding(0.1);
@@ -93,6 +95,23 @@ test("low liveness, spoof signal, reused frame or selfie/INE mismatch fail close
     assert.equal(r3.status, "review_required");
     assert.ok(r3.reasons.includes("SELFIE_INE_FACE_MISMATCH"));
     assert.ok(r3.reasons.includes("LIVENESS_DUPLICATE_FRAME"));
+});
+
+test("side challenge frames rely on same-person opposite yaw, not static-frame live/real scores", () => {
+    const analyses = validAnalyses();
+    analyses.selfie_left.faces[0].real = 0.05;
+    analyses.selfie_left.faces[0].live = 0.05;
+    analyses.selfie_right.faces[0].real = 0.08;
+    analyses.selfie_right.faces[0].live = 0.07;
+    const result = assessIdentityAnalyses({
+        analyses,
+        hashes: { selfie_front: "a", selfie_left: "b", selfie_right: "c" },
+        similarity
+    });
+    assert.equal(result.status, "verified");
+    assert.deepEqual(result.reasons, []);
+    assert.equal(result.metrics.selfie_left_live, 0.05);
+    assert.equal(result.metrics.selfie_right_real, 0.08);
 });
 
 test("head-turn proof requires distinct opposing poses from same person", () => {

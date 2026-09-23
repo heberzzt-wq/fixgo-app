@@ -394,20 +394,42 @@ function primaryFace(analysis, kind, { requireLive = false } = {}) {
     return { ok: reasons.length === 0, reasons, face };
 }
 
+function biometricQualityMetrics(quality = {}) {
+    const front = quality.selfie_front || {};
+    const left = quality.selfie_left || {};
+    const right = quality.selfie_right || {};
+    return {
+        selfie_front_real: roundScore(front.real),
+        selfie_front_live: roundScore(front.live),
+        selfie_left_real: roundScore(left.real),
+        selfie_left_live: roundScore(left.live),
+        selfie_right_real: roundScore(right.real),
+        selfie_right_live: roundScore(right.live),
+        yaw_front_deg: roundScore(radiansToDegrees(front.yaw)),
+        yaw_left_deg: roundScore(radiansToDegrees(left.yaw)),
+        yaw_right_deg: roundScore(radiansToDegrees(right.yaw))
+    };
+}
+
 function assessIdentityAnalyses({ analyses, hashes, similarity }) {
     const reasons = [];
     const quality = {};
+    // Human real/live are evaluated on the centered frontal frame.
+    // Side frames are active liveness challenges: same person, opposite yaw and distinct bytes.
     for (const [kind, requireLive] of [
         ["ine_front", false],
         ["selfie_front", true],
-        ["selfie_left", true],
-        ["selfie_right", true]
+        ["selfie_left", false],
+        ["selfie_right", false]
     ]) {
         const checked = primaryFace(analyses[kind], kind, { requireLive });
         quality[kind] = checked.face || null;
         reasons.push(...checked.reasons);
     }
-    if (reasons.length) return { status: "review_required", reasons, quality };
+    const qualityMetrics = biometricQualityMetrics(quality);
+    if (reasons.length) {
+        return { status: "review_required", reasons, quality, metrics: qualityMetrics };
+    }
 
     const front = quality.selfie_front;
     const left = quality.selfie_left;
@@ -444,15 +466,7 @@ function assessIdentityAnalyses({ analyses, hashes, similarity }) {
             selfie_ine_similarity: roundScore(idMatch),
             liveness_left_similarity: roundScore(sameLeft),
             liveness_right_similarity: roundScore(sameRight),
-            selfie_front_real: roundScore(front.real),
-            selfie_front_live: roundScore(front.live),
-            selfie_left_real: roundScore(left.real),
-            selfie_left_live: roundScore(left.live),
-            selfie_right_real: roundScore(right.real),
-            selfie_right_live: roundScore(right.live),
-            yaw_front_deg: roundScore(yawFront),
-            yaw_left_deg: roundScore(yawLeft),
-            yaw_right_deg: roundScore(yawRight)
+            ...qualityMetrics
         }
     };
 }

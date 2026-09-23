@@ -345,8 +345,6 @@ export async function iniciarPanelCliente(user) {
                 const key = button.dataset.clientIdentityRetake;
                 const step = customerIdentityAllSteps.find(item => item.key === key);
                 if (!step) return;
-                clearCustomerIdentityPreview(key);
-                customerIdentityRecovery.excludedKeys.delete(key);
                 customerIdentityRecovery.retakeOnlyKey = key;
                 customerIdentityRecovery.steps = [step];
                 customerIdentityRecovery.stepIndex = 0;
@@ -489,6 +487,19 @@ export async function iniciarPanelCliente(user) {
         const result = await verificarIdentidadB2C({ recaptureEvidence });
         customerIdentityRecovery.pendingUpload = false;
 
+        for (const step of changedSteps) {
+            const adopted = recaptureEvidence[step.key];
+            if (!adopted?.url) continue;
+            const patch = step.patch(adopted.url);
+            if (patch.foto_perfil) user.foto_perfil = patch.foto_perfil;
+            if (patch.documentos) {
+                user.documentos = {
+                    ...(user.documentos || {}),
+                    ...patch.documentos
+                };
+            }
+        }
+
         if (result?.status === "verified") {
             if (status) status.textContent = "✅ Identidad verificada. Activando tu cuenta…";
             setTimeout(() => window.location.reload(), 800);
@@ -521,7 +532,8 @@ export async function iniciarPanelCliente(user) {
             if (localPreview) URL.revokeObjectURL(localPreview);
             customerIdentityRecovery.previewUrls.delete(key);
             customerIdentityRecovery.files.delete(key);
-            customerIdentityRecovery.excludedKeys.delete(key);
+            customerIdentityRecovery.uploaded.delete(key);
+            customerIdentityRecovery.excludedKeys.add(key);
         }
 
         showCustomerIdentityReview();
@@ -558,6 +570,7 @@ export async function iniciarPanelCliente(user) {
             if (previousPreview) URL.revokeObjectURL(previousPreview);
             customerIdentityRecovery.previewUrls.delete(step.key);
             customerIdentityRecovery.excludedKeys.delete(step.key);
+            customerIdentityRecovery.uploaded.delete(step.key);
             customerIdentityRecovery.files.set(
                 step.key,
                 new File([blob], step.fileName, { type: "image/jpeg", lastModified: Date.now() })
@@ -607,7 +620,7 @@ export async function iniciarPanelCliente(user) {
             if (url) URL.revokeObjectURL(url);
         }
         customerIdentityRecovery.previewUrls = new Map();
-        customerIdentityRecovery.excludedKeys = new Set();
+        customerIdentityRecovery.excludedKeys = new Set(failedStepKeys);
         customerIdentityRecovery.recommendedKeys = new Set(failedStepKeys);
         customerIdentityRecovery.running = false;
         customerIdentityRecovery.pendingUpload = false;

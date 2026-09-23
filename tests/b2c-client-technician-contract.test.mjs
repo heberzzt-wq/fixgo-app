@@ -479,6 +479,11 @@ test("release gate requires evidence review and individual retake before biometr
     assert.match(client, /showCustomerIdentityReview\(\)/);
     assert.match(client, /Recaptura: \$\{pendingLabels\}/);
     assert.doesNotMatch(client, /setTimeout\(\(\) => window\.location\.reload\(\), 1800\)/);
+    assert.match(client, /customerIdentityRecovery\.excludedKeys = new Set\(failedStepKeys\)/);
+    assert.match(client, /customerIdentityRecovery\.uploaded\.delete\(step\.key\)/);
+    assert.match(client, /customerIdentityRecovery\.excludedKeys\.add\(key\)/);
+    assert.match(client, /user\.foto_perfil = patch\.foto_perfil/);
+    assert.match(client, /user\.documentos = \{/);
     assert.match(registration, /showIdentityReview/);
     assert.match(registration, /data-identity-retake/);
     assert.match(registration, /data-identity-remove/);
