@@ -146,6 +146,7 @@ function referenceStoragePath(reference, bucketName, uid, kind) {
 }
 
 // Immutable recapture references are create-only Storage objects; the callable adopts them server-side.
+// Legacy current.* paths remain fail-closed and are never accepted as recapture evidence.
 const RECAPTURE_EVIDENCE_MAP = Object.freeze({
     ine_front: { storageKind: "ine", profileField: "documentos.ine" },
     ine_back: { storageKind: "ine_reverso", profileField: "documentos.ine_reverso" },
