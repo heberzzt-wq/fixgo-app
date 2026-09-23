@@ -509,3 +509,5 @@ test("release gate keeps identity evidence user-reviewable before any biometric 
     assert.match(registration, /data-identity-remove/);
     assert.match(registration, /data-identity-retake/);
 });
+
+// V142 coordinated B2C/B2B release authorization: complete recommended identity retakes before verify
