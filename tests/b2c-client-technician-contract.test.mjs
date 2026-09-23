@@ -543,3 +543,5 @@ test("release gate keeps identity evidence user-reviewable before any biometric 
 // V142 coordinated release authorization: customer identity uses INE plus one frontal selfie
 
 // V142 coordinated release authorization: customer and technician use INE plus frontal selfie
+
+// V142 FINAL coordinated release: both B2C roles use INE front/reverse plus frontal selfie
