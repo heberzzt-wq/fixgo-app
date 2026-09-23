@@ -5,7 +5,10 @@ const {
     assessIdentityAnalyses,
     bestRegistryMatch,
     captureDigest,
-    evaluateIdentityAttemptState
+    evaluateIdentityAttemptState,
+    normalizeRecaptureEvidence,
+    applyRecaptureEvidenceToProfile,
+    recaptureProfilePatch
 } = require("../functions/b2c-biometric-identity");
 
 const embedding = value => Array.from({ length: 128 }, () => value);
@@ -211,5 +214,48 @@ test("release gate lets fresh recapture continue while stale evidence remains bo
     assert.equal(
         evaluateIdentityAttemptState(saturatedLegacy, { nowMs: now, digest: newDigest }).allowed,
         true
+    );
+});
+
+
+test("immutable biometric recapture paths are owner-confined and map to canonical profile fields", () => {
+    const uid = "owner-1";
+    const bucketName = "fixgo-44e4d.firebasestorage.app";
+    const leftPath = `expedientes/${uid}/recaptures/selfie_liveness_left/capture-12345678-left.jpg`;
+    const normalized = normalizeRecaptureEvidence({
+        selfie_left: {
+            storage_path: leftPath,
+            url: `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(leftPath)}?alt=media&token=test-token`
+        }
+    }, { uid, bucketName });
+
+    assert.equal(normalized.selfie_left.storage_path, leftPath);
+    const profile = applyRecaptureEvidenceToProfile({
+        foto_perfil: "front",
+        documentos: { selfie_liveness_left: "old-left", selfie_liveness_right: "old-right" }
+    }, normalized);
+    assert.equal(profile.documentos.selfie_liveness_left.storage_path, leftPath);
+    assert.equal(profile.documentos.selfie_liveness_right, "old-right");
+
+    const patch = recaptureProfilePatch(normalized);
+    assert.match(patch["documentos.selfie_liveness_left"], /firebasestorage\.googleapis\.com/);
+
+    assert.throws(
+        () => normalizeRecaptureEvidence({
+            selfie_left: {
+                storage_path: "expedientes/other/recaptures/selfie_liveness_left/capture-12345678-left.jpg",
+                url: "https://example.com/not-valid"
+            }
+        }, { uid, bucketName }),
+        /IDENTITY_STORAGE_OWNER_MISMATCH|IDENTITY_RECAPTURE/
+    );
+    assert.throws(
+        () => normalizeRecaptureEvidence({
+            selfie_left: {
+                storage_path: `expedientes/${uid}/selfie_liveness_left/current.jpg`,
+                url: "https://example.com/not-valid"
+            }
+        }, { uid, bucketName }),
+        /IDENTITY_RECAPTURE/
     );
 });

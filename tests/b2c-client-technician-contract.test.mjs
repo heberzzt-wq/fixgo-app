@@ -295,6 +295,13 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(client, /RECAPTURAR BIOMETRÍA FACIAL/);
     assert.match(client, /stepKeysOverride instanceof Set/);
     assert.match(client, /resource-exhausted/);
+    assert.match(client, /customerIdentityRecapturePath/);
+    assert.match(client, /\/recaptures\/\$\{kind\}\/capture-/);
+    assert.match(client, /verificarIdentidadB2C\(\{ recaptureEvidence \}\)/);
+    assert.match(client, /customerIdentityRecovery\.uploaded/);
+    assert.match(client, /customerIdentityRecovery\.pendingUpload/);
+    assert.match(client, /REINTENTAR SUBIDA/);
+    assert.doesNotMatch(client, /storagePathForTechnicianDocument\(user\.uid, step\.kind, file\.name\)/);
     assert.match(client, /FACE_ANTISPOOF_LOW|LIVENESS/);
     assert.doesNotMatch(client, /registro\.html\?resume=cliente-identity/);
     assert.match(client, /login\.html\?resume=cliente-identity/);
@@ -385,6 +392,12 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.equal(firebaseConfig.storage.rules, "security/storage-hardening-candidate.rules.txt");
 });
 
+
+test("customer biometric callable forwards immutable recapture payload", () => {
+    const firebaseSource = fs.readFileSync(new URL("../firebase.js", import.meta.url), "utf8");
+    assert.match(firebaseSource, /verificarIdentidadB2C\(payload = \{\}\)/);
+    assert.match(firebaseSource, /verifyB2cIdentity"\)\(safePayload\)/);
+});
 
 test("release gate keeps mobile identity capture bank-style without document zoom crop", () => {
     const html = fs.readFileSync(new URL("../registro.html", import.meta.url), "utf8");

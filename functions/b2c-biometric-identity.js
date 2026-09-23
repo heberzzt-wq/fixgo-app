@@ -145,6 +145,83 @@ function referenceStoragePath(reference, bucketName, uid, kind) {
     return storagePath;
 }
 
+const RECAPTURE_EVIDENCE_MAP = Object.freeze({
+    ine_front: { storageKind: "ine", profileField: "documentos.ine" },
+    ine_back: { storageKind: "ine_reverso", profileField: "documentos.ine_reverso" },
+    selfie_front: { storageKind: "foto_perfil", profileField: "foto_perfil" },
+    selfie_left: { storageKind: "selfie_liveness_left", profileField: "documentos.selfie_liveness_left" },
+    selfie_right: { storageKind: "selfie_liveness_right", profileField: "documentos.selfie_liveness_right" }
+});
+
+function normalizeRecaptureEvidence(value, { uid, bucketName } = {}) {
+    const raw = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    const entries = Object.entries(raw);
+    if (entries.length > Object.keys(RECAPTURE_EVIDENCE_MAP).length) {
+        throw new Error("IDENTITY_RECAPTURE_TOO_MANY_REFERENCES");
+    }
+
+    const normalized = {};
+    for (const [kind, reference] of entries) {
+        const config = RECAPTURE_EVIDENCE_MAP[kind];
+        if (!config) throw new Error(`IDENTITY_RECAPTURE_KIND_INVALID:${kind}`);
+        if (!reference || typeof reference !== "object" || Array.isArray(reference)) {
+            throw new Error(`IDENTITY_RECAPTURE_REFERENCE_INVALID:${kind}`);
+        }
+
+        const storagePath = referenceStoragePath(reference, bucketName, uid, kind);
+        const requiredPrefix = `expedientes/${uid}/recaptures/${config.storageKind}/`;
+        const fileName = storagePath.slice(requiredPrefix.length);
+        if (
+            !storagePath.startsWith(requiredPrefix) ||
+            !/^capture-[A-Za-z0-9_-]{8,180}\.jpg$/.test(fileName)
+        ) {
+            throw new Error(`IDENTITY_RECAPTURE_PATH_INVALID:${kind}`);
+        }
+
+        const url = safeText(reference.url, 2200);
+        if (!url) throw new Error(`IDENTITY_RECAPTURE_URL_REQUIRED:${kind}`);
+
+        normalized[kind] = {
+            storage_path: storagePath,
+            url,
+            storage_kind: config.storageKind,
+            profile_field: config.profileField
+        };
+    }
+    return normalized;
+}
+
+function applyRecaptureEvidenceToProfile(profile = {}, recapture = {}) {
+    const next = {
+        ...profile,
+        documentos: {
+            ...(profile.documentos || {})
+        }
+    };
+
+    for (const [kind, reference] of Object.entries(recapture)) {
+        if (kind === "selfie_front") next.foto_perfil = reference;
+        if (kind === "ine_front") next.documentos.ine = reference;
+        if (kind === "ine_back") next.documentos.ine_reverso = reference;
+        if (kind === "selfie_left") next.documentos.selfie_liveness_left = reference;
+        if (kind === "selfie_right") next.documentos.selfie_liveness_right = reference;
+    }
+    return next;
+}
+
+function recaptureProfilePatch(recapture = {}) {
+    const patch = {};
+    for (const [kind, reference] of Object.entries(recapture)) {
+        const url = reference.url;
+        if (kind === "selfie_front") patch.foto_perfil = url;
+        if (kind === "ine_front") patch["documentos.ine"] = url;
+        if (kind === "ine_back") patch["documentos.ine_reverso"] = url;
+        if (kind === "selfie_left") patch["documentos.selfie_liveness_left"] = url;
+        if (kind === "selfie_right") patch["documentos.selfie_liveness_right"] = url;
+    }
+    return patch;
+}
+
 async function verifyIdentityStorage({ bucket, uid, profile }) {
     const references = {
         selfie_front: profile.foto_perfil,
@@ -402,7 +479,7 @@ function createVerifyB2cIdentityHandler({
     now = () => admin.firestore.FieldValue.serverTimestamp()
 }) {
     if (!admin || !db || !functions) throw new Error("B2C_BIOMETRIC_DEPENDENCIES_REQUIRED");
-    return async (_data, context) => {
+    return async (data, context) => {
         const uid = context?.auth?.uid;
         if (!uid) throw new functions.https.HttpsError("unauthenticated", "Se requiere sesión para verificar identidad.");
         const profileRef = db.collection("users").doc(uid);
@@ -421,10 +498,26 @@ function createVerifyB2cIdentityHandler({
         }
 
         const storageBucket = bucket || admin.storage().bucket("fixgo-44e4d.firebasestorage.app");
+        let recaptureEvidence = {};
+        let verificationProfile = profile;
+        try {
+            recaptureEvidence = normalizeRecaptureEvidence(data?.recaptureEvidence, {
+                uid,
+                bucketName: storageBucket.name
+            });
+            verificationProfile = applyRecaptureEvidenceToProfile(profile, recaptureEvidence);
+        } catch (error) {
+            throw new functions.https.HttpsError(
+                "invalid-argument",
+                "La evidencia de recaptura no es válida.",
+                { reason: safeText(error.message, 160) }
+            );
+        }
+
         let verified;
         let buffers;
         try {
-            verified = await verifyIdentityStorage({ bucket: storageBucket, uid, profile });
+            verified = await verifyIdentityStorage({ bucket: storageBucket, uid, profile: verificationProfile });
             buffers = await downloadIdentityBuffers(storageBucket, verified);
         } catch (error) {
             await profileRef.set({
@@ -547,12 +640,19 @@ function createVerifyB2cIdentityHandler({
             const timestamp = now();
             const publicPatch = {
                 disponible: false,
+                ...recaptureProfilePatch(recaptureEvidence),
                 "kyc.identity_machine_status": status,
                 "kyc.identity_machine_verified": status === "verified",
                 "kyc.identity_machine_reasons": reasons,
                 "kyc.identity_machine_metrics": assessment.metrics || {},
                 "kyc.identity_machine_checked_at": timestamp,
                 "kyc.identity_capture_digest": digest,
+                "kyc.identity_capture_status": Object.keys(recaptureEvidence).length > 0
+                    ? "recaptured_pending_verification"
+                    : profile.kyc?.identity_capture_status || "captured_pending_verification",
+                "kyc.identity_capture_completed_at": Object.keys(recaptureEvidence).length > 0
+                    ? timestamp
+                    : profile.kyc?.identity_capture_completed_at || timestamp,
                 "kyc.identity_engine_version": BIOMETRIC_ENGINE_VERSION
             };
 
@@ -592,6 +692,9 @@ function createVerifyB2cIdentityHandler({
                 reasons,
                 metrics: assessment.metrics || {},
                 capture_digest: digest,
+                recapture_paths: Object.fromEntries(
+                    Object.entries(recaptureEvidence).map(([kind, reference]) => [kind, reference.storage_path])
+                ),
                 duplicate_similarity: duplicate ? roundScore(duplicate.similarity) : null,
                 duplicate_candidate_hash: duplicate ? crypto.createHash("sha256").update(String(duplicate.uid)).digest("hex") : null,
                 engine_version: BIOMETRIC_ENGINE_VERSION,
@@ -622,6 +725,9 @@ module.exports = {
     bestRegistryMatch,
     captureDigest,
     evaluateIdentityAttemptState,
+    normalizeRecaptureEvidence,
+    applyRecaptureEvidenceToProfile,
+    recaptureProfilePatch,
     createHumanBiometricRuntime,
     createVerifyB2cIdentityHandler,
     verifyIdentityStorage

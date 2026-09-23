@@ -213,8 +213,10 @@ export async function iniciarPanelCliente(user) {
         steps: [],
         stepIndex: 0,
         files: new Map(),
+        uploaded: new Map(),
         stream: null,
-        running: false
+        running: false,
+        pendingUpload: false
     };
 
     function stopCustomerIdentityCamera() {
@@ -255,7 +257,10 @@ export async function iniciarPanelCliente(user) {
         const stage = document.getElementById("clientIdentityCameraStage");
 
         stopCustomerIdentityCamera();
-        if (capture) capture.disabled = true;
+        if (capture) {
+            capture.disabled = true;
+            capture.innerHTML = '<i class="fas fa-camera mr-2"></i> CAPTURAR';
+        }
         if (stage) stage.dataset.frame = step.frame;
         if (guide) guide.className = `client-identity-guide ${step.frame}`;
         if (video) {
@@ -295,67 +300,44 @@ export async function iniciarPanelCliente(user) {
         if (capture) capture.disabled = false;
     }
 
+    function customerIdentityRecapturePath(uid, kind) {
+        const randomPart = globalThis.crypto?.randomUUID?.()
+            ?.replace(/[^A-Za-z0-9_-]/g, "")
+            ?.slice(0, 64) || Math.random().toString(36).slice(2, 18);
+        return `expedientes/${uid}/recaptures/${kind}/capture-${Date.now()}-${randomPart}.jpg`;
+    }
+
     async function persistCustomerIdentityRecovery() {
         const status = document.getElementById("clientIdentityRecoveryStatus");
         const capture = document.getElementById("clientIdentityCaptureButton");
-        const userRef = doc(db, "users", user.uid);
+        customerIdentityRecovery.pendingUpload = true;
 
-        if (capture) capture.disabled = true;
-        if (status) status.textContent = "Protegiendo evidencias en tu expediente…";
+        if (capture) {
+            capture.disabled = true;
+            capture.innerHTML = '<i class="fas fa-cloud-arrow-up fa-beat mr-2"></i> GUARDANDO…';
+        }
+        if (status) status.textContent = "Protegiendo evidencias nuevas sin sobrescribir tu historial…";
 
+        const recaptureEvidence = {};
         for (const step of customerIdentityRecovery.steps) {
             const file = customerIdentityRecovery.files.get(step.key);
             if (!file) throw new Error(`CUSTOMER_IDENTITY_FILE_MISSING:${step.kind}`);
 
-            const storagePath = storagePathForTechnicianDocument(user.uid, step.kind, file.name);
-            await setDoc(userRef, {
-                kyc: {
-                    estado: "identidad_pendiente",
-                    upload_actual: step.kind,
-                    ultimo_error: null,
-                    uploads: {
-                        [step.kind]: {
-                            estado: "subiendo",
-                            storage_path: storagePath,
-                            actualizado_at: serverTimestamp()
-                        }
-                    }
-                }
-            }, { merge: true });
-
-            const objectRef = ref(storage, storagePath);
-            await uploadBytes(objectRef, file);
-            const url = await getDownloadURL(objectRef);
-            await setDoc(userRef, step.patch(url), { merge: true });
-            await setDoc(userRef, {
-                kyc: {
-                    estado: "identidad_pendiente",
-                    upload_actual: null,
-                    uploads: {
-                        [step.kind]: {
-                            estado: "confirmado",
-                            storage_path: storagePath,
-                            url,
-                            actualizado_at: serverTimestamp()
-                        }
-                    }
-                }
-            }, { merge: true });
+            let uploaded = customerIdentityRecovery.uploaded.get(step.key);
+            if (!uploaded) {
+                const storagePath = customerIdentityRecapturePath(user.uid, step.kind);
+                const objectRef = ref(storage, storagePath);
+                await uploadBytes(objectRef, file, { contentType: "image/jpeg" });
+                const url = await getDownloadURL(objectRef);
+                uploaded = { storage_path: storagePath, url };
+                customerIdentityRecovery.uploaded.set(step.key, uploaded);
+            }
+            recaptureEvidence[step.key] = uploaded;
         }
 
-        await setDoc(userRef, {
-            kyc: {
-                estado: "identidad_pendiente",
-                identity_capture_status: "captured_pending_verification",
-                identity_capture_completed_at: serverTimestamp(),
-                upload_actual: null,
-                ultimo_error: null
-            },
-            actualizadoEn: serverTimestamp()
-        }, { merge: true });
-
         if (status) status.textContent = "Validando INE, rostro, prueba de vida y duplicados…";
-        const result = await verificarIdentidadB2C();
+        const result = await verificarIdentidadB2C({ recaptureEvidence });
+        customerIdentityRecovery.pendingUpload = false;
 
         if (result?.status === "verified") {
             if (status) status.textContent = "✅ Identidad verificada. Activando tu cuenta…";
@@ -409,6 +391,7 @@ export async function iniciarPanelCliente(user) {
 
             if (customerIdentityRecovery.stepIndex >= customerIdentityRecovery.steps.length) {
                 stopCustomerIdentityCamera();
+                customerIdentityRecovery.pendingUpload = true;
                 await persistCustomerIdentityRecovery();
                 return;
             }
@@ -437,7 +420,9 @@ export async function iniciarPanelCliente(user) {
         );
         customerIdentityRecovery.stepIndex = 0;
         customerIdentityRecovery.files = new Map();
+        customerIdentityRecovery.uploaded = new Map();
         customerIdentityRecovery.running = false;
+        customerIdentityRecovery.pendingUpload = false;
 
         if (customerIdentityRecovery.steps.length === 0) {
             const bannerStatus = document.getElementById("clienteIdentityRetryStatus");
@@ -458,10 +443,21 @@ export async function iniciarPanelCliente(user) {
 
     document.getElementById("clientIdentityCancelButton")?.addEventListener("click", closeCustomerIdentityModal);
     document.getElementById("clientIdentityCaptureButton")?.addEventListener("click", () => {
-        captureCustomerIdentityFrame().catch(error => {
+        const task = customerIdentityRecovery.pendingUpload
+            ? persistCustomerIdentityRecovery()
+            : captureCustomerIdentityFrame();
+
+        task.catch(error => {
             console.error("[B2C_CUSTOMER_IDENTITY_CAPTURE]", error);
             const status = document.getElementById("clientIdentityRecoveryStatus");
-            if (status) status.textContent = `No se pudo completar la captura (${String(error?.code || error?.message || "CAPTURE_FAILED").slice(0, 100)}).`;
+            const capture = document.getElementById("clientIdentityCaptureButton");
+            if (status) {
+                status.textContent = `No se pudo guardar la evidencia (${String(error?.code || error?.message || "UPLOAD_FAILED").slice(0, 100)}). Puedes reintentar sin volver a tomar las fotos.`;
+            }
+            if (capture && customerIdentityRecovery.pendingUpload) {
+                capture.disabled = false;
+                capture.innerHTML = '<i class="fas fa-cloud-arrow-up mr-2"></i> REINTENTAR SUBIDA';
+            }
         });
     });
 

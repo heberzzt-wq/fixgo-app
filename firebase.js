@@ -93,8 +93,9 @@ export async function devolverExpedienteTecnicoB2C(technicianId, reason, documen
     return (await httpsCallable(cloudFunctions, 'returnB2cTechnicianKyc')({ technicianId, reason, documents })).data;
 }
 
-export async function verificarIdentidadB2C() {
-    return (await httpsCallable(cloudFunctions, "verifyB2cIdentity")({})).data;
+export async function verificarIdentidadB2C(payload = {}) {
+    const safePayload = payload && typeof payload === "object" ? payload : {};
+    return (await httpsCallable(cloudFunctions, "verifyB2cIdentity")(safePayload)).data;
 }
 
 export async function aprobarTecnicoB2C(technicianId) {

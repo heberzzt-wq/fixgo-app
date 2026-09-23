@@ -179,17 +179,42 @@ service firebase.storage {
         validDocument(10 * 1024 * 1024);
     }
 
+    // Recapturas KYC inmutables: archivo nuevo por intento, sin sobrescribir current.*.
+    // El backend valida y adopta la referencia antes de ejecutar biometría.
+    match /expedientes/{uid}/recaptures/{kind}/{fileName} {
+      allow read: if signedIn() && request.auth.uid == uid;
+
+      allow create: if resource == null &&
+        signedIn() &&
+        request.auth.uid == uid &&
+        request.auth.token.get('email', '') != '' &&
+        kind in [
+          'foto_perfil',
+          'ine',
+          'ine_reverso',
+          'selfie_liveness_left',
+          'selfie_liveness_right'
+        ] &&
+        fileName.matches("capture-[A-Za-z0-9_-]+\\.jpg") &&
+        request.resource.contentType == 'image/jpeg' &&
+        validImage(10 * 1024 * 1024);
+
+      allow update, delete: if false;
+    }
+
     // Expedientes KYC/identidad B2C. Mantiene 10 MB por compatibilidad legacy.
     match /expedientes/{uid}/{filePath=**} {
        allow read: if authorizedAdmin() || b2bKycReviewer(uid) ||
         (signedIn() && request.auth.uid == uid);
 
-      allow create: if resource == null && (authorizedAdmin() || (signedIn() && request.auth.uid == uid &&
+      allow create: if !filePath.matches("recaptures/.*") &&
+        resource == null && (authorizedAdmin() || (signedIn() && request.auth.uid == uid &&
         (userProfile().get('status', '') in ['registro_iniciado', 'documentos_pendientes', 'rechazado', 'identidad_pendiente', 'identidad_revision'] &&
            userProfile().get('suspendido', false) != true)
       )) && validDocument(10 * 1024 * 1024);
 
-      allow update: if (authorizedAdmin() || (signedIn() && request.auth.uid == uid &&
+      allow update: if !filePath.matches("recaptures/.*") &&
+        (authorizedAdmin() || (signedIn() && request.auth.uid == uid &&
         userProfile().get('tipo_cuenta', '') != 'B2B' &&
         userProfile().get('status', '') in ['registro_iniciado', 'documentos_pendientes', 'rechazado', 'identidad_pendiente', 'identidad_revision'] &&
         userProfile().get('suspendido', false) != true

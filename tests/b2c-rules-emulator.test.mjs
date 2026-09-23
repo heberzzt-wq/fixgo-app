@@ -272,6 +272,37 @@ test("Storage permite primer alta KYC propia sin depender de perfil Firestore y 
     ));
 });
 
+test("Storage permite recaptura KYC inmutable propia y bloquea overwrite, ruta ajena y kind inventado", async () => {
+    const ownerStorage = environment.authenticatedContext("recapture-owner", {
+        email: "recapture-owner@example.test"
+    }).storage();
+    const foreignStorage = environment.authenticatedContext("recapture-foreign", {
+        email: "recapture-foreign@example.test"
+    }).storage();
+    const payload = new Uint8Array([255, 216, 255, 224, 0, 16, 74, 70, 73, 70]);
+
+    const ownPath = "expedientes/recapture-owner/recaptures/selfie_liveness_left/capture-12345678-left.jpg";
+    const ownRef = ref(ownerStorage, ownPath);
+    await assertSucceeds(uploadBytes(ownRef, payload, { contentType: "image/jpeg" }));
+    await assertFails(uploadBytes(ownRef, payload, { contentType: "image/jpeg" }));
+
+    await assertFails(uploadBytes(
+        ref(foreignStorage, "expedientes/recapture-owner/recaptures/selfie_liveness_right/capture-12345678-right.jpg"),
+        payload,
+        { contentType: "image/jpeg" }
+    ));
+    await assertFails(uploadBytes(
+        ref(ownerStorage, "expedientes/recapture-owner/recaptures/otro/capture-12345678-other.jpg"),
+        payload,
+        { contentType: "image/jpeg" }
+    ));
+    await assertFails(uploadBytes(
+        ref(ownerStorage, "expedientes/recapture-owner/recaptures/selfie_liveness_left/current.jpg"),
+        payload,
+        { contentType: "image/jpeg" }
+    ));
+});
+
 test("Storage permite expediente propio válido y niega expediente ajeno", async () => {
     await environment.withSecurityRulesDisabled(async ctx => setDoc(doc(ctx.firestore(),"users/kyc-upload"), {...operationalTechnician,status:"documentos_pendientes",estado:"documentos_pendientes",kyc:{aprobado:false}}));
     const ownStorage = environment.authenticatedContext("kyc-upload").storage();
