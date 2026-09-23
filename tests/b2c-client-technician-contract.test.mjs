@@ -281,7 +281,9 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(client, /REINTENTAR VALIDACIÓN AUTOMÁTICA/);
     assert.match(client, /REANUDAR CAPTURA DE IDENTIDAD/);
     assert.match(client, /identityEvidenceComplete/);
-    assert.match(client, /registro\.html\?resume=cliente-identity/);
+    assert.doesNotMatch(client, /registro\.html\?resume=cliente-identity/);
+    assert.match(client, /login\.html\?resume=cliente-identity/);
+    assert.match(client, /startCustomerIdentityRecovery/);
     assert.match(html, /btnExpandirMapa/);
     assert.match(html, /mapa-expandido/);
     assert.match(client, /platformContract\.SERVICE_CATALOG/);
