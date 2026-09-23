@@ -319,6 +319,12 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(client, /RECAPTURAR BIOMETRÍA FACIAL/);
     assert.match(client, /stepKeysOverride instanceof Set/);
     assert.match(client, /resource-exhausted/);
+    assert.match(client, /customerIdentityAttemptError/);
+    assert.match(client, /details\.reason/);
+    assert.match(client, /same_capture_limit/);
+    assert.match(client, /fresh_capture_limit/);
+    assert.match(client, /No necesitas tomar otra foto/);
+    assert.doesNotMatch(client, /new Set\(\["selfie_front", "selfie_left", "selfie_right"\]\)/);
     assert.match(client, /customerIdentityRecapturePath/);
     assert.match(client, /\/recaptures\/\$\{kind\}\/capture-/);
     assert.match(client, /verificarIdentidadB2C\(\{ recaptureEvidence \}\)/);

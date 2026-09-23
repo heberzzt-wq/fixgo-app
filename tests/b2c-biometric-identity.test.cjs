@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
     THRESHOLDS,
+    IDENTITY_ATTEMPT_POLICY_VERSION,
     identityEvidenceKindsForRole,
     assessCustomerIdentityAnalyses,
     assessIdentityAnalyses,
@@ -46,6 +47,24 @@ function validAnalyses() {
         selfie_right: face({ embeddingValue: 0.97, yaw: 0.30 })
     };
 }
+
+test("attempt policy migration resets stale legacy counters without deleting history", () => {
+    const digest = "a".repeat(64);
+    const result = evaluateIdentityAttemptState({
+        policy_version: "legacy-policy",
+        window_started_ms: 1000,
+        last_attempt_ms: 59_000,
+        fresh_capture_attempts: 99,
+        same_capture_attempts: 99,
+        last_capture_digest: digest
+    }, { nowMs: 60_000, digest });
+
+    assert.equal(result.allowed, true);
+    assert.equal(result.sameCapture, false);
+    assert.equal(result.patch.policy_version, IDENTITY_ATTEMPT_POLICY_VERSION);
+    assert.equal(result.patch.fresh_capture_attempts, 1);
+    assert.equal(result.patch.same_capture_attempts, 1);
+});
 
 test("customer and technician automatic identity use the same three-evidence contract", () => {
     assert.deepEqual(identityEvidenceKindsForRole("cliente"), ["selfie_front", "ine_front", "ine_back"]);

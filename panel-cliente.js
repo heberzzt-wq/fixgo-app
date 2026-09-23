@@ -211,6 +211,54 @@ export async function iniciarPanelCliente(user) {
         if (label) label.textContent = total > 0 ? `${current}/${total}` : "LISTO";
     }
 
+    function customerIdentityAttemptError(error) {
+        const code = String(error?.code || "")
+            .replace(/[^a-zA-Z0-9_:\/.-]/g, "")
+            .slice(0, 120);
+        const details = error?.details && typeof error.details === "object" ? error.details : {};
+        const reason = String(details.reason || "").trim();
+        const retryAfterMs = Math.max(0, Number(details.retryAfterMs || 0));
+        if (!code.includes("resource-exhausted")) {
+            return { code, reason: "", retryAfterMs: 0, message: `No se pudo verificar (${code || "VERIFY_FAILED"}).`, recapture: false };
+        }
+        if (reason === "cooldown") {
+            const seconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
+            return {
+                code,
+                reason,
+                retryAfterMs,
+                message: `Espera ${seconds} segundo${seconds === 1 ? "" : "s"} y vuelve a tocar VERIFICAR. No necesitas tomar otra foto.`,
+                recapture: false
+            };
+        }
+        if (reason === "same_capture_limit") {
+            return {
+                code,
+                reason,
+                retryAfterMs: 0,
+                message: "Esta misma selfie ya alcanzó el límite de reintentos. Toma una selfie frontal nueva; tu INE permanece guardada.",
+                recapture: true
+            };
+        }
+        if (reason === "fresh_capture_limit") {
+            const minutes = Math.max(1, Math.ceil(retryAfterMs / 60000));
+            return {
+                code,
+                reason,
+                retryAfterMs,
+                message: `Se alcanzó el límite temporal de capturas nuevas. Podrás reintentar en aproximadamente ${minutes} minuto${minutes === 1 ? "" : "s"}. Tu INE y la selfie seleccionada permanecen guardadas.`,
+                recapture: false
+            };
+        }
+        return {
+            code,
+            reason,
+            retryAfterMs,
+            message: "La protección antiabuso pausó temporalmente la verificación. Tus evidencias siguen guardadas; espera un momento y reintenta.",
+            recapture: false
+        };
+    }
+
     function customerIdentityExistingUrl(stepKey) {
         if (stepKey === "ine_front") return user.documentos?.ine || "";
         if (stepKey === "ine_back") return user.documentos?.ine_reverso || "";
@@ -338,7 +386,7 @@ export async function iniciarPanelCliente(user) {
         const hint = document.getElementById("clientIdentityHint");
         if (eyebrow) eyebrow.textContent = "Revisión previa";
         if (title) title.textContent = "Revisa tu identidad";
-        if (hint) hint.textContent = "Puedes reemplazar INE o cualquier selfie antes de verificar.";
+        if (hint) hint.textContent = "Puedes reemplazar tu INE o selfie frontal antes de verificar.";
         renderCustomerIdentityReview();
     }
 
@@ -474,7 +522,7 @@ export async function iniciarPanelCliente(user) {
         const failedKeys = identityStepKeysFromReasons(reasons);
         const retryKeys = failedKeys.size > 0
             ? failedKeys
-            : new Set(["selfie_front", "selfie_left", "selfie_right"]);
+            : new Set(["selfie_front"]);
 
         customerIdentityRecovery.recommendedKeys = new Set(retryKeys);
         customerIdentityRecovery.steps = customerIdentityAllSteps.filter(step => retryKeys.has(step.key));
@@ -608,12 +656,25 @@ export async function iniciarPanelCliente(user) {
         if (status) status.textContent = "Preparando evidencias seleccionadas…";
         persistCustomerIdentityRecovery().catch(error => {
             console.error("[B2C_CUSTOMER_IDENTITY_REVIEW_VERIFY]", error);
+            const attempt = customerIdentityAttemptError(error);
             customerIdentityRecovery.pendingUpload = true;
+
+            if (attempt.recapture) {
+                const key = "selfie_front";
+                const localPreview = customerIdentityRecovery.previewUrls.get(key);
+                if (localPreview) URL.revokeObjectURL(localPreview);
+                customerIdentityRecovery.previewUrls.delete(key);
+                customerIdentityRecovery.files.delete(key);
+                customerIdentityRecovery.uploaded.delete(key);
+                customerIdentityRecovery.excludedKeys.add(key);
+                customerIdentityRecovery.recommendedKeys = new Set([key]);
+                customerIdentityRecovery.steps = customerIdentityAllSteps.filter(step => step.key === key);
+                customerIdentityRecovery.pendingUpload = false;
+            }
+
             showCustomerIdentityReview();
             const reviewStatus = document.getElementById("clientIdentityReviewStatus");
-            if (reviewStatus) {
-                reviewStatus.textContent = `No se pudo verificar (${String(error?.code || error?.message || "VERIFY_FAILED").slice(0, 100)}). Tus nuevas capturas siguen disponibles para reintentar.`;
-            }
+            if (reviewStatus) reviewStatus.textContent = attempt.message;
         });
     });
     document.getElementById("clientIdentityCaptureButton")?.addEventListener("click", () => {
@@ -785,13 +846,15 @@ export async function iniciarPanelCliente(user) {
             }
             catch (error) {
                 console.error("[B2C_CUSTOMER_IDENTITY_RETRY]", error);
-                const code = String(error?.code || "IDENTITY_RETRY_FAILED")
-                    .replace(/[^a-zA-Z0-9_:\/.-]/g, "")
-                    .slice(0, 120);
-                if (retryStatus) {
-                    retryStatus.textContent = code.includes("resource-exhausted")
-                        ? "Se alcanzó el límite de revalidaciones sobre esta evidencia. Recaptura la biometría para continuar con fotos nuevas."
-                        : `No se pudo completar la validación automática (${code}).`;
+                const attempt = customerIdentityAttemptError(error);
+                if (retryStatus) retryStatus.textContent = attempt.message;
+                if (attempt.recapture) {
+                    retryButton.innerHTML = '<i class="fas fa-camera"></i> RECAPTURAR SELFIE';
+                    await startCustomerIdentityRecovery(
+                        ["SELFIE_INE_FACE_MISMATCH"],
+                        new Set(["selfie_front"])
+                    );
+                    return;
                 }
             }
             finally {

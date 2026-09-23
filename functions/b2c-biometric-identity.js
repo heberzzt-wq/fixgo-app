@@ -6,6 +6,7 @@ const path = require("node:path");
 const BIOMETRIC_ENGINE_VERSION = "human-local-v1";
 const IDENTITY_CAPTURE_VERSION = "b2c-bank-identity-v1";
 const REGISTRY_LIMIT = 5000;
+const IDENTITY_ATTEMPT_POLICY_VERSION = "b2c-identity-attempt-policy-v2";
 const IDENTITY_ATTEMPT_WINDOW_MS = 60 * 60 * 1000;
 const IDENTITY_ATTEMPT_COOLDOWN_MS = 15 * 1000;
 const IDENTITY_FRESH_CAPTURE_LIMIT = 5;
@@ -52,9 +53,12 @@ function evaluateIdentityAttemptState(state = {}, { nowMs = Date.now(), digest }
         throw new Error("IDENTITY_CAPTURE_DIGEST_REQUIRED");
     }
 
-    const windowStartedMs = Number(state.window_started_ms || 0);
-    const lastAttemptMs = Number(state.last_attempt_ms || 0);
+    const samePolicy =
+        String(state.policy_version || "") === IDENTITY_ATTEMPT_POLICY_VERSION;
+    const windowStartedMs = samePolicy ? Number(state.window_started_ms || 0) : 0;
+    const lastAttemptMs = samePolicy ? Number(state.last_attempt_ms || 0) : 0;
     const withinWindow =
+        samePolicy &&
         windowStartedMs > 0 &&
         nowMs - windowStartedMs < IDENTITY_ATTEMPT_WINDOW_MS;
 
@@ -102,6 +106,7 @@ function evaluateIdentityAttemptState(state = {}, { nowMs = Date.now(), digest }
         allowed: true,
         sameCapture,
         patch: {
+            policy_version: IDENTITY_ATTEMPT_POLICY_VERSION,
             window_started_ms: withinWindow ? windowStartedMs : nowMs,
             attempts: legacyAttempts + 1,
             fresh_capture_attempts:
@@ -809,6 +814,7 @@ function createVerifyB2cIdentityHandler({
 module.exports = {
     BIOMETRIC_ENGINE_VERSION,
     IDENTITY_CAPTURE_VERSION,
+    IDENTITY_ATTEMPT_POLICY_VERSION,
     REGISTRY_LIMIT,
     THRESHOLDS,
     CUSTOMER_IDENTITY_EVIDENCE_KINDS,
