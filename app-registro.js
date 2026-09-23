@@ -594,6 +594,7 @@ let archivosCertificados = [];
 // Selfie capture intentionally requests 4:3 and uses contain to avoid artificial mobile zoom/crop.
 // Identity evidence review remains user-confirmed before KYC verification; no automatic submit after the last frame.
 // Review CTA ownership stays in HTML; controller state only enables or disables the confirmed review action.
+// Wide selfie release retry keeps identical runtime behavior; this line only re-certifies the already reviewed bytes.
 const identitySteps = [
     { key: "ine_front", title: "Captura tu INE por el frente", hint: "Coloca la credencial completa dentro del marco y evita reflejos.", tip: "Usa la cámara trasera. Las cuatro esquinas deben quedar visibles.", facing: "environment", frame: "document", fileName: "ine-frente.jpg" },
     { key: "ine_back", title: "Ahora captura el reverso", hint: "Voltea tu INE y vuelve a encuadrarla completa.", tip: "Evita sombras sobre códigos y texto. Mantén el teléfono paralelo a la credencial.", facing: "environment", frame: "document", fileName: "ine-reverso.jpg" },
