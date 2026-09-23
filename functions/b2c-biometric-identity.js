@@ -6,6 +6,7 @@ const path = require("node:path");
 const BIOMETRIC_ENGINE_VERSION = "human-local-v1";
 const IDENTITY_CAPTURE_VERSION = "b2c-bank-identity-v1";
 const REGISTRY_LIMIT = 5000;
+// v2 resets counters inherited from the retired multi-pose debugging flow without deleting audit history.
 const IDENTITY_ATTEMPT_POLICY_VERSION = "b2c-identity-attempt-policy-v2";
 const IDENTITY_ATTEMPT_WINDOW_MS = 60 * 60 * 1000;
 const IDENTITY_ATTEMPT_COOLDOWN_MS = 15 * 1000;
