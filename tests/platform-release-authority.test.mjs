@@ -130,3 +130,13 @@ test("shared PDF utility resolves remote Storage signatures before saving", () =
     assert.match(source, /Promise\.all\(pending\)/);
     assert.match(source, /if \(url\.startsWith\('data:'\)\) return url/);
 });
+
+
+test("release gate requires explicit Hosting finalization before production smoke", () => {
+    const workflow = fs.readFileSync(new URL("../.github/workflows/v142-mobile-web-research-recovery.yml", import.meta.url), "utf8");
+    const finalizer = workflow.indexOf("name: Finalize exact FixGo Hosting release");
+    const smoke = workflow.indexOf("name: Smoke exact production release");
+    assert.ok(finalizer > 0);
+    assert.ok(smoke > finalizer);
+    assert.match(workflow.slice(finalizer, smoke), /--only hosting/);
+});
