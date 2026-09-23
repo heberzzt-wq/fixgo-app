@@ -154,6 +154,61 @@ export async function iniciarPanelCliente(user) {
         }
     ];
 
+    function identityStepKeysFromReasons(reasons = []) {
+        const keys = new Set();
+        const add = key => {
+            if (["ine_front", "selfie_front", "selfie_left", "selfie_right"].includes(key)) keys.add(key);
+        };
+
+        for (const rawReason of reasons) {
+            const reason = String(rawReason || "").trim();
+            const suffix = reason.match(/:(ine_front|selfie_front|selfie_left|selfie_right)$/)?.[1];
+            if (suffix) add(suffix);
+
+            if (reason === "LIVENESS_LEFT_IDENTITY_MISMATCH") add("selfie_left");
+            if (reason === "LIVENESS_RIGHT_IDENTITY_MISMATCH") add("selfie_right");
+            if (reason === "SELFIE_INE_FACE_MISMATCH") {
+                add("ine_front");
+                add("selfie_front");
+            }
+            if (reason === "SELFIE_FRONT_NOT_CENTERED") add("selfie_front");
+            if (reason === "LIVENESS_HEAD_TURN_TOO_SMALL" || reason === "LIVENESS_HEAD_TURNS_NOT_OPPOSITE") {
+                add("selfie_left");
+                add("selfie_right");
+            }
+            if (reason === "LIVENESS_DUPLICATE_FRAME") {
+                add("selfie_front");
+                add("selfie_left");
+                add("selfie_right");
+            }
+        }
+
+        return keys;
+    }
+
+    function describeIdentityReview(reasons = [], failedKeys = new Set()) {
+        const labels = {
+            ine_front: "INE frente",
+            selfie_front: "selfie frontal",
+            selfie_left: "giro a la izquierda",
+            selfie_right: "giro a la derecha"
+        };
+        const failed = [...failedKeys].map(key => labels[key]).filter(Boolean);
+        const allFace = failed.length > 0 && [...failedKeys].every(key => key.startsWith("selfie_"));
+        const livenessIssue = reasons.some(reason => /LIVENESS|ANTISPOOF/.test(String(reason || "")));
+
+        if (failed.length > 0 && allFace && livenessIssue) {
+            return `La prueba de vida no alcanzó el nivel requerido en ${failed.join(" y ")}. Repite sólo ${failed.length === 1 ? "esa toma" : "esas tomas"} con buena luz, el rostro descubierto y el teléfono estable.`;
+        }
+        if (failed.length > 0) {
+            return `Necesitamos repetir únicamente: ${failed.join(", ")}. El resto de tu expediente permanece guardado.`;
+        }
+        if (reasons.length > 0) {
+            return "La validación automática requiere una nueva revisión de identidad. Tus evidencias permanecen protegidas.";
+        }
+        return "Todavía no existe un diagnóstico automático persistido.";
+    }
+
     const customerIdentityRecovery = {
         steps: [],
         stepIndex: 0,
@@ -318,9 +373,8 @@ export async function iniciarPanelCliente(user) {
             ? result.reasons.map(value => String(value || "").trim()).filter(Boolean).slice(0, 8)
             : [];
         if (status) {
-            status.textContent = reasons.length
-                ? `Revisión requerida: ${reasons.join(" · ")}`
-                : "La validación automática requiere revisión.";
+            const failedKeys = identityStepKeysFromReasons(reasons);
+            status.textContent = describeIdentityReview(reasons, failedKeys);
         }
         setTimeout(() => window.location.reload(), 1800);
     }
@@ -371,7 +425,10 @@ export async function iniciarPanelCliente(user) {
             return;
         }
 
-        customerIdentityRecovery.steps = customerIdentityAllSteps.filter(step => !step.exists());
+        const failedStepKeys = identityStepKeysFromReasons(identityReasons);
+        customerIdentityRecovery.steps = customerIdentityAllSteps.filter(
+            step => !step.exists() || failedStepKeys.has(step.key)
+        );
         customerIdentityRecovery.stepIndex = 0;
         customerIdentityRecovery.files = new Map();
         customerIdentityRecovery.running = false;
@@ -418,6 +475,17 @@ export async function iniciarPanelCliente(user) {
         user.documentos?.selfie_liveness_left &&
         user.documentos?.selfie_liveness_right
     );
+    const failedIdentityStepKeys = identityStepKeysFromReasons(identityReasons);
+    const targetedRecaptureAvailable = failedIdentityStepKeys.size > 0;
+    const targetedRecaptureIsFaceOnly =
+        targetedRecaptureAvailable &&
+        [...failedIdentityStepKeys].every(key => key.startsWith("selfie_"));
+    const identityReasonSummary = describeIdentityReview(identityReasons, failedIdentityStepKeys);
+    const recoveryButtonLabel = !identityEvidenceComplete
+        ? "REANUDAR CAPTURA DE IDENTIDAD"
+        : targetedRecaptureAvailable
+            ? (targetedRecaptureIsFaceOnly ? "RECAPTURAR PRUEBA DE VIDA" : "RECAPTURAR EVIDENCIA RECHAZADA")
+            : "REINTENTAR VALIDACIÓN AUTOMÁTICA";
     const identityBlocked = user.tipo_cuenta === "B2C" &&
         user.kyc?.identity_required === true &&
         (user.kyc?.identity_verified !== true ||
@@ -429,13 +497,11 @@ export async function iniciarPanelCliente(user) {
         banner.id = "clienteIdentityReviewBanner";
         banner.className = "mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-100";
         const duplicate = identityStatus === "duplicate_suspected";
-        const reasonMarkup = identityReasons.length > 0
-            ? `<p id="clienteIdentityMachineReason" class="mt-2 rounded-xl border border-amber-400/20 bg-black/20 px-3 py-2 text-[10px] font-mono text-amber-100/80">Diagnóstico: ${identityReasons.map(reason => escaparHTML(reason)).join(" · ")}</p>`
-            : '<p id="clienteIdentityMachineReason" class="mt-2 text-[10px] text-amber-100/55">Todavía no existe un diagnóstico automático persistido.</p>';
+        const reasonMarkup = `<p id="clienteIdentityMachineReason" class="mt-2 rounded-xl border border-amber-400/20 bg-black/20 px-3 py-2 text-[11px] leading-relaxed text-amber-100/80">${escaparHTML(identityReasonSummary)}</p>`;
         const retryMarkup = duplicate
             ? ""
             : `<button id="clienteIdentityRetryButton" type="button" class="mt-3 inline-flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100 active:scale-95">
-                    <i class="fas fa-rotate"></i> ${identityEvidenceComplete ? "REINTENTAR VALIDACIÓN AUTOMÁTICA" : "REANUDAR CAPTURA DE IDENTIDAD"}
+                    <i class="fas fa-rotate"></i> ${recoveryButtonLabel}
                </button>`;
         banner.innerHTML = `
             <div class="flex items-start gap-3">
@@ -445,9 +511,11 @@ export async function iniciarPanelCliente(user) {
                     <p class="mt-1 text-xs text-amber-100/75">
                         ${duplicate
                             ? "Detectamos una coincidencia que debe revisar una persona. No se permiten solicitudes mientras se resuelve."
-                            : identityEvidenceComplete
-                                ? "Tu expediente está protegido y todavía no puede crear servicios. Puedes reintentar la validación automática usando las evidencias ya guardadas."
-                                : "La cuenta ya existe, pero faltan evidencias de identidad. Reanuda la captura en la misma cuenta; no se creará otra identidad."}
+                            : !identityEvidenceComplete
+                                ? "La cuenta ya existe, pero faltan evidencias de identidad. Reanuda la captura en la misma cuenta; no se creará otra identidad."
+                                : targetedRecaptureAvailable
+                                    ? "La validación detectó una o más tomas que deben repetirse. No necesitas volver a capturar todo tu expediente."
+                                    : "Tu expediente está protegido y todavía no puede crear servicios. Puedes reintentar la validación automática usando las evidencias ya guardadas."}
                     </p>
                     ${reasonMarkup}
                     ${retryMarkup}
@@ -465,7 +533,7 @@ export async function iniciarPanelCliente(user) {
                 return;
             }
 
-            if (!identityEvidenceComplete) {
+            if (!identityEvidenceComplete || targetedRecaptureAvailable) {
                 retryButton.disabled = true;
                 retryButton.innerHTML = '<i class="fas fa-camera"></i> ABRIENDO CÁMARA…';
                 try {
@@ -476,7 +544,7 @@ export async function iniciarPanelCliente(user) {
                 } finally {
                     if (retryButton?.isConnected) {
                         retryButton.disabled = false;
-                        retryButton.innerHTML = '<i class="fas fa-rotate"></i> REANUDAR CAPTURA DE IDENTIDAD';
+                        retryButton.innerHTML = `<i class="fas fa-rotate"></i> ${recoveryButtonLabel}`;
                     }
                 }
                 return;
@@ -509,9 +577,8 @@ export async function iniciarPanelCliente(user) {
                 }
 
                 if (retryStatus) {
-                    retryStatus.textContent = reasons.length > 0
-                        ? `Revisión requerida: ${reasons.join(" · ")}`
-                        : "La validación automática requiere revisión. No se habilitaron servicios.";
+                    const failedKeys = identityStepKeysFromReasons(reasons);
+                    retryStatus.textContent = describeIdentityReview(reasons, failedKeys);
                 }
             }
             catch (error) {
