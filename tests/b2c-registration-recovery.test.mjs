@@ -84,3 +84,14 @@ test('customer identity upload failure resumes the same authenticated B2C accoun
     assert.match(registration, /REANUDAR IDENTIDAD EN ESTA CUENTA/);
     assert.match(registration, /auth\.currentUser\?\.uid === clienteIdentityResumeProfile\.uid/);
 });
+
+
+test('release gate keeps customer KYC recovery inside the authenticated client panel', () => {
+    const customer = fs.readFileSync(new URL('../panel-cliente.js', import.meta.url), 'utf8');
+    const customerHtml = fs.readFileSync(new URL('../cliente.html', import.meta.url), 'utf8');
+    assert.match(customer, /startCustomerIdentityRecovery/);
+    assert.match(customer, /persistCustomerIdentityRecovery/);
+    assert.doesNotMatch(customer, /registro\.html\?resume=cliente-identity/);
+    assert.match(customerHtml, /id="clientIdentityModal"/);
+    assert.match(customerHtml, /client-identity-camera\[data-frame="document"\] video/);
+});
