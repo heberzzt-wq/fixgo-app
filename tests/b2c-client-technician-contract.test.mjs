@@ -340,7 +340,7 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(registrationHtml, /identity-modal-content/);
     assert.match(registration, /stage\.dataset\.frame = step\.frame/);
     assert.match(registration, /identity-modal-open/);
-    assert.match(registration, /aspectRatio:\s*\{\s*ideal:\s*16 \/ 9\s*\}/);
+    assert.match(registration, /aspectRatio:\s*\{\s*ideal:\s*documentCapture \? 16 \/ 9 : 4 \/ 3\s*\}/);
     assert.match(registrationHtml, /chkBiometriaTecnico/);
     assert.match(registrationHtml, /btnIniciarIdentidadCliente/);
     assert.match(registrationHtml, /chkBiometriaCliente/);
