@@ -579,8 +579,6 @@ const IDENTITY_CAPTURE_VERSION = "b2c-bank-identity-v1";
 let archivoFotoPerfil = null;
 let archivoINE = null;
 let archivoINEReverso = null;
-let archivoSelfieIzquierda = null;
-let archivoSelfieDerecha = null;
 let archivoCSF = null;
 let archivoLicencia = null;
 let archivosCertificados = [];
@@ -592,15 +590,12 @@ let archivosCertificados = [];
 const identitySteps = [
     { key: "ine_front", title: "Captura tu INE por el frente", hint: "Coloca la credencial completa dentro del marco y evita reflejos.", tip: "Usa la cámara trasera. Las cuatro esquinas deben quedar visibles.", facing: "environment", frame: "document", fileName: "ine-frente.jpg" },
     { key: "ine_back", title: "Ahora captura el reverso", hint: "Voltea tu INE y vuelve a encuadrarla completa.", tip: "Evita sombras sobre códigos y texto. Mantén el teléfono paralelo a la credencial.", facing: "environment", frame: "document", fileName: "ine-reverso.jpg" },
-    { key: "selfie_front", title: "Selfie de verificación", hint: "Mira de frente. Mantén el teléfono a una distancia cómoda: deben verse tu cabeza completa y parte de los hombros.", tip: "No pegues el teléfono a la cara. Retira gorra, lentes oscuros o cubrebocas y usa luz uniforme de frente.", facing: "user", frame: "face", fileName: "selfie-frente.jpg" },
-    { key: "selfie_left", title: "Prueba de vida · gira a tu izquierda", hint: "Conserva la misma distancia y gira suavemente la cabeza hacia tu izquierda.", tip: "Mantén hombros de frente. No acerques el teléfono para llenar el óvalo.", facing: "user", frame: "face", fileName: "selfie-izquierda.jpg" },
-    { key: "selfie_right", title: "Prueba de vida · gira a tu derecha", hint: "Conserva la misma distancia y gira suavemente la cabeza hacia tu derecha.", tip: "Último paso. Mantén buena iluminación, cabeza completa y parte de los hombros visibles.", facing: "user", frame: "face", fileName: "selfie-derecha.jpg" }
+    { key: "selfie_front", title: "Selfie de verificación", hint: "Mira de frente. Mantén el teléfono a una distancia cómoda: deben verse tu cabeza completa y parte de los hombros.", tip: "No pegues el teléfono a la cara. Retira gorra, lentes oscuros o cubrebocas y usa luz uniforme de frente.", facing: "user", frame: "face", fileName: "selfie-frente.jpg" }
 ];
 
 function identityStepsForTarget(target) {
-    return target === "cliente"
-        ? identitySteps.slice(0, 3)
-        : identitySteps;
+    if (!["cliente", "tecnico"].includes(target)) throw new Error("IDENTITY_CAPTURE_TARGET_INVALID");
+    return identitySteps;
 }
 
 const identityCaptureState = {
@@ -710,8 +705,6 @@ function mapIdentityFile(stepKey, file) {
     if (stepKey === "ine_front") archivoINE = file;
     if (stepKey === "ine_back") archivoINEReverso = file;
     if (stepKey === "selfie_front") archivoFotoPerfil = file;
-    if (stepKey === "selfie_left") archivoSelfieIzquierda = file;
-    if (stepKey === "selfie_right") archivoSelfieDerecha = file;
 }
 
 function clearIdentityFile(stepKey) {
@@ -722,8 +715,6 @@ function clearIdentityFile(stepKey) {
     if (stepKey === "ine_front") archivoINE = null;
     if (stepKey === "ine_back") archivoINEReverso = null;
     if (stepKey === "selfie_front") archivoFotoPerfil = null;
-    if (stepKey === "selfie_left") archivoSelfieIzquierda = null;
-    if (stepKey === "selfie_right") archivoSelfieDerecha = null;
     identityCaptureState.complete = false;
 }
 
@@ -890,8 +881,6 @@ async function startIdentityFlow(target) {
     archivoFotoPerfil = null;
     archivoINE = null;
     archivoINEReverso = null;
-    archivoSelfieIzquierda = null;
-    archivoSelfieDerecha = null;
     $("modalIdentidadTecnico").classList.remove("hidden");
     showIdentityCaptureView();
     document.documentElement.classList.add("identity-modal-open");
@@ -1030,8 +1019,8 @@ if (btnRegistroTecnico) {
         if (!$("chkBiometriaTecnico")?.checked) {
             alert("🔐 Debes autorizar la captura de identidad para continuar."); return;
         }
-        if (!identityCaptureState.complete || identityCaptureState.target !== "tecnico" || !archivoFotoPerfil || !archivoINE || !archivoINEReverso || !archivoSelfieIzquierda || !archivoSelfieDerecha) {
-            alert("🪪 Completa la verificación guiada: INE frente/reverso y prueba de vida facial."); return;
+        if (!identityCaptureState.complete || identityCaptureState.target !== "tecnico" || !archivoFotoPerfil || !archivoINE || !archivoINEReverso) {
+            alert("🪪 Completa la verificación guiada: INE frente/reverso y selfie frontal."); return;
         }
         if (!archivoCSF) {
             alert("⚖️ Cumplimiento Legal: Es obligatorio subir tu CSF."); return;
@@ -1100,10 +1089,6 @@ if (btnRegistroTecnico) {
                 async (url) => confirmarCampo({ documentos: { ine: url } })());
             await subirDocumentoExpedienteRecuperable(uid, "ine_reverso", archivoINEReverso,
                 async (url) => confirmarCampo({ documentos: { ine_reverso: url } })());
-            await subirDocumentoExpedienteRecuperable(uid, "selfie_liveness_left", archivoSelfieIzquierda,
-                async (url) => confirmarCampo({ documentos: { selfie_liveness_left: url } })());
-            await subirDocumentoExpedienteRecuperable(uid, "selfie_liveness_right", archivoSelfieDerecha,
-                async (url) => confirmarCampo({ documentos: { selfie_liveness_right: url } })());
             await subirDocumentoExpedienteRecuperable(uid, "csf", archivoCSF,
                 async (url) => confirmarCampo({ documentos: { csf: url } })());
             if (archivoLicencia) {
