@@ -426,3 +426,17 @@ test("release gate opens targeted recapture from fresh biometric reasons in the 
     assert.match(client, /await startCustomerIdentityRecovery\(reasons\)/);
     assert.match(client, /ABRIENDO RECAPTURA/);
 });
+
+
+test("release gate keeps customer biometric recapture immutable and server-adopted", () => {
+    const client = fs.readFileSync(new URL("../panel-cliente.js", import.meta.url), "utf8");
+    const storage = fs.readFileSync(new URL("../security/storage-hardening-candidate.rules.txt", import.meta.url), "utf8");
+    const backend = fs.readFileSync(new URL("../functions/b2c-biometric-identity.js", import.meta.url), "utf8");
+    assert.match(client, /customerIdentityRecapturePath/);
+    assert.match(client, /verificarIdentidadB2C\(\{ recaptureEvidence \}\)/);
+    assert.match(client, /REINTENTAR SUBIDA/);
+    assert.match(storage, /match \/expedientes\/\{uid\}\/recaptures\/\{kind\}\/\{fileName\}/);
+    assert.match(storage, /allow update, delete: if false/);
+    assert.match(backend, /normalizeRecaptureEvidence/);
+    assert.match(backend, /recaptureProfilePatch/);
+});
