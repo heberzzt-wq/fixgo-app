@@ -577,6 +577,20 @@ jobs:
             --token "$FIREBASE_TOKEN" \
             --non-interactive
 
+      - name: Finalize exact FixGo Hosting release
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_TOKEN"
+          firebase deploy \
+            --config "$FIXGO_RELEASE_CONFIG" \
+            --only hosting \
+            --project "$FIREBASE_PROJECT_ID" \
+            --token "$FIREBASE_TOKEN" \
+            --non-interactive
+
       - name: Verify critical deployed Functions
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}

@@ -14,6 +14,17 @@ const firebaseConfig = {
     hosting: [{ public: "." }]
 };
 
+test("release workflow finalizes Hosting explicitly before exact release smoke", () => {
+    const workflow = fs.readFileSync(new URL("../.github/workflows/v142-mobile-web-research-recovery.yml", import.meta.url), "utf8");
+    const finalizer = workflow.indexOf("name: Finalize exact FixGo Hosting release");
+    const smoke = workflow.indexOf("name: Smoke exact production release");
+    assert.ok(finalizer > 0, "explicit Hosting finalizer must exist");
+    assert.ok(smoke > finalizer, "release smoke must run after Hosting finalization");
+    const block = workflow.slice(finalizer, smoke);
+    assert.match(block, /--only hosting/);
+    assert.match(block, /--config "\$FIXGO_RELEASE_CONFIG"/);
+});
+
 test("release artifacts stamp Hosting, Functions and both rules with one Git SHA", () => {
     const artifacts = buildReleaseArtifacts({
         gitSha: SHA,
