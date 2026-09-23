@@ -286,7 +286,7 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(client, /targetedRecaptureAvailable/);
     assert.match(client, /RECAPTURAR PRUEBA DE VIDA/);
     assert.match(client, /failedStepKeys\.has\(step\.key\)/);
-    assert.match(client, /startCustomerIdentityRecovery\(reasonsOverride = identityReasons\)/);
+    assert.match(client, /startCustomerIdentityRecovery\([\s\S]*reasonsOverride = identityReasons,[\s\S]*stepKeysOverride = null[\s\S]*\)/);
     assert.match(client, /identityStepKeysFromReasons\(reasonsOverride\)/);
     assert.match(client, /await startCustomerIdentityRecovery\(reasons\)/);
     assert.match(client, /ABRIENDO RECAPTURA/);
@@ -408,7 +408,7 @@ test("release gate recaptures only failed biometric evidence and hides raw reaso
 
 test("release gate opens targeted recapture from fresh biometric reasons in the same click", () => {
     const client = fs.readFileSync(new URL("../panel-cliente.js", import.meta.url), "utf8");
-    assert.match(client, /startCustomerIdentityRecovery\(reasonsOverride = identityReasons\)/);
+    assert.match(client, /startCustomerIdentityRecovery\([\s\S]*reasonsOverride = identityReasons,[\s\S]*stepKeysOverride = null[\s\S]*\)/);
     assert.match(client, /identityStepKeysFromReasons\(reasonsOverride\)/);
     assert.match(client, /await startCustomerIdentityRecovery\(reasons\)/);
     assert.match(client, /ABRIENDO RECAPTURA/);
