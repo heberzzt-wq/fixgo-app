@@ -498,12 +498,10 @@
                                 </div>
                             </div>
 
-                            <div class="grid grid-cols-5 gap-2 mb-4" aria-label="Progreso de verificación de identidad">
+                            <div class="grid grid-cols-3 gap-2 mb-4" aria-label="Progreso de verificación de identidad">
                                 <div id="identityStep0" class="identity-step rounded-xl border border-zinc-700 p-2 text-center text-[9px] text-gray-500"><span class="identity-step-dot mx-auto mb-1 flex w-5 h-5 items-center justify-center rounded-full bg-zinc-800 font-black">1</span>INE frente</div>
                                 <div id="identityStep1" class="identity-step rounded-xl border border-zinc-700 p-2 text-center text-[9px] text-gray-500"><span class="identity-step-dot mx-auto mb-1 flex w-5 h-5 items-center justify-center rounded-full bg-zinc-800 font-black">2</span>INE reverso</div>
                                 <div id="identityStep2" class="identity-step rounded-xl border border-zinc-700 p-2 text-center text-[9px] text-gray-500"><span class="identity-step-dot mx-auto mb-1 flex w-5 h-5 items-center justify-center rounded-full bg-zinc-800 font-black">3</span>Selfie</div>
-                                <div id="identityStep3" class="identity-step rounded-xl border border-zinc-700 p-2 text-center text-[9px] text-gray-500"><span class="identity-step-dot mx-auto mb-1 flex w-5 h-5 items-center justify-center rounded-full bg-zinc-800 font-black">4</span>Izquierda</div>
-                                <div id="identityStep4" class="identity-step rounded-xl border border-zinc-700 p-2 text-center text-[9px] text-gray-500"><span class="identity-step-dot mx-auto mb-1 flex w-5 h-5 items-center justify-center rounded-full bg-zinc-800 font-black">5</span>Derecha</div>
                             </div>
 
                             <button type="button" id="btnIniciarIdentidad" class="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black py-4 rounded-2xl text-sm transition-all flex items-center justify-center gap-3">
@@ -536,7 +534,7 @@
 
                         <label class="flex items-start gap-3 py-2 mt-4 cursor-pointer rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
                             <input type="checkbox" id="chkBiometriaTecnico" class="w-5 h-5 mt-0.5 accent-emerald-500 rounded">
-                            <span class="text-xs text-gray-300 leading-relaxed"><strong class="text-white">Autorizo la captura de identidad.</strong> Acepto la captura de INE y rostro para validación KYC, prueba de vida y prevención de cuentas duplicadas. Una coincidencia sospechosa requiere revisión administrativa antes de bloquear o aprobar definitivamente.</span>
+                            <span class="text-xs text-gray-300 leading-relaxed"><strong class="text-white">Autorizo la captura de identidad.</strong> Acepto la captura de INE y selfie frontal para validación KYC y prevención de cuentas duplicadas. La cuenta del Socio Pro permanece bloqueada hasta revisión administrativa.</span>
                         </label>
                         <label class="flex items-start gap-3 py-2 mt-4 cursor-pointer">
                             <input type="checkbox" id="chkTerminosTecnico" class="w-5 h-5 mt-0.5 accent-emerald-500 rounded">
@@ -557,7 +555,7 @@
                 <div class="identity-dialog">
                     <div class="identity-modal-header">
                         <div>
-                            <p id="identityModalEyebrow" class="text-[10px] uppercase tracking-[0.24em] text-emerald-400 font-black">Identidad 1 de 5</p>
+                            <p id="identityModalEyebrow" class="text-[10px] uppercase tracking-[0.24em] text-emerald-400 font-black">Identidad 1 de 3</p>
                             <h3 id="identityModalTitle" class="text-xl sm:text-2xl font-black mt-1">Captura tu INE por el frente</h3>
                             <p id="identityModalHint" class="text-xs sm:text-sm text-gray-400 mt-2">Coloca la credencial completa dentro del marco y evita reflejos.</p>
                         </div>
@@ -576,12 +574,10 @@
                             </div>
                         </div>
 
-                        <div class="identity-progress mt-5 grid grid-cols-5 gap-2">
+                        <div class="identity-progress mt-5 grid grid-cols-3 gap-2">
                             <div class="h-1.5 rounded-full bg-emerald-500" id="identityBar0"></div>
                             <div class="h-1.5 rounded-full bg-zinc-800" id="identityBar1"></div>
                             <div class="h-1.5 rounded-full bg-zinc-800" id="identityBar2"></div>
-                            <div class="h-1.5 rounded-full bg-zinc-800" id="identityBar3"></div>
-                            <div class="h-1.5 rounded-full bg-zinc-800" id="identityBar4"></div>
                         </div>
 
                         <div class="identity-tip mt-5 rounded-2xl bg-zinc-900 border border-zinc-800 px-4 py-3 text-xs text-gray-400">
