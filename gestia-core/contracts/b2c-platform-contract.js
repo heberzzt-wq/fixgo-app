@@ -445,9 +445,7 @@
             foto_perfil: isDocumentReference(profile.foto_perfil),
             ine: isDocumentReference(profile.documentos.ine),
             ...(identityRequired ? {
-                ine_reverso: isDocumentReference(profile.documentos.ine_reverso),
-                selfie_liveness_left: isDocumentReference(profile.documentos.selfie_liveness_left),
-                selfie_liveness_right: isDocumentReference(profile.documentos.selfie_liveness_right)
+                ine_reverso: isDocumentReference(profile.documentos.ine_reverso)
             } : {}),
             csf: isDocumentReference(profile.documentos.csf),
             banco: smartBanking ? smartBankMatches : Boolean(profile.datos_bancarios.banco),

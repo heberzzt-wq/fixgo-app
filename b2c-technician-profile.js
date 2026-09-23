@@ -54,7 +54,7 @@ export function createTechnicianRegistrationProfile({ uid, email, nombre, provid
             identity_required: true,
             identity_verified: false,
             identity_version: TECHNICIAN_IDENTITY_VERSION,
-            faltantes: ["foto_perfil", "ine", "ine_reverso", "selfie_liveness_left", "selfie_liveness_right", "csf", "banco", "clabe", "vehiculo_tipo"]
+            faltantes: ["foto_perfil", "ine", "ine_reverso", "csf", "banco", "clabe", "vehiculo_tipo"]
         },
         vehiculo: { tipo: "", placas: "" },
         documentos: { ine: null, ine_reverso: null, selfie_liveness_left: null, selfie_liveness_right: null, csf: null, licencia: null, certificados: [] },

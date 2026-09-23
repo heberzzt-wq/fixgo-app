@@ -47,6 +47,11 @@ function validAnalyses() {
     };
 }
 
+test("customer and technician automatic identity use the same three-evidence contract", () => {
+    assert.deepEqual(identityEvidenceKindsForRole("cliente"), ["selfie_front", "ine_front", "ine_back"]);
+    assert.deepEqual(identityEvidenceKindsForRole("tecnico"), ["selfie_front", "ine_front", "ine_back"]);
+});
+
 test("customer verification uses INE plus one frontal selfie without static-frame liveness gates", () => {
     const analyses = {
         ine_front: face({ embeddingValue: 0.95 }),
@@ -59,7 +64,7 @@ test("customer verification uses INE plus one frontal selfie without static-fram
     assert.equal(result.metrics.selfie_front_real, 0.05);
     assert.equal(result.metrics.selfie_front_live, 0.04);
     assert.deepEqual(identityEvidenceKindsForRole("cliente"), ["selfie_front", "ine_front", "ine_back"]);
-    assert.deepEqual(identityEvidenceKindsForRole("tecnico"), ["selfie_front", "ine_front", "ine_back", "selfie_left", "selfie_right"]);
+    assert.deepEqual(identityEvidenceKindsForRole("tecnico"), ["selfie_front", "ine_front", "ine_back"]);
 });
 
 test("biometric assessment verifies one live person matching INE with opposite head turns", () => {
