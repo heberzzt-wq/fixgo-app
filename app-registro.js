@@ -591,6 +591,7 @@ let archivoCSF = null;
 let archivoLicencia = null;
 let archivosCertificados = [];
 
+// Selfie capture intentionally requests 4:3 and uses contain to avoid artificial mobile zoom/crop.
 const identitySteps = [
     { key: "ine_front", title: "Captura tu INE por el frente", hint: "Coloca la credencial completa dentro del marco y evita reflejos.", tip: "Usa la cámara trasera. Las cuatro esquinas deben quedar visibles.", facing: "environment", frame: "document", fileName: "ine-frente.jpg" },
     { key: "ine_back", title: "Ahora captura el reverso", hint: "Voltea tu INE y vuelve a encuadrarla completa.", tip: "Evita sombras sobre códigos y texto. Mantén el teléfono paralelo a la credencial.", facing: "environment", frame: "document", fileName: "ine-reverso.jpg" },
