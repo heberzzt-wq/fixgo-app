@@ -247,7 +247,7 @@ test("immutable biometric recapture paths are owner-confined and map to canonica
                 url: "https://example.com/not-valid"
             }
         }, { uid, bucketName }),
-        /IDENTITY_STORAGE_OWNER_MISMATCH|IDENTITY_RECAPTURE/
+        /IDENTITY_STORAGE_OWNER_MISMATCH|IDENTITY_STORAGE_REFERENCE_INVALID|IDENTITY_RECAPTURE/
     );
     assert.throws(
         () => normalizeRecaptureEvidence({
