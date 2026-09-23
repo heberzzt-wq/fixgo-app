@@ -212,6 +212,7 @@ test("biometric rate limit separates stale revalidation from fresh recapture", (
     assert.equal(migratedFresh.patch.same_capture_attempts, 1);
 
     const sameTwice = {
+        policy_version: IDENTITY_ATTEMPT_POLICY_VERSION,
         window_started_ms: now - 50_000,
         last_attempt_ms: now - 20_000,
         last_capture_digest: digestA,
@@ -238,6 +239,7 @@ test("biometric rate limit separates stale revalidation from fresh recapture", (
 test("biometric fresh recapture limit remains bounded per hour", () => {
     const now = 2_000_000;
     const state = {
+        policy_version: IDENTITY_ATTEMPT_POLICY_VERSION,
         window_started_ms: now - 30_000,
         last_attempt_ms: now - 20_000,
         last_capture_digest: "a".repeat(64),
@@ -260,6 +262,7 @@ test("release gate lets fresh recapture continue while stale evidence remains bo
     const oldDigest = "c".repeat(64);
     const newDigest = "d".repeat(64);
     const saturatedLegacy = {
+        policy_version: IDENTITY_ATTEMPT_POLICY_VERSION,
         window_started_ms: now - 10_000,
         last_attempt_ms: now - 20_000,
         attempts: 5,
