@@ -63,11 +63,19 @@ test('identity photo widgets block approved replacements and admin routes review
 test('customer identity upload failure resumes the same authenticated B2C account', () => {
     const registration = fs.readFileSync(new URL('../app-registro.js', import.meta.url), 'utf8');
     const customer = fs.readFileSync(new URL('../panel-cliente.js', import.meta.url), 'utf8');
+    const customerHtml = fs.readFileSync(new URL('../cliente.html', import.meta.url), 'utf8');
 
     assert.match(customer, /identityEvidenceComplete/);
     assert.match(customer, /REANUDAR CAPTURA DE IDENTIDAD/);
-    assert.match(customer, /registro\.html\?resume=cliente-identity/);
+    assert.match(customer, /startCustomerIdentityRecovery/);
+    assert.match(customer, /persistCustomerIdentityRecovery/);
+    assert.match(customer, /clientIdentityModal/);
+    assert.match(customer, /storagePathForTechnicianDocument/);
+    assert.match(customer, /login\.html\?resume=cliente-identity/);
+    assert.doesNotMatch(customer, /registro\.html\?resume=cliente-identity/);
+    assert.match(customerHtml, /id="clientIdentityModal"/);
 
+    // Registration remains a fallback recovery surface only after explicit reauthentication.
     assert.match(registration, /clienteIdentityResumeRequested/);
     assert.match(registration, /clienteIdentityResumeProfile/);
     assert.match(registration, /resumeExistingCustomer/);
