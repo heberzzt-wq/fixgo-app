@@ -190,3 +190,26 @@ test("biometric fresh recapture limit remains bounded per hour", () => {
     assert.equal(result.reason, "fresh_capture_limit");
     assert.ok(result.retryAfterMs > 0);
 });
+
+
+test("release gate lets fresh recapture continue while stale evidence remains bounded", () => {
+    const now = 3_000_000;
+    const oldDigest = "c".repeat(64);
+    const newDigest = "d".repeat(64);
+    const saturatedLegacy = {
+        window_started_ms: now - 10_000,
+        last_attempt_ms: now - 20_000,
+        attempts: 5,
+        last_capture_digest: oldDigest,
+        fresh_capture_attempts: 1,
+        same_capture_attempts: 2
+    };
+    assert.equal(
+        evaluateIdentityAttemptState(saturatedLegacy, { nowMs: now, digest: oldDigest }).reason,
+        "same_capture_limit"
+    );
+    assert.equal(
+        evaluateIdentityAttemptState(saturatedLegacy, { nowMs: now, digest: newDigest }).allowed,
+        true
+    );
+});
