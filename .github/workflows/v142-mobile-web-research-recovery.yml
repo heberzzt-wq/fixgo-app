@@ -532,6 +532,82 @@ jobs:
           });
           NODE
 
+      - name: Restore known-good service catalog snapshot once
+        if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, 'restore known-good service catalog') }}
+        env:
+          FIREBASE_ACCESS_TOKEN: ${{ env.FIREBASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_ACCESS_TOKEN"
+          node <<'NODE'
+          const project = process.env.FIREBASE_PROJECT_ID;
+          const token = process.env.FIREBASE_ACCESS_TOKEN;
+          const desired = {
+            road_llanta: true,
+            road_cerrajero: true,
+            road_grua: false,
+            road_mecanico: false,
+            road_corriente: false,
+            fix_electricidad: true,
+            fix_plomeria: true,
+            fix_ac: true,
+            fix_jardin: false,
+            fix_pintura: false,
+            fix_alberca: false,
+            fix_fumigacion: false,
+            maintain_general: true,
+            tech_cctv: true,
+            tech_alarma: true,
+            tech_acceso: true,
+            tech_elevador: false,
+            tech_planta: false,
+            tech_solar: false
+          };
+
+          // Canonical field is maint_general; keep the snapshot exact.
+          desired.maint_general = desired.maintain_general;
+          delete desired.maintain_general;
+
+          const base = `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/configuracion/catalogo_global`;
+          const headers = {
+            authorization: `Bearer ${token}`,
+            "content-type": "application/json"
+          };
+
+          const beforeRes = await fetch(base, { headers });
+          if (!beforeRes.ok) throw new Error(`CATALOG_READ_BEFORE_${beforeRes.status}`);
+          const before = await beforeRes.json();
+          const readBool = (doc, key) => doc?.fields?.[key]?.booleanValue === true;
+          console.log("catalog_before", JSON.stringify(Object.fromEntries(Object.keys(desired).map(key => [key, readBool(before, key)]))));
+
+          const url = new URL(base);
+          for (const key of Object.keys(desired)) url.searchParams.append("updateMask.fieldPaths", key);
+          const body = {
+            fields: Object.fromEntries(
+              Object.entries(desired).map(([key, value]) => [key, { booleanValue: value }])
+            )
+          };
+          const patchRes = await fetch(url, {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify(body)
+          });
+          if (!patchRes.ok) {
+            throw new Error(`CATALOG_PATCH_${patchRes.status}:${await patchRes.text()}`);
+          }
+
+          const afterRes = await fetch(base, { headers });
+          if (!afterRes.ok) throw new Error(`CATALOG_READ_AFTER_${afterRes.status}`);
+          const after = await afterRes.json();
+          const observed = Object.fromEntries(Object.keys(desired).map(key => [key, readBool(after, key)]));
+          console.log("catalog_after", JSON.stringify(observed));
+          for (const [key, value] of Object.entries(desired)) {
+            if (observed[key] !== value) throw new Error(`CATALOG_RESTORE_MISMATCH:${key}`);
+          }
+          console.log("CATALOG_RESTORE_OK");
+          NODE
+
       - name: Build FixGo-only coordinated release config
         shell: bash
         run: |
