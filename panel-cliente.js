@@ -504,11 +504,33 @@ export async function iniciarPanelCliente(user) {
         const reasons = Array.isArray(result?.reasons)
             ? result.reasons.map(value => String(value || "").trim()).filter(Boolean).slice(0, 8)
             : [];
-        if (status) {
-            const failedKeys = identityStepKeysFromReasons(reasons);
-            status.textContent = describeIdentityReview(reasons, failedKeys);
+        const failedKeys = identityStepKeysFromReasons(reasons);
+        const retryKeys = failedKeys.size > 0
+            ? failedKeys
+            : new Set(["selfie_front", "selfie_left", "selfie_right"]);
+
+        customerIdentityRecovery.recommendedKeys = new Set(retryKeys);
+        customerIdentityRecovery.steps = customerIdentityAllSteps.filter(step => retryKeys.has(step.key));
+        customerIdentityRecovery.stepIndex = 0;
+        customerIdentityRecovery.retakeOnlyKey = null;
+        customerIdentityRecovery.running = false;
+        customerIdentityRecovery.pendingUpload = false;
+
+        for (const key of retryKeys) {
+            const localPreview = customerIdentityRecovery.previewUrls.get(key);
+            if (localPreview) URL.revokeObjectURL(localPreview);
+            customerIdentityRecovery.previewUrls.delete(key);
+            customerIdentityRecovery.files.delete(key);
+            customerIdentityRecovery.excludedKeys.delete(key);
         }
-        setTimeout(() => window.location.reload(), 1800);
+
+        showCustomerIdentityReview();
+        const reviewStatus = document.getElementById("clientIdentityReviewStatus");
+        if (reviewStatus) {
+            const diagnostic = describeIdentityReview(reasons, failedKeys);
+            const pendingLabels = [...retryKeys].map(customerIdentityStepLabel).join(", ");
+            reviewStatus.textContent = `${diagnostic} Recaptura: ${pendingLabels}.`;
+        }
     }
 
     async function captureCustomerIdentityFrame() {
