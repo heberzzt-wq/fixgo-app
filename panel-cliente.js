@@ -419,13 +419,13 @@ export async function iniciarPanelCliente(user) {
         }
     }
 
-    async function startCustomerIdentityRecovery() {
+    async function startCustomerIdentityRecovery(reasonsOverride = identityReasons) {
         if (!auth.currentUser || auth.currentUser.uid !== user.uid) {
             window.location.href = "login.html?resume=cliente-identity";
             return;
         }
 
-        const failedStepKeys = identityStepKeysFromReasons(identityReasons);
+        const failedStepKeys = identityStepKeysFromReasons(reasonsOverride);
         customerIdentityRecovery.steps = customerIdentityAllSteps.filter(
             step => !step.exists() || failedStepKeys.has(step.key)
         );
@@ -576,9 +576,15 @@ export async function iniciarPanelCliente(user) {
                     return;
                 }
 
+                const failedKeys = identityStepKeysFromReasons(reasons);
                 if (retryStatus) {
-                    const failedKeys = identityStepKeysFromReasons(reasons);
                     retryStatus.textContent = describeIdentityReview(reasons, failedKeys);
+                }
+
+                if (failedKeys.size > 0) {
+                    retryButton.innerHTML = '<i class="fas fa-camera"></i> ABRIENDO RECAPTURA…';
+                    await startCustomerIdentityRecovery(reasons);
+                    return;
                 }
             }
             catch (error) {
@@ -591,7 +597,7 @@ export async function iniciarPanelCliente(user) {
             finally {
                 if (retryButton?.isConnected) {
                     retryButton.disabled = false;
-                    retryButton.innerHTML = '<i class="fas fa-rotate"></i> REINTENTAR VALIDACIÓN AUTOMÁTICA';
+                    retryButton.innerHTML = `<i class="fas fa-rotate"></i> ${recoveryButtonLabel}`;
                 }
             }
         });
