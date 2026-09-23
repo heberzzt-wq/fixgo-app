@@ -594,9 +594,9 @@ let archivosCertificados = [];
 const identitySteps = [
     { key: "ine_front", title: "Captura tu INE por el frente", hint: "Coloca la credencial completa dentro del marco y evita reflejos.", tip: "Usa la cámara trasera. Las cuatro esquinas deben quedar visibles.", facing: "environment", frame: "document", fileName: "ine-frente.jpg" },
     { key: "ine_back", title: "Ahora captura el reverso", hint: "Voltea tu INE y vuelve a encuadrarla completa.", tip: "Evita sombras sobre códigos y texto. Mantén el teléfono paralelo a la credencial.", facing: "environment", frame: "document", fileName: "ine-reverso.jpg" },
-    { key: "selfie_front", title: "Selfie de verificación", hint: "Mira de frente. Retira gorra, lentes oscuros o cubrebocas.", tip: "Centra tu rostro dentro del óvalo y usa luz uniforme de frente.", facing: "user", frame: "face", fileName: "selfie-frente.jpg" },
-    { key: "selfie_left", title: "Prueba de vida · gira a tu izquierda", hint: "Gira suavemente la cabeza hacia tu izquierda y mantén los hombros de frente.", tip: "No salgas del óvalo. Esta captura se conserva como evidencia de la prueba de vida.", facing: "user", frame: "face", fileName: "selfie-izquierda.jpg" },
-    { key: "selfie_right", title: "Prueba de vida · gira a tu derecha", hint: "Gira suavemente la cabeza hacia tu derecha.", tip: "Último paso. Mantén buena iluminación y evita mover el teléfono.", facing: "user", frame: "face", fileName: "selfie-derecha.jpg" }
+    { key: "selfie_front", title: "Selfie de verificación", hint: "Mira de frente. Mantén el teléfono a una distancia cómoda: deben verse tu cabeza completa y parte de los hombros.", tip: "No pegues el teléfono a la cara. Retira gorra, lentes oscuros o cubrebocas y usa luz uniforme de frente.", facing: "user", frame: "face", fileName: "selfie-frente.jpg" },
+    { key: "selfie_left", title: "Prueba de vida · gira a tu izquierda", hint: "Conserva la misma distancia y gira suavemente la cabeza hacia tu izquierda.", tip: "Mantén hombros de frente. No acerques el teléfono para llenar el óvalo.", facing: "user", frame: "face", fileName: "selfie-izquierda.jpg" },
+    { key: "selfie_right", title: "Prueba de vida · gira a tu derecha", hint: "Conserva la misma distancia y gira suavemente la cabeza hacia tu derecha.", tip: "Último paso. Mantén buena iluminación, cabeza completa y parte de los hombros visibles.", facing: "user", frame: "face", fileName: "selfie-derecha.jpg" }
 ];
 
 const identityCaptureState = {
@@ -668,8 +668,8 @@ async function openIdentityCameraForStep() {
             video: {
                 facingMode: { ideal: step.facing },
                 width: { ideal: documentCapture ? 1920 : 1280 },
-                height: { ideal: documentCapture ? 1080 : 1280 },
-                ...(documentCapture ? { aspectRatio: { ideal: 16 / 9 } } : {})
+                height: { ideal: documentCapture ? 1080 : 960 },
+                aspectRatio: { ideal: documentCapture ? 16 / 9 : 4 / 3 }
             },
             audio: false
         });
@@ -748,7 +748,7 @@ function renderIdentityReview() {
             <article class="rounded-2xl border ${ready ? "border-emerald-500/30" : "border-amber-500/35"} bg-zinc-950/80 overflow-hidden">
                 <div class="aspect-[4/3] bg-black flex items-center justify-center overflow-hidden">
                     ${ready
-                        ? `<img src="${url}" alt="${identityReviewLabel(step)}" class="w-full h-full ${step.frame === "document" ? "object-contain" : "object-cover"}">`
+                        ? `<img src="${url}" alt="${identityReviewLabel(step)}" class="w-full h-full object-contain">`
                         : '<div class="text-center text-zinc-600 text-xs px-3"><i class="fas fa-image text-2xl mb-2 block"></i>Sin captura</div>'}
                 </div>
                 <div class="p-3">

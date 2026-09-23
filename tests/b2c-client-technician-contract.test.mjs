@@ -472,3 +472,18 @@ test("release gate requires evidence review and individual retake before biometr
     assert.match(registration, /data-identity-remove/);
     assert.match(registrationHtml, /btnConfirmarIdentidad/);
 });
+
+
+test("face capture keeps a wider field of view and never crops the selfie preview", () => {
+    const registrationHtml = fs.readFileSync(new URL("../registro.html", import.meta.url), "utf8");
+    const clientHtml = fs.readFileSync(new URL("../cliente.html", import.meta.url), "utf8");
+    const registration = fs.readFileSync(new URL("../app-registro.js", import.meta.url), "utf8");
+    const client = fs.readFileSync(new URL("../panel-cliente.js", import.meta.url), "utf8");
+
+    assert.match(registrationHtml, /identity-camera-stage\[data-frame="face"\] video\s*\{\s*object-fit:\s*contain/);
+    assert.match(clientHtml, /client-identity-camera\[data-frame="face"\] video\s*\{\s*object-fit:\s*contain/);
+    assert.match(registration, /height:\s*\{\s*ideal:\s*documentCapture \? 1080 : 960\s*\}/);
+    assert.match(client, /height:\s*\{\s*ideal:\s*documentCapture \? 1080 : 960\s*\}/);
+    assert.match(registration, /documentCapture \? 16 \/ 9 : 4 \/ 3/);
+    assert.match(client, /documentCapture \? 16 \/ 9 : 4 \/ 3/);
+});

@@ -120,8 +120,8 @@ export async function iniciarPanelCliente(user) {
             key: "selfie_front",
             kind: "foto_perfil",
             title: "Selfie de verificación",
-            hint: "Mira de frente y mantén el rostro dentro del óvalo.",
-            tip: "Retira gorra, lentes oscuros o cubrebocas y usa luz frontal uniforme.",
+            hint: "Mira de frente con el teléfono a una distancia cómoda; deben verse tu cabeza completa y parte de los hombros.",
+            tip: "No acerques el teléfono para llenar el óvalo. Retira gorra, lentes oscuros o cubrebocas.",
             facing: "user",
             frame: "face",
             fileName: "selfie-frente.jpg",
@@ -132,8 +132,8 @@ export async function iniciarPanelCliente(user) {
             key: "selfie_left",
             kind: "selfie_liveness_left",
             title: "Prueba de vida · izquierda",
-            hint: "Gira suavemente la cabeza hacia tu izquierda.",
-            tip: "Mantén hombros de frente y no salgas del óvalo.",
+            hint: "Conserva la misma distancia y gira suavemente la cabeza hacia tu izquierda.",
+            tip: "Mantén hombros de frente. El sistema necesita ver el giro, no un primer plano.",
             facing: "user",
             frame: "face",
             fileName: "selfie-izquierda.jpg",
@@ -144,8 +144,8 @@ export async function iniciarPanelCliente(user) {
             key: "selfie_right",
             kind: "selfie_liveness_right",
             title: "Prueba de vida · derecha",
-            hint: "Gira suavemente la cabeza hacia tu derecha.",
-            tip: "Último paso. Mantén el teléfono quieto y buena iluminación.",
+            hint: "Conserva la misma distancia y gira suavemente la cabeza hacia tu derecha.",
+            tip: "Último paso. Mantén el teléfono quieto, buena iluminación y algo de hombros visible.",
             facing: "user",
             frame: "face",
             fileName: "selfie-derecha.jpg",
@@ -314,7 +314,7 @@ export async function iniciarPanelCliente(user) {
                 <article class="rounded-2xl border ${recommended ? "border-amber-400/50" : ready ? "border-emerald-500/25" : "border-red-500/30"} bg-zinc-950/80 overflow-hidden">
                     <div class="aspect-[4/3] bg-black flex items-center justify-center overflow-hidden relative">
                         ${ready
-                            ? `<img src="${url}" alt="${customerIdentityStepLabel(step.key)}" class="w-full h-full ${step.frame === "document" ? "object-contain" : "object-cover"}">`
+                            ? `<img src="${url}" alt="${customerIdentityStepLabel(step.key)}" class="w-full h-full object-contain">`
                             : '<div class="text-center text-zinc-600 text-xs px-3"><i class="fas fa-image text-2xl mb-2 block"></i>Sin evidencia seleccionada</div>'}
                         ${recommended ? '<span class="absolute top-2 left-2 rounded-full bg-amber-400 text-black text-[8px] font-black px-2 py-1">REVISAR</span>' : ""}
                         ${changed ? '<span class="absolute top-2 right-2 rounded-full bg-emerald-500 text-black text-[8px] font-black px-2 py-1">NUEVA</span>' : ""}
@@ -421,8 +421,8 @@ export async function iniciarPanelCliente(user) {
             video: {
                 facingMode: { ideal: step.facing },
                 width: { ideal: documentCapture ? 1920 : 1280 },
-                height: { ideal: documentCapture ? 1080 : 1280 },
-                ...(documentCapture ? { aspectRatio: { ideal: 16 / 9 } } : {})
+                height: { ideal: documentCapture ? 1080 : 960 },
+                aspectRatio: { ideal: documentCapture ? 16 / 9 : 4 / 3 }
             },
             audio: false
         });

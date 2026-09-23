@@ -90,7 +90,7 @@
             object-fit: contain;
         }
         .identity-camera-stage[data-frame="face"] video {
-            object-fit: cover;
+            object-fit: contain;
         }
         .identity-camera-stage video[data-facing="user"] {
             transform: scaleX(-1);
@@ -117,7 +117,7 @@
             box-shadow: 0 0 0 1px rgba(16,185,129,.65), 0 0 38px rgba(16,185,129,.20);
         }
         .identity-frame.face {
-            width: min(62%, 290px);
+            width: min(48%, 235px);
             aspect-ratio: .76 / 1;
             border: 3px solid rgba(255,255,255,.95);
             border-radius: 48% 48% 45% 45% / 42% 42% 58% 58%;
@@ -217,15 +217,15 @@
                 object-fit: contain;
             }
             .identity-camera-stage[data-frame="face"] video {
-                object-fit: cover;
+                object-fit: contain;
             }
             .identity-frame.document {
                 width: min(88%, 520px);
                 max-height: 62%;
             }
             .identity-frame.face {
-                width: min(60%, 270px);
-                max-height: 72%;
+                width: min(46%, 220px);
+                max-height: 64%;
             }
             .identity-progress {
                 flex: 0 0 auto;

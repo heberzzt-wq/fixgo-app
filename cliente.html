@@ -85,7 +85,7 @@
             background: #000;
         }
         .client-identity-camera[data-frame="document"] video { object-fit: contain; }
-        .client-identity-camera[data-frame="face"] video { object-fit: cover; }
+        .client-identity-camera[data-frame="face"] video { object-fit: contain; }
         .client-identity-camera video[data-facing="user"] { transform: scaleX(-1); }
         .client-identity-guide {
             position: absolute;
@@ -103,7 +103,7 @@
             border-radius: 1.1rem;
         }
         .client-identity-guide.face {
-            width: min(60%, 280px);
+            width: min(48%, 230px);
             aspect-ratio: .76 / 1;
             border-radius: 48% 48% 45% 45% / 42% 42% 58% 58%;
         }
@@ -173,8 +173,8 @@
                 max-height: 62%;
             }
             .client-identity-guide.face {
-                width: min(58%, 260px);
-                max-height: 72%;
+                width: min(46%, 220px);
+                max-height: 64%;
             }
             #clientIdentityTip {
                 margin-top: .55rem !important;
