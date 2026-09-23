@@ -149,6 +149,7 @@ test("release gate keeps digest-aware biometric recapture bounded and fresh-capt
     assert.match(biometric, /IDENTITY_SAME_CAPTURE_LIMIT = 2/);
     assert.match(biometric, /IDENTITY_FRESH_CAPTURE_LIMIT = 5/);
     assert.match(biometric, /last_capture_digest/);
-    assert.match(client, /RECAPTURAR BIOMETRÍA FACIAL/);
+    assert.match(client, /REINTENTAR VALIDACIÓN AUTOMÁTICA/);
+    assert.match(client, /manual_review_required/);
     assert.match(client, /effectiveIdentityStepKeys/);
 });
