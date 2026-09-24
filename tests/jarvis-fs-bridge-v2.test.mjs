@@ -2233,6 +2233,34 @@ test("npm bridge clears stale rebase metadata before one exact startup sync and 
     assert.match(bridgeScript, /process\.exit\(75\)/);
 });
 
+test("SIA7 result publication pushes detached HEAD to the governed branch", () => {
+    const workerSource = fs.readFileSync(
+        new URL("../jarvis-github-worker.js", import.meta.url),
+        "utf8"
+    );
+
+    const publishStart =
+        workerSource.indexOf("async function publishRemoteResult");
+    const publishEnd =
+        workerSource.indexOf("\nfunction normalizeEndpoint", publishStart);
+    assert.ok(publishStart >= 0);
+    assert.ok(publishEnd > publishStart);
+    const publishBlock =
+        workerSource.slice(
+            publishStart,
+            publishEnd
+        );
+
+    assert.match(
+        publishBlock,
+        /"push"[\s\S]{0,120}?HEAD:\$\{BRANCH\}/
+    );
+    assert.doesNotMatch(
+        publishBlock,
+        /runGit\(\["push", REMOTE, BRANCH\]\)/
+    );
+});
+
 test("worker remote-head drift requests clean restart instead of transport backoff", async () => {
     const { createWorkerPoller } = await import("../jarvis-github-worker.js");
     let executions = 0;
