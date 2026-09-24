@@ -22,7 +22,7 @@ test("historical NEXO bootstrap is Jarvis-only and installs no alternate semanti
     assert.match(bootstrap, /identity:\s*"JARVIS"/);
     assert.match(bootstrap, /semanticAuthority:\s*"jarvisSemanticPlan"/);
     assert.match(bootstrap, /alternateBrains:\s*0/);
-    assert.doesNotMatch(bootstrap, /__JARVIS_TERMINAL_BOOTSTRAP__/);
+    assert.doesNotMatch(bootstrap, /__NEXO_TERMINAL_BOOTSTRAP__/);
     assert.doesNotMatch(bootstrap, /nexo\.semantic-planner-resilience/);
     assert.doesNotMatch(bootstrap, /resilienceVersion/);
 });
