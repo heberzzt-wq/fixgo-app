@@ -2133,6 +2133,35 @@ function readGitIdentity(
     };
 }
 
+function cachedBranchHead(
+    root = DEFAULT_ROOT,
+    branch = ""
+) {
+    const cleanBranch = String(branch || "").trim();
+    if (
+        !cleanBranch ||
+        cleanBranch.startsWith("-") ||
+        /[\s~^:?*[\]\\]/.test(cleanBranch)
+    ) {
+        return "";
+    }
+    const head = gitText(
+        [
+            "rev-parse",
+            "--verify",
+            `refs/remotes/origin/${cleanBranch}^{commit}`
+        ],
+        root,
+        {
+            allowFailure: true,
+            timeout: 5000
+        }
+    ).toLowerCase();
+    return /^[a-f0-9]{40}$/.test(head)
+        ? head
+        : "";
+}
+
 function advertisedBranchHead(
     root = DEFAULT_ROOT,
     branch = ""
@@ -2181,7 +2210,10 @@ function advertisedBranchHead(
 }
 
 export function describeJarvisBridgeIdentity(
-    root = DEFAULT_ROOT
+    root = DEFAULT_ROOT,
+    {
+        verifyRemote = true
+    } = {}
 ) {
     const contract =
         readJarvisRuntimeContract(root);
@@ -2212,9 +2244,16 @@ export function describeJarvisBridgeIdentity(
         contract.ok === true &&
         repositoryMatches &&
         Boolean(contract.branch)
-            ? advertisedBranchHead(
-                root,
-                contract.branch
+            ? (
+                verifyRemote === true
+                    ? advertisedBranchHead(
+                        root,
+                        contract.branch
+                    )
+                    : cachedBranchHead(
+                        root,
+                        contract.branch
+                    )
             )
             : "";
 
@@ -2253,6 +2292,10 @@ export function describeJarvisBridgeIdentity(
             contractHead ||
             null,
         remoteVerified:
+            verifyRemote === true &&
+            Boolean(contractHead),
+        cachedRemoteVerified:
+            verifyRemote !== true &&
             Boolean(contractHead),
         repositoryMatches,
         worktreeClean:
@@ -5243,7 +5286,10 @@ export function createJarvisFsBridgeApp({
 
     app.get("/health", (req, res) => {
         const identity =
-            describeJarvisBridgeIdentity(root);
+            describeJarvisBridgeIdentity(
+                root,
+                { verifyRemote: false }
+            );
 
         res.json({
             ...describeJarvisFsBridge(),
@@ -5259,7 +5305,10 @@ export function createJarvisFsBridgeApp({
         }
 
         const identity =
-            describeJarvisBridgeIdentity(root);
+            describeJarvisBridgeIdentity(
+                root,
+                { verifyRemote: false }
+            );
 
         if (identity.ok !== true) {
             return res.status(503).json({
@@ -6212,19 +6261,38 @@ export function createJarvisFsBridgeApp({
                     Number(timeoutMs) || 120000
                 );
 
+            const appendRunTail = (
+                current,
+                chunk,
+                limit = 2 * 1024 * 1024
+            ) => {
+                const combined =
+                    current +
+                    chunk.toString();
+                return combined.length > limit
+                    ? combined.slice(-limit)
+                    : combined;
+            };
+
             child.stdout.on(
                 "data",
                 chunk => {
-                    stdout +=
-                        chunk.toString();
+                    stdout =
+                        appendRunTail(
+                            stdout,
+                            chunk
+                        );
                 }
             );
 
             child.stderr.on(
                 "data",
                 chunk => {
-                    stderr +=
-                        chunk.toString();
+                    stderr =
+                        appendRunTail(
+                            stderr,
+                            chunk
+                        );
                 }
             );
 
