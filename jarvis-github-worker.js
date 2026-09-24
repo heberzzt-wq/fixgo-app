@@ -409,7 +409,7 @@ async function publishRemoteResult(result = {}) {
 
 function normalizeEndpoint(value = "") {
     const endpoint = String(value || "").trim();
-    const allowed = new Set(["/health", "/read", "/grep", "/git", "/run", "/semantic/plan"]);
+    const allowed = new Set(["/health", "/read", "/grep", "/git", "/run", "/semantic/plan", "/semantic/respond"]);
 
     if (!allowed.has(endpoint)) {
         throw new Error("WORKER_ENDPOINT_NOT_ALLOWED");
@@ -489,7 +489,7 @@ async function executeBridgeJob(job = {}) {
             ? JSON.stringify(job.body || {})
             : null;
 
-    if (endpoint === "/run" || endpoint === "/semantic/plan") {
+    if (endpoint === "/run" || endpoint === "/semantic/plan" || endpoint === "/semantic/respond") {
         const response = await requestLocalBridgeJson(`${BRIDGE_URL}${endpoint}`, {
             method,
             headers: {
@@ -499,10 +499,11 @@ async function executeBridgeJob(job = {}) {
             },
             body: requestBody,
             timeoutMs:
-                endpoint === "/semantic/plan"
+                endpoint === "/semantic/plan" ||
+                endpoint === "/semantic/respond"
                     ? Math.min(
                         Math.max(Number(job.body?.timeoutMs || 30000) + 10000, 15000),
-                        60000
+                        120000
                     )
                     : Math.max(
                         60000,
