@@ -368,10 +368,57 @@ test("self-hosted semantic backend defaults to local-only Ollama Qwen with zero 
     assert.equal(health.mode, "LOCAL_ONLY");
     assert.equal(health.provider, "ollama-openai-compatible-local");
     assert.equal(health.model, "qwen2.5-coder:7b");
+    assert.equal(health.embeddingModel, "qwen3-embedding:0.6b");
     assert.equal(health.endpointOrigin, "http://127.0.0.1:11434");
     assert.equal(health.fallbackAllowed, false);
     assert.equal(health.externalApiUsed, false);
     assert.equal(health.paidModelApiUsed, false);
+});
+
+test("self-hosted semantic engine uses local Ollama embeddings with zero external fallback", async () => {
+    const requests = [];
+    const engine = createSelfHostedSemanticEngine({
+        env: {
+            JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
+            JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
+            JARVIS_LOCAL_LLM_MODEL: "qwen-local",
+            JARVIS_LOCAL_EMBEDDING_MODEL: "qwen3-embedding:0.6b"
+        },
+        fetchImpl: async (url, options) => {
+            requests.push({ url, body: JSON.parse(options.body) });
+            return {
+                ok: true,
+                status: 200,
+                text: async () => JSON.stringify({
+                    embeddings: [
+                        [1, 0, 0],
+                        [0, 1, 0]
+                    ]
+                })
+            };
+        }
+    });
+
+    const result = await engine.embed([
+        "autenticacion de tecnicos",
+        "pagos y retiros"
+    ]);
+    assert.equal(result.ok, true);
+    assert.equal(result.provider, "ollama-local");
+    assert.equal(result.model, "qwen3-embedding:0.6b");
+    assert.deepEqual(result.embeddings[0], [1, 0, 0]);
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].url, "http://127.0.0.1:11434/api/embed");
+    assert.equal(requests[0].body.model, "qwen3-embedding:0.6b");
+    assert.deepEqual(requests[0].body.input, [
+        "autenticacion de tecnicos",
+        "pagos y retiros"
+    ]);
+    const health = engine.describe();
+    assert.equal(health.counters.localEmbeddingCalls, 1);
+    assert.equal(health.counters.localEmbeddedTexts, 2);
+    assert.equal(health.counters.semanticExternalCalls, 0);
+    assert.equal(health.counters.paidExternalCalls, 0);
 });
 
 test("self-hosted semantic backend feeds the canonical planner without paid API calls", async () => {
