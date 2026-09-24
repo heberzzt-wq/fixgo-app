@@ -569,7 +569,9 @@ test("V142 keeps one semantic brain when the current-turn plan is empty", () => 
   assert.equal(plannerSource.includes("planCache.delete("), true);
   assert.equal(plannerSource.includes("plan?.missionComplete === true && !currentTurn"), true);
   assert.equal(plannerSource.includes("SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_PLAN_EMPTY"), true);
-  assert.equal(plannerSource.includes("Selecciona solamente las herramientas necesarias para satisfacer los objetivos explicitos"), true);\n  assert.equal(plannerSource.includes("no clasifiques por palabras clave ni por tablas de intencion"), true);\n  assert.equal(plannerSource.includes("mini drama"), false);
+  assert.equal(plannerSource.includes("Selecciona solamente las herramientas necesarias para satisfacer los objetivos explicitos"), true);
+  assert.equal(plannerSource.includes("no clasifiques por palabras clave ni por tablas de intencion"), true);
+  assert.equal(plannerSource.includes("mini drama"), false);
 });
 
 test("V142 reel export enforces continuous physical frame density", () => {
@@ -873,7 +875,8 @@ test("V142 original reel production keeps original images and exposes real scrip
   const actuator = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url), "utf8");
   const functionsEntry = fs.readFileSync(new URL("../functions/secure-entry-alias.js", import.meta.url), "utf8");
 
-  assert.equal(planner.includes("catalogo runtime y los schemas de sus herramientas"), true);\n  assert.equal(planner.includes("Un guion de mini drama es una solicitud de produccion audiovisual"), false);
+  assert.equal(planner.includes("catalogo runtime y los schemas de sus herramientas"), true);
+  assert.equal(planner.includes("Un guion de mini drama es una solicitud de produccion audiovisual"), false);
   assert.equal(dependencies.includes("ORIGINAL_REEL_CREATIVE_DEPENDENCY"), true);
   assert.equal(dependencies.includes("!explicitExistingMediaEdit"), true);
   assert.equal(multitool.includes("REEL_GENERATED_SCENE_MEDIA_REQUIRED"), true);
