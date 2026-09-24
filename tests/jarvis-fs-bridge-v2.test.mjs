@@ -1483,6 +1483,54 @@ test("Jarvis FS bridge loads the release identity contract", async () => {
     }
 });
 
+test("loopback health and semantic requests reuse one startup identity snapshot", () => {
+    const source = fs.readFileSync(
+        new URL("../jarvis-fs-bridge.js", import.meta.url),
+        "utf8"
+    );
+    const appStart =
+        source.indexOf("export function createJarvisFsBridgeApp");
+    const appEnd =
+        source.indexOf("\nexport function startJarvisFsBridge", appStart);
+    assert.ok(appStart >= 0);
+    assert.ok(appEnd > appStart);
+    const appBlock =
+        source.slice(appStart, appEnd);
+
+    assert.match(
+        appBlock,
+        /const requestIdentity\s*=\s*[\s\S]{0,180}?describeJarvisBridgeIdentity\([\s\S]{0,180}?verifyRemote:\s*false/
+    );
+    assert.match(
+        appBlock,
+        /app\.get\("\/health"[\s\S]{0,500}?identity:\s*requestIdentity/
+    );
+    assert.match(
+        appBlock,
+        /const identity\s*=\s*requestIdentity/
+    );
+
+    const healthStart =
+        appBlock.indexOf('app.get("/health"');
+    const healthEnd =
+        appBlock.indexOf("\n    app.use((req, res, next)", healthStart);
+    const healthBlock =
+        appBlock.slice(healthStart, healthEnd);
+
+    assert.doesNotMatch(
+        healthBlock,
+        /describeJarvisBridgeIdentity/
+    );
+    assert.doesNotMatch(
+        healthBlock,
+        /describeJarvisFsBridge\(\)/
+    );
+    assert.match(
+        healthBlock,
+        /JARVIS_FS_BRIDGE_LIVE/
+    );
+});
+
 test("branch-mode health identity skips expensive worktree status and bounds local Git probes", () => {
     const source = fs.readFileSync(
         new URL("../jarvis-fs-bridge.js", import.meta.url),
