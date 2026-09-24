@@ -3,6 +3,8 @@
 const crypto = require("node:crypto");
 const platformContract = require("./b2c-platform-contract");
 
+const B2C_PROVIDER_CREW_SNAPSHOT_VERSION = "b2c-provider-crew-snapshot-v1";
+
 const ACTIVE_SERVICE_STATES = new Set([
     platformContract.SERVICE_STATES.ASSIGNED,
     platformContract.SERVICE_STATES.EN_ROUTE,
@@ -206,6 +208,7 @@ function createClaimB2cServiceHandler({ admin, db, functions, now = () => Date.n
                     identity_verified: true
                 }));
             const crewPublicSnapshot = {
+                version: B2C_PROVIDER_CREW_SNAPSHOT_VERSION,
                 provider_mode: providerProfile.mode,
                 provider_name: providerProfile.display_name,
                 responsible: {
@@ -741,6 +744,7 @@ function createMarketplaceNotificationHandler({ admin, db }) {
 }
 
 module.exports = {
+    B2C_PROVIDER_CREW_SNAPSHOT_VERSION,
     ACTIVE_SERVICE_STATES,
     buildMarketplaceListing,
     calculateAvailableBalance,
