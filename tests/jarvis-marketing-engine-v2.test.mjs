@@ -16,7 +16,7 @@ import {
     MARKETING_PLAN_SECTIONS
 } from "../gestia-core/jarvis/jarvis.marketing.presenter.js";
 
-test("NEXO marketing builds an evidence-grounded multi-channel production package", () => {
+test("Jarvis marketing builds an evidence-grounded multi-channel production package", () => {
     const plan = planMarketingRequest(
         "crea una pagina para nuestra empresa, flyer y reel para Instagram y TikTok",
         {
@@ -52,10 +52,10 @@ test("NEXO marketing builds an evidence-grounded multi-channel production packag
     assert.equal(plan.domain, "marketing");
     assert.equal(plan.editable, true);
     assert.equal(plan.status, "MARKETING_PACKAGE_READY");
-    assert.equal(plan.source, "nexo_natural_brief_and_optional_evidence");
-    assert.equal(plan.engine, "nexo_marketing_engine");
-    assert.equal(plan.legacyEngineAlias, "jarvis_marketing_engine");
-    assert.equal(plan.version, "8.3.0-grounded-social-edit-contract-v12");
+    assert.equal(plan.source, "jarvis_semantic_brief_and_optional_evidence");
+    assert.equal(plan.engine, "jarvis_marketing_engine");
+    assert.equal(plan.legacyEngineAlias, "nexo_marketing_engine");
+    assert.equal(plan.version, "8.4.0-jarvis-single-authority-grounded-v12");
     assert.equal(
         NexoMarketingEngine.routing,
         "semantic_fields_with_editable_assumptions"
@@ -64,9 +64,11 @@ test("NEXO marketing builds an evidence-grounded multi-channel production packag
     assert.equal(plan.approval.publishAllowed, false);
     assert.equal(plan.approval.deployAllowed, false);
     assert.equal(plan.trace.objectiveId, "MKT-TEST-1");
-    assert.equal(plan.trace.authorityId, "HEBERTO_MENDOZA");
-    assert.equal(plan.trace.controllerId, "PENINSULA_NEXO");
-    assert.equal(plan.trace.engineIdentity, "NEXO");
+    assert.equal(plan.trace.authorityId, "JARVIS");
+    assert.equal(plan.trace.controllerId, "JARVIS");
+    assert.equal(plan.trace.engineIdentity, "JARVIS");
+    assert.equal(plan.trace.semanticAuthority, "jarvisSemanticPlan");
+    assert.equal(plan.trace.alternateBrains, 0);
     assert.equal(plan.brand.name, "FixGo / GestiaPremium");
     assert.ok(plan.assets.includes("landing_page"));
     assert.ok(plan.assets.includes("flyer"));
