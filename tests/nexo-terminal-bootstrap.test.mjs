@@ -16,7 +16,7 @@ const PRODUCTION_ORIGIN = "https://fixgo-44e4d.web.app";
 const PRODUCTION_BOOTSTRAP_VERSION = "1.13.0-jarvis-single-authority-local-first";
 
 test("historical NEXO bootstrap is Jarvis-only and installs no alternate semantic authority", () => {
-    assert.match(bootstrap, /installNexoRealMediaTools/);
+    assert.match(bootstrap, /installJarvisRealMediaTools/);\n    assert.match(bootstrap, /installJarvisRealMediaRuntimeGuard/);
     assert.match(bootstrap, /nexo\.real-media\.tools\.js/);
     assert.match(bootstrap, /__JARVIS_TERMINAL_BOOTSTRAP__/);
     assert.match(bootstrap, /identity:\s*"JARVIS"/);
