@@ -77,7 +77,7 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     assert.match(pkg.scripts["bridge:ensure"], /127\.0\.0\.1/);
     assert.match(pkg.scripts["bridge:ensure"], /3344/);
     assert.match(pkg.scripts["bridge:ensure"], /detached:true/);
-    assert.match(pkg.scripts["bridge:doctor"], /workstation\/health/);
+    assert.match(pkg.scripts["bridge:doctor"], /workstation\/doctor/);
     assert.match(pkg.scripts["bridge:ensure"], /workstation\/health/);
     assert.match(pkg.scripts["bridge:ensure"], /workerStarted/);
     assert.match(pkg.scripts["bridge:ensure"], /2\.0\.0-singleton-exact-sync/);
@@ -107,6 +107,41 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     assert.match(pkg.scripts["bridge:supervise"], /lockServer=net\.createServer\(\)/);
     assert.equal(pkg.scripts["test:mcp"], "npm --prefix tools/fixgo-mcp run check");
     assert.equal(pkg.scripts["nexo:bridge"], "npm run bridge");
+});
+
+test("workstation liveness is lightweight and doctor stays explicit", () => {
+    const source = fs.readFileSync(
+        new URL("../jarvis-upload-bridge.js", import.meta.url),
+        "utf8"
+    );
+    const healthStart =
+        source.indexOf("const workstationHealthHandler");
+    const doctorStart =
+        source.indexOf("const workstationDoctorHandler");
+    assert.ok(healthStart >= 0);
+    assert.ok(doctorStart > healthStart);
+    const healthBlock =
+        source.slice(healthStart, doctorStart);
+    assert.match(
+        healthBlock,
+        /JARVIS_WORKSTATION_LIVE/
+    );
+    assert.match(
+        healthBlock,
+        /workstationRuntimeState/
+    );
+    assert.doesNotMatch(
+        healthBlock,
+        /inspectJarvisWorkstation/
+    );
+    assert.match(
+        source,
+        /app\.get\("\/workstation\/doctor", workstationDoctorHandler\)/
+    );
+    assert.match(
+        source,
+        /app\.get\("\/workstation\/health", workstationHealthHandler\)/
+    );
 });
 
 test("workstation self-heal pulls only missing free local models and never selects external AI", async () => {
