@@ -1,14 +1,14 @@
 {
-  "jobId": "jarvis-local-ai-required-tool-warm-20260924-020",
-  "completedAt": "2026-09-24T22:38:22.935Z",
+  "jobId": "jarvis-local-ai-direct-response-benchmark-20260924-021",
+  "completedAt": "2026-09-24T22:43:29.549Z",
   "executionStarted": true,
   "ok": false,
   "httpStatus": 502,
-  "endpoint": "/semantic/plan",
+  "endpoint": "/semantic/respond",
   "payload": {
     "ok": false,
-    "status": "LOCAL_SEMANTIC_PLAN_FAILED",
-    "error": "SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_PROVIDER_TIMEOUT",
+    "status": "LOCAL_SEMANTIC_RESPONSE_FAILED",
+    "error": "SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_RESPONSE_TIMEOUT",
     "fallbackAllowed": false,
     "inferenceReceipt": {
       "ok": true,
