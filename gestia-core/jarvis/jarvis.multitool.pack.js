@@ -681,8 +681,11 @@ async function buildCapabilityForensics(runtime) {
         readCapabilityEvidence("semantic_conversation") ||
         null;
     const semanticModelReady =
-        semanticPlannerHealth?.ok === true ||
-        semanticConversationHealth?.ok === true;
+        workstation?.localAi?.ready === true &&
+        (
+            semanticPlannerHealth?.ok === true ||
+            semanticConversationHealth?.ok === true
+        );
 
     const dailySupervision =
         await inspectDailySupervisionCapability(
@@ -5844,6 +5847,16 @@ export function registerJarvisMultifunctionTools(runtime) {
                     );
                 }
 
+                if (
+                    bridge.ok === true &&
+                    workstation.ok === true &&
+                    workstation?.localAi?.ready !== true
+                ) {
+                    failures.push(
+                        "LOCAL_AI_NOT_READY"
+                    );
+                }
+
                 const status =
                     failures.length === 0
                         ? "ONLINE"
@@ -5884,6 +5897,11 @@ export function registerJarvisMultifunctionTools(runtime) {
                             globalThis?.JarvisToolMemory?.all?.().length || 0,
                         localAiReady:
                             workstation?.localAi?.ready === true,
+                        localLlmModelReady:
+                            workstation?.localAi?.expectedModelPresent === true,
+                        localEmbeddingModelReady:
+                            workstation?.localAi?.expectedEmbeddingModelPresent === true &&
+                            workstation?.localAi?.embeddingProbe?.ok === true,
                         localVideoFreeEligible:
                             workstation?.localVideo?.freeLocalEligible === true,
                         firestoreEmulatorRunning:
