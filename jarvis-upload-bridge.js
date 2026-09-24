@@ -1513,7 +1513,7 @@ export function registerJarvisUploadRoutes(
         }
     });
 
-    app.get("/workstation/health", async (_req, res) => {
+    const workstationHealthHandler = async (_req, res) => {
         try {
             const result =
                 await inspectJarvisWorkstation({
@@ -1538,7 +1538,10 @@ export function registerJarvisUploadRoutes(
                     JARVIS_UPLOAD_BRIDGE_VERSION
             });
         }
-    });
+    };
+
+    app.get("/workstation/health", workstationHealthHandler);
+    app.post("/workstation/health", workstationHealthHandler);
 
     app.get("/upload/health", (req, res) => {
         return res.json({
