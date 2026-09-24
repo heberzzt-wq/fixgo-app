@@ -2367,10 +2367,12 @@ test("Windows bridge child processes inherit the canonical Git executable path",
 
 test("SIA7 long bridge runs and semantic probes use bounded native HTTP transport", async () => {
     const workerSource = fs.readFileSync(new URL("../jarvis-github-worker.js", import.meta.url), "utf8");
-    assert.match(workerSource, /endpoint === "\/run" \|\| endpoint === "\/semantic\/plan"/);
+    assert.match(workerSource, /endpoint === "\/run" \|\| endpoint === "\/semantic\/plan" \|\| endpoint === "\/semantic\/respond"/);
     assert.match(workerSource, /"\/semantic\/plan"/);
+    assert.match(workerSource, /"\/semantic\/respond"/);
     assert.match(workerSource, /requestLocalBridgeJson/);
     assert.match(workerSource, /Number\(job\.body\?\.timeoutMs \|\| 120000\) \+ 60000/);
+    assert.match(workerSource, /120000/);
     const { requestLocalBridgeJson } = await import("../jarvis-github-worker.js");
     const http = await import("node:http");
     const server = http.createServer((_req, res) => {
