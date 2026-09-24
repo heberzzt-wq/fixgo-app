@@ -1,6 +1,29 @@
 {
-  "jobId": "jarvis-local-ai-final-health-after-publisher-fix-20260924-016",
+  "jobId": "jarvis-local-ai-final-semantic-plan-20260924-017",
   "operation": "bridge",
-  "endpoint": "/health",
-  "body": {}
+  "endpoint": "/semantic/plan",
+  "body": {
+    "input": "Revisa cómo está implementada la inteligencia local de Jarvis y dime qué piezas participan.",
+    "catalog": [
+      {
+        "name": "repo.search",
+        "description": "Busca evidencia semántica en el repositorio real.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "query"
+          ],
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "mutates": false,
+        "requiresApproval": false
+      }
+    ],
+    "timeoutMs": 50000
+  }
 }
