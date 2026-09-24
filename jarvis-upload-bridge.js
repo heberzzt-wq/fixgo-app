@@ -1067,6 +1067,105 @@ function workstationCommand(command, args = [], {
     }
 }
 
+function appendCommandTail(current, chunk, limit = 8000) {
+    const combined = current + String(chunk || "");
+    return combined.length > limit
+        ? combined.slice(-limit)
+        : combined;
+}
+
+function workstationStreamingCommand(command, args = [], {
+    cwd = process.cwd(),
+    timeoutMs = 45 * 60 * 1000,
+    env = process.env
+} = {}) {
+    return new Promise(resolve => {
+        let stdout = "";
+        let stderr = "";
+        let settled = false;
+        let child = null;
+        const finish = result => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            resolve(result);
+        };
+        try {
+            child = spawn(command, args, {
+                cwd,
+                env,
+                windowsHide: true,
+                shell: false,
+                stdio: ["ignore", "pipe", "pipe"]
+            });
+        }
+        catch(error) {
+            finish({
+                ok: false,
+                status: null,
+                stdout: "",
+                stderr: "",
+                error: error?.message || String(error)
+            });
+            return;
+        }
+
+        child.stdout?.on("data", chunk => {
+            stdout = appendCommandTail(stdout, chunk);
+            process.stdout.write(chunk);
+        });
+        child.stderr?.on("data", chunk => {
+            stderr = appendCommandTail(stderr, chunk);
+            process.stderr.write(chunk);
+        });
+        child.once("error", error => {
+            finish({
+                ok: false,
+                status: null,
+                stdout: stdout.trim(),
+                stderr: stderr.trim(),
+                error: error?.message || String(error)
+            });
+        });
+        child.once("exit", (code, signal) => {
+            finish({
+                ok: code === 0,
+                status: code,
+                signal: signal || null,
+                stdout: stdout.trim(),
+                stderr: stderr.trim(),
+                error: null
+            });
+        });
+        const timer = setTimeout(() => {
+            try {
+                child?.kill?.();
+            }
+            catch {}
+            finish({
+                ok: false,
+                status: null,
+                stdout: stdout.trim(),
+                stderr: stderr.trim(),
+                error: "COMMAND_TIMEOUT"
+            });
+        }, timeoutMs);
+    });
+}
+
+function isDnsResolutionFailure(result = {}) {
+    const message = [
+        result?.stderr,
+        result?.stdout,
+        result?.error
+    ].filter(Boolean).join("\n").toLowerCase();
+    return (
+        message.includes("no such host") ||
+        message.includes("could not resolve host") ||
+        message.includes("dial tcp: lookup")
+    );
+}
+
 async function pullLocalOllamaModel(
     model,
     {
@@ -1266,6 +1365,7 @@ export async function ensureJarvisLocalAiRuntime({
     env = process.env,
     platform = process.platform,
     commandImpl = workstationCommand,
+    pullCommandImpl = null,
     probeImpl = probeLocalJson,
     pullHttpImpl = pullLocalOllamaModel,
     spawnImpl = spawn,
@@ -1294,6 +1394,13 @@ export async function ensureJarvisLocalAiRuntime({
             root: repoRoot,
             commandImpl
         });
+    const executePull =
+        pullCommandImpl ||
+        (
+            commandImpl === workstationCommand
+                ? workstationStreamingCommand
+                : async (...args) => commandImpl(...args)
+        );
 
     let cliResolution = checkCli();
     let ollamaExecutable =
@@ -1446,12 +1553,13 @@ export async function ensureJarvisLocalAiRuntime({
             const pullAttempts = [];
             let pull = null;
             for (let attempt = 1; attempt <= 3; attempt += 1) {
-                pull = commandImpl(
+                pull = await executePull(
                     ollamaExecutable,
                     ["pull", model],
                     {
                         cwd: repoRoot,
-                        timeoutMs: 45 * 60 * 1000
+                        timeoutMs: 45 * 60 * 1000,
+                        env
                     }
                 );
                 pullAttempts.push({
@@ -1462,6 +1570,25 @@ export async function ensureJarvisLocalAiRuntime({
                     error: pull.error || null
                 });
                 if (pull.ok === true) break;
+                if (
+                    attempt === 1 &&
+                    platform === "win32" &&
+                    isDnsResolutionFailure(pull)
+                ) {
+                    const dnsFlush = commandImpl(
+                        "ipconfig",
+                        ["/flushdns"],
+                        {
+                            cwd: repoRoot,
+                            timeoutMs: 15000
+                        }
+                    );
+                    pullAttempts[pullAttempts.length - 1].dnsFlush = {
+                        ok: dnsFlush.ok === true,
+                        status: dnsFlush.status ?? null,
+                        error: dnsFlush.error || null
+                    };
+                }
                 if (attempt < 3) {
                     await waitMs(attempt * 2000);
                 }
