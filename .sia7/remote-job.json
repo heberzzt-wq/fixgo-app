@@ -1,11 +1,29 @@
 {
-  "jobId": "jarvis-local-ai-warmup-workstation-20260924-022",
+  "jobId": "jarvis-local-ai-hot-semantic-plan-20260924-023",
   "operation": "bridge",
-  "endpoint": "/run",
+  "endpoint": "/semantic/plan",
   "body": {
-    "command": "npm run bridge:ensure",
-    "cwd": ".",
-    "timeoutMs": 3600000,
-    "source": "jarvis_local_ai_warmup_workstation"
+    "input": "Revisa cómo está implementada la inteligencia local de Jarvis y dime qué piezas participan.",
+    "catalog": [
+      {
+        "name": "repo.search",
+        "description": "Busca evidencia semántica en el repositorio real.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "query"
+          ],
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "mutates": false,
+        "requiresApproval": false
+      }
+    ],
+    "timeoutMs": 100000
   }
 }
