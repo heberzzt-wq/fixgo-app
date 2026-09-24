@@ -84,6 +84,10 @@ on:
       - 'tests/jarvis-reel-media-binder-v131.test.mjs'
       - 'tests/jarvis-reel-terminal-delivery-v142.test.mjs'
       - 'tests/jarvis-fs-bridge-v2.test.mjs'
+      - 'tests/jarvis-local-routing.test.mjs'
+      - 'tests/nexo-terminal-bootstrap.test.mjs'
+      - 'tests/nexo-approval-normalization.test.mjs'
+      - 'tests/jarvis-marketing-engine-v2.test.mjs'
       - 'tests/jarvis-series-continuity-v142.test.mjs'
       - 'tests/jarvis-reel-researched-media-v132.test.mjs'
       - 'tests/jarvis-reel-mission-fidelity-v133.test.mjs'
@@ -254,6 +258,11 @@ jobs:
             tests/jarvis-web-research.test.cjs \
             tests/jarvis-semantic-planner.test.cjs \
             tests/jarvis-upload-bridge.test.mjs \
+            tests/jarvis-fs-bridge-v2.test.mjs \
+            tests/jarvis-local-routing.test.mjs \
+            tests/single-semantic-authority.test.mjs \
+            tests/nexo-terminal-bootstrap.test.mjs \
+            tests/nexo-approval-normalization.test.mjs \
             tests/jarvis-source-grounded-research-v124.test.mjs \
             tests/jarvis-multifunction-tools.test.mjs \
             tests/jarvis-mission-orchestrator.test.mjs \
