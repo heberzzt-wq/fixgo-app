@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 env:
-  CERTIFIED_SHA: 504f5bcaf49ed4fbd3258430ff24d79f50a0907d
+  CERTIFIED_SHA: e978b10c4c2c24f3babaf5bfa0561bb2abcc6ec0
   FIREBASE_PROJECT_ID: fixgo-44e4d
   FIREBASE_SITE_ID: fixgo-44e4d
 
@@ -115,7 +115,7 @@ jobs:
       - name: Windows local-only focal contracts
         shell: pwsh
         run: |
-          node --test --test-concurrency=1 tests/nexo-terminal-bootstrap.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/single-semantic-authority.test.mjs tests/jarvis-fs-bridge-v2.test.mjs tests/jarvis-upload-bridge.test.mjs
+          node --test --test-concurrency=1 tests/nexo-terminal-bootstrap.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/single-semantic-authority.test.mjs tests/jarvis-fs-bridge-v2.test.mjs tests/jarvis-upload-bridge.test.mjs tests/repo-source-structure.test.mjs
           if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_JARVIS_LOCAL_ONLY_CONTRACTS_FAILED' }
 
   deploy-hosting-only:
