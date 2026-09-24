@@ -131,12 +131,14 @@ test("bridge exposes structural repo evidence while the semantic brain owns file
     assert.match(bridge, /PLANNED_FILES_OR_QUERY_REQUIRED/);
     assert.match(runtime, /name: "repo\.graph"/);
     assert.match(runtime, /name: "repo\.rankCandidates"/);
-    assert.match(runtime, /query: "string"/);\n    assert.match(runtime, /plannedFiles: "array"/);
+    assert.match(runtime, /query: "string"/);
+    assert.match(runtime, /plannedFiles: "array"/);
     assert.match(brain, /COMPATIBILITY_CANARY_ONLY/);
     assert.match(brain, /semanticAuthority:\s*"jarvisSemanticPlan"/);
     assert.doesNotMatch(brain, /LOCAL_SEMANTIC_EXPLAINABLE_CANDIDATE_RANKING/);
     assert.doesNotMatch(intelligence, /function queryTerms/);
     assert.doesNotMatch(intelligence, /lexicalSemantic/);
     assert.doesNotMatch(intelligence, /normalizedQuery/);
-    assert.match(intelligence, /structural_evidence_for_semantic_selection/);\n    assert.match(intelligence, /local_embedding_and_structural_evidence/);
+    assert.match(intelligence, /structural_evidence_for_semantic_selection/);
+    assert.match(intelligence, /local_embedding_and_structural_evidence/);
 });
