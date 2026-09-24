@@ -1047,8 +1047,8 @@ function workstationCommand(command, args = [], {
         return {
             ok: result.status === 0,
             status: result.status,
-            stdout: String(result.stdout || "").trim().slice(0, 2000),
-            stderr: String(result.stderr || "").trim().slice(0, 2000),
+            stdout: String(result.stdout || "").trim().slice(-4000),
+            stderr: String(result.stderr || "").trim().slice(-4000),
             error: result.error?.message || null
         };
     }
