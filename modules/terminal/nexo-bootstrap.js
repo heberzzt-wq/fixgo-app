@@ -1,17 +1,20 @@
 /*
  * ======================================================================================
- * NEXO TERMINAL BOOTSTRAP
+ * JARVIS TERMINAL BOOTSTRAP — HISTORICAL NEXO FILENAME ONLY
  * ======================================================================================
- * Se carga antes del core de la Terminal mediante proposal-state.js.
- * Activa identidad visible, normalización de aprobaciones
- * y herramientas de medios reales sin depender de marketing.plan ni del catálogo legacy.
+ * Se carga antes del core mediante proposal-state.js.
+ * Única identidad activa: JARVIS.
+ * Este path histórico permanece sólo por compatibilidad de Hosting/caché.
+ * No instala cerebro, identidad ni autoridad NEXO.
  * ======================================================================================
  */
 
+export const JARVIS_TERMINAL_BOOTSTRAP_VERSION =
+    "1.13.0-jarvis-single-authority-local-first";
 export const NEXO_TERMINAL_BOOTSTRAP_VERSION =
-    "1.12.0-loopback-transport-v142";
+    JARVIS_TERMINAL_BOOTSTRAP_VERSION; // compatibility export only
 
-const INSTALL_KEY = "__NEXO_TERMINAL_BOOTSTRAP__";
+const INSTALL_KEY = "__JARVIS_TERMINAL_BOOTSTRAP__";
 const LOCAL_BRIDGE_BASE_URL = "http://localhost:3344";
 let runtimeContractPromise = null;
 
@@ -147,7 +150,7 @@ function installJarvisLocalBridgeTransport() {
     return bridge;
 }
 
-export async function instalarBootstrapTerminalNexo() {
+export async function instalarBootstrapTerminalJarvis() {
     if (globalThis[INSTALL_KEY]) {
         return globalThis[INSTALL_KEY];
     }
@@ -157,7 +160,7 @@ export async function instalarBootstrapTerminalNexo() {
             ok: true,
             active: false,
             environment: "non_browser",
-            version: NEXO_TERMINAL_BOOTSTRAP_VERSION
+            version: JARVIS_TERMINAL_BOOTSTRAP_VERSION
         };
         globalThis[INSTALL_KEY] = serverInstallation;
         return serverInstallation;
@@ -182,7 +185,7 @@ export async function instalarBootstrapTerminalNexo() {
         ok: true,
         active: true,
         environment: "browser",
-        version: NEXO_TERMINAL_BOOTSTRAP_VERSION,
+        version: JARVIS_TERMINAL_BOOTSTRAP_VERSION,
         localBridgeActive:
             typeof localBridge?.requestJson === "function",
         localBridgeBaseUrl:
@@ -195,13 +198,15 @@ export async function instalarBootstrapTerminalNexo() {
             runtimeMediaGuard.NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION || null,
         realMediaToolsInstalling: true,
         runtimeMediaGuardInstalling: true,
-        identity:
-            globalThis.__NEXO_RUNTIME_STAMP__?.name || "NEXO",
+        identity: "JARVIS",
+        semanticAuthority: "jarvisSemanticPlan",
+        alternateBrains: 0,
+        nexoAuthorityActive: false,
         loadedAt: new Date().toISOString()
     };
 
     globalThis[INSTALL_KEY] = installation;
-    globalThis.__NEXO_TERMINAL_BOOT_HEALTH__ = installation;
+    globalThis.__JARVIS_TERMINAL_BOOT_HEALTH__ = installation;
 
     Promise.all([toolsInstallation, guardInstallation]).then(([toolsResult, guardResult]) => {
         const settled = {
@@ -224,14 +229,14 @@ export async function instalarBootstrapTerminalNexo() {
                 guardResult?.installedAt || null
         };
         globalThis[INSTALL_KEY] = settled;
-        globalThis.__NEXO_TERMINAL_BOOT_HEALTH__ = settled;
-        console.info("[NEXO_REAL_MEDIA_TOOLS_READY]", toolsResult);
-        console.info("[NEXO_REAL_MEDIA_RUNTIME_GUARD_READY]", guardResult);
+        globalThis.__JARVIS_TERMINAL_BOOT_HEALTH__ = settled;
+        console.info("[JARVIS_REAL_MEDIA_TOOLS_READY]", toolsResult);
+        console.info("[JARVIS_REAL_MEDIA_RUNTIME_GUARD_READY]", guardResult);
     });
 
-    console.info("[NEXO_TERMINAL_BOOTSTRAP_READY]", installation);
+    console.info("[JARVIS_TERMINAL_BOOTSTRAP_READY]", installation);
 
     return installation;
 }
 
-await instalarBootstrapTerminalNexo();
+await instalarBootstrapTerminalJarvis();
