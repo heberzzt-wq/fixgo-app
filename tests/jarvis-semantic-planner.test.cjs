@@ -13,6 +13,7 @@ const {
     extractToolCallPlan,
     hasRequiredToolArguments,
     normalizeCatalog,
+    normalizeTextToolPlan,
     runGeminiSemanticPlanner,
     runJarvisSemanticPlanner,
     runJarvisSemanticResponse,
@@ -655,6 +656,113 @@ test("semantic planner extracts strict JSON without regex cleanup", () => {
     assert.deepEqual(
         extractJsonObject('texto {"toolCalls":[],"explanation":"ok"} final'),
         { toolCalls: [], explanation: "ok" }
+    );
+});
+
+test("semantic planner normalizes Qwen structured text tool selection", () => {
+    const singleCatalog = [{
+        name: "repo.search",
+        description: "Busca evidencia dentro del repositorio.",
+        mutates: false,
+        requiresApproval: false,
+        inputSchema: {
+            type: "object",
+            required: ["query"],
+            properties: {
+                query: { type: "string" }
+            },
+            additionalProperties: false
+        }
+    }];
+
+    assert.deepEqual(
+        normalizeTextToolPlan(
+            {
+                name: "repo.search",
+                arguments: {
+                    query: "inteligencia local de Jarvis"
+                }
+            },
+            singleCatalog
+        ),
+        {
+            toolCalls: [{
+                name: "repo.search",
+                args: {
+                    query: "inteligencia local de Jarvis"
+                },
+                reason: "MODEL_STRUCTURED_TEXT_TOOL_SELECTION"
+            }],
+            missionComplete: false,
+            explanation: ""
+        }
+    );
+
+    assert.deepEqual(
+        normalizeTextToolPlan(
+            {
+                name: "jarvis_tool_0",
+                arguments: {
+                    query: "RAG AST"
+                }
+            },
+            singleCatalog
+        ).toolCalls[0],
+        {
+            name: "repo.search",
+            args: {
+                query: "RAG AST"
+            },
+            reason: "MODEL_STRUCTURED_TEXT_TOOL_SELECTION"
+        }
+    );
+});
+
+test("semantic planner accepts Qwen structured text tool output end to end", async () => {
+    const singleCatalog = [{
+        name: "repo.search",
+        description: "Busca evidencia dentro del repositorio.",
+        mutates: false,
+        requiresApproval: false,
+        inputSchema: {
+            type: "object",
+            required: ["query"],
+            properties: {
+                query: { type: "string" }
+            },
+            additionalProperties: false
+        }
+    }];
+
+    const result = await runJarvisSemanticPlanner({
+        input: "Revisa la inteligencia local de Jarvis.",
+        catalog: singleCatalog,
+        ai: {
+            lastProvider: "ollama-openai-compatible-local",
+            models: {
+                generateContent: async () => ({
+                    text: JSON.stringify({
+                        name: "repo.search",
+                        arguments: {
+                            query: "inteligencia local de Jarvis"
+                        }
+                    }),
+                    functionCalls: [],
+                    providerResponse: {
+                        finishReason: "stop",
+                        toolCallCount: 0
+                    }
+                })
+            }
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.toolCalls.length, 1);
+    assert.equal(result.toolCalls[0].name, "repo.search");
+    assert.equal(
+        result.toolCalls[0].args.query,
+        "inteligencia local de Jarvis"
     );
 });
 
