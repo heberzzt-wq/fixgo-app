@@ -1,5 +1,5 @@
 {
-  "jobId": "jarvis-local-ai-final-semantic-plan-20260924-017",
+  "jobId": "jarvis-local-ai-warm-semantic-plan-20260924-018",
   "operation": "bridge",
   "endpoint": "/semantic/plan",
   "body": {
