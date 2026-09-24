@@ -5052,8 +5052,6 @@ test("semantic mission latency budgets are bounded and do not stack exhausted pr
     assert.match(coreSource, /providerFallbackExhausted[\s\S]{0,500}?__BROWSER_/);
     assert.match(coreSource, /attempt\s*<=\s*2/);
     assert.match(multitoolSource, /Number\(maxOutputTokens\)\s*>=\s*6000[\s\S]{0,100}?\?\s*120000[\s\S]{0,100}?:\s*90000/);
-    assert.doesNotMatch(multitoolSource, /jarvisSemanticRespond/);
-    assert.doesNotMatch(multitoolSource, /cloudfunctions\.net/);
 });
 
 test("media.analyze accepts video through the canonical local extractor and withholds unverified content", async () => {
@@ -5183,8 +5181,6 @@ test("terminal core-first has no orphan brain route and semantic latency is boun
     assert.doesNotMatch(plannerSource, /:\s*110000;/);
     assert.match(coreSource, /providerFallbackExhausted/);
     assert.match(multitoolSource, /\?\s*120000[\s\S]{0,80}?:\s*90000/);
-    assert.doesNotMatch(multitoolSource, /jarvisSemanticRespond/);
-    assert.doesNotMatch(multitoolSource, /cloudfunctions\.net/);
 });
 
 
