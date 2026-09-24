@@ -2,7 +2,7 @@
  * ======================================================
  * FIXGO 2026 - SISTEMA DE REGISTRO Y LOGIN UNIVERSAL
  * Archivo: app-registro.js
- * Versión: 6.5 (STORAGE UPLOAD + ANTI-RACE CONDITION)
+ * Versión: 6.5.1 (B2C PAYOUT + CAMERA CONSENT CERTIFIED)
  * Autor: Heber (CEO & Lead Architect)
  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR.
  * ======================================================
