@@ -111,7 +111,16 @@ function createFakeDb() {
         ["configuracion/pagos", { efectivo_activo: true }],
         ["configuracion/catalogo_global", { fix_plomeria: true }],
         ["users/customer", { rol: "cliente", tipo_cuenta: "B2C", pagos: { efectivo_autorizado: true } }],
-        ["users/tech-1", operational],
+        ["users/tech-1", {
+            ...operational,
+            provider_profile: {
+                mode: "cuadrilla",
+                display_name: "Cuadrilla Uno",
+                responsible_uid: "tech-1",
+                planned_member_count: 2,
+                active_member_count: 1
+            }
+        }],
         ["users/tech-2", { ...operational, nombre: "Segundo" }],
         ["users/tech-1/crew_members/member-1", {
             provider_uid: "tech-1",
