@@ -299,6 +299,65 @@ function resolveImport(fromFile, specifier, knownFiles) {
     return candidates.find(candidate => knownFiles.has(candidate)) || null;
 }
 
+function boundedSemanticSource(source = "", maximum = 9000) {
+    const text = String(source || "");
+    const limit = Math.max(1000, Math.min(20000, Number(maximum) || 9000));
+    if (text.length <= limit) return text;
+    const head = Math.floor(limit * 0.62);
+    const tail = limit - head;
+    return `${text.slice(0, head)}\n/* … bounded local semantic sample … */\n${text.slice(-tail)}`;
+}
+
+function buildSemanticDocument(file, source, facts = {}) {
+    return [
+        `FILE: ${file}`,
+        `IMPORTS: ${(facts.imports || []).slice(0, 80).join(", ")}`,
+        `EXPORTS: ${(facts.exports || []).slice(0, 80).join(", ")}`,
+        `FUNCTIONS: ${(facts.functions || []).slice(0, 120).join(", ")}`,
+        `CALLS: ${(facts.calls || []).slice(0, 120).join(", ")}`,
+        `ENDPOINTS: ${(facts.endpoints || []).slice(0, 50).map(item => `${item.method} ${item.route}`).join(", ")}`,
+        `COLLECTIONS: ${(facts.collections || []).slice(0, 50).join(", ")}`,
+        "SOURCE:",
+        boundedSemanticSource(source)
+    ].join("\n");
+}
+
+export function buildRepoEmbeddingDocuments({ graph, maximumDocuments = 2500 } = {}) {
+    if (!graph?.ok || !graph.nodes) throw new Error("REPO_GRAPH_REQUIRED");
+    return Object.values(graph.nodes)
+        .filter(node => node && node.file && !node.isGenerated && !node.isDecorative)
+        .slice(0, Math.max(1, Math.min(5000, Number(maximumDocuments) || 2500)))
+        .map(node => ({
+            file: node.file,
+            text: String(node.semanticDocument || [
+                `FILE: ${node.file}`,
+                `IMPORTS: ${(node.imports || []).join(", ")}`,
+                `EXPORTS: ${(node.exports || []).join(", ")}`,
+                `FUNCTIONS: ${(node.functions || []).join(", ")}`,
+                `CALLS: ${(node.calls || []).slice(0, 120).join(", ")}`
+            ].join("\n"))
+        }));
+}
+
+export function cosineSimilarity(left = [], right = []) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length === 0 || left.length !== right.length) {
+        return 0;
+    }
+    let dot = 0;
+    let leftNorm = 0;
+    let rightNorm = 0;
+    for (let index = 0; index < left.length; index += 1) {
+        const a = Number(left[index]);
+        const b = Number(right[index]);
+        if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
+        dot += a * b;
+        leftNorm += a * a;
+        rightNorm += b * b;
+    }
+    if (leftNorm <= 0 || rightNorm <= 0) return 0;
+    return dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm));
+}
+
 function classifyFile(file, source) {
     const lower = file.toLowerCase();
     const segments = lower.split(/[/.\-_]/g);
@@ -330,6 +389,7 @@ export function buildRepoIntelligence({ root = process.cwd(), maxFiles = 2500, m
         nodes[item.file] = {
             file: item.file,
             bytes: stat.size,
+            semanticDocument: buildSemanticDocument(item.file, source, facts),
             ...facts,
             ...classifyFile(item.file, source),
             dependencies: [],
@@ -384,6 +444,95 @@ function normalizePlannedFiles(plannedFiles = []) {
             .map(file => String(file || "").trim().split("\\").join("/"))
             .filter(Boolean)
     )].slice(0, 50);
+}
+
+export function rankRepoHybridCandidates({
+    graph,
+    plannedFiles = [],
+    semanticScores = {},
+    limit = 8
+} = {}) {
+    if (!graph?.ok || !graph.nodes) throw new Error("REPO_GRAPH_REQUIRED");
+
+    const planned = normalizePlannedFiles(plannedFiles);
+    const scores =
+        semanticScores && typeof semanticScores === "object" && !Array.isArray(semanticScores)
+            ? semanticScores
+            : {};
+    const hasSemanticScores = Object.values(scores).some(value => Number.isFinite(Number(value)));
+    if (planned.length === 0 && !hasSemanticScores) {
+        throw new Error("PLANNED_FILES_OR_SEMANTIC_SCORES_REQUIRED");
+    }
+
+    const ranked = Object.values(graph.nodes)
+        .map(node => {
+            const semanticSimilarity = Math.max(-1, Math.min(1, Number(scores[node.file]) || 0));
+            const plannedFile = planned.includes(node.file);
+            if (!plannedFile && !Object.prototype.hasOwnProperty.call(scores, node.file)) return null;
+
+            const relationCount = node.dependencies.length + node.dependents.length;
+            const breakdown = {
+                plannedFile: plannedFile ? 120 : 0,
+                localEmbeddingSimilarity: Math.round(Math.max(0, semanticSimilarity) * 10000) / 100,
+                moduleRelation: relationCount > 0 ? Math.min(30, relationCount * 3) : 0,
+                incomingCalls: Math.min(25, node.dependents.length * 5),
+                outgoingCalls: Math.min(20, node.calls.length),
+                imports: Math.min(20, node.dependencies.length * 4),
+                uiContext: node.page || node.file.endsWith(".html") ? 25 : 0,
+                executionEvidence: node.endpoints.length || node.listeners.length ? 20 : 0,
+                existingTests: Math.min(30, node.relatedTests.length * 10),
+                authoritySensitivity: node.authoritySensitive ? 10 : 0,
+                decorativePenalty: node.isDecorative ? -50 : 0,
+                generatedFilePenalty: node.isGenerated ? -100 : 0
+            };
+            const score = Object.values(breakdown).reduce((sum, value) => sum + value, 0);
+            return {
+                file: node.file,
+                score,
+                semanticSimilarity,
+                breakdown,
+                reasons: Object.entries(breakdown)
+                    .filter(([, value]) => value !== 0)
+                    .map(([factor, value]) => `${factor}: ${value > 0 ? "+" : ""}${value}`),
+                controls: unique([
+                    ...node.functions,
+                    ...node.exports,
+                    ...node.endpoints.map(item => `${item.method} ${item.route}`)
+                ]).slice(0, 15),
+                dependsOn: node.dependencies,
+                dependedOnBy: node.dependents,
+                coveredByTests: node.relatedTests,
+                risks: [
+                    node.authoritySensitive ? "AUTHORITY_SENSITIVE" : null,
+                    node.isGenerated ? "GENERATED_FILE" : null,
+                    node.isMeta ? "META_FILE" : null
+                ].filter(Boolean)
+            };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.score - a.score || b.semanticSimilarity - a.semanticSimilarity || a.file.localeCompare(b.file))
+        .slice(0, Math.max(1, Math.min(25, Number(limit) || 8)));
+
+    return {
+        ok: true,
+        status: "HYBRID_CANDIDATE_RANKING_READY",
+        source: "local_embedding_plus_live_repo_graph",
+        graphGeneratedAt: graph.generatedAt,
+        scoring: "local_embedding_and_structural_evidence",
+        semanticSelection: planned,
+        semanticRetrieval: hasSemanticScores,
+        candidates: ranked,
+        recommendation: ranked[0]
+            ? {
+                file: ranked[0].file,
+                semanticSimilarity: ranked[0].semanticSimilarity,
+                why: ranked[0].reasons,
+                doNotTouch: ranked
+                    .filter(item => item.risks.includes("GENERATED_FILE"))
+                    .map(item => item.file)
+            }
+            : null
+    };
 }
 
 export function rankRepoCandidates({ graph, plannedFiles = [], limit = 8 } = {}) {
