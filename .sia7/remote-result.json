@@ -1,61 +1,419 @@
 {
-  "jobId": "jarvis-local-ai-structured-tool-plan-20260924-027",
-  "completedAt": "2026-09-24T23:52:24.757Z",
+  "jobId": "jarvis-local-ai-locate-repo-search-20260924-028",
+  "completedAt": "2026-09-24T23:53:58.550Z",
   "executionStarted": true,
   "ok": true,
   "httpStatus": 200,
-  "endpoint": "/semantic/plan",
+  "endpoint": "/grep",
   "payload": {
     "ok": true,
-    "status": "SEMANTIC_PLAN_READY",
-    "version": "1.24.0-local-only-single-jarvis",
-    "toolCalls": [
+    "term": "repo.search",
+    "totalFilesScanned": 751,
+    "totalMatches": 80,
+    "matches": [
       {
-        "name": "repo.search",
-        "args": {
-          "query": "cómo está implementada la inteligencia local de Jarvis y qué piezas participan"
-        },
-        "reason": "MODEL_STRUCTURED_TEXT_TOOL_SELECTION",
-        "mutates": false,
-        "approved": false
+        "file": ".sia7/remote-job.json",
+        "line": 6,
+        "snippet": "\"term\": \"repo.search\","
+      },
+      {
+        "file": "functions/index.js",
+        "line": 1371,
+        "snippet": "{ \"name\": \"repo.search\", \"args\": { \"query\": string, \"term\": string } },"
+      },
+      {
+        "file": "functions/index.js",
+        "line": 1389,
+        "snippet": "- If the exact file is unknown, use repo.search and repo.grep with focused evidence terms from the user's objective."
+      },
+      {
+        "file": "functions/repo-semantic-tool-planner.js",
+        "line": 12,
+        "snippet": "\"repo.search\","
+      },
+      {
+        "file": "gestia-core/gestia-core.js",
+        "line": 923,
+        "snippet": "toolName !== \"repo.search\""
+      },
+      {
+        "file": "gestia-core/gestia-core.js",
+        "line": 1524,
+        "snippet": "data?.tool === \"repo.search\" ||"
+      },
+      {
+        "file": "gestia-core/gestia-core.js",
+        "line": 2657,
+        "snippet": ": \"Las coincidencias apuntan al archivo con mayor densidad de evidencia en repo.search/repo.grep. Se recomienda leer el bloque visual antes de proponer cualquier patch.\";"
+      },
+      {
+        "file": "gestia-core/gestia-core.js",
+        "line": 3543,
+        "snippet": "getObservationToolName(item, toolCalls, index) === \"repo.search\""
+      },
+      {
+        "file": "gestia-core/gestia-core.js",
+        "line": 3727,
+        "snippet": "\"- repo.search no devolvio evidencia suficiente para bajar a archivo.\""
+      },
+      {
+        "file": "gestia-core/gestia-core.js",
+        "line": 6270,
+        "snippet": "call?.name === \"repo.search\" ||"
+      },
+      {
+        "file": "gestia-core/jarvis/jarvis.autonomy.engine.js",
+        "line": 505,
+        "snippet": "avoid: \"No ejecutar Agent Loop, repo.search ni repo.grep para charla casual.\","
+      },
+      {
+        "file": "gestia-core/jarvis/jarvis.autonomy.engine.js",
+        "line": 531,
+        "snippet": "nextAction: \"Para sintomas concretos usar repo.search/repo.grep/repo.read/repo.diagnose antes de una respuesta final.\","
+      },
+      {
+        "file": "gestia-core/repo/repo.source.structure.js",
+        "line": 326,
+        "snippet": "tool?.name === \"repo.search\" &&"
+      },
+      {
+        "file": "gestia-core/tools.runtime.js",
+        "line": 6059,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "gestia-core/tools.runtime.js",
+        "line": 6116,
+        "snippet": "tool: \"repo.search\""
+      },
+      {
+        "file": "gestia-core/tools.runtime.js",
+        "line": 6124,
+        "snippet": "return { ok: false, success: false, status: \"LOCAL_BRIDGE_REQUIRED\", error: \"LIVE_REPO_GRAPH_REQUIRED\", query, tool: \"repo.search\" };"
+      },
+      {
+        "file": "gestia-core/tools.runtime.js",
+        "line": 6127,
+        "snippet": "if (graph?.ok !== true) return { ...graph, ok: false, query, tool: \"repo.search\" };"
+      },
+      {
+        "file": "gestia-core/tools.runtime.js",
+        "line": 6141,
+        "snippet": "tool: \"repo.search\""
+      },
+      {
+        "file": "gestia-core/tools.runtime.js",
+        "line": 6656,
+        "snippet": "tool: \"repo.search\""
+      },
+      {
+        "file": "gestia-terminal.html",
+        "line": 199,
+        "snippet": "\"repo.search\": \"Buscando evidencia en el repositorio\","
+      },
+      {
+        "file": "gestia-terminal.html",
+        "line": 1964,
+        "snippet": "\"repo.search\": {"
+      },
+      {
+        "file": "gestia-terminal.html",
+        "line": 1965,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "gestia-terminal.html",
+        "line": 3971,
+        "snippet": "if (toolName === \"repo.search\") {"
+      },
+      {
+        "file": "gestia-terminal.html",
+        "line": 3973,
+        "snippet": "`repo.search: ${repoData?.query || repoData?.term || agentToolCalls?.[index]?.args?.query || \"ND\"}`,"
+      },
+      {
+        "file": "gestia-terminal.html",
+        "line": 4101,
+        "snippet": "getObservationToolName(item, index) === \"repo.search\""
+      },
+      {
+        "file": "gestia-terminal.html",
+        "line": 4300,
+        "snippet": "name === \"repo.search\" ||"
+      },
+      {
+        "file": "gestia-terminal.html",
+        "line": 4767,
+        "snippet": ": toolName === \"repo.search\" || toolName === \"repo.grep\""
+      },
+      {
+        "file": "gestia-terminal.html",
+        "line": 4914,
+        "snippet": ": toolName === \"repo.search\""
+      },
+      {
+        "file": "gestia-terminal.html",
+        "line": 4917,
+        "snippet": "\"La búsqueda repo.search todavía no tiene búsqueda global por texto.\","
+      },
+      {
+        "file": "gestia-terminal.html",
+        "line": 4924,
+        "snippet": "`Tool: repo.search`,"
+      },
+      {
+        "file": "gestia-terminal.html",
+        "line": 4926,
+        "snippet": "\"Siguiente ajuste técnico: conectar repo.search a búsqueda global real o crear repo.grep.\""
+      },
+      {
+        "file": "jarvis-upload-bridge.js",
+        "line": 2213,
+        "snippet": "\"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-fs-bridge-v2.test.mjs",
+        "line": 450,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-fs-bridge-v2.test.mjs",
+        "line": 464,
+        "snippet": "assert.equal(calls[0].name, \"repo.search\");"
+      },
+      {
+        "file": "tests/jarvis-fs-bridge-v2.test.mjs",
+        "line": 620,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-fs-bridge-v2.test.mjs",
+        "line": 635,
+        "snippet": "assert.equal(plan.toolCalls[0].name, \"repo.search\");"
+      },
+      {
+        "file": "tests/jarvis-fs-bridge-v2.test.mjs",
+        "line": 683,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-fs-bridge-v2.test.mjs",
+        "line": 701,
+        "snippet": "assert.equal(plan.toolCalls[0].name, \"repo.search\");"
+      },
+      {
+        "file": "tests/jarvis-fs-bridge-v2.test.mjs",
+        "line": 823,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-fs-bridge-v2.test.mjs",
+        "line": 846,
+        "snippet": "assert.equal(plan.body.toolCalls[0].name, \"repo.search\");"
+      },
+      {
+        "file": "tests/jarvis-fs-bridge-v2.test.mjs",
+        "line": 885,
+        "snippet": "tool: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-generalist-current-turn.test.mjs",
+        "line": 26,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-generalist-current-turn.test.mjs",
+        "line": 133,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-generalist-current-turn.test.mjs",
+        "line": 140,
+        "snippet": "assert.deepEqual(calls.map(call => call.name), [\"repo.search\"]);"
+      },
+      {
+        "file": "tests/jarvis-mission-orchestrator.test.mjs",
+        "line": 119,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-mission-orchestrator.test.mjs",
+        "line": 127,
+        "snippet": "requiredToolNames: [\"repo.search\", \"repo.impact\"],"
+      },
+      {
+        "file": "tests/jarvis-mission-orchestrator.test.mjs",
+        "line": 133,
+        "snippet": "if (call.name === \"repo.search\") {"
+      },
+      {
+        "file": "tests/jarvis-mission-orchestrator.test.mjs",
+        "line": 143,
+        "snippet": "assert.equal(context.completedTasks[0].name, \"repo.search\");"
+      },
+      {
+        "file": "tests/jarvis-multifunction-tools.test.mjs",
+        "line": 164,
+        "snippet": "[\"repo.search\", false],"
+      },
+      {
+        "file": "tests/jarvis-multifunction-tools.test.mjs",
+        "line": 212,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-multifunction-tools.test.mjs",
+        "line": 233,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-multifunction-tools.test.mjs",
+        "line": 245,
+        "snippet": "assert.equal(calls[0].name, \"repo.search\");"
+      },
+      {
+        "file": "tests/jarvis-multifunction-tools.test.mjs",
+        "line": 3516,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-multifunction-tools.test.mjs",
+        "line": 3520,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-multifunction-tools.test.mjs",
+        "line": 3524,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-multifunction-tools.test.mjs",
+        "line": 4197,
+        "snippet": "[{ name: \"repo.search\", args: { query: prompt } }]"
+      },
+      {
+        "file": "tests/jarvis-multifunction-tools.test.mjs",
+        "line": 4221,
+        "snippet": "{ name: \"repo.search\", args: { query: \"tecnico b2b\" } },"
+      },
+      {
+        "file": "tests/jarvis-multifunction-tools.test.mjs",
+        "line": 4228,
+        "snippet": "[\"repo.search\", \"system.supervision\"]"
+      },
+      {
+        "file": "tests/jarvis-multifunction-tools.test.mjs",
+        "line": 4235,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-multifunction-tools.test.mjs",
+        "line": 4253,
+        "snippet": "\"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-semantic-memory-integrity.test.mjs",
+        "line": 75,
+        "snippet": "completedTools: [\"repo.search\"]"
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 25,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 48,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 411,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 425,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 429,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 433,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 664,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 681,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 690,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 712,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 723,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 745,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 762,
+        "snippet": "assert.equal(result.toolCalls[0].name, \"repo.search\");"
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 772,
+        "snippet": "assert.ok(modelTools[0].function.description.includes(\"repo.search\"));"
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 787,
+        "snippet": "assert.deepEqual(plan.toolCalls.map(call => call.name), [\"repo.search\", \"connector.list\"]);"
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 794,
+        "snippet": "assert.ok(declarations[0].description.includes(\"repo.search\"));"
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 806,
+        "snippet": "assert.deepEqual(plan.toolCalls.map(call => call.name), [\"repo.search\", \"connector.list\"]);"
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 812,
+        "snippet": "name: \"repo.search\","
+      },
+      {
+        "file": "tests/jarvis-semantic-planner.test.cjs",
+        "line": 854,
+        "snippet": "assert.equal(result.toolCalls[0].name, \"repo.search\");"
       }
     ],
-    "explanation": "",
-    "missionComplete": false,
-    "completionAssessment": null,
-    "provider": "ollama-openai-compatible-local",
-    "model": "qwen2.5-coder:7b",
-    "catalogSize": 1,
-    "localSemanticInferenceUsed": true,
-    "cloudSemanticInferenceUsed": false,
-    "externalApiUsed": false,
-    "externalEstimatedCostUsd": 0,
-    "inferenceReceipt": {
-      "ok": true,
-      "status": "LOCAL_SEMANTIC_BACKEND_CONFIGURED",
-      "mode": "LOCAL_ONLY",
-      "provider": "ollama-openai-compatible-local",
-      "model": "qwen2.5-coder:7b",
-      "embeddingModel": "qwen3-embedding:0.6b",
-      "endpointConfigured": true,
-      "endpointOrigin": "http://127.0.0.1:11434",
-      "tokenConfigured": false,
-      "fallbackAllowed": false,
-      "selfHosted": true,
-      "paidModelApiUsed": false,
-      "externalApiUsed": false,
-      "estimatedExternalCostUsd": 0,
-      "counters": {
-        "localSemanticInferenceCalls": 1,
-        "localEmbeddingCalls": 0,
-        "localEmbeddedTexts": 0,
-        "semanticExternalCalls": 0,
-        "paidExternalCalls": 0,
-        "failedLocalSemanticInferenceCalls": 0,
-        "failedLocalEmbeddingCalls": 0
-      }
-    },
-    "fallbackAllowed": false
+    "source": "jarvis_fs_bridge_grep_v1",
+    "version": "2.52.0-cached-request-identity-v142"
   },
   "committedFiles": [
     ".sia7/remote-result.json"
