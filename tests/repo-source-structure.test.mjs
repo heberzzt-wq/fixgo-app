@@ -74,6 +74,48 @@ test("source structure indexes real multifunction registrations with lines", () 
     );
 });
 
+test("source structure ignores backticks inside regex literals before tool registrations", () => {
+    const tick = String.fromCharCode(96);
+    const source = [
+        "const quoted = /[\"" + "'" + tick + "]/g;",
+        "register(runtime, {",
+        '  name: "conversation.respond",',
+        '  description: "Respuesta semántica local",',
+        '  output: "SIA7_CONVERSATION_RESPONSE",',
+        "  inputSchema: CONVERSATION_SCHEMA,",
+        "  execute: async () => ({ ok: true })",
+        "});"
+    ].join("\n");
+
+    const executable =
+        buildExecutableSourceView(source);
+
+    assert.equal(
+        executable.includes(tick),
+        false
+    );
+
+    const structure =
+        analyzeRepoSourceStructure(source);
+
+    assert.equal(
+        structure.kind,
+        "tool_registry"
+    );
+    assert.equal(
+        structure.registrationCount,
+        1
+    );
+    assert.equal(
+        structure.registrations[0].name,
+        "conversation.respond"
+    );
+    assert.equal(
+        structure.registrations[0].inputSchema,
+        "CONVERSATION_SCHEMA"
+    );
+});
+
 test("executable source view excludes documentary role markers", () => {
     const source = [
         "const markers = [",
