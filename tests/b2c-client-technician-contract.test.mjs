@@ -3,6 +3,9 @@ import fs from "node:fs";
 import test from "node:test";
 import {
     assertTechnicianCanOperate,
+    B2C_PROVIDER_MAX_MEMBERS,
+    B2C_PROVIDER_MODES,
+    buildB2cProviderProfile,
     buildTechnicianReviewPatch,
     createTechnicianRegistrationProfile,
     dispatchMarketplaceEventForTechnician,
@@ -38,6 +41,47 @@ const completeProfile = (overrides = {}) => ({
     },
     datos_bancarios: { banco: "Banco", clabe: "123456789012345678", titular: "Ana" },
     ...overrides
+});
+
+test("perfil proveedor B2C conserva un responsable único y admite hasta 20 personas", () => {
+    const solo = createTechnicianRegistrationProfile({ uid: "solo", email: "solo@example.test", nombre: "Ana" });
+    assert.equal(solo.provider_profile.mode, B2C_PROVIDER_MODES.INDEPENDENT);
+    assert.equal(solo.provider_profile.planned_member_count, 1);
+    assert.equal(solo.provider_profile.crew_enabled, false);
+
+    const crew = buildB2cProviderProfile({
+        uid: "boss",
+        nombre: "Jorge",
+        mode: B2C_PROVIDER_MODES.CREW,
+        displayName: "Clima Caribe",
+        plannedMemberCount: 7
+    });
+    assert.equal(crew.responsible_uid, "boss");
+    assert.equal(crew.mode, B2C_PROVIDER_MODES.CREW);
+    assert.equal(crew.display_name, "Clima Caribe");
+    assert.equal(crew.planned_member_count, 7);
+    assert.equal(crew.max_member_count, B2C_PROVIDER_MAX_MEMBERS);
+    assert.equal(crew.crew_enabled, true);
+
+    const capped = buildB2cProviderProfile({
+        uid: "company",
+        nombre: "Empresa",
+        mode: B2C_PROVIDER_MODES.COMPANY,
+        displayName: "Obra Total",
+        plannedMemberCount: 99
+    });
+    assert.equal(capped.planned_member_count, 20);
+});
+
+test("registro técnico expone modalidades independiente, cuadrilla, contratista y empresa", () => {
+    const html = fs.readFileSync(new URL("../registro.html", import.meta.url), "utf8");
+    const registration = fs.readFileSync(new URL("../app-registro.js", import.meta.url), "utf8");
+    for (const mode of ["independiente", "cuadrilla", "contratista", "empresa"]) {
+        assert.match(html, new RegExp(`value=["']${mode}["']`));
+    }
+    assert.match(html, /id="providerPlannedSizeTecnico"[^>]+max="20"/);
+    assert.match(registration, /buildB2cProviderProfile/);
+    assert.match(registration, /B2C_PROVIDER_MAX_MEMBERS/);
 });
 
 test("email/password y Google parten del mismo contrato técnico no operativo", () => {

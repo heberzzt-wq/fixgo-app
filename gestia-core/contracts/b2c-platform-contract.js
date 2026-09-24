@@ -17,6 +17,14 @@
     const CONTRACT_VERSION = "b2c-platform-contract-v2";
     const EVENT_MARKETPLACE_SERVICE_AVAILABLE = "marketplace_service_available";
     const B2C_SKILL_VERTICALS = Object.freeze(["fix", "road", "tech"]);
+    const B2C_PROVIDER_PROFILE_VERSION = "b2c-provider-v1";
+    const B2C_PROVIDER_MAX_MEMBERS = 20;
+    const B2C_PROVIDER_MODES = Object.freeze({
+        INDEPENDENT: "independiente",
+        CREW: "cuadrilla",
+        CONTRACTOR: "contratista",
+        COMPANY: "empresa"
+    });
     const SERVICE_VERTICAL_LABELS = Object.freeze({
         road: "ROAD (Auxilio Vial)",
         fix: "FIX (Hogar)",
@@ -422,6 +430,61 @@
         return state || TECHNICIAN_STATES.DOCUMENTS_PENDING;
     }
 
+    function normalizeB2cProviderProfile(raw = {}) {
+        const source = raw.provider_profile && typeof raw.provider_profile === "object"
+            ? raw.provider_profile
+            : {};
+        const allowedModes = new Set(Object.values(B2C_PROVIDER_MODES));
+        const requestedMode = normalizeToken(
+            source.mode ??
+            raw.provider_mode ??
+            raw.modalidad_proveedor ??
+            B2C_PROVIDER_MODES.INDEPENDENT
+        );
+        const mode = allowedModes.has(requestedMode)
+            ? requestedMode
+            : B2C_PROVIDER_MODES.INDEPENDENT;
+        const responsibleUid = text(source.responsible_uid ?? raw.uid);
+        const rawDisplayName = text(
+            source.display_name ??
+            source.nombre_comercial ??
+            raw.nombre_comercial ??
+            raw.nombre
+        );
+        const displayName = rawDisplayName || (mode === B2C_PROVIDER_MODES.INDEPENDENT
+            ? "Profesional independiente"
+            : "Proveedor B2C");
+        const rawPlannedCount = Number(
+            source.planned_member_count ??
+            source.tamano_planeado ??
+            source.team_size ??
+            (mode === B2C_PROVIDER_MODES.INDEPENDENT ? 1 : 2)
+        );
+        const plannedMemberCount = mode === B2C_PROVIDER_MODES.INDEPENDENT
+            ? 1
+            : Math.min(
+                B2C_PROVIDER_MAX_MEMBERS,
+                Math.max(2, Number.isFinite(rawPlannedCount) ? Math.trunc(rawPlannedCount) : 2)
+            );
+        const rawActiveCount = Number(source.active_member_count ?? 0);
+        const activeMemberCount = Math.min(
+            B2C_PROVIDER_MAX_MEMBERS - 1,
+            Math.max(0, Number.isFinite(rawActiveCount) ? Math.trunc(rawActiveCount) : 0)
+        );
+        return Object.freeze({
+            version: B2C_PROVIDER_PROFILE_VERSION,
+            mode,
+            display_name: displayName,
+            responsible_uid: responsibleUid,
+            planned_member_count: plannedMemberCount,
+            max_member_count: B2C_PROVIDER_MAX_MEMBERS,
+            active_member_count: activeMemberCount,
+            crew_enabled: mode !== B2C_PROVIDER_MODES.INDEPENDENT,
+            verification_status: text(source.verification_status) ||
+                (raw.kyc?.aprobado === true ? "responsible_verified" : "responsible_pending_admin")
+        });
+    }
+
     function legacyApprovalEvidence(raw = {}) {
         return raw.kyc?.aprobado === true ||
             raw.verificado === true ||
@@ -441,6 +504,7 @@
         // Legacy flags remain readable for audit, never an approval authority.
         const approved = raw.kyc?.aprobado === true;
         const role = normalizeToken(raw.rol ?? raw.role);
+        const providerProfile = normalizeB2cProviderProfile(raw);
 
         return {
             ...raw,
@@ -450,6 +514,7 @@
             disponible: raw.disponible === true,
             suspendido: raw.suspendido === true || state === TECHNICIAN_STATES.SUSPENDED,
             foto_perfil: raw.foto_perfil ?? raw.fotoPerfil ?? raw.foto ?? null,
+            provider_profile: providerProfile,
             skills: Array.isArray(raw.skills)
                 ? [...new Set(raw.skills.map(normalizeSkillKey).filter(Boolean))]
                 : [],
@@ -809,6 +874,7 @@
                 vehiculo: normalized.vehiculo,
                 documentos: normalized.documentos,
                 datos_bancarios: normalized.datos_bancarios,
+                provider_profile: normalized.provider_profile,
                 disponible: normalized.disponible
             }
         };
@@ -836,6 +902,9 @@
 
     return Object.freeze({
         CONTRACT_VERSION,
+        B2C_PROVIDER_PROFILE_VERSION,
+        B2C_PROVIDER_MAX_MEMBERS,
+        B2C_PROVIDER_MODES,
         MEXICAN_CLABE_VERSION,
         MEXICAN_PAYOUT_DESTINATION_VERSION,
         MEXICAN_CLABE_CATALOG_SOURCE,
@@ -856,6 +925,7 @@
         inspectMexicanPayoutDestination,
         normalizeMexicanClabe,
         normalizeMexicanPayoutDestination,
+        normalizeB2cProviderProfile,
         buildMarketplaceListing,
         getServiceDefinition,
         isB2BAccountProfile,

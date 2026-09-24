@@ -10,6 +10,9 @@ if (!contract) throw new Error("B2C_PLATFORM_CONTRACT_UNAVAILABLE");
 
 export const TECHNICIAN_KYC_STATES = contract.TECHNICIAN_STATES;
 export const TECHNICIAN_IDENTITY_VERSION = "b2c-bank-identity-v1";
+export const B2C_PROVIDER_PROFILE_VERSION = contract.B2C_PROVIDER_PROFILE_VERSION;
+export const B2C_PROVIDER_MAX_MEMBERS = contract.B2C_PROVIDER_MAX_MEMBERS;
+export const B2C_PROVIDER_MODES = contract.B2C_PROVIDER_MODES;
 export const MEXICAN_CLABE_VERSION = contract.MEXICAN_CLABE_VERSION;
 export const MEXICAN_PAYOUT_DESTINATION_VERSION = contract.MEXICAN_PAYOUT_DESTINATION_VERSION;
 export const inspectMexicanClabe = contract.inspectMexicanClabe;
@@ -23,6 +26,7 @@ function text(value, fallback = "") {
     return normalized || fallback;
 }
 
+export const normalizeB2cProviderProfile = contract.normalizeB2cProviderProfile;
 export const normalizeTechnicianProfile = contract.normalizeTechnicianProfile;
 export const getTechnicianKycRequirements = contract.technicianKycRequirements;
 export const normalizeTechnicianSkill = contract.normalizeSkillKey;
@@ -49,6 +53,16 @@ export function createTechnicianRegistrationProfile({ uid, email, nombre, provid
         status: TECHNICIAN_KYC_STATES.DOCUMENTS_PENDING,
         disponible: false,
         suspendido: false,
+        provider_profile: contract.normalizeB2cProviderProfile({
+            uid: text(uid),
+            nombre: text(nombre, "Usuario Nuevo"),
+            provider_profile: {
+                mode: B2C_PROVIDER_MODES.INDEPENDENT,
+                display_name: text(nombre, "Usuario Nuevo"),
+                planned_member_count: 1,
+                active_member_count: 0
+            }
+        }),
         kyc: {
             estado: TECHNICIAN_KYC_STATES.DOCUMENTS_PENDING,
             aprobado: false,
@@ -83,6 +97,25 @@ export function createTechnicianRegistrationProfile({ uid, email, nombre, provid
         wallet: 0,
         currency: "MXN"
     };
+}
+
+export function buildB2cProviderProfile({
+    uid,
+    nombre,
+    mode = B2C_PROVIDER_MODES.INDEPENDENT,
+    displayName = "",
+    plannedMemberCount = 1
+} = {}) {
+    return contract.normalizeB2cProviderProfile({
+        uid: text(uid),
+        nombre: text(nombre, "Usuario Nuevo"),
+        provider_profile: {
+            mode,
+            display_name: text(displayName) || text(nombre, "Usuario Nuevo"),
+            planned_member_count: plannedMemberCount,
+            active_member_count: 0
+        }
+    });
 }
 
 export function buildTechnicianReviewPatch(raw = {}) {

@@ -35,6 +35,9 @@ import {
     TECHNICIAN_KYC_STATES,
     MEXICAN_CLABE_VERSION,
     MEXICAN_PAYOUT_DESTINATION_VERSION,
+    B2C_PROVIDER_MAX_MEMBERS,
+    B2C_PROVIDER_MODES,
+    buildB2cProviderProfile,
     buildTechnicianReviewPatch,
     createTechnicianRegistrationProfile,
     inspectMexicanClabe,
@@ -484,6 +487,39 @@ if (btnRegistroCliente) {
 // B. LÓGICA DE TÉCNICOS (SOCIOS PRO)
 // ======================================================
 const btnRegistroTecnico = $("btnRegistroTecnico");
+
+const providerModeInput = $("providerModeTecnico");
+const providerTeamFields = $("providerTeamFields");
+const providerDisplayNameInput = $("providerDisplayNameTecnico");
+const providerPlannedSizeInput = $("providerPlannedSizeTecnico");
+const providerModeSummary = $("providerModeSummary");
+
+function refreshProviderMode() {
+    const mode = providerModeInput?.value || B2C_PROVIDER_MODES.INDEPENDENT;
+    const teamMode = mode !== B2C_PROVIDER_MODES.INDEPENDENT;
+    providerTeamFields?.classList.toggle("hidden", !teamMode);
+    if (providerPlannedSizeInput) {
+        providerPlannedSizeInput.disabled = !teamMode;
+        if (!teamMode) providerPlannedSizeInput.value = "1";
+        else if (Number(providerPlannedSizeInput.value) < 2) providerPlannedSizeInput.value = "2";
+    }
+    if (providerDisplayNameInput) providerDisplayNameInput.disabled = !teamMode;
+    if (providerModeSummary) {
+        const copy = {
+            independiente: "Cuenta individual: tú eres la única persona operativa.",
+            cuadrilla: "Jefe de cuadrilla: podrás registrar ayudantes después de que tu cuenta sea aprobada.",
+            contratista: "Contratista: tú respondes por la plantilla y por cada persona declarada en el servicio.",
+            empresa: "Empresa proveedora: la cuenta tiene un responsable humano verificado y una plantilla B2C separada."
+        };
+        providerModeSummary.innerHTML = `<i class="fas fa-user-shield text-emerald-400 mr-2"></i>${copy[mode] || copy.independiente}`;
+    }
+}
+providerModeInput?.addEventListener("change", refreshProviderMode);
+providerPlannedSizeInput?.addEventListener("input", () => {
+    const value = Math.trunc(Number(providerPlannedSizeInput.value) || 2);
+    providerPlannedSizeInput.value = String(Math.min(B2C_PROVIDER_MAX_MEMBERS, Math.max(2, value)));
+});
+refreshProviderMode();
 
 const payoutDestinationInput = $("payoutDestinationTecnico");
 const payoutDestinationConfirmInput = $("payoutDestinationConfirmTecnico");
@@ -993,6 +1029,9 @@ if (btnRegistroTecnico) {
         const email = form.querySelector('[name="email"]')?.value.trim().toLowerCase();
         const password = form.querySelector('[name="password"]')?.value.trim();
         const telefono = escaparHTML(form.querySelector('[name="telefono"]')?.value.trim());
+        const providerMode = form.querySelector('[name="provider_mode"]')?.value || B2C_PROVIDER_MODES.INDEPENDENT;
+        const providerDisplayName = escaparHTML(form.querySelector('[name="provider_display_name"]')?.value.trim());
+        const providerPlannedSize = Math.trunc(Number(form.querySelector('[name="provider_planned_size"]')?.value) || 1);
         
         const payoutDestination = String(form.querySelector('[name="payout_destination"]')?.value || "").replace(/\D/g, "");
         const payoutConfirmation = String(form.querySelector('[name="payout_destination_confirm"]')?.value || "").replace(/\D/g, "");
@@ -1011,6 +1050,18 @@ if (btnRegistroTecnico) {
 
         if (!validarPassword(password)) {
             alert("🔒 SEGURIDAD: La contraseña debe tener mínimo 8 caracteres, incluir al menos 1 mayúscula y 1 número."); return;
+        }
+
+        const allowedProviderModes = new Set(Object.values(B2C_PROVIDER_MODES));
+        if (!allowedProviderModes.has(providerMode)) {
+            alert("👥 Selecciona una modalidad válida de proveedor."); return;
+        }
+        if (providerMode !== B2C_PROVIDER_MODES.INDEPENDENT &&
+            (providerPlannedSize < 2 || providerPlannedSize > B2C_PROVIDER_MAX_MEMBERS)) {
+            alert(`👥 La plantilla planeada debe ser de 2 a ${B2C_PROVIDER_MAX_MEMBERS} personas, incluyéndote.`); return;
+        }
+        if ([B2C_PROVIDER_MODES.CONTRACTOR, B2C_PROVIDER_MODES.COMPANY].includes(providerMode) && !providerDisplayName) {
+            alert("🏢 Escribe el nombre comercial o razón con la que te presentarás en la plataforma."); return;
         }
 
         if (!payoutDestination || payoutDestination !== payoutConfirmation) {
@@ -1072,8 +1123,16 @@ if (btnRegistroTecnico) {
             
             const uid = usuarioAuth.uid;
             const userRef = doc(db, "users", uid);
+            const providerProfile = buildB2cProviderProfile({
+                uid,
+                nombre,
+                mode: providerMode,
+                displayName: providerDisplayName || nombre,
+                plannedMemberCount: providerMode === B2C_PROVIDER_MODES.INDEPENDENT ? 1 : providerPlannedSize
+            });
             await setDoc(userRef, {
                 telefono: telefono,
+                provider_profile: providerProfile,
                 skills: skills,
                 vehiculo: { tipo: tipoVehiculo, placas: placas },
                 datos_bancarios: {
