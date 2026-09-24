@@ -1,10 +1,41 @@
 {
-  "jobId": "jarvis-local-ai-hot-semantic-plan-20260924-023",
-  "completedAt": "2026-09-24T23:30:09.968Z",
+  "jobId": "jarvis-local-ai-bounded-tool-plan-20260924-024",
+  "completedAt": "2026-09-24T23:41:41.442Z",
   "executionStarted": true,
   "ok": false,
-  "error": "BRIDGE_REQUEST_TIMEOUT",
-  "evidence": null,
+  "httpStatus": 502,
+  "endpoint": "/semantic/plan",
+  "payload": {
+    "ok": false,
+    "status": "LOCAL_SEMANTIC_PLAN_FAILED",
+    "error": "SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_PROVIDER_TIMEOUT",
+    "fallbackAllowed": false,
+    "inferenceReceipt": {
+      "ok": true,
+      "status": "LOCAL_SEMANTIC_BACKEND_CONFIGURED",
+      "mode": "LOCAL_ONLY",
+      "provider": "ollama-openai-compatible-local",
+      "model": "qwen2.5-coder:7b",
+      "embeddingModel": "qwen3-embedding:0.6b",
+      "endpointConfigured": true,
+      "endpointOrigin": "http://127.0.0.1:11434",
+      "tokenConfigured": false,
+      "fallbackAllowed": false,
+      "selfHosted": true,
+      "paidModelApiUsed": false,
+      "externalApiUsed": false,
+      "estimatedExternalCostUsd": 0,
+      "counters": {
+        "localSemanticInferenceCalls": 1,
+        "localEmbeddingCalls": 0,
+        "localEmbeddedTexts": 0,
+        "semanticExternalCalls": 0,
+        "paidExternalCalls": 0,
+        "failedLocalSemanticInferenceCalls": 0,
+        "failedLocalEmbeddingCalls": 0
+      }
+    }
+  },
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
