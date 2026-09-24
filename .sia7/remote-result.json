@@ -1,6 +1,6 @@
 {
-  "jobId": "jarvis-local-ai-final-semantic-plan-20260924-017",
-  "completedAt": "2026-09-24T22:22:23.906Z",
+  "jobId": "jarvis-local-ai-warm-semantic-plan-20260924-018",
+  "completedAt": "2026-09-24T22:26:47.665Z",
   "executionStarted": true,
   "ok": false,
   "httpStatus": 502,
@@ -8,7 +8,7 @@
   "payload": {
     "ok": false,
     "status": "LOCAL_SEMANTIC_PLAN_FAILED",
-    "error": "SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_PROVIDER_TIMEOUT",
+    "error": "SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_PLAN_EMPTY",
     "fallbackAllowed": false,
     "inferenceReceipt": {
       "ok": true,
