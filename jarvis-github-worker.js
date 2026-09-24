@@ -132,12 +132,6 @@ async function readRemoteResultJobId() {
 }
 
 async function syncLocalBranch() {
-    const rebaseMerge = path.resolve(REPO_ROOT, ".git", "rebase-merge");
-    const rebaseApply = path.resolve(REPO_ROOT, ".git", "rebase-apply");
-    if (fs.existsSync(rebaseMerge) || fs.existsSync(rebaseApply)) {
-        throw new Error("RESULT_SYNC_REBASE_STATE_ACTIVE");
-    }
-
     const fetchResult = await runGit([
         "fetch",
         "--quiet",
@@ -151,17 +145,40 @@ async function syncLocalBranch() {
         );
     }
 
-    const rebaseResult = await runGit([
-        "rebase",
-        "--autostash",
+    const localHead = await runGit([
+        "rev-parse",
+        "HEAD"
+    ]);
+    const remoteHead = await runGit([
+        "rev-parse",
         `${REMOTE}/${BRANCH}`
     ]);
 
-    if (!rebaseResult.ok) {
+    if (!localHead.ok || !remoteHead.ok) {
         throw new Error(
-            `RESULT_SYNC_REBASE_FAILED: ${rebaseResult.stderr || rebaseResult.error || "unknown"}`
+            `RESULT_SYNC_HEAD_RESOLUTION_FAILED: ${localHead.stderr || remoteHead.stderr || localHead.error || remoteHead.error || "unknown"}`
         );
     }
+
+    const localSha = String(localHead.stdout || "").trim();
+    const remoteSha = String(remoteHead.stdout || "").trim();
+
+    if (localSha !== remoteSha) {
+        const error = new Error(
+            `WORKER_RESTART_REQUIRED:${localSha}->${remoteSha}`
+        );
+        error.restartRequired = true;
+        error.localHead = localSha;
+        error.remoteHead = remoteSha;
+        throw error;
+    }
+
+    return {
+        ok: true,
+        status: "WORKER_HEAD_CURRENT",
+        localHead: localSha,
+        remoteHead: remoteSha
+    };
 }
 
 async function publishRemoteResult(result = {}) {
@@ -1383,6 +1400,12 @@ function readLocalWorkerResult() {
 }
 
 function classifyWorkerTransportError(error) {
+    if (
+        error?.restartRequired === true ||
+        String(error?.message || error || "").includes("WORKER_RESTART_REQUIRED")
+    ) {
+        return "RESTART_REQUIRED";
+    }
     const message = String(error?.message || error || "").toLowerCase();
     if (
         message.includes("could not read username") ||
@@ -1407,6 +1430,7 @@ function classifyWorkerTransportError(error) {
 }
 
 function workerRetryDelayMs(classification, failureCount) {
+    if (classification === "RESTART_REQUIRED") return 0;
     if (classification === "AUTH_REQUIRED") return 5 * 60 * 1000;
     const base = classification === "NETWORK_TRANSIENT" ? 15000 : 10000;
     const exponent = Math.max(0, Math.min(Number(failureCount || 1) - 1, 5));
@@ -1486,8 +1510,17 @@ export function createWorkerPoller({
             retryNotBefore = now() + delayMs;
             const failure = {
                 ok: false,
-                status: "WORKER_BACKOFF",
+                status:
+                    classification === "RESTART_REQUIRED"
+                        ? "WORKER_RESTART_REQUIRED"
+                        : "WORKER_BACKOFF",
                 classification,
+                restartRequired:
+                    classification === "RESTART_REQUIRED",
+                localHead:
+                    error?.localHead || null,
+                remoteHead:
+                    error?.remoteHead || null,
                 delayMs,
                 failureCount: consecutiveTransportFailures,
                 pendingJobId: pendingResult?.jobId || currentJob?.jobId || null,
