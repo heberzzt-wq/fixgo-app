@@ -6118,6 +6118,112 @@ JarvisToolRuntime.register({
         }
 
 
+        if (
+            query &&
+            typeof window?.JarvisLocalBridge?.requestJson === "function"
+        ) {
+            try {
+                const semanticResult =
+                    await window.JarvisLocalBridge.requestJson(
+                        "/repo/candidates",
+                        {
+                            query,
+                            limit:
+                                Math.max(
+                                    1,
+                                    Math.min(
+                                        20,
+                                        Number(
+                                            argObject.limit
+                                        ) ||
+                                        8
+                                    )
+                                ),
+                            maxFiles:
+                                argObject.maxFiles ||
+                                2500,
+                            maxFileSizeBytes:
+                                argObject.maxFileSizeBytes ||
+                                800000,
+                            refresh:
+                                argObject.refresh === true
+                        },
+                        {
+                            timeoutMs:
+                                Math.min(
+                                    Math.max(
+                                        Number(
+                                            argObject.timeoutMs
+                                        ) ||
+                                        120000,
+                                        15000
+                                    ),
+                                    180000
+                                )
+                        }
+                    );
+
+                if (
+                    semanticResult?.ok === true &&
+                    Array.isArray(
+                        semanticResult?.candidates
+                    )
+                ) {
+                    return {
+                        ok: true,
+                        success: true,
+                        status:
+                            "REPO_SEMANTIC_SEARCH_READY",
+                        query,
+                        term:
+                            bridgeTerm,
+                        results:
+                            semanticResult.candidates,
+                        candidates:
+                            semanticResult.candidates,
+                        totalResults:
+                            semanticResult.candidates.length,
+                        totalMatches:
+                            semanticResult.candidates.length,
+                        totalFilesScanned:
+                            Number(
+                                semanticResult
+                                    ?.repositoryTarget
+                                    ?.filesScanned ||
+                                semanticResult
+                                    ?.summary
+                                    ?.filesScanned ||
+                                semanticResult
+                                    ?.semanticEvidence
+                                    ?.documentsEmbedded ||
+                                0
+                            ),
+                        semanticEvidence:
+                            semanticResult.semanticEvidence ||
+                            null,
+                        repositoryTarget:
+                            semanticResult.repositoryTarget ||
+                            null,
+                        scoring:
+                            semanticResult.scoring ||
+                            "local_embedding_and_structural_evidence",
+                        source:
+                            semanticResult.source ||
+                            "live_repo_ast_graph",
+                        tool:
+                            "repo.search"
+                    };
+                }
+            }
+            catch(error) {
+                console.warn(
+                    "[REPO_SEARCH_SEMANTIC_RETRIEVAL_FALLBACK]",
+                    error?.message ||
+                    String(error)
+                );
+            }
+        }
+
         const structuralSearchTarget = parseRepositoryTarget(query);
         if (structuralSearchTarget?.ok === true && structuralSearchTarget.provider === "github") {
             if (!window.JarvisLocalBridge?.buildRepoGraph) {
