@@ -658,6 +658,19 @@ async function buildCapabilityForensics(runtime) {
                 status: "BRIDGE_CLIENT_UNAVAILABLE"
             };
 
+    const workstation =
+        bridge.ok === true &&
+        typeof globalThis?.JarvisLocalBridge?.requestJson === "function"
+            ? await globalThis.JarvisLocalBridge.requestJson(
+                "/workstation/health",
+                {},
+                { timeoutMs: 15000 }
+            )
+            : {
+                ok: false,
+                status: "WORKSTATION_DOCTOR_UNAVAILABLE"
+            };
+
     const speechAvailable =
         typeof globalThis?.speechSynthesis !== "undefined" ||
         typeof globalThis?.window?.speechSynthesis !== "undefined";
@@ -1222,7 +1235,8 @@ async function buildCapabilityForensics(runtime) {
         runtime: {
             registeredTools: tools.size,
             tools: [...tools].sort(),
-            bridge
+            bridge,
+            workstation
         },
         readOnly: true,
         checkedAt: new Date().toISOString()
@@ -5754,6 +5768,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                         parity: forensics.parity,
                         gaps: forensics.gaps
                     },
+                    workstation:
+                        forensics.runtime?.workstation || null,
                     policy: {
                         readOnlyByDefault: true,
                         mutatingToolsRequireApproval: true
@@ -5791,6 +5807,19 @@ export function registerJarvisMultifunctionTools(runtime) {
                             status: "BRIDGE_CLIENT_UNAVAILABLE"
                         };
 
+                const workstation =
+                    bridge.ok === true &&
+                    typeof globalThis?.JarvisLocalBridge?.requestJson === "function"
+                        ? await globalThis.JarvisLocalBridge.requestJson(
+                            "/workstation/health",
+                            {},
+                            { timeoutMs: 15000 }
+                        )
+                        : {
+                            ok: false,
+                            status: "WORKSTATION_DOCTOR_UNAVAILABLE"
+                        };
+
                 const failures = [];
 
                 if (registeredTools === 0) {
@@ -5803,6 +5832,16 @@ export function registerJarvisMultifunctionTools(runtime) {
 
                 if (online === false) {
                     failures.push("BROWSER_OFFLINE");
+                }
+
+                if (
+                    bridge.ok === true &&
+                    workstation.ok !== true
+                ) {
+                    failures.push(
+                        workstation.status ||
+                        "WORKSTATION_DOCTOR_UNAVAILABLE"
+                    );
                 }
 
                 const status =
@@ -5838,10 +5877,19 @@ export function registerJarvisMultifunctionTools(runtime) {
                             typeof globalThis?.ResponseComposer !== "undefined"
                     },
                     bridge,
+                    workstation,
                     environment: {
                         online,
                         memoryEntries:
-                            globalThis?.JarvisToolMemory?.all?.().length || 0
+                            globalThis?.JarvisToolMemory?.all?.().length || 0,
+                        localAiReady:
+                            workstation?.localAi?.ready === true,
+                        localVideoFreeEligible:
+                            workstation?.localVideo?.freeLocalEligible === true,
+                        firestoreEmulatorRunning:
+                            workstation?.firebase?.firestoreEmulatorRunning === true,
+                        storageEmulatorRunning:
+                            workstation?.firebase?.storageEmulatorRunning === true
                     },
                     readOnly: true,
                     checkedAt: Date.now()
