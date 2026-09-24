@@ -2,13 +2,13 @@ import {
     rejectCorruptedIdentityArgs
 } from "./jarvis.identity.integrity.js?v=v94-generalist-page-integrity-v120-20260810";
 
-const VERSION = "4.21.0-v142-self-hosted-semantic-backend";
-const ENDPOINT = "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticPlan";
+const VERSION = "4.22.0-v142-local-only-single-jarvis";
+const LOCAL_SEMANTIC_ROUTE = "/semantic/plan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
 const pendingPlans = new Map();
 
-const CLOUD_MISSION_CONTRACT_TIMEOUT_MS =
+const LOCAL_MISSION_CONTRACT_TIMEOUT_MS =
     45000;
 
 const GENERALIST_CURRENT_TURN_POLICY = [
@@ -1781,119 +1781,64 @@ async function callSemanticPlanner(input = "", catalog = [], missionState = null
             "COMPLETION_AUDIT",
             "GROUNDED_ARGUMENT_COMPLETION"
         ].includes(String(missionState?.phase || ""))
-            ? CLOUD_MISSION_CONTRACT_TIMEOUT_MS
+            ? LOCAL_MISSION_CONTRACT_TIMEOUT_MS
             : 30000;
+
     const bridge =
         globalThis?.JarvisLocalBridge ||
         globalThis?.window?.JarvisLocalBridge ||
         null;
-    if (typeof bridge?.requestJson === "function") {
-        try {
-            const localResult = await bridge.requestJson(
-                "/semantic/plan",
-                {
-                    input,
-                    catalog,
-                    missionState: {
-                        ...(missionState && typeof missionState === "object" ? missionState : {}),
-                        generalistCurrentTurnPolicy: GENERALIST_CURRENT_TURN_POLICY
-                    },
-                    timeoutMs
-                },
-                { timeoutMs: Math.min(timeoutMs + 5000, 50000) }
-            );
-            globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {
-                ...localResult,
-                checkedAt: new Date().toISOString()
-            };
-            if (localResult?.ok === true) return localResult;
-            if (localResult?.fallbackAllowed === false) {
-                const failure = new Error(
-                    localResult?.error ||
-                    localResult?.status ||
-                    "LOCAL_SEMANTIC_PLAN_REQUIRED"
-                );
-                failure.code = "LOCAL_SEMANTIC_PLAN_REQUIRED";
-                throw failure;
-            }
-        } catch (error) {
-            if (error?.code === "LOCAL_SEMANTIC_PLAN_REQUIRED") throw error;
-        }
+
+    if (typeof bridge?.requestJson !== "function") {
+        const failure = new Error("LOCAL_SEMANTIC_BRIDGE_REQUIRED");
+        failure.code = "LOCAL_SEMANTIC_BRIDGE_REQUIRED";
+        throw failure;
     }
 
-    const user = globalThis?.auth?.currentUser || globalThis?.window?.auth?.currentUser || null;
-    if (!user) {
-        throw new Error("SEMANTIC_PLANNER_AUTH_REQUIRED");
-    }
-
-    const token =
-        await user.getIdToken();
-
-    const controller =
-        new AbortController();
-
-    const timer =
-        setTimeout(
-            () =>
-                controller.abort(),
-            timeoutMs
-        );
-
-    try {
-        const response = await fetch(ENDPOINT, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${token}`,
-                "Content-Type": "application/json"
+    const localResult = await bridge.requestJson(
+        LOCAL_SEMANTIC_ROUTE,
+        {
+            input,
+            catalog,
+            missionState: {
+                ...(missionState && typeof missionState === "object" ? missionState : {}),
+                generalistCurrentTurnPolicy: GENERALIST_CURRENT_TURN_POLICY
             },
-            body: JSON.stringify({
-                data: {
-                    input,
-                    catalog,
-                    missionState: {
-                        ...(missionState && typeof missionState === "object" ? missionState : {}),
-                        generalistCurrentTurnPolicy: GENERALIST_CURRENT_TURN_POLICY
-                    }
-                }
-            }),
-            signal: controller.signal
-        });
-        const text = await response.text();
-        let payload;
-
-        try {
-            payload = JSON.parse(text);
-        } catch {
-            throw new Error(`SEMANTIC_PLANNER_INVALID_RESPONSE_${response.status}`);
+            timeoutMs
+        },
+        {
+            timeoutMs:
+                Math.min(
+                    timeoutMs + 5000,
+                    50000
+                )
         }
+    );
 
-        const result = payload?.result || payload?.data;
-        if (!response.ok || !result?.ok) {
-            throw new Error(
-                payload?.error?.message ||
-                result?.error ||
-                `SEMANTIC_PLANNER_HTTP_${response.status}`
-            );
-        }
+    globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {
+        ...localResult,
+        checkedAt: new Date().toISOString(),
+        semanticAuthority: "jarvisSemanticPlan",
+        localOnly: true,
+        alternateBrains: 0
+    };
 
-        return result;
-    }
-    catch(error) {
-        if (
-            controller.signal.aborted
-        ) {
-            throw new Error(
-                `SEMANTIC_PLANNER_TIMEOUT_${timeoutMs}`
-            );
-        }
-
-        throw error;
-    }
-    finally {
-        clearTimeout(
-            timer
+    if (
+        localResult?.ok !== true ||
+        localResult?.localSemanticInferenceUsed !== true ||
+        localResult?.cloudSemanticInferenceUsed === true ||
+        localResult?.externalApiUsed === true
+    ) {
+        const failure = new Error(
+            localResult?.error ||
+            localResult?.status ||
+            "LOCAL_SEMANTIC_PLAN_REQUIRED"
         );
+        failure.code = "LOCAL_SEMANTIC_PLAN_REQUIRED";
+        throw failure;
     }
+
+    return localResult;
 }
 
 function planCacheKey(input = "", catalog = [], missionState = null) {
