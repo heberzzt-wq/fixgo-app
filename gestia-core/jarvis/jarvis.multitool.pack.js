@@ -2914,134 +2914,93 @@ async function fetchSemanticConversation(
         globalThis?.JarvisLocalBridge ||
         globalThis?.window?.JarvisLocalBridge ||
         null;
-    if (typeof bridge?.requestJson === "function") {
-        try {
-            const localTimeoutMs = Number(maxOutputTokens) >= 6000
-                ? 120000
-                : 90000;
-            const localResult = await bridge.requestJson(
-                "/semantic/respond",
-                {
-                    input: instruction,
-                    maxOutputTokens,
-                    timeoutMs: localTimeoutMs
-                },
-                { timeoutMs: localTimeoutMs + 5000 }
-            );
-            globalThis.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ = {
-                ...localResult,
-                checkedAt: new Date().toISOString()
-            };
-            if (localResult?.ok === true && localResult?.message) {
-                return recordCapabilityEvidence("semantic_conversation", {
-                    ...localResult,
-                    checkedAt: new Date().toISOString()
-                });
-            }
-            if (localResult?.fallbackAllowed === false) {
-                return {
-                    ...localResult,
-                    ok: false,
-                    status: localResult?.status || "LOCAL_SEMANTIC_RESPONSE_REQUIRED",
-                    error: localResult?.error || "LOCAL_SEMANTIC_RESPONSE_REQUIRED"
-                };
-            }
-        } catch {}
-    }
 
-    const user = await waitForAuthenticatedUser();
-    if (!user) {
-        const result = { ok: false, status: "AUTH_REQUIRED", error: "AUTH_REQUIRED" };
-        globalThis.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ = {
-            ...result,
-            checkedAt: new Date().toISOString()
-        };
-        return result;
-    }
+    const checkedAt =
+        () => new Date().toISOString();
 
-    const controller = new AbortController();
-    const responseTimeoutMs =
-        Number(maxOutputTokens) >= 6000
-            ? 30000
-            : 18000;
-    const timer =
-        setTimeout(
-            () => controller.abort(),
-            responseTimeoutMs
-        );
-
-    try {
-        const token = await user.getIdToken();
-        const response = await fetch(
-            "https://us-central1-fixgo-44e4d.cloudfunctions.net/jarvisSemanticRespond",
-            {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    data: {
-                        input:
-                            instruction,
-                        maxOutputTokens:
-                            Math.max(
-                                500,
-                                Math.min(
-                                    8000,
-                                    Number(maxOutputTokens) ||
-                                    3500
-                                )
-                            )
-                    }
-                }),
-                signal: controller.signal
-            }
-        );
-        const text = await response.text();
-        let payload;
-        try {
-            payload = JSON.parse(text);
-        } catch {
-            const result = { ok: false, status: "INVALID_MODEL_RESPONSE", error: `HTTP_${response.status}` };
-            globalThis.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ = {
-                ...result,
-                checkedAt: new Date().toISOString()
-            };
-            return result;
-        }
-        const result = payload?.result || payload?.data;
-        if (!response.ok || !result?.ok || !result?.message) {
-            const failure = {
-                ok: false,
-                status: "SEMANTIC_CONVERSATION_UNAVAILABLE",
-                error: payload?.error?.message || result?.error || `HTTP_${response.status}`
-            };
-            globalThis.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ = {
-                ...failure,
-                checkedAt: new Date().toISOString()
-            };
-            return failure;
-        }
-        globalThis.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ = recordCapabilityEvidence("semantic_conversation", {
-            ok: true,
-            status: result.status,
-            provider: result.provider,
-            model: result.model,
-            checkedAt: new Date().toISOString()
-        });
-        return result;
-    } catch (error) {
+    if (typeof bridge?.requestJson !== "function") {
         const failure = {
             ok: false,
-            status: "SEMANTIC_CONVERSATION_UNAVAILABLE",
-            error: error?.message || String(error),
-            checkedAt: new Date().toISOString()
+            status: "LOCAL_SEMANTIC_BRIDGE_REQUIRED",
+            error: "LOCAL_SEMANTIC_BRIDGE_REQUIRED",
+            localOnly: true,
+            fallbackAllowed: false,
+            externalApiUsed: false,
+            cloudSemanticInferenceUsed: false,
+            checkedAt: checkedAt()
         };
         globalThis.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ = failure;
         return failure;
-    } finally {
-        clearTimeout(timer);
+    }
+
+    const localTimeoutMs = Number(maxOutputTokens) >= 6000
+        ? 120000
+        : 90000;
+
+    try {
+        const localResult = await bridge.requestJson(
+            "/semantic/respond",
+            {
+                input: instruction,
+                maxOutputTokens,
+                timeoutMs: localTimeoutMs
+            },
+            { timeoutMs: localTimeoutMs + 5000 }
+        );
+
+        globalThis.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ = {
+            ...localResult,
+            localOnly: true,
+            fallbackAllowed: false,
+            externalApiUsed: false,
+            cloudSemanticInferenceUsed: false,
+            checkedAt: checkedAt()
+        };
+
+        if (
+            localResult?.ok === true &&
+            typeof localResult?.message === "string" &&
+            localResult.message.trim()
+        ) {
+            return recordCapabilityEvidence("semantic_conversation", {
+                ...localResult,
+                localOnly: true,
+                fallbackAllowed: false,
+                externalApiUsed: false,
+                cloudSemanticInferenceUsed: false,
+                checkedAt: checkedAt()
+            });
+        }
+
+        return {
+            ...localResult,
+            ok: false,
+            status:
+                localResult?.status ||
+                "LOCAL_SEMANTIC_RESPONSE_REQUIRED",
+            error:
+                localResult?.error ||
+                "LOCAL_SEMANTIC_RESPONSE_REQUIRED",
+            localOnly: true,
+            fallbackAllowed: false,
+            externalApiUsed: false,
+            cloudSemanticInferenceUsed: false,
+            checkedAt: checkedAt()
+        };
+    }
+    catch(error) {
+        const failure = {
+            ok: false,
+            status: "LOCAL_SEMANTIC_RESPONSE_UNAVAILABLE",
+            error: error?.message || String(error),
+            localOnly: true,
+            fallbackAllowed: false,
+            externalApiUsed: false,
+            cloudSemanticInferenceUsed: false,
+            checkedAt: checkedAt()
+        };
+        globalThis.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ = failure;
+        return failure;
     }
 }
 
