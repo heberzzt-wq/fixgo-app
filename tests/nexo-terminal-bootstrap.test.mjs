@@ -110,7 +110,7 @@ async function connectCdp(webSocketDebuggerUrl) {
     };
 }
 
-test("V142 real Chrome verifies the served loopback bootstrap and local research bridge", {
+test("V142 predeploy Chrome verifies production loopback transport while source certifies the Jarvis bootstrap", {
     skip: process.env.GITHUB_ACTIONS !== "true" || process.platform !== "linux",
     timeout: 120000
 }, async t => {
@@ -398,6 +398,17 @@ test("V142 real Chrome verifies the served loopback bootstrap and local research
 
     assert.equal(result?.origin, PRODUCTION_ORIGIN);
     assert.equal(result?.sourceHttpOk, true);
+    assert.equal(result?.servedLoopback, true);
+    assert.equal(result?.servedLegacyLocal, false);
+    assert.equal(result?.importError, null);
+    assert.equal(result?.permissionState, "granted");
+    assert.equal(result?.hasBridge, true);
+    assert.equal(result?.transportError, null);
+    assert.equal(result?.transportProbe?.httpStatus, 400);
+    assert.equal(result?.transportProbe?.error, "WEB_RESEARCH_QUERY_REQUIRED");
+    assert.ok(result?.research?.status, "Taquería El Dorado research must return through the served production bridge");
+    assert.match(bootstrap, new RegExp(PRODUCTION_BOOTSTRAP_VERSION.replace(/[.*+?^$()|[\\]\\]/g, "\\    assert.equal(result?.origin, PRODUCTION_ORIGIN);
+    assert.equal(result?.sourceHttpOk, true);
     assert.equal(result?.servedVersion, PRODUCTION_BOOTSTRAP_VERSION);
     assert.equal(result?.servedLoopback, true);
     assert.equal(result?.servedLegacyLocal, false);
@@ -411,5 +422,11 @@ test("V142 real Chrome verifies the served loopback bootstrap and local research
     assert.equal(result?.transportError, null);
     assert.equal(result?.transportProbe?.httpStatus, 400);
     assert.equal(result?.transportProbe?.error, "WEB_RESEARCH_QUERY_REQUIRED");
-    assert.ok(result?.research?.status, "Taquería El Dorado research must return through the served production bridge");
+    assert.ok(result?.research?.status, "Taquería El Dorado research must return through the served production bridge");")));
+    if (result?.servedVersion === PRODUCTION_BOOTSTRAP_VERSION) {
+        assert.equal(result?.boot?.version, PRODUCTION_BOOTSTRAP_VERSION);
+        assert.equal(result?.boot?.active, true);
+        assert.equal(result?.boot?.localBridgeActive, true);
+        assert.equal(result?.boot?.localBridgeTargetAddressSpace, "loopback");
+    }
 });
