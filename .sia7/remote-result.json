@@ -1,6 +1,6 @@
 {
-  "jobId": "jarvis-local-ai-bounded-tool-plan-20260924-025",
-  "completedAt": "2026-09-24T23:46:36.304Z",
+  "jobId": "jarvis-local-ai-empty-plan-diagnostic-20260924-026",
+  "completedAt": "2026-09-24T23:50:43.146Z",
   "executionStarted": true,
   "ok": false,
   "httpStatus": 502,
@@ -9,6 +9,22 @@
     "ok": false,
     "status": "LOCAL_SEMANTIC_PLAN_FAILED",
     "error": "SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_PLAN_EMPTY",
+    "evidence": {
+      "providerResponse": {
+        "finishReason": "stop",
+        "messageKeys": [
+          "role",
+          "content"
+        ],
+        "toolCallCount": 0,
+        "toolCallNames": [],
+        "contentPreview": "{\n  \"name\": \"repo.search\",\n  \"arguments\": {\n    \"query\": \"cómo está implementada la inteligencia local de Jarvis y qué piezas participan\"\n  }\n}"
+      },
+      "parsedPlan": {
+        "toolCalls": [],
+        "missionComplete": false
+      }
+    },
     "fallbackAllowed": false,
     "inferenceReceipt": {
       "ok": true,
