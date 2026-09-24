@@ -209,7 +209,9 @@ test("browser mission uses the self-hosted semantic backend before auth or cloud
         assert.equal(calls[0].name, "repo.search");
         assert.equal(localCalls, 1);
         assert.equal(cloudCalls, 0);
-        assert.equal(globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__.provider, "ollama-openai-compatible-local");\n        assert.equal(globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__.localOnly, true);\n        assert.equal(globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__.alternateBrains, 0);
+        assert.equal(globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__.provider, "ollama-openai-compatible-local");
+        assert.equal(globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__.localOnly, true);
+        assert.equal(globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__.alternateBrains, 0);
     } finally {
         globalThis.JarvisLocalBridge = previousBridge;
         globalThis.auth = previousAuth;
