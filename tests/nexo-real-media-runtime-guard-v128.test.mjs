@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-    NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION,
-    registerNexoRealMediaRuntimeGuard,
+    JARVIS_REAL_MEDIA_RUNTIME_GUARD_VERSION,
+    registerJarvisRealMediaRuntimeGuard,
     __test as runtimeGuardTest
 } from "../gestia-core/nexo/nexo.real-media.runtime-guard-v128.js";
 import {
-    NEXO_REAL_MEDIA_TOOLS_VERSION
+    JARVIS_REAL_MEDIA_TOOLS_VERSION
 } from "../gestia-core/nexo/nexo.real-media.tools.js";
 
 const verifiedImage = {
@@ -49,12 +49,12 @@ test("v139 runtime guard readiness follows current real-media tools contract and
     const current = makeRuntime();
     current.register({
         name: "web.media.collect",
-        version: NEXO_REAL_MEDIA_TOOLS_VERSION,
+        version: JARVIS_REAL_MEDIA_TOOLS_VERSION,
         execute: async () => ({ ok: true })
     });
     current.register({
         name: "reel.create",
-        version: NEXO_REAL_MEDIA_TOOLS_VERSION,
+        version: JARVIS_REAL_MEDIA_TOOLS_VERSION,
         execute: async () => ({ ok: true })
     });
     assert.equal(runtimeGuardTest.realMediaToolsReady(current), true);
@@ -107,7 +107,7 @@ test("v131 caches collected media but refuses positional injection into reel.cre
 
     runtime.register({
         name: "web.media.collect",
-        version: NEXO_REAL_MEDIA_TOOLS_VERSION,
+        version: JARVIS_REAL_MEDIA_TOOLS_VERSION,
         execute: async () => ({
             ok: true,
             executionOk: true,
@@ -119,7 +119,7 @@ test("v131 caches collected media but refuses positional injection into reel.cre
     });
     runtime.register({
         name: "reel.create",
-        version: NEXO_REAL_MEDIA_TOOLS_VERSION,
+        version: JARVIS_REAL_MEDIA_TOOLS_VERSION,
         execute: async args => {
             reelArgs = args;
             return {
@@ -132,9 +132,9 @@ test("v131 caches collected media but refuses positional injection into reel.cre
         }
     });
 
-    const installation = registerNexoRealMediaRuntimeGuard(runtime);
+    const installation = registerJarvisRealMediaRuntimeGuard(runtime);
     assert.equal(installation.active, true);
-    assert.equal(installation.version, NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION);
+    assert.equal(installation.version, JARVIS_REAL_MEDIA_RUNTIME_GUARD_VERSION);
 
     await runtime.get("web.media.collect").execute(
         { url: "https://source.example/post/1" },
