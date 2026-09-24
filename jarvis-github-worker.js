@@ -241,7 +241,7 @@ async function publishRemoteResult(result = {}) {
 
 function normalizeEndpoint(value = "") {
     const endpoint = String(value || "").trim();
-    const allowed = new Set(["/health", "/read", "/grep", "/git", "/run"]);
+    const allowed = new Set(["/health", "/read", "/grep", "/git", "/run", "/semantic/plan"]);
 
     if (!allowed.has(endpoint)) {
         throw new Error("WORKER_ENDPOINT_NOT_ALLOWED");
@@ -321,7 +321,7 @@ async function executeBridgeJob(job = {}) {
             ? JSON.stringify(job.body || {})
             : null;
 
-    if (endpoint === "/run") {
+    if (endpoint === "/run" || endpoint === "/semantic/plan") {
         const response = await requestLocalBridgeJson(`${BRIDGE_URL}${endpoint}`, {
             method,
             headers: {
@@ -330,10 +330,16 @@ async function executeBridgeJob(job = {}) {
                 "x-jarvis-release-id": releaseId
             },
             body: requestBody,
-            timeoutMs: Math.max(
-                60000,
-                Number(job.body?.timeoutMs || 120000) + 60000
-            )
+            timeoutMs:
+                endpoint === "/semantic/plan"
+                    ? Math.min(
+                        Math.max(Number(job.body?.timeoutMs || 30000) + 10000, 15000),
+                        60000
+                    )
+                    : Math.max(
+                        60000,
+                        Number(job.body?.timeoutMs || 120000) + 60000
+                    )
         });
         const payload = response.payload;
         return {
