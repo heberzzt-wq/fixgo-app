@@ -6,8 +6,10 @@ import { createHash } from "node:crypto";
 
 import { registerArtifact } from "./jarvis-artifact-studio.js";
 
+export const JARVIS_WEB_MEDIA_BRIDGE_VERSION =
+    "2.0.0-jarvis-runtime-authority";
 export const NEXO_WEB_MEDIA_BRIDGE_VERSION =
-    "1.5.0-cdp-response-body-media-v135";
+    JARVIS_WEB_MEDIA_BRIDGE_VERSION; // compatibility export only
 
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
@@ -172,7 +174,7 @@ async function fetchBounded(
                 redirect: "manual",
                 signal: controller.signal,
                 headers: {
-                    "User-Agent": "NEXO-Real-Media/1.0 (+Peninsula-Tech)",
+                    "User-Agent": "JARVIS-Real-Media/2.0 (+Peninsula-Tech)",
                     "Accept": "text/html,image/*,video/*;q=0.9,*/*;q=0.1"
                 }
             });
@@ -387,7 +389,7 @@ function chooseOutputName(candidate, mimeType, index) {
     return `${String(index + 1).padStart(2, "0")}-${sourceStem}${extension}`;
 }
 
-export async function collectNexoRealWebMedia({
+export async function collectJarvisRealWebMedia({
     url = "",
     requireImages = false,
     requireVideos = false,
@@ -586,7 +588,7 @@ export async function collectNexoRealWebMedia({
                 metadata: {
                     type: candidate.kind,
                     origin: "web.media.collect",
-                    provider: "nexo_real_media_collector",
+                    provider: "jarvis_real_media_collector",
                     mimeType: actualMimeType,
                     status: "WEB_REAL_MEDIA_VERIFIED",
                     approvalRequired: false,
@@ -647,8 +649,8 @@ export async function collectNexoRealWebMedia({
         (!requireVideos || videoCount > 0) &&
         (!requireAnyVisual || imageCount + videoCount > 0);
     const manifest = {
-        engine: "NEXO",
-        version: NEXO_WEB_MEDIA_BRIDGE_VERSION,
+        engine: "JARVIS",
+        version: JARVIS_WEB_MEDIA_BRIDGE_VERSION,
         sourceUrl: page.toString(),
         finalPageUrl,
         discoveryMode,
@@ -669,7 +671,7 @@ export async function collectNexoRealWebMedia({
         metadata: {
             type: "report",
             origin: "web.media.collect",
-            provider: "nexo_real_media_collector",
+            provider: "jarvis_real_media_collector",
             mimeType: "application/json",
             status: requirementsMet ? "WEB_REAL_MEDIA_COLLECTED" : "WEB_REAL_MEDIA_REQUIREMENTS_UNMET",
             approvalRequired: false,
@@ -712,17 +714,17 @@ export async function collectNexoRealWebMedia({
             kind: asset.kind,
             mediaRole: asset.mediaRole || "scene"
         })),
-        version: NEXO_WEB_MEDIA_BRIDGE_VERSION
+        version: JARVIS_WEB_MEDIA_BRIDGE_VERSION
     };
 }
 
-export function registerNexoWebMediaRoutes(app, { root = process.cwd() } = {}) {
+export function registerJarvisWebMediaRoutes(app, { root = process.cwd() } = {}) {
     if (!app || typeof app.post !== "function") {
         throw new Error("EXPRESS_APP_REQUIRED");
     }
     app.post("/web/media/collect", async (req, res) => {
         try {
-            const result = await collectNexoRealWebMedia({
+            const result = await collectJarvisRealWebMedia({
                 ...(req.body || {}),
                 root,
                 allowPrivateHostsForTesting: false
@@ -742,12 +744,16 @@ export function registerNexoWebMediaRoutes(app, { root = process.cwd() } = {}) {
                 retryable: false,
                 status: "WEB_REAL_MEDIA_COLLECTION_FAILED",
                 error: message,
-                version: NEXO_WEB_MEDIA_BRIDGE_VERSION
+                version: JARVIS_WEB_MEDIA_BRIDGE_VERSION
             });
         }
     });
     return app;
 }
+
+// Historical NEXO exports are compatibility aliases only.
+export const collectNexoRealWebMedia = collectJarvisRealWebMedia;
+export const registerNexoWebMediaRoutes = registerJarvisWebMediaRoutes;
 
 export const __test = {
     safeStem,
