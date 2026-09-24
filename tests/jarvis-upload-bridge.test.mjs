@@ -143,6 +143,87 @@ test("workstation self-heal pulls only missing free local models and never selec
     );
 });
 
+test("workstation self-heal retries transient free local model pulls and preserves zero external spend", async () => {
+    let pullCalls = 0;
+    let probes = 0;
+    let waits = 0;
+    const result = await ensureJarvisLocalAiRuntime({
+        root: process.cwd(),
+        platform: "win32",
+        env: {
+            JARVIS_LOCAL_LLM_MODEL: "qwen2.5-coder:7b",
+            JARVIS_LOCAL_EMBEDDING_MODEL: "qwen3-embedding:0.6b"
+        },
+        installIfMissing: true,
+        pullModels: true,
+        commandImpl(_command, args) {
+            if (args[0] === "--version") {
+                return { ok: true, status: 0, stdout: "ollama version test", stderr: "" };
+            }
+            if (args[0] === "pull") {
+                pullCalls += 1;
+                if (pullCalls === 1) {
+                    return {
+                        ok: false,
+                        status: 1,
+                        stdout: "",
+                        stderr: "transient registry disconnect",
+                        error: null
+                    };
+                }
+                return { ok: true, status: 0, stdout: "pulled", stderr: "", error: null };
+            }
+            return { ok: false, status: 1, stdout: "", stderr: "unexpected", error: null };
+        },
+        probeImpl: async () => {
+            probes += 1;
+            if (probes === 1) {
+                return { ok: true, reachable: true, body: { models: [] } };
+            }
+            if (probes === 2) {
+                return {
+                    ok: true,
+                    reachable: true,
+                    body: { models: [{ name: "qwen2.5-coder:7b" }] }
+                };
+            }
+            return {
+                ok: true,
+                reachable: true,
+                body: {
+                    models: [
+                        { name: "qwen2.5-coder:7b" },
+                        { name: "qwen3-embedding:0.6b" }
+                    ]
+                }
+            };
+        },
+        spawnImpl() {
+            throw new Error("OLLAMA_SERVE_SHOULD_NOT_START");
+        },
+        waitMs: async () => { waits += 1; }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "JARVIS_LOCAL_AI_RUNTIME_READY");
+    assert.deepEqual(result.pulledModels, ["qwen2.5-coder:7b", "qwen3-embedding:0.6b"]);
+    assert.equal(pullCalls, 3);
+    assert.equal(waits, 1);
+    assert.equal(result.externalApiUsed, false);
+    assert.equal(result.paidApiUsed, false);
+});
+
+test("workstation diagnostics retain command tails so Ollama pull failures expose the final cause", () => {
+    const source = fs.readFileSync(
+        new URL("../jarvis-upload-bridge.js", import.meta.url),
+        "utf8"
+    );
+    assert.match(source, /stdout:\s*String\(result\.stdout \|\| ""\)\.trim\(\)\.slice\(-4000\)/);
+    assert.match(source, /stderr:\s*String\(result\.stderr \|\| ""\)\.trim\(\)\.slice\(-4000\)/);
+    assert.match(source, /for \(let attempt = 1; attempt <= 3; attempt \+= 1\)/);
+    assert.match(source, /pullAttempts/);
+});
+
 test("workstation doctor reports governed local capabilities without requiring them to be installed", async () => {
     const root = fs.mkdtempSync(
         path.join(os.tmpdir(), "jarvis-workstation-doctor-")
