@@ -131,6 +131,157 @@ async function readRemoteResultJobId() {
     }
 }
 
+async function publishSafeLocalAheadReceipt({
+    localSha = "",
+    remoteSha = ""
+} = {}) {
+    const remoteIsAncestor =
+        await runGit([
+            "merge-base",
+            "--is-ancestor",
+            remoteSha,
+            localSha
+        ]);
+
+    if (!remoteIsAncestor.ok) {
+        return {
+            ok: false,
+            status:
+                "LOCAL_AHEAD_NOT_FAST_FORWARD"
+        };
+    }
+
+    const changed =
+        await runGit([
+            "diff",
+            "--name-only",
+            `${remoteSha}..${localSha}`
+        ]);
+
+    const messages =
+        await runGit([
+            "log",
+            "--format=%s",
+            `${remoteSha}..${localSha}`
+        ]);
+
+    if (
+        !changed.ok ||
+        !messages.ok
+    ) {
+        return {
+            ok: false,
+            status:
+                "LOCAL_AHEAD_INSPECTION_FAILED"
+        };
+    }
+
+    const changedPaths =
+        String(changed.stdout || "")
+            .split(/\r?\n/)
+            .map(value => value.trim())
+            .filter(Boolean);
+
+    const commitMessages =
+        String(messages.stdout || "")
+            .split(/\r?\n/)
+            .map(value => value.trim())
+            .filter(Boolean);
+
+    const receiptOnly =
+        changedPaths.length > 0 &&
+        changedPaths.every(pathValue =>
+            pathValue === RESULT_PATH
+        ) &&
+        commitMessages.length > 0 &&
+        commitMessages.every(message =>
+            message.startsWith("SIA7 result ")
+        );
+
+    if (!receiptOnly) {
+        return {
+            ok: false,
+            status:
+                "LOCAL_AHEAD_NOT_RECEIPT_ONLY",
+            changedPaths,
+            commitMessages
+        };
+    }
+
+    const push =
+        await runGit([
+            "push",
+            REMOTE,
+            `HEAD:${BRANCH}`
+        ]);
+
+    if (!push.ok) {
+        return {
+            ok: false,
+            status:
+                "LOCAL_AHEAD_RECEIPT_PUSH_FAILED",
+            changedPaths,
+            commitMessages,
+            error:
+                push.stderr ||
+                push.error ||
+                "LOCAL_AHEAD_RECEIPT_PUSH_FAILED"
+        };
+    }
+
+    const refresh =
+        await runGit([
+            "fetch",
+            "--quiet",
+            REMOTE,
+            `+refs/heads/${BRANCH}:refs/remotes/${REMOTE}/${BRANCH}`
+        ]);
+
+    const confirmed =
+        refresh.ok
+            ? await runGit([
+                "rev-parse",
+                `${REMOTE}/${BRANCH}`
+            ])
+            : {
+                ok: false,
+                stdout: ""
+            };
+
+    const confirmedSha =
+        String(
+            confirmed.stdout ||
+            ""
+        ).trim();
+
+    if (
+        !confirmed.ok ||
+        confirmedSha !== localSha
+    ) {
+        return {
+            ok: false,
+            status:
+                "LOCAL_AHEAD_RECEIPT_CONFIRMATION_FAILED",
+            changedPaths,
+            commitMessages,
+            localSha,
+            confirmedSha
+        };
+    }
+
+    return {
+        ok: true,
+        status:
+            "WORKER_SAFE_AHEAD_RECEIPT_PUBLISHED",
+        localHead:
+            localSha,
+        remoteHead:
+            confirmedSha,
+        changedPaths,
+        commitMessages
+    };
+}
+
 async function syncLocalBranch() {
     const fetchResult = await runGit([
         "fetch",
@@ -164,12 +315,25 @@ async function syncLocalBranch() {
     const remoteSha = String(remoteHead.stdout || "").trim();
 
     if (localSha !== remoteSha) {
+        const safeAhead =
+            await publishSafeLocalAheadReceipt({
+                localSha,
+                remoteSha
+            });
+
+        if (safeAhead.ok === true) {
+            return safeAhead;
+        }
+
         const error = new Error(
             `WORKER_RESTART_REQUIRED:${localSha}->${remoteSha}`
         );
         error.restartRequired = true;
         error.localHead = localSha;
         error.remoteHead = remoteSha;
+        error.syncStatus =
+            safeAhead.status ||
+            "WORKER_HEAD_DRIFT";
         throw error;
     }
 
