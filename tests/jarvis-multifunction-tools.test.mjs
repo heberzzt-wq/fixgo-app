@@ -69,6 +69,42 @@ test("image artifact output accepts only a compatible safe local path", () => {
     );
 });
 
+function installSemanticBridgeThroughFetchMock() {
+    const previousBridge = globalThis.JarvisLocalBridge;
+
+    globalThis.JarvisLocalBridge = {
+        requestJson: async (route, payload = {}) => {
+            assert.equal(route, "/semantic/respond");
+            const response = await globalThis.fetch(
+                "http://127.0.0.1:3344/semantic/respond",
+                {
+                    method: "POST",
+                    headers: {
+                        "content-type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        data: payload
+                    })
+                }
+            );
+            const text = await response.text();
+            const envelope = text
+                ? JSON.parse(text)
+                : {};
+            return (
+                envelope?.result ||
+                envelope?.data ||
+                envelope
+            );
+        }
+    };
+
+    return () => {
+        globalThis.JarvisLocalBridge =
+            previousBridge;
+    };
+}
+
 function createRuntime() {
     const registry =
         new Map();
@@ -1052,6 +1088,7 @@ test("multifunction pack registers certification and remains read-only", () => {
 test("document composition continues a cut response and verifies its real ending", async () => {
     const previousAuth = globalThis.auth;
     const previousFetch = globalThis.fetch;
+    const restoreSemanticBridge = installSemanticBridgeThroughFetchMock();
     const runtime = createRuntime();
     registerJarvisMultifunctionTools(runtime);
     let requestCount = 0;
@@ -1108,12 +1145,14 @@ test("document composition continues a cut response and verifies its real ending
     } finally {
         globalThis.auth = previousAuth;
         globalThis.fetch = previousFetch;
+        restoreSemanticBridge();
     }
 });
 
 test("document composition continues after a premature marker until the contract passes", async () => {
     const previousAuth = globalThis.auth;
     const previousFetch = globalThis.fetch;
+    const restoreSemanticBridge = installSemanticBridgeThroughFetchMock();
     const runtime = createRuntime();
     registerJarvisMultifunctionTools(runtime);
     let requestCount = 0;
@@ -1182,12 +1221,14 @@ test("document composition continues after a premature marker until the contract
     } finally {
         globalThis.auth = previousAuth;
         globalThis.fetch = previousFetch;
+        restoreSemanticBridge();
     }
 });
 
 test("document composition rejects a placeholder even when every response claims completion", async () => {
     const previousAuth = globalThis.auth;
     const previousFetch = globalThis.fetch;
+    const restoreSemanticBridge = installSemanticBridgeThroughFetchMock();
     const runtime = createRuntime();
     registerJarvisMultifunctionTools(runtime);
     let requestCount = 0;
@@ -1239,12 +1280,14 @@ test("document composition rejects a placeholder even when every response claims
     } finally {
         globalThis.auth = previousAuth;
         globalThis.fetch = previousFetch;
+        restoreSemanticBridge();
     }
 });
 
 test("spreadsheet composition repairs invalid cross-sheet formulas before creation", async () => {
     const previousAuth = globalThis.auth;
     const previousFetch = globalThis.fetch;
+    const restoreSemanticBridge = installSemanticBridgeThroughFetchMock();
     const runtime = createRuntime();
     registerJarvisMultifunctionTools(runtime);
     let requestCount = 0;
@@ -1338,6 +1381,7 @@ test("spreadsheet composition repairs invalid cross-sheet formulas before creati
     } finally {
         globalThis.auth = previousAuth;
         globalThis.fetch = previousFetch;
+        restoreSemanticBridge();
     }
 });
 
@@ -1351,6 +1395,7 @@ test("spreadsheet composition rebuilds empty and structurally invalid attempts b
         globalThis.auth;
     const previousFetch =
         globalThis.fetch;
+    const restoreSemanticBridge = installSemanticBridgeThroughFetchMock();
     let requestCount = 0;
 
     try {
@@ -1495,6 +1540,7 @@ test("spreadsheet composition rebuilds empty and structurally invalid attempts b
             previousAuth;
         globalThis.fetch =
             previousFetch;
+        restoreSemanticBridge();
     }
 });
 
@@ -1538,6 +1584,7 @@ test("campaign visual and reel planning require grounded structured evidence", (
 test("business assistant uses the semantic model when a real company is outside the static registry", async () => {
     const previousAuth = globalThis.auth;
     const previousFetch = globalThis.fetch;
+    const restoreSemanticBridge = installSemanticBridgeThroughFetchMock();
     const previousMemory = globalThis.JarvisToolMemory;
     let semanticRequest = null;
     globalThis.auth = { currentUser: null };
@@ -1594,6 +1641,7 @@ test("business assistant uses the semantic model when a real company is outside 
         clearTimeout(authTimer);
         globalThis.auth = previousAuth;
         globalThis.fetch = previousFetch;
+        restoreSemanticBridge();
         globalThis.JarvisToolMemory = previousMemory;
     }
 });
@@ -2140,6 +2188,7 @@ test("system certification records failed tests as an unsatisfied check with pro
 test("large document composition repairs one failed semantic segment", async () => {
     const previousAuth = globalThis.auth;
     const previousFetch = globalThis.fetch;
+    const restoreSemanticBridge = installSemanticBridgeThroughFetchMock();
     const runtime = createRuntime();
     registerJarvisMultifunctionTools(runtime);
     let requestCount = 0;
@@ -2398,6 +2447,7 @@ test("large document composition repairs one failed semantic segment", async () 
     } finally {
         globalThis.auth = previousAuth;
         globalThis.fetch = previousFetch;
+        restoreSemanticBridge();
     }
 });
 
@@ -2558,6 +2608,7 @@ test("capability forensics distinguishes a deployed scheduler from a completed d
 test("Jarvis answers casual conversation through the real semantic model", async () => {
     const previousAuth = globalThis.auth;
     const previousFetch = globalThis.fetch;
+    const restoreSemanticBridge = installSemanticBridgeThroughFetchMock();
     let semanticRequest = null;
     globalThis.auth = { currentUser: { getIdToken: async () => "test-token" } };
     globalThis.fetch = async (_url, options) => {
@@ -2606,6 +2657,7 @@ test("Jarvis answers casual conversation through the real semantic model", async
 
     globalThis.auth = previousAuth;
     globalThis.fetch = previousFetch;
+        restoreSemanticBridge();
 });
 
 test("mixed capability conversation preserves greeting, capabilities and limits", async () => {
@@ -4999,7 +5051,9 @@ test("semantic mission latency budgets are bounded and do not stack exhausted pr
     assert.doesNotMatch(plannerSource, /:\s*110000;/);
     assert.match(coreSource, /providerFallbackExhausted[\s\S]{0,500}?__BROWSER_/);
     assert.match(coreSource, /attempt\s*<=\s*2/);
-    assert.match(multitoolSource, /Number\(maxOutputTokens\)\s*>=\s*6000[\s\S]{0,100}?\?\s*30000[\s\S]{0,100}?:\s*18000/);
+    assert.match(multitoolSource, /Number\(maxOutputTokens\)\s*>=\s*6000[\s\S]{0,100}?\?\s*120000[\s\S]{0,100}?:\s*90000/);
+    assert.doesNotMatch(multitoolSource, /jarvisSemanticRespond/);
+    assert.doesNotMatch(multitoolSource, /cloudfunctions\.net/);
 });
 
 test("media.analyze accepts video through the canonical local extractor and withholds unverified content", async () => {
@@ -5128,7 +5182,9 @@ test("terminal core-first has no orphan brain route and semantic latency is boun
     assert.doesNotMatch(plannerSource, /BROWSER_PLAN_ATTEMPT_TIMEOUT_MS\s*=\s*\n\s*5000/);
     assert.doesNotMatch(plannerSource, /:\s*110000;/);
     assert.match(coreSource, /providerFallbackExhausted/);
-    assert.match(multitoolSource, /\?\s*30000[\s\S]{0,80}?:\s*18000/);
+    assert.match(multitoolSource, /\?\s*120000[\s\S]{0,80}?:\s*90000/);
+    assert.doesNotMatch(multitoolSource, /jarvisSemanticRespond/);
+    assert.doesNotMatch(multitoolSource, /cloudfunctions\.net/);
 });
 
 
