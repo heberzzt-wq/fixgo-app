@@ -25,6 +25,16 @@
         CONTRACTOR: "contratista",
         COMPANY: "empresa"
     });
+    const B2C_CREW_MEMBER_ROLES = Object.freeze([
+        "ayudante", "tecnico", "especialista", "oficial", "supervisor", "ingeniero", "otro"
+    ]);
+    const B2C_CREW_MEMBER_STATES = Object.freeze({
+        PENDING_REVIEW: "pendiente_revision",
+        ACTIVE: "activo",
+        CORRECTION_REQUIRED: "correccion_requerida",
+        SUSPENDED: "suspendido",
+        INACTIVE: "inactivo"
+    });
     const SERVICE_VERTICAL_LABELS = Object.freeze({
         road: "ROAD (Auxilio Vial)",
         fix: "FIX (Hogar)",
@@ -485,6 +495,29 @@
         });
     }
 
+    function normalizeB2cCrewMember(raw = {}) {
+        const allowedRoles = new Set(B2C_CREW_MEMBER_ROLES);
+        const requestedRole = normalizeToken(raw.role ?? raw.rol ?? "otro");
+        const role = allowedRoles.has(requestedRole) ? requestedRole : "otro";
+        const allowedStates = new Set(Object.values(B2C_CREW_MEMBER_STATES));
+        const requestedState = normalizeToken(raw.status ?? raw.estado ?? B2C_CREW_MEMBER_STATES.PENDING_REVIEW);
+        const status = allowedStates.has(requestedState) ? requestedState : B2C_CREW_MEMBER_STATES.PENDING_REVIEW;
+        const approved = status === B2C_CREW_MEMBER_STATES.ACTIVE && raw.approved === true;
+        return Object.freeze({
+            member_id: text(raw.member_id ?? raw.id),
+            provider_uid: text(raw.provider_uid ?? raw.responsible_uid),
+            full_name: text(raw.full_name ?? raw.nombre),
+            role,
+            phone: text(raw.phone ?? raw.telefono ?? raw.phone_digits),
+            status,
+            approved,
+            active: approved && raw.active !== false,
+            on_duty: approved && raw.on_duty === true,
+            profile_photo_url: text(raw.profile_photo_url),
+            verification_status: text(raw.verification_status) || (approved ? "admin_approved" : "pending_admin_review")
+        });
+    }
+
     function legacyApprovalEvidence(raw = {}) {
         return raw.kyc?.aprobado === true ||
             raw.verificado === true ||
@@ -905,6 +938,8 @@
         B2C_PROVIDER_PROFILE_VERSION,
         B2C_PROVIDER_MAX_MEMBERS,
         B2C_PROVIDER_MODES,
+        B2C_CREW_MEMBER_ROLES,
+        B2C_CREW_MEMBER_STATES,
         MEXICAN_CLABE_VERSION,
         MEXICAN_PAYOUT_DESTINATION_VERSION,
         MEXICAN_CLABE_CATALOG_SOURCE,
@@ -926,6 +961,7 @@
         normalizeMexicanClabe,
         normalizeMexicanPayoutDestination,
         normalizeB2cProviderProfile,
+        normalizeB2cCrewMember,
         buildMarketplaceListing,
         getServiceDefinition,
         isB2BAccountProfile,

@@ -398,7 +398,10 @@ service cloud.firestore {
           userAuthorityFieldsUnchanged() &&
           request.resource.data.get('kyc', {}).get('evidencias', {}) == resource.data.get('kyc', {}).get('evidencias', {}) &&
           (resource.data.rol != 'tecnico' || resource.data.status in ['registro_iniciado', 'documentos_pendientes', 'rechazado'] ||
-            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['documentos', 'foto_perfil', 'vehiculo', 'datos_bancarios', 'kyc'])) &&
+            (
+              !request.resource.data.diff(resource.data).affectedKeys().hasAny(['documentos', 'foto_perfil', 'vehiculo', 'datos_bancarios', 'kyc']) &&
+              request.resource.data.get('provider_profile', {}) == resource.data.get('provider_profile', {})
+            )) &&
           (resource.data.tipo_cuenta != 'B2B' || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['documentos', 'foto_perfil', 'datos_bancarios', 'kyc'])) &&
           !request.resource.data.diff(resource.data).affectedKeys().hasAny([
             'rol', 'tipo_cuenta', 'suspendido', 'verificado',
@@ -424,6 +427,10 @@ service cloud.firestore {
             'nombre', 'telefono', 'especialidad', 'actualizadoEn'
           ]))
       );
+    }
+
+    match /users/{userId}/crew_members/{memberId} {
+      allow read, write: if false;
     }
 
     match /tecnicos/{userId} {

@@ -5,6 +5,8 @@ import {
     assertTechnicianCanOperate,
     B2C_PROVIDER_MAX_MEMBERS,
     B2C_PROVIDER_MODES,
+    B2C_CREW_MEMBER_ROLES,
+    B2C_CREW_MEMBER_STATES,
     buildB2cProviderProfile,
     buildTechnicianReviewPatch,
     createTechnicianRegistrationProfile,
@@ -14,6 +16,7 @@ import {
     inspectMexicanPayoutDestination,
     MEXICAN_CLABE_VERSION,
     MEXICAN_PAYOUT_DESTINATION_VERSION,
+    normalizeB2cCrewMember,
     normalizeTechnicianProfile,
     storagePathForTechnicianDocument,
     TECHNICIAN_KYC_STATES
@@ -71,6 +74,28 @@ test("perfil proveedor B2C conserva un responsable único y admite hasta 20 pers
         plannedMemberCount: 99
     });
     assert.equal(capped.planned_member_count, 20);
+});
+
+test("integrante B2C sólo puede estar en turno después de aprobación", () => {
+    assert.ok(B2C_CREW_MEMBER_ROLES.includes("ayudante"));
+    const pending = normalizeB2cCrewMember({
+        member_id: "member-12345678", provider_uid: "boss", full_name: "Ayudante",
+        role: "ayudante", status: B2C_CREW_MEMBER_STATES.PENDING_REVIEW, approved: false, on_duty: true
+    });
+    assert.equal(pending.on_duty, false);
+    const active = normalizeB2cCrewMember({
+        ...pending, status: B2C_CREW_MEMBER_STATES.ACTIVE, approved: true, active: true, on_duty: true
+    });
+    assert.equal(active.on_duty, true);
+    assert.equal(active.provider_uid, "boss");
+});
+
+test("evidencia de integrante queda bajo el UID responsable", async () => {
+    const module = await import("../b2c-technician-profile.js");
+    assert.equal(
+        module.storagePathForCrewMemberEvidence("boss", "member-12345678", "ine_front", "12345678", "ine.jpg"),
+        "expedientes/boss/crew/member-12345678/ine_front/capture-12345678.jpg"
+    );
 });
 
 test("registro técnico expone modalidades independiente, cuadrilla, contratista y empresa", () => {

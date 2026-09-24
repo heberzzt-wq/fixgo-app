@@ -95,6 +95,10 @@ test("Storage protege expedientes y niega rutas no inventariadas", () => {
     assert.match(expedienteBlock, /validDocument/);
     assert.match(expedienteBlock, /identidad_pendiente/);
     assert.match(expedienteBlock, /identidad_revision/);
+    assert.match(firestore, /match \/users\/\{userId\}\/crew_members\/\{memberId\}/);
+    assert.match(firestore, /provider_profile/);
+    assert.match(storage, /match \/expedientes\/\{uid\}\/crew\/\{memberId\}\/\{kind\}\/\{fileName\}/);
+    assert.match(storage, /cuadrilla/);
     assert.match(storage, /match \/service_initial\/\{serviceId\}\/\{customerId\}/);
     assert.match(storage, /match \/firmas\/\{orderId\}\/\{fileName\}/);
     assert.match(storage, /match \/perfiles_tecnicos\/\{fileName\}/);

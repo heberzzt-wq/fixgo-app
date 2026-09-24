@@ -179,6 +179,26 @@ service firebase.storage {
         validDocument(10 * 1024 * 1024);
     }
 
+    // Integrantes de proveedores B2C: evidencia privada e inmutable.
+    match /expedientes/{uid}/crew/{memberId}/{kind}/{fileName} {
+      allow read: if authorizedAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create: if resource == null &&
+        signedIn() &&
+        request.auth.uid == uid &&
+        userProfile().get('tipo_cuenta', '') == 'B2C' &&
+        userProfile().get('rol', '') == 'tecnico' &&
+        userProfile().get('estado', '') == 'activo' &&
+        userProfile().get('status', '') == 'activo' &&
+        userProfile().get('kyc', {}).get('aprobado', false) == true &&
+        userProfile().get('suspendido', false) != true &&
+        userProfile().get('provider_profile', {}).get('mode', 'independiente') in ['cuadrilla', 'contratista', 'empresa'] &&
+        kind in ['profile_photo', 'ine_front', 'ine_back'] &&
+        fileName.matches("capture-[A-Za-z0-9_-]{8,160}\\.(jpg|jpeg|png|webp)") &&
+        validImage(10 * 1024 * 1024);
+      allow update: if false;
+      allow delete: if authorizedAdmin();
+    }
+
     // Recapturas KYC inmutables: archivo nuevo por intento, sin sobrescribir current.*.
     // El backend valida y adopta la referencia antes de ejecutar biometría.
     match /expedientes/{uid}/recaptures/{kind}/{fileName} {

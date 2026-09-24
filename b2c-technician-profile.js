@@ -13,6 +13,8 @@ export const TECHNICIAN_IDENTITY_VERSION = "b2c-bank-identity-v1";
 export const B2C_PROVIDER_PROFILE_VERSION = contract.B2C_PROVIDER_PROFILE_VERSION;
 export const B2C_PROVIDER_MAX_MEMBERS = contract.B2C_PROVIDER_MAX_MEMBERS;
 export const B2C_PROVIDER_MODES = contract.B2C_PROVIDER_MODES;
+export const B2C_CREW_MEMBER_ROLES = contract.B2C_CREW_MEMBER_ROLES;
+export const B2C_CREW_MEMBER_STATES = contract.B2C_CREW_MEMBER_STATES;
 export const MEXICAN_CLABE_VERSION = contract.MEXICAN_CLABE_VERSION;
 export const MEXICAN_PAYOUT_DESTINATION_VERSION = contract.MEXICAN_PAYOUT_DESTINATION_VERSION;
 export const inspectMexicanClabe = contract.inspectMexicanClabe;
@@ -27,6 +29,7 @@ function text(value, fallback = "") {
 }
 
 export const normalizeB2cProviderProfile = contract.normalizeB2cProviderProfile;
+export const normalizeB2cCrewMember = contract.normalizeB2cCrewMember;
 export const normalizeTechnicianProfile = contract.normalizeTechnicianProfile;
 export const getTechnicianKycRequirements = contract.technicianKycRequirements;
 export const normalizeTechnicianSkill = contract.normalizeSkillKey;
@@ -135,6 +138,18 @@ export function buildTechnicianReviewPatch(raw = {}) {
 
 export function assertTechnicianCanOperate(raw = {}, options = {}) {
     return contract.technicianEligibility(raw, options);
+}
+
+export function storagePathForCrewMemberEvidence(uid, memberId, kind, captureId, fileName = "evidence.jpg") {
+    const safeUid = text(uid).replace(/[^a-zA-Z0-9_-]/g, "_");
+    const safeMemberId = text(memberId).replace(/[^a-zA-Z0-9_-]/g, "_");
+    const safeKind = text(kind).replace(/[^a-zA-Z0-9_-]/g, "_");
+    const safeCapture = text(captureId).replace(/[^a-zA-Z0-9_-]/g, "_");
+    const extension = text(fileName).toLowerCase().match(/\.(?:jpe?g|png|webp)$/)?.[0] || ".jpg";
+    if (!safeUid || !safeMemberId || !safeCapture || !["profile_photo", "ine_front", "ine_back"].includes(safeKind)) {
+        throw new Error("CREW_EVIDENCE_PATH_INVALID");
+    }
+    return `expedientes/${safeUid}/crew/${safeMemberId}/${safeKind}/capture-${safeCapture}${extension}`;
 }
 
 export function storagePathForTechnicianDocument(uid, kind, fileName = "document") {

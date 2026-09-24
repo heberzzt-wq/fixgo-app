@@ -40,6 +40,7 @@ on:
       - 'app-utils.js'
       - 'b2c-*.js'
       - 'panel-cliente.js'
+      - 'panel-admin.js'
       - 'app-registro.js'
       - 'app-login.js'
       - 'login.html'
