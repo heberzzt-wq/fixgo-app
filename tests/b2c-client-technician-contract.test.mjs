@@ -457,6 +457,19 @@ test("customer biometric callable forwards immutable recapture payload", () => {
     assert.match(firebaseSource, /verifyB2cIdentity"\)\(safePayload\)/);
 });
 
+test("duplicate technician identity is rendered as a hard KYC block instead of an incomplete-registration retry", () => {
+    const technician = fs.readFileSync(new URL("../panel-tecnico.js", import.meta.url), "utf8");
+    const admin = fs.readFileSync(new URL("../panel-admin.js", import.meta.url), "utf8");
+    assert.match(technician, /identityDuplicateBlocked/);
+    assert.match(technician, /IDENTIDAD BLOQUEADA/);
+    assert.match(technician, /BLOQUEO KYC · SIN ACCESO OPERATIVO/);
+    assert.match(technician, /identity_duplicate_suspected !== true/);
+    assert.match(admin, /IDENTIDAD DUPLICADA/);
+    assert.match(admin, /BLOQUEO KYC/);
+    assert.match(admin, /Conflicto de identidad/);
+    assert.match(admin, /!identityDuplicateBlocked && \[TECHNICIAN_KYC_STATES\.PENDING_REVIEW/);
+});
+
 test("release gate keeps mobile identity capture bank-style without document zoom crop", () => {
     const html = fs.readFileSync(new URL("../registro.html", import.meta.url), "utf8");
     const registration = fs.readFileSync(new URL("../app-registro.js", import.meta.url), "utf8");

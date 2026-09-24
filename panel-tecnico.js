@@ -344,6 +344,37 @@ export async function iniciarPanelTecnico(user) {
             return; 
         }
 
+        const identityDuplicateBlocked =
+            data.kyc?.identity_duplicate_suspected === true ||
+            data.kyc?.identity_machine_status === "duplicate_suspected";
+        if (identityDuplicateBlocked) {
+            if (elementos.statusLabel) {
+                elementos.statusLabel.innerText = "IDENTIDAD BLOQUEADA";
+                elementos.statusLabel.className = "bg-red-900/50 text-red-400 status-badge font-black border border-red-500/50";
+            }
+            if (elementos.toggleONOFF) {
+                elementos.toggleONOFF.disabled = true;
+                elementos.toggleONOFF.checked = false;
+            }
+            detenerTracking();
+            if (elementos.radarSection) elementos.radarSection.classList.add("hidden");
+            if (elementos.seccionBolsa) {
+                elementos.seccionBolsa.classList.remove("hidden");
+                elementos.seccionBolsa.innerHTML = `
+                    <div class="p-6 bg-red-950/30 border border-red-500/50 rounded-2xl text-center shadow-xl shadow-red-950/20">
+                        <i class="fas fa-shield-alt text-red-400 text-4xl mb-4"></i>
+                        <p class="text-red-300 text-lg font-black uppercase tracking-widest">Verificación de identidad bloqueada</p>
+                        <p class="text-zinc-300 text-xs mt-3 leading-relaxed">La biometría coincide con una identidad previamente registrada. Esta cuenta no puede activarse, recibir servicios ni solicitar retiros mientras exista el conflicto.</p>
+                        <p class="text-zinc-500 text-[10px] mt-3 leading-relaxed">La evidencia quedó conservada para auditoría. No vuelvas a cargar documentos ni abras otra cuenta para intentar evadir la validación; administración debe resolver la titularidad o el modelo de acceso correspondiente.</p>
+                        <div class="mt-4 inline-flex items-center gap-2 rounded-lg border border-red-900 bg-black/40 px-3 py-2 text-[10px] font-black text-red-300">
+                            <i class="fas fa-lock"></i> BLOQUEO KYC · SIN ACCESO OPERATIVO
+                        </div>
+                    </div>
+                `;
+            }
+            return;
+        }
+
         const ineUrl = perfilCanonico.estado === TECHNICIAN_KYC_STATES.REJECTED && perfilCanonico.kyc.faltantes?.includes('ine') ? null : perfilCanonico.documentos.ine;
         const csfUrl = perfilCanonico.estado === TECHNICIAN_KYC_STATES.REJECTED && perfilCanonico.kyc.faltantes?.includes('csf') ? null : perfilCanonico.documentos.csf;
         const correcciones = perfilCanonico.estado === TECHNICIAN_KYC_STATES.REJECTED ? new Set(perfilCanonico.kyc.faltantes || []) : new Set();
@@ -2020,7 +2051,12 @@ if (!isTechnicianSkillCompatible(tecnico, s)) return;
 
     window.cambiarFotoPerfil = async (uid) => {
         if (uid !== user.uid) return alert('Sólo puedes actualizar tu propio expediente.');
-        const editable = profile => ['registro_iniciado', 'documentos_pendientes', 'rechazado'].includes(profile?.estado) && profile.status === profile.estado && profile.kyc?.aprobado !== true && profile.suspendido !== true;
+        const editable = profile => ['registro_iniciado', 'documentos_pendientes', 'rechazado'].includes(profile?.estado) &&
+            profile.status === profile.estado &&
+            profile.kyc?.aprobado !== true &&
+            profile.suspendido !== true &&
+            profile.kyc?.identity_duplicate_suspected !== true &&
+            profile.kyc?.identity_machine_status !== 'duplicate_suspected';
         const userRef = doc(db, 'users', uid);
         let profile;
         try { profile = (await getDoc(userRef)).data(); } catch { return alert('No se pudo verificar tu expediente. Revisa tu conexión y reintenta.'); }

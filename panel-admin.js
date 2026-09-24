@@ -330,6 +330,9 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
     }
     
     const perfilCanonico = normalizeTechnicianProfile(data);
+    const identityDuplicateBlocked =
+        data.kyc?.identity_duplicate_suspected === true ||
+        data.kyc?.identity_machine_status === "duplicate_suspected";
     const esPendiente = [TECHNICIAN_KYC_STATES.PENDING_REVIEW, TECHNICIAN_KYC_STATES.DOCUMENTS_UPLOADED].includes(perfilCanonico.estado);
     
     const ineUrl = documentReferenceUrl(perfilCanonico.documentos.ine);
@@ -353,7 +356,7 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
     : '<span class="text-gray-500 text-[10px]">● OFFLINE</span>';
    
     const card = document.createElement("div");
-    card.className = `p-4 mb-3 rounded-xl border ${esPendiente ? 'bg-yellow-900/10 border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.1)]' : 'bg-zinc-900 border-zinc-800'}`;
+    card.className = `p-4 mb-3 rounded-xl border ${identityDuplicateBlocked ? 'bg-red-950/20 border-red-500/60 shadow-[0_0_12px_rgba(239,68,68,0.12)]' : (esPendiente ? 'bg-yellow-900/10 border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.1)]' : 'bg-zinc-900 border-zinc-800')}`;
    
     card.innerHTML = `
     <div class="flex justify-between items-center">
@@ -362,7 +365,9 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
     <div>
     <h4 class="font-bold text-white text-sm">
     ${escaparHTML(data.nombre)}
-    ${esPendiente ? '<span class="text-[9px] bg-yellow-500 text-black px-1 rounded ml-2 font-black">NUEVO</span>' : ''}
+    ${identityDuplicateBlocked
+        ? '<span class="text-[9px] bg-red-500 text-white px-1 rounded ml-2 font-black">IDENTIDAD DUPLICADA</span>'
+        : (esPendiente ? '<span class="text-[9px] bg-yellow-500 text-black px-1 rounded ml-2 font-black">NUEVO</span>' : '')}
     </h4>
     <div class="flex items-center gap-2 text-[10px] mt-0.5">
     <span class="${colorNivel} font-black">${nivel}</span>
@@ -388,7 +393,11 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
     <i class="fas fa-folder-open"></i> EXPEDIENTE
     </button>
    
-     ${esPendiente ? `
+     ${identityDuplicateBlocked ? `
+    <div class="rounded border border-red-500/50 bg-red-950/30 px-3 py-2 text-center text-[9px] font-black text-red-300">
+    <i class="fas fa-lock"></i> BLOQUEO KYC
+    </div>
+    ` : (esPendiente ? `
     <button class="btn-aprobar bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-3 py-2 rounded shadow-lg transition-transform hover:scale-105" onclick="window.aprobarTecnico('${uid}')">
     APROBAR ACCESO
     </button>
@@ -399,7 +408,7 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
     <button class="bg-red-900/30 hover:bg-red-900/50 text-red-500 text-[9px] font-bold px-2 py-1 rounded border border-red-900/50" onclick="window.aplicarPenalizacionManual('${uid}')">
     <i class="fas fa-gavel"></i> PENALIZAR
     </button>
-    `}
+    `)}
     </div>
     </div>
     `;
@@ -1140,6 +1149,9 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  let profile;
  try { profile = (await getDoc(doc(db, 'users', uid))).data(); } catch { return alert('No se pudo verificar el expediente. Reintenta con conexión.'); }
  if (!profile) return alert('Expediente no encontrado.');
+ if (profile.kyc?.identity_duplicate_suspected === true || profile.kyc?.identity_machine_status === 'duplicate_suspected') {
+   return alert('La identidad está bloqueada por posible duplicidad. La evidencia queda protegida para auditoría y no puede sustituirse desde el avatar.');
+ }
  if (profile.kyc?.aprobado === true || profile.estado === 'activo') {
    return alert('La foto de identidad aprobada está protegida. Requiere una recertificación administrativa; no se sustituye desde el avatar.');
  }
@@ -1168,6 +1180,9 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
 
  const perfilCanonico = normalizeTechnicianProfile(t);
  const kyc = getTechnicianKycRequirements(t);
+ const identityDuplicateBlocked =
+  t.kyc?.identity_duplicate_suspected === true ||
+  t.kyc?.identity_machine_status === 'duplicate_suspected';
  const tipoVehiculo = perfilCanonico.vehiculo.tipo || 'NO REGISTRADO';
  const placas = kyc.pedestrian ? 'NO APLICA (PEATÓN)' : (perfilCanonico.vehiculo.placas || 'N/A');
  const certificados = perfilCanonico.documentos.certificados;
@@ -1183,7 +1198,7 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
   certsHTML = '<span class="text-gray-500 text-xs"><i class="fas fa-info-circle"></i> Sin certificados opcionales</span>';
  }
 
- const btnAprobarModal = ([TECHNICIAN_KYC_STATES.PENDING_REVIEW, TECHNICIAN_KYC_STATES.DOCUMENTS_UPLOADED].includes(perfilCanonico.estado) && kyc.complete) ? `
+ const btnAprobarModal = (!identityDuplicateBlocked && [TECHNICIAN_KYC_STATES.PENDING_REVIEW, TECHNICIAN_KYC_STATES.DOCUMENTS_UPLOADED].includes(perfilCanonico.estado) && kyc.complete) ? `
  <button onclick="window.aprobarTecnico('${uid}'); document.getElementById('modalExpediente').remove();" class="w-full mt-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-xl text-sm transition-colors shadow-lg">
  <i class="fas fa-user-check"></i> APROBAR TÉCNICO AHORA
  </button>
@@ -1209,6 +1224,11 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  </div>
 
  <div class="space-y-4">
+ ${identityDuplicateBlocked ? `
+ <div class="bg-red-950/30 p-4 rounded-xl border border-red-500/60">
+ <p class="text-[10px] text-red-300 font-black uppercase tracking-widest mb-2"><i class="fas fa-shield-alt"></i> Conflicto de identidad</p>
+ <p class="text-xs text-zinc-300 leading-relaxed">La biometría coincide con una identidad ya registrada. Este expediente permanece no operativo y no puede aprobarse mientras el conflicto siga vigente.</p>
+ </div>` : ''}
  <div class="bg-black p-3 rounded-xl border border-zinc-800">
  <p class="text-[10px] text-gray-500 font-bold uppercase mb-1"><i class="fas fa-university"></i> Datos Bancarios</p>
  <p class="text-sm text-white font-mono">Banco: <span class="text-emerald-400">${escaparHTML(banco)}</span></p>
