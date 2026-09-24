@@ -879,7 +879,41 @@ export function createSelfHostedSemanticEngine({
             if (!text.trim() && functionCalls.length === 0) {
                 throw new Error("LOCAL_SEMANTIC_RESPONSE_EMPTY");
             }
-            return { text, functionCalls };
+            return {
+                text,
+                functionCalls,
+                providerResponse: {
+                    finishReason:
+                        String(
+                            data?.choices?.[0]?.finish_reason ||
+                            ""
+                        ).slice(0, 80),
+                    messageKeys:
+                        Object.keys(
+                            message &&
+                            typeof message === "object"
+                                ? message
+                                : {}
+                        ).slice(0, 20),
+                    toolCallCount:
+                        Array.isArray(message?.tool_calls)
+                            ? message.tool_calls.length
+                            : 0,
+                    toolCallNames:
+                        Array.isArray(message?.tool_calls)
+                            ? message.tool_calls
+                                .slice(0, 12)
+                                .map(call =>
+                                    String(
+                                        call?.function?.name ||
+                                        ""
+                                    ).slice(0, 120)
+                                )
+                            : [],
+                    contentPreview:
+                        text.trim().slice(0, 1200)
+                }
+            };
         } catch (error) {
             counters.failedLocalSemanticInferenceCalls += 1;
             if (controller.signal.aborted) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
