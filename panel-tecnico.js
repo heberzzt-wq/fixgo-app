@@ -53,6 +53,48 @@ import {
 import { getConfirmedServiceDestination } from "./b2c-destination.js";
 import { technicianCommissionReference, COMMISSION_REFERENCE_NOTICE } from "./b2c-commission-display.js";
 
+function bindIncompletePayoutInputs() {
+    const payoutInputs = ["compPayoutDestination", "compPayoutConfirm", "compPayoutType", "compPayoutBank"]
+        .map(id => document.getElementById(id))
+        .filter(Boolean);
+    const payoutStatus = document.getElementById("compClabeBankStatus");
+    if (!payoutInputs.length || !payoutStatus) return;
+
+    const refreshPayout = () => {
+        const value = String(document.getElementById("compPayoutDestination")?.value || "")
+            .replace(/\D/g, "")
+            .slice(0, 20);
+        const confirmation = String(document.getElementById("compPayoutConfirm")?.value || "")
+            .replace(/\D/g, "")
+            .slice(0, 20);
+        const typeHint = document.getElementById("compPayoutType")?.value || "auto";
+        const bankName = String(document.getElementById("compPayoutBank")?.value || "").trim().toUpperCase();
+        const info = inspectMexicanPayoutDestination(value, { typeHint, bankName });
+
+        if (!value) {
+            payoutStatus.className = "mt-2 text-[10px] text-zinc-500";
+            payoutStatus.textContent = "Escribe el destino dos veces.";
+        } else if (value !== confirmation) {
+            payoutStatus.className = "mt-2 text-[10px] text-red-400";
+            payoutStatus.textContent = "Los números no coinciden.";
+        } else if (info.valid) {
+            payoutStatus.className = "mt-2 text-[10px] text-emerald-400 font-black";
+            payoutStatus.textContent = `✓ ${(info.institutionName || bankName || "Institución").toUpperCase()} · ${info.type.toUpperCase()}`;
+        } else {
+            payoutStatus.className = "mt-2 text-[10px] text-amber-400";
+            payoutStatus.textContent = info.bankRequired && !bankName
+                ? "Indica tu banco para revisión."
+                : "Revisa el número y tipo seleccionado.";
+        }
+    };
+
+    payoutInputs.forEach(input => {
+        input.addEventListener("input", refreshPayout);
+        input.addEventListener("change", refreshPayout);
+    });
+    refreshPayout();
+}
+
 let notificationRuntimeState = {
     permission: "verificando",
     workerRelease: null,
@@ -313,36 +355,6 @@ export async function iniciarPanelTecnico(user) {
                     </div>
                 </div>
                 `;
-                const payoutInputs = ["compPayoutDestination", "compPayoutConfirm", "compPayoutType", "compPayoutBank"]
-                    .map(id => document.getElementById(id)).filter(Boolean);
-                const payoutStatus = document.getElementById("compClabeBankStatus");
-                const refreshPayout = () => {
-                    const value = String(document.getElementById("compPayoutDestination")?.value || "").replace(/\D/g, "").slice(0, 20);
-                    const confirmation = String(document.getElementById("compPayoutConfirm")?.value || "").replace(/\D/g, "").slice(0, 20);
-                    const typeHint = document.getElementById("compPayoutType")?.value || "auto";
-                    const bankName = String(document.getElementById("compPayoutBank")?.value || "").trim().toUpperCase();
-                    const info = inspectMexicanPayoutDestination(value, { typeHint, bankName });
-                    if (!payoutStatus) return;
-                    if (!value) {
-                        payoutStatus.className = "mt-2 text-[10px] text-zinc-500";
-                        payoutStatus.textContent = "Escribe el destino dos veces.";
-                    } else if (value !== confirmation) {
-                        payoutStatus.className = "mt-2 text-[10px] text-red-400";
-                        payoutStatus.textContent = "Los números no coinciden.";
-                    } else if (info.valid) {
-                        payoutStatus.className = "mt-2 text-[10px] text-emerald-400 font-black";
-                        payoutStatus.textContent = `✓ ${(info.institutionName || bankName || "Institución").toUpperCase()} · ${info.type.toUpperCase()}`;
-                    } else {
-                        payoutStatus.className = "mt-2 text-[10px] text-amber-400";
-                        payoutStatus.textContent = info.bankRequired && !bankName ? "Indica tu banco para revisión." : "Revisa el número y tipo seleccionado.";
-                    }
-                };
-                payoutInputs.forEach(input => {
-                    input.addEventListener("input", refreshPayout);
-                    input.addEventListener("change", refreshPayout);
-                });
-                refreshPayout();
-                }
             }
             return; 
         }
@@ -496,6 +508,7 @@ export async function iniciarPanelTecnico(user) {
                     </div>
                 `;
             }
+            bindIncompletePayoutInputs();
             return; 
         }
 

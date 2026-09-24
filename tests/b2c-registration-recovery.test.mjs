@@ -35,6 +35,7 @@ test('actual technician panel exposes resubmit after final-write failure and rep
             perfilCanonico: kycResult.profile,
             kycResult,
             inspectMexicanClabe: contract.inspectMexicanClabe,
+            inspectMexicanPayoutDestination: contract.inspectMexicanPayoutDestination,
             TECHNICIAN_KYC_STATES: contract.TECHNICIAN_STATES
         });
     }

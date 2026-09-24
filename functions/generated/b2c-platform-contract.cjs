@@ -518,13 +518,24 @@
             profile.datos_bancarios.destino || profile.datos_bancarios.clabe,
             { typeHint: profile.datos_bancarios.destino_tipo || "auto", bankName: profile.datos_bancarios.banco }
         );
-        const smartBanking =
-            profile.datos_bancarios.payout_version === MEXICAN_PAYOUT_DESTINATION_VERSION ||
+        const modernPayout =
+            profile.datos_bancarios.payout_version === MEXICAN_PAYOUT_DESTINATION_VERSION;
+        const legacySmartBanking =
             profile.datos_bancarios.banking_version === MEXICAN_CLABE_VERSION;
+        const smartBanking = modernPayout || legacySmartBanking;
+        const legacySmartMatches =
+            clabeInspection.valid &&
+            profile.datos_bancarios.banco === clabeInspection.institutionName &&
+            profile.datos_bancarios.institucion_clave === clabeInspection.institutionCode &&
+            profile.datos_bancarios.institucion_key === clabeInspection.institutionKey;
         const smartBankMatches = !smartBanking || (
-            payoutInspection.valid &&
-            profile.datos_bancarios.destino_confirmado === true &&
-            Boolean(profile.datos_bancarios.banco)
+            modernPayout
+                ? (
+                    payoutInspection.valid &&
+                    profile.datos_bancarios.destino_confirmado === true &&
+                    Boolean(profile.datos_bancarios.banco)
+                )
+                : legacySmartMatches
         );
         const required = {
             foto_perfil: isDocumentReference(profile.foto_perfil),
