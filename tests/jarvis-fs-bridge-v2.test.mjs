@@ -614,10 +614,71 @@ test("self-hosted semantic backend feeds the canonical planner without paid API 
     assert.equal(requests[0].url, "http://127.0.0.1:11434/v1/chat/completions");
     assert.equal(requests[0].options.headers.Authorization, "Bearer test-token");
     assert.equal(requests[0].body.tools[0].function.name, "jarvis_tool_0");
+    assert.equal(requests[0].body.tool_choice, "required");
     assert.equal(plan.inferenceReceipt.counters.localSemanticInferenceCalls, 1);
     assert.equal(plan.inferenceReceipt.counters.semanticExternalCalls, 0);
     assert.equal(plan.inferenceReceipt.counters.paidExternalCalls, 0);
     assert.equal(plan.inferenceReceipt.fallbackAllowed, false);
+});
+
+test("self-hosted semantic adapter accepts Ollama object tool arguments and preserves required selection", async () => {
+    let requestBody = null;
+    const engine = createSelfHostedSemanticEngine({
+        env: {
+            JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
+            JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
+            JARVIS_LOCAL_LLM_MODEL: "qwen-local"
+        },
+        fetchImpl: async (_url, options) => {
+            requestBody = JSON.parse(options.body);
+            return {
+                ok: true,
+                status: 200,
+                text: async () => JSON.stringify({
+                    choices: [{
+                        message: {
+                            content: "",
+                            tool_calls: [{
+                                function: {
+                                    name: "jarvis_tool_0",
+                                    arguments: {
+                                        query: "inteligencia local jarvis"
+                                    }
+                                }
+                            }]
+                        }
+                    }]
+                })
+            };
+        }
+    });
+
+    const plan = await engine.plan({
+        input: "Revisa la inteligencia local de Jarvis",
+        catalog: [{
+            name: "repo.search",
+            description: "Busca evidencia dentro del repositorio",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    query: {
+                        type: "string"
+                    }
+                },
+                required: ["query"],
+                additionalProperties: false
+            },
+            mutates: false
+        }]
+    });
+
+    assert.equal(requestBody.tool_choice, "required");
+    assert.equal(plan.ok, true);
+    assert.equal(plan.toolCalls[0].name, "repo.search");
+    assert.equal(
+        plan.toolCalls[0].args.query,
+        "inteligencia local jarvis"
+    );
 });
 
 test("self-hosted semantic response uses one local inference and reports zero external spend", async () => {
