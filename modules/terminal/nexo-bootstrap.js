@@ -177,9 +177,9 @@ export async function instalarBootstrapTerminalJarvis() {
     );
 
     const toolsInstallation =
-        realMediaTools.installNexoRealMediaTools();
+        realMediaTools.installJarvisRealMediaTools();
     const guardInstallation =
-        runtimeMediaGuard.installNexoRealMediaRuntimeGuard();
+        runtimeMediaGuard.installJarvisRealMediaRuntimeGuard();
 
     const installation = {
         ok: true,
@@ -193,9 +193,9 @@ export async function instalarBootstrapTerminalJarvis() {
         localBridgeTargetAddressSpace:
             "loopback",
         realMediaToolsVersion:
-            realMediaTools.NEXO_REAL_MEDIA_TOOLS_VERSION || null,
+            realMediaTools.JARVIS_REAL_MEDIA_TOOLS_VERSION || null,
         runtimeMediaGuardVersion:
-            runtimeMediaGuard.NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION || null,
+            runtimeMediaGuard.JARVIS_REAL_MEDIA_RUNTIME_GUARD_VERSION || null,
         realMediaToolsInstalling: true,
         runtimeMediaGuardInstalling: true,
         identity: "JARVIS",
