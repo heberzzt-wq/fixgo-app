@@ -686,22 +686,13 @@ async function runModelSemanticPlanner({
                 `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
                 `HERRAMIENTAS_INICIALES=${initialToolNames.join(",")}`,
                 [
-                    "CONTRATO_DE_MISION: enumera en toolCalls todas las herramientas read-only y userArtifact necesarias para satisfacer cada entregable independiente de la instruccion, no solo la primera etapa.",
-                    "Las HERRAMIENTAS_INICIALES son un borrador semantico ya seleccionado para esta misma instruccion. Debes conservar sus entregables y agregar solo herramientas que cubran un objetivo independiente pedido de forma explicita y no cubierto por ellas.",
-                    "No agregues diagnostico, supervision, forense, repositorio, navegador, conectores, investigacion ni otros artefactos solamente porque aparezcan en el catalogo. Cada herramienta adicional debe corresponder a palabras y significado verificables de la instruccion original.",
-                    "agent.delegate solamente puede formar parte del contrato cuando la instruccion original solicita explicitamente delegar, usar agentes o ejecutar en paralelo. En ese caso delegationDirective debe ser una cita literal de esa solicitud. Para varias herramientas directas sin esa solicitud, conserva cada herramienta directa y no las envuelvas en agent.delegate.",
-                    "Una revision de un plan entregado con repo.architectReview es autocontenida y satisface los 11 controles, el grafo y el ranking. No agregues herramientas repo adyacentes a menos que la instruccion original solicite por separado inspeccionar fuentes adicionales.",
-                    "Conserva por separado cada sujeto, archivo, entidad o entregable. Puedes repetir el mismo nombre de herramienta cuando sus argumentos sean distintos y correspondan a objetivos independientes.",
-                    "Incluye herramientas especializadas de investigacion, negocio, marketing, pagina, imagen, reel, documentos, hojas de calculo o diagnostico cuando el usuario haya pedido esos resultados.",
-                    "Cuando se pida crear una landing local incluye page.plan, page.compose y page.create. Cuando se pida crear un documento incluye document.compose y document.create. Cuando se pida una hoja de calculo estructurada incluye spreadsheet.compose y document.create. Conserva primero la composicion o plan y despues la creacion.",
-                    "Para cada artefacto solicita exactamente una composicion y una creacion; no dupliques variantes del mismo entregable salvo que el usuario pida varias.",
-                    "Distingue descubrimiento de inspeccion: repo.search o repo.scan no completan por si solas un entregable que pide revisar archivos, explicar hallazgos o evaluar riesgos; el contrato debe conservar las herramientas de lectura, diagnostico e impacto disponibles.",
-                    "Conserva el orden de dependencias. No incluyas herramientas mutantes si la orden prohibe escribir, publicar, generar archivos o producir medios.",
-                    "Si las fuentes estan limitadas a un dominio, copia ese dominio exacto en allowedDomain de cada web.research.",
-                    "En cada web.research, query incluye solamente el objetivo de investigacion y sus terminos tecnicos distintivos; no copies toda la mision ni otros entregables.",
-                    "En cada web.research usa researchGoal=RESEARCH_1, RESEARCH_2, etc. segun el orden inmutable de objetivos de investigacion de la instruccion original; no cambies esa identidad entre borrador y auditorias.",
-                    "Si se investiga una entidad nombrada sin dominio, copia el nombre exacto en exactEntity de web.research.",
-                    "Devuelve JSON con toolCalls, explanation, missionComplete=false y completionAssessment que liste los entregables cubiertos por cada herramienta."
+                    "CONTRATO_DE_MISION: construye un plan completo para todos los objetivos explicitos de la instruccion usando exclusivamente el catalogo runtime.",
+                    "Las HERRAMIENTAS_INICIALES son evidencia de una seleccion previa del mismo LLM; usalas como contexto, no como una lista fija ni como permiso para agregar capacidades no solicitadas.",
+                    "Descompone la instruccion por significado en objetivos independientes y asigna a cada uno solamente las herramientas cuya descripcion y schema demuestren que satisfacen ese objetivo.",
+                    "Conserva el orden de dependencias que resulte de los schemas y de los argumentos requeridos. No inventes rutas, archivos, identificadores, fuentes, artefactos ni observaciones.",
+                    "Si la instruccion prohibe mutaciones, no incluyas herramientas mutantes. Las herramientas userArtifact solo son validas cuando el usuario pidio ese entregable.",
+                    "Puedes repetir una herramienta cuando objetivos diferentes requieran argumentos diferentes. No dupliques la misma obligacion con los mismos argumentos.",
+                    "Devuelve JSON valido con toolCalls, explanation, missionComplete=false y completionAssessment que relacione cada objetivo con la herramienta que lo satisface."
                 ].join("\n")
             ].join("\n\n"),
             config: {
@@ -761,12 +752,9 @@ async function runModelSemanticPlanner({
                     })}`,
                     [
                         "AUDITORIA_SEMANTICA_DE_COBERTURA_DEL_CONTRATO_DE_MISION:",
-                        "Descompone primero la instruccion por significado en todos sus sujetos, archivos, entidades, preguntas y entregables independientes.",
-                        "Compara despues cada objetivo independiente con BORRADOR_DE_CONTRATO.",
-                        "Devuelve solamente las toolCalls read-only o userArtifact que falten para cubrir objetivos omitidos. No sustituyas, resumas ni elimines las llamadas del borrador.",
-                        "No agregues capacidades adyacentes ni herramientas que no correspondan a un entregable explicito de la instruccion original.",
-                        "Puedes repetir una herramienta si el objetivo omitido necesita argumentos distintos.",
-                        "Si el borrador ya cubre todo, devuelve toolCalls=[]; missionComplete debe permanecer false.",
+                        "Compara cada objetivo explicito de la instruccion con BORRADOR_DE_CONTRATO usando exclusivamente el catalogo y los schemas.",
+                        "Devuelve solo toolCalls que falten para objetivos realmente omitidos; no sustituyas ni elimines llamadas correctas del borrador y no agregues capacidades adyacentes.",
+                        "Si el borrador ya cubre todos los objetivos, devuelve toolCalls=[] y conserva missionComplete=false.",
                         "Devuelve JSON valido con toolCalls, explanation, missionComplete=false y completionAssessment."
                     ].join("\n")
                 ].join("\n\n"),
@@ -818,13 +806,11 @@ async function runModelSemanticPlanner({
                     `HERRAMIENTAS_INICIALES=${initialToolNames.join(",")}`,
                     [
                         "MUESTRA_SEMANTICA_INDEPENDIENTE_DE_COBERTURA:",
-                        "Construye desde cero un contrato completo con herramientas read-only y userArtifact sin usar ni asumir ningun borrador anterior.",
-                        "Enumera por separado todos los sujetos, archivos, entidades, preguntas y entregables de la instruccion.",
-                        "Asigna a cada objetivo sus herramientas reales del catalogo, conserva dependencias y permite repetir herramientas con argumentos distintos.",
-                        "Usa HERRAMIENTAS_INICIALES como control contra sobreseleccion: cualquier herramienta adicional debe cubrir un objetivo independiente expresamente pedido, nunca una capacidad adyacente.",
-                        "Para un modulo o concepto sin ruta verificada empieza con repo.search; no inventes una ruta para repo.read, repo.diagnose o repo.impact.",
-                        "Incluye cada herramienta especializada solicitada de investigacion, marketing, landing, imagen, reel, documentos, medios, navegador, supervision o analisis forense.",
-                        "No incluyas mutaciones salvo herramientas userArtifact para entregables locales pedidos expresamente. Devuelve JSON valido con toolCalls, explanation, missionComplete=false y completionAssessment."
+                        "Construye desde cero una segunda propuesta para todos los objetivos explicitos usando solo el catalogo y sus schemas.",
+                        "No uses conocimiento de nombres de herramientas fuera del catalogo ni reglas de dominio preprogramadas.",
+                        "No inventes rutas, recursos, evidencia ni argumentos. Si un argumento requerido no puede fundamentarse aun, conserva la obligacion como diferida cuando el contrato lo permita.",
+                        "No incluyas mutaciones prohibidas por la instruccion.",
+                        "Devuelve JSON valido con toolCalls, explanation, missionComplete=false y completionAssessment."
                     ].join("\n")
                 ].join("\n\n"),
                 config: {
