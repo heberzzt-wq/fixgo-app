@@ -1,29 +1,11 @@
 {
-  "jobId": "jarvis-local-ai-physical-semantic-plan-20260924-012",
+  "jobId": "jarvis-local-ai-refresh-runtime-20260924-013",
   "operation": "bridge",
-  "endpoint": "/semantic/plan",
+  "endpoint": "/run",
   "body": {
-    "input": "Busca dónde se configura la IA local de Jarvis.",
-    "catalog": [
-      {
-        "name": "repo.search",
-        "description": "Busca evidencia en el repositorio real.",
-        "inputSchema": {
-          "type": "object",
-          "required": [
-            "query"
-          ],
-          "properties": {
-            "query": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false
-        },
-        "mutates": false,
-        "requiresApproval": false
-      }
-    ],
-    "timeoutMs": 30000
+    "command": "npm run bridge:ensure",
+    "cwd": ".",
+    "timeoutMs": 3600000,
+    "source": "jarvis_local_ai_refresh_runtime_after_local_only_fix"
   }
 }
