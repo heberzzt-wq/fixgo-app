@@ -1146,7 +1146,7 @@ function readFirebaseWorkstationConfig(repoRoot) {
     }
 }
 
-async function inspectJarvisWorkstation({
+export async function inspectJarvisWorkstation({
     root = ""
 } = {}) {
     const repoRoot = resolveBridgeRoot(root);
