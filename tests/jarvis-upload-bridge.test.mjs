@@ -88,6 +88,9 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     assert.match(pkg.scripts.bridge, /workerLastPollOkAt/);
     assert.match(pkg.scripts.bridge, /workerLastPollError/);
     assert.match(pkg.scripts.bridge, /JARVIS_GIT_SYNC_DEGRADED/);
+    assert.match(pkg.scripts.bridge, /JARVIS_GIT_SYNC_REBASE_STATE_ACTIVE/);
+    assert.match(pkg.scripts.bridge, /rebase-merge/);
+    assert.match(pkg.scripts.bridge, /rebase-apply/);
     assert.match(pkg.scripts.bridge, /singleton already current/);
     assert.match(pkg.scripts.bridge, /2\.0\.0-singleton-exact-sync/);
     assert.match(pkg.scripts.bridge, /JARVIS_BRIDGE_PORT_3344_OCCUPIED_UNHEALTHY/);
