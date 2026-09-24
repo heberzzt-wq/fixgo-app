@@ -41,13 +41,11 @@ need(client, 'LOCAL_SEMANTIC_BRIDGE_REQUIRED', "planner-fail-closed-without-brid
 forbid(client, "cloudfunctions.net/jarvisSemanticPlan", "cloud-semantic-endpoint");
 forbid(client, "getIdToken()", "cloud-semantic-auth-token");
 
-need(fsBridge, '"LOCAL_ONLY"', "local-only-provider-mode");
+need(fsBridge, 'const SEMANTIC_PROVIDER_MODES = new Set([\n    "LOCAL_ONLY"\n]);', "local-only-provider-mode");
 need(fsBridge, 'env.JARVIS_LOCAL_LLM_MODEL || "qwen2.5-coder:7b"', "default-qwen-coder");
 need(fsBridge, 'env.JARVIS_LOCAL_LLM_BASE_URL || "http://127.0.0.1:11434/v1"', "default-ollama-loopback");
 need(fsBridge, 'provider: "ollama-openai-compatible-local"', "local-provider-identity");
 need(fsBridge, "fallbackAllowed: false", "zero-cloud-fallback");
-forbid(fsBridge, '"LOCAL_PREFERRED"', "local-preferred-mode");
-forbid(fsBridge, '"CURRENT_STABLE"', "current-stable-cloud-mode");
 
 need(functionsIndex, 'status: "LEGACY_AI_INTENT_RETIRED"', "legacy-ai-intent-retired");
 need(functionsIndex, '"LOCAL_JARVIS_ONLY"', "cloud-semantic-callables-retired");
