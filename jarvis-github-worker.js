@@ -395,7 +395,11 @@ async function publishRemoteResult(result = {}) {
         }
     }
 
-    const pushResult = await runGit(["push", REMOTE, BRANCH]);
+    const pushResult = await runGit([
+        "push",
+        REMOTE,
+        `HEAD:${BRANCH}`
+    ]);
     if (!pushResult.ok) {
         throw new Error(
             `RESULT_GIT_PUSH_FAILED: ${pushResult.stderr || pushResult.error || "unknown"}`
