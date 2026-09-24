@@ -1084,6 +1084,7 @@ function workstationStreamingCommand(command, args = [], {
         let stderr = "";
         let settled = false;
         let child = null;
+        let timer = null;
         const finish = result => {
             if (settled) return;
             settled = true;
@@ -1137,7 +1138,7 @@ function workstationStreamingCommand(command, args = [], {
                 error: null
             });
         });
-        const timer = setTimeout(() => {
+        timer = setTimeout(() => {
             try {
                 child?.kill?.();
             }
