@@ -890,13 +890,11 @@ async function runModelSemanticPlanner({
                 buildSemanticSystemInstruction(safeCatalog, missionState),
                 `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
                 [
-                    "AUDITORIA_DE_CIERRE_CONTROLADA: no estas obligado a llamar una herramienta.",
-                    "Compara uno por uno los entregables de la instruccion con completedTasks y su evidencia.",
-                    "Si todo esta satisfecho, devuelve toolCalls=[] y missionComplete=true.",
-                    "Si falta evidencia, devuelve missionComplete=false y exactamente una herramienta pertinente, inmediatamente ejecutable y con todos sus argumentos requeridos.",
-                    "No elijas herramientas para explorar capacidades no solicitadas, no repitas herramientas resueltas y no uses archivos o adjuntos inexistentes.",
-                    "Cuando repo.search haya entregado sourceDefinitions o definitionFiles, usa esas rutas verificadas para la lectura, diagnostico o impacto pendiente; una mencion del mismo simbolo en otro archivo no sustituye su definicion ejecutable.",
-                    "Devuelve solamente JSON valido con toolCalls, explanation, missionComplete y completionAssessment."
+                    "AUDITORIA_DE_CIERRE_CONTROLADA: evalua cada objetivo explicito contra completedTasks, blockedTasks y sus observaciones reales.",
+                    "Si toda la evidencia requerida demuestra cumplimiento, devuelve toolCalls=[] y missionComplete=true.",
+                    "Si falta un objetivo, devuelve missionComplete=false y la siguiente herramienta del catalogo que pueda avanzar ese objetivo con argumentos fundamentados.",
+                    "No explores capacidades no solicitadas, no repitas trabajo ya satisfecho y no inventes recursos ni evidencia.",
+                    "Devuelve JSON valido con toolCalls, explanation, missionComplete y completionAssessment."
                 ].join("\n")
             ].join("\n\n"),
             config: {
@@ -1044,7 +1042,7 @@ async function runModelSemanticPlanner({
             contents: [
                 buildSemanticSystemInstruction(safeCatalog, missionState),
                 `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
-                "AUDITORIA_FINAL_OBLIGATORIA: compara cada entregable pedido con completedTasks. Devuelve JSON. Si falta algo, incluye la siguiente toolCall real; solo si todo esta satisfecho usa missionComplete=true."
+                "AUDITORIA_FINAL_OBLIGATORIA: compara cada objetivo explicito con la evidencia real de la mision. Si falta algo, incluye la siguiente toolCall del catalogo que lo avance; solo si todo esta satisfecho usa missionComplete=true."
             ].join("\n\n"),
             config: {
                 maxOutputTokens: 3000,
