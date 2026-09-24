@@ -52,6 +52,7 @@ import {
 } from "./b2c-technician-profile.js";
 import { getConfirmedServiceDestination } from "./b2c-destination.js";
 import { technicianCommissionReference, COMMISSION_REFERENCE_NOTICE } from "./b2c-commission-display.js";
+import { mountProviderCrewManager } from "./b2c-provider-crew-ui.js";
 
 function bindIncompletePayoutInputs() {
     const payoutInputs = ["compPayoutDestination", "compPayoutConfirm", "compPayoutType", "compPayoutBank"]
@@ -210,6 +211,7 @@ export async function iniciarPanelTecnico(user) {
             </div>`;
             renderNotificationRuntimeState();
         }
+        void mountProviderCrewManager({ user, profile: perfilCanonico, anchor: elementos.seccionBolsa });
         
         let colorNivel = "text-orange-500 bg-orange-600/20 border-orange-500/30";
         if(nivel === "PLATA") colorNivel = "text-gray-300 bg-gray-600/20 border-gray-500/30";
