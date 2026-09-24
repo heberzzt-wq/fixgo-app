@@ -4,8 +4,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+    buildRepoEmbeddingDocuments,
     buildRepoIntelligence,
-    rankRepoCandidates
+    cosineSimilarity,
+    rankRepoCandidates,
+    rankRepoHybridCandidates
 } from "../jarvis-repo-intelligence.js";
 
 function makeFixture() {
@@ -48,6 +51,34 @@ test("live repo graph discovers syntax, dependencies, listeners, endpoints, coll
         assert.ok(graph.nodes["auth.js"].relatedTests.includes("auth.test.js"));
         assert.equal(graph.summary.endpoints, 1);
         assert.equal(graph.summary.tests, 1);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test("local embedding evidence augments repo ranking without becoming semantic authority", () => {
+    const root = makeFixture();
+    try {
+        const graph = buildRepoIntelligence({ root });
+        const documents = buildRepoEmbeddingDocuments({ graph });
+        assert.ok(documents.some(item => item.file === "auth.js" && item.text.includes("routeAdmin")));
+        assert.equal(cosineSimilarity([1, 0, 0], [1, 0, 0]), 1);
+        assert.equal(cosineSimilarity([1, 0, 0], [0, 1, 0]), 0);
+
+        const result = rankRepoHybridCandidates({
+            graph,
+            plannedFiles: [],
+            semanticScores: {
+                "server.js": 0.98
+            },
+            limit: 5
+        });
+        assert.equal(result.ok, true);
+        assert.equal(result.source, "local_embedding_plus_live_repo_graph");
+        assert.equal(result.semanticRetrieval, true);
+        assert.equal(result.candidates[0].file, "server.js");
+        assert.equal(result.candidates[0].semanticSimilarity, 0.98);
+        assert.ok(result.candidates[0].breakdown.localEmbeddingSimilarity > 90);
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
     }
@@ -97,15 +128,15 @@ test("bridge exposes structural repo evidence while the semantic brain owns file
     const intelligence = fs.readFileSync(new URL("../jarvis-repo-intelligence.js", import.meta.url), "utf8");
     assert.match(bridge, /app\.post\("\/repo\/graph"/);
     assert.match(bridge, /app\.post\("\/repo\/candidates"/);
-    assert.match(bridge, /PLANNED_FILES_REQUIRED/);
+    assert.match(bridge, /PLANNED_FILES_OR_QUERY_REQUIRED/);
     assert.match(runtime, /name: "repo\.graph"/);
     assert.match(runtime, /name: "repo\.rankCandidates"/);
-    assert.match(runtime, /plannedFiles: "array"/);
+    assert.match(runtime, /query: "string"/);\n    assert.match(runtime, /plannedFiles: "array"/);
     assert.match(brain, /COMPATIBILITY_CANARY_ONLY/);
     assert.match(brain, /semanticAuthority:\s*"jarvisSemanticPlan"/);
     assert.doesNotMatch(brain, /LOCAL_SEMANTIC_EXPLAINABLE_CANDIDATE_RANKING/);
     assert.doesNotMatch(intelligence, /function queryTerms/);
     assert.doesNotMatch(intelligence, /lexicalSemantic/);
     assert.doesNotMatch(intelligence, /normalizedQuery/);
-    assert.match(intelligence, /structural_evidence_for_semantic_selection/);
+    assert.match(intelligence, /structural_evidence_for_semantic_selection/);\n    assert.match(intelligence, /local_embedding_and_structural_evidence/);
 });
