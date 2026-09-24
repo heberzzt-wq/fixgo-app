@@ -108,6 +108,8 @@ on:
       - 'tests/jarvis-marketing-terminal-delivery.e2e.test.mjs'
       - 'gestia-core/auth/role-authority.js'
       - 'gestia-core/jarvis/**'
+      - 'gestia-core/repo/repo.source.structure.js'
+      - 'tests/repo-source-structure.test.mjs'
       - 'gestia-terminal.js'
       - 'modules/terminal/**'
       - 'tecnico.html'
