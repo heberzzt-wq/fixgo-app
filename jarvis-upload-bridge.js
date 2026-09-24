@@ -1028,6 +1028,9 @@ const workstationRuntimeState = {
     bridgeStarted: false,
     workerStarted: false,
     workerPollMs: 5000,
+    workerLastPollAt: null,
+    workerLastPollOkAt: null,
+    workerLastPollError: null,
     lastDoctorAt: null
 };
 
