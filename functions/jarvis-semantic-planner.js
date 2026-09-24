@@ -1059,13 +1059,46 @@ async function runModelSemanticPlanner({
         plan = extractJsonObject(String(auditResponse?.text || ""));
     }
 
-    if (!plan) throw new Error("SEMANTIC_PLAN_JSON_REQUIRED");
-    return requireExecutablePlan({
+    if (!plan) {
+        const error = new Error("SEMANTIC_PLAN_JSON_REQUIRED");
+        error.evidence = {
+            providerResponse:
+                response?.providerResponse ||
+                null
+        };
+        throw error;
+    }
+
+    const validatedPlan = {
         ...validatePlan(plan, safeCatalog, instruction),
         provider: String(ai.lastProvider || "jarvis-local"),
         model,
         catalogSize: safeCatalog.length
-    });
+    };
+
+    if (
+        (!Array.isArray(validatedPlan.toolCalls) ||
+            validatedPlan.toolCalls.length === 0) &&
+        validatedPlan.missionComplete !== true
+    ) {
+        const error = new Error("SEMANTIC_PLAN_EMPTY");
+        error.evidence = {
+            providerResponse:
+                response?.providerResponse ||
+                null,
+            parsedPlan: {
+                toolCalls:
+                    Array.isArray(plan?.toolCalls)
+                        ? plan.toolCalls.slice(0, 12)
+                        : [],
+                missionComplete:
+                    plan?.missionComplete === true
+            }
+        };
+        throw error;
+    }
+
+    return validatedPlan;
 }
 
 function extractToolCallPlan(payload = {}, catalog = []) {
@@ -1119,7 +1152,9 @@ async function runJarvisSemanticPlanner({
     } catch(error) {
         const message = String(error?.message || error || "FAILED");
         if (message.startsWith("SEMANTIC_AUTHENTICATED_PROVIDER_")) throw error;
-        throw new Error(`SEMANTIC_AUTHENTICATED_PROVIDER_${message}`);
+        const wrapped = new Error(`SEMANTIC_AUTHENTICATED_PROVIDER_${message}`);
+        if (error?.evidence) wrapped.evidence = error.evidence;
+        throw wrapped;
     } finally {
         if (timer) clearTimeout(timer);
     }
