@@ -2042,6 +2042,16 @@ test("npm bridge syncs the checkout before importing long-lived bridge modules",
     assert.match(bridgeScript, /C:\\\\Program Files\\\\Git\\\\cmd\\\\git\.exe/);
 });
 
+test("SIA7 worker synchronizes against exactly one remote branch ref", () => {
+    const workerSource = fs.readFileSync(
+        new URL("../jarvis-github-worker.js", import.meta.url),
+        "utf8"
+    );
+    assert.equal(workerSource.includes("refs/remotes/${REMOTE}/${BRANCH}"), true);
+    assert.equal(workerSource.includes('"rebase",\n        "--autostash"'), true);
+    assert.equal(workerSource.includes('"pull",\n        "--rebase"'), false);
+});
+
 test("Windows bridge child processes inherit the canonical Git executable path", () => {
     const bridgeSource = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
     assert.match(bridgeSource, /function bridgeChildEnvironment\(/);
