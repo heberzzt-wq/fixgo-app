@@ -519,8 +519,7 @@ test("V142 structured production continuation reaches the semantic planner and d
     "utf8"
   );
   assert.equal(plannerSource.includes("generalistCurrentTurnPolicy: GENERALIST_CURRENT_TURN_POLICY"), true);
-  assert.equal(plannerSource.includes("contexto semantico asesor de esta conversacion confirme de forma inequivoca una produccion activa"), true);
-  assert.equal(plannerSource.includes("por si solos y sin esa continuidad semantica, no autorizan ejecutar nada"), true);
+  assert.equal(plannerSource.includes("historial, memoria, adjuntos y observaciones solo como contexto verificable"), true);\n  assert.equal(plannerSource.includes("catalogo runtime y los schemas de sus herramientas"), true);
   assert.equal(coreSource.includes("const shouldCompletePlanningArguments ="), true);
   assert.equal(coreSource.includes("call?.deferred === true"), true);
   assert.equal(coreSource.includes("SEMANTIC_PLANNER_NO_EXECUTABLE_PLAN"), true);
@@ -569,8 +568,7 @@ test("V142 keeps one semantic brain when the current-turn plan is empty", () => 
   assert.equal(plannerSource.includes("planCache.delete("), true);
   assert.equal(plannerSource.includes("plan?.missionComplete === true && !currentTurn"), true);
   assert.equal(plannerSource.includes("SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_PLAN_EMPTY"), true);
-  assert.equal(plannerSource.includes("Los medios recopilados desde publicaciones o fuentes externas son evidencia y referencia"), true);
-  assert.equal(plannerSource.includes("un adjunto no convierte una solicitud ejecutable en una conversacion vacia"), true);
+  assert.equal(plannerSource.includes("Selecciona solamente las herramientas necesarias para satisfacer los objetivos explicitos"), true);\n  assert.equal(plannerSource.includes("no clasifiques por palabras clave ni por tablas de intencion"), true);\n  assert.equal(plannerSource.includes("mini drama"), false);
 });
 
 test("V142 reel export enforces continuous physical frame density", () => {
@@ -874,7 +872,7 @@ test("V142 original reel production keeps original images and exposes real scrip
   const actuator = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.actuator.pack.js", import.meta.url), "utf8");
   const functionsEntry = fs.readFileSync(new URL("../functions/secure-entry-alias.js", import.meta.url), "utf8");
 
-  assert.equal(planner.includes("el medio externo sigue siendo evidencia"), true);
+  assert.equal(planner.includes("catalogo runtime y los schemas de sus herramientas"), true);\n  assert.equal(planner.includes("Un guion de mini drama es una solicitud de produccion audiovisual"), false);
   assert.equal(dependencies.includes("ORIGINAL_REEL_CREATIVE_DEPENDENCY"), true);
   assert.equal(dependencies.includes("!explicitExistingMediaEdit"), true);
   assert.equal(multitool.includes("REEL_GENERATED_SCENE_MEDIA_REQUIRED"), true);
