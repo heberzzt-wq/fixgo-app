@@ -43,7 +43,11 @@ test("NEXO bootstrap hydrates the existing localhost bridge as loopback from the
     assert.match(bootstrap, /localBridgeActive/);
     assert.doesNotMatch(bootstrap, /targetAddressSpace:\s*"local"/);
     assert.doesNotMatch(bootstrap, /releaseId:\s*"v94-/);
+    assert.match(bootstrap, /maximumAttempts = 3/);
+    assert.match(bootstrap, /JARVIS_LOCAL_BRIDGE_TRANSIENT_RETRY/);
+    assert.match(bootstrap, /attempt \* 350/);
 });
+
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
