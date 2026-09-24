@@ -1037,7 +1037,15 @@ async function runModelSemanticPlanner({
     let plan = extractGeminiToolCallPlan(response, safeCatalog);
 
     if (!plan && String(response?.text || "").trim()) {
-        plan = extractJsonObject(String(response.text));
+        plan =
+            normalizeTextToolPlan(
+                extractJsonObject(
+                    String(
+                        response.text
+                    )
+                ),
+                safeCatalog
+            );
     }
 
     if (!plan && missionState) {
@@ -1099,6 +1107,102 @@ async function runModelSemanticPlanner({
     }
 
     return validatedPlan;
+}
+
+function normalizeTextToolPlan(plan = {}, catalog = []) {
+    if (
+        !plan ||
+        typeof plan !== "object" ||
+        Array.isArray(plan)
+    ) {
+        return plan;
+    }
+
+    if (Array.isArray(plan.toolCalls)) {
+        return plan;
+    }
+
+    const providerName =
+        String(
+            plan.name ||
+            ""
+        ).trim();
+
+    if (!providerName) {
+        return plan;
+    }
+
+    let runtimeName =
+        providerName;
+
+    const providerPrefix =
+        "jarvis_tool_";
+
+    if (
+        providerName.startsWith(
+            providerPrefix
+        )
+    ) {
+        const index =
+            Number(
+                providerName.slice(
+                    providerPrefix.length
+                )
+            );
+
+        runtimeName =
+            Number.isInteger(index) &&
+            catalog[index]
+                ? catalog[index].name
+                : "";
+    }
+
+    const allowed =
+        new Set(
+            catalog.map(tool =>
+                String(
+                    tool?.name ||
+                    ""
+                )
+            )
+        );
+
+    if (
+        !runtimeName ||
+        !allowed.has(runtimeName)
+    ) {
+        return plan;
+    }
+
+    const args =
+        plan.arguments &&
+        typeof plan.arguments === "object" &&
+        !Array.isArray(plan.arguments)
+            ? plan.arguments
+            : (
+                plan.args &&
+                typeof plan.args === "object" &&
+                !Array.isArray(plan.args)
+                    ? plan.args
+                    : {}
+            );
+
+    return {
+        toolCalls: [{
+            name:
+                runtimeName,
+            args,
+            reason:
+                "MODEL_STRUCTURED_TEXT_TOOL_SELECTION"
+        }],
+        missionComplete:
+            plan.missionComplete === true,
+        explanation:
+            String(
+                plan.explanation ||
+                ""
+            )
+    };
 }
 
 function extractToolCallPlan(payload = {}, catalog = []) {
@@ -1217,6 +1321,7 @@ module.exports = {
     hasRequiredToolArguments,
     isSafeToolName,
     normalizeCatalog,
+    normalizeTextToolPlan,
     compactMissionObservation,
     runModelSemanticPlanner,
     runGeminiSemanticPlanner: runModelSemanticPlanner,
