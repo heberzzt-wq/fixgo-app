@@ -257,6 +257,11 @@ const repoWriteIdempotencyFactory =
 const { createApproveTechnicianHandler } =
     require("./b2c-technician-approval");
 const {
+    createManageB2cProviderCrewHandler,
+    createVerifyB2cCrewIdentityHandler,
+    createReviewB2cProviderCrewMemberHandler
+} = require("./b2c-provider-crew");
+const {
     createCancelB2cServiceHandler,
     createClaimB2cServiceHandler,
     createMarketplaceNotificationHandler,
@@ -353,6 +358,16 @@ let initialized = false;
 
 exports.approveB2cTechnician = functions.https.onCall(
     createApproveTechnicianHandler({ admin, db, functions })
+);
+const b2cCrewBucket = admin.storage().bucket("fixgo-44e4d.firebasestorage.app");
+exports.manageB2cProviderCrew = functions.https.onCall(
+    createManageB2cProviderCrewHandler({ admin, db, functions, bucket: b2cCrewBucket })
+);
+exports.verifyB2cCrewIdentity = functions.runWith({ timeoutSeconds: 120, memory: "2GB" }).https.onCall(
+    createVerifyB2cCrewIdentityHandler({ admin, db, functions, bucket: b2cCrewBucket })
+);
+exports.reviewB2cProviderCrewMember = functions.https.onCall(
+    createReviewB2cProviderCrewMemberHandler({ admin, db, functions, bucket: b2cCrewBucket })
 );
 exports.claimB2cService = functions.https.onCall(
     createClaimB2cServiceHandler({ admin, db, functions })

@@ -104,6 +104,18 @@ export async function aprobarTecnicoB2C(technicianId) {
     return result.data;
 }
 
+export async function gestionarCuadrillaB2C(payload = {}) {
+    return (await httpsCallable(cloudFunctions, "manageB2cProviderCrew")(payload)).data;
+}
+
+export async function verificarIdentidadMiembroB2C(memberId) {
+    return (await httpsCallable(cloudFunctions, "verifyB2cCrewIdentity")({ memberId })).data;
+}
+
+export async function revisarMiembroCuadrillaB2C(payload = {}) {
+    return (await httpsCallable(cloudFunctions, "reviewB2cProviderCrewMember")(payload)).data;
+}
+
 export async function reclamarServicioB2C(serviceId) {
     const claim = httpsCallable(cloudFunctions, "claimB2cService");
     const result = await claim({ serviceId });
