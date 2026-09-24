@@ -6,7 +6,7 @@ import path from "node:path";
 import { test } from "node:test";
 
 import {
-    collectNexoRealWebMedia,
+    collectJarvisRealWebMedia,
     __test
 } from "../nexo-web-media-bridge.js";
 
@@ -58,7 +58,7 @@ test("collector persists verified real JPEG and MP4 bytes with SHA-256", async t
     const root = temporaryRoot();
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
-    const result = await collectNexoRealWebMedia({
+    const result = await collectJarvisRealWebMedia({
         url: fixture.baseUrl,
         requireImages: true,
         requireVideos: true,
@@ -87,7 +87,7 @@ test("collector fails closed when a requested real video is absent", async t => 
     const root = temporaryRoot();
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
 
-    const result = await collectNexoRealWebMedia({
+    const result = await collectJarvisRealWebMedia({
         url: `${fixture.baseUrl}/image-only`,
         requireImages: true,
         requireVideos: true,
@@ -104,7 +104,7 @@ test("collector fails closed when a requested real video is absent", async t => 
 
 test("collector blocks localhost and private addresses outside explicit test mode", async () => {
     await assert.rejects(
-        () => collectNexoRealWebMedia({ url: "http://127.0.0.1:9", root: temporaryRoot() }),
+        () => collectJarvisRealWebMedia({ url: "http://127.0.0.1:9", root: temporaryRoot() }),
         /WEB_MEDIA_PRIVATE_ADDRESS_BLOCKED/
     );
     assert.equal(__test.isPrivateAddress("127.0.0.1"), true);
