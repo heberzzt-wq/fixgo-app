@@ -9,6 +9,7 @@ import { test } from "node:test";
 
 import {
     createJarvisUploadBridgeApp,
+    ensureJarvisLocalAiRuntime,
     inspectJarvisWorkstation,
     startJarvisUploadBridge,
     JARVIS_UPLOAD_BRIDGE_VERSION,
@@ -70,6 +71,9 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
         "false"
     );
 
+    assert.match(pkg.scripts["bridge:ensure"], /ensureJarvisLocalAiRuntime/);
+    assert.match(pkg.scripts["bridge:ensure"], /installIfMissing:true/);
+    assert.match(pkg.scripts["bridge:ensure"], /pullModels:true/);
     assert.match(pkg.scripts["bridge:ensure"], /127\.0\.0\.1/);
     assert.match(pkg.scripts["bridge:ensure"], /3344/);
     assert.match(pkg.scripts["bridge:ensure"], /detached:true/);
@@ -78,6 +82,65 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     assert.match(pkg.scripts["bridge:supervise"], /bridge offline -> starting/);
     assert.match(pkg.scripts["bridge:supervise"], /setTimeout\(loop,ms\)/);
     assert.equal(pkg.scripts["nexo:bridge"], "npm run bridge");
+});
+
+test("workstation self-heal pulls only missing free local models and never selects external AI", async () => {
+    const commands = [];
+    let probes = 0;
+    const result = await ensureJarvisLocalAiRuntime({
+        root: process.cwd(),
+        platform: "win32",
+        env: {
+            JARVIS_LOCAL_LLM_MODEL: "qwen2.5-coder:7b",
+            JARVIS_LOCAL_EMBEDDING_MODEL: "qwen3-embedding:0.6b"
+        },
+        installIfMissing: true,
+        pullModels: true,
+        commandImpl(command, args) {
+            commands.push([command, ...args]);
+            if (args[0] === "--version") return { ok: true, stdout: "ollama version test" };
+            if (args[0] === "pull") return { ok: true, stdout: "pulled" };
+            return { ok: false };
+        },
+        probeImpl: async () => {
+            probes += 1;
+            if (probes === 1) {
+                return {
+                    ok: true,
+                    reachable: true,
+                    body: { models: [{ name: "qwen2.5-coder:7b" }] }
+                };
+            }
+            return {
+                ok: true,
+                reachable: true,
+                body: {
+                    models: [
+                        { name: "qwen2.5-coder:7b" },
+                        { name: "qwen3-embedding:0.6b" }
+                    ]
+                }
+            };
+        },
+        spawnImpl() {
+            throw new Error("OLLAMA_SERVE_SHOULD_NOT_START");
+        },
+        waitMs: async () => {}
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.status, "JARVIS_LOCAL_AI_RUNTIME_READY");
+    assert.deepEqual(result.pulledModels, ["qwen3-embedding:0.6b"]);
+    assert.equal(result.mainModelReady, true);
+    assert.equal(result.embeddingModelReady, true);
+    assert.equal(result.externalApiUsed, false);
+    assert.equal(result.paidApiUsed, false);
+    assert.equal(
+        commands.some(parts =>
+            parts[0] === "winget"
+        ),
+        false
+    );
 });
 
 test("workstation doctor reports governed local capabilities without requiring them to be installed", async () => {
