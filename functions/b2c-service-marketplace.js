@@ -95,8 +95,9 @@ function createClaimB2cServiceHandler({ admin, db, functions, now = () => Date.n
             const activeQuery = db.collection("services").where("tecnico_id", "==", technicianId);
             const ledgerQuery = db.collection("transacciones").where("tecnico_id", "==", technicianId);
             const withdrawalsQuery = db.collection("retiros").where("tecnico_id", "==", technicianId);
+            const crewQuery = profileRef.collection("crew_members").where("on_duty", "==", true).limit(platformContract.B2C_PROVIDER_MAX_MEMBERS - 1);
 
-            const [profileSnapshot, serviceSnapshot, listingSnapshot, lockSnapshot, activeSnapshot, ledgerSnapshot, withdrawalsSnapshot] =
+            const [profileSnapshot, serviceSnapshot, listingSnapshot, lockSnapshot, activeSnapshot, ledgerSnapshot, withdrawalsSnapshot, crewSnapshot] =
                 await Promise.all([
                     transaction.get(profileRef),
                     transaction.get(serviceRef),
@@ -104,7 +105,8 @@ function createClaimB2cServiceHandler({ admin, db, functions, now = () => Date.n
                     transaction.get(lockRef),
                     transaction.get(activeQuery),
                     transaction.get(ledgerQuery),
-                    transaction.get(withdrawalsQuery)
+                    transaction.get(withdrawalsQuery),
+                    transaction.get(crewQuery)
                 ]);
 
             if (!profileSnapshot.exists || !isOperationalTechnician(profileSnapshot.data() || {})) {
@@ -183,6 +185,39 @@ function createClaimB2cServiceHandler({ admin, db, functions, now = () => Date.n
             }
 
             const assignedAt = admin.firestore.FieldValue.serverTimestamp();
+            const providerProfile = platformContract.normalizeB2cProviderProfile(profile);
+            const declaredCrew = crewSnapshot.docs
+                .map(item => ({ id: item.id, ...(item.data() || {}) }))
+                .filter(member =>
+                    providerProfile.crew_enabled &&
+                    member.status === platformContract.B2C_CREW_MEMBER_STATES.ACTIVE &&
+                    member.approved === true &&
+                    member.active !== false &&
+                    member.on_duty === true &&
+                    member.identity?.machine_verified === true &&
+                    member.identity?.machine_status === "verified"
+                )
+                .slice(0, platformContract.B2C_PROVIDER_MAX_MEMBERS - 1)
+                .map(member => ({
+                    member_id: clean(member.id, 100),
+                    nombre: clean(member.full_name, 160),
+                    funcion: clean(member.role, 80),
+                    foto: clean(member.profile_photo_url, 2200),
+                    identity_verified: true
+                }));
+            const crewPublicSnapshot = {
+                provider_mode: providerProfile.mode,
+                provider_name: providerProfile.display_name,
+                responsible: {
+                    nombre: clean(profile.nombre, 160) || "Técnico",
+                    funcion: "responsable",
+                    foto: clean(profile.foto_perfil, 2200),
+                    identity_verified: profile.kyc?.identity_verified === true
+                },
+                members: declaredCrew,
+                member_count: 1 + declaredCrew.length,
+                frozen_at: assignedAt
+            };
             transaction.update(serviceRef, {
                 estado: platformContract.SERVICE_STATES.ASSIGNED,
                 tecnico_id: technicianId,
@@ -193,6 +228,12 @@ function createClaimB2cServiceHandler({ admin, db, functions, now = () => Date.n
                 tecnico_vehiculo: vehicle.type,
                 tecnico_placas: vehicle.plates,
                 tecnico_telefono: clean(profile.telefono, 40),
+                provider_snapshot: {
+                    mode: providerProfile.mode,
+                    display_name: providerProfile.display_name,
+                    responsible_uid: technicianId
+                },
+                crew_snapshot: crewPublicSnapshot,
                 asignado_at: assignedAt,
                 "auditoria.claim_authority": "claimB2cService",
                 "auditoria.claimed_by": technicianId,
@@ -331,6 +372,8 @@ function createCancelB2cServiceHandler({ admin, db, functions }) {
                 tecnico_telefono: null,
                 tecnico_vehiculo: null,
                 tecnico_placas: null,
+                provider_snapshot: null,
+                crew_snapshot: null,
                 asignado_at: null,
                 rejected_by: rejected,
                 marketplace_revision: Math.max(0, Number(service.marketplace_revision) || 0) + 1,
