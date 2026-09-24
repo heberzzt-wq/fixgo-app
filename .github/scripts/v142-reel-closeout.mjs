@@ -35,15 +35,17 @@ function appendOnce(file, marker, addition) {
 
 function ensureMiniDramaPolicy() {
   const file = "gestia-core/jarvis/jarvis.multifunction.planner.js";
-  const marker = "Un guion de mini drama es una solicitud de produccion audiovisual";
-  if (sourceOf(file).includes(marker)) return;
-  const anchor = '    "Para marcas identificadas, conserva cualquier logotipo oficial verificado como un activo separado; no pidas al generador que invente, redibuje o imite un logotipo.",';
-  const after = [
-    anchor,
-    '    "Un guion de mini drama es una solicitud de produccion audiovisual cuando la intencion semantica pide crear el video. Si video.generate esta registrado, usalo para producir actuacion y movimiento nuevos desde el guion; conversation.respond, un slideshow, una captura o un video encontrado no satisfacen esa produccion.",',
-    '    "Para mini dramas nuevos, divide semanticamente el guion en hasta cuatro escenas consecutivas cuando ayude a la continuidad. video.generate puede extender el video generado entre escenas; los medios externos siguen siendo solo evidencia o referencia salvo reutilizacion solicitada de forma inequivoca.",'
-  ].join("\n");
-  replaceExactOnce(file, anchor, after, "V142_MINIDRAMA_SEMANTIC_POLICY");
+  const source = sourceOf(file);
+  const forbidden = [
+    "Un guion de mini drama es una solicitud de produccion audiovisual",
+    "Para mini dramas nuevos, divide semanticamente el guion",
+    "Para marcas identificadas, conserva cualquier logotipo oficial"
+  ];
+  for (const marker of forbidden) {
+    if (source.includes(marker)) {
+      throw new Error(`V142_HARDCODED_SEMANTIC_POLICY_FORBIDDEN:${marker}`);
+    }
+  }
 }
 
 function ensureVideoStageAndTimeout() {
@@ -473,10 +475,6 @@ ensureRealVideoTool();
 ensureVideoTests();
 
 const checks = [
-  ["gestia-core/jarvis/jarvis.multifunction.planner.js", [
-    "el medio externo sigue siendo evidencia",
-    "Un guion de mini drama es una solicitud de produccion audiovisual"
-  ]],
   ["gestia-core/jarvis/jarvis.mission.dependencies.js", [
     '"image.generate": 28',
     '"video.generate": 35',
@@ -528,8 +526,9 @@ for (const [file, markers] of checks) {
 
 console.log(JSON.stringify({
   ok: true,
-  status: "V142_ORIGINAL_REEL_AND_MINIDRAMA_CLOSEOUT_MATERIALIZED",
+  status: "V142_VIDEO_MECHANICS_CLOSEOUT_WITHOUT_SEMANTIC_PLAYBOOK",
   sameSemanticAuthority: true,
+  semanticPlaybookHardcoding: false,
   originalReelCreativeDefault: true,
   generatedCreativeTool: "image.generate",
   finalReelTool: "reel.create",
