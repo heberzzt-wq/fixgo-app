@@ -1,18 +1,15 @@
 /*
- * NEXO UI Branding Bridge
- * Cambia solo identidad visible; conserva ids y APIs Jarvis/SIA7 para compatibilidad.
+ * JARVIS UI Branding Bridge
+ * Historical NEXO filename retained only for compatibility.
  * No interpreta lenguaje natural ni decisiones de aprobación.
  */
 
-import {
-    NEXO_IDENTITY,
-    NEXO_IDENTITY_VERSION
-} from "./nexo.identity.js";
-
+export const JARVIS_UI_BRANDING_VERSION =
+    "3.0.0-jarvis-branding-single-semantic-authority";
 export const NEXO_UI_BRANDING_VERSION =
-    "2.0.0-branding-only-single-semantic-authority";
+    JARVIS_UI_BRANDING_VERSION; // compatibility export only
 
-const INSTALL_KEY = "__NEXO_UI_BRANDING__";
+const INSTALL_KEY = "__JARVIS_UI_BRANDING__";
 function replaceExactText(selector, expected, replacement) {
     document.querySelectorAll(selector).forEach(element => {
         if (String(element.textContent || "").trim() === expected) {
@@ -37,21 +34,22 @@ function applyBranding() {
     );
 
     const root = document.documentElement;
-    root.dataset.privateEngine = NEXO_IDENTITY.name;
-    root.dataset.privateEngineVersion = NEXO_IDENTITY_VERSION;
-    root.dataset.nexoUiVersion = NEXO_UI_BRANDING_VERSION;
+    root.dataset.privateEngine = "JARVIS";
+    root.dataset.privateEngineVersion = JARVIS_UI_BRANDING_VERSION;
+    root.dataset.jarvisUiVersion = JARVIS_UI_BRANDING_VERSION;
 
-    globalThis.__NEXO_RUNTIME_STAMP__ = {
-        name: NEXO_IDENTITY.name,
-        identityVersion: NEXO_IDENTITY_VERSION,
-        uiVersion: NEXO_UI_BRANDING_VERSION,
+    globalThis.__JARVIS_RUNTIME_STAMP__ = {
+        name: "JARVIS",
+        identityVersion: "jarvis-single-authority",
+        uiVersion: JARVIS_UI_BRANDING_VERSION,
         semanticAuthority: "jarvisSemanticPlan",
+        alternateBrains: 0,
         loadedAt: new Date().toISOString()
     };
 
     const input = document.getElementById("gestia-input");
-    if (input && !input.dataset.nexoPlaceholderApplied) {
-        input.dataset.nexoPlaceholderApplied = "true";
+    if (input && !input.dataset.jarvisPlaceholderApplied) {
+        input.dataset.jarvisPlaceholderApplied = "true";
         input.placeholder =
             "Dile a ADJUNTO qué debe investigar, crear, analizar o ejecutar...";
     }
@@ -62,12 +60,12 @@ function applyBranding() {
     if (headerTitle) {
         headerTitle.setAttribute(
             "title",
-            `${NEXO_IDENTITY.expandedName} — uso privado de ${NEXO_IDENTITY.owner}`
+            "JARVIS — autoridad semántica única"
         );
     }
 }
 
-export function instalarMarcaNexo() {
+export function instalarMarcaJarvis() {
     if (globalThis[INSTALL_KEY]) return globalThis[INSTALL_KEY];
 
     if (typeof document !== "undefined") {
@@ -84,8 +82,8 @@ export function instalarMarcaNexo() {
         });
 
         const installation = {
-            version: NEXO_UI_BRANDING_VERSION,
-            identity: NEXO_IDENTITY,
+            version: JARVIS_UI_BRANDING_VERSION,
+            identity: Object.freeze({ name: "JARVIS", semanticAuthority: "jarvisSemanticPlan", alternateBrains: 0 }),
             observer,
             uninstall() {
                 observer.disconnect();
@@ -97,8 +95,8 @@ export function instalarMarcaNexo() {
     }
 
     const installation = {
-        version: NEXO_UI_BRANDING_VERSION,
-        identity: NEXO_IDENTITY,
+        version: JARVIS_UI_BRANDING_VERSION,
+        identity: Object.freeze({ name: "JARVIS", semanticAuthority: "jarvisSemanticPlan", alternateBrains: 0 }),
         observer: null,
         uninstall() {
             delete globalThis[INSTALL_KEY];
@@ -108,4 +106,4 @@ export function instalarMarcaNexo() {
     return installation;
 }
 
-instalarMarcaNexo();
+instalarMarcaJarvis();
