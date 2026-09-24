@@ -132,6 +132,12 @@ async function readRemoteResultJobId() {
 }
 
 async function syncLocalBranch() {
+    const rebaseMerge = path.resolve(REPO_ROOT, ".git", "rebase-merge");
+    const rebaseApply = path.resolve(REPO_ROOT, ".git", "rebase-apply");
+    if (fs.existsSync(rebaseMerge) || fs.existsSync(rebaseApply)) {
+        throw new Error("RESULT_SYNC_REBASE_STATE_ACTIVE");
+    }
+
     const fetchResult = await runGit([
         "fetch",
         "--quiet",
