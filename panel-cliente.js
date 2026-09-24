@@ -36,6 +36,7 @@ import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/fireba
 
 // Sistema Nervioso Compartido
 import { escaparHTML, urlHttpsParaHTML, cargarLibreriaPDF, urlABase64, sonarAlerta, lanzarNotificacionPush } from "./app-utils.js";
+import { renderB2cCrewSnapshot } from "./b2c-provider-crew-public.js";
 
 // Sistema Facility Management (B2B)
 import { iniciarSelectorB2B, obtenerMetadatosB2B } from "./modulo-b2b.js";
@@ -1745,6 +1746,7 @@ if (metodoSeleccionado === "b2b") {
                     <p class="text-xs text-gray-400 truncate mb-3"><i class="fas fa-map-marker-alt text-zinc-600"></i> ${escaparHTML(destinoServicio?.direccion || s.direccion || 'Ubicación no especificada')}</p>
                     
                     ${imgInicialHTML}
+                    ${renderB2cCrewSnapshot(s)}
                     ${infoLogisticaHTML}
                     ${contenido}
 
