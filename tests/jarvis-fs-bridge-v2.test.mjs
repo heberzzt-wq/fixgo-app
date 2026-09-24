@@ -356,6 +356,24 @@ test("V142 HuMo LAN zero-cost preflight certifies cache and tar without provider
     }
 });
 
+test("self-hosted semantic backend defaults to local-only Ollama Qwen with zero cloud fallback", () => {
+    const engine = createSelfHostedSemanticEngine({
+        env: {},
+        fetchImpl: async () => {
+            throw new Error("NO_INFERENCE_EXPECTED_IN_DESCRIBE");
+        }
+    });
+    const health = engine.describe();
+    assert.equal(health.ok, true);
+    assert.equal(health.mode, "LOCAL_ONLY");
+    assert.equal(health.provider, "ollama-openai-compatible-local");
+    assert.equal(health.model, "qwen2.5-coder:7b");
+    assert.equal(health.endpointOrigin, "http://127.0.0.1:11434");
+    assert.equal(health.fallbackAllowed, false);
+    assert.equal(health.externalApiUsed, false);
+    assert.equal(health.paidModelApiUsed, false);
+});
+
 test("self-hosted semantic backend feeds the canonical planner without paid API calls", async () => {
     const requests = [];
     const engine = createSelfHostedSemanticEngine({
@@ -403,7 +421,7 @@ test("self-hosted semantic backend feeds the canonical planner without paid API 
     });
 
     assert.equal(plan.ok, true);
-    assert.equal(plan.provider, "self-hosted-openai-compatible");
+    assert.equal(plan.provider, "ollama-openai-compatible-local");
     assert.equal(plan.model, "qwen-local");
     assert.equal(plan.toolCalls[0].name, "repo.search");
     assert.equal(plan.toolCalls[0].args.query, "estado del repositorio");
@@ -420,8 +438,8 @@ test("self-hosted semantic backend feeds the canonical planner without paid API 
 test("self-hosted semantic response uses one local inference and reports zero external spend", async () => {
     const engine = createSelfHostedSemanticEngine({
         env: {
-            JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_PREFERRED",
-            JARVIS_LOCAL_LLM_BASE_URL: "https://gpu.example.test/v1",
+            JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
+            JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
             JARVIS_LOCAL_LLM_MODEL: "local-reasoner"
         },
         fetchImpl: async () => ({
@@ -451,7 +469,7 @@ test("self-hosted semantic backend fails closed for unsafe remote HTTP and LOCAL
     });
     const health = engine.describe();
     assert.equal(health.ok, false);
-    assert.equal(health.status, "LOCAL_SEMANTIC_ENDPOINT_MUST_BE_LOOPBACK_OR_HTTPS");
+    assert.equal(health.status, "LOCAL_SEMANTIC_ENDPOINT_MUST_BE_LOOPBACK");
     assert.equal(health.fallbackAllowed, false);
 });
 
