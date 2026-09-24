@@ -1,29 +1,10 @@
 {
-  "jobId": "jarvis-local-ai-required-tool-warm-20260924-020",
+  "jobId": "jarvis-local-ai-direct-response-benchmark-20260924-021",
   "operation": "bridge",
-  "endpoint": "/semantic/plan",
+  "endpoint": "/semantic/respond",
   "body": {
-    "input": "Revisa cómo está implementada la inteligencia local de Jarvis y dime qué piezas participan.",
-    "catalog": [
-      {
-        "name": "repo.search",
-        "description": "Busca evidencia semántica en el repositorio real.",
-        "inputSchema": {
-          "type": "object",
-          "required": [
-            "query"
-          ],
-          "properties": {
-            "query": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false
-        },
-        "mutates": false,
-        "requiresApproval": false
-      }
-    ],
-    "timeoutMs": 50000
+    "input": "Responde solamente OK.",
+    "maxOutputTokens": 8,
+    "timeoutMs": 85000
   }
 }
