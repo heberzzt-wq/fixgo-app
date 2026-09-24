@@ -2072,7 +2072,10 @@ export function readJarvisRuntimeContract(
 function readGitIdentity(
     root = DEFAULT_ROOT
 ) {
-    const run = args => {
+    const run = (
+        args,
+        timeout = 5000
+    ) => {
         try {
             return {
                 ok: true,
@@ -2088,7 +2091,8 @@ function readGitIdentity(
                             "ignore",
                             "pipe",
                             "ignore"
-                        ]
+                        ],
+                        timeout
                     }
                 ).trim()
             };
@@ -2109,12 +2113,23 @@ function readGitIdentity(
         run(["rev-parse", "HEAD"]);
     const remote =
         run(["config", "--get", "remote.origin.url"]);
+
+    // Branch-mode identity does not require a full worktree cleanliness scan.
+    // Only detached mode needs cleanliness evidence, and even then it is bounded.
     const worktreeStatus =
-        run([
-            "status",
-            "--porcelain=v1",
-            "--untracked-files=all"
-        ]);
+        branch.value === ""
+            ? run(
+                [
+                    "status",
+                    "--porcelain=v1",
+                    "--untracked-files=all"
+                ],
+                5000
+            )
+            : {
+                ok: true,
+                value: ""
+            };
 
     return {
         root:
@@ -2385,7 +2400,10 @@ function localGitHubRepositoryIdentity(root = DEFAULT_ROOT) {
     const remote = gitText(
         ["config", "--get", "remote.origin.url"],
         root,
-        { allowFailure: true }
+        {
+            allowFailure: true,
+            timeout: 5000
+        }
     );
     if (!remote) return null;
     let normalized = remote;
