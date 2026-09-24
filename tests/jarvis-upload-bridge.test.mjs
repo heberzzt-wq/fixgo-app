@@ -50,6 +50,10 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
         "qwen2.5-coder:7b"
     );
     assert.equal(
+        settings["terminal.integrated.env.windows"].JARVIS_LOCAL_EMBEDDING_MODEL,
+        "qwen3-embedding:0.6b"
+    );
+    assert.equal(
         settings["terminal.integrated.env.windows"].JARVIS_VIDEO_ENGINE_POLICY,
         "LOCAL_ONLY"
     );
@@ -104,11 +108,14 @@ test("workstation doctor reports governed local capabilities without requiring t
         assert.equal(result.status, "JARVIS_WORKSTATION_INSPECTED");
         assert.equal(result.runtime.node.ok, true);
         assert.equal(result.localAi.provider, "ollama-openai-compatible-local");
+        assert.equal(result.localAi.expectedModel, "qwen2.5-coder:7b");
+        assert.equal(result.localAi.expectedEmbeddingModel, "qwen3-embedding:0.6b");
         assert.equal(result.localAi.externalFallback, false);
         assert.equal(result.localVideo.runpodPaidFallbackAuthorized, false);
         assert.equal(result.firebase.mutationPolicy, "DEPLOY_ONLY_THROUGH_GOVERNED_RELEASE_GATE");
         assert.ok(result.governedCapabilities.includes("git.push.authorized"));
         assert.ok(result.governedCapabilities.includes("firebase.firestore.emulator"));
+        assert.ok(result.governedCapabilities.includes("ollama.local.embedding"));
         assert.ok(result.governedCapabilities.includes("video.generate.local"));
     }
     finally {
