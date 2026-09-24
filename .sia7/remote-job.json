@@ -1,9 +1,9 @@
 {
-  "jobId": "jarvis-local-ai-locate-repo-search-20260924-028",
+  "jobId": "jarvis-local-ai-locate-bridge-repo-adapters-20260924-029",
   "operation": "bridge",
   "endpoint": "/grep",
   "body": {
-    "term": "repo.search",
+    "term": "grepRepo",
     "cwd": ".",
     "maxFiles": 1200,
     "maxFileSizeBytes": 800000,
