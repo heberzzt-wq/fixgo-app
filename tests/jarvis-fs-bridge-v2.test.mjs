@@ -1483,6 +1483,16 @@ test("Jarvis FS bridge loads the release identity contract", async () => {
     }
 });
 
+test("branch-mode health identity skips expensive worktree status and bounds local Git probes", () => {
+    const source = fs.readFileSync(
+        new URL("../jarvis-fs-bridge.js", import.meta.url),
+        "utf8"
+    );
+    assert.match(source, /branch\.value === ""[\s\S]{0,500}status/);
+    assert.match(source, /timeout\s*\n?\s*}/);
+    assert.match(source, /cachedBranchHead/);
+});
+
 test("loopback health uses cached remote identity and does not require live GitHub", async () => {
     const fixture = createBridgeIdentityFixture();
     const root = fixture.root;
