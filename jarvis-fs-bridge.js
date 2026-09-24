@@ -9,8 +9,11 @@ import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "url";
 import { execFileSync, spawn } from "child_process";
 import {
+    buildRepoEmbeddingDocuments,
     buildRepoIntelligence,
-    rankRepoCandidates
+    cosineSimilarity,
+    rankRepoCandidates,
+    rankRepoHybridCandidates
 } from "./jarvis-repo-intelligence.js";
 import {
     parseRepositoryTarget,
@@ -642,6 +645,9 @@ export function createSelfHostedSemanticEngine({
     const model = String(
         env.JARVIS_LOCAL_LLM_MODEL || "qwen2.5-coder:7b"
     ).trim();
+    const embeddingModel = String(
+        env.JARVIS_LOCAL_EMBEDDING_MODEL || "qwen3-embedding:0.6b"
+    ).trim();
     const rawBaseUrl = String(
         env.JARVIS_LOCAL_LLM_BASE_URL || "http://127.0.0.1:11434/v1"
     ).trim();
@@ -652,9 +658,12 @@ export function createSelfHostedSemanticEngine({
     );
     const counters = {
         localSemanticInferenceCalls: 0,
+        localEmbeddingCalls: 0,
+        localEmbeddedTexts: 0,
         semanticExternalCalls: 0,
         paidExternalCalls: 0,
-        failedLocalSemanticInferenceCalls: 0
+        failedLocalSemanticInferenceCalls: 0,
+        failedLocalEmbeddingCalls: 0
     };
 
     let baseUrl = "";
@@ -675,6 +684,7 @@ export function createSelfHostedSemanticEngine({
             mode,
             provider: "ollama-openai-compatible-local",
             model: model || null,
+            embeddingModel: embeddingModel || null,
             endpointConfigured: Boolean(baseUrl),
             endpointOrigin: baseUrl ? new URL(baseUrl).origin : null,
             tokenConfigured: Boolean(token),
@@ -685,6 +695,61 @@ export function createSelfHostedSemanticEngine({
             estimatedExternalCostUsd: 0,
             counters: { ...counters }
         };
+    }
+
+    async function embed(input = []) {
+        const health = describe();
+        if (health.ok !== true) throw new Error(health.status);
+        const values = (Array.isArray(input) ? input : [input])
+            .map(value => String(value || "").trim())
+            .filter(Boolean);
+        if (values.length === 0) throw new Error("LOCAL_EMBEDDING_INPUT_REQUIRED");
+        if (values.length > 128) throw new Error("LOCAL_EMBEDDING_BATCH_TOO_LARGE");
+
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        counters.localEmbeddingCalls += 1;
+        counters.localEmbeddedTexts += values.length;
+        try {
+            const origin = new URL(baseUrl).origin;
+            const response = await fetchImpl(`${origin}/api/embed`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    model: embeddingModel,
+                    input: values
+                }),
+                signal: controller.signal
+            });
+            const raw = await response.text();
+            let data = null;
+            try { data = JSON.parse(raw); } catch {}
+            const embeddings = Array.isArray(data?.embeddings)
+                ? data.embeddings
+                : [];
+            if (
+                !response.ok ||
+                embeddings.length !== values.length ||
+                embeddings.some(vector => !Array.isArray(vector) || vector.length === 0)
+            ) {
+                throw new Error(
+                    String(data?.error || `LOCAL_EMBEDDING_HTTP_${response.status}`)
+                );
+            }
+            return {
+                ok: true,
+                status: "LOCAL_EMBEDDING_READY",
+                provider: "ollama-local",
+                model: embeddingModel,
+                embeddings
+            };
+        } catch (error) {
+            counters.failedLocalEmbeddingCalls += 1;
+            if (controller.signal.aborted) throw new Error("LOCAL_EMBEDDING_TIMEOUT");
+            throw error;
+        } finally {
+            clearTimeout(timer);
+        }
     }
 
     async function generateContent(request = {}) {
@@ -755,6 +820,7 @@ export function createSelfHostedSemanticEngine({
     return {
         mode,
         describe,
+        embed,
         async plan({ input, catalog, missionState = null, timeoutMs: requestTimeoutMs } = {}) {
             const result = await runJarvisSemanticPlanner({
                 ai,
