@@ -59,8 +59,8 @@ import {
     extractJarvisDocumentArtifact
 } from "./jarvis-document-extractor.js";
 import {
-    collectNexoRealWebMedia,
-    registerNexoWebMediaRoutes
+    collectJarvisRealWebMedia,
+    registerJarvisWebMediaRoutes
 } from "./nexo-web-media-bridge.js";
 import {
     describeLocalSpeechCapability,
@@ -5331,7 +5331,7 @@ export function createJarvisFsBridgeApp({
         return next();
     });
 
-    registerNexoWebMediaRoutes(app, { root });
+    registerJarvisWebMediaRoutes(app, { root });
 
     app.post("/semantic/local/health", (_req, res) => {
         const health = semanticEngine.describe();
@@ -6357,7 +6357,7 @@ export function createJarvisFsBridgeApp({
                         version: JARVIS_FS_BRIDGE_VERSION
                     });
                 }
-                const collected = await collectNexoRealWebMedia({
+                const collected = await collectJarvisRealWebMedia({
                     url,
                     discoveredMedia: observed.media,
                     requireImages: req.body?.requireImages === true,
