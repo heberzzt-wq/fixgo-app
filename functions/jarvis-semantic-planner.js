@@ -1,7 +1,8 @@
 "use strict";
 
-const VERSION = "1.23.0-two-provider-failover-v142";
-const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
+const VERSION = "1.24.0-local-only-single-jarvis";
+const DEFAULT_SEMANTIC_MODEL = "jarvis-local";
+const DEFAULT_GEMINI_MODEL = DEFAULT_SEMANTIC_MODEL; // compatibility alias only
 
 function wait(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -654,12 +655,12 @@ function buildSemanticSystemInstruction(catalog = [], missionState = null) {
     ].filter(Boolean).join("\n");
 }
 
-async function runGeminiSemanticPlanner({
+async function runModelSemanticPlanner({
     ai,
     input = "",
     catalog = [],
     missionState = null,
-    model = DEFAULT_GEMINI_MODEL
+    model = DEFAULT_SEMANTIC_MODEL
 } = {}) {
     if (!ai?.models?.generateContent) throw new Error("SEMANTIC_GEMINI_REQUIRED");
     const instruction = String(input || "").trim();
@@ -889,7 +890,7 @@ async function runGeminiSemanticPlanner({
         };
         return requireExecutablePlan({
             ...auditedContract,
-            provider: String(ai.lastProvider || "gemini"),
+            provider: String(ai.lastProvider || "jarvis-local"),
             model,
             catalogSize: safeCatalog.length,
             planKind: "MISSION_CONTRACT_AUDITED"
@@ -923,7 +924,7 @@ async function runGeminiSemanticPlanner({
         const auditPlan = extractJsonObject(String(auditResponse?.text || ""));
         return requireExecutablePlan({
             ...validatePlan(auditPlan, safeCatalog, instruction),
-            provider: String(ai.lastProvider || "gemini"),
+            provider: String(ai.lastProvider || "jarvis-local"),
             model,
             catalogSize: safeCatalog.length,
             planKind: "COMPLETION_AUDIT"
@@ -1006,7 +1007,7 @@ async function runGeminiSemanticPlanner({
 
                 return requireExecutablePlan({
                     ...validated,
-                    provider: String(ai.lastProvider || "gemini"),
+                    provider: String(ai.lastProvider || "jarvis-local"),
                     model,
                     catalogSize: phaseCatalog.length,
                     planKind: phase
@@ -1073,7 +1074,7 @@ async function runGeminiSemanticPlanner({
     if (!plan) throw new Error("SEMANTIC_PLAN_JSON_REQUIRED");
     return requireExecutablePlan({
         ...validatePlan(plan, safeCatalog, instruction),
-        provider: String(ai.lastProvider || "gemini"),
+        provider: String(ai.lastProvider || "jarvis-local"),
         model,
         catalogSize: safeCatalog.length
     });
@@ -1126,7 +1127,7 @@ async function runJarvisSemanticPlanner({
     let timer = null;
     const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("SEMANTIC_PROVIDER_TIMEOUT")), Math.max(5000, Number(timeoutMs) || 45000)); });
     try {
-        return await Promise.race([runGeminiSemanticPlanner({ ai, input: instruction, catalog: safeCatalog, missionState }), timeout]);
+        return await Promise.race([runModelSemanticPlanner({ ai, input: instruction, catalog: safeCatalog, missionState }), timeout]);
     } catch(error) {
         const message = String(error?.message || error || "FAILED");
         if (message.startsWith("SEMANTIC_AUTHENTICATED_PROVIDER_")) throw error;
@@ -1152,7 +1153,7 @@ async function runJarvisSemanticResponse({
     try {
         const response = await Promise.race([
             ai.models.generateContent({
-                model: DEFAULT_GEMINI_MODEL,
+                model: DEFAULT_SEMANTIC_MODEL,
                 contents: instruction,
                 config: {
                     maxOutputTokens: budget,
@@ -1170,7 +1171,7 @@ async function runJarvisSemanticResponse({
         ]);
         const message = String(response?.text || "").trim();
         if (!message) throw new Error("SEMANTIC_RESPONSE_EMPTY");
-        return { ok: true, status: "SEMANTIC_RESPONSE_READY", version: VERSION, provider: String(ai.lastProvider || "gemini"), model: DEFAULT_GEMINI_MODEL, message };
+        return { ok: true, status: "SEMANTIC_RESPONSE_READY", version: VERSION, provider: String(ai.lastProvider || "jarvis-local"), model: DEFAULT_SEMANTIC_MODEL, message };
     } catch(error) {
         const message = String(error?.message || error || "FAILED");
         if (message.startsWith("SEMANTIC_AUTHENTICATED_PROVIDER_")) throw error;
@@ -1181,6 +1182,7 @@ async function runJarvisSemanticResponse({
 }
 
 module.exports = {
+    DEFAULT_SEMANTIC_MODEL,
     DEFAULT_GEMINI_MODEL,
     VERSION,
     extractGeminiToolCallPlan,
@@ -1193,7 +1195,8 @@ module.exports = {
     isSafeToolName,
     normalizeCatalog,
     compactMissionObservation,
-    runGeminiSemanticPlanner,
+    runModelSemanticPlanner,
+    runGeminiSemanticPlanner: runModelSemanticPlanner,
     runJarvisSemanticPlanner,
     runJarvisSemanticResponse,
     validatePlan
