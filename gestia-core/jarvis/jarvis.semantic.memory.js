@@ -1,4 +1,4 @@
-const VERSION = "1.0.0-durable-semantic-conversations";
+const VERSION = "1.1.0-cross-conversation-advisory-memory";
 const STORAGE_PREFIX = "jarvis.semantic.memory.v1";
 const SESSION_KEY = "jarvis.semantic.memory.activeConversation.v1";
 const MAX_FALLBACK_RECORDS = 2000;
@@ -225,7 +225,12 @@ export function createJarvisSemanticMemory({
 export function compactJarvisSemanticMemoryForPlanner(memory = {}) {
     const currentConversationId = clean(memory?.currentConversationId, 240);
     const belongsToCurrentConversation = item =>
-        Boolean(currentConversationId) && clean(item?.conversationId, 240) === currentConversationId;
+        Boolean(currentConversationId) &&
+        clean(item?.conversationId, 240) === currentConversationId;
+    const belongsToPriorConversation = item =>
+        Boolean(clean(item?.conversationId, 240)) &&
+        !belongsToCurrentConversation(item);
+
     const turns = (Array.isArray(memory?.turns) ? memory.turns : [])
         .filter(belongsToCurrentConversation)
         .slice(-12)
@@ -235,38 +240,69 @@ export function compactJarvisSemanticMemoryForPlanner(memory = {}) {
             missionId: clean(item?.missionId, 240),
             status: clean(item?.status, 120)
         }));
+
+    const mapMission = item => ({
+        conversationId: clean(item?.conversationId, 240),
+        missionId: clean(item?.missionId, 240),
+        instruction: clean(item?.instruction, 6000),
+        missionStatus: clean(item?.missionStatus, 120),
+        missionReason: clean(item?.missionReason, 160),
+        completedTools: Array.isArray(item?.completedTools)
+            ? item.completedTools.map(value => clean(value, 120)).filter(Boolean).slice(0, 30)
+            : [],
+        blockedTools: Array.isArray(item?.blockedTools)
+            ? item.blockedTools.map(value => clean(value, 120)).filter(Boolean).slice(0, 30)
+            : [],
+        finalText: clean(item?.finalText, 8000),
+        producedArtifacts: Array.isArray(item?.producedArtifacts)
+            ? item.producedArtifacts.map(artifact => ({
+                label: clean(artifact?.label, 240),
+                output: clean(artifact?.output, 800)
+            })).filter(artifact => artifact.label || artifact.output).slice(0, 20)
+            : []
+    });
+
     const missions = (Array.isArray(memory?.missions) ? memory.missions : [])
         .filter(belongsToCurrentConversation)
         .slice(-6)
+        .map(mapMission);
+
+    const historicalMissions = (Array.isArray(memory?.missions) ? memory.missions : [])
+        .filter(belongsToPriorConversation)
+        .slice(-10)
+        .map(mapMission);
+
+    const lessons = (Array.isArray(memory?.lessons) ? memory.lessons : [])
+        .slice(-12)
         .map(item => ({
+            conversationId: clean(item?.conversationId, 240),
             missionId: clean(item?.missionId, 240),
-            instruction: clean(item?.instruction, 6000),
-            missionStatus: clean(item?.missionStatus, 120),
-            missionReason: clean(item?.missionReason, 160),
+            instruction: clean(item?.instruction, 4000),
+            status: clean(item?.status, 120),
+            errors: Array.isArray(item?.errors)
+                ? item.errors.map(value => clean(value, 500)).filter(Boolean).slice(0, 12)
+                : [],
             completedTools: Array.isArray(item?.completedTools)
-                ? item.completedTools.map(value => clean(value, 120)).filter(Boolean).slice(0, 30)
+                ? item.completedTools.map(value => clean(value, 120)).filter(Boolean).slice(0, 20)
                 : [],
             blockedTools: Array.isArray(item?.blockedTools)
-                ? item.blockedTools.map(value => clean(value, 120)).filter(Boolean).slice(0, 30)
-                : [],
-            finalText: clean(item?.finalText, 8000),
-            producedArtifacts: Array.isArray(item?.producedArtifacts)
-                ? item.producedArtifacts.map(artifact => ({
-                    label: clean(artifact?.label, 240),
-                    output: clean(artifact?.output, 800)
-                })).filter(artifact => artifact.label || artifact.output).slice(0, 20)
+                ? item.blockedTools.map(value => clean(value, 120)).filter(Boolean).slice(0, 20)
                 : []
         }));
+
     return {
-        authority: 'ADVISORY_SEMANTIC_MEMORY',
+        authority: "ADVISORY_SEMANTIC_MEMORY",
         currentConversationId,
         turns,
         missions,
+        historicalMissions,
+        lessons,
         policy: {
             currentInstructionPrimary: true,
             memoryNeverBecomesCurrentMissionEvidence: true,
             noLexicalRouting: true,
-            relevanceDecidedBySemanticModel: true
+            relevanceDecidedBySemanticModel: true,
+            crossConversationHistoryAdvisory: true
         }
     };
 }
