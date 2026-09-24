@@ -36,6 +36,7 @@ import {
 import { getDocs, increment, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { escaparHTML, cargarLibreriaPDF, urlABase64 } from "./app-utils.js";
 import "./gestia-core/contracts/b2c-platform-contract.js";
+import { renderAdminCrewReview } from "./b2c-provider-crew-admin.js";
 
 const platformContract = globalThis.GestiaB2CPlatformContract;
 if (!platformContract) throw new Error("B2C_PLATFORM_CONTRACT_UNAVAILABLE");
@@ -1016,6 +1017,16 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  </div>
  </div>`;
  document.body.insertAdjacentHTML('beforeend', html);
+ if (providerProfile.crew_enabled) {
+  const crewHost = document.querySelector('#modalExpediente .space-y-4');
+  if (crewHost) {
+   const crewNode = document.createElement('div');
+   crewNode.id = 'adminCrewReviewContainer';
+   crewNode.className = 'bg-black p-3 rounded-xl border border-blue-500/20';
+   crewHost.prepend(crewNode);
+   void renderAdminCrewReview({ providerId: uid, target: crewNode });
+  }
+ }
  } catch(e) {
  console.error(e);
  alert("Error al cargar la auditoría fotográfica desde Firebase Storage.");
@@ -1181,6 +1192,7 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  const payoutMasked = payoutDestination ? (payoutDestination.length <= 6 ? payoutDestination : `${payoutDestination.slice(0,3)}••••${payoutDestination.slice(-4)}`) : 'NO REGISTRADO';
 
  const perfilCanonico = normalizeTechnicianProfile(t);
+ const providerProfile = perfilCanonico.provider_profile || {};
  const kyc = getTechnicianKycRequirements(t);
  const identityDuplicateBlocked =
   t.kyc?.identity_duplicate_suspected === true ||
