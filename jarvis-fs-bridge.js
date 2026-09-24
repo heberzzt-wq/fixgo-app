@@ -5867,6 +5867,9 @@ export function createJarvisFsBridgeApp({
                 ok: false,
                 status: "LOCAL_SEMANTIC_PLAN_FAILED",
                 error: error?.message || String(error),
+                evidence:
+                    error?.evidence ||
+                    null,
                 fallbackAllowed: health.fallbackAllowed,
                 inferenceReceipt: semanticEngine.describe()
             });
