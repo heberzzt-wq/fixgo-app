@@ -1382,15 +1382,32 @@ export async function ensureJarvisLocalAiRuntime({
     if (pullModels === true) {
         for (const model of requiredModels) {
             if (hasModel(installedModels, model)) continue;
-            const pull = commandImpl(
-                ollamaExecutable,
-                ["pull", model],
-                {
-                    cwd: repoRoot,
-                    timeoutMs: 45 * 60 * 1000
+
+            const pullAttempts = [];
+            let pull = null;
+            for (let attempt = 1; attempt <= 3; attempt += 1) {
+                pull = commandImpl(
+                    ollamaExecutable,
+                    ["pull", model],
+                    {
+                        cwd: repoRoot,
+                        timeoutMs: 45 * 60 * 1000
+                    }
+                );
+                pullAttempts.push({
+                    attempt,
+                    ok: pull.ok === true,
+                    status: pull.status ?? null,
+                    stderr: String(pull.stderr || "").slice(-1200),
+                    error: pull.error || null
+                });
+                if (pull.ok === true) break;
+                if (attempt < 3) {
+                    await waitMs(attempt * 2000);
                 }
-            );
-            if (pull.ok !== true) {
+            }
+
+            if (pull?.ok !== true) {
                 return {
                     ok: false,
                     status: "OLLAMA_MODEL_PULL_FAILED",
@@ -1399,6 +1416,7 @@ export async function ensureJarvisLocalAiRuntime({
                     serverStarted,
                     failedModel: model,
                     pull,
+                    pullAttempts,
                     installedModels,
                     expectedModel,
                     expectedEmbeddingModel,
