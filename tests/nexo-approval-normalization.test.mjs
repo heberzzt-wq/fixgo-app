@@ -23,5 +23,6 @@ test("historical NEXO UI filename declares Jarvis as the single semantic authori
     assert.match(source, /3\.0\.0-jarvis-branding-single-semantic-authority/);
     assert.match(source, /semanticAuthority:\s*"jarvisSemanticPlan"/);
     assert.match(source, /replaceExactText/);
-    assert.match(source, /__JARVIS_RUNTIME_STAMP__/);\n    assert.doesNotMatch(source, /__NEXO_RUNTIME_STAMP__/);
+    assert.match(source, /__JARVIS_RUNTIME_STAMP__/);
+    assert.doesNotMatch(source, /__NEXO_RUNTIME_STAMP__/);
 });
