@@ -12,6 +12,7 @@ import {
     ensureJarvisLocalAiRuntime,
     inspectJarvisWorkstation,
     startJarvisUploadBridge,
+    warmJarvisLocalModel,
     JARVIS_UPLOAD_BRIDGE_VERSION,
     runResilientLocalWebResearch
 } from "../jarvis-upload-bridge.js";
@@ -146,6 +147,115 @@ test("workstation liveness is lightweight and doctor stays explicit", () => {
     assert.match(
         source,
         /app\.get\("\/workstation\/health", workstationHealthHandler\)/
+    );
+});
+
+test("workstation warmup loads only the local Qwen model and pins keep-alive", async () => {
+    let observedUrl = "";
+    let observedBody = null;
+
+    const result =
+        await warmJarvisLocalModel({
+            model:
+                "qwen2.5-coder:7b",
+            keepAlive:
+                "30m",
+            timeoutMs:
+                120000,
+            fetchImpl:
+                async (
+                    url,
+                    options
+                ) => {
+                    observedUrl =
+                        String(url);
+                    observedBody =
+                        JSON.parse(
+                            options.body
+                        );
+
+                    return {
+                        ok: true,
+                        status: 200,
+                        text:
+                            async () =>
+                                JSON.stringify({
+                                    done:
+                                        true,
+                                    response:
+                                        "OK"
+                                })
+                    };
+                }
+        });
+
+    assert.equal(
+        observedUrl,
+        "http://127.0.0.1:11434/api/generate"
+    );
+    assert.equal(
+        observedBody.model,
+        "qwen2.5-coder:7b"
+    );
+    assert.equal(
+        observedBody.keep_alive,
+        "30m"
+    );
+    assert.equal(
+        observedBody.stream,
+        false
+    );
+    assert.equal(
+        observedBody.options.num_predict,
+        1
+    );
+    assert.equal(
+        result.ok,
+        true
+    );
+    assert.equal(
+        result.status,
+        "OLLAMA_MODEL_WARM"
+    );
+    assert.equal(
+        result.externalApiUsed,
+        false
+    );
+    assert.equal(
+        result.paidApiUsed,
+        false
+    );
+});
+
+test("real workstation self-heal requires successful local model warmup before READY", () => {
+    const source =
+        fs.readFileSync(
+            new URL(
+                "../jarvis-upload-bridge.js",
+                import.meta.url
+            ),
+            "utf8"
+        );
+
+    assert.match(
+        source,
+        /commandImpl ===\s*workstationCommand/
+    );
+    assert.match(
+        source,
+        /warmJarvisLocalModel/
+    );
+    assert.match(
+        source,
+        /OLLAMA_MODEL_WARMUP_FAILED/
+    );
+    assert.match(
+        source,
+        /OLLAMA_KEEP_ALIVE/
+    );
+    assert.match(
+        source,
+        /"30m"/
     );
 });
 
