@@ -156,7 +156,7 @@ service cloud.firestore {
         'b2c_financial_hold', 'revision_administrativa', 'clientType', 'client_type',
         'cierre_operativo_completado', 'cierre_financiero_pendiente_backend', 'cierre_legacy_financiero_ejecutado',
         'work_evidence_binding_path', 'evidencia_verificada', 'folio_fiscal', 'desglose',
-        'edificioId', 'tenantId', 'empresa_id', 'empresaId', 'contrato_id', 'contratoId'
+        'edificioId', 'tenantId', 'empresa_id', 'empresaId', 'contrato_id', 'contratoId', 'provider_snapshot', 'crew_snapshot'
       ]) &&
         (resource.data.get('llegada_revision_requerida', false) != true || request.resource.data.get('llegada_revision_requerida', false) == true) &&
         (resource.data.get('ausencia_cliente_revision_requerida', false) != true || request.resource.data.get('ausencia_cliente_revision_requerida', false) == true) &&
