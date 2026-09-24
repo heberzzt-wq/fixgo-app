@@ -1146,6 +1146,62 @@ function readFirebaseWorkstationConfig(repoRoot) {
     }
 }
 
+function jarvisOllamaExecutableCandidates(env = process.env) {
+    const candidates = [
+        String(env.JARVIS_OLLAMA_EXECUTABLE || "").trim(),
+        "ollama"
+    ];
+    const localAppData = String(env.LOCALAPPDATA || "").trim();
+    if (localAppData) {
+        candidates.push(
+            path.join(
+                localAppData,
+                "Programs",
+                "Ollama",
+                "ollama.exe"
+            ),
+            path.join(
+                localAppData,
+                "Ollama",
+                "ollama.exe"
+            )
+        );
+    }
+    return [...new Set(candidates.filter(Boolean))];
+}
+
+function resolveJarvisOllamaCli({
+    env = process.env,
+    root = "",
+    commandImpl = workstationCommand
+} = {}) {
+    const cwd = resolveBridgeRoot(root);
+    for (const executable of jarvisOllamaExecutableCandidates(env)) {
+        const probe = commandImpl(
+            executable,
+            ["--version"],
+            {
+                cwd,
+                timeoutMs: 15000
+            }
+        );
+        if (probe.ok === true) {
+            return {
+                ok: true,
+                executable,
+                probe
+            };
+        }
+    }
+    return {
+        ok: false,
+        executable:
+            jarvisOllamaExecutableCandidates(env)[0] ||
+            "ollama",
+        probe: null
+    };
+}
+
 export async function ensureJarvisLocalAiRuntime({
     root = "",
     env = process.env,
@@ -1172,22 +1228,20 @@ export async function ensureJarvisLocalAiRuntime({
             expectedEmbeddingModel
         ].filter(Boolean))
     ];
-    const ollamaExecutable = String(
-        env.JARVIS_OLLAMA_EXECUTABLE ||
-        "ollama"
-    ).trim() || "ollama";
-
     const checkCli = () =>
-        commandImpl(
-            ollamaExecutable,
-            ["--version"],
-            {
-                cwd: repoRoot,
-                timeoutMs: 15000
-            }
-        );
+        resolveJarvisOllamaCli({
+            env,
+            root: repoRoot,
+            commandImpl
+        });
 
-    let cli = checkCli();
+    let cliResolution = checkCli();
+    let ollamaExecutable =
+        cliResolution.executable;
+    let cli =
+        cliResolution.ok === true
+            ? cliResolution.probe
+            : { ok: false };
     let installationAttempted = false;
     let installation = null;
 
@@ -1213,7 +1267,13 @@ export async function ensureJarvisLocalAiRuntime({
                 timeoutMs: 15 * 60 * 1000
             }
         );
-        cli = checkCli();
+        cliResolution = checkCli();
+        ollamaExecutable =
+            cliResolution.executable;
+        cli =
+            cliResolution.ok === true
+                ? cliResolution.probe
+                : { ok: false };
     }
 
     if (cli.ok !== true) {
@@ -1457,11 +1517,15 @@ export async function inspectJarvisWorkstation({
         ["--version"],
         { cwd: repoRoot }
     );
-    const ollamaCli = workstationCommand(
-        "ollama",
-        ["--version"],
-        { cwd: repoRoot }
-    );
+    const ollamaCliResolution =
+        resolveJarvisOllamaCli({
+            env: process.env,
+            root: repoRoot
+        });
+    const ollamaCli =
+        ollamaCliResolution.ok === true
+            ? ollamaCliResolution.probe
+            : { ok: false };
 
     const firebaseConfig =
         readFirebaseWorkstationConfig(repoRoot);
@@ -1677,6 +1741,8 @@ export async function inspectJarvisWorkstation({
             embeddingEndpoint:
                 "http://127.0.0.1:11434/api/embed",
             cliAvailable: ollamaCli.ok,
+            executable:
+                ollamaCliResolution.executable || null,
             serverRunning: ollama.reachable === true,
             models: ollamaModels,
             expectedModel,
