@@ -2,10 +2,12 @@ import {
     planMarketingRequest
 } from "../jarvis/jarvis.marketing.engine.js?v=v94-source-grounded-research-v124-20260810";
 
+export const JARVIS_REAL_MEDIA_TOOLS_VERSION =
+    "2.0.0-jarvis-runtime-authority";
 export const NEXO_REAL_MEDIA_TOOLS_VERSION =
-    "1.8.0-marketing-physical-contract-v12";
+    JARVIS_REAL_MEDIA_TOOLS_VERSION; // compatibility export only
 
-const INSTALL_KEY = "__NEXO_REAL_MEDIA_TOOLS__";
+const INSTALL_KEY = "__JARVIS_REAL_MEDIA_TOOLS__";
 
 const MARKETING_REQUIRED_FIELDS = Object.freeze([
     "audience", "offer", "pain", "promise", "differentiator", "cta",
@@ -271,21 +273,21 @@ function reelVisualMediaEvidence(args = {}, context = {}) {
     };
 }
 
-function slug(value = "nexo-campaign") {
-    return String(value || "nexo-campaign")
+function slug(value = "jarvis-campaign") {
+    return String(value || "jarvis-campaign")
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "")
-        .slice(0, 70) || "nexo-campaign";
+        .slice(0, 70) || "jarvis-campaign";
 }
 
 function registerOrReplace(runtime, definition) {
     const previous = previousDefinition(runtime, definition?.name) || {};
     return runtime.register({
         ...previous,
-        version: NEXO_REAL_MEDIA_TOOLS_VERSION,
+        version: JARVIS_REAL_MEDIA_TOOLS_VERSION,
         mutates: definition?.mutates ?? previous?.mutates ?? false,
         requiresApproval: definition?.requiresApproval ?? previous?.requiresApproval ?? false,
         ...definition,
@@ -296,9 +298,9 @@ function registerOrReplace(runtime, definition) {
     });
 }
 
-export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
+export function registerJarvisRealMediaTools(runtime = runtimeCandidate()) {
     if (!runtime || typeof runtime.register !== "function") {
-        throw new Error("NEXO_TOOL_RUNTIME_REQUIRED");
+        throw new Error("JARVIS_TOOL_RUNTIME_REQUIRED");
     }
 
     const canonicalMarketingDefinition =
@@ -311,8 +313,8 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
     registerOrReplace(runtime, {
         name: "marketing.plan",
         description:
-            "NEXO produce una campaña específica desde una instrucción natural y evidencia opcional; completa propuestas editables sin inventar hechos.",
-        output: "NEXO_MARKETING_PLAN",
+            "JARVIS produce una campaña específica desde una instrucción natural y evidencia opcional; completa propuestas editables sin inventar hechos.",
+        output: "JARVIS_MARKETING_PLAN",
         inputSchema: marketingInputSchema(runtime),
         execute: async (args = {}, context = {}) => {
             const instruction = instructionFrom(args, context);
@@ -326,7 +328,7 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
                     ...context,
                     ...args,
                     authorityId: args.authorityId || context.authorityId || "HEBERTO_MENDOZA",
-                    controllerId: args.controllerId || context.controllerId || "PENINSULA_NEXO"
+                    controllerId: args.controllerId || context.controllerId || "JARVIS"
                 });
             return {
                 ...result,
@@ -342,7 +344,7 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
                         ? (result?.error || result?.status || "MARKETING_PLAN_FAILED")
                         : (result?.error || null),
                 canonicalExecutorUsed: Boolean(canonicalExecute),
-                runtimeOverride: NEXO_REAL_MEDIA_TOOLS_VERSION
+                runtimeOverride: JARVIS_REAL_MEDIA_TOOLS_VERSION
             };
         }
     });
@@ -386,7 +388,7 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
                 blocked: result?.ok !== true,
                 requiresInput: false,
                 retryable: result?.status === "LOCAL_BRIDGE_REQUIRED",
-                runtimeOverride: NEXO_REAL_MEDIA_TOOLS_VERSION
+                runtimeOverride: JARVIS_REAL_MEDIA_TOOLS_VERSION
             };
         }
     });
@@ -428,7 +430,7 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
                             args: hydration.args,
                             mediaHydration
                         },
-                        runtimeOverride: NEXO_REAL_MEDIA_TOOLS_VERSION
+                        runtimeOverride: JARVIS_REAL_MEDIA_TOOLS_VERSION
                     };
                 }
                 const result =
@@ -444,7 +446,7 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
                         args: hydration.args,
                         mediaHydration
                     },
-                    runtimeOverride: NEXO_REAL_MEDIA_TOOLS_VERSION
+                    runtimeOverride: JARVIS_REAL_MEDIA_TOOLS_VERSION
                 };
             }
         });
@@ -454,7 +456,7 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
         name: "web.media.collect",
         description:
             "Descarga fotos y videos reales desde una URL explícita; si el HTML estático no expone suficientes medios, usa Chrome/CDP para observar y conservar los bytes visuales recibidos por esa misma sesión, y después valida host, MIME, firma de bytes, tamaño y SHA-256. Prioriza el medio principal y nunca genera material sintético.",
-        output: "NEXO_REAL_WEB_MEDIA",
+        output: "JARVIS_REAL_WEB_MEDIA",
         mutates: true,
         requiresApproval: false,
         userArtifact: true,
@@ -541,7 +543,7 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
         name: "marketing.package.real-media",
         description:
             "Crea un manifiesto de campaña que enlaza el plan de marketing con los archivos reales verificados por web.media.collect. Falla cerrado si faltan los bytes solicitados.",
-        output: "NEXO_REAL_MEDIA_MARKETING_PACKAGE",
+        output: "JARVIS_REAL_MEDIA_MARKETING_PACKAGE",
         mutates: true,
         requiresApproval: false,
         userArtifact: true,
@@ -589,10 +591,10 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
                 };
             }
 
-            const title = String(args.title || "NEXO - Paquete de marketing con medios reales").trim();
+            const title = String(args.title || "JARVIS - Paquete de marketing con medios reales").trim();
             const packageData = {
-                engine: "NEXO",
-                version: NEXO_REAL_MEDIA_TOOLS_VERSION,
+                engine: "JARVIS",
+                version: JARVIS_REAL_MEDIA_TOOLS_VERSION,
                 sourceUrl: args.sourceUrl,
                 generatedAt: new Date().toISOString(),
                 requirements: {
@@ -620,7 +622,7 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
                 output: args.output,
                 data: packageData,
                 origin: "marketing.package.real-media",
-                provider: "nexo",
+                provider: "jarvis",
                 caseId: context.caseId || args.caseId || "",
                 objectiveId: context.objectiveId || args.objectiveId || "",
                 approved: true,
@@ -648,7 +650,7 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
     const installation = {
         ok: true,
         active: true,
-        version: NEXO_REAL_MEDIA_TOOLS_VERSION,
+        version: JARVIS_REAL_MEDIA_TOOLS_VERSION,
         tools: [
             "marketing.plan",
             "speech.synthesize",
@@ -659,18 +661,18 @@ export function registerNexoRealMediaTools(runtime = runtimeCandidate()) {
         installedAt: new Date().toISOString()
     };
     globalThis[INSTALL_KEY] = installation;
-    globalThis.__NEXO_REAL_MEDIA_TOOLS_HEALTH__ = installation;
+    globalThis.__JARVIS_REAL_MEDIA_TOOLS_HEALTH__ = installation;
     return installation;
 }
 
-export function installNexoRealMediaTools({ maximumAttempts = 120, intervalMs = 100 } = {}) {
+export function installJarvisRealMediaTools({ maximumAttempts = 120, intervalMs = 100 } = {}) {
     if (globalThis[INSTALL_KEY]) return Promise.resolve(globalThis[INSTALL_KEY]);
     if (typeof window === "undefined") {
         return Promise.resolve({
             ok: true,
             active: false,
             environment: "non_browser",
-            version: NEXO_REAL_MEDIA_TOOLS_VERSION
+            version: JARVIS_REAL_MEDIA_TOOLS_VERSION
         });
     }
 
@@ -683,18 +685,18 @@ export function installNexoRealMediaTools({ maximumAttempts = 120, intervalMs = 
                 runtime?.has?.("marketing.plan") &&
                 runtime?.has?.("reel.create")
             ) {
-                resolve(registerNexoRealMediaTools(runtime));
+                resolve(registerJarvisRealMediaTools(runtime));
                 return;
             }
             if (attempts >= maximumAttempts) {
                 const failure = {
                     ok: false,
                     active: false,
-                    status: "NEXO_TOOL_RUNTIME_TIMEOUT",
-                    version: NEXO_REAL_MEDIA_TOOLS_VERSION,
+                    status: "JARVIS_TOOL_RUNTIME_TIMEOUT",
+                    version: JARVIS_REAL_MEDIA_TOOLS_VERSION,
                     attempts
                 };
-                globalThis.__NEXO_REAL_MEDIA_TOOLS_HEALTH__ = failure;
+                globalThis.__JARVIS_REAL_MEDIA_TOOLS_HEALTH__ = failure;
                 resolve(failure);
                 return;
             }
@@ -703,6 +705,10 @@ export function installNexoRealMediaTools({ maximumAttempts = 120, intervalMs = 
         attempt();
     });
 }
+
+// Historical exports remain aliases only; they install no NEXO authority.
+export const registerNexoRealMediaTools = registerJarvisRealMediaTools;
+export const installNexoRealMediaTools = installJarvisRealMediaTools;
 
 export const __test = {
     instructionFrom,
