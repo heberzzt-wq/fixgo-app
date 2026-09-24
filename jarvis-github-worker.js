@@ -1427,12 +1427,12 @@ export function createWorkerPoller({
     let retryNotBefore = 0;
     let consecutiveTransportFailures = 0;
     return async function pollOnce() {
-        if (polling) return;
+        if (polling) return { ok: true, status: "POLL_ALREADY_RUNNING" };
         polling = true;
         let currentJob = null;
         try {
             await reconcile(); // Always reconcile local paid receipts even while GitHub transport is backing off.
-            if (now() < retryNotBefore) return;
+            if (now() < retryNotBefore) return { ok: false, status: "WORKER_BACKOFF_WAIT", retryNotBefore };
             // A failed publication must never replay an operation (especially a paid one).
             if (pendingResult) {
                 await sync();
@@ -1441,11 +1441,11 @@ export function createWorkerPoller({
                 pendingResult = null;
                 retryNotBefore = 0;
                 consecutiveTransportFailures = 0;
-                return;
+                return { ok: true, status: "RESULT_PUBLISHED" };
             }
             currentJob = await readJob();
             const remoteResultJobId = await readResultId();
-            if (!currentJob?.jobId || currentJob.jobId === lastJobId || currentJob.jobId === remoteResultJobId) return;
+            if (!currentJob?.jobId || currentJob.jobId === lastJobId || currentJob.jobId === remoteResultJobId) return { ok: true, status: "IDLE" };
             log("[SIA7_REMOTE_JOB_RECEIVED]", JSON.stringify({jobId: currentJob.jobId, operation: currentJob.operation || "bridge"}));
             // Transport failure before execution leaves the job eligible for the next poll.
             await sync();
@@ -1453,7 +1453,7 @@ export function createWorkerPoller({
             if (local?.jobId === currentJob.jobId && local.executionStarted === true) {
                 lastJobId = currentJob.jobId;
                 pendingResult = local;
-                return;
+                return { ok: true, status: "RESULT_RECONCILIATION_PENDING", jobId: currentJob.jobId };
             }
             persist({jobId: currentJob.jobId, executionStarted: true, ok: false,
                 error: "WORKER_EXECUTION_INTERRUPTED_RECONCILIATION_REQUIRED"});
@@ -1471,19 +1471,24 @@ export function createWorkerPoller({
             pendingResult = null;
             retryNotBefore = 0;
             consecutiveTransportFailures = 0;
+            return { ok: true, status: "JOB_COMPLETED", jobId: currentJob.jobId };
         }
         catch (error) {
             consecutiveTransportFailures += 1;
             const classification = classifyWorkerTransportError(error);
             const delayMs = retryDelay(classification, consecutiveTransportFailures);
             retryNotBefore = now() + delayMs;
-            reportError("[SIA7_REMOTE_WORKER_BACKOFF]", JSON.stringify({
+            const failure = {
+                ok: false,
+                status: "WORKER_BACKOFF",
                 classification,
                 delayMs,
                 failureCount: consecutiveTransportFailures,
                 pendingJobId: pendingResult?.jobId || currentJob?.jobId || null,
                 error: error?.message || String(error)
-            }));
+            };
+            reportError("[SIA7_REMOTE_WORKER_BACKOFF]", JSON.stringify(failure));
+            return failure;
         }
         finally {
             polling = false;
