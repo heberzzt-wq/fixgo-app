@@ -61,6 +61,7 @@ on:
       - 'jarvis-upload-bridge.js'
       - 'jarvis-github-worker.js'
       - 'jarvis-fs-bridge.js'
+      - 'jarvis-repo-intelligence.js'
       - 'jarvis-local-video-engine.js'
       - 'scripts/jarvis-local-video-wan22.py'
       - 'jarvis-reel-artifact.js'
@@ -84,6 +85,7 @@ on:
       - 'tests/jarvis-reel-media-binder-v131.test.mjs'
       - 'tests/jarvis-reel-terminal-delivery-v142.test.mjs'
       - 'tests/jarvis-fs-bridge-v2.test.mjs'
+      - 'tests/jarvis-repo-intelligence.test.mjs'
       - 'tests/jarvis-local-routing.test.mjs'
       - 'tests/nexo-terminal-bootstrap.test.mjs'
       - 'tests/nexo-approval-normalization.test.mjs'
@@ -259,6 +261,7 @@ jobs:
             tests/jarvis-semantic-planner.test.cjs \
             tests/jarvis-upload-bridge.test.mjs \
             tests/jarvis-fs-bridge-v2.test.mjs \
+            tests/jarvis-repo-intelligence.test.mjs \
             tests/jarvis-local-routing.test.mjs \
             tests/single-semantic-authority.test.mjs \
             tests/nexo-terminal-bootstrap.test.mjs \
