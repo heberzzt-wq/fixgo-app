@@ -5940,6 +5940,18 @@ export function createJarvisFsBridgeApp({
             const allowedCommands =
                 new Set([
                     "npm run check:syntax",
+                    "npm run check:entry-syntax",
+                    "npm run test:raw",
+                    "npm run test:multifunction",
+                    "npm run test:mcp",
+                    "npm run test:b2c-platform",
+                    "npm run test:b2c-emulators",
+                    "npm run test:b2c-forensic",
+                    "npm run test:b2c-forensic-emulators",
+                    "npm run test:platform-hardening",
+                    "npm run bridge:smoke",
+                    "npm run worker:smoke",
+                    "npm run smoke:release",
                     "npm test",
                     "npm run ci:test"
                 ]);
