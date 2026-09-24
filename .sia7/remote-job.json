@@ -1,10 +1,11 @@
 {
-  "jobId": "jarvis-local-ai-direct-response-benchmark-20260924-021",
+  "jobId": "jarvis-local-ai-warmup-workstation-20260924-022",
   "operation": "bridge",
-  "endpoint": "/semantic/respond",
+  "endpoint": "/run",
   "body": {
-    "input": "Responde solamente OK.",
-    "maxOutputTokens": 8,
-    "timeoutMs": 85000
+    "command": "npm run bridge:ensure",
+    "cwd": ".",
+    "timeoutMs": 3600000,
+    "source": "jarvis_local_ai_warmup_workstation"
   }
 }
