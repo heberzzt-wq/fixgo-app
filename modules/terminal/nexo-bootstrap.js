@@ -84,55 +84,101 @@ function installJarvisLocalBridgeTransport() {
                 Math.max(Number(options?.timeoutMs) || 120000, 1000),
                 180000
             );
-            const controller = new AbortController();
-            const timeout = setTimeout(
-                () => controller.abort(),
-                timeoutMs
-            );
+            const maximumAttempts = 3;
+            let lastError = null;
 
-            try {
-                const response = await globalThis.fetch(
-                    `${LOCAL_BRIDGE_BASE_URL}${path}`,
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "X-Jarvis-Release-Id": contract.releaseId
-                        },
-                        body: JSON.stringify(
-                            payload && typeof payload === "object"
-                                ? payload
-                                : {}
-                        ),
-                        cache: "no-store",
-                        signal: controller.signal,
-                        targetAddressSpace: "loopback"
-                    }
+            for (
+                let attempt = 1;
+                attempt <= maximumAttempts;
+                attempt += 1
+            ) {
+                const controller = new AbortController();
+                const timeout = setTimeout(
+                    () => controller.abort(),
+                    timeoutMs
                 );
-                const text = await response.text();
-                let result = {};
-                if (text) {
-                    try {
-                        result = JSON.parse(text);
+
+                try {
+                    const response = await globalThis.fetch(
+                        `${LOCAL_BRIDGE_BASE_URL}${path}`,
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "X-Jarvis-Release-Id": contract.releaseId
+                            },
+                            body: JSON.stringify(
+                                payload && typeof payload === "object"
+                                    ? payload
+                                    : {}
+                            ),
+                            cache: "no-store",
+                            signal: controller.signal,
+                            targetAddressSpace: "loopback"
+                        }
+                    );
+                    const text = await response.text();
+                    let result = {};
+                    if (text) {
+                        try {
+                            result = JSON.parse(text);
+                        }
+                        catch {
+                            throw new Error(
+                                `JARVIS_LOCAL_BRIDGE_INVALID_JSON_${response.status}`
+                            );
+                        }
                     }
-                    catch {
-                        throw new Error(
-                            `JARVIS_LOCAL_BRIDGE_INVALID_JSON_${response.status}`
-                        );
+                    if (!response.ok) {
+                        return {
+                            ...result,
+                            ok: result?.ok === true,
+                            httpStatus: response.status
+                        };
                     }
+                    return result;
                 }
-                if (!response.ok) {
-                    return {
-                        ...result,
-                        ok: result?.ok === true,
-                        httpStatus: response.status
-                    };
+                catch(error) {
+                    lastError = error;
+                    const aborted =
+                        error?.name === "AbortError";
+
+                    if (
+                        aborted ||
+                        attempt >= maximumAttempts
+                    ) {
+                        throw error;
+                    }
+
+                    console.warn(
+                        "[JARVIS_LOCAL_BRIDGE_TRANSIENT_RETRY]",
+                        {
+                            route:
+                                path,
+                            attempt,
+                            nextAttempt:
+                                attempt + 1,
+                            error:
+                                error?.message || String(error)
+                        }
+                    );
+
+                    await new Promise(resolve =>
+                        setTimeout(
+                            resolve,
+                            attempt * 350
+                        )
+                    );
                 }
-                return result;
+                finally {
+                    clearTimeout(timeout);
+                }
             }
-            finally {
-                clearTimeout(timeout);
-            }
+
+            throw (
+                lastError ||
+                new Error("JARVIS_LOCAL_BRIDGE_REQUEST_FAILED")
+            );
         }
     };
 
