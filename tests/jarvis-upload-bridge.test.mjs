@@ -78,6 +78,8 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     assert.match(pkg.scripts["bridge:ensure"], /3344/);
     assert.match(pkg.scripts["bridge:ensure"], /detached:true/);
     assert.match(pkg.scripts["bridge:doctor"], /workstation\/health/);
+    assert.match(pkg.scripts["bridge:ensure"], /workstation\/health/);
+    assert.match(pkg.scripts["bridge:ensure"], /workerStarted/);
     assert.match(pkg.scripts["bridge:ensure"], /bridge:supervise/);
     assert.match(pkg.scripts["bridge:supervise"], /workstation offline -> starting singleton/);
     assert.match(pkg.scripts["bridge:supervise"], /setTimeout\(loop,ms\)/);
@@ -85,13 +87,15 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     assert.match(pkg.scripts.bridge, /workerLastPollOkAt/);
     assert.match(pkg.scripts.bridge, /workerLastPollError/);
     assert.match(pkg.scripts.bridge, /JARVIS_GIT_SYNC_DEGRADED/);
-    assert.match(pkg.scripts.bridge, /singleton already online with worker/);
-    assert.match(pkg.scripts.bridge, /reusing healthy bridge and attaching single worker/);
+    assert.match(pkg.scripts.bridge, /singleton bridge already online/);
+    assert.match(pkg.scripts.bridge, /workerStarted=/);
     assert.match(pkg.scripts.bridge, /JARVIS_BRIDGE_PORT_3344_OCCUPIED_UNHEALTHY/);
-    assert.match(pkg.scripts["bridge:supervise"], /bridge healthy without worker -> attaching worker/);
+    assert.match(pkg.scripts["bridge:supervise"], /recycled verified bridge-only process/);
     assert.match(pkg.scripts["bridge:supervise"], /refusing duplicate bind/);
     assert.match(pkg.scripts["bridge:supervise"], /workstation\/health/);
     assert.match(pkg.scripts["bridge:supervise"], /workerStarted/);
+    assert.match(pkg.scripts["bridge:supervise"], /taskkill/);
+    assert.match(pkg.scripts["bridge:supervise"], /processId/);
     assert.match(pkg.scripts["bridge:supervise"], /occupied\(\)/);
     assert.equal(pkg.scripts["test:mcp"], "npm --prefix tools/fixgo-mcp run check");
     assert.equal(pkg.scripts["nexo:bridge"], "npm run bridge");
