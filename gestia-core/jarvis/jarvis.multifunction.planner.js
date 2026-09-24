@@ -2192,9 +2192,15 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
         globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {
             ok: plan?.ok === true,
             status: plan?.status || "SEMANTIC_PLAN_READY",
-            provider: plan?.provider || "injected",
+            provider: plan?.provider || "ollama-openai-compatible-local",
             model: plan?.model || null,
             toolCount: calls.length,
+            semanticAuthority: "jarvisSemanticPlan",
+            localOnly: true,
+            alternateBrains: 0,
+            localSemanticInferenceUsed: plan?.localSemanticInferenceUsed === true,
+            cloudSemanticInferenceUsed: false,
+            externalApiUsed: false,
             checkedAt: new Date().toISOString()
         };
 
@@ -2204,6 +2210,11 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
             ok: false,
             status: "SEMANTIC_PLANNER_UNAVAILABLE",
             error: error?.message || String(error),
+            semanticAuthority: "jarvisSemanticPlan",
+            localOnly: true,
+            alternateBrains: 0,
+            cloudSemanticInferenceUsed: false,
+            externalApiUsed: false,
             checkedAt: new Date().toISOString()
         };
         if (context.throwOnUnavailable === true) throw error;
