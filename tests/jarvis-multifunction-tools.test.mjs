@@ -4206,6 +4206,32 @@ test("mixed investigations retain technical and multifunction tools", async () =
     );
 });
 
+test("conversation composition is local-only and has no cloud semantic fallback", () => {
+    const source = fs.readFileSync(
+        path.join(
+            __dirname,
+            "..",
+            "gestia-core",
+            "jarvis",
+            "jarvis.multitool.pack.js"
+        ),
+        "utf8"
+    );
+
+    const start = source.indexOf("async function fetchSemanticConversation(");
+    const end = source.indexOf("\nfunction clean(", start);
+    assert.ok(start >= 0 && end > start);
+    const block = source.slice(start, end);
+
+    assert.match(block, /\/semantic\/respond/);
+    assert.match(block, /localOnly:\s*true/);
+    assert.match(block, /fallbackAllowed:\s*false/);
+    assert.match(block, /externalApiUsed:\s*false/);
+    assert.match(block, /cloudSemanticInferenceUsed:\s*false/);
+    assert.doesNotMatch(block, /jarvisSemanticRespond/);
+    assert.doesNotMatch(block, /cloudfunctions\.net/);
+});
+
 test("Gestia Core has one semantic brain and no alternate cognition fallback", () => {
     const core = fs.readFileSync(
         path.join(
