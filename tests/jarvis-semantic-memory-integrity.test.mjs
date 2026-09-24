@@ -66,7 +66,14 @@ test("planner semantic context is bounded to the current conversation and remain
             { conversationId: "current", role: "user", content: "Ahora crea los archivos" }
         ],
         missions: [
-            { conversationId: "old", instruction: "Misión ajena", finalText: "No usar" },
+            {
+                conversationId: "old",
+                missionId: "legacy-1",
+                instruction: "Misión histórica verificable",
+                missionStatus: "COMPLETED",
+                finalText: "Resultado histórico",
+                completedTools: ["repo.search"]
+            },
             {
                 conversationId: "current",
                 missionId: "marketing-1",
@@ -75,6 +82,16 @@ test("planner semantic context is bounded to the current conversation and remain
                 completedTools: ["web.research", "marketing.plan"],
                 finalText: "Plan de marketing preparado con piezas listas para producción.",
                 producedArtifacts: []
+            }
+        ],
+        lessons: [
+            {
+                conversationId: "old",
+                missionId: "legacy-lesson",
+                instruction: "No repetir una escritura fallida",
+                status: "TOOL_FAILED",
+                errors: ["WRITE_FAILED"],
+                blockedTools: ["repo.write"]
             }
         ]
     };
@@ -86,9 +103,14 @@ test("planner semantic context is bounded to the current conversation and remain
     assert.match(context.missions[0].instruction, /Multiservicios Peninsulares HMH/);
     assert.match(context.turns.at(-1).content, /crea los archivos/);
     assert.equal(JSON.stringify(context).includes("No contaminar"), false);
-    assert.equal(JSON.stringify(context).includes("Misión ajena"), false);
+    assert.equal(context.historicalMissions.length, 1);
+    assert.match(context.historicalMissions[0].instruction, /Misión histórica verificable/);
+    assert.equal(context.lessons.length, 1);
+    assert.match(context.lessons[0].instruction, /escritura fallida/);
     assert.equal(context.policy.memoryNeverBecomesCurrentMissionEvidence, true);
     assert.equal(context.policy.noLexicalRouting, true);
+    assert.equal(context.policy.crossConversationHistoryAdvisory, true);
+    assert.equal(context.policy.relevanceDecidedBySemanticModel, true);
 });
 
 test("terminal planner keeps mission memory advisory while direct conversation retains semantic continuity", () => {
