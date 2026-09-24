@@ -421,6 +421,7 @@ test("emulator exercises Jarvis local-only planner through the real bridge and r
     const base = `http://127.0.0.1:${server.address().port}`;
     const previousBridge = globalThis.JarvisLocalBridge;
     const previousFetch = globalThis.fetch;
+    const loopbackFetch = globalThis.fetch.bind(globalThis);
     let externalCalls = 0;
     try {
         globalThis.fetch = async (...args) => {
@@ -429,7 +430,7 @@ test("emulator exercises Jarvis local-only planner through the real bridge and r
         };
         globalThis.JarvisLocalBridge = {
             async requestJson(route, payload = {}) {
-                const response = await fetch(`${base}${route}`, {
+                const response = await loopbackFetch(`${base}${route}`, {
                     method: "POST",
                     headers: {
                         "content-type": "application/json",
