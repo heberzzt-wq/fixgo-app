@@ -1270,7 +1270,7 @@ test("Gemini reserves response budget for evidence-driven mission follow-ups", a
             models: {
                 generateContent: async request => {
                     assert.equal(request.config.thinkingConfig.thinkingLevel, "MINIMAL");
-                    assert.equal(request.config.maxOutputTokens, 3000);
+                    assert.equal(request.config.maxOutputTokens, 384);
                     return {
                         functionCalls: [{
                             name: "jarvis_tool_1",
