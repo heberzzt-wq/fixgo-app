@@ -36,6 +36,9 @@ import {
     startChunkedUpload,
     readArtifactPayload
 } from "../jarvis-fs-bridge.js";
+import {
+    buildJarvisMultifunctionToolCalls
+} from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
 
 // Match the bridge's Windows Git authority; the bundled Git can fail object writes.
 const gitExecutable = process.platform === "win32" && fs.existsSync("C:/Program Files/Git/cmd/git.exe")
@@ -353,6 +356,140 @@ test("V142 HuMo LAN zero-cost preflight certifies cache and tar without provider
         assert.equal(logs.length, 1);
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test("emulator exercises Jarvis local-only planner through the real bridge and real repo evidence", async t => {
+    const fixture = createBridgeIdentityFixture();
+    const markerFile = "local-ai-emulator-target.js";
+    fs.writeFileSync(
+        path.join(fixture.root, markerFile),
+        'export const LOCAL_AI_EMULATOR_MARKER = "JARVIS_QWEN_LOCAL_ONLY";\n',
+        "utf8"
+    );
+    fixture.runGit(["add", markerFile]);
+    fixture.runGit(["commit", "-m", "fixture: local ai emulator target"]);
+    fixture.runGit(["push", "origin", fixture.branch]);
+
+    const semanticRequests = [];
+    const semanticEngine = createSelfHostedSemanticEngine({
+        env: {
+            JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
+            JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
+            JARVIS_LOCAL_LLM_MODEL: "qwen2.5-coder:7b",
+            JARVIS_LOCAL_EMBEDDING_MODEL: "qwen3-embedding:0.6b"
+        },
+        fetchImpl: async (url, options) => {
+            const body = JSON.parse(options.body);
+            semanticRequests.push({ url, body });
+            assert.equal(url, "http://127.0.0.1:11434/v1/chat/completions");
+            return {
+                ok: true,
+                status: 200,
+                text: async () => JSON.stringify({
+                    choices: [{
+                        message: {
+                            content: "",
+                            tool_calls: [{
+                                function: {
+                                    name: "jarvis_tool_0",
+                                    arguments: JSON.stringify({
+                                        query: "LOCAL_AI_EMULATOR_MARKER"
+                                    })
+                                }
+                            }]
+                        }
+                    }]
+                })
+            };
+        }
+    });
+
+    const server = createJarvisFsBridgeApp({
+        root: fixture.root,
+        localSemanticEngine: semanticEngine
+    }).listen(0);
+    await new Promise((resolve, reject) => {
+        server.once("listening", resolve);
+        server.once("error", reject);
+    });
+    t.after(async () => {
+        await new Promise(resolve => server.close(resolve));
+        fs.rmSync(fixture.fixtureRoot, { recursive: true, force: true });
+    });
+
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const previousBridge = globalThis.JarvisLocalBridge;
+    const previousFetch = globalThis.fetch;
+    let externalCalls = 0;
+    try {
+        globalThis.fetch = async (...args) => {
+            externalCalls += 1;
+            throw new Error(`UNEXPECTED_EXTERNAL_FETCH:${args[0]}`);
+        };
+        globalThis.JarvisLocalBridge = {
+            async requestJson(route, payload = {}) {
+                const response = await fetch(`${base}${route}`, {
+                    method: "POST",
+                    headers: {
+                        "content-type": "application/json",
+                        "x-jarvis-release-id": "test-release"
+                    },
+                    body: JSON.stringify(payload)
+                });
+                return await response.json();
+            }
+        };
+
+        const calls = await buildJarvisMultifunctionToolCalls(
+            "Encuentra LOCAL_AI_EMULATOR_MARKER en el repositorio",
+            {
+                throwOnUnavailable: true,
+                toolCatalog: [{
+                    name: "repo.search",
+                    description: "Busca evidencia real dentro del repositorio",
+                    inputSchema: {
+                        type: "object",
+                        properties: { query: { type: "string" } },
+                        required: ["query"],
+                        additionalProperties: false
+                    },
+                    mutates: false
+                }]
+            }
+        );
+
+        assert.equal(calls.length, 1);
+        assert.equal(calls[0].name, "repo.search");
+        assert.equal(calls[0].args.query, "LOCAL_AI_EMULATOR_MARKER");
+        assert.equal(semanticRequests.length, 1);
+        assert.equal(semanticRequests[0].body.model, "qwen2.5-coder:7b");
+
+        const grepResponse = await globalThis.JarvisLocalBridge.requestJson("/grep", {
+            query: calls[0].args.query,
+            term: calls[0].args.query,
+            maxMatches: 20
+        });
+        assert.equal(grepResponse.ok, true);
+        assert.ok(
+            (grepResponse.matches || []).some(match =>
+                String(match.file || "").endsWith(markerFile)
+            ),
+            "real bridge evidence must contain the emulated marker file"
+        );
+
+        const healthResponse = await globalThis.JarvisLocalBridge.requestJson("/semantic/local/health", {});
+        assert.equal(healthResponse.ok, true);
+        assert.equal(healthResponse.mode, "LOCAL_ONLY");
+        assert.equal(healthResponse.provider, "ollama-openai-compatible-local");
+        assert.equal(healthResponse.model, "qwen2.5-coder:7b");
+        assert.equal(healthResponse.counters.localSemanticInferenceCalls, 1);
+        assert.equal(healthResponse.counters.semanticExternalCalls, 0);
+        assert.equal(healthResponse.counters.paidExternalCalls, 0);
+        assert.equal(externalCalls, 0);
+    } finally {
+        globalThis.JarvisLocalBridge = previousBridge;
+        globalThis.fetch = previousFetch;
     }
 });
 
