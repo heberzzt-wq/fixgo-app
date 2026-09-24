@@ -528,8 +528,22 @@ test("emulador local recorre Jarvis completo: plan LLM -> repo real -> respuesta
             JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
             JARVIS_LOCAL_LLM_MODEL: "qwen-emulator"
         },
-        fetchImpl: async (_url, options) => {
+        fetchImpl: async (url, options) => {
             const body = JSON.parse(options.body);
+            if (String(url).endsWith("/api/embed")) {
+                const inputs = Array.isArray(body.input) ? body.input : [body.input];
+                return {
+                    ok: true,
+                    status: 200,
+                    text: async () => JSON.stringify({
+                        embeddings: inputs.map(value =>
+                            String(value || "").includes("JARVIS_LOCAL_LLM_BASE_URL")
+                                ? [1, 0, 0]
+                                : [0, 1, 0]
+                        )
+                    })
+                };
+            }
             llmRequests.push(body);
             const isPlanning = Array.isArray(body.tools) && body.tools.length > 0;
             return {
@@ -612,6 +626,20 @@ test("emulador local recorre Jarvis completo: plan LLM -> repo real -> respuesta
             "JARVIS_LOCAL_LLM_BASE_URL"
         );
 
+        const semanticRanking = await post("/repo/candidates", {
+            query: plan.body.toolCalls[0].args.query,
+            limit: 5,
+            refresh: true
+        });
+        assert.equal(semanticRanking.status, 200, JSON.stringify(semanticRanking.body));
+        assert.equal(semanticRanking.body.ok, true);
+        assert.equal(semanticRanking.body.semanticRetrieval, true);
+        assert.equal(semanticRanking.body.semanticEvidence.provider, "ollama-local");
+        assert.equal(semanticRanking.body.semanticEvidence.model, "qwen3-embedding:0.6b");
+        assert.equal(semanticRanking.body.semanticEvidence.externalApiUsed, false);
+        assert.equal(semanticRanking.body.candidates[0].file, "local-ai-target.js");
+        assert.ok(semanticRanking.body.candidates[0].semanticSimilarity > 0.9);
+
         const evidence = await post("/grep", {
             term: plan.body.toolCalls[0].args.query,
             query: plan.body.toolCalls[0].args.query,
@@ -646,6 +674,8 @@ test("emulador local recorre Jarvis completo: plan LLM -> repo real -> respuesta
 
         const health = engine.describe();
         assert.equal(health.counters.localSemanticInferenceCalls, 2);
+        assert.ok(health.counters.localEmbeddingCalls >= 2);
+        assert.ok(health.counters.localEmbeddedTexts >= 2);
         assert.equal(health.counters.semanticExternalCalls, 0);
         assert.equal(health.counters.paidExternalCalls, 0);
         assert.equal(llmRequests.length, 2);
