@@ -21,10 +21,29 @@ function fixture(extra = {}) {
   'services/service_1': service, 'service_marketplace/service_1': { service_id: 'service_1', estado: 'disponible' }, ...extra }).map(([k,v])=>[k, structuredClone(v)]));
  let queue = Promise.resolve(); let id = 0;
  const snap = (path, value = data.get(path)) => ({ id: path.split('/').at(-1), exists: value !== undefined, data: () => structuredClone(value) });
- const ref = path => ({ path, id: path.split('/').at(-1), get: async () => snap(path) });
+ const ref = path => ({
+  path,
+  id: path.split('/').at(-1),
+  get: async () => snap(path),
+  collection(name) {
+   const nested = `${path}/${name}`;
+   return {
+    where(field, op, value) {
+     return { name: nested, field, value, count: 500, limit(count) { this.count = count; return this; } };
+    }
+   };
+  }
+ });
  const db = { data, beforeTransaction: null, collection: name => ({ doc: (idValue = `auto_${++id}`) => ref(`${name}/${idValue}`), where: (field, op, value) => ({ name, field, value }) }),
   runTransaction(callback) { const execute = async () => { if (db.beforeTransaction) { db.beforeTransaction(); db.beforeTransaction = null; }
-   const writes = []; const tx = { get: async target => target.path ? snap(target.path) : ({ docs: [...data].filter(([p,v])=>p.startsWith(target.name+'/') && v[target.field] === target.value).map(([p,v])=>snap(p,v)) }),
+   const writes = []; const tx = { get: async target => {
+    if (target.path) return snap(target.path);
+    const prefix = target.name + '/';
+    return { docs: [...data]
+     .filter(([p,v])=>p.startsWith(prefix) && !p.slice(prefix.length).includes('/') && v[target.field] === target.value)
+     .slice(0, target.count || 500)
+     .map(([p,v])=>snap(p,v)) };
+   },
     set: (r,v) => writes.push(()=>data.set(r.path,v)), create: (r,v)=>writes.push(()=>data.set(r.path,v)),
     update: (r,v)=>writes.push(()=>data.set(r.path,{...data.get(r.path),...v})), delete:r=>writes.push(()=>data.delete(r.path)) };
    const result = await callback(tx); writes.forEach(write=>write()); return result; };
