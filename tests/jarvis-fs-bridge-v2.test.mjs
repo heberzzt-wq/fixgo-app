@@ -158,7 +158,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.51.0-temporal-media-self-hosted-v142");
+    assert.equal(description.version, "2.52.0-cached-request-identity-v142");
     assert.equal(typeof description.actuators.speech.available, "boolean");
     assert.deepEqual(description.actuators.speech.outputFormats, ["wav"]);
     assert.equal(description.policy.authority, "full_repo_private_owner");
@@ -1483,7 +1483,7 @@ test("Jarvis FS bridge loads the release identity contract", async () => {
     }
 });
 
-test("loopback health and semantic requests reuse one startup identity snapshot", () => {
+test("loopback health and semantic requests reuse one startup identity snapshot with fast head revalidation", () => {
     const source = fs.readFileSync(
         new URL("../jarvis-fs-bridge.js", import.meta.url),
         "utf8"
@@ -1499,15 +1499,19 @@ test("loopback health and semantic requests reuse one startup identity snapshot"
 
     assert.match(
         appBlock,
-        /const requestIdentity\s*=\s*[\s\S]{0,180}?describeJarvisBridgeIdentity\([\s\S]{0,180}?verifyRemote:\s*false/
+        /const requestIdentitySnapshot\s*=\s*[\s\S]{0,180}?describeJarvisBridgeIdentity\([\s\S]{0,180}?verifyRemote:\s*false/
     );
     assert.match(
         appBlock,
-        /app\.get\("\/health"[\s\S]{0,500}?identity:\s*requestIdentity/
+        /const requestIdentity\s*=\s*[\s\S]{0,180}?refreshJarvisBridgeIdentitySnapshot/
     );
     assert.match(
         appBlock,
-        /const identity\s*=\s*requestIdentity/
+        /app\.get\("\/health"[\s\S]{0,500}?identity:\s*requestIdentity\(\)/
+    );
+    assert.match(
+        appBlock,
+        /const identity\s*=\s*requestIdentity\(\)/
     );
 
     const healthStart =
