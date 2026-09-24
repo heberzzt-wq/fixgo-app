@@ -560,18 +560,16 @@ function sleepMs(ms = 0) {
 }
 
 const SEMANTIC_PROVIDER_MODES = new Set([
-    "CURRENT_STABLE",
-    "LOCAL_PREFERRED",
     "LOCAL_ONLY"
 ]);
 
 function semanticProviderMode(env = process.env) {
     const requested = String(
-        env.JARVIS_SEMANTIC_PROVIDER_MODE || "LOCAL_PREFERRED"
+        env.JARVIS_SEMANTIC_PROVIDER_MODE || "LOCAL_ONLY"
     ).trim().toUpperCase();
     return SEMANTIC_PROVIDER_MODES.has(requested)
         ? requested
-        : "LOCAL_PREFERRED";
+        : "LOCAL_ONLY";
 }
 
 function normalizeSelfHostedSemanticUrl(value = "") {
@@ -581,8 +579,8 @@ function normalizeSelfHostedSemanticUrl(value = "") {
     const loopback = ["127.0.0.1", "localhost", "::1"].includes(
         parsed.hostname.toLowerCase()
     );
-    if (parsed.protocol !== "https:" && !(loopback && parsed.protocol === "http:")) {
-        throw new Error("LOCAL_SEMANTIC_ENDPOINT_MUST_BE_LOOPBACK_OR_HTTPS");
+    if (!loopback || !["http:", "https:"].includes(parsed.protocol)) {
+        throw new Error("LOCAL_SEMANTIC_ENDPOINT_MUST_BE_LOOPBACK");
     }
     if (parsed.username || parsed.password || parsed.search || parsed.hash) {
         throw new Error("LOCAL_SEMANTIC_ENDPOINT_INVALID");
@@ -641,8 +639,12 @@ export function createSelfHostedSemanticEngine({
     env = process.env
 } = {}) {
     const mode = semanticProviderMode(env);
-    const model = String(env.JARVIS_LOCAL_LLM_MODEL || "").trim();
-    const rawBaseUrl = String(env.JARVIS_LOCAL_LLM_BASE_URL || "").trim();
+    const model = String(
+        env.JARVIS_LOCAL_LLM_MODEL || "qwen2.5-coder:7b"
+    ).trim();
+    const rawBaseUrl = String(
+        env.JARVIS_LOCAL_LLM_BASE_URL || "http://127.0.0.1:11434/v1"
+    ).trim();
     const token = String(env.JARVIS_LOCAL_LLM_TOKEN || "").trim();
     const timeoutMs = Math.min(
         Math.max(Number(env.JARVIS_LOCAL_LLM_TIMEOUT_MS) || 90000, 5000),
@@ -671,12 +673,12 @@ export function createSelfHostedSemanticEngine({
                 ? "LOCAL_SEMANTIC_BACKEND_CONFIGURED"
                 : "LOCAL_SEMANTIC_BACKEND_NOT_CONFIGURED"),
             mode,
-            provider: "self-hosted-openai-compatible",
+            provider: "ollama-openai-compatible-local",
             model: model || null,
             endpointConfigured: Boolean(baseUrl),
             endpointOrigin: baseUrl ? new URL(baseUrl).origin : null,
             tokenConfigured: Boolean(token),
-            fallbackAllowed: mode !== "LOCAL_ONLY",
+            fallbackAllowed: false,
             selfHosted: true,
             paidModelApiUsed: false,
             externalApiUsed: false,
@@ -746,7 +748,7 @@ export function createSelfHostedSemanticEngine({
     }
 
     const ai = {
-        lastProvider: "self-hosted-openai-compatible",
+        lastProvider: "ollama-openai-compatible-local",
         models: { generateContent }
     };
 
