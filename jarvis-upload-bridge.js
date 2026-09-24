@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import * as tls from "node:tls";
@@ -10,9 +11,11 @@ import {
     cancelChunkedUpload,
     completeChunkedUpload,
     createJarvisFsBridgeApp,
+    inspectLocalConnectors,
     saveUploadedArtifact,
     startChunkedUpload
 } from "./jarvis-fs-bridge.js";
+import { inspectLocalVideoHardware } from "./jarvis-local-video-engine.js";
 
 function ensureSystemCertificates() {
     if (
@@ -929,7 +932,7 @@ export async function runResilientLocalWebResearch(
 }
 
 export const JARVIS_UPLOAD_BRIDGE_VERSION =
-    "1.6.0-direct-anchor-verification-v142";
+    "1.7.0-workstation-supervisor-v142";
 
 const MODULE_FILE =
     fileURLToPath(import.meta.url);
@@ -1017,6 +1020,363 @@ export function removeLegacyUploadRoutes(app) {
         removed,
         protectedPaths:
             [...REPLACED_ROUTE_PATHS]
+    };
+}
+
+const workstationRuntimeState = {
+    startedAt: null,
+    bridgeStarted: false,
+    workerStarted: false,
+    workerPollMs: 5000,
+    lastDoctorAt: null
+};
+
+function workstationCommand(command, args = [], {
+    cwd = process.cwd(),
+    timeoutMs = 5000
+} = {}) {
+    try {
+        const result = spawnSync(command, args, {
+            cwd,
+            encoding: "utf8",
+            windowsHide: true,
+            timeout: timeoutMs,
+            shell: process.platform === "win32",
+            stdio: ["ignore", "pipe", "pipe"]
+        });
+        return {
+            ok: result.status === 0,
+            status: result.status,
+            stdout: String(result.stdout || "").trim().slice(0, 2000),
+            stderr: String(result.stderr || "").trim().slice(0, 2000),
+            error: result.error?.message || null
+        };
+    }
+    catch(error) {
+        return {
+            ok: false,
+            status: null,
+            stdout: "",
+            stderr: "",
+            error: error?.message || String(error)
+        };
+    }
+}
+
+async function probeLocalJson(url, timeoutMs = 1200) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const response = await fetch(url, {
+            method: "GET",
+            signal: controller.signal
+        });
+        let body = null;
+        try {
+            body = await response.json();
+        }
+        catch {}
+        return {
+            ok: response.ok,
+            reachable: true,
+            status: response.status,
+            body
+        };
+    }
+    catch(error) {
+        return {
+            ok: false,
+            reachable: false,
+            status: null,
+            body: null,
+            error:
+                error?.name === "AbortError"
+                    ? "TIMEOUT"
+                    : (error?.message || String(error))
+        };
+    }
+    finally {
+        clearTimeout(timer);
+    }
+}
+
+function readFirebaseWorkstationConfig(repoRoot) {
+    try {
+        const config = JSON.parse(
+            fs.readFileSync(
+                path.join(repoRoot, "firebase.json"),
+                "utf8"
+            )
+        );
+        return {
+            configured: true,
+            projectConfigPresent:
+                fs.existsSync(path.join(repoRoot, ".firebaserc")),
+            firestoreRules:
+                config?.firestore?.rules || null,
+            storageRules:
+                config?.storage?.rules || null,
+            emulators: {
+                firestore: {
+                    host:
+                        config?.emulators?.firestore?.host ||
+                        "127.0.0.1",
+                    port:
+                        Number(config?.emulators?.firestore?.port || 8180)
+                },
+                storage: {
+                    host:
+                        config?.emulators?.storage?.host ||
+                        "127.0.0.1",
+                    port:
+                        Number(config?.emulators?.storage?.port || 9299)
+                }
+            }
+        };
+    }
+    catch(error) {
+        return {
+            configured: false,
+            projectConfigPresent: false,
+            firestoreRules: null,
+            storageRules: null,
+            emulators: null,
+            error: error?.message || String(error)
+        };
+    }
+}
+
+async function inspectJarvisWorkstation({
+    root = ""
+} = {}) {
+    const repoRoot = resolveBridgeRoot(root);
+    const gitExecutable =
+        process.platform === "win32" &&
+        fs.existsSync("C:\\Program Files\\Git\\cmd\\git.exe")
+            ? "C:\\Program Files\\Git\\cmd\\git.exe"
+            : "git";
+
+    const git = workstationCommand(
+        gitExecutable,
+        ["--version"],
+        { cwd: repoRoot }
+    );
+    const gitBranch = git.ok
+        ? workstationCommand(
+            gitExecutable,
+            ["branch", "--show-current"],
+            { cwd: repoRoot }
+        )
+        : { ok: false, stdout: "" };
+    const gitHead = git.ok
+        ? workstationCommand(
+            gitExecutable,
+            ["rev-parse", "HEAD"],
+            { cwd: repoRoot }
+        )
+        : { ok: false, stdout: "" };
+
+    const npm = workstationCommand(
+        "npm",
+        ["--version"],
+        { cwd: repoRoot }
+    );
+    const npx = workstationCommand(
+        "npx",
+        ["--version"],
+        { cwd: repoRoot }
+    );
+    const vscode = workstationCommand(
+        "code",
+        ["--version"],
+        { cwd: repoRoot }
+    );
+    const firebase = workstationCommand(
+        "firebase",
+        ["--version"],
+        { cwd: repoRoot }
+    );
+    const ollamaCli = workstationCommand(
+        "ollama",
+        ["--version"],
+        { cwd: repoRoot }
+    );
+
+    const firebaseConfig =
+        readFirebaseWorkstationConfig(repoRoot);
+    const expectedModel =
+        String(
+            process.env.JARVIS_LOCAL_LLM_MODEL ||
+            "qwen2.5-coder:7b"
+        ).trim();
+
+    const ollama =
+        await probeLocalJson(
+            "http://127.0.0.1:11434/api/tags",
+            1500
+        );
+    const ollamaModels =
+        Array.isArray(ollama?.body?.models)
+            ? ollama.body.models
+                .map(item =>
+                    String(
+                        item?.name ||
+                        item?.model ||
+                        ""
+                    ).trim()
+                )
+                .filter(Boolean)
+            : [];
+    const expectedModelPresent =
+        ollamaModels.includes(expectedModel) ||
+        ollamaModels.some(name =>
+            name.startsWith(
+                `${expectedModel.split(":")[0]}:`
+            )
+        );
+
+    const firestoreEmulator =
+        firebaseConfig?.emulators?.firestore
+            ? await probeLocalJson(
+                `http://${firebaseConfig.emulators.firestore.host}:${firebaseConfig.emulators.firestore.port}`,
+                700
+            )
+            : { ok: false, reachable: false };
+    const storageEmulator =
+        firebaseConfig?.emulators?.storage
+            ? await probeLocalJson(
+                `http://${firebaseConfig.emulators.storage.host}:${firebaseConfig.emulators.storage.port}`,
+                700
+            )
+            : { ok: false, reachable: false };
+
+    let connectors = null;
+    try {
+        connectors =
+            await inspectLocalConnectors({
+                root: repoRoot,
+                timeoutMs: 5000
+            });
+    }
+    catch(error) {
+        connectors = {
+            ok: false,
+            status: "CONNECTOR_INSPECTION_FAILED",
+            error: error?.message || String(error),
+            connectors: []
+        };
+    }
+
+    const localVideo =
+        inspectLocalVideoHardware({
+            root: repoRoot,
+            env: {
+                ...process.env,
+                JARVIS_LOCAL_VIDEO_MODEL:
+                    process.env.JARVIS_LOCAL_VIDEO_MODEL ||
+                    "auto"
+            }
+        });
+
+    workstationRuntimeState.lastDoctorAt =
+        new Date().toISOString();
+
+    return {
+        ok: true,
+        status: "JARVIS_WORKSTATION_INSPECTED",
+        checkedAt: workstationRuntimeState.lastDoctorAt,
+        root: repoRoot,
+        runtime: {
+            ...workstationRuntimeState,
+            processId: process.pid,
+            node: {
+                ok: true,
+                version: process.version,
+                executable: process.execPath
+            }
+        },
+        repo: {
+            gitAvailable: git.ok,
+            gitVersion: git.stdout || null,
+            branch: gitBranch.stdout || null,
+            head: gitHead.stdout || null
+        },
+        tooling: {
+            npm: {
+                ok: npm.ok,
+                version: npm.stdout || null
+            },
+            npx: {
+                ok: npx.ok,
+                version: npx.stdout || null
+            },
+            vscode: {
+                ok: vscode.ok,
+                version:
+                    vscode.stdout
+                        ? vscode.stdout.split(/\r?\n/)[0]
+                        : null
+            },
+            firebaseCli: {
+                ok: firebase.ok,
+                version: firebase.stdout || null,
+                globalInstallRequired: false,
+                emulatorScriptsAvailable:
+                    npm.ok &&
+                    fs.existsSync(
+                        path.join(repoRoot, "package.json")
+                    )
+            }
+        },
+        firebase: {
+            ...firebaseConfig,
+            firestoreEmulatorRunning:
+                firestoreEmulator.reachable === true,
+            storageEmulatorRunning:
+                storageEmulator.reachable === true,
+            mutationPolicy:
+                "DEPLOY_ONLY_THROUGH_GOVERNED_RELEASE_GATE"
+        },
+        localAi: {
+            provider: "ollama-openai-compatible-local",
+            endpoint:
+                "http://127.0.0.1:11434/v1",
+            cliAvailable: ollamaCli.ok,
+            serverRunning: ollama.reachable === true,
+            models: ollamaModels,
+            expectedModel,
+            expectedModelPresent,
+            ready:
+                ollama.reachable === true &&
+                expectedModelPresent,
+            externalFallback: false
+        },
+        localVideo: {
+            ...localVideo,
+            freeLocalEligible:
+                localVideo.ok === true,
+            runpodPaidFallbackAuthorized: false
+        },
+        connectors,
+        governedCapabilities: [
+            "repo.read",
+            "repo.grep",
+            "repo.search",
+            "repo.write.authorized",
+            "git.status",
+            "git.diff",
+            "git.commit.authorized",
+            "git.push.authorized",
+            "npm.tests",
+            "npm.ci",
+            "firebase.firestore.emulator",
+            "firebase.storage.emulator",
+            "firebase.hosting.inspect",
+            "firebase.deploy.governed",
+            "ollama.local.llm",
+            "video.generate.local",
+            "vscode.workspace"
+        ]
     };
 }
 
@@ -1150,6 +1510,33 @@ export function registerJarvisUploadRoutes(
                     uploadTransportVersion:
                         JARVIS_UPLOAD_BRIDGE_VERSION
                 });
+        }
+    });
+
+    app.get("/workstation/health", async (_req, res) => {
+        try {
+            const result =
+                await inspectJarvisWorkstation({
+                    root: repoRoot
+                });
+            return res.json({
+                ...result,
+                bridgeVersion:
+                    JARVIS_FS_BRIDGE_VERSION,
+                uploadTransportVersion:
+                    JARVIS_UPLOAD_BRIDGE_VERSION
+            });
+        }
+        catch(error) {
+            return res.status(500).json({
+                ok: false,
+                status: "JARVIS_WORKSTATION_INSPECTION_FAILED",
+                error: error?.message || String(error),
+                bridgeVersion:
+                    JARVIS_FS_BRIDGE_VERSION,
+                uploadTransportVersion:
+                    JARVIS_UPLOAD_BRIDGE_VERSION
+            });
         }
     });
 
@@ -1362,6 +1749,17 @@ export function createJarvisUploadBridgeApp({
     };
 
     return uploadApp;
+}
+
+export function markJarvisWorkstationRuntime(state = {}) {
+    workstationRuntimeState.startedAt =
+        workstationRuntimeState.startedAt ||
+        new Date().toISOString();
+    Object.assign(
+        workstationRuntimeState,
+        state
+    );
+    return { ...workstationRuntimeState };
 }
 
 export function startJarvisUploadBridge({
