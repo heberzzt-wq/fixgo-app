@@ -1,5 +1,5 @@
 {
-  "jobId": "jarvis-local-ai-post-restart-health-20260924-015",
+  "jobId": "jarvis-local-ai-final-health-after-publisher-fix-20260924-016",
   "operation": "bridge",
   "endpoint": "/health",
   "body": {}
