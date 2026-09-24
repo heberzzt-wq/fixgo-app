@@ -1,11 +1,11 @@
 {
-  "jobId": "jarvis-local-ai-workstation-final-selfheal-20260924-009",
+  "jobId": "jarvis-local-ai-workstation-final-selfheal-20260924-010",
   "operation": "bridge",
   "endpoint": "/run",
   "body": {
     "command": "npm run bridge:ensure",
     "cwd": ".",
     "timeoutMs": 3600000,
-    "source": "jarvis_local_ai_final_selfheal"
+    "source": "jarvis_local_ai_final_singleton_health_selfheal"
   }
 }
