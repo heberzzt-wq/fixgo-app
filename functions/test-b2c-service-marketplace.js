@@ -113,6 +113,17 @@ function createFakeDb() {
         ["users/customer", { rol: "cliente", tipo_cuenta: "B2C", pagos: { efectivo_autorizado: true } }],
         ["users/tech-1", operational],
         ["users/tech-2", { ...operational, nombre: "Segundo" }],
+        ["users/tech-1/crew_members/member-1", {
+            provider_uid: "tech-1",
+            full_name: "Ayudante Uno",
+            role: "ayudante",
+            status: "activo",
+            approved: true,
+            active: true,
+            on_duty: true,
+            profile_photo_url: "https://storage.test/helper.jpg",
+            identity: { machine_verified: true, machine_status: "verified" }
+        }],
         ["services/svc-race", {
             estado: "pendiente",
             cliente_id: "customer",
@@ -124,10 +135,31 @@ function createFakeDb() {
     ]);
     let autoId = 0;
     let queue = Promise.resolve();
+    const docRef = path => ({
+        kind: "doc",
+        path,
+        id: path.split("/").pop(),
+        collection(name) {
+            const nested = `${path}/${name}`;
+            return {
+                where(field, operator, value) {
+                    return {
+                        kind: "query",
+                        name: nested,
+                        field,
+                        operator,
+                        value,
+                        count: 500,
+                        limit(count) { this.count = count; return this; }
+                    };
+                }
+            };
+        }
+    });
     const db = {
         collection(name) {
             return {
-                doc(id = `auto-${++autoId}`) { return { kind: "doc", path: `${name}/${id}`, id }; },
+                doc(id = `auto-${++autoId}`) { return docRef(`${name}/${id}`); },
                 where(field, operator, value) { return { kind: "query", name, field, operator, value }; }
             };
         },
@@ -137,9 +169,11 @@ function createFakeDb() {
                 const tx = {
                     async get(target) {
                         if (target.kind === "doc") return fakeSnapshot(target.id, data.get(target.path));
+                        const prefix = `${target.name}/`;
                         const docs = [...data.entries()]
-                            .filter(([path, value]) => path.startsWith(`${target.name}/`) && value?.[target.field] === target.value)
-                            .map(([path, value]) => fakeSnapshot(path.split("/")[1], value));
+                            .filter(([path, value]) => path.startsWith(prefix) && !path.slice(prefix.length).includes("/") && value?.[target.field] === target.value)
+                            .slice(0, target.count || 500)
+                            .map(([path, value]) => fakeSnapshot(path.slice(prefix.length), value));
                         return { docs };
                     },
                     update(ref, patch) { writes.push(() => data.set(ref.path, { ...data.get(ref.path), ...patch })); },
@@ -173,6 +207,12 @@ function createFakeDb() {
     assert.equal(attempts.filter(result => result.status === "fulfilled").length, 1);
     assert.equal(attempts.filter(result => result.status === "rejected").length, 1);
     assert.equal(data.get("services/svc-race").estado, "asignado");
+    const claimed = data.get("services/svc-race");
+    assert.ok(claimed.crew_snapshot);
+    assert.equal(claimed.crew_snapshot.member_count >= 1, true);
+    if (claimed.tecnico_id === "tech-1") {
+        assert.equal(claimed.crew_snapshot.members[0].nombre, "Ayudante Uno");
+    }
     assert.equal(data.has("service_marketplace/svc-race"), false);
     console.log("PASS b2c-service-marketplace simultaneous claim");
 
