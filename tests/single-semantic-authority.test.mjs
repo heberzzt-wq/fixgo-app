@@ -57,6 +57,13 @@ test("historical NEXO bootstrap exposes only Jarvis runtime authority", () => {
     assert.match(identity, /alternateBrain:\s*false/);
     assert.doesNotMatch(identity, /__PENINSULA_PRIVATE_ENGINE__/);
     assert.match(bootstrap, /nexo\.real-media\.tools/);
+    assert.match(bootstrap, /installJarvisRealMediaTools/);
+    assert.match(bootstrap, /installJarvisRealMediaRuntimeGuard/);
+    const mediaTools = read("gestia-core/nexo/nexo.real-media.tools.js");
+    assert.match(mediaTools, /__JARVIS_REAL_MEDIA_TOOLS__/);
+    assert.doesNotMatch(mediaTools, /__NEXO_REAL_MEDIA_TOOLS__/);
+    assert.match(runtimeGuard, /__JARVIS_REAL_MEDIA_RUNTIME_GUARD_V128__/);
+    assert.doesNotMatch(runtimeGuard, /__NEXO_REAL_MEDIA_RUNTIME_GUARD_V128__/);
     assert.doesNotMatch(runtimeGuard, /runtime\.register\s*\(/);
     assert.match(runtimeGuard, /collectorDefinition\.execute\s*=\s*async/);
     assert.match(runtimeGuard, /reelDefinition\.execute\s*=\s*async/);
