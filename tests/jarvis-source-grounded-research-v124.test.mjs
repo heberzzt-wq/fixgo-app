@@ -292,16 +292,20 @@ test("marketing final response surfaces completed reel plans instead of calling 
     assert.doesNotMatch(response.text, /reels bloqueados/i);
 });
 
-test("production code contains generic source-anchor rules and no fixture-specific business", () => {
-    const planner = fs.readFileSync(new URL("../functions/jarvis-semantic-planner.js", import.meta.url), "utf8");
+test("production code keeps source anchoring mechanical and outside the semantic brain", () => {
+    const semanticBrain = fs.readFileSync(new URL("../functions/jarvis-semantic-planner.js", import.meta.url), "utf8");
+    const planner = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multifunction.planner.js", import.meta.url), "utf8");
     for (const marker of [
-        "FUENTE ANCLA",
+        "sourceAnchorForCandidate",
+        "explicitHttpSourceUrls",
+        "normalizeExplicitSourceCandidates",
         "seedUrl",
-        "FUENTES_EXPLICITAS_USUARIO",
         "web.media.collect"
     ]) {
         assert.equal(planner.includes(marker), true, marker);
     }
+    assert.equal(semanticBrain.includes("FUENTE ANCLA"), false);
+    assert.equal(semanticBrain.includes("FUENTES_EXPLICITAS_USUARIO"), false);
     const productionFiles = [
         "../gestia-core/jarvis/jarvis.multifunction.planner.js",
         "../gestia-core/jarvis/jarvis.multitool.pack.js",
