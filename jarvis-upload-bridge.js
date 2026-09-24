@@ -1045,7 +1045,7 @@ function workstationCommand(command, args = [], {
             encoding: "utf8",
             windowsHide: true,
             timeout: timeoutMs,
-            shell: process.platform === "win32",
+            shell: false,
             stdio: ["ignore", "pipe", "pipe"]
         });
         return {
