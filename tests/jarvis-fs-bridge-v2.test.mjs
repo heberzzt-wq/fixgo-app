@@ -2182,6 +2182,46 @@ test("SIA7 worker fetches exact remote ref and never hot-rebases a live runtime"
     assert.match(workerSource, /remoteHead/);
 });
 
+test("SIA7 worker safely publishes receipt-only local-ahead commits instead of restart looping", () => {
+    const workerSource = fs.readFileSync(
+        new URL("../jarvis-github-worker.js", import.meta.url),
+        "utf8"
+    );
+
+    assert.match(
+        workerSource,
+        /publishSafeLocalAheadReceipt/
+    );
+    assert.match(
+        workerSource,
+        /merge-base[\s\S]{0,180}?--is-ancestor/
+    );
+    assert.match(
+        workerSource,
+        /diff[\s\S]{0,180}?--name-only/
+    );
+    assert.match(
+        workerSource,
+        /log[\s\S]{0,180}?--format=%s/
+    );
+    assert.match(
+        workerSource,
+        /pathValue === RESULT_PATH/
+    );
+    assert.match(
+        workerSource,
+        /message\.startsWith\("SIA7 result "\)/
+    );
+    assert.match(
+        workerSource,
+        /WORKER_SAFE_AHEAD_RECEIPT_PUBLISHED/
+    );
+    assert.match(
+        workerSource,
+        /"push",[\s\S]{0,120}?HEAD:\$\{BRANCH\}/
+    );
+});
+
 test("npm bridge clears stale rebase metadata before one exact startup sync and restarts on worker drift", () => {
     const packageJson = JSON.parse(
         fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")
