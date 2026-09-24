@@ -85,9 +85,13 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     assert.match(pkg.scripts.bridge, /workerLastPollOkAt/);
     assert.match(pkg.scripts.bridge, /workerLastPollError/);
     assert.match(pkg.scripts.bridge, /JARVIS_GIT_SYNC_DEGRADED/);
-    assert.match(pkg.scripts.bridge, /reusing healthy singleton bridge/);
+    assert.match(pkg.scripts.bridge, /singleton already online with worker/);
+    assert.match(pkg.scripts.bridge, /reusing healthy bridge and attaching single worker/);
     assert.match(pkg.scripts.bridge, /JARVIS_BRIDGE_PORT_3344_OCCUPIED_UNHEALTHY/);
+    assert.match(pkg.scripts["bridge:supervise"], /bridge healthy without worker -> attaching worker/);
     assert.match(pkg.scripts["bridge:supervise"], /refusing duplicate bind/);
+    assert.match(pkg.scripts["bridge:supervise"], /workstation\/health/);
+    assert.match(pkg.scripts["bridge:supervise"], /workerStarted/);
     assert.match(pkg.scripts["bridge:supervise"], /occupied\(\)/);
     assert.equal(pkg.scripts["test:mcp"], "npm --prefix tools/fixgo-mcp run check");
     assert.equal(pkg.scripts["nexo:bridge"], "npm run bridge");
