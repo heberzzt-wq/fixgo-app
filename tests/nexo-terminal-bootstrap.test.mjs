@@ -13,11 +13,16 @@ const bootstrap = fs.readFileSync(
 );
 
 const PRODUCTION_ORIGIN = "https://fixgo-44e4d.web.app";
-const PRODUCTION_BOOTSTRAP_VERSION = "1.12.0-loopback-transport-v142";
+const PRODUCTION_BOOTSTRAP_VERSION = "1.13.0-jarvis-single-authority-local-first";
 
-test("NEXO bootstrap keeps tools but installs no alternate semantic authority", () => {
+test("historical NEXO bootstrap is Jarvis-only and installs no alternate semantic authority", () => {
     assert.match(bootstrap, /installNexoRealMediaTools/);
     assert.match(bootstrap, /nexo\.real-media\.tools\.js/);
+    assert.match(bootstrap, /__JARVIS_TERMINAL_BOOTSTRAP__/);
+    assert.match(bootstrap, /identity:\s*"JARVIS"/);
+    assert.match(bootstrap, /semanticAuthority:\s*"jarvisSemanticPlan"/);
+    assert.match(bootstrap, /alternateBrains:\s*0/);
+    assert.doesNotMatch(bootstrap, /__JARVIS_TERMINAL_BOOTSTRAP__/);
     assert.doesNotMatch(bootstrap, /nexo\.semantic-planner-resilience/);
     assert.doesNotMatch(bootstrap, /resilienceVersion/);
 });
@@ -306,7 +311,7 @@ test("V142 real Chrome verifies the served loopback bootstrap and local research
                 }
                 for (let attempt = 0; attempt < 80; attempt += 1) {
                     if (
-                        globalThis.__NEXO_TERMINAL_BOOTSTRAP__?.localBridgeActive === true &&
+                        globalThis.__JARVIS_TERMINAL_BOOTSTRAP__?.localBridgeActive === true &&
                         typeof globalThis.JarvisLocalBridge?.requestJson === "function"
                     ) break;
                     await new Promise(resolve => setTimeout(resolve, 250));
@@ -316,7 +321,7 @@ test("V142 real Chrome verifies the served loopback bootstrap and local research
                     permissionState = (await navigator.permissions.query({name:"loopback-network"})).state;
                 }
                 catch {}
-                const boot = globalThis.__NEXO_TERMINAL_BOOTSTRAP__ || null;
+                const boot = globalThis.__JARVIS_TERMINAL_BOOTSTRAP__ || null;
                 const hasBridge = typeof globalThis.JarvisLocalBridge?.requestJson === "function";
                 let transportProbe = null;
                 let research = null;
