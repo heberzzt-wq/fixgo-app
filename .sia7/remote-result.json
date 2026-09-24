@@ -1,9 +1,9 @@
 {
-  "jobId": "jarvis-local-ai-physical-semantic-plan-20260924-012",
-  "completedAt": "2026-09-24T20:47:29.596Z",
+  "jobId": "jarvis-local-ai-physical-semantic-plan-20260924-014",
+  "completedAt": "2026-09-24T21:08:38.920Z",
   "executionStarted": true,
   "ok": false,
-  "error": "WORKER_ENDPOINT_NOT_ALLOWED",
+  "error": "BRIDGE_REQUEST_TIMEOUT",
   "evidence": null,
   "committedFiles": [
     ".sia7/remote-result.json"
