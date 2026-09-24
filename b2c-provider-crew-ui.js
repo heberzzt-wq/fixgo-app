@@ -43,8 +43,8 @@ async function renderManager({user,profile,anchor}){
       <p class="mt-3 text-[9px] text-zinc-600">Sólo integrantes aprobados y marcados EN TURNO se declararán en nuevos servicios.</p>
     </div>`;
     section.querySelector("[data-crew-add]")?.addEventListener("click",()=>openMemberModal({user,profile,anchor}));
-    section.querySelectorAll("[data-crew-duty]").forEach(input=>input.addEventListener("change",async()=>{try{await gestionarCuadrillaB2C({action:"set_on_duty",memberId:JSON.parse(input.getAttribute("data-crew-duty")),onDuty:input.checked});}catch(e){alert(e?.message||"No fue posible actualizar el turno.");}await renderManager({user,profile,anchor});}));
-    section.querySelectorAll("[data-crew-deactivate]").forEach(btn=>btn.addEventListener("click",async()=>{if(!confirm("¿Dar de baja a este integrante?"))return;try{await gestionarCuadrillaB2C({action:"deactivate",memberId:JSON.parse(btn.getAttribute("data-crew-deactivate"))});}catch(e){alert(e?.message||"No fue posible darlo de baja.");}await renderManager({user,profile,anchor});}));
+    section.querySelectorAll("[data-crew-duty]").forEach(input=>input.addEventListener("change",async()=>{try{await gestionarCuadrillaB2C({action:"set_on_duty",memberId:input.getAttribute("data-crew-duty"),onDuty:input.checked});}catch(e){alert(e?.message||"No fue posible actualizar el turno.");}await renderManager({user,profile,anchor});}));
+    section.querySelectorAll("[data-crew-deactivate]").forEach(btn=>btn.addEventListener("click",async()=>{if(!confirm("¿Dar de baja a este integrante?"))return;try{await gestionarCuadrillaB2C({action:"deactivate",memberId:btn.getAttribute("data-crew-deactivate")});}catch(e){alert(e?.message||"No fue posible darlo de baja.");}await renderManager({user,profile,anchor});}));
   }catch(e){console.error("[B2C_CREW_LIST]",e);section.innerHTML='<div class="bg-red-950/20 border border-red-500/30 rounded-xl p-4 mb-4 text-xs text-red-300">No fue posible cargar tu plantilla.</div>';}
 }
 
