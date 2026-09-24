@@ -3,6 +3,7 @@ const crypto=require("node:crypto");
 const platform=require("./b2c-platform-contract");
 const biometric=require("./b2c-biometric-identity");
 const {isAuthorizedAdmin}=require("./b2c-technician-approval");
+const B2C_PROVIDER_CREW_VERSION="b2c-provider-crew-v1";
 function clean(value,max=200){return String(value??"").replace(/[\u0000-\u001F\u007F]/g," ").trim().slice(0,max);}
 
 function err(functions,code,message,details){return new functions.https.HttpsError(code,message,details);}
@@ -123,4 +124,4 @@ function createReviewB2cProviderCrewMemberHandler({admin,db,functions,bucket}){
     });
   };
 }
-module.exports={createManageB2cProviderCrewHandler,createVerifyB2cCrewIdentityHandler,createReviewB2cProviderCrewMemberHandler,verifyEvidence,subjectKey};
+module.exports={B2C_PROVIDER_CREW_VERSION,createManageB2cProviderCrewHandler,createVerifyB2cCrewIdentityHandler,createReviewB2cProviderCrewMemberHandler,verifyEvidence,subjectKey};
