@@ -81,6 +81,9 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     assert.match(pkg.scripts["bridge:ensure"], /bridge:supervise/);
     assert.match(pkg.scripts["bridge:supervise"], /bridge offline -> starting/);
     assert.match(pkg.scripts["bridge:supervise"], /setTimeout\(loop,ms\)/);
+    assert.match(pkg.scripts.bridge, /workerLastPollAt/);
+    assert.match(pkg.scripts.bridge, /workerLastPollOkAt/);
+    assert.match(pkg.scripts.bridge, /workerLastPollError/);
     assert.equal(pkg.scripts["nexo:bridge"], "npm run bridge");
 });
 
