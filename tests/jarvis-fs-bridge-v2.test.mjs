@@ -459,6 +459,157 @@ test("self-hosted semantic response uses one local inference and reports zero ex
     assert.equal(result.externalApiUsed, false);
 });
 
+test("emulador local recorre Jarvis completo: plan LLM -> repo real -> respuesta LLM sin nube", async () => {
+    const fixture = createBridgeIdentityFixture();
+    const root = fixture.root;
+    fs.writeFileSync(
+        path.join(root, "local-ai-target.js"),
+        [
+            'export const LOCAL_AI_MARKER = "JARVIS_LOCAL_LLM_BASE_URL";',
+            'export const authority = "jarvisSemanticPlan";'
+        ].join("\n") + "\n",
+        "utf8"
+    );
+    fixture.runGit(["add", "local-ai-target.js"]);
+    fixture.runGit(["commit", "-m", "fixture: add local ai target"]);
+    fixture.runGit(["push", "origin", fixture.branch]);
+
+    const llmRequests = [];
+    const engine = createSelfHostedSemanticEngine({
+        env: {
+            JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
+            JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
+            JARVIS_LOCAL_LLM_MODEL: "qwen-emulator"
+        },
+        fetchImpl: async (_url, options) => {
+            const body = JSON.parse(options.body);
+            llmRequests.push(body);
+            const isPlanning = Array.isArray(body.tools) && body.tools.length > 0;
+            return {
+                ok: true,
+                status: 200,
+                text: async () => JSON.stringify({
+                    choices: [{
+                        message: isPlanning
+                            ? {
+                                content: "",
+                                tool_calls: [{
+                                    function: {
+                                        name: "jarvis_tool_0",
+                                        arguments: JSON.stringify({
+                                            query: "JARVIS_LOCAL_LLM_BASE_URL"
+                                        })
+                                    }
+                                }]
+                            }
+                            : {
+                                content: "La evidencia local confirma que Jarvis usa la autoridad semántica local configurada."
+                            }
+                    }]
+                })
+            };
+        }
+    });
+
+    const server = createJarvisFsBridgeApp({
+        root,
+        localSemanticEngine: engine
+    }).listen(0, "127.0.0.1");
+    await new Promise(resolve => server.once("listening", resolve));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const post = async (route, body) => {
+        const response = await fetch(base + route, {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+                "x-jarvis-release-id": "test-release"
+            },
+            body: JSON.stringify(body)
+        });
+        return {
+            status: response.status,
+            body: await response.json()
+        };
+    };
+
+    try {
+        const plan = await post("/semantic/plan", {
+            input: "Busca dónde se configura la IA local de Jarvis.",
+            catalog: [{
+                name: "repo.search",
+                description: "Busca evidencia en el repositorio real.",
+                inputSchema: {
+                    type: "object",
+                    required: ["query"],
+                    properties: {
+                        query: { type: "string" }
+                    },
+                    additionalProperties: false
+                },
+                mutates: false,
+                requiresApproval: false
+            }]
+        });
+
+        assert.equal(plan.status, 200, JSON.stringify(plan.body));
+        assert.equal(plan.body.ok, true);
+        assert.equal(plan.body.provider, "ollama-openai-compatible-local");
+        assert.equal(plan.body.model, "qwen-emulator");
+        assert.equal(plan.body.localSemanticInferenceUsed, true);
+        assert.equal(plan.body.cloudSemanticInferenceUsed, false);
+        assert.equal(plan.body.fallbackAllowed, false);
+        assert.equal(plan.body.toolCalls.length, 1);
+        assert.equal(plan.body.toolCalls[0].name, "repo.search");
+        assert.equal(
+            plan.body.toolCalls[0].args.query,
+            "JARVIS_LOCAL_LLM_BASE_URL"
+        );
+
+        const evidence = await post("/grep", {
+            term: plan.body.toolCalls[0].args.query,
+            query: plan.body.toolCalls[0].args.query,
+            cwd: ".",
+            maxMatches: 20
+        });
+        assert.equal(evidence.status, 200, JSON.stringify(evidence.body));
+        assert.equal(evidence.body.ok, true);
+        assert.ok(
+            evidence.body.matches.some(match =>
+                String(match.file || "").replaceAll("\\", "/") === "local-ai-target.js"
+            ),
+            JSON.stringify(evidence.body)
+        );
+
+        const response = await post("/semantic/respond", {
+            input: [
+                "Responde sólo con la evidencia local observada.",
+                JSON.stringify({
+                    tool: "repo.search",
+                    query: plan.body.toolCalls[0].args.query,
+                    matches: evidence.body.matches.slice(0, 5)
+                })
+            ].join("\n")
+        });
+        assert.equal(response.status, 200, JSON.stringify(response.body));
+        assert.equal(response.body.ok, true);
+        assert.match(response.body.message, /evidencia local confirma/i);
+        assert.equal(response.body.localSemanticInferenceUsed, true);
+        assert.equal(response.body.cloudSemanticInferenceUsed, false);
+        assert.equal(response.body.fallbackAllowed, false);
+
+        const health = engine.describe();
+        assert.equal(health.counters.localSemanticInferenceCalls, 2);
+        assert.equal(health.counters.semanticExternalCalls, 0);
+        assert.equal(health.counters.paidExternalCalls, 0);
+        assert.equal(llmRequests.length, 2);
+        assert.ok(Array.isArray(llmRequests[0].tools));
+        assert.equal(llmRequests[1].tools, undefined);
+    } finally {
+        await new Promise(resolve => server.close(resolve));
+        fs.rmSync(fixture.fixtureRoot, { recursive: true, force: true });
+    }
+});
+
 test("self-hosted semantic backend fails closed for unsafe remote HTTP and LOCAL_ONLY", () => {
     const engine = createSelfHostedSemanticEngine({
         env: {
