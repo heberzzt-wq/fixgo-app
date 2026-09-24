@@ -5485,7 +5485,11 @@ export function createJarvisFsBridgeApp({
             }
             const transportNodes = Object.fromEntries(
                 Object.entries(repoGraphCache.graph.nodes || {}).map(([file, node]) => {
-                    const { literals: privateLiterals, ...safeNode } = node;
+                    const {
+                        literals: privateLiterals,
+                        semanticDocument: privateSemanticDocument,
+                        ...safeNode
+                    } = node;
                     return [file, safeNode];
                 })
             );
@@ -5517,13 +5521,19 @@ export function createJarvisFsBridgeApp({
                     .map(file => String(file || "").trim())
                     .filter(Boolean)
                 : [];
-            if (plannedFiles.length === 0) {
+            const semanticQuery = String(
+                req.body?.query ||
+                req.body?.objective ||
+                ""
+            ).trim();
+            if (plannedFiles.length === 0 && !semanticQuery) {
                 return res.status(400).json({
                     ok: false,
-                    status: "PLANNED_FILES_REQUIRED",
-                    error: "PLANNED_FILES_REQUIRED"
+                    status: "PLANNED_FILES_OR_QUERY_REQUIRED",
+                    error: "PLANNED_FILES_OR_QUERY_REQUIRED"
                 });
             }
+
             const maxFiles = Math.max(1, Math.min(5000, Number(req.body?.maxFiles) || 2500));
             const maxFileSizeBytes = Math.max(1000, Math.min(2000000, Number(req.body?.maxFileSizeBytes) || 800000));
             const resolved = resolveBridgeRepositoryTarget({
@@ -5533,22 +5543,108 @@ export function createJarvisFsBridgeApp({
             if (resolved.ok !== true) {
                 return res.status(404).json({ ...resolved, version: JARVIS_FS_BRIDGE_VERSION });
             }
+
             const cacheKey = `${resolved.commit}:${maxFiles}:${maxFileSizeBytes}`;
             if (!repoGraphCache || req.body?.refresh === true || repoGraphCache.cacheKey !== cacheKey) {
                 repoGraphCache = {
                     cacheKey,
                     maxFiles,
                     maxFileSizeBytes,
-                    graph: buildGraphForResolvedTarget(resolved, { root, maxFiles, maxFileSizeBytes })
+                    graph: buildGraphForResolvedTarget(resolved, { root, maxFiles, maxFileSizeBytes }),
+                    semanticEmbeddingCache: new Map(),
+                    semanticEmbeddingModel: null
                 };
             }
-            const result = rankRepoCandidates({
-                graph: repoGraphCache.graph,
-                plannedFiles,
-                limit: req.body?.limit || 8
-            });
+
+            let result;
+            let semanticEvidence = null;
+
+            if (semanticQuery) {
+                if (typeof semanticEngine?.embed !== "function") {
+                    return res.status(503).json({
+                        ok: false,
+                        status: "LOCAL_EMBEDDING_ENGINE_REQUIRED",
+                        error: "LOCAL_EMBEDDING_ENGINE_REQUIRED",
+                        version: JARVIS_FS_BRIDGE_VERSION
+                    });
+                }
+
+                const health = semanticEngine.describe();
+                const embeddingModel = String(health?.embeddingModel || "").trim();
+                if (!embeddingModel) {
+                    return res.status(503).json({
+                        ok: false,
+                        status: "LOCAL_EMBEDDING_MODEL_REQUIRED",
+                        error: "LOCAL_EMBEDDING_MODEL_REQUIRED",
+                        version: JARVIS_FS_BRIDGE_VERSION
+                    });
+                }
+
+                if (
+                    !(repoGraphCache.semanticEmbeddingCache instanceof Map) ||
+                    repoGraphCache.semanticEmbeddingModel !== embeddingModel
+                ) {
+                    repoGraphCache.semanticEmbeddingCache = new Map();
+                    repoGraphCache.semanticEmbeddingModel = embeddingModel;
+                }
+
+                const documents = buildRepoEmbeddingDocuments({
+                    graph: repoGraphCache.graph,
+                    maximumDocuments: maxFiles
+                });
+                const missing = documents.filter(
+                    document => !repoGraphCache.semanticEmbeddingCache.has(document.file)
+                );
+                const batchSize = 32;
+                for (let offset = 0; offset < missing.length; offset += batchSize) {
+                    const batch = missing.slice(offset, offset + batchSize);
+                    const embedded = await semanticEngine.embed(
+                        batch.map(document => document.text)
+                    );
+                    batch.forEach((document, index) => {
+                        repoGraphCache.semanticEmbeddingCache.set(
+                            document.file,
+                            embedded.embeddings[index]
+                        );
+                    });
+                }
+
+                const queryEmbedding = await semanticEngine.embed([semanticQuery]);
+                const queryVector = queryEmbedding.embeddings[0];
+                const semanticScores = {};
+                for (const document of documents) {
+                    const vector = repoGraphCache.semanticEmbeddingCache.get(document.file);
+                    if (!vector) continue;
+                    semanticScores[document.file] = cosineSimilarity(queryVector, vector);
+                }
+
+                result = rankRepoHybridCandidates({
+                    graph: repoGraphCache.graph,
+                    plannedFiles,
+                    semanticScores,
+                    limit: req.body?.limit || 8
+                });
+                semanticEvidence = {
+                    provider: "ollama-local",
+                    model: embeddingModel,
+                    queryEmbedded: true,
+                    documentsEmbedded: documents.length,
+                    cacheHits: documents.length - missing.length,
+                    cacheMisses: missing.length,
+                    externalApiUsed: false,
+                    estimatedExternalCostUsd: 0
+                };
+            } else {
+                result = rankRepoCandidates({
+                    graph: repoGraphCache.graph,
+                    plannedFiles,
+                    limit: req.body?.limit || 8
+                });
+            }
+
             return res.json({
                 ...result,
+                ...(semanticEvidence ? { semanticEvidence } : {}),
                 repositoryTarget: {
                     kind: resolved.kind,
                     provider: resolved.provider,
@@ -5564,7 +5660,10 @@ export function createJarvisFsBridgeApp({
         } catch (error) {
             return res.status(500).json({
                 ok: false,
-                status: "REPO_CANDIDATE_RANKING_FAILED",
+                status:
+                    String(error?.message || "").startsWith("LOCAL_EMBEDDING_")
+                        ? "LOCAL_EMBEDDING_FAILED"
+                        : "REPO_CANDIDATE_RANKING_FAILED",
                 error: error.message,
                 version: JARVIS_FS_BRIDGE_VERSION
             });
