@@ -3527,6 +3527,52 @@ if (
             lastCoreResult =
                 coreResult;
 
+            const semanticPlannerUnavailable =
+                coreResult?.status === "halted" &&
+                coreResult?.reason === "SEMANTIC_PLANNER_UNAVAILABLE";
+
+            if (semanticPlannerUnavailable) {
+                const semanticError =
+                    String(
+                        coreResult?.error ||
+                        coreResult?.message ||
+                        "SEMANTIC_PLANNER_UNAVAILABLE"
+                    );
+
+                console.error(
+                    "[TERMINAL_LOCAL_SEMANTIC_AUTHORITY_UNAVAILABLE]",
+                    {
+                        traceId:
+                            currentTraceId,
+                        host:
+                            location.hostname,
+                        error:
+                            semanticError
+                    }
+                );
+
+                activeWorkTracker?.fail?.(
+                    "Jarvis local no está conectado"
+                );
+
+                window.renderJarvisResponse?.(
+                    "Jarvis local sin conexión",
+                    [
+                        "La misión no se completó.",
+                        "El navegador no alcanzó al único núcleo semántico local.",
+                        `Host actual: ${location.hostname}`,
+                        `Detalle: ${semanticError}`,
+                        "No se reporta SUCCESS ni se usa un cerebro alterno."
+                    ].join("\n"),
+                    "warning"
+                );
+
+                handled =
+                    false;
+
+                return;
+            }
+
             activeWorkTracker?.complete(
                 "core",
                 "Ejecución principal completada"
