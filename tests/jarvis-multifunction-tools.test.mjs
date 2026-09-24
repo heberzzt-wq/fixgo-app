@@ -170,12 +170,15 @@ test("browser mission uses the self-hosted semantic backend before auth or cloud
                 return {
                     ok: true,
                     status: "SEMANTIC_PLAN_READY",
-                    provider: "self-hosted-openai-compatible",
+                    provider: "ollama-openai-compatible-local",
                     model: "local-reasoner",
                     toolCalls: [{
                         name: "repo.search",
                         args: { query: "contrato economico local" }
                     }],
+                    localSemanticInferenceUsed: true,
+                    cloudSemanticInferenceUsed: false,
+                    externalApiUsed: false,
                     inferenceReceipt: {
                         counters: {
                             localSemanticInferenceCalls: 1,
@@ -206,7 +209,7 @@ test("browser mission uses the self-hosted semantic backend before auth or cloud
         assert.equal(calls[0].name, "repo.search");
         assert.equal(localCalls, 1);
         assert.equal(cloudCalls, 0);
-        assert.equal(globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__.provider, "self-hosted-openai-compatible");
+        assert.equal(globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__.provider, "ollama-openai-compatible-local");\n        assert.equal(globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__.localOnly, true);\n        assert.equal(globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__.alternateBrains, 0);
     } finally {
         globalThis.JarvisLocalBridge = previousBridge;
         globalThis.auth = previousAuth;
