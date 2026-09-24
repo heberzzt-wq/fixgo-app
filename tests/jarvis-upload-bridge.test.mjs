@@ -235,6 +235,79 @@ test("workstation self-heal retries transient free local model pulls and preserv
     assert.equal(result.paidApiUsed, false);
 });
 
+test("workstation self-heal flushes Windows DNS once after an Ollama no-such-host pull failure", async () => {
+    let pullCalls = 0;
+    let dnsFlushCalls = 0;
+    let probes = 0;
+    const result = await ensureJarvisLocalAiRuntime({
+        root: process.cwd(),
+        platform: "win32",
+        env: {
+            JARVIS_LOCAL_LLM_MODEL: "qwen2.5-coder:7b",
+            JARVIS_LOCAL_EMBEDDING_MODEL: "qwen3-embedding:0.6b"
+        },
+        installIfMissing: true,
+        pullModels: true,
+        commandImpl(_command, args) {
+            if (args[0] === "--version") {
+                return { ok: true, status: 0, stdout: "ollama version test", stderr: "" };
+            }
+            if (args[0] === "/flushdns") {
+                dnsFlushCalls += 1;
+                return { ok: true, status: 0, stdout: "DNS cache flushed", stderr: "", error: null };
+            }
+            if (args[0] === "pull") {
+                pullCalls += 1;
+                if (pullCalls === 1) {
+                    return {
+                        ok: false,
+                        status: 1,
+                        stdout: "",
+                        stderr: "dial tcp: lookup registry.ollama.ai: no such host",
+                        error: null
+                    };
+                }
+                return { ok: true, status: 0, stdout: "pulled", stderr: "", error: null };
+            }
+            return { ok: false, status: 1, stdout: "", stderr: "unexpected", error: null };
+        },
+        probeImpl: async () => {
+            probes += 1;
+            if (probes === 1) {
+                return { ok: true, reachable: true, body: { models: [] } };
+            }
+            if (probes === 2) {
+                return {
+                    ok: true,
+                    reachable: true,
+                    body: { models: [{ name: "qwen2.5-coder:7b" }] }
+                };
+            }
+            return {
+                ok: true,
+                reachable: true,
+                body: {
+                    models: [
+                        { name: "qwen2.5-coder:7b" },
+                        { name: "qwen3-embedding:0.6b" }
+                    ]
+                }
+            };
+        },
+        spawnImpl() {
+            throw new Error("OLLAMA_SERVE_SHOULD_NOT_START");
+        },
+        waitMs: async () => {}
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(dnsFlushCalls, 1);
+    assert.equal(pullCalls, 3);
+    assert.deepEqual(result.pulledModels, ["qwen2.5-coder:7b", "qwen3-embedding:0.6b"]);
+    assert.equal(result.externalApiUsed, false);
+    assert.equal(result.paidApiUsed, false);
+});
+
 test("workstation self-heal falls back to Ollama loopback pull after bounded CLI failures", async () => {
     let cliPullCalls = 0;
     let httpPullCalls = 0;
@@ -330,6 +403,12 @@ test("workstation diagnostics retain command tails so Ollama pull failures expos
     assert.match(source, /stderr:\s*String\(result\.stderr \|\| ""\)\.trim\(\)\.slice\(-4000\)/);
     assert.match(source, /for \(let attempt = 1; attempt <= 3; attempt \+= 1\)/);
     assert.match(source, /pullAttempts/);
+    assert.match(source, /function workstationStreamingCommand/);
+    assert.match(source, /await executePull/);
+    assert.match(source, /process\.stdout\.write\(chunk\)/);
+    assert.match(source, /process\.stderr\.write\(chunk\)/);
+    assert.match(source, /ipconfig/);
+    assert.match(source, /\/flushdns/);
 });
 
 test("workstation doctor reports governed local capabilities without requiring them to be installed", async () => {
