@@ -442,6 +442,7 @@ export function buildExecutableSourceView(source = "") {
     let state = "code";
     let quote = "";
     let escaped = false;
+    let regexCharacterClass = false;
 
     for (
         let index = 0;
@@ -515,6 +516,50 @@ export function buildExecutableSourceView(source = "") {
             continue;
         }
 
+        if (state === "regex") {
+            if (escaped) {
+                escaped = false;
+                output += " ";
+                continue;
+            }
+
+            if (character === "\\") {
+                escaped = true;
+                output += " ";
+                continue;
+            }
+
+            if (character === "[") {
+                regexCharacterClass = true;
+                output += " ";
+                continue;
+            }
+
+            if (
+                character === "]" &&
+                regexCharacterClass
+            ) {
+                regexCharacterClass = false;
+                output += " ";
+                continue;
+            }
+
+            if (
+                character === "/" &&
+                !regexCharacterClass
+            ) {
+                state = "code";
+                output += " ";
+                continue;
+            }
+
+            output +=
+                character === "\n"
+                    ? "\n"
+                    : " ";
+            continue;
+        }
+
         if (
             character === "/" &&
             next === "/"
@@ -533,6 +578,34 @@ export function buildExecutableSourceView(source = "") {
             index += 1;
             state = "block_comment";
             continue;
+        }
+
+        if (
+            character === "/" &&
+            next !== "/" &&
+            next !== "*"
+        ) {
+            let previousIndex = index - 1;
+            while (
+                previousIndex >= 0 &&
+                /\s/.test(input[previousIndex])
+            ) {
+                previousIndex -= 1;
+            }
+            const previous =
+                previousIndex >= 0
+                    ? input[previousIndex]
+                    : "";
+            if (
+                !previous ||
+                "=(:,[!&|?{};".includes(previous)
+            ) {
+                output += " ";
+                state = "regex";
+                regexCharacterClass = false;
+                escaped = false;
+                continue;
+            }
         }
 
         if (
