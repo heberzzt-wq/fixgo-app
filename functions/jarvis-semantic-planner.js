@@ -1017,7 +1017,11 @@ async function runModelSemanticPlanner({
             `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
         ].join("\n\n"),
         config: {
-            maxOutputTokens: 3000,
+            maxOutputTokens:
+                safeCatalog.length <= 4
+                    ? 384
+                    : 1200,
+            temperature: 0,
             thinkingConfig: {
                 thinkingLevel: "MINIMAL"
             },
