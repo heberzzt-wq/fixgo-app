@@ -43,6 +43,7 @@ on:
       - 'app-registro.js'
       - 'app-login.js'
       - 'login.html'
+      - 'ceo.html'
       - 'index.html'
       - 'politicas.html'
       - 'panel-b2b-admin.js'

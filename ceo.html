@@ -30,8 +30,8 @@
                 <div>
                     <h1 class="font-black text-lg leading-tight tracking-tight uppercase">CEO Radar</h1>
                     <div class="flex items-center gap-1.5">
-                        <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                        <p class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Live Sync Activo</p>
+                        <div id="syncDot" class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                        <p id="syncState" class="text-[10px] text-amber-400 font-bold uppercase tracking-widest">Sincronizando</p>
                     </div>
                 </div>
             </div>
@@ -46,7 +46,7 @@
                 <div class="absolute -right-4 -top-4 opacity-10 text-emerald-500">
                     <i class="fas fa-chart-line text-7xl"></i>
                 </div>
-                <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-1"><i class="fas fa-money-bill-wave text-emerald-500"></i> GTV / Ingreso Hoy</p>
+                <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-1"><i class="fas fa-money-bill-wave text-emerald-500"></i> GTV Liquidado Hoy</p>
                 <h2 id="valRev" class="text-2xl font-black text-white truncate">$0.00</h2>
             </div>
             
@@ -54,7 +54,7 @@
                 <div class="absolute -right-4 -top-4 opacity-10 text-blue-500">
                     <i class="fas fa-wallet text-7xl"></i>
                 </div>
-                <p class="text-[9px] text-blue-400 font-bold uppercase tracking-widest mb-1"><i class="fas fa-piggy-bank"></i> Tu Comisión Hoy</p>
+                <p class="text-[9px] text-blue-400 font-bold uppercase tracking-widest mb-1"><i class="fas fa-piggy-bank"></i> Comisión Gestia Hoy</p>
                 <h2 id="valCom" class="text-2xl font-black text-blue-400 truncate">$0.00</h2>
             </div>
         </div>
@@ -69,7 +69,7 @@
             </div>
             
             <div class="glass-card p-4 rounded-2xl text-center border-emerald-900/30">
-                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-2">Flota en Calle</p>
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-2">Técnicos Online</p>
                 <div class="flex items-center justify-center gap-2">
                     <i class="fas fa-motorcycle text-emerald-500 text-xl"></i>
                     <span id="valTechs" class="text-3xl font-black text-emerald-400">0</span>
@@ -99,13 +99,24 @@
 
     
 <script type="module">
-        import { db, collection, query, where, orderBy, onSnapshot, limit, auth, observarAuth, verificarYRedireccionar } from "./firebase.js";
+        import { db, collection, query, where, orderBy, onSnapshot, observarAuth, verificarYRedireccionar } from "./firebase.js";
+        import { assertTechnicianCanOperate, TECHNICIAN_KYC_STATES } from "./b2c-technician-profile.js";
 
-        // Formatear fecha en cabecera
         const opcionesFecha = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
         document.getElementById('fechaHoy').innerText = new Date().toLocaleDateString('es-MX', opcionesFecha);
 
-        // 🔥 INYECCIÓN DE SEGURIDAD: Esperar autenticación antes de consultar
+        const escapeHtml = (value) => String(value ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+
+        const finiteMoney = (value) => {
+            const number = Number(value);
+            return Number.isFinite(number) ? number : 0;
+        };
+
         observarAuth((userAuth) => {
             if (!userAuth) {
                 window.location.replace("login.html");
@@ -113,13 +124,9 @@
             }
 
             const routeDecision = verificarYRedireccionar(userAuth);
-
-            if (routeDecision.redirect) {
-                return;
-            }
+            if (routeDecision.redirect) return;
 
             if (routeDecision.role !== "admin") {
-                // Si no está logueado o no es el CEO, no cargamos nada
                 document.getElementById('contenedorAlertas').innerHTML = `
                     <div class="p-4 bg-red-900/10 border border-red-900/30 rounded-xl text-center shadow-inner">
                         <i class="fas fa-lock text-red-500 text-2xl mb-2"></i>
@@ -132,92 +139,261 @@
             document.documentElement.classList.remove("gestia-auth-pending");
             document.getElementById("fortressLoader")?.remove();
 
-            console.log("👑 Credenciales CEO validadas. Iniciando lectura segura de Firebase...");
-
-            // Establecer el inicio del día actual para los cálculos de "HOY"
             const hoy = new Date();
             hoy.setHours(0, 0, 0, 0);
 
-            // 1. MONITOR DE FLOTA ACTIVA (Técnicos con disponible = true)
-            const qTechs = query(collection(db, "users"), where("rol", "==", "tecnico"), where("disponible", "==", true));
-            onSnapshot(qTechs, (snap) => {
-                document.getElementById('valTechs').innerText = snap.size;
-            });
+            const listenerHealth = {
+                technicians: null,
+                finance: null,
+                services: null,
+                withdrawals: null
+            };
+            const alertBuckets = {
+                system: {},
+                kyc: [],
+                services: [],
+                withdrawals: []
+            };
 
-            // 2. MONITOR FINANCIERO (Transacciones de Hoy)
-            const qTx = query(collection(db, "transacciones"), orderBy("fecha", "desc"), limit(200));
-            onSnapshot(qTx, (snap) => {
-                let ingresosHoy = 0;
-                let comisionHoy = 0;
+            const renderSyncState = () => {
+                const state = document.getElementById("syncState");
+                const dot = document.getElementById("syncDot");
+                const values = Object.values(listenerHealth);
+                if (values.some(value => value === false)) {
+                    state.textContent = "Live Sync Degradado";
+                    state.className = "text-[10px] text-red-400 font-bold uppercase tracking-widest";
+                    dot.className = "w-2 h-2 bg-red-500 rounded-full animate-pulse";
+                } else if (values.every(value => value === true)) {
+                    state.textContent = "Live Sync Activo";
+                    state.className = "text-[10px] text-emerald-500 font-bold uppercase tracking-widest";
+                    dot.className = "w-2 h-2 bg-emerald-500 rounded-full animate-pulse";
+                } else {
+                    state.textContent = "Sincronizando";
+                    state.className = "text-[10px] text-amber-400 font-bold uppercase tracking-widest";
+                    dot.className = "w-2 h-2 bg-amber-500 rounded-full animate-pulse";
+                }
+            };
 
-                snap.forEach(docSnap => {
-                    const tx = docSnap.data();
-                    if (tx.fecha && tx.fecha.toDate) {
-                        const fechaTx = tx.fecha.toDate();
-                        if (fechaTx >= hoy && tx.tipo !== 'retiro_fondos' && tx.tipo !== 'penalizacion') {
-                            ingresosHoy += (tx.monto_total || 0);
-                            comisionHoy += (tx.comision_fixgo || 0);
-                        }
-                    }
-                });
+            const renderAlerts = () => {
+                const contenedor = document.getElementById("contenedorAlertas");
+                const alerts = [
+                    ...Object.values(alertBuckets.system),
+                    ...alertBuckets.kyc,
+                    ...alertBuckets.withdrawals,
+                    ...alertBuckets.services
+                ].filter(Boolean);
 
-                document.getElementById('valRev').innerText = `$${ingresosHoy.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                document.getElementById('valCom').innerText = `$${comisionHoy.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-            });
-
-            // 3. MONITOR OPERATIVO Y DE ALERTAS (Servicios de Hoy)
-            const qServ = query(collection(db, "services"), orderBy("created_at", "desc"), limit(100));
-            onSnapshot(qServ, (snap) => {
-                let serviciosHoy = 0;
-                let htmlAlertas = "";
-
-                snap.forEach(docSnap => {
-                    const s = docSnap.data();
-                    const id = docSnap.id;
-                    
-                    if (s.created_at && s.created_at.toDate) {
-                        const fechaSrv = s.created_at.toDate();
-                        
-                        if (fechaSrv >= hoy) {
-                            serviciosHoy++;
-                            
-                            // Generación de Alertas Tácticas
-                            if (s.estado === 'cancelado') {
-                                htmlAlertas += `
-                                <div class="p-3 bg-red-900/20 border-l-2 border-red-500 rounded-r-xl flex justify-between items-center animate-fade-in shadow-lg">
-                                    <div>
-                                        <p class="text-xs font-bold text-red-500"><i class="fas fa-ban"></i> Servicio Cancelado</p>
-                                        <p class="text-[9px] text-gray-400 mt-0.5">Téc: ${s.tecnico_nombre || 'No asignado'}</p>
-                                    </div>
-                                    <span class="text-[9px] font-mono text-gray-500 uppercase">${id.substring(0,6)}</span>
-                                </div>`;
-                            } else if (s.estado === 'iniciado_stripe') {
-                                htmlAlertas += `
-                                <div class="p-3 bg-blue-900/20 border-l-2 border-blue-500 rounded-r-xl flex justify-between items-center animate-fade-in shadow-lg">
-                                    <div>
-                                        <p class="text-xs font-bold text-blue-400 animate-pulse"><i class="fas fa-credit-card"></i> Pago Stripe Atorado</p>
-                                        <p class="text-[9px] text-gray-400 mt-0.5">Esperando confirmación del banco</p>
-                                    </div>
-                                    <span class="text-[9px] font-mono text-gray-500 uppercase">${id.substring(0,6)}</span>
-                                </div>`;
-                            }
-                        }
-                    }
-                });
-
-                document.getElementById('valServ').innerText = serviciosHoy;
-                
-                const contAlertas = document.getElementById('contenedorAlertas');
-                if (htmlAlertas === "") {
-                    contAlertas.innerHTML = `
+                if (alerts.length === 0) {
+                    contenedor.innerHTML = `
                     <div class="p-4 bg-emerald-900/10 border border-emerald-900/30 rounded-xl text-center shadow-inner">
                         <i class="fas fa-check-circle text-emerald-500 text-2xl mb-2"></i>
                         <p class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Sin alertas críticas</p>
-                        <p class="text-[9px] text-gray-500 mt-1">La operación fluye con normalidad.</p>
+                        <p class="text-[9px] text-gray-500 mt-1">KYC, operación y finanzas sin pendientes críticos detectados.</p>
                     </div>`;
-                } else {
-                    contAlertas.innerHTML = htmlAlertas;
+                    return;
                 }
+                contenedor.innerHTML = alerts.join("");
+            };
+
+            const setListenerHealth = (name, ok, error = null) => {
+                listenerHealth[name] = ok;
+                if (ok) {
+                    delete alertBuckets.system[name];
+                } else {
+                    const detail = escapeHtml(error?.code || error?.message || "lectura no disponible");
+                    alertBuckets.system[name] = `
+                    <div class="p-3 bg-red-950/30 border-l-2 border-red-500 rounded-r-xl animate-fade-in shadow-lg">
+                        <p class="text-xs font-black text-red-400"><i class="fas fa-triangle-exclamation"></i> Radar degradado: ${escapeHtml(name)}</p>
+                        <p class="text-[9px] text-zinc-500 mt-1">${detail}</p>
+                    </div>`;
+                }
+                renderSyncState();
+                renderAlerts();
+            };
+
+            // Técnicos B2C: la cifra "online" usa la misma autoridad de elegibilidad del marketplace.
+            const qTechs = query(collection(db, "users"), where("rol", "==", "tecnico"));
+            onSnapshot(qTechs, (snap) => {
+                let online = 0;
+                let pendingReview = 0;
+                const duplicateNames = [];
+
+                snap.forEach(docSnap => {
+                    const profile = docSnap.data() || {};
+                    if (profile.tipo_cuenta === "B2B") return;
+
+                    if (assertTechnicianCanOperate(profile, { requireAvailable: true }).ok) {
+                        online += 1;
+                    }
+
+                    const duplicateBlocked =
+                        profile.kyc?.identity_duplicate_suspected === true ||
+                        profile.kyc?.identity_machine_status === "duplicate_suspected";
+                    if (duplicateBlocked) {
+                        duplicateNames.push(profile.nombre || profile.email || docSnap.id.slice(0, 8));
+                        return;
+                    }
+
+                    if ([TECHNICIAN_KYC_STATES.PENDING_REVIEW, TECHNICIAN_KYC_STATES.DOCUMENTS_UPLOADED].includes(profile.estado)) {
+                        pendingReview += 1;
+                    }
+                });
+
+                document.getElementById('valTechs').innerText = String(online);
+                const kycAlerts = [];
+                if (duplicateNames.length > 0) {
+                    const names = duplicateNames.slice(0, 3).map(escapeHtml).join(" · ");
+                    kycAlerts.push(`
+                    <div class="p-3 bg-red-950/30 border-l-2 border-red-500 rounded-r-xl animate-fade-in shadow-lg">
+                        <p class="text-xs font-black text-red-400"><i class="fas fa-fingerprint"></i> Identidad duplicada bloqueada (${duplicateNames.length})</p>
+                        <p class="text-[9px] text-zinc-400 mt-1">${names}${duplicateNames.length > 3 ? " · +" + (duplicateNames.length - 3) : ""}</p>
+                    </div>`);
+                }
+                if (pendingReview > 0) {
+                    kycAlerts.push(`
+                    <div class="p-3 bg-amber-950/20 border-l-2 border-amber-500 rounded-r-xl animate-fade-in shadow-lg">
+                        <p class="text-xs font-black text-amber-400"><i class="fas fa-user-shield"></i> Técnicos pendientes de aprobación: ${pendingReview}</p>
+                        <p class="text-[9px] text-zinc-500 mt-1">Requieren revisión administrativa antes de operar.</p>
+                    </div>`);
+                }
+                alertBuckets.kyc = kycAlerts;
+                setListenerHealth("technicians", true);
+            }, (error) => {
+                document.getElementById('valTechs').innerText = "N/D";
+                setListenerHealth("technicians", false, error);
             });
+
+            // Finanzas: acepta ledger canónico nuevo y compatibilidad legacy, deduplicado por servicio.
+            const FINANCIAL_TYPES = new Set([
+                "cierre_servicio_split",
+                "comision_efectivo_pendiente_cobro",
+                "ingreso_servicio"
+            ]);
+            const qTx = query(
+                collection(db, "transacciones"),
+                where("fecha", ">=", hoy),
+                orderBy("fecha", "desc")
+            );
+            onSnapshot(qTx, (snap) => {
+                const ledgerByService = new Map();
+
+                snap.forEach(docSnap => {
+                    const tx = docSnap.data() || {};
+                    if (!FINANCIAL_TYPES.has(tx.tipo)) return;
+                    const serviceKey = String(tx.servicio_id || docSnap.id);
+                    const canonical = tx.tipo === "cierre_servicio_split" || tx.tipo === "comision_efectivo_pendiente_cobro";
+                    const priority = canonical ? 2 : 1;
+                    const current = ledgerByService.get(serviceKey);
+                    if (!current || priority > current.priority) {
+                        ledgerByService.set(serviceKey, { tx, priority });
+                    }
+                });
+
+                let gtvHoy = 0;
+                let comisionHoy = 0;
+                for (const { tx } of ledgerByService.values()) {
+                    gtvHoy += finiteMoney(tx.monto_total);
+                    comisionHoy += finiteMoney(tx.comision_gestia ?? tx.ganancia_gestia ?? tx.comision_fixgo);
+                }
+
+                document.getElementById('valRev').innerText = `$${gtvHoy.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                document.getElementById('valCom').innerText = `$${comisionHoy.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                setListenerHealth("finance", true);
+            }, (error) => {
+                document.getElementById('valRev').innerText = "N/D";
+                document.getElementById('valCom').innerText = "N/D";
+                setListenerHealth("finance", false, error);
+            });
+
+            // Servicios creados hoy y alertas operativas/revisión financiera.
+            const qServ = query(
+                collection(db, "services"),
+                where("created_at", ">=", hoy),
+                orderBy("created_at", "desc")
+            );
+            onSnapshot(qServ, (snap) => {
+                const serviceAlerts = [];
+                let serviciosHoy = 0;
+                const nowMs = Date.now();
+
+                snap.forEach(docSnap => {
+                    const s = docSnap.data() || {};
+                    const id = docSnap.id;
+                    serviciosHoy += 1;
+                    const shortId = escapeHtml(id.substring(0, 6));
+
+                    if (s.estado === "cancelado") {
+                        serviceAlerts.push(`
+                        <div class="p-3 bg-red-900/20 border-l-2 border-red-500 rounded-r-xl flex justify-between items-center animate-fade-in shadow-lg">
+                            <div>
+                                <p class="text-xs font-bold text-red-500"><i class="fas fa-ban"></i> Servicio cancelado</p>
+                                <p class="text-[9px] text-gray-400 mt-0.5">Téc: ${escapeHtml(s.tecnico_nombre || "No asignado")}</p>
+                            </div>
+                            <span class="text-[9px] font-mono text-gray-500 uppercase">${shortId}</span>
+                        </div>`);
+                    }
+
+                    if (s.estado === "iniciado_stripe") {
+                        const createdMs = s.created_at?.toMillis?.() ?? s.created_at?.toDate?.()?.getTime?.() ?? nowMs;
+                        if (nowMs - createdMs >= 10 * 60 * 1000) {
+                            serviceAlerts.push(`
+                            <div class="p-3 bg-blue-900/20 border-l-2 border-blue-500 rounded-r-xl flex justify-between items-center animate-fade-in shadow-lg">
+                                <div>
+                                    <p class="text-xs font-bold text-blue-400"><i class="fas fa-credit-card"></i> Pago Stripe atorado</p>
+                                    <p class="text-[9px] text-gray-400 mt-0.5">Más de 10 minutos sin confirmación.</p>
+                                </div>
+                                <span class="text-[9px] font-mono text-gray-500 uppercase">${shortId}</span>
+                            </div>`);
+                        }
+                    }
+
+                    const reviewPending =
+                        s.b2c_financial_hold?.active === true ||
+                        s.llegada_revision_requerida === true ||
+                        s.ausencia_cliente_revision_requerida === true ||
+                        s.diagnostico_revision_requerida === true ||
+                        s.trabajo_revision_requerida === true;
+                    if (reviewPending) {
+                        serviceAlerts.push(`
+                        <div class="p-3 bg-amber-950/20 border-l-2 border-amber-500 rounded-r-xl flex justify-between items-center animate-fade-in shadow-lg">
+                            <div>
+                                <p class="text-xs font-bold text-amber-400"><i class="fas fa-scale-balanced"></i> Servicio bloqueado / en revisión</p>
+                                <p class="text-[9px] text-gray-500 mt-0.5">Requiere resolución administrativa antes de cierre financiero.</p>
+                            </div>
+                            <span class="text-[9px] font-mono text-gray-500 uppercase">${shortId}</span>
+                        </div>`);
+                    }
+                });
+
+                document.getElementById('valServ').innerText = String(serviciosHoy);
+                alertBuckets.services = serviceAlerts;
+                setListenerHealth("services", true);
+            }, (error) => {
+                document.getElementById('valServ').innerText = "N/D";
+                alertBuckets.services = [];
+                setListenerHealth("services", false, error);
+            });
+
+            // Retiros pendientes: acción financiera que antes sólo existía en NOC.
+            const qWithdrawals = query(collection(db, "retiros"), where("estado", "==", "pendiente"));
+            onSnapshot(qWithdrawals, (snap) => {
+                let total = 0;
+                snap.forEach(docSnap => {
+                    total += finiteMoney(docSnap.data()?.monto);
+                });
+                alertBuckets.withdrawals = snap.size > 0 ? [`
+                    <div class="p-3 bg-purple-950/20 border-l-2 border-purple-500 rounded-r-xl animate-fade-in shadow-lg">
+                        <p class="text-xs font-black text-purple-300"><i class="fas fa-money-bill-transfer"></i> Retiros pendientes: ${snap.size}</p>
+                        <p class="text-[9px] text-zinc-500 mt-1">Monto solicitado: $${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                    </div>`
+                ] : [];
+                setListenerHealth("withdrawals", true);
+            }, (error) => {
+                alertBuckets.withdrawals = [];
+                setListenerHealth("withdrawals", false, error);
+            });
+
+            renderSyncState();
+            renderAlerts();
         });
     </script>

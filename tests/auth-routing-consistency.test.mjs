@@ -46,6 +46,22 @@ test("public index keeps legal notices addressable without dead pages", () => {
     assert.doesNotMatch(index, /href="eliminar-datos\.html"/);
 });
 
+test("CEO Radar projects canonical B2C finance, KYC and operational authority", () => {
+    const source = fs.readFileSync(path.join(root, "ceo.html"), "utf8");
+
+    assert.match(source, /comision_gestia \?\? tx\.ganancia_gestia \?\? tx\.comision_fixgo/);
+    assert.match(source, /cierre_servicio_split/);
+    assert.match(source, /comision_efectivo_pendiente_cobro/);
+    assert.match(source, /assertTechnicianCanOperate\(profile, \{ requireAvailable: true \}\)/);
+    assert.match(source, /identity_duplicate_suspected/);
+    assert.match(source, /TECHNICIAN_KYC_STATES\.PENDING_REVIEW/);
+    assert.match(source, /collection\(db, "retiros"\), where\("estado", "==", "pendiente"\)/);
+    assert.match(source, /Live Sync Degradado/);
+    assert.match(source, /where\("fecha", ">=", hoy\)/);
+    assert.match(source, /where\("created_at", ">=", hoy\)/);
+    assert.doesNotMatch(source, /limit\(200\)|limit\(100\)/);
+});
+
 test("central router preserves privileged admin surfaces and role aliases", () => {
     const firebase = fs.readFileSync(path.join(root, "firebase.js"), "utf8");
 
