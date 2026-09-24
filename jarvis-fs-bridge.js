@@ -622,17 +622,74 @@ function openAiToolsFromGemini(config = {}) {
     })).filter(tool => tool.function.name);
 }
 
+function openAiToolChoiceFromGemini(config = {}) {
+    const mode =
+        String(
+            config
+                ?.toolConfig
+                ?.functionCallingConfig
+                ?.mode ||
+            ""
+        )
+            .trim()
+            .toUpperCase();
+
+    if (mode === "ANY") {
+        return "required";
+    }
+
+    if (mode === "NONE") {
+        return "none";
+    }
+
+    return "auto";
+}
+
 function parseOpenAiFunctionCalls(message = {}) {
     return (Array.isArray(message?.tool_calls) ? message.tool_calls : [])
         .map(call => {
             const name = String(call?.function?.name || "");
             if (!name) return null;
+
+            const rawArgs =
+                call?.function?.arguments;
+
             let args = {};
-            try {
-                const parsed = JSON.parse(String(call?.function?.arguments || "{}"));
-                if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) args = parsed;
-            } catch {}
-            return { name, args };
+
+            if (
+                rawArgs &&
+                typeof rawArgs === "object" &&
+                !Array.isArray(rawArgs)
+            ) {
+                args = {
+                    ...rawArgs
+                };
+            }
+            else {
+                try {
+                    const parsed =
+                        JSON.parse(
+                            String(
+                                rawArgs ||
+                                "{}"
+                            )
+                        );
+
+                    if (
+                        parsed &&
+                        typeof parsed === "object" &&
+                        !Array.isArray(parsed)
+                    ) {
+                        args = parsed;
+                    }
+                }
+                catch {}
+            }
+
+            return {
+                name,
+                args
+            };
         })
         .filter(Boolean);
 }
@@ -773,7 +830,16 @@ export function createSelfHostedSemanticEngine({
                 temperature: Number(request?.config?.temperature) || 0,
                 max_tokens: Math.max(256, Math.min(16000, Number(request?.config?.maxOutputTokens) || 3000)),
                 stream: false,
-                ...(tools.length > 0 ? { tools, tool_choice: "auto" } : {}),
+                ...(tools.length > 0
+                    ? {
+                        tools,
+                        tool_choice:
+                            openAiToolChoiceFromGemini(
+                                request?.config ||
+                                {}
+                            )
+                    }
+                    : {}),
                 ...(request?.config?.responseMimeType === "application/json"
                     ? { response_format: { type: "json_object" } }
                     : {})
