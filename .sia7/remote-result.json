@@ -1,21 +1,10 @@
 {
-  "jobId": "jarvis-local-ai-workstation-final-selfheal-20260924-010",
-  "completedAt": "2026-09-24T19:43:48.279Z",
+  "jobId": "jarvis-local-ai-physical-semantic-plan-20260924-012",
+  "completedAt": "2026-09-24T20:47:29.596Z",
   "executionStarted": true,
-  "ok": true,
-  "httpStatus": 200,
-  "endpoint": "/run",
-  "payload": {
-    "ok": true,
-    "status": "PASSED",
-    "exitCode": 0,
-    "command": "npm run bridge:ensure",
-    "stdout": "\n> gestia-premium@1.0.0 bridge:ensure\n> node -e \"const http=require('http'),{spawn}=require('child_process');const EXPECTED='2.0.0-singleton-exact-sync';const inspect=()=>new Promise(resolve=>{const req=http.get({host:'127.0.0.1',port:3344,path:'/workstation/health',timeout:2000},res=>{let body='';res.on('data',c=>body+=c);res.on('end',()=>{try{const json=JSON.parse(body||'{}');resolve({online:res.statusCode===200&&Boolean(json?.uploadTransportVersion||json?.bridgeVersion),contractVersion:String(json?.runtime?.workstationContractVersion||''),workerStarted:json?.runtime?.workerStarted===true})}catch{resolve({online:false,contractVersion:'',workerStarted:false})}})});req.on('timeout',()=>{req.destroy();resolve({online:false,contractVersion:'',workerStarted:false})});req.on('error',()=>resolve({online:false,contractVersion:'',workerStarted:false}))});import('./jarvis-upload-bridge.js').then(async m=>{const localAi=await m.ensureJarvisLocalAiRuntime({installIfMissing:true,pullModels:true});console.log('[JARVIS_LOCAL_AI_ENSURE] '+JSON.stringify(localAi));if(localAi.ok!==true)process.exitCode=1;const state=await inspect();if(state.online&&state.contractVersion===EXPECTED&&state.workerStarted){console.log('[JARVIS_WORKSTATION] already current with worker http://127.0.0.1:3344');return;}const win=process.platform==='win32';const command=win?'cmd.exe':'npm';const args=win?['/d','/s','/c','npm run bridge:supervise']:['run','bridge:supervise'];const child=spawn(command,args,{cwd:process.cwd(),detached:true,stdio:'ignore',windowsHide:true});child.unref();console.log('[JARVIS_WORKSTATION] starting detached singleton supervisor for contract '+EXPECTED);}).catch(error=>{console.error('[JARVIS_WORKSTATION_ENSURE_FAILED]',error);process.exit(1)})\"\n\n[JARVIS_LOCAL_AI_ENSURE] {\"ok\":true,\"status\":\"JARVIS_LOCAL_AI_RUNTIME_READY\",\"provider\":\"ollama-openai-compatible-local\",\"endpoint\":\"http://127.0.0.1:11434/v1\",\"embeddingEndpoint\":\"http://127.0.0.1:11434/api/embed\",\"cliAvailable\":true,\"serverRunning\":true,\"serverStarted\":false,\"installedModels\":[\"qwen3-embedding:0.6b\",\"qwen2.5-coder:7b\"],\"pulledModels\":[],\"expectedModel\":\"qwen2.5-coder:7b\",\"expectedEmbeddingModel\":\"qwen3-embedding:0.6b\",\"mainModelReady\":true,\"embeddingModelReady\":true,\"installationAttempted\":false,\"installation\":null,\"externalApiUsed\":false,\"paidApiUsed\":false}\n[JARVIS_WORKSTATION] starting detached singleton supervisor for contract 2.0.0-singleton-exact-sync\n",
-    "stderr": "",
-    "durationMs": 12052,
-    "source": "jarvis_local_ai_final_singleton_health_selfheal",
-    "version": "2.51.0-temporal-media-self-hosted-v142"
-  },
+  "ok": false,
+  "error": "WORKER_ENDPOINT_NOT_ALLOWED",
+  "evidence": null,
   "committedFiles": [
     ".sia7/remote-result.json"
   ]
