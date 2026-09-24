@@ -1066,6 +1066,61 @@ function workstationCommand(command, args = [], {
     }
 }
 
+async function pullLocalOllamaModel(
+    model,
+    {
+        fetchImpl = fetch,
+        timeoutMs = 45 * 60 * 1000
+    } = {}
+) {
+    try {
+        const response = await fetchImpl(
+            "http://127.0.0.1:11434/api/pull",
+            {
+                method: "POST",
+                headers: {
+                    "content-type": "application/json"
+                },
+                body: JSON.stringify({
+                    model,
+                    stream: false
+                }),
+                signal: AbortSignal.timeout(timeoutMs)
+            }
+        );
+        const text = await response.text();
+        let body = null;
+        try {
+            body = text ? JSON.parse(text) : null;
+        }
+        catch {}
+        const ok =
+            response.ok === true &&
+            String(body?.status || "").toLowerCase() === "success";
+        return {
+            ok,
+            status: response.status,
+            body,
+            error:
+                ok
+                    ? null
+                    : (
+                        body?.error ||
+                        text.slice(-2000) ||
+                        `HTTP_${response.status}`
+                    )
+        };
+    }
+    catch(error) {
+        return {
+            ok: false,
+            status: null,
+            body: null,
+            error: error?.message || String(error)
+        };
+    }
+}
+
 async function probeLocalJson(url, timeoutMs = 1200) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -1211,6 +1266,7 @@ export async function ensureJarvisLocalAiRuntime({
     platform = process.platform,
     commandImpl = workstationCommand,
     probeImpl = probeLocalJson,
+    pullHttpImpl = pullLocalOllamaModel,
     spawnImpl = spawn,
     installIfMissing = platform === "win32",
     pullModels = true,
@@ -1410,7 +1466,21 @@ export async function ensureJarvisLocalAiRuntime({
                 }
             }
 
+            let pullHttp = null;
             if (pull?.ok !== true) {
+                pullHttp = await pullHttpImpl(
+                    model,
+                    {
+                        timeoutMs:
+                            45 * 60 * 1000
+                    }
+                );
+            }
+
+            if (
+                pull?.ok !== true &&
+                pullHttp?.ok !== true
+            ) {
                 return {
                     ok: false,
                     status: "OLLAMA_MODEL_PULL_FAILED",
@@ -1420,6 +1490,7 @@ export async function ensureJarvisLocalAiRuntime({
                     failedModel: model,
                     pull,
                     pullAttempts,
+                    pullHttp,
                     installedModels,
                     expectedModel,
                     expectedEmbeddingModel,
