@@ -519,7 +519,8 @@ test("V142 structured production continuation reaches the semantic planner and d
     "utf8"
   );
   assert.equal(plannerSource.includes("generalistCurrentTurnPolicy: GENERALIST_CURRENT_TURN_POLICY"), true);
-  assert.equal(plannerSource.includes("historial, memoria, adjuntos y observaciones solo como contexto verificable"), true);\n  assert.equal(plannerSource.includes("catalogo runtime y los schemas de sus herramientas"), true);
+  assert.equal(plannerSource.includes("historial, memoria, adjuntos y observaciones solo como contexto verificable"), true);
+  assert.equal(plannerSource.includes("catalogo runtime y los schemas de sus herramientas"), true);
   assert.equal(coreSource.includes("const shouldCompletePlanningArguments ="), true);
   assert.equal(coreSource.includes("call?.deferred === true"), true);
   assert.equal(coreSource.includes("SEMANTIC_PLANNER_NO_EXECUTABLE_PLAN"), true);
