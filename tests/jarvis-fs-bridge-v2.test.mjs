@@ -559,6 +559,30 @@ test("self-hosted semantic engine uses local Ollama embeddings with zero externa
     assert.equal(health.counters.paidExternalCalls, 0);
 });
 
+test("self-hosted semantic requests propagate the mission timeout into the Ollama transport", () => {
+    const source = fs.readFileSync(
+        new URL("../jarvis-fs-bridge.js", import.meta.url),
+        "utf8"
+    );
+
+    assert.match(
+        source,
+        /Number\(request\?\.config\?\.timeoutMs\)\s*\|\|\s*timeoutMs/
+    );
+    assert.match(
+        source,
+        /const aiWithTimeout\s*=/
+    );
+    assert.match(
+        source,
+        /timeoutMs:\s*effectiveTimeoutMs/
+    );
+    assert.match(
+        source,
+        /aiWithTimeout\(\s*effectiveTimeoutMs\s*\)/
+    );
+});
+
 test("self-hosted semantic backend feeds the canonical planner without paid API calls", async () => {
     const requests = [];
     const engine = createSelfHostedSemanticEngine({
