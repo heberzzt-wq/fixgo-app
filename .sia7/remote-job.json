@@ -1,10 +1,11 @@
 {
-  "jobId": "v142-b2c-e2e-git-status-20260922-chatgpt-109",
+  "jobId": "jarvis-local-ai-workstation-doctor-20260924-001",
   "operation": "bridge",
-  "endpoint": "/git",
+  "endpoint": "/run",
   "body": {
-    "action": "status",
+    "command": "npm run bridge:smoke",
     "cwd": ".",
-    "timeoutMs": 120000
+    "timeoutMs": 180000,
+    "source": "jarvis_local_ai_physical_doctor"
   }
 }
