@@ -699,6 +699,54 @@ test("semantic planner maps Gemini native function calls to the runtime catalog"
     assert.equal(plan.toolCalls[0].args.query, "SUMM");
 });
 
+test("semantic planner bounds simple local tool selection output", async () => {
+    const singleCatalog = [{
+        name: "repo.search",
+        description: "Busca evidencia semantica en el repositorio real.",
+        mutates: false,
+        requiresApproval: false,
+        inputSchema: {
+            type: "object",
+            required: ["query"],
+            properties: {
+                query: { type: "string" }
+            },
+            additionalProperties: false
+        }
+    }];
+
+    const result = await runJarvisSemanticPlanner({
+        input: "Revisa como esta implementada la inteligencia local de Jarvis y dime que piezas participan.",
+        catalog: singleCatalog,
+        ai: {
+            lastProvider: "ollama-openai-compatible-local",
+            models: {
+                generateContent: async request => {
+                    assert.equal(request.config.maxOutputTokens, 384);
+                    assert.equal(request.config.temperature, 0);
+                    assert.equal(
+                        request.config.toolConfig.functionCallingConfig.mode,
+                        "ANY"
+                    );
+                    return {
+                        functionCalls: [{
+                            name: "jarvis_tool_0",
+                            args: {
+                                query: "inteligencia local de Jarvis piezas implementacion"
+                            }
+                        }]
+                    };
+                }
+            }
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.toolCalls.length, 1);
+    assert.equal(result.toolCalls[0].name, "repo.search");
+    assert.match(result.toolCalls[0].args.query, /Jarvis/i);
+});
+
 test("semantic planner preserves mixed tools and never grants prompt approval", async () => {
     const result = await runJarvisSemanticPlanner({
         input: "analisa el repo y revisa conectores sin modificar nada", catalog,
