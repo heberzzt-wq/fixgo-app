@@ -1,11 +1,29 @@
 {
-  "jobId": "jarvis-local-ai-workstation-doctor-20260924-011",
+  "jobId": "jarvis-local-ai-physical-semantic-plan-20260924-012",
   "operation": "bridge",
-  "endpoint": "/run",
+  "endpoint": "/semantic/plan",
   "body": {
-    "command": "npm run bridge:doctor",
-    "cwd": ".",
-    "timeoutMs": 120000,
-    "source": "jarvis_local_ai_post_selfheal_doctor"
+    "input": "Busca dónde se configura la IA local de Jarvis.",
+    "catalog": [
+      {
+        "name": "repo.search",
+        "description": "Busca evidencia en el repositorio real.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "query"
+          ],
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "mutates": false,
+        "requiresApproval": false
+      }
+    ],
+    "timeoutMs": 30000
   }
 }
