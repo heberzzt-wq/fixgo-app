@@ -90,7 +90,7 @@ const {
 } = require("./functions/jarvis-semantic-planner.js");
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.51.0-temporal-media-self-hosted-v142";
+    "2.52.0-cached-request-identity-v142";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -5249,6 +5249,11 @@ export function createJarvisFsBridgeApp({
         } : {})
     });
     const semanticEngine = localSemanticEngine || createSelfHostedSemanticEngine();
+    const requestIdentity =
+        describeJarvisBridgeIdentity(
+            root,
+            { verifyRemote: false }
+        );
 
     let repoGraphCache = null;
     const preparedWrites = new Map();
@@ -5302,18 +5307,20 @@ export function createJarvisFsBridgeApp({
         return next();
     });
 
-    app.get("/health", (req, res) => {
-        const identity =
-            describeJarvisBridgeIdentity(
-                root,
-                { verifyRemote: false }
-            );
-
+    app.get("/health", (_req, res) => {
         res.json({
-            ...describeJarvisFsBridge(),
+            ok: true,
+            status: "JARVIS_FS_BRIDGE_LIVE",
+            version:
+                JARVIS_FS_BRIDGE_VERSION,
+            policy:
+                JARVIS_FS_BRIDGE_POLICY,
             root:
                 path.resolve(root),
-            identity
+            identity:
+                requestIdentity,
+            semantic:
+                semanticEngine.describe()
         });
     });
 
@@ -5323,10 +5330,7 @@ export function createJarvisFsBridgeApp({
         }
 
         const identity =
-            describeJarvisBridgeIdentity(
-                root,
-                { verifyRemote: false }
-            );
+            requestIdentity;
 
         if (identity.ok !== true) {
             return res.status(503).json({
