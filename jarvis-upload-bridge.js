@@ -1209,6 +1209,11 @@ export async function inspectJarvisWorkstation({
             process.env.JARVIS_LOCAL_LLM_MODEL ||
             "qwen2.5-coder:7b"
         ).trim();
+    const expectedEmbeddingModel =
+        String(
+            process.env.JARVIS_LOCAL_EMBEDDING_MODEL ||
+            "qwen3-embedding:0.6b"
+        ).trim();
 
     const ollama =
         await probeLocalJson(
@@ -1234,6 +1239,73 @@ export async function inspectJarvisWorkstation({
                 `${expectedModel.split(":")[0]}:`
             )
         );
+    const expectedEmbeddingModelPresent =
+        ollamaModels.includes(expectedEmbeddingModel) ||
+        ollamaModels.some(name =>
+            name.startsWith(
+                `${expectedEmbeddingModel.split(":")[0]}:`
+            )
+        );
+
+    let embeddingProbe = {
+        ok: false,
+        status: "LOCAL_EMBEDDING_NOT_PROBED"
+    };
+    if (
+        ollama.reachable === true &&
+        expectedEmbeddingModelPresent
+    ) {
+        const controller = new AbortController();
+        const timer = setTimeout(
+            () => controller.abort(),
+            5000
+        );
+        try {
+            const response = await fetch(
+                "http://127.0.0.1:11434/api/embed",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        model: expectedEmbeddingModel,
+                        input: ["jarvis local embedding health"]
+                    }),
+                    signal: controller.signal
+                }
+            );
+            const payload = await response.json().catch(() => null);
+            embeddingProbe = {
+                ok:
+                    response.ok === true &&
+                    Array.isArray(payload?.embeddings) &&
+                    Array.isArray(payload.embeddings[0]) &&
+                    payload.embeddings[0].length > 0,
+                status:
+                    response.ok === true
+                        ? "LOCAL_EMBEDDING_PROBED"
+                        : `LOCAL_EMBEDDING_HTTP_${response.status}`,
+                dimensions:
+                    Array.isArray(payload?.embeddings?.[0])
+                        ? payload.embeddings[0].length
+                        : 0
+            };
+        }
+        catch(error) {
+            embeddingProbe = {
+                ok: false,
+                status:
+                    error?.name === "AbortError"
+                        ? "LOCAL_EMBEDDING_PROBE_TIMEOUT"
+                        : "LOCAL_EMBEDDING_PROBE_FAILED",
+                error: error?.message || String(error)
+            };
+        }
+        finally {
+            clearTimeout(timer);
+        }
+    }
 
     const firestoreEmulator =
         firebaseConfig?.emulators?.firestore
@@ -1341,14 +1413,21 @@ export async function inspectJarvisWorkstation({
             provider: "ollama-openai-compatible-local",
             endpoint:
                 "http://127.0.0.1:11434/v1",
+            embeddingEndpoint:
+                "http://127.0.0.1:11434/api/embed",
             cliAvailable: ollamaCli.ok,
             serverRunning: ollama.reachable === true,
             models: ollamaModels,
             expectedModel,
             expectedModelPresent,
+            expectedEmbeddingModel,
+            expectedEmbeddingModelPresent,
+            embeddingProbe,
             ready:
                 ollama.reachable === true &&
-                expectedModelPresent,
+                expectedModelPresent &&
+                expectedEmbeddingModelPresent &&
+                embeddingProbe.ok === true,
             externalFallback: false
         },
         localVideo: {
@@ -1374,6 +1453,7 @@ export async function inspectJarvisWorkstation({
             "firebase.hosting.inspect",
             "firebase.deploy.governed",
             "ollama.local.llm",
+            "ollama.local.embedding",
             "video.generate.local",
             "vscode.workspace"
         ]
