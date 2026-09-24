@@ -1,19 +1,16 @@
 import {
-    NEXO_IDENTITY
-} from "../nexo/nexo.identity.js";
-import {
     hasCompleteMarketingPlan,
     renderCompleteMarketingPlan
 } from "./jarvis.marketing.presenter.js";
 
 /**
- * NEXO Marketing Studio
+ * JARVIS Marketing Studio
  * Produce campañas estructuradas desde una instrucción natural y evidencia opcional.
  * Las propuestas creativas pueden usar contexto del usuario; los hechos comerciales solo
  * se consideran verificados cuando traen una fuente válida.
  */
 
-const VERSION = "8.3.0-grounded-social-edit-contract-v12";
+const VERSION = "8.4.0-jarvis-single-authority-grounded-v12";
 
 const REQUIRED_MARKETING_IDENTITY = {
     id: "business",
@@ -202,13 +199,15 @@ function buildTrace(context, instruction) {
     return {
         objectiveId: clean(context.objectiveId),
         caseId: clean(context.caseId),
-        authorityId: clean(context.authorityId) || NEXO_IDENTITY.authorityId,
-        controllerId: clean(context.controllerId) || NEXO_IDENTITY.controllerId,
+        authorityId: clean(context.authorityId) || "JARVIS",
+        controllerId: clean(context.controllerId) || "JARVIS",
         instruction,
         generatedAt: Date.now(),
         source: "natural_instruction_semantic_fields_and_evidence",
         memoryRole: "advisory_only",
-        engineIdentity: NEXO_IDENTITY.name
+        engineIdentity: "JARVIS",
+        semanticAuthority: "jarvisSemanticPlan",
+        alternateBrains: 0
     };
 }
 
@@ -552,7 +551,7 @@ export function planMarketingRequest(rawInput = "", context = {}) {
         name: creativeBrief.brandName,
         voice: creativeBrief.tone,
         market: clean(context.market) || "mercado prioritario por validar",
-        owner: clean(context.owner) || NEXO_IDENTITY.owner
+        owner: clean(context.owner) || "JARVIS"
     };
     const channels = strings(context.channels).length
         ? strings(context.channels)
@@ -633,10 +632,10 @@ export function planMarketingRequest(rawInput = "", context = {}) {
     const result = {
         ok: true,
         status: "MARKETING_PACKAGE_READY",
-        engine: "nexo_marketing_engine",
-        legacyEngineAlias: "jarvis_marketing_engine",
+        engine: "jarvis_marketing_engine",
+        legacyEngineAlias: "nexo_marketing_engine",
         version: VERSION,
-        source: "nexo_natural_brief_and_optional_evidence",
+        source: "jarvis_semantic_brief_and_optional_evidence",
         raw: instruction,
         intent: "MARKETING_PACKAGE",
         domain: "marketing",
@@ -707,7 +706,9 @@ export function isMarketingRequest(input = null) {
 
 export const JarvisMarketingEngine = {
     version: VERSION,
-    identity: NEXO_IDENTITY.name,
+    identity: "JARVIS",
+    semanticAuthority: "jarvisSemanticPlan",
+    alternateBrains: 0,
     routing: "semantic_fields_with_editable_assumptions",
     isMarketingRequest,
     plan: planMarketingRequest
