@@ -50,7 +50,7 @@ function createManageB2cProviderCrewHandler({admin,db,functions,bucket}){
     const providerId=context?.auth?.uid;if(!providerId)throw err(functions,"unauthenticated","Inicia sesión como responsable B2C.");
     const providerRef=db.collection("users").doc(providerId), snap=await providerRef.get();if(!snap.exists)throw err(functions,"not-found","Proveedor no encontrado.");
     const {provider}=assertProvider(functions,snap.data()||{});const action=clean(data?.action,40);
-    if(action==="list"){const q=await providerRef.collection("crew_members").limit(platform.B2C_PROVIDER_MAX_MEMBERS).get();return{ok:true,provider,members:q.docs.map(x=>memberPublic(x)).sort((a,b)=>a.full_name.localeCompare(b.full_name,"es-MX"))};}
+    if(action==="list"){const q=await providerRef.collection("crew_members").limit(100).get();return{ok:true,provider,members:q.docs.map(x=>memberPublic(x)).filter(x=>x.status!==platform.B2C_CREW_MEMBER_STATES.INACTIVE).sort((a,b)=>a.full_name.localeCompare(b.full_name,"es-MX"))};}
     const memberId=clean(data?.memberId,100);if(!/^[A-Za-z0-9_-]{8,100}$/.test(memberId))throw err(functions,"invalid-argument","memberId inválido.");
     const memberRef=providerRef.collection("crew_members").doc(memberId);
     if(action==="submit_member"){
@@ -59,15 +59,15 @@ function createManageB2cProviderCrewHandler({admin,db,functions,bucket}){
       const raw=data?.evidence&&typeof data.evidence==="object"?data.evidence:{}, entries={};
       for(const kind of ["profile_photo","ine_front","ine_back"]) entries[kind]=await verifyEvidence(bucket,providerId,memberId,kind,raw[kind]?.path||raw[kind]);
       return db.runTransaction(async tx=>{
-        const rosterQ=providerRef.collection("crew_members").limit(platform.B2C_PROVIDER_MAX_MEMBERS);
+        const rosterQ=providerRef.collection("crew_members").limit(100);
         const [ps,ms,roster]=await Promise.all([tx.get(providerRef),tx.get(memberRef),tx.get(rosterQ)]);
         if(!ps.exists)throw err(functions,"not-found","Proveedor no encontrado.");assertProvider(functions,ps.data()||{});
-        if(!ms.exists&&roster.docs.length>=platform.B2C_PROVIDER_MAX_MEMBERS-1)throw err(functions,"resource-exhausted","Máximo 20 personas incluyendo al responsable.");
+        const activeRosterCount=roster.docs.filter(d=>d.data()?.status!==platform.B2C_CREW_MEMBER_STATES.INACTIVE).length;if(!ms.exists&&activeRosterCount>=platform.B2C_PROVIDER_MAX_MEMBERS-1)throw err(functions,"resource-exhausted","Máximo 20 personas incluyendo al responsable.");
         if(roster.docs.some(d=>d.id!==memberId&&d.data()?.status!==platform.B2C_CREW_MEMBER_STATES.INACTIVE&&clean(d.data()?.phone_digits,30)===phone))throw err(functions,"already-exists","Ese teléfono ya está registrado en la plantilla.");
         const prev=ms.exists?ms.data()||{}:{};if([platform.B2C_CREW_MEMBER_STATES.ACTIVE,platform.B2C_CREW_MEMBER_STATES.SUSPENDED].includes(prev.status))throw err(functions,"failed-precondition","Ese integrante no puede reemplazar su expediente desde este estado.");
         const ts=now();
         tx.set(memberRef,{member_id:memberId,provider_uid:providerId,full_name:fullName,role,phone_digits:phone,status:platform.B2C_CREW_MEMBER_STATES.PENDING_REVIEW,approved:false,active:false,on_duty:false,verification_status:"pending_biometric",profile_photo_url:entries.profile_photo.url,evidence:entries,identity:{machine_status:"pending_capture",machine_verified:false,duplicate_suspected:false},created_at:prev.created_at||ts,updated_at:ts,submitted_at:ts});
-        tx.update(providerRef,{"provider_profile.planned_member_count":Math.min(platform.B2C_PROVIDER_MAX_MEMBERS,Math.max(Number(provider.planned_member_count)||2,roster.docs.length+(ms.exists?1:2))),"provider_profile.max_member_count":platform.B2C_PROVIDER_MAX_MEMBERS,"provider_profile.updated_at":ts});
+        tx.update(providerRef,{"provider_profile.planned_member_count":Math.min(platform.B2C_PROVIDER_MAX_MEMBERS,Math.max(Number(provider.planned_member_count)||2,activeRosterCount+(ms.exists?1:2))),"provider_profile.max_member_count":platform.B2C_PROVIDER_MAX_MEMBERS,"provider_profile.updated_at":ts});
         return{ok:true,memberId,status:"pending_biometric"};
       });
     }
@@ -112,7 +112,7 @@ function createReviewB2cProviderCrewMemberHandler({admin,db,functions,bucket}){
     if(!context?.auth?.uid)throw err(functions,"unauthenticated","Se requiere sesión administrativa.");const actorSnap=await db.collection("users").doc(context.auth.uid).get();if(!isAuthorizedAdmin(context,actorSnap.data()||{}))throw err(functions,"permission-denied","Sólo Administración puede revisar integrantes.");
     const providerId=clean(data?.providerId,160),memberId=clean(data?.memberId,100),action=clean(data?.action,40);if(!providerId||providerId.includes("/"))throw err(functions,"invalid-argument","providerId inválido.");
     const providerRef=db.collection("users").doc(providerId),ps=await providerRef.get();if(!ps.exists||ps.data()?.tipo_cuenta!=="B2C"||platform.normalizeToken(ps.data()?.rol)!=="tecnico")throw err(functions,"not-found","Proveedor B2C no encontrado.");
-    if(action==="list"){const q=await providerRef.collection("crew_members").limit(platform.B2C_PROVIDER_MAX_MEMBERS).get();return{ok:true,provider:platform.normalizeB2cProviderProfile(ps.data()||{}),members:q.docs.map(x=>memberPublic(x,true))};}
+    if(action==="list"){const q=await providerRef.collection("crew_members").limit(100).get();return{ok:true,provider:platform.normalizeB2cProviderProfile(ps.data()||{}),members:q.docs.map(x=>memberPublic(x,true)).filter(x=>x.status!==platform.B2C_CREW_MEMBER_STATES.INACTIVE)};}
     if(!/^[A-Za-z0-9_-]{8,100}$/.test(memberId))throw err(functions,"invalid-argument","memberId inválido.");const memberRef=providerRef.collection("crew_members").doc(memberId),ms=await memberRef.get();if(!ms.exists)throw err(functions,"not-found","Integrante no encontrado.");const m=ms.data()||{}, reason=clean(data?.reason,500);
     if(action==="approve"){if(![platform.B2C_CREW_MEMBER_STATES.PENDING_REVIEW,platform.B2C_CREW_MEMBER_STATES.CORRECTION_REQUIRED].includes(m.status))throw err(functions,"failed-precondition","El integrante no está en estado aprobable.");if(m.identity?.machine_verified!==true||m.identity?.machine_status!=="verified")throw err(functions,"failed-precondition","La identidad biométrica del integrante no está verificada.");const key=subjectKey(providerId,memberId),reg=await db.collection("b2c_identity_registry").doc(key).get();if(!reg.exists||reg.data()?.status!=="pending_admin_review"||reg.data()?.capture_digest!==m.identity?.capture_digest)throw err(functions,"failed-precondition","Sello biométrico de integrante inválido.");}
     if(action==="return"&&reason.length<8)throw err(functions,"invalid-argument","Explica qué debe corregirse.");if(!["approve","return","suspend"].includes(action))throw err(functions,"invalid-argument","Decisión inválida.");
