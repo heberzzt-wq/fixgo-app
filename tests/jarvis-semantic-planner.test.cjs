@@ -587,14 +587,14 @@ test("mission coverage deduplicates research reformulations while preserving ind
     );
 });
 
-test("semantic response uses the authenticated provider chain and reports provenance", async () => {
+test("semantic response uses the local Jarvis provider and reports provenance", async () => {
     const result = await runJarvisSemanticResponse({
         input: "Integra solamente la evidencia entregada.",
         ai: {
-            lastProvider: "vertex-adc",
+            lastProvider: "ollama-openai-compatible-local",
             models: {
                 generateContent: async request => {
-                    assert.equal(request.model, "gemini-3.5-flash");
+                    assert.equal(request.model, "jarvis-local");
                     assert.equal(
                         request.config.maxOutputTokens,
                         3500
@@ -613,7 +613,7 @@ test("semantic response uses the authenticated provider chain and reports proven
     });
 
     assert.equal(result.ok, true);
-    assert.equal(result.provider, "vertex-adc");
+    assert.equal(result.provider, "ollama-openai-compatible-local");
     assert.equal(result.message, "Resultado integrado con evidencia.");
 });
 
@@ -622,7 +622,7 @@ test("semantic response accepts a bounded extended budget for complete mission r
         input: "Integra todas las secciones y cierra el informe.",
         maxOutputTokens: 12000,
         ai: {
-            lastProvider: "vertex-adc",
+            lastProvider: "ollama-openai-compatible-local",
             models: {
                 generateContent: async request => {
                     assert.equal(
@@ -702,8 +702,8 @@ test("semantic planner maps Gemini native function calls to the runtime catalog"
 test("semantic planner preserves mixed tools and never grants prompt approval", async () => {
     const result = await runJarvisSemanticPlanner({
         input: "analisa el repo y revisa conectores sin modificar nada", catalog,
-        ai: { lastProvider: "gemini-developer", models: { generateContent: async request => {
-            assert.equal(request.model, "gemini-3.5-flash");
+        ai: { lastProvider: "ollama-openai-compatible-local", models: { generateContent: async request => {
+            assert.equal(request.model, "jarvis-local");
             return { functionCalls: [{ name: "jarvis_tool_0", args: { query: "repo" } }, { name: "jarvis_tool_1", args: {} }, { name: "jarvis_tool_2", args: {} }] };
         } } }
     });
@@ -782,16 +782,16 @@ test("semantic plan grounds empty model arguments in the original instruction", 
     assert.equal(result.toolCalls[0].args.instruction, "revisa tecnico b2b y cliente html");
 });
 
-test("semantic planner uses the authenticated two-provider authority without a public fallback", async () => {
+test("semantic planner uses the injected local Jarvis authority without a public fallback", async () => {
     let fallbackCalls = 0;
     const result = await runJarvisSemanticPlanner({
         input: "investiga SUMM y prepara una campana sin publicar",
         catalog,
         ai: {
-            lastProvider: "vertex-adc",
+            lastProvider: "ollama-openai-compatible-local",
             models: {
                 generateContent: async request => {
-                    assert.equal(request.model, "gemini-3.5-flash");
+                    assert.equal(request.model, "jarvis-local");
                     assert.ok(request.contents.includes("INSTRUCCION_ORIGINAL_INMUTABLE="));
                     return {
                         functionCalls: [
@@ -808,7 +808,7 @@ test("semantic planner uses the authenticated two-provider authority without a p
         }
     });
 
-    assert.equal(result.provider, "vertex-adc");
+    assert.equal(result.provider, "ollama-openai-compatible-local");
     assert.deepEqual(result.toolCalls.map(call => call.name), ["repo.search", "connector.list"]);
     assert.equal(fallbackCalls, 0);
 });
@@ -977,7 +977,7 @@ test("Gemini completion audit can close without a forced tool call", async () =>
     assert.equal(result.planKind, "COMPLETION_AUDIT");
 });
 
-test("Gemini creates a complete read-only mission contract before execution", async () => {
+test("Jarvis local model creates a complete read-only mission contract before execution", async () => {
     let requestCount = 0;
     const result = await runGeminiSemanticPlanner({
         input: "Investiga el dominio oficial y revisa conectores sin escribir.",
@@ -1005,7 +1005,7 @@ test("Gemini creates a complete read-only mission contract before execution", as
                         assert.equal(request.config.thinkingConfig.thinkingLevel, "MINIMAL");
                         assert.equal(request.config.maxOutputTokens, 4000);
                         assert.ok(request.contents.includes("CONTRATO_DE_MISION"));
-                        assert.ok(request.contents.includes("todas las herramientas read-only y userArtifact necesarias"));
+                        assert.ok(request.contents.includes("construye un plan completo para todos los objetivos explicitos"));
                     } else if (requestCount === 2) {
                         assert.equal(request.config.thinkingConfig.thinkingLevel, "MINIMAL");
                         assert.equal(request.config.maxOutputTokens, 3000);
@@ -1272,13 +1272,13 @@ test("semantic planner accepts long and ten-page missions without losing mission
     const result = await runJarvisSemanticPlanner({
         input: longInstruction, catalog,
         missionState: { missionId: "MISSION-LONG-1", completedTasks: [{ name: "repo.search", args: { query: "evidencia" } }], pendingTasks: [], blockedTasks: [], writeAllowed: false },
-        ai: { lastProvider: "gemini-developer", models: { generateContent: async request => { providerRequest = request; return { functionCalls: [{ name: "jarvis_tool_1", args: {} }] }; } } }
+        ai: { lastProvider: "ollama-openai-compatible-local", models: { generateContent: async request => { providerRequest = request; return { functionCalls: [{ name: "jarvis_tool_1", args: {} }] }; } } }
     });
     assert.equal(result.toolCalls[0].name, "connector.list");
-    assert.equal(providerRequest.model, "gemini-3.5-flash");
+    assert.equal(providerRequest.model, "jarvis-local");
     assert.ok(String(providerRequest.contents).includes(longInstruction));
     assert.ok(String(providerRequest.contents).includes("MISSION-LONG-1"));
-    assert.ok(String(providerRequest.contents).includes("No repitas una herramienta completada"));
+    assert.ok(String(providerRequest.contents).includes("No repitas trabajo ya satisfecho con la misma evidencia"));
 });
 
 test("authenticated completion audit uses JSON without function declarations", async () => {
