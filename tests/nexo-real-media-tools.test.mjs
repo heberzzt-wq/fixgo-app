@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-    registerNexoRealMediaTools
+    registerJarvisRealMediaTools
 } from "../gestia-core/nexo/nexo.real-media.tools.js";
 
 function runtimeFixture() {
@@ -42,10 +42,10 @@ function marketingTask() {
     };
 }
 
-test("runtime override preserves NEXO marketing input-required semantics", async () => {
+test("runtime override preserves Jarvis marketing input-required semantics", async () => {
     const runtime = runtimeFixture();
     runtime.register({ name: "marketing.plan", execute: async () => ({ version: "7.0.0" }) });
-    const installation = registerNexoRealMediaTools(runtime);
+    const installation = registerJarvisRealMediaTools(runtime);
 
     assert.equal(installation.active, true);
     const result = await runtime.registry.get("marketing.plan").execute({
@@ -56,12 +56,12 @@ test("runtime override preserves NEXO marketing input-required semantics", async
     assert.equal(result.requiresInput, true);
     assert.equal(result.blocked, true);
     assert.equal(result.readyForProduction, false);
-    assert.equal(result.trace.controllerId, "PENINSULA_NEXO");
+    assert.equal(result.trace.controllerId, "JARVIS");
 });
 
 test("real media package blocks when requested video bytes are missing", async () => {
     const runtime = runtimeFixture();
-    registerNexoRealMediaTools(runtime);
+    registerJarvisRealMediaTools(runtime);
     const packageTool = runtime.registry.get("marketing.package.real-media");
     const result = await packageTool.execute(
         {
@@ -109,7 +109,7 @@ test("real media package creates verified local manifest when both families exis
     };
 
     const runtime = runtimeFixture();
-    registerNexoRealMediaTools(runtime);
+    registerJarvisRealMediaTools(runtime);
     const packageTool = runtime.registry.get("marketing.package.real-media");
     const assets = [
         {
