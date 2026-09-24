@@ -142,6 +142,7 @@
     });
 
     const MEXICAN_CLABE_VERSION = "mx-clabe-v1";
+    const MEXICAN_PAYOUT_DESTINATION_VERSION = "mx-payout-destination-v1";
     const MEXICAN_CLABE_CATALOG_SOURCE = "BANXICO_CEP_SCL_2026-09-22";
     const CLABE_INSTITUTIONS = Object.freeze({
         "001": Object.freeze({ key: "2001", name: "BANXICO" }),
@@ -283,6 +284,79 @@
         });
     }
 
+    function normalizeMexicanPayoutDestination(value) {
+        return String(value ?? "").replace(/\D+/g, "").slice(0, 20);
+    }
+
+    function validLuhn(value) {
+        const digits = normalizeMexicanPayoutDestination(value);
+        if (!/^\d{16}$/.test(digits)) return false;
+        let sum = 0;
+        let doubleDigit = false;
+        for (let index = digits.length - 1; index >= 0; index -= 1) {
+            let digit = Number(digits[index]);
+            if (doubleDigit) {
+                digit *= 2;
+                if (digit > 9) digit -= 9;
+            }
+            sum += digit;
+            doubleDigit = !doubleDigit;
+        }
+        return sum % 10 === 0;
+    }
+
+    function payoutDestinationType(value, typeHint = "auto") {
+        const digits = normalizeMexicanPayoutDestination(value);
+        const hint = normalizeToken(typeHint || "auto");
+        if (["clabe", "cuenta", "tarjeta", "celular"].includes(hint)) return hint;
+        if (digits.length === 18) return "clabe";
+        if (digits.length === 16) return "tarjeta";
+        if (digits.length === 10) return "celular";
+        if (digits.length >= 6 && digits.length <= 20) return "cuenta";
+        return "desconocido";
+    }
+
+    function inspectMexicanPayoutDestination(value, { typeHint = "auto", bankName = "" } = {}) {
+        const digits = normalizeMexicanPayoutDestination(value);
+        const type = payoutDestinationType(digits, typeHint);
+        const manualBank = text(bankName);
+        const clabe = type === "clabe" ? inspectMexicanClabe(digits) : null;
+        const institutionName = clabe?.institutionName || manualBank || null;
+        const autoBankResolved = Boolean(clabe?.institutionName);
+        let formatValid = false;
+        let checksumValid = true;
+
+        if (type === "clabe") {
+            formatValid = clabe?.formatValid === true;
+            checksumValid = clabe?.checksumValid === true;
+        } else if (type === "tarjeta") {
+            formatValid = /^\d{16}$/.test(digits);
+            checksumValid = validLuhn(digits);
+        } else if (type === "celular") {
+            formatValid = /^\d{10}$/.test(digits);
+        } else if (type === "cuenta") {
+            formatValid = /^\d{6,20}$/.test(digits);
+        }
+
+        const bankRequired = !autoBankResolved;
+        const valid = formatValid && checksumValid && (autoBankResolved || Boolean(manualBank));
+        return Object.freeze({
+            version: MEXICAN_PAYOUT_DESTINATION_VERSION,
+            digits,
+            type,
+            masked: digits ? (digits.length <= 6 ? digits : `${digits.slice(0, 3)} •••• ${digits.slice(-4)}`) : "",
+            formatValid,
+            checksumValid,
+            valid,
+            bankRequired,
+            autoBankResolved,
+            institutionName,
+            institutionCode: clabe?.institutionCode || null,
+            institutionKey: clabe?.institutionKey || null,
+            catalogSource: clabe?.catalogSource || null
+        });
+    }
+
 
     function text(value, fallback = "") {
         const normalized = String(value ?? "").trim();
@@ -399,8 +473,14 @@
             datos_bancarios: {
                 banco: text(raw.datos_bancarios?.banco ?? raw.banco ?? raw.banco_nombre),
                 clabe: normalizeMexicanClabe(raw.datos_bancarios?.clabe ?? raw.clabe ?? raw.clabe_interbancaria),
+                destino_tipo: normalizeToken(raw.datos_bancarios?.destino_tipo || (raw.datos_bancarios?.clabe ? "clabe" : "")),
+                destino: normalizeMexicanPayoutDestination(raw.datos_bancarios?.destino ?? raw.datos_bancarios?.clabe ?? raw.clabe ?? raw.clabe_interbancaria),
+                destino_confirmado: raw.datos_bancarios?.destino_confirmado === true ||
+                    (!raw.datos_bancarios?.payout_version && Boolean(raw.datos_bancarios?.clabe ?? raw.clabe ?? raw.clabe_interbancaria)),
                 titular: text(raw.datos_bancarios?.titular ?? raw.nombre),
                 banking_version: text(raw.datos_bancarios?.banking_version),
+                payout_version: text(raw.datos_bancarios?.payout_version),
+                banco_resolucion: normalizeToken(raw.datos_bancarios?.banco_resolucion),
                 institucion_clave: text(raw.datos_bancarios?.institucion_clave),
                 institucion_key: text(raw.datos_bancarios?.institucion_key),
                 institucion_nombre: text(raw.datos_bancarios?.institucion_nombre),
@@ -434,12 +514,17 @@
         const pedestrian = profile.vehiculo.tipo === "peaton";
         const identityRequired = profile.kyc?.identity_required === true;
         const clabeInspection = inspectMexicanClabe(profile.datos_bancarios.clabe);
-        const smartBanking = profile.datos_bancarios.banking_version === MEXICAN_CLABE_VERSION;
+        const payoutInspection = inspectMexicanPayoutDestination(
+            profile.datos_bancarios.destino || profile.datos_bancarios.clabe,
+            { typeHint: profile.datos_bancarios.destino_tipo || "auto", bankName: profile.datos_bancarios.banco }
+        );
+        const smartBanking =
+            profile.datos_bancarios.payout_version === MEXICAN_PAYOUT_DESTINATION_VERSION ||
+            profile.datos_bancarios.banking_version === MEXICAN_CLABE_VERSION;
         const smartBankMatches = !smartBanking || (
-            clabeInspection.valid &&
-            profile.datos_bancarios.banco === clabeInspection.institutionName &&
-            profile.datos_bancarios.institucion_clave === clabeInspection.institutionCode &&
-            profile.datos_bancarios.institucion_key === clabeInspection.institutionKey
+            payoutInspection.valid &&
+            profile.datos_bancarios.destino_confirmado === true &&
+            Boolean(profile.datos_bancarios.banco)
         );
         const required = {
             foto_perfil: isDocumentReference(profile.foto_perfil),
@@ -449,7 +534,8 @@
             } : {}),
             csf: isDocumentReference(profile.documentos.csf),
             banco: smartBanking ? smartBankMatches : Boolean(profile.datos_bancarios.banco),
-            clabe: smartBanking ? clabeInspection.valid : /^\d{18}$/.test(profile.datos_bancarios.clabe),
+            clabe: smartBanking ? smartBankMatches : /^\d{18}$/.test(profile.datos_bancarios.clabe),
+            destino_retiro: smartBanking ? smartBankMatches : /^\d{18}$/.test(profile.datos_bancarios.clabe),
             vehiculo_tipo: Boolean(profile.vehiculo.tipo),
             placas: pedestrian || Boolean(profile.vehiculo.placas),
             licencia: pedestrian || isDocumentReference(profile.documentos.licencia)
@@ -467,6 +553,7 @@
             identityVerified: profile.kyc?.identity_verified === true,
             bankingVersion: profile.datos_bancarios.banking_version || null,
             bankingInspection: clabeInspection,
+            payoutInspection,
             smartBanking,
             certificatesOptional: true
         };
@@ -739,6 +826,7 @@
     return Object.freeze({
         CONTRACT_VERSION,
         MEXICAN_CLABE_VERSION,
+        MEXICAN_PAYOUT_DESTINATION_VERSION,
         MEXICAN_CLABE_CATALOG_SOURCE,
         CLABE_INSTITUTIONS,
         B2C_SKILL_VERTICALS,
@@ -754,7 +842,9 @@
         assertPaymentMethodAllowed,
         calculateMexicanClabeCheckDigit,
         inspectMexicanClabe,
+        inspectMexicanPayoutDestination,
         normalizeMexicanClabe,
+        normalizeMexicanPayoutDestination,
         buildMarketplaceListing,
         getServiceDefinition,
         isB2BAccountProfile,

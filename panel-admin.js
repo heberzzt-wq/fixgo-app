@@ -1176,7 +1176,9 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  const licUrl = t.documentos?.licencia || t.licencia || t.vehiculo?.licencia || null;
 
  const banco = t.datos_bancarios?.banco || t.banco || t.banco_nombre || 'NO REGISTRADO';
- const clabe = t.datos_bancarios?.clabe || t.clabe || t.clabe_interbancaria || 'NO REGISTRADA';
+ const payoutType = t.datos_bancarios?.destino_tipo || (t.datos_bancarios?.clabe ? 'clabe' : 'no_registrado');
+ const payoutDestination = String(t.datos_bancarios?.destino || t.datos_bancarios?.clabe || t.clabe || t.clabe_interbancaria || '');
+ const payoutMasked = payoutDestination ? (payoutDestination.length <= 6 ? payoutDestination : `${payoutDestination.slice(0,3)}••••${payoutDestination.slice(-4)}`) : 'NO REGISTRADO';
 
  const perfilCanonico = normalizeTechnicianProfile(t);
  const kyc = getTechnicianKycRequirements(t);
@@ -1232,7 +1234,8 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  <div class="bg-black p-3 rounded-xl border border-zinc-800">
  <p class="text-[10px] text-gray-500 font-bold uppercase mb-1"><i class="fas fa-university"></i> Datos Bancarios</p>
  <p class="text-sm text-white font-mono">Banco: <span class="text-emerald-400">${escaparHTML(banco)}</span></p>
- <p class="text-sm text-white font-mono">CLABE: <span class="text-emerald-400">${escaparHTML(clabe)}</span></p>
+ <p class="text-sm text-white font-mono">Destino: <span class="text-emerald-400">${escaparHTML(payoutMasked)}</span></p>
+ <p class="text-[10px] text-zinc-500 uppercase mt-1">Tipo: ${escaparHTML(payoutType)}</p>
  </div>
 
  <div class="bg-black p-3 rounded-xl border border-zinc-800">

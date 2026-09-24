@@ -45,7 +45,9 @@ import {
     isTechnicianSkillCompatible,
     normalizeTechnicianProfile,
     inspectMexicanClabe,
+    inspectMexicanPayoutDestination,
     MEXICAN_CLABE_VERSION,
+    MEXICAN_PAYOUT_DESTINATION_VERSION,
     storagePathForTechnicianDocument
 } from "./b2c-technician-profile.js";
 import { getConfirmedServiceDestination } from "./b2c-destination.js";
@@ -311,34 +313,35 @@ export async function iniciarPanelTecnico(user) {
                     </div>
                 </div>
                 `;
-                const compClabeInput = document.getElementById("compClabe");
-                const compClabeStatus = document.getElementById("compClabeBankStatus");
-                if (compClabeInput && compClabeStatus) {
-                    const refreshCompClabe = () => {
-                        const digits = String(compClabeInput.value || "").replace(/\D/g, "").slice(0, 18);
-                        if (compClabeInput.value !== digits) compClabeInput.value = digits;
-                        const info = inspectMexicanClabe(digits);
-                        if (!digits) {
-                            compClabeStatus.className = "mt-2 text-[10px] text-zinc-500";
-                            compClabeStatus.textContent = "Escribe tu CLABE y detectaremos el banco.";
-                        } else if (digits.length >= 3 && !info.institutionName) {
-                            compClabeStatus.className = "mt-2 text-[10px] text-red-400";
-                            compClabeStatus.textContent = "Institución no reconocida.";
-                        } else if (digits.length < 18) {
-                            compClabeStatus.className = "mt-2 text-[10px] text-blue-400";
-                            compClabeStatus.textContent = info.institutionName
-                                ? `${info.institutionName} · faltan ${18 - digits.length} dígitos`
-                                : `Faltan ${18 - digits.length} dígitos`;
-                        } else if (!info.checksumValid) {
-                            compClabeStatus.className = "mt-2 text-[10px] text-red-400";
-                            compClabeStatus.textContent = `${info.institutionName || "Banco detectado"} · CLABE inválida`;
-                        } else {
-                            compClabeStatus.className = "mt-2 text-[10px] text-emerald-400 font-black";
-                            compClabeStatus.textContent = `✓ ${info.institutionName} · CLABE válida`;
-                        }
-                    };
-                    compClabeInput.addEventListener("input", refreshCompClabe);
-                    refreshCompClabe();
+                const payoutInputs = ["compPayoutDestination", "compPayoutConfirm", "compPayoutType", "compPayoutBank"]
+                    .map(id => document.getElementById(id)).filter(Boolean);
+                const payoutStatus = document.getElementById("compClabeBankStatus");
+                const refreshPayout = () => {
+                    const value = String(document.getElementById("compPayoutDestination")?.value || "").replace(/\D/g, "").slice(0, 20);
+                    const confirmation = String(document.getElementById("compPayoutConfirm")?.value || "").replace(/\D/g, "").slice(0, 20);
+                    const typeHint = document.getElementById("compPayoutType")?.value || "auto";
+                    const bankName = String(document.getElementById("compPayoutBank")?.value || "").trim().toUpperCase();
+                    const info = inspectMexicanPayoutDestination(value, { typeHint, bankName });
+                    if (!payoutStatus) return;
+                    if (!value) {
+                        payoutStatus.className = "mt-2 text-[10px] text-zinc-500";
+                        payoutStatus.textContent = "Escribe el destino dos veces.";
+                    } else if (value !== confirmation) {
+                        payoutStatus.className = "mt-2 text-[10px] text-red-400";
+                        payoutStatus.textContent = "Los números no coinciden.";
+                    } else if (info.valid) {
+                        payoutStatus.className = "mt-2 text-[10px] text-emerald-400 font-black";
+                        payoutStatus.textContent = `✓ ${(info.institutionName || bankName || "Institución").toUpperCase()} · ${info.type.toUpperCase()}`;
+                    } else {
+                        payoutStatus.className = "mt-2 text-[10px] text-amber-400";
+                        payoutStatus.textContent = info.bankRequired && !bankName ? "Indica tu banco para revisión." : "Revisa el número y tipo seleccionado.";
+                    }
+                };
+                payoutInputs.forEach(input => {
+                    input.addEventListener("input", refreshPayout);
+                    input.addEventListener("change", refreshPayout);
+                });
+                refreshPayout();
                 }
             }
             return; 
@@ -380,9 +383,10 @@ export async function iniciarPanelTecnico(user) {
         const correcciones = perfilCanonico.estado === TECHNICIAN_KYC_STATES.REJECTED ? new Set(perfilCanonico.kyc.faltantes || []) : new Set();
         const fotoUrl = correcciones.has('foto_perfil') ? null : perfilCanonico.foto_perfil;
         const banco = perfilCanonico.datos_bancarios.banco;
-        const clabe = perfilCanonico.datos_bancarios.clabe;
-        const bankInspection = inspectMexicanClabe(clabe);
-        const bankingComplete = kycResult.required?.banco === true && kycResult.required?.clabe === true;
+        const payoutDestination = perfilCanonico.datos_bancarios.destino || perfilCanonico.datos_bancarios.clabe;
+        const payoutType = perfilCanonico.datos_bancarios.destino_tipo || (perfilCanonico.datos_bancarios.clabe ? "clabe" : "");
+        const payoutInspection = inspectMexicanPayoutDestination(payoutDestination, { typeHint: payoutType || "auto", bankName: banco });
+        const bankingComplete = kycResult.required?.banco === true && kycResult.required?.destino_retiro === true;
         const vehiculoTipo = perfilCanonico.vehiculo.tipo;
         const placas = perfilCanonico.vehiculo.placas;
         const licenciaUrl = correcciones.has('licencia') ? null : perfilCanonico.documentos.licencia;
@@ -439,13 +443,22 @@ export async function iniciarPanelTecnico(user) {
                                 </label>
                                 ${bankingComplete
                                     ? `<div class="rounded-lg border border-emerald-900/40 bg-emerald-500/5 p-3">
-                                        <p class="text-xs text-white font-black">${escaparHTML(bankInspection.institutionName || banco)}</p>
-                                        <p class="text-[10px] text-emerald-400 mt-1">${escaparHTML(bankInspection.masked || 'CLABE registrada')}</p>
-                                        <p class="text-[9px] text-zinc-500 mt-1">La institución se deriva de la CLABE; no se captura manualmente.</p>
+                                        <p class="text-xs text-white font-black">${escaparHTML(banco || payoutInspection.institutionName || 'Institución registrada')}</p>
+                                        <p class="text-[10px] text-emerald-400 mt-1">${escaparHTML(payoutInspection.masked || 'Destino registrado')}</p>
+                                        <p class="text-[9px] text-zinc-500 mt-1">Tipo: ${escaparHTML((payoutType || payoutInspection.type || 'destino').toUpperCase())}</p>
                                       </div>`
                                     : `
-                                <input type="text" id="compClabe" inputmode="numeric" maxlength="18" placeholder="CLABE (18 dígitos)" class="w-full text-xs text-white bg-zinc-800 border-0 py-3 px-3 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none font-mono tracking-wider">
-                                <div id="compClabeBankStatus" class="mt-2 text-[10px] text-zinc-500">Escribe tu CLABE y detectaremos el banco.</div>
+                                <select id="compPayoutType" class="mb-2 w-full text-xs text-white bg-zinc-800 border-0 py-2 px-3 rounded-lg">
+                                    <option value="auto">Detectar automáticamente</option>
+                                    <option value="clabe">CLABE interbancaria</option>
+                                    <option value="cuenta">Número de cuenta</option>
+                                    <option value="tarjeta">Tarjeta de débito</option>
+                                    <option value="celular">Número celular asociado</option>
+                                </select>
+                                <input type="text" id="compPayoutDestination" inputmode="numeric" maxlength="20" placeholder="Destino de retiro" class="w-full text-xs text-white bg-zinc-800 border-0 py-3 px-3 rounded-lg font-mono tracking-wider">
+                                <input type="text" id="compPayoutConfirm" inputmode="numeric" maxlength="20" placeholder="Confirma el mismo número" class="mt-2 w-full text-xs text-white bg-zinc-800 border-0 py-3 px-3 rounded-lg font-mono tracking-wider">
+                                <input type="text" id="compPayoutBank" maxlength="80" placeholder="Banco / institución (si no se detecta)" class="mt-2 w-full text-xs text-white bg-zinc-800 border-0 py-3 px-3 rounded-lg uppercase">
+                                <div id="compClabeBankStatus" class="mt-2 text-[10px] text-zinc-500">Los dos números deben coincidir exactamente.</div>
                                 `}
                             </div>
                             <div class="bg-black p-4 rounded-xl border ${vehiculoTipo && (esPeaton || placas) ? 'border-emerald-900/50' : 'border-red-900/50'}">
@@ -550,9 +563,13 @@ export async function iniciarPanelTecnico(user) {
         const iLicencia = document.getElementById("compLicencia")?.files[0];
         const iCertificado = document.getElementById("compCertificado")?.files[0];
 
-        const vClabeRaw = document.getElementById("compClabe")?.value.trim();
-        const vClabeInspection = vClabeRaw ? inspectMexicanClabe(vClabeRaw) : null;
-        const vClabe = vClabeInspection?.digits || "";
+        const vPayoutRaw = document.getElementById("compPayoutDestination")?.value.trim();
+        const vPayoutConfirm = document.getElementById("compPayoutConfirm")?.value.trim();
+        const vPayoutType = document.getElementById("compPayoutType")?.value || "auto";
+        const vPayoutBank = document.getElementById("compPayoutBank")?.value.trim().toUpperCase();
+        const vPayoutInspection = vPayoutRaw
+            ? inspectMexicanPayoutDestination(vPayoutRaw, { typeHint: vPayoutType, bankName: vPayoutBank })
+            : null;
         const vVehiculo = document.getElementById("compVehiculo")?.value;
         const vPlacas = document.getElementById("compPlacas")?.value.trim();
 
@@ -562,26 +579,22 @@ export async function iniciarPanelTecnico(user) {
         const tipoVehiculoSeleccionado = String(vVehiculo || perfilTecnicoActual.vehiculo?.tipo || "").toLowerCase();
         const seleccionPeaton = tipoVehiculoSeleccionado === "peaton" || tipoVehiculoSeleccionado === "peatón";
         const reqLicencia = !seleccionPeaton && document.getElementById("compLicencia") && !iLicencia;
-        const reqClabe = document.getElementById("compClabe") && !vClabe;
+        const reqPayout = document.getElementById("compPayoutDestination") && (!vPayoutRaw || vPayoutRaw !== vPayoutConfirm || !vPayoutInspection?.valid);
         const reqVehiculo = document.getElementById("compVehiculo") && !vVehiculo;
         const reqPlacas = !seleccionPeaton && document.getElementById("compPlacas") && !vPlacas;
 
-        if (reqFoto || reqINE || reqCSF || reqLicencia || reqClabe || reqVehiculo || reqPlacas) {
+        if (reqFoto || reqINE || reqCSF || reqLicencia || reqPayout || reqVehiculo || reqPlacas) {
             alert("⚠️ Debes completar todos los datos de texto y seleccionar todos los archivos faltantes marcados con ❌.");
             return;
         }
 
-        if (document.getElementById("compClabe")) {
-            if (!vClabeInspection?.formatValid) {
-                alert("🏦 La CLABE debe contener exactamente 18 dígitos.");
+        if (document.getElementById("compPayoutDestination")) {
+            if (vPayoutRaw !== vPayoutConfirm) {
+                alert("🏦 Los dos números del destino de retiro deben coincidir exactamente.");
                 return;
             }
-            if (!vClabeInspection.institutionName) {
-                alert("🏦 No reconocimos la institución de esta CLABE.");
-                return;
-            }
-            if (!vClabeInspection.checksumValid || !vClabeInspection.valid) {
-                alert("🏦 La CLABE no supera la validación de dígito verificador.");
+            if (!vPayoutInspection?.formatValid || !vPayoutInspection?.checksumValid || !vPayoutInspection?.valid) {
+                alert("🏦 Revisa el tipo, el número y la institución del destino de retiro.");
                 return;
             }
         }
@@ -634,16 +647,20 @@ export async function iniciarPanelTecnico(user) {
                     throw error;
                 }
             };
-            if (vClabeInspection?.valid) {
-                updates['datos_bancarios.banco'] = vClabeInspection.institutionName;
-                updates['datos_bancarios.clabe'] = vClabeInspection.digits;
-                updates['datos_bancarios.banking_version'] = MEXICAN_CLABE_VERSION;
-                updates['datos_bancarios.institucion_clave'] = vClabeInspection.institutionCode;
-                updates['datos_bancarios.institucion_key'] = vClabeInspection.institutionKey;
-                updates['datos_bancarios.institucion_nombre'] = vClabeInspection.institutionName;
-                updates['datos_bancarios.catalog_source'] = vClabeInspection.catalogSource;
-                updates['datos_bancarios.clabe_checksum_valid'] = true;
-                updates['datos_bancarios.clabe_validated_at'] = serverTimestamp();
+            if (vPayoutInspection?.valid) {
+                updates['datos_bancarios.banco'] = vPayoutInspection.institutionName || vPayoutBank;
+                updates['datos_bancarios.clabe'] = vPayoutInspection.type === 'clabe' ? vPayoutInspection.digits : '';
+                updates['datos_bancarios.destino_tipo'] = vPayoutInspection.type;
+                updates['datos_bancarios.destino'] = vPayoutInspection.digits;
+                updates['datos_bancarios.destino_confirmado'] = true;
+                updates['datos_bancarios.banking_version'] = vPayoutInspection.type === 'clabe' ? MEXICAN_CLABE_VERSION : '';
+                updates['datos_bancarios.payout_version'] = MEXICAN_PAYOUT_DESTINATION_VERSION;
+                updates['datos_bancarios.banco_resolucion'] = vPayoutInspection.autoBankResolved ? 'automatico' : 'manual_admin_review';
+                updates['datos_bancarios.institucion_clave'] = vPayoutInspection.institutionCode || '';
+                updates['datos_bancarios.institucion_key'] = vPayoutInspection.institutionKey || '';
+                updates['datos_bancarios.institucion_nombre'] = vPayoutInspection.institutionName || vPayoutBank;
+                updates['datos_bancarios.catalog_source'] = vPayoutInspection.catalogSource || '';
+                updates['datos_bancarios.destino_validated_at'] = serverTimestamp();
             }
             if (vVehiculo) updates['vehiculo.tipo'] = vVehiculo.toLowerCase();
        if (vPlacas) {

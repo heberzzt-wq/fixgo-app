@@ -426,45 +426,40 @@
                         <div class="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
                             <div class="flex items-start justify-between gap-4 mb-4">
                                 <div>
-                                    <p class="text-[10px] uppercase tracking-[0.22em] text-blue-400 font-black">Cuenta para recibir retiros</p>
-                                    <h3 class="text-base font-black mt-1">CLABE interbancaria</h3>
-                                    <p class="text-xs text-gray-400 mt-1">Escribe tu CLABE y detectaremos automáticamente la institución. No necesitas seleccionar el banco.</p>
+                                    <p class="text-[10px] uppercase tracking-[0.22em] text-blue-400 font-black">Destino para recibir retiros</p>
+                                    <h3 class="text-base font-black mt-1">Cuenta / CLABE / tarjeta / celular</h3>
+                                    <p class="text-xs text-gray-400 mt-1">Intentaremos reconocer el tipo y el banco. Si no podemos detectar la institución, tú la indicas y Administración la revisa antes de aprobarte.</p>
                                 </div>
                                 <div class="w-11 h-11 shrink-0 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center">
                                     <i class="fas fa-building-columns text-blue-400"></i>
                                 </div>
                             </div>
-
-                            <input
-                                id="clabeTecnico"
-                                type="text"
-                                name="clabe"
-                                inputmode="numeric"
-                                autocomplete="off"
-                                placeholder="18 dígitos"
-                                maxlength="18"
-                                required
-                                aria-describedby="clabeTecnicoStatus"
-                                class="uber-input w-full px-5 py-4 rounded-2xl font-mono tracking-[0.13em] text-lg"
-                            >
-                            <input type="hidden" name="banco" id="bancoTecnico" value="">
-
+                            <select id="payoutTypeTecnico" name="payout_type" class="uber-input w-full px-4 py-3 rounded-xl text-sm mb-3">
+                                <option value="auto">Detectar automáticamente</option>
+                                <option value="clabe">CLABE interbancaria</option>
+                                <option value="cuenta">Número de cuenta</option>
+                                <option value="tarjeta">Tarjeta de débito</option>
+                                <option value="celular">Número celular asociado</option>
+                            </select>
+                            <input id="payoutDestinationTecnico" type="text" name="payout_destination" inputmode="numeric" autocomplete="off" placeholder="Escribe el número" maxlength="20" required class="uber-input w-full px-5 py-4 rounded-2xl font-mono tracking-[0.13em] text-lg">
+                            <input id="payoutDestinationConfirmTecnico" type="text" name="payout_destination_confirm" inputmode="numeric" autocomplete="off" placeholder="Confirma el mismo número" maxlength="20" required class="uber-input w-full px-5 py-4 rounded-2xl font-mono tracking-[0.13em] text-lg mt-3">
+                            <div id="payoutManualBankWrap" class="hidden mt-3">
+                                <label class="block text-[10px] uppercase tracking-widest text-zinc-500 font-black mb-2">Institución / banco</label>
+                                <input id="payoutManualBankTecnico" type="text" name="payout_bank" autocomplete="organization" placeholder="Ej. BBVA, Santander, Mercado Pago..." maxlength="80" class="uber-input w-full px-5 py-4 rounded-2xl text-sm uppercase">
+                            </div>
                             <div id="clabeBankCard" class="mt-3 rounded-2xl border border-zinc-800 bg-black/30 p-4 transition-all" aria-live="polite">
                                 <div class="flex items-center gap-3">
-                                    <div id="clabeBankIcon" class="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-500">
-                                        <i class="fas fa-building-columns"></i>
-                                    </div>
+                                    <div id="clabeBankIcon" class="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-500"><i class="fas fa-building-columns"></i></div>
                                     <div class="min-w-0 flex-1">
-                                        <p id="clabeBankName" class="font-black text-sm text-zinc-400">Banco pendiente de detectar</p>
-                                        <p id="clabeTecnicoStatus" class="text-[10px] text-zinc-500 mt-0.5">Ingresa los 18 dígitos de tu CLABE.</p>
+                                        <p id="clabeBankName" class="font-black text-sm text-zinc-400">Destino pendiente de validar</p>
+                                        <p id="clabeTecnicoStatus" class="text-[10px] text-zinc-500 mt-0.5">Escribe el número dos veces. Deben coincidir exactamente.</p>
                                     </div>
                                     <i id="clabeBankCheck" class="fas fa-shield-halved text-zinc-600"></i>
                                 </div>
                             </div>
-
                             <div class="mt-3 flex items-center justify-between gap-3 text-[10px] text-zinc-500">
                                 <span><i class="fas fa-user-shield mr-1"></i> Titular: <strong id="clabeTitularTecnico" class="text-zinc-300">se tomará de tu identidad</strong></span>
-                                <span class="whitespace-nowrap"><i class="fas fa-lock mr-1"></i> CLABE protegida</span>
+                                <span class="whitespace-nowrap"><i class="fas fa-lock mr-1"></i> Destino protegido</span>
                             </div>
                         </div>
 
@@ -504,6 +499,11 @@
                                 <div id="identityStep2" class="identity-step rounded-xl border border-zinc-700 p-2 text-center text-[9px] text-gray-500"><span class="identity-step-dot mx-auto mb-1 flex w-5 h-5 items-center justify-center rounded-full bg-zinc-800 font-black">3</span>Selfie</div>
                             </div>
 
+                            <label id="identityConsentTecnico" class="flex items-start gap-3 mb-4 cursor-pointer rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+                                <input type="checkbox" id="chkBiometriaTecnico" class="w-5 h-5 mt-0.5 accent-emerald-500 rounded shrink-0">
+                                <span class="text-xs text-gray-300 leading-relaxed"><strong class="text-white">Autorizo la captura de identidad.</strong> Acepto la captura de INE y selfie frontal para validación KYC y prevención de cuentas duplicadas. La cuenta del Socio Pro permanece bloqueada hasta revisión administrativa.</span>
+                            </label>
+
                             <button type="button" id="btnIniciarIdentidad" class="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black py-4 rounded-2xl text-sm transition-all flex items-center justify-center gap-3">
                                 <i class="fas fa-camera"></i> INICIAR VERIFICACIÓN SEGURA
                             </button>
@@ -532,10 +532,7 @@
                             </div>
                         </div>
 
-                        <label class="flex items-start gap-3 py-2 mt-4 cursor-pointer rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-                            <input type="checkbox" id="chkBiometriaTecnico" class="w-5 h-5 mt-0.5 accent-emerald-500 rounded">
-                            <span class="text-xs text-gray-300 leading-relaxed"><strong class="text-white">Autorizo la captura de identidad.</strong> Acepto la captura de INE y selfie frontal para validación KYC y prevención de cuentas duplicadas. La cuenta del Socio Pro permanece bloqueada hasta revisión administrativa.</span>
-                        </label>
+
                         <label class="flex items-start gap-3 py-2 mt-4 cursor-pointer">
                             <input type="checkbox" id="chkTerminosTecnico" class="w-5 h-5 mt-0.5 accent-emerald-500 rounded">
                             <span class="text-xs text-gray-400 leading-tight">Al registrarme como Socio, acepto los <button type="button" onclick="document.getElementById('modalTerminosTecnico').classList.remove('hidden')" class="text-emerald-400 underline font-bold">Términos y Condiciones</button> y el <button type="button" onclick="document.getElementById('modalPrivacidad').classList.remove('hidden')" class="text-emerald-400 underline font-bold">Aviso de Privacidad</button>.</span>

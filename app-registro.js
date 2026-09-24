@@ -34,9 +34,11 @@ import {
 import {
     TECHNICIAN_KYC_STATES,
     MEXICAN_CLABE_VERSION,
+    MEXICAN_PAYOUT_DESTINATION_VERSION,
     buildTechnicianReviewPatch,
     createTechnicianRegistrationProfile,
     inspectMexicanClabe,
+    inspectMexicanPayoutDestination,
     storagePathForTechnicianDocument
 } from "./b2c-technician-profile.js";
 
@@ -483,8 +485,11 @@ if (btnRegistroCliente) {
 // ======================================================
 const btnRegistroTecnico = $("btnRegistroTecnico");
 
-const clabeTecnicoInput = $("clabeTecnico");
-const bancoTecnicoInput = $("bancoTecnico");
+const payoutDestinationInput = $("payoutDestinationTecnico");
+const payoutDestinationConfirmInput = $("payoutDestinationConfirmTecnico");
+const payoutTypeInput = $("payoutTypeTecnico");
+const payoutManualBankInput = $("payoutManualBankTecnico");
+const payoutManualBankWrap = $("payoutManualBankWrap");
 const clabeBankCard = $("clabeBankCard");
 const clabeBankIcon = $("clabeBankIcon");
 const clabeBankName = $("clabeBankName");
@@ -492,52 +497,52 @@ const clabeTecnicoStatus = $("clabeTecnicoStatus");
 const clabeBankCheck = $("clabeBankCheck");
 const clabeTitularTecnico = $("clabeTitularTecnico");
 
-function paintClabeBankState(state, info = {}) {
+function paintPayoutState(state, info = {}) {
     if (!clabeBankCard || !clabeBankIcon || !clabeBankName || !clabeTecnicoStatus || !clabeBankCheck) return;
     const baseCard = "mt-3 rounded-2xl border bg-black/30 p-4 transition-all";
     const baseIcon = "w-10 h-10 rounded-xl flex items-center justify-center";
-    const reset = () => {
-        clabeBankCard.className = `${baseCard} border-zinc-800`;
-        clabeBankIcon.className = `${baseIcon} bg-zinc-800 text-zinc-500`;
-        clabeBankCheck.className = "fas fa-shield-halved text-zinc-600";
-        clabeBankName.className = "font-black text-sm text-zinc-400";
-        clabeTecnicoStatus.className = "text-[10px] text-zinc-500 mt-0.5";
-    };
-    reset();
-
+    clabeBankCard.className = `${baseCard} border-zinc-800`;
+    clabeBankIcon.className = `${baseIcon} bg-zinc-800 text-zinc-500`;
+    clabeBankCheck.className = "fas fa-shield-halved text-zinc-600";
+    clabeBankName.className = "font-black text-sm text-zinc-400";
+    clabeTecnicoStatus.className = "text-[10px] text-zinc-500 mt-0.5";
     if (state === "empty") {
-        clabeBankName.textContent = "Banco pendiente de detectar";
-        clabeTecnicoStatus.textContent = "Ingresa los 18 dígitos de tu CLABE.";
+        clabeBankName.textContent = "Destino pendiente de validar";
+        clabeTecnicoStatus.textContent = "Escribe el número dos veces. Deben coincidir exactamente.";
         return;
     }
-    if (state === "unknown") {
+    if (state === "mismatch") {
         clabeBankCard.className = `${baseCard} border-red-500/40`;
         clabeBankIcon.className = `${baseIcon} bg-red-500/10 text-red-400`;
         clabeBankCheck.className = "fas fa-circle-xmark text-red-400";
         clabeBankName.className = "font-black text-sm text-red-300";
         clabeTecnicoStatus.className = "text-[10px] text-red-400 mt-0.5";
-        clabeBankName.textContent = "Institución no reconocida";
-        clabeTecnicoStatus.textContent = "Revisa los primeros 3 dígitos de la CLABE.";
+        clabeBankName.textContent = "Los números no coinciden";
+        clabeTecnicoStatus.textContent = "Vuelve a escribir ambos. El registro queda bloqueado hasta que sean idénticos.";
         return;
     }
-    if (state === "partial") {
-        clabeBankCard.className = `${baseCard} border-blue-500/30`;
-        clabeBankIcon.className = `${baseIcon} bg-blue-500/10 text-blue-400`;
-        clabeBankCheck.className = "fas fa-building-shield text-blue-400";
-        clabeBankName.className = "font-black text-sm text-white";
-        clabeTecnicoStatus.className = "text-[10px] text-blue-300 mt-0.5";
-        clabeBankName.textContent = info.institutionName || "Institución detectada";
-        clabeTecnicoStatus.textContent = `Banco detectado · faltan ${Math.max(0, 18 - (info.digits?.length || 0))} dígitos`;
+    if (state === "manual_bank") {
+        clabeBankCard.className = `${baseCard} border-amber-500/40`;
+        clabeBankIcon.className = `${baseIcon} bg-amber-500/10 text-amber-300`;
+        clabeBankCheck.className = "fas fa-building-circle-question text-amber-300";
+        clabeBankName.className = "font-black text-sm text-amber-200";
+        clabeTecnicoStatus.className = "text-[10px] text-amber-300 mt-0.5";
+        clabeBankName.textContent = `${String(info.type || "destino").toUpperCase()} · banco por confirmar`;
+        clabeTecnicoStatus.textContent = "Indica tu institución bancaria. Administración revisará este destino antes de aprobarte.";
         return;
     }
-    if (state === "checksum_error") {
+    if (state === "invalid") {
         clabeBankCard.className = `${baseCard} border-red-500/40`;
         clabeBankIcon.className = `${baseIcon} bg-red-500/10 text-red-400`;
         clabeBankCheck.className = "fas fa-triangle-exclamation text-red-400";
-        clabeBankName.className = "font-black text-sm text-white";
+        clabeBankName.className = "font-black text-sm text-red-300";
         clabeTecnicoStatus.className = "text-[10px] text-red-400 mt-0.5";
-        clabeBankName.textContent = info.institutionName || "Banco detectado";
-        clabeTecnicoStatus.textContent = "CLABE inválida · el dígito verificador no coincide.";
+        clabeBankName.textContent = "Destino no válido";
+        clabeTecnicoStatus.textContent = info.type === "tarjeta"
+            ? "La tarjeta debe tener 16 dígitos y superar la validación numérica."
+            : info.type === "clabe"
+                ? "La CLABE debe tener 18 dígitos y un dígito verificador correcto."
+                : "Revisa el tipo seleccionado y el número capturado.";
         return;
     }
     if (state === "valid") {
@@ -546,33 +551,38 @@ function paintClabeBankState(state, info = {}) {
         clabeBankCheck.className = "fas fa-circle-check text-emerald-400";
         clabeBankName.className = "font-black text-sm text-white";
         clabeTecnicoStatus.className = "text-[10px] text-emerald-400 mt-0.5";
-        clabeBankName.textContent = info.institutionName;
-        clabeTecnicoStatus.textContent = `CLABE válida · institución ${info.institutionCode}`;
+        clabeBankName.textContent = info.institutionName || "Destino validado";
+        clabeTecnicoStatus.textContent = `${String(info.type || "destino").toUpperCase()} · ${info.masked || "número confirmado"}`;
     }
 }
-
-function refreshTechnicianClabe() {
-    if (!clabeTecnicoInput) return null;
-    const digits = String(clabeTecnicoInput.value || "").replace(/\D/g, "").slice(0, 18);
-    if (clabeTecnicoInput.value !== digits) clabeTecnicoInput.value = digits;
-    const info = inspectMexicanClabe(digits);
-    if (bancoTecnicoInput) bancoTecnicoInput.value = info.institutionName || "";
-
-    if (!digits) paintClabeBankState("empty", info);
-    else if (digits.length >= 3 && !info.institutionName) paintClabeBankState("unknown", info);
-    else if (digits.length < 18) paintClabeBankState("partial", info);
-    else if (!info.checksumValid) paintClabeBankState("checksum_error", info);
-    else if (info.valid) paintClabeBankState("valid", info);
-    else paintClabeBankState("unknown", info);
-    return info;
+function refreshTechnicianPayoutDestination() {
+    if (!payoutDestinationInput || !payoutDestinationConfirmInput) return null;
+    const digits = String(payoutDestinationInput.value || "").replace(/\D/g, "").slice(0, 20);
+    const confirmation = String(payoutDestinationConfirmInput.value || "").replace(/\D/g, "").slice(0, 20);
+    if (payoutDestinationInput.value !== digits) payoutDestinationInput.value = digits;
+    if (payoutDestinationConfirmInput.value !== confirmation) payoutDestinationConfirmInput.value = confirmation;
+    const typeHint = payoutTypeInput?.value || "auto";
+    const manualBank = String(payoutManualBankInput?.value || "").trim().toUpperCase();
+    const info = inspectMexicanPayoutDestination(digits, { typeHint, bankName: manualBank });
+    payoutManualBankWrap?.classList.toggle("hidden", !(digits && !info.autoBankResolved));
+    if (info.autoBankResolved && payoutManualBankInput) payoutManualBankInput.value = info.institutionName || "";
+    if (!digits) paintPayoutState("empty", info);
+    else if (confirmation && confirmation !== digits) paintPayoutState("mismatch", info);
+    else if (!confirmation) paintPayoutState("empty", info);
+    else if (!info.formatValid || !info.checksumValid) paintPayoutState("invalid", info);
+    else if (info.bankRequired && !manualBank) paintPayoutState("manual_bank", info);
+    else if (info.valid) paintPayoutState("valid", info);
+    else paintPayoutState("invalid", info);
+    return { ...info, confirmationMatches: Boolean(digits && confirmation === digits) };
 }
-
-clabeTecnicoInput?.addEventListener("input", refreshTechnicianClabe);
-clabeTecnicoInput?.addEventListener("paste", () => queueMicrotask(refreshTechnicianClabe));
+for (const element of [payoutDestinationInput, payoutDestinationConfirmInput, payoutTypeInput, payoutManualBankInput]) {
+    element?.addEventListener("input", refreshTechnicianPayoutDestination);
+    element?.addEventListener("change", refreshTechnicianPayoutDestination);
+}
 document.querySelector('#formRegistroTecnico [name="nombre"]')?.addEventListener("input", event => {
     if (clabeTitularTecnico) clabeTitularTecnico.textContent = event.target.value.trim() || "se tomará de tu identidad";
 });
-refreshTechnicianClabe();
+refreshTechnicianPayoutDestination();
 
 
 const IDENTITY_CAPTURE_VERSION = "b2c-bank-identity-v1";
@@ -692,8 +702,16 @@ async function openIdentityCameraForStep() {
         captureButton.disabled = false;
     } catch (error) {
         console.error("[B2C_IDENTITY_CAMERA]", error);
-        cameraStatus.innerHTML = '<i class="fas fa-triangle-exclamation text-amber-400 mr-2"></i>Permiso de cámara requerido';
-        alert("Necesitamos permiso de cámara para capturar INE y biometría de forma segura.");
+        const code = String(error?.name || "");
+        const message = code === "NotAllowedError"
+            ? "El navegador bloqueó la cámara. Autoriza el permiso de cámara para este sitio y vuelve a intentar."
+            : code === "NotFoundError"
+                ? "No encontramos una cámara disponible en este dispositivo."
+                : code === "NotReadableError"
+                    ? "La cámara está ocupada por otra aplicación. Ciérrala y vuelve a intentar."
+                    : "No pudimos iniciar la cámara. Revisa el permiso del navegador y vuelve a intentar.";
+        cameraStatus.innerHTML = '<i class="fas fa-triangle-exclamation text-amber-400 mr-2"></i>Cámara no disponible';
+        alert(message);
     }
 }
 
@@ -865,7 +883,12 @@ async function startIdentityFlow(target) {
     if (!["cliente", "tecnico"].includes(target)) throw new Error("IDENTITY_CAPTURE_TARGET_INVALID");
     const consent = $(target === "cliente" ? "chkBiometriaCliente" : "chkBiometriaTecnico");
     if (!consent?.checked) {
-        alert("Antes de abrir la cámara, acepta la autorización de captura de identidad.");
+        const consentRow = consent?.closest("label");
+        consentRow?.classList.add("ring-2", "ring-amber-400/70", "border-amber-400/60");
+        consent?.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => consentRow?.classList.remove("ring-2", "ring-amber-400/70", "border-amber-400/60"), 2200);
+        const summary = $(target === "cliente" ? "identitySummaryCliente" : "identitySummary");
+        if (summary) summary.innerHTML = '<i class="fas fa-triangle-exclamation text-amber-400 mr-2"></i><strong class="text-amber-200">Autoriza la captura de identidad para activar la cámara.</strong>';
         return;
     }
     identityCaptureState.target = target;
@@ -971,9 +994,13 @@ if (btnRegistroTecnico) {
         const password = form.querySelector('[name="password"]')?.value.trim();
         const telefono = escaparHTML(form.querySelector('[name="telefono"]')?.value.trim());
         
-        const clabeInspection = inspectMexicanClabe(form.querySelector('[name="clabe"]')?.value);
-        const clabe = clabeInspection.digits;
-        const banco = clabeInspection.institutionName || "";
+        const payoutDestination = String(form.querySelector('[name="payout_destination"]')?.value || "").replace(/\D/g, "");
+        const payoutConfirmation = String(form.querySelector('[name="payout_destination_confirm"]')?.value || "").replace(/\D/g, "");
+        const payoutTypeHint = form.querySelector('[name="payout_type"]')?.value || "auto";
+        const payoutManualBank = escaparHTML(form.querySelector('[name="payout_bank"]')?.value.trim().toUpperCase());
+        const payoutInspection = inspectMexicanPayoutDestination(payoutDestination, { typeHint: payoutTypeHint, bankName: payoutManualBank });
+        const clabe = payoutInspection.type === "clabe" ? payoutInspection.digits : "";
+        const banco = payoutInspection.institutionName || payoutManualBank;
         
         const tipoVehiculo = escaparHTML(form.querySelector('[name="tipoVehiculo"]')?.value) || "auto"; 
         const placas = escaparHTML(form.querySelector('[name="placas"]')?.value.trim().toUpperCase());
@@ -986,17 +1013,17 @@ if (btnRegistroTecnico) {
             alert("🔒 SEGURIDAD: La contraseña debe tener mínimo 8 caracteres, incluir al menos 1 mayúscula y 1 número."); return;
         }
 
-        if (!clabeInspection.formatValid) {
-            alert("🏦 La CLABE debe contener exactamente 18 dígitos."); return;
+        if (!payoutDestination || payoutDestination !== payoutConfirmation) {
+            alert("🏦 Los dos números del destino de retiro deben coincidir exactamente."); return;
         }
-        if (!clabeInspection.institutionName) {
-            alert("🏦 No reconocimos la institución de esta CLABE. Revisa sus primeros 3 dígitos."); return;
+        if (!payoutInspection.formatValid || !payoutInspection.checksumValid) {
+            alert("🏦 El destino de retiro no supera la validación para el tipo seleccionado. Revísalo antes de continuar."); return;
         }
-        if (!clabeInspection.checksumValid) {
-            alert("🏦 La CLABE no supera la validación de dígito verificador. Revísala antes de continuar."); return;
+        if (!banco) {
+            alert("🏦 No pudimos reconocer automáticamente el banco. Escribe tu institución para que Administración pueda revisarla."); return;
         }
-        if (!clabeInspection.valid || !banco) {
-            alert("🏦 No pudimos validar esta CLABE con el catálogo bancario."); return;
+        if (!payoutInspection.valid) {
+            alert("🏦 No pudimos validar el destino de retiro con los datos capturados."); return;
         }
         if (!placas && tipoVehiculo !== 'peaton') {
             alert("⚠️ Debes ingresar las placas de tu vehículo."); return;
@@ -1052,14 +1079,19 @@ if (btnRegistroTecnico) {
                 datos_bancarios: {
                     banco,
                     clabe,
+                    destino_tipo: payoutInspection.type,
+                    destino: payoutInspection.digits,
+                    destino_confirmado: true,
                     titular: nombre,
-                    banking_version: MEXICAN_CLABE_VERSION,
-                    institucion_clave: clabeInspection.institutionCode,
-                    institucion_key: clabeInspection.institutionKey,
-                    institucion_nombre: clabeInspection.institutionName,
-                    catalog_source: clabeInspection.catalogSource,
-                    clabe_checksum_valid: true,
-                    clabe_validated_at: serverTimestamp()
+                    banking_version: payoutInspection.type === "clabe" ? MEXICAN_CLABE_VERSION : "",
+                    payout_version: MEXICAN_PAYOUT_DESTINATION_VERSION,
+                    banco_resolucion: payoutInspection.autoBankResolved ? "automatico" : "manual_admin_review",
+                    institucion_clave: payoutInspection.institutionCode || "",
+                    institucion_key: payoutInspection.institutionKey || "",
+                    institucion_nombre: payoutInspection.institutionName || banco,
+                    catalog_source: payoutInspection.catalogSource || "",
+                    clabe_checksum_valid: payoutInspection.type === "clabe" ? payoutInspection.checksumValid : null,
+                    destino_validated_at: serverTimestamp()
                 },
                 nivel: "BRONCE",
                 reputacion: 5.0,

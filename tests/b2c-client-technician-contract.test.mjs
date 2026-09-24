@@ -8,7 +8,9 @@ import {
     dispatchMarketplaceEventForTechnician,
     getTechnicianKycRequirements,
     inspectMexicanClabe,
+    inspectMexicanPayoutDestination,
     MEXICAN_CLABE_VERSION,
+    MEXICAN_PAYOUT_DESTINATION_VERSION,
     normalizeTechnicianProfile,
     storagePathForTechnicianDocument,
     TECHNICIAN_KYC_STATES
@@ -50,6 +52,45 @@ test("email/password y Google parten del mismo contrato técnico no operativo", 
         assert.equal(profile.disponible, false);
         assert.deepEqual(profile.documentos.certificados, []);
     }
+});
+
+test("destino de retiro soporta CLABE, tarjeta, celular y cuenta con banco manual cuando aplica", () => {
+    const clabe = inspectMexicanPayoutDestination("002180032240946700", { typeHint: "auto" });
+    assert.equal(clabe.type, "clabe");
+    assert.equal(clabe.autoBankResolved, true);
+    assert.equal(clabe.institutionName, "BANAMEX");
+    assert.equal(clabe.valid, true);
+    assert.equal(clabe.version, MEXICAN_PAYOUT_DESTINATION_VERSION);
+
+    const card = inspectMexicanPayoutDestination("4532015112830366", { typeHint: "tarjeta", bankName: "BANCO PRUEBA" });
+    assert.equal(card.type, "tarjeta");
+    assert.equal(card.formatValid, true);
+    assert.equal(card.checksumValid, true);
+    assert.equal(card.valid, true);
+
+    const phone = inspectMexicanPayoutDestination("9981234567", { typeHint: "celular", bankName: "BANCO PRUEBA" });
+    assert.equal(phone.type, "celular");
+    assert.equal(phone.valid, true);
+
+    const account = inspectMexicanPayoutDestination("12345678901234", { typeHint: "cuenta", bankName: "BANCO PRUEBA" });
+    assert.equal(account.type, "cuenta");
+    assert.equal(account.valid, true);
+});
+
+test("registro técnico exige confirmación exacta del destino y consentimiento visible junto a la cámara", () => {
+    const html = fs.readFileSync(new URL("../registro.html", import.meta.url), "utf8");
+    const registration = fs.readFileSync(new URL("../app-registro.js", import.meta.url), "utf8");
+    assert.match(html, /payoutDestinationTecnico/);
+    assert.match(html, /payoutDestinationConfirmTecnico/);
+    assert.match(html, /payoutManualBankTecnico/);
+    assert.match(registration, /payoutDestination !== payoutConfirmation/);
+    assert.match(registration, /Los dos números del destino de retiro deben coincidir exactamente/);
+    const cardStart = html.indexOf('id="identityVerificationCard"');
+    const consent = html.indexOf('id="chkBiometriaTecnico"', cardStart);
+    const button = html.indexOf('id="btnIniciarIdentidad"', cardStart);
+    assert.ok(consent > cardStart && consent < button);
+    assert.equal((html.match(/id="chkBiometriaTecnico"/g) || []).length, 1);
+    assert.match(registration, /consent\?\.scrollIntoView/);
 });
 
 test("CLABE mexicana valida checksum y detecta institución desde catálogo Banxico", () => {
@@ -403,9 +444,9 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(registration, /CUSTOMER_IDENTITY|identityResult/);
     assert.match(registration, /Las altas nuevas B2C requieren INE y biometría en vivo/);
     assert.match(registrationHtml, /INE \+ biometría facial/);
-    assert.match(registrationHtml, /Banco pendiente de detectar/);
-    assert.match(registrationHtml, /id="clabeTecnico"/);
-    assert.doesNotMatch(registrationHtml, /name="banco" placeholder="Nombre del Banco"/);
+    assert.match(registrationHtml, /Destino pendiente de validar/);
+    assert.match(registrationHtml, /id="payoutDestinationTecnico"/);
+    assert.match(registrationHtml, /id="payoutDestinationConfirmTecnico"/);
     assert.match(registration, /inspectMexicanClabe/);
     assert.match(registration, /MEXICAN_CLABE_VERSION/);
     assert.match(technician, /compClabeBankStatus/);

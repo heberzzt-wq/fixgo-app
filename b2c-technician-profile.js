@@ -11,8 +11,11 @@ if (!contract) throw new Error("B2C_PLATFORM_CONTRACT_UNAVAILABLE");
 export const TECHNICIAN_KYC_STATES = contract.TECHNICIAN_STATES;
 export const TECHNICIAN_IDENTITY_VERSION = "b2c-bank-identity-v1";
 export const MEXICAN_CLABE_VERSION = contract.MEXICAN_CLABE_VERSION;
+export const MEXICAN_PAYOUT_DESTINATION_VERSION = contract.MEXICAN_PAYOUT_DESTINATION_VERSION;
 export const inspectMexicanClabe = contract.inspectMexicanClabe;
+export const inspectMexicanPayoutDestination = contract.inspectMexicanPayoutDestination;
 export const normalizeMexicanClabe = contract.normalizeMexicanClabe;
+export const normalizeMexicanPayoutDestination = contract.normalizeMexicanPayoutDestination;
 export const calculateMexicanClabeCheckDigit = contract.calculateMexicanClabeCheckDigit;
 
 function text(value, fallback = "") {
@@ -54,15 +57,20 @@ export function createTechnicianRegistrationProfile({ uid, email, nombre, provid
             identity_required: true,
             identity_verified: false,
             identity_version: TECHNICIAN_IDENTITY_VERSION,
-            faltantes: ["foto_perfil", "ine", "ine_reverso", "csf", "banco", "clabe", "vehiculo_tipo"]
+            faltantes: ["foto_perfil", "ine", "ine_reverso", "csf", "banco", "destino_retiro", "vehiculo_tipo"]
         },
         vehiculo: { tipo: "", placas: "" },
         documentos: { ine: null, ine_reverso: null, selfie_liveness_left: null, selfie_liveness_right: null, csf: null, licencia: null, certificados: [] },
         datos_bancarios: {
             banco: "",
             clabe: "",
+            destino_tipo: "",
+            destino: "",
+            destino_confirmado: false,
             titular: text(nombre, "Usuario Nuevo"),
-            banking_version: MEXICAN_CLABE_VERSION,
+            banking_version: "",
+            payout_version: MEXICAN_PAYOUT_DESTINATION_VERSION,
+            banco_resolucion: "",
             institucion_clave: "",
             institucion_key: "",
             institucion_nombre: "",
