@@ -23,13 +23,19 @@ const resilience = read("gestia-core/nexo/nexo.semantic-planner-resilience.js");
 const planner = read("gestia-core/jarvis/jarvis.multifunction.planner.js");
 const core = read("gestia-core/gestia-core.js");
 
-ok(identity.includes('name: "NEXO"'), "identidad NEXO preservada");
-ok(identity.includes('controllerId: "PENINSULA_NEXO"'), "control Peninsula NEXO preservado");
+ok(identity.includes("COMPATIBILITY_CANARY_ONLY"), "identidad NEXO retirada a canario inerte");
+ok(identity.includes("active: false"), "NEXO no posee runtime activo");
+ok(identity.includes('semanticAuthority: "jarvisSemanticPlan"'), "canario NEXO reconoce autoridad Jarvis");
+no(identity.includes("__PENINSULA_PRIVATE_ENGINE__"), "NEXO no publica motor privado paralelo");
 ok(planner.includes("jarvisSemanticPlan"), "planner semántico cloud sigue siendo autoridad");
 ok(core.includes("SINGLE SEMANTIC BRAIN CONTRACT"), "core declara una sola autoridad semántica");
 ok(core.includes("SINGLE_SEMANTIC_BRAIN_FAIL_CLOSED"), "core falla cerrado sin cerebro alterno");
 
-ok(bootstrap.includes("nexo.real-media.tools.js"), "bootstrap conserva herramientas reales");
+ok(bootstrap.includes("__JARVIS_TERMINAL_BOOTSTRAP__"), "bootstrap activo pertenece a Jarvis");
+ok(bootstrap.includes('identity: "JARVIS"'), "bootstrap declara identidad Jarvis");
+ok(bootstrap.includes("alternateBrains: 0"), "bootstrap declara cero cerebros alternos");
+no(bootstrap.includes("__NEXO_TERMINAL_BOOTSTRAP__"), "NEXO no conserva bootstrap activo");
+ok(bootstrap.includes("nexo.real-media.tools.js"), "filename legado conserva herramientas mecánicas reales");
 no(bootstrap.includes("nexo.semantic-planner-resilience.js"), "bootstrap no instala fallback semántico");
 no(marketing.includes("nexo.semantic-planner-resilience.js"), "marketing no instala fallback semántico");
 
