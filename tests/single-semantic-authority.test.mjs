@@ -40,12 +40,22 @@ test("legacy cognition URLs are inert compatibility canaries", () => {
     }
 });
 
-test("NEXO runtime no longer installs local semantic resilience", () => {
+test("historical NEXO bootstrap exposes only Jarvis runtime authority", () => {
     const bootstrap = read("modules/terminal/nexo-bootstrap.js");
+    const identity = read("gestia-core/nexo/nexo.identity.js");
     const marketing = read("gestia-core/jarvis/jarvis.marketing.engine.js");
     const runtimeGuard = read("gestia-core/nexo/nexo.real-media.runtime-guard-v128.js");
     assert.doesNotMatch(bootstrap, /nexo\.semantic-planner-resilience/);
     assert.doesNotMatch(marketing, /nexo\.semantic-planner-resilience/);
+    assert.match(bootstrap, /__JARVIS_TERMINAL_BOOTSTRAP__/);
+    assert.match(bootstrap, /semanticAuthority:\s*"jarvisSemanticPlan"/);
+    assert.match(bootstrap, /alternateBrains:\s*0/);
+    assert.doesNotMatch(bootstrap, /__NEXO_TERMINAL_BOOTSTRAP__/);
+    assert.doesNotMatch(bootstrap, /__NEXO_RUNTIME_STAMP__/);
+    assert.match(identity, /COMPATIBILITY_CANARY_ONLY/);
+    assert.match(identity, /active:\s*false/);
+    assert.match(identity, /alternateBrain:\s*false/);
+    assert.doesNotMatch(identity, /__PENINSULA_PRIVATE_ENGINE__/);
     assert.match(bootstrap, /nexo\.real-media\.tools/);
     assert.doesNotMatch(runtimeGuard, /runtime\.register\s*\(/);
     assert.match(runtimeGuard, /collectorDefinition\.execute\s*=\s*async/);
@@ -93,6 +103,8 @@ test("UI branding never interprets natural approval language", () => {
     assert.doesNotMatch(branding, /normalizeNexoCommand/);
     assert.doesNotMatch(branding, /input\.value\s*=\s*"proceder"/);
     assert.match(branding, /semanticAuthority:\s*"jarvisSemanticPlan"/);
+    assert.match(branding, /__JARVIS_RUNTIME_STAMP__/);
+    assert.doesNotMatch(branding, /__NEXO_RUNTIME_STAMP__/);
 });
 
 test("mission execution identity always wins over planner or provider copies", () => {
