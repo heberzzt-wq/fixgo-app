@@ -132,17 +132,28 @@ async function readRemoteResultJobId() {
 }
 
 async function syncLocalBranch() {
-    const syncResult = await runGit([
-        "pull",
-        "--rebase",
-        "--autostash",
+    const fetchResult = await runGit([
+        "fetch",
+        "--quiet",
         REMOTE,
-        BRANCH
+        `+refs/heads/${BRANCH}:refs/remotes/${REMOTE}/${BRANCH}`
     ]);
 
-    if (!syncResult.ok) {
+    if (!fetchResult.ok) {
         throw new Error(
-            `RESULT_SYNC_FAILED: ${syncResult.stderr || syncResult.error || "unknown"}`
+            `RESULT_SYNC_FETCH_FAILED: ${fetchResult.stderr || fetchResult.error || "unknown"}`
+        );
+    }
+
+    const rebaseResult = await runGit([
+        "rebase",
+        "--autostash",
+        `${REMOTE}/${BRANCH}`
+    ]);
+
+    if (!rebaseResult.ok) {
+        throw new Error(
+            `RESULT_SYNC_REBASE_FAILED: ${rebaseResult.stderr || rebaseResult.error || "unknown"}`
         );
     }
 }
