@@ -6845,10 +6845,11 @@ JarvisToolRuntime.register({
 
 JarvisToolRuntime.register({
     name: "repo.rankCandidates",
-    description: "Evalúa evidencia estructural de archivos ya seleccionados por el plan semántico: dependencias, llamadas, pruebas, riesgos y controles.",
+    description: "Recupera y ordena archivos del repo con embeddings locales y evidencia estructural AST. El LLM decide la consulta y/o los archivos planeados; esta herramienta sólo recupera evidencia mecánica.",
     mutates: false,
     requiresApproval: false,
     inputSchema: {
+        query: "string",
         plannedFiles: "array",
         limit: "number",
         refresh: "boolean"
@@ -6858,11 +6859,12 @@ JarvisToolRuntime.register({
         const plannedFiles = Array.isArray(args.plannedFiles)
             ? args.plannedFiles.map(file => String(file || "").trim()).filter(Boolean)
             : [];
-        if (plannedFiles.length === 0) {
+        const query = String(args.query || args.objective || "").trim();
+        if (plannedFiles.length === 0 && !query) {
             return {
                 ok: false,
                 status: "CONTRACT_INVALID",
-                error: "PLANNED_FILES_REQUIRED",
+                error: "PLANNED_FILES_OR_QUERY_REQUIRED",
                 tool: "repo.rankCandidates"
             };
         }
@@ -6875,6 +6877,7 @@ JarvisToolRuntime.register({
             };
         }
         const result = await window.JarvisLocalBridge.rankRepoCandidates({
+            query,
             plannedFiles,
             limit: args.limit || 8,
             refresh: args.refresh === true,
