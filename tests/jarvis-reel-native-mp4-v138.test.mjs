@@ -136,7 +136,7 @@ test("V142 actuator advertises mandatory MP4 and provisional-only WebM", () => {
 
 test("V142 waits for the real browser export completion state", () => {
   const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-    assert.match(source, /2\.51\.0-temporal-media-self-hosted-v142/);
+    assert.match(source, /2\.52\.0-cached-request-identity-v142/);
   assert.doesNotMatch(source, /await sleepMs\(duration \* 1000 \+ 2600\)/);
   assert.match(source, /__JARVIS_REEL_EXPORT_ERROR__/);
   assert.match(source, /REEL_EXPORT_COMPLETION_TIMEOUT/);
@@ -528,7 +528,7 @@ test("V142 structured production continuation reaches the semantic planner and d
 
 test("V142 bridge release identifies the professional MP4 master bytes", () => {
   const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-  assert.equal(source.includes("2.51.0-temporal-media-self-hosted-v142"), true);
+  assert.equal(source.includes("2.52.0-cached-request-identity-v142"), true);
 });
 
 test("V142 current turn preserves semantic planner outage truth", () => {
