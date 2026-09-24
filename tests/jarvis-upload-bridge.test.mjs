@@ -102,6 +102,9 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     assert.match(pkg.scripts["bridge:supervise"], /taskkill/);
     assert.match(pkg.scripts["bridge:supervise"], /processId/);
     assert.match(pkg.scripts["bridge:supervise"], /occupied\(\)/);
+    assert.match(pkg.scripts["bridge:supervise"], /SUPERVISOR_LOCK_PORT=3345/);
+    assert.match(pkg.scripts["bridge:supervise"], /singleton lock already held/);
+    assert.match(pkg.scripts["bridge:supervise"], /lockServer=net\.createServer\(\)/);
     assert.equal(pkg.scripts["test:mcp"], "npm --prefix tools/fixgo-mcp run check");
     assert.equal(pkg.scripts["nexo:bridge"], "npm run bridge");
 });
