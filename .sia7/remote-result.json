@@ -1,31 +1,35 @@
 {
-  "jobId": "jarvis-local-ai-empty-plan-diagnostic-20260924-026",
-  "completedAt": "2026-09-24T23:50:43.146Z",
+  "jobId": "jarvis-local-ai-structured-tool-plan-20260924-027",
+  "completedAt": "2026-09-24T23:52:24.757Z",
   "executionStarted": true,
-  "ok": false,
-  "httpStatus": 502,
+  "ok": true,
+  "httpStatus": 200,
   "endpoint": "/semantic/plan",
   "payload": {
-    "ok": false,
-    "status": "LOCAL_SEMANTIC_PLAN_FAILED",
-    "error": "SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_PLAN_EMPTY",
-    "evidence": {
-      "providerResponse": {
-        "finishReason": "stop",
-        "messageKeys": [
-          "role",
-          "content"
-        ],
-        "toolCallCount": 0,
-        "toolCallNames": [],
-        "contentPreview": "{\n  \"name\": \"repo.search\",\n  \"arguments\": {\n    \"query\": \"cómo está implementada la inteligencia local de Jarvis y qué piezas participan\"\n  }\n}"
-      },
-      "parsedPlan": {
-        "toolCalls": [],
-        "missionComplete": false
+    "ok": true,
+    "status": "SEMANTIC_PLAN_READY",
+    "version": "1.24.0-local-only-single-jarvis",
+    "toolCalls": [
+      {
+        "name": "repo.search",
+        "args": {
+          "query": "cómo está implementada la inteligencia local de Jarvis y qué piezas participan"
+        },
+        "reason": "MODEL_STRUCTURED_TEXT_TOOL_SELECTION",
+        "mutates": false,
+        "approved": false
       }
-    },
-    "fallbackAllowed": false,
+    ],
+    "explanation": "",
+    "missionComplete": false,
+    "completionAssessment": null,
+    "provider": "ollama-openai-compatible-local",
+    "model": "qwen2.5-coder:7b",
+    "catalogSize": 1,
+    "localSemanticInferenceUsed": true,
+    "cloudSemanticInferenceUsed": false,
+    "externalApiUsed": false,
+    "externalEstimatedCostUsd": 0,
     "inferenceReceipt": {
       "ok": true,
       "status": "LOCAL_SEMANTIC_BACKEND_CONFIGURED",
@@ -50,7 +54,8 @@
         "failedLocalSemanticInferenceCalls": 0,
         "failedLocalEmbeddingCalls": 0
       }
-    }
+    },
+    "fallbackAllowed": false
   },
   "committedFiles": [
     ".sia7/remote-result.json"
