@@ -41,80 +41,49 @@ const catalog = [
     }
 ];
 
-test("semantic planner treats search as discovery rather than completed inspection", () => {
-    const instruction =
-        buildSemanticSystemInstruction(
-            [{
-                name:
-                    "repo.search",
-                mutates:
-                    false
-            }, {
-                name:
-                    "repo.read",
-                mutates:
-                    false
-            }, {
-                name:
-                    "repo.diagnose",
-                mutates:
-                    false
-            }],
-            {
-                phase:
-                    "COMPLETION_AUDIT"
-            }
-        );
+test("semantic planner system instruction is generic and catalog-driven", () => {
+    const instruction = buildSemanticSystemInstruction(
+        [{
+            name: "repo.search",
+            description: "Busca evidencia dentro del repositorio.",
+            mutates: false
+        }, {
+            name: "repo.read",
+            description: "Lee un archivo real del repositorio.",
+            mutates: false
+        }],
+        {
+            phase: "COMPLETION_AUDIT",
+            completedTasks: []
+        }
+    );
 
-    assert.match(
-        instruction,
-        /repo\.search es descubrimiento inicial/
-    );
-    assert.match(
-        instruction,
-        /no satisface por si sola una solicitud que tambien pide leer/
-    );
-    assert.match(
-        instruction,
-        /devuelve missionComplete=true solamente despues de auditar/
-    );
-    assert.match(
-        instruction,
-        /query debe contener solo el objetivo concreto de investigacion/
-    );
-    assert.match(
-        instruction,
-        /no copies la mision mixta completa/
-    );
+    assert.match(instruction, /unica autoridad semantica/);
+    assert.match(instruction, /catalogo runtime y los schemas/);
+    assert.match(instruction, /No inventes nombres de herramientas, archivos, rutas/);
+    assert.match(instruction, /approved siempre es false/);
+    assert.match(instruction, /ESTADO_DE_MISION=/);
+    assert.match(instruction, /repo\.search/);
+    assert.match(instruction, /repo\.read/);
 });
 
-test("semantic planner keeps identity photographs on generated video instead of image or reel substitutes", () => {
+test("semantic planner contains no hardcoded media or mini-drama playbook", () => {
     const instruction = buildSemanticSystemInstruction([
-        { name: "media.analyze", mutates: false },
-        { name: "video.generate", mutates: true },
-        { name: "image.generate", mutates: true },
-        { name: "reel.plan", mutates: false }
+        { name: "media.analyze", description: "Analiza evidencia multimedia.", mutates: false },
+        { name: "video.generate", description: "Genera video.", mutates: true },
+        { name: "image.generate", description: "Genera imagen.", mutates: true },
+        { name: "reel.plan", description: "Planea reel.", mutates: false }
     ], {
         phase: "MISSION_CONTRACT"
     });
 
-    assert.match(
-        instruction,
-        /fotografias de identidad[\s\S]*referencias visuales de video/
-    );
-    assert.match(
-        instruction,
-        /referenceOutputs/
-    );
-    assert.match(
-        instruction,
-        /una sola llamada video\.generate[\s\S]*scenes/
-    );
-    assert.match(
-        instruction,
-        /collage o reel de imagenes[\s\S]*reel\.plan/
-    );
+    assert.doesNotMatch(instruction, /fotografias de identidad/i);
+    assert.doesNotMatch(instruction, /una sola llamada video\.generate/i);
+    assert.doesNotMatch(instruction, /collage o reel de imagenes/i);
+    assert.doesNotMatch(instruction, /mini drama/i);
+    assert.match(instruction, /CATALOGO=/);
 });
+
 
 test("semantic planner rejects calls missing schema-required arguments", () => {
     const readTool = {
