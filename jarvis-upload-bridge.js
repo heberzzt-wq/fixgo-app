@@ -932,7 +932,7 @@ export async function runResilientLocalWebResearch(
 }
 
 export const JARVIS_UPLOAD_BRIDGE_VERSION =
-    "1.7.0-workstation-supervisor-v142";
+    "1.8.0-fast-liveness-doctor-split-v142";
 
 const MODULE_FILE =
     fileURLToPath(import.meta.url);
@@ -2141,7 +2141,30 @@ export function registerJarvisUploadRoutes(
         }
     });
 
-    const workstationHealthHandler = async (_req, res) => {
+    const workstationHealthHandler = (_req, res) => {
+        return res.json({
+            ok: true,
+            status: "JARVIS_WORKSTATION_LIVE",
+            checkedAt: new Date().toISOString(),
+            runtime: {
+                ...workstationRuntimeState,
+                processId: process.pid,
+                node: {
+                    ok: true,
+                    version: process.version,
+                    executable: process.execPath
+                }
+            },
+            bridgeVersion:
+                JARVIS_FS_BRIDGE_VERSION,
+            uploadTransportVersion:
+                JARVIS_UPLOAD_BRIDGE_VERSION,
+            doctorRoute:
+                "/workstation/doctor"
+        });
+    };
+
+    const workstationDoctorHandler = async (_req, res) => {
         try {
             const result =
                 await inspectJarvisWorkstation({
@@ -2170,6 +2193,8 @@ export function registerJarvisUploadRoutes(
 
     app.get("/workstation/health", workstationHealthHandler);
     app.post("/workstation/health", workstationHealthHandler);
+    app.get("/workstation/doctor", workstationDoctorHandler);
+    app.post("/workstation/doctor", workstationDoctorHandler);
 
     app.get("/upload/health", (req, res) => {
         return res.json({
