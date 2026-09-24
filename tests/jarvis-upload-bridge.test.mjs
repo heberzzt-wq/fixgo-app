@@ -9,6 +9,7 @@ import { test } from "node:test";
 
 import {
     createJarvisUploadBridgeApp,
+    inspectJarvisWorkstation,
     startJarvisUploadBridge,
     JARVIS_UPLOAD_BRIDGE_VERSION,
     runResilientLocalWebResearch
@@ -17,6 +18,100 @@ import {
 // Match the bridge's Windows Git authority; the bundled Git can fail object writes.
 const gitExecutable = process.platform === "win32" && fs.existsSync("C:/Program Files/Git/cmd/git.exe")
     ? "C:/Program Files/Git/cmd/git.exe" : "git";
+
+test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
+    const settings = JSON.parse(
+        fs.readFileSync(
+            new URL("../.vscode/settings.json", import.meta.url),
+            "utf8"
+        )
+    );
+    const pkg = JSON.parse(
+        fs.readFileSync(
+            new URL("../package.json", import.meta.url),
+            "utf8"
+        )
+    );
+
+    assert.equal(
+        settings["terminal.integrated.defaultProfile.windows"],
+        "Jarvis Workstation"
+    );
+    assert.deepEqual(
+        settings["terminal.integrated.profiles.windows"]["Jarvis Workstation"].args,
+        ["-NoExit", "-Command", "npm run bridge:ensure"]
+    );
+    assert.equal(
+        settings["terminal.integrated.env.windows"].JARVIS_SEMANTIC_PROVIDER_MODE,
+        "LOCAL_ONLY"
+    );
+    assert.equal(
+        settings["terminal.integrated.env.windows"].JARVIS_LOCAL_LLM_MODEL,
+        "qwen2.5-coder:7b"
+    );
+    assert.equal(
+        settings["terminal.integrated.env.windows"].JARVIS_VIDEO_ENGINE_POLICY,
+        "LOCAL_ONLY"
+    );
+    assert.equal(
+        settings["terminal.integrated.env.windows"].JARVIS_LOCAL_VIDEO_MODEL,
+        "auto"
+    );
+    assert.equal(
+        settings["terminal.integrated.env.windows"].JARVIS_EXTERNAL_FALLBACK_ENABLED,
+        "false"
+    );
+    assert.equal(
+        settings["terminal.integrated.env.windows"].JARVIS_RUNPOD_PAID_RESOURCE_CREATION_AUTHORIZED,
+        "false"
+    );
+
+    assert.match(pkg.scripts["bridge:ensure"], /127\.0\.0\.1/);
+    assert.match(pkg.scripts["bridge:ensure"], /3344/);
+    assert.match(pkg.scripts["bridge:ensure"], /detached:true/);
+    assert.match(pkg.scripts["bridge:doctor"], /workstation\/health/);
+    assert.equal(pkg.scripts["nexo:bridge"], "npm run bridge");
+});
+
+test("workstation doctor reports governed local capabilities without requiring them to be installed", async () => {
+    const root = fs.mkdtempSync(
+        path.join(os.tmpdir(), "jarvis-workstation-doctor-")
+    );
+    try {
+        fs.writeFileSync(
+            path.join(root, "package.json"),
+            JSON.stringify({ scripts: {} }),
+            "utf8"
+        );
+        fs.writeFileSync(
+            path.join(root, "firebase.json"),
+            JSON.stringify({
+                firestore: { rules: "firestore.rules" },
+                storage: { rules: "storage.rules" },
+                emulators: {
+                    firestore: { host: "127.0.0.1", port: 65520 },
+                    storage: { host: "127.0.0.1", port: 65521 }
+                }
+            }),
+            "utf8"
+        );
+
+        const result = await inspectJarvisWorkstation({ root });
+        assert.equal(result.ok, true);
+        assert.equal(result.status, "JARVIS_WORKSTATION_INSPECTED");
+        assert.equal(result.runtime.node.ok, true);
+        assert.equal(result.localAi.provider, "ollama-openai-compatible-local");
+        assert.equal(result.localAi.externalFallback, false);
+        assert.equal(result.localVideo.runpodPaidFallbackAuthorized, false);
+        assert.equal(result.firebase.mutationPolicy, "DEPLOY_ONLY_THROUGH_GOVERNED_RELEASE_GATE");
+        assert.ok(result.governedCapabilities.includes("git.push.authorized"));
+        assert.ok(result.governedCapabilities.includes("firebase.firestore.emulator"));
+        assert.ok(result.governedCapabilities.includes("video.generate.local"));
+    }
+    finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
 
 test("upload bridge startup binds only IPv4 loopback", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-upload-bind-"));
