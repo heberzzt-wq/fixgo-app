@@ -1259,6 +1259,160 @@ async function probeLocalJson(url, timeoutMs = 1200) {
     }
 }
 
+export async function warmJarvisLocalModel({
+    model = "qwen2.5-coder:7b",
+    fetchImpl = globalThis.fetch,
+    timeoutMs = 240000,
+    keepAlive = "30m"
+} = {}) {
+    const cleanModel =
+        String(model || "").trim();
+
+    if (
+        !cleanModel ||
+        typeof fetchImpl !== "function"
+    ) {
+        return {
+            ok: false,
+            status: "OLLAMA_MODEL_WARMUP_INVALID",
+            model:
+                cleanModel || null,
+            externalApiUsed: false,
+            paidApiUsed: false
+        };
+    }
+
+    const boundedTimeoutMs =
+        Math.min(
+            Math.max(
+                Number(timeoutMs) ||
+                240000,
+                10000
+            ),
+            300000
+        );
+
+    const controller =
+        new AbortController();
+
+    const timer =
+        setTimeout(
+            () => controller.abort(),
+            boundedTimeoutMs
+        );
+
+    const startedAt =
+        Date.now();
+
+    try {
+        const response =
+            await fetchImpl(
+                "http://127.0.0.1:11434/api/generate",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        model:
+                            cleanModel,
+                        prompt:
+                            "OK",
+                        stream:
+                            false,
+                        keep_alive:
+                            String(
+                                keepAlive ||
+                                "30m"
+                            ),
+                        options: {
+                            num_predict:
+                                1,
+                            temperature:
+                                0
+                        }
+                    }),
+                    signal:
+                        controller.signal
+                }
+            );
+
+        const raw =
+            await response.text();
+
+        let payload = null;
+
+        try {
+            payload =
+                raw
+                    ? JSON.parse(raw)
+                    : null;
+        }
+        catch {}
+
+        if (!response.ok) {
+            return {
+                ok: false,
+                status: "OLLAMA_MODEL_WARMUP_HTTP_FAILED",
+                httpStatus:
+                    response.status,
+                error:
+                    String(
+                        payload?.error ||
+                        raw ||
+                        `HTTP_${response.status}`
+                    ).slice(0, 800),
+                model:
+                    cleanModel,
+                durationMs:
+                    Date.now() -
+                    startedAt,
+                externalApiUsed: false,
+                paidApiUsed: false
+            };
+        }
+
+        return {
+            ok: true,
+            status: "OLLAMA_MODEL_WARM",
+            model:
+                cleanModel,
+            keepAlive:
+                String(
+                    keepAlive ||
+                    "30m"
+                ),
+            durationMs:
+                Date.now() -
+                startedAt,
+            externalApiUsed: false,
+            paidApiUsed: false
+        };
+    }
+    catch(error) {
+        return {
+            ok: false,
+            status:
+                controller.signal.aborted
+                    ? "OLLAMA_MODEL_WARMUP_TIMEOUT"
+                    : "OLLAMA_MODEL_WARMUP_FAILED",
+            error:
+                error?.message ||
+                String(error),
+            model:
+                cleanModel,
+            durationMs:
+                Date.now() -
+                startedAt,
+            externalApiUsed: false,
+            paidApiUsed: false
+        };
+    }
+    finally {
+        clearTimeout(timer);
+    }
+}
+
 function readFirebaseWorkstationConfig(repoRoot) {
     try {
         const config = JSON.parse(
@@ -1479,7 +1633,10 @@ export async function ensureJarvisLocalAiRuntime({
                         ...env,
                         OLLAMA_HOST:
                             env.OLLAMA_HOST ||
-                            "127.0.0.1:11434"
+                            "127.0.0.1:11434",
+                        OLLAMA_KEEP_ALIVE:
+                            env.OLLAMA_KEEP_ALIVE ||
+                            "30m"
                     }
                 }
             );
@@ -1665,6 +1822,68 @@ export async function ensureJarvisLocalAiRuntime({
         };
     }
 
+    let mainModelWarmup = {
+        ok: true,
+        status:
+            "OLLAMA_MODEL_WARMUP_SKIPPED_CUSTOM_COMMAND_IMPL",
+        model:
+            expectedModel,
+        externalApiUsed: false,
+        paidApiUsed: false
+    };
+
+    if (
+        commandImpl ===
+        workstationCommand
+    ) {
+        mainModelWarmup =
+            await warmJarvisLocalModel({
+                model:
+                    expectedModel,
+                timeoutMs:
+                    Math.min(
+                        Math.max(
+                            Number(
+                                env.JARVIS_LOCAL_LLM_WARMUP_TIMEOUT_MS
+                            ) ||
+                            240000,
+                            10000
+                        ),
+                        300000
+                    ),
+                keepAlive:
+                    env.JARVIS_LOCAL_LLM_KEEP_ALIVE ||
+                    "30m"
+            });
+
+        if (
+            mainModelWarmup.ok !==
+            true
+        ) {
+            return {
+                ok: false,
+                status:
+                    "OLLAMA_MODEL_WARMUP_FAILED",
+                cliAvailable:
+                    true,
+                serverRunning:
+                    true,
+                serverStarted,
+                installedModels,
+                pulledModels,
+                expectedModel,
+                expectedEmbeddingModel,
+                mainModelReady,
+                embeddingModelReady,
+                mainModelWarmup,
+                installationAttempted,
+                installation,
+                externalApiUsed: false,
+                paidApiUsed: false
+            };
+        }
+    }
+
     return {
         ok: true,
         status: "JARVIS_LOCAL_AI_RUNTIME_READY",
@@ -1681,6 +1900,9 @@ export async function ensureJarvisLocalAiRuntime({
         expectedEmbeddingModel,
         mainModelReady,
         embeddingModelReady,
+        mainModelWarm:
+            mainModelWarmup.ok === true,
+        mainModelWarmup,
         installationAttempted,
         installation,
         externalApiUsed: false,
