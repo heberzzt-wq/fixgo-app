@@ -1,49 +1,16 @@
 {
-  "jobId": "jarvis-local-ai-final-health-after-publisher-fix-20260924-016",
-  "completedAt": "2026-09-24T22:20:41.437Z",
+  "jobId": "jarvis-local-ai-final-semantic-plan-20260924-017",
+  "completedAt": "2026-09-24T22:22:23.906Z",
   "executionStarted": true,
-  "ok": true,
-  "httpStatus": 200,
-  "endpoint": "/health",
+  "ok": false,
+  "httpStatus": 502,
+  "endpoint": "/semantic/plan",
   "payload": {
-    "ok": true,
-    "status": "JARVIS_FS_BRIDGE_LIVE",
-    "version": "2.52.0-cached-request-identity-v142",
-    "policy": {
-      "authority": "full_repo_private_owner",
-      "safeZone": "advisory",
-      "rootContainment": true,
-      "emptyWrites": "blocked",
-      "failureMode": "closed"
-    },
-    "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker",
-    "identity": {
-      "ok": true,
-      "status": "BRIDGE_IDENTITY_OK",
-      "root": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker",
-      "contract": {
-        "ok": true,
-        "projectId": "fixgo-app",
-        "repository": "heberzzt-wq/fixgo-app",
-        "branch": "v94-media-v4n-negative-claims",
-        "releaseId": "v94-source-grounded-research-v124-20260810",
-        "contractPath": "C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker\\jarvis-runtime-contract.json"
-      },
-      "git": {
-        "root": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
-        "branch": "",
-        "head": "995e38b95f6376e04f4e90769fa2ca3a3eb42525",
-        "remote": "https://heberzzt-wq@github.com/heberzzt-wq/fixgo-app.git",
-        "clean": true
-      },
-      "identityMode": "detached_contract_head",
-      "contractHead": "995e38b95f6376e04f4e90769fa2ca3a3eb42525",
-      "remoteVerified": false,
-      "cachedRemoteVerified": true,
-      "repositoryMatches": true,
-      "worktreeClean": true
-    },
-    "semantic": {
+    "ok": false,
+    "status": "LOCAL_SEMANTIC_PLAN_FAILED",
+    "error": "SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_PROVIDER_TIMEOUT",
+    "fallbackAllowed": false,
+    "inferenceReceipt": {
       "ok": true,
       "status": "LOCAL_SEMANTIC_BACKEND_CONFIGURED",
       "mode": "LOCAL_ONLY",
@@ -59,7 +26,7 @@
       "externalApiUsed": false,
       "estimatedExternalCostUsd": 0,
       "counters": {
-        "localSemanticInferenceCalls": 0,
+        "localSemanticInferenceCalls": 1,
         "localEmbeddingCalls": 0,
         "localEmbeddedTexts": 0,
         "semanticExternalCalls": 0,
