@@ -1,21 +1,20 @@
 {
-  "jobId": "v142-b2c-e2e-git-status-20260922-chatgpt-109",
-  "completedAt": "2026-09-22T19:46:09.424Z",
+  "jobId": "jarvis-local-ai-workstation-doctor-20260924-001",
+  "completedAt": "2026-09-24T15:32:16.987Z",
   "executionStarted": true,
   "ok": true,
   "httpStatus": 200,
-  "endpoint": "/git",
+  "endpoint": "/run",
   "payload": {
     "ok": true,
-    "status": "GIT_STATUS_OK",
+    "status": "PASSED",
     "exitCode": 0,
-    "command": "git status --short --branch",
-    "stdout": "## v94-media-v4n-negative-claims...origin/v94-media-v4n-negative-claims\n M .sia7/remote-result.json\n",
-    "stderr": "",
-    "durationMs": 352,
-    "source": "jarvis_fs_bridge_git_v7",
-    "version": "2.51.0-temporal-media-self-hosted-v142",
-    "action": "status"
+    "command": "npm run bridge:smoke",
+    "stdout": "\n> gestia-premium@1.0.0 bridge:smoke\n> node -e \"import('./jarvis-upload-bridge.js').then(async m=>{const server=m.startJarvisUploadBridge({port:0});await new Promise((resolve,reject)=>{if(server.listening)return resolve();server.once('listening',resolve);server.once('error',reject);});const doctor=await m.inspectJarvisWorkstation();await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));console.log('[JARVIS_BRIDGE_SMOKE] ok');console.log('[JARVIS_WORKSTATION_DOCTOR] '+JSON.stringify({ok:doctor.ok,repo:doctor.repo,localAi:doctor.localAi,firebase:doctor.firebase,tooling:doctor.tooling,runtime:doctor.runtime}));}).catch(error=>{console.error(error);process.exit(1)})\"\n\n[JARVIS_UPLOAD_BRIDGE] 1.7.0-workstation-supervisor-v142 online http://localhost:0\n[JARVIS_UPLOAD_BRIDGE_ROOT] C:\\Users\\heber\\Documents\\Codex\\2026-06-17\\estas-conectado-a-github-y-a\\work\\fixgo-app-v142-worker\n[JARVIS_BRIDGE_SMOKE] ok\n[JARVIS_WORKSTATION_DOCTOR] {\"ok\":true,\"repo\":{\"gitAvailable\":false,\"gitVersion\":null,\"branch\":null,\"head\":null},\"localAi\":{\"provider\":\"ollama-openai-compatible-local\",\"endpoint\":\"http://127.0.0.1:11434/v1\",\"embeddingEndpoint\":\"http://127.0.0.1:11434/api/embed\",\"cliAvailable\":false,\"executable\":\"ollama\",\"serverRunning\":false,\"models\":[],\"expectedModel\":\"qwen2.5-coder:7b\",\"expectedModelPresent\":false,\"expectedEmbeddingModel\":\"qwen3-embedding:0.6b\",\"expectedEmbeddingModelPresent\":false,\"embeddingProbe\":{\"ok\":false,\"status\":\"LOCAL_EMBEDDING_NOT_PROBED\"},\"ready\":false,\"externalFallback\":false},\"firebase\":{\"configured\":true,\"projectConfigPresent\":true,\"firestoreRules\":\"security/firestore-console-snapshot-2026-07-30.rules.txt\",\"storageRules\":\"security/storage-hardening-candidate.rules.txt\",\"emulators\":{\"firestore\":{\"host\":\"127.0.0.1\",\"port\":8180},\"storage\":{\"host\":\"127.0.0.1\",\"port\":9299}},\"firestoreEmulatorRunning\":false,\"storageEmulatorRunning\":false,\"mutationPolicy\":\"DEPLOY_ONLY_THROUGH_GOVERNED_RELEASE_GATE\"},\"tooling\":{\"npm\":{\"ok\":true,\"version\":\"11.17.0\"},\"npx\":{\"ok\":true,\"version\":\"11.17.0\"},\"vscode\":{\"ok\":true,\"version\":\"1.138.0\"},\"firebaseCli\":{\"ok\":false,\"version\":null,\"globalInstallRequired\":false,\"emulatorScriptsAvailable\":true}},\"runtime\":{\"startedAt\":null,\"bridgeStarted\":false,\"workerStarted\":false,\"workerPollMs\":5000,\"lastDoctorAt\":\"2026-09-24T15:33:01.972Z\",\"processId\":15224,\"node\":{\"ok\":true,\"version\":\"v24.19.0\",\"executable\":\"C:\\\\Program Files\\\\nodejs\\\\node.exe\"}}}\n",
+    "stderr": "(node:15224) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.\n(Use `node --trace-deprecation ...` to show where the warning was created)\n",
+    "durationMs": 36200,
+    "source": "jarvis_local_ai_physical_doctor",
+    "version": "2.51.0-temporal-media-self-hosted-v142"
   },
   "committedFiles": [
     ".sia7/remote-result.json"
