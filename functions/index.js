@@ -525,8 +525,16 @@ function getPlannerGenAI() {
 // ======================================================================================
 // Declarado temprano en el stack de ruteo de Express para evitar 404s en Firebase
 app.post(["/ai-intent", "/api/ai-intent", "*/ai-intent"], async (req, res) => {
-    console.log(`⚡ [KERNEL BRIDGE] Endpoint alcanzado. Path detectado: ${req.path}`);
-    
+    console.log(`⚡ [KERNEL BRIDGE] Endpoint legacy bloqueado. Path: ${req.path}`);
+    return res.status(410).json({
+        ok: false,
+        error: "LOCAL_JARVIS_ONLY",
+        status: "LEGACY_AI_INTENT_RETIRED",
+        semanticAuthority: "jarvisSemanticPlan",
+        localOnly: true,
+        alternateBrains: 0
+    });
+
     initCore();
 
     const traceId = `trace_intent_${Date.now()}`;
@@ -2811,9 +2819,18 @@ exports.jarvisWebResearch = functions
  * Planeacion mediante un modelo real y catalogo runtime; no clasifica con regex ni diccionarios.
  */
 exports.jarvisSemanticPlan = functions
-    .runWith({ timeoutSeconds: 120, memory: "512MB", secrets: ["GEMINI_KEY"] })
+    .runWith({ timeoutSeconds: 30, memory: "256MB" })
     .https
-    .onCall(async (data = {}, context) => {
+    .onCall(async (_data = {}, context) => {
+        await assertJarvisAdminContext(
+            context,
+            "consultar planner semantico retirado"
+        );
+        throw new functions.https.HttpsError(
+            "failed-precondition",
+            "LOCAL_JARVIS_ONLY"
+        );
+
         const actor = await assertJarvisAdminContext(
             context,
             "planificar herramientas"
@@ -2858,9 +2875,18 @@ exports.jarvisSemanticPlan = functions
     });
 
 exports.jarvisSemanticRespond = functions
-    .runWith({ timeoutSeconds: 180, memory: "256MB" })
+    .runWith({ timeoutSeconds: 30, memory: "256MB" })
     .https
-    .onCall(async (data = {}, context) => {
+    .onCall(async (_data = {}, context) => {
+        await assertJarvisAdminContext(
+            context,
+            "consultar respuesta semantica retirada"
+        );
+        throw new functions.https.HttpsError(
+            "failed-precondition",
+            "LOCAL_JARVIS_ONLY"
+        );
+
         const actor = await assertJarvisAdminContext(
             context,
             "conversar con Jarvis"
