@@ -2203,12 +2203,15 @@ test("SIA7 backs off synchronization failures before execution without consuming
         publish: async () => { publications++; }, persist: () => {}, readLocalResult: () => null,
         log: () => {}, reportError: () => {}, now: () => clock
     });
-    await poll();
+    const first = await poll();
+    assert.equal(first.ok, false); assert.equal(first.status, "WORKER_BACKOFF");
     assert.equal(executions, 0); assert.equal(publications, 0); assert.equal(reads, 1);
-    await poll();
+    const waiting = await poll();
+    assert.equal(waiting.ok, false); assert.equal(waiting.status, "WORKER_BACKOFF_WAIT");
     assert.equal(executions, 0); assert.equal(publications, 0); assert.equal(reads, 1);
     clock = 15000;
-    await poll();
+    const recovered = await poll();
+    assert.equal(recovered.ok, true); assert.equal(recovered.status, "JOB_COMPLETED");
     assert.equal(executions, 1); assert.equal(publications, 1); assert.equal(reads, 2);
 });
 
