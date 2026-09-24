@@ -2319,6 +2319,301 @@ export function describeJarvisBridgeIdentity(
 }
 
 
+function resolveGitDirectoryFast(
+    root = DEFAULT_ROOT
+) {
+    const dotGit =
+        path.join(
+            path.resolve(root),
+            ".git"
+        );
+
+    try {
+        const stat =
+            fs.statSync(dotGit);
+
+        if (stat.isDirectory()) {
+            return dotGit;
+        }
+
+        if (stat.isFile()) {
+            const content =
+                fs.readFileSync(
+                    dotGit,
+                    "utf8"
+                ).trim();
+            const match =
+                content.match(
+                    /^gitdir:\s*(.+)$/i
+                );
+            if (match?.[1]) {
+                return path.resolve(
+                    path.dirname(dotGit),
+                    match[1].trim()
+                );
+            }
+        }
+    }
+    catch {}
+
+    return "";
+}
+
+function readGitRefFast(
+    gitDir = "",
+    ref = ""
+) {
+    const cleanGitDir =
+        String(gitDir || "").trim();
+    const cleanRef =
+        String(ref || "").trim();
+
+    if (
+        !cleanGitDir ||
+        !cleanRef ||
+        cleanRef.includes("..") ||
+        path.isAbsolute(cleanRef)
+    ) {
+        return "";
+    }
+
+    try {
+        const loose =
+            fs.readFileSync(
+                path.join(
+                    cleanGitDir,
+                    ...cleanRef.split("/")
+                ),
+                "utf8"
+            )
+                .trim()
+                .toLowerCase();
+
+        if (/^[a-f0-9]{40}$/.test(loose)) {
+            return loose;
+        }
+    }
+    catch {}
+
+    try {
+        const packed =
+            fs.readFileSync(
+                path.join(
+                    cleanGitDir,
+                    "packed-refs"
+                ),
+                "utf8"
+            );
+
+        for (const line of packed.split(/\r?\n/)) {
+            const trimmed =
+                String(line || "").trim();
+
+            if (
+                !trimmed ||
+                trimmed.startsWith("#") ||
+                trimmed.startsWith("^")
+            ) {
+                continue;
+            }
+
+            const [
+                sha,
+                name
+            ] =
+                trimmed.split(/\s+/, 2);
+
+            if (
+                name === cleanRef &&
+                /^[a-f0-9]{40}$/i.test(sha)
+            ) {
+                return sha.toLowerCase();
+            }
+        }
+    }
+    catch {}
+
+    return "";
+}
+
+function readGitHeadFast(
+    root = DEFAULT_ROOT
+) {
+    const gitDir =
+        resolveGitDirectoryFast(root);
+
+    if (!gitDir) {
+        return {
+            ok: false,
+            gitDir: "",
+            branch: "",
+            head: ""
+        };
+    }
+
+    try {
+        const headText =
+            fs.readFileSync(
+                path.join(
+                    gitDir,
+                    "HEAD"
+                ),
+                "utf8"
+            ).trim();
+
+        if (
+            /^[a-f0-9]{40}$/i.test(headText)
+        ) {
+            return {
+                ok: true,
+                gitDir,
+                branch: "",
+                head:
+                    headText.toLowerCase()
+            };
+        }
+
+        const match =
+            headText.match(
+                /^ref:\s*(refs\/heads\/.+)$/i
+            );
+
+        if (!match?.[1]) {
+            return {
+                ok: false,
+                gitDir,
+                branch: "",
+                head: ""
+            };
+        }
+
+        const ref =
+            match[1].trim();
+        const head =
+            readGitRefFast(
+                gitDir,
+                ref
+            );
+
+        return {
+            ok:
+                Boolean(head),
+            gitDir,
+            branch:
+                ref.slice(
+                    "refs/heads/".length
+                ),
+            head
+        };
+    }
+    catch {
+        return {
+            ok: false,
+            gitDir,
+            branch: "",
+            head: ""
+        };
+    }
+}
+
+function refreshJarvisBridgeIdentitySnapshot(
+    snapshot = {},
+    root = DEFAULT_ROOT
+) {
+    const fast =
+        readGitHeadFast(root);
+
+    if (
+        fast.ok !== true ||
+        snapshot?.contract?.ok !== true ||
+        snapshot?.repositoryMatches !== true
+    ) {
+        return {
+            ...snapshot,
+            ok: false,
+            status:
+                "BRIDGE_IDENTITY_INVALID",
+            git: {
+                ...(snapshot?.git || {}),
+                branch:
+                    fast.branch || "",
+                head:
+                    fast.head || ""
+            },
+            identityMode:
+                "invalid"
+        };
+    }
+
+    const contractBranch =
+        String(
+            snapshot.contract.branch ||
+            ""
+        ).trim();
+
+    const cachedRemoteHead =
+        contractBranch
+            ? readGitRefFast(
+                fast.gitDir,
+                `refs/remotes/origin/${contractBranch}`
+            )
+            : "";
+
+    const contractHead =
+        cachedRemoteHead ||
+        String(
+            snapshot.contractHead ||
+            ""
+        ).trim()
+            .toLowerCase();
+
+    const branchMatches =
+        Boolean(contractBranch) &&
+        fast.branch === contractBranch;
+
+    const detachedHead =
+        fast.branch === "";
+
+    const compatible =
+        snapshot.repositoryMatches === true &&
+        (
+            branchMatches ||
+            detachedHead
+        ) &&
+        /^[a-f0-9]{40}$/.test(contractHead) &&
+        contractHead === fast.head;
+
+    return {
+        ...snapshot,
+        ok:
+            compatible,
+        status:
+            compatible
+                ? "BRIDGE_IDENTITY_OK"
+                : "BRIDGE_IDENTITY_INVALID",
+        git: {
+            ...(snapshot.git || {}),
+            branch:
+                fast.branch,
+            head:
+                fast.head
+        },
+        identityMode:
+            compatible
+                ? branchMatches
+                    ? "branch_contract_head"
+                    : "detached_contract_head"
+                : "invalid",
+        contractHead:
+            contractHead ||
+            null,
+        remoteVerified:
+            false,
+        cachedRemoteVerified:
+            Boolean(contractHead)
+    };
+}
+
 function gitText(args = [], root = DEFAULT_ROOT, {
     allowFailure = false,
     maxBuffer = 16 * 1024 * 1024,
@@ -5249,10 +5544,15 @@ export function createJarvisFsBridgeApp({
         } : {})
     });
     const semanticEngine = localSemanticEngine || createSelfHostedSemanticEngine();
-    const requestIdentity =
+    const requestIdentitySnapshot =
         describeJarvisBridgeIdentity(
             root,
             { verifyRemote: false }
+        );
+    const requestIdentity =
+        () => refreshJarvisBridgeIdentitySnapshot(
+            requestIdentitySnapshot,
+            root
         );
 
     let repoGraphCache = null;
@@ -5318,7 +5618,7 @@ export function createJarvisFsBridgeApp({
             root:
                 path.resolve(root),
             identity:
-                requestIdentity,
+                requestIdentity(),
             semantic:
                 semanticEngine.describe()
         });
@@ -5330,7 +5630,7 @@ export function createJarvisFsBridgeApp({
         }
 
         const identity =
-            requestIdentity;
+            requestIdentity();
 
         if (identity.ok !== true) {
             return res.status(503).json({
