@@ -2107,14 +2107,61 @@ test("npm bridge syncs the checkout before importing long-lived bridge modules",
     assert.match(bridgeScript, /C:\\\\Program Files\\\\Git\\\\cmd\\\\git\.exe/);
 });
 
-test("SIA7 worker synchronizes against exactly one remote branch ref", () => {
+test("SIA7 worker fetches exact remote ref and never hot-rebases a live runtime", () => {
     const workerSource = fs.readFileSync(
         new URL("../jarvis-github-worker.js", import.meta.url),
         "utf8"
     );
     assert.equal(workerSource.includes("refs/remotes/${REMOTE}/${BRANCH}"), true);
-    assert.equal(workerSource.includes('"rebase",\n        "--autostash"'), true);
+    assert.equal(workerSource.includes('"rebase",\n        "--autostash"'), false);
     assert.equal(workerSource.includes('"pull",\n        "--rebase"'), false);
+    assert.match(workerSource, /WORKER_RESTART_REQUIRED/);
+    assert.match(workerSource, /localHead/);
+    assert.match(workerSource, /remoteHead/);
+});
+
+test("npm bridge clears stale rebase metadata before one exact startup sync and restarts on worker drift", () => {
+    const packageJson = JSON.parse(
+        fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")
+    );
+    const bridgeScript = String(packageJson.scripts.bridge || "");
+    assert.match(bridgeScript, /rebase','--quit/);
+    assert.match(bridgeScript, /JARVIS_GIT_REBASE_STATE_CLEARED/);
+    assert.match(bridgeScript, /WORKER_RESTART_REQUIRED/);
+    assert.match(bridgeScript, /process\.exit\(75\)/);
+});
+
+test("worker remote-head drift requests clean restart instead of transport backoff", async () => {
+    const { createWorkerPoller } = await import("../jarvis-github-worker.js");
+    let executions = 0;
+    const restart = new Error(
+        "WORKER_RESTART_REQUIRED:aaaaaaaa->bbbbbbbb"
+    );
+    restart.restartRequired = true;
+    restart.localHead = "aaaaaaaa";
+    restart.remoteHead = "bbbbbbbb";
+    const poll = createWorkerPoller({
+        reconcile: async () => {},
+        readJob: async () => ({ jobId: "restart-required" }),
+        readResultId: async () => "",
+        sync: async () => { throw restart; },
+        execute: async () => { executions += 1; return { ok: true }; },
+        publish: async () => {},
+        persist: () => {},
+        readLocalResult: () => null,
+        log: () => {},
+        reportError: () => {}
+    });
+
+    const result = await poll();
+    assert.equal(result.ok, false);
+    assert.equal(result.status, "WORKER_RESTART_REQUIRED");
+    assert.equal(result.restartRequired, true);
+    assert.equal(result.classification, "RESTART_REQUIRED");
+    assert.equal(result.localHead, "aaaaaaaa");
+    assert.equal(result.remoteHead, "bbbbbbbb");
+    assert.equal(result.delayMs, 0);
+    assert.equal(executions, 0);
 });
 
 test("Windows bridge child processes inherit the canonical Git executable path", () => {
