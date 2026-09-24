@@ -2295,6 +2295,29 @@ test('HuMo17 quality authority binds exact media, budget and HEAD and is consume
 });
 
 
+test("filesystem bridge exposes the governed workstation command surface", () => {
+    const source = fs.readFileSync(
+        new URL("../jarvis-fs-bridge.js", import.meta.url),
+        "utf8"
+    );
+    for (const command of [
+        "npm run check:syntax",
+        "npm run check:entry-syntax",
+        "npm run test:multifunction",
+        "npm run test:mcp",
+        "npm run test:b2c-platform",
+        "npm run test:b2c-emulators",
+        "npm run test:b2c-forensic",
+        "npm run test:b2c-forensic-emulators",
+        "npm run test:platform-hardening",
+        "npm run smoke:release",
+        "npm run ci:test"
+    ]) {
+        assert.equal(source.includes(command), true, command);
+    }
+    assert.equal(source.includes("COMMAND_NOT_ALLOWED"), true);
+});
+
 test("filesystem bridge startup binds only IPv4 loopback", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-fs-bind-"));
     const server = startJarvisFsBridge({ port: 0, root });
