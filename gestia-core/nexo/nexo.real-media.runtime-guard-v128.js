@@ -2,14 +2,16 @@ import {
     reelSceneMediaCoverage
 } from "../jarvis/jarvis.reel.media-binder.js?v=v131-semantic-scene-media-authority-20260811";
 import {
-    NEXO_REAL_MEDIA_TOOLS_VERSION
+    JARVIS_REAL_MEDIA_TOOLS_VERSION
 } from "./nexo.real-media.tools.js?v=v137-local-speech-synthesis-20260812";
 
+export const JARVIS_REAL_MEDIA_RUNTIME_GUARD_VERSION =
+    "2.0.0-jarvis-runtime-authority";
 export const NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION =
-    "1.3.0-synthesized-reel-audio-v137";
+    JARVIS_REAL_MEDIA_RUNTIME_GUARD_VERSION; // compatibility export only
 
-const INSTALL_KEY = "__NEXO_REAL_MEDIA_RUNTIME_GUARD_V128__";
-const CACHE_KEY = "__NEXO_REAL_MEDIA_MISSION_CACHE_V128__";
+const INSTALL_KEY = "__JARVIS_REAL_MEDIA_RUNTIME_GUARD_V128__";
+const CACHE_KEY = "__JARVIS_REAL_MEDIA_MISSION_CACHE_V128__";
 
 function runtimeCandidate() {
     return (
@@ -30,8 +32,8 @@ function realMediaToolsReady(runtime) {
     return (
         typeof collector?.execute === "function" &&
         typeof reel?.execute === "function" &&
-        String(collector?.version || "") === NEXO_REAL_MEDIA_TOOLS_VERSION &&
-        String(reel?.version || "") === NEXO_REAL_MEDIA_TOOLS_VERSION
+        String(collector?.version || "") === JARVIS_REAL_MEDIA_TOOLS_VERSION &&
+        String(reel?.version || "") === JARVIS_REAL_MEDIA_TOOLS_VERSION
     );
 }
 
@@ -389,9 +391,9 @@ function hydrateReelArgs(args = {}, assets = []) {
     };
 }
 
-export function registerNexoRealMediaRuntimeGuard(runtime = runtimeCandidate()) {
+export function registerJarvisRealMediaRuntimeGuard(runtime = runtimeCandidate()) {
     if (!runtime || typeof runtime.register !== "function") {
-        throw new Error("NEXO_RUNTIME_GUARD_RUNTIME_REQUIRED");
+        throw new Error("JARVIS_RUNTIME_GUARD_RUNTIME_REQUIRED");
     }
     if (globalThis[INSTALL_KEY]?.active === true) return globalThis[INSTALL_KEY];
 
@@ -401,23 +403,23 @@ export function registerNexoRealMediaRuntimeGuard(runtime = runtimeCandidate()) 
         typeof collectorDefinition?.execute !== "function" ||
         typeof reelDefinition?.execute !== "function"
     ) {
-        throw new Error("NEXO_RUNTIME_GUARD_DEPENDENCIES_REQUIRED");
+        throw new Error("JARVIS_RUNTIME_GUARD_DEPENDENCIES_REQUIRED");
     }
 
     const collectorExecute = collectorDefinition.execute.bind(collectorDefinition);
-    collectorDefinition.runtimeGuardVersion = NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION;
+    collectorDefinition.runtimeGuardVersion = JARVIS_REAL_MEDIA_RUNTIME_GUARD_VERSION;
     collectorDefinition.execute = async (args = {}, context = {}) => {
             const result = await collectorExecute(args, context);
             const remembered = rememberCollection(args, context, result);
             return {
                 ...result,
                 verifiedMediaCount: remembered.assets.length,
-                runtimeMediaAuthority: NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION
+                runtimeMediaAuthority: JARVIS_REAL_MEDIA_RUNTIME_GUARD_VERSION
             };
         };
 
     const reelExecute = reelDefinition.execute.bind(reelDefinition);
-    reelDefinition.runtimeGuardVersion = NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION;
+    reelDefinition.runtimeGuardVersion = JARVIS_REAL_MEDIA_RUNTIME_GUARD_VERSION;
     reelDefinition.execute = async (args = {}, context = {}) => {
             const audioHydration = hydrateReelAudioArgs(args, context);
             if (audioHydration.ambiguous) {
@@ -432,7 +434,7 @@ export function registerNexoRealMediaRuntimeGuard(runtime = runtimeCandidate()) 
                     error: "MULTIPLE_AUDIO_ATTACHMENTS_REQUIRE_SELECTION",
                     message: "Hay más de un audio adjunto verificable. La producción se detuvo para no elegir una pista arbitrariamente.",
                     audioHydration,
-                    runtimeMediaAuthority: NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION
+                    runtimeMediaAuthority: JARVIS_REAL_MEDIA_RUNTIME_GUARD_VERSION
                 };
             }
             const media = availableMediaState(audioHydration.args, context);
@@ -459,7 +461,7 @@ export function registerNexoRealMediaRuntimeGuard(runtime = runtimeCandidate()) 
                         hydratedSceneCount: 0,
                         source: "web.media.collect"
                     },
-                    runtimeMediaAuthority: NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION
+                    runtimeMediaAuthority: JARVIS_REAL_MEDIA_RUNTIME_GUARD_VERSION
                 };
             }
 
@@ -487,7 +489,7 @@ export function registerNexoRealMediaRuntimeGuard(runtime = runtimeCandidate()) 
                         hydratedSceneCount: 0,
                         source: "web.media.collect"
                     },
-                    runtimeMediaAuthority: NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION
+                    runtimeMediaAuthority: JARVIS_REAL_MEDIA_RUNTIME_GUARD_VERSION
                 };
             }
 
@@ -517,7 +519,7 @@ export function registerNexoRealMediaRuntimeGuard(runtime = runtimeCandidate()) 
                         hydratedSceneCount: hydration.hydratedSceneCount,
                         source: "web.media.collect"
                     },
-                    runtimeMediaAuthority: NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION
+                    runtimeMediaAuthority: JARVIS_REAL_MEDIA_RUNTIME_GUARD_VERSION
                 };
             }
             return {
@@ -548,23 +550,23 @@ export function registerNexoRealMediaRuntimeGuard(runtime = runtimeCandidate()) 
                             ? "web.media.collect"
                             : null
                 },
-                runtimeMediaAuthority: NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION
+                runtimeMediaAuthority: JARVIS_REAL_MEDIA_RUNTIME_GUARD_VERSION
             };
         };
 
     const installation = {
         ok: true,
         active: true,
-        version: NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION,
+        version: JARVIS_REAL_MEDIA_RUNTIME_GUARD_VERSION,
         tools: ["web.media.collect", "reel.create"],
         installedAt: new Date().toISOString()
     };
     globalThis[INSTALL_KEY] = installation;
-    globalThis.__NEXO_REAL_MEDIA_RUNTIME_GUARD_HEALTH__ = installation;
+    globalThis.__JARVIS_REAL_MEDIA_RUNTIME_GUARD_HEALTH__ = installation;
     return installation;
 }
 
-export function installNexoRealMediaRuntimeGuard({
+export function installJarvisRealMediaRuntimeGuard({
     maximumAttempts = 160,
     intervalMs = 100
 } = {}) {
@@ -576,7 +578,7 @@ export function installNexoRealMediaRuntimeGuard({
             ok: true,
             active: false,
             environment: "non_browser",
-            version: NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION
+            version: JARVIS_REAL_MEDIA_RUNTIME_GUARD_VERSION
         });
     }
     return new Promise(resolve => {
@@ -585,18 +587,18 @@ export function installNexoRealMediaRuntimeGuard({
             attempts += 1;
             const runtime = runtimeCandidate();
             if (realMediaToolsReady(runtime)) {
-                resolve(registerNexoRealMediaRuntimeGuard(runtime));
+                resolve(registerJarvisRealMediaRuntimeGuard(runtime));
                 return;
             }
             if (attempts >= maximumAttempts) {
                 const failure = {
                     ok: false,
                     active: false,
-                    status: "NEXO_RUNTIME_GUARD_TIMEOUT",
-                    version: NEXO_REAL_MEDIA_RUNTIME_GUARD_VERSION,
+                    status: "JARVIS_RUNTIME_GUARD_TIMEOUT",
+                    version: JARVIS_REAL_MEDIA_RUNTIME_GUARD_VERSION,
                     attempts
                 };
-                globalThis.__NEXO_REAL_MEDIA_RUNTIME_GUARD_HEALTH__ = failure;
+                globalThis.__JARVIS_REAL_MEDIA_RUNTIME_GUARD_HEALTH__ = failure;
                 resolve(failure);
                 return;
             }
@@ -605,6 +607,10 @@ export function installNexoRealMediaRuntimeGuard({
         attempt();
     });
 }
+
+// Historical exports remain compatibility aliases only.
+export const registerNexoRealMediaRuntimeGuard = registerJarvisRealMediaRuntimeGuard;
+export const installNexoRealMediaRuntimeGuard = installJarvisRealMediaRuntimeGuard;
 
 export const __test = {
     verifiedAsset,
