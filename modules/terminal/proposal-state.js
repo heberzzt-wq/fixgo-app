@@ -1,4 +1,4 @@
-import "./nexo-bootstrap.js?v=v137-local-speech-synthesis-20260812";
+import "./nexo-bootstrap.js?v=jarvis-single-authority-local-first-20260924";
 
 const ACTIVE_STORAGE_KEY =
     "sia7:activePatchProposal:v1";
