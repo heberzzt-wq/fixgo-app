@@ -1146,6 +1146,267 @@ function readFirebaseWorkstationConfig(repoRoot) {
     }
 }
 
+export async function ensureJarvisLocalAiRuntime({
+    root = "",
+    env = process.env,
+    platform = process.platform,
+    commandImpl = workstationCommand,
+    probeImpl = probeLocalJson,
+    spawnImpl = spawn,
+    installIfMissing = platform === "win32",
+    pullModels = true,
+    waitMs = ms => new Promise(resolve => setTimeout(resolve, ms))
+} = {}) {
+    const repoRoot = resolveBridgeRoot(root);
+    const expectedModel = String(
+        env.JARVIS_LOCAL_LLM_MODEL ||
+        "qwen2.5-coder:7b"
+    ).trim();
+    const expectedEmbeddingModel = String(
+        env.JARVIS_LOCAL_EMBEDDING_MODEL ||
+        "qwen3-embedding:0.6b"
+    ).trim();
+    const requiredModels = [
+        ...new Set([
+            expectedModel,
+            expectedEmbeddingModel
+        ].filter(Boolean))
+    ];
+    const ollamaExecutable = String(
+        env.JARVIS_OLLAMA_EXECUTABLE ||
+        "ollama"
+    ).trim() || "ollama";
+
+    const checkCli = () =>
+        commandImpl(
+            ollamaExecutable,
+            ["--version"],
+            {
+                cwd: repoRoot,
+                timeoutMs: 15000
+            }
+        );
+
+    let cli = checkCli();
+    let installationAttempted = false;
+    let installation = null;
+
+    if (
+        cli.ok !== true &&
+        installIfMissing === true &&
+        platform === "win32"
+    ) {
+        installationAttempted = true;
+        installation = commandImpl(
+            "winget",
+            [
+                "install",
+                "--id", "Ollama.Ollama",
+                "--exact",
+                "--silent",
+                "--accept-source-agreements",
+                "--accept-package-agreements",
+                "--disable-interactivity"
+            ],
+            {
+                cwd: repoRoot,
+                timeoutMs: 15 * 60 * 1000
+            }
+        );
+        cli = checkCli();
+    }
+
+    if (cli.ok !== true) {
+        return {
+            ok: false,
+            status: "OLLAMA_INSTALL_REQUIRED",
+            cliAvailable: false,
+            installationAttempted,
+            installation,
+            expectedModel,
+            expectedEmbeddingModel,
+            externalApiUsed: false,
+            paidApiUsed: false
+        };
+    }
+
+    let tags = await probeImpl(
+        "http://127.0.0.1:11434/api/tags",
+        1500
+    );
+    let serverStarted = false;
+
+    if (tags.reachable !== true) {
+        try {
+            const child = spawnImpl(
+                ollamaExecutable,
+                ["serve"],
+                {
+                    cwd: repoRoot,
+                    detached: true,
+                    stdio: "ignore",
+                    windowsHide: true,
+                    shell: false,
+                    env: {
+                        ...env,
+                        OLLAMA_HOST:
+                            env.OLLAMA_HOST ||
+                            "127.0.0.1:11434"
+                    }
+                }
+            );
+            child?.unref?.();
+            serverStarted = true;
+        }
+        catch(error) {
+            return {
+                ok: false,
+                status: "OLLAMA_SERVER_START_FAILED",
+                cliAvailable: true,
+                serverStarted: false,
+                error: error?.message || String(error),
+                expectedModel,
+                expectedEmbeddingModel,
+                externalApiUsed: false,
+                paidApiUsed: false
+            };
+        }
+
+        for (let attempt = 0; attempt < 40; attempt += 1) {
+            await waitMs(500);
+            tags = await probeImpl(
+                "http://127.0.0.1:11434/api/tags",
+                1500
+            );
+            if (tags.reachable === true) break;
+        }
+    }
+
+    if (tags.reachable !== true) {
+        return {
+            ok: false,
+            status: "OLLAMA_SERVER_UNAVAILABLE",
+            cliAvailable: true,
+            serverStarted,
+            expectedModel,
+            expectedEmbeddingModel,
+            externalApiUsed: false,
+            paidApiUsed: false
+        };
+    }
+
+    const modelNames = payload =>
+        Array.isArray(payload?.body?.models)
+            ? payload.body.models
+                .map(item =>
+                    String(
+                        item?.name ||
+                        item?.model ||
+                        ""
+                    ).trim()
+                )
+                .filter(Boolean)
+            : [];
+
+    const hasModel = (names, expected) =>
+        names.includes(expected) ||
+        names.some(name =>
+            name.startsWith(
+                `${expected.split(":")[0]}:`
+            )
+        );
+
+    let installedModels = modelNames(tags);
+    const pulledModels = [];
+
+    if (pullModels === true) {
+        for (const model of requiredModels) {
+            if (hasModel(installedModels, model)) continue;
+            const pull = commandImpl(
+                ollamaExecutable,
+                ["pull", model],
+                {
+                    cwd: repoRoot,
+                    timeoutMs: 45 * 60 * 1000
+                }
+            );
+            if (pull.ok !== true) {
+                return {
+                    ok: false,
+                    status: "OLLAMA_MODEL_PULL_FAILED",
+                    cliAvailable: true,
+                    serverRunning: true,
+                    serverStarted,
+                    failedModel: model,
+                    pull,
+                    installedModels,
+                    expectedModel,
+                    expectedEmbeddingModel,
+                    externalApiUsed: false,
+                    paidApiUsed: false
+                };
+            }
+            pulledModels.push(model);
+            tags = await probeImpl(
+                "http://127.0.0.1:11434/api/tags",
+                3000
+            );
+            installedModels = modelNames(tags);
+        }
+    }
+
+    const mainModelReady =
+        hasModel(installedModels, expectedModel);
+    const embeddingModelReady =
+        hasModel(
+            installedModels,
+            expectedEmbeddingModel
+        );
+
+    if (
+        !mainModelReady ||
+        !embeddingModelReady
+    ) {
+        return {
+            ok: false,
+            status: "OLLAMA_REQUIRED_MODELS_MISSING",
+            cliAvailable: true,
+            serverRunning: true,
+            serverStarted,
+            installedModels,
+            pulledModels,
+            expectedModel,
+            expectedEmbeddingModel,
+            mainModelReady,
+            embeddingModelReady,
+            externalApiUsed: false,
+            paidApiUsed: false
+        };
+    }
+
+    return {
+        ok: true,
+        status: "JARVIS_LOCAL_AI_RUNTIME_READY",
+        provider: "ollama-openai-compatible-local",
+        endpoint: "http://127.0.0.1:11434/v1",
+        embeddingEndpoint:
+            "http://127.0.0.1:11434/api/embed",
+        cliAvailable: true,
+        serverRunning: true,
+        serverStarted,
+        installedModels,
+        pulledModels,
+        expectedModel,
+        expectedEmbeddingModel,
+        mainModelReady,
+        embeddingModelReady,
+        installationAttempted,
+        installation,
+        externalApiUsed: false,
+        paidApiUsed: false
+    };
+}
+
 export async function inspectJarvisWorkstation({
     root = ""
 } = {}) {
