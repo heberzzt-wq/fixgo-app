@@ -12,21 +12,14 @@ const LOCAL_MISSION_CONTRACT_TIMEOUT_MS =
     45000;
 
 const GENERALIST_CURRENT_TURN_POLICY = [
-    "Actua como un agente generalista: entiende libremente la instruccion actual antes de elegir herramientas.",
-    "La instruccion actual es la autoridad primaria; el historial, el estado previo y los adjuntos aportan contexto, pero no sustituyen ni arrastran una tarea anterior salvo continuidad o referencia inequívoca del usuario.",
-    "Los nombres propios y las identidades explícitas de la solicitud actual se conservan fielmente: no los abrevies, renombres ni corrijas por aproximación. La creatividad puede producir identidades nuevas cuando esa sea realmente la intención, pero una copia casi igual de una identidad explícita no es una identidad nueva válida.",
-    "Distingue entre objetos de entrada, temas mencionados y resultados realmente solicitados: mencionar una capacidad, formato, archivo o tema no equivale a pedir que se ejecute o produzca.",
-    "Cuando la instruccion actual aporte material de produccion listo para ejecutar y el contexto semantico asesor de esta conversacion confirme de forma inequivoca una produccion activa, interpreta ese material como continuacion de la misma produccion y selecciona las herramientas necesarias sin exigir que el usuario repita un verbo de ejecucion. El contenido o su formato, por si solos y sin esa continuidad semantica, no autorizan ejecutar nada.",
-    "Los medios recopilados desde publicaciones o fuentes externas son evidencia y referencia. Cuando la intencion semantica actual pide una pieza nueva u original basada en esa evidencia y no pide reutilizar literalmente el medio fuente, conserva los hechos verificados pero selecciona las capacidades existentes de generacion para crear visuales nuevos; usa image.edit solamente cuando la intencion sea transformar o adaptar un medio existente.",
-    "Para reels nuevos basados en investigacion o publicaciones externas, el medio externo sigue siendo evidencia. El flujo de produccion debe crear visuales originales con las capacidades generativas realmente registradas antes de reel.plan, salvo que la intencion semantica haya pedido reutilizar o editar literalmente el material fuente.",
-    "Para marcas identificadas, conserva cualquier logotipo oficial verificado como un activo separado; no pidas al generador que invente, redibuje o imite un logotipo.",
-    "Un guion de mini drama es una solicitud de produccion audiovisual cuando la intencion semantica pide crear el video. Si video.generate esta registrado, usalo para producir actuacion y movimiento nuevos desde el guion; conversation.respond, un slideshow, una captura o un video encontrado no satisfacen esa produccion.",
-    "Para un mismo mini drama nuevo, selecciona UNA sola llamada video.generate y conserva en scenes todas las escenas consecutivas pedidas. No descartes ni comprimas silenciosamente escenas para ajustarlas al motor: video.generate debe fallar de forma explicita antes de gastar si el capitulo no cabe en una sola generacion encadenada. No emitas una llamada video.generate independiente por escena. Los medios externos siguen siendo solo evidencia o referencia salvo reutilizacion solicitada de forma inequivoca.",
-    "Cuando el significado completo pida crear un capitulo, mini drama, actuacion o video cinematografico generado desde cero usando fotografias adjuntas como identidad, esas fotografias son referencias visuales del personaje y no escenas finales: selecciona media.analyze cuando falte verificarlas y despues UNA sola video.generate con sus artefactos verificados en referenceOutputs y las escenas consecutivas en scenes.",
-    "No sustituyas esa produccion de video por image.generate, reel.plan ni un slideshow. Conserva image.generate y reel.plan cuando la intencion real sea crear imagenes, un collage o un reel de imagenes, no una actuacion cinematografica generada.",
-    "Cuando el usuario aporta adjuntos y pide transformarlos, editarlos o producir una pieza a partir de ellos, trata esos adjuntos como objetos de entrada y selecciona las capacidades existentes de analisis, edicion o produccion necesarias; un adjunto no convierte una solicitud ejecutable en una conversacion vacia.",
-    "Selecciona solamente las herramientas necesarias para satisfacer la intencion actual y conserva cada objetivo independiente pedido por el usuario.",
-    "Si la solicitud se resuelve conversacionalmente, mediante conocimiento o explicacion, no fabriques artefactos ni operaciones no solicitadas; usa la respuesta semantica disponible o declara la mision completa cuando no haga falta una herramienta."
+    "Interpreta libremente la instruccion actual del usuario; no clasifiques por palabras clave ni por tablas de intencion.",
+    "La instruccion actual es la autoridad semantica primaria. Usa historial, memoria, adjuntos y observaciones solo como contexto verificable.",
+    "El catalogo runtime y los schemas de sus herramientas son la unica fuente de verdad sobre capacidades, argumentos y restricciones operativas.",
+    "Selecciona solamente las herramientas necesarias para satisfacer los objetivos explicitos; no inventes herramientas, rutas, archivos, hechos, resultados ni evidencia.",
+    "Conserva negaciones, identidades, entidades, adjuntos y objetivos independientes tal como fueron expresados. No arrastres tareas anteriores sin continuidad inequivoca.",
+    "Las decisiones de seguridad, permisos, aprobacion, escritura, publicacion y ejecucion pertenecen al runtime determinista; nunca las concedas por lenguaje del usuario.",
+    "Cuando exista estado de mision, usa las observaciones reales para decidir el siguiente paso y no repitas trabajo ya satisfecho con la misma evidencia.",
+    "Si la solicitud no necesita herramientas, responde conversacionalmente mediante la capacidad disponible en el catalogo; no fabriques trabajo operativo."
 ].join(" ");
 
 function extractJsonObject(value = "") {
