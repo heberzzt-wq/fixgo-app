@@ -4273,7 +4273,7 @@ test("multifunction descriptor remains approval-bound", () => {
     assert.equal(planner.mutates, false);
     assert.equal(
         planner.version,
-        "4.21.0-v142-self-hosted-semantic-backend"
+        "4.22.0-v142-local-only-single-jarvis"
     );
     assert.equal(planner.maximumToolCalls, 12);
     assert.equal(planner.architecture, "model_selected_runtime_catalog");
@@ -5118,14 +5118,14 @@ test("entity-not-verified research cannot satisfy the mission objective", () => 
     assert.match(source, /objectiveSatisfied:\s*false/);
 });
 
-test("identity-photo video policy preserves one generated video while image reels remain available", () => {
+test("video normalization stays mechanical while semantic policy remains generic", () => {
     assert.match(
         plannerTest.GENERALIST_CURRENT_TURN_POLICY,
-        /fotografias adjuntas como identidad[\s\S]*referenceOutputs/
+        /catalogo runtime y los schemas/
     );
-    assert.match(
+    assert.doesNotMatch(
         plannerTest.GENERALIST_CURRENT_TURN_POLICY,
-        /collage o un reel de imagenes/
+        /fotografias adjuntas como identidad|collage o un reel de imagenes|mini drama/i
     );
 
     const videoTool = {
