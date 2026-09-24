@@ -67,13 +67,21 @@ function groundedCrossSourceResult() {
     };
 }
 
-test("v142 full ci runs the real loopback browser contract only once", () => {
+test("v142 full ci reaches the real loopback browser contract through the Jarvis runtime suite exactly once", () => {
     const packageJson = JSON.parse(
         fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")
     );
-    assert.match(
+    assert.equal(
         packageJson.scripts["test:nexo"],
+        "npm run test:jarvis:runtime"
+    );
+    assert.match(
+        packageJson.scripts["test:jarvis:runtime"],
         /tests\/nexo-terminal-bootstrap\.test\.mjs/
+    );
+    assert.equal(
+        (packageJson.scripts["test:jarvis:runtime"].match(/tests\/nexo-terminal-bootstrap\.test\.mjs/g) || []).length,
+        1
     );
     assert.doesNotMatch(
         packageJson.scripts.test,
