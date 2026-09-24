@@ -1483,6 +1483,71 @@ test("Jarvis FS bridge loads the release identity contract", async () => {
     }
 });
 
+test("loopback health uses cached remote identity and does not require live GitHub", async () => {
+    const fixture = createBridgeIdentityFixture();
+    const root = fixture.root;
+    let server = null;
+    try {
+        const cachedIdentity = describeJarvisBridgeIdentity(
+            root,
+            { verifyRemote: false }
+        );
+        assert.equal(cachedIdentity.ok, true);
+        assert.equal(cachedIdentity.remoteVerified, false);
+        assert.equal(cachedIdentity.cachedRemoteVerified, true);
+        assert.equal(
+            cachedIdentity.contractHead,
+            cachedIdentity.git.head
+        );
+
+        execFileSync(
+            gitExecutable,
+            [
+                "--git-dir",
+                fixture.remoteRoot,
+                "update-ref",
+                "-d",
+                `refs/heads/${fixture.branch}`
+            ],
+            { stdio: "ignore" }
+        );
+
+        server = createJarvisFsBridgeApp({ root }).listen(0, "127.0.0.1");
+        await new Promise((resolve, reject) => {
+            server.once("listening", resolve);
+            server.once("error", reject);
+        });
+
+        const response = await fetch(
+            `http://127.0.0.1:${server.address().port}/health`
+        );
+        const health = await response.json();
+        assert.equal(response.status, 200);
+        assert.equal(health.identity.ok, true);
+        assert.equal(health.identity.remoteVerified, false);
+        assert.equal(health.identity.cachedRemoteVerified, true);
+    }
+    finally {
+        if (server) {
+            await new Promise(resolve => server.close(resolve));
+        }
+        fs.rmSync(fixture.fixtureRoot, {
+            recursive: true,
+            force: true
+        });
+    }
+});
+
+test("run command output is bounded while retaining the most recent tail", () => {
+    const source = fs.readFileSync(
+        new URL("../jarvis-fs-bridge.js", import.meta.url),
+        "utf8"
+    );
+    assert.match(source, /const appendRunTail =/);
+    assert.match(source, /limit = 2 \* 1024 \* 1024/);
+    assert.match(source, /combined\.slice\(-limit\)/);
+});
+
 test("bridge identity accepts the authorized branch and a clean detached worktree at the live remote head", () => {
     const fixture = createBridgeIdentityFixture();
     try {
