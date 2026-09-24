@@ -813,8 +813,19 @@ export function createSelfHostedSemanticEngine({
         const health = describe();
         if (health.ok !== true) throw new Error(health.status);
         const tools = openAiToolsFromGemini(request?.config || {});
+        const inferenceTimeoutMs = Math.min(
+            Math.max(
+                Number(request?.config?.timeoutMs) ||
+                timeoutMs,
+                5000
+            ),
+            180000
+        );
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        const timer = setTimeout(
+            () => controller.abort(),
+            inferenceTimeoutMs
+        );
         counters.localSemanticInferenceCalls += 1;
         try {
             const headers = { "Content-Type": "application/json" };
@@ -883,17 +894,41 @@ export function createSelfHostedSemanticEngine({
         models: { generateContent }
     };
 
+    const aiWithTimeout =
+        effectiveTimeoutMs => ({
+            ...ai,
+            models: {
+                generateContent(request = {}) {
+                    return generateContent({
+                        ...request,
+                        config: {
+                            ...(request?.config || {}),
+                            timeoutMs:
+                                effectiveTimeoutMs
+                        }
+                    });
+                }
+            }
+        });
+
     return {
         mode,
         describe,
         embed,
         async plan({ input, catalog, missionState = null, timeoutMs: requestTimeoutMs } = {}) {
+            const effectiveTimeoutMs =
+                requestTimeoutMs ||
+                timeoutMs;
             const result = await runJarvisSemanticPlanner({
-                ai,
+                ai:
+                    aiWithTimeout(
+                        effectiveTimeoutMs
+                    ),
                 input,
                 catalog,
                 missionState,
-                timeoutMs: requestTimeoutMs || timeoutMs
+                timeoutMs:
+                    effectiveTimeoutMs
             });
             return {
                 ...result,
@@ -907,11 +942,18 @@ export function createSelfHostedSemanticEngine({
             };
         },
         async respond({ input, maxOutputTokens = 3500, timeoutMs: requestTimeoutMs } = {}) {
+            const effectiveTimeoutMs =
+                requestTimeoutMs ||
+                timeoutMs;
             const result = await runJarvisSemanticResponse({
-                ai,
+                ai:
+                    aiWithTimeout(
+                        effectiveTimeoutMs
+                    ),
                 input,
                 maxOutputTokens,
-                timeoutMs: requestTimeoutMs || timeoutMs
+                timeoutMs:
+                    effectiveTimeoutMs
             });
             return {
                 ...result,
