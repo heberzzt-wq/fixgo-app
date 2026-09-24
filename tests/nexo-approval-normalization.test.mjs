@@ -8,7 +8,7 @@ const source = fs.readFileSync(
     "utf8"
 );
 
-test("NEXO UI branding contains no natural-language approval brain", () => {
+test("historical NEXO UI filename contains no natural-language approval brain", () => {
     assert.doesNotMatch(source, /EXACT_APPROVAL_COMMANDS/);
     assert.doesNotMatch(source, /isNexoApprovalCommand/);
     assert.doesNotMatch(source, /normalizeNexoCommand/);
@@ -19,9 +19,9 @@ test("NEXO UI branding contains no natural-language approval brain", () => {
     assert.doesNotMatch(source, /\bapruebo\b|\barre\b|\bhazlo\b/);
 });
 
-test("NEXO UI branding declares the single semantic authority", () => {
-    assert.match(source, /2\.0\.0-branding-only-single-semantic-authority/);
+test("historical NEXO UI filename declares Jarvis as the single semantic authority", () => {
+    assert.match(source, /3\.0\.0-jarvis-branding-single-semantic-authority/);
     assert.match(source, /semanticAuthority:\s*"jarvisSemanticPlan"/);
     assert.match(source, /replaceExactText/);
-    assert.match(source, /__NEXO_RUNTIME_STAMP__/);
+    assert.match(source, /__JARVIS_RUNTIME_STAMP__/);\n    assert.doesNotMatch(source, /__NEXO_RUNTIME_STAMP__/);
 });
