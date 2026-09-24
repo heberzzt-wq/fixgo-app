@@ -2525,6 +2525,10 @@ test("filesystem bridge exposes the governed workstation command surface", () =>
         "npm run test:b2c-forensic",
         "npm run test:b2c-forensic-emulators",
         "npm run test:platform-hardening",
+        "npm run bridge:smoke",
+        "npm run bridge:ensure",
+        "npm run bridge:doctor",
+        "npm run workstation",
         "npm run smoke:release",
         "npm run ci:test"
     ]) {
