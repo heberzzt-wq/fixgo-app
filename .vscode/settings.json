@@ -18,7 +18,7 @@
     "terminal.integrated.env.windows": {
         "JARVIS_SEMANTIC_PROVIDER_MODE": "LOCAL_ONLY",
         "JARVIS_LOCAL_LLM_BASE_URL": "http://127.0.0.1:11434/v1",
-        "JARVIS_LOCAL_LLM_MODEL": "qwen2.5-coder:7b",
+        "JARVIS_LOCAL_LLM_MODEL": "qwen2.5-coder:1.5b",
         "JARVIS_VIDEO_ENGINE_POLICY": "LOCAL_ONLY",
         "JARVIS_LOCAL_VIDEO_ENABLED": "true",
         "JARVIS_LOCAL_VIDEO_MODEL": "auto",

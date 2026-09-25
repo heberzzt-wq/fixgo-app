@@ -376,7 +376,7 @@ test("emulator exercises Jarvis local-only planner through the real bridge and r
         env: {
             JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
             JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
-            JARVIS_LOCAL_LLM_MODEL: "qwen2.5-coder:7b",
+            JARVIS_LOCAL_LLM_MODEL: "qwen2.5-coder:1.5b",
             JARVIS_LOCAL_EMBEDDING_MODEL: "qwen3-embedding:0.6b"
         },
         fetchImpl: async (url, options) => {
@@ -464,7 +464,7 @@ test("emulator exercises Jarvis local-only planner through the real bridge and r
         assert.equal(calls[0].name, "repo.search");
         assert.equal(calls[0].args.query, "LOCAL_AI_EMULATOR_MARKER");
         assert.equal(semanticRequests.length, 1);
-        assert.equal(semanticRequests[0].body.model, "qwen2.5-coder:7b");
+        assert.equal(semanticRequests[0].body.model, "qwen2.5-coder:1.5b");
 
         const grepResponse = await globalThis.JarvisLocalBridge.requestJson("/grep", {
             query: calls[0].args.query,
@@ -483,7 +483,7 @@ test("emulator exercises Jarvis local-only planner through the real bridge and r
         assert.equal(healthResponse.ok, true);
         assert.equal(healthResponse.mode, "LOCAL_ONLY");
         assert.equal(healthResponse.provider, "ollama-openai-compatible-local");
-        assert.equal(healthResponse.model, "qwen2.5-coder:7b");
+        assert.equal(healthResponse.model, "qwen2.5-coder:1.5b");
         assert.equal(healthResponse.counters.localSemanticInferenceCalls, 1);
         assert.equal(healthResponse.counters.semanticExternalCalls, 0);
         assert.equal(healthResponse.counters.paidExternalCalls, 0);
@@ -505,7 +505,7 @@ test("self-hosted semantic backend defaults to local-only Ollama Qwen with zero 
     assert.equal(health.ok, true);
     assert.equal(health.mode, "LOCAL_ONLY");
     assert.equal(health.provider, "ollama-openai-compatible-local");
-    assert.equal(health.model, "qwen2.5-coder:7b");
+    assert.equal(health.model, "qwen2.5-coder:1.5b");
     assert.equal(health.embeddingModel, "qwen3-embedding:0.6b");
     assert.equal(health.endpointOrigin, "http://127.0.0.1:11434");
     assert.equal(health.fallbackAllowed, false);

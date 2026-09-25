@@ -1,4 +1,4 @@
-﻿import express from "express";
+import express from "express";
 import cors from "cors";
 import fs from "fs";
 import os from "os";
@@ -700,7 +700,7 @@ export function createSelfHostedSemanticEngine({
 } = {}) {
     const mode = semanticProviderMode(env);
     const model = String(
-        env.JARVIS_LOCAL_LLM_MODEL || "qwen2.5-coder:7b"
+        env.JARVIS_LOCAL_LLM_MODEL || "qwen2.5-coder:1.5b"
     ).trim();
     const embeddingModel = String(
         env.JARVIS_LOCAL_EMBEDDING_MODEL || "qwen3-embedding:0.6b"

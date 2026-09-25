@@ -1260,7 +1260,7 @@ async function probeLocalJson(url, timeoutMs = 1200) {
 }
 
 export async function warmJarvisLocalModel({
-    model = "qwen2.5-coder:7b",
+    model = "qwen2.5-coder:1.5b",
     fetchImpl = globalThis.fetch,
     timeoutMs = 240000,
     keepAlive = "30m"
@@ -1531,7 +1531,7 @@ export async function ensureJarvisLocalAiRuntime({
     const repoRoot = resolveBridgeRoot(root);
     const expectedModel = String(
         env.JARVIS_LOCAL_LLM_MODEL ||
-        "qwen2.5-coder:7b"
+        "qwen2.5-coder:1.5b"
     ).trim();
     const expectedEmbeddingModel = String(
         env.JARVIS_LOCAL_EMBEDDING_MODEL ||
@@ -1975,7 +1975,7 @@ export async function inspectJarvisWorkstation({
     const expectedModel =
         String(
             process.env.JARVIS_LOCAL_LLM_MODEL ||
-            "qwen2.5-coder:7b"
+            "qwen2.5-coder:1.5b"
         ).trim();
     const expectedEmbeddingModel =
         String(
