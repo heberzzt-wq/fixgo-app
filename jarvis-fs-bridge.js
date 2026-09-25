@@ -839,7 +839,7 @@ export function createSelfHostedSemanticEngine({
                     { role: "user", content: semanticContentsText(request?.contents) }
                 ],
                 temperature: Number(request?.config?.temperature) || 0,
-                max_tokens: Math.max(256, Math.min(16000, Number(request?.config?.maxOutputTokens) || 3000)),
+                max_tokens: Math.max(96, Math.min(16000, Number(request?.config?.maxOutputTokens) || 3000)),
                 stream: false,
                 ...(tools.length > 0
                     ? {
@@ -975,7 +975,7 @@ export function createSelfHostedSemanticEngine({
                 inferenceReceipt: describe()
             };
         },
-        async respond({ input, maxOutputTokens = 3500, timeoutMs: requestTimeoutMs } = {}) {
+        async respond({ input, maxOutputTokens = 160, timeoutMs: requestTimeoutMs } = {}) {
             const effectiveTimeoutMs =
                 requestTimeoutMs ||
                 timeoutMs;

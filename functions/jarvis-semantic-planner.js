@@ -1268,10 +1268,10 @@ async function runJarvisSemanticResponse({
     ai = null,
     input = "",
     timeoutMs = null,
-    maxOutputTokens = 3500
+    maxOutputTokens = 160
 } = {}) {
     const instruction = String(input || "").trim();
-    const budget = Math.max(500, Math.min(8000, Number(maxOutputTokens) || 3500));
+    const budget = Math.max(96, Math.min(8000, Number(maxOutputTokens) || 160));
     if (instruction.length < 1 || instruction.length > 120000) throw new Error("SEMANTIC_RESPONSE_INPUT_OUT_OF_RANGE");
     if (!ai?.models?.generateContent) throw new Error("SEMANTIC_AUTHENTICATED_PROVIDER_REQUIRED");
     const deadline = Number(timeoutMs) > 0 ? Math.max(5000, Number(timeoutMs)) : budget >= 6000 ? 120000 : 45000;
