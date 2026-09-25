@@ -723,6 +723,104 @@ async function runModelSemanticPlanner({
                     .filter(Boolean)
                     .slice(0, 20)
                 : [];
+        const rankedContractCatalog =
+            shortlistSemanticCatalog(
+                instruction,
+                normalizedCatalog,
+                null,
+                8
+            );
+        const initialCatalogTools =
+            initialToolNames
+                .map(name =>
+                    normalizedCatalog.find(tool =>
+                        tool.name === name
+                    )
+                )
+                .filter(Boolean);
+        const contractCatalog = [
+            ...initialCatalogTools,
+            ...rankedContractCatalog
+        ].filter((tool, index, items) =>
+            items.findIndex(candidate =>
+                candidate.name === tool.name
+            ) === index
+        ).slice(0, 8);
+        const compactLocalContract =
+            normalizedCatalog.length > contractCatalog.length &&
+            String(ai.lastProvider || "")
+                .includes("ollama-openai-compatible-local");
+
+        if (compactLocalContract) {
+            const compactContractResponse =
+                await ai.models.generateContent({
+                    model,
+                    contents: [
+                        "Eres Jarvis, la unica autoridad semantica local.",
+                        "Construye un contrato de mision completo usando solamente el catalogo candidato.",
+                        `CATALOGO_CANDIDATO=${JSON.stringify(contractCatalog.map(tool => ({
+                            name: tool.name,
+                            description: tool.description,
+                            inputSchema: tool.inputSchema,
+                            mutates: tool.mutates,
+                            userArtifact: tool.userArtifact
+                        })))}`,
+                        `HERRAMIENTAS_INICIALES=${initialToolNames.join(",")}`,
+                        `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
+                        [
+                            "Devuelve exclusivamente JSON valido.",
+                            "Incluye toolCalls con nombres exactos del catalogo y argumentos fundamentados.",
+                            "Cubre todos los objetivos explicitos de la instruccion.",
+                            "No inventes rutas, archivos, evidencia ni resultados.",
+                            "Usa missionComplete=false."
+                        ].join("\n")
+                    ].join("\n\n"),
+                    config: {
+                        maxOutputTokens: 1200,
+                        temperature: 0,
+                        thinkingConfig: {
+                            thinkingLevel: "MINIMAL"
+                        },
+                        responseMimeType: "application/json"
+                    }
+                });
+            const compactPayload =
+                normalizeTextToolPlan(
+                    extractJsonObject(
+                        String(
+                            compactContractResponse?.text ||
+                            ""
+                        )
+                    ),
+                    contractCatalog
+                );
+            const compactValidated =
+                validatePlan(
+                    {
+                        ...(compactPayload || {}),
+                        missionComplete: false
+                    },
+                    contractCatalog,
+                    instruction,
+                    {
+                        allowDeferred: true
+                    }
+                );
+            return requireExecutablePlan({
+                ...compactValidated,
+                provider:
+                    String(
+                        ai.lastProvider ||
+                        "jarvis-local"
+                    ),
+                model,
+                catalogSize:
+                    contractCatalog.length,
+                planKind:
+                    "MISSION_CONTRACT_COMPACT_LOCAL"
+            });
+        }
+
         const contractResponse = await ai.models.generateContent({
             model,
             contents: [
