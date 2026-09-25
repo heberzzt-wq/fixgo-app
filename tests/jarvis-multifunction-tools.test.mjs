@@ -186,6 +186,185 @@ async function planWithModel(input, toolCalls, { approved = false } = {}) {
     });
 }
 
+test("physical repo.search uses live local embedding AST retrieval when workstation bridge is available", {
+    timeout: 180000
+}, async t => {
+    let health = null;
+    try {
+        const response = await fetch("http://127.0.0.1:3344/health", {
+            method: "GET"
+        });
+        if (response.ok) {
+            health = await response.json();
+        }
+    }
+    catch {}
+
+    if (
+        health?.ok !== true ||
+        health?.status !== "JARVIS_FS_BRIDGE_LIVE"
+    ) {
+        t.skip("physical workstation bridge unavailable");
+        return;
+    }
+
+    const contract = JSON.parse(
+        fs.readFileSync(
+            path.join(__dirname, "..", "jarvis-runtime-contract.json"),
+            "utf8"
+        )
+    );
+
+    const previousWindow = globalThis.window;
+    const previousBridge = globalThis.JarvisLocalBridge;
+    const previousIndex = globalThis.__REPO_INDEX__;
+
+    try {
+        globalThis.window = globalThis;
+        globalThis.__REPO_INDEX__ = {};
+
+        const requestJson = async (
+            route,
+            payload = {},
+            options = {}
+        ) => {
+            const response = await fetch(
+                `http://127.0.0.1:3344${route}`,
+                {
+                    method: "POST",
+                    headers: {
+                        "content-type": "application/json",
+                        "x-jarvis-release-id":
+                            contract.releaseId
+                    },
+                    body: JSON.stringify(payload),
+                    signal:
+                        AbortSignal.timeout(
+                            Math.min(
+                                Math.max(
+                                    Number(options?.timeoutMs) ||
+                                    120000,
+                                    5000
+                                ),
+                                180000
+                            )
+                        )
+                }
+            );
+            const body = await response.json();
+            return response.ok
+                ? body
+                : {
+                    ...body,
+                    httpStatus:
+                        response.status
+                };
+        };
+
+        globalThis.JarvisLocalBridge = {
+            requestJson
+        };
+
+        const runtimeModule = await import(
+            `../gestia-core/tools.runtime.js?physical-repo-search=${Date.now()}`
+        );
+
+        const result =
+            await runtimeModule.JarvisToolRuntime.execute(
+                "repo.search",
+                {
+                    query:
+                        "cómo está implementada la inteligencia local de Jarvis y qué piezas participan",
+                    limit:
+                        8,
+                    timeoutMs:
+                        180000
+                },
+                {
+                    source:
+                        "physical_repo_search_e2e"
+                }
+            );
+
+        console.log(
+            "JARVIS_PHYSICAL_REPO_SEARCH",
+            JSON.stringify({
+                ok:
+                    result?.ok === true,
+                status:
+                    result?.status ||
+                    null,
+                source:
+                    result?.source ||
+                    null,
+                scoring:
+                    result?.scoring ||
+                    null,
+                semanticEvidence:
+                    result?.semanticEvidence ||
+                    null,
+                candidates:
+                    Array.isArray(
+                        result?.candidates
+                    )
+                        ? result.candidates
+                            .slice(0, 8)
+                            .map(candidate => ({
+                                file:
+                                    candidate?.file ||
+                                    null,
+                                score:
+                                    candidate?.score ||
+                                    0,
+                                semanticSimilarity:
+                                    candidate
+                                        ?.semanticSimilarity ||
+                                    0,
+                                controls:
+                                    candidate?.controls ||
+                                    []
+                            }))
+                        : []
+            })
+        );
+
+        assert.equal(result?.ok, true);
+        assert.equal(
+            result?.status,
+            "REPO_SEMANTIC_SEARCH_READY"
+        );
+        assert.equal(
+            result?.scoring,
+            "local_embedding_and_structural_evidence"
+        );
+        assert.equal(
+            result?.semanticEvidence?.provider,
+            "ollama-local"
+        );
+        assert.equal(
+            result?.semanticEvidence?.externalApiUsed,
+            false
+        );
+        assert.ok(
+            Array.isArray(result?.candidates) &&
+            result.candidates.length > 0
+        );
+    }
+    finally {
+        globalThis.JarvisLocalBridge =
+            previousBridge;
+        globalThis.__REPO_INDEX__ =
+            previousIndex;
+        if (previousWindow === undefined) {
+            delete globalThis.window;
+        }
+        else {
+            globalThis.window =
+                previousWindow;
+        }
+    }
+});
+
 test("browser mission uses the self-hosted semantic backend before auth or cloud", async () => {
     const previousBridge = globalThis.JarvisLocalBridge;
     const previousAuth = globalThis.auth;
