@@ -6140,11 +6140,27 @@ JarvisToolRuntime.register({
                                     )
                                 ),
                             maxFiles:
-                                argObject.maxFiles ||
-                                2500,
+                                Math.max(
+                                    50,
+                                    Math.min(
+                                        800,
+                                        Number(
+                                            argObject.maxFiles
+                                        ) ||
+                                        320
+                                    )
+                                ),
                             maxFileSizeBytes:
-                                argObject.maxFileSizeBytes ||
-                                800000,
+                                Math.max(
+                                    50000,
+                                    Math.min(
+                                        800000,
+                                        Number(
+                                            argObject.maxFileSizeBytes
+                                        ) ||
+                                        300000
+                                    )
+                                ),
                             refresh:
                                 argObject.refresh === true
                         },
