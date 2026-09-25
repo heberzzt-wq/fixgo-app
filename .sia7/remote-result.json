@@ -1,98 +1,20 @@
 {
-  "jobId": "jarvis-local-ai-locate-bridge-repo-adapters-20260924-029",
-  "completedAt": "2026-09-24T23:59:45.248Z",
+  "jobId": "jarvis-local-ai-physical-repo-search-20260924-030",
+  "completedAt": "2026-09-25T00:01:00.170Z",
   "executionStarted": true,
-  "ok": true,
-  "httpStatus": 200,
-  "endpoint": "/grep",
+  "ok": false,
+  "httpStatus": 408,
+  "endpoint": "/run",
   "payload": {
-    "ok": true,
-    "term": "grepRepo",
-    "totalFilesScanned": 751,
-    "totalMatches": 16,
-    "matches": [
-      {
-        "file": ".sia7/remote-job.json",
-        "line": 6,
-        "snippet": "\"term\": \"grepRepo\","
-      },
-      {
-        "file": "gestia-core/tools.runtime.js",
-        "line": 1647,
-        "snippet": "window.JarvisLocalBridge.grepRepo ||= async function(payload = {}) {"
-      },
-      {
-        "file": "gestia-core/tools.runtime.js",
-        "line": 6241,
-        "snippet": "window.JarvisLocalBridge?.grepRepo"
-      },
-      {
-        "file": "gestia-core/tools.runtime.js",
-        "line": 6245,
-        "snippet": "await window.JarvisLocalBridge.grepRepo({"
-      },
-      {
-        "file": "gestia-core/tools.runtime.js",
-        "line": 6281,
-        "snippet": "window.JarvisLocalBridge?.grepRepo &&"
-      },
-      {
-        "file": "gestia-core/tools.runtime.js",
-        "line": 6293,
-        "snippet": "await window.JarvisLocalBridge.grepRepo({"
-      },
-      {
-        "file": "gestia-core/tools.runtime.js",
-        "line": 6448,
-        "snippet": "window.JarvisLocalBridge?.grepRepo"
-      },
-      {
-        "file": "gestia-core/tools.runtime.js",
-        "line": 6500,
-        "snippet": "await window.JarvisLocalBridge.grepRepo({"
-      },
-      {
-        "file": "gestia-core/tools.runtime.js",
-        "line": 6684,
-        "snippet": "if (!window.JarvisLocalBridge?.grepRepo) {"
-      },
-      {
-        "file": "gestia-core/tools.runtime.js",
-        "line": 6689,
-        "snippet": "error: \"JarvisLocalBridge.grepRepo no está disponible.\","
-      },
-      {
-        "file": "gestia-core/tools.runtime.js",
-        "line": 6698,
-        "snippet": "await window.JarvisLocalBridge.grepRepo({"
-      },
-      {
-        "file": "gestia-core/tools.runtime.js",
-        "line": 7144,
-        "snippet": "const references = window.JarvisLocalBridge?.grepRepo"
-      },
-      {
-        "file": "gestia-core/tools.runtime.js",
-        "line": 7145,
-        "snippet": "? await window.JarvisLocalBridge.grepRepo({"
-      },
-      {
-        "file": "gestia-core/tools.runtime.js",
-        "line": 8283,
-        "snippet": "window.JarvisLocalBridge.grepRepo ||= async function(payload = {}) {"
-      },
-      {
-        "file": "jarvis-fs-bridge.js",
-        "line": 3261,
-        "snippet": "export function grepRepo({"
-      },
-      {
-        "file": "jarvis-fs-bridge.js",
-        "line": 5925,
-        "snippet": "grepRepo({"
-      }
-    ],
-    "source": "jarvis_fs_bridge_grep_v1",
+    "ok": false,
+    "status": "TIMEOUT",
+    "error": "COMMAND_TIMEOUT",
+    "command": "npm run test:multifunction",
+    "timeoutMs": 180000,
+    "stdout": "\n> gestia-premium@1.0.0 test:multifunction\n> node --check gestia-core/jarvis/jarvis.multitool.pack.js && node --check gestia-core/jarvis/jarvis.workbook.validator.js && node --check gestia-core/jarvis/jarvis.multifunction.planner.js && node --check gestia-core/jarvis/jarvis.conversation.composer.js && node --check gestia-core/jarvis/jarvis.actuator.pack.js && node --check gestia-core/jarvis/jarvis.image.adapter.js && node --check gestia-core/jarvis/jarvis.case.ledger.js && node --check gestia-core/repo/repo.source.structure.js && node --check modules/terminal/jarvis-attachments.js && node --test tests/jarvis-multifunction-tools.test.mjs tests/jarvis-conversation-composer.test.mjs tests/jarvis-workbook-validator.test.mjs tests/jarvis-actuator-pack.test.mjs tests/jarvis-local-video-engine-v142.test.mjs tests/jarvis-image-generation.test.cjs tests/jarvis-image-adapter.test.mjs tests/jarvis-marketing-handoff-v12.test.mjs tests/jarvis-marketing-expansion-v12.test.mjs tests/jarvis-marketing-artifact-uniqueness-v12.test.mjs tests/jarvis-brand-logo-overlay-v12.test.mjs tests/jarvis-media-analysis.test.cjs tests/jarvis-media-ingestion-precision.test.mjs tests/jarvis-document-extractor.test.mjs tests/jarvis-document-analysis-routing.test.mjs tests/jarvis-document-extraction-bridge.test.mjs tests/jarvis-semantic-planner.test.cjs tests/jarvis-genai-provider-chain.test.cjs tests/jarvis-attachments.test.mjs tests/jarvis-case-ledger.test.mjs tests/repo-source-structure.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs tests/jarvis-repo-target-runtime.test.mjs\n\n✔ the canonical three-minute timeline expands to 36 distinct physical Wan shots (12.0985ms)\n✔ cloud video adapter maps verified identity references to Veo assets and keeps extensions video-only (2.8352ms)\n✔ actuator pack registers browser, documents, image, delegation and connectors (11.2796ms)\n✔ agent delegation runs only read-only tools and rejects recursive delegation (1.9132ms)\n✔ browser actuator fails closed when the verified local bridge is absent (1.2652ms)\n✔ connector list reports verified bridge connectors (5.5021ms)\n✔ image edit composes identity references once and reports the generated output hash (47.7725ms)\n✔ document.create rejects an unresolved marketing.plan source before bridge write (2.8589ms)\n✔ video generation sends three verified identity references only to the initial Veo segment (15.0459ms)\n✔ video generation rejects six requested scenes before silently truncating or spending (3.0976ms)\n✔ video generation rejects an explicit chapter duration beyond one chained generation (5.5292ms)\n✔ CURRENT_STABLE fails closed when external cost authorization is unavailable (7.5673ms)\n✔ video generation recovers a transient poll on the same operation without a second start (5.9725ms)\n✔ video generation surfaces RAI reasons and never restarts from zero (2.1707ms)\n✔ video generation stays blocked when import does not prove a physical MP4 (4.9835ms)\n✔ series video loads canonical episode context before Veo and records only the physical result (10.5827ms)\n✔ series video blocks unsupported segment count before spending a Veo generation (1.1869ms)\n✔ a timestamped seven-beat series episode starts one resumable 180-second local operation (3.1725ms)\n✔ video generation fails closed when more than three identity references are requested (0.5214ms)\n✔ multimodal composer exposes bounded upload capabilities (4.3355ms)\n✔ delivered artifact blob downloads outlive composer cleanup (9.7455ms)\n✔ multimodal composer rejects incomplete selected batches (2.1746ms)\n✔ verified capability evidence survives independent forensic reads (6.7087ms)\n✔ terminal exposes a GPT-style plus menu, file input and artifact renderer (7.4079ms)\n✔ MPH campaign ships a responsive landing and a real browser video exporter (3.1616ms)\n✔ repo impact falls back to live bridge evidence for newly created files (8.508ms)\n✔ repo reads provide bounded numbered source evidence for semantic composition (9.8592ms)\n✔ brand-scene image.edit forbids generated logos and composites the official logo after provider output (58.9323ms)\n✔ persistent case ledger keeps objective and original instruction immutable across reloads (29.4941ms)\n✔ persistent case ledger accepts only hashed user evidence and deduplicates it (3.795ms)\n✔ mixed capability request executes evidence before one human composition (16.2687ms)\n✔ simple natural question stays conversational without capability evidence (0.5634ms)\n✔ explicit JSON output is accepted only from structured semantic plan metadata (0.6831ms)\n✔ successful capabilities cannot complete when final composition fails (3.9164ms)\n✔ mixed plan merge preserves conversation, capabilities and forensics (0.9607ms)\n✔ conversation evidence merge executes diagnostics and media analysis once (0.9849ms)\n✔ Gestia core imports the evidence merge helper used by the conversational mission (4.008ms)\n✔ bounded composition evidence removes raw content fields (2.0876ms)\n✔ capability briefing exposes useful domains and real limitations (1.182ms)\n✔ Terminal hides technical evidence names for grounded conversation (6.6046ms)\n✔ Terminal preserves complete capability JSON for explicit structured requests (6.4598ms)\n✔ oversized composition evidence remains valid bounded JSON (1.5305ms)\n✔ oversized mission media evidence promotes validSources into grounded sources (2.4404ms)\n✔ non-JSON composition rejects a raw tool payload (0.8322ms)\n✔ video evidence distinguishes physical delivery from unverified facial fidelity (1.2999ms)\n✔ precision-audited media is composed once by the single semantic brain (2.1088ms)\n✔ precision media final rejects raw JSON from the semantic brain (0.9743ms)\n✔ mixed media and health evidence share the same semantic final composer (3.5738ms)\n✔ precision mission envelope preserves intact validSources for the semantic brain (1.874ms)\n✔ conversation composer contains no local lexical intent or narrative regex brain (1.4807ms)\n✔ terminal exposes live operational work trace without raw telemetry (8.1825ms)\n✔ terminal hides grounded multimodal telemetry from the human chat surface (3.2946ms)\n✔ media.analyze uses local digital extraction for a DOCX without requiring cloud vision (24.9087ms)\n✔ media.analyze rejects a local extraction whose SHA differs from the uploaded attachment (1.7792ms)\n✔ POST /artifact/extract returns source hash and exact text from ledger bytes (16358.0128ms)\n✖ POST /artifact/extract remains behind bridge release identity (4255.5054ms)\n✔ extractor reads complete UTF-8 text and CSV tables without synthetic content (20.1286ms)\n✔ extractor rereads a real DOCX body and tables from OOXML bytes (3545.3064ms)\n✔ extractor reads every used XLSX worksheet including formulas and stored results (31983.4324ms)\n✔ extractor preserves PPTX slide order and visible text (183.1782ms)\n✔ extractor reads a real PDF text layer page by page and leaves scanned-page vision out of scope (31987.6547ms)\n✔ extractor blocks paths outside the artifact ledger and advertises supported document families (9.0561ms)\n✔ provider chain continues from an empty developer plan to Vertex AI (17.734ms)\n✔ provider chain quarantines a permanently invalid credential after first failure (2.5078ms)\n✔ provider chain classifies Vertex billing dunning as permanent and does not retry it (3.0578ms)\n✔ provider chain retries a transient provider failure once (188.7907ms)\n✔ provider schema compaction preserves routing fields but removes state-heavy constraints (3.5129ms)\n✔ provider request sanitation leaves Google Search alone and compacts function declarations (2.4692ms)\n✔ Gemini migration normalizes retired models, thinking config, and preserves thought signatures (1.061ms)\n✔ provider chain falls back to JSON planning when Vertex rejects function schema state size (2.0846ms)\n✔ grounded web freshness guard injects a real temporal contract only for fresh queries (6.0347ms)\n✔ provider chain forwards the freshness contract to the selected grounded provider (8.0514ms)\n✔ provider chain retries Google Search once when the first response has no grounding (196.0049ms)\n✔ provider chain reports every real provider failure without fabricating output (2.7292ms)\n✔ provider normalization ignores unavailable clients (0.8663ms)\n✔ grounding redirect detection is limited to Vertex grounding redirect URLs (0.4878ms)\n✔ grounding redirect resolver returns the canonical Location without fetching the article (2.9389ms)\n✔ grounding metadata is rewritten to canonical source URLs before research consumes it (4.4501ms)\n✔ image adapter derives real hero, card, reel and thumbnail assets from one source (84.85ms)\n✔ image adapter fails closed on unsafe variant requests (1.3274ms)\n✔ identity reference sheet gives the primary photo the large panel (2.6149ms)\n✔ official brand logo overlay uses the logo source as a second deterministic draw after the generated image (2.7916ms)\n✔ image generation validates and bounds its public request (2.8125ms)\n✔ image editing sends the real source image and records transformations (3.8904ms)\n✔ image fallback returns bounded real image bytes (1.3661ms)\n✔ image generation returns a real image part and ignores thought parts (0.5319ms)\n✔ Firebase workflow deploys the image actuator with the Jarvis services (88.9572ms)\n",
+    "stderr": "",
+    "durationMs": 180750,
+    "source": "jarvis_local_ai_physical_repo_search_030",
     "version": "2.52.0-cached-request-identity-v142"
   },
   "committedFiles": [
