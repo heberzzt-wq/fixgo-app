@@ -6134,13 +6134,20 @@ export function createJarvisFsBridgeApp({
                             ? rawText.slice(0, sourceMarker)
                             : rawText
                     );
-                    const compactText = structuralText
+                    const node = repoGraphCache.graph.nodes?.[document.file] || {};
+                    const structuralCore = structuralText
                         .split("\n")
                         .filter(line =>
                             /^(FILE|EXPORTS|FUNCTIONS|ENDPOINTS|COLLECTIONS):/.test(line)
                         )
+                        .join("\n");
+                    const literalText = Array.isArray(node.literals) && node.literals.length > 0
+                        ? `LITERALS: ${node.literals.slice(0, 40).join(", ")}`
+                        : "";
+                    const compactText = [structuralCore, literalText]
+                        .filter(Boolean)
                         .join("\n")
-                        .slice(0, 500);
+                        .slice(0, 700);
                     const normalizedText = compactText
                         .normalize("NFD")
                         .replace(/[\u0300-\u036f]/g, "")
@@ -6149,23 +6156,31 @@ export function createJarvisFsBridgeApp({
                         .normalize("NFD")
                         .replace(/[\u0300-\u036f]/g, "")
                         .toLowerCase();
-                    const node = repoGraphCache.graph.nodes?.[document.file] || {};
                     let queryOverlap = plannedSet.has(document.file) ? 1000 : 0;
                     for (const token of queryTokens) {
                         if (!normalizedText.includes(token)) continue;
                         queryOverlap += normalizedFile.includes(token) ? 4 : 1;
                     }
+                    const relationCount =
+                        Number(node.dependencies?.length || 0) +
+                        Number(node.dependents?.length || 0);
+                    const preselectionScore =
+                        queryOverlap +
+                        Math.min(12, relationCount) +
+                        (node.isTest ? -12 : 0) +
+                        (node.isGenerated ? -100 : 0) +
+                        (node.isDecorative ? -50 : 0);
                     return {
                         ...document,
                         text: compactText,
                         queryOverlap,
-                        relationCount:
-                            Number(node.dependencies?.length || 0) +
-                            Number(node.dependents?.length || 0)
+                        relationCount,
+                        preselectionScore
                     };
                 });
                 const documents = allDocuments
                     .sort((left, right) =>
+                        right.preselectionScore - left.preselectionScore ||
                         right.queryOverlap - left.queryOverlap ||
                         right.relationCount - left.relationCount ||
                         left.file.localeCompare(right.file)
