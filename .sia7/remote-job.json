@@ -1,11 +1,11 @@
 {
-  "jobId": "jarvis-local-ai-focused-repo-search-diagnostic-20260924-032",
+  "jobId": "jarvis-local-ai-focused-repo-search-bounded-20260924-033",
   "operation": "bridge",
   "endpoint": "/run",
   "body": {
     "command": "npm run test:jarvis:physical-repo-search",
     "cwd": ".",
     "timeoutMs": 180000,
-    "source": "jarvis_local_ai_focused_repo_search_diagnostic_032"
+    "source": "jarvis_local_ai_focused_repo_search_bounded_033"
   }
 }
