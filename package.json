@@ -35,7 +35,8 @@
     "check:jarvis:contracts": "node scripts/check-nexo-private-engine.mjs",
     "test:jarvis:runtime": "node --check modules/terminal/nexo-bootstrap.js && node --check gestia-core/nexo/nexo.identity.js && node --check gestia-core/nexo/nexo.mission.compiler.js && node --check gestia-core/nexo/nexo.mission.compiler.v2.js && node --check gestia-core/nexo/nexo.semantic-planner-resilience.js && node --check gestia-core/nexo/nexo.ui.branding.js && node --check gestia-core/nexo/nexo.real-media.tools.js && node --check gestia-core/jarvis/jarvis.marketing.engine.js && node --check nexo-web-media-bridge.js && node --test tests/nexo-terminal-bootstrap.test.mjs tests/nexo-real-media-tools.test.mjs tests/nexo-approval-normalization.test.mjs tests/jarvis-marketing-engine-v2.test.mjs tests/jarvis-marketing-real-delivery.test.mjs tests/jarvis-marketing-terminal-delivery.e2e.test.mjs tests/jarvis-daily-supervisor.test.cjs tests/single-semantic-authority.test.mjs",
     "test:jarvis:bridge": "node --test tests/nexo-web-media-bridge.test.mjs tests/jarvis-fs-bridge-v2.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-page-artifact.test.mjs tests/jarvis-page-insufficient-evidence-v123.test.mjs tests/jarvis-page-media.test.mjs tests/jarvis-reel-artifact.test.mjs tests/jarvis-reel-mp4-master-v142.test.mjs tests/jarvis-artifact-studio.test.mjs tests/jarvis-docx-artifact.test.mjs",
-    "check:jarvis": "npm run check:jarvis:contracts && npm run test:jarvis:runtime && npm run test:jarvis:bridge"
+    "check:jarvis": "npm run check:jarvis:contracts && npm run test:jarvis:runtime && npm run test:jarvis:bridge",
+    "test:jarvis:physical-repo-search": "node --test --test-name-pattern=\"physical repo.search uses live local embedding AST retrieval\" tests/jarvis-multifunction-tools.test.mjs"
   },
   "dependencies": {
     "acorn": "^8.18.0",
