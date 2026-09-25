@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 env:
-  CERTIFIED_SHA: b636b563014d041557b580a507763abf47f26443
+  CERTIFIED_SHA: e16cd714ae7c616957aaa29c8a8dcd3d4a4d6e2f
   FIREBASE_PROJECT_ID: fixgo-44e4d
   FIREBASE_SITE_ID: fixgo-44e4d
 
