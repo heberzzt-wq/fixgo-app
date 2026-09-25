@@ -4776,12 +4776,23 @@ export function registerJarvisMultifunctionTools(runtime) {
                         ].join("\n")
                         : instruction;
 
+                const conversationBudget =
+                    Math.max(
+                        96,
+                        Math.min(
+                            1200,
+                            Number(
+                                args.maxOutputTokens
+                            ) ||
+                            512
+                        )
+                    );
                 const result =
                     await fetchSemanticConversation(
                         semanticInstruction,
                         {
                             maxOutputTokens:
-                                args.maxOutputTokens
+                                conversationBudget
                         }
                     );
                 return {
