@@ -288,7 +288,7 @@ test("physical repo.search uses live local embedding AST retrieval when workstat
             `../gestia-core/tools.runtime.js?physical-repo-search=${Date.now()}`
         );
 
-        const result =
+        const execution =
             await runtimeModule.JarvisToolRuntime.execute(
                 "repo.search",
                 {
@@ -304,6 +304,9 @@ test("physical repo.search uses live local embedding AST retrieval when workstat
                         "physical_repo_search_e2e"
                 }
             );
+        const result =
+            execution?.data ||
+            execution;
 
         console.log(
             "JARVIS_PHYSICAL_REPO_SEARCH",

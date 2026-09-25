@@ -6104,38 +6104,77 @@ export function createJarvisFsBridgeApp({
                     repoGraphCache.semanticEmbeddingModel = embeddingModel;
                 }
 
-                const documents = buildRepoEmbeddingDocuments({
+                const queryTokens = [
+                    ...new Set(
+                        semanticQuery
+                            .normalize("NFD")
+                            .replace(/[\u0300-\u036f]/g, "")
+                            .toLowerCase()
+                            .match(/[a-z0-9_./-]{4,}/g) ||
+                        []
+                    )
+                ];
+                const semanticPoolLimit = Math.max(
+                    8,
+                    Math.min(
+                        24,
+                        Number(req.body?.semanticPoolLimit) ||
+                        12
+                    )
+                );
+                const plannedSet = new Set(plannedFiles);
+                const allDocuments = buildRepoEmbeddingDocuments({
                     graph: repoGraphCache.graph,
                     maximumDocuments: maxFiles
                 }).map(document => {
-                    const rawText =
-                        String(
-                            document?.text ||
-                            ""
-                        );
-                    const sourceMarker =
-                        rawText.indexOf("\nSOURCE:");
-                    const structuralText =
-                        (
-                            sourceMarker >= 0
-                                ? rawText.slice(
-                                    0,
-                                    sourceMarker
-                                )
-                                : rawText
+                    const rawText = String(document?.text || "");
+                    const sourceMarker = rawText.indexOf("\nSOURCE:");
+                    const structuralText = (
+                        sourceMarker >= 0
+                            ? rawText.slice(0, sourceMarker)
+                            : rawText
+                    );
+                    const compactText = structuralText
+                        .split("\n")
+                        .filter(line =>
+                            /^(FILE|EXPORTS|FUNCTIONS|ENDPOINTS|COLLECTIONS):/.test(line)
                         )
-                            .slice(0, 1800);
-
+                        .join("\n")
+                        .slice(0, 500);
+                    const normalizedText = compactText
+                        .normalize("NFD")
+                        .replace(/[\u0300-\u036f]/g, "")
+                        .toLowerCase();
+                    const normalizedFile = String(document.file || "")
+                        .normalize("NFD")
+                        .replace(/[\u0300-\u036f]/g, "")
+                        .toLowerCase();
+                    const node = repoGraphCache.graph.nodes?.[document.file] || {};
+                    let queryOverlap = plannedSet.has(document.file) ? 1000 : 0;
+                    for (const token of queryTokens) {
+                        if (!normalizedText.includes(token)) continue;
+                        queryOverlap += normalizedFile.includes(token) ? 4 : 1;
+                    }
                     return {
                         ...document,
-                        text:
-                            structuralText
+                        text: compactText,
+                        queryOverlap,
+                        relationCount:
+                            Number(node.dependencies?.length || 0) +
+                            Number(node.dependents?.length || 0)
                     };
                 });
+                const documents = allDocuments
+                    .sort((left, right) =>
+                        right.queryOverlap - left.queryOverlap ||
+                        right.relationCount - left.relationCount ||
+                        left.file.localeCompare(right.file)
+                    )
+                    .slice(0, semanticPoolLimit);
                 const missing = documents.filter(
                     document => !repoGraphCache.semanticEmbeddingCache.has(document.file)
                 );
-                const batchSize = 8;
+                const batchSize = 12;
                 for (let offset = 0; offset < missing.length; offset += batchSize) {
                     const batch = missing.slice(offset, offset + batchSize);
                     const embedded = await semanticEngine.embed(
@@ -6168,7 +6207,10 @@ export function createJarvisFsBridgeApp({
                     provider: "ollama-local",
                     model: embeddingModel,
                     queryEmbedded: true,
+                    documentsConsidered: allDocuments.length,
                     documentsEmbedded: documents.length,
+                    semanticPoolLimit,
+                    preselection: "query_structural_overlap_then_local_embedding",
                     cacheHits: documents.length - missing.length,
                     cacheMisses: missing.length,
                     externalApiUsed: false,

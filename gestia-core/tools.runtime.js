@@ -6147,7 +6147,7 @@ JarvisToolRuntime.register({
                                         Number(
                                             argObject.maxFiles
                                         ) ||
-                                        320
+                                        800
                                     )
                                 ),
                             maxFileSizeBytes:
