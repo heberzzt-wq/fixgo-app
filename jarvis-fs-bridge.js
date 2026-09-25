@@ -6107,14 +6107,31 @@ export function createJarvisFsBridgeApp({
                 const documents = buildRepoEmbeddingDocuments({
                     graph: repoGraphCache.graph,
                     maximumDocuments: maxFiles
-                }).map(document => ({
-                    ...document,
-                    text:
+                }).map(document => {
+                    const rawText =
                         String(
                             document?.text ||
                             ""
-                        ).slice(0, 3200)
-                }));
+                        );
+                    const sourceMarker =
+                        rawText.indexOf("\nSOURCE:");
+                    const structuralText =
+                        (
+                            sourceMarker >= 0
+                                ? rawText.slice(
+                                    0,
+                                    sourceMarker
+                                )
+                                : rawText
+                        )
+                            .slice(0, 1800);
+
+                    return {
+                        ...document,
+                        text:
+                            structuralText
+                    };
+                });
                 const missing = documents.filter(
                     document => !repoGraphCache.semanticEmbeddingCache.has(document.file)
                 );
