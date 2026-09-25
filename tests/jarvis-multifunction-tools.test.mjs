@@ -252,6 +252,25 @@ test("physical repo.search uses live local embedding AST retrieval when workstat
                 }
             );
             const body = await response.json();
+            if (!response.ok) {
+                console.log(
+                    "JARVIS_PHYSICAL_BRIDGE_NON_OK",
+                    JSON.stringify({
+                        route,
+                        httpStatus:
+                            response.status,
+                        status:
+                            body?.status ||
+                            null,
+                        error:
+                            body?.error ||
+                            null,
+                        semanticEvidence:
+                            body?.semanticEvidence ||
+                            null
+                    })
+                );
+            }
             return response.ok
                 ? body
                 : {
