@@ -18,6 +18,8 @@ test("Terminal public identity is ADJUNTO without renaming internal engines", ()
     assert.match(branding, /ADJUNTO listo/);
     assert.match(branding, /Terminal Heberto \| ADJUNTO/);
     assert.match(branding, /Dile a ADJUNTO qué debe investigar, crear, analizar o ejecutar/);
-    assert.match(branding, /__NEXO_RUNTIME_STAMP__/);
+    assert.match(branding, /__JARVIS_RUNTIME_STAMP__/);
+    assert.match(branding, /alternateBrains:\s*0/);
+    assert.doesNotMatch(branding, /__NEXO_RUNTIME_STAMP__/);
     assert.match(branding, /NEXO_UI_BRANDING_VERSION/);
 });
