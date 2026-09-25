@@ -9,7 +9,7 @@ const planCache = new Map();
 const pendingPlans = new Map();
 
 const LOCAL_MISSION_CONTRACT_TIMEOUT_MS =
-    45000;
+    90000;
 
 const GENERALIST_CURRENT_TURN_POLICY = [
     "Interpreta libremente la instruccion actual del usuario; no clasifiques por palabras clave ni por tablas de intencion.",
@@ -1775,7 +1775,7 @@ async function callSemanticPlanner(input = "", catalog = [], missionState = null
             "GROUNDED_ARGUMENT_COMPLETION"
         ].includes(String(missionState?.phase || ""))
             ? LOCAL_MISSION_CONTRACT_TIMEOUT_MS
-            : 30000;
+            : 60000;
 
     const bridge =
         globalThis?.JarvisLocalBridge ||
@@ -1802,8 +1802,8 @@ async function callSemanticPlanner(input = "", catalog = [], missionState = null
         {
             timeoutMs:
                 Math.min(
-                    timeoutMs + 5000,
-                    50000
+                    timeoutMs + 10000,
+                    100000
                 )
         }
     );
