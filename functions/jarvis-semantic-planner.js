@@ -1054,36 +1054,52 @@ async function runModelSemanticPlanner({
             );
     }
 
-    const request = {
-        model,
-        contents: [
-            buildSemanticSystemInstruction(safeCatalog, missionState),
-            `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
-            ...(compactJsonPlanning
-                ? ["MODO_LOCAL_COMPACTO: devuelve solamente JSON valido con toolCalls y missionComplete=false; selecciona herramientas exclusivamente del catalogo anterior."]
-                : [])
-        ].join("\n\n"),
-        config: {
-            maxOutputTokens:
-                safeCatalog.length <= 4
-                    ? 384
-                    : 1200,
-            temperature: 0,
-            thinkingConfig: {
-                thinkingLevel: "MINIMAL"
-            },
-            ...(compactJsonPlanning
-                ? { responseMimeType: "application/json" }
-                : {
-                    tools: [{ functionDeclarations: buildGeminiModelTools(safeCatalog) }],
-                    toolConfig: {
-                        functionCallingConfig: {
-                            mode: "ANY"
-                        }
-                    }
-                })
+    const request = compactJsonPlanning
+        ? {
+            model,
+            contents: [
+                "Eres Jarvis, la unica autoridad semantica local.",
+                "Selecciona exclusivamente herramientas del catalogo candidato. No inventes nombres ni resultados.",
+                `CATALOGO_CANDIDATO=${JSON.stringify(safeCatalog.map(tool => ({
+                    name: tool.name,
+                    description: tool.description,
+                    inputSchema: tool.inputSchema
+                })))}`,
+                `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
+                "Devuelve exclusivamente JSON valido con toolCalls:[{name,args}], missionComplete=false. Usa los nombres exactos del catalogo."
+            ].join("\n\n"),
+            config: {
+                maxOutputTokens: 384,
+                temperature: 0,
+                thinkingConfig: {
+                    thinkingLevel: "MINIMAL"
+                },
+                responseMimeType: "application/json"
+            }
         }
-    };
+        : {
+            model,
+            contents: [
+                buildSemanticSystemInstruction(safeCatalog, missionState),
+                `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
+            ].join("\n\n"),
+            config: {
+                maxOutputTokens:
+                    safeCatalog.length <= 4
+                        ? 384
+                        : 1200,
+                temperature: 0,
+                thinkingConfig: {
+                    thinkingLevel: "MINIMAL"
+                },
+                tools: [{ functionDeclarations: buildGeminiModelTools(safeCatalog) }],
+                toolConfig: {
+                    functionCallingConfig: {
+                        mode: "ANY"
+                    }
+                }
+            }
+        };
     const response = await ai.models.generateContent(request);
     let plan = extractGeminiToolCallPlan(response, safeCatalog);
 
@@ -1097,9 +1113,12 @@ async function runModelSemanticPlanner({
     }
 
     const needsJsonRetry =
-        !plan ||
-        (!Array.isArray(plan?.toolCalls) && plan?.missionComplete !== true) ||
-        (Array.isArray(plan?.toolCalls) && plan.toolCalls.length === 0 && plan?.missionComplete !== true);
+        !compactJsonPlanning &&
+        (
+            !plan ||
+            (!Array.isArray(plan?.toolCalls) && plan?.missionComplete !== true) ||
+            (Array.isArray(plan?.toolCalls) && plan.toolCalls.length === 0 && plan?.missionComplete !== true)
+        );
 
     if (needsJsonRetry) {
         const retryResponse = await ai.models.generateContent({
