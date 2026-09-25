@@ -1,11 +1,11 @@
 {
-  "jobId": "jarvis-local-ai-physical-repo-search-20260924-030",
+  "jobId": "jarvis-local-ai-focused-physical-repo-search-20260924-031",
   "operation": "bridge",
   "endpoint": "/run",
   "body": {
-    "command": "npm run test:multifunction",
+    "command": "npm run test:jarvis:physical-repo-search",
     "cwd": ".",
     "timeoutMs": 180000,
-    "source": "jarvis_local_ai_physical_repo_search_030"
+    "source": "jarvis_local_ai_focused_physical_repo_search_031"
   }
 }
