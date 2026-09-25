@@ -270,7 +270,7 @@ test("V142 predeploy Chrome verifies production loopback transport while source 
             }
         }
         catch(error) {
-            if (!/Execution context was destroyed|Cannot find context/i.test(String(error?.message || error))) {
+            if (!/Execution context was destroyed|Cannot find context|Cannot find default execution context/i.test(String(error?.message || error))) {
                 throw error;
             }
         }
