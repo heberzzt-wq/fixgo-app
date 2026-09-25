@@ -799,7 +799,7 @@ test("client planner keeps jarvisSemanticPlan as the single planning authority",
         "utf8"
     );
 
-    assert.match(source, /LOCAL_MISSION_CONTRACT_TIMEOUT_MS =\s*45000/);
+    assert.match(source, /LOCAL_MISSION_CONTRACT_TIMEOUT_MS =\s*90000/);
     assert.doesNotMatch(source, /text\.pollinations\.ai/);
     assert.doesNotMatch(source, /callBrowserMissionContract/);
     assert.doesNotMatch(source, /callBrowserSemanticPlan/);
@@ -5246,7 +5246,7 @@ test("semantic mission latency budgets are bounded and do not stack exhausted pr
     const plannerSource = fs.readFileSync(path.resolve("gestia-core/jarvis/jarvis.multifunction.planner.js"), "utf8");
     const coreSource = fs.readFileSync(path.resolve("gestia-core/gestia-core.js"), "utf8");
     const multitoolSource = fs.readFileSync(path.resolve("gestia-core/jarvis/jarvis.multitool.pack.js"), "utf8");
-    assert.match(plannerSource, /LOCAL_MISSION_CONTRACT_TIMEOUT_MS\s*=\s*\n\s*45000/);
+    assert.match(plannerSource, /LOCAL_MISSION_CONTRACT_TIMEOUT_MS\s*=\s*\n\s*90000/);
     assert.doesNotMatch(plannerSource, /BROWSER_MISSION_ATTEMPT_TIMEOUT_MS\s*=\s*\n\s*6000/);
     assert.doesNotMatch(plannerSource, /BROWSER_PLAN_ATTEMPT_TIMEOUT_MS\s*=\s*\n\s*5000/);
     assert.doesNotMatch(plannerSource, /:\s*110000;/);
@@ -5376,7 +5376,7 @@ test("terminal core-first has no orphan brain route and semantic latency is boun
     assert.doesNotMatch(terminalSource, /terminalBrainRoute/);
     assert.doesNotMatch(terminalSource, /routeTerminalNaturalIntent/);
     assert.match(terminalSource, /await window\.GestiaCore\.procesarIntencion/);
-    assert.match(plannerSource, /LOCAL_MISSION_CONTRACT_TIMEOUT_MS\s*=\s*\n\s*45000/);
+    assert.match(plannerSource, /LOCAL_MISSION_CONTRACT_TIMEOUT_MS\s*=\s*\n\s*90000/);
     assert.doesNotMatch(plannerSource, /BROWSER_MISSION_ATTEMPT_TIMEOUT_MS\s*=\s*\n\s*6000/);
     assert.doesNotMatch(plannerSource, /BROWSER_PLAN_ATTEMPT_TIMEOUT_MS\s*=\s*\n\s*5000/);
     assert.doesNotMatch(plannerSource, /:\s*110000;/);
