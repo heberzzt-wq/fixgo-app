@@ -6107,11 +6107,18 @@ export function createJarvisFsBridgeApp({
                 const documents = buildRepoEmbeddingDocuments({
                     graph: repoGraphCache.graph,
                     maximumDocuments: maxFiles
-                });
+                }).map(document => ({
+                    ...document,
+                    text:
+                        String(
+                            document?.text ||
+                            ""
+                        ).slice(0, 3200)
+                }));
                 const missing = documents.filter(
                     document => !repoGraphCache.semanticEmbeddingCache.has(document.file)
                 );
-                const batchSize = 32;
+                const batchSize = 8;
                 for (let offset = 0; offset < missing.length; offset += batchSize) {
                     const batch = missing.slice(offset, offset + batchSize);
                     const embedded = await semanticEngine.embed(
