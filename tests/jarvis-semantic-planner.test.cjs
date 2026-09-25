@@ -598,7 +598,7 @@ test("semantic response uses the local Jarvis provider and reports provenance", 
                     assert.equal(request.model, "jarvis-local");
                     assert.equal(
                         request.config.maxOutputTokens,
-                        3500
+                        160
                     );
                     assert.equal(
                         request.config.thinkingConfig
