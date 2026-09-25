@@ -6624,6 +6624,7 @@ export function createJarvisFsBridgeApp({
                     "npm run check:entry-syntax",
                     "npm run test:raw",
                     "npm run test:multifunction",
+                    "npm run test:jarvis:physical-repo-search",
                     "npm run test:mcp",
                     "npm run test:b2c-platform",
                     "npm run test:b2c-emulators",
