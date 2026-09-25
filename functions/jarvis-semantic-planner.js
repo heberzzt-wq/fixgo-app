@@ -50,6 +50,48 @@ function normalizeCatalog(catalog = []) {
         }));
 }
 
+function normalizePlannerSearchText(value = "") {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+}
+
+function shortlistSemanticCatalog(input = "", catalog = [], missionState = null, limit = 12) {
+    const safeCatalog = Array.isArray(catalog) ? catalog.filter(Boolean) : [];
+    const phase = String(missionState?.phase || "CURRENT_TURN");
+    if (phase !== "CURRENT_TURN" || safeCatalog.length <= limit) return safeCatalog;
+
+    const queryText = normalizePlannerSearchText(input);
+    const queryTokens = [...new Set(queryText.match(/[a-z0-9_./-]{3,}/g) || [])];
+    const missionText = normalizePlannerSearchText(JSON.stringify({
+        completedTasks: missionState?.completedTasks || [],
+        blockedTasks: missionState?.blockedTasks || []
+    }));
+
+    const ranked = safeCatalog.map((tool, index) => {
+        const name = normalizePlannerSearchText(tool?.name || "");
+        const nameTokens = new Set(name.split(/[^a-z0-9_-]+/g).filter(Boolean));
+        const description = normalizePlannerSearchText(tool?.description || "");
+        const schemaKeys = normalizePlannerSearchText(Object.keys(tool?.inputSchema?.properties || {}).join(" "));
+        let score = 0;
+        if (name && queryText.includes(name)) score += 40;
+        for (const token of queryTokens) {
+            if (nameTokens.has(token)) score += 12;
+            else if (name.includes(token)) score += 8;
+            if (description.includes(token)) score += 3;
+            if (schemaKeys.includes(token)) score += 2;
+        }
+        if (name && missionText.includes(name)) score += 30;
+        if (tool?.mutates === true) score -= 0.25;
+        return { tool, index, score };
+    }).sort((a, b) => b.score - a.score || a.index - b.index);
+
+    if (!ranked.length || ranked[0].score <= 0) return safeCatalog;
+    return ranked
+        .slice(0, Math.max(4, Math.min(24, Number(limit) || 12)))
+        .map(entry => entry.tool);
+}
 function extractJsonObject(value = "") {
     const text = String(value || "");
     let start = -1;
@@ -664,7 +706,9 @@ async function runModelSemanticPlanner({
 } = {}) {
     if (!ai?.models?.generateContent) throw new Error("SEMANTIC_GEMINI_REQUIRED");
     const instruction = String(input || "").trim();
-    const safeCatalog = normalizeCatalog(catalog);
+    const normalizedCatalog = normalizeCatalog(catalog);
+    const safeCatalog = shortlistSemanticCatalog(instruction, normalizedCatalog, missionState, 4);
+    const compactJsonPlanning = normalizedCatalog.length > safeCatalog.length;
     if (!instruction || safeCatalog.length === 0) throw new Error("SEMANTIC_GEMINI_INPUT_REQUIRED");
 
     if (missionState?.phase === "MISSION_CONTRACT") {
@@ -1014,7 +1058,10 @@ async function runModelSemanticPlanner({
         model,
         contents: [
             buildSemanticSystemInstruction(safeCatalog, missionState),
-            `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
+            `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
+            ...(compactJsonPlanning
+                ? ["MODO_LOCAL_COMPACTO: devuelve solamente JSON valido con toolCalls y missionComplete=false; selecciona herramientas exclusivamente del catalogo anterior."]
+                : [])
         ].join("\n\n"),
         config: {
             maxOutputTokens:
@@ -1025,29 +1072,62 @@ async function runModelSemanticPlanner({
             thinkingConfig: {
                 thinkingLevel: "MINIMAL"
             },
-            tools: [{ functionDeclarations: buildGeminiModelTools(safeCatalog) }],
-            toolConfig: {
-                functionCallingConfig: {
-                    mode: "ANY"
-                }
-            }
+            ...(compactJsonPlanning
+                ? { responseMimeType: "application/json" }
+                : {
+                    tools: [{ functionDeclarations: buildGeminiModelTools(safeCatalog) }],
+                    toolConfig: {
+                        functionCallingConfig: {
+                            mode: "ANY"
+                        }
+                    }
+                })
         }
     };
     const response = await ai.models.generateContent(request);
     let plan = extractGeminiToolCallPlan(response, safeCatalog);
 
     if (!plan && String(response?.text || "").trim()) {
-        plan =
-            normalizeTextToolPlan(
-                extractJsonObject(
-                    String(
-                        response.text
-                    )
-                ),
+        try {
+            plan = normalizeTextToolPlan(
+                extractJsonObject(String(response.text)),
                 safeCatalog
             );
+        } catch {}
     }
 
+    const needsJsonRetry =
+        !plan ||
+        (!Array.isArray(plan?.toolCalls) && plan?.missionComplete !== true) ||
+        (Array.isArray(plan?.toolCalls) && plan.toolCalls.length === 0 && plan?.missionComplete !== true);
+
+    if (needsJsonRetry) {
+        const retryResponse = await ai.models.generateContent({
+            model,
+            contents: [
+                buildSemanticSystemInstruction(safeCatalog, missionState),
+                "INSTRUCCION_ORIGINAL_INMUTABLE=" + instruction,
+                [
+                    "REINTENTO_JSON_LOCAL: la seleccion anterior no produjo una herramienta ejecutable.",
+                    "Devuelve exclusivamente JSON valido con toolCalls y missionComplete=false.",
+                    "Selecciona solamente herramientas del catalogo mostrado arriba y conserva los argumentos requeridos por sus schemas.",
+                    "No expliques fuera del JSON y no inventes nombres de herramientas."
+                ].join("\n")
+            ].join("\n\n"),
+            config: {
+                maxOutputTokens: 768,
+                temperature: 0,
+                thinkingConfig: { thinkingLevel: "MINIMAL" },
+                responseMimeType: "application/json"
+            }
+        });
+        if (String(retryResponse?.text || "").trim()) {
+            plan = normalizeTextToolPlan(
+                extractJsonObject(String(retryResponse.text)),
+                safeCatalog
+            );
+        }
+    }
     if (!plan && missionState) {
         const auditResponse = await ai.models.generateContent({
             model,
@@ -1119,7 +1199,28 @@ function normalizeTextToolPlan(plan = {}, catalog = []) {
     }
 
     if (Array.isArray(plan.toolCalls)) {
-        return plan;
+        const normalizedCalls = plan.toolCalls
+            .slice(0, 12)
+            .map(call => {
+                const providerName = String(call?.name || "").trim();
+                let runtimeName = providerName;
+                if (providerName.startsWith("jarvis_tool_")) {
+                    const index = Number(providerName.slice("jarvis_tool_".length));
+                    runtimeName = Number.isInteger(index) && catalog[index]
+                        ? catalog[index].name
+                        : "";
+                }
+                const args = call?.args && typeof call.args === "object" && !Array.isArray(call.args)
+                    ? call.args
+                    : call?.arguments && typeof call.arguments === "object" && !Array.isArray(call.arguments)
+                        ? call.arguments
+                        : {};
+                return runtimeName
+                    ? { ...call, name: runtimeName, args }
+                    : null;
+            })
+            .filter(Boolean);
+        return { ...plan, toolCalls: normalizedCalls };
     }
 
     const providerName =
