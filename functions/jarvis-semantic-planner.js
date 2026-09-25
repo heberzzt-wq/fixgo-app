@@ -1271,6 +1271,7 @@ async function runJarvisSemanticResponse({
     maxOutputTokens = 160
 } = {}) {
     const instruction = String(input || "").trim();
+    // Keep local CPU inference bounded while preserving enough room for a concise verified answer.
     const budget = Math.max(96, Math.min(8000, Number(maxOutputTokens) || 160));
     if (instruction.length < 1 || instruction.length > 120000) throw new Error("SEMANTIC_RESPONSE_INPUT_OUT_OF_RANGE");
     if (!ai?.models?.generateContent) throw new Error("SEMANTIC_AUTHENTICATED_PROVIDER_REQUIRED");
