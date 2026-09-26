@@ -90,6 +90,39 @@ test("conversational Jarvis response stays visible instead of generic success su
     assert.notEqual(result.text, "Estado: SUCCESS");
 });
 
+test("conversation tool lifts nested message even through generic success envelope", () => {
+    const message = "Qué onda pariente, todo bien por acá.";
+    const observation = ResponseComposer.composeToolObservation(
+        "conversation.respond",
+        {
+            ok: true,
+            status: "SEMANTIC_RESPONSE_READY",
+            message
+        }
+    );
+    const response = ResponseComposer.success(
+        {
+            ok: true,
+            status: "SEMANTIC_RESPONSE_READY",
+            message
+        },
+        {
+            type: "TOOL_RESULT",
+            tool: "conversation.respond"
+        }
+    );
+    const result = ResponseComposer.composeAgentToolResult({
+        observations: [observation],
+        response,
+        meta: {
+            tool: "conversation.respond"
+        }
+    });
+
+    assert.equal(result.text, message);
+    assert.equal(result.report, message);
+});
+
 test("approval requirement remains visible in the composed agent envelope", () => {
     const observation = ResponseComposer.composeToolObservation(
         "page.create",
