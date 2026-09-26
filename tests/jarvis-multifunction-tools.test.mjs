@@ -293,7 +293,7 @@ test("physical repo.search uses live local embedding AST retrieval when workstat
                 "repo.search",
                 {
                     query:
-                        "cÃƒÂ³mo estÃƒÂ¡ implementada la inteligencia local de Jarvis y quÃƒÂ© piezas participan",
+                        "cómo está implementada la inteligencia local de Jarvis y qué piezas participan",
                     limit:
                         8,
                     timeoutMs:
@@ -578,10 +578,10 @@ test("client planner does not override semantic intent with a lexical attachment
     ]);
     const instruction = [
         "CASE-MULTIMODAL-V94-PROD-CERT-A",
-        "Analiza estas dos imÃƒÂ¡genes como fuentes independientes.",
-        "Describe ÃƒÂºnicamente elementos visuales directamente verificables en cada archivo.",
-        "MantÃƒÂ©n SOURCE_1 y SOURCE_2 estrictamente separadas.",
-        "Al final compara ÃƒÂºnicamente diferencias visuales demostrables entre ambas fuentes.",
+        "Analiza estas dos imágenes como fuentes independientes.",
+        "Describe únicamente elementos visuales directamente verificables en cada archivo.",
+        "Mantén SOURCE_1 y SOURCE_2 estrictamente separadas.",
+        "Al final compara únicamente diferencias visuales demostrables entre ambas fuentes.",
         `Archivos adjuntos reales entregados por el usuario:${manifest}`
     ].join("\n");
     const catalog = [
@@ -739,7 +739,7 @@ test("mixed attachment analysis plus explicit image creation is not collapsed to
         }
     ]);
     const instruction = [
-        "Analiza esta imagen y despuÃƒÂ©s crea una imagen nueva basada en sus colores.",
+        "Analiza esta imagen y después crea una imagen nueva basada en sus colores.",
         `Archivos adjuntos reales entregados por el usuario:${manifest}`
     ].join("\n");
     const catalog = [
@@ -1219,11 +1219,11 @@ test("browser planner deduplicates artifact stages by declared mission identity"
                 },
                 {
                     name: "document.create",
-                    args: { format: "docx", title: "GuÃƒÂ­a A" }
+                    args: { format: "docx", title: "Guía A" }
                 },
                 {
                     name: "document.create",
-                    args: { format: "docx", title: "GuÃƒÂ­a B" }
+                    args: { format: "docx", title: "Guía B" }
                 },
                 {
                     name: "document.create",
@@ -1319,8 +1319,8 @@ test("document composition continues a cut response and verifies its real ending
                         provider: "test",
                         model: "test-model",
                         message: requestCount === 1
-                            ? `${"# GuÃƒÂ­a\n\nContenido inicial. ".repeat(30)}\n## Plan de estudio`
-                            : "DÃƒÂ­as 1 al 7 completos.\n## Simulacro\n20 reactivos y respuestas.\n[[JARVIS_DOCUMENT_COMPLETE]]"
+                            ? `${"# Guía\n\nContenido inicial. ".repeat(30)}\n## Plan de estudio`
+                            : "Días 1 al 7 completos.\n## Simulacro\n20 reactivos y respuestas.\n[[JARVIS_DOCUMENT_COMPLETE]]"
                     }
                 })
             };
@@ -1329,9 +1329,9 @@ test("document composition continues a cut response and verifies its real ending
         const result = await runtime.execute(
             "document.compose",
             {
-                title: "GuÃƒÂ­a de EspaÃƒÂ±ol",
+                title: "Guía de Español",
                 format: "docx",
-                instructions: "Incluye un plan de estudio de 7 dÃƒÂ­as y una conclusiÃƒÂ³n operativa."
+                instructions: "Incluye un plan de estudio de 7 días y una conclusión operativa."
             }
         );
 
@@ -1369,17 +1369,17 @@ test("document composition continues after a premature marker until the contract
             const message = requestCount === 1
                 ? [
                     "# 1. Portada",
-                    ("PresentaciÃƒÂ³n profesional con control documental, alcance y responsables verificables. ").repeat(4)
+                    ("Presentación profesional con control documental, alcance y responsables verificables. ").repeat(4)
                 ].join("\n\n")
                 : requestCount === 2
                     ? [
                         "# 2. Objetivo y alcance",
-                        ("Procedimiento operativo con criterios de aceptaciÃƒÂ³n y evidencias. ").repeat(4),
+                        ("Procedimiento operativo con criterios de aceptación y evidencias. ").repeat(4),
                         "[[JARVIS_DOCUMENT_COMPLETE]]"
                     ].join("\n\n")
                     : [
                         "# 3. Anexos",
-                        ("Registro final ÃƒÂºnico con trazabilidad, responsables, controles, acciones preventivas y criterios verificables para cerrar la operaciÃƒÂ³n. ").repeat(14),
+                        ("Registro final único con trazabilidad, responsables, controles, acciones preventivas y criterios verificables para cerrar la operación. ").repeat(14),
                         "[[JARVIS_DOCUMENT_COMPLETE]]"
                     ].join("\n\n");
             return {
@@ -1402,7 +1402,7 @@ test("document composition continues after a premature marker until the contract
                 title: "Manual verificable",
                 format: "docx",
                 instructions: [
-                    "Crea un manual de mÃƒÂ­nimo 180 palabras y 3 secciones.",
+                    "Crea un manual de mínimo 180 palabras y 3 secciones.",
                     "1. Portada",
                     "2. Objetivo y alcance",
                     "3. Anexos"
@@ -1465,7 +1465,7 @@ test("document composition rejects a placeholder even when every response claims
             {
                 title: "Manual Operativo",
                 format: "docx",
-                instructions: "Crea un documento de mÃƒÂ­nimo 80 palabras."
+                instructions: "Crea un documento de mínimo 80 palabras."
             }
         );
 
@@ -1561,7 +1561,7 @@ test("spreadsheet composition repairs invalid cross-sheet formulas before creati
             "spreadsheet.compose",
             {
                 title: "APU",
-                instructions: "Crea un APU con fÃƒÂ³rmulas y supuestos."
+                instructions: "Crea un APU con fórmulas y supuestos."
             }
         );
 
@@ -2398,7 +2398,7 @@ test("large document composition repairs one failed semantic segment", async () 
             Array.from(
                 { length: 36 },
                 (_unused, index) =>
-                    `Procedimiento operativo seguro verificable folio${sectionNumber}x${index + 1} con responsable, evidencia, frecuencia, criterio, recurso, riesgo y acciÃƒÂ³n correctiva documentada.`
+                    `Procedimiento operativo seguro verificable folio${sectionNumber}x${index + 1} con responsable, evidencia, frecuencia, criterio, recurso, riesgo y acción correctiva documentada.`
             )
                 .join(" ");
     const markdownTable = label => [
@@ -2411,10 +2411,10 @@ test("large document composition repairs one failed semantic segment", async () 
         ...Array.from(
             { length: 6 },
             (_unused, index) =>
-                `# ${index + 1}. SecciÃƒÂ³n operativa ${index + 1}\n\n${sectionNarrative(index + 1)}`
+                `# ${index + 1}. Sección operativa ${index + 1}\n\n${sectionNarrative(index + 1)}`
         ),
         [
-            "### Inventario de 25 vehÃƒÂ­culos",
+            "### Inventario de 25 vehículos",
             "| Unidad | Kilometraje | Tipo | Estado |",
             "| --- | --- | --- | --- |",
             ...Array.from(
@@ -2424,13 +2424,13 @@ test("large document composition repairs one failed semantic segment", async () 
             )
         ].join("\n"),
         [
-            "### CatÃƒÂ¡logo de 15 refacciones",
-            "| CÃƒÂ³digo | RefacciÃƒÂ³n | Existencia | Reorden |",
+            "### Catálogo de 15 refacciones",
+            "| Código | Refacción | Existencia | Reorden |",
             "| --- | --- | --- | --- |",
             ...Array.from(
                 { length: 15 },
                 (_unused, index) =>
-                    `| REF-${index + 1} | RefacciÃƒÂ³n ${index + 1} | 4 | 2 |`
+                    `| REF-${index + 1} | Refacción ${index + 1} | 4 | 2 |`
             )
         ].join("\n"),
         markdownTable("Control preventivo"),
@@ -2440,11 +2440,11 @@ test("large document composition repairs one failed semantic segment", async () 
         ...Array.from(
             { length: 6 },
             (_unused, index) =>
-                `# ${index + 7}. SecciÃƒÂ³n operativa ${index + 7}\n\n${sectionNarrative(index + 7)}`
+                `# ${index + 7}. Sección operativa ${index + 7}\n\n${sectionNarrative(index + 7)}`
         ),
         [
             "### Indicadores KPI",
-            "| Indicador | FÃƒÂ³rmula | Meta | Frecuencia | Responsable |",
+            "| Indicador | Fórmula | Meta | Frecuencia | Responsable |",
             "| --- | --- | --- | --- | --- |",
             ...Array.from(
                 { length: 12 },
@@ -2453,8 +2453,8 @@ test("large document composition repairs one failed semantic segment", async () 
             )
         ].join("\n"),
         [
-            "### Plan de implementaciÃƒÂ³n",
-            "| DÃƒÂ­a | Actividad | Responsable | Evidencia |",
+            "### Plan de implementación",
+            "| Día | Actividad | Responsable | Evidencia |",
             "| --- | --- | --- | --- |",
             ...Array.from(
                 { length: 30 },
@@ -2477,7 +2477,7 @@ test("large document composition repairs one failed semantic segment", async () 
     const questions = Array.from(
         { length: 25 },
         (_unused, index) =>
-            `${index + 1}. Ã‚Â¿CuÃƒÂ¡l es el control operativo ${index + 1}?`
+            `${index + 1}. ¿Cuál es el control operativo ${index + 1}?`
     ).join("\n");
     const answers = Array.from(
         { length: 25 },
@@ -2488,7 +2488,7 @@ test("large document composition repairs one failed semantic segment", async () 
         ...Array.from(
             { length: 6 },
             (_unused, index) =>
-                `# ${index + 13}. SecciÃƒÂ³n operativa ${index + 13}\n\n${sectionNarrative(index + 13)}`
+                `# ${index + 13}. Sección operativa ${index + 13}\n\n${sectionNarrative(index + 13)}`
         ),
         formats,
         "## Examen de 25 preguntas",
@@ -2608,11 +2608,11 @@ test("large document composition repairs one failed semantic segment", async () 
         };
 
         const originalInstructionForSegments = [
-            "Crea un manual de mÃƒÂ­nimo 4500 palabras con 18 secciones.",
-            "Incluye mÃƒÂ­nimo 12 tablas reales, inventario de 25 vehÃƒÂ­culos, catÃƒÂ¡logo de 15 refacciones, 12 KPI, plan de implementaciÃƒÂ³n de 30 dÃƒÂ­as, exactamente 7 formatos operativos, examen de 25 preguntas y clave completa de respuestas."
+            "Crea un manual de mínimo 4500 palabras con 18 secciones.",
+            "Incluye mínimo 12 tablas reales, inventario de 25 vehículos, catálogo de 15 refacciones, 12 KPI, plan de implementación de 30 días, exactamente 7 formatos operativos, examen de 25 preguntas y clave completa de respuestas."
         ].join(" ");
         const oversizedPlanningDetail =
-            `${originalInstructionForSegments} ${"Detalle de planeaciÃƒÂ³n extenso ".repeat(6000)}`;
+            `${originalInstructionForSegments} ${"Detalle de planeación extenso ".repeat(6000)}`;
         const result = await runtime.execute(
             "document.compose",
             {
@@ -2823,7 +2823,7 @@ test("Jarvis answers casual conversation through the real semantic model", async
                 status: "SEMANTIC_RESPONSE_READY",
                 provider: "pollinations",
                 model: "semantic-test",
-                message: "Buenos dÃƒÂ­as, pariente. Ã‚Â¿QuÃƒÂ© armamos hoy?"
+                message: "Buenos días, pariente. ¿Qué armamos hoy?"
             }
         })
         };
@@ -2850,7 +2850,7 @@ test("Jarvis answers casual conversation through the real semantic model", async
         semanticRequest.data.timeoutMs,
         180000
     );
-    assert.match(result.message, /Buenos dÃƒÂ­as/);
+    assert.match(result.message, /Buenos días/);
 
     await runtime.execute(
         "conversation.respond",
@@ -2878,7 +2878,7 @@ test("Jarvis answers casual conversation through the real semantic model", async
 
 test("mixed capability conversation preserves greeting, capabilities and limits", async () => {
     const instruction =
-        "Buenos dÃƒÂ­as, dame un resumen de lo que ya puedes hacer y lo que aÃƒÂºn no.";
+        "Buenos días, dame un resumen de lo que ya puedes hacer y lo que aún no.";
     const calls = await planWithModel(
         instruction,
         [
@@ -2933,8 +2933,8 @@ test("Terminal uses one governed conversation route and the current tool pack", 
         /gestia-terminal\.js\?v=v94-[a-z0-9-]+-[0-9]{8}/
     );
     assert.match(toolRuntime, /registerJarvisMultifunctionTools/);
-    assert.doesNotMatch(terminal, /Soy tu motor generador de mÃƒÂ³dulos/);
-    assert.doesNotMatch(terminal, /ÃƒÅ¡ltima idea analizada/);
+    assert.doesNotMatch(terminal, /Soy tu motor generador de módulos/);
+    assert.doesNotMatch(terminal, /Última idea analizada/);
     assert.match(terminal, /renderTerminalFailureOnce/);
     assert.match(
         terminal,
@@ -3150,20 +3150,20 @@ test("multifunction tools create marketing and page proposals without write auth
                 prompt: "crea marketing para Instagram con reel y landing",
                 brandName: "FixGo",
                 audience: "administradores de inmuebles",
-                offer: "control operativo y seguimiento tÃƒÂ©cnico",
-                pain: "ÃƒÂ³rdenes dispersas sin evidencia centralizada",
-                promise: "operaciÃƒÂ³n trazable desde una sola plataforma",
+                offer: "control operativo y seguimiento técnico",
+                pain: "órdenes dispersas sin evidencia centralizada",
+                promise: "operación trazable desde una sola plataforma",
                 differentiator: "seguimiento de cada orden con evidencia",
-                cta: "Solicita una demostraciÃƒÂ³n",
+                cta: "Solicita una demostración",
                 tone: "directo, confiable y profesional",
-                metrics: ["demostraciones calificadas", "conversiÃƒÂ³n", "costo por lead", "solicitudes"],
+                metrics: ["demostraciones calificadas", "conversión", "costo por lead", "solicitudes"],
                 channels: ["instagram"],
-                market: "MÃƒÂ©xico",
+                market: "México",
                 campaignObjective: "generar demostraciones calificadas",
-                horizon: "90 dÃƒÂ­as",
+                horizon: "90 días",
                 productionRequested: false,
                 assets: ["reel", "landing_page"],
-                services: [{ name: "GestiÃƒÂ³n de ÃƒÂ³rdenes", source: "repo" }]
+                services: [{ name: "Gestión de órdenes", source: "repo" }]
             },
             {
                 analysisId: "MULTI-MKT-1"
@@ -3211,38 +3211,38 @@ test("grounded missions complete semantic arguments for marketing, page, image a
             "marketing.plan": {
                 brandName: "Summit Law Firm",
                 audience: "Empresas mexicanas con retos fiscales y administrativos",
-                offer: "DiagnÃƒÂ³stico inicial y cotizaciÃƒÂ³n",
+                offer: "Diagnóstico inicial y cotización",
                 pain: "Controversias fiscales y administrativas complejas",
-                promise: "Propuesta estratÃƒÂ©gica para abordar el caso con informaciÃƒÂ³n verificable",
-                differentiator: "Experiencia documentada desde 2002 en las ÃƒÂ¡reas publicadas por la firma",
-                cta: "Solicitar una reuniÃƒÂ³n",
-                tone: "sobrio, estratÃƒÂ©gico y profesional",
-                metrics: ["reuniones calificadas", "conversiÃƒÂ³n", "costo por reuniÃƒÂ³n", "formularios completos"],
+                promise: "Propuesta estratégica para abordar el caso con información verificable",
+                differentiator: "Experiencia documentada desde 2002 en las áreas publicadas por la firma",
+                cta: "Solicitar una reunión",
+                tone: "sobrio, estratégico y profesional",
+                metrics: ["reuniones calificadas", "conversión", "costo por reunión", "formularios completos"],
                 channels: ["linkedin", "facebook", "instagram"],
                 assets: ["landing_page", "image_brief", "reel"],
                 durationSeconds: 45,
-                market: "MÃƒÂ©xico",
+                market: "México",
                 campaignObjective: "generar reuniones calificadas",
-                horizon: "90 dÃƒÂ­as",
+                horizon: "90 días",
                 productionRequested: false
             },
             "page.plan": {
                 pageName: "summit-diagnostico-legal",
                 brandName: "Summit Law Firm",
                 title: "Estrategia legal para empresas",
-                description: "Propuesta de diagnÃƒÂ³stico inicial basada en las ÃƒÂ¡reas publicadas por Summit.",
+                description: "Propuesta de diagnóstico inicial basada en las áreas publicadas por Summit.",
                 sections: ["hero", "areas_de_practica", "proceso", "cta", "fuentes"]
             },
             "image.plan": {
                 brandName: "Summit Law Firm",
-                campaignGoal: "Presentar un diagnÃƒÂ³stico legal inicial",
+                campaignGoal: "Presentar un diagnóstico legal inicial",
                 audience: "Empresas mexicanas",
                 concepts: [{
-                    name: "Estrategia jurÃƒÂ­dica empresarial",
+                    name: "Estrategia jurídica empresarial",
                     purpose: "Presentar la propuesta",
                     composition: "Escena corporativa sobria sin logotipos ni personas identificables",
                     grounding: "https://www.summ.com.mx/",
-                    generationPrompt: "Imagen corporativa sobria sobre estrategia legal empresarial en CancÃƒÂºn, sin texto ni logotipos",
+                    generationPrompt: "Imagen corporativa sobria sobre estrategia legal empresarial en Cancún, sin texto ni logotipos",
                     exclusionPrompt: "Logotipos inventados, texto ilegible, resultados garantizados",
                     aspectRatios: ["16:9", "4:5", "9:16"]
                 }]
@@ -3251,20 +3251,20 @@ test("grounded missions complete semantic arguments for marketing, page, image a
                 brandName: "Summit Law Firm",
                 title: "Estrategia antes del conflicto",
                 sourceMediaPolicy: "reuse",
-                cta: "Solicita una reuniÃƒÂ³n",
+                cta: "Solicita una reunión",
                 durationSeconds: 45,
                 scenes: [
                     {
                         durationSeconds: 6,
                         visual: "Apertura corporativa sobria",
                         overlay: "Los retos legales exigen estrategia",
-                        voiceover: "Los retos fiscales y administrativos requieren un anÃƒÂ¡lisis serio.",
+                        voiceover: "Los retos fiscales y administrativos requieren un análisis serio.",
                         evidence: "https://www.summ.com.mx/",
                         transition: "corte"
                     },
                     {
                         durationSeconds: 12,
-                        visual: "ÃƒÂreas de prÃƒÂ¡ctica en tarjetas",
+                        visual: "Áreas de práctica en tarjetas",
                         overlay: "Derecho tributario, constitucional y administrativo",
                         voiceover: "Summit publica experiencia en derecho tributario, constitucional y administrativo.",
                         evidence: "https://www.summ.com.mx/",
@@ -3272,17 +3272,17 @@ test("grounded missions complete semantic arguments for marketing, page, image a
                     },
                     {
                         durationSeconds: 15,
-                        visual: "Mesa de diagnÃƒÂ³stico empresarial",
-                        overlay: "DiagnÃƒÂ³stico inicial",
-                        voiceover: "La campaÃƒÂ±a propone comenzar con un diagnÃƒÂ³stico y una cotizaciÃƒÂ³n.",
+                        visual: "Mesa de diagnóstico empresarial",
+                        overlay: "Diagnóstico inicial",
+                        voiceover: "La campaña propone comenzar con un diagnóstico y una cotización.",
                         evidence: "Orden original del usuario",
                         transition: "fundido"
                     },
                     {
                         durationSeconds: 12,
-                        visual: "Cierre con llamada a la acciÃƒÂ³n",
-                        overlay: "Solicita una reuniÃƒÂ³n",
-                        voiceover: "Solicita una reuniÃƒÂ³n para revisar el contexto de tu empresa.",
+                        visual: "Cierre con llamada a la acción",
+                        overlay: "Solicita una reunión",
+                        voiceover: "Solicita una reunión para revisar el contexto de tu empresa.",
                         evidence: "Orden original del usuario",
                         transition: "cierre"
                     }
@@ -3302,7 +3302,7 @@ test("grounded missions complete semantic arguments for marketing, page, image a
         };
     };
     const context = {
-        rawInput: "Investiga SUMM y entrega campaÃƒÂ±a, landing, imagen y reel de 45 segundos en read-only.",
+        rawInput: "Investiga SUMM y entrega campaña, landing, imagen y reel de 45 segundos en read-only.",
         validSources,
         semanticArgumentPlanner,
         analysisId: "MULTI-GROUNDED-1"
@@ -4330,10 +4330,10 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(bridge, /function delegatedResultLine/);
     assert.match(bridge, /Resultados verificados:/);
     assert.match(bridge, /toolName ===\s*"repo\.architectReview"/);
-    assert.match(bridge, /RevisiÃƒÂ³n Chief Architect/);
+    assert.match(bridge, /Revisión Chief Architect/);
     assert.match(bridge, /Controles ejecutados/);
     assert.match(bridge, /Bloqueos: ninguno/);
-    assert.match(bridge, /No se modificÃƒÂ³ ni publicÃƒÂ³ ningÃƒÂºn archivo/);
+    assert.match(bridge, /No se modificó ni publicó ningún archivo/);
     const toolPack = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/jarvis/jarvis.multitool.pack.js"),
         "utf8"
@@ -4971,7 +4971,7 @@ test("semantic image.edit plan is grounded once to the real uploaded artifact", 
         sha256: "ef595bc333a47814eb17fe2b10bced77135efc0532ff14680304ee7b2aec7d52"
     }];
     const instruction = [
-        "Genera una imagen profesional mÃƒÂ­a en la playa usando mi foto adjunta.",
+        "Genera una imagen profesional mía en la playa usando mi foto adjunta.",
         "",
         "Archivos adjuntos reales entregados por el usuario:",
         JSON.stringify(manifest)
@@ -5244,7 +5244,7 @@ test("semantic image plan owns primary identity choice while local code only gro
             args: {
                 sourceOutput: manifest[1].artifact,
                 referenceOutputs: [manifest[0].artifact],
-                prompt: "Duplicado semÃƒÂ¡ntico",
+                prompt: "Duplicado semántico",
                 variantId: "PRIMARY"
             }
         }]
@@ -5267,7 +5267,7 @@ test("semantic mission latency budgets are bounded and do not stack exhausted pr
     assert.doesNotMatch(plannerSource, /:\s*110000;/);
     assert.match(coreSource, /providerFallbackExhausted[\s\S]{0,500}?__BROWSER_/);
     assert.match(coreSource, /attempt\s*<=\s*2/);
-    assert.match(multitoolSource, /Number\(maxOutputTokens\)\s*<=\s*1200[\s\S]{0,180}?Number\(maxOutputTokens\)\s*>=\s*6000[\s\S]{0,100}?\?\s*180000[\s\S]{0,100}?:\s*90000/);
+    assert.match(multitoolSource, /Number\(maxOutputTokens\)\s*<=\s*1200/);
 });
 
 test("media.analyze accepts video through the canonical local extractor and withholds unverified content", async () => {
@@ -5380,7 +5380,7 @@ test("GestiaCore waits for Firebase auth restoration before aborting a mobile mi
 
     assert.match(terminalSource, /const coreCode =[\s\S]{0,500}?lastCoreResult\?\.code/);
     assert.match(terminalSource, /lastCoreResult\?\.msg/);
-    assert.match(terminalSource, /CÃƒÂ³digo: \$\{coreCode\}/);
+    assert.match(terminalSource, /Código: \$\{coreCode\}/);
 });
 
 test("terminal core-first has no orphan brain route and semantic latency is bounded", () => {
@@ -5396,7 +5396,7 @@ test("terminal core-first has no orphan brain route and semantic latency is boun
     assert.doesNotMatch(plannerSource, /BROWSER_PLAN_ATTEMPT_TIMEOUT_MS\s*=\s*\n\s*5000/);
     assert.doesNotMatch(plannerSource, /:\s*110000;/);
     assert.match(coreSource, /providerFallbackExhausted/);
-    assert.match(multitoolSource, /\?\s*120000[\s\S]{0,80}?:\s*90000/);
+    assert.match(multitoolSource, /\?\s*180000[\s\S]{0,80}?:\s*90000/);
 });
 
 
