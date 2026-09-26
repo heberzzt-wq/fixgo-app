@@ -3892,28 +3892,26 @@ export const GestiaCore = {
                     projectId: "adjunto"
                 }
             });
+        const registeredCurrentTurnTools =
+            globalThis.JarvisToolRuntime
+                ?.list?.() ||
+            [];
+        const conversationTool =
+            registeredCurrentTurnTools.find(tool =>
+                tool?.name === "conversation.respond"
+            ) || null;
         const currentTurnToolCatalog =
-            (
-                globalThis.JarvisToolRuntime
-                    ?.list?.() ||
-                []
-            )
-                .slice(0, 80)
-                .map(tool => ({
-                    name: tool.name,
-                    description: String(tool.description || "").slice(0, 120),
-                    mutates: tool.mutates === true,
-                    requiresApproval: tool.requiresApproval === true,
-                    userArtifact: tool.userArtifact === true,
-                    missionIsolation:
-                        tool.missionIsolation === "exclusive"
-                            ? "exclusive"
-                            : null
-                }))
-                .filter(tool =>
-                    typeof tool.name === "string" &&
-                    tool.name.trim()
-                );
+            conversationTool
+                ? [{
+                    name: conversationTool.name,
+                    description:
+                        "Responde directamente cuando la instruccion actual puede satisfacerse solo conversando, sin ejecutar herramientas, investigar, leer archivos ni producir artefactos.",
+                    mutates: false,
+                    requiresApproval: false,
+                    userArtifact: false,
+                    missionIsolation: null
+                }]
+                : [];
 
         let lightMultifunctionCalls = [];
         let lastCurrentTurnPlannerError = null;
@@ -3926,6 +3924,7 @@ export const GestiaCore = {
                             state,
                             throwOnUnavailable: true,
                             toolCatalog: currentTurnToolCatalog,
+                            allowCurrentTurnDelegationOnEmpty: true,
                             missionState: {
                                 phase: "CURRENT_TURN",
                                 semanticMemoryAvailable: Boolean(semanticMemory),
@@ -3969,6 +3968,24 @@ export const GestiaCore = {
         }
         if (lastCurrentTurnPlannerError) {
             throw lastCurrentTurnPlannerError;
+        }
+
+        if (lightMultifunctionCalls.length === 0) {
+            lightMultifunctionCalls =
+                await buildJarvisMultifunctionToolCalls(
+                    inputRaw,
+                    {
+                        state,
+                        throwOnUnavailable: true,
+                        toolCatalog: registeredCurrentTurnTools,
+                        missionState: {
+                            phase: "CURRENT_TURN",
+                            semanticMemoryAvailable: Boolean(semanticMemory),
+                            advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemory),
+                            writeAllowed: false
+                        }
+                    }
+                );
         }
 
         if (

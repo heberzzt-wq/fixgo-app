@@ -2139,6 +2139,30 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
             }];
         }
 
+        if (
+            currentTurn &&
+            calls.length === 0 &&
+            context.allowCurrentTurnDelegationOnEmpty === true &&
+            plan?.missionComplete !== true
+        ) {
+            globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {
+                ok: plan?.ok === true,
+                status: plan?.status || "SEMANTIC_PLAN_READY",
+                provider: plan?.provider || "ollama-openai-compatible-local",
+                model: plan?.model || null,
+                toolCount: 0,
+                semanticAuthority: "jarvisSemanticPlan",
+                localOnly: true,
+                alternateBrains: 0,
+                delegatedToFullPlanner: true,
+                localSemanticInferenceUsed: plan?.localSemanticInferenceUsed === true,
+                cloudSemanticInferenceUsed: false,
+                externalApiUsed: false,
+                checkedAt: new Date().toISOString()
+            };
+            return attachPlanMetadata([], plan);
+        }
+
         if (currentTurn && calls.length === 0) {
             planCache.delete(
                 planCacheKey(

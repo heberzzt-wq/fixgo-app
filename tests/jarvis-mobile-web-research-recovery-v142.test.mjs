@@ -122,23 +122,20 @@ test("v142 pure semantic conversation bypasses mission orchestration", () => {
     );
 });
 
-test("v142 current-turn semantic planner uses a slim catalog and bounded retries", () => {
+test("v142 current-turn semantic planner gates conversation before the full catalog", () => {
     const core = fs.readFileSync(
         new URL("../gestia-core/gestia-core.js", import.meta.url),
         "utf8"
     );
-    const start = core.indexOf("const currentTurnToolCatalog =");
-    const end = core.indexOf(
-        "if (lastCurrentTurnPlannerError)",
-        start
-    );
+    const start = core.indexOf("const registeredCurrentTurnTools =");
     assert.ok(start >= 0);
-    assert.ok(end > start);
-    const block = core.slice(start, end);
-    assert.match(block, /\.slice\(0, 80\)/);
-    assert.match(block, /description:[\s\S]*?\.slice\(0, 120\)/);
+    const block = core.slice(start, start + 4200);
+    assert.match(block, /tool\?\.name === "conversation\.respond"/);
+    assert.match(block, /const currentTurnToolCatalog =[\s\S]*?conversationTool/);
+    assert.doesNotMatch(block, /\.slice\(0, 80\)/);
     assert.doesNotMatch(block, /inputSchema:/);
-    assert.match(block, /toolCatalog:\s*currentTurnToolCatalog/);
+    assert.match(block, /allowCurrentTurnDelegationOnEmpty:\s*true/);
+    assert.match(block, /toolCatalog:\s*registeredCurrentTurnTools/);
     assert.match(block, /attempt <= 2/);
     assert.match(block, /attempt >= 2/);
 });

@@ -110,6 +110,36 @@ test("completed semantic current turn becomes one direct conversation without re
     assert.equal(calls[0].reason, "SEMANTIC_CURRENT_TURN_COMPLETE");
 });
 
+test("conversation gate may delegate an unmatched current turn without self-replanning", async () => {
+    const instruction = "Revisa el repo y dime dónde está el bridge local.";
+    let plannerCalls = 0;
+    const calls = await buildJarvisMultifunctionToolCalls(instruction, {
+        toolCatalog: [{
+            name: "conversation.respond",
+            description: "Responde solamente conversación directa."
+        }],
+        missionState: {
+            phase: "CURRENT_TURN"
+        },
+        allowCurrentTurnDelegationOnEmpty: true,
+        semanticPlanner: async () => {
+            plannerCalls += 1;
+            return {
+                ok: true,
+                status: "SEMANTIC_PLAN_READY",
+                provider: "test-semantic-model",
+                model: "semantic-generalist",
+                missionComplete: false,
+                toolCalls: []
+            };
+        },
+        throwOnUnavailable: true
+    });
+
+    assert.equal(plannerCalls, 1);
+    assert.deepEqual(calls, []);
+});
+
 test("current conversational instruction is not contaminated by stale marketing state", async () => {
     const instruction = "Explícame por qué el cielo se ve azul y háblame como compañero.";
     const calls = await buildJarvisMultifunctionToolCalls(instruction, {
