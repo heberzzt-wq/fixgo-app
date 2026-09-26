@@ -2123,6 +2123,22 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
         const currentTurn =
             String(activeMissionState?.phase || "") === "CURRENT_TURN";
 
+        if (
+            currentTurn &&
+            calls.length === 0 &&
+            plan?.missionComplete === true &&
+            catalog.some(tool => tool?.name === "conversation.respond")
+        ) {
+            calls = [{
+                name: "conversation.respond",
+                args: {
+                    prompt: instruction
+                },
+                approved: false,
+                reason: "SEMANTIC_CURRENT_TURN_COMPLETE"
+            }];
+        }
+
         if (currentTurn && calls.length === 0) {
             planCache.delete(
                 planCacheKey(

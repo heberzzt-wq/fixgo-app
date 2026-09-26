@@ -82,6 +82,34 @@ test("planner declares semantic generalist current-turn architecture", () => {
     assert.match(__test.GENERALIST_CURRENT_TURN_POLICY, /no equivale/i);
 });
 
+test("completed semantic current turn becomes one direct conversation without replanning", async () => {
+    const instruction = "Qué tal pariente, ¿cómo estás?";
+    let plannerCalls = 0;
+    const calls = await buildJarvisMultifunctionToolCalls(instruction, {
+        toolCatalog: catalog,
+        missionState: {
+            phase: "CURRENT_TURN"
+        },
+        semanticPlanner: async () => {
+            plannerCalls += 1;
+            return {
+                ok: true,
+                status: "SEMANTIC_PLAN_READY",
+                provider: "test-semantic-model",
+                model: "semantic-generalist",
+                missionComplete: true,
+                toolCalls: []
+            };
+        },
+        throwOnUnavailable: true
+    });
+
+    assert.equal(plannerCalls, 1);
+    assert.deepEqual(calls.map(call => call.name), ["conversation.respond"]);
+    assert.equal(calls[0].args.prompt, instruction);
+    assert.equal(calls[0].reason, "SEMANTIC_CURRENT_TURN_COMPLETE");
+});
+
 test("current conversational instruction is not contaminated by stale marketing state", async () => {
     const instruction = "Explícame por qué el cielo se ve azul y háblame como compañero.";
     const calls = await buildJarvisMultifunctionToolCalls(instruction, {
