@@ -3892,9 +3892,32 @@ export const GestiaCore = {
                     projectId: "adjunto"
                 }
             });
+        const currentTurnToolCatalog =
+            (
+                globalThis.JarvisToolRuntime
+                    ?.list?.() ||
+                []
+            )
+                .slice(0, 80)
+                .map(tool => ({
+                    name: tool.name,
+                    description: String(tool.description || "").slice(0, 120),
+                    mutates: tool.mutates === true,
+                    requiresApproval: tool.requiresApproval === true,
+                    userArtifact: tool.userArtifact === true,
+                    missionIsolation:
+                        tool.missionIsolation === "exclusive"
+                            ? "exclusive"
+                            : null
+                }))
+                .filter(tool =>
+                    typeof tool.name === "string" &&
+                    tool.name.trim()
+                );
+
         let lightMultifunctionCalls = [];
         let lastCurrentTurnPlannerError = null;
-        for (let attempt = 1; attempt <= 3; attempt += 1) {
+        for (let attempt = 1; attempt <= 2; attempt += 1) {
             try {
                 lightMultifunctionCalls =
                     await buildJarvisMultifunctionToolCalls(
@@ -3902,6 +3925,7 @@ export const GestiaCore = {
                         {
                             state,
                             throwOnUnavailable: true,
+                            toolCatalog: currentTurnToolCatalog,
                             missionState: {
                                 phase: "CURRENT_TURN",
                                 semanticMemoryAvailable: Boolean(semanticMemory),
@@ -3925,7 +3949,7 @@ export const GestiaCore = {
                     message.includes("AUTH_REQUIRED") ||
                     isPermanentSemanticPlannerFailure(message);
                 if (
-                    attempt >= 3 ||
+                    attempt >= 2 ||
                     providerFallbackExhausted
                 ) {
                     throw error;
