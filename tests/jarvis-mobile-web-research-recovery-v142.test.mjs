@@ -102,7 +102,7 @@ test("v142 final conversational composition stays within the local CPU response 
     assert.ok(start >= 0);
     assert.ok(end > start);
     const block = core.slice(start, end);
-    assert.match(block, /name:\s*"conversation\.respond"[\s\S]*?maxOutputTokens:\s*160/);
+    assert.match(block, /name:\s*"conversation\.respond"[\s\S]*?maxOutputTokens:\s*256/);
     assert.doesNotMatch(block, /maxOutputTokens:\s*3500/);
 });
 
