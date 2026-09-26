@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 env:
-  CERTIFIED_SHA: 45716105e4eded2f92f26e1641303b1462f4c338
+  CERTIFIED_SHA: 0dbd7fb14cecdc665a2d64077b7f813682017ac8
   FIREBASE_PROJECT_ID: fixgo-44e4d
   FIREBASE_SITE_ID: fixgo-44e4d
 
@@ -182,7 +182,7 @@ jobs:
             curl --fail --silent --show-error --location "$base/gestia-core/jarvis/jarvis.conversation.composer.js?sha=$CERTIFIED_SHA&attempt=$attempt" -o /tmp/composer.js || true
             curl --fail --silent --show-error --location "$base/gestia-core/gestia-core.js?sha=$CERTIFIED_SHA&attempt=$attempt" -o /tmp/core.js || true
             curl --fail --silent --show-error --location "$base/gestia-terminal.html?sha=$CERTIFIED_SHA&attempt=$attempt" -o /tmp/terminal.html || true
-            if grep -Fq '1.13.0-jarvis-single-authority-local-first' /tmp/bootstrap.js               && grep -Fq 'maximumAttempts = 3' /tmp/bootstrap.js               && grep -Fq 'JARVIS_LOCAL_BRIDGE_TRANSIENT_RETRY' /tmp/bootstrap.js               && grep -Fq 'LOCAL_SEMANTIC_RESPONSE_UNAVAILABLE' /tmp/multitool.js               && grep -Fq 'fallbackAllowed: false' /tmp/multitool.js               && grep -Fq 'Number(maxOutputTokens) <= 1200' /tmp/multitool.js               && grep -Fq 'const MAX_EVIDENCE_LENGTH = 8000' /tmp/composer.js               && grep -Fq 'payload?.candidates' /tmp/composer.js               && grep -Fq 'maxOutputTokens:' /tmp/core.js               && grep -Fq '160' /tmp/core.js               && grep -Fq 'TERMINAL_LOCAL_SEMANTIC_AUTHORITY_UNAVAILABLE' /tmp/terminal.html; then
+            if grep -Fq '1.13.0-jarvis-single-authority-local-first' /tmp/bootstrap.js               && grep -Fq 'maximumAttempts = 3' /tmp/bootstrap.js               && grep -Fq 'JARVIS_LOCAL_BRIDGE_TRANSIENT_RETRY' /tmp/bootstrap.js               && grep -Fq 'LOCAL_SEMANTIC_RESPONSE_UNAVAILABLE' /tmp/multitool.js               && grep -Fq 'fallbackAllowed: false' /tmp/multitool.js               && grep -Fq 'Number(maxOutputTokens) <= 1200' /tmp/multitool.js               && grep -Fq 'const MAX_EVIDENCE_LENGTH = 8000' /tmp/composer.js               && grep -Fq 'payload?.candidates' /tmp/composer.js               && grep -Fq 'maxOutputTokens:' /tmp/core.js               && grep -Fq '256' /tmp/core.js               && grep -Fq 'TERMINAL_LOCAL_SEMANTIC_AUTHORITY_UNAVAILABLE' /tmp/terminal.html; then
               ok=true
               break
             fi
