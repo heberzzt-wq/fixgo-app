@@ -86,6 +86,88 @@ test("semantic planner contains no hardcoded media or mini-drama playbook", () =
 });
 
 
+test("current-turn conversational gate returns a precomposed direct response in one inference", async () => {
+    let calls = 0;
+    const ai = {
+        lastProvider: "ollama-openai-compatible-local",
+        models: {
+            async generateContent() {
+                calls += 1;
+                return {
+                    text: JSON.stringify({
+                        direct: true,
+                        message: "A toda madre, pariente. ¿Y tú qué tal?"
+                    })
+                };
+            }
+        }
+    };
+    const result = await runJarvisSemanticPlanner({
+        ai,
+        input: "Qué tal pariente, ¿cómo estás?",
+        catalog: [{
+            name: "conversation.respond",
+            description: "Responde directamente cuando basta conversar.",
+            mutates: false
+        }],
+        missionState: {
+            phase: "CURRENT_TURN",
+            conversationalGate: true
+        }
+    });
+
+    assert.equal(calls, 1);
+    assert.equal(result.toolCalls.length, 1);
+    assert.equal(result.toolCalls[0].name, "conversation.respond");
+    assert.equal(
+        result.toolCalls[0].reason,
+        "MODEL_DIRECT_CONVERSATION_RESPONSE"
+    );
+    assert.equal(
+        result.toolCalls[0].args.prompt,
+        "A toda madre, pariente. ¿Y tú qué tal?"
+    );
+});
+
+test("current-turn conversational gate delegates operational work without inventing a response", async () => {
+    let calls = 0;
+    const ai = {
+        lastProvider: "ollama-openai-compatible-local",
+        models: {
+            async generateContent() {
+                calls += 1;
+                return {
+                    text: JSON.stringify({
+                        direct: false,
+                        message: ""
+                    })
+                };
+            }
+        }
+    };
+    const result = await runJarvisSemanticPlanner({
+        ai,
+        input: "Revisa el repositorio y dime qué falló.",
+        catalog: [{
+            name: "conversation.respond",
+            description: "Responde directamente cuando basta conversar.",
+            mutates: false
+        }],
+        missionState: {
+            phase: "CURRENT_TURN",
+            conversationalGate: true
+        }
+    });
+
+    assert.equal(calls, 1);
+    assert.equal(result.toolCalls.length, 0);
+    assert.equal(result.missionComplete, false);
+    assert.equal(
+        result.planKind,
+        "CURRENT_TURN_CONVERSATION_GATE_DELEGATE"
+    );
+});
+
 test("semantic planner rejects calls missing schema-required arguments", () => {
     const readTool = {
         name: "repo.read",

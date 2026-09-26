@@ -4766,6 +4766,35 @@ export function registerJarvisMultifunctionTools(runtime) {
                 const instruction =
                     resolveInstruction(args, context);
 
+                if (
+                    context?.precomposedSemanticResponse === true &&
+                    instruction
+                ) {
+                    const directResult = {
+                        ok: true,
+                        status: "SEMANTIC_RESPONSE_READY",
+                        version: "1.24.0-local-only-single-jarvis",
+                        provider: "ollama-openai-compatible-local",
+                        model: null,
+                        message: instruction,
+                        localSemanticInferenceUsed: true,
+                        cloudSemanticInferenceUsed: false,
+                        externalApiUsed: false,
+                        externalEstimatedCostUsd: 0,
+                        fallbackAllowed: false,
+                        localOnly: true,
+                        source: "SEMANTIC_PLANNER_DIRECT_RESPONSE",
+                        checkedAt: new Date().toISOString()
+                    };
+                    globalThis.__JARVIS_SEMANTIC_CONVERSATION_HEALTH__ =
+                        directResult;
+                    return {
+                        ...directResult,
+                        instruction,
+                        readOnly: true
+                    };
+                }
+
                 const memoryEnvelope =
                     semanticMemoryEnvelope(context);
                 const semanticInstruction =

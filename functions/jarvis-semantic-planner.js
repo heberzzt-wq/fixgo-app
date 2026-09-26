@@ -1152,6 +1152,85 @@ async function runModelSemanticPlanner({
             );
     }
 
+    if (
+        missionState?.conversationalGate === true &&
+        safeCatalog.length === 1 &&
+        safeCatalog[0]?.name === "conversation.respond"
+    ) {
+        const gateResponse = await ai.models.generateContent({
+            model,
+            contents: [
+                "Eres Jarvis, la unica autoridad semantica local.",
+                "Decide si la instruccion actual puede resolverse completamente conversando, sin leer archivos, investigar, consultar estado externo, ejecutar herramientas, mutar datos ni producir artefactos.",
+                "Si puede resolverse conversando, escribe la respuesta final visible al usuario en espanol natural y devuelve JSON {\"direct\":true,\"message\":\"respuesta final\"}.",
+                "Si requiere cualquier herramienta o evidencia operativa, no intentes resolverla: devuelve JSON {\"direct\":false,\"message\":\"\"}.",
+                "No repitas la solicitud como message. No inventes ejecuciones, accesos, archivos, fuentes ni resultados.",
+                `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
+            ].join("\n\n"),
+            config: {
+                maxOutputTokens: 192,
+                temperature: 0,
+                thinkingConfig: {
+                    thinkingLevel: "MINIMAL"
+                },
+                responseMimeType: "application/json"
+            }
+        });
+        const gatePayload =
+            extractJsonObject(
+                String(
+                    gateResponse?.text ||
+                    ""
+                )
+            ) || {};
+        const directMessage =
+            String(
+                gatePayload?.message ||
+                ""
+            ).trim();
+        const direct =
+            gatePayload?.direct === true &&
+            directMessage.length > 0;
+
+        if (!direct) {
+            return {
+                ok: true,
+                status: "SEMANTIC_PLAN_READY",
+                version: VERSION,
+                toolCalls: [],
+                explanation: "",
+                missionComplete: false,
+                completionAssessment: null,
+                provider: String(ai.lastProvider || "jarvis-local"),
+                model,
+                catalogSize: 1,
+                planKind: "CURRENT_TURN_CONVERSATION_GATE_DELEGATE"
+            };
+        }
+
+        return {
+            ok: true,
+            status: "SEMANTIC_PLAN_READY",
+            version: VERSION,
+            toolCalls: [{
+                name: "conversation.respond",
+                args: {
+                    prompt: directMessage
+                },
+                reason: "MODEL_DIRECT_CONVERSATION_RESPONSE",
+                mutates: false,
+                approved: false
+            }],
+            explanation: "",
+            missionComplete: false,
+            completionAssessment: null,
+            provider: String(ai.lastProvider || "jarvis-local"),
+            model,
+            catalogSize: 1,
+            planKind: "CURRENT_TURN_CONVERSATION_GATE_DIRECT"
+        };
+    }
+
     const request = compactJsonPlanning
         ? {
             model,

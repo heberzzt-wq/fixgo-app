@@ -4143,6 +4143,9 @@ export const GestiaCore = {
                     tenantId,
                     analysisId,
                     semanticMemory: semanticMemoryContext,
+                    precomposedSemanticResponse:
+                        conversationCall.reason ===
+                        "MODEL_DIRECT_CONVERSATION_RESPONSE",
                     writeAllowed: false,
                     approved: false
                 }
