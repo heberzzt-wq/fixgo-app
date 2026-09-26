@@ -135,6 +135,15 @@ test("v142 current-turn semantic planner gates conversation before the full cata
     assert.doesNotMatch(block, /\.slice\(0, 80\)/);
     assert.doesNotMatch(block, /inputSchema:/);
     assert.match(block, /allowCurrentTurnDelegationOnEmpty:\s*true/);
+    assert.match(block, /conversationalGate:\s*true/);
+    const gateStart = block.indexOf("toolCatalog: currentTurnToolCatalog");
+    const gateEnd = block.indexOf("if (lastCurrentTurnPlannerError)");
+    assert.ok(gateStart >= 0);
+    assert.ok(gateEnd > gateStart);
+    assert.doesNotMatch(
+        block.slice(gateStart, gateEnd),
+        /advisorySemanticContext/
+    );
     assert.match(block, /toolCatalog:\s*registeredCurrentTurnTools/);
     assert.match(block, /attempt <= 2/);
     assert.match(block, /attempt >= 2/);

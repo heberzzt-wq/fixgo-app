@@ -3928,7 +3928,7 @@ export const GestiaCore = {
                             missionState: {
                                 phase: "CURRENT_TURN",
                                 semanticMemoryAvailable: Boolean(semanticMemory),
-                                advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemory),
+                                conversationalGate: true,
                                 writeAllowed: false
                             }
                         }
