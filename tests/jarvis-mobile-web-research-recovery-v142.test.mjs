@@ -106,6 +106,24 @@ test("v142 final conversational composition stays within the local CPU response 
     assert.doesNotMatch(block, /maxOutputTokens:\s*3500/);
 });
 
+test("v142 single-tool semantic mission contract stays locked after successful execution", () => {
+    const core = fs.readFileSync(
+        new URL("../gestia-core/gestia-core.js", import.meta.url),
+        "utf8"
+    );
+    const start = core.indexOf("executionContractLocked:");
+    const block = core.slice(start, start + 400);
+    assert.ok(start >= 0);
+    assert.match(
+        block,
+        /lastMissionContractError\s*===\s*null[\s\S]*?missionContractToolCalls\.length\s*>\s*0/
+    );
+    assert.doesNotMatch(
+        block,
+        /missionInitialToolCalls\.length\s*>\s*1/
+    );
+});
+
 test("v142 recovery query removes the inaccessible source anchor but preserves identity", () => {
     const query = buildCrossSourceResearchRecoveryQuery(
         `Taquería El Dorado @taqueria.eldorado Cancún ${seedUrl}`,

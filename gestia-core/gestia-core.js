@@ -4695,7 +4695,10 @@ if (
                 [...new Set(missionInitialToolCalls.map(call => call.name))],
             executionContractLocked:
                 missionIsIsolated ||
-                missionInitialToolCalls.length > 1,
+                (
+                    lastMissionContractError === null &&
+                    missionContractToolCalls.length > 0
+                ),
             caseId:
                 context.caseId || null,
             objectiveId:
