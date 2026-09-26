@@ -51,7 +51,7 @@ function semanticMemoryEnvelope(context = {}) {
     const memory = context?.semanticMemory;
     if (!memory || typeof memory !== "object") return "";
     try {
-        return JSON.stringify(memory).slice(0, 24000);
+        return JSON.stringify(memory).slice(0, 4000);
     } catch {
         return "";
     }

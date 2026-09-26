@@ -1,5 +1,5 @@
 const MAX_EVIDENCE_ITEMS = 12;
-const MAX_EVIDENCE_LENGTH = 24000;
+const MAX_EVIDENCE_LENGTH = 8000;
 
 export function isExplicitJsonResponseRequest(
     planOrCalls = null
@@ -521,6 +521,12 @@ function compactRepositoryObservation(
         !Array.isArray(observation)
             ? observation
             : {};
+    const payload =
+        source?.data &&
+        typeof source.data === "object" &&
+        !Array.isArray(source.data)
+            ? source.data
+            : source;
     const verifiedRead =
         source?.verifiedRead &&
         typeof source.verifiedRead === "object" &&
@@ -615,6 +621,12 @@ function compactRepositoryObservation(
                         source?.totalDependents,
                     sourceStructure:
                         source?.sourceStructure,
+                    candidates:
+                        payload?.candidates,
+                    recommendation:
+                        payload?.recommendation,
+                    repositoryTarget:
+                        payload?.repositoryTarget,
                     evidence: source?.evidence
                 },
                 {

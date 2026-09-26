@@ -277,6 +277,32 @@ test("bounded composition evidence removes raw content fields", () => {
     assert.doesNotMatch(evidence, /RAW_RUNTIME_DUMP|AAEC/);
 });
 
+test("repo candidate evidence preserves ranked files inside the CPU bounded envelope", () => {
+    const evidence = buildBoundedConversationEvidence([{
+        name: "repo.rankCandidates",
+        observation: {
+            ok: true,
+            status: "HYBRID_CANDIDATE_RANKING_READY",
+            data: {
+                candidates: [
+                    { file: "jarvis-fs-bridge.js", score: 208.69, reasons: ["local embedding", "runtime relation"] },
+                    { file: "gestia-core/jarvis/jarvis.multitool.pack.js", score: 170, reasons: ["semantic authority"] },
+                    { file: "functions/jarvis-semantic-planner.js", score: 168, reasons: ["planner runtime"] }
+                ],
+                recommendation: {
+                    file: "jarvis-fs-bridge.js",
+                    why: ["highest grounded rank"]
+                }
+            }
+        }
+    }]);
+
+    assert.match(evidence, /jarvis-fs-bridge\.js/);
+    assert.match(evidence, /jarvis\.multitool\.pack\.js/);
+    assert.match(evidence, /jarvis-semantic-planner\.js/);
+    assert.ok(evidence.length <= 8000);
+});
+
 test("capability briefing exposes useful domains and real limitations", () => {
     const briefing = JSON.parse(
         buildCapabilityEvidenceBriefing([
