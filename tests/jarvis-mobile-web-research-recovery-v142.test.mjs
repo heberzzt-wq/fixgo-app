@@ -156,6 +156,21 @@ test("v142 mission evidence preserves ranked repo candidates before generic comp
     );
 });
 
+test("v142 final conversation includes raw repo runtime evidence with candidates", () => {
+    const core = fs.readFileSync(
+        new URL("../gestia-core/gestia-core.js", import.meta.url),
+        "utf8"
+    );
+    assert.match(
+        core,
+        /const runtimeRepositoryEvidenceItems =[\s\S]*?missionExecution\?\.name[\s\S]*?startsWith\("repo\."\)/
+    );
+    assert.match(
+        core,
+        /const missionEvidenceItems = \[[\s\S]*?\.\.\.runtimeRepositoryEvidenceItems/
+    );
+});
+
 test("v142 recovery query removes the inaccessible source anchor but preserves identity", () => {
     const query = buildCrossSourceResearchRecoveryQuery(
         `Taquería El Dorado @taqueria.eldorado Cancún ${seedUrl}`,

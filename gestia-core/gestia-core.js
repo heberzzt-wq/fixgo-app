@@ -5926,8 +5926,24 @@ if (
             : "Escrituras y publicaciones automaticas: no ejecutadas.";
 
     let semanticMissionFinalResponse = null;
+    const runtimeRepositoryEvidenceItems =
+        (Array.isArray(toolObservations)
+            ? toolObservations
+            : [])
+            .map(observation => ({
+                name:
+                    observation?.missionExecution?.name ||
+                    observation?.tool ||
+                    observation?.name ||
+                    "",
+                observation
+            }))
+            .filter(item =>
+                String(item.name || "").startsWith("repo.")
+            );
     const missionEvidenceItems = [
         ...missionResult.completedTasks,
+        ...runtimeRepositoryEvidenceItems,
         ...missionResult.blockedTasks.map(item => ({
             name:
                 item.name,
