@@ -1651,7 +1651,7 @@ window.JarvisLocalBridge.buildRepoGraph ||= async function(payload = {}) {
     return await window.JarvisLocalBridge.requestJson("/repo/graph", payload, { timeoutMs: payload.timeoutMs || 90000 });
 };
 window.JarvisLocalBridge.rankRepoCandidates ||= async function(payload = {}) {
-    return await window.JarvisLocalBridge.requestJson("/repo/candidates", payload, { timeoutMs: payload.timeoutMs || 90000 });
+    return await window.JarvisLocalBridge.requestJson("/repo/candidates", payload, { timeoutMs: payload.timeoutMs || 180000 });
 };
 window.JarvisLocalBridge.resolveRepoTarget ||= async function(payload = {}) {
     return await window.JarvisLocalBridge.requestJson("/repo/resolve-target", payload, { timeoutMs: payload.timeoutMs || 30000 });
@@ -8463,7 +8463,7 @@ window.JarvisLocalBridge.rankRepoCandidates ||= async function(payload = {}) {
             refresh: payload.refresh === true,
             source: payload.source || "jarvis_candidate_ranking_v7"
         },
-        { timeoutMs: payload.timeoutMs || 120000 }
+        { timeoutMs: payload.timeoutMs || 180000 }
     );
 };
 

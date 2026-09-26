@@ -124,6 +124,23 @@ test("v142 single-tool semantic mission contract stays locked after successful e
     );
 });
 
+test("v142 local repo candidate client waits for CPU embedding completion", () => {
+    const runtime = fs.readFileSync(
+        new URL("../gestia-core/tools.runtime.js", import.meta.url),
+        "utf8"
+    );
+    const compact = runtime.match(
+        /rankRepoCandidates[\s\S]*?\/repo\/candidates[\s\S]*?timeoutMs:\s*payload\.timeoutMs\s*\|\|\s*180000/
+    );
+    assert.ok(compact);
+    const occurrences = (
+        runtime.match(
+            /\/repo\/candidates[\s\S]{0,700}?timeoutMs:\s*payload\.timeoutMs\s*\|\|\s*180000/g
+        ) || []
+    ).length;
+    assert.ok(occurrences >= 2);
+});
+
 test("v142 recovery query removes the inaccessible source anchor but preserves identity", () => {
     const query = buildCrossSourceResearchRecoveryQuery(
         `Taquería El Dorado @taqueria.eldorado Cancún ${seedUrl}`,
