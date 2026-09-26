@@ -5980,7 +5980,7 @@ if (
                                     args: {
                                         prompt,
                                         maxOutputTokens:
-                                            3500
+                                            160
                                     },
                                     approved:
                                         false

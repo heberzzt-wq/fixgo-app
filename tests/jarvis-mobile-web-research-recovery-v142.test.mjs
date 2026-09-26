@@ -89,6 +89,23 @@ test("v142 full ci reaches the real loopback browser contract through the Jarvis
     );
 });
 
+test("v142 final conversational composition stays within the local CPU response budget", () => {
+    const core = fs.readFileSync(
+        new URL("../gestia-core/gestia-core.js", import.meta.url),
+        "utf8"
+    );
+    const start = core.indexOf("conversationalPlan.requiresFinalConversation");
+    const end = core.indexOf(
+        "!conversationalPlan.requiresFinalConversation",
+        start
+    );
+    assert.ok(start >= 0);
+    assert.ok(end > start);
+    const block = core.slice(start, end);
+    assert.match(block, /name:\s*"conversation\.respond"[\s\S]*?maxOutputTokens:\s*160/);
+    assert.doesNotMatch(block, /maxOutputTokens:\s*3500/);
+});
+
 test("v142 recovery query removes the inaccessible source anchor but preserves identity", () => {
     const query = buildCrossSourceResearchRecoveryQuery(
         `Taquería El Dorado @taqueria.eldorado Cancún ${seedUrl}`,
