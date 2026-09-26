@@ -603,14 +603,21 @@ export const ResponseComposer = {
                 semantics,
                 observations
             );
+        const conversationalResponse =
+            meta?.tool === "conversation.respond" ||
+            response?.meta?.tool === "conversation.respond" ||
+            response?.type === "JARVIS_CONVERSATIONAL_RESPONSE";
         const responseText =
             typeof response?.text === "string"
                 ? response.text
                 : typeof response?.report === "string"
                     ? response.report
-                    : "";
+                    : conversationalResponse &&
+                        typeof response?.data?.message === "string"
+                        ? response.data.message
+                        : "";
         const visibleText =
-            response?.type === "JARVIS_CONVERSATIONAL_RESPONSE"
+            conversationalResponse && responseText
                 ? responseText
                 : summary ||
                     responseText;
