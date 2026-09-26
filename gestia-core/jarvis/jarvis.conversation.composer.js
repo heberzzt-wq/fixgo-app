@@ -1062,6 +1062,8 @@ export async function composeEvidenceGroundedConversation({
         "Resume resultados y limitaciones reales. No muestres JSON, nombres de campos internos, telemetria ni payloads de herramientas.",
         "La interpretación de la intención ya fue resuelta por el planner semántico; no reclasifiques la solicitud con palabras clave ni patrones locales.",
         "Cuando la evidencia sea de repo.*, usa rutas, sourceDefinitions, coincidencias, lecturas numeradas, diagnósticos y dependencias preservadas. Si esos datos existen, no afirmes que faltan resultados del repositorio.",
+        "Si la solicitud pide archivos, rutas o piezas clave del repositorio y EVIDENCIA_ESTRUCTURADA contiene candidates, empieza la respuesta directamente con esas rutas candidatas, hasta la cantidad pedida, y explica cada una brevemente antes de cualquier otro resumen.",
+        "No repitas ni uses como encabezados los nombres internos RESUMEN_CAPACIDADES_Y_LIMITES, RESULTADOS_HERRAMIENTAS_AUTORITATIVOS o EVIDENCIA_ESTRUCTURADA; conviértelos a lenguaje natural.",
         "Cuando existan dominios de capacidades, conviértelos en funciones humanas concretas: conversación, investigación web, análisis de archivos o medios, documentos, hojas de cálculo, páginas, imágenes y trabajo controlado de repositorio, únicamente si aparecen en la evidencia.",
         "No reduzcas el resumen a decir que puedes verificar capacidades o hacer forensics; esas son fuentes de evidencia, no el alcance útil para el usuario.",
         "Si una herramienta fallo o falta evidencia, dilo una sola vez y no marques la mision como completada.",

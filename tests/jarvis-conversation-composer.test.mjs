@@ -303,6 +303,50 @@ test("repo candidate evidence preserves ranked files inside the CPU bounded enve
     assert.ok(evidence.length <= 8000);
 });
 
+test("repo conversational composition prioritizes requested candidate paths before internal summaries", async () => {
+    let capturedPrompt = "";
+    const result = await composeEvidenceGroundedConversation({
+        instruction: "Dime tres archivos clave del repo.",
+        evidenceItems: [{
+            name: "repo.rankCandidates",
+            observation: {
+                ok: true,
+                status: "HYBRID_CANDIDATE_RANKING_READY",
+                evidence: {
+                    candidates: [
+                        { file: "jarvis-fs-bridge.js", score: 208.69 },
+                        { file: "functions/index.js", score: 170.96 },
+                        { file: "jarvis-local-video-engine.js", score: 170.51 }
+                    ]
+                }
+            }
+        }],
+        executeConversation: async prompt => {
+            capturedPrompt = prompt;
+            return {
+                ok: true,
+                data: {
+                    ok: true,
+                    message: "jarvis-fs-bridge.js; functions/index.js; jarvis-local-video-engine.js"
+                }
+            };
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.match(
+        capturedPrompt,
+        /empieza la respuesta directamente con esas rutas candidatas/
+    );
+    assert.match(
+        capturedPrompt,
+        /No repitas ni uses como encabezados los nombres internos/
+    );
+    assert.match(capturedPrompt, /jarvis-fs-bridge\.js/);
+    assert.match(capturedPrompt, /functions\/index\.js/);
+    assert.match(capturedPrompt, /jarvis-local-video-engine\.js/);
+});
+
 test("capability briefing exposes useful domains and real limitations", () => {
     const briefing = JSON.parse(
         buildCapabilityEvidenceBriefing([
