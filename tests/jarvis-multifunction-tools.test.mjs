@@ -2846,7 +2846,22 @@ test("Jarvis answers casual conversation through the real semantic model", async
         semanticRequest.data.maxOutputTokens,
         160
     );
+    assert.equal(
+        semanticRequest.data.timeoutMs,
+        90000
+    );
     assert.match(result.message, /Buenos días/);
+
+    await runtime.execute(
+        "conversation.respond",
+        {
+            prompt: "x".repeat(7000)
+        }
+    );
+    assert.equal(
+        semanticRequest.data.timeoutMs,
+        180000
+    );
 
     const calls = await planWithModel(
         "buenos dias jarvis, se me antoja una tecate",

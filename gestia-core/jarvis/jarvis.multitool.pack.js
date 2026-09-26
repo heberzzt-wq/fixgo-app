@@ -2933,9 +2933,11 @@ async function fetchSemanticConversation(
         return failure;
     }
 
-    const localTimeoutMs = Number(maxOutputTokens) >= 6000
-        ? 120000
-        : 90000;
+    const localTimeoutMs =
+        String(instruction || "").length >= 6000 ||
+        Number(maxOutputTokens) >= 6000
+            ? 180000
+            : 90000;
 
     try {
         const localResult = await bridge.requestJson(
