@@ -2934,6 +2934,7 @@ async function fetchSemanticConversation(
     }
 
     const localTimeoutMs =
+        Number(maxOutputTokens) <= 1200 ||
         String(instruction || "").length >= 6000 ||
         Number(maxOutputTokens) >= 6000
             ? 180000
