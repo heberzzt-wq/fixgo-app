@@ -12,6 +12,7 @@ on:
       - '.github/scripts/v142-reel-closeout.mjs'
       - 'gestia-core/gestia-core.js'
       - 'gestia-core/tools.bridge.js'
+      - 'gestia-core/response.composer.js'
       - 'gestia-core/tools.runtime.js'
       - 'gestia-core/jarvis/jarvis.multitool.pack.js'
       - 'gestia-core/jarvis/jarvis.multifunction.planner.js'
