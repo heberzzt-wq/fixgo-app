@@ -530,7 +530,11 @@ function compactRepositoryObservation(
                 typeof source.evidence === "object" &&
                 !Array.isArray(source.evidence)
                 ? source.evidence
-                : source;
+                : source?.repositoryEvidence &&
+                    typeof source.repositoryEvidence === "object" &&
+                    !Array.isArray(source.repositoryEvidence)
+                    ? source.repositoryEvidence
+                    : source;
     const verifiedRead =
         source?.verifiedRead &&
         typeof source.verifiedRead === "object" &&

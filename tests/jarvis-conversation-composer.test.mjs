@@ -347,6 +347,38 @@ test("repo conversational composition prioritizes requested candidate paths befo
     assert.match(capturedPrompt, /jarvis-local-video-engine\.js/);
 });
 
+test("repo candidates survive the second CPU evidence compaction pass", () => {
+    const evidence = buildBoundedConversationEvidence([
+        {
+            name: "repo.rankCandidates",
+            observation: {
+                ok: true,
+                status: "HYBRID_CANDIDATE_RANKING_READY",
+                repositoryEvidence: {
+                    candidates: [
+                        { file: "jarvis-fs-bridge.js", score: 208.69 },
+                        { file: "functions/index.js", score: 170.96 },
+                        { file: "jarvis-local-video-engine.js", score: 170.51 }
+                    ]
+                }
+            }
+        },
+        ...Array.from({ length: 20 }, (_, index) => ({
+            name: "system.capabilities",
+            observation: {
+                ok: true,
+                status: "READY",
+                summary: `padding-${index}-${"x".repeat(700)}`
+            }
+        }))
+    ]);
+
+    assert.match(evidence, /jarvis-fs-bridge\.js/);
+    assert.match(evidence, /functions\/index\.js/);
+    assert.match(evidence, /jarvis-local-video-engine\.js/);
+    assert.ok(evidence.length <= 8000);
+});
+
 test("capability briefing exposes useful domains and real limitations", () => {
     const briefing = JSON.parse(
         buildCapabilityEvidenceBriefing([
