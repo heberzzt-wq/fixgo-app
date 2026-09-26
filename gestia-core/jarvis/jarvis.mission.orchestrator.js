@@ -1173,6 +1173,33 @@ function safeObservation(result = {}) {
         ) || null,
         preparedArtifact,
         verifiedRead,
+        repoCandidates:
+            Array.isArray(payload?.candidates)
+                ? payload.candidates
+                    .slice(0, 8)
+                    .map(candidate => ({
+                        file: text(
+                            candidate?.file ||
+                            candidate?.path,
+                            500
+                        ),
+                        score:
+                            Number(candidate?.score) ||
+                            0,
+                        reasons:
+                            Array.isArray(candidate?.reasons)
+                                ? candidate.reasons
+                                    .slice(0, 8)
+                                    .map(reason =>
+                                        text(reason, 300)
+                                    )
+                                    .filter(Boolean)
+                                : []
+                    }))
+                    .filter(candidate =>
+                        candidate.file
+                    )
+                : [],
         evidence: compactEvidence({
             ...payload,
             envelope: {
@@ -1210,7 +1237,21 @@ function canonicalMissionEvidence(mission = {}) {
             summary: text(item?.observation?.summary, 3000),
             validSources: compactEvidence(item?.observation?.validSources || []),
             verifiedRead: compactEvidence(item?.observation?.verifiedRead || null),
-            evidence: compactEvidence(item?.observation?.evidence || null)
+            evidence: compactEvidence({
+                ...(item?.observation?.evidence &&
+                typeof item.observation.evidence === "object"
+                    ? item.observation.evidence
+                    : {}),
+                ...(
+                    Array.isArray(item?.observation?.repoCandidates) &&
+                    item.observation.repoCandidates.length > 0
+                        ? {
+                            candidates:
+                                item.observation.repoCandidates
+                        }
+                        : {}
+                )
+            })
         }))
         .slice(-20);
 }

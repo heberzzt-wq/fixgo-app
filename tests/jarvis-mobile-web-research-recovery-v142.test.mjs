@@ -141,6 +141,21 @@ test("v142 local repo candidate client waits for CPU embedding completion", () =
     assert.ok(occurrences >= 2);
 });
 
+test("v142 mission evidence preserves ranked repo candidates before generic compaction", () => {
+    const orchestrator = fs.readFileSync(
+        new URL("../gestia-core/jarvis/jarvis.mission.orchestrator.js", import.meta.url),
+        "utf8"
+    );
+    assert.match(
+        orchestrator,
+        /repoCandidates:[\s\S]*?Array\.isArray\(payload\?\.candidates\)[\s\S]*?candidate\?\.file/
+    );
+    assert.match(
+        orchestrator,
+        /candidates:\s*item\.observation\.repoCandidates/
+    );
+});
+
 test("v142 recovery query removes the inaccessible source anchor but preserves identity", () => {
     const query = buildCrossSourceResearchRecoveryQuery(
         `Taquería El Dorado @taqueria.eldorado Cancún ${seedUrl}`,
