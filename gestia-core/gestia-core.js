@@ -4442,6 +4442,113 @@ if (
                     ?.list?.() ||
                 []
         });
+
+    if (
+        conversationalPlan.conversationRequested === true &&
+        conversationalPlan.operationalCalls.length === 0 &&
+        conversationalPlan.explicitJson !== true
+    ) {
+        const directConversationCall = {
+            name:
+                "conversation.respond",
+            args: {
+                prompt:
+                    inputRaw,
+                maxOutputTokens:
+                    96
+            },
+            approved:
+                false
+        };
+        const directConversationObservations =
+            await window.ToolsBridge.executeMany(
+                [directConversationCall],
+                {
+                    ...context,
+                    rawInput:
+                        inputRaw,
+                    tenantId,
+                    analysisId,
+                    rol,
+                    approved:
+                        false
+                }
+            );
+        const directConversationObservation =
+            directConversationObservations[0] ||
+            null;
+        const directConversationData =
+            directConversationObservation
+                ?.response
+                ?.data ||
+            directConversationObservation
+                ?.data
+                ?.response
+                ?.data ||
+            directConversationObservation
+                ?.data ||
+            directConversationObservation
+                ?.response ||
+            directConversationObservation ||
+            {};
+        const directConversationText =
+            String(
+                directConversationData?.message ||
+                directConversationData?.text ||
+                ""
+            )
+                .trim();
+
+        if (
+            directConversationObservation?.ok === false ||
+            !directConversationText
+        ) {
+            throw new Error(
+                directConversationObservation?.status ||
+                "DIRECT_CONVERSATION_UNAVAILABLE"
+            );
+        }
+
+        propuesta.agentLoop = {
+            version:
+                "8.1.0-direct-semantic-conversation",
+            mode:
+                "DIRECT_CONVERSATION",
+            reasoning:
+                propuesta.reasoning ||
+                propuesta.cognition ||
+                null,
+            toolCalls: [
+                directConversationCall
+            ],
+            observations:
+                directConversationObservations,
+            mission:
+                null,
+            finalResponse: {
+                ok:
+                    true,
+                title:
+                    "Jarvis",
+                text:
+                    directConversationText,
+                source:
+                    "DIRECT_SEMANTIC_CONVERSATION"
+            },
+            verified:
+                true
+        };
+        propuesta.changes =
+            [];
+        atomicState.isHalted =
+            true;
+        atomicState.haltReason =
+            "AGENT_TOOL_RESULT";
+        atomicState.agentResult =
+            propuesta.agentLoop;
+        return;
+    }
+
     let operationalInitialToolCalls =
         conversationalPlan.operationalCalls.length > 0
             ? conversationalPlan.operationalCalls

@@ -89,6 +89,50 @@ test("v142 full ci reaches the real loopback browser contract through the Jarvis
     );
 });
 
+test("v142 pure semantic conversation bypasses mission orchestration", () => {
+    const core = fs.readFileSync(
+        new URL("../gestia-core/gestia-core.js", import.meta.url),
+        "utf8"
+    );
+    const fastPathStart = core.indexOf(
+        "conversationalPlan.conversationRequested === true"
+    );
+    const missionStart = core.indexOf(
+        "await runJarvisMission({",
+        fastPathStart
+    );
+    assert.ok(fastPathStart >= 0);
+    assert.ok(missionStart > fastPathStart);
+    const fastPath = core.slice(fastPathStart, missionStart);
+    assert.match(
+        fastPath,
+        /conversationalPlan\.operationalCalls\.length === 0/
+    );
+    assert.match(
+        fastPath,
+        /name:\s*"conversation\.respond"[\s\S]*?maxOutputTokens:\s*96/
+    );
+    assert.match(
+        fastPath,
+        /mode:\s*"DIRECT_CONVERSATION"/
+    );
+    assert.match(
+        fastPath,
+        /haltReason =\s*"AGENT_TOOL_RESULT"/
+    );
+});
+
+test("v142 terminal voice speaks the same final response shown on screen", () => {
+    const terminal = fs.readFileSync(
+        new URL("../gestia-terminal.html", import.meta.url),
+        "utf8"
+    );
+    assert.match(
+        terminal,
+        /const brainVoiceBriefing =[\s\S]*?finalResponse\?\.text[\s\S]*?String\(finalResponse\.text\)\.trim\(\)/
+    );
+});
+
 test("v142 final conversational composition stays within the local CPU response budget", () => {
     const core = fs.readFileSync(
         new URL("../gestia-core/gestia-core.js", import.meta.url),
