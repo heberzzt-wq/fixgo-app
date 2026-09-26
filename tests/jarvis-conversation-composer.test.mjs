@@ -283,7 +283,7 @@ test("repo candidate evidence preserves ranked files inside the CPU bounded enve
         observation: {
             ok: true,
             status: "HYBRID_CANDIDATE_RANKING_READY",
-            data: {
+            evidence: {
                 candidates: [
                     { file: "jarvis-fs-bridge.js", score: 208.69, reasons: ["local embedding", "runtime relation"] },
                     { file: "gestia-core/jarvis/jarvis.multitool.pack.js", score: 170, reasons: ["semantic authority"] },
