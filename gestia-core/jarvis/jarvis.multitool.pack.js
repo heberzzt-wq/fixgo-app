@@ -4784,7 +4784,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                             Number(
                                 args.maxOutputTokens
                             ) ||
-                            512
+                            160
                         )
                     );
                 const result =

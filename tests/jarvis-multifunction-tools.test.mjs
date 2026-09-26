@@ -2844,7 +2844,7 @@ test("Jarvis answers casual conversation through the real semantic model", async
     assert.equal(result.model, "semantic-test");
     assert.equal(
         semanticRequest.data.maxOutputTokens,
-        512
+        160
     );
     assert.match(result.message, /Buenos días/);
 
