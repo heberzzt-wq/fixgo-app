@@ -1043,6 +1043,22 @@ export const ToolsBridge = {
         }
 
         const response =
+            (
+                toolName === "conversation.respond" &&
+                typeof semanticPayload?.message === "string" &&
+                semanticPayload.message.trim()
+                    ? window.ResponseComposer.composeJarvis(
+                        semanticPayload.message.trim(),
+                        semanticPayload,
+                        {
+                            tool:
+                                toolName,
+                            analysisId:
+                                context.analysisId
+                        }
+                    )
+                    : null
+            ) ||
             composeActuatorResponse(
                 toolName,
                 semanticPayload,

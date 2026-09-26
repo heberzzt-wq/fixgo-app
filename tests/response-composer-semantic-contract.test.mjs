@@ -61,6 +61,35 @@ test("agent tool result keeps an input-required observation semantically blocked
     assert.equal(result.data.semanticSummary, result.text);
 });
 
+test("conversational Jarvis response stays visible instead of generic success summary", () => {
+    const message = "¡Hola! Estoy bien, gracias. ¿Y tú? ¿Cómo estás?";
+    const observation = ResponseComposer.composeToolObservation(
+        "conversation.respond",
+        {
+            ok: true,
+            status: "SEMANTIC_RESPONSE_READY",
+            message
+        }
+    );
+    const response = ResponseComposer.composeJarvis(
+        message,
+        {
+            status: "SEMANTIC_RESPONSE_READY"
+        },
+        {
+            tool: "conversation.respond"
+        }
+    );
+    const result = ResponseComposer.composeAgentToolResult({
+        observations: [observation],
+        response
+    });
+
+    assert.equal(result.text, message);
+    assert.equal(result.report, message);
+    assert.notEqual(result.text, "Estado: SUCCESS");
+});
+
 test("approval requirement remains visible in the composed agent envelope", () => {
     const observation = ResponseComposer.composeToolObservation(
         "page.create",

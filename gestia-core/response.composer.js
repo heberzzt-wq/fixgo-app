@@ -610,8 +610,10 @@ export const ResponseComposer = {
                     ? response.report
                     : "";
         const visibleText =
-            summary ||
-            responseText;
+            response?.type === "JARVIS_CONVERSATIONAL_RESPONSE"
+                ? responseText
+                : summary ||
+                    responseText;
 
         return {
             ...semantics,
