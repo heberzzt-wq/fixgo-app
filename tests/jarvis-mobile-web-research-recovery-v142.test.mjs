@@ -140,9 +140,27 @@ test("v142 current-turn semantic planner gates conversation before the full cata
     const gateEnd = block.indexOf("if (lastCurrentTurnPlannerError)");
     assert.ok(gateStart >= 0);
     assert.ok(gateEnd > gateStart);
+    const gateBlock =
+        block.slice(gateStart, gateEnd);
+    assert.match(
+        gateBlock,
+        /advisorySemanticContext:/
+    );
+    assert.match(
+        gateBlock,
+        /compactJarvisSemanticMemoryForPlanner\(/
+    );
+    assert.match(
+        gateBlock,
+        /semanticMemoryAvailable:\s*Boolean\(semanticMemory\)/
+    );
+    assert.match(
+        gateBlock,
+        /writeAllowed:\s*false/
+    );
     assert.doesNotMatch(
-        block.slice(gateStart, gateEnd),
-        /advisorySemanticContext/
+        gateBlock,
+        /toolCatalog:\s*fullCatalog/
     );
     assert.match(block, /toolCatalog:\s*registeredCurrentTurnTools/);
     assert.match(block, /attempt <= 2/);
