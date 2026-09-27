@@ -514,7 +514,7 @@ async function() {
 
     try {
 
-        console.log(
+        window.gestiaBootLog?.(
             "📸 [RUNTIME_SNAPSHOT_START]"
         );
 
@@ -1041,7 +1041,7 @@ await emitRuntimeEvent(
     }
 );
 
-console.log(
+window.gestiaBootLog?.(
     "✅ [RUNTIME_SNAPSHOT_CREATED]",
     {
         snapshotId:
@@ -1288,7 +1288,7 @@ const runtimeSnapshots =
         const latest =
             runtimeSnapshots[0];
 
-        console.log(
+        window.gestiaBootLog?.(
             "🧠 [LATEST_RUNTIME_SNAPSHOT]",
             latest
         );
@@ -1500,7 +1500,7 @@ async function() {
 
     try {
 
-        console.log(
+        window.gestiaBootLog?.(
             "♻️ [RUNTIME_RESTORE_START]"
         );
 
@@ -1549,7 +1549,7 @@ if (!validation?.ok) {
     };
 }
 
-console.log(
+window.gestiaBootLog?.(
     "✅ [SNAPSHOT_VALID]",
     validation
 );
@@ -1753,7 +1753,7 @@ if (
 
             );
 
-    console.log(
+    window.gestiaBootLog?.(
         "🧠 [AUTONOMOUS_STATE_RESTORED]",
         window.GestiaRuntime
             .state
@@ -1872,7 +1872,7 @@ window.__RUNTIME_HEALTH_MAP__ =
             );
         }
 
-        console.log(
+        window.gestiaBootLog?.(
             "✅ [RUNTIME_RESTORE_OK]"
         );
 

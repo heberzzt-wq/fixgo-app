@@ -39,3 +39,47 @@ test("runtime boot keeps repo cognition verbose logs quiet and defers hydration"
     assert.match(eventBus, /setTimeout\(\s*runWhenIdle,\s*1500\s*\)/);
     assert.match(eventBus, /setTimeout\(\s*runWhenIdle,\s*5000\s*\)/);
 });
+
+
+test("snapshot and restore informational boot logs stay quiet while failures stay visible", () => {
+    const memory = read("gestia-core/jarvis/jarvis.memory.js");
+    const persistence = read("modules/terminal/runtime-persistence.js");
+    const daemon = read("modules/terminal/runtime-snapshot-daemon.js");
+    const terminalRuntime = read("gestia-terminal.js");
+
+    for (const [source, markers] of [
+        [memory, ["[SNAPSHOT] Punto de control creado"]],
+        [persistence, [
+            "RUNTIME_SNAPSHOT_START",
+            "RUNTIME_SNAPSHOT_CREATED",
+            "LATEST_RUNTIME_SNAPSHOT",
+            "RUNTIME_RESTORE_START",
+            "✅ [SNAPSHOT_VALID]",
+            "AUTONOMOUS_STATE_RESTORED",
+            "RUNTIME_RESTORE_OK"
+        ]],
+        [daemon, [
+            "SNAPSHOT_DAEMON_BOOT",
+            "RUNTIME_SNAPSHOT_SUCCESS",
+            "SNAPSHOT_DAEMON_ONLINE"
+        ]],
+        [terminalRuntime, [
+            "MODULE_RESTORED",
+            "COGNITIVE_RUNTIME_RESTORED"
+        ]]
+    ]) {
+        for (const marker of markers) {
+            const at = source.indexOf(marker);
+            assert.ok(at >= 0, marker);
+            assert.match(
+                source.slice(Math.max(0, at - 120), at + 180),
+                /gestiaBootLog/
+            );
+        }
+    }
+
+    assert.match(persistence, /console\.error\([\s\S]{0,100}SNAPSHOT_VALIDATION_FAILED/);
+    assert.match(persistence, /console\.error\([\s\S]{0,100}RUNTIME_RESTORE_FAIL/);
+    assert.match(daemon, /console\.error\([\s\S]{0,100}SNAPSHOT_DAEMON_FAIL/);
+    assert.match(daemon, /console\.error\([\s\S]{0,100}SNAPSHOT_DAEMON_BOOT_FAIL/);
+});

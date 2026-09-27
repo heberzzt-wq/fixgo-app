@@ -269,7 +269,7 @@ export const JarvisMemory = (function() {
         historySnapshots.push(snap);
         if (historySnapshots.length > 5) historySnapshots.shift(); // Max 5 niveles de Undo para no saturar RAM
         currentSnapshotIndex = historySnapshots.length - 1;
-        console.log(`📸 [SNAPSHOT] Punto de control creado. Index: ${currentSnapshotIndex}`);
+        window.gestiaBootLog?.(`📸 [SNAPSHOT] Punto de control creado. Index: ${currentSnapshotIndex}`);
     }
 
         // ==========================================

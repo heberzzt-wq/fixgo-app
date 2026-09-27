@@ -3120,7 +3120,7 @@ window.restoreRuntimeCognition = async function() {
                 lazyModules[moduleName]
             );
 
-            console.log(
+            window.gestiaBootLog?.(
                 `♻️ [MODULE_RESTORED]: ${moduleName}`
             );
         }
@@ -3138,7 +3138,7 @@ window.restoreRuntimeCognition = async function() {
         MODULE_CONTEXT
             .criticalityGraph ||= {};
 
-        console.log(
+        window.gestiaBootLog?.(
             "🧠 [COGNITIVE_RUNTIME_RESTORED]"
         );
 

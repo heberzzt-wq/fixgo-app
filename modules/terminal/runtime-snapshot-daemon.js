@@ -33,7 +33,7 @@ async function() {
 
     try {
 
-        console.log(
+        window.gestiaBootLog?.(
             "🧠 [SNAPSHOT_DAEMON_BOOT]"
         );
 
@@ -148,7 +148,7 @@ MODULE_CONTEXT
                             .lastSnapshotAt =
                                 Date.now();
 
-                        console.log(
+                        window.gestiaBootLog?.(
                             "✅ [RUNTIME_SNAPSHOT_SUCCESS]",
                             snapshotResult?.snapshotId
                         );
@@ -185,7 +185,7 @@ MODULE_CONTEXT
                 "runtime.snapshot.daemon"
             );
 
-        console.log(
+        window.gestiaBootLog?.(
             "✅ [SNAPSHOT_DAEMON_ONLINE]"
         );
 
