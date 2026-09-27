@@ -2465,11 +2465,30 @@ async function(reason = "manual") {
 
 const scheduleRuntimeAutoHydration =
 function(reason) {
+    const runWhenIdle = () => {
+        if (typeof window.requestIdleCallback === "function") {
+            window.requestIdleCallback(
+                () => {
+                    window.runRuntimeAutoHydration?.(reason);
+                },
+                {
+                    timeout: 12000
+                }
+            );
+            return;
+        }
+
+        setTimeout(
+            () => {
+                window.runRuntimeAutoHydration?.(reason);
+            },
+            3000
+        );
+    };
+
     setTimeout(
-        () => {
-            window.runRuntimeAutoHydration?.(reason);
-        },
-        0
+        runWhenIdle,
+        5000
     );
 };
 

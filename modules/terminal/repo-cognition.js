@@ -1281,7 +1281,7 @@ function() {
             }
         }
 
-        console.log(
+        window.gestiaBootLog?.(
             "🧠 [REPO_COGNITION_REHYDRATED]",
             {
                 index:
@@ -1567,7 +1567,7 @@ function(config = {}) {
             governanceAction
         };
 
-        console.log(
+        window.gestiaBootLog?.(
             "🚨 [IMPACT_ANALYSIS_READY]",
             analysis
         );
@@ -1611,7 +1611,7 @@ function(fileName = "") {
 
     try {
 
-        console.log(
+        window.gestiaBootLog?.(
             "🧠 [CRITICALITY_PROPAGATION]",
             fileName
         );
@@ -1730,7 +1730,7 @@ function(fileName = "") {
                 data.governance
         };
 
-        console.log(
+        window.gestiaBootLog?.(
             "🚨 [CRITICALITY_RESULT]",
             result
         );

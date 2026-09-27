@@ -2081,7 +2081,7 @@ function() {
                     0
             };
 
-            console.log(
+            window.gestiaBootLog?.(
                 "⚠️ [RISK_NODE]",
                 file,
                 riskGraph[file]

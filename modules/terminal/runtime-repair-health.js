@@ -729,7 +729,7 @@ function(
 
     try {
 
-        console.log(
+        window.gestiaBootLog?.(
             "🩺 [RUNTIME_STATE_CHANGE]",
             fileName,
             newState
@@ -822,7 +822,7 @@ function(
                 100;
         }
 
-        console.log(
+        window.gestiaBootLog?.(
             "✅ [RUNTIME_STATE_UPDATED]",
             node
         );
