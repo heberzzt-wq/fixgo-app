@@ -90,7 +90,7 @@ const {
 } = require("./functions/jarvis-semantic-planner.js");
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.54.0-role-aware-conversation-v142";
+    "2.55.0-semantic-repair-recall-v142";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -132,6 +132,8 @@ const JARVIS_PRIVATE_MEMORY_ARCHIVE_VERSION =
 const JARVIS_PRIVATE_MEMORY_MAX_RECORD_BYTES =
     512 * 1024;
 const jarvisPrivateMemoryArchiveIds =
+    new Map();
+const jarvisPrivateMemorySemanticEmbeddingCache =
     new Map();
 
 function normalizePrivateMemoryIdentity(identity = {}) {
@@ -323,6 +325,61 @@ export function queryJarvisPrivateMemoryRecords({
         scopeHash: archive.scopeHash,
         records
     };
+}
+
+function jarvisPrivateMemorySemanticText(record = {}) {
+    return [
+        String(record?.kind || ""),
+        String(record?.status || ""),
+        String(record?.instruction || ""),
+        String(record?.content || ""),
+        String(record?.finalText || ""),
+        Array.isArray(record?.errors)
+            ? record.errors.join("\n")
+            : "",
+        Array.isArray(record?.completedTools)
+            ? record.completedTools.join(", ")
+            : "",
+        Array.isArray(record?.blockedTools)
+            ? record.blockedTools.join(", ")
+            : "",
+        Array.isArray(record?.files)
+            ? record.files.join(", ")
+            : "",
+        String(record?.commitMessage || ""),
+        String(record?.commitSha || "")
+    ]
+        .filter(Boolean)
+        .join("\n")
+        .trim()
+        .slice(0, 12000);
+}
+
+function jarvisPrivateMemorySemanticCacheKey({
+    scopeHash = "",
+    model = "",
+    record = {}
+} = {}) {
+    return [
+        String(scopeHash || ""),
+        String(model || ""),
+        String(record?.id || "")
+    ].join("::");
+}
+
+function pruneJarvisPrivateMemorySemanticCache(maximum = 10000) {
+    while (
+        jarvisPrivateMemorySemanticEmbeddingCache.size >
+        maximum
+    ) {
+        const oldest =
+            jarvisPrivateMemorySemanticEmbeddingCache
+                .keys()
+                .next()
+                .value;
+        if (!oldest) break;
+        jarvisPrivateMemorySemanticEmbeddingCache.delete(oldest);
+    }
 }
 
 export function resolveRunpodCredentialEnvironment({
@@ -9012,8 +9069,36 @@ export function createJarvisFsBridgeApp({
         }
     });
 
-    app.post("/memory/query", (req, res) => {
+    app.post("/memory/query", async (req, res) => {
         try {
+            const requestedLimit =
+                Math.max(
+                    1,
+                    Math.min(
+                        Number(req.body?.limit) || 20,
+                        500
+                    )
+                );
+            const semanticQuery =
+                String(
+                    req.body?.query ||
+                    ""
+                )
+                    .trim()
+                    .slice(0, 12000);
+            const semanticCandidateLimit =
+                semanticQuery
+                    ? Math.max(
+                        requestedLimit,
+                        Math.min(
+                            Number(
+                                req.body
+                                    ?.semanticCandidateLimit
+                            ) || 1000,
+                            5000
+                        )
+                    )
+                    : requestedLimit;
             const result =
                 queryJarvisPrivateMemoryRecords({
                     identity:
@@ -9023,10 +9108,218 @@ export function createJarvisFsBridgeApp({
                     kinds:
                         req.body?.kinds || [],
                     limit:
-                        req.body?.limit || 500
+                        semanticCandidateLimit
                 });
+
+            if (
+                !semanticQuery ||
+                !Array.isArray(result?.records) ||
+                result.records.length === 0
+            ) {
+                return res.json({
+                    ...result,
+                    records:
+                        Array.isArray(result?.records)
+                            ? result.records.slice(
+                                -requestedLimit
+                            )
+                            : [],
+                    bridgeVersion:
+                        JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+
+            if (
+                typeof semanticEngine?.embed !==
+                "function"
+            ) {
+                return res.status(503).json({
+                    ok: false,
+                    status:
+                        "PRIVATE_MEMORY_SEMANTIC_ENGINE_REQUIRED",
+                    error:
+                        "PRIVATE_MEMORY_SEMANTIC_ENGINE_REQUIRED",
+                    bridgeVersion:
+                        JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+
+            const semanticHealth =
+                semanticEngine.describe?.() || {};
+            const embeddingModel =
+                String(
+                    semanticHealth?.embeddingModel ||
+                    ""
+                ).trim();
+            if (!embeddingModel) {
+                return res.status(503).json({
+                    ok: false,
+                    status:
+                        "PRIVATE_MEMORY_EMBEDDING_MODEL_REQUIRED",
+                    error:
+                        "PRIVATE_MEMORY_EMBEDDING_MODEL_REQUIRED",
+                    bridgeVersion:
+                        JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+
+            const candidates =
+                result.records
+                    .map(record => ({
+                        record,
+                        text:
+                            jarvisPrivateMemorySemanticText(
+                                record
+                            ),
+                        cacheKey:
+                            jarvisPrivateMemorySemanticCacheKey({
+                                scopeHash:
+                                    result.scopeHash,
+                                model:
+                                    embeddingModel,
+                                record
+                            })
+                    }))
+                    .filter(candidate =>
+                        candidate.text &&
+                        candidate.record?.id
+                    );
+            const missing =
+                candidates.filter(candidate =>
+                    !jarvisPrivateMemorySemanticEmbeddingCache
+                        .has(candidate.cacheKey)
+                );
+            const batchSize = 32;
+            for (
+                let offset = 0;
+                offset < missing.length;
+                offset += batchSize
+            ) {
+                const batch =
+                    missing.slice(
+                        offset,
+                        offset + batchSize
+                    );
+                const embedded =
+                    await semanticEngine.embed(
+                        batch.map(candidate =>
+                            candidate.text
+                        )
+                    );
+                batch.forEach(
+                    (candidate, index) => {
+                        const vector =
+                            embedded
+                                ?.embeddings
+                                ?.[index];
+                        if (
+                            Array.isArray(vector) &&
+                            vector.length > 0
+                        ) {
+                            jarvisPrivateMemorySemanticEmbeddingCache
+                                .set(
+                                    candidate.cacheKey,
+                                    vector
+                                );
+                        }
+                    }
+                );
+            }
+            pruneJarvisPrivateMemorySemanticCache();
+
+            const queryEmbedding =
+                await semanticEngine.embed([
+                    semanticQuery
+                ]);
+            const queryVector =
+                queryEmbedding?.embeddings?.[0];
+            if (
+                !Array.isArray(queryVector) ||
+                queryVector.length === 0
+            ) {
+                throw new Error(
+                    "PRIVATE_MEMORY_QUERY_EMBEDDING_REQUIRED"
+                );
+            }
+
+            const ranked =
+                candidates
+                    .map(candidate => {
+                        const vector =
+                            jarvisPrivateMemorySemanticEmbeddingCache
+                                .get(
+                                    candidate.cacheKey
+                                );
+                        return {
+                            record:
+                                candidate.record,
+                            score:
+                                Array.isArray(vector)
+                                    ? cosineSimilarity(
+                                        queryVector,
+                                        vector
+                                    )
+                                    : -1
+                        };
+                    })
+                    .filter(item =>
+                        Number.isFinite(item.score)
+                    )
+                    .sort((left, right) =>
+                        right.score - left.score ||
+                        String(
+                            right.record?.createdAt ||
+                            ""
+                        ).localeCompare(
+                            String(
+                                left.record
+                                    ?.createdAt ||
+                                ""
+                            )
+                        )
+                    )
+                    .slice(0, requestedLimit);
+
             return res.json({
                 ...result,
+                status:
+                    "PRIVATE_MEMORY_SEMANTIC_READ",
+                records:
+                    ranked.map(item =>
+                        item.record
+                    ),
+                semanticMatches:
+                    ranked.map(item => ({
+                        id:
+                            item.record?.id ||
+                            null,
+                        kind:
+                            item.record?.kind ||
+                            null,
+                        score:
+                            item.score
+                    })),
+                semanticEvidence: {
+                    provider:
+                        "ollama-local",
+                    model:
+                        embeddingModel,
+                    queryEmbedded:
+                        true,
+                    candidatesConsidered:
+                        candidates.length,
+                    cacheHits:
+                        candidates.length -
+                        missing.length,
+                    cacheMisses:
+                        missing.length,
+                    archiveAppendOnly:
+                        true,
+                    externalApiUsed:
+                        false,
+                    estimatedExternalCostUsd:
+                        0
+                },
                 bridgeVersion:
                     JARVIS_FS_BRIDGE_VERSION
             });
@@ -9034,7 +9327,15 @@ export function createJarvisFsBridgeApp({
         catch(error) {
             return res.status(400).json({
                 ok: false,
-                status: "PRIVATE_MEMORY_ARCHIVE_QUERY_FAILED",
+                status:
+                    String(
+                        error?.message ||
+                        ""
+                    ).startsWith(
+                        "LOCAL_EMBEDDING_"
+                    )
+                        ? "PRIVATE_MEMORY_SEMANTIC_QUERY_FAILED"
+                        : "PRIVATE_MEMORY_ARCHIVE_QUERY_FAILED",
                 error:
                     error?.message || String(error),
                 bridgeVersion:

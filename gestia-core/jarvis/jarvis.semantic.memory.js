@@ -1,4 +1,4 @@
-const VERSION = "1.1.0-cross-conversation-advisory-memory";
+const VERSION = "1.2.0-semantic-repair-recall";
 const STORAGE_PREFIX = "jarvis.semantic.memory.v1";
 const SESSION_KEY = "jarvis.semantic.memory.activeConversation.v1";
 const MAX_FALLBACK_RECORDS = 2000;
@@ -371,6 +371,97 @@ export function createJarvisSemanticMemory({
         };
     }
 
+    async function recallRelevant({
+        identity = {},
+        query = "",
+        kinds = ["LESSON", "MISSION"],
+        limit = 8,
+        semanticCandidateLimit = 1000
+    } = {}) {
+        const semanticQuery =
+            clean(query, 12000);
+        if (!semanticQuery) {
+            return {
+                ok: false,
+                status:
+                    "SEMANTIC_MEMORY_RELEVANCE_QUERY_REQUIRED",
+                records: []
+            };
+        }
+
+        const adapter = archive();
+        if (typeof adapter?.query !== "function") {
+            return {
+                ok: false,
+                status:
+                    "PRIVATE_MEMORY_ARCHIVE_UNAVAILABLE",
+                records: []
+            };
+        }
+
+        try {
+            const result =
+                await adapter.query({
+                    identity:
+                        scopeIdentity(identity),
+                    kinds:
+                        Array.isArray(kinds)
+                            ? kinds
+                            : ["LESSON", "MISSION"],
+                    query:
+                        semanticQuery,
+                    limit:
+                        Math.max(
+                            1,
+                            Math.min(
+                                Number(limit) || 8,
+                                50
+                            )
+                        ),
+                    semanticCandidateLimit:
+                        Math.max(
+                            50,
+                            Math.min(
+                                Number(
+                                    semanticCandidateLimit
+                                ) || 1000,
+                                5000
+                            )
+                        )
+                });
+            return {
+                ok:
+                    result?.ok === true,
+                status:
+                    result?.status ||
+                    "SEMANTIC_MEMORY_RELEVANCE_READ",
+                records:
+                    Array.isArray(result?.records)
+                        ? result.records
+                        : [],
+                semanticMatches:
+                    Array.isArray(
+                        result?.semanticMatches
+                    )
+                        ? result.semanticMatches
+                        : [],
+                semanticEvidence:
+                    result?.semanticEvidence ||
+                    null
+            };
+        }
+        catch(error) {
+            return {
+                ok: false,
+                status:
+                    "SEMANTIC_MEMORY_RELEVANCE_FAILED",
+                error:
+                    error?.message || String(error),
+                records: []
+            };
+        }
+    }
+
     async function clear(identity = {}) {
         write(identity, []);
         return {
@@ -386,6 +477,7 @@ export function createJarvisSemanticMemory({
         rememberMission,
         rememberLesson,
         recall,
+        recallRelevant,
         clear
     };
 }

@@ -35,6 +35,9 @@ import {
     recordAutonomyEvent,
     recallAutonomyLessons
 } from "./jarvis/jarvis.autonomy.engine.js";
+import {
+    JarvisSemanticMemory
+} from "./jarvis/jarvis.semantic.memory.js";
 
 import { 
     runTransaction,
@@ -178,6 +181,71 @@ async function hydrateStepRepoEvidence(step = {}) {
                     null
             });
 
+        let durableMemory = {
+            ok: false,
+            status:
+                "SEMANTIC_MEMORY_RELEVANCE_NOT_REQUESTED",
+            records: []
+        };
+        try {
+            const plannerContext =
+                step?.meta?.planner &&
+                typeof step.meta.planner === "object"
+                    ? JSON.stringify(
+                        step.meta.planner
+                    ).slice(0, 3000)
+                    : "";
+            const semanticRepairQuery = [
+                `FILE=${loaded.file || file}`,
+                `OPERATION=${step?.type || step?.originalType || "unknown"}`,
+                `RISK=${report?.risk || "unknown"}`,
+                `FLAGS=${Array.isArray(report?.flags) ? report.flags.join(", ") : ""}`,
+                `RECOMMENDATIONS=${Array.isArray(report?.recommendations) ? report.recommendations.join(" | ") : ""}`,
+                plannerContext
+                    ? `PLANNER=${plannerContext}`
+                    : ""
+            ]
+                .filter(Boolean)
+                .join("\n")
+                .slice(0, 12000);
+
+            durableMemory =
+                await JarvisSemanticMemory
+                    .recallRelevant({
+                        identity: {
+                            userId:
+                                auth.currentUser
+                                    ?.uid ||
+                                "anonymous",
+                            workspaceId:
+                                step?.tenantId ||
+                                step?.meta?.tenantId ||
+                                "UXMAL39",
+                            projectId:
+                                "adjunto"
+                        },
+                        query:
+                            semanticRepairQuery,
+                        kinds:
+                            ["LESSON", "MISSION"],
+                        limit:
+                            6,
+                        semanticCandidateLimit:
+                            1000
+                    });
+        }
+        catch(memoryError) {
+            durableMemory = {
+                ok: false,
+                status:
+                    "SEMANTIC_MEMORY_RELEVANCE_FAILED",
+                error:
+                    memoryError?.message ||
+                    String(memoryError),
+                records: []
+            };
+        }
+
         step.meta = {
             ...(step.meta || {}),
             repoEvidence: {
@@ -192,7 +260,8 @@ async function hydrateStepRepoEvidence(step = {}) {
                 autofix,
                 autopatch,
                 patchdiff,
-                autonomy
+                autonomy,
+                durableMemory
             },
             source:
                 loaded.source
@@ -212,7 +281,16 @@ async function hydrateStepRepoEvidence(step = {}) {
                 recommendations:
                     report.recommendations || [],
                 lessons:
-                    autonomy?.lessons || []
+                    autonomy?.lessons || [],
+                durableLessons:
+                    Array.isArray(
+                        durableMemory?.records
+                    )
+                        ? durableMemory.records
+                        : [],
+                durableMemoryStatus:
+                    durableMemory?.status ||
+                    null
             }
         };
 

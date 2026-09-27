@@ -152,6 +152,129 @@ test("semantic memory cache can be cleared without deleting the durable archive"
     );
 });
 
+test("semantic memory exposes relevance lookup and repo preflight consumes durable lessons without making them authority", async () => {
+    const storage = new Storage();
+    const session = new Storage();
+    let queryPayload = null;
+    const archiveAdapter = {
+        async append() {
+            return {
+                ok: true,
+                status:
+                    "PRIVATE_MEMORY_ARCHIVE_APPENDED"
+            };
+        },
+        async query(payload = {}) {
+            queryPayload =
+                structuredClone(payload);
+            return {
+                ok: true,
+                status:
+                    "PRIVATE_MEMORY_SEMANTIC_READ",
+                records: [{
+                    id: "lesson-rollback",
+                    kind: "LESSON",
+                    instruction:
+                        "Restaurar snapshot si las pruebas post-write fallan.",
+                    status:
+                        "POST_WRITE_TEST_FAILED_ROLLED_BACK"
+                }],
+                semanticMatches: [{
+                    id: "lesson-rollback",
+                    kind: "LESSON",
+                    score: 0.97
+                }],
+                semanticEvidence: {
+                    provider: "ollama-local",
+                    model:
+                        "qwen3-embedding:0.6b",
+                    externalApiUsed: false
+                }
+            };
+        }
+    };
+    const memory =
+        createJarvisSemanticMemory({
+            storage,
+            sessionStorage: session,
+            archiveAdapter
+        });
+    const result =
+        await memory.recallRelevant({
+            identity: {
+                userId: "owner",
+                workspaceId: "fixgo",
+                projectId: "v142"
+            },
+            query:
+                "falló el cambio de código y necesito recuperar el snapshot",
+            kinds:
+                ["LESSON", "MISSION"],
+            limit:
+                6,
+            semanticCandidateLimit:
+                1000
+        });
+
+    assert.equal(
+        result.status,
+        "PRIVATE_MEMORY_SEMANTIC_READ"
+    );
+    assert.equal(
+        result.records[0].id,
+        "lesson-rollback"
+    );
+    assert.equal(
+        queryPayload.query,
+        "falló el cambio de código y necesito recuperar el snapshot"
+    );
+    assert.deepEqual(
+        queryPayload.kinds,
+        ["LESSON", "MISSION"]
+    );
+    assert.equal(
+        queryPayload.semanticCandidateLimit,
+        1000
+    );
+    assert.equal(
+        result.semanticEvidence.externalApiUsed,
+        false
+    );
+
+    const executor =
+        fs.readFileSync(
+            new URL(
+                "../gestia-core/operations-executor.engine.js",
+                import.meta.url
+            ),
+            "utf8"
+        );
+    assert.match(
+        executor,
+        /JarvisSemanticMemory[\s\S]{0,3000}recallRelevant\(/
+    );
+    assert.match(
+        executor,
+        /kinds:\s*\["LESSON", "MISSION"\]/
+    );
+    assert.match(
+        executor,
+        /semanticCandidateLimit:\s*1000/
+    );
+    assert.match(
+        executor,
+        /durableLessons:/
+    );
+    assert.match(
+        executor,
+        /durableMemoryStatus:/
+    );
+    assert.match(
+        executor,
+        /SEMANTIC_MEMORY_RELEVANCE_FAILED/
+    );
+});
+
 test("planner semantic context is bounded to the current conversation and remains advisory", () => {
     const memory = {
         currentConversationId: "current",

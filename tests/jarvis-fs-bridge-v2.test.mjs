@@ -250,7 +250,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.54.0-role-aware-conversation-v142");
+    assert.equal(description.version, "2.55.0-semantic-repair-recall-v142");
     assert.equal(typeof description.actuators.speech.available, "boolean");
     assert.deepEqual(description.actuators.speech.outputFormats, ["wav"]);
     assert.equal(description.policy.authority, "full_repo_private_owner");
@@ -2444,6 +2444,197 @@ test("write bridge requires fingerprinted one-time approval, snapshot and post-v
     }
 });
 
+
+test("private memory semantic query recovers an older relevant lesson and caches embeddings", async () => {
+    const fixture =
+        createBridgeIdentityFixture({
+            branch: "v5.9-polish"
+        });
+    const root =
+        fixture.root;
+    const privateMemoryRoot =
+        path.join(
+            fixture.fixtureRoot,
+            "private-memory-semantic"
+        );
+    let embeddingCalls = 0;
+    const localSemanticEngine = {
+        describe() {
+            return {
+                ok: true,
+                embeddingModel:
+                    "test-embedding"
+            };
+        },
+        async embed(values = []) {
+            embeddingCalls += 1;
+            return {
+                ok: true,
+                embeddings:
+                    values.map(value => {
+                        const text =
+                            String(value || "")
+                                .toLowerCase();
+                        return (
+                            text.includes("rollback") ||
+                            text.includes("snapshot")
+                        )
+                            ? [1, 0]
+                            : [0, 1];
+                    })
+            };
+        }
+    };
+    const server =
+        createJarvisFsBridgeApp({
+            root,
+            privateMemoryRoot,
+            localSemanticEngine
+        }).listen(0);
+    await new Promise(resolve =>
+        server.once("listening", resolve)
+    );
+    const base =
+        `http://127.0.0.1:${server.address().port}`;
+    const post = async (route, body) => {
+        const response =
+            await fetch(
+                `${base}${route}`,
+                {
+                    method: "POST",
+                    headers: {
+                        "content-type":
+                            "application/json",
+                        "x-jarvis-release-id":
+                            "test-release"
+                    },
+                    body:
+                        JSON.stringify(body)
+                }
+            );
+        return {
+            status: response.status,
+            body: await response.json()
+        };
+    };
+    const identity = {
+        userId: "semantic-owner",
+        workspaceId: "fixgo",
+        projectId: "v142"
+    };
+
+    try {
+        const appended =
+            await post(
+                "/memory/append",
+                {
+                    identity,
+                    records: [
+                        {
+                            id: "lesson-old-rollback",
+                            kind: "LESSON",
+                            createdAt:
+                                "2026-01-01T00:00:00.000Z",
+                            instruction:
+                                "Si una reparación rompe pruebas, restaura el snapshot anterior y bloquea git.",
+                            status:
+                                "POST_WRITE_TEST_FAILED_ROLLED_BACK",
+                            files: ["sample.js"]
+                        },
+                        {
+                            id: "lesson-new-ui",
+                            kind: "LESSON",
+                            createdAt:
+                                "2026-09-01T00:00:00.000Z",
+                            instruction:
+                                "Ajustar espaciado visual del panel.",
+                            status: "SUCCESS"
+                        },
+                        {
+                            id: "lesson-new-copy",
+                            kind: "LESSON",
+                            createdAt:
+                                "2026-09-02T00:00:00.000Z",
+                            instruction:
+                                "Corregir texto de un botón.",
+                            status: "SUCCESS"
+                        }
+                    ]
+                }
+            );
+        assert.equal(
+            appended.body.status,
+            "PRIVATE_MEMORY_ARCHIVE_APPENDED"
+        );
+
+        const first =
+            await post(
+                "/memory/query",
+                {
+                    identity,
+                    kinds: ["LESSON"],
+                    query:
+                        "¿Cómo recuperamos un cambio roto usando rollback o snapshot?",
+                    limit: 1,
+                    semanticCandidateLimit: 50
+                }
+            );
+        assert.equal(first.status, 200);
+        assert.equal(
+            first.body.status,
+            "PRIVATE_MEMORY_SEMANTIC_READ"
+        );
+        assert.equal(
+            first.body.records[0].id,
+            "lesson-old-rollback"
+        );
+        assert.equal(
+            first.body.semanticEvidence.cacheMisses,
+            3
+        );
+        assert.equal(
+            first.body.semanticEvidence.externalApiUsed,
+            false
+        );
+
+        const second =
+            await post(
+                "/memory/query",
+                {
+                    identity,
+                    kinds: ["LESSON"],
+                    query:
+                        "rollback snapshot después de pruebas rojas",
+                    limit: 1,
+                    semanticCandidateLimit: 50
+                }
+            );
+        assert.equal(
+            second.body.records[0].id,
+            "lesson-old-rollback"
+        );
+        assert.equal(
+            second.body.semanticEvidence.cacheMisses,
+            0
+        );
+        assert.equal(
+            embeddingCalls,
+            3
+        );
+    }
+    finally {
+        await new Promise(resolve =>
+            server.close(resolve)
+        );
+        fs.rmSync(
+            fixture.fixtureRoot,
+            {
+                recursive: true,
+                force: true
+            }
+        );
+    }
+});
 
 test("PDF edit route records local artifact approval and safe placement contract", () => {
     const source =
