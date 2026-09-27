@@ -136,7 +136,7 @@ test("V142 actuator advertises mandatory MP4 and provisional-only WebM", () => {
 
 test("V142 waits for the real browser export completion state", () => {
   const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-    assert.match(source, /2\.52\.0-cached-request-identity-v142/);
+    assert.match(source, /2\.53\.0-private-memory-archive-v142/);
   assert.doesNotMatch(source, /await sleepMs\(duration \* 1000 \+ 2600\)/);
   assert.match(source, /__JARVIS_REEL_EXPORT_ERROR__/);
   assert.match(source, /REEL_EXPORT_COMPLETION_TIMEOUT/);
