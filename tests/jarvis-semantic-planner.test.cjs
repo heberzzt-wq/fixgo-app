@@ -126,6 +126,10 @@ test("current-turn conversational gate returns a contextual precomposed response
     });
 
     assert.equal(calls, 1);
+    assert.equal(
+        requestSeen?.config?.modelProfile,
+        "conversation"
+    );
     assert.deepEqual(
         requestSeen?.config?.chatMessages?.map(item => item.role),
         ["system", "user", "assistant", "user"]

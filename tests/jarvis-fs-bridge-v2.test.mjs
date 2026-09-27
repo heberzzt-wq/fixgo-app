@@ -293,7 +293,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.57.0-bounded-semantic-memory-v142");
+    assert.equal(description.version, "2.58.0-local-model-profiles-v142");
     assert.equal(typeof description.actuators.speech.available, "boolean");
     assert.deepEqual(description.actuators.speech.outputFormats, ["wav"]);
     assert.equal(description.policy.authority, "full_repo_private_owner");
@@ -786,7 +786,8 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
         env: {
             JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
             JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
-            JARVIS_LOCAL_LLM_MODEL: "qwen-local"
+            JARVIS_LOCAL_LLM_MODEL: "qwen-code",
+            JARVIS_LOCAL_CONVERSATION_MODEL: "qwen-chat"
         },
         fetchImpl: async (_url, options) => {
             requestBody = JSON.parse(options.body);
@@ -832,6 +833,10 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
         }
     });
 
+    assert.equal(
+        requestBody.model,
+        "qwen-chat"
+    );
     assert.deepEqual(
         requestBody.messages.map(message => message.role),
         ["system", "user", "assistant", "user"]
@@ -852,6 +857,26 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
     assert.equal(
         result.toolCalls[0].args.prompt,
         "Jajaja, ya entendí: se te antojó a ti."
+    );
+    assert.equal(
+        result.model,
+        "qwen-chat"
+    );
+    assert.equal(
+        result.modelProfile,
+        "conversation"
+    );
+    assert.equal(
+        result.inferenceReceipt.conversationModel,
+        "qwen-chat"
+    );
+    assert.equal(
+        result.inferenceReceipt.lastInferenceModel,
+        "qwen-chat"
+    );
+    assert.equal(
+        result.inferenceReceipt.lastModelProfile,
+        "conversation"
     );
     assert.equal(
         result.inferenceReceipt.counters.localSemanticInferenceCalls,

@@ -1256,6 +1256,8 @@ async function runModelSemanticPlanner({
                 `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
             ].join("\n\n"),
             config: {
+                modelProfile:
+                    "conversation",
                 chatMessages:
                     gateChatMessages,
                 maxOutputTokens: 192,

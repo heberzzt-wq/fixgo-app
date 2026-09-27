@@ -90,7 +90,7 @@ const {
 } = require("./functions/jarvis-semantic-planner.js");
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.57.0-bounded-semantic-memory-v142";
+    "2.58.0-local-model-profiles-v142";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -1000,6 +1000,10 @@ export function createSelfHostedSemanticEngine({
     const model = String(
         env.JARVIS_LOCAL_LLM_MODEL || "qwen2.5-coder:1.5b"
     ).trim();
+    const conversationModel = String(
+        env.JARVIS_LOCAL_CONVERSATION_MODEL ||
+        model
+    ).trim();
     const embeddingModel = String(
         env.JARVIS_LOCAL_EMBEDDING_MODEL || "qwen3-embedding:0.6b"
     ).trim();
@@ -1011,6 +1015,10 @@ export function createSelfHostedSemanticEngine({
         Math.max(Number(env.JARVIS_LOCAL_LLM_TIMEOUT_MS) || 90000, 5000),
         180000
     );
+    let lastInferenceModel =
+        model;
+    let lastModelProfile =
+        "default";
     const counters = {
         localSemanticInferenceCalls: 0,
         localEmbeddingCalls: 0,
@@ -1039,7 +1047,19 @@ export function createSelfHostedSemanticEngine({
             mode,
             provider: "ollama-openai-compatible-local",
             model: model || null,
+            conversationModel:
+                conversationModel || null,
+            modelProfiles: {
+                default:
+                    model || null,
+                conversation:
+                    conversationModel || null
+            },
             embeddingModel: embeddingModel || null,
+            lastInferenceModel:
+                lastInferenceModel || null,
+            lastModelProfile:
+                lastModelProfile || "default",
             endpointConfigured: Boolean(baseUrl),
             endpointOrigin: baseUrl ? new URL(baseUrl).origin : null,
             tokenConfigured: Boolean(token),
@@ -1187,8 +1207,24 @@ export function createSelfHostedSemanticEngine({
                         )
                 }
             ];
+            const modelProfile =
+                String(
+                    request?.config?.modelProfile ||
+                    "default"
+                )
+                    .trim()
+                    .toLowerCase();
+            const selectedModel =
+                modelProfile === "conversation"
+                    ? conversationModel
+                    : model;
+            lastInferenceModel =
+                selectedModel;
+            lastModelProfile =
+                modelProfile;
             const payload = {
-                model,
+                model:
+                    selectedModel,
                 messages:
                     explicitChatMessages.length > 0
                         ? explicitChatMessages
@@ -1322,7 +1358,10 @@ export function createSelfHostedSemanticEngine({
             return {
                 ...result,
                 provider: ai.lastProvider,
-                model,
+                model:
+                    lastInferenceModel,
+                modelProfile:
+                    lastModelProfile,
                 localSemanticInferenceUsed: true,
                 cloudSemanticInferenceUsed: false,
                 externalApiUsed: false,
@@ -1347,7 +1386,10 @@ export function createSelfHostedSemanticEngine({
             return {
                 ...result,
                 provider: ai.lastProvider,
-                model,
+                model:
+                    lastInferenceModel,
+                modelProfile:
+                    lastModelProfile,
                 localSemanticInferenceUsed: true,
                 cloudSemanticInferenceUsed: false,
                 externalApiUsed: false,
