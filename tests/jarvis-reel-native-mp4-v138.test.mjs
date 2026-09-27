@@ -528,7 +528,7 @@ test("V142 structured production continuation reaches the semantic planner and d
 
 test("V142 bridge release identifies the professional MP4 master bytes", () => {
   const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-  assert.equal(source.includes("2.52.0-cached-request-identity-v142"), true);
+  assert.equal(source.includes("2.53.0-private-memory-archive-v142"), true);
 });
 
 test("V142 current turn preserves semantic planner outage truth", () => {

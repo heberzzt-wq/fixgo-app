@@ -26,6 +26,8 @@ import {
     extractTemporalMediaArtifact,
     inspectLocalConnectors,
     normalizeReadLineRange,
+    appendJarvisPrivateMemoryRecords,
+    queryJarvisPrivateMemoryRecords,
     readJarvisRuntimeContract,
     resolveHuMoLanCacheAuthority,
     resolveRepoPath,
@@ -153,12 +155,102 @@ test("canonical artifact extraction prepares physical video frames and audio wit
     assert.equal(extracted.temporal.transcriptionVerified, false);
 });
 
+test("private Jarvis memory archive is append-only, deduped and scope-isolated", () => {
+    const memoryRoot =
+        fs.mkdtempSync(
+            path.join(
+                os.tmpdir(),
+                "jarvis-private-memory-"
+            )
+        );
+    const identity = {
+        userId: "owner",
+        workspaceId: "fixgo",
+        projectId: "v142"
+    };
+    const otherIdentity = {
+        ...identity,
+        userId: "other"
+    };
+    const records = [
+        {
+            id: "turn-1",
+            kind: "TURN",
+            createdAt: "2026-09-27T00:00:00Z",
+            content: "primero"
+        },
+        {
+            id: "lesson-1",
+            kind: "LESSON",
+            createdAt: "2026-09-27T00:00:01Z",
+            instruction: "reparar"
+        }
+    ];
+
+    const first =
+        appendJarvisPrivateMemoryRecords({
+            identity,
+            records,
+            memoryRoot
+        });
+    const duplicate =
+        appendJarvisPrivateMemoryRecords({
+            identity,
+            records: [
+                {
+                    ...records[0],
+                    content: "no debe reemplazar"
+                }
+            ],
+            memoryRoot
+        });
+    const recalled =
+        queryJarvisPrivateMemoryRecords({
+            identity,
+            limit: 100,
+            memoryRoot
+        });
+    const turnsOnly =
+        queryJarvisPrivateMemoryRecords({
+            identity,
+            kinds: ["TURN"],
+            limit: 100,
+            memoryRoot
+        });
+    const other =
+        queryJarvisPrivateMemoryRecords({
+            identity: otherIdentity,
+            limit: 100,
+            memoryRoot
+        });
+
+    assert.equal(first.appended, 2);
+    assert.equal(duplicate.appended, 0);
+    assert.equal(duplicate.deduped, 1);
+    assert.equal(recalled.records.length, 2);
+    assert.equal(recalled.records[0].content, "primero");
+    assert.equal(turnsOnly.records.length, 1);
+    assert.equal(other.records.length, 0);
+    const archiveFiles =
+        fs.readdirSync(memoryRoot)
+            .filter(name => name.endsWith(".jsonl"));
+    assert.equal(archiveFiles.length, 1);
+    const physicalLines =
+        fs.readFileSync(
+            path.join(memoryRoot, archiveFiles[0]),
+            "utf8"
+        )
+            .trim()
+            .split(/\r?\n/);
+    assert.equal(physicalLines.length, 2);
+});
+
 test("Jarvis FS bridge V2 describes safe full repo policy", () => {
     const description =
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.52.0-cached-request-identity-v142");
+    assert.equal(description.version, "2.53.0-private-memory-archive-v142");
     assert.equal(typeof description.actuators.speech.available, "boolean");
     assert.deepEqual(description.actuators.speech.outputFormats, ["wav"]);
     assert.equal(description.policy.authority, "full_repo_private_owner");
@@ -2021,7 +2113,25 @@ test("write bridge requires fingerprinted one-time approval, snapshot and post-v
     });
     const root = fixture.root;
     fs.writeFileSync(path.join(root, "sample.js"), "export const value = 1;\n");
-    const server = createJarvisFsBridgeApp({ root }).listen(0);
+    fs.writeFileSync(
+        path.join(root, "package.json"),
+        JSON.stringify({
+            scripts: {
+                "check:syntax": "node --check sample.js",
+                test: "node -e \"process.exit(1)\""
+            }
+        })
+    );
+    const privateMemoryRoot =
+        path.join(
+            fixture.fixtureRoot,
+            "private-memory"
+        );
+    const server =
+        createJarvisFsBridgeApp({
+            root,
+            privateMemoryRoot
+        }).listen(0);
     await new Promise(resolve => server.once("listening", resolve));
     const base = `http://127.0.0.1:${server.address().port}`;
     const post = async (route, body) => {
@@ -2094,6 +2204,22 @@ test("write bridge requires fingerprinted one-time approval, snapshot and post-v
         assert.equal(addWithoutReceipt.status, 403);
         assert.equal(addWithoutReceipt.body.error, "VERIFIED_WRITE_RECEIPTS_REQUIRED");
 
+        const addBeforeTests = await post("/git", {
+            action: "add", files: ["sample.js"], receiptFingerprints: [prepared.body.fingerprint],
+            approved: true, codexApproved: true
+        });
+        assert.equal(addBeforeTests.status, 409);
+        assert.equal(addBeforeTests.body.status, "GIT_POST_WRITE_TEST_REQUIRED");
+
+        const postWriteTests = await post("/write/test", {
+            fingerprints: [prepared.body.fingerprint],
+            command: "check:syntax",
+            cwd: "."
+        });
+        assert.equal(postWriteTests.status, 200);
+        assert.equal(postWriteTests.body.status, "POST_WRITE_TESTS_PASSED");
+        assert.equal(postWriteTests.body.receipts[0].testStatus, "PASSED");
+
         const added = await post("/git", {
             action: "add", files: ["sample.js"], receiptFingerprints: [prepared.body.fingerprint],
             approved: true, codexApproved: true
@@ -2101,8 +2227,17 @@ test("write bridge requires fingerprinted one-time approval, snapshot and post-v
         assert.equal(added.body.status, "GIT_ADD_OK");
 
         const committed = await post("/git", {
-            action: "commit", message: "Verify one-time write receipt",
-            receiptFingerprints: [prepared.body.fingerprint], approved: true, codexApproved: true
+            action: "commit",
+            message: "Verify one-time write receipt",
+            receiptFingerprints: [prepared.body.fingerprint],
+            approved: true,
+            codexApproved: true,
+            identity: {
+                userId: "owner",
+                workspaceId: "fixgo",
+                projectId: "v142"
+            },
+            instruction: "repair sample.js safely"
         });
         assert.equal(committed.body.status, "GIT_COMMIT_OK");
         assert.ok(committed.body.commitReceipt?.receiptId);
@@ -2120,6 +2255,93 @@ test("write bridge requires fingerprinted one-time approval, snapshot and post-v
         });
         assert.equal(pushMismatch.status, 403);
         assert.equal(pushMismatch.body.error, "GIT_PUSH_COMMAND_MISMATCH");
+
+        const rollbackPrepared = await post("/write/prepare", {
+            objectiveId: "objective-rollback",
+            caseId: "case-rollback",
+            authorityId: "HEBERTO_MENDOZA",
+            controllerId: "CODEX_SIA7",
+            file: "sample.js",
+            search: "value = 2",
+            replace: "value = 3",
+            matchCount: 1
+        });
+        await post("/write/authorize", {
+            fingerprint: rollbackPrepared.body.fingerprint,
+            nonce: rollbackPrepared.body.nonce,
+            approvedBy: "HEBERTO_MENDOZA",
+            approvalCommand: rollbackPrepared.body.approvalCommand
+        });
+        const rollbackWritten = await post("/write", {
+            fingerprint: rollbackPrepared.body.fingerprint,
+            nonce: rollbackPrepared.body.nonce,
+            objectiveId: "objective-rollback",
+            caseId: "case-rollback"
+        });
+        assert.equal(rollbackWritten.body.status, "WRITE_COMPLETED_VERIFIED");
+        assert.equal(
+            fs.readFileSync(path.join(root, "sample.js"), "utf8"),
+            "export const value = 3;\n"
+        );
+
+        const failedTests = await post("/write/test", {
+            fingerprints: [rollbackPrepared.body.fingerprint],
+            command: "test",
+            cwd: ".",
+            identity: {
+                userId: "owner",
+                workspaceId: "fixgo",
+                projectId: "v142"
+            },
+            instruction: "verify rollback contract"
+        });
+        assert.equal(failedTests.status, 409);
+        assert.equal(
+            failedTests.body.status,
+            "POST_WRITE_TEST_FAILED_ROLLED_BACK"
+        );
+        assert.equal(failedTests.body.rollbackResults[0].ok, true);
+        assert.equal(
+            fs.readFileSync(path.join(root, "sample.js"), "utf8"),
+            "export const value = 2;\n"
+        );
+
+        const addRolledBack = await post("/git", {
+            action: "add",
+            files: ["sample.js"],
+            receiptFingerprints: [rollbackPrepared.body.fingerprint],
+            approved: true,
+            codexApproved: true
+        });
+        assert.equal(addRolledBack.status, 409);
+        assert.equal(
+            addRolledBack.body.status,
+            "GIT_POST_WRITE_TEST_REQUIRED"
+        );
+
+        const learned = await post("/memory/query", {
+            identity: {
+                userId: "owner",
+                workspaceId: "fixgo",
+                projectId: "v142"
+            },
+            kinds: ["LESSON"],
+            limit: 20
+        });
+        assert.equal(learned.status, 200);
+        assert.equal(learned.body.status, "PRIVATE_MEMORY_ARCHIVE_READ");
+        assert.ok(
+            learned.body.records.some(record =>
+                record.status === "REPAIR_VERIFIED_COMMITTED" &&
+                record.commitSha === committed.body.commitReceipt.commitSha
+            )
+        );
+        assert.ok(
+            learned.body.records.some(record =>
+                record.status === "POST_WRITE_TEST_FAILED_ROLLED_BACK" &&
+                record.rollbackVerified === true
+            )
+        );
 
         const stale = await post("/write/prepare", {
             objectiveId: "objective-2", caseId: "case-2",

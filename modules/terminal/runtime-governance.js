@@ -3510,3 +3510,528 @@ else {
 /* =====================================================================================
    AUTO BOOT HYDRATION V2
 ===================================================================================== */
+
+/* =====================================================================================
+   V142 ON-DEMAND RUNTIME INTELLIGENCE
+   Migrated from v5.9-polish without reviving autonomous polling daemons.
+===================================================================================== */
+
+window.__RUNTIME_EXPERIENCE__ ||= {
+    initialized: true,
+    totalEvents: 0,
+    recent: [],
+    anomalies: [],
+    repairs: [],
+    governance: []
+};
+
+window.__RUNTIME_PREDICTION__ ||= {
+    initialized: true,
+    totalPredictions: 0,
+    lastPredictionAt: null,
+    runtimeRiskLevel: "LOW",
+    degradationForecast: "STABLE",
+    queueForecast: "NORMAL",
+    predictionHistory: []
+};
+
+window.__RUNTIME_STRATEGY__ ||= {
+    initialized: true,
+    activeObjective: "MAINTAIN_STABILITY",
+    strategicMode: "PROTECTIVE",
+    totalObjectiveChanges: 0,
+    lastObjectiveUpdateAt: null
+};
+
+window.__RUNTIME_META_COGNITION__ ||= {
+    initialized: true,
+    totalEvaluations: 0,
+    lastEvaluationAt: null,
+    cognitionScore: 100,
+    governanceScore: 100,
+    planningScore: 100,
+    policyScore: 100,
+    runtimeSelfAssessment: "STABLE",
+    evaluationHistory: []
+};
+
+window.__RUNTIME_CONVERGENCE__ ||= {
+    initialized: true,
+    convergenceScore: 100,
+    lastEvaluationAt: null,
+    totalEvaluations: 0,
+    evaluationHistory: []
+};
+
+window.__RUNTIME_SAFETY__ ||= {
+    initialized: true,
+    safetyLevel: "STABLE",
+    cognitionLockdown: false,
+    lastEvaluationAt: null,
+    totalEvaluations: 0,
+    violations: []
+};
+
+window.__RUNTIME_HARDENING__ ||= {
+    initialized: true,
+    maxConcurrentExecutions: 4,
+    emergencyStabilization: false,
+    totalHardeningCycles: 0,
+    totalEmergencyStabilizations: 0,
+    lastHardeningCheckAt: null,
+    hardeningHistory: []
+};
+
+function boundedRuntimeHistory(list = [], maximum = 200) {
+    if (!Array.isArray(list)) return [];
+    if (list.length <= maximum) return list;
+    list.splice(0, list.length - maximum);
+    return list;
+}
+
+window.storeRuntimeExperience =
+window.recordRuntimeExperience =
+async function(type = "GOVERNANCE", payload = {}) {
+    const memory = window.__RUNTIME_EXPERIENCE__;
+    const normalizedType =
+        String(type || "GOVERNANCE").trim().toUpperCase();
+    const event = {
+        id: crypto.randomUUID(),
+        kind: "RUNTIME_EXPERIENCE",
+        type: normalizedType,
+        createdAt: new Date().toISOString(),
+        payload:
+            payload && typeof payload === "object"
+                ? structuredClone(payload)
+                : { value: payload }
+    };
+
+    memory.totalEvents++;
+    memory.recent.push(event);
+    boundedRuntimeHistory(memory.recent, 200);
+
+    if (normalizedType === "ANOMALY") {
+        memory.anomalies.push(event);
+        boundedRuntimeHistory(memory.anomalies, 100);
+    }
+    else if (normalizedType === "REPAIR") {
+        memory.repairs.push(event);
+        boundedRuntimeHistory(memory.repairs, 100);
+    }
+    else {
+        memory.governance.push(event);
+        boundedRuntimeHistory(memory.governance, 100);
+    }
+
+    const identity =
+        payload?.identity &&
+        typeof payload.identity === "object"
+            ? payload.identity
+            : null;
+    if (
+        identity &&
+        typeof window.JarvisLocalBridge?.requestJson === "function"
+    ) {
+        try {
+            await window.JarvisLocalBridge.requestJson(
+                "/memory/append",
+                {
+                    identity,
+                    records: [event]
+                },
+                { timeoutMs: 5000 }
+            );
+        }
+        catch(error) {
+            console.warn(
+                "[RUNTIME_EXPERIENCE_ARCHIVE_DEGRADED]",
+                error?.message || String(error)
+            );
+        }
+    }
+
+    return {
+        ok: true,
+        event,
+        totalEvents: memory.totalEvents
+    };
+};
+
+window.executeRuntimePredictionAnalysis =
+async function() {
+    const prediction = window.__RUNTIME_PREDICTION__;
+    const health = window.__RUNTIME_HEALTH__ || {};
+    const experience = window.__RUNTIME_EXPERIENCE__ || {};
+    let riskLevel = "LOW";
+    let degradationForecast = "STABLE";
+    let queueForecast = "NORMAL";
+
+    if (Number(health.runtimeHealth ?? 100) < 80) {
+        riskLevel = "MEDIUM";
+        degradationForecast = "DEGRADATION_RISK";
+    }
+    if (Number(health.runtimeHealth ?? 100) < 60) {
+        riskLevel = "HIGH";
+        degradationForecast = "CRITICAL_DEGRADATION";
+    }
+    if (health.runtimePressure === "HIGH") {
+        riskLevel = "HIGH";
+        queueForecast = "QUEUE_OVERLOAD_RISK";
+    }
+    if (Number(health.anomalyScore || 0) > 3) {
+        riskLevel = "HIGH";
+    }
+    if ((experience.anomalies || []).length > 5) {
+        degradationForecast = "RECURRING_ANOMALY_PATTERN";
+    }
+
+    const result = {
+        predictionId: crypto.randomUUID(),
+        riskLevel,
+        degradationForecast,
+        queueForecast,
+        timestamp: Date.now()
+    };
+    prediction.runtimeRiskLevel = riskLevel;
+    prediction.degradationForecast = degradationForecast;
+    prediction.queueForecast = queueForecast;
+    prediction.lastPredictionAt = result.timestamp;
+    prediction.totalPredictions++;
+    prediction.predictionHistory.push(result);
+    boundedRuntimeHistory(prediction.predictionHistory, 100);
+    return { ok: true, prediction: result };
+};
+
+window.evaluateRuntimeStrategy =
+async function() {
+    const strategy = window.__RUNTIME_STRATEGY__;
+    const health = window.__RUNTIME_HEALTH__ || {};
+    const prediction = window.__RUNTIME_PREDICTION__ || {};
+    let objective = "MAINTAIN_STABILITY";
+    let mode = "PROTECTIVE";
+
+    if (health.runtimePressure === "HIGH") {
+        objective = "MINIMIZE_PRESSURE";
+        mode = "DEFENSIVE";
+    }
+    if (Number(health.runtimeHealth ?? 100) < 80) {
+        objective = "MAXIMIZE_RESILIENCE";
+        mode = "RECOVERY";
+    }
+    if (prediction.runtimeRiskLevel === "HIGH") {
+        objective = "MAXIMIZE_RESILIENCE";
+        mode = "RECOVERY";
+    }
+
+    strategy.activeObjective = objective;
+    strategy.strategicMode = mode;
+    strategy.totalObjectiveChanges++;
+    strategy.lastObjectiveUpdateAt = Date.now();
+    return { ok: true, objective, mode };
+};
+
+window.executeCognitiveConvergence =
+async function() {
+    const convergence = window.__RUNTIME_CONVERGENCE__;
+    const health = window.__RUNTIME_HEALTH__ || {};
+    const scheduler = window.__RUNTIME_SCHEDULER__ || {};
+    const daemonState =
+        typeof window.getRuntimeDaemonState === "function"
+            ? window.getRuntimeDaemonState()
+            : {};
+    let score = 100;
+
+    score -= Math.min(
+        35,
+        Number(health.anomalyScore || 0) * 8
+    );
+    score -= Math.min(
+        25,
+        Number(scheduler.failedExecutions || 0) * 3
+    );
+    if (health.runtimePressure === "HIGH") score -= 20;
+    if (Number(daemonState?.metrics?.totalBlocked || 0) > 10) {
+        score -= 10;
+    }
+    score = Math.max(0, Math.min(100, score));
+    const evaluation = {
+        convergenceScore: score,
+        runtimeHealth: Number(health.runtimeHealth ?? 100),
+        anomalyScore: Number(health.anomalyScore || 0),
+        timestamp: Date.now()
+    };
+    convergence.convergenceScore = score;
+    convergence.lastEvaluationAt = evaluation.timestamp;
+    convergence.totalEvaluations++;
+    convergence.evaluationHistory.push(evaluation);
+    boundedRuntimeHistory(convergence.evaluationHistory, 100);
+    return { ok: true, ...evaluation };
+};
+
+window.executeCognitiveSafetyCheck =
+async function() {
+    const safety = window.__RUNTIME_SAFETY__;
+    const prediction = window.__RUNTIME_PREDICTION__ || {};
+    const convergence = window.__RUNTIME_CONVERGENCE__ || {};
+    const health = window.__RUNTIME_HEALTH__ || {};
+    const violations = [];
+
+    if (prediction.runtimeRiskLevel === "HIGH") {
+        violations.push("PREDICTED_RUNTIME_RISK");
+    }
+    if (Number(convergence.convergenceScore ?? 100) < 60) {
+        violations.push("LOW_COGNITIVE_CONVERGENCE");
+    }
+    if (Number(health.runtimeHealth ?? 100) < 50) {
+        violations.push("CRITICAL_RUNTIME_HEALTH");
+    }
+
+    const lockdown =
+        violations.includes("CRITICAL_RUNTIME_HEALTH") ||
+        violations.length >= 2;
+    const level =
+        lockdown
+            ? "LOCKDOWN"
+            : violations.length
+                ? "ELEVATED"
+                : "STABLE";
+
+    safety.safetyLevel = level;
+    safety.cognitionLockdown = lockdown;
+    safety.violations = violations;
+    safety.lastEvaluationAt = Date.now();
+    safety.totalEvaluations++;
+    return {
+        ok: true,
+        safetyLevel: level,
+        cognitionLockdown: lockdown,
+        violations
+    };
+};
+
+window.executeRuntimeHardeningCheck =
+async function() {
+    const hardening = window.__RUNTIME_HARDENING__;
+    const scheduler = window.__RUNTIME_SCHEDULER__ || {};
+    const safety = window.__RUNTIME_SAFETY__ || {};
+    const convergence = window.__RUNTIME_CONVERGENCE__ || {};
+    const violations = [];
+
+    if (
+        Number(scheduler.activeExecutions?.size || 0) >
+        Number(hardening.maxConcurrentExecutions || 4)
+    ) {
+        violations.push("EXECUTION_SATURATION");
+    }
+    if (safety.cognitionLockdown === true) {
+        violations.push("COGNITION_LOCKDOWN");
+    }
+    if (Number(convergence.convergenceScore ?? 100) < 70) {
+        violations.push("CONVERGENCE_COLLAPSE");
+    }
+
+    const stabilization = violations.length > 0;
+    hardening.emergencyStabilization = stabilization;
+    hardening.totalHardeningCycles++;
+    if (stabilization) {
+        hardening.totalEmergencyStabilizations++;
+    }
+    hardening.lastHardeningCheckAt = Date.now();
+    const report = {
+        reportId: crypto.randomUUID(),
+        stabilization,
+        violations,
+        timestamp: hardening.lastHardeningCheckAt
+    };
+    hardening.hardeningHistory.push(report);
+    boundedRuntimeHistory(hardening.hardeningHistory, 100);
+    return { ok: true, report };
+};
+
+window.executeMetaCognitiveAnalysis =
+async function() {
+    const meta = window.__RUNTIME_META_COGNITION__;
+    const health = window.__RUNTIME_HEALTH__ || {};
+    const convergence = window.__RUNTIME_CONVERGENCE__ || {};
+    const safety = window.__RUNTIME_SAFETY__ || {};
+    const scheduler = window.__RUNTIME_SCHEDULER__ || {};
+    let cognitionScore = Number(convergence.convergenceScore ?? 100);
+    let governanceScore =
+        safety.cognitionLockdown === true ? 60 : 100;
+    let planningScore =
+        Number(scheduler.failedExecutions || 0) > 5 ? 75 : 100;
+    let policyScore =
+        Number(health.runtimeHealth ?? 100) < 70 ? 75 : 100;
+    let assessment = "STABLE";
+
+    if (
+        cognitionScore < 75 ||
+        governanceScore < 75 ||
+        Number(health.runtimeHealth ?? 100) < 75
+    ) {
+        assessment = "DEGRADED";
+    }
+    if (safety.cognitionLockdown === true) {
+        assessment = "RISK_ELEVATED";
+    }
+
+    const evaluation = {
+        evaluationId: crypto.randomUUID(),
+        cognitionScore,
+        governanceScore,
+        planningScore,
+        policyScore,
+        assessment,
+        timestamp: Date.now()
+    };
+    meta.totalEvaluations++;
+    meta.lastEvaluationAt = evaluation.timestamp;
+    meta.cognitionScore = cognitionScore;
+    meta.governanceScore = governanceScore;
+    meta.planningScore = planningScore;
+    meta.policyScore = policyScore;
+    meta.runtimeSelfAssessment = assessment;
+    meta.evaluationHistory.push(evaluation);
+    boundedRuntimeHistory(meta.evaluationHistory, 100);
+    return { ok: true, evaluation };
+};
+
+window.evaluateRuntimeIntelligence =
+async function() {
+    if (typeof window.computeRuntimeHealth === "function") {
+        await window.computeRuntimeHealth();
+    }
+    const prediction =
+        await window.executeRuntimePredictionAnalysis();
+    const strategy =
+        await window.evaluateRuntimeStrategy();
+    const convergence =
+        await window.executeCognitiveConvergence();
+    const safety =
+        await window.executeCognitiveSafetyCheck();
+    const hardening =
+        await window.executeRuntimeHardeningCheck();
+    const meta =
+        await window.executeMetaCognitiveAnalysis();
+
+    return {
+        ok: true,
+        mode: "ON_DEMAND_NO_BACKGROUND_COGNITION",
+        prediction,
+        strategy,
+        convergence,
+        safety,
+        hardening,
+        meta
+    };
+};
+
+window.getRuntimeIntelligenceState =
+function() {
+    return {
+        ok: true,
+        mode: "ON_DEMAND_NO_BACKGROUND_COGNITION",
+        experience: window.__RUNTIME_EXPERIENCE__,
+        prediction: window.__RUNTIME_PREDICTION__,
+        strategy: window.__RUNTIME_STRATEGY__,
+        meta: window.__RUNTIME_META_COGNITION__,
+        convergence: window.__RUNTIME_CONVERGENCE__,
+        safety: window.__RUNTIME_SAFETY__,
+        hardening: window.__RUNTIME_HARDENING__
+    };
+};
+
+window.__RUNTIME_HEALING_ADVISORY__ ||= {
+    initialized: true,
+    state: "STABLE",
+    recommendations: [],
+    totalEvaluations: 0,
+    lastEvaluationAt: null
+};
+
+window.analyzeRuntimeRecoveryNeeds =
+async function() {
+    const advisory =
+        window.__RUNTIME_HEALING_ADVISORY__;
+    const health =
+        window.__RUNTIME_HEALTH__ || {};
+    const recommendations = [];
+
+    if (Number(health.runtimeHealth ?? 100) < 70) {
+        recommendations.push({
+            severity: "HIGH",
+            type: "RUNTIME_DEGRADATION",
+            recommendation:
+                "Inspect degraded runtime nodes before any repair."
+        });
+    }
+    if (health.runtimePressure === "HIGH") {
+        recommendations.push({
+            severity: "HIGH",
+            type: "QUEUE_PRESSURE",
+            recommendation:
+                "Reduce runtime pressure before mutation."
+        });
+    }
+
+    if (Number(health.anomalyScore || 0) > 0) {
+        recommendations.push({
+            severity: "MEDIUM",
+            type: "ANOMALY_DETECTED",
+            recommendation:
+                "Correlate anomalies with repo evidence and repair history."
+        });
+    }
+
+    const repairHistory =
+        typeof window.getRuntimeRepairHistory === "function"
+            ? window.getRuntimeRepairHistory()
+            : [];
+    const failedRepairs =
+        (Array.isArray(repairHistory) ? repairHistory : [])
+            .filter(item =>
+                String(item?.status || "")
+                    .toUpperCase()
+                    .includes("FAIL")
+            );
+    if (failedRepairs.length > 2) {
+        recommendations.push({
+            severity: "HIGH",
+            type: "REPAIR_FAILURE_PATTERN",
+            recommendation:
+                "Use prior repair lessons and repo diagnosis before retrying."
+        });
+    }
+
+    advisory.recommendations =
+        recommendations;
+    advisory.state =
+        recommendations.length > 0
+            ? "RECOVERY_RECOMMENDED"
+            : "STABLE";
+    advisory.totalEvaluations++;
+    advisory.lastEvaluationAt =
+        Date.now();
+
+    return {
+        ok: true,
+        state:
+            advisory.state,
+        recommendations:
+            structuredClone(recommendations),
+        failedRepairCount:
+            failedRepairs.length,
+        evaluatedAt:
+            advisory.lastEvaluationAt
+    };
+};
+
+window.getRuntimeHealingState =
+function() {
+    return {
+        ok: true,
+        ...structuredClone(
+            window.__RUNTIME_HEALING_ADVISORY__
+        )
+    };
+};

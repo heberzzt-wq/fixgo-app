@@ -73,12 +73,111 @@ function recordBase(identity, conversationId, kind, now) {
     };
 }
 
+function livePrivateArchiveAdapter() {
+    const requestJson =
+        globalThis
+            ?.JarvisLocalBridge
+            ?.requestJson;
+    if (typeof requestJson !== "function") {
+        return null;
+    }
+    return {
+        append:
+            payload =>
+                requestJson(
+                    "/memory/append",
+                    payload,
+                    { timeoutMs: 5000 }
+                ),
+        query:
+            payload =>
+                requestJson(
+                    "/memory/query",
+                    payload,
+                    { timeoutMs: 5000 }
+                )
+    };
+}
+
 export function createJarvisSemanticMemory({
     storage = globalThis.localStorage,
     sessionStorage = globalThis.sessionStorage,
-    now = () => new Date().toISOString()
+    now = () => new Date().toISOString(),
+    archiveAdapter = null
 } = {}) {
     const conversationId = () => activeConversationId(sessionStorage);
+    const archiveSyncedScopes = new Set();
+
+    function archive() {
+        return archiveAdapter || livePrivateArchiveAdapter();
+    }
+
+    async function archiveRecords(identity = {}, localRecords = [], record = null) {
+        const adapter = archive();
+        if (typeof adapter?.append !== "function") {
+            return {
+                ok: false,
+                status: "PRIVATE_MEMORY_ARCHIVE_UNAVAILABLE"
+            };
+        }
+        const key = scopeKey(identity);
+        const firstSync = !archiveSyncedScopes.has(key);
+        const payloadRecords =
+            firstSync
+                ? localRecords
+                : record
+                    ? [record]
+                    : [];
+        if (payloadRecords.length === 0) {
+            return {
+                ok: true,
+                status: "PRIVATE_MEMORY_ARCHIVE_ALREADY_SYNCED"
+            };
+        }
+        try {
+            const result =
+                await adapter.append({
+                    identity:
+                        scopeIdentity(identity),
+                    records:
+                        payloadRecords
+                });
+            if (result?.ok === true) {
+                archiveSyncedScopes.add(key);
+            }
+            return result;
+        }
+        catch(error) {
+            return {
+                ok: false,
+                status: "PRIVATE_MEMORY_ARCHIVE_APPEND_FAILED",
+                error:
+                    error?.message || String(error)
+            };
+        }
+    }
+
+    async function archivedRecords(identity = {}) {
+        const adapter = archive();
+        if (typeof adapter?.query !== "function") return [];
+        try {
+            const result =
+                await adapter.query({
+                    identity:
+                        scopeIdentity(identity),
+                    kinds:
+                        ["TURN", "MISSION", "LESSON"],
+                    limit:
+                        5000
+                });
+            return Array.isArray(result?.records)
+                ? result.records
+                : [];
+        }
+        catch {
+            return [];
+        }
+    }
 
     function records(identity = {}) {
         return fallbackLoad(storage, scopeKey(identity));
@@ -104,7 +203,19 @@ export function createJarvisSemanticMemory({
         };
         current.push(record);
         write(identity, current);
-        return { ok: true, status: "SEMANTIC_MEMORY_TURN_STORED", record };
+        const archiveResult =
+            await archiveRecords(
+                identity,
+                current,
+                record
+            );
+        return {
+            ok: true,
+            status: "SEMANTIC_MEMORY_TURN_STORED",
+            record,
+            durableArchive:
+                archiveResult
+        };
     }
 
     async function rememberLesson({ identity = {}, missionId = "", instruction = "", status = "", errors = [], completedTools = [], blockedTools = [] } = {}) {
@@ -127,7 +238,19 @@ export function createJarvisSemanticMemory({
         };
         current.push(record);
         write(identity, current);
-        return { ok: true, status: "SEMANTIC_MEMORY_LESSON_STORED", record };
+        const archiveResult =
+            await archiveRecords(
+                identity,
+                current,
+                record
+            );
+        return {
+            ok: true,
+            status: "SEMANTIC_MEMORY_LESSON_STORED",
+            record,
+            durableArchive:
+                archiveResult
+        };
     }
 
     async function rememberMission({ identity = {}, instruction = "", mission = null, finalResponse = null } = {}) {
@@ -160,6 +283,12 @@ export function createJarvisSemanticMemory({
         };
         current.push(record);
         write(identity, current);
+        const archiveResult =
+            await archiveRecords(
+                identity,
+                current,
+                record
+            );
         await rememberLesson({
             identity,
             missionId: record.missionId,
@@ -169,12 +298,38 @@ export function createJarvisSemanticMemory({
             completedTools,
             blockedTools
         });
-        return { ok: true, status: "SEMANTIC_MEMORY_MISSION_STORED", record };
+        return {
+            ok: true,
+            status: "SEMANTIC_MEMORY_MISSION_STORED",
+            record,
+            durableArchive:
+                archiveResult
+        };
     }
 
     async function recall({ identity = {}, maximumTurns = 40, maximumMissions = 16, maximumLessons = 20 } = {}) {
         const current = records(identity);
-        const ordered = [...current].sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+        const archiveSync =
+            await archiveRecords(
+                identity,
+                current
+            );
+        const durable =
+            await archivedRecords(identity);
+        const byId =
+            new Map();
+        for (const item of [...durable, ...current]) {
+            const recordId =
+                clean(item?.id, 300);
+            if (!recordId) continue;
+            byId.set(recordId, item);
+        }
+        const ordered =
+            [...byId.values()]
+                .sort((a, b) =>
+                    String(a.createdAt)
+                        .localeCompare(String(b.createdAt))
+                );
         const turns = ordered.filter(item => item?.kind === "TURN").slice(-maximumTurns);
         const missions = ordered.filter(item => item?.kind === "MISSION").slice(-maximumMissions);
         const lessons = ordered.filter(item => item?.kind === "LESSON").slice(-maximumLessons);
@@ -195,19 +350,33 @@ export function createJarvisSemanticMemory({
             turns,
             missions,
             lessons,
+            archive: {
+                durableRecords:
+                    durable.length,
+                syncStatus:
+                    archiveSync?.status ||
+                    null,
+                appendOnly:
+                    true
+            },
             policy: {
                 currentInstructionPrimary: true,
                 memoryNeverBecomesCurrentMissionEvidence: true,
                 noLexicalRouting: true,
                 noLocalIntentDictionaries: true,
-                relevanceDecidedBySemanticModel: true
+                relevanceDecidedBySemanticModel: true,
+                durableArchiveAppendOnly: true,
+                cacheMayBeBoundedWithoutDeletingArchive: true
             }
         };
     }
 
     async function clear(identity = {}) {
         write(identity, []);
-        return { ok: true, status: "SEMANTIC_MEMORY_CLEARED" };
+        return {
+            ok: true,
+            status: "SEMANTIC_MEMORY_CACHE_CLEARED_ARCHIVE_PRESERVED"
+        };
     }
 
     return {

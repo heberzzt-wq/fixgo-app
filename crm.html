@@ -34,7 +34,16 @@
     </main>
 
     <script type="module">
-        import { db, doc, updateDoc, collection, query, where, onSnapshot } from "./firebase.js";
+        import {
+            db,
+            doc,
+            updateDoc,
+            collection,
+            query,
+            where,
+            onSnapshot,
+            actualizarPermisosPagoB2C
+        } from "./firebase.js";
 
         const listaClientes = document.getElementById('listaClientes');
 
@@ -54,7 +63,22 @@
                 const id = docSnap.id;
 
                 // Estados
-                const isVIP = c.efectivo_autorizado || false;
+                const paymentPermissions =
+                    c.pagos && typeof c.pagos === "object"
+                        ? c.pagos
+                        : {};
+                const stripeAuthorized =
+                    paymentPermissions.stripe_autorizado === true ||
+                    (
+                        paymentPermissions.stripe_autorizado === undefined &&
+                        c.stripe_autorizado === true
+                    );
+                const isVIP =
+                    paymentPermissions.efectivo_autorizado === true ||
+                    (
+                        paymentPermissions.efectivo_autorizado === undefined &&
+                        c.efectivo_autorizado === true
+                    );
                 const isBanned = c.estado === 'baneado_permanente';
 
                 // Badges
@@ -78,7 +102,7 @@
                     </div>
 
                     <div class="flex gap-2 mt-4 pt-4 border-t border-zinc-800/50">
-                        <button onclick="window.toggleVIP('${id}', ${isVIP})" class="flex-1 ${isVIP ? 'bg-zinc-800 text-gray-400 border-zinc-700' : 'bg-emerald-900/30 text-emerald-500 border-emerald-500/30 hover:bg-emerald-900/50'} font-bold py-3 rounded-xl text-[10px] transition-colors border shadow-sm">
+                        <button onclick="window.toggleVIP('${id}', ${isVIP}, ${stripeAuthorized})" class="flex-1 ${isVIP ? 'bg-zinc-800 text-gray-400 border-zinc-700' : 'bg-emerald-900/30 text-emerald-500 border-emerald-500/30 hover:bg-emerald-900/50'} font-bold py-3 rounded-xl text-[10px] transition-colors border shadow-sm">
                             ${isVIP ? '<i class="fas fa-times"></i> QUITAR VIP' : '<i class="fas fa-star"></i> AUTORIZAR EFECTIVO'}
                         </button>
                         
@@ -92,15 +116,19 @@
         });
 
         // Funciones Globales para los Botones
-        window.toggleVIP = async (uid, currentStatus) => {
+        window.toggleVIP = async (uid, currentStatus, stripeAuthorized) => {
             const msg = currentStatus 
                 ? "¿Seguro que deseas quitar el privilegio de pago en efectivo a este cliente?" 
-                : "💎 ¿Convertir en CLIENTE VIP B2B?\n\nAl autorizarlo, esta cuenta siempre podrá saltarse la retención de la tarjeta y pagar en efectivo directo al técnico (Ideal para Administradores de Airbnb y empresas).";
+                : "💎 ¿Autorizar pago en EFECTIVO para este cliente B2C?\n\nLa autorización individual quedará gobernada por el backend y seguirá dependiendo de que el gateway global de efectivo esté activo.";
             
             if(!confirm(msg)) return;
 
             try {
-                await updateDoc(doc(db, "users", uid), { efectivo_autorizado: !currentStatus });
+                await actualizarPermisosPagoB2C(
+                    uid,
+                    stripeAuthorized === true,
+                    !currentStatus
+                );
             } catch (e) {
                 console.error(e);
                 alert("Error al actualizar el estado del cliente.");

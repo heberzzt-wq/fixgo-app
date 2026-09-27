@@ -56,6 +56,102 @@ test("semantic memory persists conversations and structural failure lessons with
 });
 
 
+test("semantic memory cache can be cleared without deleting the durable archive", async () => {
+    const storage = new Storage();
+    const session = new Storage();
+    const identity = {
+        userId: "owner",
+        workspaceId: "fixgo",
+        projectId: "v142"
+    };
+    const archiveRecords = new Map();
+    const archiveAdapter = {
+        async append({ records = [] } = {}) {
+            let appended = 0;
+            let deduped = 0;
+            for (const record of records) {
+                if (archiveRecords.has(record.id)) {
+                    deduped += 1;
+                    continue;
+                }
+                archiveRecords.set(record.id, structuredClone(record));
+                appended += 1;
+            }
+            return {
+                ok: true,
+                status: "PRIVATE_MEMORY_ARCHIVE_APPENDED",
+                appended,
+                deduped
+            };
+        },
+        async query() {
+            return {
+                ok: true,
+                status: "PRIVATE_MEMORY_ARCHIVE_READ",
+                records:
+                    [...archiveRecords.values()]
+                        .map(record => structuredClone(record))
+            };
+        }
+    };
+    const memory =
+        createJarvisSemanticMemory({
+            storage,
+            sessionStorage: session,
+            archiveAdapter
+        });
+
+    await memory.rememberTurn({
+        identity,
+        role: "user",
+        content: "Aprende esta conversación"
+    });
+    await memory.rememberTurn({
+        identity,
+        role: "assistant",
+        content: "Queda guardada"
+    });
+    await memory.rememberMission({
+        identity,
+        instruction: "repara el repo",
+        mission: {
+            missionId: "m-durable",
+            status: "FAILED",
+            reason: "TESTS_FAILED",
+            completedTasks: [
+                { name: "repo.write" }
+            ],
+            blockedTasks: [
+                { name: "tests.run" }
+            ],
+            errors: [
+                { status: "POST_WRITE_TEST_FAILED" }
+            ]
+        },
+        finalResponse: {
+            text: "Rollback requerido"
+        }
+    });
+
+    assert.ok(archiveRecords.size >= 4);
+    const cleared =
+        await memory.clear(identity);
+    assert.equal(
+        cleared.status,
+        "SEMANTIC_MEMORY_CACHE_CLEARED_ARCHIVE_PRESERVED"
+    );
+    const recalled =
+        await memory.recall({ identity });
+    assert.equal(recalled.turns.length, 2);
+    assert.equal(recalled.missions.length, 1);
+    assert.equal(recalled.lessons.length, 1);
+    assert.equal(recalled.archive.appendOnly, true);
+    assert.equal(
+        recalled.policy.durableArchiveAppendOnly,
+        true
+    );
+});
+
 test("planner semantic context is bounded to the current conversation and remains advisory", () => {
     const memory = {
         currentConversationId: "current",

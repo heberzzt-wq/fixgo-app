@@ -277,6 +277,31 @@ test("category and skill normalization resolves fix_plomeria without crossing ve
     }
 });
 
+test("legacy CRM cash toggle uses governed B2C payment authority", () => {
+    const crm =
+        fs.readFileSync(
+            path.join(root, "crm.html"),
+            "utf8"
+        );
+
+    assert.match(
+        crm,
+        /actualizarPermisosPagoB2C/
+    );
+    assert.match(
+        crm,
+        /paymentPermissions\.efectivo_autorizado === true/
+    );
+    assert.match(
+        crm,
+        /paymentPermissions\.stripe_autorizado === true/
+    );
+    assert.doesNotMatch(
+        crm,
+        /updateDoc\(doc\(db,\s*"users",\s*uid\),\s*\{\s*efectivo_autorizado/
+    );
+});
+
 test("payment availability is the strict global and individual intersection", () => {
     const bothGlobal = { stripe_activo: true, efectivo_activo: true };
     assert.deepEqual(

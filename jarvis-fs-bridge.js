@@ -90,7 +90,7 @@ const {
 } = require("./functions/jarvis-semantic-planner.js");
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.52.0-cached-request-identity-v142";
+    "2.53.0-private-memory-archive-v142";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -126,6 +126,204 @@ const DEFAULT_ROOT =
 
 const RUNTIME_CONTRACT_FILE =
     "jarvis-runtime-contract.json";
+
+const JARVIS_PRIVATE_MEMORY_ARCHIVE_VERSION =
+    "1.0.0-append-only-jsonl";
+const JARVIS_PRIVATE_MEMORY_MAX_RECORD_BYTES =
+    512 * 1024;
+const jarvisPrivateMemoryArchiveIds =
+    new Map();
+
+function normalizePrivateMemoryIdentity(identity = {}) {
+    return {
+        userId: String(identity?.userId || "anonymous").trim().slice(0, 180),
+        workspaceId: String(identity?.workspaceId || "UXMAL39").trim().slice(0, 180),
+        projectId: String(identity?.projectId || "adjunto").trim().slice(0, 180)
+    };
+}
+
+export function resolveJarvisPrivateMemoryRoot({
+    env = process.env,
+    homeDir = os.homedir()
+} = {}) {
+    const configured =
+        String(env.JARVIS_PRIVATE_MEMORY_ROOT || "").trim();
+    if (configured) return path.resolve(configured);
+    const localAppData =
+        String(
+            env.LOCALAPPDATA ||
+            path.join(homeDir, "AppData", "Local")
+        ).trim();
+    return path.join(
+        localAppData,
+        "PeninsulaTech",
+        "Jarvis",
+        "memory-v1"
+    );
+}
+
+function jarvisPrivateMemoryArchivePath(identity = {}, memoryRoot = "") {
+    const normalized =
+        normalizePrivateMemoryIdentity(identity);
+    const scopeHash =
+        createHash("sha256")
+            .update(JSON.stringify(normalized))
+            .digest("hex");
+    const root =
+        path.resolve(
+            memoryRoot ||
+            resolveJarvisPrivateMemoryRoot()
+        );
+    return {
+        root,
+        file:
+            path.join(root, scopeHash + ".jsonl"),
+        identity:
+            normalized,
+        scopeHash
+    };
+}
+
+function loadJarvisPrivateMemoryIds(file = "") {
+    if (jarvisPrivateMemoryArchiveIds.has(file)) {
+        return jarvisPrivateMemoryArchiveIds.get(file);
+    }
+    const ids = new Set();
+    if (fs.existsSync(file)) {
+        const raw = fs.readFileSync(file, "utf8");
+        for (const line of raw.split(/\r?\n/)) {
+            if (!line.trim()) continue;
+            try {
+                const parsed = JSON.parse(line);
+                const id = String(parsed?.record?.id || "").trim();
+                if (id) ids.add(id);
+            }
+            catch {}
+        }
+    }
+    jarvisPrivateMemoryArchiveIds.set(file, ids);
+    return ids;
+}
+
+export function appendJarvisPrivateMemoryRecords({
+    identity = {},
+    records = [],
+    memoryRoot = ""
+} = {}) {
+    const list =
+        (Array.isArray(records) ? records : [records])
+            .filter(record => record && typeof record === "object");
+    const archive =
+        jarvisPrivateMemoryArchivePath(identity, memoryRoot);
+    fs.mkdirSync(archive.root, { recursive: true });
+    const ids =
+        loadJarvisPrivateMemoryIds(archive.file);
+    let appended = 0;
+    let deduped = 0;
+
+    for (const record of list) {
+        const recordId =
+            String(record?.id || "").trim();
+        if (!recordId) {
+            throw new Error("PRIVATE_MEMORY_RECORD_ID_REQUIRED");
+        }
+        if (ids.has(recordId)) {
+            deduped += 1;
+            continue;
+        }
+        const envelope = {
+            archiveVersion:
+                JARVIS_PRIVATE_MEMORY_ARCHIVE_VERSION,
+            archivedAt:
+                new Date().toISOString(),
+            identity:
+                archive.identity,
+            record
+        };
+        const line =
+            JSON.stringify(envelope);
+        if (Buffer.byteLength(line, "utf8") >
+            JARVIS_PRIVATE_MEMORY_MAX_RECORD_BYTES) {
+            throw new Error("PRIVATE_MEMORY_RECORD_TOO_LARGE");
+        }
+        fs.appendFileSync(
+            archive.file,
+            line + "\n",
+            "utf8"
+        );
+        ids.add(recordId);
+        appended += 1;
+    }
+
+    return {
+        ok: true,
+        status: "PRIVATE_MEMORY_ARCHIVE_APPENDED",
+        version: JARVIS_PRIVATE_MEMORY_ARCHIVE_VERSION,
+        scopeHash: archive.scopeHash,
+        appended,
+        deduped,
+        totalKnownIds: ids.size
+    };
+}
+
+export function queryJarvisPrivateMemoryRecords({
+    identity = {},
+    kinds = [],
+    limit = 500,
+    memoryRoot = ""
+} = {}) {
+    const archive =
+        jarvisPrivateMemoryArchivePath(identity, memoryRoot);
+    if (!fs.existsSync(archive.file)) {
+        return {
+            ok: true,
+            status: "PRIVATE_MEMORY_ARCHIVE_EMPTY",
+            version: JARVIS_PRIVATE_MEMORY_ARCHIVE_VERSION,
+            records: []
+        };
+    }
+    const allowedKinds =
+        new Set(
+            (Array.isArray(kinds) ? kinds : [])
+                .map(value => String(value || "").trim())
+                .filter(Boolean)
+        );
+    const maximum =
+        Math.max(1, Math.min(Number(limit) || 500, 5000));
+    const records = [];
+    const lines =
+        fs.readFileSync(archive.file, "utf8")
+            .split(/\r?\n/)
+            .filter(Boolean);
+
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+        try {
+            const envelope =
+                JSON.parse(lines[index]);
+            const record =
+                envelope?.record;
+            if (!record || typeof record !== "object") continue;
+            if (
+                allowedKinds.size > 0 &&
+                !allowedKinds.has(String(record?.kind || ""))
+            ) {
+                continue;
+            }
+            records.push(record);
+            if (records.length >= maximum) break;
+        }
+        catch {}
+    }
+
+    records.reverse();
+    return {
+        ok: true,
+        status: "PRIVATE_MEMORY_ARCHIVE_READ",
+        version: JARVIS_PRIVATE_MEMORY_ARCHIVE_VERSION,
+        scopeHash: archive.scopeHash,
+        records
+    };
+}
 
 export function resolveRunpodCredentialEnvironment({
     env = process.env,
@@ -5650,7 +5848,8 @@ export async function tiktokOembedVisualSeed(
 export function createJarvisFsBridgeApp({
     root = DEFAULT_ROOT,
     localVideoEngine = null,
-    localSemanticEngine = null
+    localSemanticEngine = null,
+    privateMemoryRoot = ""
 } = {}) {
     const app =
         express();
@@ -5703,6 +5902,164 @@ export function createJarvisFsBridgeApp({
     const verifiedWriteReceipts = new Map();
     const stagedWriteReceipts = new Map();
     const commitReceipts = new Map();
+
+    const postWriteTestCommands = new Map([
+        ["check:syntax", "npm run check:syntax"],
+        ["test", "npm test"],
+        ["ci:test", "npm run ci:test"]
+    ]);
+
+    const runPostWriteTestCommand = ({
+        command = "check:syntax",
+        cwd = ".",
+        timeoutMs = 120000
+    } = {}) => new Promise((resolve) => {
+        const npmCommand =
+            postWriteTestCommands.get(
+                String(command || "").trim()
+            );
+        if (!npmCommand) {
+            return resolve({
+                ok: false,
+                status: "POST_WRITE_TEST_COMMAND_NOT_ALLOWED",
+                error: "POST_WRITE_TEST_COMMAND_NOT_ALLOWED",
+                command
+            });
+        }
+
+        const safeCwd =
+            resolveRepoPath(cwd, root);
+        const startedAt =
+            Date.now();
+        const child =
+            spawn(
+                npmCommand,
+                {
+                    cwd: safeCwd,
+                    shell: true,
+                    stdio: ["ignore", "pipe", "pipe"],
+                    env: bridgeChildEnvironment({ CI: "true" })
+                }
+            );
+        let stdout = "";
+        let stderr = "";
+        let finished = false;
+        const appendTail = (current, chunk) => {
+            const combined =
+                current + chunk.toString();
+            return combined.length > 2 * 1024 * 1024
+                ? combined.slice(-(2 * 1024 * 1024))
+                : combined;
+        };
+        const timer =
+            setTimeout(() => {
+                if (finished) return;
+                finished = true;
+                child.kill("SIGTERM");
+                resolve({
+                    ok: false,
+                    status: "POST_WRITE_TEST_TIMEOUT",
+                    error: "POST_WRITE_TEST_TIMEOUT",
+                    command,
+                    npmCommand,
+                    stdout,
+                    stderr,
+                    durationMs: Date.now() - startedAt
+                });
+            }, Math.max(5000, Number(timeoutMs) || 120000));
+
+        child.stdout.on("data", chunk => {
+            stdout = appendTail(stdout, chunk);
+        });
+        child.stderr.on("data", chunk => {
+            stderr = appendTail(stderr, chunk);
+        });
+        child.on("error", error => {
+            if (finished) return;
+            finished = true;
+            clearTimeout(timer);
+            resolve({
+                ok: false,
+                status: "POST_WRITE_TEST_SPAWN_FAILED",
+                error: error?.message || String(error),
+                command,
+                npmCommand,
+                stdout,
+                stderr,
+                durationMs: Date.now() - startedAt
+            });
+        });
+        child.on("close", code => {
+            if (finished) return;
+            finished = true;
+            clearTimeout(timer);
+            resolve({
+                ok: code === 0,
+                status:
+                    code === 0
+                        ? "POST_WRITE_TEST_PASSED"
+                        : "POST_WRITE_TEST_FAILED",
+                exitCode: code,
+                command,
+                npmCommand,
+                stdout,
+                stderr,
+                durationMs: Date.now() - startedAt
+            });
+        });
+    });
+
+    const rollbackVerifiedWriteReceipt = receipt => {
+        if (!receipt) {
+            throw new Error("WRITE_RECEIPT_REQUIRED");
+        }
+        const safePath =
+            resolveRepoPath(receipt.file, root);
+        assertNoSymlinkPath(root, safePath);
+        const current =
+            readWriteSnapshot(safePath);
+        if (current.sha256 !== receipt.outputSha256) {
+            throw new Error("ROLLBACK_CURRENT_CONTENT_MISMATCH");
+        }
+
+        if (receipt.snapshotExists === true) {
+            fs.mkdirSync(
+                path.dirname(safePath),
+                { recursive: true }
+            );
+            fs.writeFileSync(
+                safePath,
+                receipt.snapshotContent,
+                "utf8"
+            );
+        }
+        else if (fs.existsSync(safePath)) {
+            fs.unlinkSync(safePath);
+        }
+
+        const restored =
+            readWriteSnapshot(safePath);
+        if (
+            restored.sha256 !== receipt.snapshotSha256 ||
+            restored.exists !== receipt.snapshotExists
+        ) {
+            throw new Error("ROLLBACK_POST_VERIFY_FAILED");
+        }
+        receipt.rolledBackAt = Date.now();
+        receipt.rollbackVerified = true;
+        receipt.testedAt = receipt.testedAt || Date.now();
+        receipt.testStatus = "FAILED_ROLLED_BACK";
+        return {
+            ok: true,
+            status: "WRITE_ROLLBACK_VERIFIED",
+            file: receipt.file,
+            fingerprint: receipt.fingerprint,
+            restoredSha256: restored.sha256,
+            restoredBytes: restored.bytes,
+            restoredExists: restored.exists,
+            rolledBackAt: receipt.rolledBackAt
+        };
+    };
 
     const allowedOrigins = new Set([
         "https://fixgo-44e4d.web.app",
@@ -6660,9 +7017,20 @@ export function createJarvisFsBridgeApp({
                 file: authorization.file,
                 objectiveId,
                 caseId,
+                operation: authorization.operation,
+                snapshotExists: snapshot.exists,
+                snapshotSha256: authorization.snapshotSha256,
+                snapshotBytes: snapshot.bytes,
+                snapshotContent: snapshot.content,
                 outputSha256: verified.sha256,
                 outputBytes: verified.bytes,
                 consumedAt: authorization.consumedAt,
+                testedAt: null,
+                testCommand: null,
+                testStatus: null,
+                testExitCode: null,
+                rolledBackAt: null,
+                rollbackVerified: false,
                 stagedAt: null,
                 committedAt: null
             });
@@ -6683,10 +7051,240 @@ export function createJarvisFsBridgeApp({
                 authorizedAt: authorization.authorizedAt,
                 consumedAt: authorization.consumedAt,
                 verified: true,
+                postWriteTestRequired: true,
+                postWriteTestStatus: "PENDING",
+                next:
+                    "Run governed post-write tests before staging or committing.",
                 version: JARVIS_FS_BRIDGE_VERSION
             });
         } catch (error) {
             return res.status(400).json({ ok: false, status: "WRITE_BLOCKED", error: error.message, version: JARVIS_FS_BRIDGE_VERSION });
+        }
+    });
+
+    app.post("/write/test", async (req, res) => {
+        try {
+            const body =
+                req.body || {};
+            const fingerprints =
+                [
+                    ...new Set(
+                        (
+                            Array.isArray(body.fingerprints)
+                                ? body.fingerprints
+                                : body.fingerprint
+                                    ? [body.fingerprint]
+                                    : []
+                        )
+                            .map(value =>
+                                String(value || "").trim()
+                            )
+                            .filter(Boolean)
+                    )
+                ];
+            if (fingerprints.length === 0) {
+                throw new Error("WRITE_RECEIPT_FINGERPRINT_REQUIRED");
+            }
+
+            const receipts =
+                fingerprints.map(fingerprint =>
+                    verifiedWriteReceipts.get(fingerprint)
+                );
+            if (
+                receipts.some(receipt => !receipt)
+            ) {
+                throw new Error("WRITE_RECEIPT_NOT_FOUND");
+            }
+
+            for (const receipt of receipts) {
+                if (
+                    receipt.stagedAt ||
+                    receipt.committedAt ||
+                    receipt.rolledBackAt
+                ) {
+                    throw new Error("WRITE_RECEIPT_NOT_TESTABLE");
+                }
+                const current =
+                    readWriteSnapshot(
+                        resolveRepoPath(
+                            receipt.file,
+                            root
+                        )
+                    );
+                if (current.sha256 !== receipt.outputSha256) {
+                    throw new Error("POST_WRITE_CONTENT_CHANGED");
+                }
+            }
+
+            const testResult =
+                await runPostWriteTestCommand({
+                    command:
+                        body.command ||
+                        "check:syntax",
+                    cwd:
+                        body.cwd ||
+                        ".",
+                    timeoutMs:
+                        body.timeoutMs ||
+                        120000
+                });
+
+            const testedAt =
+                Date.now();
+
+            if (testResult.ok === true) {
+                for (const receipt of receipts) {
+                    receipt.testedAt = testedAt;
+                    receipt.testCommand =
+                        testResult.command;
+                    receipt.testStatus =
+                        "PASSED";
+                    receipt.testExitCode =
+                        testResult.exitCode ?? 0;
+                }
+
+                return res.json({
+                    ok: true,
+                    status: "POST_WRITE_TESTS_PASSED",
+                    fingerprints,
+                    testedAt,
+                    testResult,
+                    receipts:
+                        receipts.map(receipt => ({
+                            fingerprint:
+                                receipt.fingerprint,
+                            file:
+                                receipt.file,
+                            testedAt:
+                                receipt.testedAt,
+                            testStatus:
+                                receipt.testStatus
+                        })),
+                    version:
+                        JARVIS_FS_BRIDGE_VERSION
+                });
+            }
+
+            const rollbackResults = [];
+            let rollbackFailed = false;
+            for (const receipt of receipts) {
+                receipt.testedAt = testedAt;
+                receipt.testCommand =
+                    testResult.command ||
+                    body.command ||
+                    "check:syntax";
+                receipt.testStatus =
+                    "FAILED";
+                receipt.testExitCode =
+                    testResult.exitCode ?? null;
+                try {
+                    rollbackResults.push(
+                        rollbackVerifiedWriteReceipt(
+                            receipt
+                        )
+                    );
+                }
+                catch(error) {
+                    rollbackFailed = true;
+                    rollbackResults.push({
+                        ok: false,
+                        status: "WRITE_ROLLBACK_FAILED",
+                        fingerprint:
+                            receipt.fingerprint,
+                        file:
+                            receipt.file,
+                        error:
+                            error?.message ||
+                            String(error)
+                    });
+                }
+            }
+
+            const identity =
+                body.identity &&
+                typeof body.identity === "object"
+                    ? body.identity
+                    : null;
+            if (identity) {
+                try {
+                    appendJarvisPrivateMemoryRecords({
+                        identity,
+                        memoryRoot:
+                            privateMemoryRoot,
+                        records: [{
+                            id:
+                                "lesson-" +
+                                randomUUID(),
+                            kind:
+                                "LESSON",
+                            createdAt:
+                                new Date().toISOString(),
+                            instruction:
+                                String(
+                                    body.instruction ||
+                                    "post-write verification"
+                                ).slice(0, 12000),
+                            status:
+                                rollbackFailed
+                                    ? "POST_WRITE_TEST_FAILED_ROLLBACK_INCOMPLETE"
+                                    : "POST_WRITE_TEST_FAILED_ROLLED_BACK",
+                            errors: [
+                                String(
+                                    testResult.error ||
+                                    testResult.status ||
+                                    "POST_WRITE_TEST_FAILED"
+                                ).slice(0, 1000)
+                            ],
+                            completedTools: [
+                                "repo.write"
+                            ],
+                            blockedTools: [
+                                "repo.gitCommit"
+                            ],
+                            files:
+                                receipts.map(receipt =>
+                                    receipt.file
+                                ),
+                            testCommand:
+                                testResult.command ||
+                                body.command ||
+                                null,
+                            rollbackVerified:
+                                rollbackFailed !== true
+                        }]
+                    });
+                }
+                catch {}
+            }
+
+            return res.status(409).json({
+                ok: false,
+                status:
+                    rollbackFailed
+                        ? "POST_WRITE_TEST_FAILED_ROLLBACK_INCOMPLETE"
+                        : "POST_WRITE_TEST_FAILED_ROLLED_BACK",
+                error:
+                    testResult.error ||
+                    testResult.status ||
+                    "POST_WRITE_TEST_FAILED",
+                fingerprints,
+                testedAt,
+                testResult,
+                rollbackResults,
+                version:
+                    JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+        catch(error) {
+            return res.status(400).json({
+                ok: false,
+                status: "POST_WRITE_TEST_BLOCKED",
+                error:
+                    error?.message ||
+                    String(error),
+                version:
+                    JARVIS_FS_BRIDGE_VERSION
+            });
         }
     });
 
@@ -8326,6 +8924,68 @@ export function createJarvisFsBridgeApp({
         }
     });
 
+    app.post("/memory/append", (req, res) => {
+        try {
+            const result =
+                appendJarvisPrivateMemoryRecords({
+                    identity:
+                        req.body?.identity || {},
+                    memoryRoot:
+                        privateMemoryRoot,
+                    records:
+                        req.body?.records ||
+                        req.body?.record ||
+                        []
+                });
+            return res.json({
+                ...result,
+                bridgeVersion:
+                    JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+        catch(error) {
+            return res.status(400).json({
+                ok: false,
+                status: "PRIVATE_MEMORY_ARCHIVE_APPEND_FAILED",
+                error:
+                    error?.message || String(error),
+                bridgeVersion:
+                    JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
+    app.post("/memory/query", (req, res) => {
+        try {
+            const result =
+                queryJarvisPrivateMemoryRecords({
+                    identity:
+                        req.body?.identity || {},
+                    memoryRoot:
+                        privateMemoryRoot,
+                    kinds:
+                        req.body?.kinds || [],
+                    limit:
+                        req.body?.limit || 500
+                });
+            return res.json({
+                ...result,
+                bridgeVersion:
+                    JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+        catch(error) {
+            return res.status(400).json({
+                ok: false,
+                status: "PRIVATE_MEMORY_ARCHIVE_QUERY_FAILED",
+                error:
+                    error?.message || String(error),
+                bridgeVersion:
+                    JARVIS_FS_BRIDGE_VERSION
+            });
+        }
+    });
+
     const seriesRoute = (route, operation, failureStatus) => {
         app.post(route, (req, res) => {
             try {
@@ -8428,6 +9088,8 @@ export function createJarvisFsBridgeApp({
                 approvedBy = "",
                 approved = false,
                 codexApproved = false,
+                identity = null,
+                instruction = "",
                 timeoutMs = 120000
             } = req.body || {};
 
@@ -8556,6 +9218,22 @@ export function createJarvisFsBridgeApp({
                 }
 
                 for (const receipt of receipts) {
+                    if (
+                        receipt.testStatus !== "PASSED" ||
+                        !receipt.testedAt ||
+                        receipt.rolledBackAt
+                    ) {
+                        return res.status(409).json({
+                            ok: false,
+                            status: "GIT_POST_WRITE_TEST_REQUIRED",
+                            error: "POST_WRITE_TEST_REQUIRED_BEFORE_GIT_MUTATION",
+                            file: receipt.file,
+                            fingerprint: receipt.fingerprint,
+                            testStatus: receipt.testStatus || "PENDING",
+                            testedAt: receipt.testedAt || null,
+                            rolledBackAt: receipt.rolledBackAt || null
+                        });
+                    }
                     const current = readWriteSnapshot(resolveRepoPath(receipt.file, root));
                     if (current.sha256 !== receipt.outputSha256) {
                         return res.status(409).json({ ok: false, status: "GIT_RECEIPT_CONTENT_MISMATCH", error: "GIT_RECEIPT_CONTENT_MISMATCH", file: receipt.file });
@@ -8646,6 +9324,22 @@ export function createJarvisFsBridgeApp({
                     return res.status(409).json({ ok: false, status: "GIT_STAGED_SCOPE_MISMATCH", error: "GIT_STAGED_SCOPE_MISMATCH", stagedFiles, receiptFiles });
                 }
                 for (const receipt of receipts) {
+                    if (
+                        receipt.testStatus !== "PASSED" ||
+                        !receipt.testedAt ||
+                        receipt.rolledBackAt
+                    ) {
+                        return res.status(409).json({
+                            ok: false,
+                            status: "GIT_POST_WRITE_TEST_REQUIRED",
+                            error: "POST_WRITE_TEST_REQUIRED_BEFORE_GIT_MUTATION",
+                            file: receipt.file,
+                            fingerprint: receipt.fingerprint,
+                            testStatus: receipt.testStatus || "PENDING",
+                            testedAt: receipt.testedAt || null,
+                            rolledBackAt: receipt.rolledBackAt || null
+                        });
+                    }
                     const current = readWriteSnapshot(resolveRepoPath(receipt.file, root));
                     if (current.sha256 !== receipt.outputSha256) {
                         return res.status(409).json({ ok: false, status: "GIT_RECEIPT_CONTENT_MISMATCH", error: "GIT_RECEIPT_CONTENT_MISMATCH", file: receipt.file });
@@ -8671,6 +9365,64 @@ export function createJarvisFsBridgeApp({
                     const receiptId = sha256Text(JSON.stringify({ commitSha, receiptFingerprints, message: commitMessage }));
                     commitReceipt = { receiptId, commitSha, receiptFingerprints: [...receiptFingerprints], message: commitMessage, createdAt: Date.now(), consumedAt: null };
                     commitReceipts.set(receiptId, commitReceipt);
+
+                    if (
+                        identity &&
+                        typeof identity === "object"
+                    ) {
+                        try {
+                            appendJarvisPrivateMemoryRecords({
+                                identity,
+                                memoryRoot:
+                                    privateMemoryRoot,
+                                records: [{
+                                    id:
+                                        "repair-success-" +
+                                        randomUUID(),
+                                    kind:
+                                        "LESSON",
+                                    createdAt:
+                                        new Date().toISOString(),
+                                    instruction:
+                                        String(
+                                            instruction ||
+                                            commitMessage
+                                        ).slice(0, 12000),
+                                    status:
+                                        "REPAIR_VERIFIED_COMMITTED",
+                                    errors: [],
+                                    completedTools: [
+                                        "repo.write",
+                                        "tests.run",
+                                        "repo.gitCommit"
+                                    ],
+                                    blockedTools: [],
+                                    files:
+                                        receipts.map(receipt =>
+                                            receipt.file
+                                        ),
+                                    testCommands:
+                                        [
+                                            ...new Set(
+                                                receipts
+                                                    .map(receipt =>
+                                                        receipt.testCommand
+                                                    )
+                                                    .filter(Boolean)
+                                            )
+                                        ],
+                                    commitSha,
+                                    commitMessage,
+                                    rollbackVerified:
+                                        false,
+                                    verified:
+                                        true
+                                }]
+                            });
+                        }
+                        catch {}
+                    }
+
                     for (const receipt of receipts) {
                         receipt.committedAt = commitReceipt.createdAt;
                         verifiedWriteReceipts.delete(receipt.fingerprint);

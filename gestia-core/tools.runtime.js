@@ -1682,6 +1682,31 @@ window.JarvisLocalBridge.writeFile ||= async function(payload = {}) {
     );
 };
 
+window.JarvisLocalBridge.testWriteReceipts ||= async function(payload = {}) {
+    return await window.JarvisLocalBridge.requestJson(
+        "/write/test",
+        {
+            fingerprints:
+                Array.isArray(payload.fingerprints)
+                    ? payload.fingerprints
+                    : payload.fingerprint
+                        ? [payload.fingerprint]
+                        : [],
+            command:
+                payload.command || "check:syntax",
+            cwd:
+                payload.cwd || ".",
+            timeoutMs:
+                payload.timeoutMs || 120000,
+            identity:
+                payload.identity || null,
+            instruction:
+                payload.instruction || ""
+        },
+        { timeoutMs: payload.timeoutMs || 120000 }
+    );
+};
+
 // Historical file+content adapter is intentionally unreachable; the live tool below uses prepare/authorize/consume.
 if (false) JarvisToolRuntime.register({
     name:
@@ -4651,6 +4676,74 @@ JarvisToolRuntime.register({
                 };
             }
 
+            if (
+                typeof window.JarvisLocalBridge?.testWriteReceipts !==
+                "function"
+            ) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "POST_WRITE_TEST_BRIDGE_REQUIRED",
+                    error: "POST_WRITE_TEST_BRIDGE_REQUIRED",
+                    files,
+                    receiptFingerprints,
+                    tool: "repo.gitCommit"
+                };
+            }
+
+            const postWriteTest =
+                await window.JarvisLocalBridge.testWriteReceipts({
+                    fingerprints:
+                        receiptFingerprints,
+                    command:
+                        args.testCommand ||
+                        "check:syntax",
+                    cwd:
+                        args.cwd || ".",
+                    timeoutMs:
+                        args.testTimeoutMs ||
+                        args.timeoutMs ||
+                        120000,
+                    identity: {
+                        userId:
+                            context.userId ||
+                            window.auth?.currentUser?.uid ||
+                            "anonymous",
+                        workspaceId:
+                            context.tenantId ||
+                            context.workspaceId ||
+                            "UXMAL39",
+                        projectId:
+                            context.projectId ||
+                            "adjunto"
+                    },
+                    instruction:
+                        context.rawInput ||
+                        args.instruction ||
+                        message
+                });
+
+            if (postWriteTest?.ok !== true) {
+                return {
+                    ok: false,
+                    success: false,
+                    status:
+                        postWriteTest?.status ||
+                        "POST_WRITE_TEST_FAILED",
+                    error:
+                        postWriteTest?.error ||
+                        "POST_WRITE_TEST_FAILED",
+                    files,
+                    receiptFingerprints,
+                    postWriteTest,
+                    rollback:
+                        postWriteTest?.rollbackResults ||
+                        [],
+                    tool:
+                        "repo.gitCommit"
+                };
+            }
+
             const addResult =
                 await JarvisGitWorkflowBridge.request({
                     action:
@@ -4693,6 +4786,23 @@ JarvisToolRuntime.register({
                         true,
                     codexApproved:
                         true,
+                    identity: {
+                        userId:
+                            context.userId ||
+                            window.auth?.currentUser?.uid ||
+                            "anonymous",
+                        workspaceId:
+                            context.tenantId ||
+                            context.workspaceId ||
+                            "UXMAL39",
+                        projectId:
+                            context.projectId ||
+                            "adjunto"
+                    },
+                    instruction:
+                        context.rawInput ||
+                        args.instruction ||
+                        message,
                     timeoutMs:
                         args.timeoutMs || 120000
                 });
@@ -4706,6 +4816,7 @@ JarvisToolRuntime.register({
                     commitResult.status || "GIT_COMMIT_UNKNOWN",
                 files,
                 message,
+                postWriteTest,
                 addResult,
                 commitResult,
                 commitReceipt:
@@ -6908,7 +7019,7 @@ JarvisToolRuntime.register({
     requiresApproval:
         true,
     output: "REPO_WRITE_RESULT",
-    execute: async (args = {}) => {
+    execute: async (args = {}, context = {}) => {
         if (!window.JarvisLocalBridge?.writeFile) return { ok: false, status: "WRITE_BRIDGE_NOT_AVAILABLE", error: "WRITE_BRIDGE_NOT_AVAILABLE" };
         const result = await window.JarvisLocalBridge.writeFile({
             fingerprint: args.fingerprint,

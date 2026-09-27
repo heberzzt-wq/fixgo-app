@@ -83,3 +83,43 @@ test("snapshot and restore informational boot logs stay quiet while failures sta
     assert.match(daemon, /console\.error\([\s\S]{0,100}SNAPSHOT_DAEMON_FAIL/);
     assert.match(daemon, /console\.error\([\s\S]{0,100}SNAPSHOT_DAEMON_BOOT_FAIL/);
 });
+
+
+test("V142 retains useful v5.9 runtime intelligence as on-demand governed services", () => {
+    const governance = read("modules/terminal/runtime-governance.js");
+    const platform = read("modules/terminal/runtime-platform.js");
+
+    for (const state of [
+        "__RUNTIME_EXPERIENCE__",
+        "__RUNTIME_PREDICTION__",
+        "__RUNTIME_STRATEGY__",
+        "__RUNTIME_META_COGNITION__",
+        "__RUNTIME_CONVERGENCE__",
+        "__RUNTIME_SAFETY__",
+        "__RUNTIME_HARDENING__"
+    ]) {
+        assert.match(governance, new RegExp(state.replaceAll("_", "\\_")));
+    }
+
+    for (const capability of [
+        "storeRuntimeExperience",
+        "executeRuntimePredictionAnalysis",
+        "evaluateRuntimeStrategy",
+        "executeCognitiveConvergence",
+        "executeCognitiveSafetyCheck",
+        "executeRuntimeHardeningCheck",
+        "executeMetaCognitiveAnalysis",
+        "analyzeRuntimeRecoveryNeeds",
+        "getRuntimeHealingState",
+        "evaluateRuntimeIntelligence"
+    ]) {
+        assert.match(governance, new RegExp(capability));
+    }
+
+    assert.match(governance, /ON_DEMAND_NO_BACKGROUND_COGNITION/);
+    assert.doesNotMatch(governance, /startPredictiveRuntimeDaemon\s*=/);
+    assert.doesNotMatch(governance, /startMetaCognitionDaemon\s*=/);
+    assert.match(platform, /__RUNTIME_CONVERGENCE__/);
+    assert.match(platform, /__RUNTIME_SAFETY__/);
+    assert.match(platform, /__RUNTIME_HARDENING__/);
+});

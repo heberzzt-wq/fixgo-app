@@ -1279,6 +1279,65 @@ test("terminal sends natural repository analysis directly to the single core rou
     assert.doesNotMatch(terminal, /combinedRepoFileMatch/);
 });
 
+test("governed repo commit requires post-write tests before git add and commit", () => {
+    const toolsRuntime =
+        fs.readFileSync(
+            path.join(
+                __dirname,
+                "..",
+                "gestia-core",
+                "tools.runtime.js"
+            ),
+            "utf8"
+        );
+    const bridge =
+        fs.readFileSync(
+            path.join(
+                __dirname,
+                "..",
+                "jarvis-fs-bridge.js"
+            ),
+            "utf8"
+        );
+
+    const gitCommitAt =
+        toolsRuntime.indexOf('"repo.gitCommit"');
+    const postWriteAt =
+        toolsRuntime.indexOf(
+            "testWriteReceipts",
+            gitCommitAt
+        );
+    const gitAddAt =
+        toolsRuntime.indexOf(
+            '"add"',
+            postWriteAt
+        );
+
+    assert.ok(gitCommitAt >= 0);
+    assert.ok(postWriteAt > gitCommitAt);
+    assert.ok(gitAddAt > postWriteAt);
+    assert.match(
+        toolsRuntime,
+        /POST_WRITE_TEST_BRIDGE_REQUIRED/
+    );
+    assert.match(
+        toolsRuntime,
+        /postWriteTest\?\.ok !== true/
+    );
+    assert.match(
+        bridge,
+        /POST_WRITE_TEST_FAILED_ROLLED_BACK/
+    );
+    assert.match(
+        bridge,
+        /WRITE_ROLLBACK_VERIFIED/
+    );
+    assert.match(
+        bridge,
+        /GIT_POST_WRITE_TEST_REQUIRED/
+    );
+});
+
 test("Codex V2 write path fails closed without governed repo.write runtime", () => {
     const toolsRuntime =
         fs.readFileSync(
