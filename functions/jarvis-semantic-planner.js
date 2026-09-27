@@ -1157,7 +1157,7 @@ async function runModelSemanticPlanner({
         safeCatalog.length === 1 &&
         safeCatalog[0]?.name === "conversation.respond"
     ) {
-        const recentConversationTurns =
+        const rawRecentConversationTurns =
             (
                 Array.isArray(
                     missionState
@@ -1182,6 +1182,7 @@ async function runModelSemanticPlanner({
                         ).trim();
 
                     return (
+                        (role === "user" || role === "assistant") &&
                         content &&
                         !(
                             role === "user" &&
@@ -1189,7 +1190,6 @@ async function runModelSemanticPlanner({
                         )
                     );
                 })
-                .slice(-8)
                 .map(turn => ({
                     role:
                         String(
@@ -1202,25 +1202,63 @@ async function runModelSemanticPlanner({
                             ""
                         )
                             .trim()
-                            .slice(0, 800)
+                            .slice(0, 1200)
                 }));
+
+        const recentConversationTurns = [];
+        const seenRecentTurns = new Set();
+        for (
+            let index = rawRecentConversationTurns.length - 1;
+            index >= 0 && recentConversationTurns.length < 6;
+            index -= 1
+        ) {
+            const turn =
+                rawRecentConversationTurns[index];
+            const key =
+                `${turn.role}\n${turn.content}`;
+            if (seenRecentTurns.has(key)) continue;
+            seenRecentTurns.add(key);
+            recentConversationTurns.unshift(turn);
+        }
+
+        const gateSystemInstruction = [
+            "Eres Jarvis, la unica autoridad semantica local y un interlocutor natural.",
+            "El mensaje actual del usuario es siempre la prioridad. Usa el historial solamente para resolver referencias o continuar el hilo; nunca dejes que mensajes viejos sustituyan el mensaje actual.",
+            "Si el mensaje actual es conversacion casual, responde como Jarvis directamente a lo que la persona quiso comunicar. No describas la frase, no la trates como texto para analizar y no preguntes en que puedes ayudar con esa frase.",
+            "No cites, no reformules y no copies literalmente el mensaje salvo que sea necesario para responder. Nunca uses formulas como 'la respuesta es', 'el usuario dice', 'puedo ayudarte con la frase' ni equivalentes.",
+            "Si el usuario corrige algo dicho antes, reconoce la correccion y continua naturalmente.",
+            "Decide si el turno puede resolverse completamente conversando sin archivos, investigacion, estado externo, herramientas, mutaciones ni artefactos.",
+            "Devuelve exclusivamente un objeto JSON valido.",
+            "Si basta conversar: {\"direct\":true,\"message\":\"lo que Jarvis diria naturalmente al usuario\"}.",
+            "Si requiere herramientas o evidencia operativa: {\"direct\":false,\"message\":\"\"}.",
+            "No inventes ejecuciones, accesos, archivos, fuentes ni resultados."
+        ].join("\n");
+
+        const gateChatMessages = [
+            {
+                role: "system",
+                content:
+                    gateSystemInstruction
+            },
+            ...recentConversationTurns,
+            {
+                role: "user",
+                content:
+                    instruction
+            }
+        ];
 
         const gateResponse = await ai.models.generateContent({
             model,
             contents: [
-                "Eres Jarvis, la unica autoridad semantica local y un interlocutor natural.",
-                "Decide si la instruccion actual puede resolverse completamente conversando, sin leer archivos, investigar, consultar estado externo, ejecutar herramientas, mutar datos ni producir artefactos.",
-                "Si puede resolverse conversando, continua la conversacion como una persona: responde al significado y a la intencion del mensaje actual usando el contexto reciente cuando ayude.",
-                "No describas el mensaje del usuario, no lo cites ni lo reformules como respuesta. Nunca uses formulas metadiscursivas como 'la respuesta es', 'el usuario dice' o equivalentes.",
-                "No copies literalmente la frase del usuario salvo que sea necesario para contestar. Si es una broma, correccion, seguimiento corto o referencia a lo dicho antes, manten el hilo con naturalidad.",
-                "Si puede resolverse conversando, devuelve JSON {\"direct\":true,\"message\":\"respuesta final natural\"}.",
-                "Si requiere cualquier herramienta o evidencia operativa, no intentes resolverla: devuelve JSON {\"direct\":false,\"message\":\"\"}.",
-                "No inventes ejecuciones, accesos, archivos, fuentes ni resultados.",
+                gateSystemInstruction,
                 `CONTEXTO_CONVERSACIONAL_RECIENTE=${JSON.stringify(recentConversationTurns)}`,
                 `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
             ].join("\n\n"),
             config: {
-                maxOutputTokens: 160,
+                chatMessages:
+                    gateChatMessages,
+                maxOutputTokens: 192,
                 temperature: 0.2,
                 thinkingConfig: {
                     thinkingLevel: "MINIMAL"

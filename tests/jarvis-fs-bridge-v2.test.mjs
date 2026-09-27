@@ -250,7 +250,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.53.0-private-memory-archive-v142");
+    assert.equal(description.version, "2.54.0-role-aware-conversation-v142");
     assert.equal(typeof description.actuators.speech.available, "boolean");
     assert.deepEqual(description.actuators.speech.outputFormats, ["wav"]);
     assert.equal(description.policy.authority, "full_repo_private_owner");
@@ -735,6 +735,85 @@ test("self-hosted semantic backend feeds the canonical planner without paid API 
     assert.equal(plan.inferenceReceipt.counters.semanticExternalCalls, 0);
     assert.equal(plan.inferenceReceipt.counters.paidExternalCalls, 0);
     assert.equal(plan.inferenceReceipt.fallbackAllowed, false);
+});
+
+test("self-hosted conversational gate preserves real chat roles for Ollama", async () => {
+    let requestBody = null;
+    const engine = createSelfHostedSemanticEngine({
+        env: {
+            JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
+            JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
+            JARVIS_LOCAL_LLM_MODEL: "qwen-local"
+        },
+        fetchImpl: async (_url, options) => {
+            requestBody = JSON.parse(options.body);
+            return {
+                ok: true,
+                status: 200,
+                text: async () => JSON.stringify({
+                    choices: [{
+                        message: {
+                            content: JSON.stringify({
+                                direct: true,
+                                message: "Jajaja, ya entendí: se te antojó a ti."
+                            })
+                        }
+                    }]
+                })
+            };
+        }
+    });
+
+    const result = await engine.plan({
+        input: "No, digo que se me antojó a mí.",
+        catalog: [{
+            name: "conversation.respond",
+            description: "Responde cuando basta conversar.",
+            mutates: false
+        }],
+        missionState: {
+            phase: "CURRENT_TURN",
+            conversationalGate: true,
+            advisorySemanticContext: {
+                turns: [
+                    {
+                        role: "user",
+                        content: "Se me antojó algo frío."
+                    },
+                    {
+                        role: "assistant",
+                        content: "Sí se antoja."
+                    }
+                ]
+            }
+        }
+    });
+
+    assert.deepEqual(
+        requestBody.messages.map(message => message.role),
+        ["system", "user", "assistant", "user"]
+    );
+    assert.equal(
+        requestBody.messages.at(-1).content,
+        "No, digo que se me antojó a mí."
+    );
+    assert.equal(
+        requestBody.messages[1].content,
+        "Se me antojó algo frío."
+    );
+    assert.equal(
+        requestBody.messages[2].content,
+        "Sí se antoja."
+    );
+    assert.equal(result.toolCalls.length, 1);
+    assert.equal(
+        result.toolCalls[0].args.prompt,
+        "Jajaja, ya entendí: se te antojó a ti."
+    );
+    assert.equal(
+        result.inferenceReceipt.counters.localSemanticInferenceCalls,
+        1
+    );
 });
 
 test("self-hosted semantic adapter accepts Ollama object tool arguments and preserves required selection", async () => {

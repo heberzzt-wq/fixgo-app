@@ -90,7 +90,7 @@ const {
 } = require("./functions/jarvis-semantic-planner.js");
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.53.0-private-memory-archive-v142";
+    "2.54.0-role-aware-conversation-v142";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -1007,6 +1007,43 @@ export function createSelfHostedSemanticEngine({
         }
     }
 
+    function normalizeLocalChatMessages(messages = []) {
+        const allowedRoles =
+            new Set(["system", "user", "assistant"]);
+        const normalized = [];
+        let totalCharacters = 0;
+
+        for (const item of Array.isArray(messages) ? messages : []) {
+            const role =
+                String(item?.role || "")
+                    .trim()
+                    .toLowerCase();
+            const content =
+                String(item?.content || "")
+                    .trim()
+                    .slice(0, 12000);
+            if (
+                !allowedRoles.has(role) ||
+                !content
+            ) {
+                continue;
+            }
+            if (
+                totalCharacters + content.length >
+                60000
+            ) {
+                break;
+            }
+            totalCharacters += content.length;
+            normalized.push({
+                role,
+                content
+            });
+        }
+
+        return normalized.slice(-20);
+    }
+
     async function generateContent(request = {}) {
         const health = describe();
         if (health.ok !== true) throw new Error(health.status);
@@ -1028,14 +1065,34 @@ export function createSelfHostedSemanticEngine({
         try {
             const headers = { "Content-Type": "application/json" };
             if (token) headers.Authorization = `Bearer ${token}`;
+            const explicitChatMessages =
+                normalizeLocalChatMessages(
+                    request?.config?.chatMessages
+                );
+            const fallbackMessages = [
+                ...(request?.config?.systemInstruction
+                    ? [{
+                        role: "system",
+                        content:
+                            String(
+                                request.config.systemInstruction
+                            )
+                    }]
+                    : []),
+                {
+                    role: "user",
+                    content:
+                        semanticContentsText(
+                            request?.contents
+                        )
+                }
+            ];
             const payload = {
                 model,
-                messages: [
-                    ...(request?.config?.systemInstruction
-                        ? [{ role: "system", content: String(request.config.systemInstruction) }]
-                        : []),
-                    { role: "user", content: semanticContentsText(request?.contents) }
-                ],
+                messages:
+                    explicitChatMessages.length > 0
+                        ? explicitChatMessages
+                        : fallbackMessages,
                 temperature: Number(request?.config?.temperature) || 0,
                 max_tokens: Math.max(96, Math.min(16000, Number(request?.config?.maxOutputTokens) || 3000)),
                 stream: false,

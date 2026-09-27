@@ -126,13 +126,27 @@ test("current-turn conversational gate returns a contextual precomposed response
     });
 
     assert.equal(calls, 1);
+    assert.deepEqual(
+        requestSeen?.config?.chatMessages?.map(item => item.role),
+        ["system", "user", "assistant", "user"]
+    );
+    assert.equal(
+        requestSeen?.config?.chatMessages?.at(-1)?.content,
+        "Qué tal pariente, ¿cómo estás?"
+    );
+    assert.equal(
+        requestSeen?.config?.chatMessages
+            ?.filter(item => item.role === "user" && item.content === "Qué tal pariente, ¿cómo estás?")
+            .length,
+        1
+    );
     assert.match(
         String(requestSeen?.contents || ""),
         /Buenas noches, pariente\. ¿Qué tal todo\?/
     );
     assert.match(
         String(requestSeen?.contents || ""),
-        /No describas el mensaje del usuario/
+        /No describas la frase/
     );
     assert.match(
         String(requestSeen?.contents || ""),
