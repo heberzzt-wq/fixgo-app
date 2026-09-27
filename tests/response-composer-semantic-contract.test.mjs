@@ -141,6 +141,10 @@ test("terminal consumes top-level AGENT_TOOL_RESULT observations for conversatio
     );
     assert.match(
         terminal,
+        /activeWorkTracker\?\.dismiss\?\.\(\)/
+    );
+    assert.match(
+        terminal,
         /window\.renderJarvisResponse\?\.\(\s*"Jarvis",\s*conversationText/
     );
 });

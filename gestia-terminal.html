@@ -346,6 +346,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 isFinished() {
                     return finished;
                 },
+                dismiss() {
+                    if (finished) return;
+                    finished = true;
+                    try {
+                        wrapper.remove();
+                    }
+                    catch {}
+                    if (activeTracker === tracker) {
+                        activeTracker = null;
+                    }
+                },
                 finish(label = "Trabajo completado") {
                     if (finished) return;
                     for (const [id, row] of rows) {
@@ -4048,6 +4059,8 @@ if (
                     conversationObservation &&
                     !hasOperationalObservation
                 ) {
+                    activeWorkTracker?.dismiss?.();
+
                     const conversationData =
                         getObservationRepoData(conversationObservation);
                     const conversationText =
