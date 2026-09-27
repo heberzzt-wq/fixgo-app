@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 env:
-  CERTIFIED_SHA: a63447af5229aef98d549c45182211f503e87894
+  CERTIFIED_SHA: 0de4e5206346a077c0fe1cbc7e5174a3faaf1fe9
   FIREBASE_PROJECT_ID: fixgo-44e4d
   FIREBASE_SITE_ID: fixgo-44e4d
 
@@ -176,7 +176,7 @@ jobs:
           set -euo pipefail
           base="https://${FIREBASE_SITE_ID}.web.app"
           ok=false
-          for attempt in $(seq 1 18); do
+          for attempt in $(seq 1 45); do
             curl --fail --silent --show-error --location "$base/modules/terminal/nexo-bootstrap.js?sha=$CERTIFIED_SHA&attempt=$attempt" -o /tmp/bootstrap.js || true
             curl --fail --silent --show-error --location "$base/gestia-core/jarvis/jarvis.multitool.pack.js?sha=$CERTIFIED_SHA&attempt=$attempt" -o /tmp/multitool.js || true
             curl --fail --silent --show-error --location "$base/gestia-core/jarvis/jarvis.conversation.composer.js?sha=$CERTIFIED_SHA&attempt=$attempt" -o /tmp/composer.js || true
@@ -189,7 +189,7 @@ jobs:
               ok=true
               break
             fi
-            sleep 4
+            sleep 5
           done
           test "$ok" = true
           node <<'NODE'
