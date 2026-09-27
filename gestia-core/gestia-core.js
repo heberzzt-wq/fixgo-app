@@ -3928,6 +3928,10 @@ export const GestiaCore = {
                             missionState: {
                                 phase: "CURRENT_TURN",
                                 semanticMemoryAvailable: Boolean(semanticMemory),
+                                advisorySemanticContext:
+                                    compactJarvisSemanticMemoryForPlanner(
+                                        semanticMemory
+                                    ),
                                 conversationalGate: true,
                                 writeAllowed: false
                             }
@@ -4134,22 +4138,64 @@ export const GestiaCore = {
             }
             const conversationCall = terminalSemanticPlan.toolCalls[0];
             console.info("[CURRENT_TURN_CONVERSATION_TOOL_EXECUTION]");
-            return await window.ToolsBridge.executeAndCompose(
-                "conversation.respond",
-                conversationCall.args || {},
-                {
-                    ...context,
-                    rawInput: inputRaw,
-                    tenantId,
-                    analysisId,
-                    semanticMemory: semanticMemoryContext,
-                    precomposedSemanticResponse:
-                        conversationCall.reason ===
-                        "MODEL_DIRECT_CONVERSATION_RESPONSE",
-                    writeAllowed: false,
-                    approved: false
+            const conversationResult =
+                await window.ToolsBridge.executeAndCompose(
+                    "conversation.respond",
+                    conversationCall.args || {},
+                    {
+                        ...context,
+                        rawInput: inputRaw,
+                        tenantId,
+                        analysisId,
+                        semanticMemory: semanticMemoryContext,
+                        precomposedSemanticResponse:
+                            conversationCall.reason ===
+                            "MODEL_DIRECT_CONVERSATION_RESPONSE",
+                        writeAllowed: false,
+                        approved: false
+                    }
+                );
+
+            try {
+                const composedConversationText =
+                    String(
+                        conversationResult?.text ||
+                        conversationResult?.report ||
+                        conversationResult?.data?.message ||
+                        conversationResult?.response?.data?.message ||
+                        (
+                            conversationCall.reason ===
+                            "MODEL_DIRECT_CONVERSATION_RESPONSE"
+                                ? conversationCall?.args?.prompt
+                                : ""
+                        ) ||
+                        ""
+                    ).trim();
+
+                if (
+                    composedConversationText &&
+                    !/^Estado:\s*SUCCESS$/i.test(
+                        composedConversationText
+                    )
+                ) {
+                    await JarvisSemanticMemory.rememberTurn({
+                        identity: semanticMemoryIdentity,
+                        role: "assistant",
+                        content: composedConversationText,
+                        missionId: analysisId,
+                        status: "CASUAL_CONVERSATION"
+                    });
                 }
-            );
+            }
+            catch(memoryWriteError) {
+                console.warn(
+                    "[SEMANTIC_MEMORY_ASSISTANT_TURN_FAIL]",
+                    memoryWriteError?.message ||
+                    String(memoryWriteError)
+                );
+            }
+
+            return conversationResult;
         }
 
         let terminalPlannerSeed =

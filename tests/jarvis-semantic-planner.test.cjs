@@ -86,13 +86,15 @@ test("semantic planner contains no hardcoded media or mini-drama playbook", () =
 });
 
 
-test("current-turn conversational gate returns a precomposed direct response in one inference", async () => {
+test("current-turn conversational gate returns a contextual precomposed response in one inference", async () => {
     let calls = 0;
+    let requestSeen = null;
     const ai = {
         lastProvider: "ollama-openai-compatible-local",
         models: {
-            async generateContent() {
+            async generateContent(request) {
                 calls += 1;
+                requestSeen = request;
                 return {
                     text: JSON.stringify({
                         direct: true,
@@ -112,11 +114,34 @@ test("current-turn conversational gate returns a precomposed direct response in 
         }],
         missionState: {
             phase: "CURRENT_TURN",
-            conversationalGate: true
+            conversationalGate: true,
+            advisorySemanticContext: {
+                turns: [
+                    { role: "user", content: "Buenas noches, pariente." },
+                    { role: "assistant", content: "Buenas noches, pariente. ¿Qué tal todo?" },
+                    { role: "user", content: "Qué tal pariente, ¿cómo estás?" }
+                ]
+            }
         }
     });
 
     assert.equal(calls, 1);
+    assert.match(
+        String(requestSeen?.contents || ""),
+        /Buenas noches, pariente\. ¿Qué tal todo\?/
+    );
+    assert.match(
+        String(requestSeen?.contents || ""),
+        /No describas el mensaje del usuario/
+    );
+    assert.match(
+        String(requestSeen?.contents || ""),
+        /la respuesta es/
+    );
+    assert.equal(
+        (String(requestSeen?.contents || "").match(/Qué tal pariente, ¿cómo estás\?/g) || []).length,
+        1
+    );
     assert.equal(result.toolCalls.length, 1);
     assert.equal(result.toolCalls[0].name, "conversation.respond");
     assert.equal(

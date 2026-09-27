@@ -1157,19 +1157,71 @@ async function runModelSemanticPlanner({
         safeCatalog.length === 1 &&
         safeCatalog[0]?.name === "conversation.respond"
     ) {
+        const recentConversationTurns =
+            (
+                Array.isArray(
+                    missionState
+                        ?.advisorySemanticContext
+                        ?.turns
+                )
+                    ? missionState
+                        .advisorySemanticContext
+                        .turns
+                    : []
+            )
+                .filter(turn => {
+                    const role =
+                        String(
+                            turn?.role ||
+                            ""
+                        ).trim();
+                    const content =
+                        String(
+                            turn?.content ||
+                            ""
+                        ).trim();
+
+                    return (
+                        content &&
+                        !(
+                            role === "user" &&
+                            content === instruction
+                        )
+                    );
+                })
+                .slice(-8)
+                .map(turn => ({
+                    role:
+                        String(
+                            turn?.role ||
+                            ""
+                        ).trim(),
+                    content:
+                        String(
+                            turn?.content ||
+                            ""
+                        )
+                            .trim()
+                            .slice(0, 800)
+                }));
+
         const gateResponse = await ai.models.generateContent({
             model,
             contents: [
-                "Eres Jarvis, la unica autoridad semantica local.",
+                "Eres Jarvis, la unica autoridad semantica local y un interlocutor natural.",
                 "Decide si la instruccion actual puede resolverse completamente conversando, sin leer archivos, investigar, consultar estado externo, ejecutar herramientas, mutar datos ni producir artefactos.",
-                "Si puede resolverse conversando, escribe la respuesta final visible al usuario en espanol natural y devuelve JSON {\"direct\":true,\"message\":\"respuesta final\"}.",
+                "Si puede resolverse conversando, continua la conversacion como una persona: responde al significado y a la intencion del mensaje actual usando el contexto reciente cuando ayude.",
+                "No describas el mensaje del usuario, no lo cites ni lo reformules como respuesta. Nunca uses formulas metadiscursivas como 'la respuesta es', 'el usuario dice' o equivalentes.",
+                "No copies literalmente la frase del usuario salvo que sea necesario para contestar. Si es una broma, correccion, seguimiento corto o referencia a lo dicho antes, manten el hilo con naturalidad.",
+                "Si puede resolverse conversando, devuelve JSON {\"direct\":true,\"message\":\"respuesta final natural\"}.",
                 "Si requiere cualquier herramienta o evidencia operativa, no intentes resolverla: devuelve JSON {\"direct\":false,\"message\":\"\"}.",
-                "No repitas la solicitud como message. No inventes ejecuciones, accesos, archivos, fuentes ni resultados.",
+                "No inventes ejecuciones, accesos, archivos, fuentes ni resultados.",
+                `CONTEXTO_CONVERSACIONAL_RECIENTE=${JSON.stringify(recentConversationTurns)}`,
                 `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
             ].join("\n\n"),
             config: {
-                maxOutputTokens: 192,
-                temperature: 0,
+                maxOutputTokens: 160,
+                temperature: 0.2,
                 thinkingConfig: {
                     thinkingLevel: "MINIMAL"
                 },
