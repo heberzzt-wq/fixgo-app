@@ -245,12 +245,55 @@ test("private Jarvis memory archive is append-only, deduped and scope-isolated",
     assert.equal(physicalLines.length, 2);
 });
 
+test("bridge singleton guard requires exact version head and clean worktree", () => {
+    const pkg =
+        JSON.parse(
+            fs.readFileSync(
+                path.join(
+                    process.cwd(),
+                    "package.json"
+                ),
+                "utf8"
+            )
+        );
+    const bridgeScript =
+        String(
+            pkg?.scripts?.bridge ||
+            ""
+        );
+
+    assert.match(
+        bridgeScript,
+        /EXPECTED_BRIDGE_VERSION/
+    );
+    assert.match(
+        bridgeScript,
+        /bridgeState\.version===EXPECTED_BRIDGE_VERSION/
+    );
+    assert.match(
+        bridgeScript,
+        /bridgeState\.head===localHead/
+    );
+    assert.match(
+        bridgeScript,
+        /bridgeState\.clean===true/
+    );
+    assert.match(
+        bridgeScript,
+        /JARVIS_WORKTREE_DIRTY_BEFORE_BRIDGE_START/
+    );
+    assert.doesNotMatch(
+        bridgeScript,
+        /if\(existing\.healthy&&existing\.isJarvis&&existing\.contractVersion===EXPECTED&&existing\.workerStarted\)\{console\.log\('\[JARVIS_WORKSTATION\] singleton already current/
+    );
+});
+
 test("Jarvis FS bridge V2 describes safe full repo policy", () => {
     const description =
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.56.0-fast-semantic-memory-v142");
+    assert.equal(description.version, "2.57.0-bounded-semantic-memory-v142");
     assert.equal(typeof description.actuators.speech.available, "boolean");
     assert.deepEqual(description.actuators.speech.outputFormats, ["wav"]);
     assert.equal(description.policy.authority, "full_repo_private_owner");
@@ -2619,7 +2662,7 @@ test("private memory semantic query recovers an older relevant lesson and caches
         );
         assert.equal(
             embeddingCalls,
-            3
+            2
         );
     }
     finally {

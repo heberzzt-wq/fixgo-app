@@ -90,7 +90,7 @@ const {
 } = require("./functions/jarvis-semantic-planner.js");
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.56.0-fast-semantic-memory-v142";
+    "2.57.0-bounded-semantic-memory-v142";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -332,48 +332,70 @@ function jarvisPrivateMemorySemanticText(record = {}) {
         (value, maximum) =>
             String(value || "")
                 .trim()
+                .replace(/\s+/g, " ")
                 .slice(0, maximum);
     return [
-        compact(record?.kind, 80),
-        compact(record?.status, 160),
-        compact(record?.instruction, 1800),
-        compact(record?.content, 1200),
-        compact(record?.finalText, 1800),
-        Array.isArray(record?.errors)
-            ? record.errors
+        `kind=${compact(record?.kind, 32)}`,
+        `status=${compact(
+            record?.status ||
+            record?.missionStatus,
+            60
+        )}`,
+        `instruction=${compact(
+            record?.instruction,
+            300
+        )}`,
+        Array.isArray(record?.errors) &&
+        record.errors.length
+            ? `errors=${record.errors
+                .slice(0, 3)
+                .map(value =>
+                    compact(value, 80)
+                )
+                .filter(Boolean)
+                .join("|")}`
+            : "",
+        Array.isArray(record?.completedTools) &&
+        record.completedTools.length
+            ? `done=${record.completedTools
                 .slice(0, 8)
-                .map(value => compact(value, 240))
+                .map(value =>
+                    compact(value, 50)
+                )
                 .filter(Boolean)
-                .join("\n")
+                .join(",")}`
             : "",
-        Array.isArray(record?.completedTools)
-            ? record.completedTools
-                .slice(0, 20)
-                .map(value => compact(value, 120))
+        Array.isArray(record?.blockedTools) &&
+        record.blockedTools.length
+            ? `blocked=${record.blockedTools
+                .slice(0, 8)
+                .map(value =>
+                    compact(value, 50)
+                )
                 .filter(Boolean)
-                .join(", ")
+                .join(",")}`
             : "",
-        Array.isArray(record?.blockedTools)
-            ? record.blockedTools
-                .slice(0, 20)
-                .map(value => compact(value, 120))
+        Array.isArray(record?.files) &&
+        record.files.length
+            ? `files=${record.files
+                .slice(0, 6)
+                .map(value =>
+                    compact(value, 80)
+                )
                 .filter(Boolean)
-                .join(", ")
+                .join(",")}`
             : "",
-        Array.isArray(record?.files)
-            ? record.files
-                .slice(0, 20)
-                .map(value => compact(value, 240))
-                .filter(Boolean)
-                .join(", ")
-            : "",
-        compact(record?.commitMessage, 600),
-        compact(record?.commitSha, 100)
+        `result=${compact(
+            record?.finalText,
+            120
+        )}`
     ]
-        .filter(Boolean)
+        .filter(value =>
+            value &&
+            !/=$/.test(value)
+        )
         .join("\n")
-        .trim()
-        .slice(0, 5000);
+        .slice(0, 700);
 }
 
 function jarvisPrivateMemorySemanticCacheKey({
@@ -9202,13 +9224,13 @@ export function createJarvisFsBridgeApp({
             ];
             const semanticPoolLimit =
                 Math.max(
-                    8,
+                    2,
                     Math.min(
                         Number(
                             req.body
                                 ?.semanticPoolLimit
-                        ) || 16,
-                        48
+                        ) || 6,
+                        8
                     )
                 );
             const candidates =
@@ -9277,50 +9299,36 @@ export function createJarvisFsBridgeApp({
                                 candidate.cacheKey
                             )
                 );
-            const batchSize = 8;
-            for (
-                let offset = 0;
-                offset < missing.length;
-                offset += batchSize
-            ) {
-                const batch =
-                    missing.slice(
-                        offset,
-                        offset + batchSize
-                    );
-                const embedded =
-                    await semanticEngine.embed(
-                        batch.map(candidate =>
-                            candidate.text
-                        )
-                    );
-                batch.forEach(
-                    (candidate, index) => {
-                        const vector =
-                            embedded
-                                ?.embeddings
-                                ?.[index];
-                        if (
-                            Array.isArray(vector) &&
-                            vector.length > 0
-                        ) {
-                            jarvisPrivateMemorySemanticEmbeddingCache
-                                .set(
-                                    candidate.cacheKey,
-                                    vector
-                                );
-                        }
-                    }
-                );
-            }
-            pruneJarvisPrivateMemorySemanticCache();
 
-            const queryEmbedding =
+            const combinedEmbedding =
                 await semanticEngine.embed([
-                    semanticQuery
+                    semanticQuery,
+                    ...missing.map(candidate =>
+                        candidate.text
+                    )
                 ]);
             const queryVector =
-                queryEmbedding?.embeddings?.[0];
+                combinedEmbedding?.embeddings?.[0];
+
+            missing.forEach(
+                (candidate, index) => {
+                    const vector =
+                        combinedEmbedding
+                            ?.embeddings
+                            ?.[index + 1];
+                    if (
+                        Array.isArray(vector) &&
+                        vector.length > 0
+                    ) {
+                        jarvisPrivateMemorySemanticEmbeddingCache
+                            .set(
+                                candidate.cacheKey,
+                                vector
+                            );
+                    }
+                }
+            );
+            pruneJarvisPrivateMemorySemanticCache();
             if (
                 !Array.isArray(queryVector) ||
                 queryVector.length === 0
