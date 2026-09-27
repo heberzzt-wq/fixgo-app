@@ -2387,7 +2387,7 @@ async function(reason = "manual") {
 
     try {
 
-        console.log(
+        window.gestiaBootLog?.(
             "🧠 [AUTO_REPO_HYDRATION]",
             {
                 reason,
@@ -2465,10 +2465,29 @@ async function(reason = "manual") {
 
 const scheduleRuntimeAutoHydration =
 function(reason) {
+    const conversationBusy = () =>
+        document.querySelector("#btn-generate")?.disabled === true;
+
     const runWhenIdle = () => {
+        if (conversationBusy()) {
+            setTimeout(
+                runWhenIdle,
+                1500
+            );
+            return;
+        }
+
         if (typeof window.requestIdleCallback === "function") {
             window.requestIdleCallback(
                 () => {
+                    if (conversationBusy()) {
+                        setTimeout(
+                            runWhenIdle,
+                            1500
+                        );
+                        return;
+                    }
+
                     window.runRuntimeAutoHydration?.(reason);
                 },
                 {
@@ -2480,6 +2499,11 @@ function(reason) {
 
         setTimeout(
             () => {
+                if (conversationBusy()) {
+                    runWhenIdle();
+                    return;
+                }
+
                 window.runRuntimeAutoHydration?.(reason);
             },
             3000

@@ -25,7 +25,17 @@ test("runtime boot keeps repo cognition verbose logs quiet and defers hydration"
     assert.match(governance, /gestiaBootLog\?\.\([\s\S]{0,90}RISK_NODE/);
     assert.match(repairHealth, /gestiaBootLog\?\.\([\s\S]{0,90}RUNTIME_STATE_CHANGE/);
     assert.match(repairHealth, /gestiaBootLog\?\.\([\s\S]{0,90}RUNTIME_STATE_UPDATED/);
+    const autoHydrationAt = eventBus.indexOf("🧠 [AUTO_REPO_HYDRATION]");
+    assert.ok(autoHydrationAt >= 0);
+    assert.match(
+        eventBus.slice(Math.max(0, autoHydrationAt - 100), autoHydrationAt + 160),
+        /gestiaBootLog/
+    );
+    assert.match(eventBus, /const conversationBusy = \(\) =>/);
+    assert.match(eventBus, /#btn-generate/);
+    assert.match(eventBus, /conversationBusy\(\)/);
     assert.match(eventBus, /requestIdleCallback/);
     assert.match(eventBus, /timeout:\s*12000/);
+    assert.match(eventBus, /setTimeout\(\s*runWhenIdle,\s*1500\s*\)/);
     assert.match(eventBus, /setTimeout\(\s*runWhenIdle,\s*5000\s*\)/);
 });
