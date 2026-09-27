@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { test } from "node:test";
 
 if (!globalThis.window) {
@@ -121,6 +123,26 @@ test("conversation tool lifts nested message even through generic success envelo
 
     assert.equal(result.text, message);
     assert.equal(result.report, message);
+});
+
+test("terminal consumes top-level AGENT_TOOL_RESULT observations for conversational replies", () => {
+    const terminal = fs.readFileSync(
+        path.join(process.cwd(), "gestia-terminal.html"),
+        "utf8"
+    );
+
+    assert.match(
+        terminal,
+        /coreResult\s*\|\|\s*\{\};/
+    );
+    assert.match(
+        terminal,
+        /getObservationToolName\(item, index\) === "conversation\.respond"/
+    );
+    assert.match(
+        terminal,
+        /window\.renderJarvisResponse\?\.\(\s*"Jarvis",\s*conversationText/
+    );
 });
 
 test("approval requirement remains visible in the composed agent envelope", () => {
