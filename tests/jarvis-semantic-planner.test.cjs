@@ -994,6 +994,63 @@ test("semantic planner accepts Qwen structured text tool output end to end", asy
     );
 });
 
+test("current-turn operational planning uses native tools with a small first-step budget", async () => {
+    let requestSeen = null;
+    const operationalCatalog = [
+        {
+            name: "system.health",
+            description: "Diagnostico read-only del runtime.",
+            mutates: false
+        },
+        {
+            name: "repo.gitStatus",
+            description: "Estado git real del repositorio.",
+            mutates: false
+        }
+    ];
+
+    const result = await runJarvisSemanticPlanner({
+        input: "Revisa el runtime y confirma el HEAD actual.",
+        catalog: operationalCatalog,
+        missionState: {
+            phase: "CURRENT_TURN",
+            writeAllowed: false
+        },
+        ai: {
+            lastProvider: "ollama-openai-compatible-local",
+            models: {
+                generateContent: async request => {
+                    requestSeen = request;
+                    return {
+                        text: JSON.stringify({
+                            name: "jarvis_tool_1",
+                            arguments: {}
+                        }),
+                        functionCalls: []
+                    };
+                }
+            }
+        }
+    });
+
+    assert.equal(requestSeen?.config?.maxOutputTokens, 64);
+    assert.equal(requestSeen?.config?.responseMimeType, undefined);
+    assert.equal(
+        requestSeen?.config?.toolConfig?.functionCallingConfig?.mode,
+        "ANY"
+    );
+    assert.equal(
+        requestSeen?.config?.tools?.[0]?.functionDeclarations?.length,
+        2
+    );
+    assert.match(
+        String(requestSeen?.contents || ""),
+        /Selecciona exactamente una herramienta/
+    );
+    assert.equal(result.toolCalls.length, 1);
+    assert.equal(result.toolCalls[0].name, "repo.gitStatus");
+});
+
 test("semantic planner maps provider function calls to the runtime catalog", () => {
     const modelTools = buildModelTools(catalog);
     assert.equal(modelTools[0].function.name, "jarvis_tool_0");

@@ -766,7 +766,7 @@ async function runModelSemanticPlanner({
     const safeCatalog = shortlistSemanticCatalog(instruction, normalizedCatalog, missionState, 4);
     const currentTurn = String(missionState?.phase || "") === "CURRENT_TURN";
     const compactJsonPlanning =
-        currentTurn ||
+        !currentTurn &&
         normalizedCatalog.length > safeCatalog.length;
     if (!instruction || safeCatalog.length === 0) throw new Error("SEMANTIC_GEMINI_INPUT_REQUIRED");
 
@@ -1457,15 +1457,25 @@ async function runModelSemanticPlanner({
         }
         : {
             model,
-            contents: [
-                buildSemanticSystemInstruction(safeCatalog, missionState),
-                `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
-            ].join("\n\n"),
+            contents:
+                currentTurn
+                    ? [
+                        "Eres Jarvis, la unica autoridad semantica local.",
+                        "La fase conversacional previa determino que este turno requiere evidencia o accion externa.",
+                        "Selecciona exactamente una herramienta del catalogo candidato para obtener la primera evidencia real. No respondas conversacionalmente y no inventes resultados.",
+                        `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
+                    ].join("\n")
+                    : [
+                        buildSemanticSystemInstruction(safeCatalog, missionState),
+                        `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
+                    ].join("\n\n"),
             config: {
                 maxOutputTokens:
-                    safeCatalog.length <= 4
-                        ? 384
-                        : 1200,
+                    currentTurn
+                        ? 64
+                        : safeCatalog.length <= 4
+                            ? 384
+                            : 1200,
                 temperature: 0,
                 thinkingConfig: {
                     thinkingLevel: "MINIMAL"
