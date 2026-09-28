@@ -88,6 +88,8 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     assert.match(pkg.scripts.bridge, /workerLastPollAt/);
     assert.match(pkg.scripts.bridge, /workerLastPollOkAt/);
     assert.match(pkg.scripts.bridge, /workerLastPollError/);
+    assert.match(pkg.scripts.bridge, /loadedHead:localHead/);
+    assert.match(pkg.scripts.bridge, /existing\.loadedHead===localHead/);
     assert.match(pkg.scripts.bridge, /JARVIS_GIT_SYNC_DEGRADED/);
     assert.match(pkg.scripts.bridge, /JARVIS_GIT_SYNC_REBASE_STATE_ACTIVE/);
     assert.match(pkg.scripts.bridge, /rebase-merge/);
@@ -100,6 +102,9 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     assert.match(pkg.scripts["bridge:supervise"], /refusing duplicate bind/);
     assert.match(pkg.scripts["bridge:supervise"], /workstation\/health/);
     assert.match(pkg.scripts["bridge:supervise"], /workerStarted/);
+    assert.match(pkg.scripts["bridge:supervise"], /loadedHead/);
+    assert.match(pkg.scripts["bridge:supervise"], /currentHead\(\)/);
+    assert.match(pkg.scripts["bridge:supervise"], /rev-parse/);
     assert.match(pkg.scripts["bridge:supervise"], /taskkill/);
     assert.match(pkg.scripts["bridge:supervise"], /processId/);
     assert.match(pkg.scripts["bridge:supervise"], /occupied\(\)/);

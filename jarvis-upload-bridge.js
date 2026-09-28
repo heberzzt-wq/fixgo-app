@@ -1025,6 +1025,7 @@ export function removeLegacyUploadRoutes(app) {
 
 const workstationRuntimeState = {
     workstationContractVersion: "2.0.0-singleton-exact-sync",
+    loadedHead: null,
     startedAt: null,
     bridgeStarted: false,
     workerStarted: false,
