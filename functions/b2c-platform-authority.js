@@ -60,16 +60,6 @@ function createB2cServiceHandler({ admin, db, functions }) {
             if (platformContract.normalizeToken(customer.rol || customer.role) !== "cliente" || customer.tipo_cuenta === "B2B" || customer.suspendido === true) {
                 throw callableError(functions, "permission-denied", "La identidad no corresponde a un cliente B2C.");
             }
-            const automaticIdentityApproved =
-                customer.kyc?.identity_machine_verified === true &&
-                customer.kyc?.identity_machine_status === "verified";
-            if (customer.kyc?.identity_required === true &&
-                (customer.kyc?.identity_verified !== true ||
-                 !automaticIdentityApproved ||
-                 customer.estado !== "activo" ||
-                 customer.status !== "activo")) {
-                throw callableError(functions, "failed-precondition", "CUSTOMER_IDENTITY_VERIFICATION_REQUIRED");
-            }
             const config = configSnapshot.exists ? configSnapshot.data() || {} : {};
             const payment = platformContract.assertPaymentMethodAllowed(method, config, customer);
             if (!payment.ok) {
