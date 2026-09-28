@@ -293,7 +293,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.58.0-local-model-profiles-v142");
+    assert.equal(description.version, "2.59.0-single-qwen3b-schema-guard-v142");
     assert.equal(typeof description.actuators.speech.available, "boolean");
     assert.deepEqual(description.actuators.speech.outputFormats, ["wav"]);
     assert.equal(description.policy.authority, "full_repo_private_owner");
@@ -640,7 +640,7 @@ test("self-hosted semantic backend defaults to local-only Ollama Qwen with zero 
     assert.equal(health.ok, true);
     assert.equal(health.mode, "LOCAL_ONLY");
     assert.equal(health.provider, "ollama-openai-compatible-local");
-    assert.equal(health.model, "qwen2.5-coder:1.5b");
+    assert.equal(health.model, "qwen2.5-coder:3b");
     assert.equal(health.embeddingModel, "qwen3-embedding:0.6b");
     assert.equal(health.endpointOrigin, "http://127.0.0.1:11434");
     assert.equal(health.fallbackAllowed, false);
@@ -786,8 +786,7 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
         env: {
             JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
             JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
-            JARVIS_LOCAL_LLM_MODEL: "qwen-code",
-            JARVIS_LOCAL_CONVERSATION_MODEL: "qwen-chat"
+            JARVIS_LOCAL_LLM_MODEL: "qwen-code"
         },
         fetchImpl: async (_url, options) => {
             requestBody = JSON.parse(options.body);
@@ -835,22 +834,29 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
 
     assert.equal(
         requestBody.model,
-        "qwen-chat"
+        "qwen-code"
     );
     assert.deepEqual(
         requestBody.messages.map(message => message.role),
-        ["system", "user", "assistant", "user"]
+        [
+            "system",
+            "user", "assistant",
+            "user", "assistant",
+            "user", "assistant",
+            "user", "assistant",
+            "user"
+        ]
     );
     assert.equal(
         requestBody.messages.at(-1).content,
         "No, digo que se me antojó a mí."
     );
     assert.equal(
-        requestBody.messages[1].content,
+        requestBody.messages[7].content,
         "Se me antojó algo frío."
     );
     assert.equal(
-        requestBody.messages[2].content,
+        requestBody.messages[8].content,
         "Sí se antoja."
     );
     assert.equal(result.toolCalls.length, 1);
@@ -860,7 +866,7 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
     );
     assert.equal(
         result.model,
-        "qwen-chat"
+        "qwen-code"
     );
     assert.equal(
         result.modelProfile,
@@ -868,11 +874,11 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
     );
     assert.equal(
         result.inferenceReceipt.conversationModel,
-        "qwen-chat"
+        "qwen-code"
     );
     assert.equal(
         result.inferenceReceipt.lastInferenceModel,
-        "qwen-chat"
+        "qwen-code"
     );
     assert.equal(
         result.inferenceReceipt.lastModelProfile,

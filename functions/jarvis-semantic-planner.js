@@ -206,9 +206,10 @@ function validatePlan(
             : {};
         if (!tool) continue;
         let args = Object.keys(candidateArgs).length > 0
-            ? {
-                ...candidateArgs
-            }
+            ? normalizeSchemaBoundArguments(
+                tool,
+                candidateArgs
+            )
             : fallbackInput
                 ? {
                     instruction: String(fallbackInput).slice(0, 12000),
@@ -501,6 +502,27 @@ function buildNativeInputSchema(inputSchema = null) {
         ),
         additionalProperties: false
     };
+}
+
+function normalizeSchemaBoundArguments(tool = {}, args = {}) {
+    if (!args || typeof args !== "object" || Array.isArray(args)) return {};
+    const schema = buildNativeInputSchema(tool?.inputSchema);
+    const properties = schema?.properties || {};
+    const normalized = { ...args };
+
+    for (const [name, fieldSchema] of Object.entries(properties)) {
+        const value = normalized[name];
+        if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+        const keys = Object.keys(value).sort();
+        if (keys.length !== 2 || keys[0] !== "type" || keys[1] !== "value") continue;
+        const declaredType = String(value.type || "").trim().toLowerCase();
+        const expectedType = String(fieldSchema?.type || "").trim().toLowerCase();
+        if (!declaredType || !expectedType || declaredType !== expectedType) continue;
+        if (!schemaValueIsExecutable(value.value, fieldSchema)) continue;
+        normalized[name] = value.value;
+    }
+
+    return normalized;
 }
 
 function hasRequiredToolArguments(tool = {}, args = {}) {
@@ -1222,17 +1244,28 @@ async function runModelSemanticPlanner({
         }
 
         const gateSystemInstruction = [
-            "Eres Jarvis, la unica autoridad semantica local y un interlocutor natural.",
-            "El mensaje actual del usuario es siempre la prioridad. Usa el historial solamente para resolver referencias o continuar el hilo; nunca dejes que mensajes viejos sustituyan el mensaje actual.",
-            "Si el mensaje actual es conversacion casual, responde como Jarvis directamente a lo que la persona quiso comunicar. No describas la frase, no la trates como texto para analizar y no preguntes en que puedes ayudar con esa frase.",
-            "No cites, no reformules y no copies literalmente el mensaje salvo que sea necesario para responder. Nunca uses formulas como 'la respuesta es', 'el usuario dice', 'puedo ayudarte con la frase' ni equivalentes.",
-            "Si el usuario corrige algo dicho antes, reconoce la correccion y continua naturalmente.",
+            "Eres Jarvis, la unica autoridad semantica local y un interlocutor natural en espanol mexicano.",
+            "El ultimo mensaje del usuario es lo que debes responder AHORA. Usa el historial solo para resolver referencias o continuar el hilo; nunca dejes que mensajes viejos sustituyan el mensaje actual.",
+            "En charla casual reacciona a lo que la persona comunica: comenta, bromea o sigue el tema. No conviertas un comentario casual en una tarea y no cierres con preguntas genericas de soporte.",
+            "No tienes cuerpo fisico. En charla casual nunca prometas traer, llevar, servir, cocinar o realizar fisicamente algo.",
+            "Conserva exactamente quien es el sujeto. Regla de perspectiva: cuando el usuario dice yo, me o a mi sobre si mismo, al responder refierete a esa persona como tu, te o a ti; nunca conviertas su yo en el yo de Jarvis.",
+            "Si el usuario corrige quien hizo, sintio o quiso algo, reconoce esa correccion concreta y continua naturalmente.",
+            "No describas ni analices la frase del usuario, no la repitas como respuesta y no uses formulas como 'la respuesta es', 'el usuario dice', 'entendido, en que puedo ayudarte' ni equivalentes.",
             "Decide si el turno puede resolverse completamente conversando sin archivos, investigacion, estado externo, herramientas, mutaciones ni artefactos.",
             "Devuelve exclusivamente un objeto JSON valido.",
-            "Si basta conversar: {\"direct\":true,\"message\":\"lo que Jarvis diria naturalmente al usuario\"}.",
+            "Si basta conversar: {\"direct\":true,\"message\":\"respuesta breve y natural de Jarvis\"}.",
             "Si requiere herramientas o evidencia operativa: {\"direct\":false,\"message\":\"\"}.",
             "No inventes ejecuciones, accesos, archivos, fuentes ni resultados."
         ].join("\n");
+
+        const conversationalExamples = [
+            { role: "user", content: "Yo fui al cine ayer." },
+            { role: "assistant", content: "Ah, que tal estuvo?" },
+            { role: "user", content: "Jajaja no, fui yo, no tu." },
+            { role: "assistant", content: "Jajaja si, ya entendi: fuiste tu, no yo. 😂" },
+            { role: "user", content: "Se me antojo algo bien frio." },
+            { role: "assistant", content: "Jajaja con este calor, a ti si se te antojo algo bien frio. 😂" }
+        ];
 
         const gateChatMessages = [
             {
@@ -1240,6 +1273,7 @@ async function runModelSemanticPlanner({
                 content:
                     gateSystemInstruction
             },
+            ...conversationalExamples,
             ...recentConversationTurns,
             {
                 role: "user",
@@ -1335,7 +1369,7 @@ async function runModelSemanticPlanner({
                     inputSchema: tool.inputSchema
                 })))}`,
                 `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
-                "Devuelve exclusivamente JSON valido con toolCalls:[{name,args}], missionComplete=false. Usa los nombres exactos del catalogo."
+                "Devuelve exclusivamente JSON valido con toolCalls:[{name,args}], missionComplete=false. Usa los nombres exactos del catalogo. En args escribe valores reales que satisfagan inputSchema; nunca copies descriptores de schema como {type,value}, properties, required o equivalentes."
             ].join("\n\n"),
             config: {
                 maxOutputTokens: 384,
@@ -1399,6 +1433,7 @@ async function runModelSemanticPlanner({
                     "REINTENTO_JSON_LOCAL: la seleccion anterior no produjo una herramienta ejecutable.",
                     "Devuelve exclusivamente JSON valido con toolCalls y missionComplete=false.",
                     "Selecciona solamente herramientas del catalogo mostrado arriba y conserva los argumentos requeridos por sus schemas.",
+                    "En args usa valores ejecutables del tipo pedido por inputSchema; nunca devuelvas descriptores de schema como {type,value}, properties o required.",
                     "No expliques fuera del JSON y no inventes nombres de herramientas."
                 ].join("\n")
             ].join("\n\n"),

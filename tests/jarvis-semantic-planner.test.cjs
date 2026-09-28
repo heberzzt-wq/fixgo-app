@@ -132,7 +132,14 @@ test("current-turn conversational gate returns a contextual precomposed response
     );
     assert.deepEqual(
         requestSeen?.config?.chatMessages?.map(item => item.role),
-        ["system", "user", "assistant", "user"]
+        [
+            "system",
+            "user", "assistant",
+            "user", "assistant",
+            "user", "assistant",
+            "user", "assistant",
+            "user"
+        ]
     );
     assert.equal(
         requestSeen?.config?.chatMessages?.at(-1)?.content,
@@ -150,7 +157,7 @@ test("current-turn conversational gate returns a contextual precomposed response
     );
     assert.match(
         String(requestSeen?.contents || ""),
-        /No describas la frase/
+        /No describas ni analices la frase/
     );
     assert.match(
         String(requestSeen?.contents || ""),
@@ -246,6 +253,59 @@ test("semantic planner rejects calls missing schema-required arguments", () => {
         ).toolCalls.length,
         0
     );
+});
+
+test("semantic planner unwraps schema descriptor envelopes only when they match the runtime schema", () => {
+    const searchTool = {
+        name: "repo.search",
+        mutates: false,
+        inputSchema: {
+            type: "object",
+            required: ["query"],
+            properties: {
+                query: { type: "string" }
+            }
+        }
+    };
+
+    const normalized = validatePlan(
+        {
+            toolCalls: [{
+                name: "repo.search",
+                args: {
+                    query: {
+                        type: "string",
+                        value: "function debit(balance, amount)"
+                    }
+                }
+            }]
+        },
+        [searchTool],
+        "busca debit"
+    );
+
+    assert.equal(normalized.toolCalls.length, 1);
+    assert.deepEqual(
+        normalized.toolCalls[0].args,
+        { query: "function debit(balance, amount)" }
+    );
+
+    const mismatched = validatePlan(
+        {
+            toolCalls: [{
+                name: "repo.search",
+                args: {
+                    query: {
+                        type: "number",
+                        value: 123
+                    }
+                }
+            }]
+        },
+        [searchTool],
+        "busca debit"
+    );
+    assert.equal(mismatched.toolCalls.length, 0);
 });
 
 test("semantic planner rejects empty or malformed delegation tasks before execution", () => {

@@ -49,7 +49,7 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     );
     assert.equal(
         settings["terminal.integrated.env.windows"].JARVIS_LOCAL_LLM_MODEL,
-        "qwen2.5-coder:1.5b"
+        "qwen2.5-coder:3b"
     );
     assert.equal(
         settings["terminal.integrated.env.windows"].JARVIS_LOCAL_EMBEDDING_MODEL,
@@ -157,7 +157,7 @@ test("workstation warmup loads only the local Qwen model and pins keep-alive", a
     const result =
         await warmJarvisLocalModel({
             model:
-                "qwen2.5-coder:1.5b",
+                "qwen2.5-coder:3b",
             keepAlive:
                 "30m",
             timeoutMs:
@@ -195,7 +195,7 @@ test("workstation warmup loads only the local Qwen model and pins keep-alive", a
     );
     assert.equal(
         observedBody.model,
-        "qwen2.5-coder:1.5b"
+        "qwen2.5-coder:3b"
     );
     assert.equal(
         observedBody.keep_alive,
@@ -266,7 +266,7 @@ test("workstation self-heal pulls only missing free local models and never selec
         root: process.cwd(),
         platform: "win32",
         env: {
-            JARVIS_LOCAL_LLM_MODEL: "qwen2.5-coder:1.5b",
+            JARVIS_LOCAL_LLM_MODEL: "qwen2.5-coder:3b",
             JARVIS_LOCAL_EMBEDDING_MODEL: "qwen3-embedding:0.6b"
         },
         installIfMissing: true,
@@ -283,7 +283,7 @@ test("workstation self-heal pulls only missing free local models and never selec
                 return {
                     ok: true,
                     reachable: true,
-                    body: { models: [{ name: "qwen2.5-coder:1.5b" }] }
+                    body: { models: [{ name: "qwen2.5-coder:3b" }] }
                 };
             }
             return {
@@ -291,7 +291,7 @@ test("workstation self-heal pulls only missing free local models and never selec
                 reachable: true,
                 body: {
                     models: [
-                        { name: "qwen2.5-coder:1.5b" },
+                        { name: "qwen2.5-coder:3b" },
                         { name: "qwen3-embedding:0.6b" }
                     ]
                 }
@@ -326,7 +326,7 @@ test("workstation self-heal retries transient free local model pulls and preserv
         root: process.cwd(),
         platform: "win32",
         env: {
-            JARVIS_LOCAL_LLM_MODEL: "qwen2.5-coder:1.5b",
+            JARVIS_LOCAL_LLM_MODEL: "qwen2.5-coder:3b",
             JARVIS_LOCAL_EMBEDDING_MODEL: "qwen3-embedding:0.6b"
         },
         installIfMissing: true,
@@ -359,7 +359,7 @@ test("workstation self-heal retries transient free local model pulls and preserv
                 return {
                     ok: true,
                     reachable: true,
-                    body: { models: [{ name: "qwen2.5-coder:1.5b" }] }
+                    body: { models: [{ name: "qwen2.5-coder:3b" }] }
                 };
             }
             return {
@@ -367,7 +367,7 @@ test("workstation self-heal retries transient free local model pulls and preserv
                 reachable: true,
                 body: {
                     models: [
-                        { name: "qwen2.5-coder:1.5b" },
+                        { name: "qwen2.5-coder:3b" },
                         { name: "qwen3-embedding:0.6b" }
                     ]
                 }
@@ -381,7 +381,7 @@ test("workstation self-heal retries transient free local model pulls and preserv
 
     assert.equal(result.ok, true);
     assert.equal(result.status, "JARVIS_LOCAL_AI_RUNTIME_READY");
-    assert.deepEqual(result.pulledModels, ["qwen2.5-coder:1.5b", "qwen3-embedding:0.6b"]);
+    assert.deepEqual(result.pulledModels, ["qwen2.5-coder:3b", "qwen3-embedding:0.6b"]);
     assert.equal(pullCalls, 3);
     assert.equal(waits, 1);
     assert.equal(result.externalApiUsed, false);
@@ -396,7 +396,7 @@ test("workstation self-heal flushes Windows DNS once after an Ollama no-such-hos
         root: process.cwd(),
         platform: "win32",
         env: {
-            JARVIS_LOCAL_LLM_MODEL: "qwen2.5-coder:1.5b",
+            JARVIS_LOCAL_LLM_MODEL: "qwen2.5-coder:3b",
             JARVIS_LOCAL_EMBEDDING_MODEL: "qwen3-embedding:0.6b"
         },
         installIfMissing: true,
@@ -433,7 +433,7 @@ test("workstation self-heal flushes Windows DNS once after an Ollama no-such-hos
                 return {
                     ok: true,
                     reachable: true,
-                    body: { models: [{ name: "qwen2.5-coder:1.5b" }] }
+                    body: { models: [{ name: "qwen2.5-coder:3b" }] }
                 };
             }
             return {
@@ -441,7 +441,7 @@ test("workstation self-heal flushes Windows DNS once after an Ollama no-such-hos
                 reachable: true,
                 body: {
                     models: [
-                        { name: "qwen2.5-coder:1.5b" },
+                        { name: "qwen2.5-coder:3b" },
                         { name: "qwen3-embedding:0.6b" }
                     ]
                 }
@@ -456,7 +456,7 @@ test("workstation self-heal flushes Windows DNS once after an Ollama no-such-hos
     assert.equal(result.ok, true);
     assert.equal(dnsFlushCalls, 1);
     assert.equal(pullCalls, 3);
-    assert.deepEqual(result.pulledModels, ["qwen2.5-coder:1.5b", "qwen3-embedding:0.6b"]);
+    assert.deepEqual(result.pulledModels, ["qwen2.5-coder:3b", "qwen3-embedding:0.6b"]);
     assert.equal(result.externalApiUsed, false);
     assert.equal(result.paidApiUsed, false);
 });
@@ -469,7 +469,7 @@ test("workstation self-heal falls back to Ollama loopback pull after bounded CLI
         root: process.cwd(),
         platform: "win32",
         env: {
-            JARVIS_LOCAL_LLM_MODEL: "qwen2.5-coder:1.5b",
+            JARVIS_LOCAL_LLM_MODEL: "qwen2.5-coder:3b",
             JARVIS_LOCAL_EMBEDDING_MODEL: "qwen3-embedding:0.6b"
         },
         installIfMissing: true,
@@ -480,7 +480,7 @@ test("workstation self-heal falls back to Ollama loopback pull after bounded CLI
             }
             if (args[0] === "pull") {
                 cliPullCalls += 1;
-                if (args[1] === "qwen2.5-coder:1.5b") {
+                if (args[1] === "qwen2.5-coder:3b") {
                     return {
                         ok: false,
                         status: 1,
@@ -508,7 +508,7 @@ test("workstation self-heal falls back to Ollama loopback pull after bounded CLI
                 return {
                     ok: true,
                     reachable: true,
-                    body: { models: [{ name: "qwen2.5-coder:1.5b" }] }
+                    body: { models: [{ name: "qwen2.5-coder:3b" }] }
                 };
             }
             return {
@@ -516,7 +516,7 @@ test("workstation self-heal falls back to Ollama loopback pull after bounded CLI
                 reachable: true,
                 body: {
                     models: [
-                        { name: "qwen2.5-coder:1.5b" },
+                        { name: "qwen2.5-coder:3b" },
                         { name: "qwen3-embedding:0.6b" }
                     ]
                 }
@@ -524,7 +524,7 @@ test("workstation self-heal falls back to Ollama loopback pull after bounded CLI
         },
         pullHttpImpl: async (model) => {
             httpPullCalls += 1;
-            assert.equal(model, "qwen2.5-coder:1.5b");
+            assert.equal(model, "qwen2.5-coder:3b");
             return {
                 ok: true,
                 status: 200,
@@ -542,7 +542,7 @@ test("workstation self-heal falls back to Ollama loopback pull after bounded CLI
     assert.equal(result.status, "JARVIS_LOCAL_AI_RUNTIME_READY");
     assert.equal(cliPullCalls, 4);
     assert.equal(httpPullCalls, 1);
-    assert.deepEqual(result.pulledModels, ["qwen2.5-coder:1.5b", "qwen3-embedding:0.6b"]);
+    assert.deepEqual(result.pulledModels, ["qwen2.5-coder:3b", "qwen3-embedding:0.6b"]);
     assert.equal(result.externalApiUsed, false);
     assert.equal(result.paidApiUsed, false);
 });
@@ -592,7 +592,7 @@ test("workstation doctor reports governed local capabilities without requiring t
         assert.equal(result.status, "JARVIS_WORKSTATION_INSPECTED");
         assert.equal(result.runtime.node.ok, true);
         assert.equal(result.localAi.provider, "ollama-openai-compatible-local");
-        assert.equal(result.localAi.expectedModel, "qwen2.5-coder:1.5b");
+        assert.equal(result.localAi.expectedModel, "qwen2.5-coder:3b");
         assert.equal(result.localAi.expectedEmbeddingModel, "qwen3-embedding:0.6b");
         assert.equal(result.localAi.externalFallback, false);
         assert.equal(result.localVideo.runpodPaidFallbackAuthorized, false);
@@ -988,11 +988,11 @@ test("resilient local research keeps seed identity while cross-source scope stay
     const calls = [];
 
     const result = await runResilientLocalWebResearch(
-        "Taquería El Dorado Cancún",
+        "TaquerÃ­a El Dorado CancÃºn",
         5000,
         {
             exactEntity:
-                "Taquería El Dorado",
+                "TaquerÃ­a El Dorado",
             seedUrl
         },
         async url => {
@@ -1003,8 +1003,8 @@ test("resilient local research keeps seed identity while cross-source scope stay
                 url: String(url),
                 async text() {
                     return [
-                        '<div class="result results_links"><a class="result__a" href="https://www.tiktok.com/@el.dorado509/video/7639882768356248839">Taquería El Dorado (@el.dorado509) | TikTok</a><a class="result__snippet">Taquería El Dorado buffet y hamburguesas.</a></div>',
-                        `<div class="result results_links"><a class="result__a" href="${externalUrl}">Taquería El Dorado Cancún</a><a class="result__snippet">Fuente externa atribuible a la cuenta exacta @taqueria.eldorado.</a></div>`
+                        '<div class="result results_links"><a class="result__a" href="https://www.tiktok.com/@el.dorado509/video/7639882768356248839">TaquerÃ­a El Dorado (@el.dorado509) | TikTok</a><a class="result__snippet">TaquerÃ­a El Dorado buffet y hamburguesas.</a></div>',
+                        `<div class="result results_links"><a class="result__a" href="${externalUrl}">TaquerÃ­a El Dorado CancÃºn</a><a class="result__snippet">Fuente externa atribuible a la cuenta exacta @taqueria.eldorado.</a></div>`
                     ].join("");
                 }
             };
@@ -1034,11 +1034,11 @@ test("resilient local research keeps seed identity while cross-source scope stay
 
     const scopedCalls = [];
     const scoped = await runResilientLocalWebResearch(
-        "Taquería El Dorado Cancún",
+        "TaquerÃ­a El Dorado CancÃºn",
         5000,
         {
             exactEntity:
-                "Taquería El Dorado",
+                "TaquerÃ­a El Dorado",
             seedUrl,
             allowedDomain:
                 "tiktok.com"
@@ -1050,7 +1050,7 @@ test("resilient local research keeps seed identity while cross-source scope stay
                 status: 200,
                 url: String(url),
                 async text() {
-                    return `<div class="result results_links"><a class="result__a" href="${seedUrl}">Taquería El Dorado (@taqueria.eldorado) | TikTok</a><a class="result__snippet">Publicación de la cuenta exacta @taqueria.eldorado.</a></div>`;
+                    return `<div class="result results_links"><a class="result__a" href="${seedUrl}">TaquerÃ­a El Dorado (@taqueria.eldorado) | TikTok</a><a class="result__snippet">PublicaciÃ³n de la cuenta exacta @taqueria.eldorado.</a></div>`;
                 }
             };
         }

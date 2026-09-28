@@ -90,7 +90,7 @@ const {
 } = require("./functions/jarvis-semantic-planner.js");
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.58.0-local-model-profiles-v142";
+    "2.59.0-single-qwen3b-schema-guard-v142";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -998,12 +998,9 @@ export function createSelfHostedSemanticEngine({
 } = {}) {
     const mode = semanticProviderMode(env);
     const model = String(
-        env.JARVIS_LOCAL_LLM_MODEL || "qwen2.5-coder:1.5b"
+        env.JARVIS_LOCAL_LLM_MODEL || "qwen2.5-coder:3b"
     ).trim();
-    const conversationModel = String(
-        env.JARVIS_LOCAL_CONVERSATION_MODEL ||
-        model
-    ).trim();
+    const conversationModel = model;
     const embeddingModel = String(
         env.JARVIS_LOCAL_EMBEDDING_MODEL || "qwen3-embedding:0.6b"
     ).trim();
