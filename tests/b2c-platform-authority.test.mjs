@@ -47,16 +47,16 @@ function approvedTechnician(overrides = {}) {
     };
 }
 
-test("B2C customer service creation accepts automatic identity only; admin approval is technician-only", () => {
+test("B2C customer service creation does not require customer biometrics; admin approval stays technician-only", () => {
     const source = fs.readFileSync(path.join(root, "functions", "b2c-platform-authority.js"), "utf8");
     const serviceBlock = source.slice(
         source.indexOf("function createB2cServiceHandler"),
         source.indexOf("function createSetCustomerPaymentPermissionsHandler")
     );
-    assert.match(serviceBlock, /identity_machine_verified/);
-    assert.match(serviceBlock, /identity_machine_status === "verified"/);
-    assert.doesNotMatch(serviceBlock, /identity_manual_verified|admin_manual_review/);
+    assert.doesNotMatch(serviceBlock, /CUSTOMER_IDENTITY_VERIFICATION_REQUIRED/);
+    assert.doesNotMatch(serviceBlock, /identity_machine_verified|identity_machine_status === "verified"/);
     assert.doesNotMatch(source, /approve_customer_identity|request_customer_identity_recapture/);
+    assert.match(source, /createApproveTechnicianHandler|aprobarTecnico|technician/i);
 });
 
 test("browser and Functions consume the same neutral authority", () => {
