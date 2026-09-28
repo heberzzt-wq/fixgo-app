@@ -853,9 +853,8 @@ $("btnConfirmarIdentidad")?.addEventListener("click", () => {
     }
     identityCaptureState.complete = true;
     closeIdentityModal();
-    const isCustomerIdentity = identityCaptureState.target === "cliente";
-    const summary = $(isCustomerIdentity ? "identitySummaryCliente" : "identitySummary");
-    const restartButton = $(isCustomerIdentity ? "btnIniciarIdentidadCliente" : "btnIniciarIdentidad");
+    const summary = $("identitySummary");
+    const restartButton = $("btnIniciarIdentidad");
     if (summary) {
         summary.innerHTML = '<i class="fas fa-circle-check text-emerald-400 mr-2"></i><strong class="text-emerald-300">Capturas revisadas.</strong> Listas para validación segura.';
     }
