@@ -1439,12 +1439,14 @@ async function runModelSemanticPlanner({
                     inputSchema: compactPlannerInputSchema(tool.inputSchema)
                 })))}`,
                 `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
-                "Devuelve exclusivamente JSON valido con toolCalls:[{name,args}], missionComplete=false. Usa los nombres exactos del catalogo. En args escribe valores reales que satisfagan inputSchema; nunca copies descriptores de schema como {type,value}, properties, required o equivalentes."
+                currentTurn
+                    ? "Devuelve exclusivamente JSON valido con maximo 2 toolCalls iniciales:[{name,args}], missionComplete=false. Elige solo las herramientas minimas para obtener la primera evidencia real; el runtime ampliara la mision despues si hace falta. Usa nombres exactos y argumentos ejecutables."
+                    : "Devuelve exclusivamente JSON valido con toolCalls:[{name,args}], missionComplete=false. Usa los nombres exactos del catalogo. En args escribe valores reales que satisfagan inputSchema; nunca copies descriptores de schema como {type,value}, properties, required o equivalentes."
             ].join("\n\n"),
             config: {
                 maxOutputTokens:
                     currentTurn
-                        ? 192
+                        ? 128
                         : 384,
                 temperature: 0,
                 thinkingConfig: {
