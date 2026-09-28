@@ -90,6 +90,8 @@ const {
 } = require("./functions/jarvis-semantic-planner.js");
 
 export const JARVIS_FS_BRIDGE_VERSION =
+    "2.61.0-native-json-chat-v142";
+const JARVIS_FS_BRIDGE_PREVIOUS_VERSION =
     "2.60.0-exact-symbol-preselection-v142";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
