@@ -249,61 +249,6 @@ if ($("btnCerrarTerminosTecnico")) {
 // ======================================================
 const btnRegistroCliente = $("btnRegistroCliente");
 const codigoB2BInput = document.querySelector('#formRegistroCliente [name="codigoB2B"]');
-const clienteIdentityResumeRequested = false;
-let clienteIdentityResumeProfile = null;
-
-if (clienteIdentityResumeRequested) {
-    onAuthStateChanged(auth, async (sessionUser) => {
-        if (!sessionUser) {
-            alert("🔐 Por seguridad necesitamos reautenticar esta cuenta antes de continuar la identidad.");
-            window.location.replace("login.html?resume=cliente-identity");
-            return;
-        }
-
-        const snapshot = await getDoc(doc(db, "users", sessionUser.uid));
-        const profile = snapshot.exists() ? snapshot.data() || {} : {};
-        if (profile.rol !== "cliente" || profile.tipo_cuenta !== "B2C") {
-            alert("⚠️ Esta sesión no corresponde a un cliente B2C recuperable.");
-            window.location.href = "index.html";
-            return;
-        }
-        if (profile.kyc?.identity_verified === true &&
-            profile.kyc?.identity_machine_status === "verified") {
-            window.location.href = "cliente.html";
-            return;
-        }
-
-        clienteIdentityResumeProfile = {
-            uid: sessionUser.uid,
-            email: String(sessionUser.email || profile.email || "").toLowerCase()
-        };
-
-        const form = document.getElementById("formRegistroCliente");
-        const nombreInput = form?.querySelector('[name="nombre"]');
-        const emailInput = form?.querySelector('[name="email"]');
-        const passwordInput = form?.querySelector('[name="password"]');
-        const telefonoInput = form?.querySelector('[name="telefono"]');
-        if (nombreInput) nombreInput.value = profile.nombre || "";
-        if (emailInput) {
-            emailInput.value = clienteIdentityResumeProfile.email;
-            emailInput.readOnly = true;
-        }
-        if (telefonoInput) telefonoInput.value = profile.telefono || "";
-        if (passwordInput) {
-            passwordInput.value = "";
-            passwordInput.required = false;
-            passwordInput.placeholder = "No requerida: sesión activa";
-        }
-        if (codigoB2BInput) {
-            codigoB2BInput.value = "";
-            codigoB2BInput.disabled = true;
-        }
-        document.getElementById("identityVerificationCardCliente")?.classList.remove("hidden");
-        if (btnRegistroCliente) {
-            btnRegistroCliente.innerHTML = '<i class="fas fa-user-shield"></i> REANUDAR IDENTIDAD EN ESTA CUENTA';
-        }
-    });
-}
 codigoB2BInput?.addEventListener("input", () => {
     const hasB2BCode = Boolean(codigoB2BInput.value.trim());
     const stripeSection = document.getElementById("stripeRegistroClienteB2B");
@@ -324,22 +269,15 @@ if (btnRegistroCliente) {
         const password = form.querySelector('[name="password"]')?.value.trim();
         const telefono = escaparHTML(form.querySelector('[name="telefono"]')?.value.trim());
         const codigoB2B = escaparHTML(form.querySelector('[name="codigoB2B"]')?.value.trim().toUpperCase()) || null;
-        const resumeExistingCustomer = false;
-
-        if (!nombre || !email || !telefono || (!resumeExistingCustomer && !password)) {
+        if (!nombre || !email || !telefono || !password) {
             alert("⚠️ Por favor, completa todos los campos personales."); 
             return;
         }
 
-        if (!resumeExistingCustomer && !validarPassword(password)) {
+        if (!validarPassword(password)) {
             alert("🔒 SEGURIDAD: La contraseña debe tener mínimo 8 caracteres, incluir al menos 1 mayúscula y 1 número."); 
             return;
         }
-        if (resumeExistingCustomer && codigoB2B) {
-            alert("🛡️ La recuperación de identidad B2C no permite convertir la cuenta a B2B.");
-            return;
-        }
-        
         const termsAceptados = document.getElementById("chkTerminosCliente")?.checked;
         if (!termsAceptados) {
             alert("⚖️ Obligatorio: Debes marcar la casilla aceptando los Términos y Condiciones de Uso para Clientes."); 
@@ -383,7 +321,7 @@ if (btnRegistroCliente) {
             // 🚀 REGISTRO ATÓMICO: Inyectamos edificioId desde el nacimiento del usuario
             usuarioAuth = await registrarUsuario(
                 email, 
-                resumeExistingCustomer ? "__SESSION_REUSE_ONLY__" : password, 
+                password, 
                 rolFinal, 
                 nombre, 
                 subtipoFinal, 
@@ -586,7 +524,7 @@ const identitySteps = [
 ];
 
 function identityStepsForTarget(target) {
-    if (!["cliente", "tecnico"].includes(target)) throw new Error("IDENTITY_CAPTURE_TARGET_INVALID");
+    if (target !== "tecnico") throw new Error("IDENTITY_CAPTURE_TARGET_INVALID");
     return identitySteps;
 }
 
@@ -862,14 +800,14 @@ async function captureIdentityFrame() {
 }
 
 async function startIdentityFlow(target) {
-    if (!["cliente", "tecnico"].includes(target)) throw new Error("IDENTITY_CAPTURE_TARGET_INVALID");
-    const consent = $(target === "cliente" ? "chkBiometriaCliente" : "chkBiometriaTecnico");
+    if (target !== "tecnico") throw new Error("IDENTITY_CAPTURE_TARGET_INVALID");
+    const consent = $("chkBiometriaTecnico");
     if (!consent?.checked) {
         const consentRow = consent?.closest("label");
         consentRow?.classList.add("ring-2", "ring-amber-400/70", "border-amber-400/60");
         consent?.scrollIntoView({ behavior: "smooth", block: "center" });
         setTimeout(() => consentRow?.classList.remove("ring-2", "ring-amber-400/70", "border-amber-400/60"), 2200);
-        const summary = $(target === "cliente" ? "identitySummaryCliente" : "identitySummary");
+        const summary = $("identitySummary");
         if (summary) summary.innerHTML = '<i class="fas fa-triangle-exclamation text-amber-400 mr-2"></i><strong class="text-amber-200">Autoriza la captura de identidad para activar la cámara.</strong>';
         return;
     }
