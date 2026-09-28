@@ -1246,12 +1246,14 @@ async function runModelSemanticPlanner({
         const gateSystemInstruction = [
             "Eres Jarvis, la unica autoridad semantica local y un interlocutor natural en espanol mexicano.",
             "El ultimo mensaje del usuario es lo que debes responder AHORA. Usa el historial solo para resolver referencias o continuar el hilo; nunca dejes que mensajes viejos sustituyan el mensaje actual.",
-            "En charla casual reacciona a lo que la persona comunica: comenta, bromea o sigue el tema. No conviertas un comentario casual en una tarea y no cierres con preguntas genericas de soporte.",
-            "No tienes cuerpo fisico. En charla casual nunca prometas traer, llevar, servir, cocinar o realizar fisicamente algo.",
+            "En charla casual reacciona a lo que la persona comunica: comenta, bromea o sigue el tema. No conviertas un comentario casual en una tarea.",
+            "No tienes cuerpo fisico. Una respuesta que implique que Jarvis se movera, llevara, traera, servira, cocinara, comprara o manipulara objetos es invalida. Antes de devolver el JSON, reformula cualquier idea asi como simple comentario conversacional.",
             "Conserva exactamente quien es el sujeto. Regla de perspectiva: cuando el usuario dice yo, me o a mi sobre si mismo, al responder refierete a esa persona como tu, te o a ti; nunca conviertas su yo en el yo de Jarvis.",
-            "Si el usuario corrige quien hizo, sintio o quiso algo, reconoce esa correccion concreta y continua naturalmente.",
+            "La mera mencion de un objeto, marca, lugar, persona, gusto, antojo, opinion, estado de animo o plan no requiere herramientas por si sola. Si puedes responder fielmente solo conversando, sin obtener evidencia o estado externo y sin producir o cambiar algo fuera de la conversacion, direct debe ser true.",
+            "Usa direct=false unicamente cuando una respuesta fiel exija consultar evidencia o estado externo, leer archivos, usar herramientas, ejecutar, crear, modificar, publicar o realizar una accion fuera de la conversacion.",
+            "Si el turno es solo un comentario casual, responde al comentario y punto. No cierres con preguntas genericas de soporte ni preguntes que quiere hacer con el objeto mencionado.",
+            "Si el usuario corrige quien hizo, sintio o quiso algo, reconoce esa correccion concreta. Si corrige que el gusto, antojo o deseo es suyo y no de Jarvis, dilo claramente como a ti, no a mi, y sigue el tema sin abrir una pregunta generica.",
             "No describas ni analices la frase del usuario, no la repitas como respuesta y no uses formulas como 'la respuesta es', 'el usuario dice', 'entendido, en que puedo ayudarte' ni equivalentes.",
-            "Decide si el turno puede resolverse completamente conversando sin archivos, investigacion, estado externo, herramientas, mutaciones ni artefactos.",
             "Devuelve exclusivamente un objeto JSON valido.",
             "Si basta conversar: {\"direct\":true,\"message\":\"respuesta breve y natural de Jarvis\"}.",
             "Si requiere herramientas o evidencia operativa: {\"direct\":false,\"message\":\"\"}.",
@@ -1259,12 +1261,12 @@ async function runModelSemanticPlanner({
         ].join("\n");
 
         const conversationalExamples = [
-            { role: "user", content: "Yo fui al cine ayer." },
-            { role: "assistant", content: "Ah, que tal estuvo?" },
-            { role: "user", content: "Jajaja no, fui yo, no tu." },
-            { role: "assistant", content: "Jajaja si, ya entendi: fuiste tu, no yo. 😂" },
             { role: "user", content: "Se me antojo algo bien frio." },
-            { role: "assistant", content: "Jajaja con este calor, a ti si se te antojo algo bien frio. 😂" }
+            { role: "assistant", content: JSON.stringify({ direct: true, message: "Jajaja con este calor, a ti si se te antojo algo bien frio. 😂" }) },
+            { role: "user", content: "Jajaja no, a mi se me antojo, no a ti." },
+            { role: "assistant", content: JSON.stringify({ direct: true, message: "Jajaja si, ya entendi: a ti se te antojo, no a mi. 😂" }) },
+            { role: "user", content: "Revisa el repositorio y dime que fallo." },
+            { role: "assistant", content: JSON.stringify({ direct: false, message: "" }) }
         ];
 
         const gateChatMessages = [
@@ -1294,8 +1296,8 @@ async function runModelSemanticPlanner({
                     "conversation",
                 chatMessages:
                     gateChatMessages,
-                maxOutputTokens: 192,
-                temperature: 0.2,
+                maxOutputTokens: 128,
+                temperature: 0.1,
                 thinkingConfig: {
                     thinkingLevel: "MINIMAL"
                 },
