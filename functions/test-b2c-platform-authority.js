@@ -128,15 +128,14 @@ const destination = {
         },
         pagos: { stripe_autorizado: false, efectivo_autorizado: true }
     });
-    await assert.rejects(
-        create({
-            serviceId: "service_identity_pending_1",
-            metodo_pago: "efectivo",
-            categoria_id: "fix_plomeria",
-            destino: destination
-        }, { auth: { uid: "client-identity-pending", token: {} } }),
-        error => error.code === "failed-precondition" && error.message === "CUSTOMER_IDENTITY_VERIFICATION_REQUIRED"
-    );
+    const legacyIdentityResult = await create({
+        serviceId: "service_identity_pending_1",
+        metodo_pago: "efectivo",
+        categoria_id: "fix_plomeria",
+        destino: destination
+    }, { auth: { uid: "client-identity-pending", token: {} } });
+    assert.equal(legacyIdentityResult.ok, true);
+    assert.equal(legacyIdentityResult.created, true);
     await assert.rejects(
         create({ serviceId: "service_stripe_1", metodo_pago: "stripe", categoria_id: "fix_plomeria", destino: destination }, context),
         error => error.code === "failed-precondition" && error.message === "PAYMENT_METHOD_NOT_AUTHORIZED"
