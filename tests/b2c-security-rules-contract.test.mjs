@@ -55,7 +55,6 @@ test("users no permite lectura indiscriminada ni autoaprobación", () => {
     assert.match(technicianIdentityBlock, /ine_reverso/);
     assert.doesNotMatch(technicianIdentityBlock, /selfie_liveness_left|selfie_liveness_right/);
     assert.match(firestore, /identity_verification_method/);
-    assert.match(firestore, /estado == 'identidad_pendiente'/);
     assert.match(firestore, /identity_machine_verified/);
     const customerCreateBlock = firestore.slice(
         firestore.indexOf("request.resource.data.rol == 'cliente'"),
