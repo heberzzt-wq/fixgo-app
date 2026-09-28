@@ -1347,36 +1347,86 @@ export function createSelfHostedSemanticEngine({
                 selectedModel;
             lastModelProfile =
                 modelProfile;
-            const payload = {
-                model:
-                    selectedModel,
-                messages:
-                    explicitChatMessages.length > 0
-                        ? explicitChatMessages
-                        : fallbackMessages,
-                temperature: Number(request?.config?.temperature) || 0,
-                max_tokens: Math.max(96, Math.min(16000, Number(request?.config?.maxOutputTokens) || 3000)),
-                stream: false,
-                ...(tools.length > 0
+            const messages =
+                explicitChatMessages.length > 0
+                    ? explicitChatMessages
+                    : fallbackMessages;
+            const maxOutputTokens =
+                Math.max(
+                    96,
+                    Math.min(
+                        16000,
+                        Number(request?.config?.maxOutputTokens) ||
+                        3000
+                    )
+                );
+            const jsonOnlyNative =
+                tools.length === 0 &&
+                request?.config?.responseMimeType ===
+                    "application/json";
+            const origin =
+                new URL(baseUrl).origin;
+            const payload =
+                jsonOnlyNative
                     ? {
-                        tools,
-                        tool_choice:
-                            openAiToolChoiceFromGemini(
-                                request?.config ||
-                                {}
-                            )
+                        model:
+                            selectedModel,
+                        messages,
+                        stream: false,
+                        format: "json",
+                        keep_alive:
+                            warmKeepAlive ||
+                            "30m",
+                        options: {
+                            temperature:
+                                Number(
+                                    request?.config?.temperature
+                                ) || 0,
+                            num_predict:
+                                maxOutputTokens
+                        }
                     }
-                    : {}),
-                ...(request?.config?.responseMimeType === "application/json"
-                    ? { response_format: { type: "json_object" } }
-                    : {})
-            };
-            const response = await fetchImpl(`${baseUrl}/chat/completions`, {
-                method: "POST",
-                headers,
-                body: JSON.stringify(payload),
-                signal: controller.signal
-            });
+                    : {
+                        model:
+                            selectedModel,
+                        messages,
+                        temperature:
+                            Number(
+                                request?.config?.temperature
+                            ) || 0,
+                        max_tokens:
+                            maxOutputTokens,
+                        stream: false,
+                        ...(tools.length > 0
+                            ? {
+                                tools,
+                                tool_choice:
+                                    openAiToolChoiceFromGemini(
+                                        request?.config ||
+                                        {}
+                                    )
+                            }
+                            : {}),
+                        ...(request?.config?.responseMimeType ===
+                            "application/json"
+                            ? {
+                                response_format: {
+                                    type: "json_object"
+                                }
+                            }
+                            : {})
+                    };
+            const response = await fetchImpl(
+                jsonOnlyNative
+                    ? `${origin}/api/chat`
+                    : `${baseUrl}/chat/completions`,
+                {
+                    method: "POST",
+                    headers,
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                }
+            );
             const raw = await response.text();
             let data = null;
             try { data = JSON.parse(raw); } catch {}
@@ -1385,13 +1435,23 @@ export function createSelfHostedSemanticEngine({
                     String(data?.error?.message || data?.error || `LOCAL_SEMANTIC_HTTP_${response.status}`)
                 );
             }
-            const message = data?.choices?.[0]?.message || {};
+            const message =
+                jsonOnlyNative
+                    ? data?.message ||
+                        data?.choices?.[0]?.message ||
+                        {}
+                    : data?.choices?.[0]?.message ||
+                        data?.message ||
+                        {};
             const text = typeof message.content === "string"
                 ? message.content
                 : Array.isArray(message.content)
                     ? message.content.map(part => String(part?.text || "")).join("")
                     : "";
-            const functionCalls = parseOpenAiFunctionCalls(message);
+            const functionCalls =
+                jsonOnlyNative
+                    ? []
+                    : parseOpenAiFunctionCalls(message);
             if (!text.trim() && functionCalls.length === 0) {
                 throw new Error("LOCAL_SEMANTIC_RESPONSE_EMPTY");
             }
@@ -1401,8 +1461,9 @@ export function createSelfHostedSemanticEngine({
                 providerResponse: {
                     finishReason:
                         String(
-                            data?.choices?.[0]?.finish_reason ||
-                            ""
+                            jsonOnlyNative
+                                ? data?.done_reason || ""
+                                : data?.choices?.[0]?.finish_reason || ""
                         ).slice(0, 80),
                     messageKeys:
                         Object.keys(
