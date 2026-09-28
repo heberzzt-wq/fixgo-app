@@ -504,6 +504,40 @@ function buildNativeInputSchema(inputSchema = null) {
     };
 }
 
+function compactPlannerInputSchema(inputSchema = null, depth = 0) {
+    const schema = buildNativeInputSchema(inputSchema);
+    if (!schema || typeof schema !== "object" || Array.isArray(schema)) return null;
+
+    const compact = {};
+    const type = String(schema.type || "").trim();
+    if (type) compact.type = type;
+
+    if (Array.isArray(schema.required) && schema.required.length > 0) {
+        compact.required = schema.required.map(String).slice(0, 24);
+    }
+
+    if (Array.isArray(schema.enum) && schema.enum.length > 0) {
+        compact.enum = schema.enum.slice(0, 24);
+    }
+
+    if (depth < 2 && schema.properties && typeof schema.properties === "object") {
+        compact.properties = Object.fromEntries(
+            Object.entries(schema.properties)
+                .slice(0, 32)
+                .map(([name, child]) => [
+                    name,
+                    compactPlannerInputSchema(child, depth + 1) || {}
+                ])
+        );
+    }
+
+    if (depth < 2 && schema.items && typeof schema.items === "object") {
+        compact.items = compactPlannerInputSchema(schema.items, depth + 1) || {};
+    }
+
+    return compact;
+}
+
 function normalizeSchemaBoundArguments(tool = {}, args = {}) {
     if (!args || typeof args !== "object" || Array.isArray(args)) return {};
     const schema = buildNativeInputSchema(tool?.inputSchema);
@@ -1257,11 +1291,7 @@ async function runModelSemanticPlanner({
         const gateExamples = [
             { role: "user", content: "Que onda pariente" },
             { role: "assistant", content: JSON.stringify({ direct: true }) },
-            { role: "user", content: "Se me antojo una Tecate bien fria." },
-            { role: "assistant", content: JSON.stringify({ direct: true }) },
             { role: "user", content: "Busca en el repo donde se define requestPayout y dime que archivo la contiene." },
-            { role: "assistant", content: JSON.stringify({ direct: false }) },
-            { role: "user", content: "Busca en la web el precio de Bitcoin hoy." },
             { role: "assistant", content: JSON.stringify({ direct: false }) }
         ];
 
@@ -1405,8 +1435,8 @@ async function runModelSemanticPlanner({
                 "Selecciona exclusivamente herramientas del catalogo candidato. No inventes nombres ni resultados.",
                 `CATALOGO_CANDIDATO=${JSON.stringify(safeCatalog.map(tool => ({
                     name: tool.name,
-                    description: tool.description,
-                    inputSchema: tool.inputSchema
+                    description: String(tool.description || "").slice(0, 220),
+                    inputSchema: compactPlannerInputSchema(tool.inputSchema)
                 })))}`,
                 `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
                 "Devuelve exclusivamente JSON valido con toolCalls:[{name,args}], missionComplete=false. Usa los nombres exactos del catalogo. En args escribe valores reales que satisfagan inputSchema; nunca copies descriptores de schema como {type,value}, properties, required o equivalentes."

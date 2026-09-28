@@ -846,8 +846,6 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
             "system",
             "user", "assistant",
             "user", "assistant",
-            "user", "assistant",
-            "user", "assistant",
             "user"
         ]
     );

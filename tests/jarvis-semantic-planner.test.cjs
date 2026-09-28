@@ -142,17 +142,15 @@ test("current-turn conversational gate classifies then responds with the same lo
             "system",
             "user", "assistant",
             "user", "assistant",
-            "user", "assistant",
-            "user", "assistant",
             "user"
         ]
     );
     assert.equal(
-        gateRequest?.config?.chatMessages?.[5]?.content,
+        gateRequest?.config?.chatMessages?.[3]?.content,
         "Busca en el repo donde se define requestPayout y dime que archivo la contiene."
     );
     assert.equal(
-        gateRequest?.config?.chatMessages?.[6]?.content,
+        gateRequest?.config?.chatMessages?.[4]?.content,
         JSON.stringify({ direct: false })
     );
     assert.equal(
