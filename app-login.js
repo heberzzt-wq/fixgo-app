@@ -20,15 +20,6 @@ const auth =
 const db =
     FirebaseCore.db;
 
-const loginParams =
-    new URLSearchParams(window.location.search);
-
-const customerIdentityResumeRequested = false;
-
-function customerIdentityNeedsCapture() {
-    return false;
-}
-
 import {
 
     signInWithEmailAndPassword,
@@ -122,16 +113,6 @@ onAuthStateChanged(
                 console.warn(
                     "⚠️ [LOGIN_ROLE_PENDING] Perfil sin rol confirmado"
                 );
-                return;
-            }
-
-            const resumeCustomerIdentity =
-                customerIdentityNeedsCapture(profile) &&
-                (customerIdentityResumeRequested || profile?.kyc?.identity_machine_status === "pending_capture");
-
-            if (resumeCustomerIdentity) {
-                console.log("🪪 [LOGIN_IDENTITY_RECOVERY] Reanudando misma cuenta B2C", user.uid);
-                window.location.replace("registro.html?resume=cliente-identity");
                 return;
             }
 
