@@ -373,15 +373,16 @@ service cloud.firestore {
             technicianInitialStateIsSafe(request.resource.data) ||
             (
               request.resource.data.rol == 'cliente' &&
-              request.resource.data.estado == 'identidad_pendiente' &&
-              request.resource.data.status == 'identidad_pendiente' &&
+              request.resource.data.estado == 'activo' &&
+              request.resource.data.status == 'activo' &&
               request.resource.data.tipo_cuenta == 'B2C' &&
-              request.resource.data.get('kyc', {}).get('estado', '') == 'identidad_pendiente' &&
-              request.resource.data.get('kyc', {}).get('aprobado', true) == false &&
-              request.resource.data.get('kyc', {}).get('identity_required', false) == true &&
+              request.resource.data.get('kyc', {}).get('estado', '') == 'activo' &&
+              request.resource.data.get('kyc', {}).get('aprobado', false) == true &&
+              request.resource.data.get('kyc', {}).get('identity_required', true) == false &&
               request.resource.data.get('kyc', {}).get('identity_verified', true) == false &&
               request.resource.data.get('kyc', {}).get('identity_machine_verified', true) == false &&
-              request.resource.data.get('kyc', {}).get('identity_version', '') == 'b2c-bank-identity-v1' &&
+              request.resource.data.get('kyc', {}).get('identity_machine_status', '') == 'not_required' &&
+              request.resource.data.get('kyc', {}).get('identity_capture_status', '') == 'not_required' &&
               request.resource.data.get('pagos', {}).get('stripe_autorizado', true) == false &&
               request.resource.data.get('pagos', {}).get('efectivo_autorizado', true) == false &&
               request.resource.data.get('efectivo_autorizado', false) == false
