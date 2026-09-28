@@ -26,11 +26,9 @@ test("login no longer routes B2C customers into biometric recovery", () => {
     const login = fs.readFileSync(path.join(root, "app-login.js"), "utf8");
     const registration = fs.readFileSync(path.join(root, "app-registro.js"), "utf8");
 
-    assert.match(login, /function customerIdentityNeedsCapture\(\) \{[\s\S]*?return false;/);
-    assert.match(login, /const customerIdentityResumeRequested = false/);
+    assert.doesNotMatch(login, /customerIdentityNeedsCapture|customerIdentityResumeRequested|cliente-identity/);
     assert.doesNotMatch(login, /identity_machine_status === "pending_capture"/);
-    assert.doesNotMatch(login, /window\.location\.replace\("registro\.html\?resume=cliente-identity"\)/);
-    assert.match(registration, /const clienteIdentityResumeRequested = false/);
+    assert.doesNotMatch(registration, /clienteIdentityResumeRequested|cliente-identity/);
 });
 
 test("public index keeps legal notices addressable without dead pages", () => {
@@ -341,7 +339,6 @@ test('offline photos retain failed Firestore updates and reuse uploaded immutabl
 test("release gate does not require B2C customer identity recovery after login", () => {
     const login = fs.readFileSync(path.join(root, "app-login.js"), "utf8");
     const registration = fs.readFileSync(path.join(root, "app-registro.js"), "utf8");
-    assert.match(login, /function customerIdentityNeedsCapture\(\) \{[\s\S]*?return false;/);
-    assert.doesNotMatch(login, /LOGIN_IDENTITY_RECOVERY/);
+    assert.doesNotMatch(login, /customerIdentityNeedsCapture|LOGIN_IDENTITY_RECOVERY|cliente-identity/);
     assert.doesNotMatch(registration, /cliente-identity|REANUDAR IDENTIDAD EN ESTA CUENTA/);
 });
