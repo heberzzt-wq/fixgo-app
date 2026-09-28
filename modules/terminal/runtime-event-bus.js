@@ -1,6 +1,15 @@
 const RUNTIME_EVENT_BUS_V2_VERSION =
     "2.0.0-runtime-event-bus";
 
+function runtimeEventDebugLog(...args) {
+    if (
+        window.__JARVIS_RUNTIME_DEBUG__ ===
+        true
+    ) {
+        console.log(...args);
+    }
+}
+
 window.RuntimeEventBusV2 = {
     version:
         RUNTIME_EVENT_BUS_V2_VERSION,
@@ -1377,12 +1386,12 @@ subscribeRuntimeEvent(
 
     async function(event) {
 
-        console.log(
+        runtimeEventDebugLog(
             "📥 [EVENT_RECEIVED]",
             event
         );
 
-        console.log(
+        runtimeEventDebugLog(
             "📦 [EVENT_PAYLOAD]",
             event.payload
         );
@@ -1624,7 +1633,7 @@ async function(
                     channel
                 ] || [];
 
-        console.log(
+        runtimeEventDebugLog(
             "🧠 [CHANNEL_ROUTING]",
             {
                 channel,
@@ -1852,7 +1861,7 @@ async function(
             }
         }
 
-        console.log(
+        runtimeEventDebugLog(
             "📡 [EVENT_EMITTED]",
             eventEnvelope
         );
@@ -1967,7 +1976,7 @@ queueSystem
 
 queueSystem.totalQueued++;
 
-console.log(
+runtimeEventDebugLog(
     "📥 [EVENT_QUEUED]",
     {
 
@@ -2013,7 +2022,7 @@ if (
    ASYNCHRONOUS DELIVERY ENABLED
 ============================================= */
 
-console.log(
+runtimeEventDebugLog(
     "⚡ [ASYNC_DISPATCH_ACTIVE]",
     {
         event:
@@ -2289,7 +2298,7 @@ async function() {
         queueSystem.processing =
             false;
 
-        console.log(
+        runtimeEventDebugLog(
             "⚙️ [DISPATCH_QUEUE_PROCESSED]",
             {
                 processed

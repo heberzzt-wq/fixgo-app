@@ -1244,11 +1244,23 @@ async function runModelSemanticPlanner({
         }
 
         const gateSystemInstruction = [
-            "Decide solamente si el mensaje actual puede resolverse conversando sin consultar ni cambiar nada fuera del chat.",
+            "Clasifica el mensaje actual; no lo respondas ni inventes resultados durante esta fase.",
             "Devuelve exclusivamente JSON valido.",
-            "Usa {\"direct\":true} cuando baste conversar.",
-            "Usa {\"direct\":false} cuando haga falta leer archivos, consultar web o repo, conocer estado externo, ejecutar, crear, modificar o publicar."
+            "Usa {\"direct\":true} solo cuando la respuesta pueda producirse fielmente sin consultar ni cambiar nada fuera del chat.",
+            "Usa {\"direct\":false} cuando el usuario pida inspeccionar, buscar, revisar, localizar o verificar informacion en archivos, repositorios, web, servicios, memoria operativa o estado externo; tambien cuando pida ejecutar, crear, modificar o publicar.",
+            "Aunque creas conocer la respuesta de una tarea operativa, no la contestes desde conocimiento previo: direct debe ser false para que Jarvis obtenga evidencia real."
         ].join("\n");
+
+        const gateExamples = [
+            { role: "user", content: "Que onda pariente" },
+            { role: "assistant", content: JSON.stringify({ direct: true }) },
+            { role: "user", content: "Se me antojo una Tecate bien fria." },
+            { role: "assistant", content: JSON.stringify({ direct: true }) },
+            { role: "user", content: "Busca en el repo donde se define requestPayout y dime que archivo la contiene." },
+            { role: "assistant", content: JSON.stringify({ direct: false }) },
+            { role: "user", content: "Busca en la web el precio de Bitcoin hoy." },
+            { role: "assistant", content: JSON.stringify({ direct: false }) }
+        ];
 
         const gateResponse = await ai.models.generateContent({
             model,
@@ -1263,6 +1275,7 @@ async function runModelSemanticPlanner({
                         content:
                             gateSystemInstruction
                     },
+                    ...gateExamples,
                     {
                         role: "user",
                         content:
@@ -1292,10 +1305,13 @@ async function runModelSemanticPlanner({
             const responseSystemInstruction = [
                 "Eres Jarvis y conversas en espanol mexicano natural.",
                 "Responde en una sola frase al comentario actual.",
-                "No ofrezcas ayuda, no prometas acciones fisicas, no preguntes nada y no digas que no puedes ayudar.",
+                "Sigue el tono y el tema del usuario; un saludo casual se responde como saludo casual, sin convertirlo en una pregunta generica de soporte.",
+                "No ofrezcas ayuda, no prometas acciones fisicas, no preguntes que puede hacer Jarvis y no digas que no puedes ayudar.",
                 "Conserva correctamente quien es el sujeto; los gustos, antojos y deseos del usuario pertenecen al usuario, no a Jarvis."
             ].join("\n");
             const responseExamples = [
+                { role: "user", content: "Que onda pariente" },
+                { role: "assistant", content: "Que onda pariente, aqui andamos. 😄" },
                 { role: "user", content: "Se me antojo algo frio." },
                 { role: "assistant", content: "Jajaja si se antoja algo bien frio con este calor. 😂" },
                 { role: "user", content: "Jajaja no, a mi se me antojo, no a ti." },

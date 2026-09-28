@@ -138,7 +138,22 @@ test("current-turn conversational gate classifies then responds with the same lo
     );
     assert.deepEqual(
         gateRequest?.config?.chatMessages?.map(item => item.role),
-        ["system", "user"]
+        [
+            "system",
+            "user", "assistant",
+            "user", "assistant",
+            "user", "assistant",
+            "user", "assistant",
+            "user"
+        ]
+    );
+    assert.equal(
+        gateRequest?.config?.chatMessages?.[5]?.content,
+        "Busca en el repo donde se define requestPayout y dime que archivo la contiene."
+    );
+    assert.equal(
+        gateRequest?.config?.chatMessages?.[6]?.content,
+        JSON.stringify({ direct: false })
     );
     assert.equal(
         gateRequest?.config?.chatMessages?.at(-1)?.content,

@@ -469,16 +469,26 @@ async function() {
 
             deleted++;
 
-            console.log(
-                "🗑️ [SNAPSHOT_PRUNED]",
-                snapshot.snapshotId
-            );
+            if (
+                window.__JARVIS_RUNTIME_DEBUG__ ===
+                true
+            ) {
+                console.log(
+                    "🗑️ [SNAPSHOT_PRUNED]",
+                    snapshot.snapshotId
+                );
+            }
         }
 
-        console.log(
-            "✅ [SNAPSHOT_PRUNE_COMPLETED]",
-            deleted
-        );
+        if (
+            window.__JARVIS_RUNTIME_DEBUG__ ===
+            true
+        ) {
+            console.log(
+                "✅ [SNAPSHOT_PRUNE_COMPLETED]",
+                deleted
+            );
+        }
 
         return {
 
