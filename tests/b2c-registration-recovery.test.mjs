@@ -65,7 +65,7 @@ test('customer registration no longer requires biometric recovery', () => {
     const registration = fs.readFileSync(new URL('../app-registro.js', import.meta.url), 'utf8');
     const customer = fs.readFileSync(new URL('../panel-cliente.js', import.meta.url), 'utf8');
 
-    assert.match(registration, /const clienteIdentityResumeRequested = false/);
+    assert.doesNotMatch(registration, /clienteIdentityResumeRequested|cliente-identity/);
     assert.match(registration, /const resumeExistingCustomer = false/);
     assert.doesNotMatch(registration, /kycState:\s*"identidad_pendiente"/);
     assert.doesNotMatch(registration, /REANUDAR IDENTIDAD EN ESTA CUENTA/);
@@ -78,6 +78,5 @@ test('release gate leaves customer identity recovery inactive', () => {
     const customer = fs.readFileSync(new URL('../panel-cliente.js', import.meta.url), 'utf8');
     const login = fs.readFileSync(new URL('../app-login.js', import.meta.url), 'utf8');
     assert.match(customer, /const identityBlocked = false/);
-    assert.match(login, /function customerIdentityNeedsCapture\(\) \{[\s\S]*?return false;/);
-    assert.doesNotMatch(login, /registro\.html\?resume=cliente-identity/);
+    assert.doesNotMatch(login, /customerIdentityNeedsCapture|cliente-identity/);
 });
