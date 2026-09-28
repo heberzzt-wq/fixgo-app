@@ -528,7 +528,7 @@ test("V142 structured production continuation reaches the semantic planner and d
 
 test("V142 bridge release identifies the professional MP4 master bytes", () => {
   const source = fs.readFileSync(new URL("../jarvis-fs-bridge.js", import.meta.url), "utf8");
-  assert.equal(source.includes("2.59.0-single-qwen3b-schema-guard-v142"), true);
+  assert.equal(source.includes("2.60.0-exact-symbol-preselection-v142"), true);
 });
 
 test("V142 current turn preserves semantic planner outage truth", () => {

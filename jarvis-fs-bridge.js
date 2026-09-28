@@ -90,7 +90,7 @@ const {
 } = require("./functions/jarvis-semantic-planner.js");
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.59.0-single-qwen3b-schema-guard-v142";
+    "2.60.0-exact-symbol-preselection-v142";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -6705,13 +6705,27 @@ export function createJarvisFsBridgeApp({
                         .normalize("NFD")
                         .replace(/[\u0300-\u036f]/g, "")
                         .toLowerCase();
+                    const normalizedStructuralText = structuralText
+                        .normalize("NFD")
+                        .replace(/[\u0300-\u036f]/g, "")
+                        .toLowerCase();
                     const normalizedFile = String(document.file || "")
                         .normalize("NFD")
                         .replace(/[\u0300-\u036f]/g, "")
                         .toLowerCase();
-                    let queryOverlap = plannedSet.has(document.file) ? 1000 : 0;
+                    const normalizedSemanticQuery = semanticQuery
+                        .normalize("NFD")
+                        .replace(/[\u0300-\u036f]/g, "")
+                        .toLowerCase()
+                        .trim();
+                    const exactStructuralMatch =
+                        normalizedSemanticQuery &&
+                        normalizedStructuralText.includes(normalizedSemanticQuery);
+                    let queryOverlap =
+                        (plannedSet.has(document.file) ? 1000 : 0) +
+                        (exactStructuralMatch ? 500 : 0);
                     for (const token of queryTokens) {
-                        if (!normalizedText.includes(token)) continue;
+                        if (!normalizedStructuralText.includes(token)) continue;
                         queryOverlap += normalizedFile.includes(token) ? 4 : 1;
                     }
                     const relationCount =
@@ -6731,6 +6745,9 @@ export function createJarvisFsBridgeApp({
                         preselectionScore
                     };
                 });
+                const exactStructuralFiles = allDocuments
+                    .filter(document => document.queryOverlap >= 500)
+                    .map(document => document.file);
                 const documents = allDocuments
                     .sort((left, right) =>
                         right.preselectionScore - left.preselectionScore ||
@@ -6768,6 +6785,7 @@ export function createJarvisFsBridgeApp({
                 result = rankRepoHybridCandidates({
                     graph: repoGraphCache.graph,
                     plannedFiles,
+                    exactFiles: exactStructuralFiles,
                     semanticScores,
                     limit: req.body?.limit || 8
                 });
@@ -6779,6 +6797,7 @@ export function createJarvisFsBridgeApp({
                     documentsEmbedded: documents.length,
                     semanticPoolLimit,
                     preselection: "query_structural_overlap_then_local_embedding",
+                    exactStructuralMatches: exactStructuralFiles,
                     cacheHits: documents.length - missing.length,
                     cacheMisses: missing.length,
                     externalApiUsed: false,

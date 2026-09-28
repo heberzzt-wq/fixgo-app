@@ -449,12 +449,14 @@ function normalizePlannedFiles(plannedFiles = []) {
 export function rankRepoHybridCandidates({
     graph,
     plannedFiles = [],
+    exactFiles = [],
     semanticScores = {},
     limit = 8
 } = {}) {
     if (!graph?.ok || !graph.nodes) throw new Error("REPO_GRAPH_REQUIRED");
 
     const planned = normalizePlannedFiles(plannedFiles);
+    const exact = new Set(normalizePlannedFiles(exactFiles));
     const scores =
         semanticScores && typeof semanticScores === "object" && !Array.isArray(semanticScores)
             ? semanticScores
@@ -468,10 +470,16 @@ export function rankRepoHybridCandidates({
         .map(node => {
             const semanticSimilarity = Math.max(-1, Math.min(1, Number(scores[node.file]) || 0));
             const plannedFile = planned.includes(node.file);
-            if (!plannedFile && !Object.prototype.hasOwnProperty.call(scores, node.file)) return null;
+            const exactStructuralMatch = exact.has(node.file);
+            if (
+                !plannedFile &&
+                !exactStructuralMatch &&
+                !Object.prototype.hasOwnProperty.call(scores, node.file)
+            ) return null;
 
             const relationCount = node.dependencies.length + node.dependents.length;
             const breakdown = {
+                exactStructuralMatch: exactStructuralMatch ? 500 : 0,
                 plannedFile: plannedFile ? 120 : 0,
                 localEmbeddingSimilarity: Math.round(Math.max(0, semanticSimilarity) * 10000) / 100,
                 moduleRelation: relationCount > 0 ? Math.min(30, relationCount * 3) : 0,
@@ -490,6 +498,7 @@ export function rankRepoHybridCandidates({
                 file: node.file,
                 score,
                 semanticSimilarity,
+                exactStructuralMatch,
                 breakdown,
                 reasons: Object.entries(breakdown)
                     .filter(([, value]) => value !== 0)

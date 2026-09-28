@@ -293,7 +293,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.59.0-single-qwen3b-schema-guard-v142");
+    assert.equal(description.version, "2.60.0-exact-symbol-preselection-v142");
     assert.equal(typeof description.actuators.speech.available, "boolean");
     assert.deepEqual(description.actuators.speech.outputFormats, ["wav"]);
     assert.equal(description.policy.authority, "full_repo_private_owner");
@@ -990,7 +990,19 @@ test("emulador local recorre Jarvis completo: plan LLM -> repo real -> respuesta
         ].join("\n") + "\n",
         "utf8"
     );
-    fixture.runGit(["add", "local-ai-target.js"]);
+    fs.writeFileSync(
+        path.join(root, "deep-symbol.js"),
+        [
+            ...Array.from(
+                { length: 90 },
+                (_, index) =>
+                    `export function helperFunction${String(index).padStart(3, "0")}() { return ${index}; }`
+            ),
+            "export function resolveRuntimeToolName(value) { return String(value || ''); }"
+        ].join("\n") + "\n",
+        "utf8"
+    );
+    fixture.runGit(["add", "local-ai-target.js", "deep-symbol.js"]);
     fixture.runGit(["commit", "-m", "fixture: add local ai target"]);
     fixture.runGit(["push", "origin", fixture.branch]);
 
@@ -1112,6 +1124,20 @@ test("emulador local recorre Jarvis completo: plan LLM -> repo real -> respuesta
         assert.equal(semanticRanking.body.semanticEvidence.externalApiUsed, false);
         assert.equal(semanticRanking.body.candidates[0].file, "local-ai-target.js");
         assert.ok(semanticRanking.body.candidates[0].semanticSimilarity > 0.9);
+
+        const exactSymbolRanking = await post("/repo/candidates", {
+            query: "resolveRuntimeToolName",
+            limit: 5,
+            refresh: true
+        });
+        assert.equal(exactSymbolRanking.status, 200, JSON.stringify(exactSymbolRanking.body));
+        assert.equal(exactSymbolRanking.body.ok, true);
+        assert.equal(exactSymbolRanking.body.candidates[0].file, "deep-symbol.js");
+        assert.equal(exactSymbolRanking.body.candidates[0].exactStructuralMatch, true);
+        assert.ok(
+            exactSymbolRanking.body.semanticEvidence.exactStructuralMatches.includes("deep-symbol.js"),
+            JSON.stringify(exactSymbolRanking.body.semanticEvidence)
+        );
 
         const evidence = await post("/grep", {
             term: plan.body.toolCalls[0].args.query,
