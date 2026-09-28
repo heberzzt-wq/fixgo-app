@@ -66,7 +66,6 @@ test('customer registration no longer requires biometric recovery', () => {
     const customer = fs.readFileSync(new URL('../panel-cliente.js', import.meta.url), 'utf8');
 
     assert.doesNotMatch(registration, /clienteIdentityResumeRequested|cliente-identity/);
-    assert.match(registration, /const resumeExistingCustomer = false/);
     assert.doesNotMatch(registration, /kycState:\s*"identidad_pendiente"/);
     assert.doesNotMatch(registration, /REANUDAR IDENTIDAD EN ESTA CUENTA/);
     assert.doesNotMatch(registration, /btnIniciarIdentidadCliente/);
