@@ -1244,60 +1244,33 @@ async function runModelSemanticPlanner({
         }
 
         const gateSystemInstruction = [
-            "Eres Jarvis, la unica autoridad semantica local y un interlocutor natural en espanol mexicano.",
-            "El ultimo mensaje del usuario es lo que debes responder AHORA. Usa el historial solo para resolver referencias o continuar el hilo; nunca dejes que mensajes viejos sustituyan el mensaje actual.",
-            "En charla casual reacciona a lo que la persona comunica: comenta, bromea o sigue el tema. No conviertas un comentario casual en una tarea.",
-            "No tienes cuerpo fisico. Una respuesta que implique que Jarvis se movera, llevara, traera, servira, cocinara, comprara o manipulara objetos es invalida. Antes de devolver el JSON, reformula cualquier idea asi como simple comentario conversacional.",
-            "Conserva exactamente quien es el sujeto. Regla de perspectiva: cuando el usuario dice yo, me o a mi sobre si mismo, al responder refierete a esa persona como tu, te o a ti; nunca conviertas su yo en el yo de Jarvis.",
-            "La mera mencion de un objeto, marca, lugar, persona, gusto, antojo, opinion, estado de animo o plan no requiere herramientas por si sola. Si puedes responder fielmente solo conversando, sin obtener evidencia o estado externo y sin producir o cambiar algo fuera de la conversacion, direct debe ser true.",
-            "Usa direct=false unicamente cuando una respuesta fiel exija consultar evidencia o estado externo, leer archivos, usar herramientas, ejecutar, crear, modificar, publicar o realizar una accion fuera de la conversacion.",
-            "Si el turno es solo un comentario casual, responde al comentario y punto. No cierres con preguntas genericas de soporte ni preguntes que quiere hacer con el objeto mencionado.",
-            "Si el usuario corrige quien hizo, sintio o quiso algo, reconoce esa correccion concreta. Si corrige que el gusto, antojo o deseo es suyo y no de Jarvis, dilo claramente como a ti, no a mi, y sigue el tema sin abrir una pregunta generica.",
-            "No describas ni analices la frase del usuario, no la repitas como respuesta y no uses formulas como 'la respuesta es', 'el usuario dice', 'entendido, en que puedo ayudarte' ni equivalentes.",
-            "Devuelve exclusivamente un objeto JSON valido.",
-            "Si basta conversar: {\"direct\":true,\"message\":\"respuesta breve y natural de Jarvis\"}.",
-            "Si requiere herramientas o evidencia operativa: {\"direct\":false,\"message\":\"\"}.",
-            "No inventes ejecuciones, accesos, archivos, fuentes ni resultados."
+            "Decide solamente si el mensaje actual puede resolverse conversando sin consultar ni cambiar nada fuera del chat.",
+            "Devuelve exclusivamente JSON valido.",
+            "Usa {\"direct\":true} cuando baste conversar.",
+            "Usa {\"direct\":false} cuando haga falta leer archivos, consultar web o repo, conocer estado externo, ejecutar, crear, modificar o publicar."
         ].join("\n");
-
-        const conversationalExamples = [
-            { role: "user", content: "Se me antojo algo bien frio." },
-            { role: "assistant", content: JSON.stringify({ direct: true, message: "Jajaja con este calor, a ti si se te antojo algo bien frio. 😂" }) },
-            { role: "user", content: "Jajaja no, a mi se me antojo, no a ti." },
-            { role: "assistant", content: JSON.stringify({ direct: true, message: "Jajaja si, ya entendi: a ti se te antojo, no a mi. 😂" }) },
-            { role: "user", content: "Revisa el repositorio y dime que fallo." },
-            { role: "assistant", content: JSON.stringify({ direct: false, message: "" }) }
-        ];
-
-        const gateChatMessages = [
-            {
-                role: "system",
-                content:
-                    gateSystemInstruction
-            },
-            ...conversationalExamples,
-            ...recentConversationTurns,
-            {
-                role: "user",
-                content:
-                    instruction
-            }
-        ];
 
         const gateResponse = await ai.models.generateContent({
             model,
-            contents: [
-                gateSystemInstruction,
-                `CONTEXTO_CONVERSACIONAL_RECIENTE=${JSON.stringify(recentConversationTurns)}`,
-                `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
-            ].join("\n\n"),
+            contents:
+                `${gateSystemInstruction}\n\nINSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
             config: {
                 modelProfile:
                     "conversation",
-                chatMessages:
-                    gateChatMessages,
-                maxOutputTokens: 128,
-                temperature: 0.1,
+                chatMessages: [
+                    {
+                        role: "system",
+                        content:
+                            gateSystemInstruction
+                    },
+                    {
+                        role: "user",
+                        content:
+                            instruction
+                    }
+                ],
+                maxOutputTokens: 16,
+                temperature: 0,
                 thinkingConfig: {
                     thinkingLevel: "MINIMAL"
                 },
@@ -1311,14 +1284,60 @@ async function runModelSemanticPlanner({
                     ""
                 )
             ) || {};
-        const directMessage =
-            String(
-                gatePayload?.message ||
-                ""
-            ).trim();
         const direct =
-            gatePayload?.direct === true &&
-            directMessage.length > 0;
+            gatePayload?.direct === true;
+
+        let directMessage = "";
+        if (direct) {
+            const responseSystemInstruction = [
+                "Eres Jarvis y conversas en espanol mexicano natural.",
+                "Responde en una sola frase al comentario actual.",
+                "No ofrezcas ayuda, no prometas acciones fisicas, no preguntes nada y no digas que no puedes ayudar.",
+                "Conserva correctamente quien es el sujeto; los gustos, antojos y deseos del usuario pertenecen al usuario, no a Jarvis."
+            ].join("\n");
+            const responseExamples = [
+                { role: "user", content: "Se me antojo algo frio." },
+                { role: "assistant", content: "Jajaja si se antoja algo bien frio con este calor. 😂" },
+                { role: "user", content: "Jajaja no, a mi se me antojo, no a ti." },
+                { role: "assistant", content: "Jajaja si pariente, a ti se te antojo, no a mi. 😂" }
+            ];
+            const responseResult = await ai.models.generateContent({
+                model,
+                contents: [
+                    responseSystemInstruction,
+                    `CONTEXTO_CONVERSACIONAL_RECIENTE=${JSON.stringify(recentConversationTurns)}`,
+                    `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
+                ].join("\n\n"),
+                config: {
+                    modelProfile:
+                        "conversation",
+                    chatMessages: [
+                        {
+                            role: "system",
+                            content:
+                                responseSystemInstruction
+                        },
+                        ...responseExamples,
+                        ...recentConversationTurns,
+                        {
+                            role: "user",
+                            content:
+                                instruction
+                        }
+                    ],
+                    maxOutputTokens: 48,
+                    temperature: 0.2,
+                    thinkingConfig: {
+                        thinkingLevel: "MINIMAL"
+                    }
+                }
+            });
+            directMessage =
+                String(
+                    responseResult?.text ||
+                    ""
+                ).trim();
+        }
 
         if (!direct) {
             return {
@@ -1514,6 +1533,36 @@ async function runModelSemanticPlanner({
     return validatedPlan;
 }
 
+function resolveRuntimeToolName(providerName = "", catalog = []) {
+    const cleanName = String(providerName || "").trim();
+    const providerPrefix = "jarvis_tool_";
+    if (!cleanName.startsWith(providerPrefix)) return cleanName;
+
+    const suffix = cleanName.slice(providerPrefix.length).trim();
+    let digitCount = 0;
+    while (
+        digitCount < suffix.length &&
+        suffix.charCodeAt(digitCount) >= 48 &&
+        suffix.charCodeAt(digitCount) <= 57
+    ) {
+        digitCount += 1;
+    }
+    if (digitCount === 0) return "";
+
+    const index = Number(suffix.slice(0, digitCount));
+    const tool = Number.isInteger(index) ? catalog[index] : null;
+    if (!tool) return "";
+
+    const trailingName = suffix.slice(digitCount).trim();
+    if (
+        trailingName &&
+        trailingName !== String(tool.name || "")
+    ) {
+        return "";
+    }
+    return String(tool.name || "");
+}
+
 function normalizeTextToolPlan(plan = {}, catalog = []) {
     if (
         !plan ||
@@ -1528,13 +1577,11 @@ function normalizeTextToolPlan(plan = {}, catalog = []) {
             .slice(0, 12)
             .map(call => {
                 const providerName = String(call?.name || "").trim();
-                let runtimeName = providerName;
-                if (providerName.startsWith("jarvis_tool_")) {
-                    const index = Number(providerName.slice("jarvis_tool_".length));
-                    runtimeName = Number.isInteger(index) && catalog[index]
-                        ? catalog[index].name
-                        : "";
-                }
+                const runtimeName =
+                    resolveRuntimeToolName(
+                        providerName,
+                        catalog
+                    );
                 const args = call?.args && typeof call.args === "object" && !Array.isArray(call.args)
                     ? call.args
                     : call?.arguments && typeof call.arguments === "object" && !Array.isArray(call.arguments)
@@ -1558,30 +1605,11 @@ function normalizeTextToolPlan(plan = {}, catalog = []) {
         return plan;
     }
 
-    let runtimeName =
-        providerName;
-
-    const providerPrefix =
-        "jarvis_tool_";
-
-    if (
-        providerName.startsWith(
-            providerPrefix
-        )
-    ) {
-        const index =
-            Number(
-                providerName.slice(
-                    providerPrefix.length
-                )
-            );
-
-        runtimeName =
-            Number.isInteger(index) &&
-            catalog[index]
-                ? catalog[index].name
-                : "";
-    }
+    const runtimeName =
+        resolveRuntimeToolName(
+            providerName,
+            catalog
+        );
 
     const allowed =
         new Set(
@@ -1637,12 +1665,15 @@ function extractToolCallPlan(payload = {}, catalog = []) {
 
     const toolCalls = calls.slice(0, 12).map(call => {
         const modelName = String(call?.function?.name || "");
-        const prefix = "jarvis_tool_";
-        const rawIndex = modelName.startsWith(prefix)
-            ? modelName.slice(prefix.length)
-            : "";
-        const index = Number(rawIndex);
-        const tool = Number.isInteger(index) ? catalog[index] : null;
+        const runtimeName =
+            resolveRuntimeToolName(
+                modelName,
+                catalog
+            );
+        const tool =
+            catalog.find(candidate =>
+                candidate?.name === runtimeName
+            ) || null;
         if (!tool) return null;
 
         let args = {};

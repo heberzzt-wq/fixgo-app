@@ -86,20 +86,24 @@ test("semantic planner contains no hardcoded media or mini-drama playbook", () =
 });
 
 
-test("current-turn conversational gate returns a contextual precomposed response in one inference", async () => {
+test("current-turn conversational gate classifies then responds with the same local model", async () => {
     let calls = 0;
-    let requestSeen = null;
+    const requestsSeen = [];
     const ai = {
         lastProvider: "ollama-openai-compatible-local",
         models: {
             async generateContent(request) {
                 calls += 1;
-                requestSeen = request;
+                requestsSeen.push(request);
+                if (calls === 1) {
+                    return {
+                        text: JSON.stringify({
+                            direct: true
+                        })
+                    };
+                }
                 return {
-                    text: JSON.stringify({
-                        direct: true,
-                        message: "A toda madre, pariente. ¿Y tú qué tal?"
-                    })
+                    text: "A toda madre, pariente."
                 };
             }
         }
@@ -125,47 +129,36 @@ test("current-turn conversational gate returns a contextual precomposed response
         }
     });
 
-    assert.equal(calls, 1);
+    assert.equal(calls, 2);
+    const gateRequest = requestsSeen[0];
+    const responseRequest = requestsSeen[1];
     assert.equal(
-        requestSeen?.config?.modelProfile,
+        gateRequest?.config?.modelProfile,
         "conversation"
     );
     assert.deepEqual(
-        requestSeen?.config?.chatMessages?.map(item => item.role),
-        [
-            "system",
-            "user", "assistant",
-            "user", "assistant",
-            "user", "assistant",
-            "user", "assistant",
-            "user"
-        ]
+        gateRequest?.config?.chatMessages?.map(item => item.role),
+        ["system", "user"]
     );
     assert.equal(
-        requestSeen?.config?.chatMessages?.at(-1)?.content,
+        gateRequest?.config?.chatMessages?.at(-1)?.content,
         "Qué tal pariente, ¿cómo estás?"
     );
     assert.equal(
-        requestSeen?.config?.chatMessages
-            ?.filter(item => item.role === "user" && item.content === "Qué tal pariente, ¿cómo estás?")
-            .length,
-        1
+        responseRequest?.config?.modelProfile,
+        "conversation"
+    );
+    assert.equal(
+        responseRequest?.config?.chatMessages?.at(-1)?.content,
+        "Qué tal pariente, ¿cómo estás?"
     );
     assert.match(
-        String(requestSeen?.contents || ""),
+        String(responseRequest?.contents || ""),
         /Buenas noches, pariente\. ¿Qué tal todo\?/
     );
     assert.match(
-        String(requestSeen?.contents || ""),
-        /No describas ni analices la frase/
-    );
-    assert.match(
-        String(requestSeen?.contents || ""),
-        /la respuesta es/
-    );
-    assert.equal(
-        (String(requestSeen?.contents || "").match(/Qué tal pariente, ¿cómo estás\?/g) || []).length,
-        1
+        String(responseRequest?.contents || ""),
+        /No ofrezcas ayuda/
     );
     assert.equal(result.toolCalls.length, 1);
     assert.equal(result.toolCalls[0].name, "conversation.respond");
@@ -175,7 +168,7 @@ test("current-turn conversational gate returns a contextual precomposed response
     );
     assert.equal(
         result.toolCalls[0].args.prompt,
-        "A toda madre, pariente. ¿Y tú qué tal?"
+        "A toda madre, pariente."
     );
 });
 
@@ -900,6 +893,43 @@ test("semantic planner normalizes Qwen structured text tool selection", () => {
             },
             reason: "MODEL_STRUCTURED_TEXT_TOOL_SELECTION"
         }
+    );
+
+    assert.deepEqual(
+        normalizeTextToolPlan(
+            {
+                name: "jarvis_tool_0 repo.search",
+                arguments: {
+                    query: {
+                        type: "string",
+                        value: "debit(balance, amount)"
+                    }
+                }
+            },
+            singleCatalog
+        ).toolCalls[0],
+        {
+            name: "repo.search",
+            args: {
+                query: {
+                    type: "string",
+                    value: "debit(balance, amount)"
+                }
+            },
+            reason: "MODEL_STRUCTURED_TEXT_TOOL_SELECTION"
+        }
+    );
+    assert.equal(
+        normalizeTextToolPlan(
+            {
+                name: "jarvis_tool_0 repo.read",
+                arguments: {
+                    query: "debit"
+                }
+            },
+            singleCatalog
+        ).toolCalls,
+        undefined
     );
 });
 

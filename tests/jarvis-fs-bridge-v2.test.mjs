@@ -781,7 +781,7 @@ test("self-hosted semantic backend feeds the canonical planner without paid API 
 });
 
 test("self-hosted conversational gate preserves real chat roles for Ollama", async () => {
-    let requestBody = null;
+    const requestBodies = [];
     const engine = createSelfHostedSemanticEngine({
         env: {
             JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
@@ -789,17 +789,18 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
             JARVIS_LOCAL_LLM_MODEL: "qwen-code"
         },
         fetchImpl: async (_url, options) => {
-            requestBody = JSON.parse(options.body);
+            const requestBody = JSON.parse(options.body);
+            requestBodies.push(requestBody);
+            const content = requestBodies.length === 1
+                ? JSON.stringify({ direct: true })
+                : "Jajaja, ya entendí: se te antojó a ti.";
             return {
                 ok: true,
                 status: 200,
                 text: async () => JSON.stringify({
                     choices: [{
                         message: {
-                            content: JSON.stringify({
-                                direct: true,
-                                message: "Jajaja, ya entendí: se te antojó a ti."
-                            })
+                            content
                         }
                     }]
                 })
@@ -832,31 +833,35 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
         }
     });
 
+    assert.equal(requestBodies.length, 2);
+    const gateRequest = requestBodies[0];
+    const responseRequest = requestBodies[1];
     assert.equal(
-        requestBody.model,
+        gateRequest.model,
         "qwen-code"
     );
     assert.deepEqual(
-        requestBody.messages.map(message => message.role),
-        [
-            "system",
-            "user", "assistant",
-            "user", "assistant",
-            "user", "assistant",
-            "user", "assistant",
-            "user"
-        ]
+        gateRequest.messages.map(message => message.role),
+        ["system", "user"]
     );
     assert.equal(
-        requestBody.messages.at(-1).content,
+        gateRequest.messages.at(-1).content,
         "No, digo que se me antojó a mí."
     );
     assert.equal(
-        requestBody.messages[7].content,
+        responseRequest.model,
+        "qwen-code"
+    );
+    assert.equal(
+        responseRequest.messages.at(-1).content,
+        "No, digo que se me antojó a mí."
+    );
+    assert.equal(
+        responseRequest.messages.at(-3).content,
         "Se me antojó algo frío."
     );
     assert.equal(
-        requestBody.messages[8].content,
+        responseRequest.messages.at(-2).content,
         "Sí se antoja."
     );
     assert.equal(result.toolCalls.length, 1);
@@ -886,7 +891,7 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
     );
     assert.equal(
         result.inferenceReceipt.counters.localSemanticInferenceCalls,
-        1
+        2
     );
 });
 
