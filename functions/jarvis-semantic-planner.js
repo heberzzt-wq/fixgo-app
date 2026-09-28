@@ -730,7 +730,10 @@ async function runModelSemanticPlanner({
     const instruction = String(input || "").trim();
     const normalizedCatalog = normalizeCatalog(catalog);
     const safeCatalog = shortlistSemanticCatalog(instruction, normalizedCatalog, missionState, 4);
-    const compactJsonPlanning = normalizedCatalog.length > safeCatalog.length;
+    const currentTurn = String(missionState?.phase || "") === "CURRENT_TURN";
+    const compactJsonPlanning =
+        currentTurn ||
+        normalizedCatalog.length > safeCatalog.length;
     if (!instruction || safeCatalog.length === 0) throw new Error("SEMANTIC_GEMINI_INPUT_REQUIRED");
 
     if (missionState?.phase === "MISSION_CONTRACT") {
@@ -1409,7 +1412,10 @@ async function runModelSemanticPlanner({
                 "Devuelve exclusivamente JSON valido con toolCalls:[{name,args}], missionComplete=false. Usa los nombres exactos del catalogo. En args escribe valores reales que satisfagan inputSchema; nunca copies descriptores de schema como {type,value}, properties, required o equivalentes."
             ].join("\n\n"),
             config: {
-                maxOutputTokens: 384,
+                maxOutputTokens:
+                    currentTurn
+                        ? 192
+                        : 384,
                 temperature: 0,
                 thinkingConfig: {
                     thinkingLevel: "MINIMAL"
