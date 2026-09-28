@@ -595,6 +595,15 @@ async function() {
             ] of entries
         ) {
 
+            while (
+                typeof document !== "undefined" &&
+                document.querySelector("#btn-generate")?.disabled === true
+            ) {
+                await new Promise(resolve =>
+                    setTimeout(resolve, 250)
+                );
+            }
+
             try {
 
                window.gestiaBootLog(

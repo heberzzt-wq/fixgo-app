@@ -143,10 +143,19 @@ function installJarvisLocalBridgeTransport() {
                     const aborted =
                         error?.name === "AbortError";
 
-                    if (
-                        aborted ||
-                        attempt >= maximumAttempts
-                    ) {
+                    if (aborted) {
+                        const timeoutError =
+                            new Error("JARVIS_LOCAL_BRIDGE_TIMEOUT_REQUEST");
+                        timeoutError.code =
+                            "JARVIS_LOCAL_BRIDGE_TIMEOUT_REQUEST";
+                        timeoutError.route =
+                            path;
+                        timeoutError.timeoutMs =
+                            timeoutMs;
+                        throw timeoutError;
+                    }
+
+                    if (attempt >= maximumAttempts) {
                         throw error;
                     }
 
