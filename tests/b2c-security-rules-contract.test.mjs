@@ -57,6 +57,14 @@ test("users no permite lectura indiscriminada ni autoaprobación", () => {
     assert.match(firestore, /identity_verification_method/);
     assert.match(firestore, /estado == 'identidad_pendiente'/);
     assert.match(firestore, /identity_machine_verified/);
+    const customerCreateBlock = firestore.slice(
+        firestore.indexOf("request.resource.data.rol == 'cliente'"),
+        firestore.indexOf("request.resource.data.get('efectivo_autorizado', false) == false")
+    );
+    assert.match(customerCreateBlock, /estado == 'activo'/);
+    assert.match(customerCreateBlock, /status == 'activo'/);
+    assert.match(customerCreateBlock, /identity_required', true\) == false/);
+    assert.match(customerCreateBlock, /identity_machine_status', ''\) == 'not_required'/);
     assert.match(firestore, /match \/b2c_identity_registry\/\{identityId\}/);
     assert.match(firestore, /match \/b2c_identity_audit\/\{auditId\}/);
     assert.match(firestore, /match \/b2c_identity_attempts\/\{attemptId\}/);
