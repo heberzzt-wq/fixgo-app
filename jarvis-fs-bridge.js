@@ -1034,6 +1034,133 @@ export function createSelfHostedSemanticEngine({
         configurationError = error?.message || String(error);
     }
 
+    const warmKeepAlive =
+        String(
+            env.JARVIS_LOCAL_LLM_KEEP_ALIVE ||
+            "30m"
+        ).trim();
+    const warmRefreshMs =
+        Math.min(
+            Math.max(
+                Number(
+                    env.JARVIS_LOCAL_LLM_WARM_REFRESH_MS
+                ) ||
+                20 * 60 * 1000,
+                60 * 1000
+            ),
+            29 * 60 * 1000
+        );
+    const warmTimeoutMs =
+        Math.min(
+            Math.max(
+                Number(
+                    env.JARVIS_LOCAL_LLM_WARMUP_TIMEOUT_MS
+                ) ||
+                60000,
+                10000
+            ),
+            90000
+        );
+    let lastModelWarmAt = 0;
+    let modelWarmPromise = null;
+
+    async function ensureMainModelWarm() {
+        if (
+            fetchImpl !== globalThis.fetch ||
+            !baseUrl ||
+            !model
+        ) {
+            return {
+                ok: true,
+                status: "LOCAL_MODEL_WARMUP_SKIPPED"
+            };
+        }
+
+        if (
+            lastModelWarmAt > 0 &&
+            Date.now() - lastModelWarmAt < warmRefreshMs
+        ) {
+            return {
+                ok: true,
+                status: "LOCAL_MODEL_ALREADY_WARM"
+            };
+        }
+
+        if (modelWarmPromise) {
+            return await modelWarmPromise;
+        }
+
+        modelWarmPromise = (async () => {
+            const controller = new AbortController();
+            const timer = setTimeout(
+                () => controller.abort(),
+                warmTimeoutMs
+            );
+            try {
+                const origin = new URL(baseUrl).origin;
+                const response = await fetchImpl(
+                    origin + "/api/generate",
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            model,
+                            prompt: "OK",
+                            stream: false,
+                            keep_alive:
+                                warmKeepAlive ||
+                                "30m",
+                            options: {
+                                num_predict: 1,
+                                temperature: 0
+                            }
+                        }),
+                        signal: controller.signal
+                    }
+                );
+                const raw = await response.text();
+                let payload = null;
+                try {
+                    payload = raw
+                        ? JSON.parse(raw)
+                        : null;
+                } catch {}
+
+                if (!response.ok) {
+                    throw new Error(
+                        String(
+                            payload?.error ||
+                            raw ||
+                            ("LOCAL_MODEL_WARMUP_HTTP_" + response.status)
+                        )
+                    );
+                }
+
+                lastModelWarmAt = Date.now();
+                return {
+                    ok: true,
+                    status: "LOCAL_MODEL_WARM",
+                    keepAlive:
+                        warmKeepAlive ||
+                        "30m"
+                };
+            } catch (error) {
+                if (controller.signal.aborted) {
+                    throw new Error("LOCAL_MODEL_WARMUP_TIMEOUT");
+                }
+                throw error;
+            } finally {
+                clearTimeout(timer);
+            }
+        })().finally(() => {
+            modelWarmPromise = null;
+        });
+
+        return await modelWarmPromise;
+    }
+
     function describe() {
         const configured = Boolean(model && baseUrl && !configurationError);
         return {
@@ -1164,6 +1291,7 @@ export function createSelfHostedSemanticEngine({
     async function generateContent(request = {}) {
         const health = describe();
         if (health.ok !== true) throw new Error(health.status);
+        await ensureMainModelWarm();
         const tools = openAiToolsFromGemini(request?.config || {});
         const inferenceTimeoutMs = Math.min(
             Math.max(
