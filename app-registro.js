@@ -249,8 +249,7 @@ if ($("btnCerrarTerminosTecnico")) {
 // ======================================================
 const btnRegistroCliente = $("btnRegistroCliente");
 const codigoB2BInput = document.querySelector('#formRegistroCliente [name="codigoB2B"]');
-const clienteIdentityResumeRequested =
-    new URLSearchParams(window.location.search).get("resume") === "cliente-identity";
+const clienteIdentityResumeRequested = false;
 let clienteIdentityResumeProfile = null;
 
 if (clienteIdentityResumeRequested) {
@@ -309,7 +308,6 @@ codigoB2BInput?.addEventListener("input", () => {
     const hasB2BCode = Boolean(codigoB2BInput.value.trim());
     const stripeSection = document.getElementById("stripeRegistroClienteB2B");
     stripeSection?.classList.toggle("hidden", !hasB2BCode);
-    document.getElementById("identityVerificationCardCliente")?.classList.toggle("hidden", hasB2BCode);
 });
 
 if (btnRegistroCliente) {
@@ -326,12 +324,7 @@ if (btnRegistroCliente) {
         const password = form.querySelector('[name="password"]')?.value.trim();
         const telefono = escaparHTML(form.querySelector('[name="telefono"]')?.value.trim());
         const codigoB2B = escaparHTML(form.querySelector('[name="codigoB2B"]')?.value.trim().toUpperCase()) || null;
-        const resumeExistingCustomer = Boolean(
-            clienteIdentityResumeRequested &&
-            clienteIdentityResumeProfile?.uid &&
-            auth.currentUser?.uid === clienteIdentityResumeProfile.uid &&
-            email === clienteIdentityResumeProfile.email
-        );
+        const resumeExistingCustomer = false;
 
         if (!nombre || !email || !telefono || (!resumeExistingCustomer && !password)) {
             alert("⚠️ Por favor, completa todos los campos personales."); 
@@ -350,17 +343,6 @@ if (btnRegistroCliente) {
         const termsAceptados = document.getElementById("chkTerminosCliente")?.checked;
         if (!termsAceptados) {
             alert("⚖️ Obligatorio: Debes marcar la casilla aceptando los Términos y Condiciones de Uso para Clientes."); 
-            return;
-        }
-
-        const requiereIdentidadB2C = !codigoB2B;
-        if (requiereIdentidadB2C && !$("chkBiometriaCliente")?.checked) {
-            alert("🔐 Debes autorizar la verificación de identidad para crear una cuenta B2C.");
-            return;
-        }
-        if (requiereIdentidadB2C && (!identityCaptureState.complete || identityCaptureState.target !== "cliente" ||
-            !archivoFotoPerfil || !archivoINE || !archivoINEReverso)) {
-            alert("🪪 Completa INE frente/reverso y una selfie frontal antes de crear tu cuenta.");
             return;
         }
 
@@ -427,42 +409,6 @@ if (btnRegistroCliente) {
                 actualizadoEn: serverTimestamp()
             }, { merge: true });
 
-            if (!esAdminB2B) {
-                const uid = usuarioAuth.uid;
-                const userRef = doc(db, "users", uid);
-                const confirmarCampo = patch => async () => {
-                    await setDoc(userRef, patch, { merge: true });
-                };
-
-                btnRegistroCliente.innerHTML = '<i class="fas fa-cloud-upload-alt animate-bounce"></i> Protegiendo identidad…';
-                await subirDocumentoExpedienteRecuperable(uid, "foto_perfil", archivoFotoPerfil,
-                    async (url) => confirmarCampo({ foto_perfil: url })(),
-                    { kycState: "identidad_pendiente" });
-                await subirDocumentoExpedienteRecuperable(uid, "ine", archivoINE,
-                    async (url) => confirmarCampo({ documentos: { ine: url } })(),
-                    { kycState: "identidad_pendiente" });
-                await subirDocumentoExpedienteRecuperable(uid, "ine_reverso", archivoINEReverso,
-                    async (url) => confirmarCampo({ documentos: { ine_reverso: url } })(),
-                    { kycState: "identidad_pendiente" });
-
-                await setDoc(userRef, {
-                    "kyc.identity_capture_status": "captured_pending_verification",
-                    "kyc.identity_capture_completed_at": serverTimestamp(),
-                    actualizadoEn: serverTimestamp()
-                }, { merge: true });
-
-                btnRegistroCliente.innerHTML = '<i class="fas fa-fingerprint fa-pulse"></i> Verificando identidad…';
-                const identityResult = await verificarIdentidadB2C();
-                if (identityResult?.status !== "verified") {
-                    const duplicate = identityResult?.status === "duplicate_suspected";
-                    alert(duplicate
-                        ? "🛡️ Tu identidad requiere revisión porque existe una coincidencia con otro expediente. La cuenta no puede operar hasta que Administración la revise."
-                        : "🛡️ La verificación automática requiere revisión humana. Tus datos quedaron guardados y la cuenta seguirá bloqueada hasta validación.");
-                    window.location.href = "cliente.html";
-                    return;
-                }
-            }
-
             alert(`✅ ¡Registro Exitoso, ${nombre}!\n\nBienvenido a GestiaPremium. Tu perfil de ${esAdminB2B ? 'Administrador B2B' : 'Cliente'} ha sido creado.`);
             
             // Redirección Inteligente: B2B → panel-b2b-admin.html | B2C → cliente.html
@@ -473,7 +419,7 @@ if (btnRegistroCliente) {
             console.error("❌ Error Crítico en Registro Cliente:", error);
             
             if (usuarioAuth) {
-                alert("⚠️ Tu cuenta permanece registrada. Reanuda la identidad en esta misma sesión; no crees otra cuenta.");
+                alert("⚠️ Tu cuenta permanece registrada. Inicia sesión con esa misma cuenta; no crees otra.");
             } else {
                 manejarErroresAuth(error);
             }
@@ -959,7 +905,6 @@ function cancelIdentityFlow() {
 }
 
 $("btnIniciarIdentidad")?.addEventListener("click", () => startIdentityFlow("tecnico"));
-$("btnIniciarIdentidadCliente")?.addEventListener("click", () => startIdentityFlow("cliente"));
 $("btnCapturarIdentidad")?.addEventListener("click", captureIdentityFrame);
 $("btnCancelarIdentidad")?.addEventListener("click", cancelIdentityFlow);
 $("btnConfirmarIdentidad")?.addEventListener("click", () => {
@@ -1308,7 +1253,7 @@ if (btnGoogle) {
             if (!docSnap.exists()) {
                 window.isRegisteringLocal = true;
                 await signOut(auth);
-                alert("🛡️ Las altas nuevas B2C requieren INE y biometría en vivo. Regístrate con el formulario seguro; después podrás vincular Google desde tu cuenta.");
+                alert("🛡️ Primero crea tu cuenta desde el formulario de registro; después podrás vincular Google desde tu cuenta.");
                 window.location.href = "registro.html";
                 return;
             }
