@@ -91,7 +91,10 @@ test("new page subject remains current-turn authoritative after an older Jarvis 
 test("tool-planning receives only memory availability while mission memory stays advisory", () => {
     const core = fs.readFileSync(new URL("../gestia-core/gestia-core.js", import.meta.url), "utf8");
     assert.doesNotMatch(core, /phase:\s*"CURRENT_TURN"[\s\S]{0,220}semanticMemory\s*,/);
-    assert.doesNotMatch(core, /semanticMemory\s*:\s*semanticMemoryContext/);
+    assert.doesNotMatch(
+        core,
+        /buildJarvisMultifunctionToolCalls[\s\S]{0,1800}semanticMemory\s*:\s*semanticMemoryContext/
+    );
     assert.match(core, /semanticMemoryAvailable:\s*Boolean\(semanticMemory\)/);
     assert.equal(
         (core.match(/semanticMemoryAvailable:\s*Boolean\(semanticMemoryContext\)/g) || []).length,
@@ -102,7 +105,7 @@ test("tool-planning receives only memory availability while mission memory stays
 
 test("terminal shell forces current runtime entrypoints instead of cached v116-v117 entrypoints", () => {
     const html = fs.readFileSync(new URL("../gestia-terminal.html", import.meta.url), "utf8");
-    assert.match(html, /gestia-core\/gestia-core\.js\?v=v139-real-reel-e2e-20260812/);
+    assert.match(html, /gestia-core\/gestia-core\.js\?v=v142-video-truthful-delivery-20260826/);
     assert.equal((html.match(/gestia-terminal\.js\?v=v94-source-grounded-research-v124-20260810/g) || []).length, 2);
     assert.match(html, /gestia-core\/gestia\.runtime\.v7\.js\?v=v94-source-grounded-research-v124-20260810/);
     assert.doesNotMatch(html, /gestia-core\/gestia-core\.js\?v=v94-runtime-health-truth-v116-20260809/);

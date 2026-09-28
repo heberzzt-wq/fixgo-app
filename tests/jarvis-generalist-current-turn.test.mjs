@@ -77,9 +77,10 @@ test("planner declares semantic generalist current-turn architecture", () => {
     const description = describeJarvisMultifunctionPlanner();
     assert.equal(description.architecture, "model_selected_runtime_catalog");
     assert.equal(description.failMode, "closed");
-    assert.match(__test.GENERALIST_CURRENT_TURN_POLICY, /agente generalista/i);
     assert.match(__test.GENERALIST_CURRENT_TURN_POLICY, /instruccion actual/i);
-    assert.match(__test.GENERALIST_CURRENT_TURN_POLICY, /no equivale/i);
+    assert.match(__test.GENERALIST_CURRENT_TURN_POLICY, /no clasifiques por palabras clave/i);
+    assert.match(__test.GENERALIST_CURRENT_TURN_POLICY, /catalogo runtime/i);
+    assert.match(__test.GENERALIST_CURRENT_TURN_POLICY, /no fabriques trabajo operativo/i);
 });
 
 test("completed semantic current turn becomes one direct conversation without replanning", async () => {
