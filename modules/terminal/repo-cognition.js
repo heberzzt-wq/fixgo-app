@@ -1347,12 +1347,31 @@ function(config = {}) {
     fileName
 );
 
-                if (
+                const existingCognitionIndex =
+            window.__REPO_COGNITION__ || {};
+
+        const existingGraphIndex =
+            window.__REPO_DEP_GRAPH__ || {};
+
+        const hasExistingFile =
+            Object.keys(existingCognitionIndex).some(key =>
+                key === fileName ||
+                key.includes(fileName) ||
+                fileName.includes(key)
+            ) &&
+            Object.keys(existingGraphIndex).some(key =>
+                key === fileName ||
+                key.includes(fileName) ||
+                fileName.includes(key)
+            );
+
+        if (
+            !hasExistingFile &&
             typeof window.rehydrateRepoCognitionIndex === "function"
         ) {
             window.rehydrateRepoCognitionIndex();
         }
-        
+
         const cognitionIndex =
             window.__REPO_COGNITION__ || {};
 
