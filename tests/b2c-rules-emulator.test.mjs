@@ -406,35 +406,36 @@ test('tenant isolation covers existing B2B paths and service creation', async ()
 });
 
 
-test('new B2C customer must be born identity-pending and bound to authenticated email', async () => {
+test('new B2C customer is active without biometric KYC and stays bound to authenticated email', async () => {
     const db=environment.authenticatedContext('new-safe',{email:'safe@example.test'}).firestore();
-    const pending={
+    const active={
         uid:'new-safe',
         email:'safe@example.test',
         rol:'cliente',
         sub_type:'marketplace',
         tipo_cuenta:'B2C',
-        estado:'identidad_pendiente',
-        status:'identidad_pendiente',
+        estado:'activo',
+        status:'activo',
         wallet:0,
         currency:'MXN',
-        foto_perfil:null,
-        documentos:{ine:null,ine_reverso:null,selfie_liveness_left:null,selfie_liveness_right:null},
         kyc:{
-            estado:'identidad_pendiente',
-            aprobado:false,
-            identity_required:true,
+            estado:'activo',
+            aprobado:true,
+            identity_required:false,
             identity_verified:false,
             identity_machine_verified:false,
-            identity_machine_status:'pending_capture',
-            identity_version:'b2c-bank-identity-v1',
-            identity_capture_status:'pending_capture'
+            identity_machine_status:'not_required',
+            identity_version:null,
+            identity_capture_status:'not_required'
         },
         pagos:{stripe_autorizado:false,efectivo_autorizado:false}
     };
-    await assertFails(setDoc(doc(db,'users/new-safe'),{...pending,email:'hebertoh-m@hotmail.com'}));
-    await assertFails(setDoc(doc(db,'users/new-safe'),{...pending,estado:'activo',status:'activo','kyc.estado':'activo'}));
-    await assertSucceeds(setDoc(doc(db,'users/new-safe'),pending));
+    await assertFails(setDoc(doc(db,'users/new-safe'),{...active,email:'hebertoh-m@hotmail.com'}));
+    await assertFails(setDoc(doc(db,'users/new-safe'),{
+        ...active,
+        kyc:{...active.kyc,identity_required:true,identity_machine_status:'pending_capture'}
+    }));
+    await assertSucceeds(setDoc(doc(db,'users/new-safe'),active));
     await assertFails(updateDoc(doc(db,'users/new-safe'),{'kyc.identity_machine_verified':true}));
     await assertFails(updateDoc(doc(db,'users/new-safe'),{'kyc.identity_verified':true}));
 });
