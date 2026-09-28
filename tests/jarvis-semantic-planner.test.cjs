@@ -1006,6 +1006,16 @@ test("current-turn operational planning uses native tools with a small first-ste
             name: "repo.gitStatus",
             description: "Estado git real del repositorio.",
             mutates: false
+        },
+        {
+            name: "page.create",
+            description: "Crea una pagina cuando el usuario pide un entregable web.",
+            mutates: true
+        },
+        {
+            name: "marketing.plan",
+            description: "Prepara estrategia de marketing cuando se solicita una campana.",
+            mutates: false
         }
     ];
 

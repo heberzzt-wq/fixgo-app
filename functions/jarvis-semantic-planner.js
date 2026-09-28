@@ -89,7 +89,7 @@ function shortlistSemanticCatalog(input = "", catalog = [], missionState = null,
 
     if (!ranked.length || ranked[0].score <= 0) return safeCatalog;
     return ranked
-        .slice(0, Math.max(4, Math.min(24, Number(limit) || 12)))
+        .slice(0, Math.max(1, Math.min(24, Number(limit) || 12)))
         .map(entry => entry.tool);
 }
 function extractJsonObject(value = "") {
@@ -763,8 +763,13 @@ async function runModelSemanticPlanner({
     if (!ai?.models?.generateContent) throw new Error("SEMANTIC_GEMINI_REQUIRED");
     const instruction = String(input || "").trim();
     const normalizedCatalog = normalizeCatalog(catalog);
-    const safeCatalog = shortlistSemanticCatalog(instruction, normalizedCatalog, missionState, 4);
     const currentTurn = String(missionState?.phase || "") === "CURRENT_TURN";
+    const safeCatalog = shortlistSemanticCatalog(
+        instruction,
+        normalizedCatalog,
+        missionState,
+        currentTurn ? 2 : 4
+    );
     const compactJsonPlanning =
         !currentTurn &&
         normalizedCatalog.length > safeCatalog.length;
