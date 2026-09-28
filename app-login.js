@@ -23,26 +23,10 @@ const db =
 const loginParams =
     new URLSearchParams(window.location.search);
 
-const customerIdentityResumeRequested =
-    loginParams.get("resume") === "cliente-identity";
+const customerIdentityResumeRequested = false;
 
-function customerIdentityNeedsCapture(profile = {}) {
-    if (
-        profile?.rol !== "cliente" ||
-        profile?.tipo_cuenta !== "B2C" ||
-        profile?.kyc?.identity_required !== true ||
-        profile?.kyc?.identity_verified === true
-    ) {
-        return false;
-    }
-
-    return !(
-        profile?.foto_perfil &&
-        profile?.documentos?.ine &&
-        profile?.documentos?.ine_reverso &&
-        profile?.documentos?.selfie_liveness_left &&
-        profile?.documentos?.selfie_liveness_right
-    );
+function customerIdentityNeedsCapture() {
+    return false;
 }
 
 import {
