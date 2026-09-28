@@ -606,7 +606,7 @@ export async function iniciarPanelCliente(user) {
         stepKeysOverride = null
     ) {
         if (!auth.currentUser || auth.currentUser.uid !== user.uid) {
-            window.location.href = "login.html?resume=cliente-identity";
+            window.location.href = "login.html";
             return;
         }
 
