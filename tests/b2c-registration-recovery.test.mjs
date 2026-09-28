@@ -61,38 +61,23 @@ test('identity photo widgets block approved replacements and admin routes review
 });
 
 
-test('customer identity upload failure resumes the same authenticated B2C account', () => {
+test('customer registration no longer requires biometric recovery', () => {
     const registration = fs.readFileSync(new URL('../app-registro.js', import.meta.url), 'utf8');
     const customer = fs.readFileSync(new URL('../panel-cliente.js', import.meta.url), 'utf8');
-    const customerHtml = fs.readFileSync(new URL('../cliente.html', import.meta.url), 'utf8');
 
-    assert.match(customer, /identityEvidenceComplete/);
-    assert.match(customer, /REANUDAR CAPTURA DE IDENTIDAD/);
-    assert.match(customer, /startCustomerIdentityRecovery/);
-    assert.match(customer, /persistCustomerIdentityRecovery/);
-    assert.match(customer, /clientIdentityModal/);
-    assert.match(customer, /storagePathForTechnicianDocument/);
-    assert.match(customer, /login\.html\?resume=cliente-identity/);
-    assert.doesNotMatch(customer, /registro\.html\?resume=cliente-identity/);
-    assert.match(customerHtml, /id="clientIdentityModal"/);
-
-    // Registration remains a fallback recovery surface only after explicit reauthentication.
-    assert.match(registration, /clienteIdentityResumeRequested/);
-    assert.match(registration, /clienteIdentityResumeProfile/);
-    assert.match(registration, /resumeExistingCustomer/);
-    assert.match(registration, /__SESSION_REUSE_ONLY__/);
-    assert.match(registration, /kycState:\s*"identidad_pendiente"/);
-    assert.match(registration, /REANUDAR IDENTIDAD EN ESTA CUENTA/);
-    assert.match(registration, /auth\.currentUser\?\.uid === clienteIdentityResumeProfile\.uid/);
+    assert.match(registration, /const clienteIdentityResumeRequested = false/);
+    assert.match(registration, /const resumeExistingCustomer = false/);
+    assert.doesNotMatch(registration, /kycState:\s*"identidad_pendiente"/);
+    assert.doesNotMatch(registration, /REANUDAR IDENTIDAD EN ESTA CUENTA/);
+    assert.doesNotMatch(registration, /btnIniciarIdentidadCliente/);
+    assert.match(customer, /const identityBlocked = false/);
 });
 
 
-test('release gate keeps customer KYC recovery inside the authenticated client panel', () => {
+test('release gate leaves customer identity recovery inactive', () => {
     const customer = fs.readFileSync(new URL('../panel-cliente.js', import.meta.url), 'utf8');
-    const customerHtml = fs.readFileSync(new URL('../cliente.html', import.meta.url), 'utf8');
-    assert.match(customer, /startCustomerIdentityRecovery/);
-    assert.match(customer, /persistCustomerIdentityRecovery/);
-    assert.doesNotMatch(customer, /registro\.html\?resume=cliente-identity/);
-    assert.match(customerHtml, /id="clientIdentityModal"/);
-    assert.match(customerHtml, /client-identity-camera\[data-frame="document"\] video/);
+    const login = fs.readFileSync(new URL('../app-login.js', import.meta.url), 'utf8');
+    assert.match(customer, /const identityBlocked = false/);
+    assert.match(login, /function customerIdentityNeedsCapture\(\) \{[\s\S]*?return false;/);
+    assert.doesNotMatch(login, /registro\.html\?resume=cliente-identity/);
 });
