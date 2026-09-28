@@ -842,7 +842,14 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
     );
     assert.deepEqual(
         gateRequest.messages.map(message => message.role),
-        ["system", "user"]
+        [
+            "system",
+            "user", "assistant",
+            "user", "assistant",
+            "user", "assistant",
+            "user", "assistant",
+            "user"
+        ]
     );
     assert.equal(
         gateRequest.messages.at(-1).content,
