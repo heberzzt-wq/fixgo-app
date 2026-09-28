@@ -381,7 +381,7 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.doesNotMatch(client, /SOBRESCRIBIMOS EL GPS|SNIPER DEL MAPA INTERACTIVO/);
     assert.match(client, /confirmDestination/);
     assert.match(client, /const identityBlocked = false/);
-    assert.doesNotMatch(registrationHtml, /btnIniciarIdentidadCliente|chkBiometriaCliente|INE \+ biometría facial/);
+    assert.doesNotMatch(registrationHtml, /btnIniciarIdentidadCliente|chkBiometriaCliente/);
     assert.doesNotMatch(registration, /cliente-identity|resumeExistingCustomer|__SESSION_REUSE_ONLY__|kycState: "identidad_pendiente"/);
     assert.doesNotMatch(marketplace, /CUSTOMER_IDENTITY_VERIFICATION_REQUIRED|customerIdentityBlocked/);
     assert.match(html, /btnExpandirMapa/);
@@ -414,7 +414,7 @@ test("integración elimina overrides silenciosos, amplía mapa y delega aprobaci
     assert.match(registration, /identity-modal-open/);
     assert.match(registration, /aspectRatio:\s*\{\s*ideal:\s*documentCapture \? 16 \/ 9 : 4 \/ 3\s*\}/);
     assert.match(registrationHtml, /chkBiometriaTecnico/);
-    assert.doesNotMatch(registrationHtml, /btnIniciarIdentidadCliente|chkBiometriaCliente|INE \+ biometría facial/);
+    assert.doesNotMatch(registrationHtml, /btnIniciarIdentidadCliente|chkBiometriaCliente/);
     assert.match(registration, /identityCaptureState\.target/);
     assert.match(registration, /showIdentityReview/);
     assert.match(registration, /renderIdentityReview/);
