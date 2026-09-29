@@ -35,7 +35,7 @@ function fixture(t) {
         assert.equal(url, "http://127.0.0.1:11434/api/chat");
         assert.equal(body.model, "qwen2.5-coder:3b");
         return { ok: true, text: async () => JSON.stringify({ message: {
-            content: "", tool_calls: [{ function: { name: "jarvis_tool_1", arguments: {} } }]
+            content: JSON.stringify({ toolCalls: [{ name: JSON.parse(body.messages.at(-1).content).catalog[1].name, args: {} }], missionComplete: false })
         }, done_reason: "stop" }) };
     };
     return { cachePath, requests, env, fetchImpl,
@@ -58,7 +58,7 @@ test("vector cache survives engine restart; Qwen can choose the second candidate
     assert.equal(f.requests.length, 2);
     assert.deepEqual(f.requests[0].body.input, [request(catalog).input]);
     assert.equal(f.requests[0].body.keep_alive, "30m");
-    assert.equal(f.requests[1].body.tools.length, 2);
+    assert.equal(JSON.parse(f.requests[1].body.messages.at(-1).content).catalog.length, 2);
     assert.equal(next.inferenceReceipt.counters.paidExternalCalls, 0);
 });
 

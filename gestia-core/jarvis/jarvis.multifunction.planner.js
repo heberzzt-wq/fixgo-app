@@ -1,3 +1,4 @@
+import { semanticPlanBudgetMs } from "./jarvis.semantic.transport.js";
 import {
     rejectCorruptedIdentityArgs
 } from "./jarvis.identity.integrity.js?v=v94-generalist-page-integrity-v120-20260810";
@@ -1768,14 +1769,14 @@ function attachPlanMetadata(calls = [], plan = {}) {
 }
 
 async function callSemanticPlanner(input = "", catalog = [], missionState = null) {
-    const timeoutMs =
+    const timeoutMs = semanticPlanBudgetMs({ input, missionState, timeoutMs:
         [
             "MISSION_CONTRACT",
             "COMPLETION_AUDIT",
             "GROUNDED_ARGUMENT_COMPLETION"
         ].includes(String(missionState?.phase || ""))
             ? LOCAL_MISSION_CONTRACT_TIMEOUT_MS
-            : 60000;
+            : 60000 });
 
     const bridge =
         globalThis?.JarvisLocalBridge ||
@@ -1801,10 +1802,7 @@ async function callSemanticPlanner(input = "", catalog = [], missionState = null
         },
         {
             timeoutMs:
-                Math.min(
-                    timeoutMs + 10000,
-                    100000
-                )
+                timeoutMs + 10000
         }
     );
 

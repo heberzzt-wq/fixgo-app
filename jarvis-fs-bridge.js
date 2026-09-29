@@ -1,3 +1,5 @@
+import { semanticPlanHandler } from "./jarvis-semantic-http.js";
+import { SEMANTIC_MAX_BUDGET_MS } from "./gestia-core/jarvis/jarvis.semantic.transport.js";
 import express from "express";
 import cors from "cors";
 import fs from "fs";
@@ -90,9 +92,9 @@ const {
 } = require("./functions/jarvis-semantic-planner.js");
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.63.0-native-tool-vector-shortlist-v142";
+    "2.64.0-semantic-progress-deadline-v142";
 const JARVIS_FS_BRIDGE_PREVIOUS_VERSION =
-    "2.62.0-vector-tool-shortlist-v142";
+    "2.63.0-native-tool-vector-shortlist-v142";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -1198,7 +1200,7 @@ export function createSelfHostedSemanticEngine({
         };
     }
 
-    async function embed(input = [], { timeoutMs: embeddingTimeoutMs = timeoutMs } = {}) {
+    async function embed(input = [], { timeoutMs: embeddingTimeoutMs = timeoutMs, signal } = {}) {
         const health = describe();
         if (health.ok !== true) throw new Error(health.status);
         const values = (Array.isArray(input) ? input : [input])
@@ -1219,9 +1221,11 @@ export function createSelfHostedSemanticEngine({
                 body: JSON.stringify({
                     model: embeddingModel,
                     input: values,
-                    keep_alive: warmKeepAlive || "30m"
+                    keep_alive: warmKeepAlive || "30m",
+                    options: { num_batch: 64 },
+                    truncate: false
                 }),
-                signal: controller.signal
+                signal: signal ? AbortSignal.any([controller.signal, signal]) : controller.signal
             });
             const raw = await response.text();
             let data = null;
@@ -1297,13 +1301,12 @@ export function createSelfHostedSemanticEngine({
         await ensureMainModelWarm();
         const tools = openAiToolsFromGemini(request?.config || {});
         const inferenceTimeoutMs = Math.min(
-            Math.max(
-                Number(request?.config?.timeoutMs) ||
-                timeoutMs,
-                5000
-            ),
-            180000
+            Math.max(1, Math.min(Number(request?.config?.timeoutMs) || timeoutMs,
+                request?.config?.deadlineAt ? request.config.deadlineAt - Date.now() : SEMANTIC_MAX_BUDGET_MS)),
+            SEMANTIC_MAX_BUDGET_MS
         );
+        request?.config?.signal?.throwIfAborted();
+        if (request?.config?.deadlineAt && Date.now() >= request.config.deadlineAt) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
         const controller = new AbortController();
         const timer = setTimeout(
             () => controller.abort(),
@@ -1356,7 +1359,7 @@ export function createSelfHostedSemanticEngine({
                     : fallbackMessages;
             const maxOutputTokens =
                 Math.max(
-                    96,
+                    1,
                     Math.min(
                         16000,
                         Number(request?.config?.maxOutputTokens) ||
@@ -1383,7 +1386,7 @@ export function createSelfHostedSemanticEngine({
                         messages,
                         stream: false,
                         ...(jsonOnlyNative
-                            ? { format: "json" }
+                            ? { format: request?.config?.responseJsonSchema || "json" }
                             : {}),
                         ...(nativeToolChat
                             ? { tools }
@@ -1438,7 +1441,7 @@ export function createSelfHostedSemanticEngine({
                     method: "POST",
                     headers,
                     body: JSON.stringify(payload),
-                    signal: controller.signal
+                    signal: request?.config?.signal ? AbortSignal.any([controller.signal, request.config.signal]) : controller.signal
                 }
             );
             const raw = await response.text();
@@ -1507,7 +1510,7 @@ export function createSelfHostedSemanticEngine({
             };
         } catch (error) {
             counters.failedLocalSemanticInferenceCalls += 1;
-            if (controller.signal.aborted) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
+            if (controller.signal.aborted || request?.config?.signal?.reason?.name === "TimeoutError") throw new Error("LOCAL_SEMANTIC_TIMEOUT");
             throw error;
         } finally {
             clearTimeout(timer);
@@ -1589,9 +1592,10 @@ export function createSelfHostedSemanticEngine({
         persistToolEmbeddingCache();
     }
 
-    async function shortlistCurrentTurnCatalog(input = "", catalog = [], limit = 2, deadlineAt = Date.now() + timeoutMs) {
+    async function shortlistCurrentTurnCatalog(input = "", catalog = [], limit = 2, deadlineAt = Date.now() + timeoutMs, signal) {
         const startedAt = Date.now();
         const remainingMs = () => {
+            signal?.throwIfAborted();
             const remaining = deadlineAt - Date.now();
             if (remaining <= 0) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
             return remaining;
@@ -1630,7 +1634,7 @@ export function createSelfHostedSemanticEngine({
                 clearTimeout(timer);
             }
         }
-        const queryEmbedding = await embed([String(input || "")], { timeoutMs: remainingMs() });
+        const queryEmbedding = await embed([String(input || "")], { timeoutMs: remainingMs(), signal });
         const queryVector = queryEmbedding.embeddings[0];
         if (safeCatalog.some(tool => toolEmbeddingCache.get(toolEmbeddingKey(tool)).length !== queryVector.length)) {
             throw new Error("LOCAL_TOOL_EMBEDDING_DIMENSION_MISMATCH");
@@ -1695,11 +1699,12 @@ export function createSelfHostedSemanticEngine({
         mode,
         describe,
         embed,
-        async plan({ input, catalog, missionState = null, timeoutMs: requestTimeoutMs } = {}) {
+        async plan({ input, catalog, missionState = null, timeoutMs: requestTimeoutMs, signal, onProgress = () => {} } = {}) {
             const effectiveTimeoutMs =
-                Math.min(Math.max(Number(requestTimeoutMs) || timeoutMs, 1), 180000);
+                Math.min(Math.max(Number(requestTimeoutMs) || timeoutMs, 1), SEMANTIC_MAX_BUDGET_MS);
             const planStartedAt = Date.now();
             const deadlineAt = planStartedAt + effectiveTimeoutMs;
+            signal?.throwIfAborted();
             let plannerCatalog = catalog;
             let semanticPreselection = null;
             if (
@@ -1707,22 +1712,29 @@ export function createSelfHostedSemanticEngine({
                 Array.isArray(catalog) &&
                 catalog.length > 2
             ) {
+                onProgress("retrieval");
                 const shortlist = await shortlistCurrentTurnCatalog(
                     input,
                     catalog,
                     2,
-                    deadlineAt
+                    deadlineAt,
+                    signal
                 );
                 plannerCatalog = shortlist.catalog;
                 semanticPreselection = shortlist.evidence;
             }
             const plannerTimeoutMs = deadlineAt - Date.now();
             if (plannerTimeoutMs <= 0) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
+            onProgress(missionState?.conversationalGate ? "conversation_gate" : "inference");
+            const deadlineSignal = AbortSignal.timeout(Math.max(1, plannerTimeoutMs));
+            const planSignal = signal ? AbortSignal.any([signal, deadlineSignal]) : deadlineSignal;
             const result = await runJarvisSemanticPlanner({
-                ai:
-                    aiWithTimeout(
-                        plannerTimeoutMs
-                    ),
+                ai: { ...ai, models: { generateContent(request = {}) {
+                    if (Date.now() >= deadlineAt || deadlineSignal.aborted) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
+                    planSignal.throwIfAborted();
+                    return generateContent({ ...request, config: { ...request.config,
+                        timeoutMs: deadlineAt - Date.now(), deadlineAt, signal: planSignal } });
+                } } },
                 input,
                 catalog: plannerCatalog,
                 missionState,
@@ -6783,30 +6795,7 @@ export function createJarvisFsBridgeApp({
         return res.status(health.ok === true ? 200 : 503).json(health);
     });
 
-    app.post("/semantic/plan", async (req, res) => {
-        const health = semanticEngine.describe();
-        if (health.ok !== true) return res.status(503).json(health);
-        try {
-            const result = await semanticEngine.plan(req.body || {});
-            return res.json({
-                ...result,
-                localSemanticInferenceUsed: true,
-                cloudSemanticInferenceUsed: false,
-                fallbackAllowed: health.fallbackAllowed
-            });
-        } catch (error) {
-            return res.status(502).json({
-                ok: false,
-                status: "LOCAL_SEMANTIC_PLAN_FAILED",
-                error: error?.message || String(error),
-                evidence:
-                    error?.evidence ||
-                    null,
-                fallbackAllowed: health.fallbackAllowed,
-                inferenceReceipt: semanticEngine.describe()
-            });
-        }
-    });
+    app.post("/semantic/plan", semanticPlanHandler(semanticEngine));
 
     app.post("/semantic/respond", async (req, res) => {
         const health = semanticEngine.describe();

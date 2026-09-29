@@ -136,27 +136,9 @@ test("current-turn conversational gate classifies then responds with the same lo
         gateRequest?.config?.modelProfile,
         "conversation"
     );
-    assert.deepEqual(
-        gateRequest?.config?.chatMessages?.map(item => item.role),
-        [
-            "system",
-            "user", "assistant",
-            "user", "assistant",
-            "user"
-        ]
-    );
-    assert.equal(
-        gateRequest?.config?.chatMessages?.[3]?.content,
-        "Busca en el repo donde se define requestPayout y dime que archivo la contiene."
-    );
-    assert.equal(
-        gateRequest?.config?.chatMessages?.[4]?.content,
-        JSON.stringify({ direct: false })
-    );
-    assert.equal(
-        gateRequest?.config?.chatMessages?.at(-1)?.content,
-        "Qué tal pariente, ¿cómo estás?"
-    );
+    assert.deepEqual(gateRequest.config.chatMessages.map(item => item.role), ["system", "user", "user"]);
+    assert.equal(gateRequest.config.chatMessages[1].content, "Qué tal pariente, ¿cómo estás?");
+    assert.match(gateRequest.config.chatMessages.at(-1).content, /direct.*false/);
     assert.equal(
         responseRequest?.config?.modelProfile,
         "conversation"
@@ -1043,21 +1025,12 @@ test("current-turn operational planning preserves supplied candidates without le
         }
     });
 
-    assert.equal(requestSeen?.config?.maxOutputTokens, 64);
-    assert.equal(requestSeen?.config?.responseMimeType, undefined);
-    assert.equal(
-        requestSeen?.config?.toolConfig?.functionCallingConfig?.mode,
-        "ANY"
-    );
-    assert.equal(
-        requestSeen?.config?.tools?.[0]?.functionDeclarations?.length,
-        operationalCatalog.length
-    );
-    assert.equal(requestSeen?.config?.nativeToolChat, true);
-    assert.match(
-        String(requestSeen?.contents || ""),
-        /Selecciona exactamente una herramienta/
-    );
+    assert.equal(requestSeen.config.maxOutputTokens, 160);
+    assert.equal(requestSeen.config.responseMimeType, "application/json");
+    const phaseRequest = JSON.parse(requestSeen.config.chatMessages.at(-1).content);
+    assert.deepEqual(phaseRequest.catalog.map(tool => tool.name), operationalCatalog.map(tool => tool.name));
+    assert.match(phaseRequest.task, /exactamente una herramienta/);
+
     assert.equal(result.toolCalls.length, 1);
     assert.equal(result.toolCalls[0].name, "repo.gitStatus");
 });

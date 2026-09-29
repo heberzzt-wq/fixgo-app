@@ -1,3 +1,4 @@
+import { semanticPlanBudgetMs, readSemanticStream, SEMANTIC_IDLE_TIMEOUT_MS, semanticFailurePresentation } from "../../gestia-core/jarvis/jarvis.semantic.transport.js";
 /*
  * ======================================================================================
  * JARVIS TERMINAL BOOTSTRAP — HISTORICAL NEXO FILENAME ONLY
@@ -10,7 +11,7 @@
  */
 
 export const JARVIS_TERMINAL_BOOTSTRAP_VERSION =
-    "1.13.0-jarvis-single-authority-local-first";
+    "1.14.0-semantic-progress-deadline";
 export const NEXO_TERMINAL_BOOTSTRAP_VERSION =
     JARVIS_TERMINAL_BOOTSTRAP_VERSION; // compatibility export only
 
@@ -59,7 +60,7 @@ async function readRuntimeContract() {
     return runtimeContractPromise;
 }
 
-function installJarvisLocalBridgeTransport() {
+export function installJarvisLocalBridgeTransport() {
     const existing =
         globalThis.JarvisLocalBridge ||
         globalThis.window?.JarvisLocalBridge ||
@@ -69,6 +70,7 @@ function installJarvisLocalBridgeTransport() {
     }
 
     const bridge = {
+        describeFailure: semanticFailurePresentation,
         async requestJson(
             route,
             payload = {},
@@ -80,16 +82,19 @@ function installJarvisLocalBridgeTransport() {
             }
 
             const contract = await readRuntimeContract();
-            const timeoutMs = Math.min(
+            const semanticRequest = path === "/semantic/plan";
+            const requestPayload = semanticRequest ? { ...payload, streamProgress: true, timeoutMs: semanticPlanBudgetMs(payload) } : payload;
+            const timeoutMs = semanticRequest ? requestPayload.timeoutMs + 10000 : Math.min(
                 Math.max(Number(options?.timeoutMs) || 120000, 1000),
                 180000
             );
             const maximumAttempts = 3;
+            const requestAttempts = semanticRequest ? 1 : maximumAttempts;
             let lastError = null;
 
             for (
                 let attempt = 1;
-                attempt <= maximumAttempts;
+                attempt <= requestAttempts;
                 attempt += 1
             ) {
                 const controller = new AbortController();
@@ -98,6 +103,12 @@ function installJarvisLocalBridgeTransport() {
                     timeoutMs
                 );
 
+                let idleTimer;
+                const activity = () => {
+                    clearTimeout(idleTimer);
+                    idleTimer = setTimeout(() => controller.abort(), SEMANTIC_IDLE_TIMEOUT_MS);
+                };
+                if (semanticRequest) activity();
                 try {
                     const response = await globalThis.fetch(
                         `${LOCAL_BRIDGE_BASE_URL}${path}`,
@@ -108,8 +119,8 @@ function installJarvisLocalBridgeTransport() {
                                 "X-Jarvis-Release-Id": contract.releaseId
                             },
                             body: JSON.stringify(
-                                payload && typeof payload === "object"
-                                    ? payload
+                                requestPayload && typeof requestPayload === "object"
+                                    ? requestPayload
                                     : {}
                             ),
                             cache: "no-store",
@@ -117,6 +128,13 @@ function installJarvisLocalBridgeTransport() {
                             targetAddressSpace: "loopback"
                         }
                     );
+                    if (semanticRequest && response.headers.get("content-type")?.includes("application/x-ndjson")) {
+                        return await readSemanticStream(response, { onActivity: activity, onProgress: detail => {
+                            globalThis.dispatchEvent?.(new CustomEvent("jarvis:semantic-progress", { detail }));
+                        } });
+                    }
+                    // An older bridge can still reply with one JSON result.
+                    clearTimeout(idleTimer);
                     const text = await response.text();
                     let result = {};
                     if (text) {
@@ -155,7 +173,7 @@ function installJarvisLocalBridgeTransport() {
                         throw timeoutError;
                     }
 
-                    if (attempt >= maximumAttempts) {
+                    if (attempt >= requestAttempts) {
                         throw error;
                     }
 
@@ -181,6 +199,7 @@ function installJarvisLocalBridgeTransport() {
                 }
                 finally {
                     clearTimeout(timeout);
+                    clearTimeout(idleTimer);
                 }
             }
 

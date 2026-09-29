@@ -374,6 +374,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 fail(label = "No pude completar la misión") {
                     if (finished) return;
+                    for (const [id, row] of rows) {
+                        if (row.dataset.state === "active") setRow(id, row.textContent.trim(), "failed");
+                    }
                     finished = true;
                     if (summaryNode) summaryNode.textContent = label;
                     if (summaryIcon) summaryIcon.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-amber-400"></i>';
@@ -389,6 +392,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         window.addEventListener("jarvis:work-progress", event => {
             activeTracker?.toolEvent?.(event?.detail || {});
+        });
+
+        window.addEventListener("jarvis:semantic-progress", event => {
+            const { stage, elapsedMs = 0 } = event.detail || {};
+            const label = stage === "retrieval" ? "Recuperando herramientas relevantes"
+                : stage === "conversation_gate" ? "Interpretando la solicitud completa" : "Preparando el plan con Qwen local";
+            activeTracker?.activate("core", `${label} · ${Math.floor(elapsedMs / 1000)} s`);
         });
 
         return {
@@ -3562,15 +3572,17 @@ if (
                     }
                 );
 
-                activeWorkTracker?.fail?.(
-                    "Jarvis local no está conectado"
-                );
+                const failurePresentation = window.JarvisLocalBridge?.describeFailure?.(semanticError) || {
+                    title: "No se pudo completar el análisis",
+                    detail: "El núcleo local no devolvió un plan válido."
+                };
+                activeWorkTracker?.fail?.(failurePresentation.title);
 
                 window.renderJarvisResponse?.(
-                    "Jarvis local sin conexión",
+                    failurePresentation.title,
                     [
                         "La misión no se completó.",
-                        "El navegador no alcanzó al único núcleo semántico local.",
+                        failurePresentation.detail,
                         `Host actual: ${location.hostname}`,
                         `Detalle: ${semanticError}`,
                         "No se reporta SUCCESS ni se usa un cerebro alterno."

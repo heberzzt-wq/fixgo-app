@@ -763,6 +763,12 @@ async function runModelSemanticPlanner({
     if (!ai?.models?.generateContent) throw new Error("SEMANTIC_GEMINI_REQUIRED");
     const instruction = String(input || "").trim();
     const normalizedCatalog = normalizeCatalog(catalog);
+    // Identical prefix in both CURRENT_TURN calls lets Ollama reuse the full
+    // input KV cache. Only the final phase instructions differ. No text is dropped.
+    const currentTurnMessages = [
+        { role: "system", content: "Eres Jarvis, la unica autoridad semantica local. La primera entrada es la instruccion original completa; la ultima indica la fase a resolver. Conserva todos los objetivos y restricciones. Devuelve JSON, no inventes evidencia ni concedas permisos." },
+        { role: "user", content: instruction }
+    ];
     const currentTurn = String(missionState?.phase || "") === "CURRENT_TURN";
     // CURRENT_TURN candidates are retrieved by the local vector cache. Preserve
     // them verbatim so only the model, never a lexical ranker, chooses the tool.
@@ -1295,13 +1301,6 @@ async function runModelSemanticPlanner({
             "Aunque creas conocer la respuesta de una tarea operativa, no la contestes desde conocimiento previo: direct debe ser false para que Jarvis obtenga evidencia real."
         ].join("\n");
 
-        const gateExamples = [
-            { role: "user", content: "Que onda pariente" },
-            { role: "assistant", content: JSON.stringify({ direct: true }) },
-            { role: "user", content: "Busca en el repo donde se define requestPayout y dime que archivo la contiene." },
-            { role: "assistant", content: JSON.stringify({ direct: false }) }
-        ];
-
         const gateResponse = await ai.models.generateContent({
             model,
             contents:
@@ -1310,17 +1309,8 @@ async function runModelSemanticPlanner({
                 modelProfile:
                     "conversation",
                 chatMessages: [
-                    {
-                        role: "system",
-                        content:
-                            gateSystemInstruction
-                    },
-                    ...gateExamples,
-                    {
-                        role: "user",
-                        content:
-                            instruction
-                    }
+                    ...currentTurnMessages,
+                    { role: "user", content: gateSystemInstruction }
                 ],
                 maxOutputTokens: 16,
                 temperature: 0,
@@ -1434,7 +1424,45 @@ async function runModelSemanticPlanner({
         };
     }
 
-    const request = compactJsonPlanning
+    const request = currentTurn
+        ? {
+            model,
+            contents: instruction,
+            config: {
+                chatMessages: [
+                    ...currentTurnMessages,
+                    { role: "user", content: JSON.stringify({
+                        phase: "CURRENT_TURN",
+                        task: "La fase previa determino que hacen falta datos o acciones externos. Elige exactamente una herramienta inicial del catalogo para obtener evidencia. Devuelve {toolCalls:[{name,args}],missionComplete:false}. Usa el nombre real y argumentos ejecutables segun inputSchema. Si no hay schema, usa args={}. No contestes la auditoria ni inventes resultados.",
+                        catalog: safeCatalog.map(tool => ({ name: tool.name, description: String(tool.description || "").slice(0, 220), inputSchema: compactPlannerInputSchema(tool.inputSchema) }))
+                    }) }
+                ],
+                maxOutputTokens: 160,
+                temperature: 0,
+                responseMimeType: "application/json",
+                responseJsonSchema: {
+                    type: "object",
+                    required: ["toolCalls", "missionComplete"],
+                    additionalProperties: false,
+                    properties: {
+                        missionComplete: { type: "boolean", const: false },
+                        toolCalls: {
+                            type: "array", minItems: 1, maxItems: 1,
+                            items: {
+                                oneOf: safeCatalog.map(tool => ({
+                                    type: "object", required: ["name", "args"], additionalProperties: false,
+                                    properties: {
+                                        name: { type: "string", const: tool.name },
+                                        args: tool.inputSchema || { type: "object", properties: {}, additionalProperties: false }
+                                    }
+                                }))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        : compactJsonPlanning
         ? {
             model,
             contents: [
