@@ -781,11 +781,11 @@ JarvisToolRuntime.register({
             },
             startLine: {
                 type: "integer",
-                description: "Primera linea opcional."
+                description: "Primera linea del archivo, solo si el usuario pide consultar un rango de la fuente. Omitir para leer el archivo completo."
             },
             endLine: {
                 type: "integer",
-                description: "Ultima linea opcional."
+                description: "Ultima linea del archivo, solo para un rango de la fuente solicitado explicitamente. Un resumen o respuesta de N lineas NO limita la lectura: omitir este argumento en ese caso."
             },
             maxBytes: {
                 type: "integer",
