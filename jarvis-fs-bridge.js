@@ -1725,7 +1725,7 @@ export function createSelfHostedSemanticEngine({
             }
             const plannerTimeoutMs = deadlineAt - Date.now();
             if (plannerTimeoutMs <= 0) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
-            onProgress(missionState?.conversationalGate ? "conversation_gate" : "inference");
+            onProgress(missionState?.conversationalGate ? "conversation_gate" : missionState?.phase === "MISSION_CONTRACT" ? "mission_contract" : "inference");
             const deadlineSignal = AbortSignal.timeout(Math.max(1, plannerTimeoutMs));
             const planSignal = signal ? AbortSignal.any([signal, deadlineSignal]) : deadlineSignal;
             const result = await runJarvisSemanticPlanner({

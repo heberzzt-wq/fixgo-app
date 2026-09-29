@@ -763,8 +763,8 @@ async function runModelSemanticPlanner({
     if (!ai?.models?.generateContent) throw new Error("SEMANTIC_GEMINI_REQUIRED");
     const instruction = String(input || "").trim();
     const normalizedCatalog = normalizeCatalog(catalog);
-    // Identical prefix in both CURRENT_TURN calls lets Ollama reuse the full
-    // input KV cache. Only the final phase instructions differ. No text is dropped.
+    // Identical full-input prefix across gate, initial plan and mission contract
+    // lets Ollama reuse its KV cache. Only the final phase instructions differ.
     const currentTurnMessages = [
         { role: "system", content: "Eres Jarvis, la unica autoridad semantica local. La primera entrada es la instruccion original completa; la ultima indica la fase a resolver. Conserva todos los objetivos y restricciones. Devuelve JSON, no inventes evidencia ni concedas permisos." },
         { role: "user", content: instruction }
@@ -827,33 +827,39 @@ async function runModelSemanticPlanner({
             const compactContractResponse =
                 await ai.models.generateContent({
                     model,
-                    contents: [
-                        "Eres Jarvis, la unica autoridad semantica local.",
-                        "Construye un contrato de mision completo usando solamente el catalogo candidato.",
-                        `CATALOGO_CANDIDATO=${JSON.stringify(contractCatalog.map(tool => ({
-                            name: tool.name,
-                            description: tool.description,
-                            inputSchema: tool.inputSchema,
-                            mutates: tool.mutates,
-                            userArtifact: tool.userArtifact
-                        })))}`,
-                        `HERRAMIENTAS_INICIALES=${initialToolNames.join(",")}`,
-                        `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
-                        [
-                            "Devuelve exclusivamente JSON valido.",
-                            "Incluye toolCalls con nombres exactos del catalogo y argumentos fundamentados.",
-                            "Cubre todos los objetivos explicitos de la instruccion.",
-                            "No inventes rutas, archivos, evidencia ni resultados.",
-                            "Usa missionComplete=false."
-                        ].join("\n")
-                    ].join("\n\n"),
+                    contents: instruction,
                     config: {
+                        chatMessages: [
+                            ...currentTurnMessages,
+                            { role: "user", content: JSON.stringify({
+                                phase: "MISSION_CONTRACT",
+                                task: "Construye el contrato completo para todos los objetivos de la instruccion original usando solo herramientas del catalogo. Las herramientas iniciales son contexto, no permisos. Respeta las prohibiciones de mutar, publicar y gastar. Devuelve toolCalls con nombres reales y argumentos fundamentados; no inventes rutas ni resultados. missionComplete=false. Si no hay inputSchema, args={}. No repitas una misma llamada con los mismos argumentos.",
+                                initialTools: initialToolNames,
+                                catalog: contractCatalog.map(tool => ({ name: tool.name, description: String(tool.description || "").slice(0, 220), inputSchema: compactPlannerInputSchema(tool.inputSchema), mutates: tool.mutates, userArtifact: tool.userArtifact }))
+                            }) }
+                        ],
                         maxOutputTokens: 1200,
                         temperature: 0,
                         thinkingConfig: {
                             thinkingLevel: "MINIMAL"
                         },
-                        responseMimeType: "application/json"
+                        responseMimeType: "application/json",
+                        responseJsonSchema: {
+                            type: "object", required: ["toolCalls", "missionComplete"], additionalProperties: false,
+                            properties: {
+                                missionComplete: { type: "boolean", const: false },
+                                toolCalls: {
+                                    type: "array", minItems: 1, maxItems: 20,
+                                    items: { oneOf: contractCatalog.map(tool => ({
+                                        type: "object", required: ["name", "args"], additionalProperties: false,
+                                        properties: {
+                                            name: { type: "string", const: tool.name },
+                                            args: tool.inputSchema || { type: "object", properties: {}, additionalProperties: false }
+                                        }
+                                    })) }
+                                }
+                            }
+                        }
                     }
                 });
             const compactPayload =

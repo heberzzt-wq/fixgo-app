@@ -397,6 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener("jarvis:semantic-progress", event => {
             const { stage, elapsedMs = 0 } = event.detail || {};
             const label = stage === "retrieval" ? "Recuperando herramientas relevantes"
+                : stage === "mission_contract" ? "Organizando los objetivos de la misión"
                 : stage === "conversation_gate" ? "Interpretando la solicitud completa" : "Preparando el plan con Qwen local";
             activeTracker?.activate("core", `${label} · ${Math.floor(elapsedMs / 1000)} s`);
         });

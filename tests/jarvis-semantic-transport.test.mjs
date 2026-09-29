@@ -71,6 +71,25 @@ test("browser transport sends one streamed plan and preserves the final failure"
     assert.equal(calls, 2, "a possibly accepted semantic request must never be submitted twice");
 });
 
+test("long mission contract retains the shared full-input prefix and an adequate budget", async () => {
+    const missionState = { phase: "MISSION_CONTRACT", existingInitialTools: ["repo.audit"], writeAllowed: false };
+    assert.ok(semanticPlanBudgetMs({ input: instruction, missionState, timeoutMs: 90000 }) > 90000);
+    const contractCatalog = [...catalog, ...Array.from({ length: 9 }, (_, i) => ({ name: `repo.inspect${i}`, description: "Inspeccion read-only", mutates: false }))];
+    const engine = createSelfHostedSemanticEngine({ fetchImpl: async (_url, options) => {
+        const body = JSON.parse(options.body);
+        assert.equal(body.messages[1].content, instruction);
+        assert.equal(body.messages[0].role, "system");
+        assert.ok(body.format.properties.toolCalls);
+        const task = JSON.parse(body.messages.at(-1).content);
+        assert.equal(task.phase, "MISSION_CONTRACT");
+        assert.ok(task.catalog.some(tool => tool.name === "repo.audit"));
+        return { ok: true, text: async () => JSON.stringify({ message: { content: JSON.stringify(result) } }) };
+    }});
+    const plan = await engine.plan({ input: instruction, catalog: contractCatalog, missionState });
+    assert.equal(plan.ok, true);
+    assert.equal(plan.missionComplete, false);
+});
+
 test("planner retries share one deadline and abort the active local request", async () => {
     let calls = 0;
     let aborted = false;

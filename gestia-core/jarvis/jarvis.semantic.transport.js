@@ -4,7 +4,7 @@ export const SEMANTIC_IDLE_TIMEOUT_MS = 20000;
 
 export function semanticPlanBudgetMs({ input = "", missionState, timeoutMs = 60000 } = {}) {
     const requested = Math.max(1, Number(timeoutMs) || 60000);
-    if (missionState?.phase !== "CURRENT_TURN") return Math.min(requested, SEMANTIC_MAX_BUDGET_MS);
+    if (!["CURRENT_TURN", "MISSION_CONTRACT", "COMPLETION_AUDIT", "GROUNDED_ARGUMENT_COMPLETION"].includes(missionState?.phase)) return Math.min(requested, SEMANTIC_MAX_BUDGET_MS);
     // Local CPU baseline: ~14 prompt tokens/s. Account for the full input,
     // retrieval, prompt overhead and bounded output; never shorten the input.
     const inputBytes = new TextEncoder().encode(String(input)).length;
@@ -44,9 +44,13 @@ export async function readSemanticStream(response, { onProgress = () => {}, onAc
     }
 }
 
+export function isSemanticTimeout(error = "") {
+    return /TIMEOUT|TIMED_OUT|DEADLINE/i.test(String(error?.message || error));
+}
+
 export function semanticFailurePresentation(error = "") {
     const value = String(error);
-    if (/TIMEOUT|TIMED_OUT|DEADLINE/i.test(value)) return {
+    if (isSemanticTimeout(value)) return {
         title: "El análisis agotó su tiempo",
         detail: "La planificación no terminó dentro del tiempo disponible. Este error no demuestra que Jarvis esté desconectado."
     };

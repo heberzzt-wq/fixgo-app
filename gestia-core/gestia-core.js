@@ -4701,7 +4701,7 @@ if (
         }
         catch(error) {
             lastMissionContractError = error;
-            if (missionContractAttempt >= 3) break;
+            if (missionContractAttempt >= 3 || isSemanticTimeout(error)) break;
             const retryDelayMs = missionContractAttempt === 1 ? 500 : 1500;
             console.warn(
                 "[MISSION_CONTRACT_SEMANTIC_PLANNER_TRANSIENT_RETRY]",
@@ -7631,3 +7631,4 @@ if (false) (function initJarvisCodexV2CoreStatus() {
     };
   };
 })();
+import { isSemanticTimeout } from "./jarvis/jarvis.semantic.transport.js";
