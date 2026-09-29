@@ -90,6 +90,15 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     assert.match(pkg.scripts.bridge, /workerLastPollError/);
     assert.match(pkg.scripts.bridge, /loadedHead:localHead/);
     assert.match(pkg.scripts.bridge, /existing\.loadedHead===localHead/);
+    assert.ok(
+        pkg.scripts.bridge.indexOf(
+            "bridge.markJarvisWorkstationRuntime({bridgeStarted:true,workerStarted:true,workerPollMs:5000,loadedHead:localHead})"
+        ) <
+        pkg.scripts.bridge.indexOf(
+            "server=bridge.startJarvisUploadBridge()"
+        ),
+        "bridge runtime identity must be marked current before port 3344 becomes visible"
+    );
     assert.match(pkg.scripts.bridge, /JARVIS_GIT_SYNC_DEGRADED/);
     assert.match(pkg.scripts.bridge, /JARVIS_GIT_SYNC_REBASE_STATE_ACTIVE/);
     assert.match(pkg.scripts.bridge, /rebase-merge/);
