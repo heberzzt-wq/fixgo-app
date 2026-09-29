@@ -13,7 +13,7 @@ const bootstrap = fs.readFileSync(
 );
 
 const PRODUCTION_ORIGIN = "https://fixgo-44e4d.web.app";
-const PRODUCTION_BOOTSTRAP_VERSION = "1.14.0-semantic-progress-deadline";
+const PRODUCTION_BOOTSTRAP_VERSION = "1.15.0-semantic-absolute-deadline";
 
 test("historical NEXO bootstrap is Jarvis-only and installs no alternate semantic authority", () => {
     assert.match(bootstrap, /installJarvisRealMediaTools/);

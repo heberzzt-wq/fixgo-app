@@ -1075,11 +1075,17 @@ export async function composeEvidenceGroundedConversation({
         "La falta de un dato factual no bloquea entregables independientes que si tienen evidencia suficiente. Despues de agotar la investigacion disponible, enumera solamente los datos realmente faltantes que impiden una parte solicitada y pregunta al usuario si puede proporcionarlos o si prefiere continuar sin ellos; conserva todo lo ya verificado.",
         precisionGroundingInstruction,
         creativeAcceptanceInstruction,
-        missionOutcomeInstruction,
         `SOLICITUD_USUARIO=${String(instruction || "").slice(0, 12000)}`,
         `RESUMEN_CAPACIDADES_Y_LIMITES=${capabilityBriefing}`,
         `RESULTADOS_HERRAMIENTAS_AUTORITATIVOS=${JSON.stringify(authoritativeOutcomes)}`,
-        `EVIDENCIA_ESTRUCTURADA=${evidence}`
+        `EVIDENCIA_ESTRUCTURADA=${evidence}`,
+        // Keep the observed outcome after the requested success format and the
+        // evidence, so a long request cannot become the completion instruction.
+        missionOutcomeInstruction,
+        missionOutcomeInstruction
+            ? "La auditoria NO termino. Redacta ahora una respuesta de hasta 100 palabras: estado parcial o fallido, evidencia obtenida y limite real. Si incluyes Estado general, conserva el estado canonico; nunca PASS. No completes el formato de exito solicitado ni afirmes que terminaste todo."
+            : "Redacta ahora la respuesta final usando solamente los resultados verificados.",
+        "Entrega solo texto natural para el usuario. No copies la solicitud, las etiquetas internas ni sus objetos JSON."
     ].filter(Boolean).join("\n\n");
 
     try {
@@ -1100,15 +1106,27 @@ export async function composeEvidenceGroundedConversation({
         ).trim();
         const rawJson =
             text.startsWith("{") ||
-            text.startsWith("[");
+            text.startsWith("[") ||
+            ["RESUMEN_CAPACIDADES_Y_LIMITES", "RESULTADOS_HERRAMIENTAS_AUTORITATIVOS", "EVIDENCIA_ESTRUCTURADA"]
+                .some(label => text.includes(label));
+        // Validate the receipt's explicit overall status, without interpreting
+        // intent, selecting tools, or rejecting PASS for an individual test.
+        const overallStatusLine = text.split("\n")
+            .map(line => line.replaceAll("*", "").trim().toUpperCase())
+            .find(line => line.startsWith("ESTADO GENERAL:"));
+        const overallStatus = overallStatusLine?.slice("ESTADO GENERAL:".length).trim();
+        const conflictingOutcome = Boolean(missionOutcomeInstruction) &&
+            ["PASS", "COMPLETED"].includes(overallStatus);
 
-        if (result?.ok === false || payload?.ok === false || !text || rawJson) {
+        if (result?.ok === false || payload?.ok === false || !text || rawJson || conflictingOutcome) {
             return {
                 ok: false,
                 status:
                     rawJson
                         ? "RAW_TOOL_PAYLOAD_REJECTED"
-                        : payload?.status ||
+                        : conflictingOutcome
+                            ? "MISSION_OUTCOME_CONTRADICTION"
+                            : payload?.status ||
                             result?.status ||
                             payload?.error ||
                             result?.error ||

@@ -82,6 +82,7 @@ on:
       - 'jarvis-semantic-http.js'
       - 'modules/terminal/nexo-bootstrap.js'
       - 'tests/jarvis-semantic-transport.test.mjs'
+      - 'tests/jarvis-conversation-composer.test.mjs'
       - 'tests/jarvis-source-grounded-research-v124.test.mjs'
       - 'tests/jarvis-mission-orchestrator.test.mjs'
       - 'tests/jarvis-video-reference-mission-continuity-v142.test.mjs'
@@ -268,6 +269,7 @@ jobs:
             tests/jarvis-semantic-planner.test.cjs \
             tests/jarvis-vector-shortlist.test.mjs \
             tests/jarvis-semantic-transport.test.mjs \
+            tests/jarvis-conversation-composer.test.mjs \
             tests/jarvis-upload-bridge.test.mjs \
             tests/jarvis-fs-bridge-v2.test.mjs \
             tests/jarvis-repo-intelligence.test.mjs \
@@ -397,7 +399,7 @@ jobs:
         run: node --test --test-concurrency=1 tests/jarvis-upload-bridge.test.mjs
       - name: Windows local vector retrieval and semantic authority
         shell: pwsh
-        run: node --test --test-concurrency=1 tests/jarvis-vector-shortlist.test.mjs tests/jarvis-semantic-transport.test.mjs tests/jarvis-semantic-planner.test.cjs tests/single-semantic-authority.test.mjs
+        run: node --test --test-concurrency=1 tests/jarvis-vector-shortlist.test.mjs tests/jarvis-semantic-transport.test.mjs tests/jarvis-conversation-composer.test.mjs tests/jarvis-semantic-planner.test.cjs tests/single-semantic-authority.test.mjs
       - name: Windows focal - multifunction tools
         shell: pwsh
         run: node --test --test-concurrency=1 tests/jarvis-multifunction-tools.test.mjs
