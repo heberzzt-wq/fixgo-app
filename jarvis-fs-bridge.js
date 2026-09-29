@@ -1118,6 +1118,7 @@ export function createSelfHostedSemanticEngine({
                                 warmKeepAlive ||
                                 "30m",
                             options: {
+                                num_ctx: 8192,
                                 num_predict: 1,
                                 temperature: 0
                             }
@@ -1410,9 +1411,9 @@ export function createSelfHostedSemanticEngine({
                                 ) || 0,
                             num_predict:
                                 maxOutputTokens,
-                            ...(request?.config?.nativeTextChat === true
-                                ? { num_ctx: 8192 }
-                                : {})
+                            // Keep one loaded context across planning and conversation.
+                            // Changing 4096/8192 makes Ollama reload the same model.
+                            num_ctx: 8192
                         }
                     }
                     : {
@@ -1484,6 +1485,9 @@ export function createSelfHostedSemanticEngine({
             if (!text.trim() && functionCalls.length === 0) {
                 throw new Error("LOCAL_SEMANTIC_RESPONSE_EMPTY");
             }
+            // Successful inference renewed keep_alive; an old warm-up timestamp
+            // must not insert another generation between classification and reply.
+            lastModelWarmAt = Date.now();
             return {
                 text,
                 functionCalls,

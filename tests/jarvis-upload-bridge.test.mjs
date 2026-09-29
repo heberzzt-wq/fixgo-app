@@ -311,6 +311,7 @@ test("workstation warmup loads only the local Qwen model and pins keep-alive", a
         observedBody.options.num_predict,
         1
     );
+    assert.equal(observedBody.options.num_ctx, 8192, "startup must load the same context used by conversations");
     assert.equal(
         result.ok,
         true

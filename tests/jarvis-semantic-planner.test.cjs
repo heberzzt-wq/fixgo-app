@@ -98,7 +98,7 @@ test("current-turn conversational gate classifies then responds with the same lo
                 if (calls === 1) {
                     return {
                         text: JSON.stringify({
-                            direct: true
+                            mode: "chat"
                         })
                     };
                 }
@@ -136,9 +136,9 @@ test("current-turn conversational gate classifies then responds with the same lo
         gateRequest?.config?.modelProfile,
         "conversation"
     );
-    assert.deepEqual(gateRequest.config.chatMessages.map(item => item.role), ["system", "user"]);
-    assert.equal(gateRequest.config.chatMessages[1].content, "Qué tal pariente, ¿cómo estás?");
-    assert.match(gateRequest.config.chatMessages[0].content, /direct.*false/);
+    assert.deepEqual(gateRequest.config.chatMessages.map(item => item.role), ["system", "user", "assistant", "user", "assistant", "user"]);
+    assert.equal(gateRequest.config.chatMessages.at(-1).content, "Qué tal pariente, ¿cómo estás?");
+    assert.match(gateRequest.config.chatMessages[0].content, /new tool evidence/);
     assert.equal(
         responseRequest?.config?.modelProfile,
         "conversation"
@@ -176,7 +176,7 @@ test("current-turn conversational gate delegates operational work without invent
                 calls += 1;
                 return {
                     text: JSON.stringify({
-                        direct: false,
+                        mode: "tools",
                         message: ""
                     })
                 };
@@ -215,8 +215,8 @@ test("current-turn gate classifies the original read request, not its own phase 
         ai: { models: { async generateContent(request) {
             assert.equal(request.config.chatMessages.at(-1).role, "user");
             assert.equal(request.config.chatMessages.at(-1).content, input);
-            assert.match(request.config.chatMessages[0].content, /Clasifica/);
-            return { text: '{"direct":false}', providerResponse: { finishReason: "stop" } };
+            assert.match(request.config.chatMessages[0].content, /Classify/);
+            return { text: '{"mode":"tools"}', providerResponse: { finishReason: "stop" } };
         } } }
     });
     assert.deepEqual(result.toolCalls, []);
@@ -231,7 +231,7 @@ test("a truncated gate cannot authorize a direct answer even with parseable JSON
         missionState: { phase: "CURRENT_TURN", conversationalGate: true },
         ai: { models: { async generateContent() {
             calls += 1;
-            return { text: '{"direct":true}', providerResponse: { finishReason: "length" } };
+            return { text: '{"mode":"chat"}', providerResponse: { finishReason: "length" } };
         } } }
     });
     assert.equal(calls, 1);
@@ -247,7 +247,7 @@ test("a truncated direct response cannot become a completed conversation tool ca
         ai: { models: { async generateContent() {
             calls += 1;
             return calls === 1
-                ? { text: '{"direct":true}', providerResponse: { finishReason: "stop" } }
+                ? { text: '{"mode":"chat"}', providerResponse: { finishReason: "stop" } }
                 : { text: "Aquí estamos y podemos seguir plati", providerResponse: { finishReason: "length" } };
         } } }
     }), /SEMANTIC_RESPONSE_INCOMPLETE/);

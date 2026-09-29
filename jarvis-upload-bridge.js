@@ -1327,6 +1327,7 @@ export async function warmJarvisLocalModel({
                                 "30m"
                             ),
                         options: {
+                            num_ctx: 8192,
                             num_predict:
                                 1,
                             temperature:

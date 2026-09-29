@@ -854,7 +854,7 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
             const requestBody = JSON.parse(options.body);
             requestBodies.push(requestBody);
             const content = requestBodies.length === 1
-                ? JSON.stringify({ direct: true })
+                ? JSON.stringify({ mode: "chat" })
                 : "Jajaja, ya entendí: se te antojó a ti.";
             return {
                 ok: true,
@@ -906,11 +906,15 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
         gateRequest.messages.map(message => message.role),
         [
             "system",
+            "user",
+            "assistant",
+            "user",
+            "assistant",
             "user"
         ]
     );
     assert.equal(
-        gateRequest.messages[1].content,
+        gateRequest.messages.at(-1).content,
         "No, digo que se me antojó a mí."
     );
     assert.equal(

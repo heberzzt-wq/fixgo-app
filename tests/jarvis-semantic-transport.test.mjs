@@ -14,6 +14,26 @@ const describe = () => ({ ok: true, fallbackAllowed: false });
 const result = { ok: true, toolCalls: [{ name: "repo.audit", args: {}, approved: false }], missionComplete: false };
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+test("a greeting after a final response retains the loaded context size across classification and reply", async () => {
+    const requests = [];
+    const engine = createSelfHostedSemanticEngine({ fetchImpl: async (url, options) => {
+        const body = JSON.parse(options.body);
+        requests.push({ url, body });
+        const content = requests.length === 1 ? "La lectura termino."
+            : requests.length === 2 ? JSON.stringify({ mode: "chat" }) : "Hola, buenas tardes, pariente.";
+        return { ok: true, text: async () => JSON.stringify({ message: { content }, done_reason: "stop" }) };
+    } });
+    await engine.respond({ input: "Resume la lectura verificada." });
+    const result = await engine.plan({ input: "hola buenas tardes",
+        catalog: [{ name: "conversation.respond", mutates: false }],
+        missionState: { phase: "CURRENT_TURN", conversationalGate: true }, timeoutMs: 60000 });
+    assert.equal(requests.length, 3);
+    assert.deepEqual(requests.map(x => x.body.options.num_ctx), [8192, 8192, 8192], "switching context forces Ollama to reload the same model");
+    assert.ok(requests.every(x => x.url.endsWith("/api/chat")));
+    assert.equal(result.toolCalls[0].args.prompt, "Hola, buenas tardes, pariente.");
+    assert.equal(result.inferenceReceipt.counters.localEmbeddingCalls, 0);
+});
+
 test("local inference transport waits for headers and preserves the complete response", async t => {
     const { createServer } = await import("node:http");
     let received;
@@ -128,15 +148,15 @@ test("long CURRENT_TURN keeps every constraint in the gate and operative prompt"
         const engine = createSelfHostedSemanticEngine({ fetchImpl: async (_url, options) => {
             const body = JSON.parse(options.body);
             assert.ok(body.messages.some(message => message.content.includes(instruction)), "the complete instruction must reach Qwen");
-            prefixes.push(body.messages.slice(0, 2));
-            return { ok: true, text: async () => JSON.stringify({ message: { content: conversationalGate ? '{"direct":false}' : JSON.stringify(result) } }) };
+            prefixes.push([body.messages[0], body.messages.at(-1)]);
+            return { ok: true, text: async () => JSON.stringify({ message: { content: conversationalGate ? '{"mode":"tools"}' : JSON.stringify(result) } }) };
         }});
         const plan = await engine.plan({ input: instruction, catalog: conversationalGate ? [{ name: "conversation.respond" }] : catalog, missionState: { ...phase, conversationalGate } });
         assert.equal(plan.ok, true);
         assert.equal(plan.missionComplete, false);
     }
     assert.equal(prefixes[0][1].content, prefixes[1][1].content, "both phases preserve the complete original request");
-    assert.match(prefixes[0][0].content, /Clasifica/);
+    assert.match(prefixes[0][0].content, /Classify/);
 });
 
 test("CURRENT_TURN never replays an exhausted local deadline or truncated answer", async () => {

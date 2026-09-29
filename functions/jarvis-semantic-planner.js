@@ -1281,14 +1281,14 @@ async function runModelSemanticPlanner({
                             ""
                         )
                             .trim()
-                            .slice(0, 1200)
+                            .slice(0, 600)
                 }));
 
         const recentConversationTurns = [];
         const seenRecentTurns = new Set();
         for (
             let index = rawRecentConversationTurns.length - 1;
-            index >= 0 && recentConversationTurns.length < 6;
+            index >= 0 && recentConversationTurns.length < 2;
             index -= 1
         ) {
             const turn =
@@ -1301,12 +1301,16 @@ async function runModelSemanticPlanner({
         }
 
         const gateSystemInstruction = [
-            "Clasifica el mensaje actual; no lo respondas ni inventes resultados durante esta fase.",
-            "Devuelve exclusivamente JSON valido.",
-            "Usa {\"direct\":true} solo cuando la respuesta pueda producirse fielmente sin consultar ni cambiar nada fuera del chat.",
-            "Usa {\"direct\":false} cuando el usuario pida inspeccionar, buscar, revisar, localizar o verificar informacion en archivos, repositorios, web, servicios, memoria operativa o estado externo; tambien cuando pida ejecutar, crear, modificar o publicar.",
-            "Aunque creas conocer la respuesta de una tarea operativa, no la contestes desde conocimiento previo: direct debe ser false para que Jarvis obtenga evidencia real."
-        ].join("\n");
+            'Classify only the current user request. Return {"mode":"tools"} for requests to read, inspect, search, verify, create or change files, repositories, websites, services or any external state.',
+            'This requires new tool evidence even if earlier messages claimed success. Return {"mode":"chat"} only for social conversation or explanations answerable without external evidence.',
+            'Do not answer the request.'
+        ].join(" ");
+        const gateExamples = [
+            { role: "user", content: "Lee package.json sin modificarlo y dime su contenido." },
+            { role: "assistant", content: '{"mode":"tools"}' },
+            { role: "user", content: "Buenas noches, amigo." },
+            { role: "assistant", content: '{"mode":"chat"}' }
+        ];
 
         const gateResponse = await ai.models.generateContent({
             model,
@@ -1317,6 +1321,7 @@ async function runModelSemanticPlanner({
                     "conversation",
                 chatMessages: [
                     { role: "system", content: gateSystemInstruction },
+                    ...gateExamples,
                     { role: "user", content: instruction }
                 ],
                 maxOutputTokens: 16,
@@ -1324,7 +1329,13 @@ async function runModelSemanticPlanner({
                 thinkingConfig: {
                     thinkingLevel: "MINIMAL"
                 },
-                responseMimeType: "application/json"
+                responseMimeType: "application/json",
+                responseJsonSchema: {
+                    type: "object",
+                    properties: { mode: { type: "string", enum: ["chat", "tools"] } },
+                    required: ["mode"],
+                    additionalProperties: false
+                }
             }
         });
         const gatePayload =
@@ -1335,26 +1346,15 @@ async function runModelSemanticPlanner({
                 )
             ) || {};
         const direct =
-            gatePayload?.direct === true &&
+            gatePayload?.mode === "chat" &&
             gateResponse?.providerResponse?.finishReason !== "length";
 
         let directMessage = "";
         if (direct) {
             const responseSystemInstruction = [
-                "Eres Jarvis y conversas en espanol mexicano natural.",
-                "Responde en una sola frase al comentario actual.",
-                "Sigue el tono y el tema del usuario; un saludo casual se responde como saludo casual, sin convertirlo en una pregunta generica de soporte.",
-                "No ofrezcas ayuda, no prometas acciones fisicas, no preguntes que puede hacer Jarvis y no digas que no puedes ayudar.",
-                "Conserva correctamente quien es el sujeto; los gustos, antojos y deseos del usuario pertenecen al usuario, no a Jarvis."
+                "Eres Jarvis. Responde en una frase breve, en espanol mexicano natural, siguiendo el tema y tono actuales.",
+                "No ofrezcas ayuda generica ni prometas acciones fisicas. Conserva quien dijo, desea o siente cada cosa."
             ].join("\n");
-            const responseExamples = [
-                { role: "user", content: "Que onda pariente" },
-                { role: "assistant", content: "Que onda pariente, aqui andamos. 😄" },
-                { role: "user", content: "Se me antojo algo frio." },
-                { role: "assistant", content: "Jajaja si se antoja algo bien frio con este calor. 😂" },
-                { role: "user", content: "Jajaja no, a mi se me antojo, no a ti." },
-                { role: "assistant", content: "Jajaja si pariente, a ti se te antojo, no a mi. 😂" }
-            ];
             const responseResult = await ai.models.generateContent({
                 model,
                 contents: [
@@ -1371,7 +1371,6 @@ async function runModelSemanticPlanner({
                             content:
                                 responseSystemInstruction
                         },
-                        ...responseExamples,
                         ...recentConversationTurns,
                         {
                             role: "user",
@@ -1380,6 +1379,7 @@ async function runModelSemanticPlanner({
                         }
                     ],
                     maxOutputTokens: 160,
+                    nativeTextChat: true,
                     temperature: 0.2,
                     thinkingConfig: {
                         thinkingLevel: "MINIMAL"
