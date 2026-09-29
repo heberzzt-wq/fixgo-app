@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import express from "express";
-import { semanticPlanHandler, fetchLocalSemanticResponse } from "../jarvis-semantic-http.js";
+import fs from "node:fs";
+import { runInNewContext } from "node:vm";
+import { semanticPlanHandler, semanticResponseHandler, fetchLocalSemanticResponse } from "../jarvis-semantic-http.js";
 import { createSelfHostedSemanticEngine } from "../jarvis-fs-bridge.js";
 import { readSemanticStream, semanticPlanBudgetMs, semanticFailurePresentation } from "../gestia-core/jarvis/jarvis.semantic.transport.js";
 
@@ -108,14 +110,14 @@ test("default semantic engine uses the real local HTTP transport with the unchan
     assert.equal(engine.describe().counters.semanticExternalCalls, 0);
 });
 
-async function server(t, engine) {
+async function server(t, engine, operation = "plan") {
     const app = express();
     app.use(express.json());
-    app.post("/semantic/plan", semanticPlanHandler(engine, { heartbeatMs: 10 }));
+    app.post(`/semantic/${operation}`, (operation === "respond" ? semanticResponseHandler : semanticPlanHandler)(engine, { heartbeatMs: 10 }));
     const server = app.listen(0, "127.0.0.1");
     await new Promise(resolve => server.once("listening", resolve));
     t.after(() => { server.closeAllConnections(); server.close(); });
-    return (body, signal) => fetch(`http://127.0.0.1:${server.address().port}/semantic/plan`, {
+    return (body, signal) => fetch(`http://127.0.0.1:${server.address().port}/semantic/${operation}`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal
     });
 }
@@ -165,6 +167,12 @@ test("browser transport sends one streamed plan and preserves the final failure"
     failNetwork = true;
     await assert.rejects(bridge.requestJson("/semantic/plan", body), /Failed to fetch/);
     assert.equal(calls, 2, "a possibly accepted semantic request must never be submitted twice");
+    failNetwork = false;
+    assert.equal((await bridge.requestJson("/semantic/respond", { input: instruction, timeoutMs: 180000 })).ok, false);
+    assert.equal(calls, 3);
+    failNetwork = true;
+    await assert.rejects(bridge.requestJson("/semantic/respond", { input: instruction }), /Failed to fetch/);
+    assert.equal(calls, 4, "final composition also has exactly one attempt");
 });
 
 test("long mission contract retains the shared full-input prefix and an adequate budget", async () => {
@@ -251,4 +259,134 @@ test("budgets are bounded and semantic timeouts never claim an offline bridge", 
     }
     assert.match(semanticFailurePresentation("Failed to fetch").title, /contactar/);
     assert.match(semanticFailurePresentation("LOCAL_TOOL_EMBEDDING_CACHE_WARMING").title, /análisis/);
+});
+
+test("final response receives an input-aware budget rather than the old three-minute cap", () => {
+    const budget = semanticPlanBudgetMs({ input: instruction, maxOutputTokens: 256,
+        timeoutMs: 180000, missionState: { phase: "FINAL_RESPONSE" } });
+    assert.ok(budget > 180000);
+    assert.ok(budget <= 600000);
+});
+
+test("final response cancellation reaches Ollama and never starts a replacement inference", async () => {
+    let calls = 0;
+    let abortReason;
+    const controller = new AbortController();
+    const engine = createSelfHostedSemanticEngine({ fetchImpl: async (_url, options) => {
+        calls++;
+        await new Promise((_resolve, reject) => {
+            options.signal.addEventListener("abort", () => { abortReason = options.signal.reason; reject(abortReason); }, { once: true });
+            controller.abort(new Error("CALLER_CANCELLED"));
+        });
+    } });
+    await assert.rejects(engine.respond({ input: "Resume la evidencia", signal: controller.signal, timeoutMs: 60 }), /CANCELLED|abort|TIMEOUT/i);
+    assert.equal(calls, 1);
+    assert.equal(abortReason?.message, "CALLER_CANCELLED");
+});
+
+test("final composition preserves the entire prompt and reserves context for its bounded answer", async () => {
+    const prompt = instruction + "\nEVIDENCIA_FINAL=solo repo.search completado; diagnostico bloqueado.";
+    let calls = 0;
+    const engine = createSelfHostedSemanticEngine({ fetchImpl: async (url, options) => {
+        calls++;
+        const body = JSON.parse(options.body);
+        assert.match(url, /\/api\/chat$/);
+        assert.equal(body.options.num_predict, 256);
+        assert.equal(body.options.num_ctx, 8192);
+        assert.equal(body.messages.at(-1).content, prompt);
+        assert.equal(body.format, undefined, "a natural response must not be forced into JSON");
+        return { ok: true, text: async () => JSON.stringify({ message: { content: "La misión quedó parcial: búsqueda completada y diagnóstico bloqueado." } }) };
+    } });
+    assert.equal((await engine.respond({ input: prompt, maxOutputTokens: 256 })).ok, true);
+    assert.equal(calls, 1);
+});
+
+test("final response streams until completion, keeps JSON compatibility and cancels disconnected work", async t => {
+    let calls = 0;
+    const reply = { ok: true, message: "Evidencia parcial; la misión no se completó." };
+    const post = await server(t, { describe, respond: async body => {
+        calls++;
+        assert.equal(body.input, instruction);
+        await wait(65);
+        return reply;
+    } }, "respond");
+    const frames = [];
+    const result = await readSemanticStream(await post({ input: instruction, streamProgress: true, timeoutMs: 180000 }), { onProgress: frame => frames.push(frame) });
+    assert.equal(result.message, reply.message);
+    assert.ok(frames.length >= 3);
+    assert.ok(frames.every(frame => frame.stage === "final_response" && !Object.hasOwn(frame, "ok")));
+    assert.ok(frames[0].budgetMs > 180000);
+    assert.equal((await (await post({ input: instruction })).json()).message, reply.message);
+    assert.equal(calls, 2);
+    let cancelled;
+    const cancelledPromise = new Promise(resolve => { cancelled = resolve; });
+    const cancelPost = await server(t, { describe, respond: body => new Promise((_resolve, reject) => {
+        body.signal.addEventListener("abort", () => { cancelled(); reject(new Error("ABORTED")); }, { once: true });
+    }) }, "respond");
+    const controller = new AbortController();
+    const response = await cancelPost({ streamProgress: true }, controller.signal);
+    controller.abort();
+    await cancelledPromise;
+    await response.body.cancel().catch(() => {});
+    const failedPost = await server(t, { describe, respond: async () => { throw new Error("COMPOSITION_FAILED"); } }, "respond");
+    assert.equal((await readSemanticStream(await failedPost({ streamProgress: true }))).ok, false);
+});
+
+test("repo diagnosis preserves authoritative read failures and the exact target", async () => {
+    const source = fs.readFileSync(new URL("../gestia-core/tools.runtime.js", import.meta.url), "utf8");
+    const nameAt = source.indexOf('name: "repo.diagnose"');
+    const start = source.lastIndexOf("JarvisToolRuntime.register({", nameAt);
+    const end = source.indexOf("JarvisToolRuntime.register({", nameAt);
+    for (const status of ["FILE_NOT_FOUND", "FILE_TOO_LARGE"]) {
+        let tool;
+        const target = "gestia-core/nonexistent.js";
+        runInNewContext(source.slice(start, end), {
+            JarvisToolRuntime: { register(value) { tool = value; } },
+            parseRepositoryTarget: () => null,
+            window: { JarvisLocalBridge: { readFile: async () => ({ ok: false, status, error: status, file: target, source: "real_bridge" }) } },
+            console: { warn() {} }
+        });
+        const result = await tool.execute({ file: target });
+        assert.equal(result.ok, false);
+        assert.equal(result.status, status);
+        assert.equal(result.file, target);
+        assert.equal(result.source, "real_bridge");
+    }
+});
+
+test("terminal progress honors partial mission and failed composition inside a successful envelope", () => {
+    const html = fs.readFileSync(new URL("../gestia-terminal.html", import.meta.url), "utf8");
+    const start = html.indexOf("window.JarvisWorkTrace = (() => {");
+    const source = html.slice(start, html.indexOf("})();", start) + 5);
+    const element = () => {
+        const selectors = new Map();
+        return { dataset: {}, children: [], textContent: "", innerHTML: "",
+            appendChild(child) { this.children.push(child); },
+            querySelector(selector) { if (!selectors.has(selector)) selectors.set(selector, element()); return selectors.get(selector); }
+        };
+    };
+    for (const failed of [true, false]) {
+        const window = { addEventListener() {} };
+        runInNewContext(source, { window, document: { createElement: element }, output: element(), requestAnimationFrame: cb => cb() });
+        const tracker = window.JarvisWorkTrace.start();
+        tracker.resolveOutcome?.({ status: "success", result: {
+            mission: { status: failed ? "PARTIAL" : "COMPLETED", completedTasks: [{ name: "repo.search" }] },
+            finalResponse: { ok: !failed, source: failed ? "CONVERSATIONAL_COMPOSITION_FAILED" : "EVIDENCE_GROUNDED_CONVERSATION", text: "Resultado" }
+        } });
+        tracker.complete("core", "Ejecución principal completada");
+        tracker.complete("evidence", "Evidencia integrada");
+        tracker.complete("response", "Respuesta preparada");
+        tracker.finish("Trabajo completado");
+        const summary = tracker.wrapper.querySelector('[data-role="summary"]').textContent;
+        const rows = tracker.wrapper.querySelector('[data-role="steps"]').children;
+        if (failed) {
+            assert.notEqual(summary, "Trabajo completado");
+            assert.equal(rows.find(row => row.dataset.workStep === "core").dataset.state, "failed");
+            assert.equal(rows.find(row => row.dataset.workStep === "response").dataset.state, "failed");
+            assert.ok(rows.find(row => row.dataset.workStep === "evidence").innerHTML.includes("parcial"));
+        } else {
+            assert.equal(summary, "Trabajo completado");
+            assert.ok(rows.every(row => row.dataset.state === "completed"));
+        }
+    }
 });

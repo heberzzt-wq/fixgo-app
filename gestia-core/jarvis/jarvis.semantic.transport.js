@@ -4,7 +4,7 @@ export const SEMANTIC_IDLE_TIMEOUT_MS = 20000;
 
 export function semanticPlanBudgetMs({ input = "", missionState, timeoutMs = 60000 } = {}) {
     const requested = Math.max(1, Number(timeoutMs) || 60000);
-    if (!["CURRENT_TURN", "MISSION_CONTRACT", "COMPLETION_AUDIT", "GROUNDED_ARGUMENT_COMPLETION"].includes(missionState?.phase)) return Math.min(requested, SEMANTIC_MAX_BUDGET_MS);
+    if (!["CURRENT_TURN", "MISSION_CONTRACT", "COMPLETION_AUDIT", "GROUNDED_ARGUMENT_COMPLETION", "FINAL_RESPONSE"].includes(missionState?.phase)) return Math.min(requested, SEMANTIC_MAX_BUDGET_MS);
     // Local CPU baseline: ~14 prompt tokens/s. Account for the full input,
     // retrieval, prompt overhead and bounded output; never shorten the input.
     const inputBytes = new TextEncoder().encode(String(input)).length;

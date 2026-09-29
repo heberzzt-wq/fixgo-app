@@ -7581,6 +7581,22 @@ JarvisToolRuntime.register({
                     bridgeRead.source ||
                     "jarvis_local_bridge_read";
             }
+            else if (!content) {
+                // A live read failure is authoritative; an older index or hub
+                // snapshot must not replace it with stale file contents.
+                return {
+                    ...bridgeRead,
+                    ok: false,
+                    success: false,
+                    status: bridgeRead?.status || "CONTENT_UNAVAILABLE",
+                    error: bridgeRead?.error || "No fue posible leer el archivo para diagnosticar.",
+                    file: resolvedFile,
+                    requestedFile: normalizedFile,
+                    resolvedFile,
+                    source: bridgeRead?.source || "jarvis_local_bridge_read",
+                    tool: "repo.diagnose"
+                };
+            }
         }
 
         if (

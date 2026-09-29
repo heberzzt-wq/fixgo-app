@@ -55,7 +55,8 @@ test("supervisor tolerates a slow health response after startup and only recycle
     runInNewContext(source, {
         require(name) { return ({ http, net, fs: { existsSync: () => false, readFileSync: () => 'JARVIS_FS_BRIDGE_VERSION = "2.64.0-semantic-progress-deadline-v142";' }, child_process: children })[name]; },
         process: processStub, Date: { now: () => now }, console: { log() {}, warn() {}, error() {} },
-        setTimeout(callback, ms) { scheduled.push({ callback, ms }); }
+        setTimeout(callback, ms) { const timer = { callback, ms }; scheduled.push(timer); return timer; },
+        clearTimeout(timer) { const index = scheduled.indexOf(timer); if (index >= 0) scheduled.splice(index, 1); }
     });
     await new Promise(resolve => setImmediate(resolve));
     const next = async milliseconds => { now += milliseconds; const timer = scheduled.shift(); assert.ok(timer); await timer.callback(); };
@@ -77,6 +78,25 @@ test("supervisor tolerates a slow health response after startup and only recycle
     await next(1001);
     assert.equal(recycled.length, 1, "sustained unresponsiveness still recovers the owned child");
     assert.equal(launched.length, 1, "a health timeout never starts a duplicate bridge");
+    listening = false;
+    const recoveryTimer = scheduled.shift();
+    await Promise.all([recoveryTimer.callback(), recoveryTimer.callback()]);
+    assert.equal(launched.length, 2, "overlapping recovery callbacks must launch exactly one replacement");
+});
+
+test("bridge startup preserves dirty edits before any Git synchronization", () => {
+    const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+    const source = pkg.scripts.bridge.match(/^node -e "([\s\S]*)"$/)[1];
+    const commands = [];
+    assert.throws(() => runInNewContext(source, {
+        require(name) {
+            if (name === "child_process") return { spawnSync(_cmd, args) { commands.push(args); return { status: 0, stdout: " M jarvis-fs-bridge.js\n" }; } };
+            if (name === "fs") return { existsSync: () => false, readFileSync: () => 'JARVIS_FS_BRIDGE_VERSION = "2.64.0-semantic-progress-deadline-v142";' };
+            return {};
+        }, process: { platform: "win32" }
+    }), /DIRTY_BEFORE_BRIDGE_SYNC/);
+    assert.deepEqual(commands.map(args => Array.from(args)), [["status", "--porcelain"]]);
+    assert.doesNotMatch(pkg.scripts.bridge, /--autostash/);
 });
 const gitExecutable = process.platform === "win32" && fs.existsSync("C:/Program Files/Git/cmd/git.exe")
     ? "C:/Program Files/Git/cmd/git.exe" : "git";

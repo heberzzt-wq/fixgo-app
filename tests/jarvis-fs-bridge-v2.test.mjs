@@ -770,28 +770,20 @@ test("CURRENT_TURN uses local embeddings only to shortlist two tools before Qwen
     }
 });
 
-test("self-hosted semantic requests propagate the mission timeout into the Ollama transport", () => {
-    const source = fs.readFileSync(
-        new URL("../jarvis-fs-bridge.js", import.meta.url),
-        "utf8"
-    );
-
-    assert.match(
-        source,
-        /Number\(request\?\.config\?\.timeoutMs\)\s*\|\|\s*timeoutMs/
-    );
-    assert.match(
-        source,
-        /const aiWithTimeout\s*=/
-    );
-    assert.match(
-        source,
-        /timeoutMs:\s*effectiveTimeoutMs/
-    );
-    assert.match(
-        source,
-        /aiWithTimeout\(\s*effectiveTimeoutMs\s*\)/
-    );
+test("self-hosted semantic requests propagate the mission timeout into the Ollama transport", async () => {
+    let signal;
+    const engine = createSelfHostedSemanticEngine({ fetchImpl: async (_url, options) => {
+        signal = options.signal;
+        return new Promise((_resolve, reject) => {
+            const watchdog = setTimeout(() => reject(new Error("DEADLINE_NOT_PROPAGATED")), 5000);
+            signal.addEventListener("abort", () => {
+                clearTimeout(watchdog);
+                reject(signal.reason);
+            }, { once: true });
+        });
+    } });
+    await assert.rejects(engine.respond({ input: "Resume", timeoutMs: 30 }), /timeout|aborted/i);
+    assert.equal(signal.aborted, true);
 });
 
 test("self-hosted semantic backend feeds the canonical planner without paid API calls", async () => {
@@ -2921,7 +2913,7 @@ test("npm bridge syncs the checkout before importing long-lived bridge modules",
     const packageJson = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
     const bridgeScript = String(packageJson.scripts.bridge || "");
     const fetchIndex = bridgeScript.indexOf("spawnSync(git,['fetch','--quiet','origin'");
-    const rebaseIndex = bridgeScript.indexOf("spawnSync(git,['rebase','--autostash','origin/v94-media-v4n-negative-claims']");
+    const rebaseIndex = bridgeScript.indexOf("spawnSync(git,['rebase','origin/v94-media-v4n-negative-claims']");
     const uploadImportIndex = bridgeScript.indexOf("import('./jarvis-upload-bridge.js')");
     const workerImportIndex = bridgeScript.indexOf("import('./jarvis-github-worker.js')");
     assert.ok(fetchIndex >= 0, "bridge launcher must fetch the exact remote branch");

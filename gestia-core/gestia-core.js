@@ -6084,7 +6084,7 @@ if (
         [
             ...new Set(
                 [
-                    ...missionResult.executedTools
+                    ...missionResult.completedTasks.map(task => task.name)
                 ]
             )
         ];

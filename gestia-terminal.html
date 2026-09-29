@@ -271,6 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let finished = false;
             let boundTraceId = String(traceId || "");
             let sequence = 0;
+            let finalOutcome = null;
 
             const updateCount = () => {
                 if (countNode) {
@@ -327,7 +328,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 activate(id, label) {
                     return setRow(id, label, "active");
                 },
+                resolveOutcome(result = {}) {
+                    const payload = result.result || result;
+                    const mission = payload.mission || payload.agentLoop?.mission || null;
+                    const response = result.finalResponse || payload.finalResponse || payload.followUp?.finalResponse || null;
+                    const status = String(mission?.status || result.status || "").toUpperCase();
+                    const failed = (mission && status !== "COMPLETED") || response?.ok === false ||
+                        ["FAILED", "PARTIAL", "ERROR", "BLOCKED", "CANCELLED", "INCOMPLETE"].includes(status);
+                    finalOutcome = {
+                        failed: Boolean(failed),
+                        hasEvidence: (mission?.completedTasks?.length || 0) > 0,
+                        responseFailed: response?.source === "CONVERSATIONAL_COMPOSITION_FAILED",
+                        label: status === "PARTIAL" ? "Misión parcialmente completada" : "Misión no completada"
+                    };
+                },
                 complete(id, label) {
+                    if (finalOutcome?.failed) {
+                        if (id === "core") return setRow(id, finalOutcome.label, "failed");
+                        if (id === "evidence") return setRow(id,
+                            finalOutcome.hasEvidence ? "Evidencia parcial recuperada" : "Sin evidencia completa",
+                            finalOutcome.hasEvidence ? "completed" : "failed");
+                        if (id === "response") return setRow(id,
+                            finalOutcome.responseFailed ? "No se pudo preparar la respuesta" : "Informe parcial preparado",
+                            finalOutcome.responseFailed ? "failed" : "completed");
+                    }
                     return setRow(id, label, "completed");
                 },
                 failStep(id, label) {
@@ -359,6 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 finish(label = "Trabajo completado") {
                     if (finished) return;
+                    if (finalOutcome?.failed) return this.fail(finalOutcome.label);
                     for (const [id, row] of rows) {
                         if (row?.dataset?.state === "active") {
                             const text = row.textContent?.trim() || "Paso completado";
@@ -397,9 +422,10 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener("jarvis:semantic-progress", event => {
             const { stage, elapsedMs = 0 } = event.detail || {};
             const label = stage === "retrieval" ? "Recuperando herramientas relevantes"
+                : stage === "final_response" ? "Redactando la respuesta con la evidencia obtenida"
                 : stage === "mission_contract" ? "Organizando los objetivos de la misión"
                 : stage === "conversation_gate" ? "Interpretando la solicitud completa" : "Preparando el plan con Qwen local";
-            activeTracker?.activate("core", `${label} · ${Math.floor(elapsedMs / 1000)} s`);
+            activeTracker?.activate(stage === "final_response" ? "response" : "core", `${label} · ${Math.floor(elapsedMs / 1000)} s`);
         });
 
         return {
@@ -3548,6 +3574,7 @@ if (
 
             lastCoreResult =
                 coreResult;
+            activeWorkTracker?.resolveOutcome?.(coreResult);
 
             const semanticPlannerUnavailable =
                 coreResult?.status === "halted" &&
@@ -4599,7 +4626,7 @@ if (
                                     finalResponse?.source === "EVIDENCE_GROUNDED_CONVERSATION"
                                         ? []
                                         : [
-                                            "Evidencia ejecutada:",
+                                            "Herramientas intentadas (su resultado puede ser parcial o fallido):",
                                             ...agentObservations
                                                 .map((item, index) =>
                                                     `- ${getObservationToolName(item, index)}`

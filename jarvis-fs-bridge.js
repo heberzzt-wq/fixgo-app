@@ -1,4 +1,4 @@
-import { semanticPlanHandler, fetchLocalSemanticResponse } from "./jarvis-semantic-http.js";
+import { semanticPlanHandler, semanticResponseHandler, fetchLocalSemanticResponse } from "./jarvis-semantic-http.js";
 import { SEMANTIC_MAX_BUDGET_MS } from "./gestia-core/jarvis/jarvis.semantic.transport.js";
 import express from "express";
 import cors from "cors";
@@ -1060,15 +1060,16 @@ export function createSelfHostedSemanticEngine({
                 Number(
                     env.JARVIS_LOCAL_LLM_WARMUP_TIMEOUT_MS
                 ) ||
-                60000,
+                240000,
                 10000
             ),
-            90000
+            300000
         );
     let lastModelWarmAt = 0;
     let modelWarmPromise = null;
 
-    async function ensureMainModelWarm() {
+    async function ensureMainModelWarm({ signal } = {}) {
+        signal?.throwIfAborted();
         if (
             fetchImpl !== globalThis.fetch ||
             !baseUrl ||
@@ -1121,7 +1122,7 @@ export function createSelfHostedSemanticEngine({
                                 temperature: 0
                             }
                         }),
-                        signal: controller.signal
+                        signal: signal ? AbortSignal.any([controller.signal, signal]) : controller.signal
                     }
                 );
                 const raw = await response.text();
@@ -1298,7 +1299,7 @@ export function createSelfHostedSemanticEngine({
     async function generateContent(request = {}) {
         const health = describe();
         if (health.ok !== true) throw new Error(health.status);
-        await ensureMainModelWarm();
+        await ensureMainModelWarm({ signal: request?.config?.signal });
         const tools = openAiToolsFromGemini(request?.config || {});
         const inferenceTimeoutMs = Math.min(
             Math.max(1, Math.min(Number(request?.config?.timeoutMs) || timeoutMs,
@@ -1375,7 +1376,8 @@ export function createSelfHostedSemanticEngine({
                 request?.config?.nativeToolChat === true;
             const nativeChat =
                 jsonOnlyNative ||
-                nativeToolChat;
+                nativeToolChat ||
+                request?.config?.nativeTextChat === true;
             const origin =
                 new URL(baseUrl).origin;
             const payload =
@@ -1400,7 +1402,10 @@ export function createSelfHostedSemanticEngine({
                                     request?.config?.temperature
                                 ) || 0,
                             num_predict:
-                                maxOutputTokens
+                                maxOutputTokens,
+                            ...(request?.config?.nativeTextChat === true
+                                ? { num_ctx: 8192 }
+                                : {})
                         }
                     }
                     : {
@@ -1678,23 +1683,6 @@ export function createSelfHostedSemanticEngine({
         models: { generateContent }
     };
 
-    const aiWithTimeout =
-        effectiveTimeoutMs => ({
-            ...ai,
-            models: {
-                generateContent(request = {}) {
-                    return generateContent({
-                        ...request,
-                        config: {
-                            ...(request?.config || {}),
-                            timeoutMs:
-                                effectiveTimeoutMs
-                        }
-                    });
-                }
-            }
-        });
-
     return {
         mode,
         describe,
@@ -1757,15 +1745,21 @@ export function createSelfHostedSemanticEngine({
                 inferenceReceipt: describe()
             };
         },
-        async respond({ input, maxOutputTokens = 160, timeoutMs: requestTimeoutMs } = {}) {
+        async respond({ input, maxOutputTokens = 160, timeoutMs: requestTimeoutMs, signal } = {}) {
             const effectiveTimeoutMs =
-                requestTimeoutMs ||
-                timeoutMs;
+                Math.min(Math.max(Number(requestTimeoutMs) || timeoutMs, 1), SEMANTIC_MAX_BUDGET_MS);
+            const deadlineAt = Date.now() + effectiveTimeoutMs;
+            const deadlineSignal = AbortSignal.timeout(effectiveTimeoutMs);
+            const responseSignal = signal ? AbortSignal.any([signal, deadlineSignal]) : deadlineSignal;
+            responseSignal.throwIfAborted();
             const result = await runJarvisSemanticResponse({
                 ai:
-                    aiWithTimeout(
-                        effectiveTimeoutMs
-                    ),
+                    { ...ai, models: { generateContent(request = {}) {
+                        responseSignal.throwIfAborted();
+                        return generateContent({ ...request, config: { ...request.config,
+                            nativeTextChat: true,
+                            timeoutMs: deadlineAt - Date.now(), deadlineAt, signal: responseSignal } });
+                    } } },
                 input,
                 maxOutputTokens,
                 timeoutMs:
@@ -6797,27 +6791,7 @@ export function createJarvisFsBridgeApp({
 
     app.post("/semantic/plan", semanticPlanHandler(semanticEngine));
 
-    app.post("/semantic/respond", async (req, res) => {
-        const health = semanticEngine.describe();
-        if (health.ok !== true) return res.status(503).json(health);
-        try {
-            const result = await semanticEngine.respond(req.body || {});
-            return res.json({
-                ...result,
-                localSemanticInferenceUsed: true,
-                cloudSemanticInferenceUsed: false,
-                fallbackAllowed: health.fallbackAllowed
-            });
-        } catch (error) {
-            return res.status(502).json({
-                ok: false,
-                status: "LOCAL_SEMANTIC_RESPONSE_FAILED",
-                error: error?.message || String(error),
-                fallbackAllowed: health.fallbackAllowed,
-                inferenceReceipt: semanticEngine.describe()
-            });
-        }
-    });
+    app.post("/semantic/respond", semanticResponseHandler(semanticEngine));
 
     app.post("/observability/snapshot", (req, res) => {
         try {

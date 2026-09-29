@@ -82,8 +82,9 @@ export function installJarvisLocalBridgeTransport() {
             }
 
             const contract = await readRuntimeContract();
-            const semanticRequest = path === "/semantic/plan";
-            const requestPayload = semanticRequest ? { ...payload, streamProgress: true, timeoutMs: semanticPlanBudgetMs(payload) } : payload;
+            const semanticRequest = path === "/semantic/plan" || path === "/semantic/respond";
+            const budgetPayload = path === "/semantic/respond" ? { ...payload, missionState: { phase: "FINAL_RESPONSE" } } : payload;
+            const requestPayload = semanticRequest ? { ...payload, streamProgress: true, timeoutMs: semanticPlanBudgetMs(budgetPayload) } : payload;
             const timeoutMs = semanticRequest ? requestPayload.timeoutMs + 10000 : Math.min(
                 Math.max(Number(options?.timeoutMs) || 120000, 1000),
                 180000

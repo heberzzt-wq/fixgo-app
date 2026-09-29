@@ -17,6 +17,13 @@ export async function fetchLocalSemanticResponse(url, { method, headers, body, s
         const request = (target.protocol === "https:" ? httpsRequest : httpRequest)(target, {
             method, headers, signal, agent: false
         }, response => {
+            if (Number(response.headers["content-length"]) > 2 * 1024 * 1024) {
+                const error = new Error("LOCAL_SEMANTIC_RESPONSE_TOO_LARGE");
+                reject(error);
+                response.destroy();
+                request.destroy(error);
+                return;
+            }
             const chunks = [];
             let bytes = 0;
             response.on("error", reject);
@@ -45,15 +52,24 @@ export async function fetchLocalSemanticResponse(url, { method, headers, body, s
 // One request, one engine call. Heartbeats are transport liveness, not evidence
 // that the model has completed any objective. Legacy JSON callers stay supported.
 export function semanticPlanHandler(semanticEngine, { heartbeatMs = 5000 } = {}) {
+    return semanticRequestHandler(semanticEngine, { heartbeatMs, operation: "plan" });
+}
+
+export function semanticResponseHandler(semanticEngine, { heartbeatMs = 5000 } = {}) {
+    return semanticRequestHandler(semanticEngine, { heartbeatMs, operation: "respond" });
+}
+
+function semanticRequestHandler(semanticEngine, { heartbeatMs, operation }) {
     return async (req, res) => {
         const health = semanticEngine.describe();
         if (health.ok !== true) return res.status(503).json(health);
         const streaming = req.body?.streamProgress === true;
         const body = req.body || {};
-        const budgetMs = streaming ? semanticPlanBudgetMs(body) : body.timeoutMs;
+        const budgetInput = operation === "respond" ? { ...body, missionState: { phase: "FINAL_RESPONSE" } } : body;
+        const budgetMs = streaming ? semanticPlanBudgetMs(budgetInput) : body.timeoutMs;
         const controller = new AbortController();
         const startedAt = Date.now();
-        let stage = "planning";
+        let stage = operation === "respond" ? "final_response" : "planning";
         let heartbeat;
         const send = frame => {
             if (!res.destroyed && !res.writableEnded) res.write(JSON.stringify(frame) + "\n");
@@ -68,7 +84,7 @@ export function semanticPlanHandler(semanticEngine, { heartbeatMs = 5000 } = {})
             heartbeat = setInterval(progress, heartbeatMs);
         }
         try {
-            const result = await semanticEngine.plan({
+            const result = await semanticEngine[operation]({
                 ...body, timeoutMs: budgetMs, signal: controller.signal,
                 onProgress: nextStage => { stage = nextStage; if (streaming) progress(); }
             });
@@ -77,7 +93,7 @@ export function semanticPlanHandler(semanticEngine, { heartbeatMs = 5000 } = {})
             else if (!res.destroyed) res.json(receipt);
         } catch (error) {
             const failure = {
-                ok: false, status: "LOCAL_SEMANTIC_PLAN_FAILED", error: error?.message || String(error),
+                ok: false, status: operation === "respond" ? "LOCAL_SEMANTIC_RESPONSE_FAILED" : "LOCAL_SEMANTIC_PLAN_FAILED", error: error?.message || String(error),
                 evidence: error?.evidence || null, fallbackAllowed: health.fallbackAllowed,
                 inferenceReceipt: semanticEngine.describe()
             };
