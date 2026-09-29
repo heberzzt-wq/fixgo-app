@@ -1529,6 +1529,156 @@ export function createSelfHostedSemanticEngine({
         }
     }
 
+    const toolEmbeddingCachePath = String(
+        env.JARVIS_TOOL_EMBEDDING_CACHE_PATH ||
+        path.join(
+            env.LOCALAPPDATA || os.tmpdir(),
+            "Fixgo",
+            "jarvis-tool-embedding-cache-v1.json"
+        )
+    ).trim();
+    let toolEmbeddingCacheLoaded = false;
+    let toolEmbeddingCache = new Map();
+    let toolEmbeddingWarmPromise = null;
+
+    function toolEmbeddingText(tool = {}) {
+        return `${String(tool?.name || "").trim()}: ${String(tool?.description || "").trim()}`;
+    }
+
+    function toolEmbeddingKey(tool = {}) {
+        return createHash("sha256")
+            .update(`${embeddingModel}\n${toolEmbeddingText(tool)}`)
+            .digest("hex");
+    }
+
+    function loadToolEmbeddingCache() {
+        if (toolEmbeddingCacheLoaded) return;
+        toolEmbeddingCacheLoaded = true;
+        try {
+            const parsed = JSON.parse(fs.readFileSync(toolEmbeddingCachePath, "utf8"));
+            if (parsed?.version !== 1 || parsed?.model !== embeddingModel || !parsed?.entries) return;
+            toolEmbeddingCache = new Map(
+                Object.entries(parsed.entries).filter(([, vector]) => validToolVector(vector))
+            );
+        } catch {}
+    }
+
+    function persistToolEmbeddingCache() {
+        fs.mkdirSync(path.dirname(toolEmbeddingCachePath), {
+            recursive: true
+        });
+        const payload = JSON.stringify({
+            version: 1,
+            model: embeddingModel,
+            entries: Object.fromEntries(toolEmbeddingCache)
+        });
+        const tempPath = `${toolEmbeddingCachePath}.tmp-${process.pid}`;
+        try {
+            fs.writeFileSync(tempPath, payload);
+            fs.renameSync(tempPath, toolEmbeddingCachePath);
+        } finally {
+            fs.rmSync(tempPath, { force: true });
+        }
+    }
+
+    async function warmToolEmbeddingCache(catalog = []) {
+        loadToolEmbeddingCache();
+        const missing = catalog
+            .map(tool => ({
+                tool,
+                key: toolEmbeddingKey(tool),
+                text: toolEmbeddingText(tool)
+            }))
+            .filter(entry => !toolEmbeddingCache.has(entry.key));
+        if (missing.length === 0) return;
+        const embedded = await embed(missing.map(entry => entry.text));
+        missing.forEach((entry, index) => {
+            toolEmbeddingCache.set(entry.key, embedded.embeddings[index]);
+        });
+        persistToolEmbeddingCache();
+    }
+
+    async function shortlistCurrentTurnCatalog(input = "", catalog = [], limit = 2, deadlineAt = Date.now() + timeoutMs, signal) {
+        const startedAt = Date.now();
+        const remainingMs = () => {
+            signal?.throwIfAborted();
+            const remaining = deadlineAt - Date.now();
+            if (remaining <= 0) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
+            return remaining;
+        };
+        const safeCatalog = Array.isArray(catalog)
+            ? catalog.filter(tool => tool && tool.name).slice(0, 80)
+            : [];
+        loadToolEmbeddingCache();
+        const missingCount = safeCatalog.filter(
+            tool => !toolEmbeddingCache.has(toolEmbeddingKey(tool))
+        ).length;
+        while (safeCatalog.some(tool => !toolEmbeddingCache.has(toolEmbeddingKey(tool)))) {
+            remainingMs();
+            if (!toolEmbeddingWarmPromise) {
+                toolEmbeddingWarmPromise = warmToolEmbeddingCache(safeCatalog)
+                    // A cold catalog is warmed in the background. Its rejection must
+                    // never become an unhandled rejection that kills the bridge.
+                    .then(() => null, error => error)
+                    .finally(() => {
+                        toolEmbeddingWarmPromise = null;
+                    });
+            }
+            if (missingCount > 8) {
+                throw new Error("LOCAL_TOOL_EMBEDDING_CACHE_WARMING");
+            }
+            let timer;
+            try {
+                const error = await Promise.race([
+                    toolEmbeddingWarmPromise,
+                    new Promise((_, reject) => {
+                        timer = setTimeout(() => reject(new Error("LOCAL_SEMANTIC_TIMEOUT")), remainingMs());
+                    })
+                ]);
+                if (error) throw error;
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+        const queryEmbedding = await embed([String(input || "")], { timeoutMs: remainingMs(), signal });
+        const queryVector = queryEmbedding.embeddings[0];
+        if (safeCatalog.some(tool => toolEmbeddingCache.get(toolEmbeddingKey(tool)).length !== queryVector.length)) {
+            throw new Error("LOCAL_TOOL_EMBEDDING_DIMENSION_MISMATCH");
+        }
+        const ranked = safeCatalog
+            .map((tool, index) => ({
+                tool,
+                index,
+                score: cosineSimilarity(
+                    queryVector,
+                    toolEmbeddingCache.get(toolEmbeddingKey(tool))
+                )
+            }))
+            .sort((left, right) =>
+                right.score - left.score || left.index - right.index
+            );
+        const selected = ranked
+            .slice(0, Math.max(1, Math.min(8, Number(limit) || 2)));
+        return {
+            catalog: selected.map(entry => entry.tool),
+            evidence: {
+                provider: "ollama-local",
+                model: embeddingModel,
+                catalogCount: safeCatalog.length,
+                selected: selected.map(entry => ({
+                    name: entry.tool.name,
+                    score: entry.score
+                })),
+                cacheHits: safeCatalog.length - missingCount,
+                cacheMisses: missingCount,
+                durationMs: Date.now() - startedAt,
+                decisionAuthority: model,
+                retrievalOnly: true,
+                externalApiUsed: false
+            }
+        };
+    }
+
     const ai = {
         lastProvider: "ollama-openai-compatible-local",
         models: { generateContent }
@@ -1549,6 +1699,7 @@ export function createSelfHostedSemanticEngine({
             onProgress(missionState?.conversationalGate ? "conversation_gate" : missionState?.phase === "MISSION_CONTRACT" ? "mission_contract" : "inference");
             const deadlineSignal = AbortSignal.timeout(Math.max(1, plannerTimeoutMs));
             const planSignal = signal ? AbortSignal.any([signal, deadlineSignal]) : deadlineSignal;
+            let semanticPreselection = null;
             const result = await runJarvisSemanticPlanner({
                 ai: { ...ai, models: { generateContent(request = {}) {
                     if (Date.now() >= deadlineAt || deadlineSignal.aborted) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
@@ -1559,11 +1710,19 @@ export function createSelfHostedSemanticEngine({
                 input,
                 catalog,
                 missionState,
+                retrieveToolCandidates: async proposedName => {
+                    onProgress("retrieval");
+                    const shortlist = await shortlistCurrentTurnCatalog(proposedName, catalog, 2, deadlineAt, planSignal);
+                    semanticPreselection = { ...shortlist.evidence, querySource: "qwen_proposed_tool", proposedName };
+                    onProgress("inference");
+                    return shortlist.catalog;
+                },
                 timeoutMs:
                     plannerTimeoutMs
             });
             return {
                 ...result,
+                ...(semanticPreselection ? { semanticPreselection } : {}),
                 durationMs: Date.now() - planStartedAt,
                 provider: ai.lastProvider,
                 model:

@@ -7,7 +7,8 @@ export function semanticPlanBudgetMs({ input = "", missionState, timeoutMs = 600
     // Local CPU baseline: ~14 prompt tokens/s. Account for the full input,
     // retrieval, prompt overhead and bounded output; never shorten the input.
     const inputBytes = new TextEncoder().encode(String(input)).length;
-    return Math.min(SEMANTIC_MAX_BUDGET_MS, Math.max(requested, 60000, 30000 + inputBytes * 50));
+    const phaseFloor = missionState?.phase === "CURRENT_TURN" && !missionState?.conversationalGate ? 120000 : 60000;
+    return Math.min(SEMANTIC_MAX_BUDGET_MS, Math.max(requested, phaseFloor, 30000 + inputBytes * 50));
 }
 
 export async function readSemanticStream(response, { onProgress = () => {}, onActivity = () => {} } = {}) {

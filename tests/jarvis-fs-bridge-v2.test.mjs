@@ -727,7 +727,7 @@ test("CURRENT_TURN sends the full tool index to Qwen and then only its selected 
                 };
             }
             assert.equal(url, "http://127.0.0.1:11434/api/chat");
-            if (!body.format?.properties?.name) assert.deepEqual(JSON.parse(body.messages.at(-1).content).catalog.map(tool => tool.name), ["repo.audit"]);
+            if (body.tools) assert.match(body.tools[0].function.description, /repo.audit/);
             assert.equal(body.stream, false);
             return {
                 ok: true,
@@ -735,7 +735,7 @@ test("CURRENT_TURN sends the full tool index to Qwen and then only its selected 
                 text: async () => JSON.stringify({
                     message: {
                         role: "assistant",
-                        content: JSON.stringify(body.format?.properties?.name ? { name: "repo.audit" } : { name: "jarvis_tool_0", arguments: { query: "runtime real" } })
+                        content: JSON.stringify(!body.tools ? { name: "repo.audit" } : { name: "jarvis_tool_0", arguments: { query: "runtime real" } })
                     },
                     done: true,
                     done_reason: "stop"
@@ -755,7 +755,7 @@ test("CURRENT_TURN sends the full tool index to Qwen and then only its selected 
             catalog,
             missionState: { phase: "CURRENT_TURN", writeAllowed: false }
         });
-        assert.deepEqual(requests[0].body.format.properties.name.enum, catalog.map(tool => tool.name));
+        assert.deepEqual(JSON.parse(requests[0].body.messages[0].content.split("\n").at(-1)).readOnly, catalog.map(tool => tool.name));
         assert.equal(plan.toolCalls[0].name, "repo.audit");
         assert.equal(requests.filter(item => item.url.endsWith("/api/embed")).length, 0);
         assert.equal(requests.filter(item => item.url.endsWith("/api/chat")).length, 2);

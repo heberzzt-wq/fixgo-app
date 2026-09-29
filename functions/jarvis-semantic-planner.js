@@ -760,6 +760,7 @@ async function runModelSemanticPlanner({
     input = "",
     catalog = [],
     missionState = null,
+    retrieveToolCandidates = null,
     model = DEFAULT_SEMANTIC_MODEL
 } = {}) {
     if (!ai?.models?.generateContent) throw new Error("SEMANTIC_GEMINI_REQUIRED");
@@ -1436,11 +1437,11 @@ async function runModelSemanticPlanner({
     }
 
     if (currentTurn && safeCatalog.length > 2) {
-        const names = safeCatalog.map(tool => tool.name);
         const selectionInstruction = [
             "Eres Jarvis, la unica autoridad semantica local. Selecciona exactamente una herramienta inicial para satisfacer la solicitud actual. No ejecutes ni inventes resultados.",
-            "Devuelve solo {\"name\":\"nombre del indice\"}. Elige la accion concreta solicitada por el usuario. El orden del indice no determina la eleccion. No agregues comprobaciones ni acciones no pedidas.",
-            JSON.stringify({ availableTools: names })
+            "Contexto: trabajas en el repositorio activo. Las rutas relativas de archivos del usuario se resuelven en ese repositorio. Los artefactos generados tienen rutas dentro de .jarvis-artifacts/.",
+            "Devuelve solo {\"name\":\"nombre del indice\"}. Elige la accion concreta solicitada por el usuario y respeta sus restricciones. No agregues comprobaciones ni acciones no pedidas.",
+            JSON.stringify({ readOnly: safeCatalog.filter(tool => !tool.mutates).map(tool => tool.name), mutating: safeCatalog.filter(tool => tool.mutates).map(tool => tool.name) })
         ].join("\n");
         const selection = await ai.models.generateContent({
             model,
@@ -1451,22 +1452,26 @@ async function runModelSemanticPlanner({
                     { role: "user", content: instruction }
                 ],
                 responseMimeType: "application/json",
-                responseJsonSchema: {
-                    type: "object",
-                    properties: { name: { type: "string", enum: names } },
-                    required: ["name"],
-                    additionalProperties: false
-                },
                 maxOutputTokens: 48,
                 temperature: 0
             }
         });
         const name = extractJsonObject(String(selection?.text || ""))?.name;
         const selected = safeCatalog.find(tool => tool.name === name);
-        if (!selected || selection?.providerResponse?.finishReason === "length") {
+        if (!isSafeToolName(name) || selection?.providerResponse?.finishReason === "length") {
             throw new Error("SEMANTIC_TOOL_SELECTION_INVALID");
         }
-        safeCatalog = [selected];
+        if (selected) {
+            safeCatalog = [selected];
+        } else {
+            // A model-proposed name is a retrieval query, never an executable alias.
+            const candidates = typeof retrieveToolCandidates === "function"
+                ? await retrieveToolCandidates(name) : [];
+            safeCatalog = (Array.isArray(candidates) ? candidates : [])
+                .map(candidate => normalizedCatalog.find(tool => tool.name === candidate?.name))
+                .filter(Boolean).slice(0, 2);
+            if (!safeCatalog.length) throw new Error("SEMANTIC_TOOL_SELECTION_INVALID");
+        }
     }
 
     const request = currentTurn
@@ -1475,36 +1480,14 @@ async function runModelSemanticPlanner({
             contents: instruction,
             config: {
                 chatMessages: [
-                    ...currentTurnMessages,
-                    { role: "user", content: JSON.stringify({
-                        phase: "CURRENT_TURN",
-                        task: "La fase previa determino que hacen falta datos o acciones externos. Elige exactamente una herramienta inicial del catalogo para obtener evidencia. Devuelve {toolCalls:[{name,args}],missionComplete:false}. Usa el nombre real y argumentos ejecutables segun inputSchema. Si no hay schema, usa args={}. No contestes la auditoria ni inventes resultados.",
-                        catalog: safeCatalog.map(tool => ({ name: tool.name, description: String(tool.description || "").slice(0, 220), inputSchema: compactPlannerInputSchema(tool.inputSchema) }))
-                    }) }
+                    { role: "system", content: "Eres Jarvis, asistente del repositorio activo. Usa las herramientas para obtener evidencia real antes de responder. Las rutas relativas de archivos pertenecen al repositorio activo; los artefactos generados pertenecen a .jarvis-artifacts/. Ejecuta solo la accion solicitada y respeta las restricciones del usuario. No inventes lecturas ni resultados. El formato solicitado para la respuesta no limita el contenido de la fuente que debes consultar." },
+                    { role: "user", content: instruction }
                 ],
                 maxOutputTokens: 160,
                 temperature: 0,
-                responseMimeType: "application/json",
-                responseJsonSchema: {
-                    type: "object",
-                    required: ["toolCalls", "missionComplete"],
-                    additionalProperties: false,
-                    properties: {
-                        missionComplete: { type: "boolean", const: false },
-                        toolCalls: {
-                            type: "array", minItems: 1, maxItems: 1,
-                            items: {
-                                oneOf: safeCatalog.map(tool => ({
-                                    type: "object", required: ["name", "args"], additionalProperties: false,
-                                    properties: {
-                                        name: { type: "string", const: tool.name },
-                                        args: tool.inputSchema || { type: "object", properties: {}, additionalProperties: false }
-                                    }
-                                }))
-                            }
-                        }
-                    }
-                }
+                nativeToolChat: true,
+                tools: [{ functionDeclarations: buildGeminiModelTools(safeCatalog) }],
+                toolConfig: { functionCallingConfig: { mode: "ANY" } }
             }
         }
         : compactJsonPlanning
@@ -1571,6 +1554,9 @@ async function runModelSemanticPlanner({
             }
         };
     const response = await ai.models.generateContent(request);
+    if (currentTurn && response?.providerResponse?.finishReason === "length") {
+        throw new Error("SEMANTIC_TOOL_SELECTION_INVALID");
+    }
     let plan = extractGeminiToolCallPlan(response, safeCatalog);
 
     if (!plan && String(response?.text || "").trim()) {
@@ -1845,7 +1831,8 @@ async function runJarvisSemanticPlanner({
     input = "",
     catalog = [],
     timeoutMs = 45000,
-    missionState = null
+    missionState = null,
+    retrieveToolCandidates = null
 } = {}) {
     const instruction = String(input || "").trim();
     const safeCatalog = normalizeCatalog(catalog);
@@ -1855,7 +1842,7 @@ async function runJarvisSemanticPlanner({
     let timer = null;
     const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("SEMANTIC_PROVIDER_TIMEOUT")), Math.max(5000, Number(timeoutMs) || 45000)); });
     try {
-        return await Promise.race([runModelSemanticPlanner({ ai, input: instruction, catalog: safeCatalog, missionState }), timeout]);
+        return await Promise.race([runModelSemanticPlanner({ ai, input: instruction, catalog: safeCatalog, missionState, retrieveToolCandidates }), timeout]);
     } catch(error) {
         const message = String(error?.message || error || "FAILED");
         if (message.startsWith("SEMANTIC_AUTHENTICATED_PROVIDER_")) throw error;

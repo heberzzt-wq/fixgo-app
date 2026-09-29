@@ -316,7 +316,8 @@ test("legacy JSON stays compatible; incomplete streams never become success", as
 });
 
 test("budgets are bounded and semantic timeouts never claim an offline bridge", () => {
-    assert.equal(semanticPlanBudgetMs({ input: "Hola", missionState: phase }), 60000);
+    assert.equal(semanticPlanBudgetMs({ input: "Hola", missionState: { ...phase, conversationalGate: true } }), 60000);
+    assert.equal(semanticPlanBudgetMs({ input: "Lee el contrato", missionState: phase }), 120000);
     assert.equal(semanticPlanBudgetMs({ input: "x".repeat(120000), missionState: phase }), 600000);
     for (const error of ["JARVIS_LOCAL_BRIDGE_TIMEOUT_REQUEST", "SEMANTIC_AUTHENTICATED_PROVIDER_LOCAL_SEMANTIC_TIMEOUT"]) {
         assert.match(semanticFailurePresentation(error).title, /agotó/);

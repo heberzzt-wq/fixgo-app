@@ -274,12 +274,15 @@ test("Qwen can select a registered tool omitted by vector retrieval before recei
             calls++;
             if (calls === 1) {
                 assert.equal(request.config.chatMessages.at(-1).content, input);
-                assert.deepEqual(request.config.responseJsonSchema.properties.name.enum, tools.map(tool => tool.name));
+                assert.equal(request.config.responseJsonSchema, undefined);
+                const index = JSON.parse(request.config.chatMessages[0].content.split("\n").at(-1));
+                assert.deepEqual([...index.readOnly, ...index.mutating].sort(), tools.map(tool => tool.name).sort());
                 return { text: '{"name":"repo.read"}', providerResponse: { finishReason: "stop" } };
             }
-            const payload = JSON.parse(request.config.chatMessages.at(-1).content);
-            assert.deepEqual(payload.catalog.map(tool => tool.name), ["repo.read"]);
-            assert.equal(payload.catalog[0].inputSchema.properties.file.type, "string");
+            const declarations = request.config.tools[0].functionDeclarations;
+            assert.equal(declarations.length, 1);
+            assert.match(declarations[0].description, /repo.read/);
+            assert.equal(declarations[0].parametersJsonSchema.properties.file.type, "string");
             assert.equal(request.config.chatMessages[1].content, input);
             return { text: '{"toolCalls":[{"name":"repo.read","args":{"file":"jarvis-runtime-contract.json"}}]}' };
         } } }
@@ -1107,8 +1110,9 @@ test("current-turn operational planning preserves supplied candidates without le
             lastProvider: "ollama-openai-compatible-local",
             models: {
                 generateContent: async request => {
-                    if (request.config.responseJsonSchema?.properties?.name) {
-                        assert.deepEqual(request.config.responseJsonSchema.properties.name.enum, operationalCatalog.map(tool => tool.name));
+                    if (!request.config.tools) {
+                        const index = JSON.parse(request.config.chatMessages[0].content.split("\n").at(-1));
+                        assert.deepEqual([...index.readOnly, ...index.mutating].sort(), operationalCatalog.map(tool => tool.name).sort());
                         return { text: '{"name":"repo.gitStatus"}' };
                     }
                     requestSeen = request;
@@ -1125,10 +1129,9 @@ test("current-turn operational planning preserves supplied candidates without le
     });
 
     assert.equal(requestSeen.config.maxOutputTokens, 160);
-    assert.equal(requestSeen.config.responseMimeType, "application/json");
-    const phaseRequest = JSON.parse(requestSeen.config.chatMessages.at(-1).content);
-    assert.deepEqual(phaseRequest.catalog.map(tool => tool.name), ["repo.gitStatus"]);
-    assert.match(phaseRequest.task, /exactamente una herramienta/);
+    assert.equal(requestSeen.config.nativeToolChat, true);
+    assert.equal(requestSeen.config.tools[0].functionDeclarations.length, 1);
+    assert.match(requestSeen.config.tools[0].functionDeclarations[0].description, /repo.gitStatus/);
 
     assert.equal(result.toolCalls.length, 1);
     assert.equal(result.toolCalls[0].name, "repo.gitStatus");
