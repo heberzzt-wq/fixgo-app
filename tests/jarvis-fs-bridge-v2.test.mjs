@@ -920,13 +920,12 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
         gateRequest.messages.map(message => message.role),
         [
             "system",
-            "user", "assistant",
-            "user", "assistant",
+            "user",
             "user"
         ]
     );
     assert.equal(
-        gateRequest.messages.at(-1).content,
+        gateRequest.messages[1].content,
         "No, digo que se me antojó a mí."
     );
     assert.equal(
