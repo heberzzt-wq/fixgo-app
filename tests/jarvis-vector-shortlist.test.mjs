@@ -80,7 +80,8 @@ test("a proposed unregistered name retrieves definitions but never becomes an ex
   requests.push({ url, body });
   if (url.endsWith("/api/embed")) return { ok: true, text: async () => JSON.stringify({ embeddings: body.input.map(text => text === "readFile" || text.startsWith("repo.read:") ? [1, 0] : [0, 1]) }) };
   if (!body.tools) {
-   assert.equal(body.format, "json", "decoding must not coerce an invented name into a different valid action");
+   assert.equal(body.format.properties.name.type, "string");
+   assert.equal(body.format.properties.name.enum, undefined, "decoding must not coerce an invented name into a different valid action");
    return { ok: true, text: async () => JSON.stringify({ message: { content: '{"name":"readFile"}' }, done_reason: "stop" }) };
   }
   assert.equal(body.tools.length, 2);

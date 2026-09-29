@@ -274,7 +274,8 @@ test("Qwen can select a registered tool omitted by vector retrieval before recei
             calls++;
             if (calls === 1) {
                 assert.equal(request.config.chatMessages.at(-1).content, input);
-                assert.equal(request.config.responseJsonSchema, undefined);
+                assert.equal(request.config.responseJsonSchema.properties.name.type, "string");
+                assert.equal(request.config.responseJsonSchema.properties.name.enum, undefined);
                 const index = JSON.parse(request.config.chatMessages[0].content.split("\n").at(-1));
                 assert.deepEqual([...index.readOnly, ...index.mutating].sort(), tools.map(tool => tool.name).sort());
                 return { text: '{"name":"repo.read"}', providerResponse: { finishReason: "stop" } };

@@ -1452,7 +1452,13 @@ async function runModelSemanticPlanner({
                     { role: "user", content: instruction }
                 ],
                 responseMimeType: "application/json",
-                maxOutputTokens: 48,
+                responseJsonSchema: {
+                    type: "object",
+                    properties: { name: { type: "string" } },
+                    required: ["name"],
+                    additionalProperties: false
+                },
+                maxOutputTokens: 64,
                 temperature: 0
             }
         });
@@ -1480,7 +1486,7 @@ async function runModelSemanticPlanner({
             contents: instruction,
             config: {
                 chatMessages: [
-                    { role: "system", content: "Eres Jarvis, asistente del repositorio activo. Usa las herramientas para obtener evidencia real antes de responder. Las rutas relativas de archivos pertenecen al repositorio activo; los artefactos generados pertenecen a .jarvis-artifacts/. Ejecuta solo la accion solicitada y respeta las restricciones del usuario. No inventes lecturas ni resultados. El formato solicitado para la respuesta no limita el contenido de la fuente que debes consultar." },
+                    { role: "system", content: "Eres Jarvis, asistente del repositorio activo. Usa las herramientas para obtener evidencia real antes de responder. Las rutas relativas de archivos pertenecen al repositorio activo; los artefactos generados pertenecen a .jarvis-artifacts/. Ejecuta solo la accion solicitada y respeta las restricciones del usuario. No inventes lecturas ni resultados." },
                     { role: "user", content: instruction }
                 ],
                 maxOutputTokens: 160,
