@@ -51,7 +51,7 @@ test("supervisor tolerates a slow health response after startup and only recycle
         spawn(_command, args) { const child = new EventEmitter(); child.pid = 4242; launched.push(args); return child; },
         spawnSync(command, args) { if (command === "taskkill") recycled.push(args); return { status: 0, stdout: "head\n" }; }
     };
-    const processStub = new EventEmitter(); processStub.platform = "win32"; processStub.cwd = () => "C:/test"; processStub.exit = () => {};
+    const processStub = new EventEmitter(); processStub.platform = "win32"; processStub.env = {}; processStub.cwd = () => "C:/test"; processStub.exit = () => {};
     runInNewContext(source, {
         require(name) { return ({ http, net, fs: { existsSync: () => false, readFileSync: () => 'JARVIS_FS_BRIDGE_VERSION = "2.64.0-semantic-progress-deadline-v142";' }, child_process: children })[name]; },
         process: processStub, Date: { now: () => now }, console: { log() {}, warn() {}, error() {} },
@@ -60,10 +60,13 @@ test("supervisor tolerates a slow health response after startup and only recycle
     await new Promise(resolve => setImmediate(resolve));
     const next = async milliseconds => { now += milliseconds; const timer = scheduled.shift(); assert.ok(timer); await timer.callback(); };
     assert.equal(launched.length, 1);
+    await next(120000);
+    await next(61000);
+    assert.equal(recycled.length, 0, "cold loading must retain the model's four-minute warmup budget");
     state = healthy; listening = true;
     await next(2000);
     state = null;
-    await next(200000); // Child is old; a single slow health request is not a startup failure.
+    await next(20000); // Once healthy, recovery uses the health window, not the longer cold-start window.
     assert.equal(recycled.length, 0);
     state = healthy;
     await next(5000);
@@ -178,7 +181,8 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     assert.match(pkg.scripts["bridge:supervise"], /processId/);
     assert.match(pkg.scripts["bridge:supervise"], /occupied\(\)/);
     assert.match(pkg.scripts["bridge:supervise"], /SUPERVISOR_LOCK_PORT=3345/);
-    assert.match(pkg.scripts["bridge:supervise"], /STARTUP_GRACE_MS=120000/);
+    assert.match(pkg.scripts.bridge, /JARVIS_LOCAL_LLM_WARMUP_TIMEOUT_MS\)\|\|240000/);
+    assert.match(pkg.scripts["bridge:supervise"], /STARTUP_GRACE_MS/);
     assert.match(pkg.scripts["bridge:supervise"], /STALE_SETTLE_MS=10000/);
     assert.match(pkg.scripts["bridge:supervise"], /transient startup mismatch; waiting/);
     assert.match(pkg.scripts["bridge:supervise"], /childStartedAt=Date\.now\(\)/);
