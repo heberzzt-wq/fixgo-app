@@ -6,6 +6,8 @@ import { pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { test } from "node:test";
+import { EventEmitter } from "node:events";
+import { runInNewContext } from "node:vm";
 
 import {
     createJarvisUploadBridgeApp,
@@ -18,6 +20,61 @@ import {
 } from "../jarvis-upload-bridge.js";
 
 // Match the bridge's Windows Git authority; the bundled Git can fail object writes.
+test("supervisor tolerates a slow health response after startup and only recycles sustained failure", async () => {
+    const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+    const source = pkg.scripts["bridge:supervise"].match(/^node -e "([\s\S]*)"$/)[1];
+    let now = 1000;
+    let state = null;
+    let listening = false;
+    const scheduled = [];
+    const recycled = [];
+    const launched = [];
+    const healthy = {
+        uploadTransportVersion: "test", bridgeVersion: "2.64.0-semantic-progress-deadline-v142",
+        runtime: { workstationContractVersion: "2.0.0-singleton-exact-sync", workerStarted: true, loadedHead: "head", processId: 4242 }
+    };
+    const http = { get(_options, callback) {
+        const request = new EventEmitter();
+        request.destroy = () => {};
+        queueMicrotask(() => {
+            if (!state) return request.emit("error", new Error("health timeout"));
+            const response = new EventEmitter(); response.statusCode = 200;
+            callback(response); response.emit("data", JSON.stringify(state)); response.emit("end");
+        });
+        return request;
+    }};
+    const net = {
+        createServer() { const server = new EventEmitter(); server.listen = (...args) => { queueMicrotask(args.at(-1)); return server; }; server.close = () => {}; return server; },
+        connect() { const socket = new EventEmitter(); socket.setTimeout = () => {}; socket.destroy = () => {}; queueMicrotask(() => socket.emit(listening ? "connect" : "error", new Error("offline"))); return socket; }
+    };
+    const children = {
+        spawn(_command, args) { const child = new EventEmitter(); child.pid = 4242; launched.push(args); return child; },
+        spawnSync(command, args) { if (command === "taskkill") recycled.push(args); return { status: 0, stdout: "head\n" }; }
+    };
+    const processStub = new EventEmitter(); processStub.platform = "win32"; processStub.cwd = () => "C:/test"; processStub.exit = () => {};
+    runInNewContext(source, {
+        require(name) { return ({ http, net, fs: { existsSync: () => false, readFileSync: () => 'JARVIS_FS_BRIDGE_VERSION = "2.64.0-semantic-progress-deadline-v142";' }, child_process: children })[name]; },
+        process: processStub, Date: { now: () => now }, console: { log() {}, warn() {}, error() {} },
+        setTimeout(callback, ms) { scheduled.push({ callback, ms }); }
+    });
+    await new Promise(resolve => setImmediate(resolve));
+    const next = async milliseconds => { now += milliseconds; const timer = scheduled.shift(); assert.ok(timer); await timer.callback(); };
+    assert.equal(launched.length, 1);
+    state = healthy; listening = true;
+    await next(2000);
+    state = null;
+    await next(200000); // Child is old; a single slow health request is not a startup failure.
+    assert.equal(recycled.length, 0);
+    state = healthy;
+    await next(5000);
+    state = null;
+    await next(5000);
+    await next(59000);
+    assert.equal(recycled.length, 0, "a recovered health check resets the failure window");
+    await next(1001);
+    assert.equal(recycled.length, 1, "sustained unresponsiveness still recovers the owned child");
+    assert.equal(launched.length, 1, "a health timeout never starts a duplicate bridge");
+});
 const gitExecutable = process.platform === "win32" && fs.existsSync("C:/Program Files/Git/cmd/git.exe")
     ? "C:/Program Files/Git/cmd/git.exe" : "git";
 
