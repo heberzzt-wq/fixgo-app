@@ -1,4 +1,4 @@
-import { semanticPlanHandler } from "./jarvis-semantic-http.js";
+import { semanticPlanHandler, fetchLocalSemanticResponse } from "./jarvis-semantic-http.js";
 import { SEMANTIC_MAX_BUDGET_MS } from "./gestia-core/jarvis/jarvis.semantic.transport.js";
 import express from "express";
 import cors from "cors";
@@ -1433,7 +1433,7 @@ export function createSelfHostedSemanticEngine({
                             }
                             : {})
                     };
-            const response = await fetchImpl(
+            const response = await (fetchImpl === globalThis.fetch ? fetchLocalSemanticResponse : fetchImpl)(
                 nativeChat
                     ? `${origin}/api/chat`
                     : `${baseUrl}/chat/completions`,

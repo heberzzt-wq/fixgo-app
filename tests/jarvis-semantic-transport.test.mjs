@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import express from "express";
-import { semanticPlanHandler } from "../jarvis-semantic-http.js";
+import { semanticPlanHandler, fetchLocalSemanticResponse } from "../jarvis-semantic-http.js";
 import { createSelfHostedSemanticEngine } from "../jarvis-fs-bridge.js";
 import { readSemanticStream, semanticPlanBudgetMs, semanticFailurePresentation } from "../gestia-core/jarvis/jarvis.semantic.transport.js";
 
@@ -11,6 +11,102 @@ const phase = { phase: "CURRENT_TURN", writeAllowed: false };
 const describe = () => ({ ok: true, fallbackAllowed: false });
 const result = { ok: true, toolCalls: [{ name: "repo.audit", args: {}, approved: false }], missionComplete: false };
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+test("local inference transport waits for headers and preserves the complete response", async t => {
+    const { createServer } = await import("node:http");
+    let received;
+    const upstream = createServer(async (req, res) => {
+        const chunks = [];
+        for await (const chunk of req) chunks.push(chunk);
+        received = { method: req.method, body: Buffer.concat(chunks).toString(), token: req.headers.authorization };
+        await wait(50);
+        res.writeHead(200, { "content-type": "application/json" });
+        res.write('{"message":{"content":"');
+        await wait(30);
+        res.end('verificado ✓"}}');
+    }).listen(0, "127.0.0.1");
+    await new Promise(resolve => upstream.once("listening", resolve));
+    t.after(() => { upstream.closeAllConnections(); upstream.close(); });
+    const response = await fetchLocalSemanticResponse(`http://127.0.0.1:${upstream.address().port}/api/chat`, {
+        method: "POST", headers: { Authorization: "Bearer test-only", "Content-Type": "application/json" },
+        body: instruction, signal: AbortSignal.timeout(15000)
+    });
+    assert.equal(response.ok, true);
+    assert.equal(JSON.parse(await response.text()).message.content, "verificado ✓");
+    assert.deepEqual(received, { method: "POST", body: instruction, token: "Bearer test-only" });
+});
+
+test("local inference cancellation closes the socket before headers and during a partial body", async t => {
+    const { createServer } = await import("node:http");
+    for (const partialBody of [false, true]) {
+        const controller = new AbortController();
+        let closed;
+        const disconnected = new Promise(resolve => { closed = resolve; });
+        const upstream = createServer((req, res) => {
+            req.resume();
+            res.once("close", closed);
+            if (partialBody) { res.writeHead(200); res.write('{"message":'); }
+            setTimeout(() => controller.abort(new DOMException("deadline", "TimeoutError")), 30);
+        }).listen(0, "127.0.0.1");
+        await new Promise(resolve => upstream.once("listening", resolve));
+        t.after(() => { upstream.closeAllConnections(); upstream.close(); });
+        await assert.rejects(fetchLocalSemanticResponse(`http://127.0.0.1:${upstream.address().port}/api/chat`, {
+            method: "POST", body: "{}", signal: controller.signal
+        }), error => error.name === "AbortError" || error.name === "TimeoutError");
+        await disconnected;
+    }
+});
+
+test("local inference rejects truncated bodies and never follows redirects outside loopback", async t => {
+    const { createServer } = await import("node:http");
+    const upstream = createServer((req, res) => {
+        req.resume();
+        if (req.url === "/redirect") { res.writeHead(307, { location: "https://example.com/" }); res.end("redirect"); }
+        else { res.writeHead(200, { "content-length": 100 }); res.write("partial"); setTimeout(() => res.destroy(), 10); }
+    }).listen(0, "127.0.0.1");
+    await new Promise(resolve => upstream.once("listening", resolve));
+    t.after(() => { upstream.closeAllConnections(); upstream.close(); });
+    const options = { method: "POST", body: "{}", signal: AbortSignal.timeout(15000) };
+    const url = `http://127.0.0.1:${upstream.address().port}`;
+    const redirect = await fetchLocalSemanticResponse(url + "/redirect", options);
+    assert.equal(redirect.status, 307);
+    assert.equal(redirect.ok, false);
+    await assert.rejects(fetchLocalSemanticResponse(url + "/truncated", options), /aborted|reset|INCOMPLETE/i);
+    await assert.rejects(fetchLocalSemanticResponse("https://example.com/", options), /LOOPBACK/);
+});
+
+test("local inference bounds response memory and requires cancellation", async t => {
+    const { createServer } = await import("node:http");
+    const upstream = createServer((req, res) => { req.resume(); res.end("x".repeat(2 * 1024 * 1024 + 1)); }).listen(0, "127.0.0.1");
+    await new Promise(resolve => upstream.once("listening", resolve));
+    t.after(() => { upstream.closeAllConnections(); upstream.close(); });
+    const url = `http://127.0.0.1:${upstream.address().port}`;
+    await assert.rejects(fetchLocalSemanticResponse(url, { method: "POST", body: "{}", signal: AbortSignal.timeout(15000) }), /TOO_LARGE/);
+    await assert.rejects(fetchLocalSemanticResponse(url, { method: "POST" }), /DEADLINE_REQUIRED/);
+});
+
+test("default semantic engine uses the real local HTTP transport with the unchanged Qwen request", async t => {
+    const { createServer } = await import("node:http");
+    const calls = [];
+    const upstream = createServer(async (req, res) => {
+        const chunks = [];
+        for await (const chunk of req) chunks.push(chunk);
+        const body = JSON.parse(Buffer.concat(chunks).toString());
+        calls.push({ route: req.url, body });
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify(req.url === "/api/generate" ? { done: true } : { message: { content: JSON.stringify(result) } }));
+    }).listen(0, "127.0.0.1");
+    await new Promise(resolve => upstream.once("listening", resolve));
+    t.after(() => { upstream.closeAllConnections(); upstream.close(); });
+    const engine = createSelfHostedSemanticEngine({ env: { JARVIS_LOCAL_LLM_BASE_URL: `http://127.0.0.1:${upstream.address().port}/v1` } });
+    const plan = await engine.plan({ input: instruction, catalog, missionState: phase });
+    assert.equal(plan.ok, true);
+    assert.equal(plan.missionComplete, false);
+    assert.deepEqual(calls.map(call => call.route), ["/api/generate", "/api/chat"]);
+    assert.equal(calls[1].body.model, "qwen2.5-coder:3b");
+    assert.equal(calls[1].body.messages[1].content, instruction);
+    assert.equal(engine.describe().counters.semanticExternalCalls, 0);
+});
 
 async function server(t, engine) {
     const app = express();

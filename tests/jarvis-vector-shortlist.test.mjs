@@ -125,8 +125,10 @@ test("query vectorization consumes the same deadline and cannot start Qwen after
     const f = fixture(t);
     await f.engine().plan(request(catalog));
     f.requests.length = 0;
+    let now = Date.now();
+    t.mock.method(Date, "now", () => now);
     const engine = createSelfHostedSemanticEngine({ env: f.env, fetchImpl: async (url, options) => {
-        await new Promise(resolve => setTimeout(resolve, 30));
+        now += 30;
         return f.fetchImpl(url, options);
     } });
     await assert.rejects(engine.plan({ ...request(catalog), timeoutMs: "10" }), /LOCAL_SEMANTIC_TIMEOUT/);
