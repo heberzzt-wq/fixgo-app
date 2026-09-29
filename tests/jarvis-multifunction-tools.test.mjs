@@ -3763,7 +3763,8 @@ test("terminal preserves operational tools when a mixed command also contains a 
         terminal,
         /conversationObservation\s*&&\s*!hasOperationalObservation/
     );
-    assert.match(terminal, /Evidencia ejecutada:/);
+    assert.match(terminal, /Herramientas intentadas \(su resultado puede ser parcial o fallido\):/);
+    assert.doesNotMatch(terminal, /Evidencia ejecutada:/);
     assert.match(
         terminal,
         /finalResponse\?\.text\s*\?\s*\[\]\s*:\s*\[/

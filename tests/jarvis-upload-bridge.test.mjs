@@ -67,7 +67,7 @@ test("supervisor tolerates a slow health response after startup and only recycle
     state = healthy; listening = true;
     await next(2000);
     state = null;
-    await next(20000); // Once healthy, recovery uses the health window, not the longer cold-start window.
+    await next(20000);
     assert.equal(recycled.length, 0);
     state = healthy;
     await next(5000);
@@ -76,6 +76,8 @@ test("supervisor tolerates a slow health response after startup and only recycle
     await next(59000);
     assert.equal(recycled.length, 0, "a recovered health check resets the failure window");
     await next(1001);
+    assert.equal(recycled.length, 0, "an active bounded request must survive more than sixty seconds without health");
+    await next(550000);
     assert.equal(recycled.length, 1, "sustained unresponsiveness still recovers the owned child");
     assert.equal(launched.length, 1, "a health timeout never starts a duplicate bridge");
     listening = false;
