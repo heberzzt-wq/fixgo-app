@@ -1218,7 +1218,8 @@ export function createSelfHostedSemanticEngine({
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     model: embeddingModel,
-                    input: values
+                    input: values,
+                    keep_alive: warmKeepAlive || "30m"
                 }),
                 signal: controller.signal
             });

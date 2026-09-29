@@ -57,6 +57,7 @@ test("vector cache survives engine restart; Qwen can choose the second candidate
     assert.equal(next.semanticPreselection.cacheMisses, 0);
     assert.equal(f.requests.length, 2);
     assert.deepEqual(f.requests[0].body.input, [request(catalog).input]);
+    assert.equal(f.requests[0].body.keep_alive, "30m");
     assert.equal(f.requests[1].body.tools.length, 2);
     assert.equal(next.inferenceReceipt.counters.paidExternalCalls, 0);
 });

@@ -78,6 +78,7 @@ on:
       - 'tests/jarvis-upload-bridge.test.mjs'
       - 'tests/jarvis-multifunction-tools.test.mjs'
       - 'tests/jarvis-semantic-planner.test.cjs'
+      - 'tests/jarvis-vector-shortlist.test.mjs'
       - 'tests/jarvis-source-grounded-research-v124.test.mjs'
       - 'tests/jarvis-mission-orchestrator.test.mjs'
       - 'tests/jarvis-video-reference-mission-continuity-v142.test.mjs'
