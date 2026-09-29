@@ -5,7 +5,7 @@ import fs from "node:fs";
 import { runInNewContext } from "node:vm";
 import { semanticPlanHandler, semanticResponseHandler, fetchLocalSemanticResponse } from "../jarvis-semantic-http.js";
 import { createSelfHostedSemanticEngine } from "../jarvis-fs-bridge.js";
-import { readSemanticStream, semanticPlanBudgetMs, semanticFailurePresentation } from "../gestia-core/jarvis/jarvis.semantic.transport.js";
+import { readSemanticStream, semanticPlanBudgetMs, semanticFailurePresentation, isSemanticTimeout } from "../gestia-core/jarvis/jarvis.semantic.transport.js";
 
 const instruction = ("Audita el runtime.\n" + "Contexto verificable. ".repeat(180) + "\nNO MODIFICAR ARCHIVOS, NO PAGAR, NO PUBLICAR.\n" + "Evidencia real. ".repeat(150)).trim();
 const catalog = [{ name: "repo.audit", description: "Audita el repositorio", mutates: false }];
@@ -135,7 +135,31 @@ test("long CURRENT_TURN keeps every constraint in the gate and operative prompt"
         assert.equal(plan.ok, true);
         assert.equal(plan.missionComplete, false);
     }
-    assert.deepEqual(prefixes[0], prefixes[1], "both phases reuse the same complete prefix");
+    assert.equal(prefixes[0][1].content, prefixes[1][1].content, "both phases preserve the complete original request");
+    assert.match(prefixes[0][0].content, /Clasifica/);
+});
+
+test("CURRENT_TURN never replays an exhausted local deadline or truncated answer", async () => {
+    const source = fs.readFileSync("gestia-core/gestia-core.js", "utf8");
+    const start = source.indexOf('    async analizarIntencionLigera(');
+    const end = source.indexOf('    async procesarIntencion(', start);
+    assert.ok(start > 0 && end > start);
+    for (const message of ["SEMANTIC_AUTHENTICATED_PROVIDER_LOCAL_SEMANTIC_TIMEOUT", "JARVIS_LOCAL_BRIDGE_TIMEOUT_REQUEST", "SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_RESPONSE_INCOMPLETE"]) {
+        let calls = 0;
+        const analyze = runInNewContext(`({${source.slice(start, end)}}).analizarIntencionLigera`, {
+            JarvisSemanticMemory: { recall: async () => null },
+            auth: { currentUser: { uid: "test" } },
+            JarvisToolRuntime: { list: () => [{ name: "conversation.respond" }] },
+            compactJarvisSemanticMemoryForPlanner: () => null,
+            buildJarvisMultifunctionToolCalls: async () => { calls++; throw new Error(message); },
+            isSemanticTimeout,
+            isPermanentSemanticPlannerFailure: () => false,
+            setTimeout: callback => callback(),
+            console: { warn() {} }
+        });
+        await assert.rejects(analyze("Lee el contrato.", {}), error => error.message === message);
+        assert.equal(calls, 1, message);
+    }
 });
 
 test("browser transport sends one streamed plan and preserves the final failure", async t => {

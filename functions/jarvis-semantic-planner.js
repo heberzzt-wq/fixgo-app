@@ -1315,8 +1315,8 @@ async function runModelSemanticPlanner({
                 modelProfile:
                     "conversation",
                 chatMessages: [
-                    ...currentTurnMessages,
-                    { role: "user", content: gateSystemInstruction }
+                    { role: "system", content: gateSystemInstruction },
+                    { role: "user", content: instruction }
                 ],
                 maxOutputTokens: 16,
                 temperature: 0,
@@ -1334,7 +1334,8 @@ async function runModelSemanticPlanner({
                 )
             ) || {};
         const direct =
-            gatePayload?.direct === true;
+            gatePayload?.direct === true &&
+            gateResponse?.providerResponse?.finishReason !== "length";
 
         let directMessage = "";
         if (direct) {
@@ -1377,18 +1378,22 @@ async function runModelSemanticPlanner({
                                 instruction
                         }
                     ],
-                    maxOutputTokens: 48,
+                    maxOutputTokens: 160,
                     temperature: 0.2,
                     thinkingConfig: {
                         thinkingLevel: "MINIMAL"
                     }
                 }
             });
+            if (responseResult?.providerResponse?.finishReason === "length") {
+                throw new Error("SEMANTIC_RESPONSE_INCOMPLETE");
+            }
             directMessage =
                 String(
                     responseResult?.text ||
                     ""
                 ).trim();
+            if (!directMessage) throw new Error("SEMANTIC_RESPONSE_EMPTY");
         }
 
         if (!direct) {
@@ -1891,6 +1896,9 @@ async function runJarvisSemanticResponse({
             timeout
         ]);
         const message = String(response?.text || "").trim();
+        if (response?.providerResponse?.finishReason === "length") {
+            throw new Error("SEMANTIC_RESPONSE_INCOMPLETE");
+        }
         if (!message) throw new Error("SEMANTIC_RESPONSE_EMPTY");
         return { ok: true, status: "SEMANTIC_RESPONSE_READY", version: VERSION, provider: String(ai.lastProvider || "jarvis-local"), model: DEFAULT_SEMANTIC_MODEL, message };
     } catch(error) {

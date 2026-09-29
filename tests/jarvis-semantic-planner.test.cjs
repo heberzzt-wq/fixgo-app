@@ -136,9 +136,9 @@ test("current-turn conversational gate classifies then responds with the same lo
         gateRequest?.config?.modelProfile,
         "conversation"
     );
-    assert.deepEqual(gateRequest.config.chatMessages.map(item => item.role), ["system", "user", "user"]);
+    assert.deepEqual(gateRequest.config.chatMessages.map(item => item.role), ["system", "user"]);
     assert.equal(gateRequest.config.chatMessages[1].content, "Qué tal pariente, ¿cómo estás?");
-    assert.match(gateRequest.config.chatMessages.at(-1).content, /direct.*false/);
+    assert.match(gateRequest.config.chatMessages[0].content, /direct.*false/);
     assert.equal(
         responseRequest?.config?.modelProfile,
         "conversation"
@@ -204,6 +204,63 @@ test("current-turn conversational gate delegates operational work without invent
         result.planKind,
         "CURRENT_TURN_CONVERSATION_GATE_DELEGATE"
     );
+});
+
+test("current-turn gate classifies the original read request, not its own phase instructions", async () => {
+    const input = "Lee jarvis-runtime-contract.json sin modificar nada y dime en tres líneas qué comprobaste. Si falla, explica el error real.";
+    const result = await runJarvisSemanticPlanner({
+        input,
+        catalog: [{ name: "conversation.respond", mutates: false }],
+        missionState: { phase: "CURRENT_TURN", conversationalGate: true },
+        ai: { models: { async generateContent(request) {
+            assert.equal(request.config.chatMessages.at(-1).role, "user");
+            assert.equal(request.config.chatMessages.at(-1).content, input);
+            assert.match(request.config.chatMessages[0].content, /Clasifica/);
+            return { text: '{"direct":false}', providerResponse: { finishReason: "stop" } };
+        } } }
+    });
+    assert.deepEqual(result.toolCalls, []);
+    assert.equal(result.planKind, "CURRENT_TURN_CONVERSATION_GATE_DELEGATE");
+});
+
+test("a truncated gate cannot authorize a direct answer even with parseable JSON", async () => {
+    let calls = 0;
+    const result = await runJarvisSemanticPlanner({
+        input: "Comprueba el archivo del proyecto.",
+        catalog: [{ name: "conversation.respond", mutates: false }],
+        missionState: { phase: "CURRENT_TURN", conversationalGate: true },
+        ai: { models: { async generateContent() {
+            calls += 1;
+            return { text: '{"direct":true}', providerResponse: { finishReason: "length" } };
+        } } }
+    });
+    assert.equal(calls, 1);
+    assert.deepEqual(result.toolCalls, []);
+});
+
+test("a truncated direct response cannot become a completed conversation tool call", async () => {
+    let calls = 0;
+    await assert.rejects(() => runJarvisSemanticPlanner({
+        input: "Qué onda, pariente.",
+        catalog: [{ name: "conversation.respond", mutates: false }],
+        missionState: { phase: "CURRENT_TURN", conversationalGate: true },
+        ai: { models: { async generateContent() {
+            calls += 1;
+            return calls === 1
+                ? { text: '{"direct":true}', providerResponse: { finishReason: "stop" } }
+                : { text: "Aquí estamos y podemos seguir plati", providerResponse: { finishReason: "length" } };
+        } } }
+    }), /SEMANTIC_RESPONSE_INCOMPLETE/);
+    assert.equal(calls, 2);
+});
+
+test("a truncated final composition is not reported as SEMANTIC_RESPONSE_READY", async () => {
+    await assert.rejects(() => runJarvisSemanticResponse({
+        input: "Explica la evidencia de la lectura.",
+        ai: { models: { async generateContent() {
+            return { text: "El archivo contiene una configura", providerResponse: { finishReason: "length" } };
+        } } }
+    }), /SEMANTIC_RESPONSE_INCOMPLETE/);
 });
 
 test("semantic planner rejects calls missing schema-required arguments", () => {

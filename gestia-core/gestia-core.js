@@ -3948,7 +3948,8 @@ export const GestiaCore = {
                 );
                 const providerFallbackExhausted =
                     message.includes("__BROWSER_") ||
-                    message.includes("TIMEOUT_") ||
+                    isSemanticTimeout(error) ||
+                    message.includes("SEMANTIC_RESPONSE_INCOMPLETE") ||
                     message.includes("AUTH_REQUIRED") ||
                     isPermanentSemanticPlannerFailure(message);
                 if (
