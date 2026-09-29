@@ -113,6 +113,9 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     assert.match(pkg.scripts["bridge:supervise"], /workerStarted/);
     assert.match(pkg.scripts["bridge:supervise"], /loadedHead/);
     assert.match(pkg.scripts["bridge:supervise"], /currentHead\(\)/);
+    assert.match(pkg.scripts["bridge:supervise"], /lastKnownHead/);
+    assert.match(pkg.scripts["bridge:supervise"], /current HEAD temporarily unavailable; retaining healthy bridge/);
+    assert.match(pkg.scripts["bridge:supervise"], /runtimeAligned&&\(!head\|\|state\.loadedHead===head\)/);
     assert.match(pkg.scripts["bridge:supervise"], /rev-parse/);
     assert.match(pkg.scripts["bridge:supervise"], /taskkill/);
     assert.match(pkg.scripts["bridge:supervise"], /processId/);
