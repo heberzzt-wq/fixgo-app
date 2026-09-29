@@ -2876,6 +2876,24 @@ test("Jarvis answers casual conversation through the real semantic model", async
         restoreSemanticBridge();
 });
 
+test("final conversation forwards its presentation mode to the sole local semantic engine", async t => {
+    const previous = globalThis.JarvisLocalBridge;
+    t.after(() => { globalThis.JarvisLocalBridge = previous; });
+    let calls = 0;
+    globalThis.JarvisLocalBridge = { requestJson: async (route, payload) => {
+        calls++;
+        assert.equal(route, "/semantic/respond");
+        assert.equal(payload.input, "Evidencia de la mision parcial");
+        assert.equal(payload.responseMode, "grounded_conversation");
+        return { ok: true, message: "La mision quedo parcial.", model: "qwen2.5-coder:3b" };
+    } };
+    const runtime = createRuntime();
+    registerJarvisMultifunctionTools(runtime);
+    const result = await runtime.execute("conversation.respond", { prompt: "Evidencia de la mision parcial", responseMode: "grounded_conversation" });
+    assert.equal(result.ok, true);
+    assert.equal(calls, 1);
+});
+
 test("mixed capability conversation preserves greeting, capabilities and limits", async () => {
     const instruction =
         "Buenos días, dame un resumen de lo que ya puedes hacer y lo que aún no.";

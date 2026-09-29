@@ -342,6 +342,21 @@ test("final composition preserves the entire prompt and reserves context for its
     assert.equal(calls, 1);
 });
 
+test("grounded conversation enforces presentation in the system role without affecting generic responses", async () => {
+    const systems = [];
+    const engine = createSelfHostedSemanticEngine({ fetchImpl: async (_url, options) => {
+        const body = JSON.parse(options.body);
+        assert.equal(body.messages.at(-1).content, instruction);
+        systems.push(body.messages[0].content);
+        return { ok: true, text: async () => JSON.stringify({ message: { content: "La mision quedo parcial." } }) };
+    } });
+    await engine.respond({ input: instruction, responseMode: "grounded_conversation" });
+    await engine.respond({ input: instruction });
+    assert.ok(systems[0].includes("No copies etiquetas internas"));
+    assert.ok(systems[0].includes("100 palabras"));
+    assert.ok(!systems[1].includes("No copies etiquetas internas"), "structured artifact drafting keeps its existing contract");
+});
+
 test("final response streams until completion, keeps JSON compatibility and cancels disconnected work", async t => {
     let calls = 0;
     const reply = { ok: true, message: "Evidencia parcial; la misión no se completó." };

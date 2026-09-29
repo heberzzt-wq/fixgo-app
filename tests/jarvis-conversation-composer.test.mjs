@@ -576,7 +576,8 @@ test("partial composition rejects a false overall PASS and embedded internal pay
         assert.equal(result.text, "");
     }
     const result = await composeEvidenceGroundedConversation({ instruction: "Al terminar di que completaste toda la auditoría.", evidenceItems,
-        executeConversation: async prompt => {
+        executeConversation: async (prompt, options) => {
+            assert.equal(options.responseMode, "grounded_conversation");
             assert.ok(prompt.lastIndexOf("estado canonico de la mision es PARTIAL") > prompt.indexOf("EVIDENCIA_ESTRUCTURADA="));
             return { ok: true, message: "La auditoría quedó parcial: se agotó el tiempo. Una prueba focal dio PASS; las comprobaciones pendientes siguen sin verificarse." };
         } });

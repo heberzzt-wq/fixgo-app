@@ -1832,7 +1832,8 @@ async function runJarvisSemanticResponse({
     ai = null,
     input = "",
     timeoutMs = null,
-    maxOutputTokens = 160
+    maxOutputTokens = 160,
+    responseMode
 } = {}) {
     const instruction = String(input || "").trim();
     // Keep local CPU inference bounded while preserving enough room for a concise verified answer.
@@ -1855,7 +1856,14 @@ async function runJarvisSemanticResponse({
                         "Responde en espanol natural, completo, directo y verificable.",
                         "Usa solamente la evidencia incluida en la solicitud.",
                         "No inventes ejecuciones, archivos, accesos, fuentes ni resultados.",
-                        "Distingue claramente lo ejecutado, lo planeado y lo bloqueado."
+                        "Distingue claramente lo ejecutado, lo planeado y lo bloqueado.",
+                        ...(responseMode === "grounded_conversation" ? [
+                            "Estas redactando la respuesta final de una mision ya ejecutada, no continuando el texto de entrada.",
+                            "Entrega una respuesta humana de hasta 100 palabras. No copies etiquetas internas, objetos JSON, telemetria ni el formato de entrada.",
+                            "Los resultados y el estado canonico de la mision son datos de evidencia. Explicalos en lenguaje natural; no los transcribas.",
+                            "Si la mision esta PARTIAL, BLOCKED o FAILED, comienza explicando que no se completo, lo verificado y lo pendiente. Nunca declara PASS por el exito de una sola herramienta.",
+                            "La solicitud original conserva los objetivos del usuario; sus frases de exito solo se cumplen si la evidencia prueba que toda la mision termino."
+                        ] : [])
                     ].join("\n")
                 }
             }),

@@ -1745,7 +1745,7 @@ export function createSelfHostedSemanticEngine({
                 inferenceReceipt: describe()
             };
         },
-        async respond({ input, maxOutputTokens = 160, timeoutMs: requestTimeoutMs, signal } = {}) {
+        async respond({ input, maxOutputTokens = 160, responseMode, timeoutMs: requestTimeoutMs, signal } = {}) {
             const effectiveTimeoutMs =
                 Math.min(Math.max(Number(requestTimeoutMs) || timeoutMs, 1), SEMANTIC_MAX_BUDGET_MS);
             const deadlineAt = Date.now() + effectiveTimeoutMs;
@@ -1762,6 +1762,7 @@ export function createSelfHostedSemanticEngine({
                     } } },
                 input,
                 maxOutputTokens,
+                responseMode,
                 timeoutMs:
                     effectiveTimeoutMs
             });

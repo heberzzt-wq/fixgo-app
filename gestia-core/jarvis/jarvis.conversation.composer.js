@@ -1083,13 +1083,13 @@ export async function composeEvidenceGroundedConversation({
         // evidence, so a long request cannot become the completion instruction.
         missionOutcomeInstruction,
         missionOutcomeInstruction
-            ? "La auditoria NO termino. Redacta ahora una respuesta de hasta 100 palabras: estado parcial o fallido, evidencia obtenida y limite real. Si incluyes Estado general, conserva el estado canonico; nunca PASS. No completes el formato de exito solicitado ni afirmes que terminaste todo."
+            ? "La mision NO termino. Redacta ahora una respuesta de hasta 100 palabras: estado parcial o fallido, evidencia obtenida y limite real. Si incluyes Estado general, conserva el estado canonico; nunca PASS. No completes el formato de exito solicitado ni afirmes que terminaste todo."
             : "Redacta ahora la respuesta final usando solamente los resultados verificados.",
         "Entrega solo texto natural para el usuario. No copies la solicitud, las etiquetas internas ni sus objetos JSON."
     ].filter(Boolean).join("\n\n");
 
     try {
-        const result = await executeConversation(prompt);
+        const result = await executeConversation(prompt, { responseMode: "grounded_conversation" });
         const payload =
             result?.response?.data ||
             result?.response ||

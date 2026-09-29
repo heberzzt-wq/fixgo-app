@@ -2907,7 +2907,8 @@ async function fetchGroundedMediaAnalysis(attachments = [], question = "") {
 async function fetchSemanticConversation(
     instruction = "",
     {
-        maxOutputTokens = 3500
+        maxOutputTokens = 3500,
+        responseMode
     } = {}
 ) {
     const bridge =
@@ -2946,6 +2947,7 @@ async function fetchSemanticConversation(
             {
                 input: instruction,
                 maxOutputTokens,
+                ...(responseMode === "grounded_conversation" ? { responseMode } : {}),
                 timeoutMs: localTimeoutMs
             },
             { timeoutMs: localTimeoutMs + 5000 }
@@ -4760,6 +4762,7 @@ export function registerJarvisMultifunctionTools(runtime) {
             output: "SIA7_CONVERSATION_RESPONSE",
             inputSchema: {
                 prompt: "string",
+                responseMode: "string",
                 maxOutputTokens: "number"
             },
             execute: async (args = {}, context = {}) => {
@@ -4823,6 +4826,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                     await fetchSemanticConversation(
                         semanticInstruction,
                         {
+                            responseMode: args.responseMode,
                             maxOutputTokens:
                                 conversationBudget
                         }

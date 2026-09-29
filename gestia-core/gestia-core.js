@@ -6187,7 +6187,7 @@ if (
                         }
                     }, ...missionEvidenceItems],
                 executeConversation:
-                    async prompt => {
+                    async (prompt, compositionOptions) => {
                         const observations =
                             await window.ToolsBridge.executeMany(
                                 [{
@@ -6195,6 +6195,7 @@ if (
                                         "conversation.respond",
                                     args: {
                                         prompt,
+                                        responseMode: compositionOptions?.responseMode,
                                         maxOutputTokens:
                                             256
                                     },
