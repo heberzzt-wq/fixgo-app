@@ -263,6 +263,44 @@ test("a truncated final composition is not reported as SEMANTIC_RESPONSE_READY",
     }), /SEMANTIC_RESPONSE_INCOMPLETE/);
 });
 
+test("Qwen can select a registered tool omitted by vector retrieval before receiving its schema", async () => {
+    const input = "Lee el contrato sin modificarlo.";
+    const tools = [...catalog, { name: "repo.read", mutates: false, inputSchema: { type: "object", required: ["file"], properties: { file: { type: "string" } } } }];
+    let calls = 0;
+    const plan = await runJarvisSemanticPlanner({
+        input, catalog: tools, retrievalCandidates: tools.slice(0, 2),
+        missionState: { phase: "CURRENT_TURN", writeAllowed: false },
+        ai: { models: { async generateContent(request) {
+            calls++;
+            if (calls === 1) {
+                assert.equal(request.config.chatMessages.at(-1).content, input);
+                assert.deepEqual(request.config.responseJsonSchema.properties.name.enum, tools.map(tool => tool.name));
+                return { text: '{"name":"repo.read"}', providerResponse: { finishReason: "stop" } };
+            }
+            const payload = JSON.parse(request.config.chatMessages.at(-1).content);
+            assert.deepEqual(payload.catalog.map(tool => tool.name), ["repo.read"]);
+            assert.equal(payload.catalog[0].inputSchema.properties.file.type, "string");
+            assert.equal(request.config.chatMessages[1].content, input);
+            return { text: '{"toolCalls":[{"name":"repo.read","args":{"file":"jarvis-runtime-contract.json"}}]}' };
+        } } }
+    });
+    assert.equal(calls, 2);
+    assert.equal(plan.toolCalls[0].name, "repo.read");
+    assert.equal(plan.toolCalls[0].args.file, "jarvis-runtime-contract.json");
+});
+
+test("catalog index selection rejects nonexistent tools and incomplete choices", async () => {
+    for (const response of [{ text: '{"name":"invented.tool"}' }, { text: '{"name":"repo.search"}', providerResponse: { finishReason: "length" } }]) {
+        let calls = 0;
+        await assert.rejects(() => runJarvisSemanticPlanner({
+            input: "Inspecciona el proyecto.", catalog, retrievalCandidates: catalog.slice(0, 2),
+            missionState: { phase: "CURRENT_TURN" },
+            ai: { models: { async generateContent() { calls++; return response; } } }
+        }), /SEMANTIC_TOOL_SELECTION_INVALID/);
+        assert.equal(calls, 1);
+    }
+});
+
 test("semantic planner rejects calls missing schema-required arguments", () => {
     const readTool = {
         name: "repo.read",
@@ -1069,10 +1107,14 @@ test("current-turn operational planning preserves supplied candidates without le
             lastProvider: "ollama-openai-compatible-local",
             models: {
                 generateContent: async request => {
+                    if (request.config.responseJsonSchema?.properties?.name) {
+                        assert.deepEqual(request.config.responseJsonSchema.properties.name.enum, operationalCatalog.map(tool => tool.name));
+                        return { text: '{"name":"repo.gitStatus"}' };
+                    }
                     requestSeen = request;
                     return {
                         text: JSON.stringify({
-                            name: "jarvis_tool_1",
+                            name: "jarvis_tool_0",
                             arguments: {}
                         }),
                         functionCalls: []
@@ -1085,7 +1127,7 @@ test("current-turn operational planning preserves supplied candidates without le
     assert.equal(requestSeen.config.maxOutputTokens, 160);
     assert.equal(requestSeen.config.responseMimeType, "application/json");
     const phaseRequest = JSON.parse(requestSeen.config.chatMessages.at(-1).content);
-    assert.deepEqual(phaseRequest.catalog.map(tool => tool.name), operationalCatalog.map(tool => tool.name));
+    assert.deepEqual(phaseRequest.catalog.map(tool => tool.name), ["repo.gitStatus"]);
     assert.match(phaseRequest.task, /exactamente una herramienta/);
 
     assert.equal(result.toolCalls.length, 1);

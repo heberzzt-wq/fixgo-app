@@ -505,7 +505,9 @@ function buildNativeInputSchema(inputSchema = null) {
 }
 
 function compactPlannerInputSchema(inputSchema = null, depth = 0) {
-    const schema = buildNativeInputSchema(inputSchema);
+    const schema = depth === 0
+        ? buildNativeInputSchema(inputSchema)
+        : jsonTypeForSchemaHint(inputSchema);
     if (!schema || typeof schema !== "object" || Array.isArray(schema)) return null;
 
     const compact = {};
@@ -763,16 +765,14 @@ async function runModelSemanticPlanner({
     if (!ai?.models?.generateContent) throw new Error("SEMANTIC_GEMINI_REQUIRED");
     const instruction = String(input || "").trim();
     const normalizedCatalog = normalizeCatalog(catalog);
-    // Identical full-input prefix across gate, initial plan and mission contract
-    // lets Ollama reuse its KV cache. Only the final phase instructions differ.
+    // Operational planning and mission contracts preserve the full input prefix.
     const currentTurnMessages = [
         { role: "system", content: "Eres Jarvis, la unica autoridad semantica local. La primera entrada es la instruccion original completa; la ultima indica la fase a resolver. Conserva todos los objetivos y restricciones. Devuelve JSON, no inventes evidencia ni concedas permisos." },
         { role: "user", content: instruction }
     ];
     const currentTurn = String(missionState?.phase || "") === "CURRENT_TURN";
-    // CURRENT_TURN candidates are retrieved by the local vector cache. Preserve
-    // them verbatim so only the model, never a lexical ranker, chooses the tool.
-    const safeCatalog = currentTurn ? normalizedCatalog : shortlistSemanticCatalog(
+    // Qwen sees every current-turn tool name before the selected tool's schema.
+    let safeCatalog = currentTurn ? normalizedCatalog : shortlistSemanticCatalog(
         instruction,
         normalizedCatalog,
         missionState,
@@ -1433,6 +1433,40 @@ async function runModelSemanticPlanner({
             catalogSize: 1,
             planKind: "CURRENT_TURN_CONVERSATION_GATE_DIRECT"
         };
+    }
+
+    if (currentTurn && safeCatalog.length > 2) {
+        const names = safeCatalog.map(tool => tool.name);
+        const selectionInstruction = [
+            "Eres Jarvis, la unica autoridad semantica local. Selecciona exactamente una herramienta inicial para satisfacer la solicitud actual. No ejecutes ni inventes resultados.",
+            "Devuelve solo {\"name\":\"nombre del indice\"}. Elige la accion concreta solicitada por el usuario. El orden del indice no determina la eleccion. No agregues comprobaciones ni acciones no pedidas.",
+            JSON.stringify({ availableTools: names })
+        ].join("\n");
+        const selection = await ai.models.generateContent({
+            model,
+            contents: `${selectionInstruction}\n\n${instruction}`,
+            config: {
+                chatMessages: [
+                    { role: "system", content: selectionInstruction },
+                    { role: "user", content: instruction }
+                ],
+                responseMimeType: "application/json",
+                responseJsonSchema: {
+                    type: "object",
+                    properties: { name: { type: "string", enum: names } },
+                    required: ["name"],
+                    additionalProperties: false
+                },
+                maxOutputTokens: 48,
+                temperature: 0
+            }
+        });
+        const name = extractJsonObject(String(selection?.text || ""))?.name;
+        const selected = safeCatalog.find(tool => tool.name === name);
+        if (!selected || selection?.providerResponse?.finishReason === "length") {
+            throw new Error("SEMANTIC_TOOL_SELECTION_INVALID");
+        }
+        safeCatalog = [selected];
     }
 
     const request = currentTurn
