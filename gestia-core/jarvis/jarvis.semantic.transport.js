@@ -1,6 +1,5 @@
 // Transport limits only. This module never classifies input or selects tools.
 export const SEMANTIC_MAX_BUDGET_MS = 600000;
-export const SEMANTIC_IDLE_TIMEOUT_MS = 20000;
 
 export function semanticPlanBudgetMs({ input = "", missionState, timeoutMs = 60000 } = {}) {
     const requested = Math.max(1, Number(timeoutMs) || 60000);

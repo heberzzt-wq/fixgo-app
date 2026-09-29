@@ -1,4 +1,4 @@
-import { semanticPlanBudgetMs, readSemanticStream, SEMANTIC_IDLE_TIMEOUT_MS, semanticFailurePresentation } from "../../gestia-core/jarvis/jarvis.semantic.transport.js";
+import { semanticPlanBudgetMs, readSemanticStream, semanticFailurePresentation } from "../../gestia-core/jarvis/jarvis.semantic.transport.js";
 /*
  * ======================================================================================
  * JARVIS TERMINAL BOOTSTRAP — HISTORICAL NEXO FILENAME ONLY
@@ -11,7 +11,7 @@ import { semanticPlanBudgetMs, readSemanticStream, SEMANTIC_IDLE_TIMEOUT_MS, sem
  */
 
 export const JARVIS_TERMINAL_BOOTSTRAP_VERSION =
-    "1.14.0-semantic-progress-deadline";
+    "1.15.0-semantic-absolute-deadline";
 export const NEXO_TERMINAL_BOOTSTRAP_VERSION =
     JARVIS_TERMINAL_BOOTSTRAP_VERSION; // compatibility export only
 
@@ -99,17 +99,16 @@ export function installJarvisLocalBridgeTransport() {
                 attempt += 1
             ) {
                 const controller = new AbortController();
+                const startedAt = Date.now();
+                let deadlineExceeded = false;
                 const timeout = setTimeout(
-                    () => controller.abort(),
+                    () => { deadlineExceeded = true; controller.abort(); },
                     timeoutMs
                 );
 
-                let idleTimer;
-                const activity = () => {
-                    clearTimeout(idleTimer);
-                    idleTimer = setTimeout(() => controller.abort(), SEMANTIC_IDLE_TIMEOUT_MS);
-                };
-                if (semanticRequest) activity();
+                // Heartbeats report progress. A delayed chunk (including browser
+                // scheduling under CPU pressure) must not override the bounded
+                // inference deadline or cancel work already accepted by Qwen.
                 try {
                     const response = await globalThis.fetch(
                         `${LOCAL_BRIDGE_BASE_URL}${path}`,
@@ -130,12 +129,11 @@ export function installJarvisLocalBridgeTransport() {
                         }
                     );
                     if (semanticRequest && response.headers.get("content-type")?.includes("application/x-ndjson")) {
-                        return await readSemanticStream(response, { onActivity: activity, onProgress: detail => {
+                        return await readSemanticStream(response, { onProgress: detail => {
                             globalThis.dispatchEvent?.(new CustomEvent("jarvis:semantic-progress", { detail }));
                         } });
                     }
                     // An older bridge can still reply with one JSON result.
-                    clearTimeout(idleTimer);
                     const text = await response.text();
                     let result = {};
                     if (text) {
@@ -171,6 +169,12 @@ export function installJarvisLocalBridgeTransport() {
                             path;
                         timeoutError.timeoutMs =
                             timeoutMs;
+                        timeoutError.timeoutReason = deadlineExceeded ? "ABSOLUTE_DEADLINE" : "REQUEST_ABORTED";
+                        timeoutError.elapsedMs = Date.now() - startedAt;
+                        console.warn("[JARVIS_LOCAL_BRIDGE_TIMEOUT]", {
+                            route: path, timeoutReason: timeoutError.timeoutReason,
+                            timeoutMs, elapsedMs: timeoutError.elapsedMs
+                        });
                         throw timeoutError;
                     }
 
@@ -200,7 +204,6 @@ export function installJarvisLocalBridgeTransport() {
                 }
                 finally {
                     clearTimeout(timeout);
-                    clearTimeout(idleTimer);
                 }
             }
 

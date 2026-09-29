@@ -175,6 +175,47 @@ test("browser transport sends one streamed plan and preserves the final failure"
     assert.equal(calls, 4, "final composition also has exactly one attempt");
 });
 
+test("browser permits delayed progress until the absolute semantic deadline, without replay", async t => {
+    const { installJarvisLocalBridgeTransport } = await import("../modules/terminal/nexo-bootstrap.js");
+    const oldFetch = globalThis.fetch;
+    const oldBridge = globalThis.JarvisLocalBridge;
+    t.after(() => { globalThis.fetch = oldFetch; globalThis.JarvisLocalBridge = oldBridge; });
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    let signal, stream, accepted, calls = 0;
+    let ready = new Promise(resolve => { accepted = resolve; });
+    globalThis.fetch = async (url, options) => {
+        if (String(url).includes("jarvis-runtime-contract.json")) return Response.json({ releaseId: "test" });
+        calls++;
+        signal = options.signal;
+        const body = new ReadableStream({ start(controller) {
+            stream = controller;
+            signal.addEventListener("abort", () => controller.error(signal.reason), { once: true });
+        } });
+        accepted();
+        return new Response(body, { headers: { "content-type": "application/x-ndjson" } });
+    };
+    delete globalThis.JarvisLocalBridge;
+    const bridge = installJarvisLocalBridgeTransport();
+    const pending = bridge.requestJson("/semantic/respond", { input: "Resume la evidencia", timeoutMs: 60000 });
+    // Keep rejection handled while testing the old premature cancellation.
+    pending.catch(() => {});
+    await ready;
+    t.mock.timers.tick(25000);
+    assert.equal(signal.aborted, false, "a pause in heartbeats is not the inference deadline");
+    stream.enqueue(new TextEncoder().encode('{"type":"result","result":{"ok":true,"message":"Evidencia parcial"}}\n'));
+    stream.close();
+    assert.equal((await pending).message, "Evidencia parcial");
+
+    ready = new Promise(resolve => { accepted = resolve; });
+    const stalled = bridge.requestJson("/semantic/respond", { input: "Resume la evidencia", timeoutMs: 60000 });
+    const rejected = assert.rejects(stalled, error => error.code === "JARVIS_LOCAL_BRIDGE_TIMEOUT_REQUEST" && error.timeoutReason === "ABSOLUTE_DEADLINE");
+    await ready;
+    t.mock.timers.tick(70001);
+    await rejected;
+    assert.equal(signal.aborted, true, "unresponsive work remains bounded");
+    assert.equal(calls, 2, "neither accepted request is retried");
+});
+
 test("long mission contract retains the shared full-input prefix and an adequate budget", async () => {
     const missionState = { phase: "MISSION_CONTRACT", existingInitialTools: ["repo.audit"], writeAllowed: false };
     assert.ok(semanticPlanBudgetMs({ input: instruction, missionState, timeoutMs: 90000 }) > 90000);
