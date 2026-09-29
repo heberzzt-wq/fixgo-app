@@ -1465,7 +1465,14 @@ async function runModelSemanticPlanner({
         const name = extractJsonObject(String(selection?.text || ""))?.name;
         const selected = safeCatalog.find(tool => tool.name === name);
         if (!isSafeToolName(name) || selection?.providerResponse?.finishReason === "length") {
-            throw new Error("SEMANTIC_TOOL_SELECTION_INVALID");
+            const error = new Error("SEMANTIC_TOOL_SELECTION_INVALID");
+            error.evidence = {
+                phase: "CURRENT_TURN_TOOL_SELECTION",
+                proposedName: String(name || "").slice(0, 100),
+                finishReason: String(selection?.providerResponse?.finishReason || ""),
+                responsePreview: String(selection?.text || "").slice(0, 400)
+            };
+            throw error;
         }
         if (selected) {
             safeCatalog = [selected];
