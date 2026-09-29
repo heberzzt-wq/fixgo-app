@@ -1259,7 +1259,7 @@ export function createSelfHostedSemanticEngine({
         }
     }
 
-    function normalizeLocalChatMessages(messages = []) {
+    function normalizeLocalChatMessages(messages = [], fullResponseInput = false) {
         const allowedRoles =
             new Set(["system", "user", "assistant"]);
         const normalized = [];
@@ -1273,7 +1273,7 @@ export function createSelfHostedSemanticEngine({
             const content =
                 String(item?.content || "")
                     .trim()
-                    .slice(0, 12000);
+                    .slice(0, fullResponseInput ? 120000 : 12000);
             if (
                 !allowedRoles.has(role) ||
                 !content
@@ -1282,7 +1282,7 @@ export function createSelfHostedSemanticEngine({
             }
             if (
                 totalCharacters + content.length >
-                60000
+                (fullResponseInput ? 240000 : 60000)
             ) {
                 break;
             }
@@ -1319,7 +1319,8 @@ export function createSelfHostedSemanticEngine({
             if (token) headers.Authorization = `Bearer ${token}`;
             const explicitChatMessages =
                 normalizeLocalChatMessages(
-                    request?.config?.chatMessages
+                    request?.config?.chatMessages,
+                    request?.config?.nativeTextChat === true
                 );
             const fallbackMessages = [
                 ...(request?.config?.systemInstruction
@@ -1745,7 +1746,7 @@ export function createSelfHostedSemanticEngine({
                 inferenceReceipt: describe()
             };
         },
-        async respond({ input, maxOutputTokens = 160, responseMode, timeoutMs: requestTimeoutMs, signal } = {}) {
+        async respond({ input, maxOutputTokens = 160, responseMode, responseBriefing, timeoutMs: requestTimeoutMs, signal } = {}) {
             const effectiveTimeoutMs =
                 Math.min(Math.max(Number(requestTimeoutMs) || timeoutMs, 1), SEMANTIC_MAX_BUDGET_MS);
             const deadlineAt = Date.now() + effectiveTimeoutMs;
@@ -1763,6 +1764,7 @@ export function createSelfHostedSemanticEngine({
                 input,
                 maxOutputTokens,
                 responseMode,
+                responseBriefing,
                 timeoutMs:
                     effectiveTimeoutMs
             });

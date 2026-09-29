@@ -6196,6 +6196,7 @@ if (
                                     args: {
                                         prompt,
                                         responseMode: compositionOptions?.responseMode,
+                                        responseBriefing: compositionOptions?.responseBriefing,
                                         maxOutputTokens:
                                             256
                                     },

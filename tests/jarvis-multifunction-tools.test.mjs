@@ -2885,11 +2885,12 @@ test("final conversation forwards its presentation mode to the sole local semant
         assert.equal(route, "/semantic/respond");
         assert.equal(payload.input, "Evidencia de la mision parcial");
         assert.equal(payload.responseMode, "grounded_conversation");
+        assert.equal(payload.responseBriefing, '{"missionStatus":"PARTIAL","executedTools":[]}');
         return { ok: true, message: "La mision quedo parcial.", model: "qwen2.5-coder:3b" };
     } };
     const runtime = createRuntime();
     registerJarvisMultifunctionTools(runtime);
-    const result = await runtime.execute("conversation.respond", { prompt: "Evidencia de la mision parcial", responseMode: "grounded_conversation" });
+    const result = await runtime.execute("conversation.respond", { prompt: "Evidencia de la mision parcial", responseMode: "grounded_conversation", responseBriefing: '{"missionStatus":"PARTIAL","executedTools":[]}' });
     assert.equal(result.ok, true);
     assert.equal(calls, 1);
 });

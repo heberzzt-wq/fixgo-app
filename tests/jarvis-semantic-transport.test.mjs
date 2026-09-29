@@ -344,17 +344,24 @@ test("final composition preserves the entire prompt and reserves context for its
 
 test("grounded conversation enforces presentation in the system role without affecting generic responses", async () => {
     const systems = [];
+    const fullInput = instruction + "\n" + "Evidencia conservada. ".repeat(600) + "\nFINAL_INPUT_MUST_SURVIVE";
+    const briefing = JSON.stringify({ missionStatus: "PARTIAL", executedTools: [{ tool: "repo.read", ok: true }] });
     const engine = createSelfHostedSemanticEngine({ fetchImpl: async (_url, options) => {
         const body = JSON.parse(options.body);
-        assert.equal(body.messages.at(-1).content, instruction);
+        assert.ok(body.messages.some(message => message.content === fullInput));
+        if (systems.length === 0) {
+            assert.ok(body.messages.at(-1).content.includes(briefing));
+            assert.notEqual(body.messages.at(-1).content, fullInput);
+        }
         systems.push(body.messages[0].content);
         return { ok: true, text: async () => JSON.stringify({ message: { content: "La mision quedo parcial." } }) };
     } });
-    await engine.respond({ input: instruction, responseMode: "grounded_conversation" });
-    await engine.respond({ input: instruction });
+    await engine.respond({ input: fullInput, responseMode: "grounded_conversation", responseBriefing: briefing });
+    await engine.respond({ input: fullInput });
     assert.ok(systems[0].includes("No copies etiquetas internas"));
     assert.ok(systems[0].includes("100 palabras"));
     assert.ok(!systems[1].includes("No copies etiquetas internas"), "structured artifact drafting keeps its existing contract");
+    await assert.rejects(engine.respond({ input: fullInput, responseMode: "grounded_conversation" }), /BRIEFING_REQUIRED/);
 });
 
 test("final response streams until completion, keeps JSON compatibility and cancels disconnected work", async t => {

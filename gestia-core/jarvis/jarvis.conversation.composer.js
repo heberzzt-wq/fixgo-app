@@ -1089,7 +1089,14 @@ export async function composeEvidenceGroundedConversation({
     ].filter(Boolean).join("\n\n");
 
     try {
-        const result = await executeConversation(prompt, { responseMode: "grounded_conversation" });
+        const result = await executeConversation(prompt, {
+            responseMode: "grounded_conversation",
+            responseBriefing: JSON.stringify({
+                missionStatus: missionOutcomeObservation?.status || "UNKNOWN",
+                missionReason: missionOutcomeObservation?.reason || "",
+                executedTools: authoritativeOutcomes.filter(item => item.tool !== "mission.outcome")
+            })
+        });
         const payload =
             result?.response?.data ||
             result?.response ||

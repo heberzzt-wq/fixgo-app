@@ -1833,13 +1833,18 @@ async function runJarvisSemanticResponse({
     input = "",
     timeoutMs = null,
     maxOutputTokens = 160,
-    responseMode
+    responseMode,
+    responseBriefing
 } = {}) {
     const instruction = String(input || "").trim();
     // Keep local CPU inference bounded while preserving enough room for a concise verified answer.
     const budget = Math.max(96, Math.min(8000, Number(maxOutputTokens) || 160));
     if (instruction.length < 1 || instruction.length > 120000) throw new Error("SEMANTIC_RESPONSE_INPUT_OUT_OF_RANGE");
     if (!ai?.models?.generateContent) throw new Error("SEMANTIC_AUTHENTICATED_PROVIDER_REQUIRED");
+    const groundedConversation = responseMode === "grounded_conversation";
+    if (groundedConversation && (!responseBriefing || String(responseBriefing).length > 16000)) {
+        throw new Error("SEMANTIC_RESPONSE_BRIEFING_REQUIRED");
+    }
     const deadline = Number(timeoutMs) > 0 ? Math.max(5000, Number(timeoutMs)) : budget >= 6000 ? 120000 : 45000;
     let timer = null;
     const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("SEMANTIC_RESPONSE_TIMEOUT")), deadline); });
@@ -1851,7 +1856,8 @@ async function runJarvisSemanticResponse({
                 config: {
                     maxOutputTokens: budget,
                     thinkingConfig: { thinkingLevel: "MINIMAL" },
-                    systemInstruction: [
+                    ...(() => {
+                        const systemInstruction = [
                         "Eres Jarvis, asistente multifuncional privado de Heberto Mendoza.",
                         "Responde en espanol natural, completo, directo y verificable.",
                         "Usa solamente la evidencia incluida en la solicitud.",
@@ -1864,7 +1870,22 @@ async function runJarvisSemanticResponse({
                             "Si la mision esta PARTIAL, BLOCKED o FAILED, comienza explicando que no se completo, lo verificado y lo pendiente. Nunca declara PASS por el exito de una sola herramienta.",
                             "La solicitud original conserva los objetivos del usuario; sus frases de exito solo se cumplen si la evidencia prueba que toda la mision termino."
                         ] : [])
-                    ].join("\n")
+                        ].join("\n");
+                        return {
+                            systemInstruction,
+                            ...(groundedConversation ? { chatMessages: [
+                                { role: "system", content: systemInstruction },
+                                { role: "user", content: instruction },
+                                { role: "user", content: [
+                                    "Con toda la evidencia anterior, escribe ahora un solo parrafo de hasta 80 palabras para el usuario.",
+                                    "Explica el estado canonico, lo realmente comprobado y lo pendiente. No vuelvas a ejecutar la solicitud.",
+                                    "No transcribas el recibo, campos, etiquetas ni JSON. Termina despues del parrafo.",
+                                    "Las unicas ejecuciones de esta corrida son las enumeradas aqui; los objetivos pedidos no son ejecuciones. No atribuyas otras comprobaciones:",
+                                    String(responseBriefing)
+                                ].join("\n") }
+                            ] } : {})
+                        };
+                    })()
                 }
             }),
             timeout

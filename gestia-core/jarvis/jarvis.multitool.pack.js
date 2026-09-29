@@ -2908,7 +2908,8 @@ async function fetchSemanticConversation(
     instruction = "",
     {
         maxOutputTokens = 3500,
-        responseMode
+        responseMode,
+        responseBriefing
     } = {}
 ) {
     const bridge =
@@ -2947,7 +2948,7 @@ async function fetchSemanticConversation(
             {
                 input: instruction,
                 maxOutputTokens,
-                ...(responseMode === "grounded_conversation" ? { responseMode } : {}),
+                ...(responseMode === "grounded_conversation" ? { responseMode, responseBriefing } : {}),
                 timeoutMs: localTimeoutMs
             },
             { timeoutMs: localTimeoutMs + 5000 }
@@ -4763,6 +4764,7 @@ export function registerJarvisMultifunctionTools(runtime) {
             inputSchema: {
                 prompt: "string",
                 responseMode: "string",
+                responseBriefing: "string",
                 maxOutputTokens: "number"
             },
             execute: async (args = {}, context = {}) => {
@@ -4827,6 +4829,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                         semanticInstruction,
                         {
                             responseMode: args.responseMode,
+                            responseBriefing: args.responseBriefing,
                             maxOutputTokens:
                                 conversationBudget
                         }
