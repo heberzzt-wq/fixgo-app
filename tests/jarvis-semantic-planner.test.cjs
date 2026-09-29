@@ -994,7 +994,7 @@ test("semantic planner accepts Qwen structured text tool output end to end", asy
     );
 });
 
-test("current-turn operational planning uses native tools with a small first-step budget", async () => {
+test("current-turn operational planning preserves supplied candidates without lexical ranking", async () => {
     let requestSeen = null;
     const operationalCatalog = [
         {
@@ -1051,8 +1051,9 @@ test("current-turn operational planning uses native tools with a small first-ste
     );
     assert.equal(
         requestSeen?.config?.tools?.[0]?.functionDeclarations?.length,
-        2
+        operationalCatalog.length
     );
+    assert.equal(requestSeen?.config?.nativeToolChat, true);
     assert.match(
         String(requestSeen?.contents || ""),
         /Selecciona exactamente una herramienta/

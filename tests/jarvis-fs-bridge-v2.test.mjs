@@ -293,7 +293,7 @@ test("Jarvis FS bridge V2 describes safe full repo policy", () => {
         describeJarvisFsBridge();
 
     assert.equal(description.ok, true);
-    assert.equal(description.version, "2.61.0-native-json-chat-v142");
+    assert.equal(description.version, "2.63.0-native-tool-vector-shortlist-v142");
     assert.equal(typeof description.actuators.speech.available, "boolean");
     assert.deepEqual(description.actuators.speech.outputFormats, ["wav"]);
     assert.equal(description.policy.authority, "full_repo_private_owner");
@@ -692,6 +692,82 @@ test("self-hosted semantic engine uses local Ollama embeddings with zero externa
     assert.equal(health.counters.localEmbeddedTexts, 2);
     assert.equal(health.counters.semanticExternalCalls, 0);
     assert.equal(health.counters.paidExternalCalls, 0);
+});
+
+test("CURRENT_TURN uses local embeddings only to shortlist two tools before Qwen decides", async () => {
+    const cachePath = path.join(
+        os.tmpdir(),
+        `jarvis-tool-shortlist-test-${process.pid}-${Date.now()}.json`
+    );
+    const requests = [];
+    const engine = createSelfHostedSemanticEngine({
+        env: {
+            JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
+            JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
+            JARVIS_LOCAL_LLM_MODEL: "qwen2.5-coder:3b",
+            JARVIS_LOCAL_EMBEDDING_MODEL: "qwen3-embedding:0.6b",
+            JARVIS_TOOL_EMBEDDING_CACHE_PATH: cachePath
+        },
+        fetchImpl: async (url, options) => {
+            const body = JSON.parse(options.body);
+            requests.push({ url, body });
+            if (url.endsWith("/api/embed")) {
+                const values = Array.isArray(body.input) ? body.input : [body.input];
+                const embeddings = values.map(value => {
+                    const text = String(value);
+                    if (text.includes("repo.audit")) return [1, 0, 0];
+                    if (text.includes("system.health")) return [0.9, 0.1, 0];
+                    if (text.includes("marketing.plan")) return [0, 1, 0];
+                    return [1, 0, 0];
+                });
+                return {
+                    ok: true,
+                    status: 200,
+                    text: async () => JSON.stringify({ embeddings })
+                };
+            }
+            assert.equal(url, "http://127.0.0.1:11434/api/chat");
+            assert.equal(body.tools.length, 2);
+            assert.equal(body.stream, false);
+            return {
+                ok: true,
+                status: 200,
+                text: async () => JSON.stringify({
+                    message: {
+                        role: "assistant",
+                        content: JSON.stringify({
+                            name: "jarvis_tool_0",
+                            arguments: { query: "runtime real" }
+                        })
+                    },
+                    done: true,
+                    done_reason: "stop"
+                })
+            };
+        }
+    });
+
+    try {
+        const catalog = [
+            { name: "repo.audit", description: "Audita el repositorio real y su runtime", inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false }, mutates: false },
+            { name: "system.health", description: "Diagnostica bridge runtime worker y conectividad", inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false }, mutates: false },
+            { name: "marketing.plan", description: "Planea campañas de marketing", inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false }, mutates: false }
+        ];
+        const plan = await engine.plan({
+            input: "Audita el runtime real y confirma bridge y repo",
+            catalog,
+            missionState: { phase: "CURRENT_TURN", writeAllowed: false }
+        });
+        assert.deepEqual(plan.semanticPreselection.selected.map(item => item.name), [
+            "repo.audit",
+            "system.health"
+        ]);
+        assert.equal(plan.toolCalls[0].name, "repo.audit");
+        assert.equal(requests.filter(item => item.url.endsWith("/api/embed")).length, 2);
+        assert.equal(requests.filter(item => item.url.endsWith("/api/chat")).length, 1);
+    } finally {
+        fs.rmSync(cachePath, { force: true });
+    }
 });
 
 test("self-hosted semantic requests propagate the mission timeout into the Ollama transport", () => {

@@ -764,7 +764,9 @@ async function runModelSemanticPlanner({
     const instruction = String(input || "").trim();
     const normalizedCatalog = normalizeCatalog(catalog);
     const currentTurn = String(missionState?.phase || "") === "CURRENT_TURN";
-    const safeCatalog = shortlistSemanticCatalog(
+    // CURRENT_TURN candidates are retrieved by the local vector cache. Preserve
+    // them verbatim so only the model, never a lexical ranker, chooses the tool.
+    const safeCatalog = currentTurn ? normalizedCatalog : shortlistSemanticCatalog(
         instruction,
         normalizedCatalog,
         missionState,
@@ -1475,6 +1477,8 @@ async function runModelSemanticPlanner({
                         `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
                     ].join("\n\n"),
             config: {
+                nativeToolChat:
+                    currentTurn,
                 maxOutputTokens:
                     currentTurn
                         ? 64

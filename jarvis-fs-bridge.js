@@ -90,9 +90,9 @@ const {
 } = require("./functions/jarvis-semantic-planner.js");
 
 export const JARVIS_FS_BRIDGE_VERSION =
-    "2.61.0-native-json-chat-v142";
+    "2.63.0-native-tool-vector-shortlist-v142";
 const JARVIS_FS_BRIDGE_PREVIOUS_VERSION =
-    "2.60.0-exact-symbol-preselection-v142";
+    "2.62.0-vector-tool-shortlist-v142";
 
 const MAX_JARVIS_UPLOAD_FILES = 30;
 const MAX_JARVIS_UPLOAD_BYTES = 250 * 1024 * 1024;
@@ -1198,7 +1198,7 @@ export function createSelfHostedSemanticEngine({
         };
     }
 
-    async function embed(input = []) {
+    async function embed(input = [], { timeoutMs: embeddingTimeoutMs = timeoutMs } = {}) {
         const health = describe();
         if (health.ok !== true) throw new Error(health.status);
         const values = (Array.isArray(input) ? input : [input])
@@ -1208,7 +1208,7 @@ export function createSelfHostedSemanticEngine({
         if (values.length > 128) throw new Error("LOCAL_EMBEDDING_BATCH_TOO_LARGE");
 
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        const timer = setTimeout(() => controller.abort(), embeddingTimeoutMs);
         counters.localEmbeddingCalls += 1;
         counters.localEmbeddedTexts += values.length;
         try {
@@ -1231,7 +1231,7 @@ export function createSelfHostedSemanticEngine({
             if (
                 !response.ok ||
                 embeddings.length !== values.length ||
-                embeddings.some(vector => !Array.isArray(vector) || vector.length === 0)
+                embeddings.some(vector => !validToolVector(vector) || vector.length !== embeddings[0].length)
             ) {
                 throw new Error(
                     String(data?.error || `LOCAL_EMBEDDING_HTTP_${response.status}`)
@@ -1366,16 +1366,27 @@ export function createSelfHostedSemanticEngine({
                 tools.length === 0 &&
                 request?.config?.responseMimeType ===
                     "application/json";
+            const nativeToolChat =
+                tools.length > 0 &&
+                request?.config?.nativeToolChat === true;
+            const nativeChat =
+                jsonOnlyNative ||
+                nativeToolChat;
             const origin =
                 new URL(baseUrl).origin;
             const payload =
-                jsonOnlyNative
+                nativeChat
                     ? {
                         model:
                             selectedModel,
                         messages,
                         stream: false,
-                        format: "json",
+                        ...(jsonOnlyNative
+                            ? { format: "json" }
+                            : {}),
+                        ...(nativeToolChat
+                            ? { tools }
+                            : {}),
                         keep_alive:
                             warmKeepAlive ||
                             "30m",
@@ -1419,7 +1430,7 @@ export function createSelfHostedSemanticEngine({
                             : {})
                     };
             const response = await fetchImpl(
-                jsonOnlyNative
+                nativeChat
                     ? `${origin}/api/chat`
                     : `${baseUrl}/chat/completions`,
                 {
@@ -1438,7 +1449,7 @@ export function createSelfHostedSemanticEngine({
                 );
             }
             const message =
-                jsonOnlyNative
+                nativeChat
                     ? data?.message ||
                         data?.choices?.[0]?.message ||
                         {}
@@ -1463,7 +1474,7 @@ export function createSelfHostedSemanticEngine({
                 providerResponse: {
                     finishReason:
                         String(
-                            jsonOnlyNative
+                            nativeChat
                                 ? data?.done_reason || ""
                                 : data?.choices?.[0]?.finish_reason || ""
                         ).slice(0, 80),
@@ -1502,6 +1513,161 @@ export function createSelfHostedSemanticEngine({
         }
     }
 
+    const toolEmbeddingCachePath = String(
+        env.JARVIS_TOOL_EMBEDDING_CACHE_PATH ||
+        path.join(
+            env.LOCALAPPDATA || os.tmpdir(),
+            "Fixgo",
+            "jarvis-tool-embedding-cache-v1.json"
+        )
+    ).trim();
+    let toolEmbeddingCacheLoaded = false;
+    let toolEmbeddingCache = new Map();
+    let toolEmbeddingWarmPromise = null;
+
+    function validToolVector(vector) {
+        return Array.isArray(vector) && vector.length > 0 &&
+            vector.every(value => typeof value === "number" && Number.isFinite(value)) &&
+            vector.some(value => value !== 0);
+    }
+
+    function toolEmbeddingText(tool = {}) {
+        return `${String(tool?.name || "").trim()}: ${String(tool?.description || "").trim()}`;
+    }
+
+    function toolEmbeddingKey(tool = {}) {
+        return createHash("sha256")
+            .update(`${embeddingModel}\n${toolEmbeddingText(tool)}`)
+            .digest("hex");
+    }
+
+    function loadToolEmbeddingCache() {
+        if (toolEmbeddingCacheLoaded) return;
+        toolEmbeddingCacheLoaded = true;
+        try {
+            const parsed = JSON.parse(fs.readFileSync(toolEmbeddingCachePath, "utf8"));
+            if (parsed?.version !== 1 || parsed?.model !== embeddingModel || !parsed?.entries) return;
+            toolEmbeddingCache = new Map(
+                Object.entries(parsed.entries).filter(([, vector]) => validToolVector(vector))
+            );
+        } catch {}
+    }
+
+    function persistToolEmbeddingCache() {
+        fs.mkdirSync(path.dirname(toolEmbeddingCachePath), {
+            recursive: true
+        });
+        const payload = JSON.stringify({
+            version: 1,
+            model: embeddingModel,
+            entries: Object.fromEntries(toolEmbeddingCache)
+        });
+        const tempPath = `${toolEmbeddingCachePath}.tmp-${process.pid}`;
+        try {
+            fs.writeFileSync(tempPath, payload);
+            fs.renameSync(tempPath, toolEmbeddingCachePath);
+        } finally {
+            fs.rmSync(tempPath, { force: true });
+        }
+    }
+
+    async function warmToolEmbeddingCache(catalog = []) {
+        loadToolEmbeddingCache();
+        const missing = catalog
+            .map(tool => ({
+                tool,
+                key: toolEmbeddingKey(tool),
+                text: toolEmbeddingText(tool)
+            }))
+            .filter(entry => !toolEmbeddingCache.has(entry.key));
+        if (missing.length === 0) return;
+        const embedded = await embed(missing.map(entry => entry.text));
+        missing.forEach((entry, index) => {
+            toolEmbeddingCache.set(entry.key, embedded.embeddings[index]);
+        });
+        persistToolEmbeddingCache();
+    }
+
+    async function shortlistCurrentTurnCatalog(input = "", catalog = [], limit = 2, deadlineAt = Date.now() + timeoutMs) {
+        const startedAt = Date.now();
+        const remainingMs = () => {
+            const remaining = deadlineAt - Date.now();
+            if (remaining <= 0) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
+            return remaining;
+        };
+        const safeCatalog = Array.isArray(catalog)
+            ? catalog.filter(tool => tool && tool.name).slice(0, 80)
+            : [];
+        loadToolEmbeddingCache();
+        const missingCount = safeCatalog.filter(
+            tool => !toolEmbeddingCache.has(toolEmbeddingKey(tool))
+        ).length;
+        while (safeCatalog.some(tool => !toolEmbeddingCache.has(toolEmbeddingKey(tool)))) {
+            remainingMs();
+            if (!toolEmbeddingWarmPromise) {
+                toolEmbeddingWarmPromise = warmToolEmbeddingCache(safeCatalog)
+                    // A cold catalog is warmed in the background. Its rejection must
+                    // never become an unhandled rejection that kills the bridge.
+                    .then(() => null, error => error)
+                    .finally(() => {
+                        toolEmbeddingWarmPromise = null;
+                    });
+            }
+            if (missingCount > 8) {
+                throw new Error("LOCAL_TOOL_EMBEDDING_CACHE_WARMING");
+            }
+            let timer;
+            try {
+                const error = await Promise.race([
+                    toolEmbeddingWarmPromise,
+                    new Promise((_, reject) => {
+                        timer = setTimeout(() => reject(new Error("LOCAL_SEMANTIC_TIMEOUT")), remainingMs());
+                    })
+                ]);
+                if (error) throw error;
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+        const queryEmbedding = await embed([String(input || "")], { timeoutMs: remainingMs() });
+        const queryVector = queryEmbedding.embeddings[0];
+        if (safeCatalog.some(tool => toolEmbeddingCache.get(toolEmbeddingKey(tool)).length !== queryVector.length)) {
+            throw new Error("LOCAL_TOOL_EMBEDDING_DIMENSION_MISMATCH");
+        }
+        const ranked = safeCatalog
+            .map((tool, index) => ({
+                tool,
+                index,
+                score: cosineSimilarity(
+                    queryVector,
+                    toolEmbeddingCache.get(toolEmbeddingKey(tool))
+                )
+            }))
+            .sort((left, right) =>
+                right.score - left.score || left.index - right.index
+            );
+        const selected = ranked
+            .slice(0, Math.max(1, Math.min(8, Number(limit) || 2)));
+        return {
+            catalog: selected.map(entry => entry.tool),
+            evidence: {
+                provider: "ollama-local",
+                model: embeddingModel,
+                catalogCount: safeCatalog.length,
+                selected: selected.map(entry => ({
+                    name: entry.tool.name,
+                    score: entry.score
+                })),
+                cacheHits: safeCatalog.length - missingCount,
+                cacheMisses: missingCount,
+                durationMs: Date.now() - startedAt,
+                decisionAuthority: model,
+                retrievalOnly: true,
+                externalApiUsed: false
+            }
+        };
+    }
+
     const ai = {
         lastProvider: "ollama-openai-compatible-local",
         models: { generateContent }
@@ -1530,21 +1696,42 @@ export function createSelfHostedSemanticEngine({
         embed,
         async plan({ input, catalog, missionState = null, timeoutMs: requestTimeoutMs } = {}) {
             const effectiveTimeoutMs =
-                requestTimeoutMs ||
-                timeoutMs;
+                Math.min(Math.max(Number(requestTimeoutMs) || timeoutMs, 1), 180000);
+            const planStartedAt = Date.now();
+            const deadlineAt = planStartedAt + effectiveTimeoutMs;
+            let plannerCatalog = catalog;
+            let semanticPreselection = null;
+            if (
+                String(missionState?.phase || "") === "CURRENT_TURN" &&
+                Array.isArray(catalog) &&
+                catalog.length > 2
+            ) {
+                const shortlist = await shortlistCurrentTurnCatalog(
+                    input,
+                    catalog,
+                    2,
+                    deadlineAt
+                );
+                plannerCatalog = shortlist.catalog;
+                semanticPreselection = shortlist.evidence;
+            }
+            const plannerTimeoutMs = deadlineAt - Date.now();
+            if (plannerTimeoutMs <= 0) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
             const result = await runJarvisSemanticPlanner({
                 ai:
                     aiWithTimeout(
-                        effectiveTimeoutMs
+                        plannerTimeoutMs
                     ),
                 input,
-                catalog,
+                catalog: plannerCatalog,
                 missionState,
                 timeoutMs:
-                    effectiveTimeoutMs
+                    plannerTimeoutMs
             });
             return {
                 ...result,
+                ...(semanticPreselection ? { semanticPreselection } : {}),
+                durationMs: Date.now() - planStartedAt,
                 provider: ai.lastProvider,
                 model:
                     lastInferenceModel,
