@@ -130,6 +130,26 @@ test("Terminal production boot removes CDN Tailwind, B2B fixture leakage, duplic
 });
 
 
+test("Terminal network resilience keeps transient Firestore and service-worker transport noise bounded", () => {
+    const firebase = read("firebase.js");
+    const runtime = read("gestia-core/gestia.runtime.v7.js");
+
+    assert.match(firebase, /initializeFirestore\(app,\s*\{[\s\S]{0,160}experimentalAutoDetectLongPolling:\s*true/);
+    assert.doesNotMatch(firebase, /const db = getFirestore\(app\)/);
+
+    const swFailure = runtime.indexOf("[SW_UPDATE_CHECK_FAIL]");
+    assert.ok(swFailure >= 0);
+    assert.match(
+        runtime.slice(Math.max(0, swFailure - 850), swFailure + 180),
+        /__GESTIA_VERBOSE_SERVICE_WORKER__\s*!==\s*true/
+    );
+    assert.match(
+        runtime.slice(Math.max(0, swFailure - 850), swFailure + 180),
+        /Failed to update a ServiceWorker|Failed to fetch|NetworkError/
+    );
+});
+
+
 test("V142 retains useful v5.9 runtime intelligence as on-demand governed services", () => {
     const governance = read("modules/terminal/runtime-governance.js");
     const platform = read("modules/terminal/runtime-platform.js");

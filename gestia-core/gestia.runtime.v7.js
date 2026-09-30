@@ -5172,10 +5172,28 @@ window.GestiaRuntime.checkServiceWorkerUpdates =
 
         catch(error) {
 
+            const message =
+                String(
+                    error?.message ||
+                    error ||
+                    ""
+                );
+
+            const transientNetworkFailure =
+                error?.name === "TypeError" ||
+                message.includes("Failed to update a ServiceWorker") ||
+                message.includes("Failed to fetch") ||
+                message.includes("NetworkError");
+
+            if (
+                transientNetworkFailure &&
+                globalThis.__GESTIA_VERBOSE_SERVICE_WORKER__ !== true
+            ) {
+                return;
+            }
+
             console.warn(
-
                 "🚨 [SW_UPDATE_CHECK_FAIL]",
-
                 error
             );
         }

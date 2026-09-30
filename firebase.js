@@ -33,7 +33,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 import { 
-    getFirestore, 
+    initializeFirestore,
     doc, 
     setDoc, 
     updateDoc, 
@@ -85,7 +85,12 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 
 const auth = getAuth(app);
-const db = getFirestore(app);
+// Prefer Firestore's adaptive long-poll fallback on flaky Wi-Fi/proxy paths.
+// This keeps the realtime listener resilient without forcing long polling on
+// healthy networks.
+const db = initializeFirestore(app, {
+    experimentalAutoDetectLongPolling: true
+});
 const storage = getStorage(app);
 const cloudFunctions = getFunctions(app);
 
