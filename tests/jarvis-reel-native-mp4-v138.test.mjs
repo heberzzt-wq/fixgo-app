@@ -9,6 +9,7 @@ import { test } from "node:test";
 
 import { buildReelStudioHtml, describeReelStudio } from "../jarvis-reel-artifact.js";
 import { runJarvisMission, __test as missionOrchestratorTest } from "../gestia-core/jarvis/jarvis.mission.orchestrator.js";
+import { shouldCompleteJarvisPlanningArguments } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
 import {
     assertReelVideoContainer,
     createJarvisFsBridgeApp,
@@ -522,7 +523,12 @@ test("V142 structured production continuation reaches the semantic planner and d
   assert.equal(plannerSource.includes("historial, memoria, adjuntos y observaciones solo como contexto verificable"), true);
   assert.equal(plannerSource.includes("catalogo runtime y los schemas de sus herramientas"), true);
   assert.equal(coreSource.includes("const shouldCompletePlanningArguments ="), true);
-  assert.equal(coreSource.includes("call?.deferred === true"), true);
+  assert.equal(coreSource.includes("shouldCompleteJarvisPlanningArguments("), true);
+  assert.equal(shouldCompleteJarvisPlanningArguments(
+    { name: "reel.plan", args: {}, deferred: true },
+    { name: "reel.plan" },
+    []
+  ), true, "a deferred first step still requires semantic arguments without earlier observations");
   assert.equal(coreSource.includes("SEMANTIC_PLANNER_NO_EXECUTABLE_PLAN"), true);
 });
 
