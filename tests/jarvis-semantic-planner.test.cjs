@@ -1992,3 +1992,45 @@ test("authenticated grounded argument completion retries JSON and never needs th
     assert.equal(result.planKind, "GROUNDED_ARGUMENT_COMPLETION");
     assert.equal(result.toolCalls[0].args.durationSeconds, 30);
 });
+
+test("mission contract reuses complete calls only after Qwen verifies all objectives", async () => {
+    const read = { name: "repo.read", description: "Read the specified repository file", mutates: false, inputSchema: { type: "object", properties: { file: { type: "string" } }, required: ["file"] } };
+    const instruction = "Lee jarvis-runtime-contract.json sin cambiarlo y resume lo comprobado.";
+    const proposed = { name: "repo.read", args: { file: "jarvis-runtime-contract.json" }, approved: true };
+    let requests = 0;
+    const result = await runJarvisSemanticPlanner({ input: instruction, catalog: [read], missionState: { phase: "MISSION_CONTRACT", existingInitialToolCalls: [proposed] }, ai: {
+        lastProvider: "ollama-openai-compatible-local", models: { generateContent: async request => {
+            requests++;
+            assert.equal(request.config.chatMessages[1].content, instruction);
+            assert.deepEqual(JSON.parse(request.config.chatMessages[2].content).proposedCalls, [{ name: proposed.name, args: proposed.args }]);
+            return { text: '{"coversAll":true}' };
+        } }
+    } });
+    assert.equal(requests, 1);
+    assert.equal(result.planKind, "MISSION_CONTRACT_EXISTING_TOOLS_VERIFIED");
+    assert.equal(result.missionComplete, false);
+    assert.equal(result.toolCalls[0].approved, false);
+    assert.deepEqual(result.toolCalls[0].args, proposed.args);
+});
+
+test("a rejected or incomplete coverage assessment continues full contract planning", async () => {
+    const read = { name: "repo.read", description: "Read repository file", mutates: false, inputSchema: { type: "object", properties: { file: { type: "string" } }, required: ["file"] } };
+    for (const assessment of [{ text: '{"coversAll":false}' }, { text: '{"coversAll":true}', providerResponse: { finishReason: "length" } }]) {
+        let requests = 0;
+        await assert.rejects(() => runJarvisSemanticPlanner({ input: "Lee a.json y b.json", catalog: [read], missionState: { phase: "MISSION_CONTRACT", existingInitialToolCalls: [{ name: "repo.read", args: { file: "a.json" } }] }, ai: {
+            models: { generateContent: async () => { if (++requests === 1) return assessment; throw new Error("FULL_CONTRACT_REACHED"); } }
+        } }), /FULL_CONTRACT_REACHED/);
+        assert.equal(requests, 2);
+    }
+});
+
+test("unresolved and mutating calls cannot enter contract reuse", async () => {
+    for (const variation of [{ deferred: true }, { args: {} }, { mutates: true }]) {
+        const tool = { name: "repo.read", description: "Read repository file", mutates: variation.mutates === true, inputSchema: { type: "object", properties: { file: { type: "string" } }, required: ["file"] } };
+        const call = { name: "repo.read", args: { file: "a.json" }, ...variation };
+        await assert.rejects(() => runJarvisSemanticPlanner({ input: "Lee a.json", catalog: [tool], missionState: { phase: "MISSION_CONTRACT", existingInitialToolCalls: [call] }, ai: { models: { generateContent: async request => {
+            assert.notEqual(request.config.responseJsonSchema?.required?.[0], "coversAll");
+            throw new Error("FULL_CONTRACT_REACHED");
+        } } } }), /FULL_CONTRACT_REACHED/);
+    }
+});

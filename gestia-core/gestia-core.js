@@ -40,7 +40,8 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls,
-    completeJarvisPlanningArguments
+    completeJarvisPlanningArguments,
+    shouldCompleteJarvisPlanningArguments
 } from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=v142-video-scene-integrity-20260826';
 import {
     composeEvidenceGroundedConversation,
@@ -4692,6 +4693,7 @@ if (
                             writeAllowed: false,
                             userArtifactAllowed: true,
                             existingInitialTools: operationalInitialToolCalls.map(call => call?.name).filter(Boolean),
+                            existingInitialToolCalls: operationalInitialToolCalls,
                             semanticMemoryAvailable: Boolean(semanticMemoryContext),
                             advisorySemanticContext: compactJarvisSemanticMemoryForPlanner(semanticMemoryContext)
                         }
@@ -4831,7 +4833,8 @@ if (
                     missionToolCatalog,
                 repositoryIndex:
                     window.__REPO_INDEX__ ||
-                    {}
+                    {},
+                explicitTargets: explicitRepositoryTargets
             });
 
     const pendingMissionId =
@@ -5838,10 +5841,8 @@ if (
                     }
 
                     const shouldCompletePlanningArguments =
-                        call?.deferred === true ||
-                        (
-                            Array.isArray(missionContext?.completedTasks) &&
-                            missionContext.completedTasks.length > 0
+                        shouldCompleteJarvisPlanningArguments(
+                            executionCall, toolDefinition || {}, missionContext?.completedTasks
                         );
 
                     if (

@@ -808,6 +808,45 @@ async function runModelSemanticPlanner({
     if (!instruction || safeCatalog.length === 0) throw new Error("SEMANTIC_GEMINI_INPUT_REQUIRED");
 
     if (missionState?.phase === "MISSION_CONTRACT") {
+        const existingCalls = Array.isArray(missionState.existingInitialToolCalls)
+            ? missionState.existingInitialToolCalls : [];
+        const reusableCalls = existingCalls.length > 0 && existingCalls.length <= 20 &&
+            existingCalls.every(call => {
+                const tool = normalizedCatalog.find(item => item.name === call?.name);
+                return tool && !tool.mutates && !tool.userArtifact && !tool.requiresApproval &&
+                    call.deferred !== true && hasRequiredToolArguments(tool, call.args || {});
+            });
+        if (reusableCalls) {
+            // The same Qwen assesses the whole instruction, not just the first
+            // action. Reuse arguments only when it confirms complete coverage.
+            const coverage = await ai.models.generateContent({
+                model,
+                contents: instruction,
+                config: {
+                    chatMessages: [
+                        { role: "system", content: "Evalua si las llamadas propuestas cubren TODOS los objetivos operativos explicitos de la solicitud. Una explicacion final se redacta despues de ejecutar las herramientas. Si falta cualquier accion, archivo, fuente o entregable, coversAll=false. No presupongas resultados, ejecuciones ni permisos. Devuelve solo {\"coversAll\":boolean}." },
+                        { role: "user", content: instruction },
+                        { role: "user", content: JSON.stringify({ proposedCalls: existingCalls.map(call => ({ name: call.name, args: call.args })), tools: [...new Set(existingCalls.map(call => call.name))].map(name => {
+                            const tool = normalizedCatalog.find(item => item.name === name);
+                            return { name, description: tool.description };
+                        }) }) }
+                    ],
+                    responseMimeType: "application/json",
+                    responseJsonSchema: { type: "object", properties: { coversAll: { type: "boolean" } }, required: ["coversAll"], additionalProperties: false },
+                    temperature: 0,
+                    maxOutputTokens: 32
+                }
+            });
+            if (extractJsonObject(String(coverage?.text || ""))?.coversAll === true &&
+                coverage?.providerResponse?.finishReason !== "length") {
+                return requireExecutablePlan({
+                    ...validatePlan({ toolCalls: existingCalls, missionComplete: false }, normalizedCatalog, instruction),
+                    provider: String(ai.lastProvider || "jarvis-local"), model,
+                    catalogSize: normalizedCatalog.length,
+                    planKind: "MISSION_CONTRACT_EXISTING_TOOLS_VERIFIED"
+                });
+            }
+        }
         const initialToolNames =
             Array.isArray(
                 missionState

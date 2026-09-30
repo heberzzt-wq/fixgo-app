@@ -17,6 +17,18 @@ const __dirname =
         fileURLToPath(import.meta.url)
     );
 
+test("an explicit file read uses the filesystem even when absent from the browser index", () => {
+    const catalog = [
+        { name: "repo.search", mutates: false, inputSchema: { required: ["query"] } },
+        { name: "repo.read", mutates: false, inputSchema: { required: ["file"] } }
+    ];
+    const read = { name: "repo.read", args: { file: "jarvis-runtime-contract.json" } };
+    const options = { toolCalls: [read], catalog, repositoryIndex: { app: { path: "app.js" } } };
+    const explicitTargets = resolveExplicitRepositoryTargets("Lee jarvis-runtime-contract.json sin modificar nada.");
+    assert.deepEqual(addRepositoryDiscoveryPreflights({ ...options, explicitTargets }), [read]);
+    assert.deepEqual(addRepositoryDiscoveryPreflights(options).map(call => call.name), ["repo.search", "repo.read"]);
+});
+
 test("source structure indexes real multifunction registrations with lines", () => {
     const source =
         fs.readFileSync(

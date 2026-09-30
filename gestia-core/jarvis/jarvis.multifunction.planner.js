@@ -1910,6 +1910,16 @@ function filterSemanticArguments(args = {}, inputSchema = null) {
     );
 }
 
+export function shouldCompleteJarvisPlanningArguments(call = {}, tool = {}, completedTasks = []) {
+    if (call.deferred === true) return true;
+    // A validated read already has its executable path. Earlier observations
+    // alone do not make that argument incomplete or authorize changing it.
+    if (call.name === "repo.read" && tool.name === "repo.read" && tool.mutates !== true &&
+        typeof call.args?.file === "string" && call.args.file.trim() &&
+        hasRequiredToolArguments(tool, call.args || {})) return false;
+    return Array.isArray(completedTasks) && completedTasks.length > 0;
+}
+
 export async function completeJarvisPlanningArguments({
     toolName = "",
     description = "",

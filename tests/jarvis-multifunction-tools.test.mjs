@@ -18,8 +18,19 @@ import {
     isJarvisCapabilityForensicsRequest,
     isJarvisTechnicalDiagnosticRequest,
     mergeJarvisToolCalls,
+    shouldCompleteJarvisPlanningArguments,
     __test as plannerTest
 } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
+
+test("a complete repository read keeps its selected path after earlier evidence", () => {
+    const tool = { name: "repo.read", mutates: false, inputSchema: { type: "object", properties: { file: { type: "string" } }, required: ["file"] } };
+    const call = { name: "repo.read", args: { file: "jarvis-runtime-contract.json" } };
+    const completed = [{ name: "repo.search", observation: { ok: true } }];
+    assert.equal(shouldCompleteJarvisPlanningArguments(call, tool, completed), false);
+    assert.equal(shouldCompleteJarvisPlanningArguments({ ...call, deferred: true }, tool, completed), true);
+    assert.equal(shouldCompleteJarvisPlanningArguments({ ...call, args: {} }, tool, completed), true);
+    assert.equal(shouldCompleteJarvisPlanningArguments({ name: "document.compose", args: {} }, { name: "document.compose" }, completed), true);
+});
 
 import {
     resolveGestiaRole,

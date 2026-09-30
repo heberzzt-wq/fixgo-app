@@ -311,7 +311,8 @@ function normalizedRepositoryPath(value = "") {
 export function addRepositoryDiscoveryPreflights({
     toolCalls = [],
     catalog = [],
-    repositoryIndex = {}
+    repositoryIndex = {},
+    explicitTargets = []
 } = {}) {
     const calls =
         Array.isArray(toolCalls)
@@ -401,7 +402,11 @@ export function addRepositoryDiscoveryPreflights({
         if (
             requiresVerifiedFile &&
             normalizedTarget &&
-            !indexedPaths.has(normalizedTarget)
+            !indexedPaths.has(normalizedTarget) &&
+            // The browser index is incomplete. An exact user-supplied read
+            // goes to the filesystem, which verifies existence and containment.
+            !(call.name === "repo.read" && definition?.mutates !== true &&
+                explicitTargets.some(file => normalizedRepositoryPath(file) === normalizedTarget))
         ) {
             if (
                 !scheduledSearches.has(
