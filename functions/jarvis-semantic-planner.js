@@ -1317,6 +1317,8 @@ async function runModelSemanticPlanner({
             { role: "assistant", content: '{"missing":"ubicacion del usuario","mode":"clarify","question":"¿En qué ciudad o colonia quieres que busque?","action":""}' },
             { role: "user", content: "Busca una panaderia en el centro de Merida." },
             { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"search web for local businesses"}' },
+            { role: "user", content: "Enlistame lo que sabes hacer en este repo." },
+            { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"inspect system capabilities"}' },
             { role: "user", content: "Se me antoja un cafecito." },
             { role: "assistant", content: '{"missing":"","mode":"chat","question":"","action":""}' }
         ];

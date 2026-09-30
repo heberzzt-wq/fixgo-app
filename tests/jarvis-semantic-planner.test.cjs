@@ -136,7 +136,7 @@ test("current-turn conversational gate classifies then responds with the same lo
         gateRequest?.config?.modelProfile,
         "conversation"
     );
-    assert.deepEqual(gateRequest.config.chatMessages.map(item => item.role), ["system", "user", "assistant", "user", "assistant", "user", "assistant", "user", "assistant", "system", "user"]);
+    assert.deepEqual(gateRequest.config.chatMessages.map(item => item.role), ["system", "user", "assistant", "user", "assistant", "user", "assistant", "user", "assistant", "user", "assistant", "system", "user"]);
     assert.equal(gateRequest.config.chatMessages.at(-1).content, "Qué tal pariente, ¿cómo estás?");
     assert.match(gateRequest.config.chatMessages[0].content, /new tool evidence/);
     assert.equal(
