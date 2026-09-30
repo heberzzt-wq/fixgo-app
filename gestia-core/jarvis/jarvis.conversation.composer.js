@@ -1089,6 +1089,9 @@ export async function composeEvidenceGroundedConversation({
         "No repitas ni uses como encabezados los nombres internos RESUMEN_CAPACIDADES_Y_LIMITES, RESULTADOS_HERRAMIENTAS_AUTORITATIVOS o EVIDENCIA_ESTRUCTURADA; conviértelos a lenguaje natural.",
         hasCapabilities ? "Cuando existan dominios de capacidades, conviértelos en funciones humanas concretas: conversación, investigación web, análisis de archivos o medios, documentos, hojas de cálculo, páginas, imágenes y trabajo controlado de repositorio, únicamente si aparecen en la evidencia. No reduzcas el resumen a forensics; esas son fuentes de evidencia, no el alcance útil para el usuario." : "",
         "Los resultados autoritativos determinan el estado: conserva fallos, bloqueos y datos faltantes sin descartar otros resultados verificados.",
+        authoritativeOutcomes.some(item => item.requiresInput)
+            ? "Enumera solamente los datos realmente faltantes que impiden una parte solicitada y pregunta al usuario si puede proporcionarlos o si prefiere continuar sin ellos; conserva todo lo ya verificado."
+            : "",
         precisionGroundingInstruction,
         creativeAcceptanceInstruction,
         `SOLICITUD_USUARIO=${String(instruction || "").slice(0, 12000)}`,
