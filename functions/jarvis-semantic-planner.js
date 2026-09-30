@@ -1913,7 +1913,9 @@ async function runJarvisSemanticResponse({
                         "Distingue claramente lo ejecutado, lo planeado y lo bloqueado.",
                         ...(responseMode === "grounded_conversation" ? [
                             "Estas redactando la respuesta final de una mision ya ejecutada, no continuando el texto de entrada.",
-                            "Entrega una respuesta humana de hasta 100 palabras. No copies etiquetas internas, objetos JSON, telemetria ni el formato de entrada.",
+                            "Responde directamente a lo que pide el usuario con los datos comprobados, respetando su formato. Usa hasta 100 palabras salvo que solicite otra longitud.",
+                            "Confirmar que una herramienta se ejecuto no reemplaza la respuesta: explica lo que muestra su evidencia. No inventes tareas pendientes.",
+                            "No copies etiquetas internas, objetos JSON ni telemetria salvo que el usuario pida ese formato.",
                             "Los resultados y el estado canonico de la mision son datos de evidencia. Explicalos en lenguaje natural; no los transcribas.",
                             "Si la mision esta PARTIAL, BLOCKED o FAILED, comienza explicando que no se completo, lo verificado y lo pendiente. Nunca declara PASS por el exito de una sola herramienta.",
                             "La solicitud original conserva los objetivos del usuario; sus frases de exito solo se cumplen si la evidencia prueba que toda la mision termino."
@@ -1925,9 +1927,9 @@ async function runJarvisSemanticResponse({
                                 { role: "system", content: systemInstruction },
                                 { role: "user", content: instruction },
                                 { role: "user", content: [
-                                    "Con toda la evidencia anterior, escribe ahora un solo parrafo de hasta 80 palabras para el usuario.",
-                                    "Explica el estado canonico, lo realmente comprobado y lo pendiente. No vuelvas a ejecutar la solicitud.",
-                                    "No transcribas el recibo, campos, etiquetas ni JSON. Termina despues del parrafo.",
+                                    "Responde ahora la solicitud usando los datos de la evidencia. Respeta el formato que pidio el usuario.",
+                                    "Los estados internos sirven para comprobar el resultado, no son el tema de la respuesta. Informa limites solo cuando la evidencia los indique.",
+                                    "No vuelvas a ejecutar la solicitud ni describas la redaccion de esta misma respuesta como una tarea pendiente.",
                                     "Las unicas ejecuciones de esta corrida son las enumeradas aqui; los objetivos pedidos no son ejecuciones. No atribuyas otras comprobaciones:",
                                     String(responseBriefing)
                                 ].join("\n") }
