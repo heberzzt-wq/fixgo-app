@@ -1,5 +1,5 @@
 // 🔌 IMPORTS
-import { executeSteps } from "./operations-executor.engine.js?v=jarvis-core-v2-marketing-20260617";
+import { executeSteps } from "./operations-executor.engine.js";
 
 /* 🔥 FIX: INYECCIÓN GLOBAL DEL LEDGER */
 function getLedger() {

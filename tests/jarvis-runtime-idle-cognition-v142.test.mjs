@@ -85,6 +85,51 @@ test("snapshot and restore informational boot logs stay quiet while failures sta
 });
 
 
+test("Terminal production boot removes CDN Tailwind, B2B fixture leakage, duplicate module URLs and noisy persistence logs", () => {
+    const terminal = read("gestia-terminal.html");
+    const runtime = read("gestia-core/gestia.runtime.v7.js");
+    const toolRuntime = read("gestia-core/tools.runtime.js");
+    const plans = read("gestia-core/plans.engine.js");
+    const core = read("gestia-core/gestia-core.js");
+    const terminalCss = read("assets/gestia-terminal.tailwind.css");
+
+    assert.doesNotMatch(terminal, /cdn\.tailwindcss\.com/);
+    assert.match(terminal, /assets\/gestia-terminal\.tailwind\.css/);
+    assert.match(terminalCss, /bg-gestia-dark/);
+    assert.match(terminalCss, /bg-gestia-panel/);
+    assert.match(terminalCss, /bg-gestia-primary/);
+
+    for (const b2bResidue of [
+        "GestiaTaskForce",
+        "DATA_VAULT",
+        "tech_jonathan_01",
+        "Jonathan listo para pruebas",
+        "ANALYZE::technicians"
+    ]) {
+        assert.equal(terminal.includes(b2bResidue), false, b2bResidue);
+    }
+
+    const snapshotMarker = runtime.indexOf("[RUNTIME_SNAPSHOT_SAVED]");
+    assert.ok(snapshotMarker >= 0);
+    assert.match(
+        runtime.slice(Math.max(0, snapshotMarker - 220), snapshotMarker + 100),
+        /__GESTIA_VERBOSE_PERSISTENCE__\s*===\s*true/
+    );
+
+    const registrationMarker = toolRuntime.indexOf("[RUNTIME_REGISTERED]");
+    assert.ok(registrationMarker >= 0);
+    assert.match(
+        toolRuntime.slice(Math.max(0, registrationMarker - 220), registrationMarker + 120),
+        /__JARVIS_VERBOSE_TOOL_REGISTRATION__\s*===\s*true/
+    );
+
+    assert.match(plans, /from "\.\/operations-executor\.engine\.js";/);
+    assert.doesNotMatch(plans, /operations-executor\.engine\.js\?v=/);
+    assert.match(core, /import '\/gestia-core\/jarvis\/jarvis\.autonomy\.engine\.js';/);
+    assert.doesNotMatch(core, /jarvis\.autonomy\.engine\.js\?v=/);
+});
+
+
 test("V142 retains useful v5.9 runtime intelligence as on-demand governed services", () => {
     const governance = read("modules/terminal/runtime-governance.js");
     const platform = read("modules/terminal/runtime-platform.js");

@@ -5607,10 +5607,13 @@ window.GestiaRuntime.saveRuntime =
                 .persistence
                 .lastSave = Date.now();
 
-            window.GestiaRuntime.log(
-
-                "[RUNTIME_SNAPSHOT_SAVED]"
-            );
+            if (
+                globalThis.__GESTIA_VERBOSE_PERSISTENCE__ === true
+            ) {
+                console.debug(
+                    "[RUNTIME_SNAPSHOT_SAVED]"
+                );
+            }
 
         }
 

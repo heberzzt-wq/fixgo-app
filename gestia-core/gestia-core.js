@@ -219,7 +219,7 @@ import {
     JarvisSemanticMemory,
     compactJarvisSemanticMemoryForPlanner
 } from '/gestia-core/jarvis/jarvis.semantic.memory.js?v=v139-semantic-continuity-20260813';
-import '/gestia-core/jarvis/jarvis.autonomy.engine.js?v=agent-loop-learning-41-35';
+import '/gestia-core/jarvis/jarvis.autonomy.engine.js';
 import '/gestia-core/tools.runtime.js?v=v142-video-truthful-delivery-20260826';
 import '/gestia-core/response.composer.js?v=v94-live-human-reds-v113-20260809';
 import '/gestia-core/tools.bridge.js?v=v139-real-reel-e2e-20260812';

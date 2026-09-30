@@ -95,9 +95,13 @@ export const JarvisToolRuntime = {
             toolDef
         );
 
-        console.info(
-            `[RUNTIME_REGISTERED] ${tool.name} @ v${toolDef.version}`
-        );
+        if (
+            globalThis.__JARVIS_VERBOSE_TOOL_REGISTRATION__ === true
+        ) {
+            console.debug(
+                `[RUNTIME_REGISTERED] ${tool.name} @ v${toolDef.version}`
+            );
+        }
 
         return {
             ok: true,

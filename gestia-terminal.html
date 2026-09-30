@@ -5,26 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terminal Heberto | ADJUNTO</title>
     
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="assets/gestia-terminal.tailwind.css">
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        gestia: {
-                            dark: '#0f172a',      /* Fondo principal oscuro */
-                            primary: '#3b82f6',   /* Azul tecnológico */
-                            accent: '#10b981',    /* Verde éxito */
-                            panel: '#1e293b'      /* Fondo de paneles */
-                        }
-                    }
-                }
-            }
-        }
-    </script>
     
     <style>
         /* Scrollbar personalizado para mantener el look de terminal limpia */
@@ -5754,68 +5737,6 @@ const summary =
     });
 
 
-  /* =====================================================
-        🗄️ DATA VAULT: HIDRATACIÓN DE FUERZA DE TAREA
-        Sincronización de Perfiles: Jonathan, Jessica y Luis.
-    ===================================================== */
-    window.GestiaTaskForce = {
-        technicians: [
-            { 
-                id: "tech_jonathan_01", 
-                name: "Jonathan", 
-                role: "Lead Technician", 
-                status: "active", 
-                location: "Uxmal 39", 
-                specialty: "General Maintenance"
-            },
-            { 
-                id: "tech_jessica_02", 
-                name: "Jessica", 
-                role: "Operations Coordinator", 
-                status: "active", 
-                location: "Cancún Office"
-            },
-            { 
-                id: "tech_luis_03", 
-                name: "Luis", 
-                role: "Field Technician", 
-                status: "standby", 
-                location: "Riviera Maya"
-            }
-        ],
-        staff: ["Laura", "Mari Jo"],
-        metadata: { version: "5.18", mode: "TACAÑO_OPTIMIZED" }
-    };
-
-    // ⚡ INYECCIÓN AGRESIVA: Si el Bridge ya existe, le inyectamos la data directamente
-    if (window.JarvisBridge) {
-        window.JarvisBridge.localCache = window.GestiaTaskForce;
-        console.log("🚀 [BRIDGE_SYNC]: Cache de técnicos vinculada.");
-    }
-
-    // Interceptor reforzado para capturar la llamada antes que el Bridge viejo
-    var originalExecuteCommands = window.executeCommands;
-    window.executeCommands = async function(cmds) {
-        // Normalizamos el comando para que ANALYZE::technicians entre siempre
-        const checkCmd = Array.isArray(cmds) ? cmds[0] : cmds;
-        
-        if (checkCmd && checkCmd.includes("ANALYZE::technicians")) {
-            if (typeof window.audit === "function") {
-                window.audit("DATA_HYDRATION", { target: "technicians", count: window.GestiaTaskForce.technicians.length });
-            }
-            
-            return [{
-                ok: true,
-                type: "SYSTEM_STATUS", // Cambiado a SYSTEM_STATUS para que el Renderer lo pinte con estilo
-                data: window.GestiaTaskForce.technicians,
-                message: `Análisis de Fuerza de Tarea: ${window.GestiaTaskForce.technicians.length} perfiles activos.`
-            }];
-        }
-        return (typeof originalExecuteCommands === "function") ? await originalExecuteCommands(cmds) : [];
-    };
-
-    console.log("📦 [DATA_VAULT]: Perfiles cargados. Jonathan listo para pruebas.");
-    
     setTimeout(() => {
         window.listenLedgerRealtime?.();
     }, 1500);
