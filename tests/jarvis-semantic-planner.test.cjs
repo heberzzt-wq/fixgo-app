@@ -1018,6 +1018,87 @@ test("grounded final replies render model-authored lines without exposing the tr
     assert.equal(result.message, "Leí contract.json.\nLa lectura contiene las siete líneas.\nNo ejecuté un validador de sintaxis.");
 });
 
+test("grounded complete JSON reads let Qwen select verified fact IDs and render only canonical facts", async () => {
+    const responseBriefing = JSON.stringify({
+        missionStatus: "COMPLETED",
+        executedTools: [{ tool: "repo.read" }],
+        groundedVerifiedRead: {
+            file: "jarvis-runtime-contract.json",
+            partial: false,
+            readCoverage: "COMPLETE",
+            evidenceTextTruncated: false,
+            startLine: 1,
+            endLine: 7,
+            totalLines: 7,
+            numberedContent: [
+                "1: {",
+                '2:   "projectId": "fixgo-app",',
+                '3:   "repository": "heberzzt-wq/fixgo-app",',
+                '4:   "branch": "v94-media-v4n-negative-claims",',
+                '5:   "releaseId": "v94-source-grounded-research-v124-20260810"',
+                "6: }",
+                "7: "
+            ].join("\n")
+        }
+    });
+
+    const result = await runJarvisSemanticResponse({
+        input:
+            "Generic composition prompt that contains tool evidence.",
+        responseMode: "grounded_conversation",
+        responseInstruction:
+            "Dime en tres líneas qué comprobaste.",
+        responseBriefing,
+        ai: {
+            models: {
+                generateContent: async request => {
+                    assert.deepEqual(
+                        request.config.responseJsonSchema
+                            .properties.factIds.items.enum,
+                        [
+                            "read.coverage",
+                            "read.file",
+                            "file.projectId",
+                            "file.repository",
+                            "file.branch",
+                            "file.releaseId"
+                        ]
+                    );
+                    assert.match(
+                        request.config.chatMessages[1].content,
+                        /REQUEST=Dime en tres líneas/
+                    );
+                    assert.match(
+                        request.config.chatMessages[1].content,
+                        /projectId: fixgo-app/
+                    );
+                    return {
+                        text: JSON.stringify({
+                            requestedLineCount: 3,
+                            factIds: [
+                                "read.coverage",
+                                "file.projectId",
+                                "file.repository",
+                                "file.branch"
+                            ]
+                        })
+                    };
+                }
+            }
+        }
+    });
+
+    assert.equal(
+        result.message,
+        [
+            "Lectura: 7/7 líneas.",
+            "projectId: fixgo-app",
+            "repository: heberzzt-wq/fixgo-app"
+        ].join("\n")
+    );
+});
+
+
 test("grounded final replies reject malformed, empty and truncated line envelopes", async () => {
     for (const response of [
         { text: "Plain unvalidated reply" },

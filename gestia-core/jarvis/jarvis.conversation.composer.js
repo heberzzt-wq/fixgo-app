@@ -1107,6 +1107,55 @@ export async function composeEvidenceGroundedConversation({
         "Entrega solo texto natural para el usuario. No copies la solicitud, las etiquetas internas ni sus objetos JSON."
     ].filter(Boolean).join("\n\n");
 
+    let groundedVerifiedRead = null;
+    if (missionOutcomeObservation?.status === "COMPLETED") {
+        let parsedEvidence = [];
+        try {
+            parsedEvidence = JSON.parse(evidence);
+        }
+        catch {
+            parsedEvidence = [];
+        }
+
+        const operationalOutcomes =
+            authoritativeOutcomes.filter(item =>
+                item.tool !== "mission.outcome" &&
+                item.tool !== "conversation.respond"
+            );
+        const completeReadEvidence =
+            (Array.isArray(parsedEvidence) ? parsedEvidence : [])
+                .filter(item =>
+                    String(item?.tool || "") === "repo.read" &&
+                    item?.observation?.verifiedRead
+                )
+                .map(item => item.observation.verifiedRead);
+
+        if (
+            operationalOutcomes.length > 0 &&
+            operationalOutcomes.every(item =>
+                item.tool === "repo.read" &&
+                item.ok === true &&
+                item.executionOk !== false &&
+                item.blocked !== true &&
+                item.requiresInput !== true
+            ) &&
+            completeReadEvidence.length === 1
+        ) {
+            const verifiedRead = completeReadEvidence[0];
+            if (
+                verifiedRead?.readCoverage === "COMPLETE" &&
+                verifiedRead?.evidenceTextTruncated !== true &&
+                verifiedRead?.startLine === 1 &&
+                Number.isInteger(verifiedRead?.totalLines) &&
+                verifiedRead.totalLines > 0 &&
+                verifiedRead?.endLine === verifiedRead.totalLines &&
+                String(verifiedRead?.numberedContent || "").trim()
+            ) {
+                groundedVerifiedRead = verifiedRead;
+            }
+        }
+    }
+
     try {
         const result = await executeConversation(prompt, {
             responseMode: "grounded_conversation",
@@ -1114,7 +1163,10 @@ export async function composeEvidenceGroundedConversation({
             responseBriefing: JSON.stringify({
                 missionStatus: missionOutcomeObservation?.status || "UNKNOWN",
                 missionReason: missionOutcomeObservation?.reason || "",
-                executedTools: authoritativeOutcomes.filter(item => item.tool !== "mission.outcome")
+                executedTools: authoritativeOutcomes.filter(item => item.tool !== "mission.outcome"),
+                ...(groundedVerifiedRead
+                    ? { groundedVerifiedRead }
+                    : {})
             })
         });
         const payload =

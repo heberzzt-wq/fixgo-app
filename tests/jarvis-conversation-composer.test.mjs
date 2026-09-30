@@ -311,6 +311,70 @@ test("a read-only final reply receives relevant facts without unrelated capabili
     });
 });
 
+test("complete JSON repo.read passes one verified read envelope to the semantic authority", async () => {
+    const instruction =
+        "Lee jarvis-runtime-contract.json sin modificar nada y dime en tres líneas qué comprobaste.";
+    let briefing = null;
+
+    await composeEvidenceGroundedConversation({
+        instruction,
+        evidenceItems: [{
+            name: "mission.outcome",
+            observation: {
+                ok: true,
+                status: "COMPLETED",
+                reason: "ALL_EXECUTABLE_TASKS_COMPLETED"
+            }
+        }, {
+            name: "repo.read",
+            observation: {
+                ok: true,
+                executionOk: true,
+                objectiveSatisfied: true,
+                status: "SUCCESS",
+                verifiedRead: {
+                    file: "jarvis-runtime-contract.json",
+                    partial: false,
+                    startLine: 1,
+                    endLine: 7,
+                    totalLines: 7,
+                    numberedContent: [
+                        "1: {",
+                        '2:   "projectId": "fixgo-app",',
+                        '3:   "repository": "heberzzt-wq/fixgo-app",',
+                        '4:   "branch": "v94-media-v4n-negative-claims",',
+                        '5:   "releaseId": "v94-source-grounded-research-v124-20260810"',
+                        "6: }",
+                        "7: "
+                    ].join("\n")
+                }
+            }
+        }],
+        executeConversation: async (_prompt, options) => {
+            briefing =
+                JSON.parse(options.responseBriefing);
+            return {
+                ok: true,
+                message: "Lectura completada."
+            };
+        }
+    });
+
+    assert.equal(
+        briefing.groundedVerifiedRead.readCoverage,
+        "COMPLETE"
+    );
+    assert.equal(
+        briefing.groundedVerifiedRead.file,
+        "jarvis-runtime-contract.json"
+    );
+    assert.match(
+        briefing.groundedVerifiedRead.numberedContent,
+        /projectId.*fixgo-app/
+    );
+});
+
+
 test("repo candidate evidence preserves ranked files inside the CPU bounded envelope", () => {
     const evidence = buildBoundedConversationEvidence([{
         name: "repo.rankCandidates",
