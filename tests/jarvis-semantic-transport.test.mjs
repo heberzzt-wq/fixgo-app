@@ -404,7 +404,9 @@ test("grounded conversation enforces presentation in the system role without aff
             assert.ok(!body.messages.at(-1).content.includes("un solo parrafo"), "presentation must not override the user's requested format");
         }
         systems.push(body.messages[0].content);
-        return { ok: true, text: async () => JSON.stringify({ message: { content: "La mision quedo parcial." } }) };
+        const content = systems.length === 1 ? JSON.stringify({ lines: ["La mision quedo parcial."] }) : "La mision quedo parcial.";
+        assert.equal(body.format?.properties?.lines?.type, systems.length === 1 ? "array" : undefined);
+        return { ok: true, text: async () => JSON.stringify({ message: { content } }) };
     } });
     await engine.respond({ input: fullInput, responseMode: "grounded_conversation", responseBriefing: briefing, responseInstruction: userRequest });
     await engine.respond({ input: fullInput });

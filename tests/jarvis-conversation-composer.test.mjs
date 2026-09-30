@@ -287,6 +287,30 @@ test("composer removes duplicate read facts while preserving other files and fai
     assert.equal(facts[2].observation.error, "READ_FAILED");
 });
 
+test("read coverage distinguishes full reads, partial ranges and missing evidence", () => {
+    const read = { file: "contract.json", partial: false, startLine: 1, endLine: 7, totalLines: 7, numberedContent: "1: {\n7: }" };
+    const observations = [read, { ...read, partial: true, endLine: 3 }, { file: "unknown.json" }, { ...read, startLine: 2 }];
+    const facts = JSON.parse(buildBoundedConversationEvidence(observations.map(verifiedRead => ({ name: "repo.read", observation: { ok: true, verifiedRead } }))));
+    assert.deepEqual(facts.map(item => item.observation.verifiedRead.readCoverage), ["COMPLETE", "PARTIAL", "UNKNOWN", "UNKNOWN"]);
+    assert.equal(facts[0].observation.verifiedRead.evidenceTextTruncated, false);
+});
+
+test("a read-only final reply receives relevant facts without unrelated capability and discovery policy", async () => {
+    const instruction = "Lee contract.json y explica lo que comprobaste.";
+    await composeEvidenceGroundedConversation({
+        instruction,
+        evidenceItems: [{ name: "repo.read", observation: { ok: true, verifiedRead: { file: "contract.json", partial: false, startLine: 1, endLine: 1, totalLines: 1, numberedContent: '1: {"projectId":"example"}' } } }],
+        executeConversation: async (prompt, options) => {
+            assert.match(prompt, /projectId/);
+            assert.match(prompt, /COMPLETE/);
+            assert.equal(options.responseInstruction, instruction);
+            assert.doesNotMatch(prompt, /empieza la respuesta directamente con esas rutas candidatas|conviértelos en funciones humanas concretas/);
+            assert.ok(prompt.length < 3000, "small read evidence must not inherit the whole multifunction policy");
+            return { ok: true, message: "Leí el proyecto example." };
+        }
+    });
+});
+
 test("repo candidate evidence preserves ranked files inside the CPU bounded envelope", () => {
     const evidence = buildBoundedConversationEvidence([{
         name: "repo.rankCandidates",

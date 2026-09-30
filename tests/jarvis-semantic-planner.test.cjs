@@ -1003,6 +1003,37 @@ test("semantic response accepts a bounded extended budget for complete mission r
     );
 });
 
+test("grounded final replies render model-authored lines without exposing the transport envelope", async () => {
+    const result = await runJarvisSemanticResponse({
+        input: "Evidence: complete read, lines 1-7. No syntax validator was run.",
+        responseMode: "grounded_conversation",
+        responseInstruction: "Explica lo comprobado en tres líneas.",
+        responseBriefing: '{"missionStatus":"COMPLETED","executedTools":[{"tool":"repo.read"}]}',
+        ai: { models: { generateContent: async request => {
+            assert.equal(request.config.responseMimeType, "application/json");
+            assert.equal(request.config.responseJsonSchema.properties.lines.type, "array");
+            return { text: JSON.stringify({ lines: ["Leí contract.json.", "La lectura contiene las siete líneas.", "No ejecuté un validador de sintaxis."] }) };
+        } } }
+    });
+    assert.equal(result.message, "Leí contract.json.\nLa lectura contiene las siete líneas.\nNo ejecuté un validador de sintaxis.");
+});
+
+test("grounded final replies reject malformed, empty and truncated line envelopes", async () => {
+    for (const response of [
+        { text: "Plain unvalidated reply" },
+        { text: '{"lines":[]}' },
+        { text: '{"lines":[{}]}' },
+        { text: '{"lines":["   "]}' },
+        { text: '{"lines":["ok"]}', providerResponse: { finishReason: "length" } }
+    ]) {
+        await assert.rejects(runJarvisSemanticResponse({
+            input: "Actual read failed.", responseMode: "grounded_conversation",
+            responseBriefing: '{"missionStatus":"FAILED","executedTools":[]}',
+            ai: { models: { generateContent: async () => response } }
+        }), /SEMANTIC_RESPONSE_(FORMAT_INVALID|INCOMPLETE)/);
+    }
+});
+
 test("semantic response fails closed when both authenticated providers are unavailable", async () => {
     await assert.rejects(() => runJarvisSemanticResponse({ input: "Integra evidencia.", ai: { models: { generateContent: async () => { throw new Error("PROVIDERS_UNAVAILABLE"); } } } }), /SEMANTIC_AUTHENTICATED_PROVIDER_PROVIDERS_UNAVAILABLE/);
 });
