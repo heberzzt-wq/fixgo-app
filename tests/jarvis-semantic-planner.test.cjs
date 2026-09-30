@@ -136,7 +136,7 @@ test("current-turn conversational gate classifies then responds with the same lo
         gateRequest?.config?.modelProfile,
         "conversation"
     );
-    assert.deepEqual(gateRequest.config.chatMessages.map(item => item.role), ["system", "user", "assistant", "user", "assistant", "user"]);
+    assert.deepEqual(gateRequest.config.chatMessages.map(item => item.role), ["system", "user", "assistant", "user", "assistant", "user", "assistant", "user", "assistant", "system", "user"]);
     assert.equal(gateRequest.config.chatMessages.at(-1).content, "Qué tal pariente, ¿cómo estás?");
     assert.match(gateRequest.config.chatMessages[0].content, /new tool evidence/);
     assert.equal(
@@ -153,7 +153,7 @@ test("current-turn conversational gate classifies then responds with the same lo
     );
     assert.match(
         String(responseRequest?.contents || ""),
-        /No ofrezcas ayuda/
+        /No inventes acciones ejecutadas/
     );
     assert.equal(result.toolCalls.length, 1);
     assert.equal(result.toolCalls[0].name, "conversation.respond");
@@ -165,6 +165,86 @@ test("current-turn conversational gate classifies then responds with the same lo
         result.toolCalls[0].args.prompt,
         "A toda madre, pariente."
     );
+});
+
+test("missing information becomes a question without executing or completing the mission", async () => {
+    const requests = [];
+    const result = await runJarvisSemanticPlanner({
+        input: "busca un six cercano",
+        catalog: [{ name: "conversation.respond", mutates: false }],
+        missionState: { phase: "CURRENT_TURN", conversationalGate: true },
+        ai: { models: { async generateContent(request) {
+            requests.push(request);
+            return { text: '{"missing":"ubicacion del usuario","mode":"clarify","question":"¿En qué ciudad o colonia quieres que busque?"}' };
+        } } }
+    });
+    assert.equal(requests.length, 1, "do not reinterpret a model-selected question with another inference");
+    assert.equal(result.toolCalls[0].name, "conversation.respond");
+    assert.equal(result.toolCalls[0].reason, "MODEL_DIRECT_CONVERSATION_RESPONSE");
+    assert.equal(result.toolCalls[0].args.prompt, "¿En qué ciudad o colonia quieres que busque?");
+    assert.equal(result.missionComplete, false);
+});
+
+test("a follow-up retains supplied context in both tool selection and arguments without claiming evidence", async () => {
+    const turns = [{ role: "user", content: "busca un six cercano" }, { role: "assistant", content: "¿En qué zona?" }];
+    const tools = [...catalog, { name: "web.research", inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } }];
+    let calls = 0;
+    const result = await runJarvisSemanticPlanner({
+        input: "en el centro de Cancún", catalog: tools,
+        missionState: { phase: "CURRENT_TURN", advisorySemanticContext: { turns } },
+        retrieveToolCandidates: async action => {
+            assert.equal(action, "search web for local businesses");
+            return tools.filter(tool => tool.name === "web.research");
+        },
+        ai: { models: { async generateContent(request) {
+            calls++;
+            assert.match(JSON.stringify(request.config.chatMessages), /busca un six cercano/);
+            if (calls === 2) assert.match(JSON.stringify(request.config.chatMessages), /never as evidence/);
+            assert.equal(request.config.chatMessages.at(-1).content, "en el centro de Cancún");
+            return { text: calls === 1 ? '{"action":"search web for local businesses"}' : '{"name":"jarvis_tool_0","arguments":{"query":"tienda SIX centro Cancún"}}' };
+        } } }
+    });
+    assert.equal(result.toolCalls[0].name, "web.research");
+    assert.equal(result.toolCalls[0].approved, false);
+    assert.equal(result.missionComplete, false);
+});
+
+test("an empty clarification cannot become a successful answer or trigger another interpretation", async () => {
+    let calls = 0;
+    await assert.rejects(() => runJarvisSemanticPlanner({
+        input: "Busca una tienda cercana.", catalog: [{ name: "conversation.respond" }],
+        missionState: { phase: "CURRENT_TURN", conversationalGate: true },
+        ai: { models: { async generateContent() {
+            calls++;
+            return { text: '{"mode":"clarify","missing":"ubicacion","question":""}' };
+        } } }
+    }), /SEMANTIC_CLARIFICATION_QUESTION_REQUIRED/);
+    assert.equal(calls, 1);
+});
+
+test("schema-shaped arguments get one model correction bound to the same canonical tool", async () => {
+    for (const fixed of [true, false]) {
+        let calls = 0;
+        const search = { name: "repo.search", inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } };
+        const run = () => runJarvisSemanticPlanner({
+            input: "Busca el simbolo debit en el repositorio.", catalog: [search], missionState: { phase: "CURRENT_TURN" },
+            ai: { models: { async generateContent(request) {
+                calls++;
+                if (calls === 1) return { text: '{"name":"jarvis_tool_0","arguments":{"query":{"type":"string","description":"debit"}}}' };
+                assert.equal(calls, 2, "no unbounded repair loop");
+                assert.deepEqual(request.config.responseJsonSchema.properties.arguments, search.inputSchema);
+                assert.equal(request.config.chatMessages.at(-1).content, "Busca el simbolo debit en el repositorio.");
+                return { text: fixed ? '{"arguments":{"query":"debit"}}' : '{"arguments":{"query":{"type":"string","description":"debit"}}}' };
+            } } }
+        });
+        if (fixed) {
+            const result = await run();
+            assert.equal(result.toolCalls[0].name, "repo.search");
+            assert.deepEqual(result.toolCalls[0].args, { query: "debit" });
+            assert.equal(result.toolCalls[0].approved, false);
+        } else await assert.rejects(run, /SEMANTIC_TOOL_ARGUMENTS_INVALID/);
+        assert.equal(calls, 2);
+    }
 });
 
 test("current-turn conversational gate delegates operational work without inventing a response", async () => {
@@ -263,22 +343,23 @@ test("a truncated final composition is not reported as SEMANTIC_RESPONSE_READY",
     }), /SEMANTIC_RESPONSE_INCOMPLETE/);
 });
 
-test("Qwen can select a registered tool omitted by vector retrieval before receiving its schema", async () => {
+test("Qwen describes the action while canonical retrieval preserves the original file argument", async () => {
     const input = "Lee el contrato sin modificarlo.";
     const tools = [...catalog, { name: "repo.read", mutates: false, inputSchema: { type: "object", required: ["file"], properties: { file: { type: "string" } } } }];
     let calls = 0;
     const plan = await runJarvisSemanticPlanner({
-        input, catalog: tools, retrievalCandidates: tools.slice(0, 2),
+        input, catalog: tools,
+        retrieveToolCandidates: async action => {
+            assert.equal(action, "read repository file");
+            return [{ name: "repo.read", mutates: true, inputSchema: {} }, { name: "invented.tool" }];
+        },
         missionState: { phase: "CURRENT_TURN", writeAllowed: false },
         ai: { models: { async generateContent(request) {
             calls++;
             if (calls === 1) {
                 assert.equal(request.config.chatMessages.at(-1).content, input);
-                assert.equal(request.config.responseJsonSchema.properties.name.type, "string");
-                assert.equal(request.config.responseJsonSchema.properties.name.enum, undefined);
-                const index = JSON.parse(request.config.chatMessages[0].content.split("\n").at(-1));
-                assert.deepEqual([...index.readOnly, ...index.mutating].sort(), tools.map(tool => tool.name).sort());
-                return { text: '{"name":"repo.read"}', providerResponse: { finishReason: "stop" } };
+                assert.equal(request.config.responseJsonSchema.properties.action.type, "string");
+                return { text: '{"action":"read repository file"}', providerResponse: { finishReason: "stop" } };
             }
             const declarations = request.config.tools[0].functionDeclarations;
             assert.equal(declarations.length, 1);
@@ -291,16 +372,18 @@ test("Qwen can select a registered tool omitted by vector retrieval before recei
     assert.equal(calls, 2);
     assert.equal(plan.toolCalls[0].name, "repo.read");
     assert.equal(plan.toolCalls[0].args.file, "jarvis-runtime-contract.json");
+    assert.equal(plan.toolCalls[0].mutates, false, "retrieval cannot replace the live tool definition");
 });
 
-test("catalog index selection rejects nonexistent tools and incomplete choices", async () => {
-    for (const response of [{ text: '{"name":"invented.tool"}' }, { text: '{"name":"repo.search"}', providerResponse: { finishReason: "length" } }]) {
+test("action retrieval rejects missing, malformed and incomplete descriptions", async () => {
+    for (const response of [{ text: '{"name":"invented.tool"}' }, { text: '{"action":{}}' }, { text: '{"action":""}' }, { text: '{"action":"read repository file"}', providerResponse: { finishReason: "length" } }]) {
         let calls = 0;
         await assert.rejects(() => runJarvisSemanticPlanner({
-            input: "Inspecciona el proyecto.", catalog, retrievalCandidates: catalog.slice(0, 2),
+            input: "Inspecciona el proyecto.", catalog,
+            retrieveToolCandidates: async () => assert.fail("invalid action must not start retrieval"),
             missionState: { phase: "CURRENT_TURN" },
             ai: { models: { async generateContent() { calls++; return response; } } }
-        }), /SEMANTIC_TOOL_SELECTION_INVALID/);
+        }), /SEMANTIC_ACTION_DESCRIPTION_INVALID/);
         assert.equal(calls, 1);
     }
 });
@@ -1103,6 +1186,10 @@ test("current-turn operational planning preserves supplied candidates without le
     const result = await runJarvisSemanticPlanner({
         input: "Revisa el runtime y confirma el HEAD actual.",
         catalog: operationalCatalog,
+        retrieveToolCandidates: async action => {
+            assert.equal(action, "inspect repository git status");
+            return operationalCatalog.filter(tool => tool.name === "repo.gitStatus");
+        },
         missionState: {
             phase: "CURRENT_TURN",
             writeAllowed: false
@@ -1112,9 +1199,7 @@ test("current-turn operational planning preserves supplied candidates without le
             models: {
                 generateContent: async request => {
                     if (!request.config.tools) {
-                        const index = JSON.parse(request.config.chatMessages[0].content.split("\n").at(-1));
-                        assert.deepEqual([...index.readOnly, ...index.mutating].sort(), operationalCatalog.map(tool => tool.name).sort());
-                        return { text: '{"name":"repo.gitStatus"}' };
+                        return { text: '{"action":"inspect repository git status"}' };
                     }
                     requestSeen = request;
                     return {

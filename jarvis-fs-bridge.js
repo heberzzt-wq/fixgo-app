@@ -1002,7 +1002,7 @@ export function createSelfHostedSemanticEngine({
 } = {}) {
     const mode = semanticProviderMode(env);
     const model = String(
-        env.JARVIS_LOCAL_LLM_MODEL || "qwen2.5-coder:3b"
+        env.JARVIS_LOCAL_LLM_MODEL || "qwen3:1.7b"
     ).trim();
     const conversationModel = model;
     const embeddingModel = String(
@@ -1114,6 +1114,7 @@ export function createSelfHostedSemanticEngine({
                             model,
                             prompt: "OK",
                             stream: false,
+                            think: false,
                             keep_alive:
                                 warmKeepAlive ||
                                 "30m",
@@ -1381,11 +1382,12 @@ export function createSelfHostedSemanticEngine({
                     "application/json";
             const nativeToolChat =
                 tools.length > 0 &&
-                request?.config?.nativeToolChat === true;
+                (request?.config?.nativeToolChat === true || selectedModel.startsWith("qwen3:"));
             const nativeChat =
                 jsonOnlyNative ||
                 nativeToolChat ||
-                request?.config?.nativeTextChat === true;
+                request?.config?.nativeTextChat === true ||
+                selectedModel.startsWith("qwen3:");
             const origin =
                 new URL(baseUrl).origin;
             const payload =
@@ -1395,6 +1397,8 @@ export function createSelfHostedSemanticEngine({
                             selectedModel,
                         messages,
                         stream: false,
+                        // Use the native control so bounded replies contain the answer.
+                        think: false,
                         ...(jsonOnlyNative
                             ? { format: request?.config?.responseJsonSchema || "json" }
                             : {}),
@@ -1628,9 +1632,6 @@ export function createSelfHostedSemanticEngine({
                         toolEmbeddingWarmPromise = null;
                     });
             }
-            if (missingCount > 8) {
-                throw new Error("LOCAL_TOOL_EMBEDDING_CACHE_WARMING");
-            }
             let timer;
             try {
                 const error = await Promise.race([
@@ -1714,10 +1715,10 @@ export function createSelfHostedSemanticEngine({
                 input,
                 catalog,
                 missionState,
-                retrieveToolCandidates: async proposedName => {
+                retrieveToolCandidates: async requestedOperation => {
                     onProgress("retrieval");
-                    const shortlist = await shortlistCurrentTurnCatalog(proposedName, catalog, 2, deadlineAt, planSignal);
-                    semanticPreselection = { ...shortlist.evidence, querySource: "qwen_proposed_tool", proposedName };
+                    const shortlist = await shortlistCurrentTurnCatalog(requestedOperation, catalog, 2, deadlineAt, planSignal);
+                    semanticPreselection = { ...shortlist.evidence, querySource: "qwen_requested_operation", requestedOperation };
                     onProgress("inference");
                     return shortlist.catalog;
                 },

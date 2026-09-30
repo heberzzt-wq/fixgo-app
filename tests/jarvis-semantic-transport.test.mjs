@@ -30,6 +30,7 @@ test("a greeting after a final response retains the loaded context size across c
     assert.equal(requests.length, 3);
     assert.deepEqual(requests.map(x => x.body.options.num_ctx), [8192, 8192, 8192], "switching context forces Ollama to reload the same model");
     assert.ok(requests.every(x => x.url.endsWith("/api/chat")));
+    assert.ok(requests.every(x => x.body.think === false), "bounded requests must not spend their answer budget on thinking");
     assert.equal(result.toolCalls[0].args.prompt, "Hola, buenas tardes, pariente.");
     assert.equal(result.inferenceReceipt.counters.localEmbeddingCalls, 0);
 });
@@ -125,7 +126,7 @@ test("default semantic engine uses the real local HTTP transport with the unchan
     assert.equal(plan.ok, true);
     assert.equal(plan.missionComplete, false);
     assert.deepEqual(calls.map(call => call.route), ["/api/generate", "/api/chat"]);
-    assert.equal(calls[1].body.model, "qwen2.5-coder:3b");
+    assert.equal(calls[1].body.model, "qwen3:1.7b");
     assert.equal(calls[1].body.messages[1].content, instruction);
     assert.equal(engine.describe().counters.semanticExternalCalls, 0);
 });

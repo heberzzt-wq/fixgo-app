@@ -640,7 +640,7 @@ test("self-hosted semantic backend defaults to local-only Ollama Qwen with zero 
     assert.equal(health.ok, true);
     assert.equal(health.mode, "LOCAL_ONLY");
     assert.equal(health.provider, "ollama-openai-compatible-local");
-    assert.equal(health.model, "qwen2.5-coder:3b");
+    assert.equal(health.model, "qwen3:1.7b");
     assert.equal(health.embeddingModel, "qwen3-embedding:0.6b");
     assert.equal(health.endpointOrigin, "http://127.0.0.1:11434");
     assert.equal(health.fallbackAllowed, false);
@@ -694,7 +694,7 @@ test("self-hosted semantic engine uses local Ollama embeddings with zero externa
     assert.equal(health.counters.paidExternalCalls, 0);
 });
 
-test("CURRENT_TURN sends the full tool index to Qwen and then only its selected schema", async () => {
+test("CURRENT_TURN uses Qwen's action for retrieval before selecting a canonical schema", async () => {
     const cachePath = path.join(
         os.tmpdir(),
         `jarvis-tool-shortlist-test-${process.pid}-${Date.now()}.json`
@@ -735,7 +735,7 @@ test("CURRENT_TURN sends the full tool index to Qwen and then only its selected 
                 text: async () => JSON.stringify({
                     message: {
                         role: "assistant",
-                        content: JSON.stringify(!body.tools ? { name: "repo.audit" } : { name: "jarvis_tool_0", arguments: { query: "runtime real" } })
+                        content: JSON.stringify(!body.tools ? { action: "audit repository runtime" } : { name: "jarvis_tool_0", arguments: { query: "runtime real" } })
                     },
                     done: true,
                     done_reason: "stop"
@@ -755,9 +755,11 @@ test("CURRENT_TURN sends the full tool index to Qwen and then only its selected 
             catalog,
             missionState: { phase: "CURRENT_TURN", writeAllowed: false }
         });
-        assert.deepEqual(JSON.parse(requests[0].body.messages[0].content.split("\n").at(-1)).readOnly, catalog.map(tool => tool.name));
+        assert.equal(requests[0].body.messages.at(-1).content, "Audita el runtime real y confirma bridge y repo");
+        const embeddings = requests.filter(item => item.url.endsWith("/api/embed"));
+        assert.deepEqual(embeddings.at(-1).body.input, ["audit repository runtime"]);
         assert.equal(plan.toolCalls[0].name, "repo.audit");
-        assert.equal(requests.filter(item => item.url.endsWith("/api/embed")).length, 0);
+        assert.equal(embeddings.length, 2);
         assert.equal(requests.filter(item => item.url.endsWith("/api/chat")).length, 2);
     } finally {
         fs.rmSync(cachePath, { force: true });
@@ -910,6 +912,11 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
             "assistant",
             "user",
             "assistant",
+            "user",
+            "assistant",
+            "user",
+            "assistant",
+            "system",
             "user"
         ]
     );
