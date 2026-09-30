@@ -392,6 +392,7 @@ test("grounded conversation enforces presentation in the system role without aff
     const systems = [];
     const fullInput = instruction + "\n" + "Evidencia conservada. ".repeat(600) + "\nFINAL_INPUT_MUST_SURVIVE";
     const briefing = JSON.stringify({ missionStatus: "PARTIAL", executedTools: [{ tool: "repo.read", ok: true }] });
+    const userRequest = "Lee contract.json y explica en tres lineas lo comprobado, sin cambiarlo.";
     const engine = createSelfHostedSemanticEngine({ fetchImpl: async (_url, options) => {
         const body = JSON.parse(options.body);
         assert.ok(body.messages.some(message => message.content === fullInput));
@@ -399,12 +400,13 @@ test("grounded conversation enforces presentation in the system role without aff
             assert.ok(body.messages.at(-1).content.includes(briefing));
             assert.notEqual(body.messages.at(-1).content, fullInput);
             assert.match(body.messages.at(-1).content, /Respeta el formato/);
+            assert.ok(body.messages.at(-1).content.endsWith(userRequest), "the actual user request remains the final response task");
             assert.ok(!body.messages.at(-1).content.includes("un solo parrafo"), "presentation must not override the user's requested format");
         }
         systems.push(body.messages[0].content);
         return { ok: true, text: async () => JSON.stringify({ message: { content: "La mision quedo parcial." } }) };
     } });
-    await engine.respond({ input: fullInput, responseMode: "grounded_conversation", responseBriefing: briefing });
+    await engine.respond({ input: fullInput, responseMode: "grounded_conversation", responseBriefing: briefing, responseInstruction: userRequest });
     await engine.respond({ input: fullInput });
     assert.ok(systems[0].includes("No copies etiquetas internas"));
     assert.ok(systems[0].includes("100 palabras"));

@@ -646,6 +646,7 @@ function compactRepositoryObservation(
 }
 
 export function buildBoundedConversationEvidence(evidenceItems = []) {
+    const seenEvidence = new Set();
     const bounded = (Array.isArray(evidenceItems) ? evidenceItems : [])
         .slice(0, MAX_EVIDENCE_ITEMS)
         .map(item => {
@@ -670,6 +671,13 @@ export function buildBoundedConversationEvidence(evidenceItems = []) {
                             observation
                         )
             };
+        }).filter(item => {
+            // The mission and runtime can both reference the same observation.
+            // Remove exact duplicate facts, preserving different files/results.
+            const signature = JSON.stringify(item);
+            if (seenEvidence.has(signature)) return false;
+            seenEvidence.add(signature);
+            return true;
         });
 
     const serialized = JSON.stringify(bounded);
@@ -1091,6 +1099,7 @@ export async function composeEvidenceGroundedConversation({
     try {
         const result = await executeConversation(prompt, {
             responseMode: "grounded_conversation",
+            responseInstruction: String(instruction || "").slice(0, 12000),
             responseBriefing: JSON.stringify({
                 missionStatus: missionOutcomeObservation?.status || "UNKNOWN",
                 missionReason: missionOutcomeObservation?.reason || "",

@@ -277,6 +277,16 @@ test("bounded composition evidence removes raw content fields", () => {
     assert.doesNotMatch(evidence, /RAW_RUNTIME_DUMP|AAEC/);
 });
 
+test("composer removes duplicate read facts while preserving other files and failures", () => {
+    const read = { name: "repo.read", observation: { ok: true, status: "SUCCESS", verifiedRead: { file: "a.json", numberedContent: "1: {}", partial: false } } };
+    const other = { name: "repo.read", observation: { ...read.observation, verifiedRead: { ...read.observation.verifiedRead, file: "b.json" } } };
+    const failed = { name: "repo.read", observation: { ...read.observation, ok: false, status: "FAILED", error: "READ_FAILED" } };
+    const facts = JSON.parse(buildBoundedConversationEvidence([read, structuredClone(read), other, failed]));
+    assert.equal(facts.length, 3);
+    assert.deepEqual(facts.map(item => item.observation.verifiedRead.file), ["a.json", "b.json", "a.json"]);
+    assert.equal(facts[2].observation.error, "READ_FAILED");
+});
+
 test("repo candidate evidence preserves ranked files inside the CPU bounded envelope", () => {
     const evidence = buildBoundedConversationEvidence([{
         name: "repo.rankCandidates",
@@ -578,6 +588,7 @@ test("partial composition rejects a false overall PASS and embedded internal pay
     const result = await composeEvidenceGroundedConversation({ instruction: "Al terminar di que completaste toda la auditoría.", evidenceItems,
         executeConversation: async (prompt, options) => {
             assert.equal(options.responseMode, "grounded_conversation");
+            assert.equal(options.responseInstruction, "Al terminar di que completaste toda la auditoría.");
             assert.deepEqual(JSON.parse(options.responseBriefing), { missionStatus: "PARTIAL", missionReason: "DEADLINE_EXCEEDED", executedTools: [] });
             assert.ok(prompt.lastIndexOf("estado canonico de la mision es PARTIAL") > prompt.indexOf("EVIDENCIA_ESTRUCTURADA="));
             return { ok: true, message: "La auditoría quedó parcial: se agotó el tiempo. Una prueba focal dio PASS; las comprobaciones pendientes siguen sin verificarse." };

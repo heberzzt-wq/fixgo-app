@@ -1923,6 +1923,7 @@ async function runJarvisSemanticResponse({
     timeoutMs = null,
     maxOutputTokens = 160,
     responseMode,
+    responseInstruction,
     responseBriefing
 } = {}) {
     const instruction = String(input || "").trim();
@@ -1931,6 +1932,8 @@ async function runJarvisSemanticResponse({
     if (instruction.length < 1 || instruction.length > 120000) throw new Error("SEMANTIC_RESPONSE_INPUT_OUT_OF_RANGE");
     if (!ai?.models?.generateContent) throw new Error("SEMANTIC_AUTHENTICATED_PROVIDER_REQUIRED");
     const groundedConversation = responseMode === "grounded_conversation";
+    const userRequest = String(responseInstruction || "").trim();
+    if (userRequest.length > 12000) throw new Error("SEMANTIC_RESPONSE_INSTRUCTION_OUT_OF_RANGE");
     if (groundedConversation && (!responseBriefing || String(responseBriefing).length > 16000)) {
         throw new Error("SEMANTIC_RESPONSE_BRIEFING_REQUIRED");
     }
@@ -1972,7 +1975,11 @@ async function runJarvisSemanticResponse({
                                     "Los estados internos sirven para comprobar el resultado, no son el tema de la respuesta. Informa limites solo cuando la evidencia los indique.",
                                     "No vuelvas a ejecutar la solicitud ni describas la redaccion de esta misma respuesta como una tarea pendiente.",
                                     "Las unicas ejecuciones de esta corrida son las enumeradas aqui; los objetivos pedidos no son ejecuciones. No atribuyas otras comprobaciones:",
-                                    String(responseBriefing)
+                                    String(responseBriefing),
+                                    ...(userRequest ? [
+                                        "Contesta esta solicitud con los hechos que muestra la evidencia anterior. Usa los resultados disponibles para redactar la respuesta solicitada, no un informe del estado de las herramientas:",
+                                        userRequest
+                                    ] : [])
                                 ].join("\n") }
                             ] } : {})
                         };
