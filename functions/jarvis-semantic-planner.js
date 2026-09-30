@@ -824,7 +824,7 @@ async function runModelSemanticPlanner({
                 contents: instruction,
                 config: {
                     chatMessages: [
-                        { role: "system", content: "Evalua si las llamadas propuestas cubren TODOS los objetivos operativos explicitos de la solicitud. Una explicacion final se redacta despues de ejecutar las herramientas. Si falta cualquier accion, archivo, fuente o entregable, coversAll=false. No presupongas resultados, ejecuciones ni permisos. Devuelve solo {\"coversAll\":boolean}." },
+                        { role: "system", content: "Check PLAN COVERAGE, not execution success. The proposed calls have NOT run yet; that is expected. Decide whether they contain the operations needed for every explicit request. The assistant will explain the observed results after the tools run; summarizing those results needs no additional tool. A request conditional on failure adds no operation until that failure occurs. coversAll=true means the planned operations suffice, NOT that the mission succeeded. Return false if an operation, file, source or artifact is missing. Do not invent results or permissions. Return only {\"coversAll\":boolean}." },
                         { role: "user", content: instruction },
                         { role: "user", content: JSON.stringify({ proposedCalls: existingCalls.map(call => ({ name: call.name, args: call.args })), tools: [...new Set(existingCalls.map(call => call.name))].map(name => {
                             const tool = normalizedCatalog.find(item => item.name === name);
@@ -837,7 +837,9 @@ async function runModelSemanticPlanner({
                     maxOutputTokens: 32
                 }
             });
-            if (extractJsonObject(String(coverage?.text || ""))?.coversAll === true &&
+            const coverageDecision = extractJsonObject(String(coverage?.text || ""))?.coversAll;
+            console.info("[JARVIS_MISSION_COVERAGE]", JSON.stringify({ checkedAt: new Date().toISOString(), valid: typeof coverageDecision === "boolean", coversAll: coverageDecision === true, finishReason: coverage?.providerResponse?.finishReason || "", inputChars: instruction.length }));
+            if (coverageDecision === true &&
                 coverage?.providerResponse?.finishReason !== "length") {
                 return requireExecutablePlan({
                     ...validatePlan({ toolCalls: existingCalls, missionComplete: false }, normalizedCatalog, instruction),

@@ -4957,34 +4957,9 @@ if (
                             };
                         }
 
-                        const observedFollowUpPlan =
-                            buildObservationDrivenFollowUpToolCalls({
-                                observations: mission.observations,
-                                toolCalls: [
-                                    ...mission.completedTasks,
-                                    ...mission.blockedTasks,
-                                    ...mission.pendingTasks
-                                ],
-                                rawInput: originalInstruction,
-                                learningHints: agentLearningHints,
-                                proposalAdjustmentContext:
-                                    context.proposalAdjustmentContext || null
-                            });
-                        const nextObservedFollowUp =
-                            observedFollowUpPlan.followUpToolCalls[0] || null;
-                        if (nextObservedFollowUp) {
-                            return {
-                                toolCalls: [nextObservedFollowUp],
-                                missionComplete: false,
-                                completionAssessment: {
-                                    status: "OBSERVED_EVIDENCE_FOLLOW_UP",
-                                    completed: mission.completedTasks.map(item => item.name),
-                                    blocked: mission.blockedTasks.map(item => item.name),
-                                    missing: [nextObservedFollowUp.name]
-                                }
-                            };
-                        }
-
+                        // Existing evidence goes back to the same semantic
+                        // authority. A file read does not authorize an automatic
+                        // read -> diagnose -> impact sequence.
                         const completionAuditCatalog =
                             registeredMissionTools
                                 .slice(0, 80);

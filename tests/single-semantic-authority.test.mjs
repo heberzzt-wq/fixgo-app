@@ -146,7 +146,11 @@ test("technical recovery and observed repo follow-up never invoke a parallel sem
         1,
         "the helper may remain for compatibility tests but active mission flow must not execute it"
     );
-    assert.match(core, /buildObservationDrivenFollowUpToolCalls\([\s\S]*mission\.observations/);
+    const missionPlanner = core.match(/planner:\s*async \(\{ originalInstruction, mission \}\) => \{([\s\S]*?)\n\s*execute:/)?.[1];
+    assert.ok(missionPlanner, "locate the active mission planner before checking its authority");
+    assert.doesNotMatch(core, /toolCalls:\s*\[nextObservedFollowUp\]/);
+    assert.match(core, /phase:\s*"COMPLETION_AUDIT"/);
+    assert.doesNotMatch(missionPlanner, /buildObservationDrivenFollowUpToolCalls/);
 });
 
 test("legacy patch state machines are retired from active Jarvis routes", () => {
