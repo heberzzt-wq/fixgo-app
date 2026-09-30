@@ -286,6 +286,106 @@ test("current-turn conversational gate delegates operational work without invent
     );
 });
 
+test("current-turn conversational gate reuses its tool action and avoids a second action-description inference", async () => {
+    const search = {
+        name: "repo.search",
+        description: "Busca evidencia dentro del repositorio.",
+        mutates: false,
+        inputSchema: {
+            type: "object",
+            properties: {
+                query: { type: "string" }
+            },
+            required: ["query"]
+        }
+    };
+    const fullCatalog = [
+        {
+            name: "conversation.respond",
+            description: "Responde cuando basta conversar.",
+            mutates: false
+        },
+        search,
+        {
+            name: "repo.read",
+            description: "Lee un archivo del repositorio.",
+            mutates: false,
+            inputSchema: {
+                type: "object",
+                properties: {
+                    file: { type: "string" }
+                },
+                required: ["file"]
+            }
+        }
+    ];
+    let calls = 0;
+    let retrievalCalls = 0;
+    const result = await runJarvisSemanticPlanner({
+        input: "Buenos días Jarvis, enlista lo que sabes hacer en este repo.",
+        catalog: fullCatalog,
+        missionState: {
+            phase: "CURRENT_TURN",
+            conversationalGate: true
+        },
+        retrieveToolCandidates: async action => {
+            retrievalCalls += 1;
+            assert.equal(action, "search repository capabilities");
+            return [search];
+        },
+        ai: {
+            models: {
+                async generateContent(request) {
+                    calls += 1;
+                    if (calls === 1) {
+                        assert.equal(
+                            request.config.responseJsonSchema
+                                .properties.action.type,
+                            "string"
+                        );
+                        return {
+                            text: JSON.stringify({
+                                missing: "",
+                                mode: "tools",
+                                question: "",
+                                action: "search repository capabilities"
+                            }),
+                            providerResponse: {
+                                finishReason: "stop"
+                            }
+                        };
+                    }
+                    assert.equal(
+                        request.config.nativeToolChat,
+                        true
+                    );
+                    return {
+                        text: JSON.stringify({
+                            name: "jarvis_tool_0",
+                            arguments: {
+                                query: "capacidades del repositorio"
+                            }
+                        }),
+                        providerResponse: {
+                            finishReason: "stop"
+                        }
+                    };
+                }
+            }
+        }
+    });
+
+    assert.equal(calls, 2);
+    assert.equal(retrievalCalls, 1);
+    assert.equal(result.toolCalls.length, 1);
+    assert.equal(result.toolCalls[0].name, "repo.search");
+    assert.deepEqual(
+        result.toolCalls[0].args,
+        { query: "capacidades del repositorio" }
+    );
+});
+
+
 test("current-turn gate classifies the original read request, not its own phase instructions", async () => {
     const input = "Lee jarvis-runtime-contract.json sin modificar nada y dime en tres líneas qué comprobaste. Si falla, explica el error real.";
     const result = await runJarvisSemanticPlanner({

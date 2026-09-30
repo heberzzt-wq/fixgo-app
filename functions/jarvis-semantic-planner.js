@@ -1295,26 +1295,30 @@ async function runModelSemanticPlanner({
             );
     }
 
+    let currentTurnGateAction = "";
+
     if (
         missionState?.conversationalGate === true &&
-        safeCatalog.length === 1 &&
-        safeCatalog[0]?.name === "conversation.respond"
+        safeCatalog.some(tool =>
+            tool?.name === "conversation.respond"
+        )
     ) {
         const gateSystemInstruction = [
             'Classify the current request. First identify essential missing information in missing (empty string if none). Use context only to resolve references, never as proof of actions.',
             'Use mode=clarify when that information must be requested from the user before work can start; mode=tools for requested reading, searching, checking or changing external state; mode=chat for social conversation, wishes without an action request, or general explanations.',
             'External actions require new tool evidence even if earlier messages claimed success. A nearby place search needs an area, but a city or neighborhood already supplied is sufficient. Relative repository file paths already have an active repository.',
-            'For clarify, put one brief Spanish question asking for the missing detail in question. For tools or chat, question must be empty. Do not answer or perform the request. Return JSON only.'
+            'When mode=tools, also describe the first requested operation in action using 3-8 English words for tool retrieval. Include the resource kind, preserve read versus write, and omit filenames, proper names and locations because the original request remains the source of arguments.',
+            'For clarify, put one brief Spanish question asking for the missing detail in question. For tools or chat, question must be empty. For chat or clarify, action must be empty. Do not answer or perform the request. Return JSON only.'
         ].filter(Boolean).join("\n");
         const gateExamples = [
             { role: "user", content: "Lee package.json sin modificarlo y dime su contenido." },
-            { role: "assistant", content: '{"missing":"","mode":"tools","question":""}' },
+            { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"read repository file"}' },
             { role: "user", content: "Busca una panaderia cerca de mi." },
-            { role: "assistant", content: '{"missing":"ubicacion del usuario","mode":"clarify","question":"¿En qué ciudad o colonia quieres que busque?"}' },
+            { role: "assistant", content: '{"missing":"ubicacion del usuario","mode":"clarify","question":"¿En qué ciudad o colonia quieres que busque?","action":""}' },
             { role: "user", content: "Busca una panaderia en el centro de Merida." },
-            { role: "assistant", content: '{"missing":"","mode":"tools","question":""}' },
+            { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"search web for local businesses"}' },
             { role: "user", content: "Se me antoja un cafecito." },
-            { role: "assistant", content: '{"missing":"","mode":"chat","question":""}' }
+            { role: "assistant", content: '{"missing":"","mode":"chat","question":"","action":""}' }
         ];
 
         const gateResponse = await ai.models.generateContent({
@@ -1338,7 +1342,12 @@ async function runModelSemanticPlanner({
                 responseMimeType: "application/json",
                 responseJsonSchema: {
                     type: "object",
-                    properties: { missing: { type: "string" }, mode: { type: "string", enum: ["chat", "tools", "clarify"] }, question: { type: "string" } },
+                    properties: {
+                        missing: { type: "string" },
+                        mode: { type: "string", enum: ["chat", "tools", "clarify"] },
+                        question: { type: "string" },
+                        action: { type: "string" }
+                    },
                     required: ["missing", "mode", "question"],
                     additionalProperties: false
                 }
@@ -1410,42 +1419,57 @@ async function runModelSemanticPlanner({
         }
 
         if (!direct) {
+            const gateAction =
+                String(gatePayload?.action || "").trim();
+            const canContinueOperationalTurn =
+                gatePayload?.mode === "tools" &&
+                gateResponse?.providerResponse?.finishReason !== "length" &&
+                safeCatalog.length > 1 &&
+                typeof retrieveToolCandidates === "function" &&
+                gateAction.length > 0 &&
+                gateAction.length <= 240;
+
+            if (!canContinueOperationalTurn) {
+                return {
+                    ok: true,
+                    status: "SEMANTIC_PLAN_READY",
+                    version: VERSION,
+                    toolCalls: [],
+                    explanation: "",
+                    missionComplete: false,
+                    completionAssessment: null,
+                    provider: String(ai.lastProvider || "jarvis-local"),
+                    model,
+                    catalogSize: safeCatalog.length,
+                    planKind: "CURRENT_TURN_CONVERSATION_GATE_DELEGATE"
+                };
+            }
+
+            currentTurnGateAction = gateAction;
+        }
+        else {
             return {
                 ok: true,
                 status: "SEMANTIC_PLAN_READY",
                 version: VERSION,
-                toolCalls: [],
+                toolCalls: [{
+                    name: "conversation.respond",
+                    args: {
+                        prompt: directMessage
+                    },
+                    reason: "MODEL_DIRECT_CONVERSATION_RESPONSE",
+                    mutates: false,
+                    approved: false
+                }],
                 explanation: "",
                 missionComplete: false,
                 completionAssessment: null,
                 provider: String(ai.lastProvider || "jarvis-local"),
                 model,
-                catalogSize: 1,
-                planKind: "CURRENT_TURN_CONVERSATION_GATE_DELEGATE"
+                catalogSize: safeCatalog.length,
+                planKind: "CURRENT_TURN_CONVERSATION_GATE_DIRECT"
             };
         }
-
-        return {
-            ok: true,
-            status: "SEMANTIC_PLAN_READY",
-            version: VERSION,
-            toolCalls: [{
-                name: "conversation.respond",
-                args: {
-                    prompt: directMessage
-                },
-                reason: "MODEL_DIRECT_CONVERSATION_RESPONSE",
-                mutates: false,
-                approved: false
-            }],
-            explanation: "",
-            missionComplete: false,
-            completionAssessment: null,
-            provider: String(ai.lastProvider || "jarvis-local"),
-            model,
-            catalogSize: 1,
-            planKind: "CURRENT_TURN_CONVERSATION_GATE_DIRECT"
-        };
     }
 
     if (currentTurn && safeCatalog.length > 2) {
@@ -1453,9 +1477,12 @@ async function runModelSemanticPlanner({
             throw new Error("SEMANTIC_TOOL_RETRIEVAL_REQUIRED");
         }
         const actionInstruction = 'Describe the first requested operation in 3-8 English words for tool retrieval. Include the kind of resource. Preserve reading versus writing. Omit filenames, proper names and locations: they remain in the original request as arguments. Use the conversation to resolve references. Return only {"action":"short operation"}; do not answer or execute the request.';
-        const selection = await ai.models.generateContent({
-            model,
-            contents: actionInstruction + "\n\nINSTRUCCION_ORIGINAL_INMUTABLE=" + instruction,
+        let action = currentTurnGateAction;
+        let actionProviderResponse = null;
+        if (!action) {
+            const selection = await ai.models.generateContent({
+                model,
+                contents: actionInstruction + "\n\nINSTRUCCION_ORIGINAL_INMUTABLE=" + instruction,
             config: {
                 chatMessages: [
                     { role: "system", content: actionInstruction },
@@ -1477,11 +1504,22 @@ async function runModelSemanticPlanner({
                 temperature: 0
             }
         });
-        const action = extractJsonObject(String(selection?.text || ""))?.action;
+            action =
+                extractJsonObject(
+                    String(selection?.text || "")
+                )?.action;
+            actionProviderResponse =
+                selection?.providerResponse || null;
+        }
         if (typeof action !== "string" || !action.trim() || action.length > 240 ||
-            selection?.providerResponse?.finishReason === "length") {
+            actionProviderResponse?.finishReason === "length") {
             const error = new Error("SEMANTIC_ACTION_DESCRIPTION_INVALID");
-            error.evidence = { phase: "CURRENT_TURN_ACTION_DESCRIPTION", providerResponse: selection?.providerResponse || null };
+            error.evidence = {
+                phase: "CURRENT_TURN_ACTION_DESCRIPTION",
+                providerResponse: actionProviderResponse,
+                reusedConversationGateAction:
+                    Boolean(currentTurnGateAction)
+            };
             throw error;
         }
         // Retrieval is mechanical: Qwen's description is never an executable name.

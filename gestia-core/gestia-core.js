@@ -3903,15 +3903,7 @@ export const GestiaCore = {
             ) || null;
         const currentTurnToolCatalog =
             conversationTool
-                ? [{
-                    name: conversationTool.name,
-                    description:
-                        "Responde directamente cuando la instruccion actual puede satisfacerse solo conversando, sin ejecutar herramientas, investigar, leer archivos ni producir artefactos.",
-                    mutates: false,
-                    requiresApproval: false,
-                    userArtifact: false,
-                    missionIsolation: null
-                }]
+                ? registeredCurrentTurnTools
                 : [];
 
         let lightMultifunctionCalls = [];
