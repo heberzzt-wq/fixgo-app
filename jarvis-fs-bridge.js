@@ -1715,9 +1715,15 @@ export function createSelfHostedSemanticEngine({
                 input,
                 catalog,
                 missionState,
-                retrieveToolCandidates: async requestedOperation => {
+                retrieveToolCandidates: async (requestedOperation, requestedLimit = 2) => {
                     onProgress("retrieval");
-                    const shortlist = await shortlistCurrentTurnCatalog(requestedOperation, catalog, 2, deadlineAt, planSignal);
+                    const shortlist = await shortlistCurrentTurnCatalog(
+                        requestedOperation,
+                        catalog,
+                        Math.max(1, Math.min(2, Number(requestedLimit) || 2)),
+                        deadlineAt,
+                        planSignal
+                    );
                     semanticPreselection = { ...shortlist.evidence, querySource: "qwen_requested_operation", requestedOperation };
                     onProgress("inference");
                     return shortlist.catalog;

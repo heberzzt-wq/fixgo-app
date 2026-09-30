@@ -1526,13 +1526,61 @@ async function runModelSemanticPlanner({
         }
         // Retrieval is mechanical: Qwen's description is never an executable name.
         // Resolve definitions back to the live registry, then let Qwen call them.
-        const candidates = await retrieveToolCandidates(action.trim());
+        const candidates = await retrieveToolCandidates(
+            action.trim(),
+            currentTurnGateAction ? 1 : 2
+        );
         safeCatalog = (Array.isArray(candidates) ? candidates : [])
             .map(candidate => normalizedCatalog.find(tool => tool.name === candidate?.name))
-            .filter(Boolean).slice(0, 2);
+            .filter(Boolean)
+            .slice(0, currentTurnGateAction ? 1 : 2);
         if (!safeCatalog.length) throw new Error("SEMANTIC_TOOL_CANDIDATES_REQUIRED");
-    }
 
+        if (
+            currentTurnGateAction &&
+            safeCatalog.length === 1 &&
+            (
+                !Array.isArray(safeCatalog[0]?.inputSchema?.required) ||
+                safeCatalog[0].inputSchema.required.length === 0
+            )
+        ) {
+            const selectedTool =
+                safeCatalog[0];
+            const dedupeKey =
+                missionDedupeKey(
+                    selectedTool,
+                    {}
+                );
+
+            return requireExecutablePlan({
+                ok: true,
+                status: "SEMANTIC_PLAN_READY",
+                version: VERSION,
+                toolCalls: [{
+                    name: selectedTool.name,
+                    args: {},
+                    reason:
+                        "MODEL_GATE_ACTION_RETRIEVAL_MATCH",
+                    mutates:
+                        selectedTool.mutates,
+                    approved: false,
+                    ...(dedupeKey
+                        ? {
+                            missionDedupeKey:
+                                dedupeKey
+                        }
+                        : {})
+                }],
+                explanation: "",
+                missionComplete: false,
+                completionAssessment: null,
+                provider: String(ai.lastProvider || "jarvis-local"),
+                model,
+                catalogSize: safeCatalog.length,
+                planKind: "CURRENT_TURN_GATE_ACTION_DIRECT_TOOL"
+            });
+        }
+    }
     const request = currentTurn
         ? {
             model,

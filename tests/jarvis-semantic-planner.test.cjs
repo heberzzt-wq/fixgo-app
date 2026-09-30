@@ -328,9 +328,10 @@ test("current-turn conversational gate reuses its tool action and avoids a secon
             phase: "CURRENT_TURN",
             conversationalGate: true
         },
-        retrieveToolCandidates: async action => {
+        retrieveToolCandidates: async (action, limit) => {
             retrievalCalls += 1;
             assert.equal(action, "search repository capabilities");
+            assert.equal(limit, 1);
             return [search];
         },
         ai: {
@@ -383,6 +384,80 @@ test("current-turn conversational gate reuses its tool action and avoids a secon
         result.toolCalls[0].args,
         { query: "capacidades del repositorio" }
     );
+});
+
+
+test("current-turn gate can directly materialize a unique no-arg tool selected from its semantic action", async () => {
+    const capabilities = {
+        name: "system.capabilities",
+        description: "Describe las herramientas activas de SIA7 agrupadas por dominio y su politica de aprobacion.",
+        mutates: false,
+        inputSchema: {
+            type: "object",
+            properties: {}
+        }
+    };
+    const catalogWithCapabilities = [
+        {
+            name: "conversation.respond",
+            description: "Responde cuando basta conversar.",
+            mutates: false
+        },
+        capabilities,
+        {
+            name: "repo.search",
+            description: "Busca evidencia en el repositorio.",
+            mutates: false,
+            inputSchema: {
+                type: "object",
+                properties: {
+                    query: { type: "string" }
+                },
+                required: ["query"]
+            }
+        }
+    ];
+    let calls = 0;
+    let retrievalCalls = 0;
+    const result = await runJarvisSemanticPlanner({
+        input: "Enlistame lo que sabes hacer en este repo.",
+        catalog: catalogWithCapabilities,
+        missionState: {
+            phase: "CURRENT_TURN",
+            conversationalGate: true
+        },
+        retrieveToolCandidates: async (action, limit) => {
+            retrievalCalls += 1;
+            assert.equal(action, "inspect system capabilities");
+            assert.equal(limit, 1);
+            return [capabilities];
+        },
+        ai: {
+            models: {
+                async generateContent() {
+                    calls += 1;
+                    return {
+                        text: JSON.stringify({
+                            missing: "",
+                            mode: "tools",
+                            question: "",
+                            action: "inspect system capabilities"
+                        }),
+                        providerResponse: {
+                            finishReason: "stop"
+                        }
+                    };
+                }
+            }
+        }
+    });
+
+    assert.equal(calls, 1);
+    assert.equal(retrievalCalls, 1);
+    assert.equal(result.planKind, "CURRENT_TURN_GATE_ACTION_DIRECT_TOOL");
+    assert.equal(result.toolCalls.length, 1);
+    assert.equal(result.toolCalls[0].name, "system.capabilities");
+    assert.deepEqual(result.toolCalls[0].args, {});
 });
 
 
