@@ -65,8 +65,13 @@ function semanticRequestHandler(semanticEngine, { heartbeatMs, operation }) {
         if (health.ok !== true) return res.status(503).json(health);
         const streaming = req.body?.streamProgress === true;
         const body = req.body || {};
+        const noDeadline = streaming && body?.noDeadline === true;
         const budgetInput = operation === "respond" ? { ...body, missionState: { phase: "FINAL_RESPONSE" } } : body;
-        const budgetMs = streaming ? semanticPlanBudgetMs(budgetInput) : body.timeoutMs;
+        const budgetMs = noDeadline
+            ? null
+            : streaming
+                ? semanticPlanBudgetMs(budgetInput)
+                : body.timeoutMs;
         const controller = new AbortController();
         const startedAt = Date.now();
         let stage = operation === "respond" ? "final_response" : "planning";
@@ -74,7 +79,7 @@ function semanticRequestHandler(semanticEngine, { heartbeatMs, operation }) {
         const send = frame => {
             if (!res.destroyed && !res.writableEnded) res.write(JSON.stringify(frame) + "\n");
         };
-        const progress = () => send({ type: "progress", stage, elapsedMs: Date.now() - startedAt, budgetMs });
+        const progress = () => send({ type: "progress", stage, elapsedMs: Date.now() - startedAt, budgetMs, noDeadline });
         const close = () => controller.abort();
         res.once("close", close);
         if (streaming) {
@@ -85,7 +90,7 @@ function semanticRequestHandler(semanticEngine, { heartbeatMs, operation }) {
         }
         try {
             const result = await semanticEngine[operation]({
-                ...body, timeoutMs: budgetMs, signal: controller.signal,
+                ...body, timeoutMs: budgetMs, noDeadline, signal: controller.signal,
                 onProgress: nextStage => { stage = nextStage; if (streaming) progress(); }
             });
             const receipt = { ...result, localSemanticInferenceUsed: true, cloudSemanticInferenceUsed: false, fallbackAllowed: health.fallbackAllowed };

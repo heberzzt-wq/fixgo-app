@@ -1209,7 +1209,7 @@ export function createSelfHostedSemanticEngine({
             vector.some(value => value !== 0);
     }
 
-    async function embed(input = [], { timeoutMs: embeddingTimeoutMs = timeoutMs, signal } = {}) {
+    async function embed(input = [], { timeoutMs: embeddingTimeoutMs = timeoutMs, signal, noDeadline = false } = {}) {
         const health = describe();
         if (health.ok !== true) throw new Error(health.status);
         const values = (Array.isArray(input) ? input : [input])
@@ -1219,7 +1219,9 @@ export function createSelfHostedSemanticEngine({
         if (values.length > 128) throw new Error("LOCAL_EMBEDDING_BATCH_TOO_LARGE");
 
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), embeddingTimeoutMs);
+        const timer = noDeadline === true
+            ? null
+            : setTimeout(() => controller.abort(), embeddingTimeoutMs);
         counters.localEmbeddingCalls += 1;
         counters.localEmbeddedTexts += values.length;
         try {
@@ -1260,10 +1262,11 @@ export function createSelfHostedSemanticEngine({
             };
         } catch (error) {
             counters.failedLocalEmbeddingCalls += 1;
-            if (controller.signal.aborted) throw new Error("LOCAL_EMBEDDING_TIMEOUT");
+            if (noDeadline !== true && controller.signal.aborted) throw new Error("LOCAL_EMBEDDING_TIMEOUT");
+            if (signal?.aborted) throw new Error("LOCAL_EMBEDDING_REQUEST_ABORTED");
             throw error;
         } finally {
-            clearTimeout(timer);
+            if (timer) clearTimeout(timer);
         }
     }
 
@@ -1309,18 +1312,23 @@ export function createSelfHostedSemanticEngine({
         if (health.ok !== true) throw new Error(health.status);
         await ensureMainModelWarm({ signal: request?.config?.signal });
         const tools = openAiToolsFromGemini(request?.config || {});
-        const inferenceTimeoutMs = Math.min(
-            Math.max(1, Math.min(Number(request?.config?.timeoutMs) || timeoutMs,
-                request?.config?.deadlineAt ? request.config.deadlineAt - Date.now() : SEMANTIC_MAX_BUDGET_MS)),
-            SEMANTIC_MAX_BUDGET_MS
-        );
+        const noDeadline = request?.config?.noDeadline === true;
+        const inferenceTimeoutMs = noDeadline
+            ? null
+            : Math.min(
+                Math.max(1, Math.min(Number(request?.config?.timeoutMs) || timeoutMs,
+                    request?.config?.deadlineAt ? request.config.deadlineAt - Date.now() : SEMANTIC_MAX_BUDGET_MS)),
+                SEMANTIC_MAX_BUDGET_MS
+            );
         request?.config?.signal?.throwIfAborted();
-        if (request?.config?.deadlineAt && Date.now() >= request.config.deadlineAt) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
+        if (!noDeadline && request?.config?.deadlineAt && Date.now() >= request.config.deadlineAt) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
         const controller = new AbortController();
-        const timer = setTimeout(
-            () => controller.abort(),
-            inferenceTimeoutMs
-        );
+        const timer = noDeadline
+            ? null
+            : setTimeout(
+                () => controller.abort(),
+                inferenceTimeoutMs
+            );
         counters.localSemanticInferenceCalls += 1;
         try {
             const headers = { "Content-Type": "application/json" };
@@ -1530,10 +1538,11 @@ export function createSelfHostedSemanticEngine({
             };
         } catch (error) {
             counters.failedLocalSemanticInferenceCalls += 1;
-            if (controller.signal.aborted || request?.config?.signal?.reason?.name === "TimeoutError") throw new Error("LOCAL_SEMANTIC_TIMEOUT");
+            if (noDeadline !== true && (controller.signal.aborted || request?.config?.signal?.reason?.name === "TimeoutError")) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
+            if (request?.config?.signal?.aborted) throw new Error("LOCAL_SEMANTIC_REQUEST_ABORTED");
             throw error;
         } finally {
-            clearTimeout(timer);
+            if (timer) clearTimeout(timer);
         }
     }
 
@@ -1589,7 +1598,7 @@ export function createSelfHostedSemanticEngine({
         }
     }
 
-    async function warmToolEmbeddingCache(catalog = []) {
+    async function warmToolEmbeddingCache(catalog = [], options = {}) {
         loadToolEmbeddingCache();
         const missing = catalog
             .map(tool => ({
@@ -1599,17 +1608,18 @@ export function createSelfHostedSemanticEngine({
             }))
             .filter(entry => !toolEmbeddingCache.has(entry.key));
         if (missing.length === 0) return;
-        const embedded = await embed(missing.map(entry => entry.text));
+        const embedded = await embed(missing.map(entry => entry.text), options);
         missing.forEach((entry, index) => {
             toolEmbeddingCache.set(entry.key, embedded.embeddings[index]);
         });
         persistToolEmbeddingCache();
     }
 
-    async function shortlistCurrentTurnCatalog(input = "", catalog = [], limit = 2, deadlineAt = Date.now() + timeoutMs, signal) {
+    async function shortlistCurrentTurnCatalog(input = "", catalog = [], limit = 2, deadlineAt = Date.now() + timeoutMs, signal, noDeadline = false) {
         const startedAt = Date.now();
         const remainingMs = () => {
             signal?.throwIfAborted();
+            if (noDeadline === true) return null;
             const remaining = deadlineAt - Date.now();
             if (remaining <= 0) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
             return remaining;
@@ -1624,7 +1634,12 @@ export function createSelfHostedSemanticEngine({
         while (safeCatalog.some(tool => !toolEmbeddingCache.has(toolEmbeddingKey(tool)))) {
             remainingMs();
             if (!toolEmbeddingWarmPromise) {
-                toolEmbeddingWarmPromise = warmToolEmbeddingCache(safeCatalog)
+                toolEmbeddingWarmPromise = warmToolEmbeddingCache(
+                    safeCatalog,
+                    noDeadline === true
+                        ? { signal, noDeadline: true }
+                        : { signal, timeoutMs: remainingMs() }
+                )
                     // A cold catalog is warmed in the background. Its rejection must
                     // never become an unhandled rejection that kills the bridge.
                     .then(() => null, error => error)
@@ -1634,18 +1649,26 @@ export function createSelfHostedSemanticEngine({
             }
             let timer;
             try {
-                const error = await Promise.race([
-                    toolEmbeddingWarmPromise,
-                    new Promise((_, reject) => {
-                        timer = setTimeout(() => reject(new Error("LOCAL_SEMANTIC_TIMEOUT")), remainingMs());
-                    })
-                ]);
+                const error = noDeadline === true
+                    ? await toolEmbeddingWarmPromise
+                    : await Promise.race([
+                        toolEmbeddingWarmPromise,
+                        new Promise((_, reject) => {
+                            timer = setTimeout(() => reject(new Error("LOCAL_SEMANTIC_TIMEOUT")), remainingMs());
+                        })
+                    ]);
                 if (error) throw error;
             } finally {
-                clearTimeout(timer);
+                if (timer) clearTimeout(timer);
             }
         }
-        const queryEmbedding = await embed([String(input || "")], { timeoutMs: remainingMs(), signal });
+        const remaining = remainingMs();
+        const queryEmbedding = await embed(
+            [String(input || "")],
+            noDeadline === true
+                ? { signal, noDeadline: true }
+                : { timeoutMs: remaining, signal }
+        );
         const queryVector = queryEmbedding.embeddings[0];
         if (safeCatalog.some(tool => toolEmbeddingCache.get(toolEmbeddingKey(tool)).length !== queryVector.length)) {
             throw new Error("LOCAL_TOOL_EMBEDDING_DIMENSION_MISMATCH");
@@ -1693,24 +1716,26 @@ export function createSelfHostedSemanticEngine({
         mode,
         describe,
         embed,
-        async plan({ input, catalog, missionState = null, timeoutMs: requestTimeoutMs, signal, onProgress = () => {} } = {}) {
-            const effectiveTimeoutMs =
-                Math.min(Math.max(Number(requestTimeoutMs) || timeoutMs, 1), SEMANTIC_MAX_BUDGET_MS);
+        async plan({ input, catalog, missionState = null, timeoutMs: requestTimeoutMs, noDeadline = false, signal, onProgress = () => {} } = {}) {
+            const effectiveTimeoutMs = noDeadline === true
+                ? null
+                : Math.min(Math.max(Number(requestTimeoutMs) || timeoutMs, 1), SEMANTIC_MAX_BUDGET_MS);
             const planStartedAt = Date.now();
-            const deadlineAt = planStartedAt + effectiveTimeoutMs;
+            const deadlineAt = noDeadline === true ? null : planStartedAt + effectiveTimeoutMs;
             signal?.throwIfAborted();
-            const plannerTimeoutMs = deadlineAt - Date.now();
-            if (plannerTimeoutMs <= 0) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
+            const plannerTimeoutMs = noDeadline === true ? null : deadlineAt - Date.now();
+            if (noDeadline !== true && plannerTimeoutMs <= 0) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
             onProgress(missionState?.conversationalGate ? "conversation_gate" : missionState?.phase === "MISSION_CONTRACT" ? "mission_contract" : "inference");
-            const deadlineSignal = AbortSignal.timeout(Math.max(1, plannerTimeoutMs));
-            const planSignal = signal ? AbortSignal.any([signal, deadlineSignal]) : deadlineSignal;
+            const deadlineSignal = noDeadline === true ? null : AbortSignal.timeout(Math.max(1, plannerTimeoutMs));
+            const planSignal = noDeadline === true ? signal : (signal ? AbortSignal.any([signal, deadlineSignal]) : deadlineSignal);
             let semanticPreselection = null;
             const result = await runJarvisSemanticPlanner({
                 ai: { ...ai, models: { generateContent(request = {}) {
-                    if (Date.now() >= deadlineAt || deadlineSignal.aborted) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
-                    planSignal.throwIfAborted();
+                    if (noDeadline !== true && (Date.now() >= deadlineAt || deadlineSignal.aborted)) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
+                    planSignal?.throwIfAborted();
                     return generateContent({ ...request, config: { ...request.config,
-                        timeoutMs: deadlineAt - Date.now(), deadlineAt, signal: planSignal } });
+                        ...(noDeadline === true ? { noDeadline: true } : { timeoutMs: deadlineAt - Date.now(), deadlineAt }),
+                        signal: planSignal } });
                 } } },
                 input,
                 catalog,
@@ -1722,14 +1747,16 @@ export function createSelfHostedSemanticEngine({
                         catalog,
                         Math.max(1, Math.min(2, Number(requestedLimit) || 2)),
                         deadlineAt,
-                        planSignal
+                        planSignal,
+                        noDeadline
                     );
                     semanticPreselection = { ...shortlist.evidence, querySource: "qwen_requested_operation", requestedOperation };
                     onProgress("inference");
                     return shortlist.catalog;
                 },
                 timeoutMs:
-                    plannerTimeoutMs
+                    plannerTimeoutMs,
+                noDeadline
             });
             return {
                 ...result,
@@ -1747,20 +1774,22 @@ export function createSelfHostedSemanticEngine({
                 inferenceReceipt: describe()
             };
         },
-        async respond({ input, maxOutputTokens = 160, responseMode, responseBriefing, responseInstruction, timeoutMs: requestTimeoutMs, signal } = {}) {
-            const effectiveTimeoutMs =
-                Math.min(Math.max(Number(requestTimeoutMs) || timeoutMs, 1), SEMANTIC_MAX_BUDGET_MS);
-            const deadlineAt = Date.now() + effectiveTimeoutMs;
-            const deadlineSignal = AbortSignal.timeout(effectiveTimeoutMs);
-            const responseSignal = signal ? AbortSignal.any([signal, deadlineSignal]) : deadlineSignal;
-            responseSignal.throwIfAborted();
+        async respond({ input, maxOutputTokens = 160, responseMode, responseBriefing, responseInstruction, timeoutMs: requestTimeoutMs, noDeadline = false, signal } = {}) {
+            const effectiveTimeoutMs = noDeadline === true
+                ? null
+                : Math.min(Math.max(Number(requestTimeoutMs) || timeoutMs, 1), SEMANTIC_MAX_BUDGET_MS);
+            const deadlineAt = noDeadline === true ? null : Date.now() + effectiveTimeoutMs;
+            const deadlineSignal = noDeadline === true ? null : AbortSignal.timeout(effectiveTimeoutMs);
+            const responseSignal = noDeadline === true ? signal : (signal ? AbortSignal.any([signal, deadlineSignal]) : deadlineSignal);
+            responseSignal?.throwIfAborted();
             const result = await runJarvisSemanticResponse({
                 ai:
                     { ...ai, models: { generateContent(request = {}) {
-                        responseSignal.throwIfAborted();
+                        responseSignal?.throwIfAborted();
                         return generateContent({ ...request, config: { ...request.config,
                             nativeTextChat: true,
-                            timeoutMs: deadlineAt - Date.now(), deadlineAt, signal: responseSignal } });
+                            ...(noDeadline === true ? { noDeadline: true } : { timeoutMs: deadlineAt - Date.now(), deadlineAt }),
+                            signal: responseSignal } });
                     } } },
                 input,
                 maxOutputTokens,
@@ -1768,7 +1797,8 @@ export function createSelfHostedSemanticEngine({
                 responseInstruction,
                 responseBriefing,
                 timeoutMs:
-                    effectiveTimeoutMs
+                    effectiveTimeoutMs,
+                noDeadline
             });
             return {
                 ...result,

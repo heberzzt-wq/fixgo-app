@@ -167,6 +167,42 @@ test("v142 current-turn semantic planner gates conversation before the full cata
     assert.match(block, /attempt >= 2/);
 });
 
+test("v142 direct read-only current-turn tools reuse the Qwen decision without redundant mission audits", () => {
+    const planner = fs.readFileSync(
+        new URL("../gestia-core/jarvis/jarvis.multifunction.planner.js", import.meta.url),
+        "utf8"
+    );
+    const core = fs.readFileSync(
+        new URL("../gestia-core/gestia-core.js", import.meta.url),
+        "utf8"
+    );
+
+    assert.match(
+        planner,
+        /planKind:\s*\{[\s\S]{0,180}plan\?\.planKind/
+    );
+    assert.match(
+        core,
+        /semanticPlanKind:[\s\S]{0,160}lightMultifunctionCalls\?\.planKind/
+    );
+    assert.match(
+        core,
+        /currentTurnDirectToolContract[\s\S]{0,220}CURRENT_TURN_GATE_ACTION_DIRECT_TOOL[\s\S]{0,220}isVerifiedReadOnlyToolPlan[\s\S]{0,120}terminalPlannerSeed\.length === 1/
+    );
+    assert.match(
+        core,
+        /missionContractToolCalls =[\s\S]{0,180}currentTurnDirectToolContract[\s\S]{0,180}operationalInitialToolCalls/
+    );
+    assert.match(
+        core,
+        /if \(!currentTurnDirectToolContract\) \{[\s\S]{0,180}missionContractAttempt/
+    );
+    assert.match(
+        core,
+        /if \(currentTurnDirectToolContract\)[\s\S]{0,360}CURRENT_TURN_DIRECT_TOOL_COMPLETE/
+    );
+});
+
 test("v142 terminal voice speaks the same final response shown on screen", () => {
     const terminal = fs.readFileSync(
         new URL("../gestia-terminal.html", import.meta.url),

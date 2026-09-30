@@ -32,6 +32,27 @@ test("a complete repository read keeps its selected path after earlier evidence"
     assert.equal(shouldCompleteJarvisPlanningArguments({ name: "document.compose", args: {} }, { name: "document.compose" }, completed), true);
 });
 
+test("planner call metadata preserves direct current-turn plan kind without changing the serialized tool list", () => {
+    const calls = plannerTest.attachPlanMetadata(
+        [{ name: "system.capabilities", args: {}, approved: false }],
+        {
+            planKind: "CURRENT_TURN_GATE_ACTION_DIRECT_TOOL",
+            missionComplete: false,
+            responseFormat: "human"
+        }
+    );
+
+    assert.equal(
+        calls.planKind,
+        "CURRENT_TURN_GATE_ACTION_DIRECT_TOOL"
+    );
+    assert.equal(calls.missionComplete, false);
+    assert.equal(
+        JSON.stringify(calls),
+        '[{"name":"system.capabilities","args":{},"approved":false}]'
+    );
+});
+
 import {
     resolveGestiaRole,
     resolveGestiaRouteDecision

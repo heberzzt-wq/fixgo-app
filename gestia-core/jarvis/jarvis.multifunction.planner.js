@@ -1763,6 +1763,14 @@ function attachPlanMetadata(calls = [], plan = {}) {
                     "human"
                 ).trim().toLowerCase(),
             enumerable: false
+        },
+        planKind: {
+            value:
+                String(
+                    plan?.planKind ||
+                    ""
+                ).trim(),
+            enumerable: false
         }
     });
     return calls;
@@ -2300,6 +2308,7 @@ export const __test = {
     sourceAnchorDescriptor,
     verifiedResearchSourceUrls,
     normalizeExplicitSourceCandidates,
+    attachPlanMetadata,
     normalizedMissionFidelityTerms,
     researchQueryPreservesMissionIdentity,
     normalizeResearchMissionFidelity

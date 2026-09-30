@@ -759,6 +759,11 @@ function recentAdvisoryTurns(missionState, instruction) {
     const turns = missionState?.advisorySemanticContext?.turns;
     const recent = [];
     const seen = new Set();
+    const maximumTurns = 10;
+    const maximumTurnCharacters = 2400;
+    const maximumTotalCharacters = 12000;
+    let totalCharacters = 0;
+
     for (const turn of (Array.isArray(turns) ? turns : []).slice().reverse()) {
         const role = String(turn?.role || "").trim();
         const content = String(turn?.content || "").trim();
@@ -767,8 +772,16 @@ function recentAdvisoryTurns(missionState, instruction) {
         const key = role + "\n" + content;
         if (seen.has(key)) continue;
         seen.add(key);
-        recent.unshift({ role, content: content.slice(0, 600) });
-        if (recent.length === 2) break;
+
+        const remaining = maximumTotalCharacters - totalCharacters;
+        if (remaining <= 0) break;
+        const boundedContent = content.slice(
+            0,
+            Math.min(maximumTurnCharacters, remaining)
+        );
+        recent.unshift({ role, content: boundedContent });
+        totalCharacters += boundedContent.length;
+        if (recent.length >= maximumTurns) break;
     }
     return recent;
 }
@@ -1982,6 +1995,7 @@ async function runJarvisSemanticPlanner({
     input = "",
     catalog = [],
     timeoutMs = 45000,
+    noDeadline = false,
     missionState = null,
     retrieveToolCandidates = null
 } = {}) {
@@ -1991,9 +2005,24 @@ async function runJarvisSemanticPlanner({
     if (safeCatalog.length === 0) throw new Error("SEMANTIC_PLAN_CATALOG_REQUIRED");
     if (!ai?.models?.generateContent) throw new Error("SEMANTIC_AUTHENTICATED_PROVIDER_REQUIRED");
     let timer = null;
-    const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("SEMANTIC_PROVIDER_TIMEOUT")), Math.max(5000, Number(timeoutMs) || 45000)); });
     try {
-        return await Promise.race([runModelSemanticPlanner({ ai, input: instruction, catalog: safeCatalog, missionState, retrieveToolCandidates }), timeout]);
+        const planning = runModelSemanticPlanner({
+            ai,
+            input: instruction,
+            catalog: safeCatalog,
+            missionState,
+            retrieveToolCandidates
+        });
+        if (noDeadline === true) {
+            return await planning;
+        }
+        const timeout = new Promise((_, reject) => {
+            timer = setTimeout(
+                () => reject(new Error("SEMANTIC_PROVIDER_TIMEOUT")),
+                Math.max(5000, Number(timeoutMs) || 45000)
+            );
+        });
+        return await Promise.race([planning, timeout]);
     } catch(error) {
         const message = String(error?.message || error || "FAILED");
         if (message.startsWith("SEMANTIC_AUTHENTICATED_PROVIDER_")) throw error;
@@ -2009,6 +2038,7 @@ async function runJarvisSemanticResponse({
     ai = null,
     input = "",
     timeoutMs = null,
+    noDeadline = false,
     maxOutputTokens = 160,
     responseMode,
     responseInstruction,
@@ -2206,10 +2236,8 @@ async function runJarvisSemanticResponse({
 
     const deadline = Number(timeoutMs) > 0 ? Math.max(5000, Number(timeoutMs)) : budget >= 6000 ? 120000 : 45000;
     let timer = null;
-    const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("SEMANTIC_RESPONSE_TIMEOUT")), deadline); });
     try {
-        const response = await Promise.race([
-            ai.models.generateContent({
+        const generation = ai.models.generateContent({
                 model: DEFAULT_SEMANTIC_MODEL,
                 contents: instruction,
                 config: {
@@ -2325,9 +2353,18 @@ async function runJarvisSemanticResponse({
                         };
                     })()
                 }
-            }),
-            timeout
-        ]);
+            });
+        const response = noDeadline === true
+            ? await generation
+            : await Promise.race([
+                generation,
+                new Promise((_, reject) => {
+                    timer = setTimeout(
+                        () => reject(new Error("SEMANTIC_RESPONSE_TIMEOUT")),
+                        deadline
+                    );
+                })
+            ]);
         let message = String(response?.text || "").trim();
         if (response?.providerResponse?.finishReason === "length") {
             throw new Error("SEMANTIC_RESPONSE_INCOMPLETE");

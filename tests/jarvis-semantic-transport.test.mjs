@@ -220,18 +220,20 @@ test("browser transport sends one streamed plan and preserves the final failure"
     assert.equal(calls, 4, "final composition also has exactly one attempt");
 });
 
-test("browser permits delayed progress until the absolute semantic deadline, without replay", async t => {
+test("browser semantic streaming has no absolute deadline while the local request remains alive", async t => {
     const { installJarvisLocalBridgeTransport } = await import("../modules/terminal/nexo-bootstrap.js");
     const oldFetch = globalThis.fetch;
     const oldBridge = globalThis.JarvisLocalBridge;
     t.after(() => { globalThis.fetch = oldFetch; globalThis.JarvisLocalBridge = oldBridge; });
     t.mock.timers.enable({ apis: ["setTimeout"] });
     let signal, stream, accepted, calls = 0;
+    const payloads = [];
     let ready = new Promise(resolve => { accepted = resolve; });
     globalThis.fetch = async (url, options) => {
         if (String(url).includes("jarvis-runtime-contract.json")) return Response.json({ releaseId: "test" });
         calls++;
         signal = options.signal;
+        payloads.push(JSON.parse(options.body));
         const body = new ReadableStream({ start(controller) {
             stream = controller;
             signal.addEventListener("abort", () => controller.error(signal.reason), { once: true });
@@ -241,24 +243,82 @@ test("browser permits delayed progress until the absolute semantic deadline, wit
     };
     delete globalThis.JarvisLocalBridge;
     const bridge = installJarvisLocalBridgeTransport();
-    const pending = bridge.requestJson("/semantic/respond", { input: "Resume la evidencia", timeoutMs: 60000 });
-    // Keep rejection handled while testing the old premature cancellation.
-    pending.catch(() => {});
+
+    const first = bridge.requestJson("/semantic/respond", { input: "Resume la evidencia", timeoutMs: 60000 });
     await ready;
     t.mock.timers.tick(25000);
-    assert.equal(signal.aborted, false, "a pause in heartbeats is not the inference deadline");
+    assert.equal(signal.aborted, false);
+    assert.equal(payloads[0].noDeadline, true);
     stream.enqueue(new TextEncoder().encode('{"type":"result","result":{"ok":true,"message":"Evidencia parcial"}}\n'));
     stream.close();
-    assert.equal((await pending).message, "Evidencia parcial");
+    assert.equal((await first).message, "Evidencia parcial");
 
     ready = new Promise(resolve => { accepted = resolve; });
-    const stalled = bridge.requestJson("/semantic/respond", { input: "Resume la evidencia", timeoutMs: 60000 });
-    const rejected = assert.rejects(stalled, error => error.code === "JARVIS_LOCAL_BRIDGE_TIMEOUT_REQUEST" && error.timeoutReason === "ABSOLUTE_DEADLINE");
+    const longRunning = bridge.requestJson("/semantic/respond", { input: "Continua analizando", timeoutMs: 60000 });
     await ready;
-    t.mock.timers.tick(70001);
-    await rejected;
-    assert.equal(signal.aborted, true, "unresponsive work remains bounded");
-    assert.equal(calls, 2, "neither accepted request is retried");
+    t.mock.timers.tick(10 * 60 * 1000);
+    assert.equal(signal.aborted, false, "LOCAL_ONLY semantic work must not die from an artificial wall-clock deadline");
+    stream.enqueue(new TextEncoder().encode('{"type":"result","result":{"ok":true,"message":"Analisis terminado"}}\n'));
+    stream.close();
+    assert.equal((await longRunning).message, "Analisis terminado");
+    assert.equal(payloads[1].noDeadline, true);
+    assert.equal(calls, 2, "accepted semantic work is never replayed");
+});
+
+test("noDeadline lets local semantic response outlive an explicitly tiny timeout", async () => {
+    let calls = 0;
+    const engine = createSelfHostedSemanticEngine({ fetchImpl: async () => {
+        calls++;
+        await wait(40);
+        return { ok: true, text: async () => JSON.stringify({ message: { content: "Respuesta completa" }, done_reason: "stop" }) };
+    } });
+    const response = await engine.respond({
+        input: "Continua hasta terminar.",
+        timeoutMs: 5,
+        noDeadline: true
+    });
+    assert.equal(response.ok, true);
+    assert.equal(response.message, "Respuesta completa");
+    assert.equal(calls, 1);
+});
+
+test("current conversation forwards a real multi-turn window to Qwen", async () => {
+    let captured;
+    const engine = createSelfHostedSemanticEngine({ fetchImpl: async (_url, options) => {
+        captured = JSON.parse(options.body);
+        return {
+            ok: true,
+            text: async () => JSON.stringify({
+                message: {
+                    content: JSON.stringify({
+                        missing: "detalle",
+                        mode: "clarify",
+                        question: "¿Qué detalle quieres continuar?",
+                        action: ""
+                    }),
+                    done_reason: "stop"
+                }
+            })
+        };
+    } });
+    const turns = Array.from({ length: 8 }, (_, index) => ({
+        role: index % 2 === 0 ? "user" : "assistant",
+        content: `turno-${index + 1}: contexto persistente`
+    }));
+    const plan = await engine.plan({
+        input: "continua con eso",
+        catalog: [{ name: "conversation.respond", description: "Conversacion", mutates: false }],
+        missionState: {
+            phase: "CURRENT_TURN",
+            conversationalGate: true,
+            advisorySemanticContext: { turns }
+        },
+        noDeadline: true
+    });
+    const serialized = JSON.stringify(captured.messages);
+    assert.match(serialized, /turno-1: contexto persistente/);
+    assert.match(serialized, /turno-8: contexto persistente/);
+    assert.equal(plan.toolCalls[0].name, "conversation.respond");
 });
 
 test("long mission contract retains the shared full-input prefix and an adequate budget", async () => {

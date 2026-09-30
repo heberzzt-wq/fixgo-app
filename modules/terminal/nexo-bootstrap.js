@@ -84,8 +84,8 @@ export function installJarvisLocalBridgeTransport() {
             const contract = await readRuntimeContract();
             const semanticRequest = path === "/semantic/plan" || path === "/semantic/respond";
             const budgetPayload = path === "/semantic/respond" ? { ...payload, missionState: { phase: "FINAL_RESPONSE" } } : payload;
-            const requestPayload = semanticRequest ? { ...payload, streamProgress: true, timeoutMs: semanticPlanBudgetMs(budgetPayload) } : payload;
-            const timeoutMs = semanticRequest ? requestPayload.timeoutMs + 10000 : Math.min(
+            const requestPayload = semanticRequest ? { ...payload, streamProgress: true, noDeadline: true, timeoutMs: semanticPlanBudgetMs(budgetPayload) } : payload;
+            const timeoutMs = semanticRequest ? null : Math.min(
                 Math.max(Number(options?.timeoutMs) || 120000, 1000),
                 180000
             );
@@ -101,10 +101,12 @@ export function installJarvisLocalBridgeTransport() {
                 const controller = new AbortController();
                 const startedAt = Date.now();
                 let deadlineExceeded = false;
-                const timeout = setTimeout(
-                    () => { deadlineExceeded = true; controller.abort(); },
-                    timeoutMs
-                );
+                const timeout = semanticRequest
+                    ? null
+                    : setTimeout(
+                        () => { deadlineExceeded = true; controller.abort(); },
+                        timeoutMs
+                    );
 
                 // Heartbeats report progress. A delayed chunk (including browser
                 // scheduling under CPU pressure) must not override the bounded
@@ -203,7 +205,7 @@ export function installJarvisLocalBridgeTransport() {
                     );
                 }
                 finally {
-                    clearTimeout(timeout);
+                    if (timeout) clearTimeout(timeout);
                 }
             }
 

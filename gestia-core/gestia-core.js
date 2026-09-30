@@ -4015,6 +4015,11 @@ export const GestiaCore = {
                 renderCard: true,
                 prepareCommand: false,
                 reason: "model_selected_multifunction_plan",
+                semanticPlanKind:
+                    String(
+                        lightMultifunctionCalls?.planKind ||
+                        ""
+                    ).trim(),
                 toolCalls: lightMultifunctionCalls
             };
         }
@@ -4251,6 +4256,12 @@ export const GestiaCore = {
                     call.approved !== true
                 );
             });
+
+        const currentTurnDirectToolContract =
+            terminalSemanticPlan?.semanticPlanKind ===
+                "CURRENT_TURN_GATE_ACTION_DIRECT_TOOL" &&
+            isVerifiedReadOnlyToolPlan &&
+            terminalPlannerSeed.length === 1;
 
         this.emitirPulso("INIT", "TERMINAL_START", `ID: ${analysisId.substring(0, 8)}`);
 
@@ -4669,8 +4680,12 @@ if (
             ...registeredMissionTools.filter(tool => operationalMissionToolNames.has(tool.name)),
             ...registeredMissionTools.filter(tool => !operationalMissionToolNames.has(tool.name))
         ].slice(0, 80);
-    let missionContractToolCalls;
+    let missionContractToolCalls =
+        currentTurnDirectToolContract
+            ? operationalInitialToolCalls
+            : undefined;
     let lastMissionContractError = null;
+    if (!currentTurnDirectToolContract) {
     for (let missionContractAttempt = 1; missionContractAttempt <= 3; missionContractAttempt += 1) {
         try {
             missionContractToolCalls =
@@ -4706,6 +4721,7 @@ if (
             );
             await new Promise(resolve => setTimeout(resolve, retryDelayMs));
         }
+    }
     }
     if (lastMissionContractError) {
         console.warn("[MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN]", lastMissionContractError);
@@ -4928,6 +4944,26 @@ if (
                         name => !resolvedToolNames.has(name)
                     );
                     if (missingRequiredToolNames.length === 0) {
+                        if (currentTurnDirectToolContract) {
+                            return {
+                                toolCalls: [],
+                                missionComplete: true,
+                                completionAssessment: {
+                                    status:
+                                        "CURRENT_TURN_DIRECT_TOOL_COMPLETE",
+                                    completed:
+                                        mission.completedTasks.map(item =>
+                                            item.name
+                                        ),
+                                    blocked:
+                                        mission.blockedTasks.map(item =>
+                                            item.name
+                                        ),
+                                    missing: []
+                                }
+                            };
+                        }
+
                         if (missionIsIsolated) {
                             return {
                                 toolCalls: [],
