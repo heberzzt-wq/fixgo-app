@@ -1,4 +1,4 @@
-import "./nexo-bootstrap.js?v=jarvis-single-authority-local-first-20260924";
+import "./nexo-bootstrap.js?v=v142-semantic-no-deadline-20261001";
 
 const ACTIVE_STORAGE_KEY =
     "sia7:activePatchProposal:v1";

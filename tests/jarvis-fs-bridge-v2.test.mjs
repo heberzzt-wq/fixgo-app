@@ -848,20 +848,94 @@ test("CURRENT_TURN uses Qwen's action for retrieval before selecting a canonical
     }
 });
 
-test("self-hosted semantic requests propagate the mission timeout into the Ollama transport", async () => {
+test("self-hosted semantic requests ignore artificial local timeout budgets", async () => {
     let signal;
-    const engine = createSelfHostedSemanticEngine({ fetchImpl: async (_url, options) => {
-        signal = options.signal;
-        return new Promise((_resolve, reject) => {
-            const watchdog = setTimeout(() => reject(new Error("DEADLINE_NOT_PROPAGATED")), 5000);
-            signal.addEventListener("abort", () => {
-                clearTimeout(watchdog);
-                reject(signal.reason);
-            }, { once: true });
-        });
-    } });
-    await assert.rejects(engine.respond({ input: "Resume", timeoutMs: 30 }), /timeout|aborted/i);
-    assert.equal(signal.aborted, true);
+    const engine = createSelfHostedSemanticEngine({
+        env: {
+            JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
+            JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
+            JARVIS_LOCAL_LLM_MODEL: "qwen-local"
+        },
+        fetchImpl: async (_url, options) => {
+            signal = options.signal;
+            await new Promise(resolve => setTimeout(resolve, 80));
+            assert.equal(signal.aborted, false);
+            return {
+                ok: true,
+                status: 200,
+                text: async () => JSON.stringify({
+                    choices: [{
+                        message: {
+                            content: "Respuesta local completa."
+                        }
+                    }]
+                })
+            };
+        }
+    });
+
+    const result = await engine.respond({
+        input: "Resume",
+        timeoutMs: 30
+    });
+
+    assert.equal(result.message, "Respuesta local completa.");
+    assert.equal(signal.aborted, false);
+});
+
+test("self-hosted semantic response retries one empty local result with the same model", async () => {
+    const requests = [];
+    const engine = createSelfHostedSemanticEngine({
+        env: {
+            JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
+            JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
+            JARVIS_LOCAL_LLM_MODEL: "qwen3:1.7b"
+        },
+        fetchImpl: async (_url, options) => {
+            const body = JSON.parse(options.body);
+            requests.push(body);
+            const attempt = requests.length;
+            return {
+                ok: true,
+                status: 200,
+                text: async () => JSON.stringify({
+                    message: {
+                        role: "assistant",
+                        content:
+                            attempt === 1
+                                ? ""
+                                : "Respuesta recuperada por el mismo Qwen."
+                    },
+                    done: true,
+                    done_reason:
+                        attempt === 1
+                            ? "length"
+                            : "stop"
+                })
+            };
+        }
+    });
+
+    const result = await engine.respond({
+        input: "Responde la solicitud."
+    });
+
+    assert.equal(requests.length, 2);
+    assert.equal(requests[0].model, "qwen3:1.7b");
+    assert.equal(requests[1].model, "qwen3:1.7b");
+    assert.ok(requests[1].options.num_predict >= 256);
+    assert.match(
+        requests[1].messages.at(-1).content,
+        /No dejes la respuesta vacia/
+    );
+    assert.equal(
+        result.message,
+        "Respuesta recuperada por el mismo Qwen."
+    );
+    assert.equal(
+        result.inferenceReceipt.counters.localSemanticInferenceCalls,
+        2
+    );
 });
 
 test("self-hosted semantic backend feeds the canonical planner without paid API calls", async () => {

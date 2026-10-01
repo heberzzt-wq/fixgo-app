@@ -1,17 +1,16 @@
-import { semanticPlanBudgetMs } from "./gestia-core/jarvis/jarvis.semantic.transport.js";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 
-// Node fetch imposes its own 300 s headers/body deadlines. Ollama's non-streaming
-// inference may need longer; the engine's bounded AbortSignal owns this deadline.
-// Keep this transport local and do not follow redirects or retry accepted work.
+// Keep this transport local and do not follow redirects.
+// The AbortSignal represents caller cancellation/disconnection only; local semantic
+// inference has no artificial execution deadline.
 export async function fetchLocalSemanticResponse(url, { method, headers, body, signal }) {
     const target = new URL(url);
     if (!["127.0.0.1", "localhost", "[::1]"].includes(target.hostname) ||
         !["http:", "https:"].includes(target.protocol)) {
         throw new Error("LOCAL_SEMANTIC_ENDPOINT_MUST_BE_LOOPBACK");
     }
-    if (!signal) throw new Error("LOCAL_SEMANTIC_DEADLINE_REQUIRED");
+    if (!signal) throw new Error("LOCAL_SEMANTIC_CANCELLATION_SIGNAL_REQUIRED");
     signal.throwIfAborted();
     return await new Promise((resolve, reject) => {
         const request = (target.protocol === "https:" ? httpsRequest : httpRequest)(target, {
@@ -65,13 +64,11 @@ function semanticRequestHandler(semanticEngine, { heartbeatMs, operation }) {
         if (health.ok !== true) return res.status(503).json(health);
         const streaming = req.body?.streamProgress === true;
         const body = req.body || {};
-        const noDeadline = streaming && body?.noDeadline === true;
-        const budgetInput = operation === "respond" ? { ...body, missionState: { phase: "FINAL_RESPONSE" } } : body;
-        const budgetMs = noDeadline
-            ? null
-            : streaming
-                ? semanticPlanBudgetMs(budgetInput)
-                : body.timeoutMs;
+        // Local Jarvis semantic work has no artificial execution deadline.
+        // Closing the request can still abort it, but planner/response duration
+        // is owned by the local model rather than a timer.
+        const noDeadline = true;
+        const budgetMs = null;
         const controller = new AbortController();
         const startedAt = Date.now();
         let stage = operation === "respond" ? "final_response" : "planning";

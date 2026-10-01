@@ -1396,6 +1396,112 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
             args,
             context?.originalInstruction || ""
         );
+
+        const originalInstruction =
+            String(
+                context?.originalInstruction ||
+                ""
+            ).trim();
+        const inputSchema =
+            tool?.inputSchema &&
+            typeof tool.inputSchema === "object" &&
+            !Array.isArray(tool.inputSchema)
+                ? tool.inputSchema
+                : {};
+        const declaresInstruction =
+            Boolean(
+                inputSchema?.properties?.instruction
+            ) ||
+            Object.prototype.hasOwnProperty.call(
+                inputSchema,
+                "instruction"
+            );
+
+        if (
+            declaresInstruction &&
+            originalInstruction
+        ) {
+            const turns =
+                Array.isArray(
+                    context?.missionState
+                        ?.advisorySemanticContext
+                        ?.turns
+                )
+                    ? context.missionState
+                        .advisorySemanticContext
+                        .turns
+                    : [];
+            const priorTurns =
+                turns.filter(turn =>
+                    String(turn?.content || "").trim() &&
+                    !(
+                        String(turn?.role || "").trim() === "user" &&
+                        String(turn?.content || "").trim() === originalInstruction
+                    )
+                );
+            const lastAssistantIndex =
+                [...priorTurns]
+                    .map((turn, index) => ({
+                        index,
+                        role:
+                            String(
+                                turn?.role ||
+                                ""
+                            ).trim(),
+                        content:
+                            String(
+                                turn?.content ||
+                                ""
+                            ).trim()
+                    }))
+                    .reverse()
+                    .find(item =>
+                        item.role ===
+                            "assistant" &&
+                        item.content.endsWith("?")
+                    )
+                    ?.index;
+            let pendingUserInstruction =
+                "";
+            if (
+                Number.isInteger(
+                    lastAssistantIndex
+                )
+            ) {
+                for (
+                    let index =
+                        lastAssistantIndex - 1;
+                    index >= 0;
+                    index -= 1
+                ) {
+                    const turn =
+                        priorTurns[index];
+                    if (
+                        String(
+                            turn?.role ||
+                            ""
+                        ).trim() ===
+                        "user"
+                    ) {
+                        pendingUserInstruction =
+                            String(
+                                turn?.content ||
+                                ""
+                            ).trim();
+                        break;
+                    }
+                }
+            }
+
+            args.instruction =
+                pendingUserInstruction
+                    ? [
+                        pendingUserInstruction,
+                        originalInstruction
+                    ].join("\n\n")
+                    : originalInstruction;
+        }
+
         if (
             tool.name === "system.certify" &&
             missionPhase !== "COMPLETION_AUDIT"

@@ -1209,7 +1209,7 @@ export function createSelfHostedSemanticEngine({
             vector.some(value => value !== 0);
     }
 
-    async function embed(input = [], { timeoutMs: embeddingTimeoutMs = timeoutMs, signal, noDeadline = false } = {}) {
+    async function embed(input = [], { timeoutMs: embeddingTimeoutMs = timeoutMs, signal, noDeadline = true } = {}) {
         const health = describe();
         if (health.ok !== true) throw new Error(health.status);
         const values = (Array.isArray(input) ? input : [input])
@@ -1312,7 +1312,7 @@ export function createSelfHostedSemanticEngine({
         if (health.ok !== true) throw new Error(health.status);
         await ensureMainModelWarm({ signal: request?.config?.signal });
         const tools = openAiToolsFromGemini(request?.config || {});
-        const noDeadline = request?.config?.noDeadline === true;
+        const noDeadline = true;
         const inferenceTimeoutMs = noDeadline
             ? null
             : Math.min(
@@ -1458,44 +1458,113 @@ export function createSelfHostedSemanticEngine({
                             }
                             : {})
                     };
-            const response = await (fetchImpl === globalThis.fetch ? fetchLocalSemanticResponse : fetchImpl)(
-                nativeChat
-                    ? `${origin}/api/chat`
-                    : `${baseUrl}/chat/completions`,
-                {
-                    method: "POST",
-                    headers,
-                    body: JSON.stringify(payload),
-                    signal: request?.config?.signal ? AbortSignal.any([controller.signal, request.config.signal]) : controller.signal
-                }
-            );
-            const raw = await response.text();
             let data = null;
-            try { data = JSON.parse(raw); } catch {}
-            if (!response.ok || !data) {
-                throw new Error(
-                    String(data?.error?.message || data?.error || `LOCAL_SEMANTIC_HTTP_${response.status}`)
+            let message = {};
+            let text = "";
+            let functionCalls = [];
+            let localAttempt = 0;
+            const maximumLocalAttempts = 2;
+
+            while (localAttempt < maximumLocalAttempts) {
+                localAttempt += 1;
+                if (localAttempt > 1) {
+                    counters.localSemanticInferenceCalls += 1;
+                    if (nativeChat) {
+                        payload.options = {
+                            ...(payload.options || {}),
+                            num_predict: Math.min(
+                                1024,
+                                Math.max(
+                                    256,
+                                    Number(payload.options?.num_predict || maxOutputTokens) * 2
+                                )
+                            )
+                        };
+                    }
+                    else {
+                        payload.max_tokens = Math.min(
+                            1024,
+                            Math.max(
+                                256,
+                                Number(payload.max_tokens || maxOutputTokens) * 2
+                            )
+                        );
+                    }
+                    payload.messages = [
+                        ...messages,
+                        {
+                            role: "user",
+                            content:
+                                jsonOnlyNative
+                                    ? "Devuelve ahora JSON valido compatible con el esquema. No dejes la respuesta vacia."
+                                    : nativeToolChat
+                                        ? "Selecciona ahora una sola herramienta valida del catalogo y devuelve su llamada. No dejes la respuesta vacia."
+                                        : "Responde ahora al turno actual. No dejes la respuesta vacia."
+                        }
+                    ];
+                }
+
+                const response = await (fetchImpl === globalThis.fetch ? fetchLocalSemanticResponse : fetchImpl)(
+                    nativeChat
+                        ? `${origin}/api/chat`
+                        : `${baseUrl}/chat/completions`,
+                    {
+                        method: "POST",
+                        headers,
+                        body: JSON.stringify(payload),
+                        signal: request?.config?.signal ? AbortSignal.any([controller.signal, request.config.signal]) : controller.signal
+                    }
                 );
+                const raw = await response.text();
+                data = null;
+                try { data = JSON.parse(raw); } catch {}
+                if (!response.ok || !data) {
+                    throw new Error(
+                        String(data?.error?.message || data?.error || `LOCAL_SEMANTIC_HTTP_${response.status}`)
+                    );
+                }
+                message =
+                    nativeChat
+                        ? data?.message ||
+                            data?.choices?.[0]?.message ||
+                            {}
+                        : data?.choices?.[0]?.message ||
+                            data?.message ||
+                            {};
+                text = typeof message.content === "string"
+                    ? message.content
+                    : Array.isArray(message.content)
+                        ? message.content.map(part => String(part?.text || "")).join("")
+                        : "";
+                functionCalls =
+                    jsonOnlyNative
+                        ? []
+                        : parseOpenAiFunctionCalls(message);
+
+                if (text.trim() || functionCalls.length > 0) {
+                    break;
+                }
             }
-            const message =
-                nativeChat
-                    ? data?.message ||
-                        data?.choices?.[0]?.message ||
-                        {}
-                    : data?.choices?.[0]?.message ||
-                        data?.message ||
-                        {};
-            const text = typeof message.content === "string"
-                ? message.content
-                : Array.isArray(message.content)
-                    ? message.content.map(part => String(part?.text || "")).join("")
-                    : "";
-            const functionCalls =
-                jsonOnlyNative
-                    ? []
-                    : parseOpenAiFunctionCalls(message);
+
             if (!text.trim() && functionCalls.length === 0) {
-                throw new Error("LOCAL_SEMANTIC_RESPONSE_EMPTY");
+                const error = new Error("LOCAL_SEMANTIC_RESPONSE_EMPTY");
+                error.evidence = {
+                    attempts: localAttempt,
+                    finishReason:
+                        String(
+                            nativeChat
+                                ? data?.done_reason || ""
+                                : data?.choices?.[0]?.finish_reason || ""
+                        ).slice(0, 80),
+                    messageKeys:
+                        Object.keys(
+                            message &&
+                            typeof message === "object"
+                                ? message
+                                : {}
+                        ).slice(0, 20)
+                };
+                throw error;
             }
             // Successful inference renewed keep_alive; an old warm-up timestamp
             // must not insert another generation between classification and reply.
@@ -1615,7 +1684,7 @@ export function createSelfHostedSemanticEngine({
         persistToolEmbeddingCache();
     }
 
-    async function shortlistCurrentTurnCatalog(input = "", catalog = [], limit = 2, deadlineAt = Date.now() + timeoutMs, signal, noDeadline = false) {
+    async function shortlistCurrentTurnCatalog(input = "", catalog = [], limit = 2, deadlineAt = null, signal, noDeadline = true) {
         const startedAt = Date.now();
         const remainingMs = () => {
             signal?.throwIfAborted();
@@ -1716,7 +1785,7 @@ export function createSelfHostedSemanticEngine({
         mode,
         describe,
         embed,
-        async plan({ input, catalog, missionState = null, timeoutMs: requestTimeoutMs, noDeadline = false, signal, onProgress = () => {} } = {}) {
+        async plan({ input, catalog, missionState = null, timeoutMs: requestTimeoutMs, noDeadline = true, signal, onProgress = () => {} } = {}) {
             const effectiveTimeoutMs = noDeadline === true
                 ? null
                 : Math.min(Math.max(Number(requestTimeoutMs) || timeoutMs, 1), SEMANTIC_MAX_BUDGET_MS);
@@ -1774,7 +1843,7 @@ export function createSelfHostedSemanticEngine({
                 inferenceReceipt: describe()
             };
         },
-        async respond({ input, maxOutputTokens = 160, responseMode, responseBriefing, responseInstruction, timeoutMs: requestTimeoutMs, noDeadline = false, signal } = {}) {
+        async respond({ input, maxOutputTokens = 160, responseMode, responseBriefing, responseInstruction, timeoutMs: requestTimeoutMs, noDeadline = true, signal } = {}) {
             const effectiveTimeoutMs = noDeadline === true
                 ? null
                 : Math.min(Math.max(Number(requestTimeoutMs) || timeoutMs, 1), SEMANTIC_MAX_BUDGET_MS);

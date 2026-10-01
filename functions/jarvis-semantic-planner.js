@@ -1354,7 +1354,7 @@ async function runModelSemanticPlanner({
                     ...(advisoryContext ? [{ role: "system", content: advisoryContext }] : []),
                     { role: "user", content: instruction }
                 ],
-                maxOutputTokens: 96,
+                maxOutputTokens: 256,
                 temperature: 0,
                 thinkingConfig: {
                     thinkingLevel: "MINIMAL"
@@ -1368,7 +1368,7 @@ async function runModelSemanticPlanner({
                         question: { type: "string" },
                         action: { type: "string" }
                     },
-                    required: ["missing", "mode", "question"],
+                    required: ["missing", "mode", "question", "action"],
                     additionalProperties: false
                 }
             }
@@ -1967,8 +1967,8 @@ async function runJarvisSemanticPlanner({
     ai = null,
     input = "",
     catalog = [],
-    timeoutMs = 45000,
-    noDeadline = false,
+    timeoutMs = null,
+    noDeadline = true,
     missionState = null,
     retrieveToolCandidates = null
 } = {}) {
@@ -2011,7 +2011,7 @@ async function runJarvisSemanticResponse({
     ai = null,
     input = "",
     timeoutMs = null,
-    noDeadline = false,
+    noDeadline = true,
     maxOutputTokens = 160,
     responseMode,
     responseInstruction,

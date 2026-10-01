@@ -105,7 +105,7 @@ test("local inference bounds response memory and requires cancellation", async t
     t.after(() => { upstream.closeAllConnections(); upstream.close(); });
     const url = `http://127.0.0.1:${upstream.address().port}`;
     await assert.rejects(fetchLocalSemanticResponse(url, { method: "POST", body: "{}", signal: AbortSignal.timeout(15000) }), /TOO_LARGE/);
-    await assert.rejects(fetchLocalSemanticResponse(url, { method: "POST" }), /DEADLINE_REQUIRED/);
+    await assert.rejects(fetchLocalSemanticResponse(url, { method: "POST" }), /CANCELLATION_SIGNAL_REQUIRED/);
 });
 
 test("default semantic engine uses the real local HTTP transport with the unchanged Qwen request", async t => {
@@ -197,7 +197,8 @@ test("browser transport sends one streamed plan and preserves the final failure"
         const body = JSON.parse(options.body);
         assert.equal(body.input, instruction);
         assert.equal(body.streamProgress, true);
-        assert.ok(body.timeoutMs > 70000);
+        assert.equal(body.noDeadline, true);
+        assert.equal(Object.hasOwn(body, "timeoutMs"), false);
         if (failNetwork) throw new TypeError("Failed to fetch");
         return new Response('{"type":"progress","stage":"inference"}\n' +
             '{"type":"result","result":{"ok":false,"error":"LOCAL_SEMANTIC_TIMEOUT"}}\n', {
@@ -340,21 +341,34 @@ test("long mission contract retains the shared full-input prefix and an adequate
     assert.equal(plan.missionComplete, false);
 });
 
-test("planner retries share one deadline and abort the active local request", async () => {
+test("planner retries remain alive without an artificial local deadline", async () => {
     let calls = 0;
     let aborted = false;
     const engine = createSelfHostedSemanticEngine({ fetchImpl: async (_url, options) => {
         calls++;
-        if (calls === 1) { await wait(40); return { ok: true, text: async () => '{"message":{"content":"{}"}}' }; }
-        await new Promise((resolve, reject) => {
+        if (calls === 1) {
+            await wait(40);
+            return { ok: true, text: async () => '{"message":{"content":"{}"}}' };
+        }
+        await new Promise(resolve => {
             const timer = setTimeout(resolve, 150);
-            options.signal.addEventListener("abort", () => { aborted = true; clearTimeout(timer); reject(options.signal.reason); }, { once: true });
+            options.signal.addEventListener("abort", () => {
+                aborted = true;
+                clearTimeout(timer);
+                resolve();
+            }, { once: true });
         });
         return { ok: true, text: async () => JSON.stringify({ message: { content: JSON.stringify(result) } }) };
     }});
-    await assert.rejects(engine.plan({ input: "Audita", catalog, missionState: phase, timeoutMs: 100 }), /TIMEOUT|DEADLINE/);
-    await wait(20);
-    assert.equal(aborted, true);
+    const plan = await engine.plan({
+        input: "Audita",
+        catalog,
+        missionState: phase,
+        timeoutMs: 100
+    });
+    assert.equal(plan.ok, true);
+    assert.equal(aborted, false);
+    assert.ok(calls >= 2);
 });
 
 test("slow plan streams progress until a final result; heartbeat never reports mission success", async t => {
@@ -367,7 +381,8 @@ test("slow plan streams progress until a final result; heartbeat never reports m
     assert.equal(calls, 1);
     assert.ok(frames.length >= 3);
     assert.ok(frames.every(frame => !Object.hasOwn(frame, "ok")));
-    assert.ok(frames[0].budgetMs > 60000);
+    assert.equal(frames[0].budgetMs, null);
+    assert.equal(frames[0].noDeadline, true);
     assert.deepEqual(receipt.toolCalls, result.toolCalls);
     assert.equal(receipt.missionComplete, false);
 });
@@ -491,7 +506,8 @@ test("final response streams until completion, keeps JSON compatibility and canc
     assert.equal(result.message, reply.message);
     assert.ok(frames.length >= 1, "streaming must expose progress before the final result");
     assert.ok(frames.every(frame => frame.stage === "final_response" && !Object.hasOwn(frame, "ok")));
-    assert.ok(frames[0].budgetMs > 180000);
+    assert.equal(frames[0].budgetMs, null);
+    assert.equal(frames[0].noDeadline, true);
     assert.equal((await (await post({ input: instruction })).json()).message, reply.message);
     assert.equal(calls, 2);
     let cancelled;

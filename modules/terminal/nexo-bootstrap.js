@@ -1,4 +1,4 @@
-import { semanticPlanBudgetMs, readSemanticStream, semanticFailurePresentation } from "../../gestia-core/jarvis/jarvis.semantic.transport.js";
+import { readSemanticStream, semanticFailurePresentation } from "../../gestia-core/jarvis/jarvis.semantic.transport.js";
 /*
  * ======================================================================================
  * JARVIS TERMINAL BOOTSTRAP — HISTORICAL NEXO FILENAME ONLY
@@ -11,7 +11,7 @@ import { semanticPlanBudgetMs, readSemanticStream, semanticFailurePresentation }
  */
 
 export const JARVIS_TERMINAL_BOOTSTRAP_VERSION =
-    "1.15.0-semantic-absolute-deadline";
+    "1.16.0-semantic-no-artificial-deadline";
 export const NEXO_TERMINAL_BOOTSTRAP_VERSION =
     JARVIS_TERMINAL_BOOTSTRAP_VERSION; // compatibility export only
 
@@ -83,8 +83,21 @@ export function installJarvisLocalBridgeTransport() {
 
             const contract = await readRuntimeContract();
             const semanticRequest = path === "/semantic/plan" || path === "/semantic/respond";
-            const budgetPayload = path === "/semantic/respond" ? { ...payload, missionState: { phase: "FINAL_RESPONSE" } } : payload;
-            const requestPayload = semanticRequest ? { ...payload, streamProgress: true, noDeadline: true, timeoutMs: semanticPlanBudgetMs(budgetPayload) } : payload;
+            const {
+                timeoutMs: _semanticTimeoutMs,
+                ...semanticPayload
+            } =
+                payload &&
+                typeof payload === "object"
+                    ? payload
+                    : {};
+            const requestPayload = semanticRequest
+                ? {
+                    ...semanticPayload,
+                    streamProgress: true,
+                    noDeadline: true
+                }
+                : payload;
             const timeoutMs = semanticRequest ? null : Math.min(
                 Math.max(Number(options?.timeoutMs) || 120000, 1000),
                 180000

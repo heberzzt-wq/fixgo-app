@@ -270,3 +270,71 @@ test("semantic model may complete a turn without fabricating a tool", async () =
     assert.equal(calls.length, 0);
     assert.equal(calls.missionComplete, true);
 });
+
+test("follow-up tool instruction preserves literal pending request and current answer", async () => {
+    const previous =
+        "QUIERO QUE HAGAS MARKETING PARA https://www.summ.com.mx/ SUMMIT FIRMA DE ABOGADOS";
+    const current =
+        "EN CANCUN QUINTANA ROO Y MARKETING A NIVEL NACIONAL";
+    const marketingTool = {
+        name: "marketing.plan",
+        description: "Produce marketing desde la instruccion literal.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                instruction: { type: "string" },
+                brandName: { type: "string" }
+            },
+            required: ["instruction"],
+            additionalProperties: true
+        }
+    };
+
+    const calls = await buildJarvisMultifunctionToolCalls(
+        current,
+        {
+            toolCatalog: [
+                catalog[0],
+                marketingTool
+            ],
+            missionState: {
+                phase: "CURRENT_TURN",
+                advisorySemanticContext: {
+                    turns: [
+                        {
+                            role: "user",
+                            content: previous
+                        },
+                        {
+                            role: "assistant",
+                            content: "¿En qué ciudad o mercado quieres enfocar la campaña?"
+                        }
+                    ]
+                }
+            },
+            semanticPlanner: semanticPlan([{
+                name: "marketing.plan",
+                args: {
+                    instruction:
+                        "Crea marketing para Canahuacán, Quintana Roo.",
+                    brandName:
+                        "SUMMIT FIRMA DE ABOGADOS"
+                },
+                reason:
+                    "CURRENT_TURN_MARKETING"
+            }]),
+            throwOnUnavailable: true
+        }
+    );
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].name, "marketing.plan");
+    assert.equal(
+        calls[0].args.instruction,
+        previous + "\n\n" + current
+    );
+    assert.equal(
+        calls[0].args.brandName,
+        "SUMMIT FIRMA DE ABOGADOS"
+    );
+});
