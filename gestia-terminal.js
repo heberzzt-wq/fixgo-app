@@ -57,7 +57,7 @@ import {
 
 import {
     approvePlan
-} from "/gestia-core/plans.engine.js?v=jarvis-runtime-macro-v2-20260618";
+} from "/gestia-core/plans.engine.js?v=v142-adjunto-flow-alignment-20261001";
 
 
 import {
@@ -65,9 +65,9 @@ import {
     installLedgerModule
 } from "./modules/terminal/ledger.js";
 
-import "./modules/terminal/repo-bootstrap-index.js?v=v94-page-browser-fallback-v115-20260809";
+import "./modules/terminal/repo-bootstrap-index.js?v=v142-adjunto-flow-alignment-20261001";
 
-import "./modules/terminal/runtime-repair-health.js?v=v94-runtime-health-truth-v116-20260809";
+import "./modules/terminal/runtime-repair-health.js?v=v142-adjunto-flow-alignment-20261001";
 
 const TERMINAL_RUNTIME_V2_VERSION =
     "2.0.0-terminal-runtime-pack";
@@ -104,7 +104,7 @@ window.describeTerminalRuntimeV2 = function() {
    GESTIA SOVEREIGN KERNEL
 ===================================================== */
 
-import "./gestia-core/jarvis.kernel.js?v=jarvis-runtime-macro-v2-20260618";
+import "./gestia-core/jarvis.kernel.js?v=v142-adjunto-flow-alignment-20261001";
 
 
 
@@ -426,7 +426,7 @@ window.MODULE_CONTEXT =
    SNAPSHOT ENGINE
 ===================================================================================== */
 
-await import("./modules/terminal/runtime-persistence.js?v=jarvis-runtime-macro-v2-20260618");
+await import("./modules/terminal/runtime-persistence.js?v=v142-adjunto-flow-alignment-20261001");
 
     /* =====================================================================================
    RUNTIME MODULE REGISTRY
@@ -490,13 +490,13 @@ window.registerRuntimeModule ||= function(
    RUNTIME GOVERNANCE, DAEMONS, SCHEDULER AND RISK GRAPH
 ===================================================================================== */
 
-await import("./modules/terminal/runtime-governance.js?v=jarvis-runtime-macro-v2-20260618");
+await import("./modules/terminal/runtime-governance.js?v=v142-adjunto-flow-alignment-20261001");
 
 /* =====================================================
    RUNTIME EVENT BUS AND AUTO HYDRATION
 ===================================================== */
 
-await import("./modules/terminal/runtime-event-bus.js?v=jarvis-runtime-macro-v2-20260618");
+await import("./modules/terminal/runtime-event-bus.js?v=v142-adjunto-flow-alignment-20261001");
 
 
 /* =====================================================================================
@@ -1083,7 +1083,7 @@ async function(
 
 
 
-await import("./modules/terminal/patch-workflow.js?v=jarvis-runtime-macro-v2-20260618");
+await import("./modules/terminal/patch-workflow.js?v=v142-adjunto-flow-alignment-20261001");
 
 
 
@@ -5545,7 +5545,7 @@ async function importTerminalBootModule(label, path) {
 
 await importTerminalBootModule(
     "runtime_platform",
-    "./modules/terminal/runtime-platform.js?v=jarvis-runtime-macro-v2-20260618"
+    "./modules/terminal/runtime-platform.js?v=v142-adjunto-flow-alignment-20261001"
 );
 
 /* =====================================================================================
@@ -5554,7 +5554,7 @@ await importTerminalBootModule(
 
 await importTerminalBootModule(
     "runtime_daemons",
-    "./modules/terminal/runtime-daemons.js?v=jarvis-runtime-macro-v2-20260618"
+    "./modules/terminal/runtime-daemons.js?v=v142-adjunto-flow-alignment-20261001"
 );
 
 /* =====================================================================================
@@ -5563,7 +5563,7 @@ await importTerminalBootModule(
 
 await importTerminalBootModule(
     "runtime_snapshot_daemon",
-    "./modules/terminal/runtime-snapshot-daemon.js?v=jarvis-runtime-macro-v2-20260618"
+    "./modules/terminal/runtime-snapshot-daemon.js?v=v142-adjunto-flow-alignment-20261001"
 );
 
 /**

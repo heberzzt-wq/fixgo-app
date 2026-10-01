@@ -1,6 +1,6 @@
 import {
     planMarketingRequest
-} from "../jarvis/jarvis.marketing.engine.js?v=v94-source-grounded-research-v124-20260810";
+} from "../jarvis/jarvis.marketing.engine.js?v=v142-adjunto-flow-alignment-20261001";
 
 export const JARVIS_REAL_MEDIA_TOOLS_VERSION =
     "2.0.0-jarvis-runtime-authority";

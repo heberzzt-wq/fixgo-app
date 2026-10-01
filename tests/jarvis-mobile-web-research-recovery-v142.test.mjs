@@ -8,7 +8,7 @@ import {
 } from "../gestia-core/jarvis/jarvis.multitool.pack.js";
 import { __test as plannerTest } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
 
-// Production restoration sentinel: V94 ADJUNTO remains the deploy authority after CI cleanup.
+// Production restoration sentinel: V142 ADJUNTO remains the runtime authority after CI cleanup.
 const seedUrl =
     "https://www.tiktok.com/@taqueria.eldorado/video/7629216747131850004?q=taqueria%20el%20dorado%20cancun";
 
@@ -66,6 +66,42 @@ function groundedCrossSourceResult() {
         caseId: "CASE-V142"
     };
 }
+
+test("v142 critical ADJUNTO boot graph is release-aligned and cannot bypass the mission contract", () => {
+    const releaseTag = "v142-adjunto-flow-alignment-20261001";
+    const criticalFiles = [
+        "../gestia-terminal.html",
+        "../gestia-terminal.js",
+        "../gestia-core/gestia-core.js",
+        "../gestia-core/tools.runtime.js",
+        "../gestia-core/jarvis/jarvis.multitool.pack.js",
+        "../gestia-core/jarvis/jarvis.actuator.pack.js"
+    ];
+
+    for (const relative of criticalFiles) {
+        const source = fs.readFileSync(new URL(relative, import.meta.url), "utf8");
+        const versions = [...source.matchAll(/\?v=([^"'\s)]+)/g)].map(match => match[1]);
+        assert.ok(versions.length > 0, relative);
+        assert.deepEqual([...new Set(versions)], [releaseTag], relative);
+    }
+
+    const core = fs.readFileSync(
+        new URL("../gestia-core/gestia-core.js", import.meta.url),
+        "utf8"
+    );
+    const semanticPlanner = fs.readFileSync(
+        new URL("../functions/jarvis-semantic-planner.js", import.meta.url),
+        "utf8"
+    );
+    assert.doesNotMatch(
+        core,
+        /currentTurnDirectToolContract|CURRENT_TURN_DIRECT_TOOL_COMPLETE/
+    );
+    assert.doesNotMatch(
+        semanticPlanner,
+        /planKind:\s*"CURRENT_TURN_GATE_ACTION_DIRECT_TOOL"/
+    );
+});
 
 test("v142 full ci reaches the real loopback browser contract through the Jarvis runtime suite exactly once", () => {
     const packageJson = JSON.parse(
@@ -167,7 +203,7 @@ test("v142 current-turn semantic planner gates conversation before the full cata
     assert.match(block, /attempt >= 2/);
 });
 
-test("v142 direct read-only current-turn tools reuse the Qwen decision without redundant mission audits", () => {
+test("v142 read-only current-turn tools still pass through the full mission contract", () => {
     const planner = fs.readFileSync(
         new URL("../gestia-core/jarvis/jarvis.multifunction.planner.js", import.meta.url),
         "utf8"
@@ -185,21 +221,21 @@ test("v142 direct read-only current-turn tools reuse the Qwen decision without r
         core,
         /semanticPlanKind:[\s\S]{0,160}lightMultifunctionCalls\?\.planKind/
     );
-    assert.match(
+    assert.doesNotMatch(
         core,
-        /currentTurnDirectToolContract[\s\S]{0,220}CURRENT_TURN_GATE_ACTION_DIRECT_TOOL[\s\S]{0,220}isVerifiedReadOnlyToolPlan[\s\S]{0,120}terminalPlannerSeed\.length === 1/
+        /currentTurnDirectToolContract|CURRENT_TURN_DIRECT_TOOL_COMPLETE/
     );
     assert.match(
         core,
-        /missionContractToolCalls =[\s\S]{0,180}currentTurnDirectToolContract[\s\S]{0,180}operationalInitialToolCalls/
+        /let missionContractToolCalls;[\s\S]{0,160}for \(let missionContractAttempt = 1; missionContractAttempt <= 3/
     );
     assert.match(
         core,
-        /if \(!currentTurnDirectToolContract\) \{[\s\S]{0,180}missionContractAttempt/
+        /phase:\s*"MISSION_CONTRACT"/
     );
     assert.match(
         core,
-        /if \(currentTurnDirectToolContract\)[\s\S]{0,360}CURRENT_TURN_DIRECT_TOOL_COMPLETE/
+        /phase:\s*"COMPLETION_AUDIT"/
     );
 });
 
@@ -249,21 +285,23 @@ test("v142 single-tool semantic mission contract stays locked after successful e
     );
 });
 
-test("v142 local repo candidate client waits for CPU embedding completion", () => {
+test("v142 local repo candidate client has no artificial deadline for CPU embeddings", () => {
     const runtime = fs.readFileSync(
         new URL("../gestia-core/tools.runtime.js", import.meta.url),
         "utf8"
     );
-    const compact = runtime.match(
-        /rankRepoCandidates[\s\S]*?\/repo\/candidates[\s\S]*?timeoutMs:\s*payload\.timeoutMs\s*\|\|\s*180000/
+    assert.match(
+        runtime,
+        /requestJson[\s\S]*?const noDeadline =[\s\S]*?options\.noDeadline === true[\s\S]*?payload\?\.noDeadline === true/
     );
-    assert.ok(compact);
-    const occurrences = (
-        runtime.match(
-            /\/repo\/candidates[\s\S]{0,700}?timeoutMs:\s*payload\.timeoutMs\s*\|\|\s*180000/g
-        ) || []
-    ).length;
-    assert.ok(occurrences >= 2);
+    assert.match(
+        runtime,
+        /name:\s*"repo\.search"[\s\S]*?\/repo\/candidates[\s\S]*?noDeadline:\s*true[\s\S]*?noDeadline:\s*true/
+    );
+    assert.match(
+        runtime,
+        /rankRepoCandidates[\s\S]*?\/repo\/candidates[\s\S]*?noDeadline:\s*payload\.noDeadline === true/
+    );
 });
 
 test("v142 mission evidence preserves ranked repo candidates before generic compaction", () => {

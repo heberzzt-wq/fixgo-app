@@ -5,24 +5,24 @@
 
 import {
     registerJarvisMultifunctionTools
-} from "./jarvis/jarvis.multitool.pack.js?v=v139-real-reel-e2e-20260812";
+} from "./jarvis/jarvis.multitool.pack.js?v=v142-adjunto-flow-alignment-20261001";
 import {
     registerJarvisActuatorTools
-} from "./jarvis/jarvis.actuator.pack.js?v=v142-video-truthful-delivery-20260826";
+} from "./jarvis/jarvis.actuator.pack.js?v=v142-adjunto-flow-alignment-20261001";
 import {
     reviewChiefArchitectPlan
-} from "./jarvis/jarvis.chief.architect.js?v=sia7-chief-architect-v92-20260726";
+} from "./jarvis/jarvis.chief.architect.js?v=v142-adjunto-flow-alignment-20261001";
 import {
     analyzeRepoSourceStructure,
     buildExecutableSourceView,
     extractQualifiedSourceIdentifiers
-} from "./repo/repo.source.structure.js?v=sia7-explicit-repo-targets-v3-20260724";
+} from "./repo/repo.source.structure.js?v=v142-adjunto-flow-alignment-20261001";
 import {
     parseRepositoryTarget
-} from "./repo/repo.target.js?v=v94-structural-repo-target-v1-20260809";
+} from "./repo/repo.target.js?v=v142-adjunto-flow-alignment-20261001";
 import {
     recordCapabilityEvidence
-} from "./jarvis/jarvis.capability.evidence.js?v=sia7-persistent-runtime-evidence-v87-20260726";
+} from "./jarvis/jarvis.capability.evidence.js?v=v142-adjunto-flow-alignment-20261001";
 
 function emitJarvisWorkProgress(detail = {}) {
     if (
@@ -1559,20 +1559,28 @@ window.JarvisLocalBridge.requestJson ||= async function(
         };
     }
 
+    const noDeadline =
+        options.noDeadline === true ||
+        payload?.noDeadline === true;
+
     const timeoutMs =
-        Math.max(
-            5000,
-            Number(options.timeoutMs || payload.timeoutMs || 30000)
-        );
+        noDeadline
+            ? null
+            : Math.max(
+                5000,
+                Number(options.timeoutMs || payload.timeoutMs || 30000)
+            );
 
     const controller =
         new AbortController();
 
     const timer =
-        setTimeout(
-            () => controller.abort(),
-            timeoutMs
-        );
+        noDeadline
+            ? null
+            : setTimeout(
+                () => controller.abort(),
+                timeoutMs
+            );
 
     try {
         const response =
@@ -1640,7 +1648,7 @@ window.JarvisLocalBridge.requestJson ||= async function(
         };
     }
     finally {
-        clearTimeout(timer);
+        if (timer) clearTimeout(timer);
     }
 };
 
@@ -1655,7 +1663,16 @@ window.JarvisLocalBridge.buildRepoGraph ||= async function(payload = {}) {
     return await window.JarvisLocalBridge.requestJson("/repo/graph", payload, { timeoutMs: payload.timeoutMs || 90000 });
 };
 window.JarvisLocalBridge.rankRepoCandidates ||= async function(payload = {}) {
-    return await window.JarvisLocalBridge.requestJson("/repo/candidates", payload, { timeoutMs: payload.timeoutMs || 180000 });
+    return await window.JarvisLocalBridge.requestJson(
+        "/repo/candidates",
+        {
+            ...payload,
+            noDeadline: payload.noDeadline === true
+        },
+        payload.noDeadline === true
+            ? { noDeadline: true }
+            : { timeoutMs: payload.timeoutMs || 180000 }
+    );
 };
 window.JarvisLocalBridge.resolveRepoTarget ||= async function(payload = {}) {
     return await window.JarvisLocalBridge.requestJson("/repo/resolve-target", payload, { timeoutMs: payload.timeoutMs || 30000 });
@@ -6243,6 +6260,7 @@ JarvisToolRuntime.register({
                         "/repo/candidates",
                         {
                             query,
+                            noDeadline: true,
                             limit:
                                 Math.max(
                                     1,
@@ -6280,17 +6298,7 @@ JarvisToolRuntime.register({
                                 argObject.refresh === true
                         },
                         {
-                            timeoutMs:
-                                Math.min(
-                                    Math.max(
-                                        Number(
-                                            argObject.timeoutMs
-                                        ) ||
-                                        120000,
-                                        15000
-                                    ),
-                                    180000
-                                )
+                            noDeadline: true
                         }
                     );
 
@@ -8592,9 +8600,12 @@ window.JarvisLocalBridge.rankRepoCandidates ||= async function(payload = {}) {
             plannedFiles: Array.isArray(payload.plannedFiles) ? payload.plannedFiles : [],
             limit: payload.limit || 8,
             refresh: payload.refresh === true,
+            noDeadline: payload.noDeadline === true,
             source: payload.source || "jarvis_candidate_ranking_v7"
         },
-        { timeoutMs: payload.timeoutMs || 180000 }
+        payload.noDeadline === true
+            ? { noDeadline: true }
+            : { timeoutMs: payload.timeoutMs || 180000 }
     );
 };
 

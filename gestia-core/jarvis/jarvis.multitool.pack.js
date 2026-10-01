@@ -1,23 +1,23 @@
 import {
     planMarketingRequest
-} from "./jarvis.marketing.engine.js?v=v94-marketing-real-delivery-v12-20260809";
+} from "./jarvis.marketing.engine.js?v=v142-adjunto-flow-alignment-20261001";
 import {
     repairCanonicalIdentityValue
-} from "./jarvis.identity.integrity.js?v=v94-generalist-production-integrity-v121-20260810";
+} from "./jarvis.identity.integrity.js?v=v142-adjunto-flow-alignment-20261001";
 import {
     normalizePageFactualAudit
-} from "./jarvis.page.factual.integrity.js?v=v94-generalist-production-integrity-v121-20260810";
+} from "./jarvis.page.factual.integrity.js?v=v142-adjunto-flow-alignment-20261001";
 
 
 import {
     createOfficialPageSpec
-} from "./jarvis.page.creator.js?v=v94-generalist-production-integrity-v121-20260810";
+} from "./jarvis.page.creator.js?v=v142-adjunto-flow-alignment-20261001";
 
 import {
     buildMediaAnalysis,
     createMediaIngestionRecord,
     describeMediaIngestion
-} from "./jarvis.media.ingestion.js?v=v94-secure-session-v117-20260810";
+} from "./jarvis.media.ingestion.js?v=v142-adjunto-flow-alignment-20261001";
 
 import {
     readCapabilityEvidence,
@@ -26,19 +26,19 @@ import {
 
 import {
     completeJarvisPlanningArguments
-} from "./jarvis.multifunction.planner.js?v=v136-reel-media-source-recovery-20260812";
+} from "./jarvis.multifunction.planner.js?v=v142-adjunto-flow-alignment-20261001";
 import {
     validateWorkbookFormulaStructure
-} from "./jarvis.workbook.validator.js?v=sia7-deep-artifact-validation-v65-20260725";
+} from "./jarvis.workbook.validator.js?v=v142-adjunto-flow-alignment-20261001";
 import {
     extractDocumentContract,
     validateDocumentBlueprint
-} from "./jarvis.document.validator.js?v=sia7-exact-template-contract-v84-20260725";
+} from "./jarvis.document.validator.js?v=v142-adjunto-flow-alignment-20261001";
 import {
     buildReelMediaBindingPrompt,
     reelMediaCollectionState,
     validateReelMediaBindings
-} from "./jarvis.reel.media-binder.js?v=v131-semantic-scene-media-authority-20260811";
+} from "./jarvis.reel.media-binder.js?v=v142-adjunto-flow-alignment-20261001";
 
 const VERSION = "1.55.0-reel-semantic-media-binding-v131";
 const SUPERVISION_CLOUD_TIMEOUT_MS = 4500;

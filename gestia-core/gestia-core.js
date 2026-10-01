@@ -42,36 +42,36 @@ import {
     buildJarvisMultifunctionToolCalls,
     completeJarvisPlanningArguments,
     shouldCompleteJarvisPlanningArguments
-} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=v142-video-scene-integrity-20260826';
+} from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=v142-adjunto-flow-alignment-20261001';
 import {
     composeEvidenceGroundedConversation,
     mergeEvidenceGroundedToolCalls,
     prepareEvidenceGroundedConversationPlan
-} from '/gestia-core/jarvis/jarvis.conversation.composer.js?v=v142-video-truthful-delivery-20260826';
+} from '/gestia-core/jarvis/jarvis.conversation.composer.js?v=v142-adjunto-flow-alignment-20261001';
 import {
     runJarvisMission,
     verifiedArtifactDeliveryForMission
-} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=v142-deadline-reconciliation-20260826';
+} from '/gestia-core/jarvis/jarvis.mission.orchestrator.js?v=v142-adjunto-flow-alignment-20261001';
 import {
     marketingArtifactArgsFromCompletedTasks,
     marketingFinalResponseFromMission
-} from '/gestia-core/jarvis/jarvis.marketing.presenter.js?v=v12-marketing-handoff-20260819';
+} from '/gestia-core/jarvis/jarvis.marketing.presenter.js?v=v142-adjunto-flow-alignment-20261001';
 import {
     reelArtifactArgsFromCompletedTasks
-} from '/gestia-core/jarvis/jarvis.reel.presenter.js?v=v12-marketing-handoff-20260819';
+} from '/gestia-core/jarvis/jarvis.reel.presenter.js?v=v142-adjunto-flow-alignment-20261001';
 import {
     ensureExecutableArtifactDependencies
-} from '/gestia-core/jarvis/jarvis.mission.dependencies.js?v=v12-marketing-handoff-20260819';
+} from '/gestia-core/jarvis/jarvis.mission.dependencies.js?v=v142-adjunto-flow-alignment-20261001';
 import {
     compactMissionPlannerObservation
-} from '/gestia-core/jarvis/jarvis.mission.planner-state.js?v=v94-source-grounded-research-v124-20260810';
+} from '/gestia-core/jarvis/jarvis.mission.planner-state.js?v=v142-adjunto-flow-alignment-20261001';
 import {
     addRepositoryDiscoveryPreflights,
     resolveExplicitRepositoryTargets
-} from '/gestia-core/repo/repo.source.structure.js?v=sia7-repo-discovery-preflight-v4-20260724';
+} from '/gestia-core/repo/repo.source.structure.js?v=v142-adjunto-flow-alignment-20261001';
 import {
     GESTIA_MASTER_EMAIL
-} from '/gestia-core/auth/role-authority.js?v=role-authority-v3-single-navigation-20260713';
+} from '/gestia-core/auth/role-authority.js?v=v142-adjunto-flow-alignment-20261001';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
 
 // ======================================================================================
@@ -218,11 +218,11 @@ const CORE_CONFIG = {
 import {
     JarvisSemanticMemory,
     compactJarvisSemanticMemoryForPlanner
-} from '/gestia-core/jarvis/jarvis.semantic.memory.js?v=v139-semantic-continuity-20260813';
+} from '/gestia-core/jarvis/jarvis.semantic.memory.js?v=v142-adjunto-flow-alignment-20261001';
 import '/gestia-core/jarvis/jarvis.autonomy.engine.js';
-import '/gestia-core/tools.runtime.js?v=v142-video-truthful-delivery-20260826';
-import '/gestia-core/response.composer.js?v=v94-live-human-reds-v113-20260809';
-import '/gestia-core/tools.bridge.js?v=v139-real-reel-e2e-20260812';
+import '/gestia-core/tools.runtime.js?v=v142-adjunto-flow-alignment-20261001';
+import '/gestia-core/response.composer.js?v=v142-adjunto-flow-alignment-20261001';
+import '/gestia-core/tools.bridge.js?v=v142-adjunto-flow-alignment-20261001';
 
 const AUTH_RESTORE_TIMEOUT_MS =
     2500;
@@ -4257,11 +4257,8 @@ export const GestiaCore = {
                 );
             });
 
-        const currentTurnDirectToolContract =
-            terminalSemanticPlan?.semanticPlanKind ===
-                "CURRENT_TURN_GATE_ACTION_DIRECT_TOOL" &&
-            isVerifiedReadOnlyToolPlan &&
-            terminalPlannerSeed.length === 1;
+        // V142: semantic retrieval is only a shortlist. No retrieved tool,
+        // including read-only/no-arg tools, may bypass the full mission contract.
 
         this.emitirPulso("INIT", "TERMINAL_START", `ID: ${analysisId.substring(0, 8)}`);
 
@@ -4680,12 +4677,8 @@ if (
             ...registeredMissionTools.filter(tool => operationalMissionToolNames.has(tool.name)),
             ...registeredMissionTools.filter(tool => !operationalMissionToolNames.has(tool.name))
         ].slice(0, 80);
-    let missionContractToolCalls =
-        currentTurnDirectToolContract
-            ? operationalInitialToolCalls
-            : undefined;
+    let missionContractToolCalls;
     let lastMissionContractError = null;
-    if (!currentTurnDirectToolContract) {
     for (let missionContractAttempt = 1; missionContractAttempt <= 3; missionContractAttempt += 1) {
         try {
             missionContractToolCalls =
@@ -4721,7 +4714,6 @@ if (
             );
             await new Promise(resolve => setTimeout(resolve, retryDelayMs));
         }
-    }
     }
     if (lastMissionContractError) {
         console.warn("[MISSION_CONTRACT_RECOVERED_FROM_INITIAL_PLAN]", lastMissionContractError);
@@ -4944,26 +4936,6 @@ if (
                         name => !resolvedToolNames.has(name)
                     );
                     if (missingRequiredToolNames.length === 0) {
-                        if (currentTurnDirectToolContract) {
-                            return {
-                                toolCalls: [],
-                                missionComplete: true,
-                                completionAssessment: {
-                                    status:
-                                        "CURRENT_TURN_DIRECT_TOOL_COMPLETE",
-                                    completed:
-                                        mission.completedTasks.map(item =>
-                                            item.name
-                                        ),
-                                    blocked:
-                                        mission.blockedTasks.map(item =>
-                                            item.name
-                                        ),
-                                    missing: []
-                                }
-                            };
-                        }
-
                         if (missionIsIsolated) {
                             return {
                                 toolCalls: [],

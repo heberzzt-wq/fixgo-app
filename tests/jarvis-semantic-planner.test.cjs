@@ -136,7 +136,7 @@ test("current-turn conversational gate classifies then responds with the same lo
         gateRequest?.config?.modelProfile,
         "conversation"
     );
-    assert.deepEqual(gateRequest.config.chatMessages.map(item => item.role), ["system", "user", "assistant", "user", "assistant", "user", "assistant", "user", "assistant", "user", "assistant", "system", "user"]);
+    assert.deepEqual(gateRequest.config.chatMessages.map(item => item.role), ["system", "user", "assistant", "user", "assistant", "user", "assistant", "user", "assistant", "user", "assistant", "user", "assistant", "user", "assistant", "system", "user"]);
     assert.equal(gateRequest.config.chatMessages.at(-1).content, "Qué tal pariente, ¿cómo estás?");
     assert.match(gateRequest.config.chatMessages[0].content, /new tool evidence/);
     assert.equal(
@@ -331,7 +331,7 @@ test("current-turn conversational gate reuses its tool action and avoids a secon
         retrieveToolCandidates: async (action, limit) => {
             retrievalCalls += 1;
             assert.equal(action, "search repository capabilities");
-            assert.equal(limit, 1);
+            assert.equal(limit, 6);
             return [search];
         },
         ai: {
@@ -387,7 +387,7 @@ test("current-turn conversational gate reuses its tool action and avoids a secon
 });
 
 
-test("current-turn gate can directly materialize a unique no-arg tool selected from its semantic action", async () => {
+test("current-turn gate never executes a no-arg retrieval match without model selection", async () => {
     const capabilities = {
         name: "system.capabilities",
         description: "Describe las herramientas activas de SIA7 agrupadas por dominio y su politica de aprobacion.",
@@ -429,19 +429,31 @@ test("current-turn gate can directly materialize a unique no-arg tool selected f
         retrieveToolCandidates: async (action, limit) => {
             retrievalCalls += 1;
             assert.equal(action, "inspect system capabilities");
-            assert.equal(limit, 1);
+            assert.equal(limit, 6);
             return [capabilities];
         },
         ai: {
             models: {
-                async generateContent() {
+                async generateContent(request) {
                     calls += 1;
+                    if (calls === 1) {
+                        return {
+                            text: JSON.stringify({
+                                missing: "",
+                                mode: "tools",
+                                question: "",
+                                action: "inspect system capabilities"
+                            }),
+                            providerResponse: {
+                                finishReason: "stop"
+                            }
+                        };
+                    }
+                    assert.equal(request.config.nativeToolChat, true);
                     return {
                         text: JSON.stringify({
-                            missing: "",
-                            mode: "tools",
-                            question: "",
-                            action: "inspect system capabilities"
+                            name: "jarvis_tool_0",
+                            arguments: {}
                         }),
                         providerResponse: {
                             finishReason: "stop"
@@ -452,14 +464,153 @@ test("current-turn gate can directly materialize a unique no-arg tool selected f
         }
     });
 
-    assert.equal(calls, 1);
+    assert.equal(calls, 2);
     assert.equal(retrievalCalls, 1);
-    assert.equal(result.planKind, "CURRENT_TURN_GATE_ACTION_DIRECT_TOOL");
+    assert.notEqual(result.planKind, "CURRENT_TURN_GATE_ACTION_DIRECT_TOOL");
     assert.equal(result.toolCalls.length, 1);
     assert.equal(result.toolCalls[0].name, "system.capabilities");
-    assert.deepEqual(result.toolCalls[0].args, {});
+    assert.equal(result.toolCalls[0].args.instruction, "Enlistame lo que sabes hacer en este repo.");
+    assert.equal(result.toolCalls[0].args.query, "Enlistame lo que sabes hacer en este repo.");
 });
 
+
+test("current-turn marketing cannot be hijacked by a higher-ranked observability candidate", async () => {
+    const observability = {
+        name: "system.observability",
+        description: "Consulta evidencia funcional agregada del runtime.",
+        mutates: false,
+        inputSchema: { type: "object", properties: {} }
+    };
+    const marketing = {
+        name: "marketing.plan",
+        description: "Produce un plan de marketing desde un brief semantico.",
+        mutates: false,
+        inputSchema: {
+            type: "object",
+            properties: { instruction: { type: "string" } },
+            required: ["instruction"]
+        }
+    };
+    const catalogWithMarketing = [
+        { name: "conversation.respond", description: "Responde cuando basta conversar.", mutates: false },
+        observability,
+        marketing
+    ];
+    let calls = 0;
+    let retrievalLimit = 0;
+    const input = "Haz marketing para Summit firma de abogados.";
+    const result = await runJarvisSemanticPlanner({
+        input,
+        catalog: catalogWithMarketing,
+        missionState: { phase: "CURRENT_TURN", conversationalGate: true },
+        retrieveToolCandidates: async (_action, limit) => {
+            retrievalLimit = limit;
+            return [observability, marketing];
+        },
+        ai: {
+            models: {
+                async generateContent(request) {
+                    calls += 1;
+                    if (calls === 1) {
+                        return {
+                            text: JSON.stringify({
+                                missing: "",
+                                mode: "tools",
+                                question: "",
+                                action: "create marketing campaign"
+                            }),
+                            providerResponse: { finishReason: "stop" }
+                        };
+                    }
+                    assert.equal(request.config.nativeToolChat, true);
+                    assert.equal(request.config.tools[0].functionDeclarations.length, 2);
+                    return {
+                        text: JSON.stringify({
+                            name: "jarvis_tool_1",
+                            arguments: { instruction: input }
+                        }),
+                        providerResponse: { finishReason: "stop" }
+                    };
+                }
+            }
+        }
+    });
+
+    assert.equal(retrievalLimit, 6);
+    assert.equal(calls, 2);
+    assert.equal(result.toolCalls[0].name, "marketing.plan");
+    assert.notEqual(result.toolCalls[0].name, "system.observability");
+});
+
+test("current-turn follow-up keeps the unresolved operation when the user supplies the requested detail", async () => {
+    const marketing = {
+        name: "marketing.plan",
+        description: "Produce un plan de marketing desde un brief semantico.",
+        mutates: false,
+        inputSchema: {
+            type: "object",
+            properties: { instruction: { type: "string" } },
+            required: ["instruction"]
+        }
+    };
+    let calls = 0;
+    const input = "En Cancún Quintana Roo y marketing a nivel nacional.";
+    const result = await runJarvisSemanticPlanner({
+        input,
+        catalog: [
+            { name: "conversation.respond", description: "Responde cuando basta conversar.", mutates: false },
+            marketing
+        ],
+        missionState: {
+            phase: "CURRENT_TURN",
+            conversationalGate: true,
+            advisorySemanticContext: {
+                turns: [
+                    { role: "user", content: "Haz marketing para Summit firma de abogados." },
+                    { role: "assistant", content: "¿En qué ciudad o mercado quieres enfocar la campaña?" }
+                ]
+            }
+        },
+        retrieveToolCandidates: async (action, limit) => {
+            assert.equal(action, "create marketing campaign");
+            assert.equal(limit, 6);
+            return [marketing];
+        },
+        ai: {
+            models: {
+                async generateContent(request) {
+                    calls += 1;
+                    if (calls === 1) {
+                        assert.match(request.config.chatMessages[0].content, /continuation of that unresolved request/);
+                        assert.ok(request.config.chatMessages.some(item =>
+                            item.role === "assistant" &&
+                            item.content.includes("¿En qué ciudad")
+                        ));
+                        return {
+                            text: JSON.stringify({
+                                missing: "",
+                                mode: "tools",
+                                question: "",
+                                action: "create marketing campaign"
+                            }),
+                            providerResponse: { finishReason: "stop" }
+                        };
+                    }
+                    return {
+                        text: JSON.stringify({
+                            name: "jarvis_tool_0",
+                            arguments: { instruction: input }
+                        }),
+                        providerResponse: { finishReason: "stop" }
+                    };
+                }
+            }
+        }
+    });
+
+    assert.equal(calls, 2);
+    assert.equal(result.toolCalls[0].name, "marketing.plan");
+});
 
 test("current-turn gate classifies the original read request, not its own phase instructions", async () => {
     const input = "Lee jarvis-runtime-contract.json sin modificar nada y dime en tres líneas qué comprobaste. Si falla, explica el error real.";

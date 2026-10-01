@@ -207,7 +207,7 @@ test("Terminal core hydrates marketing documents and gives the direct delivery r
     assert.match(core, /marketingArtifactArgsFromCompletedTasks\(/);
     assert.match(core, /marketingFinalResponseFromMission\(\s*missionResult\s*\)/);
     assert.match(core, /const finalResponse\s*=\s*marketingDeliverableFinalResponse\s*\|\|/);
-    assert.match(terminal, /gestia-terminal\.js\?v=v94-[a-z0-9-]+-[0-9]{8}/);
+    assert.match(terminal, /gestia-terminal\.js\?v=v142-adjunto-flow-alignment-20261001/);
 });
 
 test("Terminal renders verified marketing producedArtifacts through the existing download renderer", () => {

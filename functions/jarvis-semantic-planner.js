@@ -1319,6 +1319,7 @@ async function runModelSemanticPlanner({
         const gateSystemInstruction = [
             'Classify the current request. First identify essential missing information in missing (empty string if none). Use context only to resolve references, never as proof of actions.',
             'Use mode=clarify when that information must be requested from the user before work can start; mode=tools for requested reading, searching, checking or changing external state; mode=chat for social conversation, wishes without an action request, or general explanations.',
+            'If the current message supplies information requested by the immediately preceding assistant question, treat it as continuation of that unresolved request. Reconstruct the pending operation from recent conversation context instead of classifying the short answer in isolation.',
             'External actions require new tool evidence even if earlier messages claimed success. A nearby place search needs an area, but a city or neighborhood already supplied is sufficient. Relative repository file paths already have an active repository.',
             'When mode=tools, also describe the first requested operation in action using 3-8 English words for tool retrieval. Include the resource kind, preserve read versus write, and omit filenames, proper names and locations because the original request remains the source of arguments.',
             'For clarify, put one brief Spanish question asking for the missing detail in question. For tools or chat, question must be empty. For chat or clarify, action must be empty. Do not answer or perform the request. Return JSON only.'
@@ -1332,6 +1333,10 @@ async function runModelSemanticPlanner({
             { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"search web for local businesses"}' },
             { role: "user", content: "Enlistame lo que sabes hacer en este repo." },
             { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"inspect system capabilities"}' },
+            { role: "user", content: "Haz una campaña de marketing para mi despacho." },
+            { role: "assistant", content: '{"missing":"mercado objetivo","mode":"clarify","question":"¿En qué ciudad o mercado quieres enfocar la campaña?","action":""}' },
+            { role: "user", content: "En Cancún y a nivel nacional." },
+            { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"create marketing campaign"}' },
             { role: "user", content: "Se me antoja un cafecito." },
             { role: "assistant", content: '{"missing":"","mode":"chat","question":"","action":""}' }
         ];
@@ -1487,7 +1492,13 @@ async function runModelSemanticPlanner({
         }
     }
 
-    if (currentTurn && safeCatalog.length > 2) {
+    if (
+        currentTurn &&
+        (
+            safeCatalog.length > 2 ||
+            Boolean(currentTurnGateAction)
+        )
+    ) {
         if (typeof retrieveToolCandidates !== "function") {
             throw new Error("SEMANTIC_TOOL_RETRIEVAL_REQUIRED");
         }
@@ -1541,58 +1552,20 @@ async function runModelSemanticPlanner({
         // Resolve definitions back to the live registry, then let Qwen call them.
         const candidates = await retrieveToolCandidates(
             action.trim(),
-            currentTurnGateAction ? 1 : 2
+            6
         );
         safeCatalog = (Array.isArray(candidates) ? candidates : [])
             .map(candidate => normalizedCatalog.find(tool => tool.name === candidate?.name))
-            .filter(Boolean)
-            .slice(0, currentTurnGateAction ? 1 : 2);
+            .filter(tool =>
+                Boolean(tool) &&
+                (
+                    !currentTurnGateAction ||
+                    tool.name !== "conversation.respond"
+                )
+            )
+            .slice(0, 6);
         if (!safeCatalog.length) throw new Error("SEMANTIC_TOOL_CANDIDATES_REQUIRED");
 
-        if (
-            currentTurnGateAction &&
-            safeCatalog.length === 1 &&
-            (
-                !Array.isArray(safeCatalog[0]?.inputSchema?.required) ||
-                safeCatalog[0].inputSchema.required.length === 0
-            )
-        ) {
-            const selectedTool =
-                safeCatalog[0];
-            const dedupeKey =
-                missionDedupeKey(
-                    selectedTool,
-                    {}
-                );
-
-            return requireExecutablePlan({
-                ok: true,
-                status: "SEMANTIC_PLAN_READY",
-                version: VERSION,
-                toolCalls: [{
-                    name: selectedTool.name,
-                    args: {},
-                    reason:
-                        "MODEL_GATE_ACTION_RETRIEVAL_MATCH",
-                    mutates:
-                        selectedTool.mutates,
-                    approved: false,
-                    ...(dedupeKey
-                        ? {
-                            missionDedupeKey:
-                                dedupeKey
-                        }
-                        : {})
-                }],
-                explanation: "",
-                missionComplete: false,
-                completionAssessment: null,
-                provider: String(ai.lastProvider || "jarvis-local"),
-                model,
-                catalogSize: safeCatalog.length,
-                planKind: "CURRENT_TURN_GATE_ACTION_DIRECT_TOOL"
-            });
-        }
     }
     const request = currentTurn
         ? {

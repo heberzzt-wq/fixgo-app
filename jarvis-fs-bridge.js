@@ -1740,12 +1740,12 @@ export function createSelfHostedSemanticEngine({
                 input,
                 catalog,
                 missionState,
-                retrieveToolCandidates: async (requestedOperation, requestedLimit = 2) => {
+                retrieveToolCandidates: async (requestedOperation, requestedLimit = 6) => {
                     onProgress("retrieval");
                     const shortlist = await shortlistCurrentTurnCatalog(
                         requestedOperation,
                         catalog,
-                        Math.max(1, Math.min(2, Number(requestedLimit) || 2)),
+                        Math.max(1, Math.min(8, Number(requestedLimit) || 6)),
                         deadlineAt,
                         planSignal,
                         noDeadline
@@ -6962,6 +6962,8 @@ export function createJarvisFsBridgeApp({
 
     app.post("/repo/candidates", async (req, res) => {
         try {
+            const noDeadline =
+                req.body?.noDeadline === true;
             const plannedFiles = Array.isArray(req.body?.plannedFiles)
                 ? req.body.plannedFiles
                     .map(file => String(file || "").trim())
@@ -7140,7 +7142,10 @@ export function createJarvisFsBridgeApp({
                 for (let offset = 0; offset < missing.length; offset += batchSize) {
                     const batch = missing.slice(offset, offset + batchSize);
                     const embedded = await semanticEngine.embed(
-                        batch.map(document => document.text)
+                        batch.map(document => document.text),
+                        noDeadline === true
+                            ? { noDeadline: true }
+                            : {}
                     );
                     batch.forEach((document, index) => {
                         repoGraphCache.semanticEmbeddingCache.set(
@@ -7150,7 +7155,12 @@ export function createJarvisFsBridgeApp({
                     });
                 }
 
-                const queryEmbedding = await semanticEngine.embed([semanticQuery]);
+                const queryEmbedding = await semanticEngine.embed(
+                    [semanticQuery],
+                    noDeadline === true
+                        ? { noDeadline: true }
+                        : {}
+                );
                 const queryVector = queryEmbedding.embeddings[0];
                 const semanticScores = {};
                 for (const document of documents) {

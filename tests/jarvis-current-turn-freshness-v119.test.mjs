@@ -105,8 +105,8 @@ test("tool-planning receives only memory availability while mission memory stays
 
 test("terminal shell forces current runtime entrypoints instead of cached v116-v117 entrypoints", () => {
     const html = fs.readFileSync(new URL("../gestia-terminal.html", import.meta.url), "utf8");
-    assert.match(html, /gestia-core\/gestia-core\.js\?v=v142-video-truthful-delivery-20260826/);
-    assert.equal((html.match(/gestia-terminal\.js\?v=v94-source-grounded-research-v124-20260810/g) || []).length, 2);
-    assert.match(html, /gestia-core\/gestia\.runtime\.v7\.js\?v=v94-source-grounded-research-v124-20260810/);
+    assert.match(html, /gestia-core\/gestia-core\.js\?v=v142-adjunto-flow-alignment-20261001/);
+    assert.equal((html.match(/gestia-terminal\.js\?v=v142-adjunto-flow-alignment-20261001/g) || []).length, 2);
+    assert.match(html, /gestia-core\/gestia\.runtime\.v7\.js\?v=v142-adjunto-flow-alignment-20261001/);
     assert.doesNotMatch(html, /gestia-core\/gestia-core\.js\?v=v94-runtime-health-truth-v116-20260809/);
 });

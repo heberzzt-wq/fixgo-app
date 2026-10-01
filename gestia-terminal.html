@@ -137,7 +137,7 @@ fetch("/app-main.js")
     window.__APP_MAIN_SOURCE__ = t;
   });
 
-fetch("/gestia-terminal.js?v=v94-source-grounded-research-v124-20260810")
+fetch("/gestia-terminal.js?v=v142-adjunto-flow-alignment-20261001")
   .then(r => r.text())
   .then(t => {
     window.__GESTIA_TERMINAL_SOURCE__ = t;
@@ -146,15 +146,15 @@ fetch("/gestia-terminal.js?v=v94-source-grounded-research-v124-20260810")
 
 <script type="module" src="/firebase.js"></script>
 
-<script type="module" src="/modules/terminal/proposal-state.js?v=v137-local-speech-synthesis-20260812"></script>
-<script type="module" src="/modules/terminal/jarvis-attachments.js?v=jarvis-artifacts-v71-20260725"></script>
-<script type="module" src="/gestia-core/gestia-core.js?v=v142-video-truthful-delivery-20260826"></script>
-<script type="module" src="/gestia-terminal.js?v=v94-source-grounded-research-v124-20260810"></script>
+<script type="module" src="/modules/terminal/proposal-state.js?v=v142-adjunto-flow-alignment-20261001"></script>
+<script type="module" src="/modules/terminal/jarvis-attachments.js?v=v142-adjunto-flow-alignment-20261001"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=v142-adjunto-flow-alignment-20261001"></script>
+<script type="module" src="/gestia-terminal.js?v=v142-adjunto-flow-alignment-20261001"></script>
 <script
 type="module"
-src="/gestia-core/gestia.runtime.v7.js?v=v94-source-grounded-research-v124-20260810">
+src="/gestia-core/gestia.runtime.v7.js?v=v142-adjunto-flow-alignment-20261001">
 </script>
-<script type="module" src="/gestia-core/repair-translator.engine.js?v=jarvis-runtime-macro-v2-20260618"></script>
+<script type="module" src="/gestia-core/repair-translator.engine.js?v=v142-adjunto-flow-alignment-20261001"></script>
 
 <script defer>
 document.addEventListener('DOMContentLoaded', () => {
@@ -1558,7 +1558,7 @@ window.unlockJarvisVoice = function() {
                 const localValidationMode = ["127.0.0.1", "localhost"].includes(location.hostname) && new URLSearchParams(location.search).get("jarvisLocal") === "1";
                 if (localValidationMode) {
                     if (window.JarvisLocalRuntime?.active !== true) {
-                        await import("/gestia-core/jarvis/jarvis.local.runtime.js?v=fixgo-marketing-memory-transition-v94-20260807");
+                        await import("/gestia-core/jarvis/jarvis.local.runtime.js?v=v142-adjunto-flow-alignment-20261001");
                     }
                     const localResult = await window.JarvisLocalRuntime.handle(comando);
                     window.renderJarvisResponse?.(
@@ -6778,7 +6778,7 @@ if (
 
 <script>
   if (["127.0.0.1", "localhost"].includes(location.hostname) && new URLSearchParams(location.search).get("jarvisLocal") === "1") {
-    setTimeout(() => import("/gestia-core/jarvis/jarvis.local.runtime.js?v=fixgo-marketing-memory-transition-v94-20260807")
+    setTimeout(() => import("/gestia-core/jarvis/jarvis.local.runtime.js?v=v142-adjunto-flow-alignment-20261001")
       .catch(error => console.error("[FIXGO_LOCAL_RUNTIME_LOAD_FAILED]", error)), 2500);
   }
 </script>

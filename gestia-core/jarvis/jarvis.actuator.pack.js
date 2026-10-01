@@ -4,12 +4,12 @@ import {
 import {
     buildPageArtifactHtml,
     describePageArtifact
-} from "../../jarvis-page-artifact.js?v=v94-page-evidence-failclosed-v123-20260810";
+} from "../../jarvis-page-artifact.js?v=v142-adjunto-flow-alignment-20261001";
 import {
     adaptImageSource,
     buildIdentityReferenceSheet,
     overlayBrandLogo
-} from "./jarvis.image.adapter.js?v=jarvis-official-brand-logo-v12-20260819";
+} from "./jarvis.image.adapter.js?v=v142-adjunto-flow-alignment-20261001";
 
 const VERSION = "7.29.0-v142-video-truthful-delivery";
 const VIDEO_REFERENCE_MIME_TYPES = new Set([

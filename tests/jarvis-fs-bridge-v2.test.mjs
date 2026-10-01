@@ -694,6 +694,88 @@ test("self-hosted semantic engine uses local Ollama embeddings with zero externa
     assert.equal(health.counters.paidExternalCalls, 0);
 });
 
+test("repo candidates propagates noDeadline to every local embedding call", async () => {
+    const fixture = createBridgeIdentityFixture();
+    const root = fixture.root;
+    fs.writeFileSync(
+        path.join(root, "semantic-no-deadline-target.js"),
+        'export const NO_DEADLINE_MARKER = "repo candidates";\n',
+        "utf8"
+    );
+    fixture.runGit(["add", "semantic-no-deadline-target.js"]);
+    fixture.runGit(["commit", "-m", "fixture: no deadline semantic target"]);
+    fixture.runGit(["push", "origin", fixture.branch]);
+
+    const embedOptions = [];
+    const semanticEngine = {
+        describe() {
+            return {
+                ok: true,
+                status: "LOCAL_SEMANTIC_BACKEND_CONFIGURED",
+                mode: "LOCAL_ONLY",
+                provider: "ollama-openai-compatible-local",
+                model: "qwen-test",
+                embeddingModel: "qwen3-embedding:0.6b",
+                fallbackAllowed: false,
+                externalApiUsed: false,
+                paidModelApiUsed: false
+            };
+        },
+        async embed(input, options = {}) {
+            embedOptions.push({ ...options });
+            const values = Array.isArray(input) ? input : [input];
+            return {
+                ok: true,
+                status: "LOCAL_EMBEDDING_READY",
+                provider: "ollama-local",
+                model: "qwen3-embedding:0.6b",
+                embeddings: values.map(value =>
+                    String(value || "").includes("NO_DEADLINE_MARKER")
+                        ? [1, 0, 0]
+                        : [0, 1, 0]
+                )
+            };
+        }
+    };
+
+    const server = createJarvisFsBridgeApp({
+        root,
+        localSemanticEngine: semanticEngine
+    }).listen(0, "127.0.0.1");
+    await new Promise(resolve => server.once("listening", resolve));
+    const base = `http://127.0.0.1:${server.address().port}`;
+
+    try {
+        const response = await fetch(base + "/repo/candidates", {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+                "x-jarvis-release-id": "test-release"
+            },
+            body: JSON.stringify({
+                query: "NO_DEADLINE_MARKER",
+                limit: 5,
+                refresh: true,
+                noDeadline: true
+            })
+        });
+        const body = await response.json();
+        assert.equal(response.status, 200, JSON.stringify(body));
+        assert.equal(body.ok, true);
+        assert.equal(body.semanticRetrieval, true);
+        assert.ok(embedOptions.length >= 2, JSON.stringify(embedOptions));
+        assert.ok(
+            embedOptions.every(options => options.noDeadline === true),
+            JSON.stringify(embedOptions)
+        );
+        assert.equal(body.semanticEvidence.externalApiUsed, false);
+    }
+    finally {
+        await new Promise(resolve => server.close(resolve));
+        fs.rmSync(fixture.fixtureRoot, { recursive: true, force: true });
+    }
+});
+
 test("CURRENT_TURN uses Qwen's action for retrieval before selecting a canonical schema", async () => {
     const cachePath = path.join(
         os.tmpdir(),
@@ -908,6 +990,10 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
         gateRequest.messages.map(message => message.role),
         [
             "system",
+            "user",
+            "assistant",
+            "user",
+            "assistant",
             "user",
             "assistant",
             "user",

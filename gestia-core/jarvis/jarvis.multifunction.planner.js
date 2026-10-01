@@ -1,7 +1,7 @@
 import { semanticPlanBudgetMs } from "./jarvis.semantic.transport.js";
 import {
     rejectCorruptedIdentityArgs
-} from "./jarvis.identity.integrity.js?v=v94-generalist-page-integrity-v120-20260810";
+} from "./jarvis.identity.integrity.js?v=v142-adjunto-flow-alignment-20261001";
 
 const VERSION = "4.22.0-v142-local-only-single-jarvis";
 const LOCAL_SEMANTIC_ROUTE = "/semantic/plan";
