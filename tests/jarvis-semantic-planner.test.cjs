@@ -766,6 +766,178 @@ test("current-turn follow-up keeps the unresolved operation when the user suppli
     assert.equal(result.toolCalls[0].name, "marketing.plan");
 });
 
+test("pending clarification overrides an erroneous chat classification and continues the original mission", async () => {
+    const marketing = {
+        name: "marketing.plan",
+        description: "Produce un plan de marketing desde un brief semantico.",
+        mutates: false,
+        inputSchema: {
+            type: "object",
+            properties: {
+                instruction: { type: "string" }
+            },
+            required: ["instruction"]
+        }
+    };
+    const previous =
+        "QUIERO QUE HAGAS MARKETING PARA https://www.summ.com.mx/ SUMMIT FIRMA DE ABOGADOS Y CON ARCHIVOS DESCARGABLES";
+    const current =
+        "EN CANCÚN QUINTANA ROO Y MARKETING A NIVEL NACIONAL";
+    const combined =
+        previous + "\n\n" + current;
+    let calls = 0;
+
+    const result =
+        await runJarvisSemanticPlanner({
+            input: current,
+            catalog: [
+                {
+                    name:
+                        "conversation.respond",
+                    description:
+                        "Responde cuando basta conversar.",
+                    mutates: false
+                },
+                marketing
+            ],
+            missionState: {
+                phase:
+                    "CURRENT_TURN",
+                conversationalGate:
+                    true,
+                advisorySemanticContext: {
+                    turns: [
+                        {
+                            role: "user",
+                            content: previous
+                        },
+                        {
+                            role: "assistant",
+                            content:
+                                "¿En qué ciudad o mercado quieres enfocar la campaña?"
+                        }
+                    ]
+                }
+            },
+            retrieveToolCandidates:
+                async (
+                    action,
+                    limit
+                ) => {
+                    assert.equal(
+                        action,
+                        "create marketing campaign"
+                    );
+                    assert.equal(
+                        limit,
+                        6
+                    );
+                    return [
+                        marketing
+                    ];
+                },
+            ai: {
+                models: {
+                    async generateContent(
+                        request
+                    ) {
+                        calls += 1;
+
+                        if (calls === 1) {
+                            assert.equal(
+                                request.config
+                                    .chatMessages
+                                    .at(-1)
+                                    .content,
+                                combined
+                            );
+                            return {
+                                text:
+                                    JSON.stringify({
+                                        missing:
+                                            "",
+                                        mode:
+                                            "chat",
+                                        question:
+                                            "",
+                                        action:
+                                            ""
+                                    }),
+                                providerResponse: {
+                                    finishReason:
+                                        "stop"
+                                }
+                            };
+                        }
+
+                        if (calls === 2) {
+                            assert.equal(
+                                request.config
+                                    .chatMessages
+                                    .at(-1)
+                                    .content,
+                                combined
+                            );
+                            return {
+                                text:
+                                    JSON.stringify({
+                                        action:
+                                            "create marketing campaign"
+                                    }),
+                                providerResponse: {
+                                    finishReason:
+                                        "stop"
+                                }
+                            };
+                        }
+
+                        assert.equal(
+                            request.config
+                                .chatMessages
+                                .at(-1)
+                                .content,
+                            combined
+                        );
+                        return {
+                            text:
+                                JSON.stringify({
+                                    name:
+                                        "jarvis_tool_0",
+                                    arguments: {
+                                        instruction:
+                                            combined
+                                    }
+                                }),
+                            providerResponse: {
+                                finishReason:
+                                    "stop"
+                            }
+                        };
+                    }
+                }
+            }
+        });
+
+    assert.equal(
+        calls,
+        3
+    );
+    assert.equal(
+        result.toolCalls.length,
+        1
+    );
+    assert.equal(
+        result.toolCalls[0].name,
+        "marketing.plan"
+    );
+    assert.equal(
+        result.toolCalls[0]
+            .args
+            .instruction,
+        combined
+    );
+});
+
 test("current-turn gate classifies the original read request, not its own phase instructions", async () => {
     const input = "Lee jarvis-runtime-contract.json sin modificar nada y dime en tres líneas qué comprobaste. Si falla, explica el error real.";
     const result = await runJarvisSemanticPlanner({

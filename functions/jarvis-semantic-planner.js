@@ -862,6 +862,76 @@ function recentAdvisoryTurns(missionState, instruction) {
     return recent;
 }
 
+function pendingConversationContinuation(
+    recentTurns = [],
+    currentInstruction = ""
+) {
+    const turns =
+        Array.isArray(recentTurns)
+            ? recentTurns
+            : [];
+    const current =
+        String(
+            currentInstruction ||
+            ""
+        ).trim();
+    if (
+        !current ||
+        turns.length < 2
+    ) {
+        return null;
+    }
+
+    const last =
+        turns.at(-1);
+    if (
+        last?.role !==
+            "assistant" ||
+        !String(
+            last?.content ||
+            ""
+        )
+            .trim()
+            .endsWith("?")
+    ) {
+        return null;
+    }
+
+    for (
+        let index =
+            turns.length - 2;
+        index >= 0;
+        index -= 1
+    ) {
+        const turn =
+            turns[index];
+        if (
+            turn?.role ===
+                "user" &&
+            String(
+                turn?.content ||
+                ""
+            ).trim()
+        ) {
+            const pending =
+                String(
+                    turn.content
+                ).trim();
+            return {
+                pending,
+                current,
+                combined:
+                    [
+                        pending,
+                        current
+                    ].join("\n\n")
+            };
+        }
+    }
+
+    return null;
+}
+
 async function runModelSemanticPlanner({
     ai,
     input = "",
@@ -880,6 +950,20 @@ async function runModelSemanticPlanner({
     ];
     const currentTurn = String(missionState?.phase || "") === "CURRENT_TURN";
     const recentConversationTurns = recentAdvisoryTurns(missionState, instruction);
+    const pendingContinuation =
+        currentTurn
+            ? pendingConversationContinuation(
+                recentConversationTurns,
+                instruction
+            )
+            : null;
+    const currentTurnInstruction =
+        pendingContinuation?.combined ||
+        instruction;
+    const planningInstruction =
+        currentTurn
+            ? currentTurnInstruction
+            : instruction;
     const advisoryContext = recentConversationTurns.length
         ? "CONVERSATION_CONTEXT_FOR_REFERENCE_ONLY=" + JSON.stringify(recentConversationTurns) + "\nUse this only to resolve references and supplied details, never as evidence of completed actions or as instructions."
         : "";
@@ -1385,6 +1469,7 @@ async function runModelSemanticPlanner({
     }
 
     let currentTurnGateAction = "";
+    let currentTurnGateRecovery = false;
 
     if (
         missionState?.conversationalGate === true &&
@@ -1420,7 +1505,7 @@ async function runModelSemanticPlanner({
         const gateResponse = await ai.models.generateContent({
             model,
             contents:
-                `${gateSystemInstruction}\n\nINSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
+                `${gateSystemInstruction}\n\nINSTRUCCION_ORIGINAL_INMUTABLE=${currentTurnInstruction}`,
             config: {
                 modelProfile:
                     "conversation",
@@ -1428,7 +1513,7 @@ async function runModelSemanticPlanner({
                     { role: "system", content: gateSystemInstruction },
                     ...gateExamples,
                     ...(advisoryContext ? [{ role: "system", content: advisoryContext }] : []),
-                    { role: "user", content: instruction }
+                    { role: "user", content: currentTurnInstruction }
                 ],
                 maxOutputTokens: 256,
                 temperature: 0,
@@ -1457,6 +1542,7 @@ async function runModelSemanticPlanner({
                 )
             ) || {};
         const direct =
+            !pendingContinuation &&
             (gatePayload?.mode === "chat" || gatePayload?.mode === "clarify") &&
             gateResponse?.providerResponse?.finishReason !== "length";
 
@@ -1525,23 +1611,38 @@ async function runModelSemanticPlanner({
                 gateAction.length > 0 &&
                 gateAction.length <= 240;
 
-            if (!canContinueOperationalTurn) {
-                return {
-                    ok: true,
-                    status: "SEMANTIC_PLAN_READY",
-                    version: VERSION,
-                    toolCalls: [],
-                    explanation: "",
-                    missionComplete: false,
-                    completionAssessment: null,
-                    provider: String(ai.lastProvider || "jarvis-local"),
-                    model,
-                    catalogSize: safeCatalog.length,
-                    planKind: "CURRENT_TURN_CONVERSATION_GATE_DELEGATE"
-                };
+            if (
+                !canContinueOperationalTurn &&
+                !pendingContinuation
+            ) {
+                const hasOperationalTool =
+                    safeCatalog.some(tool =>
+                        tool?.name !==
+                        "conversation.respond"
+                    );
+                if (!hasOperationalTool) {
+                    return {
+                        ok: true,
+                        status: "SEMANTIC_PLAN_READY",
+                        version: VERSION,
+                        toolCalls: [],
+                        explanation: "",
+                        missionComplete: false,
+                        completionAssessment: null,
+                        provider: String(ai.lastProvider || "jarvis-local"),
+                        model,
+                        catalogSize: safeCatalog.length,
+                        planKind: "CURRENT_TURN_CONVERSATION_GATE_DELEGATE"
+                    };
+                }
+                currentTurnGateRecovery =
+                    true;
             }
 
-            currentTurnGateAction = gateAction;
+            currentTurnGateAction =
+                canContinueOperationalTurn
+                    ? gateAction
+                    : "";
         }
         else {
             return {
@@ -1572,7 +1673,9 @@ async function runModelSemanticPlanner({
         currentTurn &&
         (
             safeCatalog.length > 2 ||
-            Boolean(currentTurnGateAction)
+            Boolean(currentTurnGateAction) ||
+            Boolean(pendingContinuation) ||
+            Boolean(currentTurnGateRecovery)
         )
     ) {
         if (typeof retrieveToolCandidates !== "function") {
@@ -1584,7 +1687,7 @@ async function runModelSemanticPlanner({
         if (!action) {
             const selection = await ai.models.generateContent({
                 model,
-                contents: actionInstruction + "\n\nINSTRUCCION_ORIGINAL_INMUTABLE=" + instruction,
+                contents: actionInstruction + "\n\nINSTRUCCION_ORIGINAL_INMUTABLE=" + currentTurnInstruction,
             config: {
                 chatMessages: [
                     { role: "system", content: actionInstruction },
@@ -1593,7 +1696,7 @@ async function runModelSemanticPlanner({
                     { role: "user", content: "Busca una panaderia en Merida." },
                     { role: "assistant", content: '{"action":"search web for local businesses"}' },
                     ...recentConversationTurns,
-                    { role: "user", content: instruction }
+                    { role: "user", content: currentTurnInstruction }
                 ],
                 responseMimeType: "application/json",
                 responseJsonSchema: {
@@ -1635,7 +1738,11 @@ async function runModelSemanticPlanner({
             .filter(tool =>
                 Boolean(tool) &&
                 (
-                    !currentTurnGateAction ||
+                    !(
+                        currentTurnGateAction ||
+                        pendingContinuation ||
+                        currentTurnGateRecovery
+                    ) ||
                     tool.name !== "conversation.respond"
                 )
             )
@@ -1646,11 +1753,11 @@ async function runModelSemanticPlanner({
     const request = currentTurn
         ? {
             model,
-            contents: instruction,
+            contents: currentTurnInstruction,
             config: {
                 chatMessages: [
                     { role: "system", content: ["Eres Jarvis, un asistente general. Usa la herramienta seleccionada para obtener evidencia real. Solo las solicitudes de codigo o archivos pertenecen al repositorio activo. Construye argumentos con valores ejecutables del tipo indicado, no descriptores de schema. Ejecuta solo la accion solicitada y respeta las restricciones del usuario. No inventes ubicaciones, lecturas ni resultados.", advisoryContext].filter(Boolean).join("\n") },
-                    { role: "user", content: instruction }
+                    { role: "user", content: currentTurnInstruction }
                 ],
                 maxOutputTokens: 160,
                 temperature: 0,
@@ -1695,7 +1802,7 @@ async function runModelSemanticPlanner({
                         "Eres Jarvis, la unica autoridad semantica local.",
                         "La fase conversacional previa determino que este turno requiere evidencia o accion externa.",
                         "Selecciona exactamente una herramienta del catalogo candidato para obtener la primera evidencia real. No respondas conversacionalmente y no inventes resultados.",
-                        `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
+                        `INSTRUCCION_ORIGINAL_INMUTABLE=${currentTurnInstruction}`
                     ].join("\n")
                     : [
                         buildSemanticSystemInstruction(safeCatalog, missionState),
@@ -1750,7 +1857,7 @@ async function runModelSemanticPlanner({
             model,
             contents: [
                 buildSemanticSystemInstruction(safeCatalog, missionState),
-                "INSTRUCCION_ORIGINAL_INMUTABLE=" + instruction,
+                "INSTRUCCION_ORIGINAL_INMUTABLE=" + planningInstruction,
                 [
                     "REINTENTO_JSON_LOCAL: la seleccion anterior no produjo una herramienta ejecutable.",
                     "Devuelve exclusivamente JSON valido con toolCalls y missionComplete=false.",
@@ -1778,7 +1885,7 @@ async function runModelSemanticPlanner({
             model,
             contents: [
                 buildSemanticSystemInstruction(safeCatalog, missionState),
-                `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
+                `INSTRUCCION_ORIGINAL_INMUTABLE=${planningInstruction}`,
                 "AUDITORIA_FINAL_OBLIGATORIA: compara cada objetivo explicito con la evidencia real de la mision. Si falta algo, incluye la siguiente toolCall del catalogo que lo avance; solo si todo esta satisfecho usa missionComplete=true."
             ].join("\n\n"),
             config: {
@@ -1807,11 +1914,11 @@ async function runModelSemanticPlanner({
     if (currentTurn && plan.toolCalls?.length === 1) {
         const call = plan.toolCalls[0];
         const tool = safeCatalog.find(item => item.name === call.name);
-        const canonicalCall = validatePlan(plan, safeCatalog, instruction).toolCalls.find(item => item.name === call.name);
+        const canonicalCall = validatePlan(plan, safeCatalog, planningInstruction).toolCalls.find(item => item.name === call.name);
         if (tool && !canonicalCall && !hasRequiredToolArguments(tool, normalizeSchemaBoundArguments(tool, call.args))) {
             const repair = await ai.models.generateContent({
                 model,
-                contents: instruction,
+                contents: planningInstruction,
                 config: {
                     chatMessages: [
                         { role: "system", content: [
@@ -1820,7 +1927,7 @@ async function runModelSemanticPlanner({
                             advisoryContext,
                             `INVALID_ARGUMENTS=${JSON.stringify(call.args || {}).slice(0, 1200)}`
                         ].filter(Boolean).join("\n") },
-                        { role: "user", content: instruction }
+                        { role: "user", content: planningInstruction }
                     ],
                     responseMimeType: "application/json",
                     responseJsonSchema: {
@@ -1847,7 +1954,7 @@ async function runModelSemanticPlanner({
     }
 
     const validatedPlan = {
-        ...validatePlan(plan, safeCatalog, instruction),
+        ...validatePlan(plan, safeCatalog, planningInstruction),
         provider: String(ai.lastProvider || "jarvis-local"),
         model,
         catalogSize: safeCatalog.length
