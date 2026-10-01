@@ -1541,9 +1541,123 @@ async function runModelSemanticPlanner({
                     ""
                 )
             ) || {};
+        let clarificationStillRequired =
+            gatePayload?.mode === "clarify";
+        let clarificationRecoveryAction =
+            "";
+
+        if (
+            clarificationStillRequired &&
+            !pendingContinuation &&
+            gateResponse?.providerResponse?.finishReason !== "length"
+        ) {
+            const clarificationAudit =
+                await ai.models.generateContent({
+                    model,
+                    contents: currentTurnInstruction,
+                    config: {
+                        chatMessages: [
+                            {
+                                role: "system",
+                                content: [
+                                    "Audit only whether the proposed missing detail is truly absent from the exact user instruction.",
+                                    "If the instruction already supplies the requested detail semantically, return stillMissing=false and describe the requested operation in action using 3-8 English words.",
+                                    "If the detail is genuinely absent, return stillMissing=true and action empty.",
+                                    "Do not answer the user or invent facts."
+                                ].join("\n")
+                            },
+                            {
+                                role: "user",
+                                content: JSON.stringify({
+                                    instruction:
+                                        currentTurnInstruction,
+                                    proposedMissing:
+                                        String(
+                                            gatePayload?.missing ||
+                                            ""
+                                        ),
+                                    proposedQuestion:
+                                        String(
+                                            gatePayload?.question ||
+                                            ""
+                                        )
+                                })
+                            }
+                        ],
+                        responseMimeType:
+                            "application/json",
+                        responseJsonSchema: {
+                            type:
+                                "object",
+                            properties: {
+                                stillMissing: {
+                                    type:
+                                        "boolean"
+                                },
+                                action: {
+                                    type:
+                                        "string"
+                                }
+                            },
+                            required: [
+                                "stillMissing",
+                                "action"
+                            ],
+                            additionalProperties:
+                                false
+                        },
+                        maxOutputTokens:
+                            128,
+                        temperature:
+                            0,
+                        thinkingConfig: {
+                            thinkingLevel:
+                                "MINIMAL"
+                        }
+                    }
+                });
+            const clarificationAuditPayload =
+                extractJsonObject(
+                    String(
+                        clarificationAudit
+                            ?.text ||
+                        ""
+                    )
+                ) || {};
+            if (
+                clarificationAudit
+                    ?.providerResponse
+                    ?.finishReason !==
+                    "length" &&
+                clarificationAuditPayload
+                    ?.stillMissing ===
+                    false
+            ) {
+                clarificationStillRequired =
+                    false;
+                clarificationRecoveryAction =
+                    String(
+                        clarificationAuditPayload
+                            ?.action ||
+                        ""
+                    )
+                        .trim()
+                        .slice(
+                            0,
+                            240
+                        );
+            }
+        }
+
         const direct =
             !pendingContinuation &&
-            (gatePayload?.mode === "chat" || gatePayload?.mode === "clarify") &&
+            (
+                gatePayload?.mode === "chat" ||
+                (
+                    gatePayload?.mode === "clarify" &&
+                    clarificationStillRequired
+                )
+            ) &&
             gateResponse?.providerResponse?.finishReason !== "length";
 
         let directMessage = "";
@@ -1602,9 +1716,22 @@ async function runModelSemanticPlanner({
 
         if (!direct) {
             const gateAction =
-                String(gatePayload?.action || "").trim();
+                String(
+                    clarificationRecoveryAction ||
+                    gatePayload?.action ||
+                    ""
+                ).trim();
+            const operationalGateMode =
+                gatePayload?.mode === "tools" ||
+                (
+                    gatePayload?.mode === "clarify" &&
+                    clarificationStillRequired === false &&
+                    Boolean(
+                        clarificationRecoveryAction
+                    )
+                );
             const canContinueOperationalTurn =
-                gatePayload?.mode === "tools" &&
+                operationalGateMode &&
                 gateResponse?.providerResponse?.finishReason !== "length" &&
                 safeCatalog.length > 1 &&
                 typeof retrieveToolCandidates === "function" &&

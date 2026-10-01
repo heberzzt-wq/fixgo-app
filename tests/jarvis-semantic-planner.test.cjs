@@ -938,6 +938,182 @@ test("pending clarification overrides an erroneous chat classification and conti
     );
 });
 
+test("false clarification is audited when the requested detail is already in the full instruction", async () => {
+    const input =
+        "QUIERO QUE HAGAS MARKETING PARA https://www.summ.com.mx/ SUMMIT FIRMA DE ABOGADOS EN CANCÚN QUINTANA ROO Y MARKETING A NIVEL NACIONAL Y CON ARCHIVOS DESCARGABLES";
+    const marketing = {
+        name: "marketing.plan",
+        description:
+            "Produce un plan de marketing desde un brief semantico.",
+        semanticArgumentCompletion:
+            true,
+        mutates: false,
+        inputSchema: {
+            type: "object",
+            properties: {
+                prompt: {
+                    type: "string"
+                },
+                brandName: {
+                    type: "string"
+                }
+            },
+            required: [
+                "brandName"
+            ],
+            additionalProperties:
+                true
+        }
+    };
+    let calls = 0;
+
+    const result =
+        await runJarvisSemanticPlanner({
+            input,
+            catalog: [
+                {
+                    name:
+                        "conversation.respond",
+                    description:
+                        "Responde cuando basta conversar.",
+                    mutates: false
+                },
+                marketing
+            ],
+            missionState: {
+                phase:
+                    "CURRENT_TURN",
+                conversationalGate:
+                    true
+            },
+            retrieveToolCandidates:
+                async (
+                    action,
+                    limit
+                ) => {
+                    assert.equal(
+                        action,
+                        "create marketing campaign"
+                    );
+                    assert.equal(
+                        limit,
+                        6
+                    );
+                    return [
+                        marketing
+                    ];
+                },
+            ai: {
+                models: {
+                    async generateContent(
+                        request
+                    ) {
+                        calls += 1;
+
+                        if (calls === 1) {
+                            return {
+                                text:
+                                    JSON.stringify({
+                                        missing:
+                                            "mercado objetivo",
+                                        mode:
+                                            "clarify",
+                                        question:
+                                            "¿En qué ciudad o mercado quieres enfocar la campaña?",
+                                        action:
+                                            ""
+                                    }),
+                                providerResponse: {
+                                    finishReason:
+                                        "stop"
+                                }
+                            };
+                        }
+
+                        if (calls === 2) {
+                            const auditBody =
+                                JSON.parse(
+                                    request.config
+                                        .chatMessages
+                                        .at(-1)
+                                        .content
+                                );
+                            assert.equal(
+                                auditBody
+                                    .instruction,
+                                input
+                            );
+                            return {
+                                text:
+                                    JSON.stringify({
+                                        stillMissing:
+                                            false,
+                                        action:
+                                            "create marketing campaign"
+                                    }),
+                                providerResponse: {
+                                    finishReason:
+                                        "stop"
+                                }
+                            };
+                        }
+
+                        assert.equal(
+                            request.config
+                                .nativeToolChat,
+                            true
+                        );
+                        assert.equal(
+                            request.config
+                                .chatMessages
+                                .at(-1)
+                                .content,
+                            input
+                        );
+                        return {
+                            text:
+                                JSON.stringify({
+                                    name:
+                                        "jarvis_tool_0",
+                                    arguments: {
+                                        brandName:
+                                            "SUMMIT FIRMA DE ABOGADOS"
+                                    }
+                                }),
+                            providerResponse: {
+                                finishReason:
+                                    "stop"
+                            }
+                        };
+                    }
+                }
+            }
+        });
+
+    assert.equal(
+        calls,
+        3
+    );
+    assert.equal(
+        result.toolCalls.length,
+        1
+    );
+    assert.equal(
+        result.toolCalls[0].name,
+        "marketing.plan"
+    );
+    assert.notEqual(
+        result.toolCalls[0].name,
+        "conversation.respond"
+    );
+    assert.equal(
+        result.toolCalls[0]
+            .args
+            .prompt,
+        input
+    );
+});
+
 test("current-turn gate classifies the original read request, not its own phase instructions", async () => {
     const input = "Lee jarvis-runtime-contract.json sin modificar nada y dime en tres líneas qué comprobaste. Si falla, explica el error real.";
     const result = await runJarvisSemanticPlanner({
