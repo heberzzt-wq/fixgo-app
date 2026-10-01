@@ -37,6 +37,8 @@ function normalizeCatalog(catalog = []) {
             mutates: item.mutates === true,
             requiresApproval: item.requiresApproval === true,
             userArtifact: item.userArtifact === true,
+            semanticArgumentCompletion:
+                item.semanticArgumentCompletion === true,
             missionIsolation:
                 item.missionIsolation === "exclusive"
                     ? "exclusive"
@@ -206,16 +208,23 @@ function validatePlan(
             : {};
         if (!tool) continue;
         let args = Object.keys(candidateArgs).length > 0
-            ? normalizeSchemaBoundArguments(
+            ? seedSemanticCompletionArguments(
                 tool,
-                candidateArgs
+                candidateArgs,
+                fallbackInput
             )
-            : fallbackInput
-                ? {
-                    instruction: String(fallbackInput).slice(0, 12000),
-                    query: String(fallbackInput).slice(0, 600)
-                }
-                : {};
+            : tool?.semanticArgumentCompletion === true
+                ? seedSemanticCompletionArguments(
+                    tool,
+                    {},
+                    fallbackInput
+                )
+                : fallbackInput
+                    ? {
+                        instruction: String(fallbackInput).slice(0, 12000),
+                        query: String(fallbackInput).slice(0, 600)
+                    }
+                    : {};
         if (
             tool.name ===
                 "web.research" &&
@@ -264,9 +273,12 @@ function validatePlan(
                 tool,
                 args
             );
+        const semanticArgumentCompletion =
+            tool?.semanticArgumentCompletion === true;
         if (
             !argumentsComplete &&
-            !allowDeferred
+            !allowDeferred &&
+            !semanticArgumentCompletion
         ) {
             continue;
         }
@@ -556,6 +568,70 @@ function normalizeSchemaBoundArguments(tool = {}, args = {}) {
         if (!declaredType || !expectedType || declaredType !== expectedType) continue;
         if (!schemaValueIsExecutable(value.value, fieldSchema)) continue;
         normalized[name] = value.value;
+    }
+
+    return normalized;
+}
+
+function seedSemanticCompletionArguments(
+    tool = {},
+    args = {},
+    fallbackInput = ""
+) {
+    const normalized =
+        normalizeSchemaBoundArguments(
+            tool,
+            args
+        );
+    if (
+        tool?.semanticArgumentCompletion !== true
+    ) {
+        return normalized;
+    }
+
+    const instruction =
+        String(
+            fallbackInput ||
+            ""
+        )
+            .trim()
+            .slice(0, 12000);
+    if (!instruction) {
+        return normalized;
+    }
+
+    const schema =
+        buildNativeInputSchema(
+            tool?.inputSchema
+        );
+    const properties =
+        schema?.properties ||
+        {};
+    const seedField =
+        [
+            "instruction",
+            "prompt",
+            "query",
+            "objective"
+        ].find(name =>
+            properties?.[name] &&
+            String(
+                properties[name]?.type ||
+                "string"
+            )
+                .toLowerCase() ===
+            "string"
+        );
+
+    if (
+        seedField &&
+        !schemaValueIsExecutable(
+            normalized[seedField],
+            properties[seedField]
+        )
+    ) {
+        normalized[seedField] =
+            instruction;
     }
 
     return normalized;

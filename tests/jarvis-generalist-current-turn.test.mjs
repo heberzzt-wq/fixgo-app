@@ -338,3 +338,79 @@ test("follow-up tool instruction preserves literal pending request and current a
         "SUMMIT FIRMA DE ABOGADOS"
     );
 });
+
+test("semantic-completion follow-up preserves the literal pending request in prompt", async () => {
+    const previous =
+        "QUIERO QUE HAGAS MARKETING PARA https://www.summ.com.mx/ SUMMIT FIRMA DE ABOGADOS";
+    const current =
+        "EN CANCÚN QUINTANA ROO Y MARKETING A NIVEL NACIONAL";
+    const marketingTool = {
+        name: "marketing.plan",
+        description: "Produce marketing y completa internamente el brief.",
+        semanticArgumentCompletion: true,
+        inputSchema: {
+            type: "object",
+            properties: {
+                prompt: { type: "string" },
+                brandName: { type: "string" },
+                audience: { type: "string" },
+                market: { type: "string" },
+                productionRequested: { type: "boolean" }
+            },
+            required: [
+                "brandName",
+                "audience",
+                "market",
+                "productionRequested"
+            ],
+            additionalProperties: false
+        }
+    };
+
+    const calls = await buildJarvisMultifunctionToolCalls(
+        current,
+        {
+            toolCatalog: [
+                catalog[0],
+                marketingTool
+            ],
+            missionState: {
+                phase: "CURRENT_TURN",
+                advisorySemanticContext: {
+                    turns: [
+                        {
+                            role: "user",
+                            content: previous
+                        },
+                        {
+                            role: "assistant",
+                            content: "¿En qué ciudad o mercado quieres enfocar la campaña?"
+                        }
+                    ]
+                }
+            },
+            semanticPlanner: semanticPlan([{
+                name: "marketing.plan",
+                args: {
+                    brandName:
+                        "SUMMIT FIRMA DE ABOGADOS"
+                },
+                reason:
+                    "CURRENT_TURN_MARKETING"
+            }]),
+            throwOnUnavailable: true
+        }
+    );
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].name, "marketing.plan");
+    assert.equal(calls[0].deferred, true);
+    assert.equal(
+        calls[0].args.prompt,
+        previous + "\n\n" + current
+    );
+    assert.deepEqual(
+        Object.keys(calls[0].args),
+        ["prompt"]
+    );
+});

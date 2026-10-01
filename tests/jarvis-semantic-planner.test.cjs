@@ -542,6 +542,160 @@ test("current-turn marketing cannot be hijacked by a higher-ranked observability
     assert.notEqual(result.toolCalls[0].name, "system.observability");
 });
 
+test("current-turn semantic completion tool survives incomplete model arguments without a repair loop", async () => {
+    const input =
+        "EN CANCÚN QUINTANA ROO Y MARKETING A NIVEL NACIONAL";
+    const marketing = {
+        name: "marketing.plan",
+        description:
+            "Produce un plan de marketing y completa el brief semanticamente.",
+        semanticArgumentCompletion: true,
+        mutates: false,
+        inputSchema: {
+            type: "object",
+            properties: {
+                prompt: { type: "string" },
+                brandName: { type: "string" },
+                audience: { type: "string" },
+                offer: { type: "string" },
+                pain: { type: "string" },
+                promise: { type: "string" },
+                differentiator: { type: "string" },
+                cta: { type: "string" },
+                market: { type: "string" },
+                campaignObjective: { type: "string" },
+                horizon: { type: "string" },
+                tone: { type: "string" },
+                channels: {
+                    type: "array",
+                    items: { type: "string" }
+                },
+                metrics: {
+                    type: "array",
+                    items: { type: "string" }
+                },
+                productionRequested: {
+                    type: "boolean"
+                }
+            },
+            required: [
+                "brandName",
+                "audience",
+                "offer",
+                "pain",
+                "promise",
+                "differentiator",
+                "cta",
+                "market",
+                "campaignObjective",
+                "horizon",
+                "tone",
+                "channels",
+                "metrics",
+                "productionRequested"
+            ],
+            additionalProperties: false
+        }
+    };
+    let calls = 0;
+
+    const result =
+        await runJarvisSemanticPlanner({
+            input,
+            catalog: [
+                {
+                    name:
+                        "conversation.respond",
+                    description:
+                        "Responde cuando basta conversar.",
+                    mutates: false
+                },
+                marketing
+            ],
+            missionState: {
+                phase: "CURRENT_TURN",
+                conversationalGate: true
+            },
+            retrieveToolCandidates:
+                async () => [
+                    marketing
+                ],
+            ai: {
+                models: {
+                    async generateContent(
+                        request
+                    ) {
+                        calls += 1;
+                        if (calls === 1) {
+                            return {
+                                text:
+                                    JSON.stringify({
+                                        missing: "",
+                                        mode: "tools",
+                                        question: "",
+                                        action:
+                                            "create marketing campaign"
+                                    }),
+                                providerResponse: {
+                                    finishReason:
+                                        "stop"
+                                }
+                            };
+                        }
+
+                        assert.equal(
+                            request.config
+                                .nativeToolChat,
+                            true
+                        );
+
+                        return {
+                            text:
+                                JSON.stringify({
+                                    name:
+                                        "jarvis_tool_0",
+                                    arguments: {
+                                        brandName:
+                                            "SUMMIT FIRMA DE ABOGADOS"
+                                    }
+                                }),
+                            providerResponse: {
+                                finishReason:
+                                    "stop"
+                            }
+                        };
+                    }
+                }
+            }
+        });
+
+    assert.equal(
+        calls,
+        2,
+        "self-completing tools must not enter the schema-repair inference"
+    );
+    assert.equal(
+        result.toolCalls.length,
+        1
+    );
+    assert.equal(
+        result.toolCalls[0].name,
+        "marketing.plan"
+    );
+    assert.equal(
+        result.toolCalls[0].deferred,
+        true
+    );
+    assert.equal(
+        result.toolCalls[0].args.prompt,
+        input
+    );
+    assert.equal(
+        result.toolCalls[0].args.brandName,
+        "SUMMIT FIRMA DE ABOGADOS"
+    );
+});
+
 test("current-turn follow-up keeps the unresolved operation when the user supplies the requested detail", async () => {
     const marketing = {
         name: "marketing.plan",

@@ -71,6 +71,8 @@ export const JarvisToolRuntime = {
                 tool.mutates === true,
             userArtifact:
                 tool.userArtifact === true,
+            semanticArgumentCompletion:
+                tool.semanticArgumentCompletion === true,
             missionIsolation:
                 tool.missionIsolation ===
                     "exclusive"
@@ -317,6 +319,8 @@ export const JarvisToolRuntime = {
                     t.requiresApproval === true,
                 userArtifact:
                     t.userArtifact === true,
+                semanticArgumentCompletion:
+                    t.semanticArgumentCompletion === true,
                 missionIsolation:
                     t.missionIsolation,
                 missionDedupeBy:

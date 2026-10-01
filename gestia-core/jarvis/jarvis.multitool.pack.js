@@ -6210,6 +6210,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         register(runtime, {
             name: "marketing.plan",
             description: "Produce el plan estratégico desde un brief semántico estructurado y evidencia real. Planear no equivale a producir archivos; productionRequested y productionArtifacts definen el contrato de producción sin interpretar texto localmente.",
+            semanticArgumentCompletion: true,
             output: "SIA7_MARKETING_PLAN",
             inputSchema: MARKETING_ARGUMENT_SCHEMA,
             execute: async (args = {}, context = {}) => {

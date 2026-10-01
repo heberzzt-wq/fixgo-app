@@ -4392,7 +4392,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     );
     assert.match(toolPack, /Google rechazo la credencial GEMINI_KEY/);
     assert.match(toolPack, /delegacion paralela esta disponible/);
-    assert.match(terminal, /gestia-terminal\.js\?v=v94-[a-z0-9-]+-[0-9]{8}/);
+    assert.match(terminal, /gestia-terminal\.js\?v=v142-adjunto-flow-alignment-20261001/);
     assert.doesNotMatch(terminal, /<script[^>]+gestia-core\/tools\.bridge\.js/);
     const core = fs.readFileSync(
         path.resolve(__dirname, "../gestia-core/gestia-core.js"),
@@ -4410,7 +4410,7 @@ test("tool bridge composes human actuator answers without dumping browser DOM or
     assert.match(terminal, /gestia-core\/gestia-core\.js/);
     assert.match(core, /unresolvedUserArtifactTasks/);
     assert.match(core, /missionResult\.blockedTasks\.map/);
-    assert.match(terminal, /gestia-terminal\.js\?v=v94-[a-z0-9-]+-[0-9]{8}/);
+    assert.match(terminal, /gestia-terminal\.js\?v=v142-adjunto-flow-alignment-20261001/);
 });
 
 test("multifunction planner keeps explanatory questions conversational", async () => {

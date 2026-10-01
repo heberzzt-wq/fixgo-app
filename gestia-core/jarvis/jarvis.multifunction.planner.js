@@ -1287,6 +1287,8 @@ function runtimeCatalog(context = {}) {
             mutates: tool.mutates === true,
             requiresApproval: tool.requiresApproval === true,
             userArtifact: tool.userArtifact === true,
+            semanticArgumentCompletion:
+                tool.semanticArgumentCompletion === true,
             missionIsolation:
                 tool.missionIsolation === "exclusive"
                     ? "exclusive"
@@ -1408,17 +1410,32 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
             !Array.isArray(tool.inputSchema)
                 ? tool.inputSchema
                 : {};
-        const declaresInstruction =
-            Boolean(
-                inputSchema?.properties?.instruction
-            ) ||
-            Object.prototype.hasOwnProperty.call(
-                inputSchema,
-                "instruction"
+        const schemaProperties =
+            inputSchema?.properties &&
+            typeof inputSchema.properties === "object"
+                ? inputSchema.properties
+                : inputSchema;
+        const literalSeedField =
+            [
+                "instruction",
+                "prompt",
+                "query",
+                "objective"
+            ].find(name =>
+                Object.prototype.hasOwnProperty.call(
+                    schemaProperties || {},
+                    name
+                )
+            ) || "";
+        const shouldPreserveLiteralInstruction =
+            Boolean(literalSeedField) &&
+            (
+                literalSeedField === "instruction" ||
+                tool?.semanticArgumentCompletion === true
             );
 
         if (
-            declaresInstruction &&
+            shouldPreserveLiteralInstruction &&
             originalInstruction
         ) {
             const turns =
@@ -1493,13 +1510,23 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
                 }
             }
 
-            args.instruction =
+            args[literalSeedField] =
                 pendingUserInstruction
                     ? [
                         pendingUserInstruction,
                         originalInstruction
                     ].join("\n\n")
                     : originalInstruction;
+
+            if (
+                missionPhase === "CURRENT_TURN" &&
+                tool?.semanticArgumentCompletion === true
+            ) {
+                args = {
+                    [literalSeedField]:
+                        args[literalSeedField]
+                };
+            }
         }
 
         if (
@@ -1573,9 +1600,12 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
                 tool,
                 args
             );
+        const semanticArgumentCompletion =
+            tool?.semanticArgumentCompletion === true;
         if (
             !argumentsComplete &&
-            !allowDeferred
+            !allowDeferred &&
+            !semanticArgumentCompletion
         ) {
             continue;
         }
