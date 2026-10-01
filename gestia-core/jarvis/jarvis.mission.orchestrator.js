@@ -2143,7 +2143,8 @@ export async function runJarvisMission({
     now = () => new Date().toISOString(),
     maximumSteps = 12,
     maximumRetries = 1,
-    timeoutMs = 180000,
+    timeoutMs = null,
+    noDeadline = true,
     signal,
     resumeMissionId,
     continuationContext = {},
@@ -2159,9 +2160,12 @@ export async function runJarvisMission({
     const videoGenerationRequested =
         (Array.isArray(requiredToolNames) && requiredToolNames.includes("video.generate")) ||
         (Array.isArray(initialToolCalls) && initialToolCalls.some(call => call?.name === "video.generate"));
-    const effectiveMissionTimeoutMs = videoGenerationRequested
-        ? Math.max(Number(timeoutMs) || 180000, 1800000)
-        : Number(timeoutMs) || 180000;
+    const effectiveMissionTimeoutMs =
+        noDeadline === true
+            ? null
+            : videoGenerationRequested
+                ? Math.max(Number(timeoutMs) || 180000, 1800000)
+                : Number(timeoutMs) || 180000;
     const runtimeResults = [];
     const rootInstructionHash = await sha256(originalInstruction);
     const recovered = resumeMissionId
@@ -2335,7 +2339,11 @@ export async function runJarvisMission({
             mission.reason = "CANCELLED";
             break;
         }
-        if (Date.now() - startedAt >= effectiveMissionTimeoutMs) {
+        if (
+            noDeadline !== true &&
+            Number(effectiveMissionTimeoutMs) > 0 &&
+            Date.now() - startedAt >= effectiveMissionTimeoutMs
+        ) {
             const completedNames = new Set(
                 mission.completedTasks.map(item => item.name)
             );

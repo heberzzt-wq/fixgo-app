@@ -4917,14 +4917,8 @@ if (
                 20,
             maximumRetries:
                 2,
-            timeoutMs:
-                missionInitialToolCalls
-                    .some(call =>
-                        call?.name ===
-                        "document.compose"
-                    )
-                    ? 900000
-                    : 360000,
+            noDeadline:
+                true,
             planner:
                 async ({ originalInstruction, mission }) => {
                     const resolvedToolNames = new Set([

@@ -692,9 +692,57 @@ test("mission cancellation and deadline close without another tool", async () =>
         planner: async () => ({ toolCalls: [] }),
         execute: async () => assert.fail("must not execute"),
         storage: memoryStorage(),
-        timeoutMs: -1
+        timeoutMs: 1,
+        noDeadline: false
     });
     assert.equal(deadline.reason, "DEADLINE_EXCEEDED");
+});
+
+test("mission ignores artificial timeoutMs by default and continues pending deliverables", async () => {
+    let executions = 0;
+    const mission = await runJarvisMission({
+        instruction: "Completa los entregables pendientes.",
+        initialToolCalls: [
+            { name: "deliverable.one", args: {} },
+            { name: "deliverable.two", args: {} }
+        ],
+        requiredToolNames: [
+            "deliverable.one",
+            "deliverable.two"
+        ],
+        executionContractLocked: true,
+        planner: async () => ({
+            toolCalls: [],
+            missionComplete: true
+        }),
+        execute: async call => {
+            executions += 1;
+            await new Promise(resolve =>
+                setTimeout(resolve, 40)
+            );
+            return {
+                ok: true,
+                executionOk: true,
+                objectiveSatisfied: true,
+                status:
+                    call.name === "deliverable.one"
+                        ? "DELIVERABLE_ONE_READY"
+                        : "DELIVERABLE_TWO_READY"
+            };
+        },
+        storage: memoryStorage(),
+        timeoutMs: 1
+    });
+
+    assert.equal(executions, 2);
+    assert.equal(
+        mission.reason,
+        "ALL_EXECUTABLE_TASKS_COMPLETED"
+    );
+    assert.equal(
+        mission.status,
+        "COMPLETED"
+    );
 });
 
 test("external video authorization is mission-scoped, durable across resume and reused by the same obligation", async () => {
