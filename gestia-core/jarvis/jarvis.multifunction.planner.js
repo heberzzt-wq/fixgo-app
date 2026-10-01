@@ -969,7 +969,8 @@ function normalizeExplicitSourceCandidates(
             String(candidate?.name || "");
         if (
             name !== "web.research" &&
-            name !== "web.media.collect"
+            name !== "web.media.collect" &&
+            name !== "marketing.package.real-media"
         ) {
             return candidate;
         }
@@ -1074,12 +1075,28 @@ const anchor =
             };
         }
 
+        if (
+            name ===
+            "marketing.package.real-media"
+        ) {
+            return {
+                ...candidate,
+                args: {
+                    ...args,
+                    sourceUrl:
+                        anchor.url
+                },
+                reason:
+                    candidate?.reason ||
+                    "SEMANTIC_PACKAGE_EXPLICIT_SOURCE_ANCHORED"
+            };
+        }
+
         return {
             ...candidate,
             args: {
                 ...args,
                 url:
-                    String(args.url || "").trim() ||
                     anchor.url
             },
             reason:

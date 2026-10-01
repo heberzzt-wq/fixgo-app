@@ -414,3 +414,84 @@ test("semantic-completion follow-up preserves the literal pending request in pro
         ["prompt"]
     );
 });
+
+test("explicit source URL overrides malformed semantic media and package URLs", async () => {
+    const input =
+        "Crea marketing y entregables para https://www.summ.com.mx/ en Cancún.";
+    const mediaTool = {
+        name: "web.media.collect",
+        description: "Recolecta medios reales.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                url: { type: "string" },
+                requireAnyVisual: { type: "boolean" }
+            },
+            required: ["url"],
+            additionalProperties: false
+        }
+    };
+    const packageTool = {
+        name: "marketing.package.real-media",
+        description: "Empaqueta los medios reales.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                sourceUrl: { type: "string" }
+            },
+            required: ["sourceUrl"],
+            additionalProperties: false
+        }
+    };
+
+    const calls =
+        await buildJarvisMultifunctionToolCalls(
+            input,
+            {
+                toolCatalog: [
+                    mediaTool,
+                    packageTool
+                ],
+                missionState: {
+                    phase:
+                        "MISSION_CONTRACT"
+                },
+                semanticPlanner:
+                    semanticPlan([
+                        {
+                            name:
+                                "web.media.collect",
+                            args: {
+                                url:
+                                    "https://www.summ.com.mx/ Cancún",
+                                requireAnyVisual:
+                                    true
+                            }
+                        },
+                        {
+                            name:
+                                "marketing.package.real-media",
+                            args: {
+                                sourceUrl:
+                                    "https://www.summ.com.mx/ inventado"
+                            }
+                        }
+                    ]),
+                throwOnUnavailable:
+                    true
+            }
+        );
+
+    assert.equal(
+        calls.length,
+        2
+    );
+    assert.equal(
+        calls[0].args.url,
+        "https://www.summ.com.mx/"
+    );
+    assert.equal(
+        calls[1].args.sourceUrl,
+        "https://www.summ.com.mx/"
+    );
+});

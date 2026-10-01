@@ -5809,6 +5809,126 @@ if (
                         }
                     }
 
+                    if (
+                        [
+                            "web.media.collect",
+                            "marketing.package.real-media"
+                        ].includes(
+                            String(
+                                call?.name ||
+                                ""
+                            )
+                        )
+                    ) {
+                        const normalizedMissionUrl = value => {
+                            try {
+                                const parsed =
+                                    new URL(
+                                        String(
+                                            value ||
+                                            ""
+                                        ).trim()
+                                    );
+                                return (
+                                    parsed.protocol === "https:" ||
+                                    parsed.protocol === "http:"
+                                )
+                                    ? parsed.toString()
+                                    : "";
+                            }
+                            catch {
+                                return "";
+                            }
+                        };
+                        const explicitUrls =
+                            [
+                                ...String(
+                                    missionContext?.rawInput ||
+                                    ""
+                                ).matchAll(
+                                    /https?:\/\/[^\s<>"']+/gi
+                                )
+                            ]
+                                .map(match =>
+                                    String(match?.[0] || "")
+                                        .replace(
+                                            /[),.;!?]+$/g,
+                                            ""
+                                        )
+                                )
+                                .map(
+                                    normalizedMissionUrl
+                                )
+                                .filter(Boolean);
+                        const verifiedSourceUrls =
+                            (
+                                Array.isArray(
+                                    missionContext?.validSources
+                                )
+                                    ? missionContext.validSources
+                                    : []
+                            )
+                                .map(source =>
+                                    normalizedMissionUrl(
+                                        source?.url
+                                    )
+                                )
+                                .filter(Boolean);
+                        const sourceUrls =
+                            [
+                                ...new Set(
+                                    explicitUrls.length > 0
+                                        ? explicitUrls
+                                        : verifiedSourceUrls
+                                )
+                            ];
+                        const canonicalSourceUrl =
+                            sourceUrls.length === 1
+                                ? sourceUrls[0]
+                                : "";
+
+                        if (canonicalSourceUrl) {
+                            if (
+                                call?.name ===
+                                "web.media.collect"
+                            ) {
+                                executionCall.args = {
+                                    ...executionCall.args,
+                                    url:
+                                        canonicalSourceUrl,
+                                    ...(
+                                        executionCall
+                                            .args
+                                            ?.requireImages ===
+                                            true ||
+                                        executionCall
+                                            .args
+                                            ?.requireVideos ===
+                                            true ||
+                                        executionCall
+                                            .args
+                                            ?.requireAnyVisual ===
+                                            true
+                                            ? {}
+                                            : {
+                                                requireAnyVisual:
+                                                    true
+                                            }
+                                    )
+                                };
+                            }
+                            else {
+                                executionCall.args = {
+                                    ...executionCall.args,
+                                    sourceUrl:
+                                        canonicalSourceUrl
+                                };
+                            }
+                            argumentGrounded =
+                                true;
+                        }
+                    }
+
                     const shouldCompletePlanningArguments =
                         shouldCompleteJarvisPlanningArguments(
                             executionCall, toolDefinition || {}, missionContext?.completedTasks
