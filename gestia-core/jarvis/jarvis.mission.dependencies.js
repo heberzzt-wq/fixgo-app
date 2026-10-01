@@ -238,6 +238,103 @@ function removeRedundantMarketingComposers(calls = []) {
     );
 }
 
+function injectRealMediaCollectionDependency(
+    calls = [],
+    available = new Set()
+) {
+    const packageIndex =
+        calls.findIndex(call =>
+            call?.name ===
+            "marketing.package.real-media"
+        );
+    if (
+        packageIndex < 0 ||
+        calls.some(call =>
+            call?.name ===
+            "web.media.collect"
+        ) ||
+        !available.has(
+            "web.media.collect"
+        )
+    ) {
+        return calls;
+    }
+
+    const packageCall =
+        calls[packageIndex];
+    const sourceUrl =
+        clean(
+            packageCall?.args
+                ?.sourceUrl
+        );
+    if (!sourceUrl) {
+        return calls;
+    }
+
+    const collectorCall = {
+        name:
+            "web.media.collect",
+        args: {
+            url:
+                sourceUrl,
+            ...(
+                packageCall
+                    ?.args
+                    ?.requireImages ===
+                    true
+                    ? {
+                        requireImages:
+                            true
+                    }
+                    : {}
+            ),
+            ...(
+                packageCall
+                    ?.args
+                    ?.requireVideos ===
+                    true
+                    ? {
+                        requireVideos:
+                            true
+                    }
+                    : {}
+            ),
+            ...(
+                packageCall
+                    ?.args
+                    ?.requireImages !==
+                    true &&
+                packageCall
+                    ?.args
+                    ?.requireVideos !==
+                    true
+                    ? {
+                        requireAnyVisual:
+                            true
+                    }
+                    : {}
+            ),
+            maxImages:
+                8,
+            maxVideos:
+                4
+        },
+        approved:
+            false,
+        reason:
+            "STRUCTURAL_REAL_MEDIA_PACKAGE_DEPENDENCY"
+    };
+
+    const expanded =
+        [...calls];
+    expanded.splice(
+        packageIndex,
+        0,
+        collectorCall
+    );
+    return expanded;
+}
+
 function injectPageComposeDependency(calls = [], available = new Set()) {
     const hasPageCreate = calls.some(call => call.name === "page.create");
     const hasPageCompose = calls.some(call => call.name === "page.compose");
@@ -329,6 +426,10 @@ export function ensureExecutableArtifactDependencies({
     }
     calls = tagMarketingProductionCalls(calls);
     calls = removeRedundantMarketingComposers(calls);
+    calls = injectRealMediaCollectionDependency(
+        calls,
+        available
+    );
     calls = injectPageComposeDependency(calls, available);
     return stableSemanticStageSort(calls);
 }

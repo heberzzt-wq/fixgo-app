@@ -4509,6 +4509,112 @@ if (
         );
     }
 
+    const currentConversationId =
+        String(
+            semanticMemoryContext
+                ?.currentConversationId ||
+            ""
+        ).trim();
+    const currentConversationTurns =
+        (
+            Array.isArray(
+                semanticMemoryContext
+                    ?.turns
+            )
+                ? semanticMemoryContext.turns
+                : []
+        )
+            .filter(turn =>
+                !currentConversationId ||
+                String(
+                    turn
+                        ?.conversationId ||
+                    ""
+                ).trim() ===
+                    currentConversationId
+            )
+            .map(turn => ({
+                role:
+                    String(
+                        turn?.role ||
+                        ""
+                    ).trim(),
+                content:
+                    String(
+                        turn?.content ||
+                        ""
+                    ).trim()
+            }))
+            .filter(turn =>
+                turn.content
+            );
+    const priorContinuationTurns =
+        [...currentConversationTurns];
+    if (
+        priorContinuationTurns
+            .at(-1)
+            ?.role ===
+            "user" &&
+        priorContinuationTurns
+            .at(-1)
+            ?.content ===
+            String(
+                inputRaw ||
+                ""
+            ).trim()
+    ) {
+        priorContinuationTurns.pop();
+    }
+    const lastPriorTurn =
+        priorContinuationTurns.at(-1) ||
+        null;
+    let pendingRootInstruction =
+        "";
+    if (
+        lastPriorTurn?.role ===
+            "assistant" &&
+        lastPriorTurn.content
+            .trim()
+            .endsWith("?")
+    ) {
+        for (
+            let index =
+                priorContinuationTurns
+                    .length - 2;
+            index >= 0;
+            index -= 1
+        ) {
+            const turn =
+                priorContinuationTurns[
+                    index
+                ];
+            if (
+                turn?.role ===
+                    "user" &&
+                turn.content
+            ) {
+                pendingRootInstruction =
+                    turn.content;
+                break;
+            }
+        }
+    }
+    const effectiveMissionInstruction =
+        pendingRootInstruction
+            ? [
+                pendingRootInstruction,
+                String(
+                    inputRaw ||
+                    ""
+                ).trim()
+            ]
+                .filter(Boolean)
+                .join("\n\n")
+            : String(
+                inputRaw ||
+                ""
+            ).trim();
+
     const registeredMissionTools =
         globalThis.JarvisToolRuntime
             ?.list?.()
@@ -4526,7 +4632,7 @@ if (
     const conversationalPlan =
         prepareEvidenceGroundedConversationPlan({
             instruction:
-                inputRaw,
+                effectiveMissionInstruction,
             toolCalls:
                 propuesta.toolCalls,
             toolCatalog:
@@ -4683,7 +4789,7 @@ if (
         try {
             missionContractToolCalls =
                 await buildJarvisMultifunctionToolCalls(
-                    inputRaw.slice(0, 120000),
+                    effectiveMissionInstruction.slice(0, 120000),
                     {
                         ...context,
                         throwOnUnavailable: true,
@@ -4889,7 +4995,7 @@ if (
     const missionResult =
         await runJarvisMission({
             instruction:
-                inputRaw,
+                effectiveMissionInstruction,
             initialToolCalls:
                 missionInitialToolCalls,
             requiredToolNames:

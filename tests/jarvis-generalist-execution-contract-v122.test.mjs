@@ -56,6 +56,46 @@ test("mission dependency contract executes research and real media before market
     assert.deepEqual(names(calls), ["web.research", "web.media.collect", "marketing.plan", "reel.plan"]);
 });
 
+test("real media package structurally injects verified media collection first", () => {
+    const calls = ensureExecutableArtifactDependencies({
+        catalog: [
+            ...catalog,
+            { name: "marketing.package.real-media" }
+        ],
+        toolCalls: [
+            {
+                name: "marketing.plan",
+                args: {
+                    brandName: "Summit Firma de Abogados"
+                }
+            },
+            {
+                name: "marketing.package.real-media",
+                args: {
+                    sourceUrl: "https://www.summ.com.mx/"
+                }
+            }
+        ]
+    });
+
+    assert.deepEqual(
+        names(calls),
+        [
+            "marketing.plan",
+            "web.media.collect",
+            "marketing.package.real-media"
+        ]
+    );
+    assert.equal(
+        calls[1].args.url,
+        "https://www.summ.com.mx/"
+    );
+    assert.equal(
+        calls[1].args.requireAnyVisual,
+        true
+    );
+});
+
 test("page.compose is inserted and then ordered before page.create when direct input is incomplete", () => {
     const calls = ensureExecutableArtifactDependencies({
         catalog,
