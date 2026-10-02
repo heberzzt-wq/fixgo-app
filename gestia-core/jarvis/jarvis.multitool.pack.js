@@ -2908,6 +2908,8 @@ async function fetchSemanticConversation(
     instruction = "",
     {
         maxOutputTokens = 3500,
+        semanticStage,
+        recoveryAttempt,
         responseMode,
         responseInstruction,
         responseBriefing
@@ -2949,6 +2951,7 @@ async function fetchSemanticConversation(
             {
                 input: instruction,
                 maxOutputTokens,
+                ...(semanticStage ? { semanticStage, recoveryAttempt } : {}),
                 ...(responseMode === "grounded_conversation" ? { responseMode, responseBriefing, responseInstruction } : {}),
                 timeoutMs: localTimeoutMs
             },
@@ -3037,6 +3040,23 @@ function stripDocumentCompletionMarker(content = "") {
         .split(DOCUMENT_COMPLETION_MARKER)
         .join("")
         .trim();
+}
+
+// Measure unmet requirements, not output length: more prose is not a repair.
+function documentRepairImproved(previous, next) {
+    const deficits = validation => new Map(validation.failures.map(failure => {
+        const [code, actual, required] = failure.split(":");
+        const deficit = Number.isFinite(Number(actual)) && Number.isFinite(Number(required))
+            ? Math.abs(Number(required) - Number(actual))
+            : code === "DOCUMENT_REQUIRED_SECTIONS_MISSING"
+                ? actual.split("|").length
+                : 1;
+        return [code, deficit];
+    }));
+    const before = deficits(previous);
+    const after = deficits(next);
+    return [...after].every(([code, deficit]) => before.has(code) && deficit <= before.get(code)) &&
+        [...before].some(([code, deficit]) => !after.has(code) || after.get(code) < deficit);
 }
 
 function boundDocumentModelContext(
@@ -3156,6 +3176,10 @@ function buildDocumentRepairDirectives({
             );
     const directives =
         [];
+    if (hasFailure("DOCUMENT_REQUIRED_SECTIONS_MISSING")) {
+        const missing = failureList.find(value => value.startsWith("DOCUMENT_REQUIRED_SECTIONS_MISSING:"));
+        directives.push(`Añade solamente las secciones ausentes con estos encabezados exactos: ${missing.split(":").slice(1).join(":")}.`);
+    }
     const exactTemplateMismatch =
         failureList
             .map(value =>
@@ -4962,11 +4986,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                 const title = clean(args.title, "Documento Jarvis");
                 const format = clean(args.format, "docx").toLowerCase();
                 const contract =
-                    extractDocumentContract(
-                        originalInstruction ||
-                        plannedInstruction ||
-                        fallbackInstruction
-                    );
+                    extractDocumentContract(instruction);
                 const segmentedComposition =
                     Number(contract.minWords) >=
                         2500 ||
@@ -4984,35 +5004,16 @@ export function registerJarvisMultifunctionTools(runtime) {
                             format,
                             contract
                         });
-                    const segmentResults =
-                        await Promise.all(
-                            segmentPrompts.map(
-                                async prompt => {
-                                    let result =
-                                        await fetchSemanticConversation(
-                                            prompt,
-                                            {
-                                                maxOutputTokens:
-                                                    4500
-                                            }
-                                        );
-                                    if (
-                                        result?.ok !==
-                                        true
-                                    ) {
-                                        result =
-                                            await fetchSemanticConversation(
-                                                prompt,
-                                                {
-                                                    maxOutputTokens:
-                                                        4500
-                                                }
-                                            );
-                                    }
-                                    return result;
-                                }
-                            )
-                        );
+                    const segmentResults = [];
+                    // The local CPU has one semantic authority and one heavy inference at a time.
+                    for (const prompt of segmentPrompts) {
+                        const options = { semanticStage: "document_segment", maxOutputTokens: 4500 };
+                        let result = await fetchSemanticConversation(prompt, options);
+                        if (result?.ok !== true) {
+                            result = await fetchSemanticConversation(prompt, options);
+                        }
+                        segmentResults.push(result);
+                    }
                     const successfulSegments =
                         segmentResults
                             .filter(result =>
@@ -5096,6 +5097,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                                 `SOLICITUD=${modelInstruction}`
                             ].join("\n"),
                             {
+                                semanticStage: "document_initial",
                                 maxOutputTokens:
                                     8000
                             }
@@ -5110,6 +5112,9 @@ export function registerJarvisMultifunctionTools(runtime) {
                         );
                 }
                 let continuationCount = 0;
+                let recoveryReason = null;
+                const repairHistory = [];
+                const seenFragments = new Set([stripDocumentCompletionMarker(content)]);
                 let validation =
                     validateDocumentBlueprint({
                         content:
@@ -5136,7 +5141,14 @@ export function registerJarvisMultifunctionTools(runtime) {
                             composedSoFar,
                             8000
                         );
-                    const repairDirectives =
+                    const replaceDraft = validation.failures.some(failure =>
+                        ["DOCUMENT_PLACEHOLDER_DETECTED", "DOCUMENT_CONTENT_LOW_DIVERSITY", "DOCUMENT_CONTENT_SUSPICIOUSLY_SHORT"].includes(failure) ||
+                        /^DOCUMENT_TEMPLATE_COUNT_MISMATCH:(\d+):(\d+)$/.test(failure) &&
+                            Number(failure.split(":")[1]) > Number(failure.split(":")[2])
+                    );
+                    const repairDirectives = replaceDraft
+                        ? ["Reescribe el documento completo corrigiendo las fallas. Sustituye el borrador defectuoso; no lo copies ni añadas texto de relleno. Conserva únicamente los hechos respaldados y cumple el contrato completo."]
+                        :
                         buildDocumentRepairDirectives({
                             contract,
                             failures:
@@ -5147,13 +5159,15 @@ export function registerJarvisMultifunctionTools(runtime) {
                         repairDirectives.length ===
                         0
                     ) {
+                        recoveryReason = "DOCUMENT_REPAIR_REQUIRES_REPLACEMENT";
                         break;
                     }
                     const continuation =
                         await fetchSemanticConversation(
                             [
                                 "REPARACION ESTRUCTURAL ESTRICTA DE DOCUMENTO.",
-                                "Entrega exclusivamente los bloques faltantes indicados abajo. No agregues introducciones, explicaciones, nuevas secciones narrativas ni contenido ya satisfecho.",
+                                replaceDraft ? "Entrega el documento corregido completo."
+                                    : "Entrega exclusivamente los bloques faltantes indicados abajo. No agregues introducciones, explicaciones, nuevas secciones narrativas ni contenido ya satisfecho.",
                                 "Respeta literalmente encabezados, numeración, cantidades y sintaxis de tablas Markdown.",
                                 ...repairDirectives,
                                 `Finaliza obligatoriamente con ${DOCUMENT_COMPLETION_MARKER} en una linea independiente.`,
@@ -5166,6 +5180,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                                 `CONTENIDO_YA_REDACTADO_CONTEXTO_ACOTADO=${boundedComposedContext}`
                             ].join("\n"),
                             {
+                                semanticStage: "document_repair",
+                                recoveryAttempt: continuationCount + 1,
                                 maxOutputTokens:
                                     4500
                             }
@@ -5175,31 +5191,45 @@ export function registerJarvisMultifunctionTools(runtime) {
                         continuation?.ok === true &&
                         clean(continuation.message)
                     ) {
-                        content =
+                        const candidateContent = replaceDraft
+                            ? clean(continuation.message)
+                            :
                             appendSemanticContinuation(
                                 composedSoFar,
                                 clean(continuation.message)
                             );
+                        const candidateCompletion = candidateContent.includes(DOCUMENT_COMPLETION_MARKER);
+                        const candidateValidation = validateDocumentBlueprint({
+                            content: stripDocumentCompletionMarker(candidateContent),
+                            instruction,
+                            completionMarkerPresent: candidateCompletion
+                        });
+                        const fragment = stripDocumentCompletionMarker(continuation.message);
+                        const repeatedContent = Boolean(fragment) && seenFragments.has(fragment) &&
+                            stripDocumentCompletionMarker(candidateContent) !== composedSoFar;
+                        const improved = !repeatedContent && documentRepairImproved(validation, candidateValidation);
+                        repairHistory.push({
+                            attempt: continuationCount,
+                            strategy: replaceDraft ? "REPLACE_INVALID_DRAFT" : "COMPLETE_MISSING_CONTENT",
+                            before: validation.failures,
+                            after: candidateValidation.failures,
+                            improved
+                        });
+                        if (!improved) {
+                            recoveryReason = "DOCUMENT_REPAIR_NO_PROGRESS";
+                            break;
+                        }
+                        seenFragments.add(fragment);
+                        content = candidateContent;
+                        completionVerified = candidateCompletion;
+                        validation = candidateValidation;
                         semantic = continuation;
                     }
                     else {
                         semantic = continuation;
+                        recoveryReason = "DOCUMENT_REPAIR_PROVIDER_UNAVAILABLE";
                         break;
                     }
-                    completionVerified =
-                        content.includes(
-                            DOCUMENT_COMPLETION_MARKER
-                        );
-                    validation =
-                        validateDocumentBlueprint({
-                            content:
-                                stripDocumentCompletionMarker(
-                                    content
-                                ),
-                            instruction,
-                            completionMarkerPresent:
-                                completionVerified
-                        });
                 }
 
                 content =
@@ -5273,6 +5303,20 @@ export function registerJarvisMultifunctionTools(runtime) {
                     tables:
                         validation.tables,
                     continuationCount,
+                    // Internal recovery owns this stage. The orchestrator must not start it over.
+                    retryable: false,
+                    fullRestartAllowed: false,
+                    recovery: {
+                        status: ok ? (continuationCount ? "RECOVERED" : "NOT_NEEDED") : "EXHAUSTED",
+                        reason: ok ? null : recoveryReason ||
+                            (continuationCount >= DOCUMENT_MAX_CONTINUATIONS
+                                ? "DOCUMENT_REPAIR_ATTEMPTS_EXHAUSTED"
+                                : "DOCUMENT_COMPOSITION_UNAVAILABLE"),
+                        attempts: continuationCount,
+                        maximumAttempts: DOCUMENT_MAX_CONTINUATIONS,
+                        draftPreserved: Boolean(content),
+                        history: repairHistory
+                    },
                     segmentedComposition,
                     readOnly:
                         true,

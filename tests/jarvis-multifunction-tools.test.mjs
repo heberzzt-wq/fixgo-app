@@ -1501,11 +1501,11 @@ test("document composition rejects a placeholder even when every response claims
             }
         );
 
-        assert.equal(requestCount, 7);
+        assert.equal(requestCount, 2);
         assert.equal(result.ok, false);
         assert.equal(result.status, "DOCUMENT_CONTENT_COMPOSITION_FAILED");
         assert.equal(result.validationPassed, false);
-        assert.equal(result.continuationCount, 6);
+        assert.equal(result.continuationCount, 1);
         assert.ok(result.validationFailures.includes("DOCUMENT_PLACEHOLDER_DETECTED"));
         assert.ok(result.validationFailures.some(item =>
             item.startsWith("DOCUMENT_WORD_COUNT_BELOW_MINIMUM")

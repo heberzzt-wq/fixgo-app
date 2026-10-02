@@ -403,9 +403,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         window.addEventListener("jarvis:semantic-progress", event => {
-            const { stage, elapsedMs = 0 } = event.detail || {};
+            const { stage, elapsedMs = 0, recoveryAttempt = 0 } = event.detail || {};
             const label = stage === "retrieval" ? "Recuperando herramientas relevantes"
                 : stage === "final_response" ? "Redactando la respuesta con la evidencia obtenida"
+                : stage === "document_initial" ? "Redactando el documento"
+                : stage === "document_segment" ? "Redactando una sección del documento"
+                : stage === "document_repair" ? `Reparando el documento · intento ${recoveryAttempt}/6`
                 : stage === "mission_contract" ? "Organizando los objetivos de la misión"
                 : stage === "conversation_gate" ? "Interpretando la solicitud completa" : "Preparando el plan con Qwen local";
             activeTracker?.activate(stage === "final_response" ? "response" : "core", `${label} · ${Math.floor(elapsedMs / 1000)} s`);

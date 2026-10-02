@@ -71,12 +71,16 @@ function semanticRequestHandler(semanticEngine, { heartbeatMs, operation }) {
         const budgetMs = null;
         const controller = new AbortController();
         const startedAt = Date.now();
-        let stage = operation === "respond" ? "final_response" : "planning";
+        const documentStage = operation === "respond" &&
+            ["document_initial", "document_segment", "document_repair"].includes(body.semanticStage);
+        let stage = documentStage ? body.semanticStage : operation === "respond" ? "final_response" : "planning";
+        const recoveryAttempt = documentStage && Number.isInteger(body.recoveryAttempt)
+            ? Math.max(0, Math.min(6, body.recoveryAttempt)) : 0;
         let heartbeat;
         const send = frame => {
             if (!res.destroyed && !res.writableEnded) res.write(JSON.stringify(frame) + "\n");
         };
-        const progress = () => send({ type: "progress", stage, elapsedMs: Date.now() - startedAt, budgetMs, noDeadline });
+        const progress = () => send({ type: "progress", stage, recoveryAttempt, elapsedMs: Date.now() - startedAt, budgetMs, noDeadline });
         const close = () => controller.abort();
         res.once("close", close);
         if (streaming) {

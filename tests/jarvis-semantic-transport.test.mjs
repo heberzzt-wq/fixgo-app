@@ -143,6 +143,18 @@ async function server(t, engine, operation = "plan") {
     });
 }
 
+test("document repair heartbeats identify the tool stage instead of claiming a final answer", async t => {
+    const request = await server(t, { describe, respond: async () => ({ ok: true, message: "Borrador" }) }, "respond");
+    for (const stage of ["document_initial", "document_segment", "document_repair", "untrusted_label"]) {
+        const response = await request({ input: "Redacta", streamProgress: true, semanticStage: stage, recoveryAttempt: 2 });
+        const frames = (await response.text()).trim().split("\n").map(JSON.parse);
+        assert.equal(frames[0].stage, stage === "untrusted_label" ? "final_response" : stage);
+        assert.equal(frames[0].recoveryAttempt, stage === "untrusted_label" ? 0 : 2);
+        assert.equal(frames[0].noDeadline, true);
+        assert.equal(frames.at(-1).result.message, "Borrador");
+    }
+});
+
 test("long CURRENT_TURN keeps every constraint in the gate and operative prompt", async () => {
     const prefixes = [];
     for (const conversationalGate of [true, false]) {
