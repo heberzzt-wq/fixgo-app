@@ -3376,6 +3376,79 @@ test("grounded missions complete semantic arguments for marketing, page, image a
     assert.equal(reel.semanticEnrichment.used, true);
 });
 
+test("marketing recovers explicit brand identity before returning MARKETING_INPUT_REQUIRED", async () => {
+    const runtime = createRuntime();
+    registerJarvisMultifunctionTools(runtime);
+    const calls = [];
+
+    const semanticArgumentPlanner = async ({ catalog }) => {
+        const toolName = catalog[0].name;
+        calls.push(toolName);
+
+        if (toolName === "marketing.identity") {
+            return {
+                ok: true,
+                status: "SEMANTIC_PLAN_READY",
+                provider: "test-identity-planner",
+                model: "semantic-test",
+                toolCalls: [{
+                    name: toolName,
+                    args: {
+                        brandName: "SUMMIT FIRMA DE ABOGADOS"
+                    }
+                }]
+            };
+        }
+
+        return {
+            ok: true,
+            status: "SEMANTIC_PLAN_READY",
+            provider: "test-marketing-planner",
+            model: "semantic-test",
+            toolCalls: [{
+                name: toolName,
+                args: {
+                    audience: "Empresas y particulares en Cancún y México",
+                    offer: "Asesoría legal",
+                    pain: "Necesidad de orientación jurídica",
+                    promise: "Atención profesional",
+                    differentiator: "Servicio legal especializado",
+                    cta: "Solicitar una consulta",
+                    tone: "profesional",
+                    metrics: ["consultas calificadas"],
+                    channels: ["linkedin", "facebook"],
+                    assets: ["campaign"],
+                    durationSeconds: 30,
+                    market: "Cancún, Quintana Roo y México",
+                    campaignObjective: "generar consultas calificadas",
+                    horizon: "90 días",
+                    productionRequested: false
+                }
+            }]
+        };
+    };
+
+    const result = await runtime.execute(
+        "marketing.plan",
+        {
+            prompt:
+                "QUIERO QUE HAGAS MARKETING PARA https://www.summ.com.mx/ SUMMIT FIRMA DE ABOGADOS EN CANCÚN QUINTANA ROO Y MARKETING A NIVEL NACIONAL"
+        },
+        {
+            rawInput:
+                "QUIERO QUE HAGAS MARKETING PARA https://www.summ.com.mx/ SUMMIT FIRMA DE ABOGADOS EN CANCÚN QUINTANA ROO Y MARKETING A NIVEL NACIONAL",
+            semanticArgumentPlanner,
+            analysisId:
+                "MARKETING-IDENTITY-RECOVERY"
+        }
+    );
+
+    assert.equal(result.status, "MARKETING_PACKAGE_READY");
+    assert.equal(result.brand.name, "SUMMIT FIRMA DE ABOGADOS");
+    assert.ok(calls.includes("marketing.plan"));
+    assert.ok(calls.includes("marketing.identity"));
+});
+
 test("multifunction media analysis preserves source trace and stays advisory", async () => {
     const runtime =
         createRuntime();

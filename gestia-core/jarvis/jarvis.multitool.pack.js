@@ -4031,6 +4031,69 @@ async function completeGroundedToolArgs({
     };
 }
 
+async function recoverMarketingBrandIdentity({
+    instruction = "",
+    context = {}
+} = {}) {
+    const source =
+        String(
+            instruction ||
+            ""
+        ).trim();
+    if (!source) {
+        return "";
+    }
+
+    try {
+        const result =
+            await completeJarvisPlanningArguments({
+                toolName:
+                    "marketing.identity",
+                description:
+                    "Extrae únicamente la identidad explícita de la marca, negocio, firma, producto u organización para la que el usuario pidió marketing. Si no está explícita, deja brandName vacío.",
+                inputSchema: {
+                    type:
+                        "object",
+                    properties: {
+                        brandName: {
+                            type:
+                                "string"
+                        }
+                    },
+                    required: [
+                        "brandName"
+                    ],
+                    additionalProperties:
+                        false
+                },
+                instruction:
+                    source,
+                currentArgs:
+                    {},
+                validSources:
+                    Array.isArray(
+                        context?.validSources
+                    )
+                        ? context.validSources
+                        : [],
+                semanticPlanner:
+                    typeof context
+                        ?.semanticArgumentPlanner ===
+                        "function"
+                        ? context.semanticArgumentPlanner
+                        : null
+            });
+
+        return String(
+            result?.args?.brandName ||
+            ""
+        ).trim();
+    }
+    catch {
+        return "";
+    }
+}
+
 function recentGroundedBusinessContext() {
     const entry = globalThis?.JarvisToolMemory?.last?.("web.research") || null;
     const payload =
@@ -6217,18 +6280,61 @@ export function registerJarvisMultifunctionTools(runtime) {
                 const instruction =
                     resolveInstruction(args, context);
 
-                let planningArgs = args;
+                let planningArgs = {
+                    ...(args &&
+                    typeof args === "object" &&
+                    !Array.isArray(args)
+                        ? args
+                        : {})
+                };
                 let semanticEnrichment = null;
                 let semanticEnrichmentError = null;
 
+                if (!clean(planningArgs?.brandName)) {
+                    const recoveredBrandName =
+                        await recoverMarketingBrandIdentity({
+                            instruction,
+                            context
+                        });
+                    if (recoveredBrandName) {
+                        planningArgs.brandName =
+                            recoveredBrandName;
+                    }
+                }
+
+                const marketingEnrichmentSchema =
+                    clean(planningArgs?.brandName)
+                        ? {
+                            ...MARKETING_ARGUMENT_SCHEMA,
+                            required:
+                                Array.isArray(
+                                    MARKETING_ARGUMENT_SCHEMA
+                                        ?.required
+                                )
+                                    ? MARKETING_ARGUMENT_SCHEMA
+                                        .required
+                                        .filter(
+                                            field =>
+                                                field !==
+                                                "brandName"
+                                        )
+                                    : []
+                        }
+                        : MARKETING_ARGUMENT_SCHEMA;
+
                 try {
-                    semanticEnrichment = await completeGroundedToolArgs({
-                        toolName: "marketing.plan",
-                        description: "Completa el brief estratégico de la herramienta ya seleccionada por significado. Decide semánticamente si el usuario pidió producción real y expresa esa decisión en productionRequested; si es true declara productionArtifacts con toolName exacto. Los campos creativos no factuales pueden ser propuestas editables.",
-                        inputSchema: MARKETING_ARGUMENT_SCHEMA,
-                        args: planningArgs,
-                        context
-                    });
+                    semanticEnrichment =
+                        await completeGroundedToolArgs({
+                            toolName:
+                                "marketing.plan",
+                            description:
+                                "Completa el brief estratégico de la herramienta ya seleccionada por significado. Conserva cualquier identidad de marca ya fijada por el runtime. Decide semánticamente si el usuario pidió producción real y expresa esa decisión en productionRequested; si es true declara productionArtifacts con toolName exacto. Los campos creativos no factuales pueden ser propuestas editables.",
+                            inputSchema:
+                                marketingEnrichmentSchema,
+                            args:
+                                planningArgs,
+                            context
+                        });
                     planningArgs =
                         semanticEnrichment?.args ||
                         planningArgs;

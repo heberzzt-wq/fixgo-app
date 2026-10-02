@@ -1114,6 +1114,85 @@ test("false clarification is audited when the requested detail is already in the
     );
 });
 
+test("explicit URL prevents an erroneous direct chat classification", async () => {
+    const input =
+        "QUIERO QUE HAGAS MARKETING PARA https://www.summ.com.mx/ SUMMIT FIRMA DE ABOGADOS EN CANCÚN Y CON ARCHIVOS DESCARGABLES";
+    const research = {
+        name: "web.research",
+        description: "Investiga una fuente web real.",
+        mutates: false,
+        inputSchema: {
+            type: "object",
+            properties: {
+                query: { type: "string" }
+            },
+            required: ["query"]
+        }
+    };
+    let calls = 0;
+
+    const result = await runJarvisSemanticPlanner({
+        input,
+        catalog: [
+            {
+                name: "conversation.respond",
+                description: "Responde cuando basta conversar.",
+                mutates: false
+            },
+            research
+        ],
+        missionState: {
+            phase: "CURRENT_TURN",
+            conversationalGate: true
+        },
+        retrieveToolCandidates: async (action, limit) => {
+            assert.equal(action, "research law firm website");
+            assert.equal(limit, 6);
+            return [research];
+        },
+        ai: {
+            models: {
+                async generateContent(request) {
+                    calls += 1;
+                    if (calls === 1) {
+                        return {
+                            text: JSON.stringify({
+                                missing: "",
+                                mode: "chat",
+                                question: "",
+                                action: ""
+                            }),
+                            providerResponse: { finishReason: "stop" }
+                        };
+                    }
+                    if (calls === 2) {
+                        return {
+                            text: JSON.stringify({
+                                action: "research law firm website"
+                            }),
+                            providerResponse: { finishReason: "stop" }
+                        };
+                    }
+                    return {
+                        text: JSON.stringify({
+                            name: "jarvis_tool_0",
+                            arguments: {
+                                query: "SUMMIT FIRMA DE ABOGADOS"
+                            }
+                        }),
+                        providerResponse: { finishReason: "stop" }
+                    };
+                }
+            }
+        }
+    });
+
+    assert.equal(calls, 3);
+    assert.equal(result.toolCalls.length, 1);
+    assert.equal(result.toolCalls[0].name, "web.research");
+    assert.notEqual(result.toolCalls[0].name, "conversation.respond");
+});
+
 test("current-turn gate classifies the original read request, not its own phase instructions", async () => {
     const input = "Lee jarvis-runtime-contract.json sin modificar nada y dime en tres líneas qué comprobaste. Si falla, explica el error real.";
     const result = await runJarvisSemanticPlanner({
