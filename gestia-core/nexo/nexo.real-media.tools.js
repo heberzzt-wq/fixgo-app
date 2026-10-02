@@ -556,7 +556,7 @@ export function registerJarvisRealMediaTools(runtime = runtimeCandidate()) {
                 title: { type: "string" },
                 requireImages: { type: "boolean" },
                 requireVideos: { type: "boolean" },
-                output: { type: "string" },
+                output: { type: "string", description: "Ruta JSON dentro de .jarvis-artifacts/ o nombre simple del archivo. Opcional; no es un nombre de herramienta." },
                 objectiveId: { type: "string" },
                 caseId: { type: "string" }
             },
@@ -592,6 +592,21 @@ export function registerJarvisRealMediaTools(runtime = runtimeCandidate()) {
             }
 
             const title = String(args.title || "JARVIS - Paquete de marketing con medios reales").trim();
+            const requestedOutput = String(args.output || "").trim().replaceAll("\\", "/");
+            const canonicalOutput = requestedOutput.startsWith(".jarvis-artifacts/") &&
+                requestedOutput.endsWith(".json") && !requestedOutput.split("/").some(part => part === ".." || part === ".") &&
+                !/[:\x00-\x1f]/.test(requestedOutput);
+            const simpleLabel = requestedOutput && !/[/:\x00-\x1f]/.test(requestedOutput) && !requestedOutput.includes("..");
+            if (requestedOutput && !canonicalOutput && !simpleLabel) return {
+                ok: false, status: "REAL_MEDIA_PACKAGE_OUTPUT_INVALID", error: "ARTIFACT_PATH_REQUIRED",
+                retryable: false, fullRestartAllowed: false, blocked: true, objectiveSatisfied: false
+            };
+            // A planner may supply a label in this optional field. Resolve it mechanically
+            // under the existing artifact root, retaining one path across mission retries.
+            const identity = context.analysisId || context.missionId || "";
+            const output = canonicalOutput ? requestedOutput : requestedOutput
+                ? `.jarvis-artifacts/campaign/${slug(requestedOutput.replace(/\.json$/i, ""))}${identity ? "-" + slug(identity) : ""}.json`
+                : undefined;
             const packageData = {
                 engine: "JARVIS",
                 version: JARVIS_REAL_MEDIA_TOOLS_VERSION,
@@ -619,7 +634,7 @@ export function registerJarvisRealMediaTools(runtime = runtimeCandidate()) {
             const result = await bridgeRequest("/artifact/json/create", {
                 type: "campaign",
                 slug: slug(title),
-                output: args.output,
+                output,
                 data: packageData,
                 origin: "marketing.package.real-media",
                 provider: "jarvis",

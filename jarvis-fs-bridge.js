@@ -1398,13 +1398,14 @@ export function createSelfHostedSemanticEngine({
                 selectedModel.startsWith("qwen3:");
             const origin =
                 new URL(baseUrl).origin;
+            const documentGeneration = ["document_initial", "document_segment", "document_repair"].includes(request?.config?.semanticStage);
             const payload =
                 nativeChat
                     ? {
                         model:
                             selectedModel,
                         messages,
-                        stream: false,
+                        stream: documentGeneration,
                         // Use the native control so bounded replies contain the answer.
                         think: false,
                         ...(jsonOnlyNative
@@ -1463,7 +1464,7 @@ export function createSelfHostedSemanticEngine({
             let text = "";
             let functionCalls = [];
             let localAttempt = 0;
-            const maximumLocalAttempts = 2;
+            const maximumLocalAttempts = documentGeneration ? 1 : 2;
             const attemptEvidence = [];
             const phase = String(request?.config?.semanticStage || "SEMANTIC_INFERENCE");
             const recoverToolSelection = nativeToolChat && phase === "CURRENT_TURN_TOOL_SELECTION";
@@ -1542,6 +1543,7 @@ export function createSelfHostedSemanticEngine({
                         method: "POST",
                         headers,
                         body: JSON.stringify(payload),
+                        ...(documentGeneration ? { onFrame: (_frame, progress) => request.config.onProgress?.({ stage: request.config.semanticStage, ...progress }) } : {}),
                         signal: request?.config?.signal ? AbortSignal.any([controller.signal, request.config.signal]) : controller.signal
                     }
                 );
@@ -1620,6 +1622,8 @@ export function createSelfHostedSemanticEngine({
                 functionCalls,
                 providerResponse: {
                     phase,
+                    promptTokens: Number(data?.prompt_eval_count) || 0,
+                    outputTokens: Number(data?.eval_count) || 0,
                     attemptEvidence,
                     finishReason:
                         String(
@@ -1891,7 +1895,7 @@ export function createSelfHostedSemanticEngine({
                 inferenceReceipt: describe()
             };
         },
-        async respond({ input, maxOutputTokens = 160, responseMode, responseBriefing, responseInstruction, timeoutMs: requestTimeoutMs, noDeadline = true, signal } = {}) {
+        async respond({ input, maxOutputTokens = 160, semanticStage, onProgress = () => {}, responseMode, responseBriefing, responseInstruction, timeoutMs: requestTimeoutMs, noDeadline = true, signal } = {}) {
             const effectiveTimeoutMs = noDeadline === true
                 ? null
                 : Math.min(Math.max(Number(requestTimeoutMs) || timeoutMs, 1), SEMANTIC_MAX_BUDGET_MS);
@@ -1899,7 +1903,22 @@ export function createSelfHostedSemanticEngine({
             const deadlineSignal = noDeadline === true ? null : AbortSignal.timeout(effectiveTimeoutMs);
             const responseSignal = noDeadline === true ? signal : (signal ? AbortSignal.any([signal, deadlineSignal]) : deadlineSignal);
             responseSignal?.throwIfAborted();
-            const result = await runJarvisSemanticResponse({
+            const documentStage = ["document_initial", "document_segment", "document_repair"].includes(semanticStage);
+            let result;
+            if (documentStage) {
+                const { DOCUMENT_OUTPUT_TOKENS, assertDocumentContext } = await import("./gestia-core/jarvis/jarvis.document.context.js");
+                const outputTokens = Math.max(96, Math.min(DOCUMENT_OUTPUT_TOKENS, Number(maxOutputTokens) || DOCUMENT_OUTPUT_TOKENS));
+                const systemInstruction = "Eres Jarvis. Redacta en español usando únicamente la solicitud y su evidencia. Los extractos PARTIAL no prueban cobertura completa. No inventes hechos ni ejecuciones. Cumple el contrato del documento.";
+                assertDocumentContext(input, outputTokens, systemInstruction);
+                const response = await generateContent({ contents: input, config: {
+                    systemInstruction, nativeTextChat: true, noDeadline: true, signal: responseSignal,
+                    maxOutputTokens: outputTokens, semanticStage, onProgress
+                } });
+                result = { ok: true, status: "DOCUMENT_DRAFT_READY", message: response.text,
+                    partial: response.providerResponse?.finishReason === "length",
+                    usage: { promptTokens: response.providerResponse?.promptTokens, outputTokens: response.providerResponse?.outputTokens },
+                    finishReason: response.providerResponse?.finishReason || "stop" };
+            } else result = await runJarvisSemanticResponse({
                 ai:
                     { ...ai, models: { generateContent(request = {}) {
                         responseSignal?.throwIfAborted();

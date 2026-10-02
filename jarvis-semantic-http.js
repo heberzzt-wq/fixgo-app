@@ -1,10 +1,11 @@
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
+import { StringDecoder } from "node:string_decoder";
 
 // Keep this transport local and do not follow redirects.
 // The AbortSignal represents caller cancellation/disconnection only; local semantic
 // inference has no artificial execution deadline.
-export async function fetchLocalSemanticResponse(url, { method, headers, body, signal }) {
+export async function fetchLocalSemanticResponse(url, { method, headers, body, signal, onFrame }) {
     const target = new URL(url);
     if (!["127.0.0.1", "localhost", "[::1]"].includes(target.hostname) ||
         !["http:", "https:"].includes(target.protocol)) {
@@ -25,6 +26,17 @@ export async function fetchLocalSemanticResponse(url, { method, headers, body, s
             }
             const chunks = [];
             let bytes = 0;
+            const streaming = typeof onFrame === "function" && response.statusCode >= 200 && response.statusCode < 300;
+            const decoder = new StringDecoder("utf8");
+            let pending = "", content = "", finalFrame = null;
+            const accept = line => {
+                if (!line.trim()) return;
+                const frame = JSON.parse(line);
+                if (frame.error) throw new Error(String(frame.error));
+                content += String(frame.message?.content || "");
+                if (frame.done === true) finalFrame = frame;
+                onFrame(frame, { generatedChars: content.length });
+            };
             response.on("error", reject);
             response.on("data", chunk => {
                 bytes += chunk.length;
@@ -34,11 +46,26 @@ export async function fetchLocalSemanticResponse(url, { method, headers, body, s
                     request.destroy(error);
                     return;
                 }
-                chunks.push(chunk);
+                if (!streaming) chunks.push(chunk);
+                else try {
+                    pending += decoder.write(chunk);
+                    let end;
+                    while ((end = pending.indexOf("\n")) >= 0) {
+                        accept(pending.slice(0, end));
+                        pending = pending.slice(end + 1);
+                    }
+                } catch (error) { reject(error); request.destroy(error); }
             });
             response.on("end", () => {
                 if (!response.complete) return reject(new Error("LOCAL_SEMANTIC_RESPONSE_INCOMPLETE"));
-                const raw = Buffer.concat(chunks).toString("utf8");
+                let raw;
+                try {
+                    if (streaming) {
+                        accept(pending + decoder.end());
+                        if (!finalFrame) throw new Error("LOCAL_SEMANTIC_STREAM_INCOMPLETE");
+                        raw = JSON.stringify({ ...finalFrame, message: { ...finalFrame.message, content } });
+                    } else raw = Buffer.concat(chunks).toString("utf8");
+                } catch (error) { reject(error); return; }
                 const status = response.statusCode || 0;
                 resolve({ ok: status >= 200 && status < 300, status, text: async () => raw });
             });
@@ -77,10 +104,11 @@ function semanticRequestHandler(semanticEngine, { heartbeatMs, operation }) {
         const recoveryAttempt = documentStage && Number.isInteger(body.recoveryAttempt)
             ? Math.max(0, Math.min(6, body.recoveryAttempt)) : 0;
         let heartbeat;
+        let generatedChars = 0;
         const send = frame => {
             if (!res.destroyed && !res.writableEnded) res.write(JSON.stringify(frame) + "\n");
         };
-        const progress = () => send({ type: "progress", stage, recoveryAttempt, elapsedMs: Date.now() - startedAt, budgetMs, noDeadline });
+        const progress = () => send({ type: "progress", stage, recoveryAttempt, generatedChars, elapsedMs: Date.now() - startedAt, budgetMs, noDeadline });
         const close = () => controller.abort();
         res.once("close", close);
         if (streaming) {
@@ -92,7 +120,13 @@ function semanticRequestHandler(semanticEngine, { heartbeatMs, operation }) {
         try {
             const result = await semanticEngine[operation]({
                 ...body, timeoutMs: budgetMs, noDeadline, signal: controller.signal,
-                onProgress: nextStage => { stage = nextStage; if (streaming) progress(); }
+                onProgress: nextStage => {
+                    if (typeof nextStage === "string") stage = nextStage;
+                    else if (documentStage && nextStage?.stage === body.semanticStage) {
+                        generatedChars = Math.max(generatedChars, Number(nextStage.generatedChars) || 0);
+                    }
+                    if (streaming) progress();
+                }
             });
             const receipt = { ...result, localSemanticInferenceUsed: true, cloudSemanticInferenceUsed: false, fallbackAllowed: health.fallbackAllowed };
             if (streaming) send({ type: "result", result: receipt });

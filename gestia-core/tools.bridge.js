@@ -795,6 +795,9 @@ function composeActuatorFailure(
                 `Causa: ${errorText}.`
             ].join("\n"),
             {
+                // Preserve the tool's recovery contract through the presentation layer.
+                // Otherwise the mission treats an exhausted document as retryable.
+                ...(toolName === "document.compose" ? result : {}),
                 ok: false,
                 tool: toolName,
                 status: result?.status || "FAILED",

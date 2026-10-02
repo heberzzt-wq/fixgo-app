@@ -52,6 +52,7 @@ test("document recovery fixes only missing content with the same local provider"
         assert.equal(result.validationPassed, true);
         assert.equal(result.content.split(draft).length - 1, 1);
         assert.match(requests[1].input, /DOCUMENT_TABLE_COUNT_BELOW_MINIMUM/);
+        assert.match(requests[1].input, /REGLA_FACTUAL/);
         assert.equal(result.recovery.status, "RECOVERED");
         assert.deepEqual(requests.map(request => request.semanticStage), ["document_initial", "document_repair"]);
         assert.equal(requests[1].recoveryAttempt, 1);

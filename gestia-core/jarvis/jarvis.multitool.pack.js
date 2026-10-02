@@ -46,6 +46,7 @@ const FORENSICS_SUPERVISION_TIMEOUT_MS = 4500;
 const DOCUMENT_COMPLETION_MARKER = "[[JARVIS_DOCUMENT_COMPLETE]]";
 const DOCUMENT_MAX_CONTINUATIONS = 6;
 const DOCUMENT_SEGMENT_COUNT = 3;
+import { DOCUMENT_OUTPUT_TOKENS, assertDocumentContext, documentExcerpt, documentEvidenceEnvelope, persistDocumentDraft } from "./jarvis.document.context.js";
 
 function semanticMemoryEnvelope(context = {}) {
     const memory = context?.semanticMemory;
@@ -2946,6 +2947,9 @@ async function fetchSemanticConversation(
             : 90000;
 
     try {
+        if (["document_initial", "document_segment", "document_repair"].includes(semanticStage)) {
+            assertDocumentContext(instruction, maxOutputTokens);
+        }
         const localResult = await bridge.requestJson(
             "/semantic/respond",
             {
@@ -4952,16 +4956,9 @@ export function registerJarvisMultifunctionTools(runtime) {
                         context
                     );
                 const boundedOriginalInstruction =
-                    boundDocumentModelContext(
-                        originalInstruction ||
-                        fallbackInstruction,
-                        30000
-                    );
+                    originalInstruction || fallbackInstruction;
                 const boundedPlannedInstruction =
-                    boundDocumentModelContext(
-                        plannedInstruction,
-                        16000
-                    );
+                    plannedInstruction;
                 const instruction =
                     [
                         boundedOriginalInstruction,
@@ -4975,9 +4972,13 @@ export function registerJarvisMultifunctionTools(runtime) {
                         .join("\n\n") ||
                     fallbackInstruction;
                 const canonicalEvidence =
-                    canonicalEvidenceEnvelope(context);
+                    documentEvidenceEnvelope(context.canonicalEvidence);
                 const modelInstruction = [
-                    instruction,
+                    // Preserve the complete user's instruction. Planner prose is a
+                    // proposal; its full quantitative contract is supplied separately.
+                    boundedOriginalInstruction,
+                    boundedPlannedInstruction && boundedPlannedInstruction !== boundedOriginalInstruction
+                        ? `DETALLE_DEL_PLAN_EXTRACTO=${documentExcerpt(boundedPlannedInstruction, 800)}` : "",
                     canonicalEvidence !== "[]"
                         ? `EVIDENCIA_CANONICA_DE_MISION=${canonicalEvidence}`
                         : "",
@@ -5007,12 +5008,13 @@ export function registerJarvisMultifunctionTools(runtime) {
                     const segmentResults = [];
                     // The local CPU has one semantic authority and one heavy inference at a time.
                     for (const prompt of segmentPrompts) {
-                        const options = { semanticStage: "document_segment", maxOutputTokens: 4500 };
+                        const options = { semanticStage: "document_segment", maxOutputTokens: DOCUMENT_OUTPUT_TOKENS };
                         let result = await fetchSemanticConversation(prompt, options);
-                        if (result?.ok !== true) {
+                        if (result?.ok !== true && result?.error !== "DOCUMENT_CONTEXT_BUDGET_EXCEEDED") {
                             result = await fetchSemanticConversation(prompt, options);
                         }
                         segmentResults.push(result);
+                        if (result?.error === "DOCUMENT_CONTEXT_BUDGET_EXCEEDED") break;
                     }
                     const successfulSegments =
                         segmentResults
@@ -5099,7 +5101,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                             {
                                 semanticStage: "document_initial",
                                 maxOutputTokens:
-                                    8000
+                                    DOCUMENT_OUTPUT_TOKENS
                             }
                         );
                     content =
@@ -5112,6 +5114,9 @@ export function registerJarvisMultifunctionTools(runtime) {
                         );
                 }
                 let continuationCount = 0;
+                const draftId = `${context.analysisId || context.missionId || globalThis.crypto.randomUUID()}:${format}`;
+                const saveDraft = () => persistDocumentDraft({ id: draftId, title, format, content: stripDocumentCompletionMarker(content) });
+                let draftPersistence = saveDraft();
                 let recoveryReason = null;
                 const repairHistory = [];
                 const seenFragments = new Set([stripDocumentCompletionMarker(content)]);
@@ -5137,9 +5142,10 @@ export function registerJarvisMultifunctionTools(runtime) {
                             content
                         );
                     const boundedComposedContext =
-                        boundDocumentModelContext(
+                        documentExcerpt(
                             composedSoFar,
-                            8000
+                            800,
+                            true
                         );
                     const replaceDraft = validation.failures.some(failure =>
                         ["DOCUMENT_PLACEHOLDER_DETECTED", "DOCUMENT_CONTENT_LOW_DIVERSITY", "DOCUMENT_CONTENT_SUSPICIOUSLY_SHORT"].includes(failure) ||
@@ -5169,21 +5175,21 @@ export function registerJarvisMultifunctionTools(runtime) {
                                 replaceDraft ? "Entrega el documento corregido completo."
                                     : "Entrega exclusivamente los bloques faltantes indicados abajo. No agregues introducciones, explicaciones, nuevas secciones narrativas ni contenido ya satisfecho.",
                                 "Respeta literalmente encabezados, numeración, cantidades y sintaxis de tablas Markdown.",
+                                ...(semantic?.partial ? ["El borrador alcanzó el límite del fragmento. Completa el cierre interrumpido y los requisitos pendientes sin repetir el texto anterior."] : []),
                                 ...repairDirectives,
                                 `Finaliza obligatoriamente con ${DOCUMENT_COMPLETION_MARKER} en una linea independiente.`,
                                 `FALLAS_PENDIENTES=${JSON.stringify(validation.failures)}`,
                                 `CONTRATO_VERIFICABLE=${JSON.stringify(compactDocumentContractForModel(contract))}`,
                                 `TITULO=${title}`,
                                 `FORMATO=${format}`,
-                                `SOLICITUD_ORIGINAL=${boundedOriginalInstruction}`,
-                                `EVIDENCIA_CANONICA_DE_MISION=${canonicalEvidence}`,
+                                `SOLICITUD_ORIGINAL_Y_EVIDENCIA=${modelInstruction}`,
                                 `CONTENIDO_YA_REDACTADO_CONTEXTO_ACOTADO=${boundedComposedContext}`
                             ].join("\n"),
                             {
                                 semanticStage: "document_repair",
                                 recoveryAttempt: continuationCount + 1,
                                 maxOutputTokens:
-                                    4500
+                                    DOCUMENT_OUTPUT_TOKENS
                             }
                         );
                     continuationCount += 1;
@@ -5221,6 +5227,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                         }
                         seenFragments.add(fragment);
                         content = candidateContent;
+                        draftPersistence = saveDraft();
                         completionVerified = candidateCompletion;
                         validation = candidateValidation;
                         semantic = continuation;
@@ -5303,6 +5310,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                     tables:
                         validation.tables,
                     continuationCount,
+                    draftPersistence,
                     // Internal recovery owns this stage. The orchestrator must not start it over.
                     retryable: false,
                     fullRestartAllowed: false,

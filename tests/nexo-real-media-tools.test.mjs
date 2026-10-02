@@ -150,3 +150,29 @@ test("real media package creates verified local manifest when both families exis
     assert.equal(request.payload.data.policy.syntheticMediaSubstitutionAllowed, false);
     assert.equal(request.payload.data.mediaAssets.length, 2);
 });
+
+test("package labels become stable local artifact paths and unsafe paths never execute", async t => {
+    const previous = globalThis.JarvisLocalBridge;
+    t.after(() => { globalThis.JarvisLocalBridge = previous; });
+    const requests = [];
+    globalThis.JarvisLocalBridge = { requestJson: async (route, payload) => {
+        assert.match(payload.output, /^\.jarvis-artifacts\/campaign\/.+\.json$/);
+        requests.push(payload);
+        return { ok: true, output: payload.output };
+    } };
+    const runtime = runtimeFixture();
+    registerJarvisRealMediaTools(runtime);
+    const tool = runtime.registry.get("marketing.package.real-media");
+    const context = { analysisId: "analysis-current", completedTasks: [marketingTask()] };
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const result = await tool.execute({ sourceUrl: "https://www.summ.com.mx/", output: "marketing.package.real-media" }, context);
+        assert.equal(result.ok, true);
+    }
+    assert.equal(requests[0].output, requests[1].output);
+    for (const output of ["../../secret.json", "C:/outside/file.json", ".jarvis-artifacts/../outside.json"]) {
+        const result = await tool.execute({ sourceUrl: "https://www.summ.com.mx/", output }, context);
+        assert.equal(result.ok, false);
+        assert.equal(result.retryable, false);
+    }
+    assert.equal(requests.length, 2);
+});

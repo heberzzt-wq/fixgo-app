@@ -1337,10 +1337,7 @@ test("document composition continues a cut response and verifies its real ending
             const request = JSON.parse(options.body);
             assert.equal(
                 request.data.maxOutputTokens,
-                requestCount ===
-                    1
-                    ? 8000
-                    : 4500
+                1200
             );
             return {
                 ok: true,
@@ -2550,7 +2547,7 @@ test("large document composition repairs one failed semantic segment", async () 
                 request.data.input;
             assert.equal(
                 request.data.maxOutputTokens,
-                4500
+                1200
             );
             assert.ok(
                 request.data.input.length <
