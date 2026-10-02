@@ -927,10 +927,20 @@ export function registerJarvisActuatorTools(runtime) {
                     };
                 }
 
+                let output = String(args.output || args.title || "document").trim();
+                // Resolve a simple file label inside the existing artifact root.
+                // Explicit paths still go through the bridge's path validation.
+                if (output && !/[\\/:\x00-\x1f]/.test(output) && !output.includes("..")) {
+                    const slug = value => String(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(0, 100);
+                    const format = String(args.format || "html").toLowerCase();
+                    const stem = output.toLowerCase().endsWith(`.${format}`) ? output.slice(0, -format.length - 1) : output;
+                    const identity = context.analysisId || context.missionId || context.caseId || "";
+                    output = `.jarvis-artifacts/documents/${slug(stem)}${identity ? "-" + slug(identity) : ""}.${format}`;
+                }
                 return await bridgeRequest("/document", {
                     format: args.format || "html",
                     output:
-                        args.output ||
+                        output ||
                         undefined,
                     title: args.title,
                     contentSource,

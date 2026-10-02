@@ -3391,7 +3391,10 @@ test("marketing recovers explicit brand identity before returning MARKETING_INPU
                 toolCalls: [{
                     name: toolName,
                     args: {
-                        brandName: "SUMMIT FIRMA DE ABOGADOS"
+                        brandName: "SUMMIT FIRMA DE ABOGADOS",
+                        offer: "Asesoría legal",
+                        audience: "Empresas y particulares en Cancún y México",
+                        market: "Cancún, Quintana Roo y México"
                     }
                 }]
             };
@@ -3442,6 +3445,7 @@ test("marketing recovers explicit brand identity before returning MARKETING_INPU
 
     assert.equal(result.status, "MARKETING_PACKAGE_READY");
     assert.equal(result.brand.name, "SUMMIT FIRMA DE ABOGADOS");
+    assert.ok(result.campaign.assumptions.some(item => item.field === "cta" && item.factualClaim === false));
     assert.ok(calls.includes("marketing.plan"));
     assert.ok(calls.includes("marketing.identity"));
 });

@@ -5476,9 +5476,7 @@ if (
                             blueprint
                                 .formulaValidationPassed ===
                                 true &&
-                            Number(
-                                blueprint?.formulaCount
-                            ) > 0
+                            (blueprint.requireFormulas !== true || Number(blueprint.formulaCount) > 0)
                         ) {
                             executionCall.args = {
                                 ...executionCall.args,
@@ -5491,7 +5489,7 @@ if (
                                 sheets:
                                     blueprint.sheets,
                                 requireFormulas:
-                                    true
+                                    blueprint.requireFormulas === true
                             };
                             argumentGrounded =
                                 true;
@@ -6082,8 +6080,17 @@ if (
                     }
 
                     const executeMissionToolOnce =
-                        async () =>
-                            window.ToolsBridge.executeMany(
+                        // Resolve the same production handoff after deferred format
+                        // arguments have arrived, not only before their completion.
+                        async () => {
+                            if (call.name === "document.create") {
+                                const marketingArgs = marketingArtifactArgsFromCompletedTasks(missionContext.completedTasks, executionCall.args);
+                                if (marketingArgs) {
+                                    executionCall.args = marketingArgs;
+                                    argumentGrounded = true;
+                                }
+                            }
+                            return window.ToolsBridge.executeMany(
                                 [
                                     executionCall
                                 ],
@@ -6105,6 +6112,7 @@ if (
                                         false
                                 }
                             );
+                        };
                     let results =
                         await executeMissionToolOnce();
 

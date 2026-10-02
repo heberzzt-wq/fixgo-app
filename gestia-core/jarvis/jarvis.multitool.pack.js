@@ -252,16 +252,16 @@ const MARKETING_ARGUMENT_SCHEMA = {
     type: "object",
     properties: {
         prompt: { type: "string" },
-        brandName: { type: "string" },
-        audience: { type: "string" },
-        offer: { type: "string" },
-        pain: { type: "string" },
-        promise: { type: "string" },
-        differentiator: { type: "string" },
+        brandName: { type: "string", description: "Nombre propio exacto suministrado por el usuario, sin traducirlo ni añadir actividad o ubicación." },
+        audience: { type: "string", description: "Personas o empresas que comprarían el servicio. Una ciudad sola no describe al comprador; el proveedor tampoco es automáticamente su público." },
+        offer: { type: "string", description: "Servicio del negocio respaldado por la orden o por la fuente. El archivo de marketing solicitado no es el producto del negocio." },
+        pain: { type: "string", description: "Problema del comprador que el servicio del anunciante ayuda a resolver; nunca copiar la solicitud del usuario." },
+        promise: { type: "string", description: "Beneficio propuesto para el comprador al contratar el servicio del anunciante. No es el trabajo de marketing del asistente; no garantizar resultados." },
+        differentiator: { type: "string", description: "Posicionamiento propuesto del anunciante basado en su servicio; sin inventar experiencia, premios ni superioridad." },
         tone: { type: "string" },
-        cta: { type: "string" },
+        cta: { type: "string", description: "Invitación al comprador, por ejemplo: Solicita información sobre el servicio. No ofrecer gratuidad, descuentos, precios ni garantías que no estén en la evidencia." },
         assets: { type: "array", items: { type: "string" } },
-        channels: { type: "array", items: { type: "string" } },
+        channels: { type: "array", items: { type: "string" }, description: "Canales de captación propuestos, como buscadores, LinkedIn o correo; no formatos de archivos." },
         services: { type: "array", items: { type: "object", additionalProperties: true } },
         testimonials: { type: "array", items: { type: "object", additionalProperties: true } },
         photographs: { type: "array", items: { type: "object", additionalProperties: true } },
@@ -270,13 +270,13 @@ const MARKETING_ARGUMENT_SCHEMA = {
         webResearch: { type: "array", items: { type: "object", additionalProperties: true } },
         landing: { type: "object", additionalProperties: true },
         hashtags: { type: "array", items: { type: "string" } },
-        metrics: { type: "array", items: { type: "string" } },
-        market: { type: "string" },
+        metrics: { type: "array", items: { type: "string" }, description: "Indicadores propuestos de captación y conversión del negocio; no inventar resultados medidos." },
+        market: { type: "string", description: "Todo el alcance geográfico solicitado, conservando conjuntamente mercados locales y nacionales cuando aparecen en la orden." },
         campaignName: { type: "string" },
-        campaignObjective: { type: "string" },
+        campaignObjective: { type: "string", description: "Objetivo propuesto de marketing para el servicio y todos los mercados solicitados; no afirmar que la campaña ya se ejecutó." },
         budget: { type: "string" },
         mediumBudget: { type: "string" },
-        horizon: { type: "string" },
+        horizon: { type: "string", description: "Duración propuesta de la campaña expresada en días o meses, por ejemplo 90 días." },
         durationSeconds: { type: "number" },
         productionRequested: { type: "boolean" },
         productionArtifacts: {
@@ -2947,7 +2947,7 @@ async function fetchSemanticConversation(
             : 90000;
 
     try {
-        if (["document_initial", "document_segment", "document_repair"].includes(semanticStage)) {
+        if (["document_initial", "document_segment", "document_repair", "spreadsheet_initial", "spreadsheet_repair"].includes(semanticStage)) {
             assertDocumentContext(instruction, maxOutputTokens);
         }
         const localResult = await bridge.requestJson(
@@ -4048,6 +4048,7 @@ async function completeGroundedToolArgs({
         instruction: resolveInstruction(args, context),
         currentArgs: args,
         validSources: sources,
+        missionEvidence: context.canonicalEvidence || [],
         semanticPlanner:
             typeof context.semanticArgumentPlanner === "function"
                 ? context.semanticArgumentPlanner
@@ -4059,7 +4060,7 @@ async function completeGroundedToolArgs({
     };
 }
 
-async function recoverMarketingBrandIdentity({
+async function recoverMarketingBusinessIdentity({
     instruction = "",
     context = {}
 } = {}) {
@@ -4069,7 +4070,7 @@ async function recoverMarketingBrandIdentity({
             ""
         ).trim();
     if (!source) {
-        return "";
+        return {};
     }
 
     try {
@@ -4078,18 +4079,13 @@ async function recoverMarketingBrandIdentity({
                 toolName:
                     "marketing.identity",
                 description:
-                    "Extrae únicamente la identidad explícita de la marca, negocio, firma, producto u organización para la que el usuario pidió marketing. Si no está explícita, deja brandName vacío.",
+                    'Identifica el NEGOCIO ANUNCIANTE desde la orden y las fuentes: brandName = nombre propio; offer = servicio que ese negocio vende; audience = compradores de ese servicio; market = todos los mercados pedidos, local y nacional juntos. Ejemplo: marketing para EL TRIGO, panadería de Mérida con alcance nacional y un PDF -> marca EL TRIGO, oferta pan, público compradores de pan, mercado Mérida y México. El PDF es una entrega del asistente, no la oferta del anunciante.',
                 inputSchema: {
                     type:
                         "object",
-                    properties: {
-                        brandName: {
-                            type:
-                                "string"
-                        }
-                    },
+                    properties: Object.fromEntries(["brandName", "offer", "audience", "market"].map(key => [key, MARKETING_ARGUMENT_SCHEMA.properties[key]])),
                     required: [
-                        "brandName"
+                        "brandName", "offer", "audience", "market"
                     ],
                     additionalProperties:
                         false
@@ -4098,6 +4094,7 @@ async function recoverMarketingBrandIdentity({
                     source,
                 currentArgs:
                     {},
+                missionEvidence: context.canonicalEvidence || [],
                 validSources:
                     Array.isArray(
                         context?.validSources
@@ -4112,13 +4109,10 @@ async function recoverMarketingBrandIdentity({
                         : null
             });
 
-        return String(
-            result?.args?.brandName ||
-            ""
-        ).trim();
+        return result?.args || {};
     }
     catch {
-        return "";
+        return {};
     }
 }
 
@@ -5346,7 +5340,8 @@ export function registerJarvisMultifunctionTools(runtime) {
             missionDedupeBy: [],
             inputSchema: {
                 title: "string",
-                instructions: "string"
+                instructions: "string",
+                requireFormulas: "boolean"
             },
             execute: async (args = {}, context = {}) => {
                 const instruction = resolveInstruction(
@@ -5364,7 +5359,10 @@ export function registerJarvisMultifunctionTools(runtime) {
                     "Libro de trabajo Jarvis"
                 );
                 const canonicalEvidence =
-                    canonicalEvidenceEnvelope(context);
+                    documentEvidenceEnvelope(context.canonicalEvidence || []);
+                const requireFormulas = args.requireFormulas === true;
+                const originalInstruction = clean(context.rawInput || instruction);
+                const modelInstruction = `${originalInstruction}\nESPECIFICACION=${documentExcerpt(instruction, 800)}`;
                 let semantic = await fetchSemanticConversation(
                     [
                         "Diseña un libro XLSX completo y ejecutable como JSON estricto.",
@@ -5379,16 +5377,24 @@ export function registerJarvisMultifunctionTools(runtime) {
                         "No inventes datos de mercado ni datos del negocio. Cualquier proyección creativa debe rotularse claramente como SUPUESTO o PROPUESTA y nunca confundirse con un hecho observado.",
                         "Teléfonos, direcciones, fechas, certificaciones, métricas históricas, URLs, nombres de personas y resultados solo pueden copiarse de la solicitud actual o de EVIDENCIA_CANONICA_DE_MISION.",
                         "Incluye todos los conceptos, subtotales, porcentajes y resultado final pedidos. No agregues explicaciones fuera del JSON.",
+                        requireFormulas ? "El contrato requiere al menos una formula válida." : "Usa formulas solo si la solicitud necesita cálculos. Una tabla informativa no necesita formulas.",
+                        "Entrega un libro compacto: celdas breves, sin repetir datos ni prosa. No excedas 1200 tokens.",
                         `TITULO=${title}`,
                         `EVIDENCIA_CANONICA_DE_MISION=${canonicalEvidence}`,
-                        `SOLICITUD=${instruction}`
+                        `SOLICITUD=${modelInstruction}`
                     ].join("\n"),
                     {
                         maxOutputTokens:
-                            8000
+                            DOCUMENT_OUTPUT_TOKENS,
+                        semanticStage: "spreadsheet_initial"
                     }
                 );
                 let workbook = null;
+                const checkpoint = () => persistDocumentDraft({
+                    id: `${context.analysisId || context.missionId || title}:xlsx`,
+                    kind: "spreadsheet", content: semantic?.message || "", title
+                });
+                let draftPersistence = checkpoint();
                 try {
                     workbook =
                         extractSemanticJsonObject(
@@ -5406,9 +5412,11 @@ export function registerJarvisMultifunctionTools(runtime) {
                             true,
                         objectiveSatisfied:
                             false,
+                        retryable: false,
+                        fullRestartAllowed: false,
+                        draftPersistence,
                         error:
-                            error?.message ||
-                            "SPREADSHEET_JSON_INVALID"
+                            semantic?.error || error?.message || "SPREADSHEET_JSON_INVALID"
                     };
                 }
                 let validation =
@@ -5416,10 +5424,11 @@ export function registerJarvisMultifunctionTools(runtime) {
                         workbook?.sheets
                     );
                 let repairCount = 0;
+                let recoveryReason = null;
                 const repairRequired =
                     () =>
                         validation.sheets.length === 0 ||
-                        validation.formulaCount < 1 ||
+                        (requireFormulas && validation.formulaCount < 1) ||
                         validation
                             .invalidFormulas
                             .length > 0;
@@ -5456,7 +5465,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                                 "Elimina dependencias circulares directas e indirectas.",
                                 "Toda celda usada en una operacion numerica debe contener un numero o una formula; mueve SUPUESTO a una columna de criterio separada.",
                                 "Despues de mover, agregar o retirar filas, recalcula todas las referencias.",
-                                `SOLICITUD_ORIGINAL=${instruction}`,
+                                `SOLICITUD_ORIGINAL=${modelInstruction}`,
                                 `EVIDENCIA_CANONICA_DE_MISION=${canonicalEvidence}`,
                                 `INTENTO_DE_REPARACION=${repairCount}`,
                                 `ERRORES_ESTRUCTURALES=${JSON.stringify(validationIssues)}`,
@@ -5472,7 +5481,9 @@ export function registerJarvisMultifunctionTools(runtime) {
                             ].join("\n"),
                             {
                                 maxOutputTokens:
-                                    8000
+                                    DOCUMENT_OUTPUT_TOKENS,
+                                semanticStage: "spreadsheet_repair",
+                                recoveryAttempt: repairCount
                             }
                         );
                     try {
@@ -5491,9 +5502,16 @@ export function registerJarvisMultifunctionTools(runtime) {
                                 .sheets
                                 .length > 0
                         ) {
+                            const previousScore = (validation.sheets.length ? 0 : 100) + validation.invalidFormulas.length + (requireFormulas && !validation.formulaCount ? 1 : 0);
+                            const nextScore = repairedValidation.invalidFormulas.length + (requireFormulas && !repairedValidation.formulaCount ? 1 : 0);
+                            if (nextScore >= previousScore) {
+                                recoveryReason = "SPREADSHEET_REPAIR_NO_PROGRESS";
+                                break;
+                            }
                             workbook = repairedWorkbook;
                             semantic = repair;
                             validation = repairedValidation;
+                            draftPersistence = checkpoint();
                         }
                         else {
                             break;
@@ -5513,7 +5531,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                 const ok =
                     semantic?.ok === true &&
                     sheets.length > 0 &&
-                    formulaCount > 0 &&
+                    (!requireFormulas || formulaCount > 0) &&
                     invalidFormulas.length === 0;
                 return {
                     ok,
@@ -5530,8 +5548,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                         "xlsx",
                     sheets,
                     formulaCount,
+                    requireFormulas,
                     formulaValidationPassed:
-                        formulaCount > 0 &&
                         invalidFormulas.length === 0,
                     invalidFormulas:
                         invalidFormulas.slice(0, 20),
@@ -5550,6 +5568,10 @@ export function registerJarvisMultifunctionTools(runtime) {
                     objectiveSatisfied:
                         ok,
                     repairCount,
+                    retryable: false,
+                    fullRestartAllowed: false,
+                    recovery: { reason: recoveryReason, repairCount },
+                    draftPersistence,
                     error:
                         ok
                             ? null
@@ -6233,7 +6255,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                     },
                     allowedDomain: {
                         type:
-                            "string"
+                            "string",
+                        description: "Hostname literal de la fuente, por ejemplo example.com; nunca una categoría o intención. Opcional."
                     },
                     exactEntity: {
                         type:
@@ -6241,7 +6264,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                     },
                     seedUrl: {
                         type:
-                            "string"
+                            "string",
+                        description: "URL http(s) exacta suministrada por el usuario; no inventar ni alterar la ruta."
                     }
                 },
                 additionalProperties:
@@ -6343,36 +6367,24 @@ export function registerJarvisMultifunctionTools(runtime) {
                 let semanticEnrichmentError = null;
 
                 if (!clean(planningArgs?.brandName)) {
-                    const recoveredBrandName =
-                        await recoverMarketingBrandIdentity({
+                    const recoveredIdentity =
+                        await recoverMarketingBusinessIdentity({
                             instruction,
                             context
                         });
-                    if (recoveredBrandName) {
-                        planningArgs.brandName =
-                            recoveredBrandName;
-                    }
+                    planningArgs = mergeMissingPlanningArgs(planningArgs, recoveredIdentity);
                 }
 
-                const marketingEnrichmentSchema =
-                    clean(planningArgs?.brandName)
-                        ? {
-                            ...MARKETING_ARGUMENT_SCHEMA,
-                            required:
-                                Array.isArray(
-                                    MARKETING_ARGUMENT_SCHEMA
-                                        ?.required
-                                )
-                                    ? MARKETING_ARGUMENT_SCHEMA
-                                        .required
-                                        .filter(
-                                            field =>
-                                                field !==
-                                                "brandName"
-                                        )
-                                    : []
-                        }
-                        : MARKETING_ARGUMENT_SCHEMA;
+                // Evidence and identity are supplied by the mission. Ask Qwen
+                // only for missing brief fields, never to fabricate source arrays.
+                const missingFields = MARKETING_ARGUMENT_SCHEMA.required.filter(field => !hasPlanningValue(planningArgs[field]));
+                const enrichmentFields = [...new Set([...missingFields, "budget", "mediumBudget", "horizon", "assets", "productionArtifacts"])];
+                const marketingEnrichmentSchema = {
+                    type: "object",
+                    properties: Object.fromEntries(enrichmentFields.map(field => [field, MARKETING_ARGUMENT_SCHEMA.properties[field]])),
+                    required: missingFields,
+                    additionalProperties: false
+                };
 
                 try {
                     semanticEnrichment =
@@ -6380,7 +6392,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                             toolName:
                                 "marketing.plan",
                             description:
-                                "Completa el brief estratégico de la herramienta ya seleccionada por significado. Conserva cualquier identidad de marca ya fijada por el runtime. Decide semánticamente si el usuario pidió producción real y expresa esa decisión en productionRequested; si es true declara productionArtifacts con toolName exacto. Los campos creativos no factuales pueden ser propuestas editables.",
+                                'Elabora propuestas de marketing para los CLIENTES DEL NEGOCIO. Ejemplo: publicitar una panadería -> audience: familias que compran pan, offer: pan artesanal, pain: encontrar pan fresco, cta: visita la tienda. Los archivos son tu entrega al usuario, NO la oferta del negocio. Usa la actividad de la orden y fuentes; no copies el pedido como oferta. Conserva la marca fijada y TODO el alcance geográfico. Escribe en español si la orden está en español. productionRequested indica si se pidieron archivos.',
                             inputSchema:
                                 marketingEnrichmentSchema,
                             args:
@@ -6423,6 +6435,9 @@ export function registerJarvisMultifunctionTools(runtime) {
                     {
                         ...context,
                         ...planningArgs,
+                        semanticProposalFields: semanticEnrichment
+                            ? ["pain", "promise", "differentiator", "cta", "tone", "channels", "metrics", "campaignObjective", "horizon", "budget", "mediumBudget"].filter(field => !hasPlanningValue(args[field]) && hasPlanningValue(planningArgs[field]))
+                            : [],
                         ...resolveAuthority(planningArgs, context)
                     }
                 );

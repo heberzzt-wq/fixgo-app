@@ -1398,7 +1398,7 @@ export function createSelfHostedSemanticEngine({
                 selectedModel.startsWith("qwen3:");
             const origin =
                 new URL(baseUrl).origin;
-            const documentGeneration = ["document_initial", "document_segment", "document_repair"].includes(request?.config?.semanticStage);
+            const documentGeneration = ["document_initial", "document_segment", "document_repair", "spreadsheet_initial", "spreadsheet_repair"].includes(request?.config?.semanticStage);
             const payload =
                 nativeChat
                     ? {
@@ -1903,7 +1903,8 @@ export function createSelfHostedSemanticEngine({
             const deadlineSignal = noDeadline === true ? null : AbortSignal.timeout(effectiveTimeoutMs);
             const responseSignal = noDeadline === true ? signal : (signal ? AbortSignal.any([signal, deadlineSignal]) : deadlineSignal);
             responseSignal?.throwIfAborted();
-            const documentStage = ["document_initial", "document_segment", "document_repair"].includes(semanticStage);
+            const spreadsheetStage = ["spreadsheet_initial", "spreadsheet_repair"].includes(semanticStage);
+            const documentStage = spreadsheetStage || ["document_initial", "document_segment", "document_repair"].includes(semanticStage);
             let result;
             if (documentStage) {
                 const { DOCUMENT_OUTPUT_TOKENS, assertDocumentContext } = await import("./gestia-core/jarvis/jarvis.document.context.js");
@@ -1912,9 +1913,10 @@ export function createSelfHostedSemanticEngine({
                 assertDocumentContext(input, outputTokens, systemInstruction);
                 const response = await generateContent({ contents: input, config: {
                     systemInstruction, nativeTextChat: true, noDeadline: true, signal: responseSignal,
-                    maxOutputTokens: outputTokens, semanticStage, onProgress
+                    maxOutputTokens: outputTokens, semanticStage, onProgress,
+                    ...(spreadsheetStage ? {responseMimeType: "application/json"} : {})
                 } });
-                result = { ok: true, status: "DOCUMENT_DRAFT_READY", message: response.text,
+                result = { ok: true, status: spreadsheetStage ? "SPREADSHEET_DRAFT_READY" : "DOCUMENT_DRAFT_READY", message: response.text,
                     partial: response.providerResponse?.finishReason === "length",
                     usage: { promptTokens: response.providerResponse?.promptTokens, outputTokens: response.providerResponse?.outputTokens },
                     finishReason: response.providerResponse?.finishReason || "stop" };

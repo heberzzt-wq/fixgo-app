@@ -186,10 +186,14 @@ function researchUrlMatchesSeedAnchor(
         return false;
     }
 
-    return Boolean(
-        expectedHandle ||
-        expectedVideoId
-    );
+    if (expectedHandle || expectedVideoId) return true;
+    try {
+        const actual = new URL(candidate);
+        const expected = new URL(seedUrl);
+        actual.hash = "";
+        expected.hash = "";
+        return actual.href === expected.href;
+    } catch { return false; }
 }
 
 function isTikTokResearchUrl(
@@ -572,13 +576,12 @@ async function directLocalResearchSeedMetadataFallback(
             result.text
         );
 
-    if (
-        !metadataUrl ||
-        !researchUrlMatchesSeedAnchor(
-            metadataUrl,
-            seedUrl
-        )
-    ) {
+    // A supplied URL does not need an optional canonical/og:url tag to be a
+    // readable source. Accept the actual response URL only when it is the exact
+    // requested anchor; never accept a redirect or conflicting metadata here.
+    const sourceUrl = metadataUrl || result.url;
+    if (!sourceUrl || !researchUrlMatchesSeedAnchor(sourceUrl, seedUrl) ||
+        (!metadataUrl && !/<title[^>]*>[^<]+<\/title>/i.test(result.text))) {
         return [];
     }
 
@@ -611,8 +614,8 @@ async function directLocalResearchSeedMetadataFallback(
             url:
                 seedUrl,
             summary: [
-                "La metadata p?blica del documento confirm? la fuente ancla.",
-                `canonical/og:url: ${metadataUrl}.`,
+                metadataUrl ? "La metadata pública del documento confirmó la URL de la fuente." : "Documento recuperado desde la URL explícita; sin metadata canonical/og:url.",
+                `${metadataUrl ? "canonical/og:url" : "response.url"}: ${sourceUrl}.`,
                 description
             ]
                 .filter(Boolean)

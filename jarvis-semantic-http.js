@@ -99,7 +99,7 @@ function semanticRequestHandler(semanticEngine, { heartbeatMs, operation }) {
         const controller = new AbortController();
         const startedAt = Date.now();
         const documentStage = operation === "respond" &&
-            ["document_initial", "document_segment", "document_repair"].includes(body.semanticStage);
+            ["document_initial", "document_segment", "document_repair", "spreadsheet_initial", "spreadsheet_repair"].includes(body.semanticStage);
         let stage = documentStage ? body.semanticStage : operation === "respond" ? "final_response" : "planning";
         const recoveryAttempt = documentStage && Number.isInteger(body.recoveryAttempt)
             ? Math.max(0, Math.min(6, body.recoveryAttempt)) : 0;

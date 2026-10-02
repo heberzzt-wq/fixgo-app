@@ -1,4 +1,5 @@
 import { semanticPlanBudgetMs } from "./jarvis.semantic.transport.js";
+import { documentEvidenceEnvelope, documentExcerpt } from "./jarvis.document.context.js";
 import {
     rejectCorruptedIdentityArgs
 } from "./jarvis.identity.integrity.js?v=v142-adjunto-flow-alignment-20261001";
@@ -1064,7 +1065,7 @@ const anchor =
                         anchor.url,
                     allowedDomain:
                         String(
-                            args.allowedDomain ||
+                            (String(args.allowedDomain || "").includes(".") ? args.allowedDomain : "") ||
                             anchor.host ||
                             ""
                         )
@@ -1635,7 +1636,7 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
             approved: tool.mutates === true && context.approved === true,
             ...(dedupeKey ? { missionDedupeKey: dedupeKey } : {}),
             ...(
-                argumentsComplete
+                argumentsComplete && candidate?.deferred !== true
                     ? {}
                     : {
                         deferred:
@@ -1725,6 +1726,7 @@ function usesRegisteredToolAsRepositoryFile(
             ""
         ).trim();
     return (
+        /^https?:\/\//i.test(target) ||
         target.length >
             0 &&
         catalogByName.has(
@@ -2073,6 +2075,9 @@ function filterSemanticArguments(args = {}, inputSchema = null) {
 }
 
 export function shouldCompleteJarvisPlanningArguments(call = {}, tool = {}, completedTasks = []) {
+    // This capability owns its grounded semantic completion. Running the generic
+    // completion first both duplicates inference and pre-fills unverified claims.
+    if (tool.semanticArgumentCompletion === true) return false;
     if (call.deferred === true) return true;
     // A validated read already has its executable path. Earlier observations
     // alone do not make that argument incomplete or authorize changing it.
@@ -2112,17 +2117,11 @@ export async function completeJarvisPlanningArguments({
         inputSchema
     }];
     const briefingInstruction = [
-        `Prepara solamente los argumentos ejecutables para ${name}.`,
-        "Completa los campos semánticos que puedan derivarse de la orden y la evidencia.",
-        "Los mensajes de campaña, problemas, promesas y diferenciadores son propuestas estratégicas; no los presentes como hechos verificados.",
-        "Para landing, imagen y reel entrega una especificación concreta y sustentada, sin crear archivos, generar medios, publicar ni desplegar.",
-        "Si se pide un reel, la suma de la duración de escenas debe coincidir exactamente con la duración total.",
-        `INSTRUCCION_ORIGINAL=${originalInstruction.slice(0, 12000)}`,
-        `ARGUMENTOS_EXISTENTES=${JSON.stringify(currentArgs || {}).slice(0, 6000)}`,
-        `FUENTES_VERIFICADAS=${JSON.stringify(sources).slice(0, 12000)}`,
-        `EVIDENCIA_CANONICA_DE_MISION=${JSON.stringify(Array.isArray(missionEvidence) ? missionEvidence : []).slice(0, 20000)}`,
-        "La evidencia canónica manda sobre memoria, borradores y propuestas. No inventes teléfonos, direcciones, fechas, certificaciones, métricas, URLs, testimonios ni resultados. Si un dato no aparece en la evidencia o en la solicitud actual, debe quedar como propuesta explícita, nunca como hecho.",
-        `ESQUEMA_DE_ARGUMENTOS=${JSON.stringify(inputSchema || {}).slice(0, 12000)}`
+        `INSTRUCCION_ORIGINAL=${originalInstruction}`,
+        `ARGUMENTOS_EXISTENTES=${documentExcerpt(JSON.stringify(currentArgs || {}), 800)}`,
+        `FUENTES_VERIFICADAS=${documentEvidenceEnvelope(sources, 2500)}`,
+        `EVIDENCIA_CANONICA_DE_MISION=${documentEvidenceEnvelope(missionEvidence, 2500)}`,
+        "Completa los campos faltantes conservando los argumentos existentes y el alcance íntegro de la instrucción."
     ].join("\n");
 
     const plan = await resolveSemanticPlan(
@@ -2137,7 +2136,8 @@ export async function completeJarvisPlanningArguments({
         }
     );
 
-    const call = trustedPlanCalls(plan, catalog, {})[0] || null;
+    const call = trustedPlanCalls(plan, catalog, { originalInstruction,
+        missionState: {phase:"GROUNDED_ARGUMENT_COMPLETION"} })[0] || null;
     const args = filterSemanticArguments(call?.args || {}, inputSchema);
     if (Object.keys(args).length === 0) {
         throw new Error("SEMANTIC_ARGUMENTS_REQUIRED");

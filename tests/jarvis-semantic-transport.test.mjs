@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import express from "express";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { runInNewContext } from "node:vm";
 import { semanticPlanHandler, semanticResponseHandler, fetchLocalSemanticResponse } from "../jarvis-semantic-http.js";
 import { createSelfHostedSemanticEngine } from "../jarvis-fs-bridge.js";
@@ -342,15 +344,20 @@ test("long mission contract retains the shared full-input prefix and an adequate
     const missionState = { phase: "MISSION_CONTRACT", existingInitialTools: ["repo.audit"], writeAllowed: false };
     assert.ok(semanticPlanBudgetMs({ input: instruction, missionState, timeoutMs: 90000 }) > 90000);
     const contractCatalog = [...catalog, ...Array.from({ length: 9 }, (_, i) => ({ name: `repo.inspect${i}`, description: "Inspeccion read-only", mutates: false }))];
-    const engine = createSelfHostedSemanticEngine({ fetchImpl: async (_url, options) => {
+    const engine = createSelfHostedSemanticEngine({ env: {...process.env,JARVIS_TOOL_EMBEDDING_CACHE_PATH:path.join(fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-contract-')),'cache.json')}, fetchImpl: async (_url, options) => {
         const body = JSON.parse(options.body);
-        assert.equal(body.messages[1].content, instruction);
+        if (body.input) return {ok:true,text:async()=>JSON.stringify({embeddings:body.input.map(()=>[1,0])})};
         assert.equal(body.messages[0].role, "system");
-        assert.ok(body.format.properties.toolCalls);
+        if (body.format?.properties?.sourceReview) {
+            assert.equal(body.messages.at(-1).content, instruction);
+            return {ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({sourceReview:'',work:'audit repository',delivery:''})},done_reason:'stop'})};
+        }
+        assert.equal(body.messages[1].content, instruction);
+        assert.ok(body.format.properties.step0);
         const task = JSON.parse(body.messages.at(-1).content);
         assert.equal(task.phase, "MISSION_CONTRACT");
         assert.ok(task.catalog.some(tool => tool.name === "repo.audit"));
-        return { ok: true, text: async () => JSON.stringify({ message: { content: JSON.stringify(result) } }) };
+        return { ok: true, text: async () => JSON.stringify({ message: { content: JSON.stringify({step0:'repo.audit'}) } }) };
     }});
     const plan = await engine.plan({ input: instruction, catalog: contractCatalog, missionState });
     assert.equal(plan.ok, true);

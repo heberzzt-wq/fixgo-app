@@ -585,7 +585,8 @@ export function planMarketingRequest(rawInput = "", context = {}) {
     const allInferredFields = [
         ...new Set([
             ...creativeBrief.inferredFields,
-            ...inferredPlanningFields
+            ...inferredPlanningFields,
+            ...strings(context.semanticProposalFields)
         ])
     ];
     const campaign = {

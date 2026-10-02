@@ -741,6 +741,7 @@ function composeActuatorFailure(
     if (
         toolName.startsWith("browser.") ||
         toolName.startsWith("document.") ||
+        toolName === "spreadsheet.compose" ||
         toolName === "system.supervision.runNow"
     ) {
         const validationFailures =
@@ -797,7 +798,7 @@ function composeActuatorFailure(
             {
                 // Preserve the tool's recovery contract through the presentation layer.
                 // Otherwise the mission treats an exhausted document as retryable.
-                ...(toolName === "document.compose" ? result : {}),
+                ...(["document.compose", "spreadsheet.compose"].includes(toolName) ? result : {}),
                 ok: false,
                 tool: toolName,
                 status: result?.status || "FAILED",

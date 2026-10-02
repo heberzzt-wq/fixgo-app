@@ -317,11 +317,13 @@ function marketingWorkbookSheets(marketing = {}) {
 }
 
 export function marketingArtifactArgsFromCompletedTasks(completedTasks = [], requestedArgs = {}) {
-    const format = String(requestedArgs?.format || "").trim().toLowerCase();
-    if (!["md", "pdf", "xlsx"].includes(format)) return null;
+    // Match document.create's existing default and bind the canonical plan for
+    // every text document format, including a writer with deferred arguments.
     const marketing = completedMarketingTask(completedTasks);
     if (!marketing) return null;
     const requirement = matchingMarketingRequirement(marketing, requestedArgs);
+    const format = String(requestedArgs?.format || requirement?.format || "html").trim().toLowerCase();
+    if (!["html", "txt", "md", "pdf", "xlsx"].includes(format)) return null;
     const explicitlyMarketing = requestedArgs?.contentSource === "marketing.plan";
     const declaredRequirements = normalizedRequirements(marketing);
     if (!requirement && !explicitlyMarketing && declaredRequirements.length > 0) return null;

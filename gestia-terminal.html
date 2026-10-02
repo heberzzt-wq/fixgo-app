@@ -407,6 +407,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const label = stage === "retrieval" ? "Recuperando herramientas relevantes"
                 : stage === "final_response" ? "Redactando la respuesta con la evidencia obtenida"
                 : stage === "document_initial" ? "Redactando el documento"
+                : stage === "spreadsheet_initial" ? "Preparando la hoja de cálculo"
+                : stage === "spreadsheet_repair" ? `Reparando la hoja de cálculo · intento ${recoveryAttempt}/2`
                 : stage === "document_segment" ? "Redactando una sección del documento"
                 : stage === "document_repair" ? `Reparando el documento · intento ${recoveryAttempt}/6`
                 : stage === "mission_contract" ? "Organizando los objetivos de la misión"

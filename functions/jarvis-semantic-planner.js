@@ -305,7 +305,7 @@ function validatePlan(
             approved: false,
             ...(dedupeKey ? { missionDedupeKey: dedupeKey } : {}),
             ...(
-                argumentsComplete
+                argumentsComplete && candidate?.deferred !== true
                     ? {}
                     : {
                         deferred:
@@ -376,6 +376,7 @@ function usesRegisteredToolAsRepositoryFile(
             ""
         ).trim();
     return (
+        /^https?:\/\//i.test(target) ||
         target.length >
             0 &&
         catalogByName.has(
@@ -1049,35 +1050,46 @@ async function runModelSemanticPlanner({
                     .filter(Boolean)
                     .slice(0, 20)
                 : [];
-        const rankedContractCatalog =
-            shortlistSemanticCatalog(
-                instruction,
-                normalizedCatalog,
-                null,
-                8
-            );
-        const initialCatalogTools =
-            initialToolNames
-                .map(name =>
-                    normalizedCatalog.find(tool =>
-                        tool.name === name
-                    )
-                )
-                .filter(Boolean);
-        const contractCatalog = [
-            ...initialCatalogTools,
-            ...rankedContractCatalog
-        ].filter((tool, index, items) =>
-            items.findIndex(candidate =>
-                candidate.name === tool.name
-            ) === index
-        ).slice(0, 8);
+        // Choosing the whole mission from a lexical top eight hid prerequisites
+        // and writers. Retrieve from the full catalog for each Qwen operation;
+        // complete factual arguments after the corresponding dependencies run.
+        let contractCatalog = normalizedCatalog;
         const compactLocalContract =
-            normalizedCatalog.length > contractCatalog.length &&
             String(ai.lastProvider || "")
                 .includes("ollama-openai-compatible-local");
 
         if (compactLocalContract) {
+            if (typeof retrieveToolCandidates !== "function") throw new Error("SEMANTIC_TOOL_RETRIEVAL_REQUIRED");
+            const operationsResponse = await ai.models.generateContent({model, contents: instruction, config: {
+                semanticStage: "MISSION_CONTRACT_OPERATIONS",
+                chatMessages: [
+                    {role:"system", content:"Descompón la solicitud en operaciones cortas en inglés para buscar herramientas: sourceReview (consultar la fuente indicada), work (arreglo con una operación por cada objetivo independiente), delivery (entregar el resultado pedido). Usa cadena o arreglo vacío si una etapa no aplica. La URL indicada es una fuente a consultar. Los archivos descargables contienen el trabajo que pidió el usuario, no un producto o servicio que vende el negocio. No confundas la actividad del negocio con la tarea del asistente. No publiques, lances campañas ni edites archivos existentes salvo solicitud explícita. No copies nombres propios ni ubicaciones en las operaciones: se conservan en la solicitud original."},
+                    {role:"user", content:"Prepara un plan de comunicación para Taller Norte de https://ejemplo.test/ en Mérida y todo México, con archivos descargables."},
+                    {role:"assistant", content:'{"sourceReview":"research external website business information","work":["prepare communication plan local and national"],"delivery":"create downloadable plan document"}'},
+                    {role:"user", content:instruction}
+                ],
+                responseMimeType:"application/json",
+                responseJsonSchema:{type:"object",properties:{sourceReview:{type:"string"},work:{type:"array",items:{type:"string"},maxItems:12},delivery:{type:"string"}},required:["sourceReview","work","delivery"],additionalProperties:false},
+                maxOutputTokens:256,temperature:0
+            }});
+            const operationsObject = extractJsonObject(String(operationsResponse?.text || ""));
+            const operations = [operationsObject?.sourceReview,...(Array.isArray(operationsObject?.work) ? operationsObject.work : [operationsObject?.work]),operationsObject?.delivery].filter(value => typeof value === "string" && value.trim());
+            if (!Array.isArray(operations) || !operations.length || operationsResponse?.providerResponse?.finishReason === "length") throw new Error("SEMANTIC_CONTRACT_OPERATIONS_INVALID");
+            const retrieved = [];
+            const operationCandidates = [];
+            for (const operation of operations) {
+                const candidates = await retrieveToolCandidates(String(operation), 4);
+                const canonicalCandidates = [];
+                for (const candidate of candidates || []) {
+                    const tool = normalizedCatalog.find(item => item.name === candidate.name);
+                    if (tool && !retrieved.some(item => item.name === tool.name)) retrieved.push(tool);
+                    if (tool) canonicalCandidates.push(tool);
+                }
+                if (!canonicalCandidates.length) throw new Error("SEMANTIC_TOOL_CANDIDATES_REQUIRED");
+                operationCandidates.push({id:`step${operationCandidates.length}`,operation,catalog:canonicalCandidates.map(tool=>({name:tool.name,description:tool.description}))});
+            }
+            contractCatalog = retrieved;
+            if (!contractCatalog.length) throw new Error("SEMANTIC_TOOL_CANDIDATES_REQUIRED");
             const compactContractResponse =
                 await ai.models.generateContent({
                     model,
@@ -1087,45 +1099,23 @@ async function runModelSemanticPlanner({
                             ...currentTurnMessages,
                             { role: "user", content: JSON.stringify({
                                 phase: "MISSION_CONTRACT",
-                                task: "Construye el contrato completo para todos los objetivos de la instruccion original usando solo herramientas del catalogo. Las herramientas iniciales son contexto, no permisos. Respeta las prohibiciones de mutar, publicar y gastar. Devuelve toolCalls con nombres reales y argumentos fundamentados; no inventes rutas ni resultados. missionComplete=false. Si no hay inputSchema, args={}. No repitas una misma llamada con los mismos argumentos.",
-                                initialTools: initialToolNames,
-                                catalog: contractCatalog.map(tool => ({ name: tool.name, description: String(tool.description || "").slice(0, 220), inputSchema: compactPlannerInputSchema(tool.inputSchema), mutates: tool.mutates, userArtifact: tool.userArtifact }))
+                                operations: operationCandidates,
+                                task: "Para cada operación selecciona exactamente UNA herramienta de sus candidatos: la que satisfaga mejor el trabajo pedido con menos requisitos adicionales. No selecciones todos los candidatos. Un documento descargable debe contener el trabajo pedido, no un producto del negocio. Devuelve un objeto que asigne cada step al nombre elegido. No generes argumentos ni concedas permisos.",
+                                catalog: contractCatalog.map(tool => ({ name: tool.name, description: String(tool.description || "").slice(0, 220), ...(tool.mutates ? {mutates:true} : {}), ...(tool.userArtifact ? {userArtifact:true} : {}) }))
                             }) }
                         ],
-                        maxOutputTokens: 1200,
+                        maxOutputTokens: 256,
                         temperature: 0,
                         thinkingConfig: {
                             thinkingLevel: "MINIMAL"
                         },
                         responseMimeType: "application/json",
-                        responseJsonSchema: {
-                            type: "object", required: ["toolCalls", "missionComplete"], additionalProperties: false,
-                            properties: {
-                                missionComplete: { type: "boolean", const: false },
-                                toolCalls: {
-                                    type: "array", minItems: 1, maxItems: 20,
-                                    items: { oneOf: contractCatalog.map(tool => ({
-                                        type: "object", required: ["name", "args"], additionalProperties: false,
-                                        properties: {
-                                            name: { type: "string", const: tool.name },
-                                            args: tool.inputSchema || { type: "object", properties: {}, additionalProperties: false }
-                                        }
-                                    })) }
-                                }
-                            }
-                        }
+                        responseJsonSchema: {type:"object",properties:Object.fromEntries(operationCandidates.map(step=>[step.id,{type:"string",enum:step.catalog.map(tool=>tool.name)}])),required:operationCandidates.map(step=>step.id),additionalProperties:false}
                     }
                 });
-            const compactPayload =
-                normalizeTextToolPlan(
-                    extractJsonObject(
-                        String(
-                            compactContractResponse?.text ||
-                            ""
-                        )
-                    ),
-                    contractCatalog
-                );
+            const selections = extractJsonObject(String(compactContractResponse?.text || ""));
+            if (compactContractResponse?.providerResponse?.finishReason === "length" || operationCandidates.some(step=>!step.catalog.some(tool=>tool.name===selections?.[step.id]))) throw new Error("SEMANTIC_CONTRACT_SELECTION_INVALID");
+            const compactPayload = {toolCalls:operationCandidates.map(step=>({name:selections[step.id],args:{},reason:step.operation})),missionComplete:false};
             const compactValidated =
                 validatePlan(
                     {
@@ -1140,6 +1130,7 @@ async function runModelSemanticPlanner({
                 );
             return requireExecutablePlan({
                 ...compactValidated,
+                toolCalls: compactValidated.toolCalls.map(call => ({...call, args: {}, deferred: true})),
                 provider:
                     String(
                         ai.lastProvider ||
@@ -1425,7 +1416,18 @@ async function runModelSemanticPlanner({
                         ].filter(Boolean).join("\n\n"),
                         config: {
                             semanticStage: phase,
-                            maxOutputTokens: 3000,
+                            ...(phase === "GROUNDED_ARGUMENT_COMPLETION" ? {chatMessages: [
+                                {role:"system",content:[
+                                    "Completa los argumentos de una sola herramienta. Devuelve JSON {toolCalls:[{name,args}],missionComplete:false}.",
+                                    "Comprende el papel de cada campo, no copies la instrucción completa como valor. Usa el idioma del usuario.",
+                                    "Los hechos vienen de la solicitud y las fuentes; las recomendaciones pueden ser propuestas explícitas. Nunca presentes una propuesta como hecho verificado.",
+                                    "Omite campos opcionales innecesarios. No inventes precios, gratuidad, direcciones, URLs, testimonios ni resultados. Conserva la identidad y todos los mercados solicitados.",
+                                    `TAREA ${phaseCatalog[0].name}: ${phaseCatalog[0].description}`,
+                                    `CAMPOS=${JSON.stringify(buildNativeInputSchema(phaseCatalog[0].inputSchema))}`
+                                ].join("\n")},
+                                {role:"user",content:instruction}
+                            ]} : {}),
+                            maxOutputTokens: phase === "GROUNDED_ARGUMENT_COMPLETION" ? 1200 : 3000,
                             thinkingConfig: {
                                 thinkingLevel: "MINIMAL"
                             },
@@ -1440,7 +1442,7 @@ async function runModelSemanticPlanner({
                                                 type: "object",
                                                 properties: {
                                                     name: { type: "string", enum: [phaseCatalog[0].name] },
-                                                    args: phaseCatalog[0].inputSchema
+                                                    args: buildNativeInputSchema(phaseCatalog[0].inputSchema)
                                                 },
                                                 required: ["name", "args"],
                                                 additionalProperties: false

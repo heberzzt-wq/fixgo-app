@@ -57,5 +57,20 @@ export function documentEvidenceEnvelope(evidence = [], maximumBytes = 1600) {
         }
         if (selected.length) return JSON.stringify({ coverage: "PARTIAL", excerpts: selected, totalEntries: entries.length });
     }
-    return JSON.stringify({ coverage: "PARTIAL", excerpts: [], totalEntries: entries.length, reason: "EVIDENCE_EXCEEDS_DOCUMENT_CONTEXT" });
+    // Canonical observations contain duplicated payloads and operational metadata.
+    // Preserve their attributed summary before dropping the entire source.
+    const excerpts = [];
+    for (const entry of entries) {
+        if (!entry?.tool || !entry?.summary) continue;
+        const candidate = {
+            tool: entry.tool, status: entry.status,
+            summary: documentExcerpt(entry.summary, 1000),
+            sources: entry.validSources || [],
+            // A summary is not a complete repository read or a verified claim.
+            coverage: "PARTIAL", verifiedRead: null
+        };
+        if (documentBytes(JSON.stringify({coverage:"PARTIAL",excerpts:[...excerpts,candidate],totalEntries:entries.length})) <= maximumBytes) excerpts.push(candidate);
+    }
+    return JSON.stringify({ coverage: "PARTIAL", excerpts, totalEntries: entries.length,
+        ...(excerpts.length ? {} : {reason: "EVIDENCE_EXCEEDS_DOCUMENT_CONTEXT"}) });
 }

@@ -893,7 +893,8 @@ function safeObservation(result = {}) {
                     formulaValidationPassed:
                         payload
                             ?.formulaValidationPassed ===
-                        true
+                        true,
+                    requireFormulas: payload?.requireFormulas === true
                 }
                 : normalizedStatus === "REEL_PLAN_READY"
                     ? {
@@ -1286,7 +1287,8 @@ function trustedCalls(calls = [], mission) {
         if (!name) continue;
         if (SINGLETON_MISSION_TOOLS.has(name) && scheduledNames.has(name)) continue;
         if (COMPLETED_SINGLETON_MISSION_TOOLS.has(name) && completedNames.has(name)) continue;
-        const call = { name, args: candidate?.args && typeof candidate.args === "object" ? candidate.args : {}, approved: false };
+        const call = { name, args: candidate?.args && typeof candidate.args === "object" ? candidate.args : {}, approved: false,
+            ...(candidate?.deferred === true ? {deferred:true} : {}) };
         const candidateRepoTarget = durableRepositoryTarget([call]);
         if (!mission.repositoryTarget && candidateRepoTarget) {
             mission.repositoryTarget = candidateRepoTarget;
@@ -2647,7 +2649,7 @@ export async function runJarvisMission({
         }
         let result;
         try {
-            result = await execute({ name: task.name, args: task.args, approved: false }, {
+            result = await execute({ name: task.name, args: task.args, approved: false, ...(task.deferred === true ? {deferred:true} : {}) }, {
                 missionId: mission.missionId,
                 caseId: mission.caseId,
                 objectiveId: mission.objectiveId,
