@@ -165,7 +165,7 @@ test("CURRENT_TURN never replays an exhausted local deadline or truncated answer
     const start = source.indexOf('    async analizarIntencionLigera(');
     const end = source.indexOf('    async procesarIntencion(', start);
     assert.ok(start > 0 && end > start);
-    for (const message of ["SEMANTIC_AUTHENTICATED_PROVIDER_LOCAL_SEMANTIC_TIMEOUT", "JARVIS_LOCAL_BRIDGE_TIMEOUT_REQUEST", "SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_RESPONSE_INCOMPLETE"]) {
+    for (const message of ["SEMANTIC_AUTHENTICATED_PROVIDER_LOCAL_SEMANTIC_TIMEOUT", "JARVIS_LOCAL_BRIDGE_TIMEOUT_REQUEST", "SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_RESPONSE_INCOMPLETE", "SEMANTIC_AUTHENTICATED_PROVIDER_LOCAL_SEMANTIC_RESPONSE_EMPTY"]) {
         let calls = 0;
         const analyze = runInNewContext(`({${source.slice(start, end)}}).analizarIntencionLigera`, {
             JarvisSemanticMemory: { recall: async () => null },
@@ -286,7 +286,11 @@ test("noDeadline lets local semantic response outlive an explicitly tiny timeout
 test("current conversation forwards a real multi-turn window to Qwen", async () => {
     let captured;
     const engine = createSelfHostedSemanticEngine({ fetchImpl: async (_url, options) => {
-        captured = JSON.parse(options.body);
+        const body = JSON.parse(options.body);
+        if (body.format?.properties?.mode) captured = body;
+        if (body.format?.properties?.stillMissing) {
+            return { ok: true, text: async () => JSON.stringify({ message: { content: '{"stillMissing":true,"action":""}' }, done_reason: "stop" }) };
+        }
         return {
             ok: true,
             text: async () => JSON.stringify({

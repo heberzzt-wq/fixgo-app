@@ -1464,12 +1464,41 @@ export function createSelfHostedSemanticEngine({
             let functionCalls = [];
             let localAttempt = 0;
             const maximumLocalAttempts = 2;
+            const attemptEvidence = [];
+            const phase = String(request?.config?.semanticStage || "SEMANTIC_INFERENCE");
+            const recoverToolSelection = nativeToolChat && phase === "CURRENT_TURN_TOOL_SELECTION";
 
             while (localAttempt < maximumLocalAttempts) {
                 localAttempt += 1;
                 if (localAttempt > 1) {
                     counters.localSemanticInferenceCalls += 1;
-                    if (nativeChat) {
+                    if (recoverToolSelection) {
+                        // Ollama can finish native tool generation with neither content
+                        // nor tool_calls. Recover only this selection using the same
+                        // model, messages and candidate schemas in its JSON mode.
+                        delete payload.tools;
+                        payload.format = {
+                            anyOf: tools.map(tool => ({
+                                type: "object",
+                                properties: {
+                                    name: { type: "string", enum: [tool.function.name] },
+                                    arguments: tool.function.parameters
+                                },
+                                required: ["name", "arguments"],
+                                additionalProperties: false
+                            }))
+                        };
+                        payload.options.num_predict = Math.min(16000, Math.max(1024, maxOutputTokens * 2));
+                        const recoveryInstruction = [
+                            'Return exactly one tool selection as JSON {"name":"tool name","arguments":{...}}. Select only from this same candidate catalog and supply executable arguments. Do not answer the user or claim completion.',
+                            "The current user instruction is primary. Earlier assistant proposals are not factual evidence. Preserve the explicit source URL and all requested scope in the arguments.",
+                            "CANDIDATE_TOOLS=" + JSON.stringify(tools)
+                        ].join("\n");
+                        payload.messages = messages[0]?.role === "system"
+                            ? [{ ...messages[0], content: messages[0].content + "\n" + recoveryInstruction }, ...messages.slice(1)]
+                            : [{ role: "system", content: recoveryInstruction }, ...messages];
+                    }
+                    else if (nativeChat) {
                         payload.options = {
                             ...(payload.options || {}),
                             num_predict: Math.min(
@@ -1490,7 +1519,7 @@ export function createSelfHostedSemanticEngine({
                             )
                         );
                     }
-                    payload.messages = [
+                    if (!recoverToolSelection) payload.messages = [
                         ...messages,
                         {
                             role: "user",
@@ -1504,6 +1533,7 @@ export function createSelfHostedSemanticEngine({
                     ];
                 }
 
+                const attemptStartedAt = Date.now();
                 const response = await (fetchImpl === globalThis.fetch ? fetchLocalSemanticResponse : fetchImpl)(
                     nativeChat
                         ? `${origin}/api/chat`
@@ -1540,6 +1570,19 @@ export function createSelfHostedSemanticEngine({
                     jsonOnlyNative
                         ? []
                         : parseOpenAiFunctionCalls(message);
+                attemptEvidence.push({
+                    attempt: localAttempt,
+                    model: selectedModel,
+                    modelProfile,
+                    nativeChat,
+                    nativeToolChat: nativeChat && Array.isArray(payload.tools) && payload.tools.length > 0,
+                    jsonOnlyNative: nativeChat && Boolean(payload.format) && !payload.tools?.length,
+                    numPredict: nativeChat ? payload.options.num_predict : payload.max_tokens,
+                    finishReason: String(nativeChat ? data?.done_reason || "" : data?.choices?.[0]?.finish_reason || "").slice(0, 80),
+                    messageKeys: Object.keys(message).slice(0, 20),
+                    message: { content: text.slice(0, 1200), tool_calls: Array.isArray(message.tool_calls) ? message.tool_calls.slice(0, 12) : [] },
+                    durationMs: Date.now() - attemptStartedAt
+                });
 
                 if (text.trim() || functionCalls.length > 0) {
                     break;
@@ -1549,6 +1592,9 @@ export function createSelfHostedSemanticEngine({
             if (!text.trim() && functionCalls.length === 0) {
                 const error = new Error("LOCAL_SEMANTIC_RESPONSE_EMPTY");
                 error.evidence = {
+                    phase,
+                    recoveryExhausted: true,
+                    attemptEvidence,
                     attempts: localAttempt,
                     finishReason:
                         String(
@@ -1573,6 +1619,8 @@ export function createSelfHostedSemanticEngine({
                 text,
                 functionCalls,
                 providerResponse: {
+                    phase,
+                    attemptEvidence,
                     finishReason:
                         String(
                             nativeChat

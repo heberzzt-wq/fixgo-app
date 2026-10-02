@@ -1987,6 +1987,7 @@ async function callSemanticPlanner(input = "", catalog = [], missionState = null
             "LOCAL_SEMANTIC_PLAN_REQUIRED"
         );
         failure.code = "LOCAL_SEMANTIC_PLAN_REQUIRED";
+        if (localResult?.evidence) failure.evidence = localResult.evidence;
         throw failure;
     }
 

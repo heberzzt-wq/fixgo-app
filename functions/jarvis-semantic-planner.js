@@ -1417,28 +1417,59 @@ async function runModelSemanticPlanner({
                             buildSemanticSystemInstruction(phaseCatalog, missionState),
                             `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
                             phase === "GROUNDED_ARGUMENT_COMPLETION"
-                                ? "COMPLETA solamente los argumentos de la herramienta ya seleccionada. Devuelve JSON con esa toolCall y missionComplete=false. No selecciones otra herramienta."
+                                ? 'COMPLETA solamente los argumentos de la herramienta ya seleccionada. Devuelve {"toolCalls":[{"name":"nombre exacto","args":{}}],"missionComplete":false}. Todos los argumentos van dentro de args y deben respetar el esquema. Conserva el alcance completo de la instrucción. No selecciones otra herramienta.'
                                 : "AUDITORIA_DE_CIERRE_CONTROLADA: no estas obligado a llamar una herramienta. Compara la instruccion original con completedTasks y blockedTasks. Si falta un entregable devuelve exactamente una toolCall ejecutable. Solo si todo esta satisfecho devuelve toolCalls=[] y missionComplete=true.",
                             attempt > 1
                                 ? "REINTENTO: la salida anterior no fue ejecutable. Conserva el mismo objetivo y devuelve JSON valido."
                                 : ""
                         ].filter(Boolean).join("\n\n"),
                         config: {
+                            semanticStage: phase,
                             maxOutputTokens: 3000,
                             thinkingConfig: {
                                 thinkingLevel: "MINIMAL"
                             },
-                            responseMimeType: "application/json"
+                            responseMimeType: "application/json",
+                            ...(phase === "GROUNDED_ARGUMENT_COMPLETION" ? {
+                                responseJsonSchema: {
+                                    type: "object",
+                                    properties: {
+                                        toolCalls: {
+                                            type: "array", minItems: 1, maxItems: 1,
+                                            items: {
+                                                type: "object",
+                                                properties: {
+                                                    name: { type: "string", enum: [phaseCatalog[0].name] },
+                                                    args: phaseCatalog[0].inputSchema
+                                                },
+                                                required: ["name", "args"],
+                                                additionalProperties: false
+                                            }
+                                        },
+                                        missionComplete: { type: "boolean", enum: [false] }
+                                    },
+                                    required: ["toolCalls", "missionComplete"],
+                                    additionalProperties: false
+                                }
+                            } : {})
                         }
                     });
                 const payload =
                     extractJsonObject(
                         String(phaseResponse?.text || "")
                     );
+                const normalizedPayload = phase === "GROUNDED_ARGUMENT_COMPLETION"
+                    ? normalizeTextToolPlan(
+                        payload?.toolCall && !Array.isArray(payload.toolCalls)
+                            ? { ...payload, toolCalls: [payload.toolCall] }
+                            : payload,
+                        phaseCatalog
+                    )
+                    : payload;
                 const validated =
                     validatePlan(
                         {
-                            ...(payload || {}),
+                            ...(normalizedPayload || {}),
                             ...(phase === "GROUNDED_ARGUMENT_COMPLETION"
                                 ? { missionComplete: false }
                                 : {})
@@ -1486,6 +1517,7 @@ async function runModelSemanticPlanner({
 
     let currentTurnGateAction = "";
     let currentTurnGateRecovery = false;
+    let currentTurnRequiresConversationContext = true;
 
     if (
         missionState?.conversationalGate === true &&
@@ -1497,25 +1529,26 @@ async function runModelSemanticPlanner({
             'Classify the current request. First identify essential missing information in missing (empty string if none). Use context only to resolve references, never as proof of actions.',
             'Use mode=clarify when that information must be requested from the user before work can start; mode=tools for requested reading, searching, checking or changing external state; mode=chat for social conversation, wishes without an action request, or general explanations.',
             'If the current message supplies information requested by the immediately preceding assistant question, treat it as continuation of that unresolved request. Reconstruct the pending operation from recent conversation context instead of classifying the short answer in isolation.',
+            'Set requiresConversationContext=true only when unresolved references in the current instruction need earlier messages. Set it false for a self-contained instruction. Similar earlier tasks and failed attempts do not make a complete new request depend on their proposals or pending actions.',
             'External actions require new tool evidence even if earlier messages claimed success. A nearby place search needs an area, but a city or neighborhood already supplied is sufficient. Relative repository file paths already have an active repository.',
             'When mode=tools, also describe the first requested operation in action using 3-8 English words for tool retrieval. Include the resource kind, preserve read versus write, and omit filenames, proper names and locations because the original request remains the source of arguments.',
             'For clarify, put one brief Spanish question asking for the missing detail in question. For tools or chat, question must be empty. For chat or clarify, action must be empty. Do not answer or perform the request. Return JSON only.'
         ].filter(Boolean).join("\n");
         const gateExamples = [
             { role: "user", content: "Lee package.json sin modificarlo y dime su contenido." },
-            { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"read repository file"}' },
+            { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"read repository file","requiresConversationContext":false}' },
             { role: "user", content: "Busca una panaderia cerca de mi." },
-            { role: "assistant", content: '{"missing":"ubicacion del usuario","mode":"clarify","question":"¿En qué ciudad o colonia quieres que busque?","action":""}' },
+            { role: "assistant", content: '{"missing":"ubicacion del usuario","mode":"clarify","question":"¿En qué ciudad o colonia quieres que busque?","action":"","requiresConversationContext":false}' },
             { role: "user", content: "Busca una panaderia en el centro de Merida." },
-            { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"search web for local businesses"}' },
+            { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"search web for local businesses","requiresConversationContext":false}' },
             { role: "user", content: "Enlistame lo que sabes hacer en este repo." },
-            { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"inspect system capabilities"}' },
+            { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"inspect system capabilities","requiresConversationContext":false}' },
             { role: "user", content: "Haz una campaña de marketing para mi despacho." },
-            { role: "assistant", content: '{"missing":"mercado objetivo","mode":"clarify","question":"¿En qué ciudad o mercado quieres enfocar la campaña?","action":""}' },
+            { role: "assistant", content: '{"missing":"mercado objetivo","mode":"clarify","question":"¿En qué ciudad o mercado quieres enfocar la campaña?","action":"","requiresConversationContext":false}' },
             { role: "user", content: "En Cancún y a nivel nacional." },
-            { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"create marketing campaign"}' },
+            { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"create marketing campaign","requiresConversationContext":true}' },
             { role: "user", content: "Se me antoja un cafecito." },
-            { role: "assistant", content: '{"missing":"","mode":"chat","question":"","action":""}' }
+            { role: "assistant", content: '{"missing":"","mode":"chat","question":"","action":"","requiresConversationContext":false}' }
         ];
 
         const gateResponse = await ai.models.generateContent({
@@ -1523,6 +1556,7 @@ async function runModelSemanticPlanner({
             contents:
                 `${gateSystemInstruction}\n\nINSTRUCCION_ORIGINAL_INMUTABLE=${currentTurnInstruction}`,
             config: {
+                semanticStage: "CURRENT_TURN_CONVERSATION_GATE",
                 modelProfile:
                     "conversation",
                 chatMessages: [
@@ -1543,9 +1577,10 @@ async function runModelSemanticPlanner({
                         missing: { type: "string" },
                         mode: { type: "string", enum: ["chat", "tools", "clarify"] },
                         question: { type: "string" },
-                        action: { type: "string" }
+                        action: { type: "string" },
+                        requiresConversationContext: { type: "boolean" }
                     },
-                    required: ["missing", "mode", "question", "action"],
+                    required: ["missing", "mode", "question", "action", "requiresConversationContext"],
                     additionalProperties: false
                 }
             }
@@ -1557,6 +1592,10 @@ async function runModelSemanticPlanner({
                     ""
                 )
             ) || {};
+        if (gateResponse?.providerResponse?.finishReason !== "length" &&
+            typeof gatePayload.requiresConversationContext === "boolean") {
+            currentTurnRequiresConversationContext = Boolean(pendingContinuation) || gatePayload.requiresConversationContext;
+        }
         let clarificationStillRequired =
             gatePayload?.mode === "clarify";
         let clarificationRecoveryAction =
@@ -1572,6 +1611,7 @@ async function runModelSemanticPlanner({
                     model,
                     contents: currentTurnInstruction,
                     config: {
+                        semanticStage: "CURRENT_TURN_CLARIFICATION_AUDIT",
                         chatMessages: [
                             {
                                 role: "system",
@@ -1833,13 +1873,14 @@ async function runModelSemanticPlanner({
                 model,
                 contents: actionInstruction + "\n\nINSTRUCCION_ORIGINAL_INMUTABLE=" + currentTurnInstruction,
             config: {
+                semanticStage: "CURRENT_TURN_ACTION_DESCRIPTION",
                 chatMessages: [
                     { role: "system", content: actionInstruction },
                     { role: "user", content: "Lee package.json sin cambiarlo." },
                     { role: "assistant", content: '{"action":"read repository file"}' },
                     { role: "user", content: "Busca una panaderia en Merida." },
                     { role: "assistant", content: '{"action":"search web for local businesses"}' },
-                    ...recentConversationTurns,
+                    ...(currentTurnRequiresConversationContext ? recentConversationTurns : []),
                     { role: "user", content: currentTurnInstruction }
                 ],
                 responseMimeType: "application/json",
@@ -1894,13 +1935,15 @@ async function runModelSemanticPlanner({
         if (!safeCatalog.length) throw new Error("SEMANTIC_TOOL_CANDIDATES_REQUIRED");
 
     }
+    const operativeAdvisoryContext = currentTurnRequiresConversationContext ? advisoryContext : "";
     const request = currentTurn
         ? {
             model,
             contents: currentTurnInstruction,
             config: {
+                semanticStage: "CURRENT_TURN_TOOL_SELECTION",
                 chatMessages: [
-                    { role: "system", content: ["Eres Jarvis, un asistente general. Usa la herramienta seleccionada para obtener evidencia real. Solo las solicitudes de codigo o archivos pertenecen al repositorio activo. Construye argumentos con valores ejecutables del tipo indicado, no descriptores de schema. Ejecuta solo la accion solicitada y respeta las restricciones del usuario. No inventes ubicaciones, lecturas ni resultados.", advisoryContext].filter(Boolean).join("\n") },
+                    { role: "system", content: ["Eres Jarvis, un asistente general. Usa la herramienta seleccionada para obtener evidencia real. Solo las solicitudes de codigo o archivos pertenecen al repositorio activo. Construye argumentos con valores ejecutables del tipo indicado, no descriptores de schema. Ejecuta solo la accion solicitada y respeta las restricciones del usuario. No inventes ubicaciones, lecturas ni resultados.", operativeAdvisoryContext].filter(Boolean).join("\n") },
                     { role: "user", content: currentTurnInstruction }
                 ],
                 maxOutputTokens: 160,
@@ -2064,11 +2107,12 @@ async function runModelSemanticPlanner({
                 model,
                 contents: planningInstruction,
                 config: {
+                    semanticStage: "CURRENT_TURN_SCHEMA_ARGUMENT_REPAIR",
                     chatMessages: [
                         { role: "system", content: [
                             `Complete executable arguments for the already selected tool ${tool.name}: ${tool.description}.`,
                             "The previous call had missing or invalid argument types. Return actual values conforming to the JSON schema, never schema descriptors. Do not change the tool, invent evidence or grant approval.",
-                            advisoryContext,
+                            operativeAdvisoryContext,
                             `INVALID_ARGUMENTS=${JSON.stringify(call.args || {}).slice(0, 1200)}`
                         ].filter(Boolean).join("\n") },
                         { role: "user", content: planningInstruction }

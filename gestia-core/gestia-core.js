@@ -3943,6 +3943,7 @@ export const GestiaCore = {
                     message.includes("__BROWSER_") ||
                     isSemanticTimeout(error) ||
                     message.includes("SEMANTIC_RESPONSE_INCOMPLETE") ||
+                    message.includes("LOCAL_SEMANTIC_RESPONSE_EMPTY") ||
                     message.includes("AUTH_REQUIRED") ||
                     isPermanentSemanticPlannerFailure(message);
                 if (
@@ -4115,7 +4116,8 @@ export const GestiaCore = {
                 );
             console.error(
                 "[CURRENT_TURN_SEMANTIC_PLANNER_UNAVAILABLE]",
-                semanticPlannerError
+                semanticPlannerError,
+                error?.evidence || null
             );
             return {
                 status: "halted",
