@@ -543,6 +543,12 @@ async function createBrowserVerifiedPageArtifact(args = {}) {
 }
 
 async function callAdminFunction(name, data = {}) {
+    if (["jarvisImageGenerate", "jarvisVideoGenerate"].includes(name) && !["status", "poll", "cleanup"].includes(data.action)) {
+        const policy = await bridgeRequest("/media/library", { action: "policy" }, 15000);
+        if (policy?.ok !== true || policy.externalGenerationAllowed !== true) {
+            throw new Error("EXTERNAL_MEDIA_GENERATION_DISABLED:Usar originales de media.library sin APIs pagadas");
+        }
+    }
     const user =
         globalThis?.auth?.currentUser ||
         globalThis?.window?.auth?.currentUser ||
@@ -637,6 +643,23 @@ export function registerJarvisActuatorTools(runtime) {
 
     const registrations = [
         register(runtime, {
+            name: "media.library",
+            description: "Biblioteca oficial de originales del usuario en el Escritorio. Para publicidad de Facebook, Instagram, TikTok o páginas web, consultar primero action=list e importar los relativePath elegidos con action=import. Devuelve rutas reales reutilizables por image.adapt, reel.create y page.create. Incluye imágenes, logos originales, audio y video; no genera ni paga APIs. action=export copia un artefacto registrado a Salidas sin publicar. Ninguna ruta del disco fuera de la carpeta configurada.",
+            output: "MATERIAL_LIBRARY_RESULT",
+            userArtifact: true,
+            mutates: true,
+            requiresApproval: false,
+            inputSchema: { type: "object", properties: {
+                action: { type: "string", enum: ["list", "import", "export"] },
+                relativePath: { type: "string", description: "Ruta devuelta por list, sólo para import." },
+                output: { type: "string", description: "Artefacto existente .jarvis-artifacts/, sólo para export." }
+            }, required: ["action"], additionalProperties: false },
+            execute: async (args = {}, context = {}) => await bridgeRequest("/media/library", {
+                action: args.action, relativePath: args.relativePath, output: args.output,
+                caseId: context.caseId || "", objectiveId: context.objectiveId || ""
+            })
+        }),
+        register(runtime, {
             name: "system.supervision.runNow",
             description: "Ejecuta bajo autorizacion administrativa la supervision persistida sin esperar al horario diario.",
             output: "SUPERVISION_RUN_NOW_RESULT",
@@ -710,7 +733,7 @@ export function registerJarvisActuatorTools(runtime) {
             inputSchema: {
                 brandName: "string", title: "string", description: "string", services: "array", evidenceMode: "verified|insufficient",
                 requiredSections: "array", contentSections: "array",
-                heroImage: "string", sourceImages: "array<{output,role:hero|gallery,alt}>", gallery: "array", testimonials: "array", beforeAfter: "array",
+                heroImage: "string", logoOutput: "string", sourceImages: "array<{output,role:hero|gallery,alt}>", gallery: "array", testimonials: "array", beforeAfter: "array",
                 whatsapp: "string", whatsappRequested: "boolean", contactEmail: "string", mapUrl: "string", output: "string",
                 caseId: "string", objectiveId: "string"
             },
@@ -2127,7 +2150,7 @@ export function registerJarvisActuatorTools(runtime) {
 
         register(runtime, {
             name: "image.generate",
-            description: "Genera una imagen local nueva y descargable dentro de .jarvis-artifacts; no publica ni modifica una imagen existente.",
+            description: "Genera una imagen nueva usando el proveedor externo Google y guarda el resultado descargable. Requiere autorización del proveedor y su posible costo; para reutilizar originales sin API pagada, usar media.library e image.adapt.",
             output: "IMAGE_GENERATION_RESULT",
             inputSchema: { prompt: "string", aspectRatio: "string", imageSize: "string", output: "string", caseId: "string", objectiveId: "string" },
             mutates: true,
@@ -2468,23 +2491,40 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "image.adapt",
-            description: "Adapta una imagen real ya recibida a hero, tarjeta, reel y miniaturas mediante canvas local; conserva el original y no genera contenido ficticio.",
+            description: "Exporta anuncios e imágenes existentes a PNG/JPEG de Facebook, Instagram, TikTok y páginas web mediante canvas local sin API pagada. Primero importar originales con media.library. fit=contain conserva todo el texto y logo; cover puede recortar. No añade marcas de agua ni textos provisionales. brandLogoOutput permite componer el archivo de logo original; no usarlo si el anuncio ya incluye su logo. La revisión visual sigue siendo necesaria.",
             output: "IMAGE_ADAPTATION_RESULT",
-            inputSchema: { sourceOutput: "string", variants: "array<{id,width,height,mimeType,quality}>", outputPrefix: "string", caseId: "string", objectiveId: "string" },
+            inputSchema: { type: "object", properties: {
+                sourceOutput: { type: "string" },
+                variants: { type: "array", minItems: 1, maxItems: 5, items: { type: "object", properties: {
+                    id: { type: "string" }, width: { type: "number" }, height: { type: "number" },
+                    mimeType: { type: "string", enum: ["image/png", "image/jpeg"] }
+                }, required: ["id", "width", "height", "mimeType"] } },
+                fit: { type: "string", enum: ["contain", "cover"] },
+                brandLogoOutput: { type: "string" }, logoPlacement: { type: "object" },
+                outputPrefix: { type: "string", description: "Prefijo opcional bajo .jarvis-artifacts/images/ sin extensión." }
+            }, required: ["sourceOutput", "variants"] },
             mutates: true,
-            requiresApproval: true,
+            requiresApproval: false,
+            userArtifact: true,
             execute: async (args = {}, context = {}) => {
-                const source = await bridgeRequest("/artifact/read", { output: args.sourceOutput }, 30000);
+                const source = await bridgeRequest("/artifact/read", { output: args.sourceOutput, officialReference: true }, 30000);
                 if (source?.ok !== true || !String(source.mimeType || "").startsWith("image/") || !source.dataBase64) throw new Error("IMAGE_SOURCE_ARTIFACT_INVALID");
-                const adapted = await adaptImageSource({ sourceBase64: source.dataBase64, sourceMimeType: source.mimeType, variants: args.variants });
+                const adapted = await adaptImageSource({ sourceBase64: source.dataBase64, sourceMimeType: source.mimeType, variants: args.variants, fit: args.fit || "contain" });
+                const logo = args.brandLogoOutput ? await bridgeRequest("/artifact/read", { output: args.brandLogoOutput, officialReference: true }, 30000) : null;
+                if (logo && (logo.ok !== true || !logo.dataBase64 || !String(logo.mimeType).startsWith("image/"))) throw new Error("BRAND_LOGO_SOURCE_REQUIRED");
                 const prefix = String(args.outputPrefix || `.jarvis-artifacts/images/adapted-${Date.now()}`).trim();
                 const outputs = [];
                 for (const variant of adapted.outputs) {
+                    const composed = logo ? await overlayBrandLogo({
+                        imageBase64: variant.dataBase64, imageMimeType: variant.mimeType,
+                        logoBase64: logo.dataBase64, logoMimeType: logo.mimeType,
+                        ...(args.logoPlacement || {})
+                    }) : variant;
                     const extension = variant.mimeType === "image/png" ? ".png" : variant.mimeType === "image/jpeg" ? ".jpg" : ".webp";
                     const output = normalizeImageArtifactOutput(`${prefix}-${variant.id}${extension}`, variant.mimeType);
                     if (!output) throw new Error("IMAGE_ADAPTATION_OUTPUT_INVALID");
                     const persisted = await bridgeRequest("/image", {
-                        imageBase64: variant.dataBase64,
+                        imageBase64: composed.imageBase64 || composed.dataBase64,
                         mimeType: variant.mimeType,
                         output,
                         origin: "image.adapt",
@@ -2494,12 +2534,15 @@ export function registerJarvisActuatorTools(runtime) {
                         originalFile: source.output,
                         approved: context.approved === true,
                         approvedBy: context.approvedBy || "",
-                        transformations: [{ type: "cover_crop_resize", id: variant.id, width: variant.width, height: variant.height, crop: variant.crop }]
+                        transformations: [{ type: (args.fit || "contain") + "_resize", id: variant.id, width: variant.width, height: variant.height, crop: variant.crop },
+                            ...(logo ? [{ type: "original_logo_overlay", source: logo.output, sha256: logo.sha256 }] : [])]
                     }, 30000);
                     if (persisted?.ok !== true) throw new Error(persisted?.error || "IMAGE_ADAPTATION_PERSIST_FAILED");
-                    outputs.push({ id: variant.id, width: variant.width, height: variant.height, mimeType: variant.mimeType, bytes: persisted.bytes, output: persisted.output, artifact: persisted.artifact });
+                    outputs.push({ id: variant.id, width: variant.width, height: variant.height, mimeType: variant.mimeType, bytes: persisted.bytes, output: persisted.output, artifact: persisted.artifact,
+                        sha256: persisted.artifact?.sha256 || "", physicallyWritten: persisted.bytes > 0,
+                        logoOverlayApplied: composed.logoOverlayApplied === true, logoSourceSha256: logo?.sha256 || "" });
                 }
-                const result = { ok: true, status: "IMAGE_VARIANTS_ADAPTED_VERIFIED", provider: "browser_canvas", sourceOutput: source.output, originalPreserved: true, generatedContentUsed: false, outputs };
+                const result = { ok: true, status: "IMAGE_VARIANTS_ADAPTED_VERIFIED", provider: "browser_canvas", sourceOutput: source.output, originalPreserved: true, generatedContentUsed: false, ...outputs[0], outputs };
                 recordCapabilityEvidence("image_adaptation", { ...result, checkedAt: new Date().toISOString() });
                 return result;
             }

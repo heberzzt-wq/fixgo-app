@@ -674,7 +674,7 @@ test("mission stops repeated plans and respects maximum steps", async () => {
     assert.equal(bounded.reason, "MAXIMUM_STEPS_REACHED");
 });
 
-test("mission cancellation and deadline close without another tool", async () => {
+test("mission cancellation and deadline close without another tool", async t => {
     const controller = new AbortController();
     controller.abort();
     const cancelled = await runJarvisMission({
@@ -687,6 +687,9 @@ test("mission cancellation and deadline close without another tool", async () =>
     });
     assert.equal(cancelled.reason, "CANCELLED");
 
+    // Advance the clock explicitly; a real 1 ms deadline depends on CPU speed.
+    let clock = Date.now();
+    t.mock.method(Date, "now", () => (clock += 2));
     const deadline = await runJarvisMission({
         instruction: "Expira seguro.",
         planner: async () => ({ toolCalls: [] }),

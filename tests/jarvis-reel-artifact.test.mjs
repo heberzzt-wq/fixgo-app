@@ -31,6 +31,17 @@ test("reel studio creates a configurable 9:16 MP4-preferred production artifact"
     assert.ok(report.bytes > 8000);
 });
 
+test("poster scenes reuse complete finished ads without requiring duplicate overlay text", () => {
+    const posterInput = { ...input, scenes: Array.from({ length: 3 }, () => ({
+        durationSeconds: 10, presentation: "poster", mediaType: "image",
+        assetDataUrl: "data:image/png;base64,aW1hZ2U="
+    })) };
+    const html = buildReelStudioHtml(posterInput);
+    assert.ok(html.includes('"presentation":"poster"'));
+    assert.ok(Object.values(describeReelStudio(posterInput, html).checks).every(Boolean));
+    assert.throws(() => buildReelStudioHtml({ ...posterInput, scenes: posterInput.scenes.map(({ assetDataUrl, ...scene }) => scene) }), /CONTENT_REQUIRED/);
+});
+
 test("reel studio builds a complete editable 45-second production timeline", () => {
     const fortyFiveSecondInput = {
         ...input,

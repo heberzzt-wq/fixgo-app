@@ -3272,7 +3272,8 @@ test("grounded missions complete semantic arguments for marketing, page, image a
                 market: "México",
                 campaignObjective: "generar reuniones calificadas",
                 horizon: "90 días",
-                productionRequested: false
+                productionRequested: false,
+                deliveryMode: "planning_files"
             },
             "page.plan": {
                 pageName: "summit-diagnostico-legal",
@@ -3378,11 +3379,12 @@ test("marketing recovers explicit brand identity before returning MARKETING_INPU
     registerJarvisMultifunctionTools(runtime);
     const calls = [];
 
-    const semanticArgumentPlanner = async ({ catalog }) => {
+    const semanticArgumentPlanner = async ({ catalog, input }) => {
         const toolName = catalog[0].name;
         calls.push(toolName);
 
         if (toolName === "marketing.identity") {
+            assert.ok(!input.includes("Marca externa incorrecta"), "website aliases must not replace the user's explicit brand");
             return {
                 ok: true,
                 status: "SEMANTIC_PLAN_READY",
@@ -3391,10 +3393,7 @@ test("marketing recovers explicit brand identity before returning MARKETING_INPU
                 toolCalls: [{
                     name: toolName,
                     args: {
-                        brandName: "SUMMIT FIRMA DE ABOGADOS",
-                        offer: "Asesoría legal",
-                        audience: "Empresas y particulares en Cancún y México",
-                        market: "Cancún, Quintana Roo y México"
+                        brandName: "SUMMIT FIRMA DE ABOGADOS"
                     }
                 }]
             };
@@ -3422,7 +3421,8 @@ test("marketing recovers explicit brand identity before returning MARKETING_INPU
                     market: "Cancún, Quintana Roo y México",
                     campaignObjective: "generar consultas calificadas",
                     horizon: "90 días",
-                    productionRequested: false
+                    productionRequested: false,
+                    deliveryMode: "planning_files"
                 }
             }]
         };
@@ -3438,6 +3438,7 @@ test("marketing recovers explicit brand identity before returning MARKETING_INPU
             rawInput:
                 "QUIERO QUE HAGAS MARKETING PARA https://www.summ.com.mx/ SUMMIT FIRMA DE ABOGADOS EN CANCÚN QUINTANA ROO Y MARKETING A NIVEL NACIONAL",
             semanticArgumentPlanner,
+            validSources: [{title:"Marca externa incorrecta",url:"https://www.summ.com.mx/"}],
             analysisId:
                 "MARKETING-IDENTITY-RECOVERY"
         }

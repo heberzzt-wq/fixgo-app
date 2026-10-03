@@ -1,6 +1,7 @@
 import {
     hasCompleteMarketingPlan,
-    renderCompleteMarketingPlan
+    renderCompleteMarketingPlan,
+    marketingRequirementMetadata
 } from "./jarvis.marketing.presenter.js";
 
 /**
@@ -91,6 +92,7 @@ function structuredProductionArtifacts(context = {}) {
         "page.create",
         "image.generate",
         "image.edit",
+        "image.adapt",
         "document.create",
         "marketing.package.real-media"
     ]);
@@ -107,7 +109,8 @@ function structuredProductionArtifacts(context = {}) {
             id: clean(item.id) || `artifact-${index + 1}`,
             type: clean(item.type) || toolName,
             toolName,
-            label: clean(item.label) || clean(item.type) || toolName
+            label: clean(item.label) || clean(item.type) || toolName,
+            ...marketingRequirementMetadata(item)
         };
         const format = clean(item.format);
         if (format) entry.format = format.toLowerCase();
@@ -543,6 +546,11 @@ export function planMarketingRequest(rawInput = "", context = {}) {
     }
     const productionRequested = context.productionRequested === true;
     const requiredArtifacts = structuredProductionArtifacts(context);
+    if (context.deliveryMode === "publishable_media") {
+        const media = requiredArtifacts.filter(item => ["image.adapt", "image.edit", "image.generate", "reel.create"].includes(item.toolName));
+        if (!productionRequested || media.length === 0) return productionContractIncompleteResult(instruction, context);
+        media.forEach(item => { item.publishable = true; });
+    }
     if (productionRequested && requiredArtifacts.length === 0) {
         return productionContractIncompleteResult(instruction, context);
     }
@@ -655,6 +663,7 @@ export function planMarketingRequest(rawInput = "", context = {}) {
         inferredInputs: allInferredFields,
         productionRequested,
         requiredArtifacts,
+        deliveryMode: context.deliveryMode || "legacy",
         planReady: true,
         readyForProduction: true,
         objectiveSatisfied: true,

@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { buildPageArtifactHtml, describePageArtifact } from "../jarvis-page-artifact.js";
 import { preparePageMaterialInput } from "../jarvis-fs-bridge.js";
+import { registerJarvisActuatorTools } from "../gestia-core/jarvis/jarvis.actuator.pack.js";
 
 const input = {
     brandName: "Multiservicios Peninsulares HMH",
@@ -110,7 +111,9 @@ test("page creation is connected as a local user artifact with HTML preview", ()
     const renderer = fs.readFileSync(new URL("../modules/terminal/jarvis-attachments.js", import.meta.url), "utf8");
     assert.match(bridge, /app\.post\("\/page\/create"/);
     assert.match(actuator, /name: "page\.create"/);
-    assert.match(actuator, /name: "page\.create"[\s\S]{0,900}requiresApproval: false/);
-    assert.match(actuator, /name: "page\.create"[\s\S]{0,950}userArtifact: true/);
+    const definitions = new Map();
+    registerJarvisActuatorTools({ register: definition => definitions.set(definition.name, definition) });
+    assert.equal(definitions.get("page.create").requiresApproval, false);
+    assert.equal(definitions.get("page.create").userArtifact, true);
     assert.match(renderer, /jarvis-html-preview/);
 });

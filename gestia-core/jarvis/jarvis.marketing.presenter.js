@@ -165,6 +165,38 @@ export function renderCompleteMarketingPlan(result = {}) {
     ].join("\n").trim();
 }
 
+// Mechanical delivery checks; intent and production choices still come from Qwen.
+export function marketingMediaDeliveryIssue(task = {}, requirement = {}) {
+    if (requirement.publishable !== true) return "";
+    const observation = task.observation || {};
+    const data = { ...(observation.evidence || {}), ...observation };
+    const output = String(data.output || data.artifact || "");
+    const mime = String(data.mimeType || "").toLowerCase();
+    if (data.objectiveSatisfied !== true || !output || data.physicallyWritten !== true ||
+        !(Number(data.bytes) > 0) || !/^[a-f0-9]{64}$/i.test(String(data.sha256 || ""))) return "MEDIA_BYTES_UNVERIFIED";
+    const video = requirement.toolName === "reel.create";
+    if (video ? mime !== "video/mp4" : !["image/png", "image/jpeg"].includes(mime)) return "MEDIA_FORMAT_INVALID";
+    const args = requirement.args || {};
+    const dimensions = video ? {width:1080,height:1920} : (args.variants?.[0] || {});
+    if (!(Number(data.width) >= 256 && Number(data.height) >= 256) ||
+        (dimensions.width && Number(data.width) !== Number(dimensions.width)) ||
+        (dimensions.height && Number(data.height) !== Number(dimensions.height))) return "MEDIA_DIMENSIONS_INVALID";
+    if ((args.brandLogoOutput || args.logoOutput) && (data.logoOverlayApplied !== true ||
+        !/^[a-f0-9]{64}$/i.test(String(data.logoSourceSha256 || "")))) return "OFFICIAL_LOGO_UNVERIFIED";
+    if (video && (data.videoCodec !== "h264" || !(Number(data.durationSeconds) > 0))) return "VIDEO_MASTER_UNVERIFIED";
+    if (video && (args.musicRequired === true || args.audioOutput) && (!data.audioCodec || !(Number(data.audioTracksAdded) > 0))) return "VIDEO_AUDIO_UNVERIFIED";
+    return "";
+}
+
+export function marketingRequirementMetadata(item = {}) {
+    return {
+        ...(item.publishable === true ? {publishable:true} : {}),
+        ...(item.platform ? {platform:String(item.platform).slice(0,80)} : {}),
+        ...(item.args && typeof item.args === "object" && !Array.isArray(item.args)
+            ? {args:JSON.parse(JSON.stringify(item.args))} : {})
+    };
+}
+
 function isMarketingDocumentTask(item = {}) {
     return item?.name === "document.create" && item?.args?.contentSource === "marketing.plan";
 }
@@ -176,6 +208,7 @@ function isMarketingArtifactTask(item = {}) {
         "page.create",
         "image.generate",
         "image.edit",
+        "image.adapt",
         "marketing.package.real-media"
     ].includes(String(item?.name || ""));
 }
@@ -199,7 +232,8 @@ function normalizedRequirements(marketing = {}) {
         type: String(item?.type || ""),
         toolName: String(item?.toolName || ""),
         format: String(item?.format || "").toLowerCase(),
-        label: String(item?.label || "")
+        label: String(item?.label || ""),
+        ...marketingRequirementMetadata(item)
     })).filter(item => item.toolName);
     const counts = requirements.reduce((map, item) => {
         const key = `${item.toolName}\u0000${item.format}`;
@@ -494,7 +528,8 @@ export function marketingFinalResponseFromMission(missionResult = {}) {
     const consumedFingerprints = new Set();
     for (const requirement of requirements) {
         const completedCandidates = completed.filter(item =>
-            taskMatchesRequirement(item, requirement) && artifactOutput(item)
+            taskMatchesRequirement(item, requirement) && artifactOutput(item) &&
+            !marketingMediaDeliveryIssue(item, requirement)
         );
         const completedTask = completedCandidates.find(item => {
             const fingerprint = artifactFingerprint(item);
@@ -543,8 +578,17 @@ export function marketingFinalResponseFromMission(missionResult = {}) {
 
     return {
         ok: marketing.observation.objectiveSatisfied === true && (!productionRequested || unresolved.length === 0),
-        title: productionRequested && unresolved.length ? "Plan de marketing — producción incompleta" : "Plan de marketing",
-        text: [marketing.observation.userVisible, ...plannedReelLines, ...artifactLines].join("\n"),
+        title: requirements.some(item => item.publishable)
+            ? (unresolved.length ? "Publicidad — entrega incompleta" : "Publicidad lista para revisión")
+            : (productionRequested && unresolved.length ? "Plan de marketing — producción incompleta" : "Plan de marketing"),
+        text: requirements.some(item => item.publishable)
+            ? [
+                unresolved.length ? "La publicidad aún tiene archivos pendientes." : "Archivos de publicidad preparados para revisión:",
+                ...produced.map(item => `- ${item.label}: ${item.output}`),
+                ...(unresolved.length ? ["Pendientes: " + unresolved.map(item => item.label).join(", ") + "."] : []),
+                "La verificación de archivos no sustituye revisar el logo original, textos, encuadre y ausencia de marcas o letreros provisionales."
+            ].join("\n")
+            : [marketing.observation.userVisible, ...plannedReelLines, ...artifactLines].join("\n"),
         source: "MARKETING_DELIVERABLE_DIRECT",
         productionRequested,
         requiredArtifacts: requirements,

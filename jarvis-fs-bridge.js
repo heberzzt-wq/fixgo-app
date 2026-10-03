@@ -3,6 +3,7 @@ import { SEMANTIC_MAX_BUDGET_MS } from "./gestia-core/jarvis/jarvis.semantic.tra
 import express from "express";
 import cors from "cors";
 import fs from "fs";
+import { materialLibrary, officialMaterialPolicy, assertOfficialMaterial } from "./jarvis-material-library.js";
 import os from "os";
 import path from "path";
 import * as tls from "node:tls";
@@ -3005,6 +3006,8 @@ export async function exportReelVideoWithChrome({
     let relativeOutput = "";
 
     const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-reel-cdp-"));
+    let exportPhase = "browser_start";
+    let exportDebuggerUrl = "";
     const child = spawn(
         chrome,
         [
@@ -3041,10 +3044,12 @@ export async function exportReelVideoWithChrome({
             throw new Error(`REEL_CDP_NEW_TARGET_${targetResponse.status}`);
         }
         const target = await targetResponse.json();
+        exportDebuggerUrl = target?.webSocketDebuggerUrl || "";
         if (!target?.webSocketDebuggerUrl) {
             throw new Error("REEL_CDP_PAGE_WS_REQUIRED");
         }
 
+        exportPhase = "start_export";
         const startDeadline = Date.now() + 15000;
         let startResult = "REEL_EXPORT_BUTTON_MISSING";
         while (Date.now() < startDeadline && startResult !== "REEL_EXPORT_STARTED") {
@@ -3068,6 +3073,7 @@ export async function exportReelVideoWithChrome({
             throw new Error(String(startResult || "REEL_EXPORT_START_FAILED"));
         }
 
+        exportPhase = "recording";
         const payloadText = await evaluateCdpExpression(
             target.webSocketDebuggerUrl,
             `(() => new Promise((resolve, reject) => { const startedAt = Date.now(); const timeoutMs = ${Math.max(45000, duration * 1000 + 30000)}; const finish = async () => { try { const exportError = window.__JARVIS_REEL_EXPORT_ERROR__; if (exportError) throw new Error(typeof exportError === 'string' ? exportError : JSON.stringify(exportError)); const blob = window.__JARVIS_LAST_REEL_BLOB__; const detail = window.__JARVIS_LAST_REEL_DETAIL__; if (blob && detail) { const bytes = new Uint8Array(await blob.arrayBuffer()); let binary = ''; const step = 0x8000; for (let index = 0; index < bytes.length; index += step) binary += String.fromCharCode(...bytes.subarray(index, index + step)); resolve(JSON.stringify({ ...detail, base64: btoa(binary) })); return; } if (Date.now() - startedAt >= timeoutMs) throw new Error('REEL_EXPORT_COMPLETION_TIMEOUT'); setTimeout(finish, 100); } catch (error) { reject(error); } }; finish(); }))()`,
@@ -3087,6 +3093,7 @@ export async function exportReelVideoWithChrome({
                 averageRenderedFps.toFixed(2)
             );
         }
+        exportPhase = "mastering";
         const master = await persistReelMasterArtifact({
             buffer,
             payload,
@@ -3105,10 +3112,14 @@ export async function exportReelVideoWithChrome({
     }
     catch(error) {
         try { if (videoTarget) fs.rmSync(videoTarget, { force: true }); } catch {}
+        const diagnostic = exportDebuggerUrl ? await evaluateCdpExpression(exportDebuggerUrl,
+            "JSON.stringify({status:document.querySelector('#status')?.textContent,error:window.__JARVIS_REEL_EXPORT_ERROR__,media:window.__JARVIS_REEL_MEDIA_READINESS__,audio:window.__JARVIS_REEL_AUDIO_ROUTING__})", 3000).catch(() => null) : null;
         return {
             ok: false,
             status: "REEL_VIDEO_EXPORT_FAILED",
-            error: error?.message || String(error)
+            error: error?.message || String(error),
+            exportPhase,
+            diagnostic
         };
     }
     finally {
@@ -5259,7 +5270,8 @@ export function readArtifactPayload({
         fileName: path.basename(target),
         mimeType: artifactMimeType(target),
         bytes: bytes.length,
-        dataBase64: bytes.toString("base64")
+        dataBase64: bytes.toString("base64"),
+        sha256: createHash("sha256").update(bytes).digest("hex")
     };
 }
 
@@ -5267,6 +5279,7 @@ export function preparePageMaterialInput({ input = {}, root = DEFAULT_ROOT } = {
     let embeddedBytes = 0;
     const materialSources = [];
     const embedImage = output => {
+        assertOfficialMaterial({ root, output });
         const source = readArtifactPayload({ output, root });
         if (!source.mimeType.startsWith("image/") || source.mimeType === "image/svg+xml") throw new Error("PAGE_MATERIAL_IMAGE_REQUIRED");
         if (source.bytes > 12 * 1024 * 1024) throw new Error("PAGE_MATERIAL_IMAGE_TOO_LARGE");
@@ -5277,6 +5290,10 @@ export function preparePageMaterialInput({ input = {}, root = DEFAULT_ROOT } = {
     };
     const sourceImages = Array.isArray(input?.sourceImages) ? input.sourceImages.slice(0, 12) : [];
     const pageInput = { ...(input || {}) };
+    if (officialMaterialPolicy(root) && (pageInput.heroImage || pageInput.logoImage || pageInput.gallery?.length || pageInput.beforeAfter?.length)) {
+        throw new Error("MATERIAL_OFFICIAL_LIBRARY_REQUIRED:Usar sourceImages y logoOutput importados con media.library");
+    }
+    if (input.logoOutput) pageInput.logoImage = embedImage(input.logoOutput);
     const embeddedGallery = [];
     for (const item of sourceImages) {
         const role = String(item?.role || "").trim();
@@ -8605,6 +8622,7 @@ export function createJarvisFsBridgeApp({
             let embeddedBytes = 0;
             const embedArtifact = (output, expectedFamily) => {
                 if (!output) return "";
+                assertOfficialMaterial({ root, output });
                 const artifact = readArtifactPayload({ output, root });
                 if (!artifact.mimeType.startsWith(`${expectedFamily}/`)) throw new Error("REEL_MEDIA_TYPE_MISMATCH");
                 embeddedBytes += artifact.bytes;
@@ -8612,6 +8630,9 @@ export function createJarvisFsBridgeApp({
                 return `data:${artifact.mimeType};base64,${artifact.dataBase64}`;
             };
             const sourceScenes = Array.isArray(req.body?.scenes) ? req.body.scenes.slice(0, 18) : [];
+            if (officialMaterialPolicy(root) && (req.body?.logoDataUrl || req.body?.audioDataUrl || req.body?.logoUrl || req.body?.audioUrl || sourceScenes.some(scene => scene.assetDataUrl || scene.assetUrl || scene.mediaUrl))) {
+                throw new Error("MATERIAL_OFFICIAL_LIBRARY_REQUIRED:Usar assetOutput, logoOutput y audioOutput importados");
+            }
             const scenes = sourceScenes.map(scene => ({
                 ...scene,
                 assetDataUrl: scene?.assetOutput
@@ -8677,6 +8698,9 @@ export function createJarvisFsBridgeApp({
             return res.json({
                 ok: true,
                 status: "REEL_VIDEO_CREATED_VERIFIED",
+                physicallyWritten: true,
+                logoOverlayApplied: Boolean(req.body?.logoOutput && sourceScenes.some(scene => scene.presentation !== "poster")),
+                logoSourceSha256: req.body?.logoOutput ? readArtifactPayload({ output: req.body.logoOutput, root }).sha256 : "",
                 output: videoExport.output,
                 videoOutput: videoExport.output,
                 studioOutput: path.relative(root, target).replaceAll("\\", "/"),
@@ -9603,8 +9627,20 @@ export function createJarvisFsBridgeApp({
         }
     });
 
+    app.post("/media/library", (req, res) => {
+        try {
+            const result = materialLibrary({ root, action: req.body?.action || "list",
+                relativePath: req.body?.relativePath, output: req.body?.output,
+                caseId: req.body?.caseId, objectiveId: req.body?.objectiveId });
+            return res.json(result);
+        } catch (error) {
+            return res.status(400).json({ ok: false, status: "MATERIAL_LIBRARY_FAILED", error: error.message });
+        }
+    });
+
     app.post("/artifact/read", (req, res) => {
         try {
+            if (req.body?.officialReference === true) assertOfficialMaterial({ root, output: req.body?.output });
             const payload = readArtifactPayload({ output: req.body?.output, root });
             return res.json({
                 ...payload,

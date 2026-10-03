@@ -365,8 +365,17 @@ export async function adaptImageSource(input = {}) {
             const canvas = canvasFor(variant.width, variant.height);
             const context = canvas.getContext("2d", { alpha: variant.mimeType !== "image/jpeg" });
             if (!context) throw new Error("IMAGE_CANVAS_CONTEXT_UNAVAILABLE");
-            const crop = cropBox(bitmap.width, bitmap.height, variant.width, variant.height);
-            context.drawImage(bitmap, crop.x, crop.y, crop.width, crop.height, 0, 0, variant.width, variant.height);
+            const contain = input.fit === "contain";
+            const crop = contain
+                ? { x: 0, y: 0, width: bitmap.width, height: bitmap.height }
+                : cropBox(bitmap.width, bitmap.height, variant.width, variant.height);
+            if (contain) {
+                context.fillStyle = /^#[0-9a-f]{6}$/i.test(input.background || "") ? input.background : "#ffffff";
+                context.fillRect(0, 0, variant.width, variant.height);
+                drawContainedImage(context, bitmap, { x: 0, y: 0, width: variant.width, height: variant.height });
+            } else {
+                context.drawImage(bitmap, crop.x, crop.y, crop.width, crop.height, 0, 0, variant.width, variant.height);
+            }
             const blob = await canvasBlob(canvas, variant.mimeType, variant.quality);
             if (!blob.size) throw new Error("IMAGE_VARIANT_EMPTY");
             outputs.push({ ...variant, bytes: blob.size, dataBase64: await blobToBase64(blob), crop });

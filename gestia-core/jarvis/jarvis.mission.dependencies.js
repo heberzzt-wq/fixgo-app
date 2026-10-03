@@ -1,8 +1,10 @@
+import { marketingRequirementMetadata } from "./jarvis.marketing.presenter.js";
 const VERSION = "1.5.0-scene-complete-reel-creative-v142";
 
 const MISSION_STAGE_BY_TOOL = Object.freeze({
     "web.research": 10,
     "media.analyze": 18,
+    "media.library": 15,
     "marketing.plan": 20,
     "page.plan": 20,
     "image.plan": 20,
@@ -18,6 +20,7 @@ const MISSION_STAGE_BY_TOOL = Object.freeze({
     "document.pdf": 40,
     "image.generate": 28,
     "image.edit": 28,
+    "image.adapt": 28,
     "marketing.package.real-media": 40
 });
 
@@ -95,7 +98,8 @@ function marketingProductionRequirements(calls = []) {
                 type: clean(entry.type),
                 toolName,
                 format: clean(entry.format).toLowerCase(),
-                label: clean(entry.label)
+                label: clean(entry.label),
+                ...marketingRequirementMetadata(entry)
             };
         })
         .filter(Boolean);
@@ -188,6 +192,7 @@ function tagMarketingProductionCalls(calls = []) {
         const call = calls[callIndex];
         const args = {
             ...object(call.args),
+            ...object(requirement.args),
             marketingRequirementId: requirement.id
         };
 
@@ -395,8 +400,8 @@ export function ensureExecutableArtifactDependencies({
     );
     if (reelPlanIndex >= 0 && !hasGeneratedCreative && available.has("image.generate")) {
         const reelPlan = calls[reelPlanIndex];
-        const policy = clean(reelPlan?.args?.sourceMediaPolicy).toLowerCase() || "generated";
-        if (policy !== "reuse") {
+        const policy = clean(reelPlan?.args?.sourceMediaPolicy).toLowerCase() || "reuse";
+        if (policy === "generated") {
             const scenes = Array.isArray(reelPlan?.args?.scenes)
                 ? reelPlan.args.scenes.filter(Boolean).slice(0, 8)
                 : [];

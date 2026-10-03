@@ -173,6 +173,7 @@ const MARKETING_PRODUCTION_TOOL_TYPES = Object.freeze({
     "page.create": "page",
     "image.generate": "image",
     "image.edit": "image",
+    "image.adapt": "image",
     "reel.create": "reel",
     "marketing.package.real-media": "campaign_package"
 });
@@ -279,6 +280,7 @@ const MARKETING_ARGUMENT_SCHEMA = {
         horizon: { type: "string", description: "Duración propuesta de la campaña expresada en días o meses, por ejemplo 90 días." },
         durationSeconds: { type: "number" },
         productionRequested: { type: "boolean" },
+        deliveryMode: { type: "string", enum: ["planning_files", "publishable_media"], description: "publishable_media si se pide publicidad para subir a redes. Un plan, HTML o manifiesto no satisface esa entrega. planning_files sólo para documentos." },
         productionArtifacts: {
             type: "array",
             items: {
@@ -288,7 +290,10 @@ const MARKETING_ARGUMENT_SCHEMA = {
                     type: { type: "string" },
                     toolName: { type: "string" },
                     format: { type: "string" },
-                    label: { type: "string" }
+                    label: { type: "string" },
+                    platform: { type: "string" },
+                    publishable: { type: "boolean" },
+                    args: { type: "object", additionalProperties: true, description: "Argumentos ejecutables respaldados por archivos aportados: sourceOutput, brandLogoOutput, variants para image.adapt; escenas y audio para reel.create. No inventar rutas." }
                 },
                 required: ["type", "toolName"],
                 additionalProperties: false
@@ -309,7 +314,8 @@ const MARKETING_ARGUMENT_SCHEMA = {
         "tone",
         "channels",
         "metrics",
-        "productionRequested"
+        "productionRequested",
+        "deliveryMode"
     ],
     additionalProperties: false
 };
@@ -4060,7 +4066,7 @@ async function completeGroundedToolArgs({
     };
 }
 
-async function recoverMarketingBusinessIdentity({
+async function recoverMarketingBrandIdentity({
     instruction = "",
     context = {}
 } = {}) {
@@ -4079,13 +4085,13 @@ async function recoverMarketingBusinessIdentity({
                 toolName:
                     "marketing.identity",
                 description:
-                    'Identifica el NEGOCIO ANUNCIANTE desde la orden y las fuentes: brandName = nombre propio; offer = servicio que ese negocio vende; audience = compradores de ese servicio; market = todos los mercados pedidos, local y nacional juntos. Ejemplo: marketing para EL TRIGO, panadería de Mérida con alcance nacional y un PDF -> marca EL TRIGO, oferta pan, público compradores de pan, mercado Mérida y México. El PDF es una entrega del asistente, no la oferta del anunciante.',
+                    'Extrae el nombre propio del negocio escrito por el usuario. Ejemplo: "marketing para EL TRIGO, panadería en Mérida, https://pan.test" -> brandName: "EL TRIGO". Conserva las palabras originales. No uses el dominio como marca ni añadas la ciudad o el encargo de marketing. Si la orden no indica una marca, devuelve cadena vacía.',
                 inputSchema: {
                     type:
                         "object",
-                    properties: Object.fromEntries(["brandName", "offer", "audience", "market"].map(key => [key, MARKETING_ARGUMENT_SCHEMA.properties[key]])),
+                    properties: {brandName: MARKETING_ARGUMENT_SCHEMA.properties.brandName},
                     required: [
-                        "brandName", "offer", "audience", "market"
+                        "brandName"
                     ],
                     additionalProperties:
                         false
@@ -4094,13 +4100,10 @@ async function recoverMarketingBusinessIdentity({
                     source,
                 currentArgs:
                     {},
-                missionEvidence: context.canonicalEvidence || [],
-                validSources:
-                    Array.isArray(
-                        context?.validSources
-                    )
-                        ? context.validSources
-                        : [],
+                // The user's explicit identity takes precedence over website
+                // titles, domain labels and source aliases. Evidence is supplied
+                // separately when completing the factual service and strategy.
+                validSources: [],
                 semanticPlanner:
                     typeof context
                         ?.semanticArgumentPlanner ===
@@ -6368,7 +6371,7 @@ export function registerJarvisMultifunctionTools(runtime) {
 
                 if (!clean(planningArgs?.brandName)) {
                     const recoveredIdentity =
-                        await recoverMarketingBusinessIdentity({
+                        await recoverMarketingBrandIdentity({
                             instruction,
                             context
                         });
@@ -6378,7 +6381,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                 // Evidence and identity are supplied by the mission. Ask Qwen
                 // only for missing brief fields, never to fabricate source arrays.
                 const missingFields = MARKETING_ARGUMENT_SCHEMA.required.filter(field => !hasPlanningValue(planningArgs[field]));
-                const enrichmentFields = [...new Set([...missingFields, "budget", "mediumBudget", "horizon", "assets", "productionArtifacts"])];
+                const enrichmentFields = [...new Set([...missingFields, "budget", "mediumBudget", "horizon", "assets", "productionArtifacts", "deliveryMode"])];
                 const marketingEnrichmentSchema = {
                     type: "object",
                     properties: Object.fromEntries(enrichmentFields.map(field => [field, MARKETING_ARGUMENT_SCHEMA.properties[field]])),
@@ -6392,7 +6395,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                             toolName:
                                 "marketing.plan",
                             description:
-                                'Elabora propuestas de marketing para los CLIENTES DEL NEGOCIO. Ejemplo: publicitar una panadería -> audience: familias que compran pan, offer: pan artesanal, pain: encontrar pan fresco, cta: visita la tienda. Los archivos son tu entrega al usuario, NO la oferta del negocio. Usa la actividad de la orden y fuentes; no copies el pedido como oferta. Conserva la marca fijada y TODO el alcance geográfico. Escribe en español si la orden está en español. productionRequested indica si se pidieron archivos.',
+                                'Define publicidad para los clientes del negocio con hechos de las fuentes y la marca fijada. La oferta es el servicio del negocio, no los archivos. Para anuncios listos para subir usa deliveryMode=publishable_media, productionRequested=true y productionArtifacts distintos por pieza, canal y fecha del periodo pedido; un documento o manifiesto no sustituye imágenes o video. Usa media.library como biblioteca oficial; importa originales antes de image.adapt/reel.create/page.create. No inventes rutas ni llames APIs pagadas. Conserva logos originales y anuncios completos con fit=contain, sin añadir marcas, letreros provisionales ni duplicar textos. TikTok con música requiere MP4 vertical y audioOutput real. Si faltan originales, texto final o audio, decláralo pendiente. planning_files sólo si se solicitaron planes/documentos. Escribe en español.',
                             inputSchema:
                                 marketingEnrichmentSchema,
                             args:

@@ -1,3 +1,4 @@
+import { marketingMediaDeliveryIssue, marketingRequirementMetadata } from "./jarvis.marketing.presenter.js";
 const VERSION =
     "1.20.0-v142-deadline-reconciliation";
 const REEL_MEDIA_RECOVERY_MAX_ATTEMPTS = 3;
@@ -232,7 +233,7 @@ function unresolvedMarketingProductionRequirements(mission = {}) {
         const requirement = requirements[index];
         const candidates = completed.filter(item =>
             taskMatchesMarketingRequirement(item, requirement, requirements) &&
-            marketingArtifactOutput(item)
+            marketingArtifactOutput(item) && !marketingMediaDeliveryIssue(item, requirement)
         );
         const completedTask = candidates.find(item => {
             const fingerprint = marketingArtifactFingerprint(item);
@@ -261,6 +262,7 @@ function marketingRequirementExecutionArgs(requirement = {}) {
     const toolName = text(requirement?.toolName, 120);
     const format = text(requirement?.format, 40).toLowerCase();
     const label = text(requirement?.label || requirement?.type || id, 300);
+    if (requirement.publishable === true) return { ...(requirement.args || {}), marketingRequirementId: id };
     if (toolName === "document.create") {
         const extension = format === "markdown" ? "md" : format;
         return {
@@ -319,7 +321,8 @@ function reconcileDeclaredMarketingProduction(mission = {}, requirements = []) {
             type: text(requirement?.type, 120),
             toolName: text(requirement?.toolName, 120),
             format: text(requirement?.format, 40).toLowerCase(),
-            label: text(requirement?.label, 300)
+            label: text(requirement?.label, 300),
+            ...marketingRequirementMetadata(requirement)
         }))
         .filter(requirement => requirement.toolName);
     const reservedPendingIndexes = new Set();
@@ -327,7 +330,7 @@ function reconcileDeclaredMarketingProduction(mission = {}, requirements = []) {
 
     for (const requirement of normalizedRequirements) {
         const completed = (Array.isArray(mission?.completedTasks) ? mission.completedTasks : [])
-            .some(task => taskMatchesMarketingRequirement(task, requirement, normalizedRequirements) && marketingArtifactOutput(task));
+            .some(task => taskMatchesMarketingRequirement(task, requirement, normalizedRequirements) && marketingArtifactOutput(task) && !marketingMediaDeliveryIssue(task, requirement));
         if (completed) continue;
 
         const pendingIndex = (Array.isArray(mission?.pendingTasks) ? mission.pendingTasks : [])
@@ -344,7 +347,7 @@ function reconcileDeclaredMarketingProduction(mission = {}, requirements = []) {
             pending.marketingRequirementId = requirement.id;
             continue;
         }
-        if (requirement.toolName === "document.create") {
+        if (requirement.toolName === "document.create" || (requirement.publishable === true && ["image.adapt", "reel.create"].includes(requirement.toolName))) {
             missingCalls.push({
                 name: requirement.toolName,
                 args: requiredArgs,
@@ -717,7 +720,8 @@ function safeObservation(result = {}) {
                 type: text(item?.type, 120),
                 toolName: text(item?.toolName, 120),
                 format: text(item?.format, 40),
-                label: text(item?.label, 200)
+                label: text(item?.label, 200),
+                ...marketingRequirementMetadata(item)
             })).filter(item => item.toolName)
             : [];
     const marketingDeliverableReady =
@@ -1036,6 +1040,15 @@ function safeObservation(result = {}) {
         physicallyWritten: payload?.physicallyWritten === true || result?.physicallyWritten === true,
         bytes: Number(payload?.bytes || result?.bytes || 0),
         sha256: text(payload?.sha256 || result?.sha256, 80) || null,
+        width: Number(payload?.width || result?.width || 0),
+        height: Number(payload?.height || result?.height || 0),
+        videoCodec: text(payload?.videoCodec || result?.videoCodec, 40),
+        audioCodec: text(payload?.audioCodec || result?.audioCodec, 40),
+        audioTracksAdded: Number(payload?.audioTracksAdded || result?.audioTracksAdded || 0),
+        durationSeconds: Number(payload?.durationSeconds || result?.durationSeconds || 0),
+        logoOverlayApplied: payload?.logoOverlayApplied === true || result?.logoOverlayApplied === true,
+        logoSourceSha256: text(payload?.logoSourceSha256 || result?.logoSourceSha256, 80),
+        deliveryMode: text(payload?.deliveryMode, 40),
         sourceCount: Number(payload?.sourceCount || payload?.sources?.length || 0),
         validSources: Array.isArray(payload?.sources) ? payload.sources.slice(0, 12) : [],
         discardedSources: Array.isArray(payload?.discardedSources) ? payload.discardedSources.slice(0, 12) : [],

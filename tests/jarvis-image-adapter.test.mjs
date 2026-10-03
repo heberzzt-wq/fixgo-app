@@ -42,6 +42,21 @@ test("image adapter fails closed on unsafe variant requests", () => {
     assert.throws(() => planImageAdaptation({ variants: [{ id: "hero", width: 1080, height: 1080 }, { id: "hero", width: 512, height: 512 }] }), /IMAGE_VARIANT_DUPLICATED/);
 });
 
+test("contain preserves the whole ad instead of cropping its logo and contact text", async () => {
+    const previousBitmap = globalThis.createImageBitmap, PreviousCanvas = globalThis.OffscreenCanvas;
+    const draws = [];
+    globalThis.createImageBitmap = async () => ({ width: 1000, height: 2000, close() {} });
+    globalThis.OffscreenCanvas = class {
+        constructor(width, height) { this.width = width; this.height = height; }
+        getContext() { return { fillRect() {}, drawImage: (...args) => draws.push(args.slice(1)) }; }
+        async convertToBlob({ type }) { return new Blob(["pixels"], { type }); }
+    };
+    try {
+        await adaptImageSource({ sourceBase64: Buffer.from("fixture").toString("base64"), sourceMimeType: "image/png", fit: "contain", variants: [{ id: "post", width: 1080, height: 1080, mimeType: "image/png" }] });
+        assert.deepEqual(draws, [[0, 0, 1000, 2000, 270, 0, 540, 1080]]);
+    } finally { globalThis.createImageBitmap = previousBitmap; globalThis.OffscreenCanvas = PreviousCanvas; }
+});
+
 
 test("identity reference sheet gives the primary photo the large panel", async () => {
     const originalBitmap =
