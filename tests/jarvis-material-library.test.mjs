@@ -70,7 +70,7 @@ test("exact library references import the chosen original and sidecars are bound
 
 test("disabled external generation is absent from the semantic catalog, not retried as recovery", t => {
     const { root } = fixture(t);
-    const catalog = ["image.generate", "image.edit", "image.adapt", "media.library", "reel.create"].map(name => ({ name }));
+    const catalog = ["image.generate", "image.edit", "video.generate", "image.adapt", "media.library", "reel.create"].map(name => ({ name }));
     assert.deepEqual(availableMaterialToolCatalog({ root, catalog }).map(tool => tool.name), ["image.adapt", "media.library", "reel.create"]);
 });
 

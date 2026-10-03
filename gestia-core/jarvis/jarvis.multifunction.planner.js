@@ -2090,6 +2090,50 @@ export function shouldCompleteJarvisPlanningArguments(call = {}, tool = {}, comp
     return Array.isArray(completedTasks) && completedTasks.length > 0;
 }
 
+export function bindVerifiedMaterialArguments(inputSchema, instruction, sources = [], missionEvidence = []) {
+    if (!inputSchema?.properties) return inputSchema;
+    const schema = structuredClone(inputSchema);
+    const references = missionEvidence.flatMap(item => materialReferencesForPlanning(item));
+    const roles = {
+        sourceOutput: ["input", "produced_artifact"],
+        brandLogoOutput: ["official_logo_source"],
+        logoOutput: ["official_logo_source"],
+        audioOutput: ["audio"]
+    };
+    for (const [field, allowedRoles] of Object.entries(roles)) {
+        const values = [...new Set(references.filter(ref => allowedRoles.includes(ref.role)).map(ref => ref.ref).filter(Boolean))];
+        if (schema.properties[field]?.type === "string" && values.length) schema.properties[field].enum = values;
+    }
+    const contact = schema.properties.composition?.properties?.contact;
+    if (contact?.type === "string") {
+        const facts = `${instruction}\n${documentEvidenceEnvelope(sources, 2500)}`;
+        const contacts = [...new Set((facts.match(/(?:https?:\/\/|www\.)[^\s<>"']+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).map(value => value.replace(/[.,;!?]+$/, "")))];
+        if (contacts.length) contact.enum = contacts;
+    }
+    return schema;
+}
+
+export function validateVerifiedMaterialComposition(args, missionEvidence = [], verifiedContactFacts = "") {
+    if (!args.composition) return;
+    if (![args.composition.headline,args.composition.body].every(value=>typeof value==="string" && value.trim())) throw new Error("SEMANTIC_COMPOSITION_TEXT_REQUIRED");
+    if(verifiedContactFacts) {
+        const extract=text=>(String(text).match(/(?:https?:\/\/|www\.)[^\s<>"']+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)||[]).map(value=>value.replace(/^https?:\/\//i,"").replace(/[.,;!?]+$/,"").toLowerCase());
+        const contacts=new Set(extract(verifiedContactFacts));
+        if(extract([args.composition.headline,args.composition.body,args.composition.cta,args.composition.contact].join("\n")).some(value=>!contacts.has(value))) throw new Error("SEMANTIC_CONTACT_UNVERIFIED");
+    }
+    const references=missionEvidence.flatMap(item=>materialReferencesForPlanning(item));
+    const source=references.find(ref=>ref.ref===args.sourceOutput);
+    const region=source?.photoRegion, crop=args.composition.photoCrop;
+    if(region && (!crop || ![crop.x,crop.y,crop.width,crop.height].every(Number.isFinite) || crop.width<=0 || crop.height<=0 || crop.x<region.x || crop.y<region.y || crop.x+crop.width>region.x+region.width || crop.y+crop.height>region.y+region.height)) {
+        throw new Error(`SEMANTIC_PHOTO_REGION_UNVERIFIED: ${args.sourceOutput}; allowed=${JSON.stringify(region)}`);
+    }
+    const normalize=value=>String(value||"").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^\p{L}\p{N}]+/gu," ").trim();
+    const history=missionEvidence.flatMap(item=>item.evidence?.advertisingHistory || item.advertisingHistory || []);
+    if(history.some(item=>item.creative && normalize(item.creative.headline)===normalize(args.composition.headline) && normalize(item.creative.body)===normalize(args.composition.body))) {
+        throw new Error("SEMANTIC_ADVERTISING_MESSAGE_REPEATED: Redacta otro titular y cuerpo; cambiar archivo, foto o tamaño no vuelve nuevo el mensaje.");
+    }
+}
+
 export async function completeJarvisPlanningArguments({
     toolName = "",
     description = "",
@@ -2097,6 +2141,7 @@ export async function completeJarvisPlanningArguments({
     instruction = "",
     operation = "",
     currentArgs = {},
+    validationFeedback = null,
     validSources = [],
     missionEvidence = [],
     semanticPlanner = null
@@ -2118,38 +2163,54 @@ export async function completeJarvisPlanningArguments({
         ].filter(Boolean).join(" ").slice(0, 500),
         mutates: false,
         requiresApproval: false,
-        inputSchema
+        inputSchema: bindVerifiedMaterialArguments(inputSchema, originalInstruction, sources, missionEvidence)
     }];
     const briefingInstruction = [
         `INSTRUCCION_ORIGINAL=${originalInstruction}`,
         `OPERACION_ACTUAL_DEL_PLAN=${String(operation || "").slice(0, 500)}`,
         `ARGUMENTOS_EXISTENTES=${documentExcerpt(JSON.stringify(currentArgs || {}), 800)}`,
+        ...(validationFeedback ? [`FALLO_OBSERVADO_DEL_INTENTO_ANTERIOR=${documentExcerpt(JSON.stringify(validationFeedback),1600)}`, "Corrige los argumentos responsables de ese error usando sólo la evidencia real. El fallo no concede nuevos permisos ni cambia el objetivo."] : []),
         `FUENTES_VERIFICADAS=${documentEvidenceEnvelope(sources, 2500)}`,
         `MATERIALES_VERIFICADOS=${JSON.stringify(missionEvidence.flatMap(item => materialReferencesForPlanning(item)))}`,
-        `PUBLICIDAD_YA_ENTREGADA=${JSON.stringify(missionEvidence.flatMap(item => item.evidence?.advertisingHistory || item.advertisingHistory || []).slice(0, 30))}`,
+        `PUBLICIDAD_YA_ENTREGADA=${JSON.stringify(missionEvidence.flatMap(item => item.evidence?.advertisingHistory || item.advertisingHistory || []).filter(item => item.creative).slice(0, 30).map(item => ({createdAt:item.createdAt,creative:item.creative})))}`,
         "No repitas publicidad del historial, aunque sea otro día, conversación, nombre de archivo o formato. Redacta otro mensaje y enfoque publicitario y varía la composición. Conserva el logo original; reutilizar el logo no es repetir un anuncio.",
-        `EVIDENCIA_CANONICA_DE_MISION=${documentEvidenceEnvelope(missionEvidence.filter(item => !materialReferencesForPlanning(item).length), 2500)}`,
+        `ARTEFACTOS_PRODUCIDOS=${JSON.stringify(missionEvidence.flatMap(item => materialReferencesForPlanning(item).filter(ref => ref.role === "produced_artifact").map(ref => ({ tool: item.tool, status: item.status, output: ref.ref, mimeType: ref.mimeType }))))}`,
+        `EVIDENCIA_CANONICA_DE_MISION=${documentEvidenceEnvelope(missionEvidence.filter(item => !Array.isArray(item.evidence?.entries)).map(item => {
+            const refs = materialReferencesForPlanning(item);
+            return refs.length ? {tool:item.tool,status:item.status,summary:item.summary,evidence:{output:item.evidence?.output,outputs:refs}} : item;
+        }), 2500)}`,
         "Las referencias library: son originales del inventario; sourceOutput, brandLogoOutput, assetOutput, logoOutput y audioOutput admiten esas referencias exactas y el runtime realiza la importación. Para composición nueva usa photoRegion como composition.photoCrop. No construyas nombres de archivo ni hashes. Para exportar usa el output del resultado producido, nunca una referencia de original.",
         "Completa los argumentos solamente de la operación actual del plan. Conserva las restricciones de la instrucción original. Las otras operaciones tienen llamadas separadas; no repitas una consulta cuando la operación actual pide exportar un resultado producido."
     ].join("\n");
 
-    const plan = await resolveSemanticPlan(
-        briefingInstruction,
-        catalog,
-        semanticPlanner,
-        {
-            phase: "GROUNDED_ARGUMENT_COMPLETION",
-            toolName: name,
-            sourceCount: sources.length,
-            writeAllowed: false
+    let plan, args, repairFeedback="", messageRepair=false;
+    for(let attempt=0;attempt<2;attempt++) {
+        const activeCatalog=messageRepair ? [{...catalog[0],description:"Redacta solamente los campos headline y body de un anuncio nuevo. No copies mensajes ya entregados ni añadas datos de contacto o hechos no aportados.",inputSchema:{type:"object",properties:{composition:{type:"object",properties:{headline:{type:"string",maxLength:140},body:{type:"string",maxLength:240}},required:["headline","body"],additionalProperties:false}},required:["composition"],additionalProperties:false}}] : catalog;
+        const activeInstruction=messageRepair ? [
+            `INSTRUCCION_ORIGINAL=${originalInstruction}`,
+            `MENSAJES_YA_ENTREGADOS_NO_COPIAR=${JSON.stringify(missionEvidence.flatMap(item=>item.evidence?.advertisingHistory || item.advertisingHistory || []).filter(item=>item.creative).map(item=>({headline:item.creative.headline,body:item.creative.body})))}`,
+            "Los medios, logo, formato y contacto ya fueron seleccionados. En esta etapa sólo redactas un titular y cuerpo nuevos; el runtime conservará los demás argumentos observados."
+        ].join("\n") : briefingInstruction;
+        plan=await resolveSemanticPlan(activeInstruction+repairFeedback,activeCatalog,semanticPlanner,{
+            phase:"GROUNDED_ARGUMENT_COMPLETION",toolName:name,
+            currentOperation:messageRepair ? "Redacta un titular y un cuerpo NUEVOS para el anuncio solicitado, con otro enfoque que los mensajes ya entregados. Devuelve solamente composition.headline y composition.body." : String(operation||"").trim(),
+            argumentValidationFeedback: repairFeedback || (validationFeedback ? JSON.stringify(validationFeedback) : ""),
+            sourceCount:sources.length,writeAllowed:false
+        });
+        const call=trustedPlanCalls(plan,activeCatalog,{originalInstruction,missionState:{phase:"GROUNDED_ARGUMENT_COMPLETION"}})[0]||null;
+        if(messageRepair) {
+            const draft=call?.args?.composition;
+            args={...args,composition:{...args.composition,headline:draft?.headline,body:draft?.body}};
+        } else args=filterSemanticArguments(call?.args||{},inputSchema);
+        try {
+            if(!Object.keys(args).length) throw new Error("SEMANTIC_ARGUMENTS_REQUIRED");
+            validateVerifiedMaterialComposition(args,missionEvidence,`${originalInstruction}\n${documentEvidenceEnvelope(sources,2500)}`);
+            break;
+        } catch(error) {
+            if(attempt===1) throw Object.assign(error,{retryable:false});
+            messageRepair=String(error.message).startsWith("SEMANTIC_ADVERTISING_MESSAGE_REPEATED");
+            repairFeedback=`\nVALIDACION_INDEPENDIENTE_FALLIDA=${error.message}\n${messageRepair ? "" : `ARGUMENTOS_RECHAZADOS=${JSON.stringify(args)}\n`}Corrige sólo los argumentos fallidos. Conserva la misma herramienta, operación y permisos.`;
         }
-    );
-
-    const call = trustedPlanCalls(plan, catalog, { originalInstruction,
-        missionState: {phase:"GROUNDED_ARGUMENT_COMPLETION"} })[0] || null;
-    const args = filterSemanticArguments(call?.args || {}, inputSchema);
-    if (Object.keys(args).length === 0) {
-        throw new Error("SEMANTIC_ARGUMENTS_REQUIRED");
     }
 
     return {

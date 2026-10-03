@@ -61,11 +61,18 @@ function directPageReady(args = {}) {
 }
 
 function stableSemanticStageSort(calls = []) {
+    // Deferred calls already carry Qwen's dependency order. Their action and
+    // source arguments do not exist yet, so a tool-name sort cannot infer it.
+    if (calls.some(call => call?.deferred === true && call?.obligationId)) {
+        return calls;
+    }
     const staged = calls
         .map((call, index) => ({
             call,
             index,
-            stage: MISSION_STAGE_BY_TOOL[String(call?.name || "")] ?? null
+            stage: call?.name === "media.library" && call?.args?.action === "export"
+                ? 50
+                : MISSION_STAGE_BY_TOOL[String(call?.name || "")] ?? null
         }))
         .filter(item => item.stage !== null)
         .sort((a, b) => (a.stage - b.stage) || (a.index - b.index))

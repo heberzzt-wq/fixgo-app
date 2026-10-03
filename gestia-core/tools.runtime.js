@@ -775,7 +775,7 @@ JarvisToolRuntime.register({
 
 JarvisToolRuntime.register({
     name: "repo.read",
-    description: "Lee y extrae metadatos/contenido disponible de un archivo para el contexto del agente.",
+    description: "Lee el contenido de un archivo del repositorio identificado por su ruta. Devuelve contenido y cobertura verificable para analizar sus datos, como el nombre y los scripts de package.json. No busca patrones en otros archivos ni modifica el código.",
     mutates: false,
     requiresApproval: false,
     output: "REPO_FILE_CONTENT",
@@ -6987,10 +6987,21 @@ JarvisToolRuntime.register({
 
 JarvisToolRuntime.register({
     name: "repo.prepareWrite",
-    description: "Prepara un patch exacto contra un snapshot y devuelve fingerprint, nonce y comando de aprobación; no escribe.",
+    description: "Prepara la corrección del código de un archivo del repositorio mediante un patch de búsqueda y reemplazo exactos. Devuelve el cambio para aprobación humana; no ejecuta pruebas ni escribe todavía.",
     mutates: false,
     requiresApproval: false,
     output: "REPO_WRITE_PREPARATION",
+    inputSchema: {
+        type: "object",
+        required: ["file", "search", "replace", "matchCount"],
+        properties: {
+            file: { type: "string", description: "Ruta del archivo del repositorio leído previamente." },
+            operation: { type: "string", enum: ["replace", "create"] },
+            search: { type: "string", description: "Código original exacto verificado en el snapshot." },
+            replace: { type: "string", description: "Código corregido que reemplaza el bloque original." },
+            matchCount: { type: "integer", minimum: 0, description: "Coincidencias exactas verificadas; cero únicamente para crear un archivo inexistente." }
+        }
+    },
     execute: async (args = {}, context = {}) => {
         if (!window.JarvisLocalBridge?.prepareWrite) return { ok: false, status: "WRITE_BRIDGE_NOT_AVAILABLE", error: "WRITE_BRIDGE_NOT_AVAILABLE" };
         return await window.JarvisLocalBridge.prepareWrite({

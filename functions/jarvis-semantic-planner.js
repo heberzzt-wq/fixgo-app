@@ -988,7 +988,8 @@ async function runModelSemanticPlanner({
         : "";
 
     // Qwen describes the action, then receives canonical schemas from retrieval.
-    let safeCatalog = currentTurn ? normalizedCatalog : shortlistSemanticCatalog(
+    const localSemanticAuthority = String(ai.lastProvider || "").includes("ollama-openai-compatible-local");
+    let safeCatalog = currentTurn || (localSemanticAuthority && missionState?.phase === "COMPLETION_AUDIT") ? normalizedCatalog : shortlistSemanticCatalog(
         instruction,
         normalizedCatalog,
         missionState,
@@ -1065,24 +1066,38 @@ async function runModelSemanticPlanner({
             const operationsResponse = await ai.models.generateContent({model, contents: instruction, config: {
                 semanticStage: "MISSION_CONTRACT_OPERATIONS",
                 chatMessages: [
-                    {role:"system", content:"Descompón la solicitud en operaciones cortas en inglés para buscar herramientas: sourceReview (consultar la fuente indicada), work (arreglo con una operación por cada objetivo independiente), delivery (entregar el resultado pedido). Usa cadena o arreglo vacío si una etapa no aplica. La URL indicada es una fuente a consultar. Conserva el formato final solicitado y las restricciones. Una operación es una obligación necesaria, no una lista de métodos alternativos ni capacidades negadas. Entregar un PNG o MP4 no requiere crear un documento ni un manifiesto: si se pidió guardarlo en una carpeta, delivery significa exportar ese archivo. Los archivos descargables contienen el trabajo que pidió el usuario, no un producto o servicio que vende el negocio. No confundas la actividad del negocio con la tarea del asistente. No publiques, lances campañas ni edites archivos existentes salvo solicitud explícita. No copies nombres propios ni ubicaciones en las operaciones: se conservan en la solicitud original."},
+                    {role:"system", content:"Describe sólo operaciones necesarias en ESPAÑOL, como las descripciones del catálogo. sourceReview: leer fuentes, archivos de código o la biblioteca local y su historial; vacío si no aplica. work: una sola operación completa para producir los resultados solicitados, incluyendo todos sus requisitos. verification: pruebas ejecutables expresamente solicitadas; vacío si no aplica. Las dimensiones, foto, logo, texto, contacto y restricciones describen una misma imagen; no son tareas separadas. Las secciones, servicios, ubicación y enlaces describen una misma página web; las escenas, duración, textos y música describen un mismo video. Nunca separes incorporar, incluir o agregar estos requisitos como otra operación de work. Las condiciones del código describen una corrección; la continuidad de personajes describe una historia. delivery: exportar archivos ya creados al destino pedido; vacío si no hace falta exportar. No repitas delivery dentro de work. La respuesta conversacional se redacta automáticamente después de leer: explicar, resumir o extraer datos observados no requiere otra operación. La interfaz muestra automáticamente los archivos y sus descargas: no agregues tareas para mostrar o descargar. No incluyas respuestas anticipadas ni placeholders. No inventes planes, documentos, manifiestos, investigaciones, publicaciones ni permisos. Conservamos la instrucción original completa al ejecutar."},
                     {role:"user", content:"Prepara un plan de comunicación para Taller Norte de https://ejemplo.test/ en Mérida y todo México, con archivos descargables."},
-                    {role:"assistant", content:'{"sourceReview":"research external website business information","work":["prepare communication plan local and national"],"delivery":"create downloadable plan document"}'},
+                    {role:"assistant", content:'{"sourceReview":"consultar información del negocio en la fuente web indicada","work":"preparar el plan de comunicación solicitado","verification":"","delivery":"crear un documento descargable con el plan"}'},
                     {role:"user", content:"Usa la biblioteca oficial para componer un cartel PNG con foto, logo original y texto nuevo; guarda el archivo en Salidas. Sin generadores externos ni documento de planificación."},
-                    {role:"assistant", content:'{"sourceReview":"list official local media library references","work":["compose PNG advertisement with existing photo original logo and new text"],"delivery":"export created artifact to official local output folder"}'},
+                    {role:"assistant", content:'{"sourceReview":"consultar originales e historial de la biblioteca local de materiales","work":"componer un anuncio PNG local con fotografía y logo originales y textos nuevos","verification":"","delivery":"exportar el archivo ya creado a la carpeta local de Salidas"}'},
+                    {role:"user", content:"Revisa el código de inicio de sesión y corrige el fallo. Conserva la API y ejecuta sus pruebas; sin despliegue."},
+                    {role:"assistant", content:'{"sourceReview":"inspeccionar el código de inicio de sesión y sus pruebas","work":"preparar la corrección del código solicitado usando el archivo observado","verification":"ejecutar las pruebas pertinentes al código corregido","delivery":""}'},
+                    {role:"user", content:"Lee package.json y dime el nombre del proyecto y sus comandos, sin modificarlo ni ejecutar comandos."},
+                    {role:"assistant", content:'{"sourceReview":"leer el contenido completo de un archivo del repositorio","work":"","verification":"","delivery":""}'},
+                    {role:"user", content:"Crea una página web HTML local con foto y logo de la biblioteca oficial, secciones de servicios, ubicación y enlace de contacto. Guarda el resultado en Salidas; sin publicar."},
+                    {role:"assistant", content:'{"sourceReview":"consultar originales de la biblioteca local de materiales","work":"crear una página web HTML local completa con todos los contenidos y medios solicitados","verification":"","delivery":"exportar el archivo HTML ya creado a la carpeta local de Salidas"}'},
+                    {role:"user", content:"Crea un video vertical MP4 de 15 segundos con fotos, logo, texto y música de la biblioteca oficial. Guarda el video en Salidas para descargar."},
+                    {role:"assistant", content:'{"sourceReview":"consultar fotografías, logo y música de la biblioteca local de materiales","work":"crear un reel de video MP4 vertical local con fotografías, logo, textos y música solicitados","verification":"","delivery":"exportar el video MP4 ya creado a la carpeta local de Salidas"}'},
                     {role:"user", content:instruction}
                 ],
                 responseMimeType:"application/json",
-                responseJsonSchema:{type:"object",properties:{sourceReview:{type:"string"},work:{type:"array",items:{type:"string"},maxItems:12},delivery:{type:"string"}},required:["sourceReview","work","delivery"],additionalProperties:false},
+                responseJsonSchema:{type:"object",properties:{sourceReview:{type:"string"},work:{type:"string"},verification:{type:"string"},delivery:{type:"string"}},required:["sourceReview","work","verification","delivery"],additionalProperties:false},
                 maxOutputTokens:256,temperature:0
             }});
             const operationsObject = extractJsonObject(String(operationsResponse?.text || ""));
-            const operations = [operationsObject?.sourceReview,...(Array.isArray(operationsObject?.work) ? operationsObject.work : [operationsObject?.work]),operationsObject?.delivery].filter(value => typeof value === "string" && value.trim());
+            const work = Array.isArray(operationsObject?.work) ? operationsObject.work : [operationsObject?.work];
+            const operations = [
+                {stage:"sourceReview",operation:operationsObject?.sourceReview},
+                ...work.map(operation=>({stage:"work",operation})),
+                {stage:"verification",operation:operationsObject?.verification},
+                {stage:"delivery",operation:operationsObject?.delivery}
+            ].filter(item => typeof item.operation === "string" && item.operation.trim());
             if (!Array.isArray(operations) || !operations.length || operationsResponse?.providerResponse?.finishReason === "length") throw new Error("SEMANTIC_CONTRACT_OPERATIONS_INVALID");
             const retrieved = [];
             const operationCandidates = [];
-            for (const operation of operations) {
-                const candidates = await retrieveToolCandidates(String(operation), 4);
+            for (const {stage,operation} of operations) {
+                const candidates = await retrieveToolCandidates(String(operation), 12);
                 const canonicalCandidates = [];
                 for (const candidate of candidates || []) {
                     const tool = normalizedCatalog.find(item => item.name === candidate.name);
@@ -1090,22 +1105,33 @@ async function runModelSemanticPlanner({
                     if (tool) canonicalCandidates.push(tool);
                 }
                 if (!canonicalCandidates.length) throw new Error("SEMANTIC_TOOL_CANDIDATES_REQUIRED");
-                operationCandidates.push({id:`step${operationCandidates.length}`,operation,catalog:canonicalCandidates.map(tool=>({name:tool.name,description:tool.description}))});
+                operationCandidates.push({id:`step${operationCandidates.length}`,stage,operation,catalog:canonicalCandidates.map(tool=>({name:tool.name,description:tool.description}))});
             }
             contractCatalog = retrieved;
             if (!contractCatalog.length) throw new Error("SEMANTIC_TOOL_CANDIDATES_REQUIRED");
-            const compactContractResponse =
-                await ai.models.generateContent({
+            const selections = {};
+            // Keep each semantic choice bound to its own operation. Asking the
+            // small local model for a multi-step name map can swap valid tools
+            // across steps even when every selected name passes the schema.
+            for (const step of operationCandidates) {
+                const selectionResponse = await ai.models.generateContent({
                     model,
-                    contents: instruction,
+                    contents: step.operation,
                     config: {
+                        semanticStage: "MISSION_CONTRACT_TOOL_SELECTION",
+                        ...(step.stage !== "verification" ? {
+                            nativeToolChat:true,
+                            tools:[{functionDeclarations:step.catalog.map(tool=>({name:tool.name,description:tool.description,parametersJsonSchema:{type:"object",properties:{},additionalProperties:false}}))}]
+                        } : {}),
                         chatMessages: [
-                            ...currentTurnMessages,
+                            { role: "system", content: step.stage === "verification"
+                                ? "Selecciona la herramienta que EJECUTA las pruebas pedidas sobre el resultado ya preparado. Devuelve sólo JSON con name del catálogo. No vuelvas a leer, diagnosticar, corregir ni preparar otro cambio. No generes argumentos. Si ninguna cumple, name vacío."
+                                : "Use exactly ONE provided function to perform the current operation. Call that function with exactly {}. This is tool selection only; execution arguments will be grounded later. sourceReview reads real sources; work creates the complete requested result; delivery copies an ALREADY CREATED file to its destination. A content blueprint is not an HTML file; an image is not an MP4 video. Never choose an approximate alternative. If no provided function can do the operation, return JSON with an empty name." },
                             { role: "user", content: JSON.stringify({
-                                phase: "MISSION_CONTRACT",
-                                operations: operationCandidates,
-                                task: "Para cada operación selecciona exactamente UNA herramienta de sus candidatos: la que satisfaga mejor el trabajo pedido con menos requisitos adicionales. No selecciones todos los candidatos. Un documento descargable debe contener el trabajo pedido, no un producto del negocio. Devuelve un objeto que asigne cada step al nombre elegido. No generes argumentos ni concedas permisos.",
-                                catalog: contractCatalog.map(tool => ({ name: tool.name, description: String(tool.description || "").slice(0, 220), ...(tool.mutates ? {mutates:true} : {}), ...(tool.userArtifact ? {userArtifact:true} : {}) }))
+                                stage: step.stage,
+                                stagePurpose: {sourceReview:"Consultar las fuentes antes del trabajo.",work:"Producir el resultado solicitado.",verification:"Sólo ejecutar las pruebas del resultado ya preparado: no preparar ni modificar código otra vez.",delivery:"Exportar el resultado ya producido."}[step.stage],
+                                operation: step.operation,
+                                ...(step.stage === "verification" ? {catalog:step.catalog} : {})
                             }) }
                         ],
                         maxOutputTokens: 256,
@@ -1114,11 +1140,17 @@ async function runModelSemanticPlanner({
                             thinkingLevel: "MINIMAL"
                         },
                         responseMimeType: "application/json",
-                        responseJsonSchema: {type:"object",properties:Object.fromEntries(operationCandidates.map(step=>[step.id,{type:"string",enum:step.catalog.map(tool=>tool.name)}])),required:operationCandidates.map(step=>step.id),additionalProperties:false}
+                        responseJsonSchema: {type:"object",properties:{name:{type:"string",enum:[...step.catalog.map(tool=>tool.name),""]}},required:["name"],additionalProperties:false}
                     }
                 });
-            const selections = extractJsonObject(String(compactContractResponse?.text || ""));
-            if (compactContractResponse?.providerResponse?.finishReason === "length" || operationCandidates.some(step=>!step.catalog.some(tool=>tool.name===selections?.[step.id]))) throw new Error("SEMANTIC_CONTRACT_SELECTION_INVALID");
+                const nativeSelections = selectionResponse?.functionCalls;
+                if (Array.isArray(nativeSelections) && nativeSelections.length > 1) throw new Error("SEMANTIC_CONTRACT_SELECTION_INVALID");
+                const selection = nativeSelections?.length === 1 ? {name:nativeSelections[0].name} : extractJsonObject(String(selectionResponse?.text || ""));
+                if (selection?.name && selection?.tool && selection.name !== selection.tool) throw new Error("SEMANTIC_CONTRACT_SELECTION_INVALID");
+                const selectedName = selection?.name ?? selection?.tool;
+                if (selectionResponse?.providerResponse?.finishReason === "length" || !step.catalog.some(tool => tool.name === selectedName)) throw new Error("SEMANTIC_CONTRACT_SELECTION_INVALID");
+                selections[step.id] = selectedName;
+            }
             const compactPayload = {toolCalls:operationCandidates.map(step=>({name:selections[step.id],args:{},reason:step.operation,deferred:true,obligationId:`semantic:${step.operation}`.slice(0,300)})),missionComplete:false};
             const compactValidated =
                 validatePlan(
@@ -1353,6 +1385,18 @@ async function runModelSemanticPlanner({
     }
 
     if (missionState?.phase === "COMPLETION_AUDIT") {
+        if (localSemanticAuthority && typeof retrieveToolCandidates === "function") {
+            const candidates = await retrieveToolCandidates(instruction,12);
+            safeCatalog = candidates.map(candidate=>normalizedCatalog.find(tool=>tool.name===candidate.name)).filter(Boolean);
+            if (!safeCatalog.length) throw new Error("SEMANTIC_TOOL_CANDIDATES_REQUIRED");
+        }
+        const auditInstruction = [
+            buildSemanticSystemInstruction(safeCatalog, missionState),
+            "Compara cada objetivo original con las observaciones reales. No repitas trabajo satisfecho ni conviertas una propuesta en evidencia.",
+            "Si toda la evidencia demuestra cumplimiento, devuelve toolCalls=[] y missionComplete=true. Si falta un objetivo, devuelve missionComplete=false y una siguiente herramienta con argumentos fundamentados.",
+            "Las comprobaciones independientes del runtime siguen siendo obligatorias; tu evaluación no sustituye archivos, hashes, cobertura ni pruebas ejecutadas.",
+            `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
+        ].join("\n");
         const auditResponse = await ai.models.generateContent({
             model,
             contents: [
@@ -1367,14 +1411,20 @@ async function runModelSemanticPlanner({
                 ].join("\n")
             ].join("\n\n"),
             config: {
-                maxOutputTokens: 3000,
+                semanticStage: "COMPLETION_AUDIT",
+                chatMessages: [{role:"system",content:auditInstruction},{role:"user",content:"Audita únicamente el cumplimiento con las observaciones reales anteriores. No vuelvas a ejecutar la instrucción original. Si ya existe el entregable y su exportación verificada, devuelve toolCalls=[] y missionComplete=true. Si falta evidencia, missionComplete=false y sólo la operación pendiente."}],
+                maxOutputTokens: 768,
                 thinkingConfig: {
                     thinkingLevel: "MINIMAL"
                 },
-                responseMimeType: "application/json"
+                responseMimeType: "application/json",
+                responseJsonSchema: {type:"object",properties:{toolCalls:{type:"array",maxItems:1,items:{type:"object",properties:{name:{type:"string"},args:{type:"object",additionalProperties:true}},required:["name","args"],additionalProperties:false}},explanation:{type:"string"},missionComplete:{type:"boolean"},completionAssessment:{type:"object",additionalProperties:true}},required:["toolCalls","missionComplete"],additionalProperties:false}
             }
         });
         const auditPlan = extractJsonObject(String(auditResponse?.text || ""));
+        if (auditPlan?.missionComplete === true && auditPlan?.toolCalls?.length) {
+            throw new Error("SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY");
+        }
         return requireExecutablePlan({
             ...validatePlan(auditPlan, safeCatalog, instruction),
             provider: String(ai.lastProvider || "jarvis-local"),
@@ -1420,16 +1470,22 @@ async function runModelSemanticPlanner({
                         ].filter(Boolean).join("\n\n"),
                         config: {
                             semanticStage: phase,
+                            temperature: phase === "GROUNDED_ARGUMENT_COMPLETION" && missionState?.argumentValidationFeedback ? 0.2 : 0,
                             ...(phase === "GROUNDED_ARGUMENT_COMPLETION" ? {chatMessages: [
                                 {role:"system",content:[
                                     "Completa los argumentos de una sola herramienta. Devuelve JSON {toolCalls:[{name,args}],missionComplete:false}.",
+                                    `name debe ser exactamente ${phaseCatalog[0].name}; los nombres que aparecen en evidencia describen tareas anteriores y no son herramientas por ejecutar.`,
+                                    "Ejecuta solamente OPERACION_ACTUAL_DEL_PLAN. INSTRUCCION_ORIGINAL aporta restricciones; las operaciones anteriores ya tienen evidencia. Elige el valor de cada campo según la operación actual, nunca por ser el primer valor del enum.",
                                     "Comprende el papel de cada campo, no copies la instrucción completa como valor. Usa el idioma del usuario.",
                                     "Los hechos vienen de la solicitud y las fuentes; las recomendaciones pueden ser propuestas explícitas. Nunca presentes una propuesta como hecho verificado.",
                                     "Omite campos opcionales innecesarios. No inventes precios, gratuidad, direcciones, URLs, testimonios ni resultados. Conserva la identidad y todos los mercados solicitados.",
                                     `TAREA ${phaseCatalog[0].name}: ${phaseCatalog[0].description}`,
-                                    `CAMPOS=${JSON.stringify(buildNativeInputSchema(phaseCatalog[0].inputSchema))}`
+                                    `CAMPOS=${JSON.stringify(buildNativeInputSchema(phaseCatalog[0].inputSchema))}`,
+                                    ...(missionState?.currentOperation ? [`CONTEXTO_Y_EVIDENCIA_INMUTABLES:\n${instruction}`] : [])
                                 ].join("\n")},
-                                {role:"user",content:instruction}
+                                {role:"user",content:[missionState?.currentOperation || instruction,
+                                    ...(missionState?.argumentValidationFeedback ? [`El intento anterior fue rechazado por validación independiente. Repara este fallo, no lo repitas:\n${missionState.argumentValidationFeedback}`] : [])
+                                ].join("\n")}
                             ]} : {}),
                             maxOutputTokens: phase === "GROUNDED_ARGUMENT_COMPLETION" ? 1200 : 3000,
                             thinkingConfig: {

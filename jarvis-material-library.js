@@ -72,7 +72,7 @@ export function officialMaterialPolicy(root = process.cwd()) {
 export function availableMaterialToolCatalog({ root = process.cwd(), catalog = [] } = {}) {
     const policy = materialLibrary({ root, action: "policy" });
     return policy.externalGenerationAllowed === false
-        ? catalog.filter(tool => !["image.generate", "image.edit"].includes(tool?.name))
+        ? catalog.filter(tool => !["image.generate", "image.edit", "video.generate"].includes(tool?.name))
         : catalog;
 }
 

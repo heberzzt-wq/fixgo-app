@@ -1377,6 +1377,14 @@ export function createSelfHostedSemanticEngine({
                 explicitChatMessages.length > 0
                     ? explicitChatMessages
                     : fallbackMessages;
+            // Some installed Qwen3 templates still prefill <think> with the API
+            // flag disabled. Use the vendor's soft switch as well, while keeping
+            // the original user turn intact and avoiding leaked reasoning.
+            if (selectedModel.startsWith("qwen3:")) {
+                const systemIndex = messages.findIndex(message => message.role === "system");
+                if (systemIndex >= 0) messages[systemIndex] = {...messages[systemIndex],content:messages[systemIndex].content + "\n/no_think"};
+                else messages.unshift({role:"system",content:"/no_think"});
+            }
             const maxOutputTokens =
                 Math.max(
                     1,
@@ -1401,6 +1409,10 @@ export function createSelfHostedSemanticEngine({
             const origin =
                 new URL(baseUrl).origin;
             const documentGeneration = ["document_initial", "document_segment", "document_repair", "spreadsheet_initial", "spreadsheet_repair"].includes(request?.config?.semanticStage);
+            // Native schemas constrain decomposition shape. Tool selection uses
+            // native calls; grounding fixes the selected name and validates args
+            // independently after generation.
+            const nativeFormat = request?.config?.responseJsonSchema || "json";
             const payload =
                 nativeChat
                     ? {
@@ -1408,10 +1420,9 @@ export function createSelfHostedSemanticEngine({
                             selectedModel,
                         messages,
                         stream: documentGeneration,
-                        // Use the native control so bounded replies contain the answer.
                         think: false,
                         ...(jsonOnlyNative
-                            ? { format: request?.config?.responseJsonSchema || "json" }
+                            ? { format: nativeFormat }
                             : {}),
                         ...(nativeToolChat
                             ? { tools }
@@ -1469,7 +1480,8 @@ export function createSelfHostedSemanticEngine({
             const maximumLocalAttempts = documentGeneration ? 1 : 2;
             const attemptEvidence = [];
             const phase = String(request?.config?.semanticStage || "SEMANTIC_INFERENCE");
-            const recoverToolSelection = nativeToolChat && phase === "CURRENT_TURN_TOOL_SELECTION";
+            const recoverContractSelection = nativeToolChat && phase === "MISSION_CONTRACT_TOOL_SELECTION";
+            const recoverToolSelection = nativeToolChat && (phase === "CURRENT_TURN_TOOL_SELECTION" || recoverContractSelection);
 
             while (localAttempt < maximumLocalAttempts) {
                 localAttempt += 1;
@@ -1480,7 +1492,7 @@ export function createSelfHostedSemanticEngine({
                         // nor tool_calls. Recover only this selection using the same
                         // model, messages and candidate schemas in its JSON mode.
                         delete payload.tools;
-                        payload.format = {
+                        payload.format = recoverContractSelection ? request.config.responseJsonSchema : {
                             anyOf: tools.map(tool => ({
                                 type: "object",
                                 properties: {
@@ -1491,9 +1503,11 @@ export function createSelfHostedSemanticEngine({
                                 additionalProperties: false
                             }))
                         };
-                        payload.options.num_predict = Math.min(16000, Math.max(1024, maxOutputTokens * 2));
+                        payload.options.num_predict = recoverContractSelection ? maxOutputTokens : Math.min(16000, Math.max(1024, maxOutputTokens * 2));
                         const recoveryInstruction = [
-                            'Return exactly one tool selection as JSON {"name":"tool name","arguments":{...}}. Select only from this same candidate catalog and supply executable arguments. Do not answer the user or claim completion.',
+                            recoverContractSelection
+                                ? 'Return only JSON with name of the function that performs the same current operation and stage. No execution arguments. The requested output must actually be produced: a blueprint is not an HTML file. Do not answer the user or claim completion.'
+                                : 'Return exactly one tool selection as JSON {"name":"tool name","arguments":{...}}. Select only from this same candidate catalog and supply executable arguments. Do not answer the user or claim completion.',
                             "The current user instruction is primary. Earlier assistant proposals are not factual evidence. Preserve the explicit source URL and all requested scope in the arguments.",
                             "CANDIDATE_TOOLS=" + JSON.stringify(tools)
                         ].join("\n");
@@ -1786,8 +1800,13 @@ export function createSelfHostedSemanticEngine({
             }
         }
         const remaining = remainingMs();
+        // Qwen embedding queries use its documented instruction format. Catalog
+        // documents remain raw; this describes retrieval, never selects a tool.
+        const retrievalQuery = embeddingModel.startsWith("qwen3-embedding:")
+            ? `Instruct: Given a software assistant operation, retrieve tool descriptions whose capabilities can perform that operation.\nQuery:${String(input || "")}`
+            : String(input || "");
         const queryEmbedding = await embed(
-            [String(input || "")],
+            [retrievalQuery],
             noDeadline === true
                 ? { signal, noDeadline: true }
                 : { timeoutMs: remaining, signal }
@@ -1809,7 +1828,7 @@ export function createSelfHostedSemanticEngine({
                 right.score - left.score || left.index - right.index
             );
         const selected = ranked
-            .slice(0, Math.max(1, Math.min(8, Number(limit) || 2)));
+            .slice(0, Math.max(1, Math.min(12, Number(limit) || 2)));
         return {
             catalog: selected.map(entry => entry.tool),
             evidence: {
@@ -1869,7 +1888,7 @@ export function createSelfHostedSemanticEngine({
                     const shortlist = await shortlistCurrentTurnCatalog(
                         requestedOperation,
                         catalog,
-                        Math.max(1, Math.min(8, Number(requestedLimit) || 6)),
+                        Math.max(1, Math.min(12, Number(requestedLimit) || 6)),
                         deadlineAt,
                         planSignal,
                         noDeadline

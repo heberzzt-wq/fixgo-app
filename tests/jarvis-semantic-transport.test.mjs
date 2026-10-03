@@ -16,6 +16,36 @@ const describe = () => ({ ok: true, fallbackAllowed: false });
 const result = { ok: true, toolCalls: [{ name: "repo.audit", args: {}, approved: false }], missionComplete: false };
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+test("grounding focuses the current operation while retaining the full mission as context", async () => {
+    const original = "Consulta originales, crea un anuncio y exporta el PNG a Salidas.";
+    const operation = "consultar originales de la biblioteca local de materiales";
+    const engine = createSelfHostedSemanticEngine({ fetchImpl: async (_url, options) => {
+        const body = JSON.parse(options.body);
+        assert.ok(body.messages[1].content.startsWith(operation));
+        assert.ok(body.messages[1].content.includes("FILE_NOT_FOUND:missing.json"));
+        assert.equal(body.options.temperature,0.2);
+        assert.ok(body.messages[0].content.includes(original));
+        assert.ok(body.messages[0].content.includes("ARTEFACTOS_PRODUCIDOS=[]"));
+        return { ok:true, text:async()=>JSON.stringify({message:{content:JSON.stringify({toolCalls:[{name:"media.library",args:{action:"list"}}],missionComplete:false})},done_reason:"stop"}) };
+    }});
+    const plan = await engine.plan({input:`INSTRUCCION_ORIGINAL=${original}\nARTEFACTOS_PRODUCIDOS=[]`,catalog:[{name:"media.library",description:"Consulta originales o exporta un artefacto existente",inputSchema:{type:"object",properties:{action:{type:"string",enum:["list","import","export"]}},required:["action"]}}],missionState:{phase:"GROUNDED_ARGUMENT_COMPLETION",currentOperation:operation,argumentValidationFeedback:"FILE_NOT_FOUND:missing.json"}});
+    assert.deepEqual(plan.toolCalls[0].args,{action:"list"});
+});
+
+test("grounded operation uses JSON mode and validates the returned tool arguments independently", async () => {
+    const output=".jarvis-artifacts/images/current.png";
+    const engine=createSelfHostedSemanticEngine({fetchImpl:async(_url,options)=>{
+        const body=JSON.parse(options.body);
+        assert.deepEqual(body.format.properties.toolCalls.items.properties.name.enum,["media.library"]);
+        assert.deepEqual(body.format.properties.toolCalls.items.properties.args.properties.action.enum,["list","import","export"]);
+        assert.deepEqual(body.format.properties.toolCalls.items.properties.args.required,["action"]);
+        assert.ok(body.messages[0].content.includes("OPERACION_ACTUAL_DEL_PLAN"));
+        return {ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({toolCalls:[{name:"media.library",args:{action:"export",output}}],missionComplete:false})},done_reason:"stop"})};
+    }});
+    const plan=await engine.plan({input:"OPERACION_ACTUAL_DEL_PLAN=exportar el archivo creado",catalog:[{name:"media.library",description:"Consulta originales o exporta un artefacto existente",inputSchema:{type:"object",properties:{action:{type:"string",enum:["list","import","export"]},output:{type:"string"}},required:["action"]}}],missionState:{phase:"GROUNDED_ARGUMENT_COMPLETION"}});
+    assert.deepEqual(plan.toolCalls[0].args,{action:"export",output});
+});
+
 test("a greeting after a final response retains the loaded context size across classification and reply", async () => {
     const requests = [];
     const engine = createSelfHostedSemanticEngine({ fetchImpl: async (url, options) => {
@@ -340,28 +370,96 @@ test("current conversation forwards a real multi-turn window to Qwen", async () 
     assert.equal(plan.toolCalls[0].name, "conversation.respond");
 });
 
-test("long mission contract retains the shared full-input prefix and an adequate budget", async () => {
+test("mission decomposition retains the full instruction; selection is scoped to its operation", async () => {
     const missionState = { phase: "MISSION_CONTRACT", existingInitialTools: ["repo.audit"], writeAllowed: false };
     assert.ok(semanticPlanBudgetMs({ input: instruction, missionState, timeoutMs: 90000 }) > 90000);
     const contractCatalog = [...catalog, ...Array.from({ length: 9 }, (_, i) => ({ name: `repo.inspect${i}`, description: "Inspeccion read-only", mutates: false }))];
     const engine = createSelfHostedSemanticEngine({ env: {...process.env,JARVIS_TOOL_EMBEDDING_CACHE_PATH:path.join(fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-contract-')),'cache.json')}, fetchImpl: async (_url, options) => {
         const body = JSON.parse(options.body);
-        if (body.input) return {ok:true,text:async()=>JSON.stringify({embeddings:body.input.map(()=>[1,0])})};
+        if (body.input) {
+            if (body.input.length === 1 && body.input[0].includes("audit repository")) {
+                assert.match(body.input[0], /^Instruct: Given a software assistant operation,/);
+                assert.ok(body.input[0].endsWith("\nQuery:audit repository"));
+            } else {
+                assert.ok(body.input.every(text=>!text.startsWith("Instruct:")), "catalog documents stay raw");
+            }
+            return {ok:true,text:async()=>JSON.stringify({embeddings:body.input.map(()=>[1,0])})};
+        }
         assert.equal(body.messages[0].role, "system");
-        if (body.format?.properties?.sourceReview) {
+        if (body.messages.at(-1).content === instruction) {
             assert.equal(body.messages.at(-1).content, instruction);
+            assert.equal(body.format.properties.work.type, "string", 'one complete result operation has native shape without a tool-name enum');
+            assert.equal(body.format.properties.verification.type,"string","requested executable verification remains independent of creation");
+            assert.match(body.messages[0].content,/\/no_think$/);
+            assert.equal(body.think, false);
+            assert.ok(body.options.num_predict >= 256);
             return {ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({sourceReview:'',work:'audit repository',delivery:''})},done_reason:'stop'})};
         }
-        assert.equal(body.messages[1].content, instruction);
-        assert.ok(body.format.properties.step0);
+        assert.equal(body.messages.at(-1).role, 'user', 'select only for the operation already decided from the full instruction');
+        assert.equal(body.think, false);
+        assert.equal(body.format, undefined, "native selection uses empty function parameters");
+        assert.ok(body.tools.some(tool=>tool.function.name==="repo.audit"));
         const task = JSON.parse(body.messages.at(-1).content);
-        assert.equal(task.phase, "MISSION_CONTRACT");
-        assert.ok(task.catalog.some(tool => tool.name === "repo.audit"));
-        return { ok: true, text: async () => JSON.stringify({ message: { content: JSON.stringify({step0:'repo.audit'}) } }) };
+        assert.equal(task.operation, "audit repository");
+        assert.equal(task.catalog,undefined);
+        return { ok: true, text: async () => JSON.stringify({ message: { content: JSON.stringify({name:'repo.audit'}) } }) };
     }});
     const plan = await engine.plan({ input: instruction, catalog: contractCatalog, missionState });
     assert.equal(plan.ok, true);
     assert.equal(plan.missionComplete, false);
+});
+
+test("compact contract accepts one exact name and rejects multiple or invented names", async () => {
+    for (const names of [["repo.audit"],["repo.audit","repo.read"],["invented.tool"]]) {
+        const engine=createSelfHostedSemanticEngine({env:{...process.env,JARVIS_TOOL_EMBEDDING_CACHE_PATH:path.join(fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-native-select-')),'cache.json')},fetchImpl:async(_url,options)=>{
+            const body=JSON.parse(options.body);
+            if(body.input)return{ok:true,text:async()=>JSON.stringify({embeddings:body.input.map(()=>[1,0])})};
+            if(body.format?.properties.work)return{ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({sourceReview:'auditar repositorio',work:[],delivery:''})},done_reason:'stop'})};
+            assert.ok(body.tools.some(tool=>tool.function.name==='repo.audit'));
+            return{ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({name:names.length===1?names[0]:names})},done_reason:'stop'})};
+        }});
+        const operation=engine.plan({input:'native-contract',catalog,missionState:{phase:'MISSION_CONTRACT'}});
+        if(names.length===1&&names[0]==='repo.audit') assert.deepEqual((await operation).toolCalls.map(call=>call.name),names);
+        else await assert.rejects(operation,/SEMANTIC_CONTRACT_SELECTION_INVALID/);
+    }
+});
+
+test("verification retains Qwen's contract stage and selects a name without execution arguments", async () => {
+    const engine=createSelfHostedSemanticEngine({env:{...process.env,JARVIS_TOOL_EMBEDDING_CACHE_PATH:path.join(fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-verification-')),'cache.json')},fetchImpl:async(_url,options)=>{
+        const body=JSON.parse(options.body);
+        if(body.input)return{ok:true,text:async()=>JSON.stringify({embeddings:body.input.map(()=>[1,0])})};
+        if(body.format?.properties.work)return{ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({sourceReview:'',work:'',verification:'ejecutar las pruebas solicitadas',delivery:''})},done_reason:'stop'})};
+        const current=JSON.parse(body.messages.at(-1).content);
+        assert.equal(current.stage,'verification');
+        assert.equal(body.tools,undefined);
+        assert.deepEqual(Object.keys(body.format.properties),['name']);
+        assert.ok(body.format.properties.name.enum.includes('tests.run'));
+        return{ok:true,text:async()=>JSON.stringify({message:{content:'{"name":"tests.run"}'},done_reason:'stop'})};
+    }});
+    const plan=await engine.plan({input:'Ejecuta las pruebas relevantes del cambio preparado.',catalog:[{name:'tests.run',description:'Ejecuta pruebas del repositorio'},{name:'repo.prepareWrite',description:'Prepara cambios del código'}],missionState:{phase:'MISSION_CONTRACT'}});
+    assert.deepEqual(plan.toolCalls.map(call=>call.name),['tests.run']);
+    assert.deepEqual(plan.toolCalls[0].args,{});
+});
+
+test("empty contract selection recovers the same operation with a name-only schema", async () => {
+    let nativeAttempts=0,recovered=0;
+    const engine=createSelfHostedSemanticEngine({env:{...process.env,JARVIS_TOOL_EMBEDDING_CACHE_PATH:path.join(fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-contract-recovery-')),'cache.json')},fetchImpl:async(_url,options)=>{
+        const body=JSON.parse(options.body);
+        if(body.input)return{ok:true,text:async()=>JSON.stringify({embeddings:body.input.map(()=>[1,0])})};
+        if(body.format?.properties.work)return{ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({sourceReview:'',work:'crear un archivo HTML descargable',verification:'',delivery:''})},done_reason:'stop'})};
+        if(body.tools){nativeAttempts++;return{ok:true,text:async()=>JSON.stringify({message:{content:''},done_reason:'stop'})};}
+        recovered++;
+        assert.deepEqual(Object.keys(body.format.properties),['name']);
+        const original=JSON.parse(body.messages.at(-1).content);
+        assert.equal(original.operation,'crear un archivo HTML descargable');
+        assert.equal(original.stage,'work');
+        assert.ok(body.messages[0].content.includes('CANDIDATE_TOOLS='));
+        return{ok:true,text:async()=>JSON.stringify({message:{content:'{"name":"page.create"}'},done_reason:'stop'})};
+    }});
+    const plan=await engine.plan({input:'Crea un HTML descargable.',catalog:[{name:'page.create',description:'Crea HTML descargable'},{name:'page.compose',description:'Prepara un esquema JSON'}],missionState:{phase:'MISSION_CONTRACT'}});
+    assert.equal(nativeAttempts,1);assert.equal(recovered,1);
+    assert.deepEqual(plan.toolCalls.map(call=>call.name),['page.create']);
+    assert.deepEqual(plan.toolCalls[0].args,{});
 });
 
 test("planner retries remain alive without an artificial local deadline", async () => {

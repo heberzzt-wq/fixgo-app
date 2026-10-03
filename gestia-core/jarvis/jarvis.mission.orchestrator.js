@@ -2668,6 +2668,7 @@ export async function runJarvisMission({
         try {
             result = await execute({ name: task.name, args: task.args, approved: false,
                 reason: task.reason || "", obligationId: task.obligationId,
+                ...(task.argumentValidationFeedback ? {argumentValidationFeedback:task.argumentValidationFeedback} : {}),
                 ...(task.deferred === true ? {deferred:true} : {}) }, {
                 missionId: mission.missionId,
                 caseId: mission.caseId,
@@ -2677,6 +2678,7 @@ export async function runJarvisMission({
                 rootInstruction: mission.rootInstruction || mission.originalInstruction,
                 rootInstructionHash: mission.rootInstructionHash || mission.instructionHash,
                 planRevision: Number(mission.planRevision || 0),
+                argumentValidationFeedback: task.argumentValidationFeedback || null,
                 requiredToolNames:
                     [...mission.requiredToolNames],
                 completedTasks: mission.completedTasks.map(item => ({
@@ -2715,7 +2717,8 @@ export async function runJarvisMission({
                 approved: false
             });
         } catch (error) {
-            result = { ok: false, status: "TOOL_FAILED", error: error?.message || String(error) };
+            result = { ok: false, status: "TOOL_FAILED", error: error?.message || String(error),
+                ...(typeof error?.retryable === "boolean" ? {retryable:error.retryable} : {}) };
         }
 
         const observation = safeObservation(result);
@@ -2827,6 +2830,11 @@ export async function runJarvisMission({
         ) {
             mission.pendingTasks.unshift({
                 ...task,
+                argumentValidationFeedback: {
+                    status: observation.status,
+                    error: observation.error || observation.summary || "",
+                    arguments: executedArgs
+                },
                 status: "RETRY_PENDING"
             });
             mission.errors.push({

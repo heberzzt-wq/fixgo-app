@@ -6054,6 +6054,7 @@ if (
                                     instruction: missionContext.rawInput.slice(0, 120000),
                                     operation: executionCall.reason || call.reason || "",
                                     currentArgs: executionCall.args,
+                                    validationFeedback: missionContext.argumentValidationFeedback || null,
                                     validSources: missionContext.validSources || [],
                                     missionEvidence: missionContext.canonicalEvidence || []
                                 });
@@ -6071,6 +6072,7 @@ if (
                             }
                         }
                         catch(error) {
+                            if (executionCall.deferred === true || error?.retryable === false) throw error;
                             console.warn(
                                 "[MISSION_ARGUMENT_AUDIT_FALLBACK]",
                                 call?.name,

@@ -397,7 +397,7 @@ export function registerJarvisRealMediaTools(runtime = runtimeCandidate()) {
         registerOrReplace(runtime, {
             name: "reel.create",
             description:
-                "Crea un reel 9:16 local y reutiliza automáticamente los medios reales verificados de la misma misión cuando el plan no haya asignado material visual explícito. No inventa logotipos ni sustituye medios ya elegidos. El audio explícito conserva prioridad y, si existe un WAV verificado de speech.synthesize en la misión, el runtime lo incorpora antes de renderizar.",
+                "Crea un archivo de video MP4 vertical 9:16 local con escenas, fotografías, textos, logo original y música. Reutiliza los medios reales verificados de la misión cuando no hay material explícito. No genera metraje nuevo ni inventa logotipos. El audio explícito tiene prioridad; incorpora narración WAV verificada de speech.synthesize antes de renderizar. Entrega un video físico descargable, no un storyboard.",
             execute: async (args = {}, context = {}) => {
                 const hydration =
                     hydrateReelArgsWithCollectorMedia(args, context);

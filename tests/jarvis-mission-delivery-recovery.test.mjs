@@ -48,11 +48,12 @@ test('local mission contract retrieves semantic operations without lexical catal
     const ai = {lastProvider:'ollama-openai-compatible-local',models:{generateContent:async request=>{
         if(request.config.semanticStage==='MISSION_CONTRACT_OPERATIONS') return {text:JSON.stringify({sourceReview:'research external website',work:'',delivery:'create downloadable document'})};
         const task = JSON.parse(request.config.chatMessages.at(-1).content);
-        assert.ok(task.catalog.some(t=>t.name==='web.research'), 'lexical ranking must not hide the source reader');
-        assert.ok(task.catalog.some(t=>t.name==='document.create'), 'the final writer must remain selectable');
-        return {text:JSON.stringify({step0:'web.research',step1:'document.create'})};
+        const expected = task.operation === 'research external website' ? 'web.research' : 'document.create';
+        assert.deepEqual(request.config.tools[0].functionDeclarations.map(t=>t.name), [expected], 'each operation receives its own retrieved native candidates');
+        assert.equal(task.catalog,undefined);
+        return {text:JSON.stringify({name:expected})};
     }}};
-    const result = await runJarvisSemanticPlanner({ai,input:'Marketing para https://example.com con archivos descargables',catalog,missionState:{phase:'MISSION_CONTRACT',existingInitialTools:['repo.marketing0']},retrieveToolCandidates:async operation=>{retrieved.push(operation);return [catalog[operation.startsWith('research')?12:13]];}});
+    const result = await runJarvisSemanticPlanner({ai,input:'Marketing para https://example.com con archivos descargables',catalog,missionState:{phase:'MISSION_CONTRACT',existingInitialTools:['repo.marketing0']},retrieveToolCandidates:async (operation,limit)=>{assert.equal(limit,12,'retain a wider semantic shortlist for required capabilities');retrieved.push(operation);return [catalog[operation.startsWith('research')?12:13]];}});
     assert.deepEqual(retrieved,['research external website','create downloadable document']);
     assert.deepEqual(result.toolCalls.map(t=>t.name), ['web.research','document.create']);
     assert.ok(result.toolCalls.every(t=>t.deferred===true));
@@ -64,6 +65,17 @@ test('external URLs cannot be accepted as repository file paths',()=>{
     const result=validatePlan({toolCalls:[{name:'repo.read',args:{file:'https://example.com/invented'}}]},catalog,'Consulta https://example.com/');
     assert.equal(result.toolCalls.length,0);
     assert.equal(validatePlan({toolCalls:[{name:'repo.read',args:{file:'src/index.js'}}]},catalog).toolCalls.length,1);
+});
+
+test('local contract reads Qwen tool-name aliases and rejects conflicting or unavailable names', async () => {
+    const catalog=[{name:'media.library',description:'Consulta la biblioteca local',inputSchema:{action:'string'}}];
+    const run=selection=>runJarvisSemanticPlanner({
+        ai:{lastProvider:'ollama-openai-compatible-local',models:{generateContent:async request=>({text:JSON.stringify(request.config.semanticStage==='MISSION_CONTRACT_OPERATIONS'?{sourceReview:'consultar originales',work:[],delivery:''}:selection)})}},
+        input:'Consulta la biblioteca oficial',catalog,missionState:{phase:'MISSION_CONTRACT'},retrieveToolCandidates:async()=>catalog
+    });
+    assert.equal((await run({capability:'consulta',tool:'media.library'})).toolCalls[0].name,'media.library');
+    await assert.rejects(run({name:'media.library',tool:'document.create'}),/SEMANTIC_CONTRACT_SELECTION_INVALID/);
+    await assert.rejects(run({tool:'invented.tool'}),/SEMANTIC_CONTRACT_SELECTION_INVALID/);
 });
 
 test('grounded argument completion retains the explicit source and rejects a category used as domain',async()=>{

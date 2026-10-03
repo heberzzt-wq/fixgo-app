@@ -51,7 +51,8 @@ export function prepareEvidenceGroundedConversationPlan({
             conversationRequested = true;
             continue;
         }
-        const signature = `${call.name}:${JSON.stringify(call.args || {})}`;
+        const obligation = call.deferred === true ? String(call.obligationId || "") : "";
+        const signature = `${call.name}:${JSON.stringify(call.args || {})}:${obligation}`;
         if (seen.has(signature)) continue;
         seen.add(signature);
         operationalCalls.push(call);
@@ -102,8 +103,12 @@ export function mergeEvidenceGroundedToolCalls(...groups) {
         "media.analyze"
     ]);
     const seenSingletons = new Set();
-
-    for (const call of groups.flat()) {
+    // This contract is the same Qwen's complete ordered plan. Earlier
+    // CURRENT_TURN candidates are provisional, not additional obligations.
+    const candidates = groups[0]?.planKind === "MISSION_CONTRACT_COMPACT_LOCAL"
+        ? groups[0]
+        : groups.flat();
+    for (const call of candidates) {
         if (!call?.name || call.name === "conversation.respond") continue;
         if (
             singletonEvidenceTools.has(call.name) &&
@@ -111,7 +116,8 @@ export function mergeEvidenceGroundedToolCalls(...groups) {
         ) {
             continue;
         }
-        const signature = `${call.name}:${JSON.stringify(call.args || {})}`;
+        const obligation = call.deferred === true ? String(call.obligationId || "") : "";
+        const signature = `${call.name}:${JSON.stringify(call.args || {})}:${obligation}`;
         if (seenSignatures.has(signature)) continue;
         seenSignatures.add(signature);
         if (singletonEvidenceTools.has(call.name)) {

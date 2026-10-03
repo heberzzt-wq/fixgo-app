@@ -210,7 +210,21 @@ export function normalizeImageArtifactPrefix(value, fallback = `adapted-${Date.n
     return prefix;
 }
 
+export function normalizeImageAdaptArguments(args = {}) {
+    const composition = args.composition;
+    if (!composition || typeof composition !== "object" || Array.isArray(composition)) return {...args};
+    if (composition.brandName != null && typeof composition.brandName !== "string") return {...args};
+    const names = [composition.brandName,args.brandName,args.logoPlacement?.brandName]
+        .filter(value => typeof value === "string" && value.trim()).map(value => value.trim());
+    if (new Set(names).size > 1) throw new Error("IMAGE_COMPOSITION_BRAND_NAME_CONFLICT");
+    // Reparent an explicitly authored value; never invent a brand from a path.
+    return {...args,composition:{...composition,...(names.length ? {brandName:names[0]} : {})}};
+}
+
 export function normalizeMaterialLibraryArguments(args = {}) {
+    if (args.action === "list" && (args.output || String(args.relativePath || "").startsWith(".jarvis-artifacts/"))) {
+        throw new Error("MATERIAL_LIST_CANNOT_DELIVER_ARTIFACT: choose action=export and output for a produced artifact");
+    }
     if (args.action !== "export") return args;
     if (args.output && args.relativePath && args.output !== args.relativePath) {
         throw new Error("MATERIAL_EXPORT_REFERENCE_AMBIGUOUS");
@@ -666,7 +680,7 @@ export function registerJarvisActuatorTools(runtime) {
     const registrations = [
         register(runtime, {
             name: "media.library",
-            description: "Biblioteca local: exporta archivos terminados a la carpeta oficial Salidas (action=export, output); consulta el inventario de originales (action=list); importa el original elegido (action=import, relativePath). Entrega imágenes PNG/JPEG, videos MP4 y sitios ya creados sin publicarlos. El inventario incluye referencias library: exactas, logos, audio y regiones fotográficas para image.adapt/reel.create/page.create. No crea documentos ni anuncios al listar o exportar.",
+            description: "Biblioteca local: exporta y copia archivos YA CREADOS (PNG/JPEG, video MP4, página HTML o documento) a la carpeta Salidas con action=export y output .jarvis-artifacts/ de una creación exitosa. También consulta originales e historial con action=list e importa originales con action=import. List devuelve referencias library: exactas, logos, música y regiones de foto. No crea contenido nuevo ni publica en redes.",
             output: "MATERIAL_LIBRARY_RESULT",
             userArtifact: true,
             mutates: true,
@@ -753,7 +767,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "page.create",
-            description: "Genera una landing HTML local nueva, responsive, accesible y descargable; puede incrustar como hero o galeria los artefactos de imagen reales recibidos. No publica ni despliega.",
+            description: "Crea y guarda el archivo HTML final de una página web local descargable, con los servicios, textos, fotografía y logo originales solicitados. Usa page.compose como preparación de contenido cuando falta. El resultado es un archivo físico HTML responsive y accesible; no publica ni despliega.",
             output: "PAGE_CREATE_ARTIFACT",
             inputSchema: {
                 brandName: "string", title: "string", description: "string", services: "array", evidenceMode: "verified|insufficient",
@@ -2546,6 +2560,7 @@ export function registerJarvisActuatorTools(runtime) {
             requiresApproval: false,
             userArtifact: true,
             execute: async (args = {}, context = {}) => {
+                args = normalizeImageAdaptArguments(args);
                 const prefix = normalizeImageArtifactPrefix(args.outputPrefix);
                 const source = await bridgeRequest("/artifact/read", { output: args.sourceOutput, officialReference: true }, 30000);
                 if (source?.ok !== true || !String(source.mimeType || "").startsWith("image/") || !source.dataBase64) throw new Error("IMAGE_SOURCE_ARTIFACT_INVALID");
@@ -2606,7 +2621,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "artifact.list",
-            description: "Consulta el ledger versionado de artefactos por tipo, expediente u objetivo.",
+            description: "Consulta el registro versionado de artefactos ya registrados por tipo, expediente u objetivo. Devuelve sus metadatos; no recorre carpetas del Escritorio ni inventaría originales, logos o música de una biblioteca local.",
             output: "ARTIFACT_LEDGER_RESULT",
             inputSchema: { type: "string", caseId: "string", objectiveId: "string", limit: "number" },
             mutates: false,

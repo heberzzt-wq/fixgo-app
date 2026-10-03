@@ -5586,7 +5586,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "page.compose",
-            description: "Redacta en memoria el contenido completo y honesto de una landing local, incluidos servicios y ruta de contacto, antes de page.create; no escribe ni publica.",
+            description: "Prepara solamente un esquema JSON de textos para una página futura; no crea ni guarda archivos HTML descargables. Es una preparación interna de page.create, que produce el archivo final.",
             output: "PAGE_CONTENT_BLUEPRINT",
             missionDedupeBy: [],
             inputSchema: {
