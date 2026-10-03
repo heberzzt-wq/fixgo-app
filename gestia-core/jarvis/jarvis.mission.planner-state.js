@@ -54,9 +54,27 @@ function compactMediaAsset(asset = {}) {
     };
 }
 
+// Keep exact references as data. Summarizing/truncating paths makes the next tool invent filenames.
+export function materialReferencesForPlanning(observation = {}) {
+    const payload = { ...object(observation.evidence), ...object(observation) };
+    const entries = Array.isArray(payload.entries) ? payload.entries : [];
+    const candidates = [...entries,
+        ...(payload.output && /^(MATERIAL_IMPORTED|IMAGE_VARIANTS|REEL_VIDEO)/.test(payload.status || "") ? [payload] : []),
+        ...(Array.isArray(payload.outputs) ? payload.outputs : [])];
+    return candidates.filter(item => item && (item.relativePath || item.output) && /^(image|audio|video)\//.test(item.mimeType || ""))
+        .slice(0, 100).map(item => ({
+            ref: item.output || `library:${item.relativePath}`,
+            role: item.role || "produced_artifact", mimeType: item.mimeType,
+            ...(item.width ? { width: item.width, height: item.height } : {}),
+            ...(item.description ? { description: text(item.description, 240) } : {}),
+            ...(item.photoRegion ? { photoRegion: item.photoRegion } : {})
+        }));
+}
+
 export function compactMissionPlannerObservation(observation = {}) {
     const source = object(observation);
     const evidence = object(source.evidence);
+    const materialReferences = materialReferencesForPlanning(source);
     const sources = (
         Array.isArray(source.sources)
             ? source.sources
@@ -133,6 +151,10 @@ export function compactMissionPlannerObservation(observation = {}) {
         ...(summary ? { summary } : {}),
         ...(sources.length ? { sources } : {}),
         ...(mediaAssets.length ? { mediaAssets } : {}),
+        ...(materialReferences.length ? { materialReferences } : {}),
+        ...(Array.isArray(evidence.advertisingHistory || source.advertisingHistory) ? {
+            advertisingHistory: (evidence.advertisingHistory || source.advertisingHistory).slice(0, 30)
+        } : {}),
         ...(persistedArtifacts.length ? { persistedArtifacts } : {}),
         ...(mediaAssets.length || requirementsMet !== null
             ? { counts }

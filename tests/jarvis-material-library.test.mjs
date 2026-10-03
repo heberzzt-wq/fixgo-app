@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { materialLibrary, assertOfficialMaterial } from "../jarvis-material-library.js";
+import { materialLibrary, assertOfficialMaterial, resolveMaterialReference, availableMaterialToolCatalog } from "../jarvis-material-library.js";
 import { registerArtifact } from "../jarvis-artifact-studio.js";
 import { preparePageMaterialInput } from "../jarvis-fs-bridge.js";
 import { buildPageArtifactHtml } from "../jarvis-page-artifact.js";
@@ -21,6 +21,58 @@ function fixture(t) {
     fs.writeFileSync(path.join(library, "Entradas", "anuncio.png"), png);
     return { root, library, png, dir };
 }
+
+test("advertising history persists and blocks renamed bytes and repeated copy across deliveries", t => {
+    const { root, library, png } = fixture(t);
+    const create = (name, headline, suffix = name) => {
+        const output = `.jarvis-artifacts/${name}.png`;
+        fs.writeFileSync(path.join(root, output), Buffer.concat([png, Buffer.from(suffix)]));
+        registerArtifact({ root, output, metadata: { mimeType: "image/png", transformations: [{
+            type: "local_ad_composition", composition: { brandName: "Firma", headline, body: "Asesoría para tu empresa" }
+        }] } });
+        return output;
+    };
+    const first = create("first", "Defensa fiscal");
+    assert.equal(materialLibrary({ root, action: "export", output: first }).historyRecorded, true);
+    assert.equal(materialLibrary({ root, action: "export", output: create("renamed", "Other", "first") }).status, "ADVERTISING_DUPLICATE_BLOCKED");
+    assert.equal(materialLibrary({ root, action: "export", output: create("resized", "  DEFENSA FISCAL! ") }).status, "ADVERTISING_DUPLICATE_BLOCKED");
+    assert.equal(materialLibrary({ root, action: "export", output: create("new", "Conoce tus opciones legales") }).ok, true);
+    const history = JSON.parse(fs.readFileSync(path.join(library, "Historial/publicidad.jsonl"), "utf8").trim().split("\n")[0]);
+    assert.equal(history.creative.headline, "Defensa fiscal");
+    assert.equal(materialLibrary({ root }).advertisingHistory.length, 2);
+    assert.equal(fs.readdirSync(path.join(library, "Salidas")).length, 2);
+});
+
+test("existing deliveries are indexed before allowing a duplicate and history corruption fails closed", t => {
+    const { root, library, png } = fixture(t);
+    fs.mkdirSync(path.join(library, "Salidas"));
+    fs.writeFileSync(path.join(library, "Salidas", "yesterday.png"), png);
+    const imported = materialLibrary({ root, action: "import", relativePath: "Entradas/anuncio.png" });
+    assert.equal(materialLibrary({ root, action: "export", output: imported.output }).status, "ADVERTISING_DUPLICATE_BLOCKED");
+    fs.appendFileSync(path.join(library, "Historial/publicidad.jsonl"), "corrupt\n");
+    assert.throws(() => materialLibrary({ root }), /JSON|Unexpected|MATERIAL_HISTORY/);
+});
+
+test("exact library references import the chosen original and sidecars are bound to source bytes", t => {
+    const { root, library } = fixture(t);
+    const listed = materialLibrary({ root }).entries[0];
+    fs.writeFileSync(path.join(library, listed.relativePath + ".material.json"), JSON.stringify({
+        sourceSha256: listed.sha256, description: "Foto aprobada", photoRegion: { x: 0, y: 0, width: 1, height: 1 }
+    }));
+    assert.equal(materialLibrary({ root }).entries[0].description, "Foto aprobada");
+    const output = resolveMaterialReference({ root, output: listed.ref });
+    assert.equal(output, materialLibrary({ root, action: "import", relativePath: listed.relativePath }).output);
+    assert.throws(() => resolveMaterialReference({ root, output: "library:../outside.png" }));
+    fs.appendFileSync(path.join(library, listed.relativePath), "changed");
+    assert.equal(materialLibrary({ root }).entries[0].description, undefined);
+    assert.equal(materialLibrary({ root }).entries[0].metadataIssue, "MATERIAL_METADATA_SOURCE_CHANGED");
+});
+
+test("disabled external generation is absent from the semantic catalog, not retried as recovery", t => {
+    const { root } = fixture(t);
+    const catalog = ["image.generate", "image.edit", "image.adapt", "media.library", "reel.create"].map(name => ({ name }));
+    assert.deepEqual(availableMaterialToolCatalog({ root, catalog }).map(tool => tool.name), ["image.adapt", "media.library", "reel.create"]);
+});
 
 test("configured Desktop library imports unchanged bytes into the canonical ledger and exports separately", t => {
     const { root, library, png } = fixture(t);

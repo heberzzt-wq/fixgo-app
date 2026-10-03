@@ -3,7 +3,7 @@ import { SEMANTIC_MAX_BUDGET_MS } from "./gestia-core/jarvis/jarvis.semantic.tra
 import express from "express";
 import cors from "cors";
 import fs from "fs";
-import { materialLibrary, officialMaterialPolicy, assertOfficialMaterial } from "./jarvis-material-library.js";
+import { materialLibrary, officialMaterialPolicy, assertOfficialMaterial, resolveMaterialReference, availableMaterialToolCatalog } from "./jarvis-material-library.js";
 import os from "os";
 import path from "path";
 import * as tls from "node:tls";
@@ -999,7 +999,8 @@ function parseOpenAiFunctionCalls(message = {}) {
 
 export function createSelfHostedSemanticEngine({
     fetchImpl = globalThis.fetch,
-    env = process.env
+    env = process.env,
+    root = DEFAULT_ROOT
 } = {}) {
     const mode = semanticProviderMode(env);
     const model = String(
@@ -1839,6 +1840,7 @@ export function createSelfHostedSemanticEngine({
         describe,
         embed,
         async plan({ input, catalog, missionState = null, timeoutMs: requestTimeoutMs, noDeadline = true, signal, onProgress = () => {} } = {}) {
+            catalog = availableMaterialToolCatalog({ root, catalog });
             const effectiveTimeoutMs = noDeadline === true
                 ? null
                 : Math.min(Math.max(Number(requestTimeoutMs) || timeoutMs, 1), SEMANTIC_MAX_BUDGET_MS);
@@ -5279,6 +5281,7 @@ export function preparePageMaterialInput({ input = {}, root = DEFAULT_ROOT } = {
     let embeddedBytes = 0;
     const materialSources = [];
     const embedImage = output => {
+        output = resolveMaterialReference({ root, output, caseId: input.caseId, objectiveId: input.objectiveId });
         assertOfficialMaterial({ root, output });
         const source = readArtifactPayload({ output, root });
         if (!source.mimeType.startsWith("image/") || source.mimeType === "image/svg+xml") throw new Error("PAGE_MATERIAL_IMAGE_REQUIRED");
@@ -6655,7 +6658,7 @@ export function createJarvisFsBridgeApp({
             release: runpod.release
         } : {})
     });
-    const semanticEngine = localSemanticEngine || createSelfHostedSemanticEngine();
+    const semanticEngine = localSemanticEngine || createSelfHostedSemanticEngine({ root });
     const requestIdentitySnapshot =
         describeJarvisBridgeIdentity(
             root,
@@ -8622,6 +8625,7 @@ export function createJarvisFsBridgeApp({
             let embeddedBytes = 0;
             const embedArtifact = (output, expectedFamily) => {
                 if (!output) return "";
+                output = resolveMaterialReference({ root, output, caseId: req.body?.caseId, objectiveId: req.body?.objectiveId });
                 assertOfficialMaterial({ root, output });
                 const artifact = readArtifactPayload({ output, root });
                 if (!artifact.mimeType.startsWith(`${expectedFamily}/`)) throw new Error("REEL_MEDIA_TYPE_MISMATCH");
@@ -8695,12 +8699,19 @@ export function createJarvisFsBridgeApp({
                 editable: true, preview: true, downloadable: true, publishable: false,
                 originalFile: req.body?.originalFile
             } });
+            registerArtifact({ root, output: videoExport.output, metadata: {
+                type: "reel_video", origin: "reel.create", provider: "browser_media_recorder",
+                caseId: req.body?.caseId, objectiveId: req.body?.objectiveId, mimeType: videoExport.mimeType,
+                originalFile: artifact.file,
+                transformations: [{ type: "advertising_script", brandName: req.body?.brandName || "",
+                    title: req.body?.title || "", text: sourceScenes.map(scene => [scene.overlay, scene.subtitle].filter(Boolean).join(" ")).join("\n") }]
+            } });
             return res.json({
                 ok: true,
                 status: "REEL_VIDEO_CREATED_VERIFIED",
                 physicallyWritten: true,
                 logoOverlayApplied: Boolean(req.body?.logoOutput && sourceScenes.some(scene => scene.presentation !== "poster")),
-                logoSourceSha256: req.body?.logoOutput ? readArtifactPayload({ output: req.body.logoOutput, root }).sha256 : "",
+                logoSourceSha256: req.body?.logoOutput ? readArtifactPayload({ output: resolveMaterialReference({ root, output: req.body.logoOutput }), root }).sha256 : "",
                 output: videoExport.output,
                 videoOutput: videoExport.output,
                 studioOutput: path.relative(root, target).replaceAll("\\", "/"),
@@ -9640,8 +9651,11 @@ export function createJarvisFsBridgeApp({
 
     app.post("/artifact/read", (req, res) => {
         try {
-            if (req.body?.officialReference === true) assertOfficialMaterial({ root, output: req.body?.output });
-            const payload = readArtifactPayload({ output: req.body?.output, root });
+            const output = req.body?.officialReference === true
+                ? resolveMaterialReference({ root, output: req.body?.output, caseId: req.body?.caseId, objectiveId: req.body?.objectiveId })
+                : req.body?.output;
+            if (req.body?.officialReference === true) assertOfficialMaterial({ root, output });
+            const payload = readArtifactPayload({ output, root });
             return res.json({
                 ...payload,
                 artifact: findArtifact({ root, output: payload.output }),

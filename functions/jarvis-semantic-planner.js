@@ -264,7 +264,8 @@ function validatePlan(
         ) {
             continue;
         }
-        const signature = `${tool.name}:${JSON.stringify(args)}`;
+        const deferredObligation = candidate?.deferred === true ? String(candidate.obligationId || "").slice(0, 300) : "";
+        const signature = `${tool.name}:${JSON.stringify(args)}:${deferredObligation}`;
         if (seen.has(signature)) continue;
         seen.add(signature);
 
@@ -282,7 +283,7 @@ function validatePlan(
         ) {
             continue;
         }
-        const dedupeKey =
+        const dedupeKey = deferredObligation ? "" :
             missionDedupeKey(
                 tool,
                 args
@@ -303,6 +304,7 @@ function validatePlan(
             reason: String(candidate?.reason || "MODEL_SEMANTIC_TOOL_SELECTION").slice(0, 240),
             mutates: tool.mutates,
             approved: false,
+            ...(deferredObligation ? { obligationId: deferredObligation } : {}),
             ...(dedupeKey ? { missionDedupeKey: dedupeKey } : {}),
             ...(
                 argumentsComplete && candidate?.deferred !== true
@@ -416,7 +418,7 @@ function mergePlanToolCalls(...groups) {
 
     for (const call of groups.flat()) {
         if (!call?.name) continue;
-        const signature = `${call.name}:${JSON.stringify(call.args || {})}`;
+        const signature = `${call.name}:${JSON.stringify(call.args || {})}:${call.deferred === true ? call.obligationId || "" : ""}`;
         if (seen.has(signature)) continue;
         if (
             call.missionDedupeKey &&
@@ -1063,9 +1065,11 @@ async function runModelSemanticPlanner({
             const operationsResponse = await ai.models.generateContent({model, contents: instruction, config: {
                 semanticStage: "MISSION_CONTRACT_OPERATIONS",
                 chatMessages: [
-                    {role:"system", content:"Descompón la solicitud en operaciones cortas en inglés para buscar herramientas: sourceReview (consultar la fuente indicada), work (arreglo con una operación por cada objetivo independiente), delivery (entregar el resultado pedido). Usa cadena o arreglo vacío si una etapa no aplica. La URL indicada es una fuente a consultar. Los archivos descargables contienen el trabajo que pidió el usuario, no un producto o servicio que vende el negocio. No confundas la actividad del negocio con la tarea del asistente. No publiques, lances campañas ni edites archivos existentes salvo solicitud explícita. No copies nombres propios ni ubicaciones en las operaciones: se conservan en la solicitud original."},
+                    {role:"system", content:"Descompón la solicitud en operaciones cortas en inglés para buscar herramientas: sourceReview (consultar la fuente indicada), work (arreglo con una operación por cada objetivo independiente), delivery (entregar el resultado pedido). Usa cadena o arreglo vacío si una etapa no aplica. La URL indicada es una fuente a consultar. Conserva el formato final solicitado y las restricciones. Una operación es una obligación necesaria, no una lista de métodos alternativos ni capacidades negadas. Entregar un PNG o MP4 no requiere crear un documento ni un manifiesto: si se pidió guardarlo en una carpeta, delivery significa exportar ese archivo. Los archivos descargables contienen el trabajo que pidió el usuario, no un producto o servicio que vende el negocio. No confundas la actividad del negocio con la tarea del asistente. No publiques, lances campañas ni edites archivos existentes salvo solicitud explícita. No copies nombres propios ni ubicaciones en las operaciones: se conservan en la solicitud original."},
                     {role:"user", content:"Prepara un plan de comunicación para Taller Norte de https://ejemplo.test/ en Mérida y todo México, con archivos descargables."},
                     {role:"assistant", content:'{"sourceReview":"research external website business information","work":["prepare communication plan local and national"],"delivery":"create downloadable plan document"}'},
+                    {role:"user", content:"Usa la biblioteca oficial para componer un cartel PNG con foto, logo original y texto nuevo; guarda el archivo en Salidas. Sin generadores externos ni documento de planificación."},
+                    {role:"assistant", content:'{"sourceReview":"list official local media library references","work":["compose PNG advertisement with existing photo original logo and new text"],"delivery":"export created artifact to official local output folder"}'},
                     {role:"user", content:instruction}
                 ],
                 responseMimeType:"application/json",
@@ -1115,7 +1119,7 @@ async function runModelSemanticPlanner({
                 });
             const selections = extractJsonObject(String(compactContractResponse?.text || ""));
             if (compactContractResponse?.providerResponse?.finishReason === "length" || operationCandidates.some(step=>!step.catalog.some(tool=>tool.name===selections?.[step.id]))) throw new Error("SEMANTIC_CONTRACT_SELECTION_INVALID");
-            const compactPayload = {toolCalls:operationCandidates.map(step=>({name:selections[step.id],args:{},reason:step.operation})),missionComplete:false};
+            const compactPayload = {toolCalls:operationCandidates.map(step=>({name:selections[step.id],args:{},reason:step.operation,deferred:true,obligationId:`semantic:${step.operation}`.slice(0,300)})),missionComplete:false};
             const compactValidated =
                 validatePlan(
                     {

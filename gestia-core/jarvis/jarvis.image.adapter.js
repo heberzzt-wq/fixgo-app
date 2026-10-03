@@ -1,4 +1,22 @@
-export const JARVIS_IMAGE_ADAPTER_VERSION = "1.2.0-official-brand-logo-overlay-v12";
+export const JARVIS_IMAGE_ADAPTER_VERSION = "1.3.0-local-ad-composition-v142";
+
+// Copy and asset selection belong to the semantic planner. This adapter only renders its arguments.
+export const IMAGE_COMPOSITION_SCHEMA = {
+    type: "object", description: "Componer un anuncio nuevo con textos decididos por Qwen y una región fotográfica del original. No reutiliza el texto incrustado fuera de photoCrop. Requiere brandLogoOutput.",
+    properties: {
+        layout: { type: "string", enum: ["split", "stack"] },
+        headline: { type: "string", maxLength: 140 },
+        body: { type: "string", maxLength: 240 },
+        brandName: { type: "string", maxLength: 100 },
+        cta: { type: "string", maxLength: 90 },
+        contact: { type: "string", maxLength: 120 },
+        inkColor: { type: "string", description: "Color hexadecimal #RRGGBB, opcional." },
+        accentColor: { type: "string", description: "Color hexadecimal #RRGGBB, opcional." },
+        photoCrop: { type: "object", description: "Coordenadas en píxeles del original; usar la photoRegion verificada del inventario cuando exista. No inventar coordenadas.",
+            properties: { x: { type: "number" }, y: { type: "number" }, width: { type: "number" }, height: { type: "number" } },
+            required: ["x", "y", "width", "height"] }
+    }, required: ["layout", "headline", "body", "brandName", "cta", "contact", "photoCrop"]
+};
 
 const DEFAULT_VARIANTS = Object.freeze([
     { id: "hero", width: 1920, height: 1080, mimeType: "image/webp", quality: 0.86 },
@@ -16,9 +34,9 @@ function boundedInteger(value, field) {
 
 function normalizeVariant(variant = {}) {
     const id = String(variant.id || "").trim();
-    if (!id || !Array.from(id).every(character => {
+    if (!id || id.length > 96 || !Array.from(id).every(character => {
         const code = character.charCodeAt(0);
-        return (code >= 97 && code <= 122) || (code >= 48 && code <= 57) || character === "-";
+        return (code >= 97 && code <= 122) || (code >= 65 && code <= 90) || (code >= 48 && code <= 57) || character === "-" || character === "_";
     })) throw new Error("IMAGE_VARIANT_ID_INVALID");
     const mimeType = String(variant.mimeType || "image/webp").trim().toLowerCase();
     if (mimeType !== "image/webp" && mimeType !== "image/png" && mimeType !== "image/jpeg") throw new Error("IMAGE_VARIANT_MIME_INVALID");
@@ -348,6 +366,101 @@ export async function buildIdentityReferenceSheet(
     }
 }
 
+function compositionSpec(input, bitmap) {
+    const spec = input.composition;
+    if (!spec || typeof spec !== "object") return null;
+    if (!["split", "stack"].includes(spec.layout)) throw new Error("IMAGE_COMPOSITION_LAYOUT_INVALID");
+    const copy = {};
+    for (const [key, maximum] of Object.entries({ headline: 140, body: 240, brandName: 100, cta: 90, contact: 120 })) {
+        copy[key] = String(spec[key] || "").replace(/\s+/g, " ").trim();
+        if (!copy[key] || copy[key].length > maximum) throw new Error(`IMAGE_COMPOSITION_TEXT_INVALID:${key}`);
+    }
+    const crop = spec.photoCrop;
+    if (!crop || ![crop.x, crop.y, crop.width, crop.height].every(Number.isFinite) || crop.x < 0 || crop.y < 0 ||
+        crop.width < 1 || crop.height < 1 || crop.x + crop.width > bitmap.width || crop.y + crop.height > bitmap.height) {
+        throw new Error("IMAGE_PHOTO_CROP_INVALID");
+    }
+    return { ...copy, layout: spec.layout, photoCrop: { ...crop },
+        inkColor: /^#[\da-f]{6}$/i.test(spec.inkColor || "") ? spec.inkColor : "#102a43",
+        accentColor: /^#[\da-f]{6}$/i.test(spec.accentColor || "") ? spec.accentColor : "#245e91" };
+}
+
+function drawCopy(context, value, box, { size, minimum, color, bold = false } = {}) {
+    let lines;
+    for (; size >= minimum; size -= 1) {
+        context.font = `${bold ? "700" : "400"} ${size}px Arial, sans-serif`;
+        lines = [""];
+        let fits = true;
+        for (const word of value.split(" ")) {
+            if (context.measureText(word).width > box.width) { fits = false; break; }
+            const next = [lines.at(-1), word].filter(Boolean).join(" ");
+            if (context.measureText(next).width <= box.width) lines[lines.length - 1] = next;
+            else lines.push(word);
+        }
+        if (fits && lines.length * size * 1.18 <= box.height) break;
+    }
+    if (size < minimum) throw new Error("IMAGE_COMPOSITION_TEXT_OVERFLOW:Reducir el texto para mantenerlo legible");
+    context.fillStyle = color;
+    context.textBaseline = "top";
+    lines.forEach((line, index) => context.fillText(line, box.x, box.y + index * size * 1.18));
+}
+
+function visibleLogoBounds(bitmap) {
+    const canvas = canvasFor(bitmap.width, bitmap.height), context = canvas.getContext("2d");
+    context.drawImage(bitmap, 0, 0);
+    const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
+    let left = bitmap.width, top = bitmap.height, right = -1, bottom = -1;
+    for (let y = 0; y < bitmap.height; y++) for (let x = 0; x < bitmap.width; x++) {
+        if (pixels[(y * bitmap.width + x) * 4 + 3] > 0) {
+            left = Math.min(left, x); top = Math.min(top, y); right = Math.max(right, x); bottom = Math.max(bottom, y);
+        }
+    }
+    if (right < left) throw new Error("BRAND_LOGO_EMPTY");
+    return { x: left, y: top, width: right - left + 1, height: bottom - top + 1 };
+}
+
+function renderComposition(context, bitmap, logo, logoBounds, variant, spec) {
+    const w = variant.width, h = variant.height, m = w * 0.055;
+    const box = (x, y, width, height) => ({ x: w * x, y: h * y, width: w * width, height: h * height });
+    const split = spec.layout === "split";
+    const photo = split ? box(0.55, 0, 0.45, 1) : box(0, 0.38, 1, 0.34);
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, w, h);
+    const region = spec.photoCrop;
+    // Preserve the entire curated photo: a second cover crop can cut faces off.
+    const crop = { ...region };
+    const photoScale = Math.min(photo.width / region.width, photo.height / region.height);
+    const photoWidth = region.width * photoScale, photoHeight = region.height * photoScale;
+    context.fillStyle = "#edf3f8";
+    context.fillRect(photo.x, photo.y, photo.width, photo.height);
+    context.drawImage(bitmap, crop.x, crop.y, crop.width, crop.height,
+        photo.x + (photo.width - photoWidth) / 2, photo.y + (photo.height - photoHeight) / 2, photoWidth, photoHeight);
+    const logoBox = split ? box(0.055, 0.04, 0.31, 0.15) : box(0.055, 0.035, 0.24, 0.125);
+    const scale = Math.min(logoBox.width / logoBounds.width, logoBox.height / logoBounds.height);
+    context.drawImage(logo, logoBounds.x, logoBounds.y, logoBounds.width, logoBounds.height,
+        logoBox.x, logoBox.y, logoBounds.width * scale, logoBounds.height * scale);
+    const areas = split ? {
+        headline: box(0.055, 0.245, 0.445, 0.255), body: box(0.055, 0.53, 0.445, 0.145),
+        brandName: box(0.055, 0.705, 0.445, 0.07), cta: box(0.073, 0.825, 0.409, 0.068),
+        contact: box(0.055, 0.94, 0.445, 0.044)
+    } : {
+        headline: box(0.055, 0.205, 0.89, 0.145), body: box(0.055, 0.75, 0.89, 0.071),
+        brandName: box(0.34, 0.05, 0.60, 0.105), cta: box(0.073, 0.858, 0.854, 0.05),
+        contact: box(0.055, 0.945, 0.89, 0.033)
+    };
+    context.fillStyle = spec.accentColor;
+    context.fillRect(m, h * (split ? 0.807 : 0.843), w * (split ? 0.445 : 0.89), h * (split ? 0.098 : 0.07));
+    for (const key of ["headline", "body", "brandName", "cta", "contact"]) {
+        drawCopy(context, spec[key], areas[key], {
+            size: w * (key === "headline" ? 0.063 : key === "body" ? 0.033 : 0.031),
+            minimum: w * (key === "headline" ? 0.035 : 0.021),
+            color: key === "cta" ? "#ffffff" : spec.inkColor,
+            bold: key !== "body"
+        });
+    }
+    return crop;
+}
+
 export async function adaptImageSource(input = {}) {
     if (typeof createImageBitmap !== "function") throw new Error("IMAGE_BITMAP_UNAVAILABLE");
     const sourceBase64 = String(input.sourceBase64 || "").trim();
@@ -360,16 +473,23 @@ export async function adaptImageSource(input = {}) {
     const sourceWidth = bitmap.width;
     const sourceHeight = bitmap.height;
     const outputs = [];
+    let logo;
     try {
+        const composition = compositionSpec(input, bitmap);
+        if (composition && (!input.logoBase64 || !input.logoMimeType)) throw new Error("BRAND_LOGO_SOURCE_REQUIRED");
+        if (composition) logo = await createImageBitmap(base64ImageBlob(input.logoBase64, input.logoMimeType));
+        const logoBounds = logo ? visibleLogoBounds(logo) : null;
         for (const variant of plan.variants) {
             const canvas = canvasFor(variant.width, variant.height);
             const context = canvas.getContext("2d", { alpha: variant.mimeType !== "image/jpeg" });
             if (!context) throw new Error("IMAGE_CANVAS_CONTEXT_UNAVAILABLE");
             const contain = input.fit === "contain";
-            const crop = contain
+            let crop = contain
                 ? { x: 0, y: 0, width: bitmap.width, height: bitmap.height }
                 : cropBox(bitmap.width, bitmap.height, variant.width, variant.height);
-            if (contain) {
+            if (composition) {
+                crop = renderComposition(context, bitmap, logo, logoBounds, variant, composition);
+            } else if (contain) {
                 context.fillStyle = /^#[0-9a-f]{6}$/i.test(input.background || "") ? input.background : "#ffffff";
                 context.fillRect(0, 0, variant.width, variant.height);
                 drawContainedImage(context, bitmap, { x: 0, y: 0, width: variant.width, height: variant.height });
@@ -378,10 +498,12 @@ export async function adaptImageSource(input = {}) {
             }
             const blob = await canvasBlob(canvas, variant.mimeType, variant.quality);
             if (!blob.size) throw new Error("IMAGE_VARIANT_EMPTY");
-            outputs.push({ ...variant, bytes: blob.size, dataBase64: await blobToBase64(blob), crop });
+            outputs.push({ ...variant, bytes: blob.size, dataBase64: await blobToBase64(blob), crop,
+                ...(composition ? { compositionApplied: true, logoOverlayApplied: true, composition } : {}) });
         }
     } finally {
         bitmap.close?.();
+        logo?.close?.();
     }
     return { ...plan, sourceWidth, sourceHeight, outputs };
 }

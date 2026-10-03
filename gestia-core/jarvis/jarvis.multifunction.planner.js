@@ -1,5 +1,6 @@
 import { semanticPlanBudgetMs } from "./jarvis.semantic.transport.js";
 import { documentEvidenceEnvelope, documentExcerpt } from "./jarvis.document.context.js";
+import { materialReferencesForPlanning } from "./jarvis.mission.planner-state.js?v=v142-material-handoff-20261002";
 import {
     rejectCorruptedIdentityArgs
 } from "./jarvis.identity.integrity.js?v=v142-adjunto-flow-alignment-20261001";
@@ -1594,11 +1595,12 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
                     )
             };
         }
+        const deferredObligation = candidate?.deferred === true ? String(candidate.obligationId || "").slice(0, 300) : "";
         const signature =
-            `${tool.name}:${JSON.stringify(args)}`;
+            `${tool.name}:${JSON.stringify(args)}:${deferredObligation}`;
         if (seen.has(signature)) continue;
         seen.add(signature);
-        const dedupeKey =
+        const dedupeKey = deferredObligation ? "" :
             missionDedupeKey(
                 tool,
                 args
@@ -1634,6 +1636,7 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
             reason: String(candidate?.reason || "MODEL_SEMANTIC_TOOL_SELECTION").slice(0, 240),
             mutates: tool.mutates,
             approved: tool.mutates === true && context.approved === true,
+            ...(deferredObligation ? { obligationId: deferredObligation } : {}),
             ...(dedupeKey ? { missionDedupeKey: dedupeKey } : {}),
             ...(
                 argumentsComplete && candidate?.deferred !== true
@@ -2092,6 +2095,7 @@ export async function completeJarvisPlanningArguments({
     description = "",
     inputSchema = null,
     instruction = "",
+    operation = "",
     currentArgs = {},
     validSources = [],
     missionEvidence = [],
@@ -2118,10 +2122,15 @@ export async function completeJarvisPlanningArguments({
     }];
     const briefingInstruction = [
         `INSTRUCCION_ORIGINAL=${originalInstruction}`,
+        `OPERACION_ACTUAL_DEL_PLAN=${String(operation || "").slice(0, 500)}`,
         `ARGUMENTOS_EXISTENTES=${documentExcerpt(JSON.stringify(currentArgs || {}), 800)}`,
         `FUENTES_VERIFICADAS=${documentEvidenceEnvelope(sources, 2500)}`,
-        `EVIDENCIA_CANONICA_DE_MISION=${documentEvidenceEnvelope(missionEvidence, 2500)}`,
-        "Completa los campos faltantes conservando los argumentos existentes y el alcance íntegro de la instrucción."
+        `MATERIALES_VERIFICADOS=${JSON.stringify(missionEvidence.flatMap(item => materialReferencesForPlanning(item)))}`,
+        `PUBLICIDAD_YA_ENTREGADA=${JSON.stringify(missionEvidence.flatMap(item => item.evidence?.advertisingHistory || item.advertisingHistory || []).slice(0, 30))}`,
+        "No repitas publicidad del historial, aunque sea otro día, conversación, nombre de archivo o formato. Redacta otro mensaje y enfoque publicitario y varía la composición. Conserva el logo original; reutilizar el logo no es repetir un anuncio.",
+        `EVIDENCIA_CANONICA_DE_MISION=${documentEvidenceEnvelope(missionEvidence.filter(item => !materialReferencesForPlanning(item).length), 2500)}`,
+        "Las referencias library: son originales del inventario; sourceOutput, brandLogoOutput, assetOutput, logoOutput y audioOutput admiten esas referencias exactas y el runtime realiza la importación. Para composición nueva usa photoRegion como composition.photoCrop. No construyas nombres de archivo ni hashes. Para exportar usa el output del resultado producido, nunca una referencia de original.",
+        "Completa los argumentos solamente de la operación actual del plan. Conserva las restricciones de la instrucción original. Las otras operaciones tienen llamadas separadas; no repitas una consulta cuando la operación actual pide exportar un resultado producido."
     ].join("\n");
 
     const plan = await resolveSemanticPlan(
@@ -2170,7 +2179,7 @@ export function mergeJarvisToolCalls(...groups) {
         ) {
             continue;
         }
-        const key = `${call.name}:${JSON.stringify(call.args || call.arguments || {})}`;
+        const key = `${call.name}:${JSON.stringify(call.args || call.arguments || {})}:${call.deferred === true ? call.obligationId || "" : ""}`;
         if (seen.has(key)) continue;
         seen.add(key);
         if (call.missionDedupeKey) {

@@ -8,6 +8,44 @@ import {
     planImageAdaptation
 } from "../gestia-core/jarvis/jarvis.image.adapter.js";
 
+test("ad composition draws semantic copy, the selected photo region and the original logo", async t => {
+    const previous = { bitmap: globalThis.createImageBitmap, canvas: globalThis.OffscreenCanvas };
+    t.after(() => { globalThis.createImageBitmap = previous.bitmap; globalThis.OffscreenCanvas = previous.canvas; });
+    const drawn = [], written = [];
+    let images = 0;
+    globalThis.createImageBitmap = async () => ++images === 1
+        ? { width: 1200, height: 1200, close() {} }
+        : { width: 200, height: 100, close() {} };
+    globalThis.OffscreenCanvas = class {
+        constructor(width, height) { this.width = width; this.height = height; }
+        getContext() { return {
+            fillRect() {}, drawImage: (...args) => drawn.push(args.slice(1)),
+            measureText: value => ({ width: value.length * 16 }),
+            fillText: value => written.push(value),
+            getImageData: () => ({ data: new Uint8ClampedArray(200 * 100 * 4).fill(255) })
+        }; }
+        async convertToBlob({ type }) { return new Blob(["composed-pixels"], { type }); }
+    };
+    const input = {
+        sourceBase64: btoa("photo"), sourceMimeType: "image/png",
+        logoBase64: btoa("original-logo"), logoMimeType: "image/png",
+        variants: [{ id: "fiscal", width: 1080, height: 1080, mimeType: "image/png" }],
+        composition: { layout: "split", headline: "Asesoría fiscal", body: "Conoce tus opciones.",
+            brandName: "Firma de prueba", cta: "Consulta nuestros servicios", contact: "example.test",
+            photoCrop: { x: 500, y: 100, width: 650, height: 1000 } }
+    };
+    const result = await adaptImageSource(input);
+    assert.equal(result.outputs[0].compositionApplied, true);
+    assert.equal(result.outputs[0].logoOverlayApplied, true);
+    assert.ok(written.join(" ").includes("Asesoría fiscal"));
+    assert.ok(written.join(" ").includes("example.test"));
+    assert.equal(written.some(value => /placeholder|ilustrativa/i.test(value)), false);
+    assert.ok(drawn.some(args => args[0] >= 500 && args[1] >= 100 && args[0] + args[2] <= 1150 && args[1] + args[3] <= 1100));
+    images = 0;
+    await assert.rejects(adaptImageSource({ ...input, composition: { ...input.composition,
+        photoCrop: { x: 500, y: 100, width: 900, height: 1000 } } }), /IMAGE_PHOTO_CROP_INVALID/);
+});
+
 test("image adapter derives real hero, card, reel and thumbnail assets from one source", async () => {
     const originalBitmap = globalThis.createImageBitmap;
     const OriginalCanvas = globalThis.OffscreenCanvas;
@@ -38,6 +76,8 @@ test("image adapter derives real hero, card, reel and thumbnail assets from one 
 });
 
 test("image adapter fails closed on unsafe variant requests", () => {
+    assert.equal(planImageAdaptation({ variants: [{ id: "variant_1", width: 1080, height: 1080 }] }).variants[0].id, "variant_1");
+    assert.throws(() => planImageAdaptation({ variants: [{ id: "../escape", width: 1080, height: 1080 }] }), /IMAGE_VARIANT_ID_INVALID/);
     assert.throws(() => planImageAdaptation({ variants: [{ id: "hero", width: 8000, height: 1080 }] }), /IMAGE_WIDTH_OUT_OF_RANGE/);
     assert.throws(() => planImageAdaptation({ variants: [{ id: "hero", width: 1080, height: 1080 }, { id: "hero", width: 512, height: 512 }] }), /IMAGE_VARIANT_DUPLICATED/);
 });

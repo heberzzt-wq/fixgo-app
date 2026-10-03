@@ -6052,6 +6052,7 @@ if (
                                     description: toolDefinition?.description || "",
                                     inputSchema: toolDefinition?.inputSchema || null,
                                     instruction: missionContext.rawInput.slice(0, 120000),
+                                    operation: executionCall.reason || call.reason || "",
                                     currentArgs: executionCall.args,
                                     validSources: missionContext.validSources || [],
                                     missionEvidence: missionContext.canonicalEvidence || []

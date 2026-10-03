@@ -110,7 +110,8 @@ function stable(value) {
 }
 
 function callSignature(call = {}) {
-    return JSON.stringify(stable({ name: text(call.name, 100), args: call.args || {} }));
+    return JSON.stringify(stable({ name: text(call.name, 100), args: call.args || {},
+        ...(call.deferred === true && call.obligationId ? { obligationId: text(call.obligationId, 300) } : {}) }));
 }
 
 function explicitObligationId(task = {}) {
@@ -1240,6 +1241,7 @@ function canonicalMissionEvidence(mission = {}) {
             const name = text(item?.name, 120);
             const observation = item?.observation || {};
             return name === "media.analyze" ||
+                ["media.library", "image.adapt", "reel.create", "page.create"].includes(name) ||
                 name === "web.research" ||
                 name.startsWith("repo.") ||
                 Boolean(observation?.verifiedRead) ||
@@ -1301,6 +1303,8 @@ function trustedCalls(calls = [], mission) {
         if (SINGLETON_MISSION_TOOLS.has(name) && scheduledNames.has(name)) continue;
         if (COMPLETED_SINGLETON_MISSION_TOOLS.has(name) && completedNames.has(name)) continue;
         const call = { name, args: candidate?.args && typeof candidate.args === "object" ? candidate.args : {}, approved: false,
+            ...(candidate?.reason ? { reason: text(candidate.reason, 500) } : {}),
+            ...(candidate?.obligationId ? { obligationId: text(candidate.obligationId, 300) } : {}),
             ...(candidate?.deferred === true ? {deferred:true} : {}) };
         const candidateRepoTarget = durableRepositoryTarget([call]);
         if (!mission.repositoryTarget && candidateRepoTarget) {
@@ -2662,7 +2666,9 @@ export async function runJarvisMission({
         }
         let result;
         try {
-            result = await execute({ name: task.name, args: task.args, approved: false, ...(task.deferred === true ? {deferred:true} : {}) }, {
+            result = await execute({ name: task.name, args: task.args, approved: false,
+                reason: task.reason || "", obligationId: task.obligationId,
+                ...(task.deferred === true ? {deferred:true} : {}) }, {
                 missionId: mission.missionId,
                 caseId: mission.caseId,
                 objectiveId: mission.objectiveId,

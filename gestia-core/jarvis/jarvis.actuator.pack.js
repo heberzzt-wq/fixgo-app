@@ -7,9 +7,10 @@ import {
 } from "../../jarvis-page-artifact.js?v=v142-adjunto-flow-alignment-20261001";
 import {
     adaptImageSource,
+    IMAGE_COMPOSITION_SCHEMA,
     buildIdentityReferenceSheet,
     overlayBrandLogo
-} from "./jarvis.image.adapter.js?v=v142-adjunto-flow-alignment-20261001";
+} from "./jarvis.image.adapter.js?v=v142-local-ad-composition-20261002";
 
 const VERSION = "7.29.0-v142-video-truthful-delivery";
 const VIDEO_REFERENCE_MIME_TYPES = new Set([
@@ -196,6 +197,27 @@ export function normalizeImageArtifactOutput(output, mimeType) {
     }
 
     return candidate;
+}
+
+export function normalizeImageArtifactPrefix(value, fallback = `adapted-${Date.now()}`) {
+    const candidate = String(value || fallback).trim().replaceAll("\\", "/");
+    // A filename stem is naming metadata, never a directory chosen by the model.
+    const prefix = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$/.test(candidate)
+        ? `.jarvis-artifacts/images/${candidate}` : candidate;
+    if (!normalizeImageArtifactOutput(`${prefix}-check.png`, "image/png")) {
+        throw new Error("IMAGE_ADAPTATION_OUTPUT_INVALID");
+    }
+    return prefix;
+}
+
+export function normalizeMaterialLibraryArguments(args = {}) {
+    if (args.action !== "export") return args;
+    if (args.output && args.relativePath && args.output !== args.relativePath) {
+        throw new Error("MATERIAL_EXPORT_REFERENCE_AMBIGUOUS");
+    }
+    // Both fields carry a path. Bind only an explicitly selected export; the bridge
+    // still verifies the exact artifact, directory boundary, ledger and bytes.
+    return { ...args, output: args.output || args.relativePath, relativePath: undefined };
 }
 
 
@@ -644,7 +666,7 @@ export function registerJarvisActuatorTools(runtime) {
     const registrations = [
         register(runtime, {
             name: "media.library",
-            description: "Biblioteca oficial de originales del usuario en el Escritorio. Para publicidad de Facebook, Instagram, TikTok o páginas web, consultar primero action=list e importar los relativePath elegidos con action=import. Devuelve rutas reales reutilizables por image.adapt, reel.create y page.create. Incluye imágenes, logos originales, audio y video; no genera ni paga APIs. action=export copia un artefacto registrado a Salidas sin publicar. Ninguna ruta del disco fuera de la carpeta configurada.",
+            description: "Biblioteca local: exporta archivos terminados a la carpeta oficial Salidas (action=export, output); consulta el inventario de originales (action=list); importa el original elegido (action=import, relativePath). Entrega imágenes PNG/JPEG, videos MP4 y sitios ya creados sin publicarlos. El inventario incluye referencias library: exactas, logos, audio y regiones fotográficas para image.adapt/reel.create/page.create. No crea documentos ni anuncios al listar o exportar.",
             output: "MATERIAL_LIBRARY_RESULT",
             userArtifact: true,
             mutates: true,
@@ -654,10 +676,13 @@ export function registerJarvisActuatorTools(runtime) {
                 relativePath: { type: "string", description: "Ruta devuelta por list, sólo para import." },
                 output: { type: "string", description: "Artefacto existente .jarvis-artifacts/, sólo para export." }
             }, required: ["action"], additionalProperties: false },
-            execute: async (args = {}, context = {}) => await bridgeRequest("/media/library", {
-                action: args.action, relativePath: args.relativePath, output: args.output,
-                caseId: context.caseId || "", objectiveId: context.objectiveId || ""
-            })
+            execute: async (args = {}, context = {}) => {
+                const input = normalizeMaterialLibraryArguments(args);
+                return await bridgeRequest("/media/library", {
+                    action: input.action, relativePath: input.relativePath, output: input.output,
+                    caseId: context.caseId || "", objectiveId: context.objectiveId || ""
+                });
+            }
         }),
         register(runtime, {
             name: "system.supervision.runNow",
@@ -829,9 +854,22 @@ export function registerJarvisActuatorTools(runtime) {
             description: "Crea un reel 9:16 local, genera su estudio editable y entrega obligatoriamente un MP4 H.264/AAC profesional verificado. Chrome puede producir MP4 o WebM provisional; el bridge conserva sólo un MP4 conforme o lo normaliza localmente con FFmpeg. Mezcla audioOutput explícito o el WAV verificado producido por speech.synthesize en la misma misión. No publica ni usa APIs externas de edición.",
             output: "REEL_VIDEO_ARTIFACT",
             inputSchema: {
-                brandName: "string", title: "string", cta: "string", durationSeconds: "number",
-                scenes: "array", logoOutput: "string", audioOutput: "string", output: "string", videoOutput: "string", studioOutput: "string",
-                caseId: "string", objectiveId: "string"
+                type: "object", properties: {
+                    brandName: { type: "string" }, title: { type: "string" }, cta: { type: "string" },
+                    durationSeconds: { type: "number", minimum: 30, maximum: 180 },
+                    scenes: { type: "array", minItems: 3, maxItems: 18, items: { type: "object", properties: {
+                        durationSeconds: { type: "number", minimum: 1 },
+                        assetOutput: { type: "string", description: "Referencia library: exacta o output registrado; imagen o video." },
+                        mediaType: { type: "string", enum: ["image", "video"] },
+                        presentation: { type: "string", enum: ["scene", "poster"], description: "poster conserva el anuncio completo sin añadir textos encima; scene anima una foto y sus textos." },
+                        overlay: { type: "string" }, subtitle: { type: "string" },
+                        transition: { type: "string", enum: ["fade", "cut", "slide", "zoom", "dissolve"] }
+                    }, required: ["durationSeconds", "assetOutput", "mediaType", "presentation"] }, description: "Las duraciones deben sumar durationSeconds." },
+                    logoOutput: { type: "string", description: "Logo original, referencia library: o output importado." },
+                    audioOutput: { type: "string", description: "Música autorizada, referencia library: o output importado." },
+                    output: { type: "string" }, videoOutput: { type: "string" }, studioOutput: { type: "string" },
+                    caseId: { type: "string" }, objectiveId: { type: "string" }
+                }, required: ["brandName", "title", "cta", "durationSeconds", "scenes"]
             },
             mutates: true,
             requiresApproval: false,
@@ -2491,31 +2529,34 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "image.adapt",
-            description: "Exporta anuncios e imágenes existentes a PNG/JPEG de Facebook, Instagram, TikTok y páginas web mediante canvas local sin API pagada. Primero importar originales con media.library. fit=contain conserva todo el texto y logo; cover puede recortar. No añade marcas de agua ni textos provisionales. brandLogoOutput permite componer el archivo de logo original; no usarlo si el anuncio ya incluye su logo. La revisión visual sigue siendo necesaria.",
+            description: "Crea anuncios PNG/JPEG locales con originales importados por media.library, sin API pagada. composition permite maquetar los textos decididos por Qwen, photoCrop de una región fotográfica verificada y brandLogoOutput original. Sin composition sólo adapta tamaños: fit=contain conserva texto y logo existentes. No añade marcas de agua ni textos provisionales. Cada anuncio nuevo requiere su propia composition; después exportar con media.library action=export. La revisión visual sigue siendo necesaria.",
             output: "IMAGE_ADAPTATION_RESULT",
             inputSchema: { type: "object", properties: {
-                sourceOutput: { type: "string" },
+                sourceOutput: { type: "string", description: "ref library: exacta del inventario o output registrado; nunca inventar rutas." },
                 variants: { type: "array", minItems: 1, maxItems: 5, items: { type: "object", properties: {
-                    id: { type: "string" }, width: { type: "number" }, height: { type: "number" },
+                    id: { type: "string", pattern: "^[A-Za-z0-9_-]{1,96}$" }, width: { type: "number", minimum: 64, maximum: 4096 }, height: { type: "number", minimum: 64, maximum: 4096 },
                     mimeType: { type: "string", enum: ["image/png", "image/jpeg"] }
                 }, required: ["id", "width", "height", "mimeType"] } },
                 fit: { type: "string", enum: ["contain", "cover"] },
-                brandLogoOutput: { type: "string" }, logoPlacement: { type: "object" },
-                outputPrefix: { type: "string", description: "Prefijo opcional bajo .jarvis-artifacts/images/ sin extensión." }
+                brandLogoOutput: { type: "string", description: "ref library: exacta del logo oficial o su output importado." }, logoPlacement: { type: "object" },
+                composition: IMAGE_COMPOSITION_SCHEMA,
+                outputPrefix: { type: "string", description: "Nombre opcional sin extensión ni carpetas (letras, números, guiones). Omitir para asignación automática. El resultado se registra internamente y después media.library action=export lo entrega en Salidas." }
             }, required: ["sourceOutput", "variants"] },
             mutates: true,
             requiresApproval: false,
             userArtifact: true,
             execute: async (args = {}, context = {}) => {
+                const prefix = normalizeImageArtifactPrefix(args.outputPrefix);
                 const source = await bridgeRequest("/artifact/read", { output: args.sourceOutput, officialReference: true }, 30000);
                 if (source?.ok !== true || !String(source.mimeType || "").startsWith("image/") || !source.dataBase64) throw new Error("IMAGE_SOURCE_ARTIFACT_INVALID");
-                const adapted = await adaptImageSource({ sourceBase64: source.dataBase64, sourceMimeType: source.mimeType, variants: args.variants, fit: args.fit || "contain" });
                 const logo = args.brandLogoOutput ? await bridgeRequest("/artifact/read", { output: args.brandLogoOutput, officialReference: true }, 30000) : null;
                 if (logo && (logo.ok !== true || !logo.dataBase64 || !String(logo.mimeType).startsWith("image/"))) throw new Error("BRAND_LOGO_SOURCE_REQUIRED");
-                const prefix = String(args.outputPrefix || `.jarvis-artifacts/images/adapted-${Date.now()}`).trim();
+                const adapted = await adaptImageSource({ sourceBase64: source.dataBase64, sourceMimeType: source.mimeType,
+                    variants: args.variants, fit: args.fit || "contain", composition: args.composition,
+                    ...(logo ? { logoBase64: logo.dataBase64, logoMimeType: logo.mimeType } : {}) });
                 const outputs = [];
                 for (const variant of adapted.outputs) {
-                    const composed = logo ? await overlayBrandLogo({
+                    const composed = logo && !variant.compositionApplied ? await overlayBrandLogo({
                         imageBase64: variant.dataBase64, imageMimeType: variant.mimeType,
                         logoBase64: logo.dataBase64, logoMimeType: logo.mimeType,
                         ...(args.logoPlacement || {})
@@ -2534,13 +2575,16 @@ export function registerJarvisActuatorTools(runtime) {
                         originalFile: source.output,
                         approved: context.approved === true,
                         approvedBy: context.approvedBy || "",
-                        transformations: [{ type: (args.fit || "contain") + "_resize", id: variant.id, width: variant.width, height: variant.height, crop: variant.crop },
+                        transformations: [{ type: variant.compositionApplied ? "local_ad_composition" : (args.fit || "contain") + "_resize",
+                            id: variant.id, width: variant.width, height: variant.height, crop: variant.crop,
+                            ...(variant.compositionApplied ? { composition: variant.composition } : {}) },
                             ...(logo ? [{ type: "original_logo_overlay", source: logo.output, sha256: logo.sha256 }] : [])]
                     }, 30000);
                     if (persisted?.ok !== true) throw new Error(persisted?.error || "IMAGE_ADAPTATION_PERSIST_FAILED");
                     outputs.push({ id: variant.id, width: variant.width, height: variant.height, mimeType: variant.mimeType, bytes: persisted.bytes, output: persisted.output, artifact: persisted.artifact,
                         sha256: persisted.artifact?.sha256 || "", physicallyWritten: persisted.bytes > 0,
-                        logoOverlayApplied: composed.logoOverlayApplied === true, logoSourceSha256: logo?.sha256 || "" });
+                        logoOverlayApplied: composed.logoOverlayApplied === true, logoSourceSha256: logo?.sha256 || "",
+                        compositionApplied: variant.compositionApplied === true });
                 }
                 const result = { ok: true, status: "IMAGE_VARIANTS_ADAPTED_VERIFIED", provider: "browser_canvas", sourceOutput: source.output, originalPreserved: true, generatedContentUsed: false, ...outputs[0], outputs };
                 recordCapabilityEvidence("image_adaptation", { ...result, checkedAt: new Date().toISOString() });
