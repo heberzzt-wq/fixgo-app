@@ -43,6 +43,7 @@
         ".git/**",
         ".github/**",
         ".sia7/**",
+        ".jarvis-artifacts/**",
         "**/node_modules/**",
         "node_modules/**",
         "functions/**",
