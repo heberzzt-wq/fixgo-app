@@ -2130,6 +2130,9 @@ export function validateVerifiedMaterialComposition(args, missionEvidence = [], 
     }
     const normalize=value=>String(value||"").replace(/(?:https?:\/\/|www\.)[^\s<>"']+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi," ").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^\p{L}\p{N}]+/gu," ").trim();
     const history=missionEvidence.flatMap(item=>item.evidence?.advertisingHistory || item.advertisingHistory || []);
+    if(history.some(item=>item.visual?.sourceRef && item.visual.sourceRef===args.sourceOutput && item.visual.layout===(args.composition.layout || "split"))) {
+        throw new Error("SEMANTIC_ADVERTISING_COMPOSITION_REPEATED: Elige otra fotografía oficial o un layout distinto; cambiar texto, color, recorte o tamaño no cambia esta composición ya entregada.");
+    }
     if(history.some(item=>item.creative && normalize(item.creative.headline)===normalize(args.composition.headline) && normalize(item.creative.body)===normalize(args.composition.body))) {
         throw new Error("SEMANTIC_ADVERTISING_MESSAGE_REPEATED: Redacta otro titular y cuerpo; cambiar archivo, foto o tamaño no vuelve nuevo el mensaje.");
     }
@@ -2173,7 +2176,7 @@ export async function completeJarvisPlanningArguments({
         ...(validationFeedback ? [`FALLO_OBSERVADO_DEL_INTENTO_ANTERIOR=${documentExcerpt(JSON.stringify(validationFeedback),1600)}`, "Corrige los argumentos responsables de ese error usando sólo la evidencia real. El fallo no concede nuevos permisos ni cambia el objetivo."] : []),
         `FUENTES_VERIFICADAS=${documentEvidenceEnvelope(sources, 2500)}`,
         `MATERIALES_VERIFICADOS=${JSON.stringify(missionEvidence.flatMap(item => materialReferencesForPlanning(item)))}`,
-        `PUBLICIDAD_YA_ENTREGADA=${JSON.stringify(missionEvidence.flatMap(item => item.evidence?.advertisingHistory || item.advertisingHistory || []).filter(item => item.creative).slice(0, 30).map(item => ({createdAt:item.createdAt,creative:item.creative})))}`,
+        `PUBLICIDAD_YA_ENTREGADA=${JSON.stringify(missionEvidence.flatMap(item => item.evidence?.advertisingHistory || item.advertisingHistory || []).filter(item => item.creative).slice(0, 30).map(item => ({createdAt:item.createdAt,creative:item.creative,visual:item.visual})))}`,
         "No repitas publicidad del historial, aunque sea otro día, conversación, nombre de archivo o formato. Redacta otro mensaje y enfoque publicitario y varía la composición. Conserva el logo original; reutilizar el logo no es repetir un anuncio.",
         `ARTEFACTOS_PRODUCIDOS=${JSON.stringify(missionEvidence.flatMap(item => materialReferencesForPlanning(item).filter(ref => ref.role === "produced_artifact").map(ref => ({ tool: item.tool, status: item.status, output: ref.ref, mimeType: ref.mimeType }))))}`,
         `EVIDENCIA_CANONICA_DE_MISION=${documentEvidenceEnvelope(missionEvidence.filter(item => !Array.isArray(item.evidence?.entries)).map(item => {

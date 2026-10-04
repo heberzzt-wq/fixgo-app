@@ -59,6 +59,27 @@ test("existing deliveries are indexed before allowing a duplicate and history co
     assert.throws(() => materialLibrary({ root }), /JSON|Unexpected|MATERIAL_HISTORY/);
 });
 
+test("new words and bytes cannot reuse a delivered photograph and layout, including legacy history", t => {
+    const {root,library,png}=fixture(t);
+    const source=materialLibrary({root,action:"import",relativePath:"Entradas/anuncio.png"});
+    const create=(name,layout)=>{
+        const output=`.jarvis-artifacts/${name}.png`;
+        fs.writeFileSync(path.join(root,output),Buffer.concat([png,Buffer.from(name)]));
+        registerArtifact({root,output,metadata:{mimeType:"image/png",originalFile:source.output,transformations:[{type:"local_ad_composition",composition:{brandName:"Firma",headline:name,body:`Nuevo texto ${name}`,layout}}]}});
+        return output;
+    };
+    assert.equal(materialLibrary({root,action:"export",output:create("first-visual","split")}).ok,true);
+    const file=path.join(library,"Historial/publicidad.jsonl");
+    const legacy=JSON.parse(fs.readFileSync(file,"utf8").trim()); delete legacy.visual;
+    fs.writeFileSync(file,JSON.stringify(legacy)+"\n");
+    assert.deepEqual(materialLibrary({root}).advertisingHistory[0].visual,{sourceRef:"library:Entradas/anuncio.png",layout:"split"});
+    const repeated=materialLibrary({root,action:"export",output:create("different-words","split")});
+    assert.equal(repeated.status,"ADVERTISING_DUPLICATE_BLOCKED");
+    assert.equal(repeated.physicallyWritten,false);
+    assert.equal(materialLibrary({root,action:"export",output:create("different-layout","stack")}).ok,true);
+    assert.equal(fs.readdirSync(path.join(library,"Salidas")).length,2);
+});
+
 test("exact library references import the chosen original and sidecars are bound to source bytes", t => {
     const { root, library } = fixture(t);
     const listed = materialLibrary({ root }).entries[0];

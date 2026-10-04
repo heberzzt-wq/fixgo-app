@@ -9,15 +9,18 @@ const MAX_BYTES = 100 * 1024 * 1024;
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 const inside = (base, file) => file.startsWith(base + path.sep);
 
-function advertisingRecord(artifact, relativePath) {
+function advertisingRecord(artifact, relativePath, root) {
     const composition = artifact.transformations?.find(item => item?.type === "local_ad_composition")?.composition;
     const script = artifact.transformations?.find(item => item?.type === "advertising_script");
     const creative = composition
         ? { brandName: composition.brandName, headline: composition.headline, body: composition.body }
         : script ? { brandName: script.brandName, headline: script.title, body: script.text } : null;
     const normalize = value => String(value || "").replace(/(?:https?:\/\/|www\.)[^\s<>"']+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, " ").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+    const original = root && artifact.originalFile ? findArtifact({ root, output: artifact.originalFile }) : null;
+    const visual = composition && original?.originalFile ? { sourceRef: `library:${original.originalFile}`, layout: composition.layout || "split" } : null;
     return { sha256: artifact.sha256, relativePath, output: artifact.file || "",
         createdAt: artifact.createdAt || new Date().toISOString(), mimeType: artifact.mimeType || "",
+        ...(visual ? { visual } : {}),
         ...(creative ? { creative, creativeFingerprint: hash(JSON.stringify(Object.fromEntries(Object.entries(creative).map(([key, value]) => [key, normalize(value)])))) } : {}) };
 }
 
@@ -60,7 +63,13 @@ function withAdvertisingHistory(library, root, operation) {
             scan("Salidas");
             if (!fs.existsSync(file)) fs.writeFileSync(file, "", { flag: "wx" });
         }
-        return operation(history, append);
+        const enriched = history.map(item => {
+            if (item.visual) return item;
+            const artifact = findArtifact({root, output:item.output});
+            // Recover only from the exact delivered artifact, never a replacement at the same path.
+            return artifact?.sha256 === item.sha256 ? {...item, ...advertisingRecord(artifact,item.relativePath,root)} : item;
+        });
+        return operation(enriched, append);
     } finally { fs.closeSync(descriptor); fs.unlinkSync(lock); }
 }
 
@@ -184,7 +193,7 @@ export function materialLibrary({ root = process.cwd(), action = "list", relativ
         Object.keys(ROLES).forEach(role => walk(role));
         const advertisingHistory = withAdvertisingHistory(library, root, history => [...history]
             .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)))
-            .slice(0, 30).map(({ sha256, createdAt, mimeType, creative }) => ({ sha256, createdAt, mimeType, ...(creative ? { creative } : {}) })));
+            .slice(0, 30).map(({ sha256, createdAt, mimeType, creative, visual }) => ({ sha256, createdAt, mimeType, ...(creative ? { creative } : {}), ...(visual ? {visual} : {}) })));
         return { ok: true, status: "MATERIAL_LIBRARY_LISTED", directory: library, entries, advertisingHistory, partial: scanned >= 500 || entries.length >= 100,
             message: "Elige referencias ref exactas. image.adapt, reel.create y page.create aceptan library: y realizan la importación mecánica del original seleccionado. También puedes importar con action=import. photoRegion es una región fotográfica curada; úsala como composition.photoCrop para anuncios nuevos. Son recursos aportados, no pruebas de resultados ni publicaciones. Conserva el logo original. Exporta los outputs producidos con action=export." };
     }
@@ -226,8 +235,9 @@ export function materialLibrary({ root = process.cwd(), action = "list", relativ
                 relativePath: `Salidas/${name}`, bytes: bytes.length, sha256: artifact.sha256 };
         }
         return withAdvertisingHistory(library, root, (history, append) => {
-            const record = advertisingRecord(artifact, `Salidas/${name}`);
+            const record = advertisingRecord(artifact, `Salidas/${name}`, root);
             const previous = history.find(item => item.sha256 === record.sha256 ||
+                (record.visual && item.visual?.sourceRef === record.visual.sourceRef && item.visual.layout === record.visual.layout) ||
                 (record.creativeFingerprint && (item.creativeFingerprint === record.creativeFingerprint ||
                     (item.creative && advertisingRecord({ transformations: [{ type: "local_ad_composition", composition: item.creative }] }, "").creativeFingerprint === record.creativeFingerprint))));
             if (previous) return { ok: false, status: "ADVERTISING_DUPLICATE_BLOCKED", objectiveSatisfied: false,
