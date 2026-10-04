@@ -15,7 +15,7 @@ function advertisingRecord(artifact, relativePath) {
     const creative = composition
         ? { brandName: composition.brandName, headline: composition.headline, body: composition.body }
         : script ? { brandName: script.brandName, headline: script.title, body: script.text } : null;
-    const normalize = value => String(value || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+    const normalize = value => String(value || "").replace(/(?:https?:\/\/|www\.)[^\s<>"']+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, " ").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
     return { sha256: artifact.sha256, relativePath, output: artifact.file || "",
         createdAt: artifact.createdAt || new Date().toISOString(), mimeType: artifact.mimeType || "",
         ...(creative ? { creative, creativeFingerprint: hash(JSON.stringify(Object.fromEntries(Object.entries(creative).map(([key, value]) => [key, normalize(value)])))) } : {}) };
@@ -227,7 +227,8 @@ export function materialLibrary({ root = process.cwd(), action = "list", relativ
         return withAdvertisingHistory(library, root, (history, append) => {
             const record = advertisingRecord(artifact, `Salidas/${name}`);
             const previous = history.find(item => item.sha256 === record.sha256 ||
-                (record.creativeFingerprint && item.creativeFingerprint === record.creativeFingerprint));
+                (record.creativeFingerprint && (item.creativeFingerprint === record.creativeFingerprint ||
+                    (item.creative && advertisingRecord({ transformations: [{ type: "local_ad_composition", composition: item.creative }] }, "").creativeFingerprint === record.creativeFingerprint))));
             if (previous) return { ok: false, status: "ADVERTISING_DUPLICATE_BLOCKED", objectiveSatisfied: false,
                 error: "Esta publicidad ya fue entregada. Crear otra pieza con un mensaje y enfoque distintos.",
                 previousDelivery: previous, physicallyWritten: false };

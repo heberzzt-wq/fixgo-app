@@ -36,6 +36,12 @@ test("advertising history persists and blocks renamed bytes and repeated copy ac
     assert.equal(materialLibrary({ root, action: "export", output: first }).historyRecorded, true);
     assert.equal(materialLibrary({ root, action: "export", output: create("renamed", "Other", "first") }).status, "ADVERTISING_DUPLICATE_BLOCKED");
     assert.equal(materialLibrary({ root, action: "export", output: create("resized", "  DEFENSA FISCAL! ") }).status, "ADVERTISING_DUPLICATE_BLOCKED");
+    const historyFile=path.join(library,"Historial/publicidad.jsonl");
+    const legacy=JSON.parse(fs.readFileSync(historyFile,"utf8").trim());
+    legacy.creative.body += " www.summ.com.mx";
+    legacy.creativeFingerprint="a".repeat(64);
+    fs.writeFileSync(historyFile,JSON.stringify(legacy)+"\n");
+    assert.equal(materialLibrary({ root, action: "export", output: create("contact-removed", "Defensa fiscal") }).status,"ADVERTISING_DUPLICATE_BLOCKED","legacy history is compared using content, not only its old fingerprint");
     assert.equal(materialLibrary({ root, action: "export", output: create("new", "Conoce tus opciones legales") }).ok, true);
     const history = JSON.parse(fs.readFileSync(path.join(library, "Historial/publicidad.jsonl"), "utf8").trim().split("\n")[0]);
     assert.equal(history.creative.headline, "Defensa fiscal");

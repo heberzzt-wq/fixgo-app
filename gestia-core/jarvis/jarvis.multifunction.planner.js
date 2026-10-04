@@ -2127,7 +2127,7 @@ export function validateVerifiedMaterialComposition(args, missionEvidence = [], 
     if(region && (!crop || ![crop.x,crop.y,crop.width,crop.height].every(Number.isFinite) || crop.width<=0 || crop.height<=0 || crop.x<region.x || crop.y<region.y || crop.x+crop.width>region.x+region.width || crop.y+crop.height>region.y+region.height)) {
         throw new Error(`SEMANTIC_PHOTO_REGION_UNVERIFIED: ${args.sourceOutput}; allowed=${JSON.stringify(region)}`);
     }
-    const normalize=value=>String(value||"").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^\p{L}\p{N}]+/gu," ").trim();
+    const normalize=value=>String(value||"").replace(/(?:https?:\/\/|www\.)[^\s<>"']+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi," ").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^\p{L}\p{N}]+/gu," ").trim();
     const history=missionEvidence.flatMap(item=>item.evidence?.advertisingHistory || item.advertisingHistory || []);
     if(history.some(item=>item.creative && normalize(item.creative.headline)===normalize(args.composition.headline) && normalize(item.creative.body)===normalize(args.composition.body))) {
         throw new Error("SEMANTIC_ADVERTISING_MESSAGE_REPEATED: Redacta otro titular y cuerpo; cambiar archivo, foto o tamaño no vuelve nuevo el mensaje.");

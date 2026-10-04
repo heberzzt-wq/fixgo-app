@@ -112,6 +112,8 @@ test("composition rejects another photograph's crop and regrounds a repeated del
     const region={x:695,y:240,width:559,height:735};
     const evidence=[{tool:"media.library",evidence:{entries:[{relativePath:"Entradas/photo.png",role:"input",mimeType:"image/png",photoRegion:region}],advertisingHistory:[{creative:{headline:"Mensaje anterior",body:"Texto anterior"}}]}}];
     const original={sourceOutput:"library:Entradas/photo.png",composition:{headline:"Mensaje anterior",body:"Texto anterior",photoCrop:region}};
+    const historicalContact=[{...evidence[0],evidence:{...evidence[0].evidence,advertisingHistory:[{creative:{headline:"Mensaje anterior",body:"Texto anterior www.summ.com.mx"}}]}}];
+    assert.throws(()=>validateVerifiedMaterialComposition(original,historicalContact),/MESSAGE_REPEATED/,"removing a website from previously delivered text does not create a new advertisement");
     assert.throws(()=>validateVerifiedMaterialComposition({...original,composition:{...original.composition,photoCrop:{x:260,y:100,width:681,height:835}}},evidence),/PHOTO_REGION_UNVERIFIED/);
     assert.throws(()=>validateVerifiedMaterialComposition({...original,composition:{...original.composition,contact:"info@summ.com.mx"}},evidence,"Incluye www.summ.com.mx."),/CONTACT_UNVERIFIED/);
     const requests=[];
