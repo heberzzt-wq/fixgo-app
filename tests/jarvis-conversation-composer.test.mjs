@@ -1061,3 +1061,17 @@ test("terminal hides grounded multimodal telemetry from the human chat surface",
         /finalResponse\?\.source === "EVIDENCE_GROUNDED_CONVERSATION"\s*\?\s*"Jarvis"/
     );
 });
+
+test('partial response retains exact failed tool and requested file', async () => {
+    const result = await composeEvidenceGroundedConversation({
+        instruction: 'Revisa el proyecto antes de producción.',
+        evidenceItems: [
+            {name:'mission.outcome',observation:{status:'PARTIAL',reason:'PARTIAL_CAPABILITY_BLOCKED'}},
+            {name:'repo.impact',observation:{ok:false,error:'FILE_NOT_FOUND_IN_COGNITION',requestedFile:'src/missing.js'}}
+        ],
+        executeConversation: async () => ({ok:true,message:'La misión quedó parcial; no se verificó preparación para producción.'})
+    });
+    assert.equal(result.ok,true);
+    assert.match(result.text,/repo\.impact — FILE_NOT_FOUND_IN_COGNITION/);
+    assert.match(result.text,/archivo solicitado: src\/missing\.js/);
+});

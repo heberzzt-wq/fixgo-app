@@ -1,6 +1,7 @@
 import {
     planMarketingRequest
 } from "./jarvis.marketing.engine.js?v=v142-adjunto-flow-alignment-20261001";
+import { advertisingBenchmarkSources } from "./jarvis.advertising.benchmark.js";
 import {
     repairCanonicalIdentityValue
 } from "./jarvis.identity.integrity.js?v=v142-adjunto-flow-alignment-20261001";
@@ -6218,6 +6219,27 @@ export function registerJarvisMultifunctionTools(runtime) {
             output: "SIA7_DAILY_SUPERVISION_STATUS",
             execute: async (args = {}) =>
                 await fetchDailySupervisionStatus(args)
+        }),
+        register(runtime, {
+            name: "advertising.research",
+            description: "Antes de crear publicidad, investiga referencias actuales del sector en Internet y consulta originales e historial local. Devuelve fuentes para proponer un concepto propio con mejor claridad, jerarquía y llamada a la acción, sin copiar textos, logos ni imágenes de terceros. Investigación local sin API pagada; no certifica superioridad ni análisis visual sin imágenes observadas.",
+            output: "ADVERTISING_BENCHMARK_EVIDENCE",
+            inputSchema: {type:"object",properties:{query:{type:"string",minLength:5,maxLength:600}},required:["query"],additionalProperties:false},
+            mutates:false, requiresApproval:false,
+            execute: async (args = {}) => {
+                const bridge=globalThis.JarvisLocalBridge || globalThis.window?.JarvisLocalBridge;
+                if(typeof bridge?.requestJson!=="function") throw new Error("LOCAL_RESEARCH_BRIDGE_REQUIRED");
+                const result=await bridge.requestJson("/research",{query:args.query,timeoutMs:20000},{timeoutMs:25000});
+                const sources=advertisingBenchmarkSources(result);
+                if(result?.ok!==true || result.grounded!==true || sources.length<2) throw new Error("ADVERTISING_BENCHMARK_SOURCES_INSUFFICIENT");
+                const library=await bridge.requestJson("/media/library",{action:"list"},{timeoutMs:30000});
+                if(library?.ok!==true) throw new Error(library?.error || "OFFICIAL_LIBRARY_REQUIRED");
+                return {...library,ok:true,status:"ADVERTISING_BENCHMARK_READY",sources,validSources:sources,
+                    answer:String(result.answer || "").slice(0,5000),facts:result.facts || [],
+                    query:args.query,checkedAt:new Date().toISOString(),externalApiUsed:false,
+                    superiorQualityVerified:false,thirdPartyAssetsReusable:false,
+                    message:"Referencias observadas para proponer una dirección propia. No copiar recursos o mensajes. No atribuir al cliente hechos de competidores. El texto de una página no prueba su calidad visual. Crear y exportar el archivo final con originales oficiales; investigar no es entregar publicidad."};
+            }
         }),
         register(runtime, {
             name: "web.research",

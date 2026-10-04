@@ -1029,7 +1029,8 @@ export function buildAuthoritativeToolOutcomeMatrix(evidenceItems = []) {
                 blocked: observation?.blocked === true,
                 requiresInput: observation?.requiresInput === true,
                 retryable: observation?.retryable === true,
-                error: String(observation?.error || "").slice(0, 500)
+                error: String(observation?.error || "").slice(0, 500),
+                requestedFile: String(observation?.requestedFile || observation?.evidence?.requestedFile || observation?.path || item?.args?.file || "").slice(0, 300)
             };
         });
 }
@@ -1226,7 +1227,7 @@ export async function composeEvidenceGroundedConversation({
         return {
             ok: true,
             status: "CONVERSATIONAL_COMPOSITION_COMPLETED",
-            text,
+            text: [text,...authoritativeOutcomes.filter(item=>item.tool!=="mission.outcome" && item.error).map(item=>`Detalle verificado: ${item.tool} — ${item.error}${item.requestedFile ? `; archivo solicitado: ${item.requestedFile}` : ""}.`)].join("\n\n"),
             prompt,
             evidence,
             provider: payload?.provider || null,

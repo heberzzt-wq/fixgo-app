@@ -278,3 +278,12 @@ test("argument completion receives exact material references including logos bey
     assert.ok(serialized.includes("Previous delivered ad"));
     assert.ok(serialized.includes("PUBLICIDAD_YA_ENTREGADA"));
 });
+
+test('optional inventory arguments allow the actual current checkout without an invented target', async () => {
+    const result=await completeJarvisPlanningArguments({toolName:'repo.audit',instruction:'Inventaría el repositorio actual.',inputSchema:{type:'object',properties:{target:{type:'string'}}},semanticPlanner:async()=>({toolCalls:[{name:'repo.audit',args:{}}]})});
+    assert.deepEqual(result.args,{});
+    const compact=compactMissionPlannerObservation({ok:true,repositoryTarget:{path:'verified-checkout'},files:['package.json','src/index.js']});
+    assert.deepEqual(compact.files,['package.json','src/index.js']);
+    assert.equal(compact.repositoryTarget.path,'verified-checkout');
+    assert.equal(compact.inventoryExcerpt,true);
+});

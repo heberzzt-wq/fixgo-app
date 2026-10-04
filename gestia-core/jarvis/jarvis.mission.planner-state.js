@@ -149,6 +149,11 @@ export function compactMissionPlannerObservation(observation = {}) {
         requiresInput: source.requiresInput === true,
         retryable: source.retryable === true,
         sourceCount,
+        ...(source.repositoryTarget || evidence.repositoryTarget ? { repositoryTarget: source.repositoryTarget || evidence.repositoryTarget } : {}),
+        ...(Array.isArray(source.files || evidence.files) ? {
+            files: (source.files || evidence.files).slice(0, 24).map(file => text(file, 500)).filter(Boolean),
+            inventoryExcerpt: true
+        } : {}),
         ...(summary ? { summary } : {}),
         ...(sources.length ? { sources } : {}),
         ...(mediaAssets.length ? { mediaAssets } : {}),

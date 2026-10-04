@@ -1,6 +1,7 @@
 import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
+import { ADVERTISING_DIRECTION_SCHEMA, validateAdvertisingDirection } from "./jarvis.advertising.benchmark.js";
 import {
     buildPageArtifactHtml,
     describePageArtifact
@@ -870,6 +871,7 @@ export function registerJarvisActuatorTools(runtime) {
             inputSchema: {
                 type: "object", properties: {
                     brandName: { type: "string" }, title: { type: "string" }, cta: { type: "string" },
+                    creativeDirection: ADVERTISING_DIRECTION_SCHEMA,
                     durationSeconds: { type: "number", minimum: 30, maximum: 180 },
                     scenes: { type: "array", minItems: 3, maxItems: 18, items: { type: "object", properties: {
                         durationSeconds: { type: "number", minimum: 1 },
@@ -890,6 +892,7 @@ export function registerJarvisActuatorTools(runtime) {
             userArtifact: true,
             missionDedupeBy: [],
             execute: async (args = {}, context = {}) => {
+                validateAdvertisingDirection(args.creativeDirection,context.canonicalEvidence || []);
                 let logoOutput = String(args.logoOutput || "").trim();
                 if (!logoOutput && Array.isArray(context?.completedTasks)) {
                     for (const task of [...context.completedTasks].reverse()) {
@@ -2554,6 +2557,7 @@ export function registerJarvisActuatorTools(runtime) {
                 fit: { type: "string", enum: ["contain", "cover"] },
                 brandLogoOutput: { type: "string", description: "ref library: exacta del logo oficial o su output importado." }, logoPlacement: { type: "object" },
                 composition: IMAGE_COMPOSITION_SCHEMA,
+                creativeDirection: ADVERTISING_DIRECTION_SCHEMA,
                 outputPrefix: { type: "string", description: "Nombre opcional sin extensión ni carpetas (letras, números, guiones). Omitir para asignación automática. El resultado se registra internamente y después media.library action=export lo entrega en Salidas." }
             }, required: ["sourceOutput", "variants"] },
             mutates: true,
@@ -2561,6 +2565,7 @@ export function registerJarvisActuatorTools(runtime) {
             userArtifact: true,
             execute: async (args = {}, context = {}) => {
                 args = normalizeImageAdaptArguments(args);
+                const creativeEvidence = args.composition ? validateAdvertisingDirection(args.creativeDirection, context.canonicalEvidence || []) : null;
                 const prefix = normalizeImageArtifactPrefix(args.outputPrefix);
                 const source = await bridgeRequest("/artifact/read", { output: args.sourceOutput, officialReference: true }, 30000);
                 if (source?.ok !== true || !String(source.mimeType || "").startsWith("image/") || !source.dataBase64) throw new Error("IMAGE_SOURCE_ARTIFACT_INVALID");
@@ -2592,7 +2597,7 @@ export function registerJarvisActuatorTools(runtime) {
                         approvedBy: context.approvedBy || "",
                         transformations: [{ type: variant.compositionApplied ? "local_ad_composition" : (args.fit || "contain") + "_resize",
                             id: variant.id, width: variant.width, height: variant.height, crop: variant.crop,
-                            ...(variant.compositionApplied ? { composition: variant.composition } : {}) },
+                            ...(variant.compositionApplied ? { composition: variant.composition, creativeDirection: args.creativeDirection, creativeEvidence } : {}) },
                             ...(logo ? [{ type: "original_logo_overlay", source: logo.output, sha256: logo.sha256 }] : [])]
                     }, 30000);
                     if (persisted?.ok !== true) throw new Error(persisted?.error || "IMAGE_ADAPTATION_PERSIST_FAILED");
@@ -2629,7 +2634,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "artifact.read",
-            description: "Lee bytes y metadatos versionados de un artefacto local concreto.",
+            description: "Lee bytes y metadatos de un entregable producido por Jarvis ya registrado en su ledger, como PNG, MP4 o PDF. Requiere su output exacto. Para código fuente y archivos del repositorio utiliza repo.read.",
             output: "ARTIFACT_READ_RESULT",
             inputSchema: { output: "string" },
             mutates: false,

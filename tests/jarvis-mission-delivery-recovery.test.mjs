@@ -49,8 +49,8 @@ test('local mission contract retrieves semantic operations without lexical catal
         if(request.config.semanticStage==='MISSION_CONTRACT_OPERATIONS') return {text:JSON.stringify({sourceReview:'research external website',work:'',delivery:'create downloadable document'})};
         const task = JSON.parse(request.config.chatMessages.at(-1).content);
         const expected = task.operation === 'research external website' ? 'web.research' : 'document.create';
-        assert.deepEqual(request.config.tools[0].functionDeclarations.map(t=>t.name), [expected], 'each operation receives its own retrieved native candidates');
-        assert.equal(task.catalog,undefined);
+        assert.deepEqual(task.catalog.map(t=>t.name), [expected], 'each operation receives its own retrieved candidates');
+        assert.equal(request.config.tools,undefined);
         return {text:JSON.stringify({name:expected})};
     }}};
     const result = await runJarvisSemanticPlanner({ai,input:'Marketing para https://example.com con archivos descargables',catalog,missionState:{phase:'MISSION_CONTRACT',existingInitialTools:['repo.marketing0']},retrieveToolCandidates:async (operation,limit)=>{assert.equal(limit,12,'retain a wider semantic shortlist for required capabilities');retrieved.push(operation);return [catalog[operation.startsWith('research')?12:13]];}});
@@ -65,6 +65,24 @@ test('external URLs cannot be accepted as repository file paths',()=>{
     const result=validatePlan({toolCalls:[{name:'repo.read',args:{file:'https://example.com/invented'}}]},catalog,'Consulta https://example.com/');
     assert.equal(result.toolCalls.length,0);
     assert.equal(validatePlan({toolCalls:[{name:'repo.read',args:{file:'src/index.js'}}]},catalog).toolCalls.length,1);
+});
+
+test('project review preserves ordered inventory and source-reading operations', async () => {
+    const catalog = [{name:'repo.audit',description:'Inventario real',inputSchema:{type:'object',properties:{}}}, {name:'repo.read',description:'Leer archivo localizado',inputSchema:{file:'string'}}];
+    const operations = ['inventariar el repositorio real','leer los archivos localizados'];
+    const seen = [];
+    const ai = {lastProvider:'ollama-openai-compatible-local',models:{generateContent:async request => {
+        if(request.config.semanticStage==='MISSION_CONTRACT_OPERATIONS') return {text:JSON.stringify({sourceReview:operations,work:'',verification:'',delivery:''})};
+        const task = JSON.parse(request.config.chatMessages.at(-1).content);
+        return {text:JSON.stringify({name:task.operation===operations[0]?'repo.audit':'repo.read'})};
+    }}};
+    const result = await runJarvisSemanticPlanner({ai,input:'Revisa el proyecto antes de producción sin modificarlo.',catalog,missionState:{phase:'MISSION_CONTRACT'},retrieveToolCandidates:async operation => {
+        seen.push(operation);
+        return [catalog[operation===operations[0]?0:1]];
+    }});
+    assert.deepEqual(seen,operations);
+    assert.deepEqual(result.toolCalls.map(item=>item.name),['repo.audit','repo.read']);
+    assert.ok(result.toolCalls.every(item=>item.deferred && Object.keys(item.args).length===0));
 });
 
 test('local contract reads Qwen tool-name aliases and rejects conflicting or unavailable names', async () => {

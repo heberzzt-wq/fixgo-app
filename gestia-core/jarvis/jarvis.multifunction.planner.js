@@ -1,4 +1,5 @@
 import { semanticPlanBudgetMs } from "./jarvis.semantic.transport.js";
+import { validateAdvertisingDirection } from "./jarvis.advertising.benchmark.js";
 import { documentEvidenceEnvelope, documentExcerpt } from "./jarvis.document.context.js";
 import { materialReferencesForPlanning } from "./jarvis.mission.planner-state.js?v=v142-material-handoff-20261002";
 import {
@@ -2106,7 +2107,8 @@ export function bindVerifiedMaterialArguments(inputSchema, instruction, sources 
     }
     const contact = schema.properties.composition?.properties?.contact;
     if (contact?.type === "string") {
-        const facts = `${instruction}\n${documentEvidenceEnvelope(sources, 2500)}\n${references.flatMap(ref=>ref.verifiedContacts || []).join("\n")}`;
+        const officialContacts=references.flatMap(ref=>ref.verifiedContacts || []);
+        const facts = officialContacts.length ? officialContacts.join("\n") : `${instruction}\n${documentEvidenceEnvelope(sources, 2500)}`;
         const contacts = [...new Set((facts.match(/(?:https?:\/\/|www\.)[^\s<>"']+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).map(value => value.replace(/[.,;!?]+$/, "")))];
         if (contacts.length) contact.enum = contacts;
     }
@@ -2116,7 +2118,8 @@ export function bindVerifiedMaterialArguments(inputSchema, instruction, sources 
 export function validateVerifiedMaterialComposition(args, missionEvidence = [], verifiedContactFacts = "") {
     if (!args.composition) return;
     if (![args.composition.headline,args.composition.body].every(value=>typeof value==="string" && value.trim())) throw new Error("SEMANTIC_COMPOSITION_TEXT_REQUIRED");
-    verifiedContactFacts += "\n" + missionEvidence.flatMap(item=>materialReferencesForPlanning(item)).flatMap(ref=>ref.verifiedContacts || []).join("\n");
+    const officialContacts=missionEvidence.flatMap(item=>materialReferencesForPlanning(item)).flatMap(ref=>ref.verifiedContacts || []);
+    verifiedContactFacts = officialContacts.length ? officialContacts.join("\n") : verifiedContactFacts;
     if(verifiedContactFacts) {
         const extract=text=>(String(text).match(/(?:https?:\/\/|www\.)[^\s<>"']+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)||[]).map(value=>value.replace(/^https?:\/\//i,"").replace(/[.,;!?]+$/,"").toLowerCase());
         const contacts=new Set(extract(verifiedContactFacts));
@@ -2207,8 +2210,9 @@ export async function completeJarvisPlanningArguments({
             args={...args,composition:{...args.composition,headline:draft?.headline,body:draft?.body}};
         } else args=filterSemanticArguments(call?.args||{},inputSchema);
         try {
-            if(!Object.keys(args).length) throw new Error("SEMANTIC_ARGUMENTS_REQUIRED");
+            if(!Object.keys(args).length && (!inputSchema?.properties || inputSchema.required?.length)) throw new Error("SEMANTIC_ARGUMENTS_REQUIRED");
             validateVerifiedMaterialComposition(args,missionEvidence,`${originalInstruction}\n${documentEvidenceEnvelope(sources,2500)}`);
+            if(inputSchema?.properties?.creativeDirection && (args.composition || name==="reel.create")) validateAdvertisingDirection(args.creativeDirection,missionEvidence);
             break;
         } catch(error) {
             if(attempt===1) throw Object.assign(error,{retryable:false});

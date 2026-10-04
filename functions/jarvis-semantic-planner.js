@@ -1066,29 +1066,32 @@ async function runModelSemanticPlanner({
             const operationsResponse = await ai.models.generateContent({model, contents: instruction, config: {
                 semanticStage: "MISSION_CONTRACT_OPERATIONS",
                 chatMessages: [
-                    {role:"system", content:"Describe sólo operaciones necesarias en ESPAÑOL, como las descripciones del catálogo. sourceReview: leer fuentes, archivos de código o la biblioteca local y su historial; vacío si no aplica. work: una sola operación completa para producir los resultados solicitados, incluyendo todos sus requisitos. verification: pruebas ejecutables expresamente solicitadas; vacío si no aplica. Las dimensiones, foto, logo, texto, contacto y restricciones describen una misma imagen; no son tareas separadas. Las secciones, servicios, ubicación y enlaces describen una misma página web; las escenas, duración, textos y música describen un mismo video. Nunca separes incorporar, incluir o agregar estos requisitos como otra operación de work. Las condiciones del código describen una corrección; la continuidad de personajes describe una historia. delivery: exportar archivos ya creados al destino pedido; vacío si no hace falta exportar. No repitas delivery dentro de work. La respuesta conversacional se redacta automáticamente después de leer: explicar, resumir o extraer datos observados no requiere otra operación. La interfaz muestra automáticamente los archivos y sus descargas: no agregues tareas para mostrar o descargar. No incluyas respuestas anticipadas ni placeholders. No inventes planes, documentos, manifiestos, investigaciones, publicaciones ni permisos. Conservamos la instrucción original completa al ejecutar."},
+                    {role:"system", content:"Describe sólo operaciones necesarias en ESPAÑOL, como las descripciones del catálogo. Para crear anuncios o reels de marca, sourceReview debe investigar referencias online del sector y consultar originales e historial local con advertising.research. Es una sola operación de investigación que también devuelve la biblioteca. Qwen propone un concepto propio y mejoras concretas en creativeDirection, usando dos URLs exactas observadas; no copia recursos ni promete ser el mejor. No investigar por separado cada campo del diseño. sourceReview: una cadena o lista ordenada de hasta tres operaciones para leer fuentes, archivos de código o biblioteca local e historial; vacío si no aplica. Para revisar un proyecto antes de producción primero audita e inventaría el repositorio real, después lee los archivos pertinentes ya localizados. Un estado Git limpio no demuestra funcionamiento. repo.impact sólo evalúa modificar un archivo exacto, no la preparación global. No conviertas nombres de proyectos en rutas ni inventes archivos. work: una sola operación completa para producir los resultados solicitados, incluyendo todos sus requisitos. verification: pruebas ejecutables expresamente solicitadas; vacío si no aplica. Las dimensiones, foto, logo, texto, contacto y restricciones describen una misma imagen; no son tareas separadas. Las secciones, servicios, ubicación y enlaces describen una misma página web; las escenas, duración, textos y música describen un mismo video. Nunca separes incorporar, incluir o agregar estos requisitos como otra operación de work. Las condiciones del código describen una corrección; la continuidad de personajes describe una historia. delivery: exportar archivos ya creados al destino pedido; vacío si no hace falta exportar. No repitas delivery dentro de work. La respuesta conversacional se redacta automáticamente después de leer: explicar, resumir o extraer datos observados no requiere otra operación. La interfaz muestra automáticamente los archivos y sus descargas: no agregues tareas para mostrar o descargar. No incluyas respuestas anticipadas ni placeholders. No inventes planes, documentos, manifiestos, investigaciones, publicaciones ni permisos. Conservamos la instrucción original completa al ejecutar."},
                     {role:"user", content:"Prepara un plan de comunicación para Taller Norte de https://ejemplo.test/ en Mérida y todo México, con archivos descargables."},
                     {role:"assistant", content:'{"sourceReview":"consultar información del negocio en la fuente web indicada","work":"preparar el plan de comunicación solicitado","verification":"","delivery":"crear un documento descargable con el plan"}'},
                     {role:"user", content:"Usa la biblioteca oficial para componer un cartel PNG con foto, logo original y texto nuevo; guarda el archivo en Salidas. Sin generadores externos ni documento de planificación."},
-                    {role:"assistant", content:'{"sourceReview":"consultar originales e historial de la biblioteca local de materiales","work":"componer un anuncio PNG local con fotografía y logo originales y textos nuevos","verification":"","delivery":"exportar el archivo ya creado a la carpeta local de Salidas"}'},
+                    {role:"assistant", content:'{"sourceReview":"investigar referencias publicitarias online del sector y consultar originales e historial local","work":"componer un anuncio PNG propio con fotografía y logo originales, textos nuevos y dirección creativa sustentada","verification":"","delivery":"exportar el archivo ya creado a la carpeta local de Salidas"}'},
                     {role:"user", content:"Revisa el código de inicio de sesión y corrige el fallo. Conserva la API y ejecuta sus pruebas; sin despliegue."},
                     {role:"assistant", content:'{"sourceReview":"inspeccionar el código de inicio de sesión y sus pruebas","work":"preparar la corrección del código solicitado usando el archivo observado","verification":"ejecutar las pruebas pertinentes al código corregido","delivery":""}'},
+                    {role:"user", content:"Revisa si el proyecto está listo para producción. No modifiques ni publiques."},
+                    {role:"assistant", content:'{"sourceReview":["auditar la estructura real del repositorio e inventariar sus archivos, dependencias y pruebas","leer el contenido del código fuente del repositorio por las rutas reales obtenidas en su inventario"],"work":"","verification":"","delivery":""}'},
                     {role:"user", content:"Lee package.json y dime el nombre del proyecto y sus comandos, sin modificarlo ni ejecutar comandos."},
                     {role:"assistant", content:'{"sourceReview":"leer el contenido completo de un archivo del repositorio","work":"","verification":"","delivery":""}'},
                     {role:"user", content:"Crea una página web HTML local con foto y logo de la biblioteca oficial, secciones de servicios, ubicación y enlace de contacto. Guarda el resultado en Salidas; sin publicar."},
                     {role:"assistant", content:'{"sourceReview":"consultar originales de la biblioteca local de materiales","work":"crear una página web HTML local completa con todos los contenidos y medios solicitados","verification":"","delivery":"exportar el archivo HTML ya creado a la carpeta local de Salidas"}'},
                     {role:"user", content:"Crea un video vertical MP4 de 15 segundos con fotos, logo, texto y música de la biblioteca oficial. Guarda el video en Salidas para descargar."},
-                    {role:"assistant", content:'{"sourceReview":"consultar fotografías, logo y música de la biblioteca local de materiales","work":"crear un reel de video MP4 vertical local con fotografías, logo, textos y música solicitados","verification":"","delivery":"exportar el video MP4 ya creado a la carpeta local de Salidas"}'},
+                    {role:"assistant", content:'{"sourceReview":"investigar referencias de reels de marca online y consultar fotografías, logo, música e historial locales","work":"crear un reel MP4 vertical propio con dirección creativa sustentada, fotografías, logo, textos y música solicitados","verification":"","delivery":"exportar el video MP4 ya creado a la carpeta local de Salidas"}'},
                     {role:"user", content:instruction}
                 ],
                 responseMimeType:"application/json",
-                responseJsonSchema:{type:"object",properties:{sourceReview:{type:"string"},work:{type:"string"},verification:{type:"string"},delivery:{type:"string"}},required:["sourceReview","work","verification","delivery"],additionalProperties:false},
+                responseJsonSchema:{type:"object",properties:{sourceReview:{anyOf:[{type:"string"},{type:"array",maxItems:3,items:{type:"string"}}]},work:{type:"string"},verification:{type:"string"},delivery:{type:"string"}},required:["sourceReview","work","verification","delivery"],additionalProperties:false},
                 maxOutputTokens:256,temperature:0
             }});
             const operationsObject = extractJsonObject(String(operationsResponse?.text || ""));
             const work = Array.isArray(operationsObject?.work) ? operationsObject.work : [operationsObject?.work];
+            const sourceReviews=Array.isArray(operationsObject?.sourceReview) ? operationsObject.sourceReview : [operationsObject?.sourceReview];
             const operations = [
-                {stage:"sourceReview",operation:operationsObject?.sourceReview},
+                ...sourceReviews.map(operation=>({stage:"sourceReview",operation})),
                 ...work.map(operation=>({stage:"work",operation})),
                 {stage:"verification",operation:operationsObject?.verification},
                 {stage:"delivery",operation:operationsObject?.delivery}
@@ -1119,19 +1122,17 @@ async function runModelSemanticPlanner({
                     contents: step.operation,
                     config: {
                         semanticStage: "MISSION_CONTRACT_TOOL_SELECTION",
-                        ...(step.stage !== "verification" ? {
-                            nativeToolChat:true,
-                            tools:[{functionDeclarations:step.catalog.map(tool=>({name:tool.name,description:tool.description,parametersJsonSchema:{type:"object",properties:{},additionalProperties:false}}))}]
-                        } : {}),
                         chatMessages: [
                             { role: "system", content: step.stage === "verification"
                                 ? "Selecciona la herramienta que EJECUTA las pruebas pedidas sobre el resultado ya preparado. Devuelve sólo JSON con name del catálogo. No vuelvas a leer, diagnosticar, corregir ni preparar otro cambio. No generes argumentos. Si ninguna cumple, name vacío."
-                                : "Use exactly ONE provided function to perform the current operation. Call that function with exactly {}. This is tool selection only; execution arguments will be grounded later. sourceReview reads real sources; work creates the complete requested result; delivery copies an ALREADY CREATED file to its destination. A content blueprint is not an HTML file; an image is not an MP4 video. Never choose an approximate alternative. If no provided function can do the operation, return JSON with an empty name." },
+                                : "Selecciona UNA herramienta del catálogo que realiza SOLO la operación actual, no toda la solicitud original. Devuelve únicamente JSON: primero expectedResult con el resultado concreto que esta operación necesita, después name exacto de la herramienta que lo devuelve. No generes argumentos. Los pasos anteriores ya cubren sus operaciones. Un inventario devuelve rutas y dependencias; leer código fuente devuelve el contenido y líneas del archivo. Elige por ese resultado preciso. sourceReview consulta fuentes; work crea el resultado completo; delivery exporta un archivo YA CREADO. Un esquema de contenido no es un archivo HTML, una imagen no es un video MP4. No elijas una alternativa aproximada. Si ninguna herramienta cumple, name vacío." },
                             { role: "user", content: JSON.stringify({
                                 stage: step.stage,
+                                originalInstruction: instruction.slice(0, 1200),
+                                previousSteps: operationCandidates.filter(previous => selections[previous.id]).map(previous => ({operation:previous.operation,tool:selections[previous.id]})),
                                 stagePurpose: {sourceReview:"Consultar las fuentes antes del trabajo.",work:"Producir el resultado solicitado.",verification:"Sólo ejecutar las pruebas del resultado ya preparado: no preparar ni modificar código otra vez.",delivery:"Exportar el resultado ya producido."}[step.stage],
                                 operation: step.operation,
-                                ...(step.stage === "verification" ? {catalog:step.catalog} : {})
+                                catalog:step.catalog
                             }) }
                         ],
                         maxOutputTokens: 256,
@@ -1140,7 +1141,7 @@ async function runModelSemanticPlanner({
                             thinkingLevel: "MINIMAL"
                         },
                         responseMimeType: "application/json",
-                        responseJsonSchema: {type:"object",properties:{name:{type:"string",enum:[...step.catalog.map(tool=>tool.name),""]}},required:["name"],additionalProperties:false}
+                        responseJsonSchema: {type:"object",properties:{expectedResult:{type:"string",maxLength:240},name:{type:"string",enum:[...step.catalog.map(tool=>tool.name),""]}},required:step.stage === "verification" ? ["name"] : ["expectedResult","name"],additionalProperties:false}
                     }
                 });
                 const nativeSelections = selectionResponse?.functionCalls;

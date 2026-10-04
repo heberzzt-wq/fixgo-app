@@ -684,10 +684,11 @@ registerJarvisActuatorTools(
 // Registro de herramientas Read-Only iniciales
 JarvisToolRuntime.register({
     name: "repo.audit",
-    description: "Audita el repositorio real desde el grafo AST del bridge; nunca usa el indice manual como prueba de existencia.",
+    description: "Devuelve un INVENTARIO ESTRUCTURAL del repositorio real: lista de rutas existentes, dependencias, pruebas detectadas y duplicados desde el grafo AST vivo. Audita e inventaría el proyecto completo. No devuelve el contenido ni líneas de archivos individuales. No ejecuta pruebas ni certifica producción.",
     mutates: false,
     requiresApproval: false,
     output: "REPO_AUDIT_RESULT_V8",
+    inputSchema: {type:"object",properties:{target:{type:"string",description:"Destino explícito suministrado o verificado; omitir para el checkout del bridge. Nunca inventar un nombre de proyecto como ruta."},refresh:{type:"boolean"}},additionalProperties:false},
     execute: async (args = {}) => {
         if (!window.JarvisLocalBridge?.buildRepoGraph) {
             return { ok: false, status: "LOCAL_BRIDGE_REQUIRED", error: "LIVE_REPO_GRAPH_REQUIRED", tool: "repo.audit" };
@@ -775,7 +776,7 @@ JarvisToolRuntime.register({
 
 JarvisToolRuntime.register({
     name: "repo.read",
-    description: "Lee el contenido de un archivo del repositorio identificado por su ruta. Devuelve contenido y cobertura verificable para analizar sus datos, como el nombre y los scripts de package.json. No busca patrones en otros archivos ni modifica el código.",
+    description: "Devuelve el CONTENIDO y LÍNEAS de UN ARCHIVO de código fuente del repositorio por su ruta real ya localizada. También lee configuración, HTML y package.json. Requiere file exacto. No inventaría el proyecto, no lista rutas, no ejecuta pruebas ni modifica código.",
     mutates: false,
     requiresApproval: false,
     output: "REPO_FILE_CONTENT",
@@ -7269,7 +7270,7 @@ JarvisToolRuntime.register({
 
 JarvisToolRuntime.register({
     name: "repo.impact",
-    description: "Analiza el impacto y las dependencias (qué se rompe si se modifica un archivo).",
+    description: "Analiza las dependencias y el impacto de modificar UN archivo real previamente localizado. Requiere su ruta exacta verificada. No audita un proyecto completo, no comprueba funcionamiento ni certifica preparación para producción. Para inventariar un proyecto primero utiliza repo.audit o repo.scan.",
     mutates: false,
     requiresApproval: false,
     output: "REPO_IMPACT_RESULT",
@@ -7438,6 +7439,10 @@ JarvisToolRuntime.register({
             ...(lastResult || {}),
             ok:
                 false,
+            status: "REPO_IMPACT_FILE_UNAVAILABLE",
+            error: liveRead?.error || "REPO_IMPACT_FILE_UNAVAILABLE",
+            requiresInput: true,
+            note: "No se verificó el archivo solicitado en el checkout actual. Identifica el repositorio y consulta repo.audit o repo.scan antes de elegir una ruta; no es evidencia de que el proyecto esté roto ni listo para producción.",
             requestedFile:
                 cleanFile,
             resolvedFile:
