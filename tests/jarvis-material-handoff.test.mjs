@@ -132,6 +132,15 @@ test("composition rejects another photograph's crop and regrounds a repeated del
     assert.equal(failedAttempts,2,"exhausted semantic repair cannot recurse into another runtime retry");
 });
 
+test("official contact facts survive material references without treating advertising history as contact authority", () => {
+    const schema={type:"object",properties:{composition:{type:"object",properties:{contact:{type:"string"}}}}};
+    const evidence=[{tool:"media.library",evidence:{entries:[{relativePath:"Entradas/photo.png",role:"input",mimeType:"image/png",metadataSource:"USER_LIBRARY_SIDECAR",verifiedContacts:["www.summ.com.mx"]}],advertisingHistory:[{creative:{headline:"Anterior",body:"info@inventado.mx"}}]}}];
+    assert.deepEqual(bindVerifiedMaterialArguments(schema,"Crea un anuncio",[],evidence).properties.composition.properties.contact.enum,["www.summ.com.mx"]);
+    const args={composition:{headline:"Revisa tu situación fiscal",body:"Asesoría en Cancún",contact:"www.summ.com.mx"}};
+    assert.doesNotThrow(()=>validateVerifiedMaterialComposition(args,evidence,"Crea un anuncio"));
+    assert.throws(()=>validateVerifiedMaterialComposition({composition:{...args.composition,contact:"info@inventado.mx"}},evidence,"Crea un anuncio"),/CONTACT_UNVERIFIED/);
+});
+
 test("terminal preparation preserves inventory, creation and export as separate ordered obligations", async () => {
     const calls = [
         { name: "media.library", args: {}, deferred: true, obligationId: "inventory", reason: "read official originals" },

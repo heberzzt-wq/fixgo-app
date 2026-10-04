@@ -138,6 +138,7 @@ function describe(file, relativePath, library) {
             const data = JSON.parse(fs.readFileSync(sidecar, "utf8").replace(/^\uFEFF/, ""));
             if (data.sourceSha256 !== info.sha256) throw new Error("MATERIAL_METADATA_SOURCE_CHANGED");
             if (typeof data.description === "string") info.description = data.description.slice(0, 600);
+            if (Array.isArray(data.verifiedContacts)) info.verifiedContacts = [...new Set(data.verifiedContacts.filter(value => typeof value === "string" && value.length <= 200 && /^(?:https?:\/\/|www\.)[^\s<>"']+$|^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(value)))].slice(0, 8);
             const crop = data.photoRegion;
             if (crop && info.width && [crop.x, crop.y, crop.width, crop.height].every(Number.isFinite) &&
                 crop.x >= 0 && crop.y >= 0 && crop.width > 0 && crop.height > 0 &&

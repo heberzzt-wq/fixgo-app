@@ -63,14 +63,16 @@ test("exact library references import the chosen original and sidecars are bound
     const { root, library } = fixture(t);
     const listed = materialLibrary({ root }).entries[0];
     fs.writeFileSync(path.join(library, listed.relativePath + ".material.json"), JSON.stringify({
-        sourceSha256: listed.sha256, description: "Foto aprobada", photoRegion: { x: 0, y: 0, width: 1, height: 1 }
+        sourceSha256: listed.sha256, description: "Foto aprobada", verifiedContacts:["www.summ.com.mx","invented contact"], photoRegion: { x: 0, y: 0, width: 1, height: 1 }
     }));
     assert.equal(materialLibrary({ root }).entries[0].description, "Foto aprobada");
+    assert.deepEqual(materialLibrary({ root }).entries[0].verifiedContacts,["www.summ.com.mx"]);
     const output = resolveMaterialReference({ root, output: listed.ref });
     assert.equal(output, materialLibrary({ root, action: "import", relativePath: listed.relativePath }).output);
     assert.throws(() => resolveMaterialReference({ root, output: "library:../outside.png" }));
     fs.appendFileSync(path.join(library, listed.relativePath), "changed");
     assert.equal(materialLibrary({ root }).entries[0].description, undefined);
+    assert.equal(materialLibrary({ root }).entries[0].verifiedContacts, undefined);
     assert.equal(materialLibrary({ root }).entries[0].metadataIssue, "MATERIAL_METADATA_SOURCE_CHANGED");
 });
 

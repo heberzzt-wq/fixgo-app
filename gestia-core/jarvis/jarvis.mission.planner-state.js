@@ -67,6 +67,7 @@ export function materialReferencesForPlanning(observation = {}) {
             role: item.role || "produced_artifact", mimeType: item.mimeType,
             ...(item.width ? { width: item.width, height: item.height } : {}),
             ...(item.description ? { description: text(item.description, 240) } : {}),
+            ...(item.metadataSource === "USER_LIBRARY_SIDECAR" && Array.isArray(item.verifiedContacts) ? { verifiedContacts: item.verifiedContacts, metadataSource: item.metadataSource } : {}),
             ...(item.photoRegion ? { photoRegion: item.photoRegion } : {})
         }));
 }

@@ -2106,7 +2106,7 @@ export function bindVerifiedMaterialArguments(inputSchema, instruction, sources 
     }
     const contact = schema.properties.composition?.properties?.contact;
     if (contact?.type === "string") {
-        const facts = `${instruction}\n${documentEvidenceEnvelope(sources, 2500)}`;
+        const facts = `${instruction}\n${documentEvidenceEnvelope(sources, 2500)}\n${references.flatMap(ref=>ref.verifiedContacts || []).join("\n")}`;
         const contacts = [...new Set((facts.match(/(?:https?:\/\/|www\.)[^\s<>"']+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).map(value => value.replace(/[.,;!?]+$/, "")))];
         if (contacts.length) contact.enum = contacts;
     }
@@ -2116,6 +2116,7 @@ export function bindVerifiedMaterialArguments(inputSchema, instruction, sources 
 export function validateVerifiedMaterialComposition(args, missionEvidence = [], verifiedContactFacts = "") {
     if (!args.composition) return;
     if (![args.composition.headline,args.composition.body].every(value=>typeof value==="string" && value.trim())) throw new Error("SEMANTIC_COMPOSITION_TEXT_REQUIRED");
+    verifiedContactFacts += "\n" + missionEvidence.flatMap(item=>materialReferencesForPlanning(item)).flatMap(ref=>ref.verifiedContacts || []).join("\n");
     if(verifiedContactFacts) {
         const extract=text=>(String(text).match(/(?:https?:\/\/|www\.)[^\s<>"']+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)||[]).map(value=>value.replace(/^https?:\/\//i,"").replace(/[.,;!?]+$/,"").toLowerCase());
         const contacts=new Set(extract(verifiedContactFacts));
