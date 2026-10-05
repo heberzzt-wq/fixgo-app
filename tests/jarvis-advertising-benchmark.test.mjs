@@ -25,14 +25,35 @@ test("benchmark reuses the local research bridge and returns official originals 
     }};
     const tools=new Map(); registerJarvisMultifunctionTools({register:tool=>tools.set(tool.name,tool)});
     const result=await tools.get("advertising.research").execute({query:"Publicidad de despachos fiscales en Cancún"});
-    assert.deepEqual(calls.map(call=>call.route),["/research","/media/library"]);
+    assert.deepEqual(calls.map(call=>call.route),["/media/library","/research"]);
     assert.deepEqual(result.sources,sources);
     assert.equal(result.entries.length,1);
     assert.equal(result.advertisingHistory.length,1);
     assert.equal(result.externalApiUsed,false);
     assert.equal(result.thirdPartyAssetsReusable,false);
-    globalThis.JarvisLocalBridge.requestJson=async()=>({ok:false,error:"SEARCH_UNAVAILABLE"});
+    globalThis.JarvisLocalBridge.requestJson=async(route)=>route==="/media/library" ? {ok:true,entries:[]} : {ok:false,error:"SEARCH_UNAVAILABLE"};
     await assert.rejects(tools.get("advertising.research").execute({query:"Despachos fiscales"}),/SOURCES_INSUFFICIENT/);
+});
+
+test("short brand requests ground their research query in official material before searching",async t=>{
+    const previous=globalThis.JarvisLocalBridge;
+    t.after(()=>{globalThis.JarvisLocalBridge=previous;});
+    const calls=[];
+    globalThis.JarvisLocalBridge={requestJson:async(route,args,options)=>{
+        calls.push({route,args,options});
+        if(route==="/media/library") return {ok:true,entries:[{relativePath:"Entradas/firma.png",mimeType:"image/png",description:"SUMMIT, asesoría fiscal en Cancún"}]};
+        assert.equal(args.query,"publicidad asesoría fiscal Cancún");
+        assert.ok(options.timeoutMs>=3*args.timeoutMs);
+        return {ok:true,grounded:true,sources};
+    }};
+    const tools=new Map();registerJarvisMultifunctionTools({register:tool=>tools.set(tool.name,tool)});
+    const result=await tools.get("advertising.research").execute({}, {rawInput:"créame una publicidad nueva para SUMMIT",semanticArgumentPlanner:async ({input})=>{
+        assert.deepEqual(calls.map(call=>call.route),["/media/library"]);
+        assert.match(input,/asesoría fiscal en Cancún/);
+        return {ok:true,toolCalls:[{name:"advertising.research",args:{query:"publicidad asesoría fiscal Cancún"}}]};
+    }});
+    assert.equal(result.query,"publicidad asesoría fiscal Cancún");
+    assert.equal(result.superiorQualityVerified,false);
 });
 
 test("image and branded reel block before reading or rendering any media without benchmark",async()=>{

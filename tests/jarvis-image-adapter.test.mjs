@@ -42,6 +42,13 @@ test("ad composition draws semantic copy, the selected photo region and the orig
     assert.equal(written.some(value => /placeholder|ilustrativa/i.test(value)), false);
     assert.ok(drawn.some(args => args[0] >= 500 && args[1] >= 100 && args[0] + args[2] <= 1150 && args[1] + args[3] <= 1100));
     images = 0;
+    const horizontal=await adaptImageSource({...input,variants:[
+        {id:"wide",width:1200,height:600,mimeType:"image/jpeg"},
+        {id:"landscape",width:1600,height:900,mimeType:"image/jpeg"}
+    ],composition:{...input.composition,layout:"stack"}});
+    assert.equal(horizontal.outputs.length,2,"horizontal contact must fit without dropping text or lowering the proportional type minimum");
+    assert.ok(horizontal.outputs.every(output=>output.compositionApplied && output.logoOverlayApplied));
+    images = 0;
     await assert.rejects(adaptImageSource({ ...input, composition: { ...input.composition,
         photoCrop: { x: 500, y: 100, width: 900, height: 1000 } } }), /IMAGE_PHOTO_CROP_INVALID/);
 });

@@ -46,6 +46,37 @@ test("grounded operation uses JSON mode and validates the returned tool argument
     assert.deepEqual(plan.toolCalls[0].args,{action:"export",output});
 });
 
+test("conditional export schema requires a produced artifact and rejects a missing output", async () => {
+    let calls=0;
+    const output=".jarvis-artifacts/images/produced.jpg";
+    const engine=createSelfHostedSemanticEngine({fetchImpl:async(_url,options)=>{
+        calls++;
+        const body=JSON.parse(options.body),schema=body.format.properties.toolCalls.items.properties.args;
+        assert.equal(schema.properties,undefined,"conditional branches must be complete grammar alternatives");
+        const branch=schema.anyOf.find(item=>item.properties.action.enum[0]==="export");
+        assert.deepEqual(branch.required,["action","output"]);
+        assert.deepEqual(branch.properties.output.enum,[output]);
+        const args=calls===1?{action:"export"}:{action:"export",output};
+        return {ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({toolCalls:[{name:"media.library",args}],missionComplete:false})},done_reason:"stop"})};
+    }});
+    const plan=await engine.plan({input:"Exportar el anuncio existente",catalog:[{name:"media.library",inputSchema:{type:"object",properties:{action:{type:"string",enum:["list","export"]},output:{type:"string",enum:[output]}},required:["action"],anyOf:[{properties:{action:{const:"list"}},required:["action"]},{properties:{action:{const:"export"}},required:["action","output"]}]}}],missionState:{phase:"GROUNDED_ARGUMENT_COMPLETION"}});
+    assert.equal(calls,2);
+    assert.deepEqual(plan.toolCalls[0].args,{action:"export",output});
+});
+
+test("creative copy repair treats rejected history as creative context rather than immutable copy", async () => {
+    const engine=createSelfHostedSemanticEngine({fetchImpl:async(_url,options)=>{
+        const body=JSON.parse(options.body);
+        assert.equal(body.options.temperature,0.6);
+        assert.ok(body.messages[0].content.includes("redactor publicitario"));
+        assert.ok(!body.messages[0].content.includes("CONTEXTO_Y_EVIDENCIA_INMUTABLES"));
+        assert.ok(body.messages[1].content.includes("Mensaje anterior"));
+        return {ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({toolCalls:[{name:"image.adapt",args:{composition:{headline:"¿Tienes claros tus próximos pasos?",body:"Revisa tus opciones con asesoría fiscal."}}}],missionComplete:false})},done_reason:"stop"})};
+    }});
+    const plan=await engine.plan({input:"Marca observada: SUMMIT. Mensaje anterior rechazado.",catalog:[{name:"image.adapt",inputSchema:{type:"object",properties:{composition:{type:"object",properties:{headline:{type:"string"},body:{type:"string"}},required:["headline","body"]}},required:["composition"]}}],missionState:{phase:"GROUNDED_ARGUMENT_COMPLETION",creativeCopyRepair:true,currentOperation:"Redactar otro texto",argumentValidationFeedback:"MESSAGE_REPEATED"}});
+    assert.equal(plan.toolCalls[0].args.composition.headline,"¿Tienes claros tus próximos pasos?");
+});
+
 test("a greeting after a final response retains the loaded context size across classification and reply", async () => {
     const requests = [];
     const engine = createSelfHostedSemanticEngine({ fetchImpl: async (url, options) => {

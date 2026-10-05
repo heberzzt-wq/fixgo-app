@@ -108,6 +108,43 @@ test("grounded material schemas offer exact original references and supplied con
     assert.equal(schema.properties.sourceOutput.enum,undefined);
 });
 
+test("advertising grammar excludes exhausted originals, delivered layouts and non-web benchmark references", () => {
+    const schema={type:"object",properties:{sourceOutput:{type:"string"},composition:{type:"object",properties:{layout:{type:"string",enum:["split","stack"]}}},creativeDirection:{type:"object",properties:{references:{type:"array",minItems:2,items:{type:"string"}}}}}};
+    const entries=["used.png","available.png"].map(name=>({relativePath:`Entradas/${name}`,role:"input",mimeType:"image/png"}));
+    const history=[{visual:{sourceRef:"library:Entradas/used.png",layout:"split"}},{visual:{sourceRef:"library:Entradas/used.png",layout:"stack"}},{visual:{sourceRef:"library:Entradas/available.png",layout:"split"}}];
+    const sources=[{url:"https://one.test/"},{url:"https://two.test/"}];
+    const evidence=[{tool:"advertising.research",evidence:{entries,advertisingHistory:history,sources}}];
+    const bound=bindVerifiedMaterialArguments(schema,"Otro anuncio",[],evidence);
+    assert.deepEqual(bound.properties.sourceOutput.enum,["library:Entradas/available.png"]);
+    assert.deepEqual(bound.properties.composition.properties.layout.enum,["stack"]);
+    assert.deepEqual(bound.properties.creativeDirection.properties.references.items.enum,sources.map(source=>source.url));
+    assert.equal(bound.properties.creativeDirection.properties.references.uniqueItems,true);
+    assert.ok(bound.required.includes("creativeDirection"));
+    assert.ok(bound.required.includes("composition"),"a requested new advertisement cannot degrade into resizing an original");
+    assert.deepEqual(schema.properties.composition.properties.layout.enum,["split","stack"],"the canonical schema stays unchanged");
+    const exhausted=[...history,{visual:{sourceRef:"library:Entradas/available.png",layout:"stack"}}];
+    assert.throws(()=>bindVerifiedMaterialArguments(schema,"Otro anuncio",[],[{tool:"advertising.research",evidence:{entries,advertisingHistory:exhausted,sources}}]),/COMBINATIONS_EXHAUSTED/);
+});
+
+test("disjoint available layouts stay coupled to each original instead of admitting a delivered pair", () => {
+    const schema={type:"object",properties:{sourceOutput:{type:"string"},composition:{type:"object",properties:{layout:{type:"string",enum:["split","stack"]}}}}};
+    const entries=["a.png","b.png"].map(name=>({relativePath:`Entradas/${name}`,role:"input",mimeType:"image/png"}));
+    const evidence=[{tool:"media.library",evidence:{entries,advertisingHistory:[{visual:{sourceRef:"library:Entradas/a.png",layout:"split"}},{visual:{sourceRef:"library:Entradas/b.png",layout:"stack"}}]}}];
+    const bound=bindVerifiedMaterialArguments(schema,"Otro anuncio",[],evidence);
+    assert.deepEqual(bound.anyOf.map(branch=>[branch.properties.sourceOutput.const,branch.properties.composition.properties.layout.enum]),[["library:Entradas/a.png",["stack"]],["library:Entradas/b.png",["split"]]]);
+});
+
+test("export arguments bind produced artifacts and cannot substitute an official input", () => {
+    const schema={type:"object",properties:{action:{type:"string",enum:["list","import","export"]},relativePath:{type:"string"},output:{type:"string"}},required:["action"]};
+    const evidence=[{tool:"advertising.research",evidence:{entries:[{relativePath:"Entradas/original.png",role:"input",mimeType:"image/png"}]}},
+        {tool:"image.adapt",evidence:{status:"IMAGE_VARIANTS_CREATED",outputs:[{output:".jarvis-artifacts/images/new.png",mimeType:"image/png"}]}}];
+    const bound=bindVerifiedMaterialArguments(schema,"Entrega el anuncio creado",[],evidence);
+    assert.deepEqual(bound.properties.output.enum,[".jarvis-artifacts/images/new.png"]);
+    const exportBranch=bound.anyOf.find(branch=>branch.properties.action.const==="export");
+    assert.deepEqual(exportBranch.required,["action","output"]);
+    assert.equal(schema.properties.output.enum,undefined);
+});
+
 test("composition rejects another photograph's crop and regrounds a repeated delivered message", async () => {
     const region={x:695,y:240,width:559,height:735};
     const evidence=[{tool:"media.library",evidence:{entries:[{relativePath:"Entradas/photo.png",role:"input",mimeType:"image/png",photoRegion:region}],advertisingHistory:[{creative:{headline:"Mensaje anterior",body:"Texto anterior"}}]}}];
@@ -133,6 +170,17 @@ test("composition rejects another photograph's crop and regrounds a repeated del
     let failedAttempts=0;
     await assert.rejects(()=>completeJarvisPlanningArguments({toolName:"image.adapt",instruction:"Crea otra pieza nueva para la prueba de agotamiento.",operation:"crear otra pieza nueva",missionEvidence:evidence,inputSchema:{type:"object",properties:{sourceOutput:{type:"string"},composition:{type:"object"}}},semanticPlanner:async()=>{failedAttempts++;return{toolCalls:[{name:"image.adapt",args:original}],missionComplete:false};}}),error=>error.retryable===false && /MESSAGE_REPEATED/.test(error.message));
     assert.equal(failedAttempts,2,"exhausted semantic repair cannot recurse into another runtime retry");
+    let distinctAttempts=0;
+    const repaired=await completeJarvisPlanningArguments({toolName:"image.adapt",instruction:"Crea otra pieza nueva para comprobar recorte y mensaje.",operation:"crear una pieza nueva",missionEvidence:evidence,inputSchema:{type:"object",properties:{sourceOutput:{type:"string"},composition:{type:"object"}}},semanticPlanner:async request=>{
+        distinctAttempts++;
+        if(distinctAttempts===2) assert.deepEqual(Object.keys(request.catalog[0].inputSchema.properties),["composition"]);
+        const args=distinctAttempts===1 ? {...original,composition:{...original.composition,photoCrop:{x:0,y:0,width:1,height:1}}} : {composition:{headline:"Decisiones fiscales con claridad",body:"Prepara tus próximos pasos con asesoría profesional."}};
+        return {toolCalls:[{name:"image.adapt",args}],missionComplete:false};
+    }});
+    assert.equal(distinctAttempts,2,"verified geometry binds to Qwen's source; only creative copy requires a semantic repair");
+    assert.equal(repaired.args.sourceOutput,original.sourceOutput);
+    assert.deepEqual(repaired.args.composition.photoCrop,region);
+    assert.equal(repaired.args.composition.headline,"Decisiones fiscales con claridad");
 });
 
 test("official contact facts survive material references without treating advertising history as contact authority", () => {

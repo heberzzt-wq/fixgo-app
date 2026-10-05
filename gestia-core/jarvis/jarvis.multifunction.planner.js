@@ -1304,6 +1304,8 @@ function runtimeCatalog(context = {}) {
         .map(tool => ({
             name: tool.name,
             description: String(tool.description || "").slice(0, 500),
+            contractStages: tool.contractStages || null,
+            contractKinds: tool.contractKinds || null,
             mutates: tool.mutates === true,
             requiresApproval: tool.requiresApproval === true,
             userArtifact: tool.userArtifact === true,
@@ -2105,6 +2107,48 @@ export function bindVerifiedMaterialArguments(inputSchema, instruction, sources 
         const values = [...new Set(references.filter(ref => allowedRoles.includes(ref.role)).map(ref => ref.ref).filter(Boolean))];
         if (schema.properties[field]?.type === "string" && values.length) schema.properties[field].enum = values;
     }
+    const benchmarkUrls = [...new Set(missionEvidence.filter(item => item.tool === "advertising.research")
+        .flatMap(item => item.evidence?.sources || item.sources || []).map(source => source.url).filter(Boolean))];
+    const benchmarkReferences = schema.properties.creativeDirection?.properties?.references;
+    if (benchmarkReferences?.items?.type === "string" && benchmarkUrls.length) {
+        benchmarkReferences.items.enum = benchmarkUrls;
+        benchmarkReferences.uniqueItems = true;
+        if (benchmarkUrls.length >= 2) {
+            schema.required = [...new Set([...(schema.required || []), "creativeDirection",
+                ...(schema.properties.composition ? ["composition"] : []),
+                ...(schema.properties.brandLogoOutput?.enum?.length ? ["brandLogoOutput"] : [])])];
+        }
+    }
+    const libraryActions = schema.properties.action?.enum;
+    if (Array.isArray(libraryActions) && ["list", "import", "export"].every(action => libraryActions.includes(action)) &&
+        schema.properties.output && schema.properties.relativePath) {
+        const produced = [...new Set([
+            ...references.filter(ref => ref.role === "produced_artifact").map(ref => ref.ref),
+            ...missionEvidence.flatMap(item => [item.evidence, item.evidence?.artifact, item.artifact])
+                .filter(item => item?.physicallyWritten === true && item.bytes > 0 && item.sha256).map(item => item.output)
+        ].filter(ref => typeof ref === "string" && ref.startsWith(".jarvis-artifacts/")))];
+        if (produced.length) schema.properties.output.enum = produced;
+        schema.anyOf = [
+            {properties:{action:{const:"list"}},required:["action"]},
+            {properties:{action:{const:"import"}},required:["action","relativePath"]},
+            {properties:{action:{const:"export"}},required:["action","output"]}
+        ];
+    }
+    const sourceRefs = schema.properties.sourceOutput?.enum;
+    const layout = schema.properties.composition?.properties?.layout;
+    const history = missionEvidence.flatMap(item => item.evidence?.advertisingHistory || item.advertisingHistory || []);
+    if (Array.isArray(sourceRefs) && Array.isArray(layout?.enum) && history.some(item => item.visual)) {
+        const choices = sourceRefs.map(ref => ({ref,layouts:layout.enum.filter(value =>
+            !history.some(item => item.visual?.sourceRef === ref && item.visual.layout === value))})).filter(choice => choice.layouts.length);
+        if (!choices.length) throw new Error("SEMANTIC_ADVERTISING_ORIGINAL_COMBINATIONS_EXHAUSTED: Los originales y layouts disponibles ya fueron entregados; se requiere material o diseños adicionales.");
+        schema.properties.sourceOutput.enum = choices.map(choice => choice.ref);
+        schema.properties.composition.required = [...new Set([...(schema.properties.composition.required || []), "layout"])];
+        const commonLayouts = layout.enum.filter(value => choices.every(choice => choice.layouts.includes(value)));
+        if (commonLayouts.length) layout.enum = commonLayouts;
+        else schema.anyOf = choices.map(choice => ({properties:{
+            sourceOutput:{const:choice.ref},composition:{properties:{layout:{enum:choice.layouts}},required:["layout"]}
+        },required:["sourceOutput","composition"]}));
+    }
     const contact = schema.properties.composition?.properties?.contact;
     if (contact?.type === "string") {
         const officialContacts=references.flatMap(ref=>ref.verifiedContacts || []);
@@ -2191,15 +2235,18 @@ export async function completeJarvisPlanningArguments({
     ].join("\n");
 
     let plan, args, repairFeedback="", messageRepair=false;
-    for(let attempt=0;attempt<2;attempt++) {
+    const validationFailures = new Set();
+    for(let attempt=0;attempt<3;attempt++) {
         const activeCatalog=messageRepair ? [{...catalog[0],description:"Redacta solamente los campos headline y body de un anuncio nuevo. No copies mensajes ya entregados ni añadas datos de contacto o hechos no aportados.",inputSchema:{type:"object",properties:{composition:{type:"object",properties:{headline:{type:"string",maxLength:140},body:{type:"string",maxLength:240}},required:["headline","body"],additionalProperties:false}},required:["composition"],additionalProperties:false}}] : catalog;
         const activeInstruction=messageRepair ? [
             `INSTRUCCION_ORIGINAL=${originalInstruction}`,
+            `IDENTIDAD_Y_MATERIAL_OBSERVADOS=${JSON.stringify({brandName:args.composition?.brandName,materials:missionEvidence.flatMap(item=>materialReferencesForPlanning(item)).filter(ref=>ref.ref===args.sourceOutput).map(ref=>({description:ref.description}))})}`,
             `MENSAJES_YA_ENTREGADOS_NO_COPIAR=${JSON.stringify(missionEvidence.flatMap(item=>item.evidence?.advertisingHistory || item.advertisingHistory || []).filter(item=>item.creative).map(item=>({headline:item.creative.headline,body:item.creative.body})))}`,
             "Los medios, logo, formato y contacto ya fueron seleccionados. En esta etapa sólo redactas un titular y cuerpo nuevos; el runtime conservará los demás argumentos observados."
         ].join("\n") : briefingInstruction;
         plan=await resolveSemanticPlan(activeInstruction+repairFeedback,activeCatalog,semanticPlanner,{
             phase:"GROUNDED_ARGUMENT_COMPLETION",toolName:name,
+            creativeCopyRepair: messageRepair,
             currentOperation:messageRepair ? "Redacta un titular y un cuerpo NUEVOS para el anuncio solicitado, con otro enfoque que los mensajes ya entregados. Devuelve solamente composition.headline y composition.body." : String(operation||"").trim(),
             argumentValidationFeedback: repairFeedback || (validationFeedback ? JSON.stringify(validationFeedback) : ""),
             sourceCount:sources.length,writeAllowed:false
@@ -2209,13 +2256,26 @@ export async function completeJarvisPlanningArguments({
             const draft=call?.args?.composition;
             args={...args,composition:{...args.composition,headline:draft?.headline,body:draft?.body}};
         } else args=filterSemanticArguments(call?.args||{},inputSchema);
+        // Source selection remains semantic. The safe photograph rectangle is
+        // authoritative library metadata, not a coordinate to invent or infer.
+        const photoRegion = missionEvidence.flatMap(item=>materialReferencesForPlanning(item))
+            .find(ref=>ref.ref===args.sourceOutput)?.photoRegion;
+        const proposedCrop = args.composition?.photoCrop;
+        if (args.composition && photoRegion && (!proposedCrop ||
+            ![proposedCrop.x,proposedCrop.y,proposedCrop.width,proposedCrop.height].every(Number.isFinite) ||
+            proposedCrop.width<=0 || proposedCrop.height<=0 || proposedCrop.x<photoRegion.x || proposedCrop.y<photoRegion.y ||
+            proposedCrop.x+proposedCrop.width>photoRegion.x+photoRegion.width || proposedCrop.y+proposedCrop.height>photoRegion.y+photoRegion.height)) {
+            args={...args,composition:{...args.composition,photoCrop:{...photoRegion}}};
+        }
         try {
             if(!Object.keys(args).length && (!inputSchema?.properties || inputSchema.required?.length)) throw new Error("SEMANTIC_ARGUMENTS_REQUIRED");
             validateVerifiedMaterialComposition(args,missionEvidence,`${originalInstruction}\n${documentEvidenceEnvelope(sources,2500)}`);
             if(inputSchema?.properties?.creativeDirection && (args.composition || name==="reel.create")) validateAdvertisingDirection(args.creativeDirection,missionEvidence);
             break;
         } catch(error) {
-            if(attempt===1) throw Object.assign(error,{retryable:false});
+            const failure = String(error.message).split(":",1)[0];
+            if(attempt===2 || validationFailures.has(failure)) throw Object.assign(error,{retryable:false});
+            validationFailures.add(failure);
             messageRepair=String(error.message).startsWith("SEMANTIC_ADVERTISING_MESSAGE_REPEATED");
             repairFeedback=`\nVALIDACION_INDEPENDIENTE_FALLIDA=${error.message}\n${messageRepair ? "" : `ARGUMENTOS_RECHAZADOS=${JSON.stringify(args)}\n`}Corrige sólo los argumentos fallidos. Conserva la misma herramienta, operación y permisos.`;
         }

@@ -313,6 +313,8 @@ export const JarvisToolRuntime = {
                     t.version,
                 description:
                     t.description,
+                contractStages: t.contractStages || null,
+                contractKinds: t.contractKinds || null,
                 mutates:
                     t.mutates === true,
                 requiresApproval:
@@ -684,6 +686,7 @@ registerJarvisActuatorTools(
 // Registro de herramientas Read-Only iniciales
 JarvisToolRuntime.register({
     name: "repo.audit",
+    contractStages: ["sourceReview"], contractKinds: ["repository"],
     description: "Devuelve un INVENTARIO ESTRUCTURAL del repositorio real: lista de rutas existentes, dependencias, pruebas detectadas y duplicados desde el grafo AST vivo. Audita e inventaría el proyecto completo. No devuelve el contenido ni líneas de archivos individuales. No ejecuta pruebas ni certifica producción.",
     mutates: false,
     requiresApproval: false,
@@ -776,6 +779,7 @@ JarvisToolRuntime.register({
 
 JarvisToolRuntime.register({
     name: "repo.read",
+    contractStages: ["sourceReview"], contractKinds: ["repository"],
     description: "Devuelve el CONTENIDO y LÍNEAS de UN ARCHIVO de código fuente del repositorio por su ruta real ya localizada. También lee configuración, HTML y package.json. Requiere file exacto. No inventaría el proyecto, no lista rutas, no ejecuta pruebas ni modifica código.",
     mutates: false,
     requiresApproval: false,
@@ -6910,6 +6914,7 @@ JarvisToolRuntime.register({
 
 JarvisToolRuntime.register({
     name: "repo.grep",
+    contractStages: ["sourceReview"], contractKinds: ["repository"],
     description: "Busca texto real dentro del repositorio usando el bridge local read-only.",
     mutates: false,
     requiresApproval: false,
@@ -6988,6 +6993,7 @@ JarvisToolRuntime.register({
 
 JarvisToolRuntime.register({
     name: "repo.prepareWrite",
+    contractStages: ["work"], contractKinds: ["code"],
     description: "Prepara la corrección del código de un archivo del repositorio mediante un patch de búsqueda y reemplazo exactos. Devuelve el cambio para aprobación humana; no ejecuta pruebas ni escribe todavía.",
     mutates: false,
     requiresApproval: false,

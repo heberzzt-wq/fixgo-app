@@ -421,6 +421,7 @@ function visibleLogoBounds(bitmap) {
 
 function renderComposition(context, bitmap, logo, logoBounds, variant, spec) {
     const w = variant.width, h = variant.height, m = w * 0.055;
+    const typeScale = Math.min(w, h);
     const box = (x, y, width, height) => ({ x: w * x, y: h * y, width: w * width, height: h * height });
     const split = spec.layout === "split";
     const photo = split ? box(0.55, 0, 0.45, 1) : box(0, 0.38, 1, 0.34);
@@ -452,8 +453,8 @@ function renderComposition(context, bitmap, logo, logoBounds, variant, spec) {
     context.fillRect(m, h * (split ? 0.807 : 0.843), w * (split ? 0.445 : 0.89), h * (split ? 0.098 : 0.07));
     for (const key of ["headline", "body", "brandName", "cta", "contact"]) {
         drawCopy(context, spec[key], areas[key], {
-            size: w * (key === "headline" ? 0.063 : key === "body" ? 0.033 : 0.031),
-            minimum: w * (key === "headline" ? 0.035 : 0.021),
+            size: typeScale * (key === "headline" ? 0.063 : key === "body" ? 0.033 : 0.031),
+            minimum: typeScale * (key === "headline" ? 0.035 : 0.021),
             color: key === "cta" ? "#ffffff" : spec.inkColor,
             bold: key !== "body"
         });

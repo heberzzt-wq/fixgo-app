@@ -681,6 +681,7 @@ export function registerJarvisActuatorTools(runtime) {
     const registrations = [
         register(runtime, {
             name: "media.library",
+            contractStages: ["sourceReview", "delivery"], contractKinds: ["material"],
             description: "Biblioteca local: exporta y copia archivos YA CREADOS (PNG/JPEG, video MP4, página HTML o documento) a la carpeta Salidas con action=export y output .jarvis-artifacts/ de una creación exitosa. También consulta originales e historial con action=list e importa originales con action=import. List devuelve referencias library: exactas, logos, música y regiones de foto. No crea contenido nuevo ni publica en redes.",
             output: "MATERIAL_LIBRARY_RESULT",
             userArtifact: true,
@@ -768,6 +769,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "page.create",
+            contractStages: ["work"], contractKinds: ["page"],
             description: "Crea y guarda el archivo HTML final de una página web local descargable, con los servicios, textos, fotografía y logo originales solicitados. Usa page.compose como preparación de contenido cuando falta. El resultado es un archivo físico HTML responsive y accesible; no publica ni despliega.",
             output: "PAGE_CREATE_ARTIFACT",
             inputSchema: {
@@ -866,6 +868,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "reel.create",
+            contractStages: ["work"], contractKinds: ["video"],
             description: "Crea un reel 9:16 local, genera su estudio editable y entrega obligatoriamente un MP4 H.264/AAC profesional verificado. Chrome puede producir MP4 o WebM provisional; el bridge conserva sólo un MP4 conforme o lo normaliza localmente con FFmpeg. Mezcla audioOutput explícito o el WAV verificado producido por speech.synthesize en la misma misión. No publica ni usa APIs externas de edición.",
             output: "REEL_VIDEO_ARTIFACT",
             inputSchema: {
@@ -958,6 +961,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "document.create",
+            contractStages: ["work", "delivery"], contractKinds: ["document"],
             description: "Crea un documento local nuevo y descargable en HTML, Markdown, CSV, JSON, DOCX, XLSX, PPTX o PDF dentro de .jarvis-artifacts; DOCX exige un document.compose completo y validado, y XLSX admite varias hojas y formulas. No edita archivos existentes.",
             output: "DOCUMENT_CREATE_RESULT",
             inputSchema: {
@@ -1046,6 +1050,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "document.pdf",
+            contractStages: ["work"], contractKinds: ["document"],
             description: "Convierte una URL o documento HTML servido a PDF mediante Chrome/Edge real.",
             output: "DOCUMENT_PDF_RESULT",
             inputSchema: { url: "string", output: "string" },
@@ -1061,6 +1066,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "document.pdf.edit",
+            contractStages: ["work"], contractKinds: ["document"],
             description: "Localiza y edita campos de un PDF existente, recalcula descuento antes de IVA y compara paginas renderizadas para bloquear cambios fuera de las regiones aprobadas.",
             output: "DOCUMENT_PDF_EDIT_RESULT",
             inputSchema: {
@@ -1115,6 +1121,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "document.xlsx.edit",
+            contractStages: ["work"], contractKinds: ["document"],
             description: "Edita celdas o formulas concretas de un XLSX existente, conserva hojas y estilos no solicitados y mantiene intacto el original.",
             output: "DOCUMENT_XLSX_EDIT_RESULT",
             inputSchema: {
@@ -1149,6 +1156,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "document.docx.edit",
+            contractStages: ["work"], contractKinds: ["document"],
             description: "Reemplaza texto exacto en un DOCX existente, preserva el paquete OOXML y exige el numero exacto de coincidencias.",
             output: "DOCUMENT_DOCX_EDIT_RESULT",
             inputSchema: {
@@ -1182,6 +1190,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "document.pptx.edit",
+            contractStages: ["work"], contractKinds: ["document"],
             description: "Reemplaza texto exacto en diapositivas PPTX sin reconstruir la presentacion y conserva intacto el original.",
             output: "DOCUMENT_PPTX_EDIT_RESULT",
             inputSchema: {
@@ -1275,6 +1284,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "video.generate",
+            contractStages: ["work"], contractKinds: ["video"],
             description: "Genera video NUEVO real desde un guion o escenas semanticas mediante el motor fisico seleccionado por la politica de infraestructura. El proveedor certificado actual se conserva y el motor local solo se usa en modos explicitos. referenceOutputs acepta hasta tres artefactos de imagen locales verificados como guia visual del sujeto; su envio no certifica fidelidad facial ni aceptacion creativa. Si recibe seriesId+episodeId, carga guion, beats y reparto desde el canon durable; no identifica rostros ni acepta reemplazos silenciosos de referencias.",
             output: "VIDEO_GENERATION_RESULT",
             inputSchema: {
@@ -2205,6 +2215,7 @@ export function registerJarvisActuatorTools(runtime) {
 
         register(runtime, {
             name: "image.generate",
+            contractStages: ["work"], contractKinds: ["image"],
             description: "Genera una imagen nueva usando el proveedor externo Google y guarda el resultado descargable. Requiere autorización del proveedor y su posible costo; para reutilizar originales sin API pagada, usar media.library e image.adapt.",
             output: "IMAGE_GENERATION_RESULT",
             inputSchema: { prompt: "string", aspectRatio: "string", imageSize: "string", output: "string", caseId: "string", objectiveId: "string" },
@@ -2265,6 +2276,7 @@ export function registerJarvisActuatorTools(runtime) {
 
         register(runtime, {
             name: "image.edit",
+            contractStages: ["work"], contractKinds: ["image"],
             description: "Edita una imagen persistida usando evidencia visual real. Para piezas de marca puede recibir brandLogoOutput como identidad visual inmutable: el proveedor no dibuja el logotipo y el navegador superpone después los pixeles del archivo oficial.",
             output: "IMAGE_EDIT_RESULT",
             inputSchema: {
@@ -2546,6 +2558,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "image.adapt",
+            contractStages: ["work"], contractKinds: ["image"],
             description: "Crea anuncios PNG/JPEG locales con originales importados por media.library, sin API pagada. composition permite maquetar los textos decididos por Qwen, photoCrop de una región fotográfica verificada y brandLogoOutput original. Sin composition sólo adapta tamaños: fit=contain conserva texto y logo existentes. No añade marcas de agua ni textos provisionales. Cada anuncio nuevo requiere su propia composition; después exportar con media.library action=export. La revisión visual sigue siendo necesaria.",
             output: "IMAGE_ADAPTATION_RESULT",
             inputSchema: { type: "object", properties: {

@@ -6222,27 +6222,46 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "advertising.research",
+            contractStages: ["sourceReview"], contractKinds: ["advertising"],
+            semanticArgumentCompletion: true,
             description: "Antes de crear publicidad, investiga referencias actuales del sector en Internet y consulta originales e historial local. Devuelve fuentes para proponer un concepto propio con mejor claridad, jerarquía y llamada a la acción, sin copiar textos, logos ni imágenes de terceros. Investigación local sin API pagada; no certifica superioridad ni análisis visual sin imágenes observadas.",
             output: "ADVERTISING_BENCHMARK_EVIDENCE",
             inputSchema: {type:"object",properties:{query:{type:"string",minLength:5,maxLength:600}},required:["query"],additionalProperties:false},
             mutates:false, requiresApproval:false,
-            execute: async (args = {}) => {
+            execute: async (args = {}, context = {}) => {
                 const bridge=globalThis.JarvisLocalBridge || globalThis.window?.JarvisLocalBridge;
                 if(typeof bridge?.requestJson!=="function") throw new Error("LOCAL_RESEARCH_BRIDGE_REQUIRED");
-                const result=await bridge.requestJson("/research",{query:args.query,timeoutMs:20000},{timeoutMs:25000});
-                const sources=advertisingBenchmarkSources(result);
-                if(result?.ok!==true || result.grounded!==true || sources.length<2) throw new Error("ADVERTISING_BENCHMARK_SOURCES_INSUFFICIENT");
                 const library=await bridge.requestJson("/media/library",{action:"list"},{timeoutMs:30000});
                 if(library?.ok!==true) throw new Error(library?.error || "OFFICIAL_LIBRARY_REQUIRED");
+                let query=String(args.query || "").trim();
+                if (typeof context.rawInput === "string" && context.rawInput.trim()) {
+                    const grounded=await completeJarvisPlanningArguments({
+                        toolName:"advertising.research",
+                        description:"Formula una consulta de referencias publicitarias por el sector y localidad observados en los originales oficiales. No busques la orden de crear publicidad literalmente ni conviertas una marca en un evento homónimo. Las referencias externas orientan el diseño y no aportan identidad ni contactos del cliente.",
+                        inputSchema:{type:"object",properties:{query:{type:"string",minLength:5,maxLength:600}},required:["query"],additionalProperties:false},
+                        instruction:context.rawInput,
+                        operation:"Investigar referencias publicitarias del sector del negocio identificado por sus originales oficiales e historial; conservar su identidad.",
+                        currentArgs:{},missionEvidence:[{tool:"media.library",evidence:library}],validSources:[],
+                        semanticPlanner:typeof context.semanticArgumentPlanner === "function" ? context.semanticArgumentPlanner : null
+                    });
+                    query=String(grounded.args.query || "").trim();
+                }
+                if(query.length<5) throw new Error("ADVERTISING_RESEARCH_QUERY_REQUIRED");
+                // The bridge may try three public search transports, each with
+                // a bounded 20-second timeout. Leave room for that full request.
+                const result=await bridge.requestJson("/research",{query,timeoutMs:20000},{timeoutMs:90000});
+                const sources=advertisingBenchmarkSources(result);
+                if(result?.ok!==true || result.grounded!==true || sources.length<2) throw new Error("ADVERTISING_BENCHMARK_SOURCES_INSUFFICIENT");
                 return {...library,ok:true,status:"ADVERTISING_BENCHMARK_READY",sources,validSources:sources,
                     answer:String(result.answer || "").slice(0,5000),facts:result.facts || [],
-                    query:args.query,checkedAt:new Date().toISOString(),externalApiUsed:false,
+                    query,checkedAt:new Date().toISOString(),externalApiUsed:false,
                     superiorQualityVerified:false,thirdPartyAssetsReusable:false,
                     message:"Referencias observadas para proponer una dirección propia. No copiar recursos o mensajes. No atribuir al cliente hechos de competidores. El texto de una página no prueba su calidad visual. Crear y exportar el archivo final con originales oficiales; investigar no es entregar publicidad."};
             }
         }),
         register(runtime, {
             name: "web.research",
+            contractStages: ["sourceReview"], contractKinds: ["web"],
             description: "Investiga informacion actual en Google Search y devuelve una respuesta sustentada con fuentes estructuradas.",
             output: "SIA7_GROUNDED_WEB_RESEARCH",
             missionDedupeBy: [
@@ -6313,6 +6332,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "business.assist",
+            contractStages: ["work"], contractKinds: ["plan"],
             description: "Analiza estrategia, operaciones, ventas, costos, riesgos y decisiones empresariales mediante razonamiento semántico; no inventa datos ni modifica sistemas.",
             output: "SIA7_BUSINESS_RESPONSE",
             inputSchema: {
@@ -6373,6 +6393,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "marketing.plan",
+            contractStages: ["work"], contractKinds: ["plan"],
             description: "Produce el plan estratégico desde un brief semántico estructurado y evidencia real. Planear no equivale a producir archivos; productionRequested y productionArtifacts definen el contrato de producción sin interpretar texto localmente.",
             semanticArgumentCompletion: true,
             output: "SIA7_MARKETING_PLAN",

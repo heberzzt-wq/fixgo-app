@@ -49,8 +49,9 @@ test('local mission contract retrieves semantic operations without lexical catal
         if(request.config.semanticStage==='MISSION_CONTRACT_OPERATIONS') return {text:JSON.stringify({sourceReview:'research external website',work:'',delivery:'create downloadable document'})};
         const task = JSON.parse(request.config.chatMessages.at(-1).content);
         const expected = task.operation === 'research external website' ? 'web.research' : 'document.create';
-        assert.deepEqual(task.catalog.map(t=>t.name), [expected], 'each operation receives its own retrieved candidates');
-        assert.equal(request.config.tools,undefined);
+        assert.deepEqual(request.config.tools[0].functionDeclarations.map(t=>t.name), [expected], 'each operation receives its own retrieved candidates');
+        assert.equal(task.catalog,undefined, 'do not duplicate the native catalog in user messages');
+        assert.equal(request.config.nativeToolChat,true);
         return {text:JSON.stringify({name:expected})};
     }}};
     const result = await runJarvisSemanticPlanner({ai,input:'Marketing para https://example.com con archivos descargables',catalog,missionState:{phase:'MISSION_CONTRACT',existingInitialTools:['repo.marketing0']},retrieveToolCandidates:async (operation,limit)=>{assert.equal(limit,12,'retain a wider semantic shortlist for required capabilities');retrieved.push(operation);return [catalog[operation.startsWith('research')?12:13]];}});
@@ -58,6 +59,33 @@ test('local mission contract retrieves semantic operations without lexical catal
     assert.deepEqual(result.toolCalls.map(t=>t.name), ['web.research','document.create']);
     assert.ok(result.toolCalls.every(t=>t.deferred===true));
     assert.ok(result.toolCalls.every(t=>Object.keys(t.args).length===0));
+});
+
+test('short advertising contract uses native selection and keeps research, image and export distinct', async () => {
+    const tools = [
+        {name:'advertising.research',description:'Referencias web y originales e historial local',contractStages:['sourceReview'],contractKinds:['advertising']},
+        {name:'image.adapt',description:'Produce anuncio PNG local',contractStages:['work'],contractKinds:['image']},
+        {name:'media.library',description:'Exporta un archivo ya creado',contractStages:['sourceReview','delivery'],contractKinds:['material']},
+        {name:'page.create',description:'Produce HTML',contractStages:['work'],contractKinds:['page']},
+        {name:'repo.read',description:'Lee código',contractStages:['sourceReview'],contractKinds:['repository']}
+    ];
+    const stages = [];
+    const operations = {sourceReview:'investigar referencias y consultar originales e historial',sourceKind:'advertising',work:'crear un anuncio gráfico PNG',workKind:'image',verification:'',delivery:'exportar el PNG ya creado'};
+    const result = await runJarvisSemanticPlanner({input:'“créame una publicidad nueva para SUMMIT',catalog:tools,missionState:{phase:'MISSION_CONTRACT'},
+        retrieveToolCandidates:async()=>tools,
+        ai:{lastProvider:'ollama-openai-compatible-local',models:{generateContent:async request=>{
+            if(request.config.semanticStage==='MISSION_CONTRACT_OPERATIONS') return {text:JSON.stringify(operations)};
+            const step=JSON.parse(request.config.chatMessages.at(-1).content);
+            stages.push(step.stage);
+            assert.equal(request.config.nativeToolChat,true);
+            assert.deepEqual(request.config.tools[0].functionDeclarations.map(tool=>tool.name),[{sourceReview:'advertising.research',work:'image.adapt',delivery:'media.library'}[step.stage]], 'incompatible research, HTML, code and recreation cannot satisfy the declared result');
+            assert.ok(request.config.tools[0].functionDeclarations.every(tool=>Object.keys(tool.parameters.properties).length===0));
+            return {functionCalls:[{name:{sourceReview:'advertising.research',work:'image.adapt',delivery:'media.library'}[step.stage],args:{}}]};
+        }}}
+    });
+    assert.deepEqual(stages,['sourceReview','work','delivery']);
+    assert.deepEqual(result.toolCalls.map(call=>call.name),['advertising.research','image.adapt','media.library']);
+    assert.ok(result.toolCalls.every(call=>call.deferred && Object.keys(call.args).length===0));
 });
 
 test('external URLs cannot be accepted as repository file paths',()=>{

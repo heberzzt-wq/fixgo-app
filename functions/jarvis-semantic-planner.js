@@ -34,6 +34,8 @@ function normalizeCatalog(catalog = []) {
         .map(item => ({
             name: String(item.name),
             description: String(item.description || "").slice(0, 500),
+            contractStages: Array.isArray(item.contractStages) ? item.contractStages.map(String) : null,
+            contractKinds: Array.isArray(item.contractKinds) ? item.contractKinds.map(String) : null,
             mutates: item.mutates === true,
             requiresApproval: item.requiresApproval === true,
             userArtifact: item.userArtifact === true,
@@ -508,7 +510,23 @@ function buildNativeInputSchema(inputSchema = null) {
         return { type: "object", additionalProperties: true };
     }
 
-    if (inputSchema.type === "object" && inputSchema.properties) return inputSchema;
+    if (Array.isArray(inputSchema.anyOf) && !inputSchema.properties) return inputSchema;
+    if (inputSchema.type === "object" && inputSchema.properties) {
+        if (!Array.isArray(inputSchema.anyOf)) return inputSchema;
+        // Ollama's grammar selects the object rule before sibling anyOf rules.
+        // Compile conditional object constraints into complete alternatives.
+        const {anyOf,...base}=inputSchema;
+        const merge=(parent,branch)=>{
+            const combined={...parent,...branch};
+            if(parent.properties || branch.properties) combined.properties=Object.fromEntries(
+                [...new Set([...Object.keys(parent.properties || {}),...Object.keys(branch.properties || {})])]
+                    .map(key=>[key,merge(parent.properties?.[key] || {},branch.properties?.[key] || {})]));
+            if(parent.required || branch.required) combined.required=[...new Set([...(parent.required || []),...(branch.required || [])])];
+            if(Object.prototype.hasOwnProperty.call(branch,"const")) {combined.enum=[branch.const];delete combined.const;}
+            return combined;
+        };
+        return {anyOf:anyOf.map(branch=>merge(base,branch))};
+    }
 
     return {
         type: "object",
@@ -643,6 +661,9 @@ function seedSemanticCompletionArguments(
 function hasRequiredToolArguments(tool = {}, args = {}) {
     if (!args || typeof args !== "object" || Array.isArray(args)) return false;
     const schema = buildNativeInputSchema(tool?.inputSchema);
+    if (Array.isArray(schema.anyOf)) return schema.anyOf.some(branch=>
+        Object.entries(branch.properties || {}).every(([name,field])=>!field.enum || !(name in args) || field.enum.includes(args[name])) &&
+        hasRequiredToolArguments({inputSchema:branch},args));
     const required = Array.isArray(schema?.required) ? schema.required : [];
 
     return required.every(name => {
@@ -1073,18 +1094,17 @@ async function runModelSemanticPlanner({
                     {role:"assistant", content:'{"sourceReview":"investigar referencias publicitarias online del sector y consultar originales e historial local","work":"componer un anuncio PNG propio con fotografía y logo originales, textos nuevos y dirección creativa sustentada","verification":"","delivery":"exportar el archivo ya creado a la carpeta local de Salidas"}'},
                     {role:"user", content:"Revisa el código de inicio de sesión y corrige el fallo. Conserva la API y ejecuta sus pruebas; sin despliegue."},
                     {role:"assistant", content:'{"sourceReview":"inspeccionar el código de inicio de sesión y sus pruebas","work":"preparar la corrección del código solicitado usando el archivo observado","verification":"ejecutar las pruebas pertinentes al código corregido","delivery":""}'},
-                    {role:"user", content:"Revisa si el proyecto está listo para producción. No modifiques ni publiques."},
-                    {role:"assistant", content:'{"sourceReview":["auditar la estructura real del repositorio e inventariar sus archivos, dependencias y pruebas","leer el contenido del código fuente del repositorio por las rutas reales obtenidas en su inventario"],"work":"","verification":"","delivery":""}'},
                     {role:"user", content:"Lee package.json y dime el nombre del proyecto y sus comandos, sin modificarlo ni ejecutar comandos."},
                     {role:"assistant", content:'{"sourceReview":"leer el contenido completo de un archivo del repositorio","work":"","verification":"","delivery":""}'},
                     {role:"user", content:"Crea una página web HTML local con foto y logo de la biblioteca oficial, secciones de servicios, ubicación y enlace de contacto. Guarda el resultado en Salidas; sin publicar."},
                     {role:"assistant", content:'{"sourceReview":"consultar originales de la biblioteca local de materiales","work":"crear una página web HTML local completa con todos los contenidos y medios solicitados","verification":"","delivery":"exportar el archivo HTML ya creado a la carpeta local de Salidas"}'},
                     {role:"user", content:"Crea un video vertical MP4 de 15 segundos con fotos, logo, texto y música de la biblioteca oficial. Guarda el video en Salidas para descargar."},
                     {role:"assistant", content:'{"sourceReview":"investigar referencias de reels de marca online y consultar fotografías, logo, música e historial locales","work":"crear un reel MP4 vertical propio con dirección creativa sustentada, fotografías, logo, textos y música solicitados","verification":"","delivery":"exportar el video MP4 ya creado a la carpeta local de Salidas"}'},
+                    {role:"system", content:"Los ejemplos anteriores sólo ilustran el formato; no son tareas del usuario actual. Describe exclusivamente las operaciones justificadas por la última instrucción. Una marca o un negocio no implica leer código del repositorio. Una publicidad sin formato indicado se prepara como un anuncio gráfico PNG local con originales oficiales; no inventes una página web, un evento ni un video. Conserva la identidad de la marca: las referencias de terceros sólo orientan el diseño. Para una revisión explícita del proyecto conserva el orden inventario real y lectura de archivos localizados. No agregues esa revisión a otros pedidos. Clasifica el resultado de fuentes en sourceKind: advertising para referencias publicitarias junto con originales e historial, material para biblioteca sola, web para fuentes web solas, repository para código e inventario, none si no aplica. Clasifica el resultado del trabajo en workKind: image para anuncio PNG/JPEG, video para MP4, page para HTML, document para documentos, code para correcciones, plan para propuestas, none si no hay trabajo. Estas clases describen resultados, no nombres de herramientas."},
                     {role:"user", content:instruction}
                 ],
                 responseMimeType:"application/json",
-                responseJsonSchema:{type:"object",properties:{sourceReview:{anyOf:[{type:"string"},{type:"array",maxItems:3,items:{type:"string"}}]},work:{type:"string"},verification:{type:"string"},delivery:{type:"string"}},required:["sourceReview","work","verification","delivery"],additionalProperties:false},
+                responseJsonSchema:{type:"object",properties:{sourceReview:{anyOf:[{type:"string"},{type:"array",maxItems:3,items:{type:"string"}}]},sourceKind:{type:"string",enum:["advertising","material","web","repository","none"]},work:{type:"string"},workKind:{type:"string",enum:["image","video","page","document","code","plan","none"]},verification:{type:"string"},delivery:{type:"string"}},required:["sourceReview","sourceKind","work","workKind","verification","delivery"],additionalProperties:false},
                 maxOutputTokens:256,temperature:0
             }});
             const operationsObject = extractJsonObject(String(operationsResponse?.text || ""));
@@ -1100,12 +1120,19 @@ async function runModelSemanticPlanner({
             const retrieved = [];
             const operationCandidates = [];
             for (const {stage,operation} of operations) {
+                const kind = stage === "sourceReview" ? operationsObject.sourceKind : stage === "work" ? operationsObject.workKind : null;
+                const compatible = tool => (!tool.contractStages || tool.contractStages.includes(stage)) &&
+                    (!kind || kind === "none" || tool.contractKinds?.includes(kind));
                 const candidates = await retrieveToolCandidates(String(operation), 12);
                 const canonicalCandidates = [];
-                for (const candidate of candidates || []) {
+                // Qwen declares the required result; registry metadata enforces
+                // compatibility. Retrieval cannot substitute a different kind
+                // of artifact or hide a declared compatible capability.
+                for (const candidate of [...(candidates || []), ...(kind && kind !== "none" ? normalizedCatalog.filter(compatible) : [])]) {
                     const tool = normalizedCatalog.find(item => item.name === candidate.name);
+                    if (!tool || !compatible(tool)) continue;
                     if (tool && !retrieved.some(item => item.name === tool.name)) retrieved.push(tool);
-                    if (tool) canonicalCandidates.push(tool);
+                    if (!canonicalCandidates.some(item => item.name === tool.name)) canonicalCandidates.push(tool);
                 }
                 if (!canonicalCandidates.length) throw new Error("SEMANTIC_TOOL_CANDIDATES_REQUIRED");
                 operationCandidates.push({id:`step${operationCandidates.length}`,stage,operation,catalog:canonicalCandidates.map(tool=>({name:tool.name,description:tool.description}))});
@@ -1125,14 +1152,14 @@ async function runModelSemanticPlanner({
                         chatMessages: [
                             { role: "system", content: step.stage === "verification"
                                 ? "Selecciona la herramienta que EJECUTA las pruebas pedidas sobre el resultado ya preparado. Devuelve sólo JSON con name del catálogo. No vuelvas a leer, diagnosticar, corregir ni preparar otro cambio. No generes argumentos. Si ninguna cumple, name vacío."
-                                : "Selecciona UNA herramienta del catálogo que realiza SOLO la operación actual, no toda la solicitud original. Devuelve únicamente JSON: primero expectedResult con el resultado concreto que esta operación necesita, después name exacto de la herramienta que lo devuelve. No generes argumentos. Los pasos anteriores ya cubren sus operaciones. Un inventario devuelve rutas y dependencias; leer código fuente devuelve el contenido y líneas del archivo. Elige por ese resultado preciso. sourceReview consulta fuentes; work crea el resultado completo; delivery exporta un archivo YA CREADO. Un esquema de contenido no es un archivo HTML, una imagen no es un video MP4. No elijas una alternativa aproximada. Si ninguna herramienta cumple, name vacío." },
+                                : "Selecciona UNA herramienta cuya descripción cubra TODA la operación actual. Llama solamente su función, sin argumentos de ejecución. No respondas al usuario. Los pasos anteriores ya cubren sus operaciones. Consultar fuentes web no consulta originales ni historial local; para una investigación que requiere ambos elige la capacidad que devuelve ambos. Un inventario devuelve rutas; leer código devuelve contenido. work debe producir el formato completo pedido: un anuncio gráfico requiere imagen, no HTML. delivery exporta un archivo YA CREADO; no lo vuelve a crear. No elijas una alternativa aproximada." },
                             { role: "user", content: JSON.stringify({
                                 stage: step.stage,
                                 originalInstruction: instruction.slice(0, 1200),
                                 previousSteps: operationCandidates.filter(previous => selections[previous.id]).map(previous => ({operation:previous.operation,tool:selections[previous.id]})),
                                 stagePurpose: {sourceReview:"Consultar las fuentes antes del trabajo.",work:"Producir el resultado solicitado.",verification:"Sólo ejecutar las pruebas del resultado ya preparado: no preparar ni modificar código otra vez.",delivery:"Exportar el resultado ya producido."}[step.stage],
                                 operation: step.operation,
-                                catalog:step.catalog
+                                ...(step.stage === "verification" ? {catalog:step.catalog} : {})
                             }) }
                         ],
                         maxOutputTokens: 256,
@@ -1140,8 +1167,13 @@ async function runModelSemanticPlanner({
                         thinkingConfig: {
                             thinkingLevel: "MINIMAL"
                         },
+                        ...(step.stage === "verification" ? {} : {
+                            nativeToolChat: true,
+                            tools: [{functionDeclarations: step.catalog.map(tool => ({name:tool.name,description:tool.description,parameters:{type:"object",properties:{},additionalProperties:false}}))}],
+                            toolConfig: {functionCallingConfig:{mode:"ANY"}}
+                        }),
                         responseMimeType: "application/json",
-                        responseJsonSchema: {type:"object",properties:{expectedResult:{type:"string",maxLength:240},name:{type:"string",enum:[...step.catalog.map(tool=>tool.name),""]}},required:step.stage === "verification" ? ["name"] : ["expectedResult","name"],additionalProperties:false}
+                        responseJsonSchema: {type:"object",properties:{name:{type:"string",enum:[...step.catalog.map(tool=>tool.name),""]}},required:["name"],additionalProperties:false}
                     }
                 });
                 const nativeSelections = selectionResponse?.functionCalls;
@@ -1471,9 +1503,13 @@ async function runModelSemanticPlanner({
                         ].filter(Boolean).join("\n\n"),
                         config: {
                             semanticStage: phase,
-                            temperature: phase === "GROUNDED_ARGUMENT_COMPLETION" && missionState?.argumentValidationFeedback ? 0.2 : 0,
+                            temperature: phase === "GROUNDED_ARGUMENT_COMPLETION" && missionState?.creativeCopyRepair ? 0.6 : phase === "GROUNDED_ARGUMENT_COMPLETION" && missionState?.argumentValidationFeedback ? 0.2 : 0,
                             ...(phase === "GROUNDED_ARGUMENT_COMPLETION" ? {chatMessages: [
-                                {role:"system",content:[
+                                {role:"system",content:missionState?.creativeCopyRepair ? [
+                                    "Eres un redactor publicitario. Crea un mensaje original en español para la marca observada. Los mensajes históricos son propuestas rechazadas, no ejemplos para completar ni hechos que debas repetir.",
+                                    "Cambia la idea central y la manera de empezar el titular. Redacta una pregunta breve al lector y un cuerpo con otro enfoque. Mantén los servicios observados, sin inventar promesas, precios, contactos o resultados.",
+                                    `Devuelve sólo JSON {toolCalls:[{name:"${phaseCatalog[0].name}",args:{composition:{headline,body}}}],missionComplete:false}. Los medios, logo y geometría se conservan; tu tarea sólo es escribir el nuevo texto.`
+                                ].join("\n") : [
                                     "Completa los argumentos de una sola herramienta. Devuelve JSON {toolCalls:[{name,args}],missionComplete:false}.",
                                     `name debe ser exactamente ${phaseCatalog[0].name}; los nombres que aparecen en evidencia describen tareas anteriores y no son herramientas por ejecutar.`,
                                     "Ejecuta solamente OPERACION_ACTUAL_DEL_PLAN. INSTRUCCION_ORIGINAL aporta restricciones; las operaciones anteriores ya tienen evidencia. Elige el valor de cada campo según la operación actual, nunca por ser el primer valor del enum.",
@@ -1484,7 +1520,7 @@ async function runModelSemanticPlanner({
                                     `CAMPOS=${JSON.stringify(buildNativeInputSchema(phaseCatalog[0].inputSchema))}`,
                                     ...(missionState?.currentOperation ? [`CONTEXTO_Y_EVIDENCIA_INMUTABLES:\n${instruction}`] : [])
                                 ].join("\n")},
-                                {role:"user",content:[missionState?.currentOperation || instruction,
+                                {role:"user",content:[missionState?.creativeCopyRepair ? instruction : missionState?.currentOperation || instruction,
                                     ...(missionState?.argumentValidationFeedback ? [`El intento anterior fue rechazado por validación independiente. Repara este fallo, no lo repitas:\n${missionState.argumentValidationFeedback}`] : [])
                                 ].join("\n")}
                             ]} : {}),
