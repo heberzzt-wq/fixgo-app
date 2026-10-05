@@ -61,11 +61,11 @@ function ensureVideoStageAndTimeout() {
 
   const file = "gestia-core/jarvis/jarvis.mission.orchestrator.js";
   let source = sourceOf(file);
-  const setupMarker = "const effectiveMissionTimeoutMs = videoGenerationRequested";
+  const setupMarker = /const effectiveMissionTimeoutMs\s*=\s*(?:noDeadline === true\s*\? null\s*:\s*)?videoGenerationRequested\s*\?\s*Math\.max\(Number\(timeoutMs\) \|\| 180000, 1800000\)/;
   const goodTimeoutLine = '        : Number(timeoutMs) || 180000;';
   const badTimeoutLine = '        : Math.max(Number(timeoutMs) || 180000, 1000);';
 
-  if (!source.includes(setupMarker)) {
+  if (!setupMarker.test(source)) {
     const before = '    const persistence = storageOrMemory(storage);\n    const startedAt = Date.now();\n    const runtimeResults = [];';
     const after = [
       '    const persistence = storageOrMemory(storage);',
