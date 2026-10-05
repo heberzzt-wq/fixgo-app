@@ -1,4 +1,13 @@
 // References inform a proposed design. They never become client facts or reusable assets.
+// Mechanical contact parsing for grounding only; never selects tools or interprets intent.
+export function advertisingContacts(value, { canonical = false } = {}) {
+    return (String(value).match(/(?:https?:\/\/|www\.)[^\s<>"']+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || [])
+        .map(contact => {
+            const trimmed = contact.replace(/[.,;!?]+$/, "");
+            return canonical ? trimmed.replace(/^https?:\/\//i, "").toLowerCase() : trimmed;
+        });
+}
+
 export function advertisingBenchmarkSources(result = {}) {
     return [...new Map((Array.isArray(result.sources) ? result.sources : []).filter(source => {
         try { return ["http:", "https:"].includes(new URL(source.url).protocol) && Boolean(source.title || source.snippet || source.text); }

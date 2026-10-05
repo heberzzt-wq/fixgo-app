@@ -5002,6 +5002,7 @@ if (
                 missionInitialToolCalls,
             requiredToolNames:
                 [...new Set(missionInitialToolCalls.map(call => call.name))],
+            toolCatalog: registeredMissionTools,
             executionContractLocked:
                 missionIsIsolated ||
                 (
@@ -5194,6 +5195,16 @@ if (
                                                     item.name
                                                 )
                                         }
+                                };
+                            }
+
+                            // An honest no-evidence verdict is a terminal partial
+                            // result, not an empty plan to replace with success.
+                            if (completionAuditToolCalls.completionAssessment?.objectives?.some(item => item.satisfied === false)) {
+                                return {
+                                    toolCalls: [],
+                                    missionComplete: false,
+                                    completionAssessment: completionAuditToolCalls.completionAssessment
                                 };
                             }
                         }
@@ -6392,6 +6403,7 @@ if (
                             objectiveSatisfied: missionResult.status === "COMPLETED",
                             status: missionResult.status,
                             reason: missionResult.reason,
+                            completionAssessment: missionResult.completionAssessment || null,
                             blocked: missionResult.blockedTasks.length > 0,
                             verifiedArtifactDelivery
                         }

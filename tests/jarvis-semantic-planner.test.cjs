@@ -523,7 +523,10 @@ test("current-turn marketing cannot be hijacked by a higher-ranked observability
                         };
                     }
                     assert.equal(request.config.nativeToolChat, true);
-                    assert.equal(request.config.tools[0].functionDeclarations.length, 2);
+                    // Retrieval keeps both operational candidates in order and
+                    // now also offers the same model a conversational escape.
+                    assert.deepEqual(request.config.tools[0].functionDeclarations.map(tool => tool.description.split(":")[0]),
+                        ["system.observability", "marketing.plan", "conversation.respond"]);
                     return {
                         text: JSON.stringify({
                             name: "jarvis_tool_1",
@@ -2577,11 +2580,13 @@ test("Gemini completion audit is JSON-only and selects one executable follow-up"
 
 test("Gemini completion audit can close without a forced tool call", async () => {
     const result = await runGeminiSemanticPlanner({
-        input: "Confirma que el diagnostico ya esta completo.",
+        input: "Confirma que la busqueda ya esta completa.",
         catalog,
         missionState: {
             phase: "COMPLETION_AUDIT",
-            completedTasks: [{ name: "repo.search" }],
+            // Closure now needs an observed result and a matching proof, not
+            // merely the name of a tool that was scheduled.
+            completedTasks: [{ name: "repo.search", observation: { ok: true, summary: "Busqueda completada con resultados del repositorio." } }],
             pendingTasks: [],
             blockedTasks: []
         },
@@ -2595,7 +2600,7 @@ test("Gemini completion audit can close without a forced tool call", async () =>
                             toolCalls: [],
                             missionComplete: true,
                             completionAssessment: {
-                                missing: []
+                                objectives: [{ objective: "Confirmar la busqueda observada", requiredEvidenceKind: "tool_result", satisfied: true, evidenceTaskIndexes: [0], limitation: "" }]
                             }
                         })
                     };

@@ -2154,6 +2154,7 @@ export async function runJarvisMission({
     initialToolCalls = [],
     requiredToolNames = [],
     executionContractLocked = false,
+    toolCatalog = [],
     planner,
     execute,
     storage,
@@ -2353,6 +2354,11 @@ export async function runJarvisMission({
     refreshDurableMissionAuthority(mission);
     saveMission(persistence, mission);
 
+    // Completing a scoped evidence tool proves execution, not that its scope
+    // satisfies the user's objective. Let the single semantic planner audit it.
+    const requiresEvidenceAudit = () => mission.requiredToolNames.some(name =>
+        toolCatalog.some(tool => tool.name === name && tool.evidenceKinds?.length > 0));
+
     while (mission.iterations < maximumSteps) {
         if (signal?.aborted) {
             mission.reason = "CANCELLED";
@@ -2375,6 +2381,7 @@ export async function runJarvisMission({
                 mission.pendingTasks.length === 0 &&
                 mission.blockedTasks.length === 0 &&
                 allRequiredCompleted &&
+                !requiresEvidenceAudit() &&
                 unresolvedProductionArtifacts.length === 0
                     ? "ALL_EXECUTABLE_TASKS_COMPLETED"
                     : "DEADLINE_EXCEEDED";
@@ -2392,6 +2399,7 @@ export async function runJarvisMission({
                 unresolvedMarketingProductionRequirements(mission);
             if (
                 mission.executionContractLocked === true &&
+                !requiresEvidenceAudit() &&
                 allRequiredCompleted &&
                 mission.blockedTasks.length === 0 &&
                 unresolvedProductionArtifacts.length === 0
@@ -2425,6 +2433,7 @@ export async function runJarvisMission({
                         : null
                 });
                 recordMissionAccounting(mission, plan || {});
+                mission.completionAssessment = plan?.completionAssessment || null;
             } catch (error) {
                 mission.reason = "PLANNER_UNAVAILABLE";
                 mission.errors.push({
@@ -2485,7 +2494,9 @@ export async function runJarvisMission({
                     mission.completedTasks.length > 0;
                 mission.reason = (
                     plan?.missionComplete === true ||
-                    verifiedContractSatisfied
+                    (!requiresEvidenceAudit() &&
+                        !plan?.completionAssessment?.objectives?.some(item => item.satisfied === false) &&
+                        verifiedContractSatisfied)
                 ) && contractSatisfied
                     ? mission.blockedTasks.length > 0
                         ? "PARTIAL_CAPABILITY_BLOCKED"
@@ -2865,6 +2876,10 @@ export async function runJarvisMission({
 
     if (!mission.reason) mission.reason = mission.iterations >= maximumSteps ? "MAXIMUM_STEPS_REACHED" : "MISSION_STOPPED";
     mission.status = mission.reason === "ALL_EXECUTABLE_TASKS_COMPLETED" ? "COMPLETED" : "PARTIAL";
+    if (requiresEvidenceAudit() && mission.status !== "COMPLETED" &&
+        !mission.completionAssessment?.objectives?.some(item => item.satisfied === false)) {
+        mission.completionAssessment = { validationFailed: true };
+    }
     mission.durationMs = Date.now() - startedAt;
     mission.pendingTasks = mission.pendingTasks.map(item => ({ ...item, status: "PENDING" }));
     mission.updatedAt = now();

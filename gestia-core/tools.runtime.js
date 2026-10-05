@@ -315,6 +315,7 @@ export const JarvisToolRuntime = {
                     t.description,
                 contractStages: t.contractStages || null,
                 contractKinds: t.contractKinds || null,
+                evidenceKinds: Array.isArray(t.evidenceKinds) ? [...t.evidenceKinds] : null,
                 mutates:
                     t.mutates === true,
                 requiresApproval:

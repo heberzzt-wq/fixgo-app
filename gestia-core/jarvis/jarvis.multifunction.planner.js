@@ -1,5 +1,5 @@
 import { semanticPlanBudgetMs } from "./jarvis.semantic.transport.js";
-import { validateAdvertisingDirection } from "./jarvis.advertising.benchmark.js";
+import { advertisingContacts, validateAdvertisingDirection } from "./jarvis.advertising.benchmark.js";
 import { documentEvidenceEnvelope, documentExcerpt } from "./jarvis.document.context.js";
 import { materialReferencesForPlanning } from "./jarvis.mission.planner-state.js?v=v142-material-handoff-20261002";
 import {
@@ -1306,6 +1306,7 @@ function runtimeCatalog(context = {}) {
             description: String(tool.description || "").slice(0, 500),
             contractStages: tool.contractStages || null,
             contractKinds: tool.contractKinds || null,
+            evidenceKinds: Array.isArray(tool.evidenceKinds) ? [...tool.evidenceKinds] : null,
             mutates: tool.mutates === true,
             requiresApproval: tool.requiresApproval === true,
             userArtifact: tool.userArtifact === true,
@@ -1732,7 +1733,8 @@ function usesRegisteredToolAsRepositoryFile(
             ""
         ).trim();
     return (
-        /^https?:\/\//i.test(target) ||
+        target.toLowerCase().startsWith("http://") ||
+        target.toLowerCase().startsWith("https://") ||
         target.length >
             0 &&
         catalogByName.has(
@@ -2153,7 +2155,7 @@ export function bindVerifiedMaterialArguments(inputSchema, instruction, sources 
     if (contact?.type === "string") {
         const officialContacts=references.flatMap(ref=>ref.verifiedContacts || []);
         const facts = officialContacts.length ? officialContacts.join("\n") : `${instruction}\n${documentEvidenceEnvelope(sources, 2500)}`;
-        const contacts = [...new Set((facts.match(/(?:https?:\/\/|www\.)[^\s<>"']+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []).map(value => value.replace(/[.,;!?]+$/, "")))];
+        const contacts = [...new Set(advertisingContacts(facts))];
         if (contacts.length) contact.enum = contacts;
     }
     return schema;
@@ -2165,7 +2167,7 @@ export function validateVerifiedMaterialComposition(args, missionEvidence = [], 
     const officialContacts=missionEvidence.flatMap(item=>materialReferencesForPlanning(item)).flatMap(ref=>ref.verifiedContacts || []);
     verifiedContactFacts = officialContacts.length ? officialContacts.join("\n") : verifiedContactFacts;
     if(verifiedContactFacts) {
-        const extract=text=>(String(text).match(/(?:https?:\/\/|www\.)[^\s<>"']+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)||[]).map(value=>value.replace(/^https?:\/\//i,"").replace(/[.,;!?]+$/,"").toLowerCase());
+        const extract = text => advertisingContacts(text, { canonical: true });
         const contacts=new Set(extract(verifiedContactFacts));
         if(extract([args.composition.headline,args.composition.body,args.composition.cta,args.composition.contact].join("\n")).some(value=>!contacts.has(value))) throw new Error("SEMANTIC_CONTACT_UNVERIFIED");
     }

@@ -5339,7 +5339,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "spreadsheet.compose",
-            description: "Diseña en memoria un libro XLSX completo con varias hojas, filas, supuestos y formulas; se usa antes de document.create y no escribe archivos.",
+            description: "Compone en memoria un libro XLSX con hojas, filas, supuestos y formulas cuando se solicita una hoja de calculo o analisis tabular. Se usa antes de document.create; no responde preguntas conceptuales generales ni analiza interfaces.",
             output: "SPREADSHEET_BLUEPRINT",
             missionDedupeBy: [],
             inputSchema: {

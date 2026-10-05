@@ -711,7 +711,8 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "browser.inspect",
-            description: "Carga una URL en Chrome/Edge headless real y devuelve el DOM renderizado.",
+            description: "Carga una URL en Chrome/Edge headless real y devuelve el DOM renderizado para inspeccionar la estructura de la interfaz. No certifica apariencia visual sin observar una captura.",
+            evidenceKinds: ["interface_structure"],
             output: "BROWSER_INSPECTION",
             inputSchema: { url: "string", timeoutMs: "number" },
             execute: async (args = {}) =>
@@ -724,6 +725,7 @@ export function registerJarvisActuatorTools(runtime) {
         register(runtime, {
             name: "browser.screenshot",
             description: "Renderiza una URL en Chrome/Edge real y guarda una captura PNG verificable.",
+            evidenceKinds: ["visual_capture"],
             output: "BROWSER_SCREENSHOT",
             inputSchema: { url: "string", output: "string", timeoutMs: "number" },
             mutates: true,
@@ -751,7 +753,8 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "system.observability",
-            description: "Consulta evidencia funcional agregada: latencia, errores, writes, aprobaciones, artefactos, uploads, web, PDF, reels y páginas.",
+            description: "Consulta salud y telemetria del runtime: latencia, errores y contadores de operaciones. No inspecciona interfaces, capturas, apariencia ni diseño grafico; ausencia de errores registrados no acredita calidad visual.",
+            evidenceKinds: ["system_telemetry"],
             output: "FUNCTIONAL_OBSERVABILITY_SNAPSHOT",
             inputSchema: { limit: "number" },
             mutates: false,
@@ -764,7 +767,7 @@ export function registerJarvisActuatorTools(runtime) {
                     averageLatencyMs: result?.averageLatencyMs ?? null,
                     checkedAt: new Date().toISOString()
                 });
-                return result;
+                return { ...result, evidenceKinds: ["system_telemetry"] };
             }
         }),
         register(runtime, {

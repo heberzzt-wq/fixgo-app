@@ -1020,12 +1020,14 @@ export function buildAuthoritativeToolOutcomeMatrix(evidenceItems = []) {
                 item?.response ||
                 item?.data ||
                 {};
+            const evidenceKinds = observation?.evidenceKinds || observation?.evidence?.evidenceKinds;
             return {
                 tool: String(item?.name || item?.tool || "").slice(0, 120),
                 status: String(observation?.status || "").slice(0, 160),
                 ok: observation?.ok === true,
                 executionOk: observation?.executionOk !== false,
                 objectiveSatisfied: observation?.objectiveSatisfied === true,
+                ...(Array.isArray(evidenceKinds) ? { evidenceKinds } : {}),
                 blocked: observation?.blocked === true,
                 requiresInput: observation?.requiresInput === true,
                 retryable: observation?.retryable === true,
@@ -1083,6 +1085,24 @@ export async function composeEvidenceGroundedConversation({
         (Array.isArray(evidenceItems) ? evidenceItems : [])
             .find(item => String(item?.name || item?.tool || "") === "mission.outcome")
             ?.observation;
+    const missingEvidence = missionOutcomeObservation?.completionAssessment?.objectives
+        ?.filter(item => item.satisfied === false && typeof item.limitation === "string" && item.limitation.trim())
+        .map(item => item.limitation.trim()) || [];
+    if (missionOutcomeObservation?.completionAssessment?.validationFailed === true) {
+        missingEvidence.push("No pude validar que la evidencia obtenida cubra lo solicitado; el análisis no está acreditado.");
+    }
+    if (missionOutcomeObservation?.status !== "COMPLETED" && missingEvidence?.length) {
+        // These are the same Qwen's validated limitations. A second prose pass
+        // must not turn the refused completion into an unsupported success.
+        return {
+            ok: true,
+            status: "CONVERSATIONAL_EVIDENCE_INSUFFICIENT",
+            text: ["No hay evidencia suficiente para completar lo solicitado.", ...new Set(missingEvidence)].join("\n"),
+            prompt: "",
+            evidence,
+            observation: missionOutcomeObservation
+        };
+    }
     const missionOutcomeInstruction =
         missionOutcomeObservation && missionOutcomeObservation.status !== "COMPLETED"
             ? `El estado canonico de la mision es ${String(missionOutcomeObservation.status || "INCOMPLETE")} con razon ${String(missionOutcomeObservation.reason || "UNRESOLVED")}; no declares la mision completada aunque una herramienta individual haya entregado un artefacto.`
@@ -1096,6 +1116,7 @@ export async function composeEvidenceGroundedConversation({
         "No repitas ni uses como encabezados los nombres internos RESUMEN_CAPACIDADES_Y_LIMITES, RESULTADOS_HERRAMIENTAS_AUTORITATIVOS o EVIDENCIA_ESTRUCTURADA; conviértelos a lenguaje natural.",
         hasCapabilities ? "Cuando existan dominios de capacidades, conviértelos en funciones humanas concretas: conversación, investigación web, análisis de archivos o medios, documentos, hojas de cálculo, páginas, imágenes y trabajo controlado de repositorio, únicamente si aparecen en la evidencia. No reduzcas el resumen a forensics; esas son fuentes de evidencia, no el alcance útil para el usuario." : "",
         "Los resultados autoritativos determinan el estado: conserva fallos, bloqueos y datos faltantes sin descartar otros resultados verificados.",
+        "ok y executionOk acreditan ejecucion, no que su evidencia responda al objetivo. Respeta evidenceKinds y el alcance observado: system_telemetry solo acredita salud y telemetria; nunca diseño grafico, apariencia, usabilidad ni ausencia de fallos visuales. Si falta evidencia visual o de interfaz para el analisis solicitado, dilo expresamente y no afirmes que fue analizado. Una captura obtenida tampoco acredita por si sola inspeccion de su contenido.",
         authoritativeOutcomes.some(item => item.requiresInput)
             ? "Enumera solamente los datos realmente faltantes que impiden una parte solicitada y pregunta al usuario si puede proporcionarlos o si prefiere continuar sin ellos; conserva todo lo ya verificado."
             : "",
