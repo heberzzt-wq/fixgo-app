@@ -721,7 +721,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "browser.inspect",
-            description: "Carga una URL en Chrome/Edge headless real y devuelve el DOM renderizado para inspeccionar la estructura de la interfaz. No certifica apariencia visual sin observar una captura.",
+            description: "Inspecciona y analiza una pagina web, plataforma o interfaz EXISTENTE cargando su URL en Chrome/Edge headless real y devolviendo DOM renderizado, estructura, jerarquia y contenido visible verificable. Sirve para revisar una interfaz existente; no crea paginas nuevas ni certifica apariencia visual sin observar una captura.",
             evidenceKinds: ["interface_structure"],
             output: "BROWSER_INSPECTION",
             inputSchema: { url: "string", timeoutMs: "number" },
@@ -734,7 +734,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "browser.screenshot",
-            description: "Renderiza una URL en Chrome/Edge real y guarda una captura PNG verificable.",
+            description: "Captura la apariencia visual de una pagina web, plataforma o interfaz EXISTENTE renderizando su URL en Chrome/Edge real y guardando una imagen PNG verificable. Aporta evidencia visual; escribe un archivo local y requiere aprobacion.",
             evidenceKinds: ["visual_capture"],
             output: "BROWSER_SCREENSHOT",
             inputSchema: { url: "string", output: "string", timeoutMs: "number" },

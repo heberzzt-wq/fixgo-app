@@ -6336,7 +6336,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         register(runtime, {
             name: "business.assist",
             contractStages: ["work"], contractKinds: ["plan"],
-            description: "Analiza estrategia, operaciones, ventas, costos, riesgos y decisiones empresariales mediante razonamiento semántico; no inventa datos ni modifica sistemas.",
+            description: "Analiza estrategia, operaciones, ventas, costos, riesgos y decisiones EMPRESARIALES mediante razonamiento semántico; no inspecciona paginas, interfaces web ni diseño visual, no inventa datos y no modifica sistemas.",
             output: "SIA7_BUSINESS_RESPONSE",
             inputSchema: {
                 prompt: "string"
@@ -6523,7 +6523,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         register(runtime, {
             name: "page.plan",
             contractStages: ["work"], contractKinds: ["plan"],
-            description: "Construye una especificacion responsive, editable y accesible de pagina sin escribir ni desplegar.",
+            description: "Diseña la especificacion responsive, editable y accesible de una pagina web NUEVA sin escribir ni desplegar. Sirve para planear una pagina por crear; no inspecciona ni analiza una pagina, plataforma o interfaz existente.",
             output: "SIA7_PAGE_SPEC",
             missionDedupeBy: ["pageName"],
             inputSchema: PAGE_ARGUMENT_SCHEMA,

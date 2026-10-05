@@ -841,9 +841,18 @@ function extractGeminiToolCallPlan(response = {}, catalog = []) {
     return toolCalls.length > 0 ? { toolCalls } : null;
 }
 
+function validActionDescription(value = "") {
+    const source = String(value || "").trim();
+    if (!source || source.length > 240) return false;
+    const words = source.split(/\s+/).filter(Boolean);
+    return words.length >= 3 && words.length <= 8;
+}
+
 function browserGroundingInstruction(missionState) {
     return [
-        "Las URLs de browser.inspect, browser.screenshot y browser.open deben proceder de la instruccion, currentPage del runtime o URLs de observaciones exitosas. No deduzcas una URL del nombre de una plataforma ni de la direccion del bridge local. Si falta la URL o evidencia, pide el dato o explica la limitacion sin inventar localhost, documentos ni exportaciones.",
+        "Las URLs de browser.inspect, browser.screenshot y browser.open deben proceder de la instruccion, currentPage del runtime o URLs de observaciones exitosas. No deduzcas una URL del nombre de una plataforma ni de la direccion del bridge local.",
+        "Si currentPage existe y el usuario se refiere semanticamente a la interfaz, aplicacion, pagina o plataforma que esta usando, currentPage resuelve esa referencia de destino: no pidas otra URL. Para la interfaz actualmente visible usa currentPage.url exacta; currentPage.origin solo define el sitio/base y no sustituye la ruta mostrada. currentPage solo acredita el destino disponible; no acredita conclusiones sobre apariencia, calidad o funcionamiento.",
+        "Si falta una URL realmente resoluble o evidencia suficiente para la conclusion solicitada, pide el dato o explica la limitacion sin inventar localhost, documentos ni exportaciones.",
         `RUNTIME_CURRENT_PAGE=${JSON.stringify(missionState?.currentPage || null)}`
     ].join("\n");
 }
@@ -879,9 +888,10 @@ function recentAdvisoryTurns(missionState, instruction) {
     for (const turn of (Array.isArray(turns) ? turns : []).slice().reverse()) {
         const role = String(turn?.role || "").trim();
         const content = String(turn?.content || "").trim();
+        const status = String(turn?.status || "").trim().slice(0, 120);
         if (!["user", "assistant"].includes(role) || !content ||
             (role === "user" && content === instruction)) continue;
-        const key = role + "\n" + content;
+        const key = role + "\n" + content + "\n" + status;
         if (seen.has(key)) continue;
         seen.add(key);
 
@@ -891,7 +901,7 @@ function recentAdvisoryTurns(missionState, instruction) {
             0,
             Math.min(maximumTurnCharacters, remaining)
         );
-        recent.unshift({ role, content: boundedContent });
+        recent.unshift({ role, content: boundedContent, status });
         totalCharacters += boundedContent.length;
         if (recent.length >= maximumTurns) break;
     }
@@ -937,14 +947,10 @@ function pendingConversationContinuation(
     const last =
         turns.at(-1);
     if (
-        last?.role !==
-            "assistant" ||
-        !String(
-            last?.content ||
-            ""
+        last?.role !== "assistant" ||
+        !["CLARIFICATION_REQUIRED", "MISSION_INPUT_REQUIRED"].includes(
+            String(last?.status || "").trim()
         )
-            .trim()
-            .endsWith("?")
     ) {
         return null;
     }
@@ -1639,7 +1645,10 @@ async function runModelSemanticPlanner({
 
     let currentTurnGateAction = "";
     let currentTurnGateRecovery = false;
-    let currentTurnRequiresConversationContext = true;
+    let currentTurnRequiresConversationContext =
+        missionState?.conversationalGate === true
+            ? Boolean(pendingContinuation)
+            : Boolean(advisoryContext);
 
     if (
         missionState?.conversationalGate === true &&
@@ -1652,6 +1661,7 @@ async function runModelSemanticPlanner({
             browserGroundingInstruction(missionState),
             'Use mode=clarify when that information must be requested from the user before work can start; mode=tools for requested reading, searching, checking or changing external state; mode=chat for social conversation, wishes without an action request, or general explanations.',
             'General conceptual questions are chat even when their topic is also something a tool can create. Do not turn explaining a concept into creating an artifact, a spreadsheet or inspecting a system. An evaluation of a specific external object requires evidence of that object.',
+            'A broad analysis or evaluation does not require the user to choose subtopics before work can begin. If the target/resource is already resolved and available tools can gather relevant evidence, missing must be empty and mode=tools; report evidence limits after execution instead of asking the user to narrow the scope.',
             'If the current message supplies information requested by the immediately preceding assistant question, treat it as continuation of that unresolved request. Reconstruct the pending operation from recent conversation context instead of classifying the short answer in isolation.',
             'Set requiresConversationContext=true only when unresolved references in the current instruction need earlier messages. Set it false for a self-contained instruction. Similar earlier tasks and failed attempts do not make a complete new request depend on their proposals or pending actions.',
             'External actions require new tool evidence even if earlier messages claimed success. A nearby place search needs an area, but a city or neighborhood already supplied is sufficient. Relative repository file paths already have an active repository.',
@@ -1686,7 +1696,9 @@ async function runModelSemanticPlanner({
                 chatMessages: [
                     { role: "system", content: gateSystemInstruction },
                     ...gateExamples,
-                    ...(advisoryContext ? [{ role: "system", content: advisoryContext }] : []),
+                    ...(pendingContinuation && advisoryContext
+                        ? [{ role: "system", content: advisoryContext }]
+                        : []),
                     { role: "user", content: currentTurnInstruction }
                 ],
                 maxOutputTokens: 256,
@@ -1750,9 +1762,11 @@ async function runModelSemanticPlanner({
                             {
                                 role: "system",
                                 content: [
-                                    "Audit only whether the proposed missing detail is truly absent from the exact user instruction.",
-                                    "If the instruction already supplies the requested detail semantically, return stillMissing=false and describe the requested operation in action using 3-8 English words.",
-                                    "If the detail is genuinely absent, return stillMissing=true and action empty.",
+                                    "Audit whether the proposed missing detail is truly essential before any useful work can begin, not merely whether it is absent.",
+                                    browserGroundingInstruction(missionState),
+                                    "A detail may be absent but non-blocking. If the resolved target and available tools allow a broad analysis, inspection, search or check to begin, return stillMissing=false and describe the first requested operation in action using 3-8 English words.",
+                                    "Do not require the user to choose subtopics, aspects, style or depth when a general analysis can already start and evidence limitations can be reported after execution.",
+                                    "Return stillMissing=true only when the requested work cannot responsibly begin without that detail; then action must be empty.",
                                     "Do not answer the user or invent facts."
                                 ].join("\n")
                             },
@@ -1770,7 +1784,17 @@ async function runModelSemanticPlanner({
                                         String(
                                             gatePayload?.question ||
                                             ""
-                                        )
+                                        ),
+                                    currentPage:
+                                        missionState?.currentPage || null,
+                                    availableTools:
+                                        safeCatalog
+                                            .filter(tool => tool?.name !== "conversation.respond")
+                                            .slice(0, 12)
+                                            .map(tool => ({
+                                                name: tool.name,
+                                                description: tool.description
+                                            }))
                                 })
                             }
                         ],
@@ -1865,7 +1889,9 @@ async function runModelSemanticPlanner({
                 model,
                 contents: [
                     responseSystemInstruction,
-                    `CONTEXTO_CONVERSACIONAL_RECIENTE=${JSON.stringify(recentConversationTurns)}`,
+                    ...(currentTurnRequiresConversationContext
+                        ? [`CONTEXTO_CONVERSACIONAL_RECIENTE=${JSON.stringify(recentConversationTurns)}`]
+                        : []),
                     `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
                 ].join("\n\n"),
                 config: {
@@ -1877,7 +1903,9 @@ async function runModelSemanticPlanner({
                             content:
                                 responseSystemInstruction
                         },
-                        ...recentConversationTurns,
+                        ...(currentTurnRequiresConversationContext
+                            ? recentConversationTurns
+                            : []),
                         {
                             role: "user",
                             content:
@@ -1924,8 +1952,7 @@ async function runModelSemanticPlanner({
                 gateResponse?.providerResponse?.finishReason !== "length" &&
                 safeCatalog.length > 1 &&
                 typeof retrieveToolCandidates === "function" &&
-                gateAction.length > 0 &&
-                gateAction.length <= 240;
+                validActionDescription(gateAction);
 
             if (
                 !canContinueOperationalTurn &&
@@ -1965,7 +1992,10 @@ async function runModelSemanticPlanner({
                     args: {
                         prompt: directMessage
                     },
-                    reason: "MODEL_DIRECT_CONVERSATION_RESPONSE",
+                    reason:
+                        gatePayload.mode === "clarify"
+                            ? "MODEL_DIRECT_CLARIFICATION_REQUEST"
+                            : "MODEL_DIRECT_CONVERSATION_RESPONSE",
                     mutates: false,
                     approved: false
                 }],
@@ -2028,7 +2058,7 @@ async function runModelSemanticPlanner({
             actionProviderResponse =
                 selection?.providerResponse || null;
         }
-        if (typeof action !== "string" || !action.trim() || action.length > 240 ||
+        if (!validActionDescription(action) ||
             actionProviderResponse?.finishReason === "length") {
             const error = new Error("SEMANTIC_ACTION_DESCRIPTION_INVALID");
             error.evidence = {

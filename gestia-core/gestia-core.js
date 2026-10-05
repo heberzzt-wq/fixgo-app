@@ -4191,7 +4191,10 @@ export const GestiaCore = {
                         role: "assistant",
                         content: composedConversationText,
                         missionId: analysisId,
-                        status: "CASUAL_CONVERSATION"
+                        status:
+                            conversationCall.reason === "MODEL_DIRECT_CLARIFICATION_REQUEST"
+                                ? "CLARIFICATION_REQUIRED"
+                                : "CASUAL_CONVERSATION"
                     });
                 }
             }

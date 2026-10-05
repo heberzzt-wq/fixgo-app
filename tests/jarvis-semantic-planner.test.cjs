@@ -136,8 +136,12 @@ test("current-turn conversational gate classifies then responds with the same lo
         gateRequest?.config?.modelProfile,
         "conversation"
     );
-    assert.deepEqual(gateRequest.config.chatMessages.map(item => item.role), ["system", "user", "assistant", "user", "assistant", "user", "assistant", "user", "assistant", "user", "assistant", "user", "assistant", "user", "assistant", "system", "user"]);
+    assert.equal(
+        gateRequest.config.chatMessages.filter(item => item.role === "system").length,
+        1
+    );
     assert.equal(gateRequest.config.chatMessages.at(-1).content, "Qué tal pariente, ¿cómo estás?");
+    assert.doesNotMatch(JSON.stringify(gateRequest.config.chatMessages), /Buenas noches, pariente/);
     assert.match(gateRequest.config.chatMessages[0].content, /new tool evidence/);
     assert.equal(
         responseRequest?.config?.modelProfile,
@@ -147,7 +151,7 @@ test("current-turn conversational gate classifies then responds with the same lo
         responseRequest?.config?.chatMessages?.at(-1)?.content,
         "Qué tal pariente, ¿cómo estás?"
     );
-    assert.match(
+    assert.doesNotMatch(
         String(responseRequest?.contents || ""),
         /Buenas noches, pariente\. ¿Qué tal todo\?/
     );
@@ -180,13 +184,13 @@ test("missing information becomes a question without executing or completing the
     });
     assert.equal(requests.length, 1, "do not reinterpret a model-selected question with another inference");
     assert.equal(result.toolCalls[0].name, "conversation.respond");
-    assert.equal(result.toolCalls[0].reason, "MODEL_DIRECT_CONVERSATION_RESPONSE");
+    assert.equal(result.toolCalls[0].reason, "MODEL_DIRECT_CLARIFICATION_REQUEST");
     assert.equal(result.toolCalls[0].args.prompt, "¿En qué ciudad o colonia quieres que busque?");
     assert.equal(result.missionComplete, false);
 });
 
 test("a follow-up retains supplied context in both tool selection and arguments without claiming evidence", async () => {
-    const turns = [{ role: "user", content: "busca un six cercano" }, { role: "assistant", content: "¿En qué zona?" }];
+    const turns = [{ role: "user", content: "busca un six cercano" }, { role: "assistant", content: "¿En qué zona?", status: "CLARIFICATION_REQUIRED" }];
     const tools = [...catalog, { name: "web.research", inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } }];
     let calls = 0;
     const result = await runJarvisSemanticPlanner({
@@ -699,6 +703,84 @@ test("current-turn semantic completion tool survives incomplete model arguments 
     );
 });
 
+test("a friendly conversational question does not create a pending operational continuation", async () => {
+    const inspect = {
+        name: "browser.inspect",
+        description: "Inspecciona la estructura DOM de una interfaz web real.",
+        mutates: false,
+        evidenceKinds: ["interface_structure"],
+        inputSchema: {
+            type: "object",
+            properties: { url: { type: "string" } },
+            required: ["url"]
+        }
+    };
+    const currentPage = {
+        url: "https://fixgo-44e4d.web.app/gestia-terminal.html",
+        origin: "https://fixgo-44e4d.web.app"
+    };
+    let calls = 0;
+    const result = await runJarvisSemanticPlanner({
+        input: "analiza el diseño gráfico de nuestra plataforma",
+        catalog: [
+            { name: "conversation.respond", description: "Responde cuando basta conversar.", mutates: false },
+            inspect
+        ],
+        missionState: {
+            phase: "CURRENT_TURN",
+            conversationalGate: true,
+            currentPage,
+            advisorySemanticContext: {
+                turns: [
+                    { role: "user", content: "¿Qué es diseño gráfico?" },
+                    {
+                        role: "assistant",
+                        content: "El diseño gráfico comunica ideas visualmente. ¿Te gustaría que te explique algo más?",
+                        status: "CASUAL_CONVERSATION"
+                    }
+                ]
+            }
+        },
+        retrieveToolCandidates: async action => {
+            assert.equal(action, "inspect current web interface");
+            return [inspect];
+        },
+        ai: {
+            models: {
+                async generateContent(request) {
+                    calls += 1;
+                    if (calls === 1) {
+                        assert.equal(request.config.chatMessages.filter(item => item.role === "system").length, 1);
+                        assert.doesNotMatch(JSON.stringify(request.config.chatMessages), /Te gustaría/);
+                        assert.match(request.config.chatMessages[0].content, /currentPage resuelve esa referencia/);
+                        return {
+                            text: JSON.stringify({
+                                missing: "",
+                                mode: "tools",
+                                question: "",
+                                action: "inspect current web interface",
+                                requiresConversationContext: false
+                            }),
+                            providerResponse: { finishReason: "stop" }
+                        };
+                    }
+                    assert.doesNotMatch(JSON.stringify(request.config.chatMessages), /Te gustaría/);
+                    return {
+                        text: JSON.stringify({
+                            name: "jarvis_tool_0",
+                            arguments: { url: currentPage.url }
+                        }),
+                        providerResponse: { finishReason: "stop" }
+                    };
+                }
+            }
+        }
+    });
+    assert.equal(calls, 2);
+    assert.equal(result.toolCalls[0].name, "browser.inspect");
+    assert.equal(result.toolCalls[0].args.url, currentPage.url);
+});
+
 test("current-turn follow-up keeps the unresolved operation when the user supplies the requested detail", async () => {
     const marketing = {
         name: "marketing.plan",
@@ -724,7 +806,7 @@ test("current-turn follow-up keeps the unresolved operation when the user suppli
             advisorySemanticContext: {
                 turns: [
                     { role: "user", content: "Haz marketing para Summit firma de abogados." },
-                    { role: "assistant", content: "¿En qué ciudad o mercado quieres enfocar la campaña?" }
+                    { role: "assistant", content: "¿En qué ciudad o mercado quieres enfocar la campaña?", status: "CLARIFICATION_REQUIRED" }
                 ]
             }
         },
@@ -817,7 +899,9 @@ test("pending clarification overrides an erroneous chat classification and conti
                         {
                             role: "assistant",
                             content:
-                                "¿En qué ciudad o mercado quieres enfocar la campaña?"
+                                "¿En qué ciudad o mercado quieres enfocar la campaña?",
+                            status:
+                                "CLARIFICATION_REQUIRED"
                         }
                     ]
                 }
