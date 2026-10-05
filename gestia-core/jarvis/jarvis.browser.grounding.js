@@ -12,7 +12,7 @@ function instructionUrls(instruction) {
     // Parse URL literals, not natural-language intent. A proposed tool argument
     // or semantic-memory answer is never a source of authority for its own URL.
     return (String(instruction || "").match(/https?:\/\/[^\s<>"'`]+/giu) || [])
-        .map(value => httpUrl(value.replace(/[.,;!?)}\]]+$/u, "")))
+        .flatMap(value => [httpUrl(value), httpUrl(value.replace(/[.,;!?)}\]]+$/u, ""))])
         .filter(Boolean);
 }
 

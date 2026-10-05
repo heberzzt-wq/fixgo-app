@@ -201,6 +201,9 @@ test("explicit local URLs and real runtime currentPage URLs still reach the exis
 test("grounding requires exact URL evidence and ignores proposed args, failed observations and memory", () => {
     const url = "https://source.test/view";
     assert.equal(validateBrowserUrl(url, { rawInput: `Inspecciona [esta interfaz](${url}).` }).ok, true);
+    for (const explicit of ["http://[::1]", "https://source.test/view?q=why?", "http://localhost:5173"]) {
+        assert.equal(validateBrowserUrl(explicit, { rawInput: `Inspecciona ${explicit}` }).ok, true);
+    }
     assert.equal(validateBrowserUrl(url, { completedTasks: [{ observation: { ok: true, sources: [{ url }] } }] }).ok, true);
     for (const context of [
         {}, { args: { url } }, { semanticMemory: { url } },
