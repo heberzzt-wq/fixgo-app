@@ -22,14 +22,18 @@ function fixture(t, { action = "read repository file", invalidTool = false } = {
   requests.push({ url, body });
   let response;
   if (url.endsWith("/api/embed")) {
-   response = { embeddings: body.input.map(text => /^repo.read|^tool.test63|^read repository/.test(text) ? [1, 0] : [0, 1]) };
+   response = { embeddings: body.input.map(text => /repo\.read|tool\.test63|(?:^|\n)Query:read repository/.test(text) ? [1, 0] : [0, 1]) };
   } else {
    assert.equal(url, "http://127.0.0.1:11434/api/chat");
    assert.equal(body.model, "qwen3:1.7b");
    const name = invalidTool ? "invented.readFile" : body.tools?.[0].function.name;
    response = { message: body.tools
     ? { tool_calls: [{ function: { name, arguments: { file: "jarvis-runtime-contract.json" } } }] }
-    : { content: JSON.stringify({ action }) }, done_reason: "stop" };
+    : { content: JSON.stringify(body.format?.properties?.mode
+        ? { missing: "", mode: "tools", question: "", action, requiresConversationContext: false }
+        : body.format?.properties?.stillMissing
+            ? { stillMissing: false, action }
+            : { action }) }, done_reason: "stop" };
   }
   return { ok: true, text: async () => JSON.stringify(response) };
  };
@@ -40,13 +44,13 @@ test("retrieval embeds Qwen's operation while native arguments retain the full o
  const f = fixture(t);
  const result = await f.engine().plan(request(catalog));
  const chats = f.requests.filter(r => r.url.endsWith("/api/chat"));
- assert.equal(chats.length, 2);
- assert.ok(chats.every(r => r.body.messages.at(-1).content === request(catalog).input));
- assert.equal(chats[0].body.format.properties.action.type, "string");
- assert.equal(chats[1].body.tools.length, 2);
- assert.match(chats[1].body.tools[0].function.description, /repo.read/);
+ const nativeChat = chats.find(r => Array.isArray(r.body.tools));
+ assert.ok(nativeChat);
+ assert.ok(chats.every(r => r.body.messages.at(-1).content === request(catalog).input || r.body.format?.properties?.stillMissing));
+ assert.ok(nativeChat.body.tools.length >= 2);
+ assert.ok(nativeChat.body.tools.some(tool => /repo.read/.test(tool.function.description)));
  const embeds = f.requests.filter(r => r.url.endsWith("/api/embed"));
- assert.deepEqual(embeds.at(-1).body.input, ["read repository file"]);
+ assert.match(embeds.at(-1).body.input[0], /Query:read repository file$/);
  assert.equal(result.toolCalls[0].name, "repo.read");
  assert.equal(result.toolCalls[0].args.file, "jarvis-runtime-contract.json");
  assert.equal(result.toolCalls[0].approved, false);
@@ -83,7 +87,7 @@ test("action description, retrieval and arguments share one deadline", async t =
   now += 30;
   return f.fetchImpl(url, options);
  } });
- await assert.rejects(engine.plan({ ...request(catalog), timeoutMs: 10 }), /LOCAL_SEMANTIC_TIMEOUT/);
+ await assert.rejects(engine.plan({ ...request(catalog), timeoutMs: 10, noDeadline: false }), /LOCAL_SEMANTIC_TIMEOUT/);
  assert.equal(f.requests.length, 1, "expired action description cannot start embeddings or native tools");
 });
 

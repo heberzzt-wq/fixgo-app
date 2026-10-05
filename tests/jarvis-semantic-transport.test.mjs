@@ -358,11 +358,11 @@ test("noDeadline lets local semantic response outlive an explicitly tiny timeout
     assert.equal(calls, 1);
 });
 
-test("current conversation forwards a real multi-turn window to Qwen", async () => {
-    let captured;
+test("current conversation does not replay unrelated history into the Qwen gate", async () => {
+    const captured = [];
     const engine = createSelfHostedSemanticEngine({ fetchImpl: async (_url, options) => {
         const body = JSON.parse(options.body);
-        if (body.format?.properties?.mode) captured = body;
+        captured.push(body);
         if (body.format?.properties?.stillMissing) {
             return { ok: true, text: async () => JSON.stringify({ message: { content: '{"stillMissing":true,"action":""}' }, done_reason: "stop" }) };
         }
@@ -383,7 +383,8 @@ test("current conversation forwards a real multi-turn window to Qwen", async () 
     } });
     const turns = Array.from({ length: 8 }, (_, index) => ({
         role: index % 2 === 0 ? "user" : "assistant",
-        content: `turno-${index + 1}: contexto persistente`
+        content: `turno-${index + 1}: contexto persistente`,
+        ...(index === 7 ? { status: "CLARIFICATION_REQUIRED" } : {})
     }));
     const plan = await engine.plan({
         input: "continua con eso",
@@ -395,9 +396,9 @@ test("current conversation forwards a real multi-turn window to Qwen", async () 
         },
         noDeadline: true
     });
-    const serialized = JSON.stringify(captured.messages);
-    assert.match(serialized, /turno-1: contexto persistente/);
-    assert.match(serialized, /turno-8: contexto persistente/);
+    const serialized = JSON.stringify(captured.map(body => body.messages || []));
+    assert.doesNotMatch(serialized, /turno-1: contexto persistente/);
+    assert.doesNotMatch(serialized, /turno-8: contexto persistente/);
     assert.equal(plan.toolCalls[0].name, "conversation.respond");
 });
 
