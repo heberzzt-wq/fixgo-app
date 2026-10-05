@@ -525,14 +525,11 @@ function createRequestB2cWithdrawalHandler({ admin, db, functions, now = () => D
         const guardRef = db.collection("withdrawal_guards").doc(technicianId);
 
         return db.runTransaction(async transaction => {
-            const [profileSnapshot, guardSnapshot, ledgerSnapshot, withdrawalsSnapshot, existingWithdrawal] =
-                await Promise.all([
-                    transaction.get(profileRef),
-                    transaction.get(guardRef),
-                    transaction.get(ledgerQuery),
-                    transaction.get(withdrawalsQuery),
-                    transaction.get(withdrawalRef)
-                ]);
+            const profileSnapshot = await transaction.get(profileRef);
+            const guardSnapshot = await transaction.get(guardRef);
+            const ledgerSnapshot = await transaction.get(ledgerQuery);
+            const withdrawalsSnapshot = await transaction.get(withdrawalsQuery);
+            const existingWithdrawal = await transaction.get(withdrawalRef);
 
             const profile = profileSnapshot.exists ? profileSnapshot.data() || {} : {};
             if (!profileSnapshot.exists ||
