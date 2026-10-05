@@ -39,6 +39,8 @@
       "ignore": [
         "firebase.json",
         "firebase.cmd",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
         "**/.*",
         ".git/**",
         ".github/**",
