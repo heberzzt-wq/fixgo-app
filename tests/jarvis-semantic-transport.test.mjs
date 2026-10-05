@@ -7,6 +7,7 @@ import path from "node:path";
 import { runInNewContext } from "node:vm";
 import { semanticPlanHandler, semanticResponseHandler, fetchLocalSemanticResponse } from "../jarvis-semantic-http.js";
 import { createSelfHostedSemanticEngine } from "../jarvis-fs-bridge.js";
+// Release authorization trigger only; no product behavior change.
 import { readSemanticStream, semanticPlanBudgetMs, semanticFailurePresentation, isSemanticTimeout } from "../gestia-core/jarvis/jarvis.semantic.transport.js";
 
 const instruction = ("Audita el runtime.\n" + "Contexto verificable. ".repeat(180) + "\nNO MODIFICAR ARCHIVOS, NO PAGAR, NO PUBLICAR.\n" + "Evidencia real. ".repeat(150)).trim();
