@@ -198,6 +198,34 @@ test("explicit local URLs and real runtime currentPage URLs still reach the exis
     assert.ok(requests.every(request => request.route === "/browser"));
 });
 
+test("runtime origin canonicalizes to the exact visible currentPage URL unless the user supplied a URL", async t => {
+    const tools = actuatorCatalog();
+    const previous = globalThis.JarvisLocalBridge;
+    const requests = [];
+    globalThis.JarvisLocalBridge = {
+        requestJson: async (route, args) => {
+            requests.push({ route, args });
+            return { ok: true };
+        }
+    };
+    t.after(() => { globalThis.JarvisLocalBridge = previous; });
+    const currentPage = {
+        url: "https://platform.test/terminal",
+        origin: "https://platform.test"
+    };
+    await tools.get("browser.inspect").execute(
+        { url: currentPage.origin },
+        { rawInput: "Analiza nuestra plataforma", currentPage }
+    );
+    assert.equal(requests.at(-1).args.url, currentPage.url);
+
+    await tools.get("browser.inspect").execute(
+        { url: currentPage.origin },
+        { rawInput: "Analiza https://platform.test", currentPage }
+    );
+    assert.equal(requests.at(-1).args.url, "https://platform.test/");
+});
+
 test("grounding requires exact URL evidence and ignores proposed args, failed observations and memory", () => {
     const url = "https://source.test/view";
     assert.equal(validateBrowserUrl(url, { rawInput: `Inspecciona [esta interfaz](${url}).` }).ok, true);

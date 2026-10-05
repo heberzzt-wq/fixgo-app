@@ -18,12 +18,17 @@ function instructionUrls(instruction) {
 
 export function validateBrowserUrl(url, context = {}) {
     const target = httpUrl(url);
-    const grounded = new Set([
+    const explicit = new Set([
         ...instructionUrls(context.rawInput),
         ...instructionUrls(context.originalInstruction),
-        ...instructionUrls(context.rootInstruction),
-        httpUrl(context.currentPage?.url),
-        httpUrl(context.currentPage?.origin)
+        ...instructionUrls(context.rootInstruction)
+    ].filter(Boolean));
+    const currentPageUrl = httpUrl(context.currentPage?.url);
+    const currentPageOrigin = httpUrl(context.currentPage?.origin);
+    const grounded = new Set([
+        ...explicit,
+        currentPageUrl,
+        currentPageOrigin
     ].filter(Boolean));
 
     // Successful observed URLs support browser follow-ups. Do not include task
@@ -43,6 +48,14 @@ export function validateBrowserUrl(url, context = {}) {
         if (task?.observation?.ok === true) collectObservedUrls(task.observation);
     }
 
+    if (target && explicit.has(target)) return { ok: true, url: target };
+    if (
+        target &&
+        currentPageUrl &&
+        (target === currentPageUrl || target === currentPageOrigin)
+    ) {
+        return { ok: true, url: currentPageUrl };
+    }
     if (target && grounded.has(target)) return { ok: true, url: target };
     return {
         ok: false,
