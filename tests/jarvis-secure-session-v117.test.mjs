@@ -117,7 +117,7 @@ test("browser shell and media ingestion receive fresh v117 cache identities", ()
     const multitool = read("gestia-core/jarvis/jarvis.multitool.pack.js");
 
     const shellTokens =
-        html.match(/gestia-terminal\.js\?v=v94-[a-z0-9-]+-[0-9]{8}/g) || [];
+        html.match(/gestia-terminal\.js\?v=v142-[a-z0-9-]+-[0-9]{8}/g) || [];
     assert.equal(shellTokens.length, 2);
     assert.doesNotMatch(
         html,
@@ -125,6 +125,6 @@ test("browser shell and media ingestion receive fresh v117 cache identities", ()
     );
     assert.match(
         multitool,
-        /jarvis\.media\.ingestion\.js\?v=v94-secure-session-v117-20260810/
+        /jarvis\.media\.ingestion\.js\?v=v142-adjunto-flow-alignment-20261001/
     );
 });
