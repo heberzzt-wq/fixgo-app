@@ -11,6 +11,23 @@ const LOCAL_SEMANTIC_ROUTE = "/semantic/plan";
 const CACHE_TTL_MS = 30000;
 const planCache = new Map();
 const pendingPlans = new Map();
+const CONTRACT_SCOPE_FIELDS = ["contractStages", "contractKinds", "dependencies", "dependsOn", "requiredToolNames"];
+
+// CURRENT_TURN already selected this operation. Capability metadata, never
+// wording or retrieval rank, determines whether another contract is needed.
+export function isBoundedReadOnlyMission(calls = [], catalog = []) {
+    if (calls.length !== 1) return false;
+    const call = calls[0];
+    const tool = catalog.find(item => item.name === call?.name);
+    if (!tool || tool.mutates !== false || tool.userArtifact === true ||
+        tool.requiresApproval === true || call.approved === true ||
+        call.deferred === true || call.name === "conversation.respond") return false;
+    const declaresContract = source => [...CONTRACT_SCOPE_FIELDS, "obligationId"].some(key => {
+        const value = source?.[key];
+        return Array.isArray(value) ? value.length > 0 : Boolean(value);
+    });
+    return ![calls, tool, call, call.args].some(declaresContract);
+}
 
 const LOCAL_MISSION_CONTRACT_TIMEOUT_MS =
     90000;
@@ -1640,6 +1657,11 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
             reason: String(candidate?.reason || "MODEL_SEMANTIC_TOOL_SELECTION").slice(0, 240),
             mutates: tool.mutates,
             approved: tool.mutates === true && context.approved === true,
+            // Preserve declared scope so a CURRENT_TURN call with dependencies
+            // cannot be mistaken for a self-contained read after normalization.
+            ...Object.fromEntries(CONTRACT_SCOPE_FIELDS
+                .filter(key => candidate?.[key] !== undefined)
+                .map(key => [key, candidate[key]])),
             ...(deferredObligation ? { obligationId: deferredObligation } : {}),
             ...(dedupeKey ? { missionDedupeKey: dedupeKey } : {}),
             ...(
@@ -1911,6 +1933,9 @@ function schemaValueIsExecutable(
 
 function attachPlanMetadata(calls = [], plan = {}) {
     Object.defineProperties(calls, {
+        ...Object.fromEntries(CONTRACT_SCOPE_FIELDS
+            .filter(key => plan?.[key] !== undefined)
+            .map(key => [key, { value: plan[key], enumerable: false }])),
         missionComplete: {
             value: plan?.missionComplete === true,
             enumerable: false
@@ -2360,6 +2385,11 @@ export function isJarvisCapabilityForensicsRequest(planOrCalls = []) {
 export async function buildJarvisMultifunctionToolCalls(input = "", context = {}) {
     const instruction = String(input || "").trim();
     if (!instruction) return [];
+
+    const currentPage = context.currentPage || context.state?.currentPage;
+    if (currentPage) {
+        context = { ...context, missionState: { ...context.missionState, currentPage } };
+    }
 
     const catalog = runtimeCatalog(context);
     if (catalog.length === 0) {

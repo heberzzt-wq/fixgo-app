@@ -4935,6 +4935,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "document.compose",
+            contractStages: ["work"], contractKinds: ["document"],
             description: "Redacta en memoria el contenido completo y original de un documento solicitado, sin copiar fuentes ni escribir archivos; se usa antes de document.create.",
             output: "DOCUMENT_CONTENT_BLUEPRINT",
             missionDedupeBy: ["format"],
@@ -5339,6 +5340,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "spreadsheet.compose",
+            contractStages: ["work"], contractKinds: ["document"],
             description: "Compone en memoria un libro XLSX con hojas, filas, supuestos y formulas cuando se solicita una hoja de calculo o analisis tabular. Se usa antes de document.create; no responde preguntas conceptuales generales ni analiza interfaces.",
             output: "SPREADSHEET_BLUEPRINT",
             missionDedupeBy: [],
@@ -5587,6 +5589,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "page.compose",
+            contractStages: ["work"], contractKinds: ["page"],
             description: "Prepara solamente un esquema JSON de textos para una página futura; no crea ni guarda archivos HTML descargables. Es una preparación interna de page.create, que produce el archivo final.",
             output: "PAGE_CONTENT_BLUEPRINT",
             missionDedupeBy: [],
@@ -6519,6 +6522,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "page.plan",
+            contractStages: ["work"], contractKinds: ["plan"],
             description: "Construye una especificacion responsive, editable y accesible de pagina sin escribir ni desplegar.",
             output: "SIA7_PAGE_SPEC",
             missionDedupeBy: ["pageName"],
@@ -6588,6 +6592,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "image.plan",
+            contractStages: ["work"], contractKinds: ["plan"],
             description: "Define requisitos y prompts de imagen sustentados en evidencia sin generar archivos ni inventar materiales.",
             output: "SIA7_IMAGE_REQUIREMENTS_PLAN",
             inputSchema: IMAGE_PLAN_ARGUMENT_SCHEMA,
@@ -6642,6 +6647,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "reel.plan",
+            contractStages: ["work"], contractKinds: ["plan"],
             description: "Construye un storyboard vertical con timeline exacto y evidencia por escena sin producir video.",
             output: "SIA7_REEL_PLAN",
             inputSchema: REEL_PLAN_ARGUMENT_SCHEMA,

@@ -841,9 +841,17 @@ function extractGeminiToolCallPlan(response = {}, catalog = []) {
     return toolCalls.length > 0 ? { toolCalls } : null;
 }
 
+function browserGroundingInstruction(missionState) {
+    return [
+        "Las URLs de browser.inspect, browser.screenshot y browser.open deben proceder de la instruccion, currentPage del runtime o URLs de observaciones exitosas. No deduzcas una URL del nombre de una plataforma ni de la direccion del bridge local. Si falta la URL o evidencia, pide el dato o explica la limitacion sin inventar localhost, documentos ni exportaciones.",
+        `RUNTIME_CURRENT_PAGE=${JSON.stringify(missionState?.currentPage || null)}`
+    ].join("\n");
+}
+
 function buildSemanticSystemInstruction(catalog = [], missionState = null) {
     return [
         "Eres Jarvis, la unica autoridad semantica del sistema.",
+        browserGroundingInstruction(missionState),
         "Interpreta el significado completo de la instruccion sin usar clasificaciones lexicas, diccionarios de intencion ni reglas de negocio hardcodeadas.",
         "El catalogo runtime y los schemas incluidos abajo son la unica fuente de verdad sobre herramientas disponibles, argumentos, mutaciones, aislamiento y entregables.",
         "Selecciona exclusivamente herramientas presentes en el catalogo. No inventes nombres de herramientas, archivos, rutas, entidades, hechos, resultados ni evidencia.",
@@ -1641,6 +1649,7 @@ async function runModelSemanticPlanner({
     ) {
         const gateSystemInstruction = [
             'Classify the current request. First identify essential missing information in missing (empty string if none). Use context only to resolve references, never as proof of actions.',
+            browserGroundingInstruction(missionState),
             'Use mode=clarify when that information must be requested from the user before work can start; mode=tools for requested reading, searching, checking or changing external state; mode=chat for social conversation, wishes without an action request, or general explanations.',
             'General conceptual questions are chat even when their topic is also something a tool can create. Do not turn explaining a concept into creating an artifact, a spreadsheet or inspecting a system. An evaluation of a specific external object requires evidence of that object.',
             'If the current message supplies information requested by the immediately preceding assistant question, treat it as continuation of that unresolved request. Reconstruct the pending operation from recent conversation context instead of classifying the short answer in isolation.',
@@ -2053,7 +2062,7 @@ async function runModelSemanticPlanner({
             config: {
                 semanticStage: "CURRENT_TURN_TOOL_SELECTION",
                 chatMessages: [
-                    { role: "system", content: ["Eres Jarvis, un asistente general. Los candidatos de retrieval son sugerencias, no una orden de ejecutar. Evalua la solicitud original con las descripciones y schemas. Si basta una explicacion conceptual, selecciona conversation.respond y responde; no crees artefactos que no se solicitaron. Para evaluar un objeto real usa una fuente que aporte evidencia pertinente. Telemetria o salud no acreditan inspeccion visual ni diseno. Si ninguna herramienta puede aportar la evidencia necesaria, usa conversation.respond para explicar que falta, sin afirmar que analizaste el objeto. Solo las solicitudes de codigo o archivos pertenecen al repositorio activo. Construye argumentos con valores ejecutables del tipo indicado, no descriptores de schema. Ejecuta solo la accion solicitada y respeta las restricciones del usuario. No inventes ubicaciones, lecturas ni resultados.", operativeAdvisoryContext].filter(Boolean).join("\n") },
+                    { role: "system", content: ["Eres Jarvis, un asistente general. Los candidatos de retrieval son sugerencias, no una orden de ejecutar. Evalua la solicitud original con las descripciones y schemas. Si basta una explicacion conceptual, selecciona conversation.respond y responde; no crees artefactos que no se solicitaron. Para evaluar un objeto real usa una fuente que aporte evidencia pertinente. Telemetria o salud no acreditan inspeccion visual ni diseno. Si ninguna herramienta puede aportar la evidencia necesaria, usa conversation.respond para explicar que falta, sin afirmar que analizaste el objeto. Solo las solicitudes de codigo o archivos pertenecen al repositorio activo. Construye argumentos con valores ejecutables del tipo indicado, no descriptores de schema. Ejecuta solo la accion solicitada y respeta las restricciones del usuario. No inventes ubicaciones, lecturas ni resultados.", browserGroundingInstruction(missionState), operativeAdvisoryContext].filter(Boolean).join("\n") },
                     { role: "user", content: currentTurnInstruction }
                 ],
                 maxOutputTokens: 160,

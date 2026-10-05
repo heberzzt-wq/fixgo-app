@@ -41,6 +41,7 @@ import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls,
     completeJarvisPlanningArguments,
+    isBoundedReadOnlyMission,
     shouldCompleteJarvisPlanningArguments
 } from '/gestia-core/jarvis/jarvis.multifunction.planner.js?v=v142-adjunto-flow-alignment-20261001';
 import {
@@ -4037,6 +4038,15 @@ export const GestiaCore = {
      * procesarIntencion: El pipeline definitivo de soberanía sistémica.
      */
     async procesarIntencion(inputRaw, context = {}) {
+        // Capture the real UI location as explicit runtime context. Never infer
+        // a platform address from a model argument or the local bridge URL.
+        context = {
+            ...context,
+            currentPage: context.currentPage || (globalThis.location?.href ? {
+                url: globalThis.location.href,
+                origin: globalThis.location.origin
+            } : null)
+        };
         const userBeforeAuthRestore =
             auth.currentUser;
         const user =
@@ -4138,6 +4148,9 @@ export const GestiaCore = {
                 throw new Error("TOOLS_BRIDGE_MISSING_FOR_CONVERSATION");
             }
             const conversationCall = terminalSemanticPlan.toolCalls[0];
+            if (!String(conversationCall.args?.prompt || "").trim()) {
+                return { status: "halted", reason: "SEMANTIC_RESPONSE_EMPTY", ok: false };
+            }
             console.info("[CURRENT_TURN_CONVERSATION_TOOL_EXECUTION]");
             const conversationResult =
                 await window.ToolsBridge.executeAndCompose(
@@ -4148,10 +4161,9 @@ export const GestiaCore = {
                         rawInput: inputRaw,
                         tenantId,
                         analysisId,
-                        semanticMemory: semanticMemoryContext,
-                        precomposedSemanticResponse:
-                            conversationCall.reason ===
-                            "MODEL_DIRECT_CONVERSATION_RESPONSE",
+                        // A sole CURRENT_TURN conversation prompt is the
+                        // model's answer (or limitation), regardless of reason.
+                        precomposedSemanticResponse: true,
                         writeAllowed: false,
                         approved: false
                     }
@@ -4164,12 +4176,7 @@ export const GestiaCore = {
                         conversationResult?.report ||
                         conversationResult?.data?.message ||
                         conversationResult?.response?.data?.message ||
-                        (
-                            conversationCall.reason ===
-                            "MODEL_DIRECT_CONVERSATION_RESPONSE"
-                                ? conversationCall?.args?.prompt
-                                : ""
-                        ) ||
+                        conversationCall?.args?.prompt ||
                         ""
                     ).trim();
 
@@ -4259,8 +4266,9 @@ export const GestiaCore = {
                 );
             });
 
-        // V142: semantic retrieval is only a shortlist. No retrieved tool,
-        // including read-only/no-arg tools, may bypass the full mission contract.
+        // Retrieval is only a shortlist; CURRENT_TURN is the semantic decision.
+        // A single capability without a production/dependency contract can stay
+        // bounded while retaining permissions and final evidence verification.
 
         this.emitirPulso("INIT", "TERMINAL_START", `ID: ${analysisId.substring(0, 8)}`);
 
@@ -4780,14 +4788,18 @@ if (
                 .map(call => call?.name)
                 .filter(Boolean)
         );
+    const boundedCurrentTurnMission =
+        terminalSemanticPlan?.reason === "model_selected_multifunction_plan" &&
+        isBoundedReadOnlyMission(terminalSemanticPlan.toolCalls, registeredMissionTools) &&
+        isBoundedReadOnlyMission(operationalInitialToolCalls, registeredMissionTools);
     const missionToolCatalog =
         [
             ...registeredMissionTools.filter(tool => operationalMissionToolNames.has(tool.name)),
             ...registeredMissionTools.filter(tool => !operationalMissionToolNames.has(tool.name))
-        ].slice(0, 80);
-    let missionContractToolCalls;
+        ].filter(tool => !boundedCurrentTurnMission || operationalMissionToolNames.has(tool.name)).slice(0, 80);
+    let missionContractToolCalls = boundedCurrentTurnMission ? operationalInitialToolCalls : undefined;
     let lastMissionContractError = null;
-    for (let missionContractAttempt = 1; missionContractAttempt <= 3; missionContractAttempt += 1) {
+    for (let missionContractAttempt = 1; missionContractAttempt <= 3 && !boundedCurrentTurnMission; missionContractAttempt += 1) {
         try {
             missionContractToolCalls =
                 await buildJarvisMultifunctionToolCalls(
@@ -4930,7 +4942,7 @@ if (
                     "EXPLICIT_REPOSITORY_TARGET_EVIDENCE"
             }));
     const missionInitialToolCalls =
-        missionIsIsolated
+        missionIsIsolated || boundedCurrentTurnMission
             ? missionContractToolCalls
             : addRepositoryDiscoveryPreflights({
                 toolCalls: [
@@ -5002,7 +5014,7 @@ if (
                 missionInitialToolCalls,
             requiredToolNames:
                 [...new Set(missionInitialToolCalls.map(call => call.name))],
-            toolCatalog: registeredMissionTools,
+            toolCatalog: boundedCurrentTurnMission ? missionToolCatalog : registeredMissionTools,
             executionContractLocked:
                 missionIsIsolated ||
                 (
@@ -5064,7 +5076,7 @@ if (
                         // authority. A file read does not authorize an automatic
                         // read -> diagnose -> impact sequence.
                         const completionAuditCatalog =
-                            registeredMissionTools
+                            (boundedCurrentTurnMission ? missionToolCatalog : registeredMissionTools)
                                 .slice(0, 80);
 
                         if (completionAuditCatalog.length > 0) {
@@ -5124,7 +5136,7 @@ if (
                                             writeAllowed:
                                                 false,
                                             userArtifactAllowed:
-                                                true,
+                                                !boundedCurrentTurnMission,
                                             semanticMemoryAvailable: Boolean(semanticMemoryContext)
                                         }
                                     }

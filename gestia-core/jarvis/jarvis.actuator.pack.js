@@ -2,6 +2,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 import { ADVERTISING_DIRECTION_SCHEMA, validateAdvertisingDirection } from "./jarvis.advertising.benchmark.js";
+import { validateBrowserUrl } from "./jarvis.browser.grounding.js";
 import {
     buildPageArtifactHtml,
     describePageArtifact
@@ -447,6 +448,15 @@ function bridgeRequest(path, payload, timeoutMs = 60000) {
     );
 }
 
+function groundedBrowserRequest(payload, context, timeoutMs) {
+    if (typeof globalThis?.JarvisLocalBridge?.requestJson !== "function") {
+        return bridgeRequest("/browser", payload, timeoutMs);
+    }
+    const grounding = validateBrowserUrl(payload.url, context);
+    if (!grounding.ok) return Promise.resolve(grounding);
+    return bridgeRequest("/browser", { ...payload, url: grounding.url }, timeoutMs);
+}
+
 async function sha256Text(value = "") {
     if (
         !globalThis?.crypto?.subtle ||
@@ -715,12 +725,12 @@ export function registerJarvisActuatorTools(runtime) {
             evidenceKinds: ["interface_structure"],
             output: "BROWSER_INSPECTION",
             inputSchema: { url: "string", timeoutMs: "number" },
-            execute: async (args = {}) =>
-                await bridgeRequest("/browser", {
+            execute: async (args = {}, context = {}) =>
+                await groundedBrowserRequest({
                     action: "inspect",
                     url: args.url,
                     timeoutMs: args.timeoutMs || 45000
-                }, (args.timeoutMs || 45000) + 5000)
+                }, context, (args.timeoutMs || 45000) + 5000)
         }),
         register(runtime, {
             name: "browser.screenshot",
@@ -730,13 +740,13 @@ export function registerJarvisActuatorTools(runtime) {
             inputSchema: { url: "string", output: "string", timeoutMs: "number" },
             mutates: true,
             requiresApproval: true,
-            execute: async (args = {}) =>
-                await bridgeRequest("/browser", {
+            execute: async (args = {}, context = {}) =>
+                await groundedBrowserRequest({
                     action: "screenshot",
                     url: args.url,
                     output: args.output || ".jarvis-artifacts/browser/latest.png",
                     timeoutMs: args.timeoutMs || 45000
-                }, (args.timeoutMs || 45000) + 5000)
+                }, context, (args.timeoutMs || 45000) + 5000)
         }),
         register(runtime, {
             name: "browser.open",
@@ -745,11 +755,11 @@ export function registerJarvisActuatorTools(runtime) {
             inputSchema: { url: "string" },
             mutates: true,
             requiresApproval: true,
-            execute: async (args = {}) =>
-                await bridgeRequest("/browser", {
+            execute: async (args = {}, context = {}) =>
+                await groundedBrowserRequest({
                     action: "open",
                     url: args.url
-                })
+                }, context)
         }),
         register(runtime, {
             name: "system.observability",
