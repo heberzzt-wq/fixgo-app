@@ -2978,7 +2978,7 @@ test("Terminal uses one governed conversation route and the current tool pack", 
     assert.doesNotMatch(conversationConnector, /setTimeout\(\(\) => controller\.abort\(\), 8000\)/);
     assert.match(
         terminal,
-        /gestia-terminal\.js\?v=v94-[a-z0-9-]+-[0-9]{8}/
+        /gestia-terminal\.js\?v=v142-[a-z0-9-]+-[0-9]{8}/
     );
     assert.match(toolRuntime, /registerJarvisMultifunctionTools/);
     assert.doesNotMatch(terminal, /Soy tu motor generador de módulos/);

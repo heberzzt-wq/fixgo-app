@@ -6938,6 +6938,9 @@ test("recoverable Wan2.2 reference failure skips Wan2.1 and preserves the asset 
         globalThis.JarvisLocalBridge = {
             async requestJson(route, payload) {
                 routes.push({ route, payload });
+                if (route === "/media/library") {
+                    return { ok: true, externalGenerationAllowed: true };
+                }
                 if (route === "/artifact/read") {
                     return { ok: true, output: referenceOutput, mimeType: "image/png", dataBase64: imageBytes };
                 }

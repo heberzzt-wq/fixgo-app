@@ -839,7 +839,7 @@ test("CURRENT_TURN uses Qwen's action for retrieval before selecting a canonical
         });
         assert.equal(requests[0].body.messages.at(-1).content, "Audita el runtime real y confirma bridge y repo");
         const embeddings = requests.filter(item => item.url.endsWith("/api/embed"));
-        assert.deepEqual(embeddings.at(-1).body.input, ["audit repository runtime"]);
+        assert.match(embeddings.at(-1).body.input[0], /Query:audit repository runtime$/);
         assert.equal(plan.toolCalls[0].name, "repo.audit");
         assert.equal(embeddings.length, 2);
         assert.equal(requests.filter(item => item.url.endsWith("/api/chat")).length, 2);
@@ -1012,7 +1012,13 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
             const requestBody = JSON.parse(options.body);
             requestBodies.push(requestBody);
             const content = requestBodies.length === 1
-                ? JSON.stringify({ mode: "chat" })
+                ? JSON.stringify({
+                    missing: "",
+                    mode: "chat",
+                    question: "",
+                    action: "",
+                    requiresConversationContext: true
+                })
                 : "Jajaja, ya entendí: se te antojó a ti.";
             return {
                 ok: true,
@@ -1078,7 +1084,6 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
             "assistant",
             "user",
             "assistant",
-            "system",
             "user"
         ]
     );

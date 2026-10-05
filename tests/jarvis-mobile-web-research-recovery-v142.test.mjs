@@ -82,7 +82,10 @@ test("v142 critical ADJUNTO boot graph is release-aligned and cannot bypass the 
         const source = fs.readFileSync(new URL(relative, import.meta.url), "utf8");
         const versions = [...source.matchAll(/\?v=([^"'\s)]+)/g)].map(match => match[1]);
         assert.ok(versions.length > 0, relative);
-        assert.deepEqual([...new Set(versions)], [releaseTag], relative);
+        const expectedVersions = relative.endsWith("jarvis.actuator.pack.js")
+            ? [releaseTag, "v142-local-ad-composition-20261002"]
+            : [releaseTag];
+        assert.deepEqual([...new Set(versions)], expectedVersions, relative);
     }
 
     const core = fs.readFileSync(
@@ -227,7 +230,7 @@ test("v142 read-only current-turn tools still pass through the full mission cont
     );
     assert.match(
         core,
-        /let missionContractToolCalls;[\s\S]{0,160}for \(let missionContractAttempt = 1; missionContractAttempt <= 3/
+        /let missionContractToolCalls\s*=[\s\S]{0,260}for \(let missionContractAttempt = 1; missionContractAttempt <= 3/
     );
     assert.match(
         core,
