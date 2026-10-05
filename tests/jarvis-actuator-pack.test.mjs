@@ -84,6 +84,7 @@ test("actuator pack registers browser, documents, image, delegation and connecto
 
     assert.equal(result.ok, true);
     assert.deepEqual(names, [
+        "media.library",
         "system.supervision.runNow",
         "browser.inspect",
         "browser.screenshot",
@@ -167,7 +168,7 @@ test("actuator pack registers browser, documents, image, delegation and connecto
         runtime.get("image.edit").inputSchema.ageMode,
         "string"
     );
-    assert.equal(runtime.get("image.adapt").requiresApproval, true);
+    assert.equal(runtime.get("image.adapt").requiresApproval, false);
     assert.equal(runtime.get("artifact.createJson").requiresApproval, true);
     assert.equal(runtime.get("artifact.list").mutates, false);
     assert.equal(runtime.get("artifact.read").mutates, false);
@@ -517,6 +518,15 @@ test("image edit composes identity references once and reports the generated out
                 ) => {
                     if (
                         path ===
+                        "/media/library"
+                    ) {
+                        return {
+                            ok: true,
+                            externalGenerationAllowed: true
+                        };
+                    }
+                    if (
+                        path ===
                         "/artifact/read"
                     ) {
                         if (
@@ -802,6 +812,7 @@ test("video generation sends three verified identity references only to the init
         };
         globalThis.JarvisLocalBridge = {
             async requestJson(path, payload) {
+                if (path === "/media/library") return { ok: true, externalGenerationAllowed: true };
                 if (path === "/video/engine/resolve") {
                     return {
                         ok: true,
@@ -990,6 +1001,7 @@ test("CURRENT_STABLE fails closed when external cost authorization is unavailabl
         };
         globalThis.JarvisLocalBridge = {
             async requestJson(route) {
+                if (route === "/media/library") return { ok: true, externalGenerationAllowed: true };
                 if (route === "/video/engine/resolve") {
                     return {
                         ok: true,
@@ -1099,6 +1111,7 @@ test("video generation recovers a transient poll on the same operation without a
         };
         globalThis.JarvisLocalBridge = {
             async requestJson(path, payload) {
+                if (path === "/media/library") return { ok: true, externalGenerationAllowed: true };
                 if (path === "/video/engine/resolve") {
                     return {
                         ok: true,
@@ -1198,6 +1211,7 @@ test("video generation surfaces RAI reasons and never restarts from zero", async
         };
         globalThis.JarvisLocalBridge = {
             async requestJson(route, payload) {
+                if (route === "/media/library") return { ok: true, externalGenerationAllowed: true };
                 if (route === "/video/engine/resolve") {
                     return {
                         ok: true,
@@ -1270,6 +1284,7 @@ test("video generation stays blocked when import does not prove a physical MP4",
         };
         globalThis.JarvisLocalBridge = {
             async requestJson(route) {
+                if (route === "/media/library") return { ok: true, externalGenerationAllowed: true };
                 if (route === "/video/engine/resolve") {
                     return {
                         ok: true,
@@ -1323,6 +1338,7 @@ test("series video loads canonical episode context before Veo and records only t
         globalThis.auth = { currentUser: { getIdToken: async () => "series-token" } };
         globalThis.JarvisLocalBridge = {
             async requestJson(route, payload) {
+                if (route === "/media/library") return { ok: true, externalGenerationAllowed: true };
                 bridgeCalls.push({ route, payload });
                 if (route === "/series/episode/generation-context") {
                     return {
@@ -1437,6 +1453,7 @@ test("series video blocks unsupported segment count before spending a Veo genera
     try {
         globalThis.JarvisLocalBridge = {
             async requestJson(route) {
+                if (route === "/media/library") return { ok: true, externalGenerationAllowed: true };
                 assert.equal(route, "/series/episode/generation-context");
                 return {
                     ok: true,
@@ -1482,6 +1499,7 @@ test("a timestamped seven-beat series episode starts one resumable 180-second lo
         };
         globalThis.JarvisLocalBridge = {
             async requestJson(route, payload) {
+                if (route === "/media/library") return { ok: true, externalGenerationAllowed: true };
                 if (route === "/series/episode/generation-context") {
                     return {
                         ok: true,

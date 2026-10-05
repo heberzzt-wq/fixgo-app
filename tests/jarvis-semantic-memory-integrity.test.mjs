@@ -337,7 +337,7 @@ test("terminal planner keeps mission memory advisory while direct conversation r
     const pack = fs.readFileSync(new URL("../gestia-core/jarvis/jarvis.multitool.pack.js", import.meta.url), "utf8");
     assert.match(core, /phase: "CURRENT_TURN"[\s\S]{0,500}advisorySemanticContext: compactJarvisSemanticMemoryForPlanner\(semanticMemory\)/);
     assert.match(core, /phase: "MISSION_CONTRACT"[\s\S]{0,900}advisorySemanticContext: compactJarvisSemanticMemoryForPlanner\(semanticMemoryContext\)/);
-    assert.match(core, /CURRENT_TURN_CONVERSATION_TOOL_EXECUTION[\s\S]{0,900}semanticMemory:\s*semanticMemoryContext/);
+    assert.match(core, /CURRENT_TURN_CONVERSATION_TOOL_EXECUTION[\s\S]{0,900}precomposedSemanticResponse:\s*true/);
     assert.match(pack, /Responde la instrucción actual usando memoria semántica únicamente como contexto asesor/);
     assert.match(pack, /nunca se convierte por sí sola en evidencia factual de la misión actual/);
     assert.doesNotMatch(core, /lexicalRouting\s*:\s*true/);
@@ -351,7 +351,7 @@ test("active terminal boot no longer loads lexical context memory or duplicate r
     assert.match(terminal, /KernelHeberto\.inicializarAutoridad\(\)/);
     assert.match(html, /memoria semántica de sesiones anteriores/);
     assert.doesNotMatch(html, /fixgo-real-runtime-e2e-v3-20260805/);
-    assert.match(html, /gestia-terminal\.js\?v=v94-[a-z0-9-]+-[0-9]{8}/);
+    assert.match(html, /gestia-terminal\.js\?v=v142-[a-z0-9-]+-[0-9]{8}/);
     const core = fs.readFileSync(new URL("../gestia-core/gestia-core.js", import.meta.url), "utf8");
     assert.doesNotMatch(core, /tools\.runtime\.js\?v=v94-semantic-only-v108-20260809/);
 });

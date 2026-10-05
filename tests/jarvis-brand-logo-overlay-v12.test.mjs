@@ -97,6 +97,9 @@ test("brand-scene image.edit forbids generated logos and composites the official
 
         globalThis.JarvisLocalBridge = {
             requestJson: async (path, payload) => {
+                if (path === "/media/library") {
+                    return { ok: true, externalGenerationAllowed: true };
+                }
                 if (path === "/artifact/read") {
                     if (payload.output === ".jarvis-artifacts/web-media/foto-real.jpg") {
                         return {
