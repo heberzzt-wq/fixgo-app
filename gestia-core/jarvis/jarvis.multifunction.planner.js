@@ -2180,7 +2180,7 @@ export function validateVerifiedMaterialComposition(args, missionEvidence = [], 
     if(history.some(item=>item.visual?.sourceRef && item.visual.sourceRef===args.sourceOutput && item.visual.layout===(args.composition.layout || "split"))) {
         throw new Error("SEMANTIC_ADVERTISING_COMPOSITION_REPEATED: Elige otra fotografía oficial o un layout distinto; cambiar texto, color, recorte o tamaño no cambia esta composición ya entregada.");
     }
-    if(history.some(item=>item.creative && normalize(item.creative.headline)===normalize(args.composition.headline) && normalize(item.creative.body)===normalize(args.composition.body))) {
+    if(history.some(item=>item.creative && (normalize(item.creative.headline)===normalize(args.composition.headline) || normalize(item.creative.body)===normalize(args.composition.body)))) {
         throw new Error("SEMANTIC_ADVERTISING_MESSAGE_REPEATED: Redacta otro titular y cuerpo; cambiar archivo, foto o tamaño no vuelve nuevo el mensaje.");
     }
 }
@@ -2223,7 +2223,7 @@ export async function completeJarvisPlanningArguments({
         ...(validationFeedback ? [`FALLO_OBSERVADO_DEL_INTENTO_ANTERIOR=${documentExcerpt(JSON.stringify(validationFeedback),1600)}`, "Corrige los argumentos responsables de ese error usando sólo la evidencia real. El fallo no concede nuevos permisos ni cambia el objetivo."] : []),
         `FUENTES_VERIFICADAS=${documentEvidenceEnvelope(sources, 2500)}`,
         `MATERIALES_VERIFICADOS=${JSON.stringify(missionEvidence.flatMap(item => materialReferencesForPlanning(item)))}`,
-        `PUBLICIDAD_YA_ENTREGADA=${JSON.stringify(missionEvidence.flatMap(item => item.evidence?.advertisingHistory || item.advertisingHistory || []).filter(item => item.creative).slice(0, 30).map(item => ({createdAt:item.createdAt,creative:item.creative,visual:item.visual})))}`,
+        `PUBLICIDAD_YA_ENTREGADA=${JSON.stringify(missionEvidence.flatMap(item => item.evidence?.advertisingHistory || item.advertisingHistory || []).filter(item => item.creative).slice(0, 30).map(item => ({createdAt:item.createdAt,visual:item.visual})))}`,
         "No repitas publicidad del historial, aunque sea otro día, conversación, nombre de archivo o formato. Redacta otro mensaje y enfoque publicitario y varía la composición. Conserva el logo original; reutilizar el logo no es repetir un anuncio.",
         `ARTEFACTOS_PRODUCIDOS=${JSON.stringify(missionEvidence.flatMap(item => materialReferencesForPlanning(item).filter(ref => ref.role === "produced_artifact").map(ref => ({ tool: item.tool, status: item.status, output: ref.ref, mimeType: ref.mimeType }))))}`,
         `EVIDENCIA_CANONICA_DE_MISION=${documentEvidenceEnvelope(missionEvidence.filter(item => !Array.isArray(item.evidence?.entries)).map(item => {
@@ -2236,13 +2236,16 @@ export async function completeJarvisPlanningArguments({
 
     let plan, args, repairFeedback="", messageRepair=false;
     const validationFailures = new Set();
+    const rejectedMessages = [];
     for(let attempt=0;attempt<3;attempt++) {
         const activeCatalog=messageRepair ? [{...catalog[0],description:"Redacta solamente los campos headline y body de un anuncio nuevo. No copies mensajes ya entregados ni añadas datos de contacto o hechos no aportados.",inputSchema:{type:"object",properties:{composition:{type:"object",properties:{headline:{type:"string",maxLength:140},body:{type:"string",maxLength:240}},required:["headline","body"],additionalProperties:false}},required:["composition"],additionalProperties:false}}] : catalog;
         const activeInstruction=messageRepair ? [
             `INSTRUCCION_ORIGINAL=${originalInstruction}`,
             `IDENTIDAD_Y_MATERIAL_OBSERVADOS=${JSON.stringify({brandName:args.composition?.brandName,materials:missionEvidence.flatMap(item=>materialReferencesForPlanning(item)).filter(ref=>ref.ref===args.sourceOutput).map(ref=>({description:ref.description}))})}`,
-            `MENSAJES_YA_ENTREGADOS_NO_COPIAR=${JSON.stringify(missionEvidence.flatMap(item=>item.evidence?.advertisingHistory || item.advertisingHistory || []).filter(item=>item.creative).map(item=>({headline:item.creative.headline,body:item.creative.body})))}`,
-            "Los medios, logo, formato y contacto ya fueron seleccionados. En esta etapa sólo redactas un titular y cuerpo nuevos; el runtime conservará los demás argumentos observados."
+            `MENSAJES_YA_ENTREGADOS=${missionEvidence.flatMap(item=>item.evidence?.advertisingHistory || item.advertisingHistory || []).filter(item=>item.creative).length}`,
+            `BORRADORES_RECHAZADOS_NO_REUTILIZAR=${rejectedMessages.length}`,
+            "Redacta el cuerpo desde cero a partir de la identidad, la escena oficial observada y la solicitud. Los cuerpos anteriores se comparan fuera del modelo; no son material de referencia ni hechos de la marca.",
+            "Los medios, logo, formato y contacto ya fueron seleccionados. En esta etapa sólo redactas un titular y cuerpo nuevos; el runtime conservará los demás argumentos observados. AMBOS campos deben cambiar: reutilizar el cuerpo anterior con otro titular también se rechaza."
         ].join("\n") : briefingInstruction;
         plan=await resolveSemanticPlan(activeInstruction+repairFeedback,activeCatalog,semanticPlanner,{
             phase:"GROUNDED_ARGUMENT_COMPLETION",toolName:name,
@@ -2269,12 +2272,19 @@ export async function completeJarvisPlanningArguments({
         }
         try {
             if(!Object.keys(args).length && (!inputSchema?.properties || inputSchema.required?.length)) throw new Error("SEMANTIC_ARGUMENTS_REQUIRED");
+            if (name === "media.library" && args.action === "export" &&
+                !missionEvidence.flatMap(item=>materialReferencesForPlanning(item))
+                    .some(ref=>ref.role === "produced_artifact" && ref.ref === args.output)) {
+                throw Object.assign(new Error("SEMANTIC_EXPORT_ARTIFACT_REQUIRED: No existe un archivo producido verificable para esta exportación."), {retryable:false});
+            }
             validateVerifiedMaterialComposition(args,missionEvidence,`${originalInstruction}\n${documentEvidenceEnvelope(sources,2500)}`);
             if(inputSchema?.properties?.creativeDirection && (args.composition || name==="reel.create")) validateAdvertisingDirection(args.creativeDirection,missionEvidence);
             break;
         } catch(error) {
             const failure = String(error.message).split(":",1)[0];
-            if(attempt===2 || validationFailures.has(failure)) throw Object.assign(error,{retryable:false});
+            const repeatedMessage = failure === "SEMANTIC_ADVERTISING_MESSAGE_REPEATED";
+            if(error.retryable===false || attempt===2 || (validationFailures.has(failure) && !repeatedMessage)) throw Object.assign(error,{retryable:false});
+            if (repeatedMessage) rejectedMessages.push({headline:args.composition?.headline,body:args.composition?.body});
             validationFailures.add(failure);
             messageRepair=String(error.message).startsWith("SEMANTIC_ADVERTISING_MESSAGE_REPEATED");
             repairFeedback=`\nVALIDACION_INDEPENDIENTE_FALLIDA=${error.message}\n${messageRepair ? "" : `ARGUMENTOS_RECHAZADOS=${JSON.stringify(args)}\n`}Corrige sólo los argumentos fallidos. Conserva la misma herramienta, operación y permisos.`;

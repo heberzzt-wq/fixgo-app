@@ -1507,7 +1507,8 @@ async function runModelSemanticPlanner({
                             ...(phase === "GROUNDED_ARGUMENT_COMPLETION" ? {chatMessages: [
                                 {role:"system",content:missionState?.creativeCopyRepair ? [
                                     "Eres un redactor publicitario. Crea un mensaje original en español para la marca observada. Los mensajes históricos son propuestas rechazadas, no ejemplos para completar ni hechos que debas repetir.",
-                                    "Cambia la idea central y la manera de empezar el titular. Redacta una pregunta breve al lector y un cuerpo con otro enfoque. Mantén los servicios observados, sin inventar promesas, precios, contactos o resultados.",
+                                    "Cambia la idea central y la manera de empezar el titular respecto de TODOS los mensajes entregados y borradores rechazados. Elige libremente otro enfoque y forma de redactarlo. Mantén los servicios observados, sin inventar promesas, precios, contactos o resultados.",
+                                    "Escribe un titular breve de hasta 70 caracteres y un cuerpo de una oración completa de hasta 150 caracteres. Termina la oración antes del límite; no rellenes hasta el máximo del esquema ni cortes palabras.",
                                     `Devuelve sólo JSON {toolCalls:[{name:"${phaseCatalog[0].name}",args:{composition:{headline,body}}}],missionComplete:false}. Los medios, logo y geometría se conservan; tu tarea sólo es escribir el nuevo texto.`
                                 ].join("\n") : [
                                     "Completa los argumentos de una sola herramienta. Devuelve JSON {toolCalls:[{name,args}],missionComplete:false}.",

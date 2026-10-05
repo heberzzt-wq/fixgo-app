@@ -145,6 +145,36 @@ test("export arguments bind produced artifacts and cannot substitute an official
     assert.equal(schema.properties.output.enum,undefined);
 });
 
+test("repeated copy gets a bounded second repair while preserving the selected assets", async () => {
+    const original={sourceOutput:"library:Entradas/photo.png",brandLogoOutput:"library:Logos/logo.png",composition:{headline:"Mensaje anterior",body:"Texto anterior",layout:"stack"}};
+    const evidence=[{tool:"advertising.research",evidence:{advertisingHistory:[{creative:original.composition}]}}];
+    let attempts=0;
+    const result=await completeJarvisPlanningArguments({toolName:"image.adapt",instruction:"Crea otra publicidad",missionEvidence:evidence,inputSchema:{type:"object",properties:{sourceOutput:{type:"string"},brandLogoOutput:{type:"string"},composition:{type:"object"}}},semanticPlanner:async request=>{
+        attempts++;
+        if(attempts===3) assert.ok(request.input.includes('BORRADORES_RECHAZADOS_NO_REUTILIZAR='));
+        if(attempts>1) assert.ok(!request.input.includes('Texto anterior'), 'rejected bodies cannot become copy examples in the redaction context');
+        if(attempts>1) assert.ok(!request.input.includes('Mensaje anterior'), 'rejected headlines cannot become copy examples either');
+        const draft=attempts===1?original:attempts===2?{composition:{headline:"Titular cambiado",body:"Texto anterior"}}:{composition:{headline:"Otro enfoque",body:"Texto nuevo"}};
+        return {toolCalls:[{name:"image.adapt",args:draft}]};
+    }});
+    assert.equal(attempts,3);
+    assert.equal(result.args.sourceOutput,original.sourceOutput);
+    assert.equal(result.args.brandLogoOutput,original.brandLogoOutput);
+    assert.equal(result.args.composition.layout,"stack");
+    assert.equal(result.args.composition.headline,"Otro enfoque");
+});
+
+test("a failed creation cannot export an invented artifact or an original", async () => {
+    const evidence=[{tool:"advertising.research",evidence:{entries:[{relativePath:"Entradas/photo.png",role:"input",mimeType:"image/png"}]}},{tool:"image.adapt",status:"TOOL_FAILED",evidence:{}}];
+    for(const output of [undefined,"library:Entradas/photo.png",".jarvis-artifacts/images/invented.png"]) {
+        let attempts=0;
+        await assert.rejects(()=>completeJarvisPlanningArguments({toolName:"media.library",instruction:`Exporta el anuncio creado; referencia propuesta ${output ?? "ausente"}`,missionEvidence:evidence,inputSchema:{type:"object",properties:{action:{type:"string"},output:{type:"string"}}},semanticPlanner:async()=>{
+            attempts++; return {toolCalls:[{name:"media.library",args:{action:"export",output}}]};
+        }}),error=>error.retryable===false && /SEMANTIC_EXPORT_ARTIFACT_REQUIRED/.test(error.message));
+        assert.equal(attempts,1);
+    }
+});
+
 test("composition rejects another photograph's crop and regrounds a repeated delivered message", async () => {
     const region={x:695,y:240,width:559,height:735};
     const evidence=[{tool:"media.library",evidence:{entries:[{relativePath:"Entradas/photo.png",role:"input",mimeType:"image/png",photoRegion:region}],advertisingHistory:[{creative:{headline:"Mensaje anterior",body:"Texto anterior"}}]}}];
@@ -169,7 +199,7 @@ test("composition rejects another photograph's crop and regrounds a repeated del
     assert.deepEqual(result.args.composition.photoCrop,region);
     let failedAttempts=0;
     await assert.rejects(()=>completeJarvisPlanningArguments({toolName:"image.adapt",instruction:"Crea otra pieza nueva para la prueba de agotamiento.",operation:"crear otra pieza nueva",missionEvidence:evidence,inputSchema:{type:"object",properties:{sourceOutput:{type:"string"},composition:{type:"object"}}},semanticPlanner:async()=>{failedAttempts++;return{toolCalls:[{name:"image.adapt",args:original}],missionComplete:false};}}),error=>error.retryable===false && /MESSAGE_REPEATED/.test(error.message));
-    assert.equal(failedAttempts,2,"exhausted semantic repair cannot recurse into another runtime retry");
+    assert.equal(failedAttempts,3,"exhausted semantic repair cannot recurse into another runtime retry");
     let distinctAttempts=0;
     const repaired=await completeJarvisPlanningArguments({toolName:"image.adapt",instruction:"Crea otra pieza nueva para comprobar recorte y mensaje.",operation:"crear una pieza nueva",missionEvidence:evidence,inputSchema:{type:"object",properties:{sourceOutput:{type:"string"},composition:{type:"object"}}},semanticPlanner:async request=>{
         distinctAttempts++;
@@ -323,7 +353,7 @@ test("argument completion receives exact material references including logos bey
     assert.ok(serialized.includes("library:Logos/Firma/logo.png"));
     assert.ok(serialized.includes("photoRegion"));
     assert.ok(serialized.includes("OPERACION_ACTUAL_DEL_PLAN=compose the requested image"));
-    assert.ok(serialized.includes("Previous delivered ad"));
+    assert.ok(!serialized.includes("Previous delivered ad"), "delivered copy stays in independent validation rather than becoming a generation example");
     assert.ok(serialized.includes("PUBLICIDAD_YA_ENTREGADA"));
 });
 
