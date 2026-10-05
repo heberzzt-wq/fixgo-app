@@ -1737,13 +1737,6 @@ async function runModelSemanticPlanner({
         let clarificationRecoveryAction =
             "";
 
-        if (clarificationStillRequired && gateResponse?.providerResponse?.finishReason !== "length") {
-            const question = String(gatePayload.question || "").trim();
-            if (!question || question.length > 320 || !question.endsWith("?")) {
-                throw new Error("SEMANTIC_CLARIFICATION_QUESTION_REQUIRED");
-            }
-        }
-
         if (
             clarificationStillRequired &&
             !pendingContinuation &&
@@ -1860,6 +1853,16 @@ async function runModelSemanticPlanner({
                             0,
                             240
                         );
+            }
+        }
+
+        if (
+            clarificationStillRequired &&
+            gateResponse?.providerResponse?.finishReason !== "length"
+        ) {
+            const question = String(gatePayload.question || "").trim();
+            if (!question || question.length > 320 || !question.endsWith("?")) {
+                throw new Error("SEMANTIC_CLARIFICATION_QUESTION_REQUIRED");
             }
         }
 
