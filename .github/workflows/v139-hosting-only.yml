@@ -51,6 +51,7 @@ jobs:
           node --check gestia-core/jarvis/jarvis.multitool.pack.js
           node --check gestia-core/jarvis/jarvis.multifunction.planner.js
           node --check gestia-core/jarvis/jarvis.semantic.memory.js
+          node --check gestia-core/tools.runtime.js
           node --check modules/terminal/runtime-governance.js
           node --check jarvis-fs-bridge.js
           node --check jarvis-upload-bridge.js
