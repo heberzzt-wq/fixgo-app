@@ -10,9 +10,10 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 env:
-  CERTIFIED_SHA: 4914403f56862b6b9c9bb01c607c2421f0640fab
+  CERTIFIED_SHA: 1b9eac188477f5c729ead849367b251d9c03bb14
   FIREBASE_PROJECT_ID: fixgo-44e4d
   FIREBASE_SITE_ID: fixgo-44e4d
 
@@ -58,7 +59,7 @@ jobs:
 
       - name: Jarvis local-only focal contracts
         run: |
-          node --test --test-concurrency=1             tests/nexo-terminal-bootstrap.test.mjs             tests/jarvis-multifunction-tools.test.mjs             tests/jarvis-semantic-planner.test.cjs             tests/response-composer-semantic-contract.test.mjs             tests/jarvis-runtime-idle-cognition-v142.test.mjs             tests/jarvis-semantic-memory-integrity.test.mjs             tests/single-semantic-authority.test.mjs             tests/jarvis-fs-bridge-v2.test.mjs             tests/jarvis-upload-bridge.test.mjs             tests/b2c-platform-authority.test.mjs
+          node --test --test-concurrency=1             tests/nexo-terminal-bootstrap.test.mjs             tests/jarvis-multifunction-tools.test.mjs             tests/jarvis-semantic-planner.test.cjs tests/jarvis-current-turn-production-regressions.test.mjs tests/jarvis-mission-orchestrator.test.mjs             tests/response-composer-semantic-contract.test.mjs             tests/jarvis-runtime-idle-cognition-v142.test.mjs             tests/jarvis-semantic-memory-integrity.test.mjs             tests/single-semantic-authority.test.mjs             tests/jarvis-fs-bridge-v2.test.mjs             tests/jarvis-upload-bridge.test.mjs             tests/b2c-platform-authority.test.mjs
           node --test --test-name-pattern "governed repo commit requires post-write" tests/repo-authority-v2.test.cjs
 
       - name: Assert conversation composition has no cloud semantic fallback
@@ -119,7 +120,7 @@ jobs:
       - name: Windows local-only focal contracts
         shell: pwsh
         run: |
-          node --test --test-concurrency=1 tests/nexo-terminal-bootstrap.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-semantic-planner.test.cjs tests/response-composer-semantic-contract.test.mjs tests/jarvis-runtime-idle-cognition-v142.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs tests/single-semantic-authority.test.mjs tests/jarvis-fs-bridge-v2.test.mjs tests/jarvis-upload-bridge.test.mjs tests/repo-source-structure.test.mjs tests/b2c-platform-authority.test.mjs
+          node --test --test-concurrency=1 tests/nexo-terminal-bootstrap.test.mjs tests/jarvis-multifunction-tools.test.mjs tests/jarvis-semantic-planner.test.cjs tests/jarvis-current-turn-production-regressions.test.mjs tests/jarvis-mission-orchestrator.test.mjs tests/response-composer-semantic-contract.test.mjs tests/jarvis-runtime-idle-cognition-v142.test.mjs tests/jarvis-semantic-memory-integrity.test.mjs tests/single-semantic-authority.test.mjs tests/jarvis-fs-bridge-v2.test.mjs tests/jarvis-upload-bridge.test.mjs tests/repo-source-structure.test.mjs tests/b2c-platform-authority.test.mjs
           if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_JARVIS_LOCAL_ONLY_CONTRACTS_FAILED' }
           node --test --test-name-pattern "governed repo commit requires post-write" tests/repo-authority-v2.test.cjs
           if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_JARVIS_POST_WRITE_CONTRACT_FAILED' }
@@ -143,6 +144,28 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$CERTIFIED_SHA"
+
+      - name: Require the exact V142 full certification
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const endpoint = 'https://api.github.com/repos/' + process.env.GITHUB_REPOSITORY + '/actions/runs/37496076578';
+          fetch(endpoint, {headers: {Authorization: 'Bearer ' + process.env.GH_TOKEN, Accept: 'application/vnd.github+json'}})
+            .then(async response => {if (!response.ok) throw Error('V142_CERTIFICATION_READ_' + response.status); return response.json()})
+            .then(run => {if (run.head_sha !== process.env.CERTIFIED_SHA || run.status !== 'completed' || run.conclusion !== 'success') throw Error('V142_FULL_CERTIFICATION_REQUIRED'); console.log('EXACT_V142_FULL_CERTIFICATION_CONFIRMED')})
+            .catch(error => {console.error(error.message);process.exit(1)});
+          NODE
+
+      - name: Prepare exact Hosting release manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/prepare-platform-release.mjs
+          test "$(jq -r '.git_sha' release-manifest.json)" = "$CERTIFIED_SHA"
+          git diff --exit-code
 
       - name: Build isolated single-site Hosting config
         shell: bash
@@ -203,7 +226,7 @@ jobs:
             curl --fail --silent --show-error --location "$base/crm.html?sha=$CERTIFIED_SHA&attempt=$attempt" -o /tmp/crm.html || true
             curl --fail --silent --show-error --location "$base/gestia-terminal.js?sha=$CERTIFIED_SHA&attempt=$attempt" -o /tmp/terminal-runtime.js || true
             curl --fail --silent --show-error --location "$base/gestia-terminal.html?sha=$CERTIFIED_SHA&attempt=$attempt" -o /tmp/terminal.html || true
-            if grep -Fq '1.13.0-jarvis-single-authority-local-first' /tmp/bootstrap.js               && grep -Fq 'maximumAttempts = 3' /tmp/bootstrap.js               && grep -Fq 'JARVIS_LOCAL_BRIDGE_TRANSIENT_RETRY' /tmp/bootstrap.js               && grep -Fq 'LOCAL_SEMANTIC_RESPONSE_UNAVAILABLE' /tmp/multitool.js               && grep -Fq 'fallbackAllowed: false' /tmp/multitool.js               && grep -Fq 'Number(maxOutputTokens) <= 1200' /tmp/multitool.js               && grep -Fq 'const MAX_EVIDENCE_LENGTH = 8000' /tmp/composer.js               && grep -Fq 'payload?.candidates' /tmp/composer.js               && grep -Fq 'maxOutputTokens:' /tmp/core.js               && grep -Fq '256' /tmp/core.js               && grep -Fq 'DIRECT_CONVERSATION' /tmp/core.js               && grep -Fq 'const registeredCurrentTurnTools =' /tmp/core.js               && grep -Fq 'tool?.name === "conversation.respond"' /tmp/core.js               && grep -Fq 'allowCurrentTurnDelegationOnEmpty: true' /tmp/core.js               && grep -Fq 'conversationalGate: true' /tmp/core.js               && grep -Fq 'MODEL_DIRECT_CONVERSATION_RESPONSE' /tmp/core.js               && grep -Fq 'precomposedSemanticResponse:' /tmp/core.js               && grep -Fq 'SEMANTIC_PLANNER_DIRECT_RESPONSE' /tmp/multitool.js               && grep -Fq 'JARVIS_CONVERSATIONAL_RESPONSE' /tmp/response-composer.js               && grep -Fq 'response?.type === "JARVIS_CONVERSATIONAL_RESPONSE"' /tmp/response-composer.js               && grep -Fq 'toolCatalog: registeredCurrentTurnTools' /tmp/core.js               && grep -Fq 'attempt <= 2' /tmp/core.js               && grep -Fq 'SEMANTIC_CURRENT_TURN_COMPLETE' /tmp/planner.js               && grep -Fq 'allowCurrentTurnDelegationOnEmpty === true' /tmp/planner.js               && grep -Fq 'plan?.missionComplete === true' /tmp/planner.js               && grep -Fq 'maxOutputTokens:' /tmp/core.js               && grep -Fq '96' /tmp/core.js               && grep -Fq 'advisorySemanticContext:' /tmp/core.js               && grep -Fq 'compactJarvisSemanticMemoryForPlanner(' /tmp/core.js               && grep -Fq 'durableArchiveAppendOnly: true' /tmp/semantic-memory.js               && grep -Fq 'recallRelevant' /tmp/semantic-memory.js               && grep -Fq '1.2.0-semantic-repair-recall' /tmp/semantic-memory.js               && grep -Fq '"/memory/append"' /tmp/semantic-memory.js               && grep -Fq 'durableLessons:' /tmp/operations-executor.js               && grep -Fq 'recallRelevant' /tmp/operations-executor.js               && grep -Fq 'testWriteReceipts' /tmp/tools-runtime.js               && grep -Fq 'POST_WRITE_TEST_BRIDGE_REQUIRED' /tmp/tools-runtime.js               && grep -Fq 'requestIdleCallback' /tmp/runtime-event-bus.js               && grep -Fq 'gestiaBootLog?.(' /tmp/repo-cognition.js               && grep -Fq 'ON_DEMAND_NO_BACKGROUND_COGNITION' /tmp/runtime-governance.js               && grep -Fq 'executeRuntimePredictionAnalysis' /tmp/runtime-governance.js               && grep -Fq 'analyzeRuntimeRecoveryNeeds' /tmp/runtime-governance.js               && grep -Fq 'gestiaBootLog?.(' /tmp/runtime-governance.js               && grep -Fq 'gestiaBootLog?.(' /tmp/runtime-repair-health.js               && grep -Fq 'RUNTIME_SNAPSHOT_START' /tmp/runtime-persistence.js               && grep -Fq 'gestiaBootLog?.(' /tmp/runtime-persistence.js               && grep -Fq 'SNAPSHOT_DAEMON_BOOT' /tmp/runtime-snapshot-daemon.js               && grep -Fq 'gestiaBootLog?.(' /tmp/runtime-snapshot-daemon.js               && grep -Fq '[SNAPSHOT] Punto de control creado' /tmp/jarvis-memory.js               && grep -Fq 'gestiaBootLog?.(' /tmp/jarvis-memory.js               && grep -Fq 'COGNITIVE_RUNTIME_RESTORED' /tmp/terminal-runtime.js               && grep -Fq 'gestiaBootLog?.(' /tmp/terminal-runtime.js               && grep -Fq 'coreResult ||' /tmp/terminal.html               && grep -Fq 'conversationObservation &&' /tmp/terminal.html               && grep -Fq 'String(finalResponse.text).trim()' /tmp/terminal.html               && grep -Fq 'TERMINAL_LOCAL_SEMANTIC_AUTHORITY_UNAVAILABLE' /tmp/terminal.html               && grep -Fq 'actualizarPermisosPagoB2C' /tmp/crm.html               && ! grep -Fq 'updateDoc(doc(db, "users", uid), { efectivo_autorizado' /tmp/crm.html; then
+            if grep -Fq '1.16.0-semantic-no-artificial-deadline' /tmp/bootstrap.js               && grep -Fq 'maximumAttempts = 3' /tmp/bootstrap.js               && grep -Fq 'JARVIS_LOCAL_BRIDGE_TRANSIENT_RETRY' /tmp/bootstrap.js               && grep -Fq 'LOCAL_SEMANTIC_RESPONSE_UNAVAILABLE' /tmp/multitool.js               && grep -Fq 'fallbackAllowed: false' /tmp/multitool.js               && grep -Fq 'Number(maxOutputTokens) <= 1200' /tmp/multitool.js               && grep -Fq 'const MAX_EVIDENCE_LENGTH = 8000' /tmp/composer.js               && grep -Fq 'payload?.candidates' /tmp/composer.js               && grep -Fq 'maxOutputTokens:' /tmp/core.js               && grep -Fq '256' /tmp/core.js               && grep -Fq 'DIRECT_CONVERSATION' /tmp/core.js               && grep -Fq 'const registeredCurrentTurnTools =' /tmp/core.js               && grep -Fq 'tool?.name === "conversation.respond"' /tmp/core.js               && grep -Fq 'allowCurrentTurnDelegationOnEmpty: true' /tmp/core.js               && grep -Fq 'conversationalGate: true' /tmp/core.js               && grep -Fq 'CURRENT_TURN_CONVERSATION_TOOL_EXECUTION' /tmp/core.js               && grep -Fq 'precomposedSemanticResponse:' /tmp/core.js               && grep -Fq 'SEMANTIC_PLANNER_DIRECT_RESPONSE' /tmp/multitool.js               && grep -Fq 'JARVIS_CONVERSATIONAL_RESPONSE' /tmp/response-composer.js               && grep -Fq 'response?.type === "JARVIS_CONVERSATIONAL_RESPONSE"' /tmp/response-composer.js               && grep -Fq 'toolCatalog: registeredCurrentTurnTools' /tmp/core.js               && grep -Fq 'attempt <= 2' /tmp/core.js               && grep -Fq 'SEMANTIC_CURRENT_TURN_COMPLETE' /tmp/planner.js               && grep -Fq 'allowCurrentTurnDelegationOnEmpty === true' /tmp/planner.js               && grep -Fq 'plan?.missionComplete === true' /tmp/planner.js               && grep -Fq 'maxOutputTokens:' /tmp/core.js               && grep -Fq '96' /tmp/core.js               && grep -Fq 'advisorySemanticContext:' /tmp/core.js               && grep -Fq 'compactJarvisSemanticMemoryForPlanner(' /tmp/core.js               && grep -Fq 'durableArchiveAppendOnly: true' /tmp/semantic-memory.js               && grep -Fq 'recallRelevant' /tmp/semantic-memory.js               && grep -Fq '1.2.0-semantic-repair-recall' /tmp/semantic-memory.js               && grep -Fq '"/memory/append"' /tmp/semantic-memory.js               && grep -Fq 'durableLessons:' /tmp/operations-executor.js               && grep -Fq 'recallRelevant' /tmp/operations-executor.js               && grep -Fq 'testWriteReceipts' /tmp/tools-runtime.js               && grep -Fq 'POST_WRITE_TEST_BRIDGE_REQUIRED' /tmp/tools-runtime.js               && grep -Fq 'requestIdleCallback' /tmp/runtime-event-bus.js               && grep -Fq 'gestiaBootLog?.(' /tmp/repo-cognition.js               && grep -Fq 'ON_DEMAND_NO_BACKGROUND_COGNITION' /tmp/runtime-governance.js               && grep -Fq 'executeRuntimePredictionAnalysis' /tmp/runtime-governance.js               && grep -Fq 'analyzeRuntimeRecoveryNeeds' /tmp/runtime-governance.js               && grep -Fq 'gestiaBootLog?.(' /tmp/runtime-governance.js               && grep -Fq 'gestiaBootLog?.(' /tmp/runtime-repair-health.js               && grep -Fq 'RUNTIME_SNAPSHOT_START' /tmp/runtime-persistence.js               && grep -Fq 'gestiaBootLog?.(' /tmp/runtime-persistence.js               && grep -Fq 'SNAPSHOT_DAEMON_BOOT' /tmp/runtime-snapshot-daemon.js               && grep -Fq 'gestiaBootLog?.(' /tmp/runtime-snapshot-daemon.js               && grep -Fq '[SNAPSHOT] Punto de control creado' /tmp/jarvis-memory.js               && grep -Fq 'gestiaBootLog?.(' /tmp/jarvis-memory.js               && grep -Fq 'COGNITIVE_RUNTIME_RESTORED' /tmp/terminal-runtime.js               && grep -Fq 'gestiaBootLog?.(' /tmp/terminal-runtime.js               && grep -Fq 'coreResult ||' /tmp/terminal.html               && grep -Fq 'conversationObservation &&' /tmp/terminal.html               && grep -Fq 'String(finalResponse.text).trim()' /tmp/terminal.html               && grep -Fq 'TERMINAL_LOCAL_SEMANTIC_AUTHORITY_UNAVAILABLE' /tmp/terminal.html               && grep -Fq 'actualizarPermisosPagoB2C' /tmp/crm.html               && ! grep -Fq 'updateDoc(doc(db, "users", uid), { efectivo_autorizado' /tmp/crm.html; then
               ok=true
               break
             fi
@@ -219,4 +242,28 @@ jobs:
           const block = source.slice(start,end);
           if (block.includes('jarvisSemanticRespond') || block.includes('cloudfunctions.net')) throw new Error('DEPLOYED_CLOUD_SEMANTIC_FALLBACK_PRESENT');
           console.log('JARVIS_V142_PRODUCTION_LOCAL_ONLY_VERIFIED=true');
+          NODE
+
+      - name: Verify exact published geometry and orchestration bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const crypto = require('node:crypto');
+          const hash = value => crypto.createHash('sha256').update(value).digest('hex');
+          (async () => {
+            const origin = 'https://' + process.env.FIREBASE_SITE_ID + '.web.app';
+            const manifestResponse = await fetch(origin + '/release-manifest.json?sha=' + process.env.CERTIFIED_SHA);
+            if (!manifestResponse.ok) throw Error('HOSTING_MANIFEST_UNAVAILABLE');
+            const manifest = await manifestResponse.json();
+            if (manifest.git_sha !== process.env.CERTIFIED_SHA) throw Error('HOSTING_MANIFEST_SHA_MISMATCH');
+            for (const file of ['gestia-core/jarvis/jarvis.browser.grounding.js', 'gestia-core/jarvis/jarvis.mission.orchestrator.js', 'gestia-core/jarvis/jarvis.conversation.composer.js', 'gestia-core/jarvis/jarvis.mission.planner-state.js']) {
+              const response = await fetch(origin + '/' + file + '?sha=' + process.env.CERTIFIED_SHA);
+              if (!response.ok) throw Error('SERVED_FILE_UNAVAILABLE:' + file);
+              const served = Buffer.from(await response.arrayBuffer());
+              if (hash(served) !== hash(fs.readFileSync(file))) throw Error('SERVED_BYTES_MISMATCH:' + file);
+              console.log('SERVED_BYTES_VERIFIED', file, hash(served));
+            }
+          })().catch(error => {console.error(error.message);process.exit(1)});
           NODE
