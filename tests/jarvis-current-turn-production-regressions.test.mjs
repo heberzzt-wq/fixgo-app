@@ -649,3 +649,63 @@ test("repeated verified fact IDs do not discard a grounded answer or count as ne
         assert.equal(calls, 1);
     }
 });
+
+
+test("mission orchestration preserves measured geometry through final composition", async () => {
+    const { compactMissionPlannerObservation } = await import("../gestia-core/jarvis/jarvis.mission.planner-state.js");
+    const url = "https://runtime.test/terminal";
+    const rect = [66, 16, 303.5, 28];
+    const interfaceEvidence = { source: "CURRENT_RENDERED_DOM_COMPUTED_STYLE", url, viewport: { width: 1230, height: 695 },
+        pageStyles: { backgroundColor: "rgb(15, 23, 42)", fontSize: "16px" },
+        elements: [{ tag: "h1", text: "Terminal", fontSize: "20px", rect }] };
+    const tools = actuatorCatalog();
+    const mission = await runJarvisMission({ instruction: "Revisa las medidas de esta interfaz",
+        initialToolCalls: [{ name: "browser.inspect", args: { url } }], requiredToolNames: ["browser.inspect"],
+        executionContractLocked: true, toolCatalog: [tools.get("browser.inspect")],
+        planner: async () => ({ toolCalls: [], missionComplete: true }),
+        execute: async () => ({ ok: true, status: "SUCCESS", data: { ok: true, status: "BROWSER_INSPECT_OK", url, interfaceEvidence } }),
+        storage: { getItem: () => null, setItem() {} }
+    });
+    assert.equal(mission.completedTasks.length, 1);
+    const observation = mission.completedTasks[0].observation;
+    assert.deepEqual(compactMissionPlannerObservation(observation).interfaceEvidence.elements[0].rect, rect);
+    const result = await composeEvidenceGroundedConversation({ instruction: "Revisa las medidas de esta interfaz",
+        evidenceItems: [{ name: "mission.outcome", observation: { status: "PARTIAL" } }, ...mission.completedTasks],
+        executeConversation: async (_prompt, options) => {
+            const briefing = JSON.parse(options.responseBriefing);
+            assert.deepEqual(briefing.measuredInterfaceEvidence[0].elements[0].rect, rect);
+            return { ok: true, message: "Titulo observado de 20px con ancho 303.5px; no se inspeccionaron pixeles." };
+        } });
+    assert.equal(result.ok, true);
+    assert.match(result.text, /303.5px/);
+});
+
+test("missing or corrupted geometry is never synthesized as zero measurements", async () => {
+    const { compactBrowserInterfaceEvidence } = await import("../gestia-core/jarvis/jarvis.browser.grounding.js");
+    for (const rect of [[null,null,null,null], [0,0,0,0], [16,20,"300",40], [16,20,NaN,40], [16,20,300], undefined]) {
+        const result = compactBrowserInterfaceEvidence({ source: "CURRENT_RENDERED_DOM_COMPUTED_STYLE", url: "https://runtime.test/",
+            elements: [{ tag: "h1", fontSize: "20px", rect }] });
+        assert.deepEqual(result.elements[0].rect, []);
+        assert.equal(result.elements[0].fontSize, "20px");
+    }
+    const rect = [0,0,303.5,28];
+    const result = compactBrowserInterfaceEvidence({ source: "CURRENT_RENDERED_DOM_COMPUTED_STYLE", url: "https://runtime.test/",
+        elements: [{ tag: "h1", fontSize: "20px", rect }] });
+    assert.deepEqual(result.elements[0].rect, rect);
+});
+
+test("final response rejects unmeasured geometry while preserving observed typography", async () => {
+    const { runJarvisSemanticResponse } = createRequire(import.meta.url)("../functions/jarvis-semantic-planner.js");
+    const result = await runJarvisSemanticResponse({ input: "Revisa las medidas observadas", responseInstruction: "Revisa la interfaz",
+        responseMode: "grounded_conversation", responseBriefing: JSON.stringify({ missionStatus: "PARTIAL",
+            executedTools: [{ tool: "browser.inspect", ok: true }], measuredInterfaceEvidence: [{ source: "CURRENT_RENDERED_DOM_COMPUTED_STYLE",
+                url: "https://runtime.test/", viewport: { width: 1000, height: 700 }, elements: [{ tag: "h1", fontSize: "20px", rect: [0,0,0,0] }] }] }),
+        ai: { models: { generateContent: async request => {
+            const ids = request.config.responseJsonSchema.properties.factIds.items.enum;
+            assert.ok(!ids.includes("interface.0.element.0.geometry"));
+            return { text: JSON.stringify({ requestedLineCount: 0, factIds: ["interface.0.element.0.typography"] }) };
+        } } }
+    });
+    assert.match(result.message, /20px/);
+    assert.doesNotMatch(result.message, /ancho 0|alto 0|x=0/);
+});

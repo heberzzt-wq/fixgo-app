@@ -148,7 +148,10 @@ export function compactBrowserInterfaceEvidence(value) {
         coverage: "CURRENT_VIEWPORT_ONLY", screenshotInspected: false, otherPagesInspected: false,
         elements: value.elements.slice(0, 18).map(element => ({
             ...Object.fromEntries(fields.map(key => [key, String(element?.[key] || "").slice(0, 100)])),
-            rect: (Array.isArray(element?.rect) ? element.rect : []).slice(0, 4).map(value => Number(value) || 0)
+            // Missing geometry stays missing; null/string coercion is not a measurement.
+            rect: Array.isArray(element?.rect) && element.rect.length === 4 &&
+                element.rect.every(Number.isFinite) && element.rect[2] > 0 && element.rect[3] > 0
+                ? [...element.rect] : []
         }))
     };
 }

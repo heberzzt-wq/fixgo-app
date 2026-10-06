@@ -1,4 +1,5 @@
 import { marketingMediaDeliveryIssue, marketingRequirementMetadata } from "./jarvis.marketing.presenter.js";
+import { compactBrowserInterfaceEvidence } from "./jarvis.browser.grounding.js";
 const VERSION =
     "1.20.0-v142-deadline-reconciliation";
 const REEL_MEDIA_RECOVERY_MAX_ATTEMPTS = 3;
@@ -766,6 +767,12 @@ function safeObservation(result = {}) {
         explicitRetryable !== null
             ? explicitRetryable
             : !executionOk && !blocked;
+    // Preserve bounded typed measurements before generic evidence depth limits.
+    // A successful wrapper must not upgrade blocked or failed browser results.
+    const interfaceEvidence = executionOk && !blocked && !requiresInput &&
+        normalizedStatus === "BROWSER_INSPECT_OK"
+        ? compactBrowserInterfaceEvidence(payload?.interfaceEvidence || payload?.evidence?.interfaceEvidence)
+        : null;
     const preparedArtifact =
         normalizedStatus === "DOCUMENT_CONTENT_COMPOSED" &&
         payload?.validationPassed === true &&
@@ -1188,6 +1195,7 @@ function safeObservation(result = {}) {
         ) || null,
         preparedArtifact,
         verifiedRead,
+        ...(interfaceEvidence ? { interfaceEvidence, url: interfaceEvidence.url } : {}),
         repoCandidates:
             Array.isArray(payload?.candidates)
                 ? payload.candidates
