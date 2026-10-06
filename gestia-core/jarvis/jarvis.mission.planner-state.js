@@ -4,6 +4,7 @@ const MAX_PLANNER_TEXT = 700;
 const MAX_PLANNER_SOURCES = 3;
 const MAX_PLANNER_MEDIA_ASSETS = 8;
 const MAX_PLANNER_PERSISTED_ARTIFACTS = 8;
+const MAX_PLANNER_CODE = 8000;
 
 function object(value) {
     return value && typeof value === "object" && !Array.isArray(value)
@@ -22,6 +23,51 @@ function compactSource(source = {}) {
     return {
         ...(title ? { title } : {}),
         ...(url ? { url } : {})
+    };
+}
+
+// Repository source is evidence, not prose: whitespace and line endings are
+// part of the exact search contract. Never reconstruct raw bytes from numbered
+// lines, which the read tool normalizes for display.
+function compactVerifiedRead(source, evidence) {
+    if (source.ok !== true || source.executionOk === false || source.blocked === true || source.requiresInput === true ||
+        /(?:FAILED|FAILURE|ERROR|BLOCKED)$/.test(String(source.status || "").toUpperCase())) return null;
+    const read = object(source.verifiedRead || evidence.verifiedRead);
+    if (read.tool !== "repo.read") return null;
+    const file = typeof read.file === "string" ? read.file : read.path;
+    if (typeof file !== "string" || !file.trim() || file.length > 500) return null;
+    const hasRaw = typeof read.content === "string";
+    const original = hasRaw ? read.content : read.numberedContent;
+    if (typeof original !== "string") return null;
+    let excerpt = original.slice(0, MAX_PLANNER_CODE);
+    const clipped = original.length > excerpt.length;
+    if (clipped) {
+        const lastNewline = excerpt.lastIndexOf("\n");
+        if (lastNewline >= 0) excerpt = excerpt.slice(0, lastNewline + 1);
+        else if (/[\uD800-\uDBFF]$/.test(excerpt)) excerpt = excerpt.slice(0, -1);
+    }
+    const positiveLine = value => Number.isInteger(value) && value > 0 ? value : null;
+    const startLine = positiveLine(read.startLine);
+    const readEndLine = positiveLine(read.readEndLine || read.endLine);
+    const totalLines = positiveLine(read.totalLines);
+    const truncated = clipped || read.truncated === true || (hasRaw ? read.contentTruncated === true : read.evidenceTextTruncated === true);
+    const newlineCount = (excerpt.match(/\n/g) || []).length;
+    const includedEndLine = startLine === null || !excerpt.length ? null
+        : startLine + newlineCount - (excerpt.endsWith("\n") ? 1 : 0);
+    const endLine = truncated ? includedEndLine : positiveLine(read.endLine) || includedEndLine;
+    return {
+        tool: "repo.read", file,
+        path: typeof read.path === "string" && read.path.length <= 500 ? read.path : file,
+        startLine, endLine, readEndLine, totalLines,
+        partial: read.partial === true || truncated,
+        truncated, evidenceTextTruncated: truncated,
+        exactContent: hasRaw,
+        rereadRequiredForPatch: !hasRaw,
+        ...(hasRaw ? {
+            content: excerpt,
+            contentLength: Number.isInteger(read.contentLength) && read.contentLength >= original.length ? read.contentLength : original.length,
+            contentTruncated: truncated
+        } : { numberedContent: excerpt })
     };
 }
 
@@ -77,6 +123,7 @@ export function materialReferencesForPlanning(observation = {}) {
 export function compactMissionPlannerObservation(observation = {}) {
     const source = object(observation);
     const evidence = object(source.evidence);
+    const verifiedRead = compactVerifiedRead(source, evidence);
     const materialReferences = materialReferencesForPlanning(source);
     const interfaceEvidence = source.ok === true && source.executionOk !== false && source.blocked !== true && source.requiresInput !== true
         ? compactBrowserInterfaceEvidence(source.interfaceEvidence || evidence.interfaceEvidence) : null;
@@ -153,6 +200,7 @@ export function compactMissionPlannerObservation(observation = {}) {
         requiresInput: source.requiresInput === true,
         retryable: source.retryable === true,
         sourceCount,
+        ...(verifiedRead ? { verifiedRead } : {}),
         ...(interfaceEvidence ? { interfaceEvidence, url: interfaceEvidence.url } : {}),
         ...(source.repositoryTarget || evidence.repositoryTarget ? { repositoryTarget: source.repositoryTarget || evidence.repositoryTarget } : {}),
         ...(Array.isArray(source.files || evidence.files) ? {

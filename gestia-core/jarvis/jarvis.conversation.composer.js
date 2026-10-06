@@ -1043,6 +1043,80 @@ export function buildAuthoritativeToolOutcomeMatrix(evidenceItems = []) {
         });
 }
 
+// The local semantic transport accepts a bounded message, not the complete DOM
+// matrix. Keep the original verification evidence intact and budget this prose
+// briefing by whole records; never truncate serialized JSON or imply that
+// omitted findings mean a clean viewport.
+function serializeConversationBriefing(briefing) {
+    const limit = 11000;
+    const original = JSON.stringify(briefing);
+    if (original.length <= limit || !briefing.measuredInterfaceEvidence?.some(page => page.source === "RENDERED_DOM_LAYOUT_REPLAY")) return original;
+    const relatedSelectors = new Set(briefing.measuredInterfaceEvidence.flatMap(page =>
+        (page.viewports || []).flatMap(sample => (sample.findings || []).map(finding => finding.selector))));
+    const compact = { ...briefing, evidenceTextTruncated: true,
+        evidenceSummary: "Resumen acotado. Los conteos incluyen todos los hallazgos observados; los detalles omitidos no acreditan ausencia de defectos.",
+        measuredInterfaceEvidence: [] };
+    const queues = [];
+    const elementRecord = element => ({ selector: element.selector, rect: element.rect,
+        ...(element.display ? { display: element.display } : {}),
+        ...(element.fontSize ? { fontSize: element.fontSize } : {}),
+        ...(element.hiddenAttribute ? { hiddenAttribute: true } : {}),
+        ...(element.interactive ? { interactive: true } : {}) });
+    for (const page of briefing.measuredInterfaceEvidence) {
+        if (page.source !== "RENDERED_DOM_LAYOUT_REPLAY") {
+            compact.measuredInterfaceEvidence.push(page);
+            continue;
+        }
+        const target = { source: page.source, url: page.url, phase: page.phase,
+            stateFingerprint: page.stateFingerprint, sourceRevision: page.sourceRevision, renderMode: page.renderMode,
+            coverage: page.coverage, screenshotInspected: false, interactionVerified: false, physicalDeviceTested: false,
+            limitations: ["Resumen acotado: los conteos son completos, los detalles pueden estar omitidos y no acreditan ausencia de defectos.", ...(page.limitations || [])], viewports: [] };
+        compact.measuredInterfaceEvidence.push(target);
+        for (const sample of page.viewports) {
+            const findings = sample.findings || [], elements = sample.elements || [], hiddenStates = sample.hiddenStates || [];
+            const output = { viewport: sample.viewport, horizontalOverflow: sample.horizontalOverflow,
+                findingCounts: { total: findings.length,
+                    defect: findings.filter(item => item.classification === "defect").length,
+                    recommendation: findings.filter(item => item.classification === "recommendation").length,
+                    unverified: findings.filter(item => item.classification === "unverified").length },
+                omittedFindings: findings.length, omittedElements: elements.length, omittedHiddenStates: hiddenStates.length,
+                findings: [], elements: [], hiddenStates: [] };
+            target.viewports.push(output);
+            const findingSelectors = new Set(findings.map(item => item.selector));
+            const records = [...findings].sort((a, b) => Number(b.classification === "defect") - Number(a.classification === "defect"))
+                .map(finding => ({ finding: { selector: finding.selector, kind: finding.kind,
+                    classification: finding.classification, severity: finding.severity, certainty: finding.certainty,
+                    summary: finding.summary, evidence: finding.evidence },
+                    element: elements.find(element => element.selector === finding.selector) }));
+            records.push(...elements.filter(element => !findingSelectors.has(element.selector) && relatedSelectors.has(element.selector)).map(element => ({ element })),
+                ...hiddenStates.map(hidden => ({ hidden })),
+                ...elements.filter(element => !findingSelectors.has(element.selector) && !relatedSelectors.has(element.selector)).map(element => ({ element })));
+            queues.push({ output, records });
+        }
+    }
+    // Round-robin preserves coverage of both phases and the whole viewport
+    // matrix before spending the remaining budget on additional detail.
+    const rounds = Math.max(0, ...queues.map(queue => queue.records.length));
+    for (let index = 0; index < rounds; index++) for (const { output, records } of queues) {
+        const record = records[index];
+        if (!record) continue;
+        const includeElement = record.element && !output.elements.some(item => item.selector === record.element.selector);
+        if (record.finding) { output.findings.push(record.finding); output.omittedFindings--; }
+        if (includeElement) { output.elements.push(elementRecord(record.element)); output.omittedElements--; }
+        if (record.hidden) { output.hiddenStates.push(record.hidden); output.omittedHiddenStates--; }
+        if (JSON.stringify(compact).length > limit) {
+            if (record.finding) { output.findings.pop(); output.omittedFindings++; }
+            if (includeElement) { output.elements.pop(); output.omittedElements++; }
+            if (record.hidden) { output.hiddenStates.pop(); output.omittedHiddenStates++; }
+        }
+    }
+    const serialized = JSON.stringify(compact);
+    // An unusually large set of outcomes or mixed evidence cannot silently be
+    // dropped to fit; let the caller report the explicit composition failure.
+    if (serialized.length > limit) throw new Error("CONVERSATION_BRIEFING_BUDGET_EXCEEDED");
+    return serialized;
+}
+
 export async function composeEvidenceGroundedConversation({
     instruction = "",
     evidenceItems = [],
@@ -1203,7 +1277,7 @@ export async function composeEvidenceGroundedConversation({
         const result = await executeConversation(prompt, {
             responseMode: "grounded_conversation",
             responseInstruction: String(instruction || "").slice(0, 12000),
-            responseBriefing: JSON.stringify({
+            responseBriefing: serializeConversationBriefing({
                 missionStatus: missionOutcomeObservation?.status || "UNKNOWN",
                 missionReason: missionOutcomeObservation?.reason || "",
                 executedTools: authoritativeOutcomes.filter(item => item.tool !== "mission.outcome"),

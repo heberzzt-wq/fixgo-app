@@ -26,7 +26,11 @@ test("responsive repair executes the semantic inspection seed before planning re
         { name: "browser.inspect", mutates: false, requiresApproval: false, evidenceKinds: ["interface_structure", "responsive_layout"] },
         { name: "repo.read", mutates: false, requiresApproval: false },
         { name: "repo.prepareWrite", mutates: false, requiresApproval: false, contractStages: ["work"], contractKinds: ["code"] },
-        { name: "web.research", mutates: false, requiresApproval: false }
+        { name: "web.research", mutates: false, requiresApproval: false },
+        { name: "page.compose", mutates: false, requiresApproval: false },
+        { name: "document.compose", mutates: false, requiresApproval: false },
+        { name: "media.library", mutates: true, requiresApproval: false, userArtifact: true },
+        { name: "conversation.respond", mutates: false, requiresApproval: false }
     ];
     const executed = [], phases = [];
     const result = await runInNewContext(`(async () => {
@@ -35,7 +39,8 @@ test("responsive repair executes the semantic inspection seed before planning re
     })()`, {
         operationalInitialToolCalls: calls,
         terminalSemanticPlan: { reason: "model_selected_multifunction_plan", toolCalls: calls },
-        registeredMissionTools: catalog, context: { currentPage }, semanticMemoryContext: null,
+        registeredMissionTools: catalog.filter(tool => tool.name !== "conversation.respond"),
+        JarvisToolRuntime: { list: () => catalog }, context: { currentPage }, semanticMemoryContext: null,
         effectiveMissionInstruction: "Revisa esta interfaz y prepara una corrección responsive dentro de la autorización.",
         inputRaw: "Revisa esta interfaz y prepara una corrección responsive dentro de la autorización.",
         conversationalPlan: { requiresFinalConversation: true },
@@ -48,6 +53,8 @@ test("responsive repair executes the semantic inspection seed before planning re
             assert.equal(options.missionState.currentPage.url, currentPage.url);
             assert.ok(options.toolCatalog.some(tool => tool.name === "repo.read"));
             assert.ok(options.toolCatalog.some(tool => tool.name === "repo.prepareWrite"));
+            assert.ok(options.toolCatalog.some(tool => tool.name === "conversation.respond"));
+            assert.ok(!options.toolCatalog.some(tool => /^(web|media|page|document)\./.test(tool.name)), "repair completion keeps the model-selected repair scope");
             assert.equal(options.missionState.writeAllowed, false);
             const completed = options.missionState.completedTasks;
             const next = completed.some(task => task.name === "repo.read")
@@ -59,7 +66,10 @@ test("responsive repair executes the semantic inspection seed before planning re
         },
         compactJarvisSemanticMemoryForPlanner: () => null,
         resolveExplicitRepositoryTargets: () => [], addRepositoryDiscoveryPreflights: ({ toolCalls }) => toolCalls,
-        runJarvisMission: options => runJarvisMission({ ...options, storage: memoryStorage() }),
+        runJarvisMission: options => {
+            assert.ok(!options.toolCatalog.some(tool => /^(web|media|page|document)\./.test(tool.name)), "repair mission does not offer unrelated production capabilities");
+            return runJarvisMission({ ...options, storage: memoryStorage() });
+        },
         shouldCompleteJarvisPlanningArguments: () => false,
         tenantId: "TEST", analysisId: "responsive-test", rol: "tecnico", verifiedAuthorityId: "TEST_AUTHORITY",
         agentLearningHints: null, propuesta: {},
@@ -652,6 +662,64 @@ test("repo read observations preserve numbered verified source beyond compact su
             .line,
         180
     );
+});
+
+test("planner source evidence preserves exact repo.read whitespace through observation and compaction", () => {
+    const content = "\r\n\t.panel {\r\n    min-width:  360px;\r\n}\r\n";
+    const observation = __test.safeObservation({ ok: true, tool: "repo.read", file: "gestia-terminal.html",
+        content, numberedContent: content.split("\r\n").map((line, i) => `${41 + i}: ${line}`).join("\n"),
+        partial: true, startLine: 41, endLine: 46, totalLines: 900 });
+    assert.equal(observation.verifiedRead.content, content);
+    const compact = compactMissionPlannerObservation(observation);
+    assert.equal(compact.verifiedRead.content, content);
+    assert.equal(compact.verifiedRead.numberedContent, undefined, "do not duplicate raw source in the local model context");
+    assert.equal(compact.verifiedRead.file, "gestia-terminal.html");
+    assert.equal(compact.verifiedRead.startLine, 41);
+    assert.equal(compact.verifiedRead.endLine, 46);
+    assert.equal(compact.verifiedRead.totalLines, 900);
+    assert.equal(compact.verifiedRead.partial, true);
+    assert.equal(compact.verifiedRead.truncated, false);
+    assert.equal(compact.verifiedRead.exactContent, true);
+    assert.equal(compact.verifiedRead.rereadRequiredForPatch, false);
+});
+
+test("planner source excerpt stays bounded and declares its included interval and truncation", () => {
+    const content = "\t.rule { width: 360px; }\r\n".repeat(1400);
+    const observation = __test.safeObservation({ ok: true, tool: "repo.read", file: "gestia-terminal.html",
+        content, numberedContent: "1: source index", partial: false, startLine: 1, endLine: 1401, totalLines: 1401 });
+    assert.ok(observation.verifiedRead.content.length <= 16000);
+    assert.equal(observation.verifiedRead.contentTruncated, true);
+    const compact = compactMissionPlannerObservation(observation);
+    const read = compact.verifiedRead;
+    assert.ok(read.content.length <= 8000);
+    assert.equal(read.content, content.slice(0, read.content.length));
+    assert.equal(read.content.endsWith("\r\n"), true);
+    assert.equal(read.contentLength, content.length);
+    assert.equal(read.truncated, true);
+    assert.equal(read.readEndLine, 1401);
+    assert.ok(read.endLine < read.readEndLine);
+    assert.equal(read.endLine, read.content.split("\n").length - 1);
+    assert.equal(read.numberedContent, undefined);
+});
+
+test("planner does not promote failed reads or generic private content to verified repository source", () => {
+    const verifiedRead = { tool: "repo.read", file: "sample.css", content: ".panel { width: 360px; }", startLine: 1, endLine: 1 };
+    for (const failure of [{ ok: false }, { executionOk: false }, { blocked: true }, { requiresInput: true }, { status: "REPO_READ_FAILED" }]) {
+        const compact = compactMissionPlannerObservation({ ok: true, ...failure, verifiedRead });
+        assert.equal(compact.verifiedRead, undefined);
+    }
+    assert.equal(compactMissionPlannerObservation({ ok: true, tool: "conversation.respond", content: "private conversation", evidence: { content: "private form value" } }).verifiedRead, undefined);
+    assert.equal(compactMissionPlannerObservation({ ok: true, verifiedRead: { ...verifiedRead, tool: "browser.inspect" } }).verifiedRead, undefined);
+});
+
+test("planner keeps numbered read evidence without claiming normalized lines are exact patch bytes", () => {
+    const numberedContent = "20: \t.panel {\n21:     width:  360px;\n22: }";
+    const compact = compactMissionPlannerObservation({ ok: true, verifiedRead: { tool: "repo.read", file: "sample.css",
+        numberedContent, startLine: 20, endLine: 22, totalLines: 100, partial: true } });
+    assert.equal(compact.verifiedRead.numberedContent, numberedContent);
+    assert.equal(compact.verifiedRead.content, undefined);
+    assert.equal(compact.verifiedRead.exactContent, false);
+    assert.equal(compact.verifiedRead.rereadRequiredForPatch, true);
 });
 
 test("a fully executed model contract closes even when the final audit returns no duplicate work", async () => {

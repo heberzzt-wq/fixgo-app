@@ -2,6 +2,65 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
+import { composeEvidenceGroundedConversation } from "../gestia-core/jarvis/jarvis.conversation.composer.js";
+
+function responsiveConversationFixture(manyFindings = false) {
+    return ["before", "after"].map(phase => ({ name: "browser.inspect", observation: { ok: true,
+        interfaceEvidence: { source: "RENDERED_DOM_LAYOUT_REPLAY", url: "https://runtime.test/gestia-terminal.html",
+            phase, stateFingerprint: "a".repeat(64), sourceRevision: (phase === "before" ? "b" : "c").repeat(64),
+            viewports: [[360, 800], [390, 844], [768, 1024], [1024, 768], [1280, 800], [1920, 1080]].map(([width, height]) => ({
+                viewport: { width, height }, horizontalOverflow: false,
+                elements: Array.from({ length: 40 }, (_, index) => ({ selector: `#control-${index}`, tag: "button", text: "Control",
+                    display: "flex", visibility: "visible", fontSize: "16px", rect: [0, index * 44, 44, 44], interactive: true })),
+                findings: phase === "after" && !manyFindings ? [] : Array.from({ length: manyFindings ? 40 : 1 }, (_, index) => ({
+                    id: `clipping:${index}`, selector: `#control-${index}`, kind: "inaccessible_clipping", classification: "defect",
+                    severity: "medium", certainty: "high", summary: `Control ${index} recortado en el límite observado.`,
+                    impact: "El control queda parcialmente fuera del área visible.", evidence: { rect: [0, index * 44, 44, 44], excessPixels: 3 },
+                    suggestedCorrection: "Revisar el ancho mínimo del contenedor.", verification: "Repetir medición con el mismo estado y viewport."
+                })),
+                hiddenStates: phase === "after" ? [{ selector: "#tray", hiddenAttribute: true, display: "none", rendered: false, rect: [0, 0, 0, 0] }] : []
+            })) }
+    } }));
+}
+
+test("responsive conversation bounds its briefing while retaining every viewport, phase and involved geometry", async () => {
+    const evidenceItems = responsiveConversationFixture();
+    let sent;
+    const result = await composeEvidenceGroundedConversation({ instruction: "Explica las medidas antes y después sin afirmar publicación.", evidenceItems,
+        executeConversation: async (_prompt, options) => { sent = options; return { ok: true, message: "Se midieron seis tamaños; interacción y publicación siguen pendientes." }; } });
+    assert.equal(result.ok, true);
+    assert.ok(sent.responseBriefing.length <= 11000, `briefing has ${sent.responseBriefing.length} characters`);
+    const pages = JSON.parse(sent.responseBriefing).measuredInterfaceEvidence;
+    assert.equal(pages.length, 2);
+    for (const [index, page] of pages.entries()) {
+        const original = evidenceItems[index].observation.interfaceEvidence;
+        assert.equal(page.phase, original.phase);
+        assert.equal(page.stateFingerprint, original.stateFingerprint);
+        assert.equal(page.sourceRevision, original.sourceRevision);
+        assert.deepEqual(page.viewports.map(item => item.viewport), original.viewports.map(item => item.viewport));
+        assert.equal(page.screenshotInspected, false);
+        assert.equal(page.interactionVerified, false);
+        assert.ok(page.viewports.every(item => item.findingCounts.total === (index === 0 ? 1 : 0)));
+        assert.ok(page.viewports.every(item => item.elements.some(element => element.selector === "#control-0" && element.rect[2] === 44)));
+    }
+    assert.ok(pages[0].viewports.every(item => item.findings[0]?.kind === "inaccessible_clipping"));
+});
+
+test("responsive conversation marks omitted findings explicitly instead of turning truncation into a clean audit", async () => {
+    let sent;
+    await composeEvidenceGroundedConversation({ instruction: "Explica los hallazgos medidos.", evidenceItems: responsiveConversationFixture(true),
+        executeConversation: async (_prompt, options) => { sent = options; return { ok: true, message: "La medición contiene defectos; este resumen muestra sólo una parte." }; } });
+    assert.ok(sent.responseBriefing.length <= 11000, `briefing has ${sent.responseBriefing.length} characters`);
+    const briefing = JSON.parse(sent.responseBriefing);
+    assert.equal(briefing.evidenceTextTruncated, true);
+    for (const page of briefing.measuredInterfaceEvidence) for (const viewport of page.viewports) {
+        assert.equal(viewport.findingCounts.defect, 40);
+        assert.equal(viewport.findingCounts.total, 40);
+        assert.equal(viewport.omittedFindings, 40 - viewport.findings.length);
+        assert.ok(viewport.omittedFindings > 0);
+        assert.ok(viewport.findings.length > 0, "Each viewport must retain measured findings when the summary budget permits");
+    }
+});
 
 if (!globalThis.window) {
     globalThis.window = {};

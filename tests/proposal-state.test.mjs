@@ -6,6 +6,49 @@ import {
     SIA7_PROPOSAL_STATE_CONTRACT, responsiveStylePatch, compareResponsiveRepair, executePreparedResponsiveRepair
 } from "../modules/terminal/proposal-state.js";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import vm from "node:vm";
+import { runJarvisMission } from "../gestia-core/jarvis/jarvis.mission.orchestrator.js";
+
+test("an exact prepared write pauses the mission for human approval without replanning or writing", async () => {
+    const source = readFileSync(new URL("../gestia-core/tools.runtime.js", import.meta.url), "utf8");
+    const nameIndex = source.indexOf('name: "repo.prepareWrite"');
+    const start = source.lastIndexOf("JarvisToolRuntime.register({", nameIndex);
+    const end = source.indexOf("\n});", nameIndex) + 4;
+    const events = [], calls = [];
+    let prepareTool, plannerCalls = 0;
+    vm.runInNewContext(source.slice(start, end), {
+        JarvisToolRuntime: { register(definition) { prepareTool = definition; } },
+        CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
+        window: { dispatchEvent(event) { events.push(event); }, JarvisLocalBridge: {
+            async prepareWrite() { return { ok: true, status: "WRITE_PREPARED", fingerprint: "exact-fingerprint", nonce: "one-use" }; }
+        } }
+    });
+    const patch = { file: "gestia-terminal.html", search: "width:14px", replace: "width:44px", matchCount: 1 };
+    const values = new Map();
+    const mission = await runJarvisMission({
+        instruction: "Corrige la presentación de Terminal con aprobación humana exacta.",
+        initialToolCalls: [{ name: "repo.prepareWrite", args: patch }],
+        planner: async () => { plannerCalls++; return { toolCalls: [], missionComplete: true }; },
+        execute: async (call, context) => {
+            calls.push(call.name);
+            assert.equal(context.approved, false);
+            return { ok: true, status: "COMPLETED", data: await prepareTool.execute(call.args, context) };
+        },
+        storage: { getItem: key => values.get(key) || null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) }
+    });
+    assert.equal(mission.reason, "MISSION_APPROVAL_REQUIRED");
+    assert.notEqual(mission.status, "COMPLETED");
+    assert.equal(mission.approvalRequiredForWrite, true);
+    assert.equal(mission.blockedTasks[0].observation.objectiveSatisfied, false);
+    assert.equal(plannerCalls, 0);
+    assert.deepEqual(calls, ["repo.prepareWrite"]);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].detail.preparation.status, "WRITE_PREPARED");
+    assert.equal(events[0].detail.preparation.requiresApproval, true);
+    assert.equal(events[0].detail.preparation.fingerprint, "exact-fingerprint");
+    assert.equal(events[0].detail.patch.search, patch.search);
+});
 
 test("responsive approval restricts exact patches to existing presentation and rejects business code", () => {
     const source = '<html><head><style>button { width:14px; }</style></head><body><script>business()</script></body></html>';
@@ -78,7 +121,8 @@ test("responsive comparison allows an intentionally hidden target to disappear o
 });
 
 let repairFixtureId = 0;
-function repairCollaborators({ browserFailure = false, testTransportFailure = false, rollbackTransportFailure = false, wrongRevision = false } = {}) {
+function repairCollaborators({ browserFailure = false, testTransportFailure = false, rollbackTransportFailure = false, wrongRevision = false,
+    lostWriteResponse = false, interveningWrite = false } = {}) {
     const source = `<html><head><style>button{width:14px}</style></head><body>Terminal ${repairFixtureId++}</body></html>`;
     const patch = { file: "gestia-terminal.html", search: "width:14px", replace: "width:44px", matchCount: 1 };
     const hash = value => createHash("sha256").update(value).digest("hex");
@@ -102,13 +146,19 @@ function repairCollaborators({ browserFailure = false, testTransportFailure = fa
             async testWriteReceipts(args) {
                 calls.push({ name: "bridge.rollback", args });
                 if (rollbackTransportFailure) throw new Error("bridge offline");
+                if (interveningWrite) return { ok: false, status: "POST_WRITE_TEST_BLOCKED", error: "POST_WRITE_CONTENT_CHANGED" };
                 return rollback();
             }
         },
         runtime: { async execute(name, args, context) {
             calls.push({ name, args, context });
             if (name === "repo.authorizeWrite") return { ok: true, status: "WRITE_AUTHORIZED_ONCE" };
-            if (name === "repo.write") { current = candidate; return { ok: true, verified: true, fingerprint: preparation.fingerprint }; }
+            if (name === "repo.write") {
+                current = interveningWrite ? candidate + "<!-- another editor -->" : candidate;
+                if (lostWriteResponse === "throw") throw new Error("write reply lost after receipt");
+                if (lostWriteResponse) return { ok: false, status: "BRIDGE_REQUEST_FAILED", error: "write reply lost after receipt" };
+                return { ok: true, verified: true, fingerprint: preparation.fingerprint };
+            }
             if (name === "tests.run") {
                 if (testTransportFailure === "response") return { ok: false, status: "BRIDGE_REQUEST_FAILED", error: "verification transport lost" };
                 if (testTransportFailure) throw new Error("verification transport lost");
@@ -168,6 +218,34 @@ test("responsive repair reports a post-write transport failure and attempts only
         assert.equal(fixture.calls.filter(call => call.name === "bridge.rollback").length, 1);
         assert.equal(fixture.current(), rollbackTransportFailure ? fixture.candidate : fixture.source);
     }
+});
+
+test("responsive repair recovers a lost write reply by receipt without repeating the write", async () => {
+    for (const lostWriteResponse of ["response", "throw"]) {
+        for (const rollbackTransportFailure of [false, true]) {
+            const fixture = repairCollaborators({ lostWriteResponse, rollbackTransportFailure });
+            const result = await executePreparedResponsiveRepair(fixture.input);
+            assert.equal(result.ok, false);
+            assert.equal(result.rollbackPending, rollbackTransportFailure);
+            assert.equal(result.status, rollbackTransportFailure ? "RESPONSIVE_WRITE_OUTCOME_UNVERIFIED" : "POST_WRITE_TEST_FAILED_ROLLED_BACK");
+            assert.equal(fixture.current(), rollbackTransportFailure ? fixture.candidate : fixture.source);
+            assert.equal(fixture.calls.filter(call => call.name === "repo.write").length, 1);
+            const recovery = fixture.calls.filter(call => call.name === "bridge.rollback");
+            assert.equal(recovery.length, 1);
+            assert.deepEqual(recovery[0].args.fingerprints, [fixture.input.preparation.fingerprint]);
+            assert.match(recovery[0].args.verificationFailure, /write reply lost/);
+        }
+    }
+});
+
+test("lost write reply recovery preserves intervening edits and reports unresolved rollback", async () => {
+    const fixture = repairCollaborators({ lostWriteResponse: "response", interveningWrite: true });
+    const result = await executePreparedResponsiveRepair(fixture.input);
+    assert.equal(result.ok, false);
+    assert.equal(result.rollbackPending, true);
+    assert.equal(result.status, "RESPONSIVE_WRITE_OUTCOME_UNVERIFIED");
+    assert.equal(fixture.current(), fixture.candidate + "<!-- another editor -->");
+    assert.equal(result.tests.error, "POST_WRITE_CONTENT_CHANGED");
 });
 
 function createStorage() {

@@ -1,5 +1,6 @@
 import { semanticPlanHandler, semanticResponseHandler, fetchLocalSemanticResponse } from "./jarvis-semantic-http.js";
 import { SEMANTIC_MAX_BUDGET_MS } from "./gestia-core/jarvis/jarvis.semantic.transport.js";
+import { buildResponsiveRepairOptions, buildResponsiveRepairPatch } from "./gestia-core/jarvis/jarvis.autopatch.engine.js";
 import express from "express";
 import cors from "cors";
 import fs from "fs";
@@ -1883,6 +1884,8 @@ export function createSelfHostedSemanticEngine({
                 input,
                 catalog,
                 missionState,
+                buildResponsiveRepairOptions,
+                buildResponsiveRepairPatch,
                 retrieveToolCandidates: async (requestedOperation, requestedLimit = 6) => {
                     onProgress("retrieval");
                     const shortlist = await shortlistCurrentTurnCatalog(

@@ -12,6 +12,7 @@ import { ensureExecutableArtifactDependencies } from "../gestia-core/jarvis/jarv
 import { mergeEvidenceGroundedToolCalls } from "../gestia-core/jarvis/jarvis.conversation.composer.js";
 import { runJarvisMission } from "../gestia-core/jarvis/jarvis.mission.orchestrator.js";
 import { composeEvidenceGroundedConversation } from "../gestia-core/jarvis/jarvis.conversation.composer.js";
+import { buildResponsiveRepairOptions, buildResponsiveRepairPatch } from "../gestia-core/jarvis/jarvis.autopatch.engine.js";
 
 const { runJarvisSemanticPlanner } = createRequire(import.meta.url)("../functions/jarvis-semantic-planner.js");
 const coreSource = readFileSync(new URL("../gestia-core/gestia-core.js", import.meta.url), "utf8").replaceAll("\r", "");
@@ -79,6 +80,67 @@ test("responsive optional viewport arguments are repaired by Qwen before executi
     assert.equal(repaired, true);
     assert.deepEqual(result.toolCalls[0].args.viewports, [{ width: 360, height: 800 }]);
     assert.equal(result.toolCalls[0].approved, false);
+});
+
+test("responsive completion keeps instructions and all sizes inside local message bounds", async () => {
+    const tools = actuatorCatalog();
+    const page = { source: "RENDERED_DOM_LAYOUT_REPLAY", url: "https://runtime.test/gestia-terminal.html", phase: "before",
+        viewports: [[360,800],[390,844],[768,1024],[1024,768],[1366,768],[1920,1080]].map(([width,height]) => ({ viewport:{width,height},
+            elements: Array.from({length:160},()=>({selector:"#item",text:"observed".repeat(80),rect:[0,0,10,10]})),
+            findings:[{kind:"hidden_element_rendered",selector:"#tray",classification:"defect",summary:"hidden ocupa espacio",evidence:{display:"flex"}}] })) };
+    const catalog = [tools.get("browser.inspect"), {name:"repo.read",description:"Read source",inputSchema:{file:"string"}},
+        {name:"repo.prepareWrite",description:"Prepare exact replacement",inputSchema:{file:"string",search:"string",replace:"string"}}];
+    const result = await runJarvisSemanticPlanner({ input:"Revisa esta interfaz y prepara la corrección",catalog,
+        missionState:{phase:"COMPLETION_AUDIT",completedTasks:[{name:"browser.inspect",args:{followUp:"prepare_repair"},observation:{ok:true,interfaceEvidence:page}}]},
+        ai:{models:{generateContent:async request=>{
+            assert.ok(request.config.chatMessages.every(message=>message.content.length<12000));
+            const measurements=request.config.chatMessages.find(message=>message.content.startsWith("HALLAZGOS_MEDIDOS"));
+            assert.ok(measurements.content.includes('1920'));
+            assert.ok(measurements.content.includes('hidden ocupa espacio'));
+            assert.equal(request.config.semanticStage,"RESPONSIVE_REPAIR_CONTINUATION");
+            assert.equal(request.config.responseJsonSchema.properties.toolCalls.items.anyOf.length,1);
+            return {functionCalls:[{name:"jarvis_tool_0",args:{file:"gestia-terminal.html"}}]};
+        }}}
+    });
+    assert.equal(result.missionComplete,false);
+    assert.equal(result.toolCalls[0].name,"repo.read");
+});
+
+test("Qwen selects grounded responsive repairs without authorizing or inventing source bytes", async () => {
+    const source = '<!doctype html>\r\n<head><style>\r\n.keep { color: white; }\r\n</style></head><body><div id="tray" hidden></div></body>';
+    const page = { source: "RENDERED_DOM_LAYOUT_REPLAY", url: "https://runtime.test/gestia-terminal.html", phase: "before",
+        viewports: [{ viewport: { width: 360, height: 800 }, elements: [{ selector: "#tray", rect: [0,0,120,16], display: "flex", hiddenAttribute: true }],
+            findings: [{ selector: "#tray", kind: "hidden_element_rendered", classification: "defect" }] }] };
+    const catalog = [{name:"repo.prepareWrite",description:"Prepare exact replacement",inputSchema:{file:"string",search:"string",replace:"string"}},
+        {name:"conversation.respond",description:"Explain a limitation",inputSchema:{prompt:"string"}}];
+    for (const variant of [{ids:["responsive_1"]}, {ids:[], error:/SELECTION_REQUIRED/}, {ids:["invented"],error:/SELECTION_INVALID/}, {ids:[],action:"conversation.respond"}]) {
+        let calls = 0;
+        const operation = runJarvisSemanticPlanner({input:"Corrige los defectos medidos y comprueba",catalog,buildResponsiveRepairOptions,buildResponsiveRepairPatch,
+            missionState:{phase:"COMPLETION_AUDIT",completedTasks:[
+                {name:"browser.inspect",args:{followUp:"prepare_repair"},observation:{ok:true,interfaceEvidence:page}},
+                {name:"repo.read",observation:{ok:true,verifiedRead:{tool:"repo.read",file:"gestia-terminal.html",content:source}}}]},
+            ai:{models:{generateContent:async request=>{
+                calls++;
+                assert.equal(request.config.semanticStage,"RESPONSIVE_REPAIR_SELECTION");
+                assert.ok(request.config.chatMessages.every(message=>message.content.length<12000));
+                assert.deepEqual(request.config.responseJsonSchema.properties.selectedIds.items.enum,["responsive_1"]);
+                return {text:JSON.stringify({action:variant.action||"repo.prepareWrite",diagnosis:"El estado hidden ocupa espacio.",selectedIds:variant.ids,css:"body { display: none }",approved:true})};
+            }}}});
+        if (variant.error) await assert.rejects(operation,variant.error);
+        else {
+            const result=await operation;
+            assert.equal(result.missionComplete,false);
+            assert.equal(result.toolCalls[0].approved,false);
+            if (!variant.action) {
+                const patch=result.toolCalls[0].args;
+                assert.ok(source.includes(patch.search));
+                assert.match(patch.replace,/#tray\[hidden\] \{ display: none; \}/);
+                assert.doesNotMatch(patch.replace,/body \{ display/);
+                assert.ok(source.replace(patch.search,patch.replace).endsWith('</head><body><div id="tray" hidden></div></body>'));
+            } else assert.equal(result.toolCalls[0].name,"conversation.respond");
+        }
+        assert.equal(calls,1);
+    }
 });
 
 test("CURRENT_TURN renders the model-authored answer and limitation once, preserving only history", async t => {

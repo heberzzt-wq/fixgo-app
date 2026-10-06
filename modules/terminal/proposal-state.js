@@ -118,8 +118,39 @@ export async function executePreparedResponsiveRepair({ preparation, patch, cont
     const authorization = await execute("repo.authorizeWrite", { fingerprint: preparation.fingerprint, nonce: preparation.nonce,
         approvalCommand: preparation.approvalCommand });
     if (authorization?.ok !== true) return { ok: false, status: "RESPONSIVE_AUTHORIZATION_FAILED", authorization };
-    const write = await execute("repo.write", { fingerprint: preparation.fingerprint, nonce: preparation.nonce });
-    if (write?.ok !== true || write.verified !== true) return { ok: false, status: "RESPONSIVE_WRITE_FAILED", write };
+    let write;
+    try { write = await execute("repo.write", { fingerprint: preparation.fingerprint, nonce: preparation.nonce }); }
+    catch (error) { write = { ok: false, status: "RESPONSIVE_WRITE_REPLY_UNAVAILABLE", error: String(error.message || error) }; }
+    if (write?.ok !== true || write.verified !== true) {
+        // A lost reply does not prove that the write did not happen. The bridge
+        // alone can restore its receipt, and only while its output is unchanged.
+        const verificationFailure = String(write?.error || write?.status || "RESPONSIVE_WRITE_OUTCOME_UNVERIFIED").slice(0, 1000);
+        let recovery = { ok: false, status: "RESPONSIVE_WRITE_RECOVERY_UNAVAILABLE", error: verificationFailure };
+        if (typeof bridge?.testWriteReceipts === "function") {
+            try { recovery = await bridge.testWriteReceipts({ command: "responsive", fingerprints: [preparation.fingerprint],
+                timeoutMs: 120000, verificationFailure }); }
+            catch (error) { recovery = { ...recovery, rollbackError: String(error.message || error) }; }
+        }
+        const rolledBack = Array.isArray(recovery?.rollbackResults) && recovery.rollbackResults.length > 0 &&
+            recovery.rollbackResults.every(item => item.ok === true);
+        let originalBytesVerified = rolledBack;
+        if (!originalBytesVerified) {
+            try {
+                const current = await bridge.requestJson("/read", { file: patch.file, maxBytes: 1000000 });
+                originalBytesVerified = current?.ok === true && current.partial !== true && typeof current.content === "string" &&
+                    await sourceDigest(current.content) === preparation.snapshotSha256;
+            } catch { /* Keep the write outcome unresolved; never infer unchanged bytes. */ }
+        }
+        const result = { ok: false, status: rolledBack ? "POST_WRITE_TEST_FAILED_ROLLED_BACK"
+            : originalBytesVerified ? "RESPONSIVE_WRITE_FAILED_ORIGINAL_BYTES_VERIFIED" : "RESPONSIVE_WRITE_OUTCOME_UNVERIFIED",
+            file: patch.file, fingerprint: preparation.fingerprint, write,
+            tests: { ...recovery, testsPassed: false, objectiveSatisfied: false, verificationError: verificationFailure },
+            before, rollbackPending: !originalBytesVerified, originalBytesVerified,
+            published: false, interactionVerified: false, physicalDeviceTested: false };
+        recordAutonomyEvent({ type: "responsive_repair", status: "failed", file: patch.file,
+            reason: result.status, stage: "write_reply_recovery", operation: "one_time_style_patch" });
+        return result;
+    }
     let after, comparison, verificationFailure = "";
     try {
         const actual = await bridge.requestJson("/read", { file: patch.file, maxBytes: 1000000 });

@@ -447,7 +447,11 @@ function validateCompletionEvidence(plan, catalog, missionState) {
             }
             const kinds = tool.evidenceKinds || ["tool_result"];
             if (!kinds.includes(objective.requiredEvidenceKind)) {
-                throw new Error("SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH");
+                throw Object.assign(new Error("SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH"), { evidence: {
+                    objective: objective.objective, requestedKind: objective.requiredEvidenceKind,
+                    evidenceTaskIndex: index, tool: task.name, allowedKinds: kinds,
+                    correction: "La operación citada no acredita este objetivo. Mantén ese objetivo pendiente y selecciona una operación que obtenga la evidencia que falta. No cambies el objetivo ni el tipo requerido sólo para aceptar la referencia."
+                } });
             }
         }
     }
@@ -862,7 +866,7 @@ function browserGroundingInstruction(missionState) {
     ].join("\n");
 }
 
-function buildSemanticSystemInstruction(catalog = [], missionState = null) {
+function buildSemanticSystemInstruction(catalog = [], missionState = null, includePayload = true) {
     return [
         "Eres Jarvis, la unica autoridad semantica del sistema.",
         browserGroundingInstruction(missionState),
@@ -877,9 +881,53 @@ function buildSemanticSystemInstruction(catalog = [], missionState = null) {
         "Marca missionComplete=true solo cuando la evidencia del estado demuestre que todos los objetivos solicitados quedaron satisfechos. Agotar herramientas o no tener trabajo ejecutable no demuestra cumplimiento.",
         "Si no hace falta una herramienta operativa, usa una capacidad conversacional del catalogo si existe.",
         "Devuelve solamente una respuesta estructurada valida compatible con el contrato solicitado por el runtime.",
-        `CATALOGO=${JSON.stringify(catalog)}`,
-        missionState ? `ESTADO_DE_MISION=${JSON.stringify(missionState).slice(0, 30000)}` : ""
+        includePayload ? `CATALOGO=${JSON.stringify(catalog)}` : "",
+        includePayload && missionState ? `ESTADO_DE_MISION=${JSON.stringify(missionState).slice(0, 30000)}` : ""
     ].filter(Boolean).join("\n");
+}
+
+// Keep the evidence ledger intact; only its model-facing representation is
+// reduced. Repeated viewport findings share one description, with measured
+// occurrences, so the local transport cannot cut away the diagnosis or rules.
+function responsiveAuditSummary(page) {
+    if (page?.source !== "RENDERED_DOM_LAYOUT_REPLAY") return page;
+    const grouped = new Map();
+    for (const sample of page.viewports || []) for (const finding of sample.findings || []) {
+        const key = `${finding.kind}:${finding.selector}`;
+        if (!grouped.has(key)) grouped.set(key, { ...finding, occurrences: [] });
+        grouped.get(key).occurrences.push({ viewport: sample.viewport, evidence: finding.evidence });
+    }
+    return { source: page.source, url: page.url, phase: page.phase, stateFingerprint: page.stateFingerprint,
+        viewports: (page.viewports || []).map(sample => ({ viewport: sample.viewport, horizontalOverflow: sample.horizontalOverflow })),
+        findingCount: grouped.size,
+        findings: [...grouped.values()].sort((a,b) => Number(b.classification === "defect")-Number(a.classification === "defect")).slice(0, 8)
+            .map(finding => ({ selector: finding.selector, kind: finding.kind, classification: finding.classification,
+                summary: String(finding.summary || "").slice(0, 180), impact: String(finding.impact || "").slice(0, 160),
+                suggestedCorrection: String(finding.suggestedCorrection || "").slice(0, 160), evidence: finding.evidence,
+                viewports: finding.occurrences.map(item => `${item.viewport.width}x${item.viewport.height}`) })),
+        screenshotInspected: false, interactionVerified: false, physicalDeviceTested: false };
+}
+
+function completionAuditSchema(catalog, tasks, selectableCatalog = catalog) {
+    const kinds = [...new Set(["tool_result", "visual_inspection", ...catalog.flatMap(tool => tool.evidenceKinds || [])])];
+    const indices = tasks.map((_, index) => index);
+    const objective = satisfied => ({ type: "object", properties: {
+        objective: { type: "string", minLength: 1 },
+        requiredEvidenceKind: { type: "string", enum: kinds },
+        evidenceTaskIndexes: { type: "array", ...(satisfied ? { minItems: 1 } : {}),
+            maxItems: indices.length, items: { type: "integer", enum: indices } },
+        satisfied: { type: "boolean", enum: [satisfied] },
+        limitation: { type: "string", ...(satisfied ? { enum: [""] } : { minLength: 1 }) }
+    }, required: ["objective", "requiredEvidenceKind", "evidenceTaskIndexes", "satisfied", "limitation"], additionalProperties: false });
+    return { type: "object", properties: {
+        explanation: { type: "string", minLength: 1 },
+        completionAssessment: { type: "object", properties: { objectives: { type: "array", minItems: 1,
+            items: { anyOf: indices.length ? [objective(false), objective(true)] : [objective(false)] } } },
+            required: ["objectives"], additionalProperties: false },
+        toolCalls: { type: "array", maxItems: 1, items: { type: "object", properties: {
+            name: { type: "string", enum: selectableCatalog.map(tool => tool.name) }, args: { type: "object", additionalProperties: true }
+        }, required: ["name", "args"], additionalProperties: false } }
+    }, required: ["explanation", "completionAssessment", "toolCalls"], additionalProperties: false };
 }
 
 function recentAdvisoryTurns(missionState, instruction) {
@@ -1002,6 +1050,8 @@ async function runModelSemanticPlanner({
     catalog = [],
     missionState = null,
     retrieveToolCandidates = null,
+    buildResponsiveRepairOptions = null,
+    buildResponsiveRepairPatch = null,
     model = DEFAULT_SEMANTIC_MODEL
 } = {}) {
     if (!ai?.models?.generateContent) throw new Error("SEMANTIC_GEMINI_REQUIRED");
@@ -1441,20 +1491,21 @@ async function runModelSemanticPlanner({
     }
 
     if (missionState?.phase === "COMPLETION_AUDIT") {
+        const measuredRepair = (missionState.completedTasks || []).some(task => task.name === "browser.inspect" &&
+            task.args?.followUp === "prepare_repair" && task.observation?.ok === true);
+        const hasReadSource = (missionState.completedTasks || []).some(task => task.name === "repo.read" &&
+            task.observation?.ok === true && task.observation?.verifiedRead);
+        const selectableCatalog = safeCatalog.filter(tool => !measuredRepair ||
+            (tool.name !== "browser.inspect" && tool.name !== "tests.run" && (tool.name !== "repo.prepareWrite" || hasReadSource)));
         // A similarity shortlist is not a capability boundary. Closure needs
         // both executed tool contracts and every available evidence source.
         const auditInstruction = [
-            buildSemanticSystemInstruction(safeCatalog, missionState),
-            "Compara cada objetivo original con las observaciones reales. No repitas trabajo satisfecho ni conviertas una propuesta en evidencia.",
-            "Antes de evaluar cumplimiento, escribe explanation en un maximo de dos frases: identifica el objeto o pagina solicitado y el objeto o URL realmente observado; di si coinciden. Verifica primero esa correspondencia, antes de los estilos o medidas. Una pagina no prueba otra pagina aunque pertenezcan al mismo sitio. Si el objeto solicitado no fue observado, satisfied=false y limitation debe nombrar la evidencia faltante. Nunca adaptes el objetivo a la unica pagina disponible. Para satisfied=false, limitation solo describe que evidencia falta y el limite de lo observado: no incluyas conclusiones positivas sobre calidad, correccion o ausencia de defectos del objeto que no pudiste inspeccionar.",
-            "Para cada objetivo devuelve completionAssessment.objectives con objective, requiredEvidenceKind, satisfied, evidenceTaskIndexes (indices base cero de completedTasks) y limitation. Decide primero que tipo de evidencia exige el objetivo, no lo adaptes a la herramienta ejecutada.",
-            "Escribe objective, explanation y limitation en español. interface_styles acredita solo tipografia, colores CSS y medidas de la pagina observada; permite un analisis tecnico de esos datos, no inspeccion de pixeles, imagenes ni pantallas no observadas. Conserva como pendientes las partes que exigen esa evidencia adicional.",
-            "evidenceKinds del catalogo limita lo que una herramienta puede acreditar. Si no declara tipos, solo acredita tool_result y los hechos concretos de su observacion. ok y status prueban ejecucion, no suficiencia ni calidad del objeto solicitado.",
-            "evidenceTaskIndexes referencia observaciones ya ejecutadas, nunca herramientas disponibles. Un nombre de herramienta no es un tipo de evidencia. Si la observacion no demuestra el objetivo, satisfied=false. Si falta la URL, archivo, captura o fuente del objeto y no existe una operacion fundamentada para localizarlo, devuelve toolCalls=[] y explica en limitation la fuente faltante. Nunca inventes una URL a partir de una referencia sin resolver o del nombre de una entidad.",
-            "Una evaluacion visual requiere visual_inspection o interface_structure segun su alcance. system_telemetry solo acredita salud y telemetria: nunca acredita diseno grafico, apariencia, usabilidad ni ausencia de fallos visuales. visual_capture acredita una captura obtenida, no que se haya inspeccionado su contenido.",
-            "Si toda la evidencia demuestra cumplimiento, marca satisfechos los objetivos y devuelve toolCalls=[]. Si falta un objetivo, marcalo satisfied=false y usa una siguiente herramienta con argumentos fundamentados. Si no hay fuente ejecutable, devuelve toolCalls=[] y limitation explicando la evidencia faltante; no inventes una herramienta ni declares exito.",
-            "Las comprobaciones independientes del runtime siguen siendo obligatorias; tu evaluación no sustituye archivos, hashes, cobertura ni pruebas ejecutadas.",
-            "No generes missionComplete: el runtime lo calcula exclusivamente a partir de tus objetivos satisfechos, referencias verificadas y toolCalls. Tu unica decision de cumplimiento es satisfied en cada objetivo; no la dupliques ni cambies objetivos para obtener un estado global. Devuelve completionAssessment, toolCalls y explanation.",
+            buildSemanticSystemInstruction(safeCatalog, missionState, false),
+            "Evalúa cada objetivo original contra las observaciones ejecutadas. Primero comprueba que la URL observada coincide con el objeto o pagina solicitado; una página nunca acredita otra.",
+            "Cada objetivo requiere objective, requiredEvidenceKind, satisfied, evidenceTaskIndexes y limitation. Los índices identifican tareas, no viewports. Los tipos permitidos están en allowedEvidenceKinds; un nombre de herramienta no es tipo de evidencia.",
+            "satisfied=true exige evidencia pertinente ya ejecutada e índices válidos y limitation vacía. Si falta evidencia: satisfied=false, índices vacíos y limitation concreta. No rebajes el tipo de evidencia para conseguir cumplimiento. DOM/CSS no acredita píxeles, interacción, lectura de código, aprobación, escritura ni tests.",
+            "Selecciona una sola siguiente herramienta NUEVA con argumentos fundamentados para un objetivo pendiente. Si no hay operación ejecutable, toolCalls=[] y explica qué falta. No repitas trabajo ya satisfecho. Nunca inventes rutas ni resultados.",
+            "Escribe en español. No generes missionComplete: el runtime lo calcula con tus objetivos, referencias y toolCalls. Tus evaluaciones no sustituyen validaciones físicas. La aprobación y publicación quedan fuera de la autoridad del modelo.",
             `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
         ].join("\n");
         const measuredAuditEvidence = (missionState.completedTasks || []).map((task, index) => ({
@@ -1462,7 +1513,102 @@ async function runModelSemanticPlanner({
         })).filter(task => task.observation?.ok === true && task.observation.executionOk !== false &&
             task.observation.blocked !== true && task.observation.requiresInput !== true &&
             ["CURRENT_RENDERED_DOM_COMPUTED_STYLE", "RENDERED_DOM_LAYOUT_REPLAY"].includes(task.observation.interfaceEvidence?.source))
-            .slice(0, 2).map(task => ({ index: task.index, name: task.name, interfaceEvidence: task.observation.interfaceEvidence }));
+            .slice(0, 2).map(task => ({ index: task.index, name: task.name, interfaceEvidence: responsiveAuditSummary(task.observation.interfaceEvidence) }));
+        const auditCatalog = selectableCatalog.map(({ name, description, evidenceKinds, inputSchema, mutates, requiresApproval }) =>
+            ({ name, description: description.slice(0, 240), evidenceKinds: evidenceKinds || ["tool_result"], inputSchema, mutates, requiresApproval }));
+        const auditTasks = (missionState.completedTasks || []).map((task, index) => ({ index, name: task.name, args: task.args,
+            allowedEvidenceKinds: safeCatalog.find(tool => tool.name === task.name)?.evidenceKinds || ["tool_result"],
+            observation: Object.fromEntries(Object.entries(task.observation || {}).filter(([key]) => key !== "interfaceEvidence")) }));
+        const preparedRepair = (missionState.completedTasks || []).some(task => task.name === "repo.prepareWrite" && task.observation?.ok === true);
+        if (measuredRepair && !preparedRepair) {
+            // Preparing a repair is a continuation, not a completion verdict.
+            // Reuse native canonical tool selection; evaluate closure only once
+            // an actual preparation exists. Qwen chooses the repair; the existing
+            // translator binds measured operations to an exact source patch.
+            const sourceReady = auditTasks.some(task => task.name === "repo.read" &&
+                task.observation.verifiedRead?.file === "gestia-terminal.html" &&
+                typeof task.observation.verifiedRead?.content === "string" &&
+                /<style[\s>][\s\S]*<\/style>/i.test(task.observation.verifiedRead.content));
+            const read = auditTasks.find(task => task.name === "repo.read" && task.observation.verifiedRead?.file === "gestia-terminal.html")?.observation.verifiedRead;
+            const styleSource = read?.content?.match(/<style(?:\s[^>]*)?>([\s\S]*?)<\/style>/i)?.[1];
+            const nextCatalog = selectableCatalog.filter(tool => !sourceReady || ["repo.prepareWrite", "conversation.respond"].includes(tool.name)).map(tool =>
+                tool.name === "repo.prepareWrite" && styleSource ? { ...tool, inputSchema: { ...tool.inputSchema,
+                    properties: { ...tool.inputSchema.properties, file: { type: "string", enum: [read.file] },
+                        search: { type: "string", description: "Fragmento exacto del primer style leído, ligado por el traductor de reparación." }, matchCount: { type: "integer", enum: [1] },
+                        replace: { type: "string", description: "Reemplazo exacto ligado por el traductor después de elegir operaciones medidas." } } } } : tool);
+            if (sourceReady && styleSource) {
+                if (typeof buildResponsiveRepairOptions !== "function" || typeof buildResponsiveRepairPatch !== "function") {
+                    throw new Error("SEMANTIC_RESPONSIVE_TRANSLATOR_UNAVAILABLE");
+                }
+                const page = missionState.completedTasks.find(task => task.name === "browser.inspect" &&
+                    task.args?.followUp === "prepare_repair" && task.observation?.ok === true)?.observation?.interfaceEvidence;
+                const candidates = buildResponsiveRepairOptions({ page, source: read.content, file: read.file });
+                if (!candidates?.ok || !candidates.options?.length) throw new Error(candidates?.status || "SEMANTIC_RESPONSIVE_OPTIONS_EMPTY");
+                const selection = await ai.models.generateContent({ model, contents: instruction, config: {
+                    semanticStage: "RESPONSIVE_REPAIR_SELECTION", chatMessages: [
+                        { role: "system", content: "Decide si corresponde repo.prepareWrite o conversation.respond para continuar el pedido tras la inspección y lectura reales. Para preparar, action=repo.prepareWrite; para explicar un límite, action=conversation.respond y selectedIds=[]. El traductor existente ofrece operaciones calculadas únicamente desde hallazgos medidos y el código leído. Elige los IDs que satisfacen el pedido y explica el diagnóstico. Prioriza defectos; incluye recomendaciones justificadas por usabilidad cuando el usuario pide mejorar la interfaz. Puedes seleccionar varias operaciones. Si ninguna corresponde, selectedIds=[]. No inventes IDs, CSS, aprobaciones ni resultados. La selección sólo prepara un patch revisable y su mejora se medirá antes de escribir." },
+                        { role: "system", content: "OPERACIONES_FUNDAMENTADAS=" + JSON.stringify(candidates.options) },
+                        { role: "user", content: instruction }
+                    ], responseMimeType: "application/json", responseJsonSchema: {
+                        type: "object", properties: { action: { type: "string", enum: nextCatalog.map(tool => tool.name) }, diagnosis: { type: "string", minLength: 1 },
+                            selectedIds: { type: "array", items: { type: "string", enum: candidates.options.map(option => option.id) }, uniqueItems: true, maxItems: candidates.options.length } },
+                        required: ["action", "diagnosis", "selectedIds"], additionalProperties: false
+                    }, maxOutputTokens: 768, temperature: 0
+                } });
+                if (selection?.providerResponse?.finishReason === "length") throw new Error("SEMANTIC_REPAIR_ARGUMENTS_INCOMPLETE");
+                const authored = extractJsonObject(selection.text);
+                if (authored.action === "conversation.respond" && nextCatalog.some(tool => tool.name === authored.action)) {
+                    const validated = validatePlan({ toolCalls: [{ name: authored.action, args: { prompt: authored.diagnosis } }], missionComplete: false }, nextCatalog, instruction);
+                    return requireExecutablePlan({ ...validated, provider: String(ai.lastProvider || "jarvis-local"), model, catalogSize: nextCatalog.length, planKind: "RESPONSIVE_REPAIR_CONTINUATION" });
+                }
+                if (authored.action !== "repo.prepareWrite") throw new Error("SEMANTIC_RESPONSIVE_SELECTION_INVALID");
+                const patch = buildResponsiveRepairPatch({ options: candidates.options, selectedIds: authored.selectedIds, source: read.content, file: read.file });
+                if (!patch?.ok) throw new Error(patch?.status || "SEMANTIC_RESPONSIVE_SELECTION_INVALID");
+                const selectedPlan = { toolCalls: [{ name: authored.action, reason: String(authored.diagnosis || ""),
+                    args: { file: patch.file, search: patch.search, replace: patch.replace, matchCount: patch.matchCount, operation: patch.operation } }] };
+                const validated = validatePlan({ ...selectedPlan, missionComplete: false }, nextCatalog, instruction);
+                return requireExecutablePlan({ ...validated, provider: String(ai.lastProvider || "jarvis-local"), model, catalogSize: nextCatalog.length, planKind: "RESPONSIVE_REPAIR_CONTINUATION" });
+            }
+            const continuationRequest = { model, contents: instruction, config: {
+                semanticStage: "RESPONSIVE_REPAIR_CONTINUATION",
+                chatMessages: [
+                    { role: "system", content: "Eres Jarvis, autoridad semántica local. Continúa la reparación solicitada con UNA herramienta del catálogo. La inspección ya ocurrió; los hallazgos son evidencia DOM, no visión. Lee el código si aún falta. Si ya está leído y hay problemas, elige repo.prepareWrite: después elegirás las operaciones medidas del traductor existente, que ligará search/replace al primer style leído de gestia-terminal.html. No inventes CSS, rutas ni resultados, no repitas una lectura ya completa. Nunca concedas aprobación ni afirmes escritura. Si falta evidencia para proponer un cambio, usa conversation.respond explicando el límite. No evalúes el trabajo como terminado: ahora sólo elige la siguiente operación." },
+                    ...auditTasks.map(task => ({ role: "system", content: "OPERACION_YA_EJECUTADA=" + JSON.stringify(task) })),
+                    { role: "system", content: "El alcance de esta primera integración permite reparar sólo gestia-terminal.html. Su URL está en la inspección. Para localizar el código, busca ese nombre de archivo y léelo desde la primera línea; necesitas el primer bloque style completo. Los tipos de evidencia como responsive_layout no son nombres de archivo ni texto del código." },
+                    { role: "system", content: "HALLAZGOS_MEDIDOS=" + JSON.stringify(measuredAuditEvidence) },
+                    { role: "user", content: instruction }
+                ],
+                responseMimeType: "application/json", responseJsonSchema: {
+                    type: "object", properties: { toolCalls: { type: "array", minItems: 1, maxItems: 1,
+                        items: { anyOf: nextCatalog.map(tool => ({ type: "object", properties: {
+                            name: { type: "string", enum: [tool.name] }, args: buildNativeInputSchema(tool.inputSchema)
+                        }, required: ["name", "args"], additionalProperties: false })) } } }, required: ["toolCalls"], additionalProperties: false
+                }, maxOutputTokens: 768, temperature: 0
+            } };
+            const response = await ai.models.generateContent(continuationRequest);
+            let nextPlan = extractGeminiToolCallPlan(response, nextCatalog);
+            if (!nextPlan && response?.text) nextPlan = normalizeTextToolPlan(extractJsonObject(response.text), nextCatalog);
+            if (response?.providerResponse?.finishReason === "length") throw new Error("SEMANTIC_REPAIR_ARGUMENTS_INCOMPLETE");
+            const selectedCall = nextPlan?.toolCalls?.[0];
+            const selectedTool = nextCatalog.find(tool => tool.name === selectedCall?.name);
+            if (selectedTool && !hasRequiredToolArguments(selectedTool, selectedCall.args)) {
+                const correction = await ai.models.generateContent({ model, contents: instruction, config: {
+                    semanticStage: "GROUNDED_ARGUMENT_COMPLETION", chatMessages: [
+                        { role: "system", content: "Completa los argumentos de la herramienta elegida " + selectedTool.name + " usando sólo las observaciones ejecutadas. No inventes datos ni afirmes aprobación o escritura." },
+                        { role: "system", content: "CODIGO_ORIGINAL_EXACTO=" + JSON.stringify({ file: read?.file, style: styleSource }) },
+                        { role: "system", content: "DEFECTOS_Y_RECOMENDACIONES_MEDIDOS=" + JSON.stringify(measuredAuditEvidence) },
+                        { role: "user", content: instruction }
+                    ], responseMimeType: "application/json", responseJsonSchema: buildNativeInputSchema(selectedTool.inputSchema),
+                    maxOutputTokens: 1800, temperature: 0
+                } });
+                if (correction?.providerResponse?.finishReason === "length") throw new Error("SEMANTIC_REPAIR_ARGUMENTS_INCOMPLETE");
+                const authored = extractJsonObject(correction.text);
+                nextPlan = { toolCalls: [{ name: selectedTool.name, args: authored }] };
+            }
+            const validated = validatePlan({ ...nextPlan, missionComplete: false }, nextCatalog, instruction);
+            return requireExecutablePlan({ ...validated, provider: String(ai.lastProvider || "jarvis-local"), model,
+                catalogSize: nextCatalog.length, planKind: "RESPONSIVE_REPAIR_CONTINUATION" });
+        }
         let lastAuditError = null;
         let lastRejectedAuditPlan = null;
         for (let auditAttempt = 0; auditAttempt < 2; auditAttempt++) {
@@ -1487,11 +1633,14 @@ async function runModelSemanticPlanner({
                         // models otherwise audit this phase's meta-instruction instead.
                         chatMessages: [
                             { role: "system", content: auditInstruction + (lastAuditError ? "\nRepara el contrato rechazado: " + lastAuditError.message + ". Conserva las pruebas reales. satisfied=false exige una limitation no vacia; satisfied=true exige referencias validas y limitation vacia. No inventes evidencia para corregir el formato." : "") },
+                            { role: "system", content: "CATALOGO_EJECUTABLE=" + JSON.stringify(auditCatalog) },
+                            ...auditTasks.map(task => ({ role: "system", content: "OBSERVACION_EJECUTADA=" + JSON.stringify(task) })),
                             ...(measuredAuditEvidence.length ? [{ role: "system", content: "MEDICIONES_REALES_DE_LA_PAGINA=" + JSON.stringify(measuredAuditEvidence) + "\nEstos valores solo describen la URL indicada en cada registro: no acreditan ninguna otra pagina u objeto. Compara primero el objeto solicitado con esa URL y su contenido. Si no coinciden, conserva el objetivo pendiente aunque las medidas sean validas. Solo despues evalua los estilos y medidas; nunca los conviertas en inspeccion de pixeles." }] : []),
                             ...(lastRejectedAuditPlan ? [
                                 { role: "assistant", content: JSON.stringify(lastRejectedAuditPlan) },
-                                { role: "system", content: "El borrador anterior fue rechazado; no es evidencia. Revisa sus contradicciones contra las observaciones originales. missionComplete=true exige todos los objetivos satisfechos y toolCalls vacio. Si todos estan satisfechos y no hay mas herramientas, missionComplete debe ser true. Si algun objetivo no esta satisfecho, missionComplete=false y explica la limitacion real. No inventes referencias, cambies el alcance ni marques objetivos satisfechos solo para reparar el formato." }
+                                { role: "system", content: "El borrador anterior fue rechazado; no es evidencia. Revisa sus contradicciones contra las observaciones originales. No inventes referencias, cambies el alcance ni marques objetivos satisfechos solo para reparar el formato. ERROR_CONCRETO=" + JSON.stringify(lastAuditError?.evidence || {}) }
                             ] : []),
+                            { role: "system", content: "Decide el siguiente paso con la evidencia anterior. Sólo OBSERVACION_EJECUTADA acredita operaciones ya realizadas. Medir DOM/CSS no lee archivos fuente ni prepara un patch ni acredita una aprobación, escritura o prueba posterior. Si faltan operaciones del pedido, sus objetivos siguen satisfied=false, evidenceTaskIndexes=[] y limitation concreta. Selecciona una sola operación nueva del catálogo que avance ese trabajo; no repitas la inspección ya ejecutada con los mismos argumentos. El diagnóstico puede guiar la lectura del código antes de preparar un cambio exacto." },
                             { role: "user", content: instruction }
                         ],
                         temperature: 0,
@@ -1500,7 +1649,7 @@ async function runModelSemanticPlanner({
                             thinkingLevel: "MINIMAL"
                         },
                         responseMimeType: "application/json",
-                        responseJsonSchema: {"type":"object","properties":{"explanation":{"type":"string","minLength":1},"completionAssessment":{"type":"object","properties":{"objectives":{"type":"array","minItems":1,"items":{"anyOf":[{"type":"object","properties":{"objective":{"type":"string","minLength":1},"requiredEvidenceKind":{"type":"string","minLength":1},"evidenceTaskIndexes":{"type":"array","items":{"type":"integer","minimum":0}},"satisfied":{"type":"boolean","enum":[false]},"limitation":{"type":"string","minLength":1}},"required":["objective","requiredEvidenceKind","evidenceTaskIndexes","satisfied","limitation"],"additionalProperties":false},{"type":"object","properties":{"objective":{"type":"string","minLength":1},"requiredEvidenceKind":{"type":"string","minLength":1},"evidenceTaskIndexes":{"type":"array","minItems":1,"items":{"type":"integer","minimum":0}},"satisfied":{"type":"boolean","enum":[true]},"limitation":{"type":"string","enum":[""]}},"required":["objective","requiredEvidenceKind","evidenceTaskIndexes","satisfied","limitation"],"additionalProperties":false}]}}},"required":["objectives"],"additionalProperties":false},"toolCalls":{"type":"array","maxItems":1,"items":{"type":"object","properties":{"name":{"type":"string"},"args":{"type":"object","additionalProperties":true}},"required":["name","args"],"additionalProperties":false}}},"required":["explanation","completionAssessment","toolCalls"],"additionalProperties":false}
+                        responseJsonSchema: completionAuditSchema(safeCatalog, missionState.completedTasks || [], selectableCatalog)
                     }
                 });
                 auditPlan = extractJsonObject(String(auditResponse?.text || ""));
@@ -2525,7 +2674,9 @@ async function runJarvisSemanticPlanner({
     timeoutMs = null,
     noDeadline = true,
     missionState = null,
-    retrieveToolCandidates = null
+    retrieveToolCandidates = null,
+    buildResponsiveRepairOptions = null,
+    buildResponsiveRepairPatch = null
 } = {}) {
     const instruction = String(input || "").trim();
     const safeCatalog = normalizeCatalog(catalog);
@@ -2539,7 +2690,9 @@ async function runJarvisSemanticPlanner({
             input: instruction,
             catalog: safeCatalog,
             missionState,
-            retrieveToolCandidates
+            retrieveToolCandidates,
+            buildResponsiveRepairOptions,
+            buildResponsiveRepairPatch
         });
         if (noDeadline === true) {
             return await planning;

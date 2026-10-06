@@ -98,7 +98,7 @@ test("exhausted empty selection fails closed with each attempt's stage, mode, bu
         assert.deepEqual(attempts.map(a => a.finishReason), ["length", "stop"]);
         assert.deepEqual(attempts.map(a => a.nativeToolChat), [true, false]);
         assert.deepEqual(attempts.map(a => a.jsonOnlyNative), [false, true]);
-        assert.deepEqual(attempts.map(a => a.numPredict), [160, 1024]);
+        assert.deepEqual(attempts.map(a => a.numPredict), [512, 1024]);
         for (const [index, attempt] of attempts.entries()) {
             assert.equal(attempt.attempt, index + 1);
             assert.equal(attempt.model, "qwen3:1.7b");

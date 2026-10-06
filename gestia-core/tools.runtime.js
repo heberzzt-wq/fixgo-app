@@ -7030,7 +7030,9 @@ JarvisToolRuntime.register({
         };
         const result = await window.JarvisLocalBridge.prepareWrite(payload);
         if (result?.ok !== true || result?.status !== "WRITE_PREPARED") return result;
-        const preparation = { ...result, search: payload.search, replace: payload.replace };
+        const preparation = { ...result, search: payload.search, replace: payload.replace,
+            executionOk: true, objectiveSatisfied: false, requiresApproval: true, retryable: false,
+            written: false, verified: false };
         if (typeof window.dispatchEvent === "function" && typeof CustomEvent === "function") {
             window.dispatchEvent(new CustomEvent("jarvis:write-prepared", { detail: {
                 preparation,

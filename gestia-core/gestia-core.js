@@ -4803,10 +4803,24 @@ if (
         operationalInitialToolCalls.length === 1 &&
         operationalInitialToolCalls[0]?.name === "browser.inspect" &&
         operationalInitialToolCalls[0]?.args?.followUp === "prepare_repair";
+    // This scope follows Qwen's explicit structured repair mode, never words in
+    // the instruction. The model still chooses each next operation from evidence.
+    const repairPreparationToolNames = new Set([
+        "browser.inspect", "repo.search", "repo.read", "repo.grep",
+        "repo.prepareWrite", "repo.gitStatus", "tests.run", "conversation.respond"
+    ]);
+    const missionCatalogSource = observationFirstCurrentTurnMission
+        ? [
+            ...registeredMissionTools,
+            ...(globalThis.JarvisToolRuntime?.list?.() || []).filter(tool =>
+                tool.name === "conversation.respond" && tool.mutates === false && tool.requiresApproval !== true &&
+                !registeredMissionTools.some(existing => existing.name === tool.name))
+        ].filter(tool => repairPreparationToolNames.has(tool.name))
+        : registeredMissionTools;
     const missionToolCatalog =
         [
-            ...registeredMissionTools.filter(tool => operationalMissionToolNames.has(tool.name)),
-            ...registeredMissionTools.filter(tool => !operationalMissionToolNames.has(tool.name))
+            ...missionCatalogSource.filter(tool => operationalMissionToolNames.has(tool.name)),
+            ...missionCatalogSource.filter(tool => !operationalMissionToolNames.has(tool.name))
         ].filter(tool => !boundedCurrentTurnMission || operationalMissionToolNames.has(tool.name)).slice(0, 80);
     let missionContractToolCalls = boundedCurrentTurnMission || observationFirstCurrentTurnMission ? operationalInitialToolCalls : undefined;
     let lastMissionContractError = null;
@@ -5026,7 +5040,7 @@ if (
                 missionInitialToolCalls,
             requiredToolNames:
                 [...new Set(missionInitialToolCalls.map(call => call.name))],
-            toolCatalog: boundedCurrentTurnMission ? missionToolCatalog : registeredMissionTools,
+            toolCatalog: boundedCurrentTurnMission || observationFirstCurrentTurnMission ? missionToolCatalog : registeredMissionTools,
             executionContractLocked:
                 missionIsIsolated ||
                 (
@@ -5088,7 +5102,7 @@ if (
                         // authority. A file read does not authorize an automatic
                         // read -> diagnose -> impact sequence.
                         const completionAuditCatalog =
-                            (boundedCurrentTurnMission ? missionToolCatalog : registeredMissionTools)
+                            (boundedCurrentTurnMission || observationFirstCurrentTurnMission ? missionToolCatalog : registeredMissionTools)
                                 .slice(0, 80);
 
                         if (completionAuditCatalog.length > 0) {
@@ -5149,7 +5163,7 @@ if (
                                             writeAllowed:
                                                 false,
                                             userArtifactAllowed:
-                                                !boundedCurrentTurnMission,
+                                                !boundedCurrentTurnMission && !observationFirstCurrentTurnMission,
                                             semanticMemoryAvailable: Boolean(semanticMemoryContext)
                                         }
                                     }

@@ -969,6 +969,11 @@ function safeObservation(result = {}) {
                 totalLines:
                     Number(payload?.totalLines) ||
                     null,
+                ...(typeof payload?.content === "string" ? {
+                    content: payload.content.slice(0, 16000),
+                    contentLength: payload.content.length,
+                    contentTruncated: payload.content.length > 16000
+                } : {}),
                 numberedContent:
                     String(
                         payload.numberedContent
