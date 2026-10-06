@@ -13,7 +13,7 @@ permissions:
   actions: read
 
 env:
-  CERTIFIED_SHA: 1b9eac188477f5c729ead849367b251d9c03bb14
+  CERTIFIED_SHA: 394358d369702d37b0df808eddf00c097b4e40e4
   FIREBASE_PROJECT_ID: fixgo-44e4d
   FIREBASE_SITE_ID: fixgo-44e4d
 
@@ -152,11 +152,22 @@ jobs:
         run: |
           set -euo pipefail
           node <<'NODE'
-          const endpoint = 'https://api.github.com/repos/' + process.env.GITHUB_REPOSITORY + '/actions/runs/37496076578';
-          fetch(endpoint, {headers: {Authorization: 'Bearer ' + process.env.GH_TOKEN, Accept: 'application/vnd.github+json'}})
-            .then(async response => {if (!response.ok) throw Error('V142_CERTIFICATION_READ_' + response.status); return response.json()})
-            .then(run => {if (run.head_sha !== process.env.CERTIFIED_SHA || run.status !== 'completed' || run.conclusion !== 'success') throw Error('V142_FULL_CERTIFICATION_REQUIRED'); console.log('EXACT_V142_FULL_CERTIFICATION_CONFIRMED')})
-            .catch(error => {console.error(error.message);process.exit(1)});
+          const endpoint = 'https://api.github.com/repos/' + process.env.GITHUB_REPOSITORY + '/actions/runs/37515305388';
+          (async () => {
+            for (let attempt = 0; attempt < 60; attempt++) {
+              const response = await fetch(endpoint, {headers: {Authorization: 'Bearer ' + process.env.GH_TOKEN, Accept: 'application/vnd.github+json'}});
+              if (!response.ok) throw Error('V142_CERTIFICATION_READ_' + response.status);
+              const run = await response.json();
+              if (run.head_sha !== process.env.CERTIFIED_SHA || run.path !== '.github/workflows/v142-mobile-web-research-recovery.yml') throw Error('V142_CERTIFICATION_IDENTITY_MISMATCH');
+              if (run.status === 'completed') {
+                if (run.conclusion !== 'success') throw Error('V142_FULL_CERTIFICATION_REQUIRED:' + run.conclusion);
+                console.log('EXACT_V142_FULL_CERTIFICATION_CONFIRMED'); return;
+              }
+              console.log('WAITING_FOR_EXACT_V142_CERTIFICATION', run.status);
+              await new Promise(resolve => setTimeout(resolve, 5000));
+            }
+            throw Error('V142_FULL_CERTIFICATION_NOT_FINISHED');
+          })().catch(error => {console.error(error.message);process.exit(1)});
           NODE
 
       - name: Prepare exact Hosting release manifest
@@ -258,7 +269,7 @@ jobs:
             if (!manifestResponse.ok) throw Error('HOSTING_MANIFEST_UNAVAILABLE');
             const manifest = await manifestResponse.json();
             if (manifest.git_sha !== process.env.CERTIFIED_SHA) throw Error('HOSTING_MANIFEST_SHA_MISMATCH');
-            for (const file of ['gestia-core/jarvis/jarvis.browser.grounding.js', 'gestia-core/jarvis/jarvis.mission.orchestrator.js', 'gestia-core/jarvis/jarvis.conversation.composer.js', 'gestia-core/jarvis/jarvis.mission.planner-state.js']) {
+            for (const file of ["gestia-terminal.html","assets/gestia-terminal.tailwind.css","gestia-core/jarvis/jarvis.browser.grounding.js","gestia-core/jarvis/jarvis.mission.orchestrator.js","gestia-core/jarvis/jarvis.conversation.composer.js","gestia-core/jarvis/jarvis.mission.planner-state.js","gestia-core/jarvis/jarvis.actuator.pack.js","gestia-core/jarvis/jarvis.autopatch.engine.js","gestia-core/jarvis/jarvis.multifunction.planner.js","gestia-core/tools.runtime.js","gestia-core/gestia-core.js","modules/terminal/proposal-state.js"]) {
               const response = await fetch(origin + '/' + file + '?sha=' + process.env.CERTIFIED_SHA);
               if (!response.ok) throw Error('SERVED_FILE_UNAVAILABLE:' + file);
               const served = Buffer.from(await response.arrayBuffer());
