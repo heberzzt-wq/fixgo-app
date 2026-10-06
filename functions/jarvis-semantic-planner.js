@@ -1454,51 +1454,73 @@ async function runModelSemanticPlanner({
             "Las comprobaciones independientes del runtime siguen siendo obligatorias; tu evaluación no sustituye archivos, hashes, cobertura ni pruebas ejecutadas.",
             `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
         ].join("\n");
-        const auditResponse = await ai.models.generateContent({
-            model,
-            contents: [
-                buildSemanticSystemInstruction(safeCatalog, missionState),
-                `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
-                [
-                    "AUDITORIA_DE_CIERRE_CONTROLADA: evalua cada objetivo explicito contra completedTasks, blockedTasks y sus observaciones reales.",
-                    "Si toda la evidencia requerida demuestra cumplimiento, devuelve toolCalls=[] y missionComplete=true.",
-                    "Si falta un objetivo, devuelve missionComplete=false y la siguiente herramienta del catalogo que pueda avanzar ese objetivo con argumentos fundamentados.",
-                    "No explores capacidades no solicitadas, no repitas trabajo ya satisfecho y no inventes recursos ni evidencia.",
-                    "Devuelve JSON valido con toolCalls, explanation, missionComplete y completionAssessment."
-                ].join("\n")
-            ].join("\n\n"),
-            config: {
-                semanticStage: "COMPLETION_AUDIT",
-                // Keep the actual objective in the user turn. Small local
-                // models otherwise audit this phase's meta-instruction instead.
-                chatMessages: [{ role: "system", content: auditInstruction }, { role: "user", content: instruction }],
-                maxOutputTokens: 768,
-                thinkingConfig: {
-                    thinkingLevel: "MINIMAL"
-                },
-                responseMimeType: "application/json",
-                responseJsonSchema: {type:"object",properties:{toolCalls:{type:"array",maxItems:1,items:{type:"object",properties:{name:{type:"string"},args:{type:"object",additionalProperties:true}},required:["name","args"],additionalProperties:false}},explanation:{type:"string"},missionComplete:{type:"boolean"},completionAssessment:{type:"object",properties:{objectives:{type:"array",minItems:1,items:{type:"object",properties:{objective:{type:"string"},requiredEvidenceKind:{type:"string"},satisfied:{type:"boolean"},evidenceTaskIndexes:{type:"array",items:{type:"integer",minimum:0}},limitation:{type:"string"}},required:["objective","requiredEvidenceKind","satisfied","evidenceTaskIndexes","limitation"],additionalProperties:false}}},required:["objectives"],additionalProperties:false}},required:["toolCalls","missionComplete","completionAssessment"],additionalProperties:false}
+        const measuredAuditEvidence = (missionState.completedTasks || []).map((task, index) => ({
+            index, name: task.name, observation: task.observation
+        })).filter(task => task.observation?.ok === true && task.observation.executionOk !== false &&
+            task.observation.blocked !== true && task.observation.requiresInput !== true &&
+            task.observation.interfaceEvidence?.source === "CURRENT_RENDERED_DOM_COMPUTED_STYLE")
+            .slice(0, 2).map(task => ({ index: task.index, name: task.name, interfaceEvidence: task.observation.interfaceEvidence }));
+        let lastAuditError = null;
+        for (let auditAttempt = 0; auditAttempt < 2; auditAttempt++) {
+            try {
+                const auditResponse = await ai.models.generateContent({
+                    model,
+                    contents: [
+                        buildSemanticSystemInstruction(safeCatalog, missionState),
+                        `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
+                        [
+                            "AUDITORIA_DE_CIERRE_CONTROLADA: evalua cada objetivo explicito contra completedTasks, blockedTasks y sus observaciones reales.",
+                            "Si toda la evidencia requerida demuestra cumplimiento, devuelve toolCalls=[] y missionComplete=true.",
+                            "Si falta un objetivo, devuelve missionComplete=false y la siguiente herramienta del catalogo que pueda avanzar ese objetivo con argumentos fundamentados.",
+                            "No explores capacidades no solicitadas, no repitas trabajo ya satisfecho y no inventes recursos ni evidencia.",
+                            "Devuelve JSON valido con toolCalls, explanation, missionComplete y completionAssessment."
+                        ].join("\n")
+                    ].join("\n\n"),
+                    config: {
+                        semanticStage: "COMPLETION_AUDIT",
+                        // Keep the actual objective in the user turn. Small local
+                        // models otherwise audit this phase's meta-instruction instead.
+                        chatMessages: [
+                            { role: "system", content: auditInstruction + (lastAuditError ? "\nRepara el contrato rechazado: " + lastAuditError.message + ". Conserva las pruebas reales. satisfied=false exige una limitation no vacia; satisfied=true exige referencias validas y limitation vacia. No inventes evidencia para corregir el formato." : "") },
+                            ...(measuredAuditEvidence.length ? [{ role: "system", content: "MEDICIONES_REALES_DE_LA_PAGINA=" + JSON.stringify(measuredAuditEvidence) + "\nEstos valores prueban estilos y medidas; no son una captura. No declares inexistentes medidas que aparecen aqui. Evalua solo el alcance pedido, sin convertir estilos en inspeccion de imagenes." }] : []),
+                            { role: "user", content: instruction }
+                        ],
+                        temperature: 0,
+                        maxOutputTokens: 768,
+                        thinkingConfig: {
+                            thinkingLevel: "MINIMAL"
+                        },
+                        responseMimeType: "application/json",
+                        responseJsonSchema: {type:"object",properties:{toolCalls:{type:"array",maxItems:1,items:{type:"object",properties:{name:{type:"string"},args:{type:"object",additionalProperties:true}},required:["name","args"],additionalProperties:false}},explanation:{type:"string"},missionComplete:{type:"boolean"},completionAssessment:{type:"object",properties:{objectives:{type:"array",minItems:1,items:{type:"object",properties:{objective:{type:"string"},requiredEvidenceKind:{type:"string"},satisfied:{type:"boolean"},evidenceTaskIndexes:{type:"array",items:{type:"integer",minimum:0}},limitation:{type:"string"}},required:["objective","requiredEvidenceKind","satisfied","evidenceTaskIndexes","limitation"],additionalProperties:false}}},required:["objectives"],additionalProperties:false}},required:["toolCalls","missionComplete","completionAssessment"],additionalProperties:false}
+                    }
+                });
+                const auditPlan = extractJsonObject(String(auditResponse?.text || ""));
+                if (auditResponse?.providerResponse?.finishReason === "length") {
+                    throw new Error("SEMANTIC_COMPLETION_AUDIT_INCOMPLETE");
+                }
+                if (auditPlan?.missionComplete === true && auditPlan?.toolCalls?.length) {
+                    throw new Error("SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY");
+                }
+                const validatedAudit = validatePlan(auditPlan, safeCatalog, instruction);
+                if (auditPlan?.missionComplete === true || validatedAudit.toolCalls.length === 0 ||
+                    auditPlan?.completionAssessment?.objectives) {
+                    validateCompletionEvidence(auditPlan, normalizedCatalog, missionState);
+                }
+                return {
+                    ...validatedAudit,
+                    provider: String(ai.lastProvider || "jarvis-local"),
+                    model,
+                    catalogSize: safeCatalog.length,
+                    planKind: "COMPLETION_AUDIT"
+                };
+            } catch (error) {
+                const repairable = ["SEMANTIC_COMPLETION_EVIDENCE_REQUIRED", "SEMANTIC_COMPLETION_EVIDENCE_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH", "SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY"];
+                if (auditAttempt > 0 || !repairable.includes(error?.message)) throw error;
+                lastAuditError = error;
             }
-        });
-        const auditPlan = extractJsonObject(String(auditResponse?.text || ""));
-        if (auditResponse?.providerResponse?.finishReason === "length") {
-            throw new Error("SEMANTIC_COMPLETION_AUDIT_INCOMPLETE");
         }
-        if (auditPlan?.missionComplete === true && auditPlan?.toolCalls?.length) {
-            throw new Error("SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY");
-        }
-        const validatedAudit = validatePlan(auditPlan, safeCatalog, instruction);
-        if (auditPlan?.missionComplete === true || validatedAudit.toolCalls.length === 0 ||
-            auditPlan?.completionAssessment?.objectives) {
-            validateCompletionEvidence(auditPlan, normalizedCatalog, missionState);
-        }
-        return {
-            ...validatedAudit,
-            provider: String(ai.lastProvider || "jarvis-local"),
-            model,
-            catalogSize: safeCatalog.length,
-            planKind: "COMPLETION_AUDIT"
-        };
+        throw lastAuditError;
+
     }
 
     const phase =
@@ -2737,7 +2759,7 @@ async function runJarvisSemanticResponse({
                     if (!element || !value(element.tag)) continue;
                     const label = value(element.tag) + (value(element.text) ? " («" + value(element.text) + "»)" : "");
                     const id = prefix + ".element." + index;
-                    if (value(element.fontSize)) facts.push({ id: id + ".typography", text: "Tipografía de " + label + ": " + value(element.fontFamily) + "; tamaño " + value(element.fontSize) + "; peso " + value(element.fontWeight) + "; interlineado " + value(element.lineHeight) + "." });
+                    if (value(element.fontSize)) facts.push({ id: id + ".typography", text: "Tipografía de " + label + ": " + value(element.fontFamily) + "; tamaño " + value(element.fontSize) + "; peso " + value(element.fontWeight) + "; interlineado " + value(element.lineHeight) + ". Color CSS " + value(element.color) + "; fondo CSS " + value(element.backgroundColor) + "." + (Array.isArray(element.rect) && element.rect.length === 4 && element.rect.every(Number.isFinite) ? " Posición x=" + element.rect[0] + ", y=" + element.rect[1] + " px; ancho " + element.rect[2] + " px; alto " + element.rect[3] + " px (no son márgenes)." : "") });
                     const rect = element.rect;
                     if (Array.isArray(rect) && rect.length === 4 && rect.every(Number.isFinite)) facts.push({ id: id + ".geometry", text: "Distribución de " + label + ": posición x=" + rect[0] + ", y=" + rect[1] + " px; ancho " + rect[2] + " px; alto " + rect[3] + " px. Son coordenadas y dimensiones, no márgenes." });
                 }

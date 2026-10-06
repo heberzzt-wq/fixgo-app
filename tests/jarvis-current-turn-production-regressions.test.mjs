@@ -505,3 +505,31 @@ test("failed browser observations cannot enter measured-answer composition", asy
     ], executeConversation: async () => { throw new Error("FAILED_EVIDENCE_MUST_NOT_REACH_MODEL"); } });
     assert.equal(result.status, "CONVERSATIONAL_EVIDENCE_INSUFFICIENT");
 });
+
+
+test("completion audit repairs one invalid evidence envelope without weakening closure", async () => {
+    for (const alwaysInvalid of [false, true]) {
+        const requests = [];
+        const operation = runJarvisSemanticPlanner({ input: "Revisa la tipografía de esta interfaz",
+            catalog: [{ name: "browser.inspect", mutates: false, evidenceKinds: ["interface_styles"] }],
+            missionState: { phase: "COMPLETION_AUDIT", completedTasks: [{ name: "browser.inspect", observation: { ok: true } }] },
+            ai: { models: { generateContent: async request => {
+                requests.push(request);
+                return { text: JSON.stringify({ toolCalls: [], missionComplete: false, completionAssessment: { objectives: [{
+                    objective: "Revisar la tipografía", requiredEvidenceKind: "interface_styles", satisfied: false,
+                    evidenceTaskIndexes: [], limitation: requests.length === 1 || alwaysInvalid ? "" : "La observación no contiene medidas tipográficas verificables."
+                }] } }) };
+            } } }
+        });
+        if (alwaysInvalid) await assert.rejects(operation, /SEMANTIC_COMPLETION_EVIDENCE_REQUIRED/);
+        else {
+            const result = await operation;
+            assert.equal(result.missionComplete, false);
+            assert.equal(result.completionAssessment.objectives[0].satisfied, false);
+            assert.match(JSON.stringify(requests[1].config.chatMessages), /SEMANTIC_COMPLETION_EVIDENCE_REQUIRED/);
+        }
+        assert.equal(requests.length, 2);
+        assert.equal(requests[0].config.temperature, 0);
+        assert.equal(requests[1].config.chatMessages.at(-1).content, "Revisa la tipografía de esta interfaz");
+    }
+});
