@@ -435,6 +435,10 @@ export async function inspectResponsiveCurrentBrowserPage(url, options = {}, run
         if (replaySession.snapshot && replaySession.snapshot.url !== actualUrl) throw new Error("BROWSER_REPLAY_SESSION_URL_MISMATCH");
         if (!replaySession.snapshot) {
         const clone = document.documentElement.cloneNode(true);
+        // Visual viewport values belong to the live device, not to another replay size.
+        clone.style.removeProperty("--terminal-viewport-height");
+        clone.style.removeProperty("--terminal-viewport-top");
+        clone.classList.remove("terminal-compact-height");
         const originals = [document.documentElement, ...document.documentElement.querySelectorAll("*")];
         const copies = [clone, ...clone.querySelectorAll("*")];
         const scrollState = [];

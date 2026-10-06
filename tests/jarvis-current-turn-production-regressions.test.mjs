@@ -861,3 +861,49 @@ test("final response rejects unmeasured geometry while preserving observed typog
     assert.match(result.message, /20px/);
     assert.doesNotMatch(result.message, /ancho 0|alto 0|x=0/);
 });
+
+
+test("terminal shell opts into keyboard reflow without disabling zoom", () => {
+    const source = readFileSync(new URL("../gestia-terminal.html", import.meta.url), "utf8");
+    const viewport = source.match(/<meta name="viewport"[^>]+>/)?.[0] || "";
+    assert.match(viewport, /interactive-widget=resizes-content/);
+    assert.match(viewport, /viewport-fit=cover/);
+    assert.doesNotMatch(viewport, /user-scalable=no|maximum-scale/);
+    assert.match(source, /100dvh/);
+    assert.match(source, /safe-area-inset-bottom/);
+    const body = source.match(/<body[^>]+>/)?.[0] || "";
+    assert.doesNotMatch(body, /h-screen/);
+    assert.match(source, /aria-label="Mensaje para ADJUNTO"/);
+    assert.match(source, /aria-label="Enviar mensaje"/);
+});
+
+test("terminal visible viewport preserves composer on shrink, restoration and pinch zoom", () => {
+    const source = readFileSync(new URL("../gestia-terminal.html", import.meta.url), "utf8");
+    const script = source.match(/<script id="terminal-viewport-controller">([\s\S]*?)<\/script>/)?.[1];
+    assert.ok(script, "viewport controller must be part of the served page");
+    const styles = new Map(), events = new Map(), queued = [];
+    const viewport = { height: 672, offsetTop: 0, scale: 1,
+        addEventListener: (name, fn) => events.set('viewport.' + name, fn) };
+    const field = { value: "Borrador del usuario", scrollHeight: 52, style: {},
+        addEventListener: (name, fn) => events.set('input.' + name, fn) };
+    const root = { style: { setProperty: (key,value) => styles.set(key,value), getPropertyValue: key => styles.get(key) || '' }, classList: { toggle() {} } };
+    const window = { innerHeight: 800, visualViewport: viewport, addEventListener: (name, fn) => events.set('window.'+name,fn) };
+    runInNewContext(script, { window, document: { readyState: "complete", documentElement: root, getElementById: id => id === 'gestia-input' ? field : null },
+        requestAnimationFrame: fn => { queued.push(fn); return queued.length; }, Number, Math, parseFloat });
+    const flush = () => { while(queued.length)queued.shift()(); };
+    assert.equal(styles.get('--terminal-viewport-height'), '672px');
+    viewport.height=340; viewport.offsetTop=12; events.get('viewport.resize')(); flush();
+    assert.equal(styles.get('--terminal-viewport-height'), '340px');
+    assert.equal(styles.get('--terminal-viewport-top'), '12px');
+    field.scrollHeight=400; events.get('input.input')();
+    assert.ok(parseFloat(field.style.height)<=109, 'multiline draft must not cover all available height');
+    assert.equal(field.value,'Borrador del usuario');
+    viewport.scale=2; viewport.height=170; events.get('viewport.resize')(); flush();
+    assert.equal(styles.get('--terminal-viewport-height'),'340px','pinch zoom must not shrink the layout');
+    viewport.scale=1; viewport.height=NaN; events.get('viewport.resize')(); flush();
+    assert.equal(styles.get('--terminal-viewport-height'),'340px','invalid viewport must not collapse the app');
+    viewport.height=744; viewport.offsetTop=0; events.get('viewport.resize')(); flush();
+    assert.equal(styles.get('--terminal-viewport-height'),'744px');
+    assert.equal(styles.get('--terminal-viewport-top'),'0px');
+    assert.equal(field.value,'Borrador del usuario');
+});

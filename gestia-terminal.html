@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
     <title>Terminal Heberto | ADJUNTO</title>
     
     <link rel="stylesheet" href="assets/gestia-terminal.tailwind.css">
@@ -10,81 +10,196 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        /* Scrollbar personalizado para mantener el look de terminal limpia */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #0f172a; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #475569; }
-        
-        /* Animación suave para la aparición de mensajes */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+        /* ADJUNTO workspace: one bounded shell, independently scrollable history. */
+        :root { color-scheme: dark; --terminal-content-width: 1040px; --terminal-line: #2e405b; }
+        html { width: 100%; height: 100%; overflow: hidden; background: #0b1220; }
+        body.terminal-shell {
+            margin: 0; position: fixed; inset-inline: 0; top: var(--terminal-viewport-top, 0px);
+            width: 100%; height: 100vh; height: 100dvh;
+            height: var(--terminal-viewport-height, 100dvh); min-height: 0;
+            display: flex; flex-direction: column; overflow: hidden;
+            background: #0b1220; color: #e4ecf8; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
         }
-        .animate-fade-in {
-            animation: fadeIn 0.4s ease-out forwards;
+        *, *::before, *::after { box-sizing: border-box; }
+        :where(button,a,textarea,summary):focus-visible { outline: 2px solid #93c5fd; outline-offset: 4px; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #34465f; border-radius: 8px; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn .22s ease-out both; }
+        .terminal-header {
+            flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 24px;
+            padding: 18px max(24px, env(safe-area-inset-right)) 18px max(24px, env(safe-area-inset-left));
+            padding-top: max(18px, env(safe-area-inset-top));
+            background: #111c2e; border-bottom: 1px solid #263750; z-index: 20;
         }
-
-/* ADJUNTO: responsive_1, responsive_2, responsive_3, responsive_4, responsive_5, responsive_6, responsive_7 */
-html:nth-of-type(1) > body:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(1) { min-width: 44px; min-height: 44px; }
-body > header { flex-wrap: wrap; gap: 1rem; }
-body > header > :first-child { flex: 1 1 20rem; min-width: 0; }
-body > header > :last-child { flex-wrap: wrap; max-width: 100%; }
-html:nth-of-type(1) > body:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-type(2) > button:nth-of-type(2) { min-width: 44px; min-height: 44px; }
-#jarvis-attachment-tray[hidden] { display: none; }
-#gestia-output > div:nth-of-type(1) > div:nth-of-type(2) > p:nth-of-type(2) { color: rgb(148, 163, 184); }
-html:nth-of-type(1) > body:nth-of-type(1) > footer:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1) { font-size: 12px; }
-html:nth-of-type(1) > body:nth-of-type(1) > footer:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > span:nth-of-type(1) { color: rgb(148, 163, 184); }
-html:nth-of-type(1) > body:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-type(2) > a:nth-of-type(1) { min-width: 44px; min-height: 44px; }
-</style>
+        .terminal-identity { display: flex; align-items: center; gap: 14px; min-width: 0; }
+        .terminal-logo { flex: 0 0 42px; width: 42px; height: 42px; display: grid; place-items: center;
+            background: #347df5; color: white; border: 1px solid #6a9ff7; border-radius: 13px; box-shadow: 0 6px 24px #15396b55; }
+        .terminal-identity-copy { min-width: 0; }
+        .terminal-identity h1 { margin: 0; font-size: 19px; line-height: 26px; font-weight: 700; letter-spacing: -.025em; }
+        .terminal-brand { margin: 3px 0 0; color: #9cafc7; font-size: 12px; line-height: 18px; }
+        .terminal-brand-short { display: none; }
+        .terminal-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+        .terminal-actions button, .terminal-return { display: inline-flex; align-items: center; justify-content: center;
+            min-width: 44px; min-height: 44px; border: 1px solid #354860; border-radius: 12px;
+            color: #c5d4e8; background: #17253a; transition: background .16s, border-color .16s; }
+        .terminal-actions button:hover, .terminal-return:hover { background: #213653; border-color: #54749d; color: white; }
+        .terminal-actions button { width: 44px; padding: 0; }
+        .terminal-action-divider { width: 1px; height: 24px; background: #354860; margin: 0 4px; }
+        .terminal-return { gap: 9px; padding: 0 16px; font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+        #gestia-output { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 20px;
+            overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain;
+            padding: 32px max(24px, env(safe-area-inset-right)) 24px max(24px, env(safe-area-inset-left));
+            background: radial-gradient(ellipse at 50% 0, #152946 0, #0b1220 65%); scroll-padding-block: 20px; }
+        #gestia-output > * { width: 100%; max-width: var(--terminal-content-width); margin-inline: auto; min-width: 0; flex-shrink: 0; }
+        #gestia-output > div:not(.terminal-welcome) > div { min-width: 0; }
+        #gestia-output :is(p,li,a) { overflow-wrap: anywhere; }
+        #gestia-output :is(pre,table) { max-width: 100%; }
+        #gestia-output pre { overflow-x: auto; }
+        #gestia-output :is(img,video) { max-width: 100%; height: auto; }
+        #gestia-output > details > summary { min-height: 44px; padding-block: 12px; color: #a8bbd2; cursor: pointer; }
+        #gestia-output .terminal-welcome {
+            display: flex; gap: 24px; align-items: flex-start; margin-top: clamp(8px, 5vh, 56px);
+            padding: clamp(24px, 3.3vw, 44px); border: 1px solid #314764; border-radius: 26px;
+            background: linear-gradient(120deg, #1b2d48 0%, #132239 75%); box-shadow: 0 22px 64px #00000026;
+        }
+        .terminal-welcome-icon { flex: 0 0 52px; width: 52px; height: 52px; display: grid; place-items: center;
+            color: #a6cbff; background: #244673; border: 1px solid #426693; border-radius: 17px; font-size: 22px; }
+        .terminal-welcome-copy { flex: 1; min-width: 0; }
+        .terminal-eyebrow { margin: 0 0 10px; color: #9ebfe9; font-size: 11px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+        .terminal-welcome h3 { margin: 0 0 14px; font-size: clamp(26px, 2.8vw, 36px); font-weight: 650; letter-spacing: -.035em; line-height: 1.2; color: #f6f9ff; }
+        .terminal-welcome-description { max-width: 610px; font-size: 16px; line-height: 1.75; color: #bfcee2; margin: 0; }
+        .terminal-capabilities { display: flex; flex-wrap: wrap; gap: 8px; margin: 24px 0 18px; }
+        .terminal-capabilities span { display: inline-flex; align-items: center; gap: 8px; padding: 9px 12px;
+            border: 1px solid #3a5375; border-radius: 9px; background: #13253e; color: #cbdcf2; font-size: 12px; }
+        .terminal-capabilities i { color: #92bcf7; }
+        .terminal-memory-note { border-top: 1px solid #344b69; padding-top: 6px; max-width: 670px; }
+        .terminal-memory-note summary { min-height: 44px; display: flex; align-items: center; gap: 9px;
+            list-style: none; color: #aabed8; font-size: 12px; cursor: pointer; }
+        .terminal-memory-note summary::-webkit-details-marker { display: none; }
+        .terminal-memory-note summary::after { content: '+'; margin-left: auto; font-size: 18px; color: #a9c6ed; }
+        .terminal-memory-note[open] summary::after { content: '−'; }
+        .terminal-memory-note p { color: #afc1d9; font-size: 13px; line-height: 1.65; margin: 0 0 10px; max-width: 620px; }
+        .terminal-footer { flex: 0 0 auto; position: relative; z-index: 30; background: linear-gradient(0deg, #0b1220 80%, #0b122000);
+            padding: 12px max(24px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); }
+        .terminal-compose-wrap { width: 100%; max-width: var(--terminal-content-width); margin: 0 auto; }
+        #gestia-form { display: flex; align-items: flex-end; gap: 10px; width: 100%; position: relative;
+            padding: 10px; background: #17253a; border: 1px solid #425c7d; border-radius: 23px;
+            box-shadow: 0 14px 40px #00000030; }
+        #gestia-form:focus-within { border-color: #76a6ee; box-shadow: 0 0 0 3px #347df521, 0 14px 40px #00000030; }
+        .terminal-attach-wrap { flex: 0 0 auto; position: relative; }
+        #jarvis-attach-toggle, #btn-generate { width: 48px; height: 48px; min-width: 44px; min-height: 44px; flex: 0 0 48px;
+            display: grid; place-items: center; border-radius: 14px; margin-bottom: 2px; cursor: pointer; }
+        #jarvis-attach-toggle { border: 1px solid #3e5575; background: #1d304b; color: #d5e4f8; }
+        #jarvis-attach-toggle:hover { background: #2b4260; }
+        #btn-generate { border: 1px solid #79a7ef; background: #347df5; color: #fff; box-shadow: 0 4px 14px #2764c533; }
+        #btn-generate:hover { background: #4d8ef9; }
+        #btn-generate:disabled { opacity: .5; cursor: not-allowed; }
+        .terminal-input-wrap { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; border: 0;
+            background: transparent; border-radius: 0; overflow: hidden; box-shadow: none; }
+        #gestia-input { display: block; width: 100%; min-width: 0; margin: 0; padding: 14px 4px; min-height: 52px;
+            max-height: min(176px, calc(var(--terminal-viewport-height, 100dvh) * .32));
+            font-family: inherit; font-size: 16px; line-height: 24px; color: #eef5ff; background: transparent;
+            border: 0; border-radius: 0; resize: none; outline: none; box-shadow: none; overflow-y: auto; }
+        #gestia-input::placeholder { color: #a3b7d0; opacity: 1; }
+        #jarvis-attachment-tray { max-height: 100px; overflow-y: auto; }
+        #jarvis-attachment-tray[hidden], #jarvis-attach-menu[hidden] { display: none; }
+        #jarvis-attach-menu { bottom: calc(100% + 16px); left: 0; width: 320px;
+            max-width: calc(100vw - 44px); max-height: min(360px, calc(var(--terminal-viewport-height, 100dvh) - 130px));
+            overflow-y: auto; overscroll-behavior: contain; border-color: #4d6688; }
+        #jarvis-attach-menu button { min-height: 52px; }
+        .terminal-footer-note { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px;
+            color: #91a7c2; font-size: 11px; line-height: 16px; padding-inline: 8px; }
+        .terminal-footer-note span { display: inline-flex; gap: 6px; align-items: center; }
+        .terminal-compact-height .terminal-footer-note { display: none; }
+        .terminal-compact-height .terminal-footer { padding-top: 6px; padding-bottom: max(6px, env(safe-area-inset-bottom)); }
+        @media (max-width: 700px) {
+            .terminal-header { gap: 8px; padding: 12px; padding-top: max(12px, env(safe-area-inset-top)); }
+            .terminal-identity { gap: 8px; flex: 1 1 auto; }
+            .terminal-logo { width: 32px; height: 36px; flex-basis: 32px; border-radius: 10px; font-size: 14px; }
+            .terminal-identity h1 { font-size: 15px; line-height: 21px; letter-spacing: -.03em; }
+            .terminal-brand { font-size: 11px; line-height: 16px; margin-top: 1px; }
+            .terminal-brand-full { display: none; }
+            .terminal-brand-short { display: inline; }
+            .terminal-actions { gap: 4px; }
+            .terminal-actions button, .terminal-return { width: 44px; padding: 0; border-radius: 11px; }
+            .terminal-return span, .terminal-action-divider { display: none; }
+            #gestia-output { padding: 18px 12px 14px; gap: 14px; }
+            #gestia-output .terminal-welcome { margin-top: 0; padding: 22px 20px 12px; border-radius: 20px; display: block; }
+            .terminal-welcome-icon { width: 40px; height: 40px; font-size: 17px; border-radius: 13px; margin-bottom: 18px; }
+            .terminal-eyebrow { margin-bottom: 8px; font-size: 10px; }
+            .terminal-welcome h3 { font-size: 28px; margin-bottom: 12px; }
+            .terminal-welcome-description { font-size: 14px; line-height: 1.7; }
+            .terminal-capabilities { margin: 18px 0 14px; gap: 6px; }
+            .terminal-capabilities span { font-size: 11px; padding: 7px 8px; gap: 6px; }
+            #gestia-output > .flex:not(.terminal-welcome) { gap: 10px; }
+            #gestia-output > .flex:not(.terminal-welcome) > .shrink-0 { width: 28px; height: 28px; }
+            #gestia-output > .flex:not(.terminal-welcome) > .flex-1 { padding: 16px; }
+            .terminal-footer { padding: 8px max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+            #gestia-form { padding: 6px; gap: 6px; border-radius: 19px; }
+            #jarvis-attach-toggle, #btn-generate { width: 44px; height: 44px; flex-basis: 44px; border-radius: 12px; margin-bottom: 4px; }
+            #gestia-input { padding-inline: 4px; }
+            .terminal-footer-note { justify-content: center; margin-top: 6px; font-size: 10px; }
+            .terminal-footer-note .terminal-keyboard-hint { display: none; }
+        }
+        @media (max-width: 350px) {
+            .terminal-header { padding-inline: 8px; gap: 4px; }
+            .terminal-logo { display: none; }
+            .terminal-welcome h3 { font-size: 25px; }
+        }
+        @media (max-height: 480px) {
+            .terminal-header { padding-block: 8px; }
+            .terminal-footer-note { display: none; }
+            #gestia-output .terminal-welcome { margin-top: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) { .animate-fade-in { animation: none; } *, *::before, *::after { scroll-behavior: auto; transition: none; } }
+    </style>
 </head>
-<body class="bg-gestia-dark text-slate-200 h-screen flex flex-col font-sans overflow-hidden">
+<body class="terminal-shell">
 
-    <header class="bg-gestia-panel border-b border-slate-800 p-4 flex justify-between items-center shadow-lg z-10">
-        <div class="flex items-center gap-3">
-            <div class="bg-gestia-primary p-2.5 rounded-lg text-white shadow-lg shadow-blue-500/20">
-                <i class="fa-solid fa-terminal"></i>
-            </div>
-            <div>
-                <h1 class="text-xl font-bold text-white tracking-wide">Terminal Heberto</h1>
-                <p class="text-xs text-slate-400 font-mono">ADJUNTO | Tecnología privada de Península Tech</p>
-            </div>
-        </div>
-        <div class="flex gap-4 items-center">
-            <button class="text-slate-400 hover:text-white transition-colors" title="Historial de Módulos Creados">
-                <i class="fa-solid fa-database"></i>
-            </button>
-            <button class="text-slate-400 hover:text-white transition-colors" title="Ajustes del Motor">
-                <i class="fa-solid fa-microchip"></i>
-            </button>
-            <div class="w-px h-6 bg-slate-700 mx-2"></div>
-            <a href="ceo.html" class="bg-slate-800 hover:bg-slate-700 text-sm px-4 py-2 rounded-lg border border-slate-700 transition-colors flex items-center gap-2">
-                <i class="fa-solid fa-arrow-left"></i> Volver a CEO
-            </a>
-        </div>
-    </header>
-
-    <main class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 relative" id="gestia-output">
-        
-        <div class="flex gap-4 animate-fade-in max-w-4xl mx-auto w-full mt-4">
-            <div class="w-10 h-10 rounded-full bg-gestia-primary flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/30">
-                <i class="fa-solid fa-bolt text-white text-sm"></i>
-            </div>
-            <div class="bg-gestia-panel border border-slate-700 p-5 rounded-2xl rounded-tl-none shadow-md flex-1">
-                <h3 class="font-semibold text-white mb-2 text-lg">ADJUNTO listo</h3>
-                <p class="text-slate-300 text-sm leading-relaxed mb-4">
-                    Tu asistente privado de Península Tech para conversar, analizar archivos y ejecutar misiones verificables.
+    <header class="terminal-header">
+        <div class="terminal-identity">
+            <div class="terminal-logo" aria-hidden="true"><i class="fa-solid fa-terminal"></i></div>
+            <div class="terminal-identity-copy">
+                <h1>Terminal Heberto</h1>
+                <p class="terminal-brand" aria-label="ADJUNTO | Tecnología privada de Península Tech">
+                    <span class="terminal-brand-full">ADJUNTO | Tecnología privada de Península Tech</span>
+                    <span class="terminal-brand-short" aria-hidden="true">ADJUNTO · Península Tech</span>
                 </p>
-                <p class="text-xs text-slate-500">Cada conversación conserva su propio expediente. ADJUNTO puede recuperar memoria semántica de sesiones anteriores sin convertir recuerdos en evidencia de la misión actual.</p>
             </div>
         </div>
-        
+        <nav class="terminal-actions" aria-label="Herramientas de la Terminal">
+            <button type="button" title="Historial de Módulos Creados" aria-label="Historial de módulos"><i class="fa-solid fa-database" aria-hidden="true"></i></button>
+            <button type="button" title="Ajustes del Motor" aria-label="Ajustes del motor"><i class="fa-solid fa-microchip" aria-hidden="true"></i></button>
+            <div class="terminal-action-divider" aria-hidden="true"></div>
+            <a href="ceo.html" class="terminal-return" title="Volver a CEO" aria-label="Volver a CEO"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span>Volver a CEO</span></a>
+        </nav>
+    </header>
+    <main id="gestia-output" aria-label="Conversación con ADJUNTO">
+        <div class="terminal-welcome animate-fade-in">
+            <div class="terminal-welcome-icon" aria-hidden="true"><i class="fa-solid fa-bolt"></i></div>
+            <div class="terminal-welcome-copy">
+                <p class="terminal-eyebrow">Tu espacio de trabajo</p>
+                <h3>ADJUNTO listo</h3>
+                <p class="terminal-welcome-description">Tu asistente privado de Península Tech para conversar, analizar archivos y ejecutar misiones verificables.</p>
+                <div class="terminal-capabilities" aria-label="Capacidades">
+                    <span><i class="fa-regular fa-comment" aria-hidden="true"></i> Conversación</span>
+                    <span><i class="fa-regular fa-file-lines" aria-hidden="true"></i> Archivos</span>
+                    <span><i class="fa-solid fa-code" aria-hidden="true"></i> Misiones</span>
+                </div>
+                <details class="terminal-memory-note">
+                    <summary><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Sobre esta conversación</summary>
+                    <p>Cada conversación conserva su propio expediente. ADJUNTO puede recuperar memoria semántica de sesiones anteriores sin convertir recuerdos en evidencia de la misión actual.</p>
+                </details>
+            </div>
+        </div>
     </main>
 
-    <footer class="p-4 bg-gestia-panel border-t border-slate-800 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.5)]">
-        <div class="max-w-4xl mx-auto relative">
-            <form id="gestia-form" class="relative flex items-end gap-3">
-                <div class="relative shrink-0">
+    <footer class="terminal-footer">
+        <div class="terminal-compose-wrap">
+            <form id="gestia-form" aria-label="Enviar una solicitud a ADJUNTO">
+                <div class="terminal-attach-wrap">
                     <button type="button" id="jarvis-attach-toggle" data-testid="jarvis-attach-toggle"
                         class="h-[58px] w-[58px] rounded-2xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200 flex items-center justify-center transition-colors"
                         title="Adjuntar y usar herramientas" aria-label="Adjuntar y usar herramientas" aria-expanded="false">
@@ -108,14 +223,15 @@ html:nth-of-type(1) > body:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-t
                     <input id="jarvis-file-input" data-testid="jarvis-file-input" type="file" class="hidden" multiple
                         accept=".txt,.md,.csv,.json,.xml,.yaml,.yml,.pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg,.webp,.gif,.svg,.mp3,.wav,.m4a,.mp4,.webm,.mov,.js,.mjs,.cjs,.ts,.tsx,.jsx,.css,.html,.py,.sql,.zip,image/*,audio/*,video/*">
                 </div>
-                <div class="relative flex-1 bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden focus-within:border-gestia-primary focus-within:ring-1 focus-within:ring-gestia-primary transition-all shadow-inner">
+                <div class="terminal-input-wrap">
                     <div id="jarvis-attachment-tray" data-testid="jarvis-attachment-tray" class="p-2 flex flex-wrap gap-2 border-b border-slate-800" hidden></div>
                     <textarea 
                         id="gestia-input" 
                         rows="1" 
                         class="w-full bg-transparent text-slate-100 p-4 resize-none focus:outline-none max-h-48 overflow-y-auto block font-sans" 
-                        placeholder="Dile a ADJUNTO qué debe investigar, crear, analizar o ejecutar..."
-                        style="min-height: 58px;"
+                        placeholder="Escribe a ADJUNTO…"
+                        aria-label="Mensaje para ADJUNTO"
+                        style="min-height: 52px;"
                     ></textarea>
                 </div>
                 
@@ -123,19 +239,59 @@ html:nth-of-type(1) > body:nth-of-type(1) > header:nth-of-type(1) > div:nth-of-t
                     type="submit" 
                     id="btn-generate"
                     class="bg-gestia-primary hover:bg-blue-500 text-white h-[58px] w-[58px] rounded-2xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/25 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed group"
-                    title="Generar Módulo"
+                    title="Enviar mensaje" aria-label="Enviar mensaje"
                 >
                     <i class="fa-solid fa-wand-magic-sparkles text-lg group-hover:scale-110 transition-transform"></i>
                 </button>
                 
             </form>
-            <div class="text-center mt-3">
-                <span class="text-[10px] text-slate-500 uppercase tracking-widest font-semibold flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-lock text-slate-600"></i> Conexión Segura Firestore V2.0
-                </span>
+            <div class="terminal-footer-note">
+                <span><i class="fa-solid fa-lock" aria-hidden="true"></i> Conexión Segura Firestore V2.0</span>
+                <span class="terminal-keyboard-hint">Enter para enviar · Mayús + Enter para otra línea</span>
             </div>
         </div>
     </footer>
+
+<script id="terminal-viewport-controller">
+(() => {
+    function startTerminalViewport() {
+        const root = document.documentElement;
+        const field = document.getElementById('gestia-input');
+        let scheduled = 0;
+        const fitComposer = () => {
+            if (!field) return;
+            const height = parseFloat(root.style.getPropertyValue('--terminal-viewport-height')) || window.innerHeight;
+            const limit = Math.max(52, Math.min(176, Math.floor(height * .32)));
+            field.style.height = 'auto';
+            field.style.height = Math.min(Math.max(52, field.scrollHeight), limit) + 'px';
+            field.style.overflowY = field.scrollHeight > limit ? 'auto' : 'hidden';
+        };
+        const updateViewport = () => {
+            scheduled = 0;
+            const viewport = window.visualViewport;
+            // Pinch zoom must remain native; do not squeeze the application to its zoomed viewport.
+            if (viewport && Number.isFinite(viewport.scale) && Math.abs(viewport.scale - 1) > .01) return;
+            const height = viewport ? viewport.height : window.innerHeight;
+            if (!Number.isFinite(height) || height < 100) return;
+            const offset = viewport ? Number(viewport.offsetTop) : 0;
+            root.style.setProperty('--terminal-viewport-height', Math.round(height) + 'px');
+            root.style.setProperty('--terminal-viewport-top', (Number.isFinite(offset) ? Math.max(0, Math.round(offset)) : 0) + 'px');
+            root.classList.toggle('terminal-compact-height', height < 480);
+            fitComposer();
+        };
+        const scheduleViewport = () => { if (!scheduled) scheduled = requestAnimationFrame(updateViewport); };
+        window.addEventListener('resize', scheduleViewport, { passive: true });
+        window.addEventListener('pageshow', scheduleViewport, { passive: true });
+        window.visualViewport?.addEventListener('resize', scheduleViewport, { passive: true });
+        window.visualViewport?.addEventListener('scroll', scheduleViewport, { passive: true });
+        field?.addEventListener('input', fitComposer);
+        updateViewport();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startTerminalViewport, { once: true });
+    else startTerminalViewport();
+})();
+</script>
+
     
    <script>
 window.__APP_MAIN_SOURCE__ = "";
@@ -5357,7 +5513,8 @@ const summary =
                 }
                 if (textarea) {
                     textarea.value = "";
-                    textarea.style.height = "58px";
+                    textarea.style.height = "";
+                    textarea.dispatchEvent(new Event("input", { bubbles: true }));
                 }
                 window.JarvisAttachments?.clear?.();
             }
@@ -5368,7 +5525,7 @@ const summary =
         window.__JARVIS_ENTER_BOUND__ = true;
 
         textarea.addEventListener("keydown", (e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
                 e.preventDefault();
                 form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
             }
