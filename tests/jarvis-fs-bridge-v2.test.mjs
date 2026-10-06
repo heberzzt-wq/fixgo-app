@@ -2489,7 +2489,13 @@ test("ranged Terminal bytes survive repo.read, mission compaction and responsive
     const { runJarvisMission } = await import("../gestia-core/jarvis/jarvis.mission.orchestrator.js");
     const { compactMissionPlannerObservation } = await import("../gestia-core/jarvis/jarvis.mission.planner-state.js");
     const { buildResponsiveRepairOptions, buildResponsiveRepairPatch } = await import("../gestia-core/jarvis/jarvis.autopatch.engine.js");
-    const source = fs.readFileSync(new URL("../gestia-terminal.html", import.meta.url), "utf8");
+    const terminalSource = fs.readFileSync(new URL("../gestia-terminal.html", import.meta.url), "utf8");
+    const defectiveCss = "\r\n#jarvis-attachment-tray[hidden] { display: flex; }\r\n";
+    // Post-write checks run against both original and repaired repositories.
+    // Only this in-memory source copy receives the known defective CSS.
+    const source = terminalSource.replace(/(<style\b[^>]*>)[\s\S]*?(<\/style\s*>)/i,
+        (_match, opening, closing) => opening + defectiveCss + closing);
+    assert.equal(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/i.exec(source)?.[1], defectiveCss);
     const runtimeSource = fs.readFileSync(new URL("../gestia-core/tools.runtime.js", import.meta.url), "utf8");
     const nameIndex = runtimeSource.indexOf('name: "repo.read"');
     const start = runtimeSource.lastIndexOf("JarvisToolRuntime.register({", nameIndex);
@@ -2525,6 +2531,11 @@ test("ranged Terminal bytes survive repo.read, mission compaction and responsive
     assert.equal(source.split(patch.search).length - 1, patch.matchCount);
     assert.equal(patch.matchCount, 1);
     assert.equal(patch.search, /<style\b[^>]*>([\s\S]*?)<\/style\s*>/i.exec(source)[1]);
+    const candidate = source.replace(patch.search, patch.replace);
+    const alreadyApplied = buildResponsiveRepairOptions({ page, source: candidate, file: read.file });
+    assert.equal(alreadyApplied.ok, false);
+    assert.equal(alreadyApplied.status, "RESPONSIVE_REPAIR_NO_SAFE_OPTIONS");
+    assert.deepEqual(alreadyApplied.options, []);
 });
 
 test("Jarvis FS bridge V2 blocks empty write content", () => {

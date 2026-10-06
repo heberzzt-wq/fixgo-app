@@ -81,8 +81,14 @@ test("responsive translator rejects ungrounded pages, non-Terminal files and sel
     assert.equal(result.options.length, 0);
 });
 
-test("responsive translator preserves the actual Terminal source outside its first style", () => {
-    const source = readFileSync(new URL("../gestia-terminal.html", import.meta.url), "utf8");
+test("responsive translator preserves Terminal around a defective style fixture and does not prepare it twice", () => {
+    const terminalSource = readFileSync(new URL("../gestia-terminal.html", import.meta.url), "utf8");
+    const defectiveCss = "\r\n#jarvis-attachment-tray[hidden] { display: flex; }\r\n";
+    // The installed page may already be repaired when post-write tests run.
+    // Keep its real structure, but make this test's defect explicit in memory.
+    const source = terminalSource.replace(/(<style\b[^>]*>)[\s\S]*?(<\/style\s*>)/i,
+        (_match, opening, closing) => opening + defectiveCss + closing);
+    assert.equal(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/i.exec(source)?.[1], defectiveCss);
     const page = responsivePageFixture();
     for (const sample of page.viewports) {
         sample.elements = [{ selector: "#jarvis-attachment-tray", hiddenAttribute: true, display: "flex", rect: [0, 700, 360, 17] }];
@@ -102,6 +108,10 @@ test("responsive translator preserves the actual Terminal source outside its fir
     assert.ok(patch.replace.startsWith(patch.search));
     assert.doesNotMatch(patch.search + patch.replace, /<\/?style/);
     assert.match(patch.replace, /#jarvis-attachment-tray\[hidden\] \{ display: none; \}/);
+    const alreadyApplied = responsiveRepair.buildResponsiveRepairOptions({ page, source: candidate, file: "gestia-terminal.html" });
+    assert.equal(alreadyApplied.ok, false);
+    assert.equal(alreadyApplied.status, "RESPONSIVE_REPAIR_NO_SAFE_OPTIONS");
+    assert.deepEqual(alreadyApplied.options, []);
 });
 
 test("responsive contrast choices require an observed palette color valid on every measured background", () => {
