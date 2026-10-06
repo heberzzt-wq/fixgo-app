@@ -440,6 +440,11 @@ function validateCompletionEvidence(plan, catalog, missionState) {
             }
             // Unscoped tools can support only their actual generic result; they
             // cannot be promoted to a specialized inspection by model wording.
+            if (objective.requiredEvidenceKind === "interface_styles" &&
+                (observation.interfaceEvidence?.source !== "CURRENT_RENDERED_DOM_COMPUTED_STYLE" ||
+                    !observation.interfaceEvidence?.elements?.length)) {
+                throw new Error("SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH");
+            }
             const kinds = tool.evidenceKinds || ["tool_result"];
             if (!kinds.includes(objective.requiredEvidenceKind)) {
                 throw new Error("SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH");
@@ -1441,6 +1446,7 @@ async function runModelSemanticPlanner({
             buildSemanticSystemInstruction(safeCatalog, missionState),
             "Compara cada objetivo original con las observaciones reales. No repitas trabajo satisfecho ni conviertas una propuesta en evidencia.",
             "Para cada objetivo devuelve completionAssessment.objectives con objective, requiredEvidenceKind, satisfied, evidenceTaskIndexes (indices base cero de completedTasks) y limitation. Decide primero que tipo de evidencia exige el objetivo, no lo adaptes a la herramienta ejecutada.",
+            "Escribe objective, explanation y limitation en español. interface_styles acredita solo tipografia, colores CSS y medidas de la pagina observada; permite un analisis tecnico de esos datos, no inspeccion de pixeles, imagenes ni pantallas no observadas. Conserva como pendientes las partes que exigen esa evidencia adicional.",
             "evidenceKinds del catalogo limita lo que una herramienta puede acreditar. Si no declara tipos, solo acredita tool_result y los hechos concretos de su observacion. ok y status prueban ejecucion, no suficiencia ni calidad del objeto solicitado.",
             "evidenceTaskIndexes referencia observaciones ya ejecutadas, nunca herramientas disponibles. Un nombre de herramienta no es un tipo de evidencia. Si la observacion no demuestra el objetivo, satisfied=false. Si falta la URL, archivo, captura o fuente del objeto y no existe una operacion fundamentada para localizarlo, devuelve toolCalls=[] y explica en limitation la fuente faltante. Nunca inventes una URL a partir de una referencia sin resolver o del nombre de una entidad.",
             "Una evaluacion visual requiere visual_inspection o interface_structure segun su alcance. system_telemetry solo acredita salud y telemetria: nunca acredita diseno grafico, apariencia, usabilidad ni ausencia de fallos visuales. visual_capture acredita una captura obtenida, no que se haya inspeccionado su contenido.",
@@ -1657,10 +1663,11 @@ async function runModelSemanticPlanner({
         )
     ) {
         const gateSystemInstruction = [
-            'Classify the current request. First identify essential missing information in missing (empty string if none). Use context only to resolve references, never as proof of actions.',
+            'Classify the requested outcome in mode first. Only then identify information essential to that outcome in missing (empty string if none). Use context only to resolve references, never as proof of actions.',
             browserGroundingInstruction(missionState),
             'Use mode=clarify when that information must be requested from the user before work can start; mode=tools for requested reading, searching, checking or changing external state; mode=chat for social conversation, wishes without an action request, or general explanations.',
             'General conceptual questions are chat even when their topic is also something a tool can create. Do not turn explaining a concept into creating an artifact, a spreadsheet or inspecting a system. An evaluation of a specific external object requires evidence of that object.',
+            'currentPage is only an available destination, never an instruction to inspect it. A question about the meaning or scope of a discipline needs an explanation, not a choice of specialization or a production plan.',
             'A broad analysis or evaluation does not require the user to choose subtopics before work can begin. If the target/resource is already resolved and available tools can gather relevant evidence, missing must be empty and mode=tools; report evidence limits after execution instead of asking the user to narrow the scope.',
             'If the current message supplies information requested by the immediately preceding assistant question, treat it as continuation of that unresolved request. Reconstruct the pending operation from recent conversation context instead of classifying the short answer in isolation.',
             'Set requiresConversationContext=true only when unresolved references in the current instruction need earlier messages. Set it false for a self-contained instruction. Similar earlier tasks and failed attempts do not make a complete new request depend on their proposals or pending actions.',
@@ -1670,19 +1677,21 @@ async function runModelSemanticPlanner({
         ].filter(Boolean).join("\n");
         const gateExamples = [
             { role: "user", content: "Lee package.json sin modificarlo y dime su contenido." },
-            { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"read repository file","requiresConversationContext":false}' },
+            { role: "assistant", content: "{\"mode\":\"tools\",\"requiresConversationContext\":false,\"missing\":\"\",\"question\":\"\",\"action\":\"read repository file\"}" },
             { role: "user", content: "Busca una panaderia cerca de mi." },
-            { role: "assistant", content: '{"missing":"ubicacion del usuario","mode":"clarify","question":"¿En qué ciudad o colonia quieres que busque?","action":"","requiresConversationContext":false}' },
+            { role: "assistant", content: "{\"mode\":\"clarify\",\"requiresConversationContext\":false,\"missing\":\"ubicacion del usuario\",\"question\":\"¿En qué ciudad o colonia quieres que busque?\",\"action\":\"\"}" },
             { role: "user", content: "Busca una panaderia en el centro de Merida." },
-            { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"search web for local businesses","requiresConversationContext":false}' },
+            { role: "assistant", content: "{\"mode\":\"tools\",\"requiresConversationContext\":false,\"missing\":\"\",\"question\":\"\",\"action\":\"search web for local businesses\"}" },
             { role: "user", content: "Enlistame lo que sabes hacer en este repo." },
-            { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"inspect system capabilities","requiresConversationContext":false}' },
+            { role: "assistant", content: "{\"mode\":\"tools\",\"requiresConversationContext\":false,\"missing\":\"\",\"question\":\"\",\"action\":\"inspect system capabilities\"}" },
             { role: "user", content: "Haz una campaña de marketing para mi despacho." },
-            { role: "assistant", content: '{"missing":"mercado objetivo","mode":"clarify","question":"¿En qué ciudad o mercado quieres enfocar la campaña?","action":"","requiresConversationContext":false}' },
+            { role: "assistant", content: "{\"mode\":\"clarify\",\"requiresConversationContext\":false,\"missing\":\"mercado objetivo\",\"question\":\"¿En qué ciudad o mercado quieres enfocar la campaña?\",\"action\":\"\"}" },
             { role: "user", content: "En Cancún y a nivel nacional." },
-            { role: "assistant", content: '{"missing":"","mode":"tools","question":"","action":"create marketing campaign","requiresConversationContext":true}' },
+            { role: "assistant", content: "{\"mode\":\"tools\",\"requiresConversationContext\":true,\"missing\":\"\",\"question\":\"\",\"action\":\"create marketing campaign\"}" },
             { role: "user", content: "Se me antoja un cafecito." },
-            { role: "assistant", content: '{"missing":"","mode":"chat","question":"","action":"","requiresConversationContext":false}' }
+            { role: "assistant", content: "{\"mode\":\"chat\",\"requiresConversationContext\":false,\"missing\":\"\",\"question\":\"\",\"action\":\"\"}" }
+            ,{ role: "user", content: "Qué es la fotografía y qué abarca?" },
+            { role: "assistant", content: '{"mode":"chat","requiresConversationContext":false,"missing":"","question":"","action":""}' }
         ];
 
         const gateResponse = await ai.models.generateContent({
@@ -1710,11 +1719,11 @@ async function runModelSemanticPlanner({
                 responseJsonSchema: {
                     type: "object",
                     properties: {
-                        missing: { type: "string" },
                         mode: { type: "string", enum: ["chat", "tools", "clarify"] },
+                        requiresConversationContext: { type: "boolean" },
+                        missing: { type: "string" },
                         question: { type: "string" },
-                        action: { type: "string" },
-                        requiresConversationContext: { type: "boolean" }
+                        action: { type: "string" }
                     },
                     required: ["missing", "mode", "question", "action", "requiresConversationContext"],
                     additionalProperties: false
@@ -1759,7 +1768,8 @@ async function runModelSemanticPlanner({
                                     browserGroundingInstruction(missionState),
                                     "A detail may be absent but non-blocking. If the resolved target and available tools allow a broad analysis, inspection, search or check to begin, return stillMissing=false and describe the first requested operation in action using 3-8 English words.",
                                     "Do not require the user to choose subtopics, aspects, style or depth when a general analysis can already start and evidence limitations can be reported after execution.",
-                                    "Return stillMissing=true only when the requested work cannot responsibly begin without that detail; then action must be empty.",
+                                    "If the request only asks for an explanation, definition, conceptual scope or conversation, return stillMissing=false, mode=chat, action=empty string. Do not transform a general knowledge question into inspection or production because currentPage or tools exist.",
+                                    "For actual external work that can begin, return stillMissing=false, mode=tools and its action. Return stillMissing=true, mode=clarify only when the work cannot begin without that detail; then action must be empty.",
                                     "Do not answer the user or invent facts."
                                 ].join("\n")
                             },
@@ -1801,6 +1811,7 @@ async function runModelSemanticPlanner({
                                     type:
                                         "boolean"
                                 },
+                                mode: { type: "string", enum: ["chat", "tools", "clarify"] },
                                 action: {
                                     type:
                                         "string"
@@ -1808,6 +1819,7 @@ async function runModelSemanticPlanner({
                             },
                             required: [
                                 "stillMissing",
+                                "mode",
                                 "action"
                             ],
                             additionalProperties:
@@ -1842,6 +1854,10 @@ async function runModelSemanticPlanner({
             ) {
                 clarificationStillRequired =
                     false;
+                if (clarificationAuditPayload.mode === "chat" && !explicitExternalResource) {
+                    gatePayload.mode = "chat";
+                    gatePayload.action = "";
+                }
                 clarificationRecoveryAction =
                     String(
                         clarificationAuditPayload
@@ -1884,10 +1900,10 @@ async function runModelSemanticPlanner({
         }
         if (direct && gatePayload.mode === "chat") {
             const responseSystemInstruction = [
-                "Eres Jarvis, asistente virtual de FixGo. Responde al mensaje actual de forma breve y natural en español mexicano. Explica los conceptos generales y su alcance con suficiente contenido para responder la pregunta.",
-                "Cuando el usuario pide conocimiento general, contesta con la explicacion directamente. No reformules su pregunta ni preguntes si desea saber lo que ya solicito.",
-                "En conversación casual comenta sobre lo que dice el usuario, sin ofrecer servicios o acciones físicas. Conserva el sentido de sus palabras; si no entiendes una, pide aclaración. No inventes acciones ejecutadas."
-            ].join("\n");
+                "You are Jarvis, also called ADJUNTO: the assistant, not the human. Reply to the human in natural Mexican Spanish.",
+                "Jarvis in a user greeting is YOUR name: it must not become a name for the human. If the human states or corrects their name, accept that exact spelling and do not ask for information already given.",
+                "Never rewrite their message in the first person as though you were the human. Answer knowledge questions directly and fully; do not offer to answer a question already asked. Do not invent performed actions."
+            ].join(" ");
             const responseResult = await ai.models.generateContent({
                 model,
                 contents: [
@@ -1917,7 +1933,7 @@ async function runModelSemanticPlanner({
                     ],
                     maxOutputTokens: 512,
                     nativeTextChat: true,
-                    temperature: 0.2,
+                    temperature: 0,
                     thinkingConfig: {
                         thinkingLevel: "MINIMAL"
                     }
@@ -2699,6 +2715,37 @@ async function runJarvisSemanticResponse({
                 }
             }
         }
+        // The same local model selects measured facts; canonical values are
+        // rendered without letting prose invent CSS, geometry or visual claims.
+        if (!groundedFactSelection && Array.isArray(parsedBriefing?.measuredInterfaceEvidence) &&
+            Array.isArray(parsedBriefing.executedTools) && parsedBriefing.executedTools.length > 0 &&
+            parsedBriefing.executedTools.every(item => item.tool === "browser.inspect" && item.ok === true && item.executionOk !== false && item.blocked !== true && item.requiresInput !== true)) {
+            const facts = [];
+            const scopes = [];
+            for (const [pageIndex, page] of parsedBriefing.measuredInterfaceEvidence.slice(0, 2).entries()) {
+                if (page?.source !== "CURRENT_RENDERED_DOM_COMPUTED_STYLE" ||
+                    !Array.isArray(page.elements) || !page.elements.length ||
+                    !(Number(page.viewport?.width) > 0 && Number(page.viewport?.height) > 0)) continue;
+                let url;
+                try { url = new URL(page.url); } catch { continue; }
+                if (!["http:", "https:"].includes(url.protocol)) continue;
+                const value = v => String(v || "").replace(/\s+/g, " ").trim().slice(0, 160);
+                const prefix = "interface." + pageIndex;
+                const styles = page.pageStyles || {};
+                facts.push({ id: prefix + ".colors", text: "Página: fondo CSS " + value(styles.backgroundColor) + "; texto " + value(styles.color) + "; fuente base " + value(styles.fontFamily) + " de " + value(styles.fontSize) + "." });
+                for (const [index, element] of page.elements.slice(0, 12).entries()) {
+                    if (!element || !value(element.tag)) continue;
+                    const label = value(element.tag) + (value(element.text) ? " («" + value(element.text) + "»)" : "");
+                    const id = prefix + ".element." + index;
+                    if (value(element.fontSize)) facts.push({ id: id + ".typography", text: "Tipografía de " + label + ": " + value(element.fontFamily) + "; tamaño " + value(element.fontSize) + "; peso " + value(element.fontWeight) + "; interlineado " + value(element.lineHeight) + "." });
+                    const rect = element.rect;
+                    if (Array.isArray(rect) && rect.length === 4 && rect.every(Number.isFinite)) facts.push({ id: id + ".geometry", text: "Distribución de " + label + ": posición x=" + rect[0] + ", y=" + rect[1] + " px; ancho " + rect[2] + " px; alto " + rect[3] + " px. Son coordenadas y dimensiones, no márgenes." });
+                }
+                scopes.push("Alcance: estructura y estilos de " + url.href + " en un área visible de " + page.viewport.width + " × " + page.viewport.height + " px. No se inspeccionaron píxeles, fotografías ni otras pantallas.");
+            }
+            if (facts.length) groundedFactSelection = { mode: "MEASURED_INTERFACE_FACTS", facts: facts.slice(0, 40), scope: scopes.join(" "), missionStatus: parsedBriefing.missionStatus };
+        }
+
     }
 
     const deadline = Number(timeoutMs) > 0 ? Math.max(5000, Number(timeoutMs)) : budget >= 6000 ? 120000 : 45000;
@@ -2727,6 +2774,7 @@ async function runJarvisSemanticResponse({
                                 "You are Jarvis. Select only verified fact IDs that directly answer the user's request.",
                                 "requestedLineCount is the exact number of answer lines explicitly requested by the user, or 0 if no exact line count is requested.",
                                 "Order factIds by relevance. Do not invent prose or facts; the application renders the selected verified facts.",
+                                ...(groundedFactSelection.mode === "MEASURED_INTERFACE_FACTS" ? ["For a broad interface review, select 3-6 relevant measured facts covering heading typography, page colors and layout. Do not select every element. These facts support a technical review, not visual inspection, accessibility certification or claims about unobserved behavior."] : []),
                                 "Do not infer validity, syntax, unchanged state, tests, boundary verification, or absence of errors unless those claims exist as selectable verified facts."
                             ].join("\n");
                             return {
@@ -2787,6 +2835,7 @@ async function runJarvisSemanticResponse({
                             "Respect the scope of each observation and its evidenceKinds. Successful execution is not proof that the requested object was analyzed. System telemetry cannot support visual design, appearance or usability claims, even when missionStatus says COMPLETED. If visual or interface evidence is missing, explicitly state that limitation; never claim a visual analysis succeeded or found no defects. A screenshot file alone is not an inspection of its content.",
                             "Reading a file does not certify syntax, validity, tests, or that it did not change before the read. COMPLETE coverage means all file lines were read; PARTIAL and UNKNOWN do not.",
                             "If the canonical mission status is PARTIAL, BLOCKED or FAILED, explain the real failure and available evidence. Never claim full success from one successful tool.",
+                            "Si existe measuredInterfaceEvidence, redacta la revision tecnica de la pagina: incluye valores observados de tamaños de fuente, colores y distribucion, y distingue las recomendaciones. Un estado parcial no borra estas mediciones. No te limites a decir que falta una captura; declara que no inspeccionaste pixeles, imagenes ni otras pantallas, sin desechar los hechos medidos.",
                             "Return JSON with lines: an array of strings containing the actual Spanish answer lines. Follow the number of lines and content requested by the user. Do not add unrequested headings. The application renders these lines as natural text."
                         ].join("\n") : [
                         "Eres Jarvis, asistente multifuncional privado de Heberto Mendoza.",
@@ -2903,9 +2952,15 @@ async function runJarvisSemanticResponse({
                             0,
                             requestedCount > 0
                                 ? requestedCount
-                                : selectedFacts.length
+                                : groundedFactSelection.mode === "MEASURED_INTERFACE_FACTS"
+                                    ? Math.min(6, selectedFacts.length)
+                                    : selectedFacts.length
                         )
                         .join("\n");
+                if (groundedFactSelection.mode === "MEASURED_INTERFACE_FACTS") {
+                    const partial = groundedFactSelection.missionStatus !== "COMPLETED" ? " Revisión parcial. " : " ";
+                    message += partial + groundedFactSelection.scope;
+                }
             }
             else {
                 if (!envelope || Object.keys(envelope).length !== 1 || !Array.isArray(envelope.lines) ||

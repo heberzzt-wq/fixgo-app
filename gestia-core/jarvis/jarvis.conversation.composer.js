@@ -1,3 +1,5 @@
+import { compactBrowserInterfaceEvidence } from "./jarvis.browser.grounding.js";
+
 const MAX_EVIDENCE_ITEMS = 12;
 const MAX_EVIDENCE_LENGTH = 8000;
 
@@ -686,9 +688,9 @@ export function buildBoundedConversationEvidence(evidenceItems = []) {
                         ? compactRepositoryObservation(
                             observation
                         )
-                        : boundedEvidenceValue(
-                            observation
-                        )
+                        : tool === "browser.inspect" && compactBrowserInterfaceEvidence(observation?.interfaceEvidence || observation?.evidence?.interfaceEvidence)
+                            ? { ok: observation.ok, status: observation.status, interfaceEvidence: compactBrowserInterfaceEvidence(observation.interfaceEvidence || observation.evidence?.interfaceEvidence) }
+                            : boundedEvidenceValue(observation)
             };
         }).filter(item => {
             // The mission and runtime can both reference the same observation.
@@ -725,6 +727,10 @@ export function buildBoundedConversationEvidence(evidenceItems = []) {
                         }
                     )
             };
+        }
+
+        if (item.tool === "browser.inspect" && compactBrowserInterfaceEvidence(observation.interfaceEvidence)) {
+            return { tool: item.tool, observation: { ok: observation.ok, status: observation.status, interfaceEvidence: compactBrowserInterfaceEvidence(observation.interfaceEvidence) } };
         }
 
         const isMediaAnalysis =
@@ -1091,7 +1097,15 @@ export async function composeEvidenceGroundedConversation({
     if (missionOutcomeObservation?.completionAssessment?.validationFailed === true) {
         missingEvidence.push("No pude validar que la evidencia obtenida cubra lo solicitado; el análisis no está acreditado.");
     }
-    if (missionOutcomeObservation?.status !== "COMPLETED" && missingEvidence?.length) {
+    const measuredInterfaceEvidence = (Array.isArray(evidenceItems) ? evidenceItems : []).flatMap(item => {
+        const observation = item?.observation || item?.response || item?.data || {};
+        const measured = (item?.name || item?.tool) === "browser.inspect" && observation.ok === true &&
+            observation.executionOk !== false && observation.blocked !== true && observation.requiresInput !== true
+            ? compactBrowserInterfaceEvidence(observation.interfaceEvidence || observation.evidence?.interfaceEvidence) : null;
+        return measured ? [measured] : [];
+    });
+    const hasMeasuredInterfaceEvidence = measuredInterfaceEvidence.length > 0;
+    if (missionOutcomeObservation?.status !== "COMPLETED" && missingEvidence?.length && !hasMeasuredInterfaceEvidence) {
         // These are the same Qwen's validated limitations. A second prose pass
         // must not turn the refused completion into an unsupported success.
         return {
@@ -1121,6 +1135,7 @@ export async function composeEvidenceGroundedConversation({
             ? "Enumera solamente los datos realmente faltantes que impiden una parte solicitada y pregunta al usuario si puede proporcionarlos o si prefiere continuar sin ellos; conserva todo lo ya verificado."
             : "",
         precisionGroundingInstruction,
+        hasMeasuredInterfaceEvidence ? "Hay medidas reales de DOM y estilos calculados de la pagina actual. Explica hallazgos concretos de tipografia, colores y distribucion citando sus medidas; separa recomendaciones de hechos. No has visto pixeles, fotografias ni otras pantallas. Limita expresamente el alcance a la URL y viewport observados. Responde integramente en español; no copies limitaciones internas en ingles." : "",
         creativeAcceptanceInstruction,
         `SOLICITUD_USUARIO=${String(instruction || "").slice(0, 12000)}`,
         hasCapabilities ? `RESUMEN_CAPACIDADES_Y_LIMITES=${capabilityBriefing}` : "",
@@ -1192,6 +1207,7 @@ export async function composeEvidenceGroundedConversation({
                 missionStatus: missionOutcomeObservation?.status || "UNKNOWN",
                 missionReason: missionOutcomeObservation?.reason || "",
                 executedTools: authoritativeOutcomes.filter(item => item.tool !== "mission.outcome"),
+                ...(hasMeasuredInterfaceEvidence ? { measuredInterfaceEvidence } : {}),
                 ...(groundedVerifiedRead
                     ? { groundedVerifiedRead }
                     : {})

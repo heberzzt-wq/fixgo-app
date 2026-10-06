@@ -2,7 +2,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 import { ADVERTISING_DIRECTION_SCHEMA, validateAdvertisingDirection } from "./jarvis.advertising.benchmark.js";
-import { validateBrowserUrl } from "./jarvis.browser.grounding.js";
+import { validateBrowserUrl, inspectCurrentBrowserPage } from "./jarvis.browser.grounding.js";
 import {
     buildPageArtifactHtml,
     describePageArtifact
@@ -454,6 +454,8 @@ function groundedBrowserRequest(payload, context, timeoutMs) {
     }
     const grounding = validateBrowserUrl(payload.url, context);
     if (!grounding.ok) return Promise.resolve(grounding);
+    const currentPage = payload.action === "inspect" ? inspectCurrentBrowserPage(grounding.url) : null;
+    if (currentPage) return Promise.resolve(currentPage);
     return bridgeRequest("/browser", { ...payload, url: grounding.url }, timeoutMs);
 }
 
@@ -721,8 +723,8 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "browser.inspect",
-            description: "Inspecciona y analiza una pagina web, plataforma o interfaz EXISTENTE cargando su URL en Chrome/Edge headless real y devolviendo DOM renderizado, estructura, jerarquia y contenido visible verificable. Sirve para revisar una interfaz existente; no crea paginas nuevas ni certifica apariencia visual sin observar una captura.",
-            evidenceKinds: ["interface_structure"],
+            description: "Inspecciona una pagina o interfaz EXISTENTE. En la pagina actual lee el DOM visible y sus estilos calculados: tipografia, colores CSS, tamaños y distribucion. Para otra URL usa Chrome/Edge headless y devuelve DOM. Aporta evidencia para un analisis tecnico del diseño de la pagina observada; no crea contenido, no ve pixeles ni analiza imagenes u otras pantallas.",
+            evidenceKinds: ["interface_structure", "interface_styles"],
             output: "BROWSER_INSPECTION",
             inputSchema: { url: "string", timeoutMs: "number" },
             execute: async (args = {}, context = {}) =>

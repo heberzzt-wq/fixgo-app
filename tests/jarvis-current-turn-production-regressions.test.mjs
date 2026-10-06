@@ -355,3 +355,153 @@ test("Qwen receives runtime URL provenance in both the gate and native tool sele
     assert.equal(calls, 2);
     assert.equal(plan.toolCalls[0].args.url, currentPage.url);
 });
+
+
+test("a conceptual clarification audit can recover conversation without operational retrieval", async () => {
+    const answer = "La tipografia organiza el texto para comunicar con claridad.";
+    const stages = [];
+    const plan = await runJarvisSemanticPlanner({
+        input: "Explica que es la tipografia y que abarca",
+        catalog: [{ name: "conversation.respond", mutates: false }, { name: "browser.inspect", mutates: false }],
+        missionState: { phase: "CURRENT_TURN", conversationalGate: true },
+        retrieveToolCandidates: async () => { throw new Error("CONCEPTUAL_REQUEST_MUST_NOT_RETRIEVE_TOOLS"); },
+        ai: { models: { generateContent: async request => {
+            stages.push(request.config.semanticStage);
+            if (stages.length === 1) return { text: JSON.stringify({ missing: "tipo", mode: "clarify", question: "De que tipo?", action: "", requiresConversationContext: false }) };
+            if (stages.length === 2) return { text: JSON.stringify({ stillMissing: false, mode: "chat", action: "" }) };
+            return { text: answer };
+        } } }
+    });
+    assert.equal(plan.toolCalls.length, 1);
+    assert.equal(plan.toolCalls[0].name, "conversation.respond");
+    assert.equal(plan.toolCalls[0].args.prompt, answer);
+    assert.equal(stages.length, 3);
+});
+
+
+test("current-page inspection measures real styles without reading form values or claiming pixels", async () => {
+    const { inspectCurrentBrowserPage } = await import("../gestia-core/jarvis/jarvis.browser.grounding.js");
+    const url = "https://runtime.test/terminal";
+    const style = { display: "block", visibility: "visible", opacity: "1", fontFamily: "Arial",
+        fontSize: "32px", fontWeight: "700", lineHeight: "40px", color: "rgb(255, 255, 255)",
+        backgroundColor: "rgb(15, 23, 42)", padding: "16px", gap: "8px", borderRadius: "8px" };
+    const element = { tagName: "H1", innerText: "Terminal de prueba", closest: () => null,
+        getBoundingClientRect: () => ({ x: 16, y: 16, width: 300, height: 40, right: 316, bottom: 56, top: 16, left: 16 }) };
+    const input = { ...element, tagName: "INPUT", value: "PRIVATE_FORM_VALUE", innerText: "",
+        getAttribute: name => name === "placeholder" ? "Escribe aqui" : null };
+    const password = { ...input, type: "password", value: "PRIVATE_PASSWORD" };
+    const runtime = { location: { href: url }, innerWidth: 1024, innerHeight: 768,
+        getComputedStyle: () => style,
+        document: { body: {}, title: "Terminal", documentElement: { scrollWidth: 1024 },
+            querySelectorAll: () => [element, input, password] } };
+    assert.equal(inspectCurrentBrowserPage("https://other.test/", runtime), null);
+    const result = inspectCurrentBrowserPage(url, runtime);
+    assert.equal(result.status, "BROWSER_INSPECT_OK");
+    assert.equal(result.interfaceEvidence.url, url);
+    assert.equal(result.interfaceEvidence.elements[0].fontSize, "32px");
+    assert.equal(result.interfaceEvidence.elements.length, 2);
+    assert.equal(result.interfaceEvidence.screenshotInspected, false);
+    assert.equal(result.interfaceEvidence.otherPagesInspected, false);
+    assert.doesNotMatch(JSON.stringify(result), /PRIVATE_FORM_VALUE|PRIVATE_PASSWORD/);
+    const { compactMissionPlannerObservation } = await import("../gestia-core/jarvis/jarvis.mission.planner-state.js");
+    assert.deepEqual(compactMissionPlannerObservation(result).interfaceEvidence, result.interfaceEvidence);
+    assert.deepEqual(compactMissionPlannerObservation({ ok: true, evidence: result }).interfaceEvidence, result.interfaceEvidence);
+});
+
+test("partial measured interface results reach the final response without becoming pixel inspection", async () => {
+    const interfaceEvidence = { source: "CURRENT_RENDERED_DOM_COMPUTED_STYLE", url: "https://runtime.test/terminal",
+        viewport: { width: 1024, height: 768 }, elements: [{ tag: "h1", text: "Terminal", fontSize: "32px", color: "rgb(255, 255, 255)", rect: [16, 16, 300, 40] }] };
+    const evidenceItems = [
+        { name: "browser.inspect", observation: { ok: true, status: "BROWSER_INSPECT_OK", interfaceEvidence } },
+        { name: "mission.outcome", observation: { status: "PARTIAL", reason: "PLANNER_NO_EXECUTABLE_PLAN",
+            completionAssessment: { objectives: [{ satisfied: false, limitation: "Falta inspeccion de imagenes y otras pantallas." }] } } }
+    ];
+    let calls = 0;
+    const result = await composeEvidenceGroundedConversation({ instruction: "Analiza el diseño de la interfaz", evidenceItems,
+        executeConversation: async (prompt, options) => {
+            calls++;
+            assert.match(prompt, /32px/);
+            assert.match(prompt, /CURRENT_VIEWPORT_ONLY/);
+            assert.match(prompt, /No has visto pixeles/);
+            assert.equal(JSON.parse(options.responseBriefing).missionStatus, "PARTIAL");
+            return { ok: true, message: "Revision parcial: el titulo observado mide 32px. No inspeccione imagenes ni otras pantallas." };
+        } });
+    assert.equal(calls, 1);
+    assert.match(result.text, /32px/);
+    assert.match(result.text, /No inspeccione imagenes/);
+    assert.doesNotMatch(result.text, /No hay evidencia suficiente/);
+});
+
+
+test("declared style capability cannot certify absent measured style evidence", async () => {
+    await assert.rejects(runJarvisSemanticPlanner({
+        input: "Evalua los tamaños tipograficos observados",
+        catalog: [{ name: "browser.inspect", evidenceKinds: ["interface_structure", "interface_styles"], mutates: false }],
+        missionState: { phase: "COMPLETION_AUDIT", completedTasks: [{ name: "browser.inspect", observation: { ok: true, summary: "DOM sin estilos" } }] },
+        ai: { models: { generateContent: async () => ({ text: JSON.stringify({ toolCalls: [], missionComplete: true,
+            completionAssessment: { objectives: [{ objective: "Tipografia", requiredEvidenceKind: "interface_styles", satisfied: true, evidenceTaskIndexes: [0], limitation: "" }] } }) }) } }
+    }), /SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH/);
+});
+
+
+test("direct conversation preserves speaker roles and the literal current message", async () => {
+    const input = "soy heberto no jarvis";
+    const answer = "Entendido, Heberto.";
+    let requests = 0;
+    const plan = await runJarvisSemanticPlanner({ input,
+        catalog: [{ name: "conversation.respond", mutates: false }],
+        missionState: { phase: "CURRENT_TURN", conversationalGate: true },
+        ai: { models: { generateContent: async request => {
+            requests++;
+            if (request.config.semanticStage === "CURRENT_TURN_CONVERSATION_GATE") {
+                return { text: JSON.stringify({ mode: "chat", missing: "", question: "", action: "", requiresConversationContext: false }) };
+            }
+            assert.equal(request.config.chatMessages[0].role, "system");
+            assert.match(request.config.chatMessages[0].content, /assistant, not the human/);
+            assert.match(request.config.chatMessages[0].content, /accept that exact spelling/);
+            assert.deepEqual(request.config.chatMessages.at(-1), { role: "user", content: input });
+            return { text: answer };
+        } } }
+    });
+    assert.equal(requests, 2);
+    assert.equal(plan.toolCalls[0].args.prompt, answer);
+});
+
+test("measured interface answers render canonical CSS and retain partial scope", async () => {
+    const { runJarvisSemanticResponse } = createRequire(import.meta.url)("../functions/jarvis-semantic-planner.js");
+    const responseBriefing = JSON.stringify({ missionStatus: "PARTIAL",
+        executedTools: [{ tool: "browser.inspect", ok: true, executionOk: true }],
+        measuredInterfaceEvidence: [{ source: "CURRENT_RENDERED_DOM_COMPUTED_STYLE", url: "https://runtime.test/terminal",
+            viewport: { width: 1024, height: 768 }, pageStyles: { backgroundColor: "rgb(15, 23, 42)", color: "rgb(255, 255, 255)", fontFamily: "Arial", fontSize: "16px" },
+            elements: [{ tag: "h1", text: "Terminal", fontFamily: "Arial", fontSize: "32px", fontWeight: "700", lineHeight: "40px", rect: [16, 24, 300, 40] }] }] });
+    for (const invalid of [false, true]) {
+        const operation = runJarvisSemanticResponse({ input: "Analiza los datos observados", responseInstruction: "Analiza el diseño de la interfaz",
+            responseMode: "grounded_conversation", responseBriefing,
+            ai: { models: { generateContent: async request => {
+                const ids = request.config.responseJsonSchema.properties.factIds.items.enum;
+                assert.ok(ids.includes("interface.0.element.0.typography"));
+                assert.match(JSON.stringify(request.config.chatMessages), /32px/);
+                return { text: JSON.stringify({ requestedLineCount: 0, factIds: invalid ? ["invented.visual.success"] : ["interface.0.colors", "interface.0.element.0.typography", "interface.0.element.0.geometry"] }) };
+            } } } });
+        if (invalid) { await assert.rejects(operation, /SEMANTIC_RESPONSE_FORMAT_INVALID/); continue; }
+        const result = await operation;
+        assert.match(result.message, /32px/);
+        assert.match(result.message, /rgb\(15, 23, 42\)/);
+        assert.match(result.message, /Revisión parcial/);
+        assert.match(result.message, /No se inspeccionaron píxeles/);
+        assert.match(result.message, /coordenadas y dimensiones, no márgenes/);
+        assert.doesNotMatch(result.message, /invented|inspección visual exitosa/);
+    }
+});
+
+test("failed browser observations cannot enter measured-answer composition", async () => {
+    const { compactMissionPlannerObservation } = await import("../gestia-core/jarvis/jarvis.mission.planner-state.js");
+    const observation = { ok: true, executionOk: false, blocked: true,
+        interfaceEvidence: { source: "CURRENT_RENDERED_DOM_COMPUTED_STYLE", url: "https://runtime.test/", viewport: { width: 1000, height: 700 }, elements: [{ tag: "h1", fontSize: "32px" }] } };
+    assert.equal(compactMissionPlannerObservation(observation).interfaceEvidence, undefined);
+    const result = await composeEvidenceGroundedConversation({ instruction: "Analiza la interfaz", evidenceItems: [
+        { name: "browser.inspect", observation },
+        { name: "mission.outcome", observation: { status: "PARTIAL", completionAssessment: { objectives: [{ satisfied: false, limitation: "No hay una observación válida de la interfaz." }] } } }
+    ], executeConversation: async () => { throw new Error("FAILED_EVIDENCE_MUST_NOT_REACH_MODEL"); } });
+    assert.equal(result.status, "CONVERSATIONAL_EVIDENCE_INSUFFICIENT");
+});

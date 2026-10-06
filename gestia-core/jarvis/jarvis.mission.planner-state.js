@@ -1,3 +1,5 @@
+import { compactBrowserInterfaceEvidence } from "./jarvis.browser.grounding.js";
+
 const MAX_PLANNER_TEXT = 700;
 const MAX_PLANNER_SOURCES = 3;
 const MAX_PLANNER_MEDIA_ASSETS = 8;
@@ -76,6 +78,8 @@ export function compactMissionPlannerObservation(observation = {}) {
     const source = object(observation);
     const evidence = object(source.evidence);
     const materialReferences = materialReferencesForPlanning(source);
+    const interfaceEvidence = source.ok === true && source.executionOk !== false && source.blocked !== true && source.requiresInput !== true
+        ? compactBrowserInterfaceEvidence(source.interfaceEvidence || evidence.interfaceEvidence) : null;
     const sources = (
         Array.isArray(source.sources)
             ? source.sources
@@ -149,6 +153,7 @@ export function compactMissionPlannerObservation(observation = {}) {
         requiresInput: source.requiresInput === true,
         retryable: source.retryable === true,
         sourceCount,
+        ...(interfaceEvidence ? { interfaceEvidence, url: interfaceEvidence.url } : {}),
         ...(source.repositoryTarget || evidence.repositoryTarget ? { repositoryTarget: source.repositoryTarget || evidence.repositoryTarget } : {}),
         ...(Array.isArray(source.files || evidence.files) ? {
             files: (source.files || evidence.files).slice(0, 24).map(file => text(file, 500)).filter(Boolean),

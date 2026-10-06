@@ -157,7 +157,7 @@ test("current-turn conversational gate classifies then responds with the same lo
     );
     assert.match(
         String(responseRequest?.contents || ""),
-        /No inventes acciones ejecutadas/
+        /No inventes acciones ejecutadas|Do not invent performed actions/
     );
     assert.equal(result.toolCalls.length, 1);
     assert.equal(result.toolCalls[0].name, "conversation.respond");
