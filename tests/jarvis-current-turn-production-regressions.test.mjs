@@ -530,6 +530,14 @@ test("completion audit repairs one invalid evidence envelope without weakening c
         }
         assert.equal(requests.length, 2);
         assert.equal(requests[0].config.temperature, 0);
+        const schema = requests[0].config.responseJsonSchema;
+        assert.equal(Object.keys(schema.properties)[0], "completionAssessment");
+        const variants = schema.properties.completionAssessment.properties.objectives.items.anyOf;
+        const incomplete = variants.find(item => item.properties.satisfied.enum[0] === false);
+        const complete = variants.find(item => item.properties.satisfied.enum[0] === true);
+        assert.equal(incomplete.properties.limitation.minLength, 1);
+        assert.deepEqual(complete.properties.limitation.enum, [""]);
+        assert.equal(complete.properties.evidenceTaskIndexes.minItems, 1);
         assert.equal(requests[1].config.chatMessages.at(-1).content, "Revisa la tipografía de esta interfaz");
     }
 });
