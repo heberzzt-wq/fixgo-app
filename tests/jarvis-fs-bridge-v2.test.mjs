@@ -2478,11 +2478,20 @@ test("Jarvis FS bridge ranged reads preserve exact CRLF and mixed line endings f
 
 test("Jarvis FS bridge first-style range remains an exact substring of Terminal bytes", () => {
     const source = fs.readFileSync(new URL("../gestia-terminal.html", import.meta.url), "utf8");
-    const ranged = applyReadLineRange(source, normalizeReadLineRange({ startLine: 1, endLine: 100 }));
-    const style = /<style\b[^>]*>([\s\S]*?)<\/style\s*>/i.exec(ranged.content)?.[1];
+    const pattern = /<style\b[^>]*>([\s\S]*?)<\/style\s*>/i;
+    const complete = pattern.exec(source);
+    assert.ok(complete, "the served Terminal must contain its real presentation block");
+    // The stylesheet may grow. Read through its observed closing line rather
+    // than silently assuming that every future style ends before line 100.
+    const endLine = source.slice(0, complete.index + complete[0].length).split(/\r\n|\n|\r/).length;
+    const ranged = applyReadLineRange(source, normalizeReadLineRange({ startLine: 1, endLine }));
+    const style = pattern.exec(ranged.content)?.[1];
     assert.equal(typeof style, "string");
     assert.equal(source.includes(style), true);
-    assert.equal(style, /<style\b[^>]*>([\s\S]*?)<\/style\s*>/i.exec(source)?.[1]);
+    assert.equal(style, complete[1]);
+    assert.equal(ranged.endLine, endLine);
+    const incomplete = applyReadLineRange(source, normalizeReadLineRange({ startLine: 1, endLine: endLine - 1 }));
+    assert.equal(pattern.test(incomplete.content), false, "a truncated read cannot claim the complete style");
 });
 
 test("ranged Terminal bytes survive repo.read, mission compaction and responsive patch preparation", async () => {
