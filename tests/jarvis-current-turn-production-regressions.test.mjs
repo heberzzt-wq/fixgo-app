@@ -531,7 +531,9 @@ test("completion audit repairs one invalid evidence envelope without weakening c
         assert.equal(requests.length, 2);
         assert.equal(requests[0].config.temperature, 0);
         const schema = requests[0].config.responseJsonSchema;
-        assert.equal(Object.keys(schema.properties)[0], "completionAssessment");
+        assert.equal(Object.keys(schema.properties)[0], "explanation");
+        assert.ok(schema.required.includes("explanation"));
+        assert.match(requests[0].config.chatMessages[0].content, /objeto o pagina solicitado/);
         const variants = schema.properties.completionAssessment.properties.objectives.items.anyOf;
         const incomplete = variants.find(item => item.properties.satisfied.enum[0] === false);
         const complete = variants.find(item => item.properties.satisfied.enum[0] === true);
@@ -539,5 +541,75 @@ test("completion audit repairs one invalid evidence envelope without weakening c
         assert.deepEqual(complete.properties.limitation.enum, [""]);
         assert.equal(complete.properties.evidenceTaskIndexes.minItems, 1);
         assert.equal(requests[1].config.chatMessages.at(-1).content, "Revisa la tipografía de esta interfaz");
+    }
+});
+
+
+test("completion audit retry receives the rejected draft and enforces consistent completion", async () => {
+    const input = "Revisa la tipografia de esta interfaz";
+    const objective = { objective: "Revisar tipografia", requiredEvidenceKind: "interface_styles", evidenceTaskIndexes: [0], satisfied: true, limitation: "" };
+    const rejected = { completionAssessment: { objectives: [objective] }, missionComplete: false, toolCalls: [] };
+    for (const alwaysContradictory of [false, true]) {
+        let attempts = 0;
+        const operation = runJarvisSemanticPlanner({ input,
+            catalog: [{ name: "browser.inspect", mutates: false, evidenceKinds: ["interface_styles"] }],
+            missionState: { phase: "COMPLETION_AUDIT", completedTasks: [{ name: "browser.inspect", observation: { ok: true, interfaceEvidence: { source: "CURRENT_RENDERED_DOM_COMPUTED_STYLE", elements: [{ tag: "h1", fontSize: "32px" }] } } }] },
+            ai: { models: { generateContent: async request => {
+                attempts++;
+                if (attempts === 2) {
+                    const draft = request.config.chatMessages.find(message => message.role === "assistant");
+                    assert.ok(draft, "the retry needs the actual rejected draft, not just an error label");
+                    assert.deepEqual(JSON.parse(draft.content), rejected);
+                    assert.equal(request.config.chatMessages.at(-1).content, input);
+                    assert.match(JSON.stringify(request.config.chatMessages), /missionComplete=true/);
+                }
+                return { text: JSON.stringify(attempts === 1 || alwaysContradictory ? rejected : { ...rejected, missionComplete: true }) };
+            } } }
+        });
+        if (alwaysContradictory) await assert.rejects(operation, /SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY/);
+        else assert.equal((await operation).missionComplete, true);
+        assert.equal(attempts, 2);
+    }
+});
+
+
+test("completion status is projected from validated objectives without a second model verdict", async () => {
+    const completed = { objective: "Revisar tipografia", requiredEvidenceKind: "interface_styles", satisfied: true, evidenceTaskIndexes: [0], limitation: "" };
+    const pending = { objective: "Revisar imagenes", requiredEvidenceKind: "visual_inspection", satisfied: false, evidenceTaskIndexes: [], limitation: "No se inspeccionaron pixeles." };
+    for (const objectives of [[completed], [completed, pending], [pending]]) {
+        let attempts = 0;
+        const result = await runJarvisSemanticPlanner({ input: "Revisa esta interfaz sin inventar observaciones",
+            catalog: [{ name: "browser.inspect", mutates: false, evidenceKinds: ["interface_styles"] }],
+            missionState: { phase: "COMPLETION_AUDIT", completedTasks: [{ name: "browser.inspect", observation: { ok: true, interfaceEvidence: { source: "CURRENT_RENDERED_DOM_COMPUTED_STYLE", elements: [{ tag: "h1", fontSize: "32px" }] } } }] },
+            ai: { models: { generateContent: async request => {
+                attempts++;
+                const schema = request.config.responseJsonSchema;
+                assert.equal(schema.properties.missionComplete, undefined, "do not generate a redundant verdict independently of the objectives");
+                assert.ok(!schema.required.includes("missionComplete"));
+                return { text: JSON.stringify({ completionAssessment: { objectives }, toolCalls: [] }) };
+            } } }
+        });
+        assert.equal(attempts, 1);
+        assert.equal(result.missionComplete, objectives.every(item => item.satisfied));
+        assert.deepEqual(result.completionAssessment.objectives, objectives);
+        assert.equal(result.planKind, "COMPLETION_AUDIT");
+    }
+});
+
+test("projected completion cannot bypass missing, failed or out-of-scope evidence", async () => {
+    const observation = { ok: true, interfaceEvidence: { source: "CURRENT_RENDERED_DOM_COMPUTED_STYLE", elements: [{ tag: "h1", fontSize: "32px" }] } };
+    const objective = { objective: "Revisar tipografia", requiredEvidenceKind: "interface_styles", satisfied: true, evidenceTaskIndexes: [0], limitation: "" };
+    for (const variant of [
+        { objectives: [], observation, error: /SEMANTIC_COMPLETION_EVIDENCE_REQUIRED/ },
+        { objectives: [{ ...objective, evidenceTaskIndexes: [] }], observation, error: /SEMANTIC_COMPLETION_EVIDENCE_REQUIRED/ },
+        { objectives: [{ ...objective, evidenceTaskIndexes: [99] }], observation, error: /SEMANTIC_COMPLETION_EVIDENCE_INVALID/ },
+        { objectives: [objective], observation: { ...observation, executionOk: false }, error: /SEMANTIC_COMPLETION_EVIDENCE_INVALID/ },
+        { objectives: [{ ...objective, requiredEvidenceKind: "visual_inspection" }], observation, error: /SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH/ }
+    ]) {
+        await assert.rejects(runJarvisSemanticPlanner({ input: "Revisa esta interfaz",
+            catalog: [{ name: "browser.inspect", mutates: false, evidenceKinds: ["interface_styles"] }],
+            missionState: { phase: "COMPLETION_AUDIT", completedTasks: [{ name: "browser.inspect", observation: variant.observation }] },
+            ai: { models: { generateContent: async () => ({ text: JSON.stringify({ completionAssessment: { objectives: variant.objectives }, toolCalls: [] }) }) } }
+        }), variant.error);
     }
 });

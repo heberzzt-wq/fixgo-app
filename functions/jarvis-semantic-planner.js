@@ -1445,13 +1445,15 @@ async function runModelSemanticPlanner({
         const auditInstruction = [
             buildSemanticSystemInstruction(safeCatalog, missionState),
             "Compara cada objetivo original con las observaciones reales. No repitas trabajo satisfecho ni conviertas una propuesta en evidencia.",
+            "Antes de evaluar cumplimiento, escribe explanation en un maximo de dos frases: identifica el objeto o pagina solicitado y el objeto o URL realmente observado; di si coinciden. Verifica primero esa correspondencia, antes de los estilos o medidas. Una pagina no prueba otra pagina aunque pertenezcan al mismo sitio. Si el objeto solicitado no fue observado, satisfied=false y limitation debe nombrar la evidencia faltante. Nunca adaptes el objetivo a la unica pagina disponible. Para satisfied=false, limitation solo describe que evidencia falta y el limite de lo observado: no incluyas conclusiones positivas sobre calidad, correccion o ausencia de defectos del objeto que no pudiste inspeccionar.",
             "Para cada objetivo devuelve completionAssessment.objectives con objective, requiredEvidenceKind, satisfied, evidenceTaskIndexes (indices base cero de completedTasks) y limitation. Decide primero que tipo de evidencia exige el objetivo, no lo adaptes a la herramienta ejecutada.",
             "Escribe objective, explanation y limitation en español. interface_styles acredita solo tipografia, colores CSS y medidas de la pagina observada; permite un analisis tecnico de esos datos, no inspeccion de pixeles, imagenes ni pantallas no observadas. Conserva como pendientes las partes que exigen esa evidencia adicional.",
             "evidenceKinds del catalogo limita lo que una herramienta puede acreditar. Si no declara tipos, solo acredita tool_result y los hechos concretos de su observacion. ok y status prueban ejecucion, no suficiencia ni calidad del objeto solicitado.",
             "evidenceTaskIndexes referencia observaciones ya ejecutadas, nunca herramientas disponibles. Un nombre de herramienta no es un tipo de evidencia. Si la observacion no demuestra el objetivo, satisfied=false. Si falta la URL, archivo, captura o fuente del objeto y no existe una operacion fundamentada para localizarlo, devuelve toolCalls=[] y explica en limitation la fuente faltante. Nunca inventes una URL a partir de una referencia sin resolver o del nombre de una entidad.",
             "Una evaluacion visual requiere visual_inspection o interface_structure segun su alcance. system_telemetry solo acredita salud y telemetria: nunca acredita diseno grafico, apariencia, usabilidad ni ausencia de fallos visuales. visual_capture acredita una captura obtenida, no que se haya inspeccionado su contenido.",
-            "Si toda la evidencia demuestra cumplimiento, devuelve toolCalls=[] y missionComplete=true. Si falta un objetivo, devuelve missionComplete=false y una siguiente herramienta con argumentos fundamentados. Si no hay fuente ejecutable, devuelve toolCalls=[], satisfied=false y limitation explicando la evidencia faltante; no inventes una herramienta ni declares exito.",
+            "Si toda la evidencia demuestra cumplimiento, marca satisfechos los objetivos y devuelve toolCalls=[]. Si falta un objetivo, marcalo satisfied=false y usa una siguiente herramienta con argumentos fundamentados. Si no hay fuente ejecutable, devuelve toolCalls=[] y limitation explicando la evidencia faltante; no inventes una herramienta ni declares exito.",
             "Las comprobaciones independientes del runtime siguen siendo obligatorias; tu evaluación no sustituye archivos, hashes, cobertura ni pruebas ejecutadas.",
+            "No generes missionComplete: el runtime lo calcula exclusivamente a partir de tus objetivos satisfechos, referencias verificadas y toolCalls. Tu unica decision de cumplimiento es satisfied en cada objetivo; no la dupliques ni cambies objetivos para obtener un estado global. Devuelve completionAssessment, toolCalls y explanation.",
             `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
         ].join("\n");
         const measuredAuditEvidence = (missionState.completedTasks || []).map((task, index) => ({
@@ -1461,7 +1463,9 @@ async function runModelSemanticPlanner({
             task.observation.interfaceEvidence?.source === "CURRENT_RENDERED_DOM_COMPUTED_STYLE")
             .slice(0, 2).map(task => ({ index: task.index, name: task.name, interfaceEvidence: task.observation.interfaceEvidence }));
         let lastAuditError = null;
+        let lastRejectedAuditPlan = null;
         for (let auditAttempt = 0; auditAttempt < 2; auditAttempt++) {
+            let auditPlan = null;
             try {
                 const auditResponse = await ai.models.generateContent({
                     model,
@@ -1470,10 +1474,10 @@ async function runModelSemanticPlanner({
                         `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
                         [
                             "AUDITORIA_DE_CIERRE_CONTROLADA: evalua cada objetivo explicito contra completedTasks, blockedTasks y sus observaciones reales.",
-                            "Si toda la evidencia requerida demuestra cumplimiento, devuelve toolCalls=[] y missionComplete=true.",
-                            "Si falta un objetivo, devuelve missionComplete=false y la siguiente herramienta del catalogo que pueda avanzar ese objetivo con argumentos fundamentados.",
+                            "Si toda la evidencia requerida demuestra cumplimiento, marca satisfechos los objetivos y devuelve toolCalls=[].",
+                            "Si falta un objetivo, marcalo satisfied=false y selecciona la siguiente herramienta del catalogo que pueda avanzar ese objetivo con argumentos fundamentados.",
                             "No explores capacidades no solicitadas, no repitas trabajo ya satisfecho y no inventes recursos ni evidencia.",
-                            "Devuelve JSON valido con toolCalls, explanation, missionComplete y completionAssessment."
+                            "Devuelve JSON valido con completionAssessment, toolCalls y explanation. No generes missionComplete: el runtime proyecta ese estado despues de validar tus objetivos y evidencias."
                         ].join("\n")
                     ].join("\n\n"),
                     config: {
@@ -1482,7 +1486,11 @@ async function runModelSemanticPlanner({
                         // models otherwise audit this phase's meta-instruction instead.
                         chatMessages: [
                             { role: "system", content: auditInstruction + (lastAuditError ? "\nRepara el contrato rechazado: " + lastAuditError.message + ". Conserva las pruebas reales. satisfied=false exige una limitation no vacia; satisfied=true exige referencias validas y limitation vacia. No inventes evidencia para corregir el formato." : "") },
-                            ...(measuredAuditEvidence.length ? [{ role: "system", content: "MEDICIONES_REALES_DE_LA_PAGINA=" + JSON.stringify(measuredAuditEvidence) + "\nEstos valores prueban estilos y medidas; no son una captura. No declares inexistentes medidas que aparecen aqui. Evalua solo el alcance pedido, sin convertir estilos en inspeccion de imagenes." }] : []),
+                            ...(measuredAuditEvidence.length ? [{ role: "system", content: "MEDICIONES_REALES_DE_LA_PAGINA=" + JSON.stringify(measuredAuditEvidence) + "\nEstos valores solo describen la URL indicada en cada registro: no acreditan ninguna otra pagina u objeto. Compara primero el objeto solicitado con esa URL y su contenido. Si no coinciden, conserva el objetivo pendiente aunque las medidas sean validas. Solo despues evalua los estilos y medidas; nunca los conviertas en inspeccion de pixeles." }] : []),
+                            ...(lastRejectedAuditPlan ? [
+                                { role: "assistant", content: JSON.stringify(lastRejectedAuditPlan) },
+                                { role: "system", content: "El borrador anterior fue rechazado; no es evidencia. Revisa sus contradicciones contra las observaciones originales. missionComplete=true exige todos los objetivos satisfechos y toolCalls vacio. Si todos estan satisfechos y no hay mas herramientas, missionComplete debe ser true. Si algun objetivo no esta satisfecho, missionComplete=false y explica la limitacion real. No inventes referencias, cambies el alcance ni marques objetivos satisfechos solo para reparar el formato." }
+                            ] : []),
                             { role: "user", content: instruction }
                         ],
                         temperature: 0,
@@ -1491,20 +1499,33 @@ async function runModelSemanticPlanner({
                             thinkingLevel: "MINIMAL"
                         },
                         responseMimeType: "application/json",
-                        responseJsonSchema: {"type":"object","properties":{"completionAssessment":{"type":"object","properties":{"objectives":{"type":"array","minItems":1,"items":{"anyOf":[{"type":"object","properties":{"objective":{"type":"string","minLength":1},"requiredEvidenceKind":{"type":"string","minLength":1},"evidenceTaskIndexes":{"type":"array","items":{"type":"integer","minimum":0}},"satisfied":{"type":"boolean","enum":[false]},"limitation":{"type":"string","minLength":1}},"required":["objective","requiredEvidenceKind","evidenceTaskIndexes","satisfied","limitation"],"additionalProperties":false},{"type":"object","properties":{"objective":{"type":"string","minLength":1},"requiredEvidenceKind":{"type":"string","minLength":1},"evidenceTaskIndexes":{"type":"array","minItems":1,"items":{"type":"integer","minimum":0}},"satisfied":{"type":"boolean","enum":[true]},"limitation":{"type":"string","enum":[""]}},"required":["objective","requiredEvidenceKind","evidenceTaskIndexes","satisfied","limitation"],"additionalProperties":false}]}}},"required":["objectives"],"additionalProperties":false},"explanation":{"type":"string"},"missionComplete":{"type":"boolean"},"toolCalls":{"type":"array","maxItems":1,"items":{"type":"object","properties":{"name":{"type":"string"},"args":{"type":"object","additionalProperties":true}},"required":["name","args"],"additionalProperties":false}}},"required":["completionAssessment","missionComplete","toolCalls"],"additionalProperties":false}
+                        responseJsonSchema: {"type":"object","properties":{"explanation":{"type":"string","minLength":1},"completionAssessment":{"type":"object","properties":{"objectives":{"type":"array","minItems":1,"items":{"anyOf":[{"type":"object","properties":{"objective":{"type":"string","minLength":1},"requiredEvidenceKind":{"type":"string","minLength":1},"evidenceTaskIndexes":{"type":"array","items":{"type":"integer","minimum":0}},"satisfied":{"type":"boolean","enum":[false]},"limitation":{"type":"string","minLength":1}},"required":["objective","requiredEvidenceKind","evidenceTaskIndexes","satisfied","limitation"],"additionalProperties":false},{"type":"object","properties":{"objective":{"type":"string","minLength":1},"requiredEvidenceKind":{"type":"string","minLength":1},"evidenceTaskIndexes":{"type":"array","minItems":1,"items":{"type":"integer","minimum":0}},"satisfied":{"type":"boolean","enum":[true]},"limitation":{"type":"string","enum":[""]}},"required":["objective","requiredEvidenceKind","evidenceTaskIndexes","satisfied","limitation"],"additionalProperties":false}]}}},"required":["objectives"],"additionalProperties":false},"toolCalls":{"type":"array","maxItems":1,"items":{"type":"object","properties":{"name":{"type":"string"},"args":{"type":"object","additionalProperties":true}},"required":["name","args"],"additionalProperties":false}}},"required":["explanation","completionAssessment","toolCalls"],"additionalProperties":false}
                     }
                 });
-                const auditPlan = extractJsonObject(String(auditResponse?.text || ""));
+                auditPlan = extractJsonObject(String(auditResponse?.text || ""));
                 if (auditResponse?.providerResponse?.finishReason === "length") {
                     throw new Error("SEMANTIC_COMPLETION_AUDIT_INCOMPLETE");
                 }
                 if (auditPlan?.missionComplete === true && auditPlan?.toolCalls?.length) {
                     throw new Error("SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY");
                 }
-                const validatedAudit = validatePlan(auditPlan, safeCatalog, instruction);
-                if (auditPlan?.missionComplete === true || validatedAudit.toolCalls.length === 0 ||
-                    auditPlan?.completionAssessment?.objectives) {
-                    validateCompletionEvidence(auditPlan, normalizedCatalog, missionState);
+                // Qwen owns each objective verdict. Do not generate a second,
+                // independent aggregate. Validate every proof before returning
+                // the projected state; no missing or invalid evidence can pass.
+                // Explicit legacy verdicts still face contradiction checks.
+                const objectives = auditPlan?.completionAssessment?.objectives;
+                const evaluatedAudit = Object.prototype.hasOwnProperty.call(auditPlan || {}, "missionComplete")
+                    ? auditPlan
+                    : {
+                        ...auditPlan,
+                        missionComplete: Array.isArray(objectives) && objectives.length > 0 &&
+                            objectives.every(objective => objective?.satisfied === true) &&
+                            Array.isArray(auditPlan?.toolCalls) && auditPlan.toolCalls.length === 0
+                    };
+                const validatedAudit = validatePlan(evaluatedAudit, safeCatalog, instruction);
+                if (evaluatedAudit?.missionComplete === true || validatedAudit.toolCalls.length === 0 ||
+                    evaluatedAudit?.completionAssessment?.objectives) {
+                    validateCompletionEvidence(evaluatedAudit, normalizedCatalog, missionState);
                 }
                 return {
                     ...validatedAudit,
@@ -1517,6 +1538,7 @@ async function runModelSemanticPlanner({
                 const repairable = ["SEMANTIC_COMPLETION_EVIDENCE_REQUIRED", "SEMANTIC_COMPLETION_EVIDENCE_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH", "SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY"];
                 if (auditAttempt > 0 || !repairable.includes(error?.message)) throw error;
                 lastAuditError = error;
+                lastRejectedAuditPlan = auditPlan;
             }
         }
         throw lastAuditError;
