@@ -1525,11 +1525,11 @@ async function runModelSemanticPlanner({
             // Reuse native canonical tool selection; evaluate closure only once
             // an actual preparation exists. Qwen chooses the repair; the existing
             // translator binds measured operations to an exact source patch.
-            const sourceReady = auditTasks.some(task => task.name === "repo.read" &&
+            const read = [...auditTasks].reverse().find(task => task.name === "repo.read" &&
                 task.observation.verifiedRead?.file === "gestia-terminal.html" &&
                 typeof task.observation.verifiedRead?.content === "string" &&
-                /<style[\s>][\s\S]*<\/style>/i.test(task.observation.verifiedRead.content));
-            const read = auditTasks.find(task => task.name === "repo.read" && task.observation.verifiedRead?.file === "gestia-terminal.html")?.observation.verifiedRead;
+                /<head\b[^>]*>[\s\S]*?<style\b[^>]*>[\s\S]*?<\/style>[\s\S]*?<\/head>/i.test(task.observation.verifiedRead.content))?.observation.verifiedRead;
+            const sourceReady = Boolean(read);
             const styleSource = read?.content?.match(/<style(?:\s[^>]*)?>([\s\S]*?)<\/style>/i)?.[1];
             const nextCatalog = selectableCatalog.filter(tool => !sourceReady || ["repo.prepareWrite", "conversation.respond"].includes(tool.name)).map(tool =>
                 tool.name === "repo.prepareWrite" && styleSource ? { ...tool, inputSchema: { ...tool.inputSchema,
@@ -1547,7 +1547,7 @@ async function runModelSemanticPlanner({
                 const selection = await ai.models.generateContent({ model, contents: instruction, config: {
                     semanticStage: "RESPONSIVE_REPAIR_SELECTION", chatMessages: [
                         { role: "system", content: "Decide si corresponde repo.prepareWrite o conversation.respond para continuar el pedido tras la inspección y lectura reales. Para preparar, action=repo.prepareWrite; para explicar un límite, action=conversation.respond y selectedIds=[]. El traductor existente ofrece operaciones calculadas únicamente desde hallazgos medidos y el código leído. Elige los IDs que satisfacen el pedido y explica el diagnóstico. Prioriza defectos; incluye recomendaciones justificadas por usabilidad cuando el usuario pide mejorar la interfaz. Puedes seleccionar varias operaciones. Si ninguna corresponde, selectedIds=[]. No inventes IDs, CSS, aprobaciones ni resultados. La selección sólo prepara un patch revisable y su mejora se medirá antes de escribir." },
-                        { role: "system", content: "OPERACIONES_FUNDAMENTADAS=" + JSON.stringify(candidates.options) },
+                        ...candidates.options.map(option => ({ role: "system", content: "OPERACION_FUNDAMENTADA=" + JSON.stringify(option) })),
                         { role: "user", content: instruction }
                     ], responseMimeType: "application/json", responseJsonSchema: {
                         type: "object", properties: { action: { type: "string", enum: nextCatalog.map(tool => tool.name) }, diagnosis: { type: "string", minLength: 1 },
@@ -2715,6 +2715,76 @@ async function runJarvisSemanticPlanner({
     }
 }
 
+// Operation receipts are mandatory facts in a responsive repair answer. The
+// model still selects relevant measured findings, but cannot turn a rejected
+// preparation, absent write receipt or rollback into invented successful prose.
+function buildResponsiveRepairAnswerFacts(briefing) {
+    const operations = new Set(["repo.prepareWrite", "repo.authorizeWrite", "repo.write", "tests.run"]);
+    const tools = Array.isArray(briefing?.executedTools) ? briefing.executedTools : [];
+    const pages = (Array.isArray(briefing?.measuredInterfaceEvidence) ? briefing.measuredInterfaceEvidence : [])
+        .filter(page => page?.source === "RENDERED_DOM_LAYOUT_REPLAY");
+    if (!pages.length || !tools.some(item => operations.has(item.tool))) return null;
+    const text = value => String(value || "").replace(/\s+/g, " ").trim().slice(0, 300);
+    const hash = value => typeof value === "string" && /^[a-f0-9]{64}$/i.test(value);
+    const succeeded = item => item.ok === true && item.executionOk !== false && item.blocked !== true;
+    const verifiedWrite = tools.some(item => item.tool === "repo.write" && succeeded(item) &&
+        item.status === "WRITE_COMPLETED_VERIFIED" && item.verified === true && hash(item.outputSha256) && text(item.fingerprint));
+    const verifiedTests = tools.some(item => item.tool === "tests.run" && succeeded(item) &&
+        item.status === "POST_WRITE_TESTS_PASSED" && item.testsPassed === true && item.exitCode === 0);
+    const rollbacks = tools.filter(item => item.tool === "tests.run").flatMap(item => Array.isArray(item.rollbackResults) ? item.rollbackResults : []);
+    const verifiedRollback = rollbacks.length > 0 && rollbacks.every(item => item.ok === true && hash(item.restoredSha256));
+    const facts = [{ id: "repair.state", text: `Estado de la misión: ${text(briefing.missionStatus) || "UNKNOWN"}.` }];
+    for (const [index, item] of tools.entries()) {
+        if (!operations.has(item.tool)) continue;
+        const status = text(item.error || item.status) || "SIN_RECIBO";
+        let outcome;
+        if (item.tool === "repo.prepareWrite") {
+            const authorized = text(item.fingerprint) && tools.some(receipt => receipt.fingerprint === item.fingerprint && succeeded(receipt) &&
+                ((receipt.tool === "repo.authorizeWrite" && receipt.status === "WRITE_AUTHORIZED_ONCE") ||
+                    (receipt.tool === "repo.write" && receipt.status === "WRITE_COMPLETED_VERIFIED" && receipt.verified === true && hash(receipt.outputSha256))));
+            outcome = item.ok === true && item.status === "WRITE_PREPARED"
+                ? authorized ? "Corrección preparada; la autorización exacta consta en un recibo posterior del mismo cambio."
+                    : "Corrección preparada para revisión; aprobación humana exacta pendiente. La preparación no acredita escritura."
+                : `La preparación del cambio falló: ${status}. No se acreditó una preparación aplicable.`;
+        } else if (item.tool === "repo.authorizeWrite") {
+            outcome = succeeded(item) && item.status === "WRITE_AUTHORIZED_ONCE"
+                ? "Autorización exacta de un solo uso registrada; no acredita por sí sola la escritura."
+                : `Autorización de escritura no acreditada: ${status}.`;
+        } else if (item.tool === "repo.write") {
+            outcome = succeeded(item) && item.status === "WRITE_COMPLETED_VERIFIED" && item.verified === true && hash(item.outputSha256) && text(item.fingerprint)
+                ? `Escritura local verificada${text(item.requestedFile) ? ` en ${text(item.requestedFile)}` : ""}; SHA-256 ${item.outputSha256}.`
+                : `Escritura local no acreditada: ${status}.`;
+        } else {
+            outcome = succeeded(item) && item.status === "POST_WRITE_TESTS_PASSED" && item.testsPassed === true && item.exitCode === 0
+                ? "Pruebas posteriores de la escritura aprobadas con código de salida 0."
+                : `Pruebas posteriores no aprobadas: ${status}.`;
+        }
+        facts.push({ id: `repair.operation.${index}`, text: outcome });
+    }
+    const unverified = [];
+    if (!verifiedWrite) unverified.push("Escritura local no acreditada");
+    if (!verifiedTests) unverified.push("pruebas posteriores aprobadas no acreditadas");
+    unverified.push(verifiedRollback ? "bytes originales restaurados con SHA-256 verificado" : "reversión no acreditada");
+    facts.push({ id: "repair.receipts", text: unverified.join("; ") + "." });
+    const before = pages.find(page => page.phase === "before"), after = pages.find(page => page.phase === "after");
+    const comparable = before && after && before.url === after.url && hash(before.stateFingerprint) && before.stateFingerprint === after.stateFingerprint &&
+        hash(before.sourceRevision) && hash(after.sourceRevision) && before.sourceRevision !== after.sourceRevision &&
+        Array.isArray(before.viewports) && Array.isArray(after.viewports) && before.viewports.length === after.viewports.length &&
+        before.viewports.length > 0 && before.viewports.every((sample, index) => Number.isInteger(sample.viewport?.width) && sample.viewport.width > 0 &&
+            Number.isInteger(sample.viewport?.height) && sample.viewport.height > 0 &&
+            sample.viewport.width === after.viewports[index]?.viewport?.width && sample.viewport.height === after.viewports[index]?.viewport?.height);
+    if (comparable) {
+        const count = sample => Number.isInteger(sample.findingCounts?.total) && sample.findingCounts.total >= 0
+            ? sample.findingCounts.total : Array.isArray(sample.findings) ? sample.findings.length : null;
+        const changes = before.viewports.map((sample, index) => `${sample.viewport.width} × ${sample.viewport.height}: ${count(sample) ?? "sin conteo"} → ${count(after.viewports[index]) ?? "sin conteo"}`);
+        facts.push({ id: "repair.comparison", text: `Hallazgos medidos antes → después en el mismo estado: ${changes.join("; ")}. La comparación de estilos no acredita interacción ni publicación.` });
+    } else {
+        facts.push({ id: "repair.comparison", text: "No hay una comparación acreditada antes/después del mismo estado y los mismos tamaños." });
+    }
+    facts.push({ id: "repair.scope", text: "Publicación no acreditada; interacción, píxeles y hardware físico no verificados." });
+    return { facts, requiredFactIds: facts.map(fact => fact.id) };
+}
+
 async function runJarvisSemanticResponse({
     ai = null,
     input = "",
@@ -2915,10 +2985,11 @@ async function runJarvisSemanticResponse({
         }
         // The same local model selects measured facts; canonical values are
         // rendered without letting prose invent CSS, geometry or visual claims.
+        const repairAnswer = buildResponsiveRepairAnswerFacts(parsedBriefing);
         if (!groundedFactSelection && Array.isArray(parsedBriefing?.measuredInterfaceEvidence) &&
             Array.isArray(parsedBriefing.executedTools) && parsedBriefing.executedTools.length > 0 &&
-            parsedBriefing.executedTools.every(item => item.tool === "browser.inspect" && item.ok === true && item.executionOk !== false && item.blocked !== true && item.requiresInput !== true)) {
-            const facts = [];
+            (repairAnswer || parsedBriefing.executedTools.every(item => item.tool === "browser.inspect" && item.ok === true && item.executionOk !== false && item.blocked !== true && item.requiresInput !== true))) {
+            const facts = repairAnswer ? [...repairAnswer.facts] : [];
             const scopes = [];
             for (const [pageIndex, page] of parsedBriefing.measuredInterfaceEvidence.slice(0, 2).entries()) {
                 if (page?.source === "RENDERED_DOM_LAYOUT_REPLAY" && Array.isArray(page.viewports) && page.viewports.length) {
@@ -2964,7 +3035,8 @@ async function runJarvisSemanticResponse({
                 }
                 scopes.push("Alcance: estructura y estilos de " + url.href + " en un área visible de " + page.viewport.width + " × " + page.viewport.height + " px. No se inspeccionaron píxeles, fotografías ni otras pantallas.");
             }
-            if (facts.length) groundedFactSelection = { mode: "MEASURED_INTERFACE_FACTS", facts: facts.slice(0, 40), scope: scopes.join(" "), missionStatus: parsedBriefing.missionStatus };
+            if (facts.length) groundedFactSelection = { mode: repairAnswer ? "VERIFIED_RESPONSIVE_REPAIR_FACTS" : "MEASURED_INTERFACE_FACTS",
+                facts: facts.slice(0, 40), requiredFactIds: repairAnswer?.requiredFactIds || [], scope: scopes.join(" "), missionStatus: parsedBriefing.missionStatus };
         }
 
     }
@@ -2996,6 +3068,7 @@ async function runJarvisSemanticResponse({
                                 "requestedLineCount is the exact number of answer lines explicitly requested by the user, or 0 if no exact line count is requested.",
                                 "Order factIds by relevance. Do not invent prose or facts; the application renders the selected verified facts.",
                                 ...(groundedFactSelection.mode === "MEASURED_INTERFACE_FACTS" ? ["For a responsive review prioritize diagnosed findings: affected viewport, selector, user impact, proposed correction and verification. Distinguish reproducible defects from recommendations. Select 3-6 representative findings; coverage alone never proves repair. If only single-viewport styles exist, select relevant measured facts. These facts support a technical review, not visual inspection, accessibility certification or claims about unobserved behavior."] : []),
+                                ...(groundedFactSelection.mode === "VERIFIED_RESPONSIVE_REPAIR_FACTS" ? ["Select 1-3 measured findings relevant to the repair. Mandatory operation outcomes and before/after limits are rendered from receipts even if you omit them. A prepared proposal is not an authorized or verified write; failed stages cannot become success."] : []),
                                 "Do not infer validity, syntax, unchanged state, tests, boundary verification, or absence of errors unless those claims exist as selectable verified facts."
                             ].join("\n");
                             return {
@@ -3104,6 +3177,7 @@ async function runJarvisSemanticResponse({
                 })
             ]);
         let message = String(response?.text || "").trim();
+        let grounding;
         if (response?.providerResponse?.finishReason === "length") {
             throw new Error("SEMANTIC_RESPONSE_INCOMPLETE");
         }
@@ -3139,6 +3213,10 @@ async function runJarvisSemanticResponse({
                     );
                 const selectedFacts = [];
                 const selectedIds = new Set();
+                for (const id of groundedFactSelection.requiredFactIds || []) {
+                    selectedIds.add(id);
+                    selectedFacts.push(factMap.get(id));
+                }
 
                 for (const factId of envelope.factIds) {
                     if (
@@ -3173,7 +3251,9 @@ async function runJarvisSemanticResponse({
                     selectedFacts
                         .slice(
                             0,
-                            requestedCount > 0
+                            groundedFactSelection.mode === "VERIFIED_RESPONSIVE_REPAIR_FACTS"
+                                ? groundedFactSelection.requiredFactIds.length + 3
+                                : requestedCount > 0
                                 ? requestedCount
                                 : groundedFactSelection.mode === "MEASURED_INTERFACE_FACTS"
                                     ? Math.min(6, selectedFacts.length)
@@ -3183,6 +3263,10 @@ async function runJarvisSemanticResponse({
                 if (groundedFactSelection.mode === "MEASURED_INTERFACE_FACTS") {
                     const partial = groundedFactSelection.missionStatus !== "COMPLETED" ? " Revisión parcial. " : " ";
                     message += partial + groundedFactSelection.scope;
+                }
+                if (groundedFactSelection.mode === "VERIFIED_RESPONSIVE_REPAIR_FACTS") {
+                    grounding = { mode: groundedFactSelection.mode,
+                        requiredFactIds: groundedFactSelection.requiredFactIds, selectedFactIds: [...selectedIds] };
                 }
             }
             else {
@@ -3195,7 +3279,7 @@ async function runJarvisSemanticResponse({
             }
         }
         if (!message) throw new Error("SEMANTIC_RESPONSE_EMPTY");
-        return { ok: true, status: "SEMANTIC_RESPONSE_READY", version: VERSION, provider: String(ai.lastProvider || "jarvis-local"), model: DEFAULT_SEMANTIC_MODEL, message };
+        return { ok: true, status: "SEMANTIC_RESPONSE_READY", version: VERSION, provider: String(ai.lastProvider || "jarvis-local"), model: DEFAULT_SEMANTIC_MODEL, message, ...(grounding ? { grounding } : {}) };
     } catch(error) {
         const message = String(error?.message || error || "FAILED");
         if (message.startsWith("SEMANTIC_AUTHENTICATED_PROVIDER_")) throw error;

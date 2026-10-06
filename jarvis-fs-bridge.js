@@ -4523,8 +4523,10 @@ export function applyReadLineRange(
     const source =
         String(content || "");
 
-    const lines =
-        source.split(/\r?\n/);
+    // Source excerpts are later used as exact patch searches. Slice original
+    // offsets so CRLF, mixed endings and whitespace remain repository bytes.
+    const lineBreaks = [...source.matchAll(/\r?\n/g)];
+    const totalLines = lineBreaks.length + 1;
 
     if (!lineRange) {
         return {
@@ -4535,38 +4537,37 @@ export function applyReadLineRange(
             startLine:
                 1,
             endLine:
-                lines.length,
+                totalLines,
             totalLines:
-                lines.length
+                totalLines
         };
     }
 
     const startLine =
         Math.min(
             Math.max(Number(lineRange.startLine) || 1, 1),
-            Math.max(lines.length, 1)
+            totalLines
         );
 
     const endLine =
         Math.min(
             Math.max(Number(lineRange.endLine) || startLine, startLine),
-            lines.length
+            totalLines
         );
+
+    const startOffset = startLine === 1 ? 0
+        : lineBreaks[startLine - 2].index + lineBreaks[startLine - 2][0].length;
+    const endOffset = endLine === totalLines ? source.length : lineBreaks[endLine - 1].index;
 
     return {
         content:
-            lines
-                .slice(
-                    startLine - 1,
-                    endLine
-                )
-                .join("\n"),
+            source.slice(startOffset, endOffset),
         partial:
             true,
         startLine,
         endLine,
         totalLines:
-            lines.length
+            totalLines
     };
 }
 

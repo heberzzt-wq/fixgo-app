@@ -2,7 +2,108 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
+import { createRequire } from "node:module";
 import { composeEvidenceGroundedConversation } from "../gestia-core/jarvis/jarvis.conversation.composer.js";
+const { runJarvisSemanticResponse } = createRequire(import.meta.url)("../functions/jarvis-semantic-planner.js");
+
+function failedResponsiveRepairEvidence() {
+    return [responsiveConversationFixture()[0],
+        { name: "repo.read", observation: { ok: true, status: "COMPLETED" } },
+        { name: "repo.prepareWrite", observation: { ok: false, executionOk: false, status: "WRITE_PREPARE_BLOCKED",
+            error: "WRITE_MATCH_COUNT_MISMATCH", requestedFile: "gestia-terminal.html" } },
+        { name: "mission.outcome", observation: { status: "FAILED", reason: "MISSION_TASK_FAILED" } }];
+}
+
+test("responsive repair rejects ungrounded prose even when it appends the true preparation failure", async () => {
+    const result = await composeEvidenceGroundedConversation({ instruction: "Corrige la interfaz", evidenceItems: failedResponsiveRepairEvidence(),
+        executeConversation: async () => ({ ok: true, message: "La corrección mínima se preparó y se verificaron todos los tamaños después de aprobarla." }) });
+    assert.equal(result.ok, false);
+    assert.equal(result.status, "RESPONSIVE_REPAIR_GROUNDING_REQUIRED");
+    assert.equal(result.text, "");
+});
+
+test("mixed responsive repair renders mandatory failed operation facts even when Qwen selects only a layout finding", async () => {
+    const result = await composeEvidenceGroundedConversation({ instruction: "Corrige la interfaz", evidenceItems: failedResponsiveRepairEvidence(),
+        executeConversation: (input, options) => runJarvisSemanticResponse({ input, ...options, ai: { models: { generateContent: async request => {
+            const ids = request.config.responseJsonSchema.properties.factIds?.items.enum;
+            assert.ok(ids?.includes("repair.operation.2"), "Mixed repair must use fact IDs instead of free prose");
+            return { text: JSON.stringify({ requestedLineCount: 0, factIds: [ids.find(id => id.startsWith("interface."))] }) };
+        } } } }) });
+    assert.equal(result.ok, true);
+    assert.match(result.text, /WRITE_MATCH_COUNT_MISMATCH/);
+    assert.match(result.text, /preparación.*falló/i);
+    assert.match(result.text, /escritura.*no.*acreditada/i);
+    assert.match(result.text, /360 × 800/);
+    assert.match(result.text, /publicación.*no.*acreditada/i);
+    assert.equal(result.observation.grounding.mode, "VERIFIED_RESPONSIVE_REPAIR_FACTS");
+});
+
+test("mixed responsive repair does not accept fabricated prose from the semantic provider", async () => {
+    const result = await composeEvidenceGroundedConversation({ instruction: "Corrige la interfaz", evidenceItems: failedResponsiveRepairEvidence(),
+        executeConversation: (input, options) => runJarvisSemanticResponse({ input, ...options, ai: { models: {
+            generateContent: async () => ({ text: JSON.stringify({ lines: ["La corrección se preparó y las pruebas posteriores pasaron."] }) })
+        } } }) });
+    assert.equal(result.ok, false);
+    assert.match(result.status, /SEMANTIC_RESPONSE_FORMAT_INVALID/);
+    assert.equal(result.text, "");
+});
+
+async function composeSelectedRepairFacts(evidenceItems) {
+    return composeEvidenceGroundedConversation({ instruction: "Resume la reparación y lo pendiente.", evidenceItems,
+        executeConversation: (input, options) => runJarvisSemanticResponse({ input, ...options, ai: { models: {
+            generateContent: async request => {
+                const ids = request.config.responseJsonSchema.properties.factIds.items.enum;
+                return { text: JSON.stringify({ requestedLineCount: 1, factIds: [ids.find(id => id.startsWith("interface."))] }) };
+            }
+        } } }) });
+}
+
+test("responsive final preserves pending exact approval without implying a completed write", async () => {
+    const result = await composeSelectedRepairFacts([responsiveConversationFixture()[0],
+        { name: "repo.prepareWrite", observation: { ok: true, executionOk: true, status: "WRITE_PREPARED", requiresApproval: true,
+            blocked: true, objectiveSatisfied: false, fingerprint: "prepared-only", verified: false } },
+        { name: "mission.outcome", observation: { status: "BLOCKED", reason: "MISSION_APPROVAL_REQUIRED" } }]);
+    assert.equal(result.ok, true);
+    assert.match(result.text, /aprobación humana exacta pendiente/);
+    assert.match(result.text, /Escritura local no acreditada/);
+    assert.match(result.text, /no hay una comparación acreditada antes\/después/i);
+    assert.match(result.text, /BLOCKED/);
+});
+
+test("responsive final preserves verified write and test receipts plus same-state before and after counts", async () => {
+    const outputSha256 = "d".repeat(64);
+    const result = await composeSelectedRepairFacts([...responsiveConversationFixture(),
+        { name: "repo.write", observation: { ok: true, status: "WRITE_COMPLETED_VERIFIED", verified: true, fingerprint: "one-use", outputSha256,
+            file: "gestia-terminal.html" } },
+        { name: "tests.run", observation: { ok: true, status: "POST_WRITE_TESTS_PASSED", testsPassed: true, exitCode: 0 } },
+        { name: "mission.outcome", observation: { status: "PARTIAL", reason: "RESPONSIVE_LOCAL_REPAIR_VERIFIED" } }]);
+    assert.equal(result.ok, true);
+    assert.match(result.text, /Escritura local verificada en gestia-terminal.html/);
+    assert.ok(result.text.includes(outputSha256));
+    assert.match(result.text, /Pruebas posteriores.*aprobadas/);
+    assert.match(result.text, /360 × 800: 1 → 0/);
+    assert.match(result.text, /1920 × 1080: 1 → 0/);
+    assert.match(result.text, /Publicación no acreditada/);
+    assert.doesNotMatch(result.text, /Escritura local no acreditada/);
+});
+
+test("responsive final requires SHA evidence for verified bytes and preserves rollback without claiming repair success", async () => {
+    const result = await composeSelectedRepairFacts([responsiveConversationFixture()[0],
+        { name: "repo.write", observation: { ok: false, status: "WRITE_RESULT_UNVERIFIED", verified: false } },
+        { name: "tests.run", observation: { ok: false, status: "POST_WRITE_TEST_FAILED_ROLLED_BACK", testsPassed: false,
+            rollbackResults: [{ ok: true, restoredSha256: "e".repeat(64) }] } },
+        { name: "mission.outcome", observation: { status: "FAILED", reason: "POST_WRITE_TEST_FAILED_ROLLED_BACK" } }]);
+    assert.equal(result.ok, true);
+    assert.match(result.text, /bytes originales restaurados con SHA-256 verificado/);
+    assert.match(result.text, /Pruebas posteriores no aprobadas/);
+    assert.match(result.text, /Escritura local no acreditada/);
+    assert.doesNotMatch(result.text, /reversión no acreditada/);
+    const missingHash = await composeSelectedRepairFacts([responsiveConversationFixture()[0],
+        { name: "repo.write", observation: { ok: true, status: "WRITE_COMPLETED_VERIFIED", verified: true, fingerprint: "unproven-output" } }]);
+    assert.equal(missingHash.ok, true);
+    assert.match(missingHash.text, /Escritura local no acreditada/);
+    assert.doesNotMatch(missingHash.text, /Escritura local verificada/);
+});
 
 function responsiveConversationFixture(manyFindings = false) {
     return ["before", "after"].map(phase => ({ name: "browser.inspect", observation: { ok: true,

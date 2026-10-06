@@ -2121,6 +2121,16 @@ export function shouldCompleteJarvisPlanningArguments(call = {}, tool = {}, comp
     if (call.name === "repo.read" && tool.name === "repo.read" && tool.mutates !== true &&
         typeof call.args?.file === "string" && call.args.file.trim() &&
         hasRequiredToolArguments(tool, call.args || {})) return false;
+    // An exact replacement already selected against this turn's source must
+    // not be reauthored by generic argument completion. Preparation still
+    // validates current bytes, and grants neither authorization nor writing.
+    if (call.name === "repo.prepareWrite" && tool.name === call.name && tool.mutates !== true &&
+        hasRequiredToolArguments(tool, call.args || {}) && typeof call.args?.search === "string" && call.args.search &&
+        Array.isArray(completedTasks) && completedTasks.some(task => {
+            const read = task?.observation?.verifiedRead;
+            return task?.name === "repo.read" && task.observation?.ok === true && read?.file === call.args.file &&
+                typeof read.content === "string" && read.content.split(call.args.search).length - 1 === call.args.matchCount && call.args.matchCount === 1;
+        })) return false;
     return Array.isArray(completedTasks) && completedTasks.length > 0;
 }
 

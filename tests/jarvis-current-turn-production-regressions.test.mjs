@@ -4,7 +4,7 @@ import { runInNewContext } from "node:vm";
 import test from "node:test";
 import { parse } from "acorn";
 import { createRequire } from "node:module";
-import { buildJarvisMultifunctionToolCalls, isBoundedReadOnlyMission } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
+import { buildJarvisMultifunctionToolCalls, isBoundedReadOnlyMission, shouldCompleteJarvisPlanningArguments } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
 import { registerJarvisMultifunctionTools } from "../gestia-core/jarvis/jarvis.multitool.pack.js";
 import { registerJarvisActuatorTools } from "../gestia-core/jarvis/jarvis.actuator.pack.js";
 import { validateBrowserUrl } from "../gestia-core/jarvis/jarvis.browser.grounding.js";
@@ -118,6 +118,7 @@ test("Qwen selects grounded responsive repairs without authorizing or inventing 
         const operation = runJarvisSemanticPlanner({input:"Corrige los defectos medidos y comprueba",catalog,buildResponsiveRepairOptions,buildResponsiveRepairPatch,
             missionState:{phase:"COMPLETION_AUDIT",completedTasks:[
                 {name:"browser.inspect",args:{followUp:"prepare_repair"},observation:{ok:true,interfaceEvidence:page}},
+                {name:"repo.read",observation:{ok:true,verifiedRead:{tool:"repo.read",file:"gestia-terminal.html",content:'<!doctype html>\r\n<head>'}}},
                 {name:"repo.read",observation:{ok:true,verifiedRead:{tool:"repo.read",file:"gestia-terminal.html",content:source}}}]},
             ai:{models:{generateContent:async request=>{
                 calls++;
@@ -141,6 +142,42 @@ test("Qwen selects grounded responsive repairs without authorizing or inventing 
         }
         assert.equal(calls,1);
     }
+});
+
+test("maximum responsive matrix delivers every measured repair option without message truncation", async () => {
+    const elements=Array.from({length:10},(_,i)=>({selector:'#tray'+i,rect:[0,i*16,120,16],display:'flex',hiddenAttribute:true}));
+    const page={source:'RENDERED_DOM_LAYOUT_REPLAY',url:'https://runtime.test/gestia-terminal.html',phase:'before',
+        viewports:Array.from({length:10},(_,i)=>({viewport:{width:360+i*50,height:800},elements,
+            findings:elements.map(e=>({selector:e.selector,kind:'hidden_element_rendered',classification:'defect'}))}))};
+    const source='<head><style>\r\n.keep {color:white}\r\n</style></head><body>'+elements.map(e=>'<div id="'+e.selector.slice(1)+'" hidden></div>').join('')+'</body>';
+    const result=await runJarvisSemanticPlanner({input:'Corrige los defectos de la interfaz',buildResponsiveRepairOptions,buildResponsiveRepairPatch,
+        catalog:[{name:'repo.prepareWrite',description:'Prepare',inputSchema:{file:'string',search:'string',replace:'string'}}],
+        missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'browser.inspect',args:{followUp:'prepare_repair'},observation:{ok:true,interfaceEvidence:page}},
+            {name:'repo.read',observation:{ok:true,verifiedRead:{tool:'repo.read',file:'gestia-terminal.html',content:source}}}]},
+        ai:{models:{generateContent:async request=>{
+            const messages=request.config.chatMessages.filter(m=>m.content.startsWith('OPERACION_FUNDAMENTADA='));
+            assert.equal(messages.length,10);
+            assert.ok(request.config.chatMessages.every(m=>m.content.length<12000));
+            assert.ok(messages.at(-1).content.includes('responsive_10'));
+            return {text:JSON.stringify({action:'repo.prepareWrite',diagnosis:'Corregir el último estado oculto medido.',selectedIds:['responsive_10']})};
+        }}}});
+    assert.match(result.toolCalls[0].args.replace,/#tray9\[hidden\]/);
+    assert.doesNotMatch(result.toolCalls[0].args.replace,/#tray0\[hidden\]/);
+});
+
+test("source-bound preparation is not reauthored by generic argument completion", () => {
+    const search='\r\n  .tray { display:flex; }\r\n';
+    const source='<head><style>'+search+'</style></head>';
+    const call={name:'repo.prepareWrite',args:{file:'gestia-terminal.html',search,replace:search+'#tray[hidden] {display:none}',matchCount:1}};
+    const tool={name:call.name,mutates:false,inputSchema:{file:'string',search:'string',replace:'string',matchCount:'integer'}};
+    const read={name:'repo.read',observation:{ok:true,verifiedRead:{file:call.args.file,content:source}}};
+    assert.equal(shouldCompleteJarvisPlanningArguments(call,tool,[read]),false);
+    for(const task of [
+        {...read,observation:{...read.observation,ok:false}},
+        {...read,observation:{ok:true,verifiedRead:{file:'other.html',content:source}}},
+        {...read,observation:{ok:true,verifiedRead:{file:call.args.file,content:source.replaceAll('\r\n','\n')}}}
+    ]) assert.equal(shouldCompleteJarvisPlanningArguments(call,tool,[task]),true);
+    assert.equal(shouldCompleteJarvisPlanningArguments({...call,deferred:true},tool,[read]),true);
 });
 
 test("CURRENT_TURN renders the model-authored answer and limitation once, preserving only history", async t => {

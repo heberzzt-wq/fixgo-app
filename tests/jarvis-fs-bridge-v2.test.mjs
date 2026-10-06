@@ -2462,6 +2462,71 @@ test("Jarvis FS bridge V2 reads bounded line ranges", () => {
     );
 });
 
+test("Jarvis FS bridge ranged reads preserve exact CRLF and mixed line endings for patches", () => {
+    const source = "  inicio\r\nsegundo\r\ntercero\ncuarto\r\n";
+    const full = applyReadLineRange(source);
+    assert.equal(full.content, source);
+    assert.equal(full.totalLines, 5);
+    const ranged = applyReadLineRange(source, normalizeReadLineRange({ startLine: 2, endLine: 4 }));
+    assert.equal(ranged.content, "segundo\r\ntercero\ncuarto");
+    assert.equal(source.includes(ranged.content), true);
+    assert.equal(ranged.startLine, 2);
+    assert.equal(ranged.endLine, 4);
+    assert.equal(ranged.totalLines, 5);
+    assert.equal(applyReadLineRange(source, { startLine: 1, endLine: 100 }).content, source);
+});
+
+test("Jarvis FS bridge first-style range remains an exact substring of Terminal bytes", () => {
+    const source = fs.readFileSync(new URL("../gestia-terminal.html", import.meta.url), "utf8");
+    const ranged = applyReadLineRange(source, normalizeReadLineRange({ startLine: 1, endLine: 100 }));
+    const style = /<style\b[^>]*>([\s\S]*?)<\/style\s*>/i.exec(ranged.content)?.[1];
+    assert.equal(typeof style, "string");
+    assert.equal(source.includes(style), true);
+    assert.equal(style, /<style\b[^>]*>([\s\S]*?)<\/style\s*>/i.exec(source)?.[1]);
+});
+
+test("ranged Terminal bytes survive repo.read, mission compaction and responsive patch preparation", async () => {
+    const { runJarvisMission } = await import("../gestia-core/jarvis/jarvis.mission.orchestrator.js");
+    const { compactMissionPlannerObservation } = await import("../gestia-core/jarvis/jarvis.mission.planner-state.js");
+    const { buildResponsiveRepairOptions, buildResponsiveRepairPatch } = await import("../gestia-core/jarvis/jarvis.autopatch.engine.js");
+    const source = fs.readFileSync(new URL("../gestia-terminal.html", import.meta.url), "utf8");
+    const runtimeSource = fs.readFileSync(new URL("../gestia-core/tools.runtime.js", import.meta.url), "utf8");
+    const nameIndex = runtimeSource.indexOf('name: "repo.read"');
+    const start = runtimeSource.lastIndexOf("JarvisToolRuntime.register({", nameIndex);
+    const end = runtimeSource.indexOf("\n});", nameIndex) + 4;
+    let readTool;
+    vm.runInNewContext(runtimeSource.slice(start, end), {
+        JarvisToolRuntime: { register(tool) { readTool = tool; } },
+        parseRepositoryTarget: () => ({ ok: false }),
+        analyzeRepoSourceStructure: () => ({}),
+        window: { JarvisLocalBridge: { async readFile(args) {
+            const ranged = applyReadLineRange(source, normalizeReadLineRange(args));
+            return { ok: true, file: args.file, ...ranged,
+                lineRange: { startLine: ranged.startLine, endLine: ranged.endLine, totalLines: ranged.totalLines } };
+        } } }
+    });
+    const mission = await runJarvisMission({
+        instruction: "Leer el primer bloque de presentación de Terminal.",
+        initialToolCalls: [{ name: "repo.read", args: { file: "gestia-terminal.html", startLine: 1, endLine: 100 } }],
+        execute: async call => ({ ok: true, status: "COMPLETED", data: await readTool.execute(call.args) }),
+        planner: async () => ({ toolCalls: [], missionComplete: true }),
+        storage: { getItem() { return null; }, setItem() {}, removeItem() {} }
+    });
+    const read = compactMissionPlannerObservation(mission.completedTasks[0].observation).verifiedRead;
+    const page = { source: "RENDERED_DOM_LAYOUT_REPLAY", url: "http://localhost:5000/gestia-terminal.html", viewports: [{
+        viewport: { width: 360, height: 800 },
+        elements: [{ selector: "#jarvis-attachment-tray", rect: [0, 700, 360, 17], display: "flex", hiddenAttribute: true }],
+        findings: [{ selector: "#jarvis-attachment-tray", kind: "hidden_element_rendered", classification: "defect" }]
+    }] };
+    const options = buildResponsiveRepairOptions({ page, source: read.content, file: read.file });
+    assert.equal(options.ok, true);
+    const patch = buildResponsiveRepairPatch({ options: options.options, selectedIds: [options.options[0].id], source: read.content, file: read.file });
+    assert.equal(patch.ok, true);
+    assert.equal(source.split(patch.search).length - 1, patch.matchCount);
+    assert.equal(patch.matchCount, 1);
+    assert.equal(patch.search, /<style\b[^>]*>([\s\S]*?)<\/style\s*>/i.exec(source)[1]);
+});
+
 test("Jarvis FS bridge V2 blocks empty write content", () => {
     assert.throws(
         () => assertWriteContent(""),

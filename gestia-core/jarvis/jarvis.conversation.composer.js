@@ -1016,6 +1016,8 @@ export function buildCapabilityEvidenceBriefing(evidenceItems = []) {
 }
 
 
+const RESPONSIVE_REPAIR_TOOLS = new Set(["repo.prepareWrite", "repo.authorizeWrite", "repo.write", "tests.run"]);
+
 export function buildAuthoritativeToolOutcomeMatrix(evidenceItems = []) {
     return (Array.isArray(evidenceItems) ? evidenceItems : [])
         .filter(item => String(item?.name || item?.tool || "") !== "conversation.respond")
@@ -1027,8 +1029,10 @@ export function buildAuthoritativeToolOutcomeMatrix(evidenceItems = []) {
                 item?.data ||
                 {};
             const evidenceKinds = observation?.evidenceKinds || observation?.evidence?.evidenceKinds;
+            const tool = String(item?.name || item?.tool || "").slice(0, 120);
+            const receipt = observation?.evidence || observation;
             return {
-                tool: String(item?.name || item?.tool || "").slice(0, 120),
+                tool,
                 status: String(observation?.status || "").slice(0, 160),
                 ok: observation?.ok === true,
                 executionOk: observation?.executionOk !== false,
@@ -1036,9 +1040,18 @@ export function buildAuthoritativeToolOutcomeMatrix(evidenceItems = []) {
                 ...(Array.isArray(evidenceKinds) ? { evidenceKinds } : {}),
                 blocked: observation?.blocked === true,
                 requiresInput: observation?.requiresInput === true,
+                ...(RESPONSIVE_REPAIR_TOOLS.has(tool) ? {
+                    requiresApproval: observation?.requiresApproval === true || receipt.requiresApproval === true,
+                    verified: receipt.verified === true, testsPassed: receipt.testsPassed === true,
+                    exitCode: Number.isInteger(receipt.exitCode) ? receipt.exitCode : null,
+                    fingerprint: String(receipt.fingerprint || "").slice(0, 200),
+                    outputSha256: String(receipt.outputSha256 || "").slice(0, 64),
+                    rollbackResults: (Array.isArray(receipt.rollbackResults) ? receipt.rollbackResults : []).slice(0, 8)
+                        .map(item => ({ ok: item.ok === true, restoredSha256: String(item.restoredSha256 || "").slice(0, 64) }))
+                } : {}),
                 retryable: observation?.retryable === true,
                 error: String(observation?.error || "").slice(0, 500),
-                requestedFile: String(observation?.requestedFile || observation?.evidence?.requestedFile || observation?.path || item?.args?.file || "").slice(0, 300)
+                requestedFile: String(observation?.requestedFile || observation?.evidence?.requestedFile || receipt.file || observation?.path || item?.args?.file || "").slice(0, 300)
             };
         });
 }
@@ -1179,6 +1192,8 @@ export async function composeEvidenceGroundedConversation({
         return measured ? [measured] : [];
     });
     const hasMeasuredInterfaceEvidence = measuredInterfaceEvidence.length > 0;
+    const requiresRepairGrounding = measuredInterfaceEvidence.some(page => page.source === "RENDERED_DOM_LAYOUT_REPLAY") &&
+        authoritativeOutcomes.some(item => RESPONSIVE_REPAIR_TOOLS.has(item.tool));
     if (missionOutcomeObservation?.status !== "COMPLETED" && missingEvidence?.length && !hasMeasuredInterfaceEvidence) {
         // These are the same Qwen's validated limitations. A second prose pass
         // must not turn the refused completion into an unsupported success.
@@ -1314,12 +1329,18 @@ export async function composeEvidenceGroundedConversation({
         const overallStatus = overallStatusLine?.slice("ESTADO GENERAL:".length).trim();
         const conflictingOutcome = Boolean(missionOutcomeInstruction) &&
             ["PASS", "COMPLETED"].includes(overallStatus);
+        const grounding = payload?.grounding;
+        const missingRepairGrounding = requiresRepairGrounding &&
+            (grounding?.mode !== "VERIFIED_RESPONSIVE_REPAIR_FACTS" || !Array.isArray(grounding.requiredFactIds) || !grounding.requiredFactIds.length ||
+                !Array.isArray(grounding.selectedFactIds) || grounding.requiredFactIds.some(id => !grounding.selectedFactIds.includes(id)));
 
-        if (result?.ok === false || payload?.ok === false || !text || rawJson || conflictingOutcome) {
+        if (result?.ok === false || payload?.ok === false || !text || rawJson || conflictingOutcome || missingRepairGrounding) {
             return {
                 ok: false,
                 status:
-                    rawJson
+                    missingRepairGrounding && result?.ok !== false && payload?.ok !== false
+                        ? "RESPONSIVE_REPAIR_GROUNDING_REQUIRED"
+                        : rawJson
                         ? "RAW_TOOL_PAYLOAD_REJECTED"
                         : conflictingOutcome
                             ? "MISSION_OUTCOME_CONTRADICTION"
@@ -1338,7 +1359,7 @@ export async function composeEvidenceGroundedConversation({
         return {
             ok: true,
             status: "CONVERSATIONAL_COMPOSITION_COMPLETED",
-            text: [text,...authoritativeOutcomes.filter(item=>item.tool!=="mission.outcome" && item.error).map(item=>`Detalle verificado: ${item.tool} — ${item.error}${item.requestedFile ? `; archivo solicitado: ${item.requestedFile}` : ""}.`)].join("\n\n"),
+            text: requiresRepairGrounding ? text : [text,...authoritativeOutcomes.filter(item=>item.tool!=="mission.outcome" && item.error).map(item=>`Detalle verificado: ${item.tool} — ${item.error}${item.requestedFile ? `; archivo solicitado: ${item.requestedFile}` : ""}.`)].join("\n\n"),
             prompt,
             evidence,
             provider: payload?.provider || null,
