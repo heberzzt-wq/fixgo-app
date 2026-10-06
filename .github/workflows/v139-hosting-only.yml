@@ -13,7 +13,7 @@ permissions:
   actions: read
 
 env:
-  CERTIFIED_SHA: fa599250688aa8d4aa9d1595ea73a74c0ee2590f
+  CERTIFIED_SHA: ad2a9a5a13c4f9d4437dba6f8384d2ae94f758bd
   FIREBASE_PROJECT_ID: fixgo-44e4d
   FIREBASE_SITE_ID: fixgo-44e4d
 
@@ -152,7 +152,7 @@ jobs:
         run: |
           set -euo pipefail
           node <<'NODE'
-          const endpoint = 'https://api.github.com/repos/' + process.env.GITHUB_REPOSITORY + '/actions/runs/37540135732';
+          const endpoint = 'https://api.github.com/repos/' + process.env.GITHUB_REPOSITORY + '/actions/runs/37541030852';
           (async () => {
             for (let attempt = 0; attempt < 60; attempt++) {
               const response = await fetch(endpoint, {headers: {Authorization: 'Bearer ' + process.env.GH_TOKEN, Accept: 'application/vnd.github+json'}});
