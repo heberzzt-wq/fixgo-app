@@ -613,3 +613,39 @@ test("projected completion cannot bypass missing, failed or out-of-scope evidenc
         }), variant.error);
     }
 });
+
+
+test("repeated verified fact IDs do not discard a grounded answer or count as new evidence", async () => {
+    const { runJarvisSemanticResponse } = createRequire(import.meta.url)("../functions/jarvis-semantic-planner.js");
+    const responseBriefing = JSON.stringify({ missionStatus: "PARTIAL",
+        executedTools: [{ tool: "browser.inspect", ok: true, executionOk: true }],
+        measuredInterfaceEvidence: [{ source: "CURRENT_RENDERED_DOM_COMPUTED_STYLE", url: "https://runtime.test/terminal",
+            viewport: { width: 1024, height: 768 }, pageStyles: { backgroundColor: "rgb(15, 23, 42)", color: "rgb(255, 255, 255)", fontFamily: "Arial", fontSize: "16px" },
+            elements: [{ tag: "h1", text: "Terminal", fontFamily: "Arial", fontSize: "32px", fontWeight: "700", lineHeight: "40px", rect: [16, 24, 300, 40] }] }] });
+    const id = "interface.0.element.0.typography";
+    for (const variant of [
+        { factIds: [id, id], requestedLineCount: 0, succeeds: true },
+        { factIds: [id, id, "interface.0.colors"], requestedLineCount: 2, succeeds: true },
+        { factIds: [id, id], requestedLineCount: 2, succeeds: false },
+        { factIds: [id, "unobserved.admin.visual.success", id], requestedLineCount: 0, succeeds: false },
+        { factIds: [id, 17], requestedLineCount: 0, succeeds: false }
+    ]) {
+        let calls = 0;
+        const operation = runJarvisSemanticResponse({ input: "Analiza los datos observados", responseInstruction: "Revisa la interfaz actual",
+            responseMode: "grounded_conversation", responseBriefing,
+            ai: { models: { generateContent: async () => {
+                calls++;
+                return { text: JSON.stringify({ requestedLineCount: variant.requestedLineCount, factIds: variant.factIds }) };
+            } } }
+        });
+        if (!variant.succeeds) await assert.rejects(operation, /SEMANTIC_RESPONSE_FORMAT_INVALID/);
+        else {
+            const result = await operation;
+            assert.equal(result.ok, true);
+            assert.equal(result.message.split("32px").length - 1, 1);
+            assert.match(result.message, /parcial/);
+            assert.doesNotMatch(result.message, /unobserved|visual.success/);
+        }
+        assert.equal(calls, 1);
+    }
+});

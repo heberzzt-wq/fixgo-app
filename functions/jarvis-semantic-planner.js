@@ -2966,13 +2966,15 @@ async function runJarvisSemanticResponse({
                 for (const factId of envelope.factIds) {
                     if (
                         typeof factId !== "string" ||
-                        selectedIds.has(factId) ||
                         !factMap.has(factId)
                     ) {
                         throw new Error(
                             "SEMANTIC_RESPONSE_FORMAT_INVALID"
                         );
                     }
+                    // Repeated verified selections are idempotent, never new evidence.
+                    // Validate membership first so duplicates cannot hide an unknown ID.
+                    if (selectedIds.has(factId)) continue;
                     selectedIds.add(factId);
                     selectedFacts.push(
                         factMap.get(factId)
