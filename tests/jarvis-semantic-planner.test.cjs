@@ -2320,7 +2320,8 @@ test("current-turn operational planning preserves supplied candidates without le
         }
     });
 
-    assert.equal(requestSeen.config.maxOutputTokens, 160);
+    // Structured viewport matrices need room for six width/height objects.
+    assert.equal(requestSeen.config.maxOutputTokens, 512);
     assert.equal(requestSeen.config.nativeToolChat, true);
     assert.equal(requestSeen.config.tools[0].functionDeclarations.length, 1);
     assert.match(requestSeen.config.tools[0].functionDeclarations[0].description, /repo.gitStatus/);

@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
+import { isBoundedReadOnlyMission } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
+import { ensureExecutableArtifactDependencies } from "../gestia-core/jarvis/jarvis.mission.dependencies.js";
+import { mergeEvidenceGroundedToolCalls } from "../gestia-core/jarvis/jarvis.conversation.composer.js";
+import { compactMissionPlannerObservation } from "../gestia-core/jarvis/jarvis.mission.planner-state.js";
 import {
     recoverJarvisMission,
     runJarvisMission,
@@ -7,6 +13,77 @@ import {
     __test
 } from "../gestia-core/jarvis/jarvis.mission.orchestrator.js";
 import { planMarketingRequest } from "../gestia-core/jarvis/jarvis.marketing.engine.js";
+
+test("responsive repair executes the semantic inspection seed before planning repository follow-ups", async () => {
+    const source = readFileSync(new URL("../gestia-core/gestia-core.js", import.meta.url), "utf8").replaceAll("\r", "");
+    const start = source.indexOf("    const operationalMissionToolNames =");
+    const end = source.indexOf('    if (missionResult.reason === "MISSION_INPUT_REQUIRED")', start);
+    assert.ok(start > 0 && end > start);
+    const currentPage = { url: "https://platform.test/gestia-terminal.html", origin: "https://platform.test" };
+    const calls = [{ name: "browser.inspect", args: { url: currentPage.url, followUp: "prepare_repair",
+        viewports: [{ width: 360, height: 800 }], phase: "before" }, approved: false }];
+    const catalog = [
+        { name: "browser.inspect", mutates: false, requiresApproval: false, evidenceKinds: ["interface_structure", "responsive_layout"] },
+        { name: "repo.read", mutates: false, requiresApproval: false },
+        { name: "repo.prepareWrite", mutates: false, requiresApproval: false, contractStages: ["work"], contractKinds: ["code"] },
+        { name: "web.research", mutates: false, requiresApproval: false }
+    ];
+    const executed = [], phases = [];
+    const result = await runInNewContext(`(async () => {
+        ${source.slice(start, end)}
+        return { missionInitialToolCalls, missionToolCatalog, boundedCurrentTurnMission, missionResult };
+    })()`, {
+        operationalInitialToolCalls: calls,
+        terminalSemanticPlan: { reason: "model_selected_multifunction_plan", toolCalls: calls },
+        registeredMissionTools: catalog, context: { currentPage }, semanticMemoryContext: null,
+        effectiveMissionInstruction: "Revisa esta interfaz y prepara una corrección responsive dentro de la autorización.",
+        inputRaw: "Revisa esta interfaz y prepara una corrección responsive dentro de la autorización.",
+        conversationalPlan: { requiresFinalConversation: true },
+        isBoundedReadOnlyMission, ensureExecutableArtifactDependencies, mergeEvidenceGroundedToolCalls, compactMissionPlannerObservation,
+        buildJarvisMultifunctionToolCalls: async (_instruction, options) => {
+            phases.push(options.missionState.phase);
+            // This is the observed failure: a second contract replaces the
+            // already chosen inspection with an unrelated research operation.
+            if (options.missionState.phase === "MISSION_CONTRACT") return [{ name: "web.research", args: { query: "responsive interfaces" } }];
+            assert.equal(options.missionState.currentPage.url, currentPage.url);
+            assert.ok(options.toolCatalog.some(tool => tool.name === "repo.read"));
+            assert.ok(options.toolCatalog.some(tool => tool.name === "repo.prepareWrite"));
+            assert.equal(options.missionState.writeAllowed, false);
+            const completed = options.missionState.completedTasks;
+            const next = completed.some(task => task.name === "repo.read")
+                ? { name: "repo.prepareWrite", args: { file: "gestia-terminal.html", search: "width:400px", replace: "width:100%", matchCount: 1 } }
+                : { name: "repo.read", args: { file: "gestia-terminal.html" } };
+            assert.equal(completed[0].name, "browser.inspect");
+            assert.equal(completed[0].observation.interfaceEvidence.viewports[0].viewport.width, 360);
+            return Object.assign([next], { missionComplete: false });
+        },
+        compactJarvisSemanticMemoryForPlanner: () => null,
+        resolveExplicitRepositoryTargets: () => [], addRepositoryDiscoveryPreflights: ({ toolCalls }) => toolCalls,
+        runJarvisMission: options => runJarvisMission({ ...options, storage: memoryStorage() }),
+        shouldCompleteJarvisPlanningArguments: () => false,
+        tenantId: "TEST", analysisId: "responsive-test", rol: "tecnico", verifiedAuthorityId: "TEST_AUTHORITY",
+        agentLearningHints: null, propuesta: {},
+        window: { ToolsBridge: { executeMany: async (selected, executionContext) => {
+            const call = selected[0];
+            executed.push(call.name);
+            assert.equal(executionContext.currentPage.url, currentPage.url);
+            assert.equal(executionContext.approved, false);
+            if (call.name === "browser.inspect") return [{ ok: true, status: "BROWSER_INSPECT_OK",
+                interfaceEvidence: { source: "RENDERED_DOM_LAYOUT_REPLAY", url: currentPage.url, phase: "before",
+                    viewports: [{ viewport: { width: 360, height: 800 }, elements: [{ tag: "button", selector: "#send", rect: [310, 730, 40, 44] }], findings: [] }] } }];
+            if (call.name === "repo.prepareWrite") return [{ ok: true, status: "WRITE_PREPARED", requiresApproval: true,
+                fingerprint: "a".repeat(64), approvalCommand: "AUTORIZO exact-fingerprint", verified: false }];
+            return [{ ok: true, status: "REPO_READ_OK", content: "width:400px" }];
+        } } }, console: { info() {}, warn() {}, error() {} }
+    });
+    assert.deepEqual(executed, ["browser.inspect", "repo.read", "repo.prepareWrite"]);
+    assert.deepEqual(phases, ["COMPLETION_AUDIT", "COMPLETION_AUDIT"]);
+    assert.deepEqual(Array.from(result.missionInitialToolCalls, call => call.name), ["browser.inspect"]);
+    assert.equal(result.boundedCurrentTurnMission, false);
+    assert.equal(result.missionResult.writeAllowed, false);
+    assert.equal(result.missionResult.reason, "MISSION_APPROVAL_REQUIRED");
+    assert.ok(result.missionResult.status !== "COMPLETED");
+});
 
 function memoryStorage() {
     const values = new Map();

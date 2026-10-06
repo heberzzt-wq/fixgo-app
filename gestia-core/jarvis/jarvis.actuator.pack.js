@@ -2,7 +2,7 @@ import {
     recordCapabilityEvidence
 } from "./jarvis.capability.evidence.js";
 import { ADVERTISING_DIRECTION_SCHEMA, validateAdvertisingDirection } from "./jarvis.advertising.benchmark.js";
-import { validateBrowserUrl, inspectCurrentBrowserPage } from "./jarvis.browser.grounding.js";
+import { validateBrowserUrl, inspectCurrentBrowserPage, inspectResponsiveCurrentBrowserPage, validateBrowserViewportRequest } from "./jarvis.browser.grounding.js";
 import {
     buildPageArtifactHtml,
     describePageArtifact
@@ -454,6 +454,9 @@ function groundedBrowserRequest(payload, context, timeoutMs) {
     }
     const grounding = validateBrowserUrl(payload.url, context);
     if (!grounding.ok) return Promise.resolve(grounding);
+    if (payload.action === "inspect" && payload.viewports !== undefined) {
+        return inspectResponsiveCurrentBrowserPage(grounding.url, { viewports: payload.viewports, phase: payload.phase });
+    }
     const currentPage = payload.action === "inspect" ? inspectCurrentBrowserPage(grounding.url) : null;
     if (currentPage) return Promise.resolve(currentPage);
     return bridgeRequest("/browser", { ...payload, url: grounding.url }, timeoutMs);
@@ -723,16 +726,29 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "browser.inspect",
-            description: "Inspecciona una pagina o interfaz EXISTENTE. En la pagina actual lee el DOM visible y sus estilos calculados: tipografia, colores CSS, tamaños y distribucion. Para otra URL usa Chrome/Edge headless y devuelve DOM. Aporta evidencia para un analisis tecnico del diseño de la pagina observada; no crea contenido, no ve pixeles ni analiza imagenes u otras pantallas.",
-            evidenceKinds: ["interface_structure", "interface_styles"],
+            description: "Inspecciona una interfaz EXISTENTE. viewports reproduce el mismo DOM saneado de la pagina actual autenticada en hasta diez tamaños y diagnostica recortes, controles, texto y contraste CSS medible. phase distingue before/after. followUp=prepare_repair solicita continuar localizando codigo y preparando correccion, sin autorizar escritura. Sin viewports lee el DOM actual o usa headless para otra URL. No ve pixeles, no interactua ni prueba hardware fisico.",
+            evidenceKinds: ["interface_structure", "interface_styles", "responsive_layout"],
             output: "BROWSER_INSPECTION",
-            inputSchema: { url: "string", timeoutMs: "number" },
-            execute: async (args = {}, context = {}) =>
-                await groundedBrowserRequest({
+            inputSchema: { type: "object", properties: {
+                url: { type: "string" }, timeoutMs: { type: "number" },
+                viewports: { type: "array", minItems: 1, maxItems: 10, items: { type: "object", properties: {
+                    width: { type: "integer", minimum: 240, maximum: 3840 }, height: { type: "integer", minimum: 240, maximum: 2160 }
+                }, required: ["width", "height"], additionalProperties: false } },
+                phase: { type: "string", enum: ["before", "after"] },
+                followUp: { type: "string", enum: ["diagnose", "prepare_repair"] }
+            }, required: ["url"], additionalProperties: false },
+            execute: async (args = {}, context = {}) => {
+                if (args.viewports !== undefined) {
+                    const validation = validateBrowserViewportRequest(args);
+                    if (!validation.ok) return validation;
+                }
+                return await groundedBrowserRequest({
                     action: "inspect",
                     url: args.url,
+                    ...(args.viewports !== undefined ? { viewports: args.viewports, phase: args.phase } : {}),
                     timeoutMs: args.timeoutMs || 45000
-                }, context, (args.timeoutMs || 45000) + 5000)
+                }, context, (args.timeoutMs || 45000) + 5000);
+            }
         }),
         register(runtime, {
             name: "browser.screenshot",

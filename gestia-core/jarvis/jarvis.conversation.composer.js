@@ -1135,7 +1135,7 @@ export async function composeEvidenceGroundedConversation({
             ? "Enumera solamente los datos realmente faltantes que impiden una parte solicitada y pregunta al usuario si puede proporcionarlos o si prefiere continuar sin ellos; conserva todo lo ya verificado."
             : "",
         precisionGroundingInstruction,
-        hasMeasuredInterfaceEvidence ? "Hay medidas reales de DOM y estilos calculados de la pagina actual. Explica hallazgos concretos de tipografia, colores y distribucion citando sus medidas; separa recomendaciones de hechos. No has visto pixeles, fotografias ni otras pantallas. Limita expresamente el alcance a la URL y viewport observados. Responde integramente en español; no copies limitaciones internas en ingles." : "",
+        hasMeasuredInterfaceEvidence ? "Hay medidas reales de DOM y estilos. Cuando haya matriz responsive, explica por hallazgo el tamaño, selector, efecto para el usuario, gravedad, certeza, propuesta y prueba; distingue defectos de recomendaciones y aspectos no verificados. Compara solo estados y tamaños equivalentes. Una reproduccion DOM o estilos candidatos no prueban interaccion ni publicacion. Si solo hay medidas de un viewport, limita el alcance a ese tamaño. No has visto pixeles, fotografias ni hardware real. Responde en español." : "",
         creativeAcceptanceInstruction,
         `SOLICITUD_USUARIO=${String(instruction || "").slice(0, 12000)}`,
         hasCapabilities ? `RESUMEN_CAPACIDADES_Y_LIMITES=${capabilityBriefing}` : "",

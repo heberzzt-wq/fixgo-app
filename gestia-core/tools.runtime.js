@@ -1732,7 +1732,10 @@ window.JarvisLocalBridge.testWriteReceipts ||= async function(payload = {}) {
             identity:
                 payload.identity || null,
             instruction:
-                payload.instruction || ""
+                payload.instruction || "",
+            verificationFailure: typeof payload.verificationFailure === "string"
+                ? payload.verificationFailure.trim().slice(0, 1000)
+                : ""
         },
         { timeoutMs: payload.timeoutMs || 120000 }
     );
@@ -7012,7 +7015,7 @@ JarvisToolRuntime.register({
     },
     execute: async (args = {}, context = {}) => {
         if (!window.JarvisLocalBridge?.prepareWrite) return { ok: false, status: "WRITE_BRIDGE_NOT_AVAILABLE", error: "WRITE_BRIDGE_NOT_AVAILABLE" };
-        return await window.JarvisLocalBridge.prepareWrite({
+        const payload = {
             objectiveId: context.objectiveId || args.objectiveId,
             caseId: context.caseId || args.caseId,
             authorityId: context.authorityId || args.authorityId || "HEBERTO_MENDOZA",
@@ -7024,7 +7027,22 @@ JarvisToolRuntime.register({
             matchCount: Number(args.matchCount),
             ttlMs: args.ttlMs || 120000,
             source: "repo_prepare_write_v7"
-        });
+        };
+        const result = await window.JarvisLocalBridge.prepareWrite(payload);
+        if (result?.ok !== true || result?.status !== "WRITE_PREPARED") return result;
+        const preparation = { ...result, search: payload.search, replace: payload.replace };
+        if (typeof window.dispatchEvent === "function" && typeof CustomEvent === "function") {
+            window.dispatchEvent(new CustomEvent("jarvis:write-prepared", { detail: {
+                preparation,
+                patch: { file: payload.file, search: payload.search, replace: payload.replace, matchCount: payload.matchCount },
+                context: {
+                    objectiveId: payload.objectiveId,
+                    caseId: payload.caseId,
+                    completedTasks: Array.isArray(context.completedTasks) ? context.completedTasks : []
+                }
+            } }));
+        }
+        return preparation;
     }
 });
 
@@ -8718,11 +8736,21 @@ window.JarvisLocalBridge.writeFile ||= async function(payload = {}) {
 
 JarvisToolRuntime.register({
     name: "tests.run",
-    description: "Ejecuta validaciones del repo: check:syntax, test o ci:test y conserva evidencia completa del proceso.",
+    description: "Ejecuta validaciones del repo: check:syntax, test, ci:test o responsive. Con fingerprints verifica escrituras autorizadas y revierte su patch si fallan las pruebas. Las regresiones responsive no sustituyen la comprobacion posterior de la misma interfaz y matriz de viewports.",
     mutates: false,
     requiresApproval: false,
     output: "TEST_RUN_RESULT",
-    execute: async (args = {}) => {
+    inputSchema: {
+        type: "object",
+        properties: {
+            command: { type: "string", enum: ["check:syntax", "test", "ci:test", "responsive"] },
+            fingerprints: { type: "array", minItems: 1, items: { type: "string" }, description: "Fingerprints devueltos por repo.write para verificar y revertir exclusivamente esas escrituras." },
+            verificationFailure: { type: "string", maxLength: 1000, description: "Fallo observado al comprobar el navegador; solo puede rechazar la reparacion y revertir los receipts, nunca acreditar exito." },
+            cwd: { type: "string" },
+            timeoutMs: { type: "integer", minimum: 5000 }
+        }
+    },
+    execute: async (args = {}, context = {}) => {
         const command =
             args.command ||
             args.script ||
@@ -8732,7 +8760,8 @@ JarvisToolRuntime.register({
             new Set([
                 "check:syntax",
                 "test",
-                "ci:test"
+                "ci:test",
+                "responsive"
             ]);
 
         if (!allowedCommands.has(command)) {
@@ -8753,7 +8782,9 @@ JarvisToolRuntime.register({
         }
 
         const npmCommand =
-            command === "test"
+            command === "responsive"
+                ? "node --test tests/jarvis-current-turn-production-regressions.test.mjs tests/jarvis-actuator-pack.test.mjs tests/jarvis-repair-engines-v2.test.mjs"
+                : command === "test"
                 ? "npm test"
                 : `npm run ${command}`;
 
@@ -8764,6 +8795,55 @@ JarvisToolRuntime.register({
         const timeoutMs =
             args.timeoutMs ||
             120000;
+
+        const verificationScope = command === "responsive"
+            ? "responsive_regression_tests"
+            : "repository_tests";
+        if (typeof args.verificationFailure === "string" && args.verificationFailure.trim() &&
+            !Object.prototype.hasOwnProperty.call(args, "fingerprints")) {
+            return { ok: false, success: false, executionOk: false, objectiveSatisfied: false,
+                status: "CONTRACT_INVALID", error: "WRITE_RECEIPT_FINGERPRINT_REQUIRED", tool: "tests.run" };
+        }
+        if (Object.prototype.hasOwnProperty.call(args, "fingerprints")) {
+            const fingerprints = Array.isArray(args.fingerprints)
+                ? [...new Set(args.fingerprints.filter(value => typeof value === "string" && value.trim()).map(value => value.trim()))]
+                : [];
+            if (!fingerprints.length || fingerprints.length !== args.fingerprints.length) {
+                return { ok: false, success: false, executionOk: false, objectiveSatisfied: false,
+                    status: "CONTRACT_INVALID", error: "WRITE_RECEIPT_FINGERPRINT_REQUIRED", tool: "tests.run" };
+            }
+            if (typeof window.JarvisLocalBridge?.testWriteReceipts !== "function") {
+                return { ok: false, success: false, executionOk: false, objectiveSatisfied: false,
+                    status: "POST_WRITE_TEST_BRIDGE_REQUIRED", error: "POST_WRITE_TEST_BRIDGE_REQUIRED", tool: "tests.run" };
+            }
+            const result = await window.JarvisLocalBridge.testWriteReceipts({
+                fingerprints, command, cwd, timeoutMs,
+                verificationFailure: typeof args.verificationFailure === "string" ? args.verificationFailure.trim().slice(0, 1000) : "",
+                instruction: context.rawInput || "",
+                identity: context.userId && (context.workspaceId || context.tenantId) ? {
+                    userId: context.userId,
+                    workspaceId: context.workspaceId || context.tenantId,
+                    projectId: context.projectId || "adjunto"
+                } : null
+            });
+            const evidence = result?.testResult || {};
+            const exitCode = Number.isInteger(evidence.exitCode) ? evidence.exitCode : null;
+            const passed = result?.ok === true && result?.status === "POST_WRITE_TESTS_PASSED" && exitCode === 0;
+            const executionOk = passed || exitCode !== null;
+            return {
+                ok: executionOk, success: executionOk, executionOk, objectiveSatisfied: passed,
+                status: result?.status || "POST_WRITE_TEST_BLOCKED",
+                error: passed ? null : result?.error || result?.status || "POST_WRITE_TEST_BLOCKED",
+                blocked: !executionOk, retryable: false,
+                command, npmCommand, cwd, timeoutMs, fingerprints, endpoint: "/write/test",
+                exitCode, stdout: evidence.stdout || "", stderr: evidence.stderr || "",
+                durationMs: evidence.durationMs ?? null,
+                testsPassed: passed, verificationScope, responsiveVerified: false,
+                requiresBrowserVerification: command === "responsive",
+                rollbackResults: result?.rollbackResults || [],
+                result, tool: "tests.run"
+            };
+        }
 
         if (!window.JarvisLocalBridge?.runCommand) {
             return {
@@ -8838,6 +8918,10 @@ JarvisToolRuntime.register({
             executionOk,
             objectiveSatisfied:
                 passed,
+            testsPassed: passed,
+            verificationScope,
+            responsiveVerified: false,
+            requiresBrowserVerification: command === "responsive",
             blocked:
                 false,
             retryable:

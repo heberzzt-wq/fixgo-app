@@ -20,6 +20,38 @@ const coreNode = parse(coreSource, { sourceType: "module", ecmaVersion: "latest"
     .declaration.declarations[0].init;
 const quietConsole = { info() {}, warn() {}, error() {} };
 
+test("responsive repair planning retains repository discovery without granting write permission", () => {
+    const tool = { name: "browser.inspect", mutates: false, requiresApproval: false };
+    const call = { name: tool.name, args: { followUp: "prepare_repair", viewports: [{ width: 360, height: 800 }] }, approved: false };
+    assert.equal(isBoundedReadOnlyMission([call], [tool]), false);
+    assert.equal(call.approved, false);
+    assert.equal(isBoundedReadOnlyMission([{ ...call, args: { followUp: "diagnose" } }], [tool]), true);
+});
+
+test("responsive answer selects diagnosed findings and preserves viewport and replay limits", async () => {
+    const { runJarvisSemanticResponse } = createRequire(import.meta.url)("../functions/jarvis-semantic-planner.js");
+    const page = { source: "RENDERED_DOM_LAYOUT_REPLAY", url: "https://runtime.test/terminal", phase: "before",
+        stateFingerprint: "a".repeat(64), observedAt: "2026-10-06T17:20:57Z",
+        viewports: [{ viewport: { width: 360, height: 800 }, orientation: "portrait", elements: [{ tag: "button", selector: "#menu", rect: [340, 20, 44, 44] }],
+            findings: [{ id: "outside-menu", kind: "clipped_control", selector: "#menu", classification: "defect", severity: "high", certainty: "high",
+                summary: "Control recortado", impact: "Parte del control queda inaccesible fuera del viewport.",
+                suggestedCorrection: "Permitir que el encabezado se distribuya en filas.", verification: "El control debe quedar completamente dentro del viewport." }] }],
+        limitations: ["Sin interacción ni hardware real"] };
+    const briefing = { missionStatus: "PARTIAL", executedTools: [{ tool: "browser.inspect", ok: true }], measuredInterfaceEvidence: [page] };
+    const result = await runJarvisSemanticResponse({ input: "Diagnostica la interfaz", responseMode: "grounded_conversation", responseBriefing: JSON.stringify(briefing),
+        ai: { models: { generateContent: async request => {
+            const ids = request.config.responseJsonSchema.properties.factIds.items.enum;
+            assert.ok(ids.includes("interface.0.viewport.0.finding.0"));
+            return { text: JSON.stringify({ requestedLineCount: 0, factIds: ["interface.0.viewport.0.finding.0"] }) };
+        } } } });
+    assert.match(result.message, /360 × 800/);
+    assert.match(result.message, /#menu/);
+    assert.match(result.message, /inaccesible/);
+    assert.match(result.message, /reproducción DOM/);
+    assert.match(result.message, /No se inspeccionaron píxeles/);
+    assert.match(result.message, /parcial/);
+});
+
 function runtime() {
     const tools = new Map();
     return {
@@ -27,6 +59,27 @@ function runtime() {
         has: name => tools.has(name), get: name => tools.get(name), list: () => [...tools.values()]
     };
 }
+
+test("responsive optional viewport arguments are repaired by Qwen before execution", async () => {
+    const tools = actuatorCatalog();
+    let repaired = false;
+    const result = await runJarvisSemanticPlanner({
+        input: "Revisa esta interfaz a 360 por 800 y prepara una corrección",
+        catalog: [tools.get("browser.inspect")],
+        missionState: { phase: "CURRENT_TURN", currentPage: { url: "https://runtime.test/terminal" } },
+        ai: { models: { generateContent: async request => {
+            if (request.config.semanticStage === "CURRENT_TURN_SCHEMA_ARGUMENT_REPAIR") {
+                repaired = true;
+                assert.equal(request.config.responseJsonSchema.properties.arguments.properties.viewports.items.properties.width.type, "integer");
+                return { text: JSON.stringify({ arguments: { url: "https://runtime.test/terminal", viewports: [{ width: 360, height: 800 }], phase: "before", followUp: "prepare_repair" } }) };
+            }
+            return { functionCalls: [{ name: "jarvis_tool_0", args: { url: "https://runtime.test/terminal", viewports: ["360x800"], followUp: "prepare_repair" } }] };
+        } } }
+    });
+    assert.equal(repaired, true);
+    assert.deepEqual(result.toolCalls[0].args.viewports, [{ width: 360, height: 800 }]);
+    assert.equal(result.toolCalls[0].approved, false);
+});
 
 test("CURRENT_TURN renders the model-authored answer and limitation once, preserving only history", async t => {
     const tools = runtime();

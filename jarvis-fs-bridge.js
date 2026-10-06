@@ -4572,6 +4572,8 @@ function bridgeChildEnvironment(overrides = {}) {
         ...process.env,
         ...overrides
     };
+    // A child test command owns a new runner; inherited runner context skips its tests.
+    delete env.NODE_TEST_CONTEXT;
     if (process.platform === "win32") {
         const gitCmd = "C:\\Program Files\\Git\\cmd";
         const inheritedPath = String(env.PATH || env.Path || process.env.PATH || process.env.Path || "").trim();
@@ -6699,7 +6701,8 @@ export function createJarvisFsBridgeApp({
     const postWriteTestCommands = new Map([
         ["check:syntax", "npm run check:syntax"],
         ["test", "npm test"],
-        ["ci:test", "npm run ci:test"]
+        ["ci:test", "npm run ci:test"],
+        ["responsive", "node --test tests/jarvis-current-turn-production-regressions.test.mjs tests/jarvis-actuator-pack.test.mjs tests/jarvis-repair-engines-v2.test.mjs"]
     ]);
 
     const runPostWriteTestCommand = ({
@@ -6730,6 +6733,7 @@ export function createJarvisFsBridgeApp({
                 {
                     cwd: safeCwd,
                     shell: true,
+                    windowsHide: true,
                     stdio: ["ignore", "pipe", "pipe"],
                     env: bridgeChildEnvironment({ CI: "true" })
                 }
@@ -7895,7 +7899,7 @@ export function createJarvisFsBridgeApp({
                 }
             }
 
-            const testResult =
+            let testResult =
                 await runPostWriteTestCommand({
                     command:
                         body.command ||
@@ -7907,9 +7911,30 @@ export function createJarvisFsBridgeApp({
                         body.timeoutMs ||
                         120000
                 });
+            const verificationFailure = typeof body.verificationFailure === "string"
+                ? body.verificationFailure.trim().slice(0, 1000)
+                : "";
+            if (verificationFailure) {
+                testResult = {
+                    ...testResult,
+                    processStatus: testResult.status,
+                    processOk: testResult.ok === true,
+                    ok: false,
+                    status: "RESPONSIVE_BROWSER_VERIFICATION_FAILED",
+                    error: verificationFailure
+                };
+            }
 
             const testedAt =
                 Date.now();
+            const verificationScope = body.command === "responsive"
+                ? "responsive_regression_tests"
+                : "repository_tests";
+            const verificationEvidence = {
+                verificationScope,
+                responsiveVerified: false,
+                requiresBrowserVerification: body.command === "responsive"
+            };
 
             if (testResult.ok === true) {
                 for (const receipt of receipts) {
@@ -7925,6 +7950,7 @@ export function createJarvisFsBridgeApp({
                 return res.json({
                     ok: true,
                     status: "POST_WRITE_TESTS_PASSED",
+                    ...verificationEvidence,
                     fingerprints,
                     testedAt,
                     testResult,
@@ -8042,6 +8068,7 @@ export function createJarvisFsBridgeApp({
                     rollbackFailed
                         ? "POST_WRITE_TEST_FAILED_ROLLBACK_INCOMPLETE"
                         : "POST_WRITE_TEST_FAILED_ROLLED_BACK",
+                ...verificationEvidence,
                 error:
                     testResult.error ||
                     testResult.status ||
@@ -8096,7 +8123,8 @@ export function createJarvisFsBridgeApp({
                     "npm run worker:smoke",
                     "npm run smoke:release",
                     "npm test",
-                    "npm run ci:test"
+                    "npm run ci:test",
+                    "node --test tests/jarvis-current-turn-production-regressions.test.mjs tests/jarvis-actuator-pack.test.mjs tests/jarvis-repair-engines-v2.test.mjs"
                 ]);
 
             if (

@@ -4795,14 +4795,22 @@ if (
         terminalSemanticPlan?.reason === "model_selected_multifunction_plan" &&
         isBoundedReadOnlyMission(terminalSemanticPlan.toolCalls, registeredMissionTools) &&
         isBoundedReadOnlyMission(operationalInitialToolCalls, registeredMissionTools);
+    // Qwen already selected an observation followed by repair preparation.
+    // Execute that evidence seed before asking the same model what to do next;
+    // a second contract must not replace it with unrelated production work.
+    const observationFirstCurrentTurnMission =
+        terminalSemanticPlan?.reason === "model_selected_multifunction_plan" &&
+        operationalInitialToolCalls.length === 1 &&
+        operationalInitialToolCalls[0]?.name === "browser.inspect" &&
+        operationalInitialToolCalls[0]?.args?.followUp === "prepare_repair";
     const missionToolCatalog =
         [
             ...registeredMissionTools.filter(tool => operationalMissionToolNames.has(tool.name)),
             ...registeredMissionTools.filter(tool => !operationalMissionToolNames.has(tool.name))
         ].filter(tool => !boundedCurrentTurnMission || operationalMissionToolNames.has(tool.name)).slice(0, 80);
-    let missionContractToolCalls = boundedCurrentTurnMission ? operationalInitialToolCalls : undefined;
+    let missionContractToolCalls = boundedCurrentTurnMission || observationFirstCurrentTurnMission ? operationalInitialToolCalls : undefined;
     let lastMissionContractError = null;
-    for (let missionContractAttempt = 1; missionContractAttempt <= 3 && !boundedCurrentTurnMission; missionContractAttempt += 1) {
+    for (let missionContractAttempt = 1; missionContractAttempt <= 3 && !boundedCurrentTurnMission && !observationFirstCurrentTurnMission; missionContractAttempt += 1) {
         try {
             missionContractToolCalls =
                 await buildJarvisMultifunctionToolCalls(
@@ -4813,6 +4821,7 @@ if (
                         toolCatalog: missionToolCatalog,
                         missionState: {
                             phase: "MISSION_CONTRACT",
+                            currentPage: context.currentPage || null,
                             writeAllowed: false,
                             userArtifactAllowed: true,
                             existingInitialTools: operationalInitialToolCalls.map(call => call?.name).filter(Boolean),
@@ -4945,7 +4954,7 @@ if (
                     "EXPLICIT_REPOSITORY_TARGET_EVIDENCE"
             }));
     const missionInitialToolCalls =
-        missionIsIsolated || boundedCurrentTurnMission
+        missionIsIsolated || boundedCurrentTurnMission || observationFirstCurrentTurnMission
             ? missionContractToolCalls
             : addRepositoryDiscoveryPreflights({
                 toolCalls: [
@@ -5095,6 +5104,7 @@ if (
                                         missionState: {
                                             phase:
                                                 "COMPLETION_AUDIT",
+                                            currentPage: context.currentPage || null,
                                             missionId:
                                                 mission.missionId,
                                             caseId:
@@ -5254,6 +5264,7 @@ if (
                                         ) ||
                                     [],
                                 missionState: {
+                                    currentPage: context.currentPage || null,
                                     missionId: mission.missionId,
                                     caseId: mission.caseId,
                                     objectiveId: mission.objectiveId,

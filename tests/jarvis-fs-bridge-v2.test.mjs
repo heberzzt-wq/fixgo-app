@@ -5,6 +5,8 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import vm from "node:vm";
 
 import {
     applyReadLineRange,
@@ -2519,6 +2521,174 @@ test("Jarvis local research fallback returns bounded verifiable web sources", as
     finally {
         globalThis.fetch = previousFetch;
     }
+});
+
+function directBridgePost(app) {
+    return async (route, body) => {
+        const layer = app.router.stack.find(item => item.route?.path === route && item.route.methods.post);
+        assert.ok(layer, `Missing POST ${route}`);
+        let response;
+        const res = {
+            statusCode: 200,
+            status(code) { this.statusCode = code; return this; },
+            json(payload) { response = { status: this.statusCode, body: payload }; return this; }
+        };
+        await layer.route.stack[0].handle({ body }, res);
+        assert.ok(response, `POST ${route} did not respond`);
+        return response;
+    };
+}
+
+function responsiveWriteFixture(testBody) {
+    const fixture = createBridgeIdentityFixture();
+    fs.writeFileSync(path.join(fixture.root, "sample.css"), Buffer.from("/* diseño existente */\r\n.panel { width: 500px; }\r\n", "utf8"));
+    fs.mkdirSync(path.join(fixture.root, "tests"));
+    for (const file of ["jarvis-current-turn-production-regressions.test.mjs", "jarvis-actuator-pack.test.mjs", "jarvis-repair-engines-v2.test.mjs"]) {
+        fs.writeFileSync(path.join(fixture.root, "tests", file), file.startsWith("jarvis-current")
+            ? `import fs from 'node:fs'; import assert from 'node:assert/strict'; import {test} from 'node:test'; test('responsive fixture', () => { ${testBody} });`
+            : "import {test} from 'node:test'; test('existing companion fixture', () => {});");
+    }
+    const post = directBridgePost(createJarvisFsBridgeApp({ root: fixture.root }));
+    const prepareAndWrite = async replacement => {
+        const prepared = await post("/write/prepare", {
+            objectiveId: "responsive-objective", caseId: "responsive-case",
+            authorityId: "HEBERTO_MENDOZA", controllerId: "CODEX_SIA7",
+            file: "sample.css", search: "width: 500px", replace: replacement, matchCount: 1
+        });
+        assert.equal(prepared.body.status, "WRITE_PREPARED");
+        const authority = {
+            fingerprint: prepared.body.fingerprint, nonce: prepared.body.nonce,
+            objectiveId: "responsive-objective", caseId: "responsive-case"
+        };
+        const denied = await post("/write", authority);
+        assert.equal(denied.body.error, "WRITE_AUTHORIZATION_NOT_FOUND_OR_CONSUMED");
+        const original = fs.readFileSync(path.join(fixture.root, "sample.css"));
+        assert.match(original.toString("utf8"), /width: 500px/);
+        const authorized = await post("/write/authorize", {
+            ...authority, approvedBy: "HEBERTO_MENDOZA", approvalCommand: prepared.body.approvalCommand
+        });
+        assert.equal(authorized.body.status, "WRITE_AUTHORIZED_ONCE");
+        const written = await post("/write", authority);
+        assert.equal(written.body.status, "WRITE_COMPLETED_VERIFIED");
+        assert.equal((await post("/write", authority)).body.error, "WRITE_AUTHORIZATION_NOT_FOUND_OR_CONSUMED");
+        return { fingerprint: authority.fingerprint, original, written: written.body };
+    };
+    return { ...fixture, post, prepareAndWrite };
+}
+
+test("responsive receipt verification executes focused tests without listening and restores exact bytes on failure", async t => {
+    for (const pass of [true, false]) await t.test(pass ? "green regression evidence is not browser evidence" : "red regression restores SHA and bytes", async () => {
+        const fixture = responsiveWriteFixture("assert.match(fs.readFileSync('sample.css', 'utf8'), /width: 100%/);");
+        try {
+            const write = await fixture.prepareAndWrite(pass ? "width: 100%" : "width: 600px");
+            const result = await fixture.post("/write/test", { fingerprints: [write.fingerprint], command: "responsive" });
+            assert.equal(result.body.status, pass ? "POST_WRITE_TESTS_PASSED" : "POST_WRITE_TEST_FAILED_ROLLED_BACK", JSON.stringify(result.body.testResult));
+            assert.equal(result.body.verificationScope, "responsive_regression_tests");
+            assert.equal(result.body.responsiveVerified, false);
+            assert.equal(result.body.requiresBrowserVerification, true);
+            assert.equal(result.body.testResult.exitCode, pass ? 0 : 1);
+            if (!pass) {
+                const restored = fs.readFileSync(path.join(fixture.root, "sample.css"));
+                assert.deepEqual(restored, write.original);
+                assert.equal(result.body.rollbackResults[0].restoredSha256, createHash("sha256").update(write.original).digest("hex"));
+                assert.equal(result.body.rollbackResults[0].restoredBytes, write.original.length);
+            }
+        } finally { fs.rmSync(fixture.fixtureRoot, { recursive: true, force: true }); }
+    });
+});
+
+test("responsive receipt rollback preserves intervening changes from another editor", async () => {
+    const foreignContent = "/* another editor's preserved draft */\r\n.panel { width: 85%; }\r\n";
+    const fixture = responsiveWriteFixture(`fs.writeFileSync('sample.css', ${JSON.stringify(foreignContent)}); assert.fail('post-write assertion');`);
+    try {
+        const write = await fixture.prepareAndWrite("width: 100%");
+        const result = await fixture.post("/write/test", { fingerprints: [write.fingerprint], command: "responsive" });
+        assert.equal(result.body.status, "POST_WRITE_TEST_FAILED_ROLLBACK_INCOMPLETE");
+        assert.equal(result.body.rollbackResults[0].error, "ROLLBACK_CURRENT_CONTENT_MISMATCH");
+        assert.deepEqual(fs.readFileSync(path.join(fixture.root, "sample.css")), Buffer.from(foreignContent));
+    } finally { fs.rmSync(fixture.fixtureRoot, { recursive: true, force: true }); }
+});
+
+test("responsive browser failure rolls back the authorized patch even after green regression tests", async () => {
+    const fixture = responsiveWriteFixture("assert.match(fs.readFileSync('sample.css', 'utf8'), /width: 100%/);");
+    try {
+        const write = await fixture.prepareAndWrite("width: 100%");
+        const result = await fixture.post("/write/test", {
+            fingerprints: [write.fingerprint], command: "responsive",
+            verificationFailure: "The 360x800 candidate retains the measured overflow."
+        });
+        assert.equal(result.body.status, "POST_WRITE_TEST_FAILED_ROLLED_BACK");
+        assert.equal(result.body.testResult.status, "RESPONSIVE_BROWSER_VERIFICATION_FAILED");
+        assert.equal(result.body.testResult.exitCode, 0);
+        assert.equal(result.body.responsiveVerified, false);
+        assert.deepEqual(fs.readFileSync(path.join(fixture.root, "sample.css")), write.original);
+        assert.equal(result.body.rollbackResults[0].restoredSha256, write.written.snapshotSha256);
+    } finally { fs.rmSync(fixture.fixtureRoot, { recursive: true, force: true }); }
+});
+
+test("tests.run routes responsive receipts through governed verification without claiming a browser pass", async () => {
+    const source = fs.readFileSync(path.resolve("gestia-core/tools.runtime.js"), "utf8");
+    const nameIndex = source.indexOf('name: "tests.run"');
+    const start = source.lastIndexOf("JarvisToolRuntime.register({", nameIndex);
+    const end = source.indexOf("\n});", nameIndex) + 4;
+    const calls = [];
+    let tool;
+    vm.runInNewContext(source.slice(start, end), {
+        JarvisToolRuntime: { register(definition) { tool = definition; } },
+        window: { JarvisLocalBridge: {
+            async runCommand() { assert.fail("Receipt verification must not use /run"); },
+            async testWriteReceipts(payload) {
+                calls.push(payload);
+                return { ok: false, status: "POST_WRITE_TEST_FAILED_ROLLED_BACK", testResult: { exitCode: 1, stdout: "assertion failed" }, rollbackResults: [{ ok: true, restoredSha256: "a".repeat(64) }] };
+            }
+        } }
+    });
+    const result = await tool.execute({ command: "responsive", fingerprints: ["receipt-1"], verificationFailure: "overflow persists" }, { rawInput: "repair the layout" });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].command, "responsive");
+    assert.equal(calls[0].fingerprints[0], "receipt-1");
+    assert.equal(calls[0].verificationFailure, "overflow persists");
+    assert.equal(result.objectiveSatisfied, false);
+    assert.equal(result.status, "POST_WRITE_TEST_FAILED_ROLLED_BACK");
+    assert.equal(result.endpoint, "/write/test");
+    assert.equal(result.rollbackResults[0].restoredSha256, "a".repeat(64));
+    assert.equal(result.responsiveVerified, false);
+    assert.equal(result.requiresBrowserVerification, true);
+    const invalid = await tool.execute({ command: "responsive", fingerprints: [] });
+    assert.equal(invalid.error, "WRITE_RECEIPT_FINGERPRINT_REQUIRED");
+    const missingReceipts = await tool.execute({ command: "responsive", verificationFailure: "overflow persists" });
+    assert.equal(missingReceipts.error, "WRITE_RECEIPT_FINGERPRINT_REQUIRED");
+    assert.equal(calls.length, 1);
+});
+
+test("repo.prepareWrite emits an exact review event only after canonical preparation succeeds", async () => {
+    const source = fs.readFileSync(path.resolve("gestia-core/tools.runtime.js"), "utf8");
+    const nameIndex = source.indexOf('name: "repo.prepareWrite"');
+    const start = source.lastIndexOf("JarvisToolRuntime.register({", nameIndex);
+    const end = source.indexOf("\n});", nameIndex) + 4;
+    const events = [];
+    let tool;
+    let bridgeResult = { ok: true, status: "WRITE_PREPARED", fingerprint: "prepared-1" };
+    vm.runInNewContext(source.slice(start, end), {
+        JarvisToolRuntime: { register(definition) { tool = definition; } },
+        CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
+        window: { dispatchEvent(event) { events.push(event); }, JarvisLocalBridge: {
+            async prepareWrite() { return bridgeResult; }
+        } }
+    });
+    const patch = { file: "sample.css", search: ".panel{width:500px}", replace: ".panel{width:100%}", matchCount: 1 };
+    const result = await tool.execute(patch, { objectiveId: "OBJ", caseId: "CASE", completedTasks: [{ name: "browser.inspect" }] });
+    assert.equal(result.search, patch.search);
+    assert.equal(result.replace, patch.replace);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].type, "jarvis:write-prepared");
+    assert.equal(events[0].detail.preparation.fingerprint, "prepared-1");
+    assert.equal(events[0].detail.patch.search, patch.search);
+    assert.equal(events[0].detail.context.objectiveId, "OBJ");
+    assert.equal(events[0].detail.context.completedTasks[0].name, "browser.inspect");
+    bridgeResult = { ok: false, status: "WRITE_PREPARE_BLOCKED" };
+    await tool.execute(patch, {});
+    assert.equal(events.length, 1);
 });
 
 test("write bridge requires fingerprinted one-time approval, snapshot and post-verify", async () => {

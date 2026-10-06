@@ -441,8 +441,8 @@ function validateCompletionEvidence(plan, catalog, missionState) {
             // Unscoped tools can support only their actual generic result; they
             // cannot be promoted to a specialized inspection by model wording.
             if (objective.requiredEvidenceKind === "interface_styles" &&
-                (observation.interfaceEvidence?.source !== "CURRENT_RENDERED_DOM_COMPUTED_STYLE" ||
-                    !observation.interfaceEvidence?.elements?.length)) {
+                (!["CURRENT_RENDERED_DOM_COMPUTED_STYLE", "RENDERED_DOM_LAYOUT_REPLAY"].includes(observation.interfaceEvidence?.source) ||
+                    !(observation.interfaceEvidence?.elements?.length || (observation.interfaceEvidence?.viewports?.length && observation.interfaceEvidence.viewports.every(page => page.elements?.length))))) {
                 throw new Error("SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH");
             }
             const kinds = tool.evidenceKinds || ["tool_result"];
@@ -675,7 +675,7 @@ function hasRequiredToolArguments(tool = {}, args = {}) {
         hasRequiredToolArguments({inputSchema:branch},args));
     const required = Array.isArray(schema?.required) ? schema.required : [];
 
-    return required.every(name => {
+    return [...new Set([...required, ...Object.keys(args).filter(name => schema?.properties?.[name])])].every(name => {
         if (!Object.prototype.hasOwnProperty.call(args, name)) return false;
         const value = args[name];
         const fieldSchema =
@@ -872,6 +872,7 @@ function buildSemanticSystemInstruction(catalog = [], missionState = null) {
         "Preserva todos los objetivos explicitos, negaciones, identidades, adjuntos y restricciones del usuario. No arrastres objetivos anteriores salvo continuidad inequívoca sustentada por el estado de mision.",
         "Usa las descripciones y schemas de las herramientas para decidir cual satisface mejor cada objetivo y para construir argumentos completos.",
         "No concedas aprobacion ni permisos. approved siempre es false; seguridad, autorizacion, escritura, publicacion y ejecucion pertenecen al runtime determinista.",
+        "Para una auditoria en varios tamaños usa browser.inspect con viewports. Si el usuario tambien solicita correcciones, elige followUp=prepare_repair; si pide solo analizar, followUp=diagnose. Despues de medir, diagnostica el efecto para el usuario, localiza y lee el archivo responsable antes de proponer search/replace exactos mediante repo.prepareWrite. La preparacion se presenta para aprobacion humana ligada al fingerprint; nunca significa que se escribio. La primera reparacion responsive disponible se limita al primer bloque style existente de gestia-terminal.html, un reemplazo por operacion; conserva identidad y funciones. No propongas un patch si no hay hallazgos ni mejora verificable.",
         "Cuando exista ESTADO_DE_MISION, usa completedTasks, pendingTasks, blockedTasks y sus observaciones reales como evidencia para elegir el siguiente paso. No repitas trabajo ya satisfecho con la misma evidencia.",
         "Marca missionComplete=true solo cuando la evidencia del estado demuestre que todos los objetivos solicitados quedaron satisfechos. Agotar herramientas o no tener trabajo ejecutable no demuestra cumplimiento.",
         "Si no hace falta una herramienta operativa, usa una capacidad conversacional del catalogo si existe.",
@@ -1460,7 +1461,7 @@ async function runModelSemanticPlanner({
             index, name: task.name, observation: task.observation
         })).filter(task => task.observation?.ok === true && task.observation.executionOk !== false &&
             task.observation.blocked !== true && task.observation.requiresInput !== true &&
-            task.observation.interfaceEvidence?.source === "CURRENT_RENDERED_DOM_COMPUTED_STYLE")
+            ["CURRENT_RENDERED_DOM_COMPUTED_STYLE", "RENDERED_DOM_LAYOUT_REPLAY"].includes(task.observation.interfaceEvidence?.source))
             .slice(0, 2).map(task => ({ index: task.index, name: task.name, interfaceEvidence: task.observation.interfaceEvidence }));
         let lastAuditError = null;
         let lastRejectedAuditPlan = null;
@@ -2158,7 +2159,7 @@ async function runModelSemanticPlanner({
                     { role: "system", content: ["Eres Jarvis, un asistente general. Los candidatos de retrieval son sugerencias, no una orden de ejecutar. Evalua la solicitud original con las descripciones y schemas. Si basta una explicacion conceptual, selecciona conversation.respond y responde; no crees artefactos que no se solicitaron. Para evaluar un objeto real usa una fuente que aporte evidencia pertinente. Telemetria o salud no acreditan inspeccion visual ni diseno. Si ninguna herramienta puede aportar la evidencia necesaria, usa conversation.respond para explicar que falta, sin afirmar que analizaste el objeto. Solo las solicitudes de codigo o archivos pertenecen al repositorio activo. Construye argumentos con valores ejecutables del tipo indicado, no descriptores de schema. Ejecuta solo la accion solicitada y respeta las restricciones del usuario. No inventes ubicaciones, lecturas ni resultados.", browserGroundingInstruction(missionState), operativeAdvisoryContext].filter(Boolean).join("\n") },
                     { role: "user", content: currentTurnInstruction }
                 ],
-                maxOutputTokens: 160,
+                maxOutputTokens: 512,
                 temperature: 0,
                 nativeToolChat: true,
                 tools: [{ functionDeclarations: buildGeminiModelTools(safeCatalog) }],
@@ -2307,7 +2308,7 @@ async function runModelSemanticPlanner({
                         required: ["arguments"],
                         additionalProperties: false
                     },
-                    maxOutputTokens: 160,
+                    maxOutputTokens: 512,
                     temperature: 0
                 }
             });
@@ -2767,6 +2768,29 @@ async function runJarvisSemanticResponse({
             const facts = [];
             const scopes = [];
             for (const [pageIndex, page] of parsedBriefing.measuredInterfaceEvidence.slice(0, 2).entries()) {
+                if (page?.source === "RENDERED_DOM_LAYOUT_REPLAY" && Array.isArray(page.viewports) && page.viewports.length) {
+                    let url;
+                    try { url = new URL(page.url); } catch { continue; }
+                    if (!["http:", "https:"].includes(url.protocol)) continue;
+                    const text = value => String(value || "").replace(/\s+/g, " ").trim().slice(0, 400);
+                    const sizes = [];
+                    for (const [viewportIndex, state] of page.viewports.slice(0, 10).entries()) {
+                        const size = state.viewport;
+                        if (!Number.isFinite(size?.width) || !Number.isFinite(size?.height) || size.width <= 0 || size.height <= 0) continue;
+                        const label = size.width + " × " + size.height;
+                        sizes.push(label);
+                        for (const [findingIndex, finding] of (state.findings || []).slice(0, 12).entries()) {
+                            if (!text(finding.selector) || !text(finding.summary) || !["defect", "recommendation", "unverified"].includes(finding.classification)) continue;
+                            const classification = { defect: "Defecto reproducible", recommendation: "Mejora recomendada", unverified: "No verificado" }[finding.classification];
+                            facts.push({ id: `interface.${pageIndex}.viewport.${viewportIndex}.finding.${findingIndex}`,
+                                text: `${label}, ${text(finding.selector)}: ${classification}; ${text(finding.summary)}. ${text(finding.impact)} Gravedad: ${text(finding.severity)}; certeza: ${text(finding.certainty)}. Propuesta: ${text(finding.suggestedCorrection)} Prueba: ${text(finding.verification)}` });
+                        }
+                    }
+                    if (!sizes.length) continue;
+                    facts.push({ id: `interface.${pageIndex}.coverage`, text: `Tamaños medidos: ${sizes.join(", ")}. Fase: ${text(page.phase)}. Medir el diseño no acredita reparación ni publicación.` });
+                    scopes.push(`Alcance: reproducción DOM del estado de ${url.href} en ${sizes.join(", ")} px. No se inspeccionaron píxeles ni se probó interacción, teclado virtual, Safari o hardware real. ${text((page.limitations || []).join(" "))}`);
+                    continue;
+                }
                 if (page?.source !== "CURRENT_RENDERED_DOM_COMPUTED_STYLE" ||
                     !Array.isArray(page.elements) || !page.elements.length ||
                     !(Number(page.viewport?.width) > 0 && Number(page.viewport?.height) > 0)) continue;
@@ -2818,7 +2842,7 @@ async function runJarvisSemanticResponse({
                                 "You are Jarvis. Select only verified fact IDs that directly answer the user's request.",
                                 "requestedLineCount is the exact number of answer lines explicitly requested by the user, or 0 if no exact line count is requested.",
                                 "Order factIds by relevance. Do not invent prose or facts; the application renders the selected verified facts.",
-                                ...(groundedFactSelection.mode === "MEASURED_INTERFACE_FACTS" ? ["For a broad interface review, select 3-6 relevant measured facts covering heading typography, page colors and layout. Do not select every element. These facts support a technical review, not visual inspection, accessibility certification or claims about unobserved behavior."] : []),
+                                ...(groundedFactSelection.mode === "MEASURED_INTERFACE_FACTS" ? ["For a responsive review prioritize diagnosed findings: affected viewport, selector, user impact, proposed correction and verification. Distinguish reproducible defects from recommendations. Select 3-6 representative findings; coverage alone never proves repair. If only single-viewport styles exist, select relevant measured facts. These facts support a technical review, not visual inspection, accessibility certification or claims about unobserved behavior."] : []),
                                 "Do not infer validity, syntax, unchanged state, tests, boundary verification, or absence of errors unless those claims exist as selectable verified facts."
                             ].join("\n");
                             return {

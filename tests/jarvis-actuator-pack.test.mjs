@@ -9,6 +9,122 @@ import {
     parseTimestampedVideoTimeline,
     registerJarvisActuatorTools
 } from "../gestia-core/jarvis/jarvis.actuator.pack.js";
+import * as browserGrounding from "../gestia-core/jarvis/jarvis.browser.grounding.js";
+
+test("browser.inspect exposes bounded viewport replay and keeps phase separate for verification", () => {
+    const runtime = createRuntime();
+    registerJarvisActuatorTools(runtime);
+    const schema = runtime.get("browser.inspect").inputSchema;
+    assert.equal(schema.properties.viewports.maxItems, 10);
+    assert.deepEqual(schema.properties.phase.enum, ["before", "after"]);
+    assert.equal(runtime.get("browser.inspect").mutates, false);
+});
+
+test("browser.inspect rejects invalid matrices and never sends authenticated replay to headless", async t => {
+    const runtime = createRuntime();
+    registerJarvisActuatorTools(runtime);
+    const previous = globalThis.JarvisLocalBridge;
+    let bridgeCalls = 0;
+    globalThis.JarvisLocalBridge = { requestJson: async () => { bridgeCalls++; return { ok: true }; } };
+    t.after(() => { globalThis.JarvisLocalBridge = previous; });
+    for (const viewports of [[], [{ width: "360", height: 800 }], [{ width: 0, height: 800 }],
+        Array.from({ length: 11 }, () => ({ width: 360, height: 800 }))]) {
+        const result = await runtime.get("browser.inspect").execute({ url: "https://platform.test/gestia-terminal.html", viewports },
+            { currentPage: { url: "https://platform.test/gestia-terminal.html" } });
+        assert.equal(result.status, "BROWSER_VIEWPORT_CONTRACT_INVALID");
+    }
+    const unavailable = await runtime.get("browser.inspect").execute({
+        url: "https://platform.test/gestia-terminal.html", viewports: [{ width: 360, height: 800 }], phase: "before"
+    }, { currentPage: { url: "https://platform.test/gestia-terminal.html" } });
+    assert.equal(unavailable.ok, false);
+    assert.equal(unavailable.status, "BROWSER_CURRENT_PAGE_REPLAY_REQUIRED");
+    assert.equal(bridgeCalls, 0);
+});
+
+test("layout diagnosis distinguishes clipped accessible content from intentional scroll and small target recommendations", () => {
+    const findings = browserGrounding.analyzeBrowserLayout({ viewport: { width: 360, height: 800 }, elements: [
+        { tag: "button", selector: "#clipped", rect: [340, 70, 100, 44], interactive: true,
+            clipping: [{ selector: "#shell", axis: "x", overflow: "hidden", rect: [0, 0, 360, 800] }] },
+        { tag: "button", selector: "#scrollable", rect: [340, 140, 100, 44], interactive: true,
+            clipping: [{ selector: "#scroller", axis: "x", overflow: "auto", rect: [0, 0, 360, 800] },
+                { selector: "#shell", axis: "x", overflow: "hidden", rect: [0, 0, 360, 800] }] },
+        { tag: "button", selector: "#small", rect: [20, 200, 24, 24], interactive: true },
+        { tag: "button", selector: "#invalid", rect: [0, 0, 0, 0], interactive: true }
+    ] });
+    assert.ok(findings.some(item => item.selector === "#clipped" && item.kind === "inaccessible_clipping" && item.classification === "defect"));
+    assert.ok(!findings.some(item => item.selector === "#scrollable" && item.classification === "defect"));
+    assert.ok(findings.some(item => item.selector === "#small" && item.classification === "recommendation"));
+    assert.ok(!findings.some(item => item.selector === "#invalid"));
+});
+
+test("viewport replay evidence survives compaction without inventing geometry or verified interactions", () => {
+    const source = { source: "RENDERED_DOM_LAYOUT_REPLAY", url: "https://platform.test/gestia-terminal.html", phase: "after",
+        stateFingerprint: "a".repeat(64), observedAt: "2026-10-06T18:00:00.000Z", viewports: [
+            { viewport: { width: 360, height: 800 }, orientation: "portrait", elements: [{ tag: "button", selector: "#send", rect: [310, 700, 40, 44] }], findings: [] },
+            { viewport: { width: 768, height: 1024 }, orientation: "portrait", elements: [{ tag: "button", selector: "#send", rect: [null, 700, 40, 44] }], findings: [] }
+        ], screenshotInspected: true, interactionVerified: true, physicalDeviceTested: true };
+    const compact = browserGrounding.compactBrowserInterfaceEvidence(source);
+    assert.equal(compact.source, "RENDERED_DOM_LAYOUT_REPLAY");
+    assert.equal(compact.phase, "after");
+    assert.equal(compact.viewports.length, 2);
+    assert.deepEqual(compact.viewports[0].elements[0].rect, [310, 700, 40, 44]);
+    assert.deepEqual(compact.viewports[1].elements[0].rect, []);
+    assert.equal(compact.screenshotInspected, false);
+    assert.equal(compact.interactionVerified, false);
+    assert.equal(compact.physicalDeviceTested, false);
+    assert.equal(browserGrounding.compactBrowserInterfaceEvidence({ ...source, viewports: [{ viewport: { width: null, height: 800 }, elements: [] }] }), null);
+});
+
+test("responsive replay refuses a Terminal without its current authenticated session", async () => {
+    const result = await browserGrounding.inspectResponsiveCurrentBrowserPage("https://platform.test/gestia-terminal.html", {
+        viewports: [{ width: 360, height: 800 }]
+    }, { location: { href: "https://platform.test/gestia-terminal.html" },
+        document: { body: {}, createElement() { throw new Error("must not create a replay for the login state"); } },
+        getComputedStyle() {} });
+    assert.equal(result.status, "BROWSER_AUTHENTICATED_PAGE_REQUIRED");
+    assert.equal(result.ok, false);
+    assert.equal(result.objectiveSatisfied, false);
+});
+
+test("layout diagnosis reports only hidden elements that visibly occupy layout", () => {
+    const findings = browserGrounding.analyzeBrowserLayout({ viewport: { width: 360, height: 800 }, elements: [
+        { tag: "div", selector: "#jarvis-attachment-tray", hiddenAttribute: true, display: "flex", visibility: "visible", opacity: 1, rect: [8, 730, 344, 17] },
+        { tag: "div", selector: "#really-hidden", hiddenAttribute: true, display: "none", visibility: "visible", opacity: 1, rect: [0, 0, 0, 0] },
+        { tag: "div", selector: "#invisible", hiddenAttribute: true, display: "flex", visibility: "hidden", opacity: 1, rect: [8, 730, 344, 17] },
+        { tag: "div", selector: "#normal", hiddenAttribute: false, display: "flex", visibility: "visible", opacity: 1, rect: [8, 730, 344, 17] }
+    ] });
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].kind, "hidden_element_rendered");
+    assert.equal(findings[0].selector, "#jarvis-attachment-tray");
+    assert.equal(findings[0].classification, "defect");
+    assert.deepEqual(findings[0].evidence.rect, [8, 730, 344, 17]);
+});
+
+test("responsive evidence retains the source and effective browser compatibility modes", () => {
+    const evidence = browserGrounding.compactBrowserInterfaceEvidence({ source: "RENDERED_DOM_LAYOUT_REPLAY",
+        url: "https://platform.test/gestia-terminal.html", compatMode: "CSS1Compat", viewports: [
+            { viewport: { width: 360, height: 800 }, compatMode: "CSS1Compat", elements: [
+                { tag: "button", selector: "#send", rect: [310, 700, 14, 24] }
+            ], findings: [] }
+        ] });
+    assert.equal(evidence.compatMode, "CSS1Compat");
+    assert.equal(evidence.viewports[0].compatMode, "CSS1Compat");
+});
+
+test("responsive evidence preserves measured hidden zero boxes without synthesizing missing geometry", () => {
+    const evidence = browserGrounding.compactBrowserInterfaceEvidence({ source: "RENDERED_DOM_LAYOUT_REPLAY",
+        url: "https://platform.test/gestia-terminal.html", viewports: [{ viewport: { width: 360, height: 800 }, elements: [], findings: [],
+            hiddenStates: [
+                { selector: "#jarvis-attachment-tray", hiddenAttribute: true, display: "none", visibility: "visible", opacity: 1, rect: [0, 0, 0, 0], rendered: false },
+                { selector: "#bad", hiddenAttribute: true, display: "none", rect: [null, null, null, null], rendered: false },
+                { selector: "#missing", hiddenAttribute: true, display: "none", rendered: false },
+                { selector: "#shown", hiddenAttribute: true, display: "flex", visibility: "visible", opacity: 1, rect: [8, 730, 344, 17], rendered: true }
+            ] }] });
+    assert.deepEqual(evidence.viewports[0].hiddenStates.map(item => item.selector), ["#jarvis-attachment-tray", "#shown"]);
+    assert.deepEqual(evidence.viewports[0].hiddenStates[0].rect, [0, 0, 0, 0]);
+    assert.equal(evidence.viewports[0].hiddenStates[0].rendered, false);
+    assert.equal(evidence.viewports[0].hiddenStates[1].rendered, true);
+});
 
 function createRuntime() {
     const registry = new Map();
