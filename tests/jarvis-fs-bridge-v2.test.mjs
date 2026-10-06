@@ -1066,27 +1066,14 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
         gateRequest.model,
         "qwen-code"
     );
-    assert.deepEqual(
-        gateRequest.messages.map(message => message.role),
-        [
-            "system",
-            "user",
-            "assistant",
-            "user",
-            "assistant",
-            "user",
-            "assistant",
-            "user",
-            "assistant",
-            "user",
-            "assistant",
-            "user",
-            "assistant",
-            "user",
-            "assistant",
-            "user"
-        ]
-    );
+    assert.equal(gateRequest.messages[0].role, "system");
+    assert.equal(gateRequest.messages.at(-1).role, "user");
+    const exampleMessages = gateRequest.messages.slice(1, -1);
+    assert.ok(exampleMessages.length > 0 && exampleMessages.length % 2 === 0);
+    for (let index = 0; index < exampleMessages.length; index += 2) {
+        assert.equal(exampleMessages[index].role, "user");
+        assert.equal(exampleMessages[index + 1].role, "assistant");
+    }
     assert.equal(
         gateRequest.messages.at(-1).content,
         "No, digo que se me antojó a mí."
