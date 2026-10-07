@@ -1160,7 +1160,7 @@ function platformQueryTestFixture({signedIn=true,fail=null,fromCache=false,chang
     const sdk={collection:(_db,name)=>({collection:name}),query:(base,...constraints)=>({base,constraints}),where:(...args)=>({where:args}),orderBy:field=>({orderBy:field}),documentId:()=> '__name__',limit:value=>({limit:value}),doc:(_db,collection,id)=>({collection,id}),startAfter:document=>({after:document.id}),
         getDocFromServer:async({id})=>({id,exists:()=>true}),getCountFromServer:async q=>{calls.push({kind:'count',q});if(fail)throw Object.assign(new Error('Read failed'),{code:fail});return{data:()=>({count:3})}},
         getDocsFromServer:async q=>{calls.push({kind:'query',q});if(fail)throw Object.assign(new Error('Read failed'),{code:fail});if(changeSession)auth.currentUser={uid:'different'};return{docs,metadata:{fromCache}};}};
-    const context={completedTasks:[{name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'const data = collection(db, "arbitrary_records");',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['arbitrary_records'],complete:true}}}}}]};
+    const context={rootInstruction:'Consulta los registros observados',completedTasks:[{name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'const data = collection(db, "arbitrary_records"); const title = record.title;',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['arbitrary_records'],complete:true}}}}}]};
     const args={collection:'arbitrary_records',sourceFile:'source.js',fields:['title'],pageSize:2,includeCount:true};
     return{execute,args,context,calls,dependencies:{auth,db:{},sdk}};
 }
@@ -1534,4 +1534,19 @@ test('record queries reject invented filter values before live execution and rec
  assert.equal(literalRecoveries,1);
  assert.equal(result.toolCalls[0].name,'repo.grep');
  assert.equal(result.toolCalls[0].args.term,'cliente');
+});
+
+
+test('platform query rejects invented filter fields and values before network access',async()=>{
+ const f=platformQueryTestFixture();
+ const inventedField=await f.execute({...f.args,mode:'count',fields:[],filters:[{field:'imaginaryField',op:'==',value:'x'}]},f.dependencies,f.context);
+ assert.equal(inventedField.ok,false);assert.equal(inventedField.error.code,'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED');assert.equal(f.calls.length,0);
+ const inventedValue=await f.execute({...f.args,mode:'count',fields:[],filters:[{field:'title',op:'==',value:'user123'}]},f.dependencies,f.context);
+ assert.equal(inventedValue.ok,false);assert.equal(inventedValue.error.code,'PLATFORM_QUERY_FILTER_VALUE_NOT_DISCOVERED');assert.equal(f.calls.length,0);
+});
+
+test('platform query accepts a literal filter value supplied by the user when its field is observed in source',async()=>{
+ const f=platformQueryTestFixture();f.context.rootInstruction='Consulta los registros con title igual a Uno';
+ const result=await f.execute({...f.args,mode:'count',fields:[],filters:[{field:'title',op:'==',value:'Uno'}]},f.dependencies,f.context);
+ assert.equal(result.ok,true,JSON.stringify(result));assert.equal(result.recordEvidence.totalCount,3);assert.equal(f.calls.length,1);
 });
