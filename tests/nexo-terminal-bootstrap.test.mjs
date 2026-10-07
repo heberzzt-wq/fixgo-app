@@ -332,6 +332,12 @@ test("V142 predeploy Chrome verifies production loopback transport while source 
                 let research = null;
                 let transportError = null;
                 if (hasBridge) {
+                    // This isolated browser fixture owns only a local loopback
+                    // server, not a Firebase account. Select that transport
+                    // explicitly; do not weaken the separate private-relay gate.
+                    const workstationKey = "jarvis.privateRelay.workstation.v1";
+                    const previousWorkstation = localStorage.getItem(workstationKey);
+                    localStorage.setItem(workstationKey, "nNhwy3Mx4pTvc8TZVh1tyTMFwhC2");
                     try {
                         transportProbe = await globalThis.JarvisLocalBridge.requestJson(
                             "/research",
@@ -352,6 +358,10 @@ test("V142 predeploy Chrome verifies production loopback transport while source 
                     }
                     catch(error) {
                         transportError = {name:error?.name||null,message:error?.message||String(error)};
+                    }
+                    finally {
+                        if (previousWorkstation === null) localStorage.removeItem(workstationKey);
+                        else localStorage.setItem(workstationKey, previousWorkstation);
                     }
                 }
                 return {
