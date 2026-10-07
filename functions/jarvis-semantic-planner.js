@@ -1837,10 +1837,44 @@ async function runModelSemanticPlanner({
                 const repairable = ["SEMANTIC_QUERY_SCOPE_UNVERIFIED", "SEMANTIC_TOOL_ARGUMENTS_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_REQUIRED", "SEMANTIC_COMPLETION_EVIDENCE_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH", "SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY"];
                 if (auditAttempt > 0 || !repairable.includes(error?.message)) throw error;
                 if (error.message === "SEMANTIC_QUERY_SCOPE_UNVERIFIED") {
-                    // Obtain new evidence before retrying the rejected population.
+                    // Obtain literal source evidence before retrying a rejected
+                    // population. The same local model chooses one token from
+                    // the user's own wording; no intent dictionary maps roles.
                     const excluded=error.evidence?.tool;
-                    selectableCatalog.splice(0,selectableCatalog.length,...selectableCatalog.filter(tool=>tool.name!==excluded));
-                    auditCatalog.splice(0,auditCatalog.length,...auditCatalog.filter(tool=>tool.name!==excluded));
+                    const grepTool=selectableCatalog.find(tool=>tool.name==="repo.grep"&&tool.investigationReadOnly===true&&tool.mutates!==true);
+                    const rawTerms=String(instruction||"").match(/[\p{L}\p{N}_-]{3,}/gu)||[];
+                    const literalTerms=[...new Set(rawTerms.flatMap(term=>{
+                        const clean=term.trim();
+                        return clean.length>4&&/[sS]$/.test(clean)?[clean,clean.slice(0,-1)]:[clean];
+                    }))].slice(0,40);
+                    if(grepTool&&literalTerms.length){
+                        const termResponse=await ai.models.generateContent({model,contents:instruction,config:{
+                            semanticStage:"QUERY_POPULATION_LITERAL_RECOVERY",
+                            temperature:0,maxOutputTokens:64,responseMimeType:"application/json",
+                            responseJsonSchema:{type:"object",properties:{term:{type:"string",enum:literalTerms}},required:["term"],additionalProperties:false},
+                            chatMessages:[
+                                {role:"system",content:"El filtro propuesto no demostró la población solicitada. Elige UNA palabra literal de la solicitud del usuario que identifique mejor ese grupo en el código fuente. No traduzcas, no inventes un campo, no devuelvas SQL ni una frase. El runtime hará grep literal con esa palabra."},
+                                {role:"user",content:instruction}
+                            ]
+                        }});
+                        const selected=extractJsonObject(String(termResponse?.text||""))?.term;
+                        const already=(missionState.completedTasks||[]).some(task=>task.name==="repo.grep"&&String(task.args?.term||"").toLowerCase()===String(selected||"").toLowerCase());
+                        if(termResponse?.providerResponse?.finishReason!=="length"&&literalTerms.includes(selected)&&!already){
+                            return {
+                                toolCalls:[{name:"repo.grep",args:{term:selected},reason:"MODEL_LITERAL_SOURCE_RECOVERY",mutates:false,approved:false}],
+                                explanation:"",
+                                missionComplete:false,
+                                completionAssessment:null,
+                                provider:String(ai.lastProvider||"jarvis-local"),
+                                model,
+                                catalogSize:selectableCatalog.length,
+                                planKind:"QUERY_POPULATION_LITERAL_RECOVERY"
+                            };
+                        }
+                    }
+                    const excludedTool=excluded;
+                    selectableCatalog.splice(0,selectableCatalog.length,...selectableCatalog.filter(tool=>tool.name!==excludedTool));
+                    auditCatalog.splice(0,auditCatalog.length,...auditCatalog.filter(tool=>tool.name!==excludedTool));
                 }
                 lastAuditError = error;
                 lastRejectedAuditPlan = auditPlan;

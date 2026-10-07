@@ -1496,3 +1496,26 @@ test('population verification rejects workflow state as membership evidence and 
  assert.match(source,/Un estado KYC, validación, pantalla, flujo o función usada por ese grupo NO es por sí mismo el discriminador de pertenencia/);
  assert.match(source,/conserve literalmente el término principal usado por el usuario/);
 });
+
+
+test('population mismatch recovers through a literal user term and repo.grep, not another semantic search', async () => {
+ const input='Cuántos clientes registrados tenemos en la plataforma?';
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{collection:{type:'string'},sourceFile:{type:'string'},filters:{type:'array',minItems:0,items:{type:'object'}}},required:['collection','sourceFile','filters'],additionalProperties:false}};
+ const grep={name:'repo.grep',investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{term:{type:'string'}},required:['term'],additionalProperties:false}};
+ let stages=[];
+ const result=await runJarvisSemanticPlanner({input,catalog:[query,grep],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'const kycState = true;'}}}]},ai:{models:{generateContent:async request=>{
+   stages.push(request.config.semanticStage);
+   if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:false,limitation:'KYC no demuestra pertenencia al grupo cliente',nextEvidenceQuery:'cliente rol'}),providerResponse:{finishReason:'stop'}};
+   if(request.config.semanticStage==='QUERY_POPULATION_LITERAL_RECOVERY'){
+     const allowed=request.config.responseJsonSchema.properties.term.enum;
+     assert.ok(allowed.includes('clientes'));assert.ok(allowed.includes('cliente'));
+     return{text:JSON.stringify({term:'cliente'}),providerResponse:{finishReason:'stop'}};
+   }
+   return{text:JSON.stringify({explanation:'Falta acreditar la población',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta el discriminador observado'}]},toolCalls:[{name:'platform.query',args:{collection:'users',sourceFile:'source.js',filters:[{field:'kyc',op:'==',value:true}]}}]}),providerResponse:{finishReason:'stop'}};
+ }}}});
+ assert.equal(result.missionComplete,false);
+ assert.equal(result.planKind,'QUERY_POPULATION_LITERAL_RECOVERY');
+ assert.deepEqual(result.toolCalls,[{name:'repo.grep',args:{term:'cliente'},reason:'MODEL_LITERAL_SOURCE_RECOVERY',mutates:false,approved:false}]);
+ assert.ok(stages.includes('QUERY_POPULATION_VERIFICATION'));
+ assert.ok(stages.includes('QUERY_POPULATION_LITERAL_RECOVERY'));
+});
