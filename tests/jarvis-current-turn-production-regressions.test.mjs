@@ -1410,3 +1410,11 @@ test('conditional query schemas bind every alternative to the observed collectio
  return{text:JSON.stringify({explanation:'Falta contar',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'tool_result',satisfied:false,evidenceTaskIndexes:[],limitation:'Conteo pendiente'}]},toolCalls:[{name:query.name,args:{collection:'observed_records',mode:'count'}}]})};
  }}}});assert.equal(result.toolCalls[0].args.mode,'count');assert.equal(result.missionComplete,false);
 });
+
+
+test('native function schemas keep an object root for conditional record-query modes',()=>{
+ const {buildGeminiModelTools}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const schema={type:'object',properties:{collection:{type:'string'},mode:{type:'string'},fields:{type:'array',items:{type:'string'}}},required:['collection'],anyOf:[{properties:{mode:{enum:['count']}},required:['mode']},{properties:{mode:{enum:['query']}},required:['mode','fields']}]};
+ const native=buildGeminiModelTools([{name:'fixture.query',inputSchema:schema}])[0].parametersJsonSchema;
+ assert.equal(native.type,'object');assert.ok(native.properties);assert.equal(native.anyOf.length,2);assert.deepEqual(native.required,['collection','mode']);assert.ok(native.properties.mode.anyOf);assert.equal(native.additionalProperties,false);
+});

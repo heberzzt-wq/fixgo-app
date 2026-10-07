@@ -818,11 +818,26 @@ function schemaValueIsExecutable(
     return true;
 }
 
+// Native function parsers require an object/properties root; structured JSON
+// generation still uses the complete alternatives. Runtime validation retains them.
+function nativeFunctionInputSchema(inputSchema) {
+    const schema = buildNativeInputSchema(inputSchema);
+    if (!Array.isArray(schema.anyOf) || schema.properties) return schema;
+    const branches = schema.anyOf;
+    if (!branches.length || branches.some(branch => branch.type !== "object" || !branch.properties)) return schema;
+    const keys = [...new Set(branches.flatMap(branch => Object.keys(branch.properties)))];
+    const properties = Object.fromEntries(keys.map(key => {
+        const unique = [...new Map(branches.filter(branch => branch.properties[key]).map(branch => [JSON.stringify(branch.properties[key]),branch.properties[key]])).values()];
+        return [key,unique.length === 1 ? unique[0] : {anyOf:unique}];
+    }));
+    return {type:"object",properties,required:keys.filter(key => branches.every(branch => branch.required?.includes(key))),additionalProperties:false,anyOf:branches};
+}
+
 function buildGeminiModelTools(catalog = []) {
     return catalog.map(tool => ({
         name: tool.name,
         description: `${tool.name}: ${tool.description}`.slice(0, 900),
-        parametersJsonSchema: buildNativeInputSchema(tool.inputSchema)
+        parametersJsonSchema: nativeFunctionInputSchema(tool.inputSchema)
     }));
 }
 
