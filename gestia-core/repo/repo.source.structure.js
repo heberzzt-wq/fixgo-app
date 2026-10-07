@@ -772,7 +772,14 @@ export function inspectSourceDataBindings(source = "") {
             if (statement.type !== "ImportDeclaration" || !String(statement.source?.value || "").includes("firebase")) continue;
             for (const specifier of statement.specifiers || []) if (["collection","doc"].includes(specifier.imported?.name)) functions.set(specifier.local.name,specifier.imported.name);
         }
-        const visit = node => {
+        const declarations = new Map();
+        const indexDeclarations = node => {
+            if (!node || typeof node !== "object") return;
+            if (node.type === "VariableDeclarator" && node.id?.type === "Identifier") declarations.set(node.id.name,[...(declarations.get(node.id.name)||[]),node]);
+            for (const value of Object.values(node)) {if(Array.isArray(value)) value.forEach(indexDeclarations); else if(value && typeof value === "object" && value.type) indexDeclarations(value);}
+        };
+        indexDeclarations(program);
+        const visit = (node, parent = null) => {
             if (!node || typeof node !== "object") return;
             if (node.type === "CallExpression") {
                 const member = node.callee?.type === "MemberExpression" && !node.callee.computed;
@@ -781,20 +788,32 @@ export function inspectSourceDataBindings(source = "") {
                 const literal = string(arg);
                 if ((name === "collection" || (!member && name === "doc")) && literal && !literal.includes("/") && literal.length <= 500 && ![".",".."].includes(literal)) {
                     collections.add(literal);
-                    const from = Math.max(0,unit.lastIndexOf("\n",Math.max(0,node.start-1000))+1);
-                    const limit = Math.min(unit.length,from+1400,node.end+400);
+                    const from = Math.max(0,unit.lastIndexOf("\n",Math.max(0,node.start-650))+1);
+                    const limit = Math.min(unit.length,from+1100,node.end+400);
                     const lastNewline = unit.lastIndexOf("\n",limit);
                     const to = lastNewline > node.end ? lastNewline+1 : limit;
                     const excerpt = unit.slice(from,to), startLine = content.slice(0,sourceUnit.offset+from).split("\n").length;
                     const reference = {collection:literal,startLine,endLine:startLine+excerpt.split("\n").length-1-(excerpt.endsWith("\n")?1:0),content:excerpt};
+                    const observedDeclarations = new Map();
+                    const addDeclaration = (name,depth=0) => {
+                        if(depth>1 || observedDeclarations.size>=2 || observedDeclarations.has(name)) return;
+                        const candidates=declarations.get(name)||[];
+                        if(candidates.length!==1 || candidates[0].start>=node.start) return;
+                        const declaration=candidates[0],text=unit.slice(declaration.start,declaration.end);
+                        observedDeclarations.set(name,{name,startLine:content.slice(0,sourceUnit.offset+declaration.start).split("\n").length,content:text.slice(0,600),truncated:text.length>600});
+                        const scan = value => {if(!value || typeof value!=="object")return;if(value.type==="Identifier")addDeclaration(value.name,depth+1);for(const child of Object.values(value)){if(Array.isArray(child))child.forEach(scan);else if(child && typeof child==="object" && child.type)scan(child);}};
+                        scan(declaration.init);
+                    };
+                    for(const arg of parent?.type === "CallExpression" ? parent.arguments : [])if(arg?.type === "Identifier")addDeclaration(arg.name);
+                    reference.declarations=[...observedDeclarations.values()];
                     const prior = referenceGroups.get(literal);
                     referenceGroups.set(literal,prior ? [prior[0],reference] : [reference]);
                 }
             }
             for (const [key,value] of Object.entries(node)) {
                 if (["start","end","loc"].includes(key)) continue;
-                if (Array.isArray(value)) value.forEach(visit);
-                else if (value && typeof value === "object" && typeof value.type === "string") visit(value);
+                if (Array.isArray(value)) value.forEach(child => visit(child,node));
+                else if (value && typeof value === "object" && typeof value.type === "string") visit(value,node);
             }
         };
         visit(program);

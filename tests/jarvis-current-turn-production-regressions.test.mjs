@@ -1418,3 +1418,25 @@ test('native function schemas keep an object root for conditional record-query m
  const native=buildGeminiModelTools([{name:'fixture.query',inputSchema:schema}])[0].parametersJsonSchema;
  assert.equal(native.type,'object');assert.ok(native.properties);assert.equal(native.anyOf.length,2);assert.deepEqual(native.required,['collection','mode']);assert.ok(native.properties.mode.anyOf);assert.equal(native.additionalProperties,false);
 });
+
+
+test('source query references carry a uniquely observed data declaration rather than guessing its fields',async()=>{
+ const {inspectSourceDataBindings}=await import('../gestia-core/repo/repo.source.structure.js');
+ const source="const record={classification:'member',displayLabel:'example'};\n"+'// intervening code\n'.repeat(120)+"await setDoc(doc(db,'accounts',uid),record);\n";
+ const bindings=inspectSourceDataBindings(source),declaration=bindings.references[0].declarations[0];
+ assert.equal(declaration.name,'record');assert.equal(declaration.startLine,1);assert.match(declaration.content,/classification:'member'/);assert.equal(declaration.truncated,false);
+ const ambiguous="function first(){const record={x:1};} function second(){const record={y:2};setDoc(doc(db,'accounts',uid),record);}";
+ assert.equal(inspectSourceDataBindings(ambiguous).references[0].declarations.length,0);
+});
+
+
+test('a population mismatch obtains source evidence instead of executing a broad count as a subgroup',async()=>{
+ const input='Count the registered members';let audits=0,checks=0;
+ const query={name:'fixture.query',evidenceKinds:['platform_records'],mutates:false,investigationReadOnly:true,inputSchema:{type:'object',properties:{collection:{type:'string'},sourceFile:{type:'string'},filters:{type:'array',minItems:0}},required:['collection','sourceFile','filters']}};
+ const search={name:'fixture.findSource',mutates:false,investigationReadOnly:true,inputSchema:{query:'string'}};
+ const plan=await runJarvisSemanticPlanner({input,catalog:[query,search],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'fixture.read',observation:{ok:true,verifiedRead:{file:'source.js',content:'const tableHasSeveralKinds=true;'}}}]},ai:{models:{generateContent:async request=>{
+ if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){checks++;return{text:JSON.stringify({matchesRequest:false,limitation:'The table contains other kinds too',nextEvidenceQuery:'member classification field'})};}
+ audits++;if(audits===2){assert.match(JSON.stringify(request.config.chatMessages),/SEMANTIC_QUERY_SCOPE_UNVERIFIED/);assert.ok(request.config.responseJsonSchema.properties.toolCalls.items.anyOf.every(v=>v.properties.name.enum[0]!==query.name));}
+ return{text:JSON.stringify({explanation:'Still need data',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Required population not yet observed'}]},toolCalls:[audits===1?{name:query.name,args:{collection:'accounts',sourceFile:'source.js',filters:[]}}:{name:search.name,args:{query:'member classification field'}}]})};
+ }}}});assert.equal(checks,1);assert.equal(plan.missionComplete,false);assert.equal(plan.toolCalls[0].name,search.name);assert.equal(plan.toolCalls[0].approved,false);
+});

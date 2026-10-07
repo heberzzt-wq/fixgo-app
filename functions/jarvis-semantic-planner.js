@@ -736,11 +736,10 @@ function schemaValueIsExecutable(
         }
         const minimum =
             Math.max(
-                1,
-                Number(
-                    schema?.minItems
-                ) ||
-                0
+                0,
+                Number.isInteger(schema?.minItems)
+                    ? schema.minItems
+                    : 1
             );
         if (
             value.length <
@@ -1548,6 +1547,7 @@ async function runModelSemanticPlanner({
             "satisfied=true exige evidencia pertinente ya ejecutada e índices válidos y limitation vacía. Si falta evidencia: satisfied=false, índices vacíos y limitation concreta. No rebajes el tipo de evidencia para conseguir cumplimiento. DOM/CSS no acredita píxeles, interacción, lectura de código, aprobación, escritura ni tests.",
             "Selecciona una sola siguiente herramienta NUEVA con argumentos fundamentados para un objetivo pendiente. Si no hay operación ejecutable, toolCalls=[] y explica qué falta. No repitas trabajo ya satisfecho. Nunca inventes rutas ni resultados.",
             "Escribe en español. No generes missionComplete: el runtime lo calcula con tus objetivos, referencias y toolCalls. Tus evaluaciones no sustituyen validaciones físicas. La aprobación y publicación quedan fuera de la autoridad del modelo.",
+            "Antes de consultar o contar registros, compara explícitamente la población solicitada con collection y filters. Una colección compartida puede contener varias clases, estados o roles; su conteo total NO representa automáticamente el subconjunto pedido. Usa el campo discriminador de la fuente leída y conserva el grupo solicitado. Si falta comprobar ese campo o su valor, sigue leyendo la fuente o sus referencias. No reemplaces el filtro del grupo por un campo no vacío ni inventes que todos los usuarios pertenecen a la misma categoría. Un resultado sin ese alcance no satisface el objetivo.",
             `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
         ].join("\n");
         const measuredAuditEvidence = (missionState.completedTasks || []).map((task, index) => ({
@@ -1725,6 +1725,18 @@ async function runModelSemanticPlanner({
                         error.evidence = { tool: call.name, args: call.args, requiredSchema: tool?.inputSchema || null };
                         throw error;
                     }
+                    if (tool.evidenceKinds?.includes("platform_records")) {
+                        const reads=(missionState.completedTasks||[]).filter(task=>task.observation?.ok===true && task.observation.executionOk!==false && task.observation.verifiedRead?.file===call.args?.sourceFile);
+                        const source=reads.flatMap(task=>{const read=task.observation.verifiedRead;return read.sourceStructure?.dataBindings?.references?.flatMap(ref=>[{line:ref.startLine,code:ref.content},...(ref.declarations||[]).map(item=>({line:item.startLine,code:item.content}))])||[{line:read.startLine,code:String(read.content||read.numberedContent||"").slice(0,5000)}];});
+                        const review=await ai.models.generateContent({model,contents:instruction,config:{semanticStage:"QUERY_POPULATION_VERIFICATION",temperature:0,maxOutputTokens:384,
+                            chatMessages:[{role:"system",content:"Comprueba SOLO si la población de la consulta propuesta coincide con el grupo que pidió el usuario. No confundas todos los registros de una colección compartida con un subconjunto por rol, tipo o estado. Los filtros deben representar ese grupo según la fuente observada. Ni un nombre de archivo ni una condición de campo no vacío prueban pertenencia al grupo. Si falta demostrar el discriminador o su valor, matchesRequest=false: indica en una sola frase qué definición falta y en nextEvidenceQuery una búsqueda de código que pueda encontrarla. No inventes nombres, campos ni resultados. Si está acreditado, matchesRequest=true, limitation y nextEvidenceQuery vacíos. Tu revisión no consulta registros ni concede permisos."},{role:"user",content:JSON.stringify({request:instruction,proposed:call.args,observedSource:source})}],
+                            responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{matchesRequest:{type:"boolean"},limitation:{type:"string",maxLength:300},nextEvidenceQuery:{type:"string",maxLength:200}},required:["matchesRequest","limitation","nextEvidenceQuery"],additionalProperties:false}
+                        }});
+                        const verdict=extractJsonObject(String(review?.text||""));
+                        if(review?.providerResponse?.finishReason==="length" || verdict?.matchesRequest!==true){
+                            const error=new Error("SEMANTIC_QUERY_SCOPE_UNVERIFIED");error.evidence={tool:call.name,proposed:call.args,limitation:String(verdict?.limitation||"La población de la consulta no quedó acreditada."),nextEvidenceQuery:String(verdict?.nextEvidenceQuery||""),requiredNextStep:"Read or search the actual source definition before querying; do not repeat this unverified query or infer missing records."};throw error;
+                        }
+                    }
                 }
                 const validatedAudit = validatePlan(evaluatedAudit, safeCatalog, instruction);
                 const canonicalArgs = value => Array.isArray(value) ? value.map(canonicalArgs) : value && typeof value === "object"
@@ -1819,8 +1831,14 @@ async function runModelSemanticPlanner({
                     planKind: "COMPLETION_AUDIT"
                 };
             } catch (error) {
-                const repairable = ["SEMANTIC_TOOL_ARGUMENTS_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_REQUIRED", "SEMANTIC_COMPLETION_EVIDENCE_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH", "SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY"];
+                const repairable = ["SEMANTIC_QUERY_SCOPE_UNVERIFIED", "SEMANTIC_TOOL_ARGUMENTS_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_REQUIRED", "SEMANTIC_COMPLETION_EVIDENCE_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH", "SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY"];
                 if (auditAttempt > 0 || !repairable.includes(error?.message)) throw error;
+                if (error.message === "SEMANTIC_QUERY_SCOPE_UNVERIFIED") {
+                    // Obtain new evidence before retrying the rejected population.
+                    const excluded=error.evidence?.tool;
+                    selectableCatalog.splice(0,selectableCatalog.length,...selectableCatalog.filter(tool=>tool.name!==excluded));
+                    auditCatalog.splice(0,auditCatalog.length,...auditCatalog.filter(tool=>tool.name!==excluded));
+                }
                 lastAuditError = error;
                 lastRejectedAuditPlan = auditPlan;
             }

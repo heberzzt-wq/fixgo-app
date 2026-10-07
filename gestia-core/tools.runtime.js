@@ -773,10 +773,10 @@ JarvisToolRuntime.register({
         orderBy:{type:"array",maxItems:3,items:{type:"object",properties:{field:{type:"string"},direction:{type:"string",enum:["asc","desc"]}},required:["field"],additionalProperties:false}},
         collection: {type:"string",description:"Ruta de colección real descubierta en la aplicación, no un nombre deducido del pedido."},
         mode: {type:"string",enum:["query","count"]},
-        fields: {type:"array",items:{type:"string"},maxItems:20,description:"Campos exactos que pide el usuario, obligatorios para query. No traer todo el perfil por defecto."},
-        filters: {type:"array",maxItems:10,items:{type:"object",properties:{field:{type:"string"},op:{type:"string",enum:["==","!=","<","<=",">",">=","in","not-in","array-contains","array-contains-any"]},value:{type:["string","number","boolean","null","array"]}},required:["field","op","value"],additionalProperties:false}},
+        fields: {type:"array",minItems:0,items:{type:"string"},maxItems:20,description:"Campos exactos que pide el usuario, obligatorios para query. No traer todo el perfil por defecto."},
+        filters: {type:"array",minItems:0,maxItems:10,description:"Condiciones explícitas que definen exactamente el grupo solicitado según la fuente. Una colección puede contener varios tipos de cuenta; no cuentes todos como si fueran el subconjunto pedido. Usa [] solamente cuando el alcance sea toda la colección, sin un grupo más específico.",items:{type:"object",properties:{field:{type:"string"},op:{type:"string",enum:["==","!=","<","<=",">",">=","in","not-in","array-contains","array-contains-any"]},value:{type:["string","number","boolean","null","array"]}},required:["field","op","value"],additionalProperties:false}},
         pageSize:{type:"integer",minimum:1,maximum:100},cursor:{type:"string",description:"nextCursor devuelto por la misma consulta; omitir para primera página."},includeCount:{type:"boolean"}
-    },required:["collection","sourceFile"],anyOf:[
+    },required:["collection","sourceFile","filters"],anyOf:[
         {properties:{mode:{type:"string",enum:["count"]}},required:["mode"]},
         {properties:{mode:{type:"string",enum:["query"]},fields:{type:"array",minItems:1,items:{type:"string"}}},required:["mode","fields"]}
     ],additionalProperties:false},
