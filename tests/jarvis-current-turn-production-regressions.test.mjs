@@ -1352,3 +1352,15 @@ test('nested document identifiers and comments never become collection destinati
  const {inspectSourceDataBindings}=await import('../gestia-core/repo/repo.source.structure.js');
  assert.deepEqual(inspectSourceDataBindings('db.collection("records").doc("not_a_collection");').collections,['records']);
 });
+
+
+test('complete investigation arguments are not rewritten merely because source evidence exists',async()=>{
+ const {shouldCompleteJarvisPlanningArguments:needs}=await import('../gestia-core/jarvis/jarvis.multifunction.planner.js');
+ const tool={name:'fixture.records',investigationReadOnly:true,mutates:false,requiresApproval:false,userArtifact:false,inputSchema:{type:'object',properties:{collection:{type:'string'},sourceFile:{type:'string'}},required:['collection','sourceFile']}};
+ const call={name:tool.name,args:{collection:'observed',sourceFile:'actual.js'}},tasks=[{name:'fixture.read',observation:{ok:true}}];
+ assert.equal(needs(call,tool,tasks),false);
+ assert.equal(needs({...call,deferred:true},tool,tasks),true);
+ assert.equal(needs({...call,args:{collection:'observed'}},tool,tasks),true);
+ assert.equal(needs(call,{...tool,mutates:true},tasks),true);
+ assert.equal(needs(call,{...tool,userArtifact:true},tasks),true);
+});

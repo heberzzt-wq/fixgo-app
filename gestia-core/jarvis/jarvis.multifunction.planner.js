@@ -2123,6 +2123,11 @@ export function shouldCompleteJarvisPlanningArguments(call = {}, tool = {}, comp
     // completion first both duplicates inference and pre-fills unverified claims.
     if (tool.semanticArgumentCompletion === true) return false;
     if (call.deferred === true) return true;
+    // Complete read-only investigation calls already came from the semantic planner.
+    // Evidence does not authorize reauthoring their destinations or filters.
+    if (tool.investigationReadOnly === true && tool.mutates !== true &&
+        tool.requiresApproval !== true && tool.userArtifact !== true && call.name === tool.name &&
+        hasRequiredToolArguments(tool, call.args || {})) return false;
     // A validated read already has its executable path. Earlier observations
     // alone do not make that argument incomplete or authorize changing it.
     if (call.name === "repo.read" && tool.name === "repo.read" && tool.mutates !== true &&
