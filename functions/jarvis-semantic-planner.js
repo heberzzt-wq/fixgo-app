@@ -698,6 +698,8 @@ function schemaValueIsExecutable(
     value,
     schema = {}
 ) {
+    if (Array.isArray(schema.enum) && !schema.enum.some(candidate => JSON.stringify(candidate) === JSON.stringify(value))) return false;
+    if (Object.prototype.hasOwnProperty.call(schema, "const") && JSON.stringify(schema.const) !== JSON.stringify(value)) return false;
     if (value == null) {
         return false;
     }
@@ -1698,6 +1700,13 @@ async function runModelSemanticPlanner({
                             Array.isArray(auditPlan?.toolCalls) && auditPlan.toolCalls.length === 0
                     };
                 const validatedAudit = validatePlan(evaluatedAudit, safeCatalog, instruction);
+                const canonicalArgs = value => Array.isArray(value) ? value.map(canonicalArgs) : value && typeof value === "object"
+                    ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalArgs(value[key])])) : value;
+                const wasExecuted = call => (missionState.completedTasks || []).some(task => task.name === call.name &&
+                    JSON.stringify(canonicalArgs(task.args || {})) === JSON.stringify(canonicalArgs(call.args || {})));
+                // A repeated successful read is not progress. Keep the objective
+                // pending and let the same model choose a different grounded step.
+                if (evaluatedAudit.missionComplete !== true) validatedAudit.toolCalls = validatedAudit.toolCalls.filter(call => !wasExecuted(call));
                 if (evaluatedAudit?.missionComplete === true || validatedAudit.toolCalls.length === 0 ||
                     evaluatedAudit?.completionAssessment?.objectives) {
                     validateCompletionEvidence(evaluatedAudit, normalizedCatalog, missionState);
@@ -1724,10 +1733,44 @@ async function runModelSemanticPlanner({
                     if (!next && continuation.text) {try {next=normalizeTextToolPlan(extractJsonObject(continuation.text),nextReaders);}catch{}}
                     if (continuation?.providerResponse?.finishReason !== "length" && next?.toolCalls?.length) {
                         const checked=validatePlan({...next,missionComplete:false},nextReaders,instruction);
-                        const existing=missionState.completedTasks||[];
-                        checked.toolCalls=checked.toolCalls.filter(call=>!existing.some(task=>task.name===call.name&&JSON.stringify(task.args||{})===JSON.stringify(call.args||{}))).slice(0,1);
+                        checked.toolCalls=checked.toolCalls.filter(call=>!wasExecuted(call)).slice(0,1);
                         if(checked.toolCalls.length)return {...validatedAudit,toolCalls:checked.toolCalls,missionComplete:false,
                             provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:nextReaders.length,planKind:"READ_ONLY_EVIDENCE_CONTINUATION"};
+                    }
+                }
+                // One bounded recovery, not an infinite retry. The registry and
+                // executed sources constrain shape/paths; Qwen still decides intent.
+                if (evaluatedAudit.missionComplete !== true && validatedAudit.toolCalls.length === 0 && nextReaders.length) {
+                    const sources = [...new Set((missionState.completedTasks || []).filter(task => task.observation?.ok === true &&
+                        task.observation.executionOk !== false && task.observation.blocked !== true).flatMap(task => [
+                            ...(task.observation.repoCandidates || []).map(item => item.file), task.observation.verifiedRead?.file
+                        ]).filter(value => typeof value === "string" && value.trim()))];
+                    const recoveryCatalog = nextReaders.map(tool => {
+                        const schema = structuredClone(buildNativeInputSchema(tool.inputSchema));
+                        if (sources.length && tool.evidenceKinds?.includes("repository_source") && schema.properties?.file) {
+                            schema.properties.file = {...schema.properties.file, enum:sources};
+                        }
+                        return {...tool,inputSchema:schema};
+                    });
+                    const recovery = await ai.models.generateContent({model,contents:instruction,config:{
+                        semanticStage:"READ_ONLY_NEXT_STEP_RECOVERY",maxOutputTokens:1024,temperature:0,responseMimeType:"application/json",
+                        responseJsonSchema:{type:"object",properties:{toolCalls:{type:"array",maxItems:1,items:{anyOf:recoveryCatalog.map(tool=>({
+                            type:"object",properties:{name:{type:"string",enum:[tool.name]},args:tool.inputSchema},required:["name","args"],additionalProperties:false
+                        }))}}},required:["toolCalls"],additionalProperties:false},
+                        chatMessages:[
+                            {role:"system",content:"La investigación no ha terminado. El intento anterior no produjo un paso nuevo. Selecciona UNA operación diferente que obtenga la evidencia faltante, o toolCalls=[] si no queda ninguna autorizada. Las rutas candidatas son archivos existentes, no registros consultados. Lee una fuente candidata pertinente antes de concluir que no contiene datos. Si hace falta otra búsqueda, formula una consulta nueva conservando los términos y el idioma de la solicitud original; no repitas la búsqueda ya realizada. Nunca inventes rutas ni esquemas. Un permiso denegado no autoriza otro usuario, quitar filtros ni ampliar acceso. Usa solamente el catálogo y argumentos válidos. Devuelve JSON {toolCalls:[{name,args}]} sin conclusiones inventadas."},
+                            {role:"system",content:"CATALOGO_EJECUTABLE="+JSON.stringify(recoveryCatalog.map(({name,description,inputSchema})=>({name,description,inputSchema})))},
+                            ...auditTasks.map(task=>({role:"system",content:"YA_EJECUTADO="+JSON.stringify(task)})),
+                            {role:"system",content:"RUTAS_LOCALIZADAS="+JSON.stringify(sources)+"\nCAPACIDADES_TRAS_LEER_LA_FUENTE="+JSON.stringify(pendingCapabilities)},
+                            {role:"user",content:instruction}
+                        ]
+                    }});
+                    if (recovery?.providerResponse?.finishReason !== "length") {
+                        let payload;try{payload=extractJsonObject(recovery.text);}catch{payload=null;}
+                        const recovered=validatePlan({...payload,missionComplete:false},recoveryCatalog,instruction);
+                        const calls=recovered.toolCalls.filter(call=>!wasExecuted(call)&&hasRequiredToolArguments(recoveryCatalog.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
+                        if(calls.length)return {...validatedAudit,toolCalls:calls,missionComplete:false,provider:String(ai.lastProvider||"jarvis-local"),
+                            model,catalogSize:recoveryCatalog.length,planKind:"READ_ONLY_NEXT_STEP_RECOVERY"};
                     }
                 }
                 return {

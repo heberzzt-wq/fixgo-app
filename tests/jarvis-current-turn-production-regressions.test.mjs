@@ -1255,3 +1255,33 @@ test('source discovery paths survive planner compaction and evidence-bound argum
  assert.deepEqual(Array.from(bind(catalog,tasks)[1].inputSchema.properties.sourceFile.enum),['actual-source.js']);
  assert.equal(bind(catalog,[{...tasks[0],observation:{...tasks[0].observation,executionOk:false}}]).length,1);
 });
+
+
+test('an already completed search triggers one same-model continuation rather than stopping the mission',async()=>{
+ const input='Consulta los registros actuales después de descubrir su fuente';let continuations=0;
+ const search={name:'fixture.search',investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{query:{type:'string'},limit:{type:'integer'}},required:['query']}};
+ const read={name:'fixture.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
+ const source={name:'fixture.search',args:{query:'records',limit:3},observation:{ok:true,executionOk:true,repoCandidates:[{file:'actual-source.js'}]}};
+ for(const repeatedAgain of [false,true]){
+ const result=await runJarvisSemanticPlanner({input,catalog:[search,read],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[source]},ai:{models:{generateContent:async request=>{
+   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){continuations++;return{functionCalls:[{name:repeatedAgain?search.name:read.name,args:repeatedAgain?{limit:3,query:'records'}:{file:'actual-source.js'}}]};}
+   if(request.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY'){
+     assert.equal(request.config.tools,undefined);assert.match(JSON.stringify(request.config.chatMessages),/actual-source.js/);
+     return{text:JSON.stringify({toolCalls:[{name:read.name,args:{file:'actual-source.js'}}]})};
+   }
+   return{text:JSON.stringify({explanation:'Falta leer una fuente ya localizada',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'tool_result',satisfied:false,evidenceTaskIndexes:[],limitation:'La búsqueda no acredita datos actuales'}]},toolCalls:[{name:search.name,args:{limit:3,query:'records'}}]})};
+ }}}});assert.equal(result.missionComplete,false);assert.equal(result.toolCalls.length,1);assert.equal(result.toolCalls[0].name,read.name);assert.equal(result.toolCalls[0].approved,false);
+ }assert.equal(continuations,2);
+});
+
+test('repeated discovery recovery cannot execute a fabricated source or grant writes',async()=>{
+ const input='Consulta la información actual',completed={name:'fixture.search',args:{query:'records'},observation:{ok:true,repoCandidates:[{file:'actual-source.js'}]}};
+ const catalog=[{name:'fixture.search',investigationReadOnly:true,mutates:false,inputSchema:{query:'string'}},{name:'fixture.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}},{name:'fixture.write',mutates:true,requiresApproval:true}];
+ for(const badCall of [{name:'fixture.read',args:{file:'invented.js'}},{name:'fixture.write',args:{file:'actual-source.js'},approved:true}]){
+ const result=await runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[completed]},ai:{models:{generateContent:async r=>{
+ if(r.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION')return{functionCalls:[{name:'fixture.search',args:completed.args}]};
+ if(r.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY')return{text:JSON.stringify({toolCalls:[badCall]})};
+ return{text:JSON.stringify({explanation:'Información pendiente',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'tool_result',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta una lectura'}]},toolCalls:[]})};
+ }}}});assert.equal(result.missionComplete,false);assert.equal(result.toolCalls.length,0);
+ }
+});
