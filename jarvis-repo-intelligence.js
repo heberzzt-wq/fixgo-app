@@ -536,7 +536,12 @@ export function rankRepoHybridCandidates({
             };
         })
         .filter(Boolean)
-        .sort((a, b) => b.score - a.score || b.semanticSimilarity - a.semanticSimilarity || a.file.localeCompare(b.file))
+        // Relevance is primary. A highly connected infrastructure file is not
+        // a better answer merely because many modules import it. Exact observed
+        // symbols and explicit planned files still retain their source priority.
+        .sort((a, b) => Number(b.exactStructuralMatch) - Number(a.exactStructuralMatch) ||
+            Number(planned.includes(b.file)) - Number(planned.includes(a.file)) ||
+            b.semanticSimilarity - a.semanticSimilarity || b.score - a.score || a.file.localeCompare(b.file))
         .slice(0, Math.max(1, Math.min(25, Number(limit) || 8)));
 
     return {

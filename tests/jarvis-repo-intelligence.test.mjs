@@ -161,3 +161,12 @@ test('repository discovery honors Git ignore rules without indexing generated re
   assert.equal(graph.nodes['ignored.js'],undefined);assert.equal(graph.nodes['release-copies/source.js'],undefined);
  } finally {fs.rmSync(root,{recursive:true,force:true});}
 });
+
+
+test('semantic source relevance outranks unrelated structural popularity while exact symbols retain priority',()=>{
+ const root=makeFixture();try{const graph=buildRepoIntelligence({root});
+ const semanticScores={'firebase.js':0.95,'auth.js':0.1};
+ const ranked=rankRepoHybridCandidates({graph,semanticScores});assert.equal(ranked.candidates[0].file,'firebase.js');
+ const exact=rankRepoHybridCandidates({graph,semanticScores,exactFiles:['auth.js']});assert.equal(exact.candidates[0].file,'auth.js');
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
+});
