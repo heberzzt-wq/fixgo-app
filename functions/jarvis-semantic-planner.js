@@ -804,9 +804,10 @@ function schemaValueIsExecutable(
         type ===
             "integer"
     ) {
-        return Number.isFinite(
-            Number(value)
-        );
+        return typeof value === "number" && Number.isFinite(value) &&
+            (type !== "integer" || Number.isInteger(value)) &&
+            (typeof schema.minimum !== "number" || value >= schema.minimum) &&
+            (typeof schema.maximum !== "number" || value <= schema.maximum);
     }
     if (type === "boolean") {
         return (
@@ -918,6 +919,7 @@ function bindEvidencePrerequisites(catalog, tasks = []) {
     return catalog.flatMap(tool => {
         if (!tool.requiresEvidence?.length) return [tool];
         const schema = structuredClone(buildNativeInputSchema(tool.inputSchema));
+        const alternatives = Array.isArray(schema.anyOf) ? schema.anyOf : [schema];
         for (const requirement of tool.requiresEvidence) {
             if (!requirement || typeof requirement.argument !== "string" || !Array.isArray(requirement.observationPath)) return [];
             const values = tasks.filter(task => task.observation?.ok === true && task.observation.executionOk !== false && task.observation.blocked !== true &&
@@ -925,8 +927,8 @@ function bindEvidencePrerequisites(catalog, tasks = []) {
                 .map(task => requirement.observationPath.reduce((value, key) => typeof key === "string" && !["__proto__", "prototype", "constructor"].includes(key) && value && Object.prototype.hasOwnProperty.call(value, key) ? value[key] : undefined, task.observation))
                 .flatMap(value => Array.isArray(value) ? value : [value])
                 .filter(value => typeof value === "string" && value.trim());
-            if (!values.length || !schema.properties?.[requirement.argument]) return [];
-            schema.properties[requirement.argument] = {...schema.properties[requirement.argument], enum:[...new Set(values)]};
+            if (!values.length || alternatives.some(branch => !branch.properties?.[requirement.argument])) return [];
+            for (const branch of alternatives) branch.properties[requirement.argument] = {...branch.properties[requirement.argument], enum:[...new Set(values)]};
         }
         return [{...tool,inputSchema:schema}];
     });
@@ -948,9 +950,10 @@ function completionAuditSchema(catalog, tasks, selectableCatalog = catalog) {
         completionAssessment: { type: "object", properties: { objectives: { type: "array", minItems: 1,
             items: { anyOf: indices.length ? [objective(false), objective(true)] : [objective(false)] } } },
             required: ["objectives"], additionalProperties: false },
-        toolCalls: { type: "array", maxItems: 1, items: { type: "object", properties: {
-            name: { type: "string", enum: selectableCatalog.map(tool => tool.name) }, args: { type: "object", properties: {}, additionalProperties: true }
-        }, required: ["name", "args"], additionalProperties: false } }
+        toolCalls: { type: "array", maxItems: selectableCatalog.length ? 1 : 0, items: selectableCatalog.length ? { anyOf: selectableCatalog.map(tool => ({
+            type: "object", properties: { name: { type: "string", enum: [tool.name] }, args: buildNativeInputSchema(tool.inputSchema) },
+            required: ["name", "args"], additionalProperties: false
+        })) } : { type: "object", additionalProperties: false } }
     }, required: ["explanation", "completionAssessment", "toolCalls"], additionalProperties: false };
 }
 
@@ -1700,6 +1703,14 @@ async function runModelSemanticPlanner({
                             objectives.every(objective => objective?.satisfied === true) &&
                             Array.isArray(auditPlan?.toolCalls) && auditPlan.toolCalls.length === 0
                     };
+                for (const call of (evaluatedAudit.toolCalls || [])) {
+                    const tool = selectableCatalog.find(item => item.name === call.name);
+                    if (!tool || !hasRequiredToolArguments(tool, normalizeSchemaBoundArguments(tool, call.args || {}))) {
+                        const error = new Error("SEMANTIC_TOOL_ARGUMENTS_INVALID");
+                        error.evidence = { tool: call.name, args: call.args, requiredSchema: tool?.inputSchema || null };
+                        throw error;
+                    }
+                }
                 const validatedAudit = validatePlan(evaluatedAudit, safeCatalog, instruction);
                 const canonicalArgs = value => Array.isArray(value) ? value.map(canonicalArgs) : value && typeof value === "object"
                     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalArgs(value[key])])) : value;
@@ -1793,7 +1804,7 @@ async function runModelSemanticPlanner({
                     planKind: "COMPLETION_AUDIT"
                 };
             } catch (error) {
-                const repairable = ["SEMANTIC_COMPLETION_EVIDENCE_REQUIRED", "SEMANTIC_COMPLETION_EVIDENCE_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH", "SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY"];
+                const repairable = ["SEMANTIC_TOOL_ARGUMENTS_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_REQUIRED", "SEMANTIC_COMPLETION_EVIDENCE_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH", "SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY"];
                 if (auditAttempt > 0 || !repairable.includes(error?.message)) throw error;
                 lastAuditError = error;
                 lastRejectedAuditPlan = auditPlan;

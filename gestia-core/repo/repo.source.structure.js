@@ -756,12 +756,13 @@ export function analyzeRepoSourceStructure(source = "") {
 // They describe code destinations; they never prove records exist or how many.
 export function inspectSourceDataBindings(source = "") {
     const content = String(source || "");
-    const scriptBodies = [...content.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)].map(match => match[1]);
-    const units = scriptBodies.length ? scriptBodies : [content];
-    const collections = new Set();
+    const scriptBodies = [...content.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)].map(match => ({code:match[1],offset:match.index+match[0].indexOf(">")+1}));
+    const units = scriptBodies.length ? scriptBodies : [{code:content,offset:0}];
+    const collections = new Set(), referenceGroups = new Map();
     let parsedUnits = 0;
     const string = node => node?.type === "Literal" && typeof node.value === "string" ? node.value : null;
-    for (const unit of units) {
+    for (const sourceUnit of units) {
+        const unit = sourceUnit.code;
         let program;
         try { program = parseSourceAst(unit, {ecmaVersion:"latest",sourceType:"module",allowHashBang:true}); }
         catch { try { program = parseSourceAst(unit, {ecmaVersion:"latest",sourceType:"script",allowHashBang:true}); } catch { continue; } }
@@ -778,7 +779,17 @@ export function inspectSourceDataBindings(source = "") {
                 const name = member ? node.callee.property?.name : functions.get(node.callee?.name);
                 const arg = member ? node.arguments?.[0] : node.arguments?.[1];
                 const literal = string(arg);
-                if ((name === "collection" || (!member && name === "doc")) && literal && !literal.includes("/") && literal.length <= 500 && ![".",".."].includes(literal)) collections.add(literal);
+                if ((name === "collection" || (!member && name === "doc")) && literal && !literal.includes("/") && literal.length <= 500 && ![".",".."].includes(literal)) {
+                    collections.add(literal);
+                    const from = Math.max(0,unit.lastIndexOf("\n",Math.max(0,node.start-1000))+1);
+                    const limit = Math.min(unit.length,from+1400,node.end+400);
+                    const lastNewline = unit.lastIndexOf("\n",limit);
+                    const to = lastNewline > node.end ? lastNewline+1 : limit;
+                    const excerpt = unit.slice(from,to), startLine = content.slice(0,sourceUnit.offset+from).split("\n").length;
+                    const reference = {collection:literal,startLine,endLine:startLine+excerpt.split("\n").length-1-(excerpt.endsWith("\n")?1:0),content:excerpt};
+                    const prior = referenceGroups.get(literal);
+                    referenceGroups.set(literal,prior ? [prior[0],reference] : [reference]);
+                }
             }
             for (const [key,value] of Object.entries(node)) {
                 if (["start","end","loc"].includes(key)) continue;
@@ -788,5 +799,6 @@ export function inspectSourceDataBindings(source = "") {
         };
         visit(program);
     }
-    return {source:"ACORN_SOURCE_REFERENCES",collections:[...collections].slice(0,100),complete:parsedUnits===units.length && collections.size<=100,scope:"Static code references, not a database inventory or query result."};
+    const references = [...referenceGroups.values()].flat();
+    return {source:"ACORN_SOURCE_REFERENCES",collections:[...collections].slice(0,100),references:references.slice(0,4),referencesComplete:references.length<=4,complete:parsedUnits===units.length && collections.size<=100,scope:"Static code references and bounded source excerpts, not a database inventory or query result."};
 }

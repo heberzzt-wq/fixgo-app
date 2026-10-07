@@ -39,7 +39,9 @@ function compactVerifiedRead(source, evidence) {
     const hasRaw = typeof read.content === "string";
     const original = hasRaw ? read.content : read.numberedContent;
     if (typeof original !== "string") return null;
-    let excerpt = original.slice(0, MAX_PLANNER_CODE);
+    // Keep line-anchored query references when the useful definition is beyond a long preamble.
+    const sourceLimit = read.sourceStructure?.dataBindings?.references?.length ? 3000 : MAX_PLANNER_CODE;
+    let excerpt = original.slice(0, sourceLimit);
     const clipped = original.length > excerpt.length;
     if (clipped) {
         const lastNewline = excerpt.lastIndexOf("\n");

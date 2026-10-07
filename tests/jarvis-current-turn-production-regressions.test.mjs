@@ -1372,3 +1372,41 @@ test('verified record answers have enough bounded output space while ordinary re
  await composeEvidenceGroundedConversation({instruction:'Enumera los registros observados.',evidenceItems:[...operations,{name:'mission.outcome',observation:{ok:true,status:'COMPLETED'}}],executeConversation:async(_input,options)=>{assert.ok(options.maxOutputTokens<=1200);assert.ok(options.maxOutputTokens>=256);if(withRecords)assert.ok(options.maxOutputTokens>256);else assert.equal(options.maxOutputTokens,256);return{ok:true,message:'Respuesta de prueba.'};}});
  }
 });
+
+
+test('completion follow-ups retain each tool schema and repair out-of-range arguments with the same model',async()=>{
+ const input='Lee la siguiente página de registros';let attempts=0;
+ const tool={name:'fixture.page',mutates:false,investigationReadOnly:true,inputSchema:{type:'object',properties:{pageSize:{type:'integer',minimum:1,maximum:100}},required:['pageSize'],additionalProperties:false}};
+ const result=await runJarvisSemanticPlanner({input,catalog:[tool],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:tool.name,args:{pageSize:1},observation:{ok:true,executionOk:true,status:'PAGE_READ'}}]},ai:{models:{generateContent:async request=>{
+ attempts++;const variants=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;
+ assert.deepEqual(variants[0].properties.args,tool.inputSchema);assert.equal(variants[0].properties.name.enum[0],tool.name);
+ if(attempts===2)assert.match(JSON.stringify(request.config.chatMessages),/SEMANTIC_TOOL_ARGUMENTS_INVALID/);
+ return{text:JSON.stringify({explanation:'Falta consultar registros',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'tool_result',satisfied:false,evidenceTaskIndexes:[],limitation:'Pendiente de ejecución'}]},toolCalls:[{name:tool.name,args:{pageSize:attempts===1?1000:50}}]})};
+ }}}});assert.equal(attempts,2);assert.equal(result.toolCalls[0].args.pageSize,50);assert.equal(result.missionComplete,false);assert.equal(result.toolCalls[0].approved,false);
+});
+
+test('partial query errors preserve the observed cause instead of invented permission or empty-data explanations',async()=>{
+ const result=await composeEvidenceGroundedConversation({instruction:'Consulta los registros',evidenceItems:[{name:'repo.read',observation:{ok:true,executionOk:true,status:'FILE_READ_OK',summary:'Fuente leída'}},{name:'platform.query',observation:{ok:false,executionOk:false,status:'PLATFORM_QUERY_FAILED',error:{code:'PLATFORM_QUERY_FIELDS_REQUIRED',message:'Missing requested fields'}}},{name:'mission.outcome',observation:{status:'PARTIAL',completionAssessment:{objectives:[{satisfied:false,limitation:'Perhaps permission or no data'}]}}}],executeConversation:async()=>{throw Error('NO_SPECULATIVE_PROSE_PASS');}});
+ assert.match(result.text,/PLATFORM_QUERY_FIELDS_REQUIRED/);assert.doesNotMatch(result.text,/Perhaps permission|no data/);assert.equal(result.status,'CONVERSATIONAL_EVIDENCE_INSUFFICIENT');
+});
+
+
+test('source query excerpts retain observed fields beyond a long preamble with source line anchors',async()=>{
+ const {analyzeRepoSourceStructure}=await import('../gestia-core/repo/repo.source.structure.js');
+ const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
+ const content='// preamble\n'.repeat(1500)+"const profile={classification:'member'};\nawait setDoc(doc(db,'accounts',uid),profile);\n";
+ const sourceStructure=analyzeRepoSourceStructure(content),bindings=sourceStructure.dataBindings;
+ assert.deepEqual(bindings.collections,['accounts']);assert.ok(bindings.references[0].startLine>1000);assert.match(bindings.references[0].content,/classification:'member'/);
+ const compact=compactMissionPlannerObservation({ok:true,executionOk:true,status:'FILE_READ_OK',verifiedRead:{tool:'repo.read',file:'observed.js',content,startLine:1,endLine:1502,totalLines:1502,sourceStructure}});
+ assert.ok(compact.verifiedRead.content.length<=3000);assert.equal(compact.verifiedRead.truncated,true);assert.match(compact.verifiedRead.sourceStructure.dataBindings.references[0].content,/classification:'member'/);
+});
+
+
+test('conditional query schemas bind every alternative to the observed collection without losing count mode',async()=>{
+ const read={name:'fixture.readSource',mutates:false,investigationReadOnly:true,evidenceKinds:['source']};
+ const query={name:'fixture.queryRecords',mutates:false,investigationReadOnly:true,requiresEvidence:[{kind:'source',argument:'collection',observationPath:['collections']}],inputSchema:{type:'object',properties:{collection:{type:'string'},mode:{type:'string'},fields:{type:'array',items:{type:'string'}}},required:['collection'],anyOf:[{properties:{mode:{enum:['count']}},required:['mode']},{properties:{mode:{enum:['query']}},required:['mode','fields']}]}};
+ const input='Cuenta los registros observados';const result=await runJarvisSemanticPlanner({input,catalog:[read,query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:read.name,args:{},observation:{ok:true,collections:['observed_records']}}]},ai:{models:{generateContent:async request=>{
+ const q=request.config.responseJsonSchema.properties.toolCalls.items.anyOf.find(v=>v.properties.name.enum[0]===query.name);assert.ok(q);for(const branch of q.properties.args.anyOf)assert.deepEqual(branch.properties.collection.enum,['observed_records']);
+ return{text:JSON.stringify({explanation:'Falta contar',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'tool_result',satisfied:false,evidenceTaskIndexes:[],limitation:'Conteo pendiente'}]},toolCalls:[{name:query.name,args:{collection:'observed_records',mode:'count'}}]})};
+ }}}});assert.equal(result.toolCalls[0].args.mode,'count');assert.equal(result.missionComplete,false);
+});

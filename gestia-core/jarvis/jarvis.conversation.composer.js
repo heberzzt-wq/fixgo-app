@@ -1269,7 +1269,10 @@ export async function composeEvidenceGroundedConversation({
         return {
             ok: true,
             status: "CONVERSATIONAL_EVIDENCE_INSUFFICIENT",
-            text: ["No hay evidencia suficiente para completar lo solicitado.", ...new Set(missingEvidence)].join("\n"),
+            text: ["No hay evidencia suficiente para completar lo solicitado.",
+                ...(attemptedOperations.some(item => item.error)
+                    ? [...new Set(attemptedOperations.filter(item => item.error).map(item => item.tool + " — " + item.error + (item.requestedFile ? "; archivo: " + item.requestedFile : "")))]
+                    : [...new Set(missingEvidence)])].join("\n"),
             prompt: "",
             evidence,
             observation: missionOutcomeObservation

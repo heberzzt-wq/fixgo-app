@@ -767,7 +767,7 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
 
 JarvisToolRuntime.register({
     name: "platform.query", requiresEvidence: [{kind:"repository_source",argument:"sourceFile",observationPath:["verifiedRead","file"]},{kind:"repository_source",argument:"collection",observationPath:["verifiedRead","sourceStructure","dataBindings","collections"]}], investigationReadOnly: true, mutates: false, requiresApproval: false, evidenceKinds: ["platform_records"],
-    description: "Consulta registros OPERATIVOS actuales de la plataforma en Firestore con la sesión y permisos existentes. Sirve para cualquier colección y campos verificados, sin escribir. Antes de consultar, descubre colección, filtros y campos leyendo el código con repo.search/repo.read; no inventes el esquema. Devuelve los campos solicitados, conteo exacto opcional y cursor si hay más páginas. No es salud ni telemetría.",
+    description: "Consulta registros OPERATIVOS actuales de la plataforma en Firestore con la sesión y permisos existentes. Sirve para cualquier colección y campos verificados, sin escribir. Antes de consultar, descubre colección, filtros y campos leyendo el código con repo.search/repo.read; no inventes el esquema. mode=count obtiene un conteo exacto del servidor con los filtros comprobados, sin recuperar perfiles ni ordenar. mode=query devuelve campos seleccionados y cursor. Conserva el filtro del grupo solicitado; contar toda una colección no cuenta automáticamente un subconjunto. No es salud ni telemetría.",
     inputSchema: { type: "object", properties: {
         sourceFile: {type:"string",description:"Archivo de la aplicación ya leído con repo.read en esta misión que demuestra el esquema utilizado. Antes de la primera consulta debes localizarlo y leerlo."},
         orderBy:{type:"array",maxItems:3,items:{type:"object",properties:{field:{type:"string"},direction:{type:"string",enum:["asc","desc"]}},required:["field"],additionalProperties:false}},
@@ -776,7 +776,10 @@ JarvisToolRuntime.register({
         fields: {type:"array",items:{type:"string"},maxItems:20,description:"Campos exactos que pide el usuario, obligatorios para query. No traer todo el perfil por defecto."},
         filters: {type:"array",maxItems:10,items:{type:"object",properties:{field:{type:"string"},op:{type:"string",enum:["==","!=","<","<=",">",">=","in","not-in","array-contains","array-contains-any"]},value:{type:["string","number","boolean","null","array"]}},required:["field","op","value"],additionalProperties:false}},
         pageSize:{type:"integer",minimum:1,maximum:100},cursor:{type:"string",description:"nextCursor devuelto por la misma consulta; omitir para primera página."},includeCount:{type:"boolean"}
-    },required:["collection","sourceFile"],additionalProperties:false},
+    },required:["collection","sourceFile"],anyOf:[
+        {properties:{mode:{type:"string",enum:["count"]}},required:["mode"]},
+        {properties:{mode:{type:"string",enum:["query"]},fields:{type:"array",minItems:1,items:{type:"string"}}},required:["mode","fields"]}
+    ],additionalProperties:false},
     execute: (args, context) => executePlatformQuery(args, null, context)
 });
 
