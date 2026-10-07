@@ -982,14 +982,32 @@ JarvisToolRuntime.register({
                 args.lineEnd
             );
 
-        // A single model-generated line hint is not a trustworthy range. It
-        // previously collapsed a source inspection to one line and hid the
-        // surrounding schema. Only an explicit pair becomes a partial read;
-        // otherwise inspect the complete file and let evidence drive follow-up.
+        // A model-generated line range is trustworthy only when the user
+        // explicitly requested lines or prior literal grep evidence anchors a
+        // match inside that same file/range. Otherwise read the whole source.
+        const originalInstruction = String(context.rootInstruction || context.rawInput || "");
+        const explicitLineRange = /(?:line|lines|línea|líneas)\s*\d+\s*(?:-|–|—|a|to|through)\s*\d+/iu.test(originalInstruction) ||
+            /(?:from|de)\s+(?:line|línea)\s*\d+\s+(?:to|a|hasta)\s+(?:line|línea)?\s*\d+/iu.test(originalInstruction);
+        const groundedGrepRange = Boolean(
+            requestedStartLine &&
+            requestedEndLine &&
+            (context.completedTasks || []).some(task =>
+                task?.name === "repo.grep" &&
+                task?.observation?.ok === true &&
+                task?.observation?.executionOk !== false &&
+                (task.observation.matches || []).some(match =>
+                    String(match?.file || "").replace(/\\/g, "/") === normalizedFile.replace(/\\/g, "/") &&
+                    Number.isInteger(match?.line) &&
+                    match.line >= requestedStartLine &&
+                    match.line <= requestedEndLine
+                )
+            )
+        );
         const hasRequestedLineRange =
             Boolean(
                 requestedStartLine &&
-                requestedEndLine
+                requestedEndLine &&
+                (explicitLineRange || groundedGrepRange)
             );
 
         const requestedLineRange =

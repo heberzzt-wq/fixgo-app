@@ -1564,3 +1564,14 @@ test('literal population recovery prefers the singular source token when Qwen se
  assert.equal(result.toolCalls[0].name,'repo.grep');
  assert.equal(result.toolCalls[0].args.term,'cliente');
 });
+
+
+test('repo read ranges require explicit user lines or a prior literal grep anchor', () => {
+ const source=readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
+ const from=source.indexOf('const explicitLineRange ='),to=source.indexOf('const requestedLineRange =',from);
+ const block=source.slice(from,to);
+ assert.match(block,/groundedGrepRange/);
+ assert.match(block,/task\?\.name === "repo\.grep"/);
+ assert.match(block,/match\.line >= requestedStartLine/);
+ assert.match(block,/explicitLineRange \|\| groundedGrepRange/);
+});
