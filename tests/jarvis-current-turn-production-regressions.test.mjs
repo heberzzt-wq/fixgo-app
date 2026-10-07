@@ -1489,3 +1489,10 @@ test('repo grep matches survive mission compaction as grounded source locations'
  ]});
  assert.deepEqual(result.repositoryMatches,[{file:'app-registro.js',line:318,snippet:'const rolFinal = esAdminB2B ? "admin_b2b" : "cliente";'}]);
 });
+
+
+test('population verification rejects workflow state as membership evidence and keeps user vocabulary for recovery', () => {
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ assert.match(source,/Un estado KYC, validación, pantalla, flujo o función usada por ese grupo NO es por sí mismo el discriminador de pertenencia/);
+ assert.match(source,/conserve literalmente el término principal usado por el usuario/);
+});
