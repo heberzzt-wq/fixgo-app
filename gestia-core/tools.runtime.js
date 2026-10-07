@@ -779,7 +779,7 @@ JarvisToolRuntime.register({
 
 // Registro de herramientas Read-Only iniciales
 JarvisToolRuntime.register({
-    name: "repo.audit",
+    name: "repo.audit", evidenceKinds: ["repository_inventory"],
     investigationReadOnly: true,
     description: "Devuelve un INVENTARIO ESTRUCTURAL del repositorio real: lista de rutas existentes, dependencias, pruebas detectadas y duplicados desde el grafo AST vivo. Audita e inventaría el proyecto completo. No devuelve el contenido ni líneas de archivos individuales. No ejecuta pruebas ni certifica producción.",
     mutates: false,
@@ -872,7 +872,7 @@ JarvisToolRuntime.register({
 
 
 JarvisToolRuntime.register({
-    name: "repo.read",
+    name: "repo.read", evidenceKinds: ["repository_source"],
     investigationReadOnly: true,
     description: "Devuelve el CONTENIDO y LÍNEAS de UN ARCHIVO de código fuente del repositorio por su ruta real ya localizada. También lee configuración, HTML y package.json. Requiere file exacto. No inventaría el proyecto, no lista rutas, no ejecuta pruebas ni modifica código.",
     mutates: false,
@@ -6294,7 +6294,7 @@ if (false) JarvisToolRuntime.register({
         }
 });
 JarvisToolRuntime.register({
-    name: "repo.search",
+    name: "repo.search", evidenceKinds: ["repository_search"],
     investigationReadOnly: true,
     description: "LOCALIZA rutas existentes y fragmentos de código por símbolo, texto o descripción. Úsala para encontrar dónde se define una función cuando aún no conoces el archivo. Devuelve candidatos reales; después repo.read puede leer una ruta encontrada. No adivines rutas a partir del símbolo.",
     mutates: false,
@@ -7011,7 +7011,7 @@ JarvisToolRuntime.register({
 });
 
 JarvisToolRuntime.register({
-    name: "repo.grep",
+    name: "repo.grep", evidenceKinds: ["repository_search"],
     investigationReadOnly: true,
     description: "Busca un término literal o símbolo en los archivos reales del checkout y devuelve rutas y líneas coincidentes. Sirve para localizar una definición antes de leer su archivo. No es una búsqueda de negocios en internet.",
     inputSchema: { type: "object", properties: { term: { type: "string", description: "Término literal o identificador a localizar." } }, required: ["term"], additionalProperties: false },
@@ -7579,7 +7579,7 @@ JarvisToolRuntime.register({
 
 
 JarvisToolRuntime.register({
-    name: "repo.diagnose",
+    name: "repo.diagnose", evidenceKinds: ["repository_diagnostics"],
     investigationReadOnly: true,
     description: "Diagnóstico forense read-only de un archivo real del repo. Clasifica tipo, señales, riesgos y siguientes acciones sin escribir.",
     mutates: false,

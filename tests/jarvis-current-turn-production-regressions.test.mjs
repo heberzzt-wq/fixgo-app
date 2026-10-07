@@ -1201,3 +1201,21 @@ test('a schema with only optional parameters does not acquire invented instructi
  ai:{models:{generateContent:async()=>({functionCalls:[{name:'fixture.inspect',args:{}}]})}}});
  assert.deepEqual(result.toolCalls[0].args,{});assert.equal(result.toolCalls[0].approved,false);
 });
+
+
+test('a read-only investigation continues from discovery to live evidence instead of closing after its first read', async () => {
+ const calls=[];let audits=0;
+ const catalog=[{name:'fixture.discover',mutates:false,investigationReadOnly:true},{name:'fixture.query',mutates:false,investigationReadOnly:true}];
+ const result=await runJarvisMission({instruction:'Encuentra la fuente y consulta los registros actuales',initialToolCalls:[{name:'fixture.discover',args:{}}],requiredToolNames:['fixture.discover'],executionContractLocked:true,toolCatalog:catalog,
+ storage:{getItem:()=>null,setItem(){}},planner:async()=>{audits++;return audits===1?{toolCalls:[{name:'fixture.query',args:{source:'verified'}}],missionComplete:false}:{toolCalls:[],missionComplete:true};},
+ execute:async call=>{calls.push(call.name);return {ok:true,status:'OBSERVED',summary:call.name==='fixture.discover'?'Fuente encontrada, aún no se consultan datos':'Datos consultados'};}});
+ assert.deepEqual(calls,['fixture.discover','fixture.query']);assert.equal(audits,2);assert.equal(result.status,'COMPLETED');
+});
+
+test('a failed read remains visible to the investigation planner and a missing file is never treated as an empty record set', async () => {
+ let audits=0;
+ const result=await runJarvisMission({instruction:'Lee el archivo solicitado',initialToolCalls:[{name:'fixture.read',args:{file:'missing.txt'}}],requiredToolNames:['fixture.read'],executionContractLocked:true,toolCatalog:[{name:'fixture.read',mutates:false,investigationReadOnly:true}],
+ storage:{getItem:()=>null,setItem(){}},planner:async({mission})=>{audits++;assert.equal(mission.blockedTasks.length,1);return {toolCalls:[],missionComplete:false,completionAssessment:{objectives:[{satisfied:false,limitation:'La lectura devolvió FILE_NOT_FOUND; no hay contenido verificado.'}]}};},
+ execute:async()=>({ok:false,executionOk:false,status:'FILE_NOT_FOUND',error:'FILE_NOT_FOUND',retryable:false})});
+ assert.equal(audits,1);assert.notEqual(result.status,'COMPLETED');assert.equal(result.completedTasks.length,0);assert.equal(result.blockedTasks.length,1);
+});

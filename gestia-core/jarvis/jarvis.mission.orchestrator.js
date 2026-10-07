@@ -2371,7 +2371,7 @@ export async function runJarvisMission({
     // Completing a scoped evidence tool proves execution, not that its scope
     // satisfies the user's objective. Let the single semantic planner audit it.
     const requiresEvidenceAudit = () => mission.requiredToolNames.some(name =>
-        toolCatalog.some(tool => tool.name === name && tool.evidenceKinds?.length > 0));
+        toolCatalog.some(tool => tool.name === name && (tool.evidenceKinds?.length > 0 || tool.investigationReadOnly === true)));
 
     while (mission.iterations < maximumSteps) {
         if (signal?.aborted) {
@@ -2425,6 +2425,7 @@ export async function runJarvisMission({
             }
             if (
                 mission.executionContractLocked === true &&
+                !requiresEvidenceAudit() &&
                 mission.blockedTasks.length > 0
             ) {
                 mission.contractMissingTools = mission.requiredToolNames.filter(
