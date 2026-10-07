@@ -13,7 +13,7 @@ const bootstrap = fs.readFileSync(
 );
 
 const PRODUCTION_ORIGIN = "https://fixgo-44e4d.web.app";
-const PRODUCTION_BOOTSTRAP_VERSION = "1.16.0-semantic-no-artificial-deadline";
+const PRODUCTION_BOOTSTRAP_VERSION = "1.17.0-private-firestore-relay";
 
 test("historical NEXO bootstrap is Jarvis-only and installs no alternate semantic authority", () => {
     assert.match(bootstrap, /installJarvisRealMediaTools/);
@@ -425,4 +425,113 @@ test("V142 predeploy Chrome verifies production loopback transport while source 
         assert.equal(result?.boot?.localBridgeActive, true);
         assert.equal(result?.boot?.localBridgeTargetAddressSpace, "loopback");
     }
+});
+
+// Private relay regressions: transport evidence is not model completion.
+import { JARVIS_PRIVATE_RELAY, validateJarvisRelayRequest, jarvisRelayPresenceIsLive } from '../gestia-core/jarvis/jarvis.semantic.transport.js';
+import { createJarvisPrivateRelayClient, startJarvisBrowserRelay } from '../modules/terminal/nexo-bootstrap.js';
+const relayId = '11111111-2222-4333-8444-555555555555';
+function relayEnvelope(overrides = {}) {
+    const now = Date.now();
+    return { schemaVersion: 1, ownerUid: JARVIS_PRIVATE_RELAY.ownerUid, requestId: relayId,
+        route: '/semantic/plan', state: 'QUEUED', body: '{"input":"Hola"}', releaseId: 'relay-test',
+        createdAt: now - 10, expiresAt: now + 290000, ...overrides };
+}
+
+test('private relay validates owner route proof lifetime and payload before invoking anything', () => {
+    const good = relayEnvelope();
+    assert.equal(validateJarvisRelayRequest(good, { requestId: relayId, releaseId: 'relay-test' }).payload.input, 'Hola');
+    for (const patch of [
+        { ownerUid: 'other' }, { requestId: 'other' }, { route: '/write/authorize' }, { route: '/video/generate' },
+        { route: 'http://attacker.invalid/semantic/plan' }, { route: '/semantic/plan?route=/write' },
+        { route: '/../write' }, { releaseId: 'old' }, { state: 'RUNNING' }, { schemaVersion: 2 },
+        { expiresAt: Date.now() - 1 }, { createdAt: Date.now() - 360000 }, { createdAt: Date.now() + 120000 },
+        { body: '[]' }, { body: 'null' }, { body: '{' }, { body: 'x'.repeat(JARVIS_PRIVATE_RELAY.maxBytes + 1) }
+    ]) assert.throws(() => validateJarvisRelayRequest({ ...good, ...patch }, { requestId: relayId, releaseId: 'relay-test' }), /JARVIS_RELAY_/);
+    assert.throws(() => validateJarvisRelayRequest(relayEnvelope({ route: '/memory/query', body: JSON.stringify({ identity: { userId: 'other' } }) }),
+        { requestId: relayId, releaseId: 'relay-test' }), /MEMORY_OWNER_MISMATCH/);
+    const memory = validateJarvisRelayRequest(relayEnvelope({ route: '/memory/query', body: '{}' }), { requestId: relayId, releaseId: 'relay-test' });
+    assert.equal(memory.payload.identity.userId, JARVIS_PRIVATE_RELAY.ownerUid);
+});
+
+test('private relay presence rejects cached old disconnected and mismatched workers', () => {
+    const presence = { schemaVersion: 1, online: true, releaseId: 'relay-test', workerId: relayId, heartbeatAt: Date.now() };
+    assert.equal(jarvisRelayPresenceIsLive(presence, 'relay-test'), true);
+    for (const patch of [{ online: false }, { workerId: '' }, { releaseId: 'wrong' }, { heartbeatAt: Date.now() - 121000 }, { heartbeatAt: null }]) {
+        assert.equal(jarvisRelayPresenceIsLive({ ...presence, ...patch }, 'relay-test'), false);
+    }
+});
+
+function relayFakeSdk() {
+    const docs = new Map(), watchers = new Set(), writes = [];
+    const stamp = () => ({ toMillis: () => Date.now() });
+    const ref = path => ({ path, id: path.split('/').at(-1) });
+    const snap = path => ({ id: path.split('/').at(-1), ref: ref(path), exists: () => docs.has(path),
+        data: () => docs.get(path), metadata: { fromCache: false } });
+    const read = target => target.collection ? {
+        docs: [...docs.keys()].filter(path => path.startsWith(target.path + '/') && !path.slice(target.path.length + 1).includes('/'))
+            .filter(path => target.filters.every(f => f.kind !== 'where' || (f.op === '==' ? docs.get(path)[f.field] === f.value : false)))
+            .map(snap), metadata: { fromCache: false }
+    } : snap(target.path);
+    const emit = () => { for (const watcher of watchers) queueMicrotask(() => { if (watchers.has(watcher)) watcher.callback(read(watcher.target)); }); };
+    const apply = (target, data, merge) => {
+        const value = merge ? { ...docs.get(target.path) } : {};
+        for (const [key, item] of Object.entries(data)) { if (item === sdk.DELETE) delete value[key]; else value[key] = item; }
+        docs.set(target.path, value); writes.push({ path: target.path, data: { ...data } });
+    };
+    const sdk = {
+        DELETE: Symbol('delete'),
+        doc(...args) { const [base, ...rest] = args; return ref([base?.path || '', ...rest].filter(Boolean).join('/')); },
+        collection(parent, child) { return { ...ref(parent.path + '/' + child), collection: true, filters: [] }; },
+        where(field, op, value) { return { kind: 'where', field, op, value }; }, limit(value) { return { kind: 'limit', value }; },
+        query(parent, ...filters) { return { ...parent, filters }; },
+        serverTimestamp: stamp, Timestamp: { fromMillis: value => ({ toMillis: () => value }) }, deleteField() { return sdk.DELETE; },
+        async getDocFromServer(target) { return snap(target.path); }, async getDocs(target) { return read(target); },
+        async setDoc(target, data) { apply(target, data, false); emit(); },
+        async updateDoc(target, data) { apply(target, data, true); emit(); },
+        async deleteDoc(target) { docs.delete(target.path); emit(); },
+        onSnapshot(target, callback) { const watcher = { target, callback }; watchers.add(watcher); queueMicrotask(() => { if(watchers.has(watcher))callback(read(target)); }); return () => watchers.delete(watcher); },
+        async runTransaction(_db, callback) {
+            const pending = []; const result = await callback({ get: async target => snap(target.path),
+                set(target, data) { pending.push([target, data, false]); }, update(target, data) { pending.push([target, data, true]); } });
+            for (const args of pending) apply(...args); if (pending.length) emit(); return result;
+        }
+    };
+    return { sdk, docs, writes, emit, watchers };
+}
+
+test('private relay crosses the authenticated queue and delivers an exact correlated local result once', async () => {
+    const fake = relayFakeSdk(), auth = { currentUser: { uid: JARVIS_PRIVATE_RELAY.ownerUid }, async authStateReady() {} };
+    const state = [], calls = [], progress = [];
+    const local = async (route, payload) => {
+        if (route === '/workstation/health') return { ok: true, status: 'JARVIS_WORKSTATION_LIVE', runtime: { bridgeStarted: true, loadedHead: 'test' } };
+        calls.push({ route, payload });
+        return { ok: true, text: 'Hola pariente', localSemanticInferenceUsed: true, cloudSemanticInferenceUsed: false };
+    };
+    const worker = await startJarvisBrowserRelay({ auth, db: {}, sdk: fake.sdk, contract: { releaseId: 'relay-test' }, requestLocal: local,
+        uuid: () => 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', onState: next => state.push(next) });
+    try {
+        const client = createJarvisPrivateRelayClient({ auth, db: {}, sdk: fake.sdk, uuid: () => relayId, onProgress: next => progress.push(next) });
+        const result = await client.requestJson('/semantic/plan', { input: 'Hola' }, { contract: { releaseId: 'relay-test' } });
+        fake.emit(); fake.emit(); await sleep(5);
+        assert.equal(calls.length, 1); assert.equal(calls[0].route, '/semantic/plan');
+        assert.equal(result.text, 'Hola pariente'); assert.equal(result.relay.requestId, relayId);
+        assert.equal(result.cloudSemanticInferenceUsed, false);
+        const receipt = fake.docs.get(`jarvis_private_relay/${JARVIS_PRIVATE_RELAY.ownerUid}/requests/${relayId}`);
+        assert.equal(receipt.state, 'COMPLETED'); assert.equal(receipt.body, undefined);
+        assert.ok(state.some(item => item.status === 'EXECUTING'));
+        assert.ok(progress.some(item => item.requestId === relayId));
+        assert.ok(!fake.writes.some(item => item.path.includes('services/') || item.path.includes('users/')));
+    } finally { await worker.stop(); }
+    assert.equal(fake.watchers.size, 0);
+});
+
+test('private relay rejects another session unsupported operations and an offline workstation without loopback fallback', async () => {
+    const fake = relayFakeSdk(); const auth = { currentUser: { uid: 'other' }, async authStateReady() {} };
+    const client = createJarvisPrivateRelayClient({ auth, db: {}, sdk: fake.sdk });
+    await assert.rejects(client.requestJson('/semantic/plan', {}, { contract: { releaseId: 'relay-test' } }), /OWNER_REQUIRED/);
+    auth.currentUser.uid = JARVIS_PRIVATE_RELAY.ownerUid;
+    await assert.rejects(client.requestJson('/write/authorize', {}, { contract: { releaseId: 'relay-test' } }), /LOCAL_OPERATION_REQUIRED/);
+    await assert.rejects(client.requestJson('/semantic/plan', {}, { contract: { releaseId: 'relay-test' } }), /WORKSTATION_UNAVAILABLE/);
+    assert.equal(fake.writes.length, 0);
 });

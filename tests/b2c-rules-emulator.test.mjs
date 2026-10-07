@@ -671,3 +671,85 @@ for (const disputed of [false, true]) {
         if (disputed && (final.llegada_revision_requerida !== true || final.llegada_resolucion_automatica_bloqueada !== true)) throw new Error('Dispute lost review hold');
     });
 }
+
+
+// Private relay rules are isolated from every B2C/B2B path above.
+import { Timestamp as RelayTimestamp, deleteField as relayDeleteField, deleteDoc as relayDeleteDoc } from 'firebase/firestore';
+import { randomUUID as relayUUID } from 'node:crypto';
+const relayOwnerUid = 'nNhwy3Mx4pTvc8TZVh1tyTMFwhC2';
+const relayParentPath = `jarvis_private_relay/${relayOwnerUid}`;
+const relayWorkerId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+async function seedRelay({ age = 0, online = true } = {}) {
+    await environment.withSecurityRulesDisabled(async context => {
+        await setDoc(doc(context.firestore(), relayParentPath), { schemaVersion: 1, ownerUid: relayOwnerUid,
+            workerId: relayWorkerId, online, heartbeatAt: RelayTimestamp.fromMillis(Date.now() - age),
+            releaseId: 'relay-test', loadedHead: 'test' });
+    });
+    return environment.authenticatedContext(relayOwnerUid).firestore();
+}
+function relayDocument(db, values = {}) {
+    const id = relayUUID();
+    return { ref: doc(db, `${relayParentPath}/requests/${id}`), data: {
+        schemaVersion: 1, ownerUid: relayOwnerUid, requestId: id, route: '/semantic/plan', releaseId: 'relay-test',
+        body: '{"input":"Hola"}', state: 'QUEUED', createdAt: serverTimestamp(),
+        expiresAt: RelayTimestamp.fromMillis(Date.now() + 300000), ...values
+    } };
+}
+
+test('private relay rules isolate the exact owner from anonymous users customers technicians and other admins', async () => {
+    const owner = await seedRelay(); const request = relayDocument(owner);
+    await assertSucceeds(setDoc(request.ref, request.data));
+    await assertSucceeds(getDoc(request.ref));
+    for (const db of [environment.unauthenticatedContext().firestore(),
+        environment.authenticatedContext('client-1').firestore(), environment.authenticatedContext('tech-1').firestore(),
+        environment.authenticatedContext('other-admin', { admin: true, email: 'hebertoh-m@hotmail.com' }).firestore()]) {
+        await assertFails(getDoc(doc(db, request.ref.path)));
+        const foreign = relayDocument(db); await assertFails(setDoc(foreign.ref, foreign.data));
+        await assertFails(getDoc(doc(db, relayParentPath)));
+        await assertFails(updateDoc(doc(db, relayParentPath), { online: false, heartbeatAt: serverTimestamp() }));
+    }
+});
+
+test('private relay rules reject writes paid media altered envelopes and stale or offline workers', async () => {
+    const owner = await seedRelay();
+    for (const patch of [{ route: '/write' }, { route: '/write/authorize' }, { route: '/video/generate' }, { route: '/upload/start' },
+        { route: 'http://example.invalid/semantic/plan' }, { route: '/semantic/plan?x=1' },
+        { ownerUid: 'client-1' }, { releaseId: 'old' }, { state: 'COMPLETED' }, { schemaVersion: 2 },
+        { result: '{}' }, { approved: true }, { body: {} }, { body: 'x'.repeat(393217) },
+        { createdAt: RelayTimestamp.fromMillis(Date.now() - 100000) }, { expiresAt: RelayTimestamp.fromMillis(Date.now() + 600000) }]) {
+        const request = relayDocument(owner, patch); await assertFails(setDoc(request.ref, request.data));
+    }
+    await seedRelay({ age: 130000 }); let request = relayDocument(owner); await assertFails(setDoc(request.ref, request.data));
+    await seedRelay({ online: false }); request = relayDocument(owner); await assertFails(setDoc(request.ref, request.data));
+});
+
+test('private relay rules require an owned lease and immutable request before accepting a result', async () => {
+    const owner = await seedRelay(); const request = relayDocument(owner);
+    await assertSucceeds(setDoc(request.ref, request.data));
+    await assertFails(updateDoc(request.ref, { state: 'COMPLETED', result: '{}', finishedAt: serverTimestamp() }));
+    await assertFails(updateDoc(request.ref, { state: 'RUNNING', workerId: relayUUID(), startedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(request.ref, { state: 'RUNNING', workerId: relayWorkerId, startedAt: serverTimestamp() }));
+    for (const patch of [{ body: '{"input":"tampered"}' }, { route: '/write' }, { ownerUid: 'other' }, { releaseId: 'old' }]) {
+        await assertFails(updateDoc(request.ref, patch));
+    }
+    await assertFails(updateDoc(request.ref, { state: 'CANCELLED', finishedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(request.ref, { progress: { type: 'progress', stage: 'planning', elapsedMs: 3,
+        generatedChars: 0, noDeadline: true, requestId: request.data.requestId } }));
+    await assertSucceeds(updateDoc(request.ref, { state: 'COMPLETED', result: '{"ok":true}', error: null,
+        body: relayDeleteField(), finishedAt: serverTimestamp() }));
+    await assertFails(updateDoc(request.ref, { result: '{"ok":false}' }));
+    await assertFails(relayDeleteDoc(request.ref));
+});
+
+test('private relay rules prevent stealing a live lease and mark interrupted operations without replay', async () => {
+    const owner = await seedRelay(); const request = relayDocument(owner); const next = relayUUID();
+    await setDoc(request.ref, request.data);
+    await updateDoc(request.ref, { state: 'RUNNING', workerId: relayWorkerId, startedAt: serverTimestamp() });
+    await assertFails(updateDoc(doc(owner, relayParentPath), { workerId: next, heartbeatAt: serverTimestamp() }));
+    await seedRelay({ age: 130000 });
+    await assertSucceeds(updateDoc(doc(owner, relayParentPath), { workerId: next, heartbeatAt: serverTimestamp() }));
+    await assertFails(updateDoc(request.ref, { state: 'COMPLETED', result: '{}', error: null, finishedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(request.ref, { state: 'FAILED', resolvedBy: next,
+        error: 'JARVIS_RELAY_RESULT_UNCONFIRMED_NO_REPLAY', body: relayDeleteField(), finishedAt: serverTimestamp() }));
+    await assertFails(updateDoc(request.ref, { state: 'QUEUED' }));
+});

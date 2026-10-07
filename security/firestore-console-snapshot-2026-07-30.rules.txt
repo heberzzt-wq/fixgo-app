@@ -892,5 +892,84 @@ service cloud.firestore {
       allow read: if isAdmin() || tenantMember(tenantId);
       allow write: if isAdmin() || tenantReception(tenantId);
     }
+    // Private development transport. Never reuse general administrator grants:
+    // requests, responses and workstation presence belong to this exact UID.
+    match /jarvis_private_relay/{ownerUid} {
+      function relayOwner() {
+        return request.auth != null && ownerUid == 'nNhwy3Mx4pTvc8TZVh1tyTMFwhC2' && request.auth.uid == ownerUid;
+      }
+      function validPresence() {
+        let data = request.resource.data;
+        return data.keys().hasAll(['schemaVersion', 'ownerUid', 'workerId', 'online', 'releaseId', 'heartbeatAt', 'loadedHead']) &&
+          data.keys().hasOnly(['schemaVersion', 'ownerUid', 'workerId', 'online', 'releaseId', 'heartbeatAt', 'loadedHead']) &&
+          data.schemaVersion == 1 && data.ownerUid == ownerUid && data.workerId is string &&
+          data.workerId.matches('^[0-9a-f-]{36}$') && data.online is bool &&
+          data.releaseId is string && data.releaseId.size() > 0 && data.releaseId.size() <= 160 &&
+          data.loadedHead is string && data.loadedHead.size() <= 64 && data.heartbeatAt == request.time;
+      }
+      function relayLive() {
+        let data = get(/databases/$(database)/documents/jarvis_private_relay/$(ownerUid)).data;
+        return data.online == true && data.heartbeatAt > request.time - duration.value(120, 's');
+      }
+      function isRelayWorker(id) {
+        return relayOwner() && relayLive() &&
+          get(/databases/$(database)/documents/jarvis_private_relay/$(ownerUid)).data.workerId == id;
+      }
+      allow get: if relayOwner();
+      allow list, delete: if false;
+      allow create: if relayOwner() && validPresence();
+      allow update: if relayOwner() && validPresence() && (
+        resource.data.workerId == request.resource.data.workerId || resource.data.online == false ||
+        resource.data.heartbeatAt <= request.time - duration.value(120, 's')
+      );
+      match /requests/{requestId} {
+        function validRequest() {
+          let data = request.resource.data;
+          return data.keys().hasAll(['schemaVersion', 'ownerUid', 'requestId', 'route', 'releaseId', 'body', 'state', 'createdAt', 'expiresAt']) &&
+            data.keys().hasOnly(['schemaVersion', 'ownerUid', 'requestId', 'route', 'releaseId', 'body', 'state', 'createdAt', 'expiresAt']) &&
+            data.schemaVersion == 1 && data.ownerUid == ownerUid && data.requestId == requestId &&
+            requestId.matches('^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$') &&
+            data.route in ['/semantic/plan', '/semantic/respond', '/semantic/local/health', '/memory/append', '/memory/query',
+              '/workstation/health', '/read', '/grep', '/repo/graph', '/repo/candidates', '/repo/resolve-target', '/repo/read-target', '/web/research'] &&
+            data.body is string && data.body.size() >= 2 && data.body.size() <= 393216 && data.state == 'QUEUED' &&
+            data.createdAt == request.time && data.expiresAt is timestamp && data.expiresAt > request.time &&
+            data.expiresAt <= request.time + duration.value(310, 's') &&
+            data.releaseId == get(/databases/$(database)/documents/jarvis_private_relay/$(ownerUid)).data.releaseId;
+        }
+        function validResult() {
+          let data = request.resource.data;
+          return data.state in ['COMPLETED', 'FAILED'] && data.finishedAt == request.time &&
+            (data.get('result', null) == null || (data.result is string && data.result.size() <= 393216)) &&
+            (data.get('error', null) == null || (data.error is string && data.error.size() <= 240));
+        }
+        allow get, list: if relayOwner();
+        allow create: if relayOwner() && relayLive() && validRequest();
+        allow update: if relayOwner() && (
+          (resource.data.state == 'QUEUED' && request.resource.data.state == 'CANCELLED' &&
+            request.resource.data.finishedAt == request.time &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state', 'finishedAt'])) ||
+          (resource.data.state == 'QUEUED' && request.resource.data.state == 'RUNNING' &&
+            isRelayWorker(request.resource.data.workerId) && request.resource.data.startedAt == request.time &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state', 'workerId', 'startedAt'])) ||
+          (resource.data.state == 'QUEUED' && request.resource.data.state == 'FAILED' &&
+            isRelayWorker(request.resource.data.workerId) && validResult() &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state', 'workerId', 'error', 'finishedAt', 'body'])) ||
+          (resource.data.state == 'RUNNING' && request.resource.data.state == 'RUNNING' &&
+            isRelayWorker(resource.data.workerId) && request.resource.data.progress is map &&
+            request.resource.data.progress.keys().hasOnly(['type', 'stage', 'elapsedMs', 'generatedChars', 'noDeadline', 'requestId']) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['progress'])) ||
+          (resource.data.state == 'RUNNING' && isRelayWorker(resource.data.workerId) && validResult() &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state', 'result', 'error', 'finishedAt', 'body'])) ||
+          (resource.data.state == 'RUNNING' && request.resource.data.state == 'FAILED' &&
+            isRelayWorker(request.resource.data.resolvedBy) && resource.data.workerId != request.resource.data.resolvedBy &&
+            request.resource.data.error == 'JARVIS_RELAY_RESULT_UNCONFIRMED_NO_REPLAY' && validResult() &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state', 'resolvedBy', 'error', 'finishedAt', 'body']))
+        );
+        allow delete: if relayOwner() && resource.data.state in ['COMPLETED', 'FAILED', 'CANCELLED'] &&
+          resource.data.finishedAt < request.time - duration.value(1, 'h');
+      }
+    }
+
+
   }
 }
