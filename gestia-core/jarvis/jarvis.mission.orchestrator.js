@@ -978,11 +978,10 @@ function safeObservation(result = {}) {
                     String(
                         payload.numberedContent
                     ).slice(0, 60000),
-                sourceStructure:
-                    compactEvidence(
-                        payload?.sourceStructure ||
-                        {}
-                    )
+                sourceStructure: {
+                    ...compactEvidence(payload?.sourceStructure || {}),
+                    ...(payload?.sourceStructure?.dataBindings?.source === "ACORN_SOURCE_REFERENCES" ? { dataBindings: structuredClone(payload.sourceStructure.dataBindings) } : {})
+                }
             }
             : null;
 

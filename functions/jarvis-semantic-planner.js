@@ -923,6 +923,7 @@ function bindEvidencePrerequisites(catalog, tasks = []) {
             const values = tasks.filter(task => task.observation?.ok === true && task.observation.executionOk !== false && task.observation.blocked !== true &&
                 task.observation.requiresInput !== true && catalog.find(definition => definition.name === task.name)?.evidenceKinds?.includes(requirement.kind))
                 .map(task => requirement.observationPath.reduce((value, key) => typeof key === "string" && !["__proto__", "prototype", "constructor"].includes(key) && value && Object.prototype.hasOwnProperty.call(value, key) ? value[key] : undefined, task.observation))
+                .flatMap(value => Array.isArray(value) ? value : [value])
                 .filter(value => typeof value === "string" && value.trim());
             if (!values.length || !schema.properties?.[requirement.argument]) return [];
             schema.properties[requirement.argument] = {...schema.properties[requirement.argument], enum:[...new Set(values)]};

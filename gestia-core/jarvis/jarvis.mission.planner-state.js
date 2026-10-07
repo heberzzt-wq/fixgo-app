@@ -57,6 +57,7 @@ function compactVerifiedRead(source, evidence) {
     const endLine = truncated ? includedEndLine : positiveLine(read.endLine) || includedEndLine;
     return {
         tool: "repo.read", file,
+        ...(read.sourceStructure?.dataBindings?.source === "ACORN_SOURCE_REFERENCES" ? {sourceStructure:{dataBindings:structuredClone(read.sourceStructure.dataBindings)}} : {}),
         path: typeof read.path === "string" && read.path.length <= 500 ? read.path : file,
         startLine, endLine, readEndLine, totalLines,
         partial: read.partial === true || truncated,

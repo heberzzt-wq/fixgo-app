@@ -696,6 +696,8 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
         const sourceRead = (context.completedTasks || []).find(task => task.name === "repo.read" && task.observation?.ok === true && task.observation?.executionOk !== false && task.observation?.blocked !== true && task.observation?.verifiedRead?.file === args.sourceFile && String(task.observation.verifiedRead.content || task.observation.verifiedRead.numberedContent || "").trim());
         if (!sourceRead) throw new Error("PLATFORM_QUERY_SOURCE_NOT_READ");
         const mode = args.mode || "query", collectionPath = args.collection;
+        const sourceBindings = sourceRead.observation.verifiedRead.sourceStructure?.dataBindings;
+        if (sourceBindings?.source !== "ACORN_SOURCE_REFERENCES" || !Array.isArray(sourceBindings.collections) || !sourceBindings.collections.includes(collectionPath)) throw new Error("PLATFORM_QUERY_COLLECTION_NOT_DISCOVERED");
         const segment = value => typeof value === "string" && value.length > 0 && value.length <= 500 && !/[\x00-\x1f]/.test(value) && ![".", ".."].includes(value);
         if (typeof collectionPath !== "string" || collectionPath.length > 1500 || collectionPath.split("/").length % 2 !== 1 || !collectionPath.split("/").every(segment)) throw new Error("PLATFORM_QUERY_COLLECTION_REQUIRED");
         if (!["query", "count"].includes(mode)) throw new Error("PLATFORM_QUERY_MODE_INVALID");
@@ -764,7 +766,7 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
 }
 
 JarvisToolRuntime.register({
-    name: "platform.query", requiresEvidence: [{kind:"repository_source",argument:"sourceFile",observationPath:["verifiedRead","file"]}], investigationReadOnly: true, mutates: false, requiresApproval: false, evidenceKinds: ["platform_records"],
+    name: "platform.query", requiresEvidence: [{kind:"repository_source",argument:"sourceFile",observationPath:["verifiedRead","file"]},{kind:"repository_source",argument:"collection",observationPath:["verifiedRead","sourceStructure","dataBindings","collections"]}], investigationReadOnly: true, mutates: false, requiresApproval: false, evidenceKinds: ["platform_records"],
     description: "Consulta registros OPERATIVOS actuales de la plataforma en Firestore con la sesión y permisos existentes. Sirve para cualquier colección y campos verificados, sin escribir. Antes de consultar, descubre colección, filtros y campos leyendo el código con repo.search/repo.read; no inventes el esquema. Devuelve los campos solicitados, conteo exacto opcional y cursor si hay más páginas. No es salud ni telemetría.",
     inputSchema: { type: "object", properties: {
         sourceFile: {type:"string",description:"Archivo de la aplicación ya leído con repo.read en esta misión que demuestra el esquema utilizado. Antes de la primera consulta debes localizarlo y leerlo."},

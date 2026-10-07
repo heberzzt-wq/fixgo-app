@@ -1,3 +1,5 @@
+import { parse as parseSourceAst } from "../vendor/acorn.mjs";
+
 function compactWhitespace(value = "") {
     let result = "";
     let pendingSpace = false;
@@ -741,9 +743,50 @@ export function analyzeRepoSourceStructure(source = "") {
             registrations.length > 0
                 ? "tool_registry"
                 : "source_file",
+        dataBindings: inspectSourceDataBindings(source),
         registrationCount:
             registrations.length,
         registrations:
             registrations.slice(0, 80)
     };
+}
+
+
+// These are AST references from the source just read, not a repository dictionary.
+// They describe code destinations; they never prove records exist or how many.
+export function inspectSourceDataBindings(source = "") {
+    const content = String(source || "");
+    const scriptBodies = [...content.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)].map(match => match[1]);
+    const units = scriptBodies.length ? scriptBodies : [content];
+    const collections = new Set();
+    let parsedUnits = 0;
+    const string = node => node?.type === "Literal" && typeof node.value === "string" ? node.value : null;
+    for (const unit of units) {
+        let program;
+        try { program = parseSourceAst(unit, {ecmaVersion:"latest",sourceType:"module",allowHashBang:true}); }
+        catch { try { program = parseSourceAst(unit, {ecmaVersion:"latest",sourceType:"script",allowHashBang:true}); } catch { continue; } }
+        parsedUnits++;
+        const functions = new Map([["collection","collection"],["doc","doc"]]);
+        for (const statement of program.body) {
+            if (statement.type !== "ImportDeclaration" || !String(statement.source?.value || "").includes("firebase")) continue;
+            for (const specifier of statement.specifiers || []) if (["collection","doc"].includes(specifier.imported?.name)) functions.set(specifier.local.name,specifier.imported.name);
+        }
+        const visit = node => {
+            if (!node || typeof node !== "object") return;
+            if (node.type === "CallExpression") {
+                const member = node.callee?.type === "MemberExpression" && !node.callee.computed;
+                const name = member ? node.callee.property?.name : functions.get(node.callee?.name);
+                const arg = member ? node.arguments?.[0] : node.arguments?.[1];
+                const literal = string(arg);
+                if ((name === "collection" || (!member && name === "doc")) && literal && !literal.includes("/") && literal.length <= 500 && ![".",".."].includes(literal)) collections.add(literal);
+            }
+            for (const [key,value] of Object.entries(node)) {
+                if (["start","end","loc"].includes(key)) continue;
+                if (Array.isArray(value)) value.forEach(visit);
+                else if (value && typeof value === "object" && typeof value.type === "string") visit(value);
+            }
+        };
+        visit(program);
+    }
+    return {source:"ACORN_SOURCE_REFERENCES",collections:[...collections].slice(0,100),complete:parsedUnits===units.length && collections.size<=100,scope:"Static code references, not a database inventory or query result."};
 }

@@ -1160,7 +1160,7 @@ function platformQueryTestFixture({signedIn=true,fail=null,fromCache=false,chang
     const sdk={collection:(_db,name)=>({collection:name}),query:(base,...constraints)=>({base,constraints}),where:(...args)=>({where:args}),orderBy:field=>({orderBy:field}),documentId:()=> '__name__',limit:value=>({limit:value}),doc:(_db,collection,id)=>({collection,id}),startAfter:document=>({after:document.id}),
         getDocFromServer:async({id})=>({id,exists:()=>true}),getCountFromServer:async q=>{calls.push({kind:'count',q});if(fail)throw Object.assign(new Error('Read failed'),{code:fail});return{data:()=>({count:3})}},
         getDocsFromServer:async q=>{calls.push({kind:'query',q});if(fail)throw Object.assign(new Error('Read failed'),{code:fail});if(changeSession)auth.currentUser={uid:'different'};return{docs,metadata:{fromCache}};}};
-    const context={completedTasks:[{name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'An observed schema lives here.'}}}]};
+    const context={completedTasks:[{name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'const data = collection(db, "arbitrary_records");',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['arbitrary_records'],complete:true}}}}}]};
     const args={collection:'arbitrary_records',sourceFile:'source.js',fields:['title'],pageSize:2,includeCount:true};
     return{execute,args,context,calls,dependencies:{auth,db:{},sdk}};
 }
@@ -1313,4 +1313,42 @@ test('read recovery obtains a discovered prerequisite instead of repeating disco
  if(request.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY'){recovered=true;const variants=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;assert.deepEqual(variants.map(v=>v.properties.name.enum[0]),['fixture.readSource']);assert.deepEqual(variants[0].properties.args.properties.file.enum,['observed.js']);return{text:JSON.stringify({toolCalls:[{name:'fixture.readSource',args:{file:'observed.js'}}]})};}
  return{text:JSON.stringify({explanation:'Current records require a source schema',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'current_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Read a discovered source first'}]},toolCalls:[]})};
  }}}});assert.equal(recovered,true);assert.equal(result.missionComplete,false);assert.equal(result.toolCalls[0].approved,false);assert.equal(result.toolCalls[0].name,'fixture.readSource');
+});
+
+
+test('platform collection destinations are extracted from real AST calls, never comments or filenames',async()=>{
+ const {inspectSourceDataBindings}=await import('../gestia-core/repo/repo.source.structure.js');
+ const source=`import {collection as records, doc} from 'firebase/firestore';
+ // collection(db, 'not_real');
+ const label = "collection(db, 'also_not_real')";
+ const a=records(db, 'orders'); const b=doc(db,'profiles',uid); const c=db.collection('accounts');`;
+ assert.deepEqual(inspectSourceDataBindings(source).collections,['orders','profiles','accounts']);
+ const html='<div>collection(db,"not_code")</div><script type="module">const x=doc(db,"profiles",uid);</script>';
+ assert.deepEqual(inspectSourceDataBindings(html).collections,['profiles']);
+ assert.equal(inspectSourceDataBindings('not valid JavaScript {').complete,false);
+});
+
+test('a source read cannot authorize an invented collection even when the session could read it',async()=>{
+ const f=platformQueryTestFixture();const result=await f.execute({...f.args,collection:'guessed_collection'},f.dependencies,f.context);
+ assert.equal(result.ok,false);assert.equal(result.error.code,'PLATFORM_QUERY_COLLECTION_NOT_DISCOVERED');assert.equal(f.calls.length,0);assert.equal(result.recordEvidence,undefined);
+});
+
+
+test('AST source bindings survive execution and repeated planner compaction when code is shortened',async()=>{
+ const {analyzeRepoSourceStructure}=await import('../gestia-core/repo/repo.source.structure.js');
+ const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
+ const content='// padding\n'.repeat(2000)+'\nconst source=collection(db,"actual_records");\n';
+ const mission=await runJarvisMission({instruction:'Read the source',initialToolCalls:[{name:'fixture.read',args:{}}],requiredToolNames:['fixture.read'],executionContractLocked:true,toolCatalog:[{name:'fixture.read',mutates:false}],storage:{getItem:()=>null,setItem(){}},planner:async()=>({toolCalls:[],missionComplete:true}),execute:async()=>({ok:true,status:'FILE_READ',file:'source.js',content,numberedContent:content.split('\n').map((x,i)=>(i+1)+': '+x).join('\n'),sourceStructure:analyzeRepoSourceStructure(content)})});
+ const evidence=compactMissionPlannerObservation(compactMissionPlannerObservation(mission.completedTasks[0].observation));
+ assert.deepEqual(evidence.verifiedRead.sourceStructure.dataBindings.collections,['actual_records']);
+ assert.equal(evidence.verifiedRead.contentTruncated,true);
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8'),from=source.indexOf('function bindEvidencePrerequisites('),to=source.indexOf('function completionAuditSchema(',from);
+ const bind=runInNewContext('('+source.slice(from,to).trim()+')',{structuredClone,buildNativeInputSchema:s=>s});
+ const catalog=[{name:'fixture.read',evidenceKinds:['source']},{name:'fixture.query',requiresEvidence:[{kind:'source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{collection:{type:'string'}}}}];
+ assert.deepEqual(Array.from(bind(catalog,[{name:'fixture.read',observation:evidence}])[1].inputSchema.properties.collection.enum),['actual_records']);
+});
+
+test('nested document identifiers and comments never become collection destinations',async()=>{
+ const {inspectSourceDataBindings}=await import('../gestia-core/repo/repo.source.structure.js');
+ assert.deepEqual(inspectSourceDataBindings('db.collection("records").doc("not_a_collection");').collections,['records']);
 });

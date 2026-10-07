@@ -5157,7 +5157,8 @@ if (
                                                     args:
                                                         item.args,
                                                     reason:
-                                                        item.reason
+                                                        item.reason,
+                                                    observation: compactMissionPlannerObservation(item.observation)
                                                 })),
                                             iterations:
                                                 mission.iterations,
@@ -5298,7 +5299,8 @@ if (
                                     blockedTasks: mission.blockedTasks.map(item => ({
                                         name: item.name,
                                         args: item.args,
-                                        reason: item.reason
+                                        reason: item.reason,
+                                        observation: compactMissionPlannerObservation(item.observation)
                                     })),
                                     iterations: mission.iterations,
                                     writeAllowed: false,
@@ -6462,7 +6464,7 @@ if (
                                         responseInstruction: compositionOptions?.responseInstruction,
                                         responseBriefing: compositionOptions?.responseBriefing,
                                         maxOutputTokens:
-                                            256
+                                            1200
                                     },
                                     approved:
                                         false
