@@ -317,6 +317,7 @@ export const JarvisToolRuntime = {
                 contractStages: t.contractStages || null,
                 contractKinds: t.contractKinds || null,
                 evidenceKinds: Array.isArray(t.evidenceKinds) ? [...t.evidenceKinds] : null,
+                requiresEvidence: Array.isArray(t.requiresEvidence) ? t.requiresEvidence : null,
                 mutates:
                     t.mutates === true,
                 requiresApproval:
@@ -763,7 +764,7 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
 }
 
 JarvisToolRuntime.register({
-    name: "platform.query", investigationReadOnly: true, mutates: false, requiresApproval: false, evidenceKinds: ["platform_records"],
+    name: "platform.query", requiresEvidence: [{kind:"repository_source",argument:"sourceFile",observationPath:["verifiedRead","file"]}], investigationReadOnly: true, mutates: false, requiresApproval: false, evidenceKinds: ["platform_records"],
     description: "Consulta registros OPERATIVOS actuales de la plataforma en Firestore con la sesión y permisos existentes. Sirve para cualquier colección y campos verificados, sin escribir. Antes de consultar, descubre colección, filtros y campos leyendo el código con repo.search/repo.read; no inventes el esquema. Devuelve los campos solicitados, conteo exacto opcional y cursor si hay más páginas. No es salud ni telemetría.",
     inputSchema: { type: "object", properties: {
         sourceFile: {type:"string",description:"Archivo de la aplicación ya leído con repo.read en esta misión que demuestra el esquema utilizado. Antes de la primera consulta debes localizarlo y leerlo."},

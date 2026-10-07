@@ -1240,3 +1240,18 @@ test('missing evidence continues with the same local model and actual read capab
  return{text:JSON.stringify({explanation:'Falta leer la fuente encontrada',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'tool_result',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta leer la fuente encontrada'}]},toolCalls:[]})};
  }}}});assert.equal(continuations,1);assert.equal(result.missionComplete,false);assert.equal(result.toolCalls[0].name,'fixture.read');assert.equal(result.toolCalls[0].approved,false);
 });
+
+
+test('source discovery paths survive planner compaction and evidence-bound arguments cannot invent a source file',async()=>{
+ const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
+ const observation=compactMissionPlannerObservation({ok:true,executionOk:true,repoCandidates:[{file:'actual-source.js',reasons:['Symbol and collection observed']}]});
+ assert.equal(observation.repoCandidates[0].file,'actual-source.js');
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const from=source.indexOf('function bindEvidencePrerequisites('),to=source.indexOf('function completionAuditSchema(',from);
+ const bind=runInNewContext('('+source.slice(from,to).trim()+')',{structuredClone,buildNativeInputSchema:schema=>schema});
+ const catalog=[{name:'fixture.read',evidenceKinds:['source']},{name:'fixture.query',requiresEvidence:[{kind:'source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}}}}];
+ assert.equal(bind(catalog,[]).length,1);
+ const tasks=[{name:'fixture.read',observation:{ok:true,verifiedRead:{file:'actual-source.js'}}}];
+ assert.deepEqual(Array.from(bind(catalog,tasks)[1].inputSchema.properties.sourceFile.enum),['actual-source.js']);
+ assert.equal(bind(catalog,[{...tasks[0],observation:{...tasks[0].observation,executionOk:false}}]).length,1);
+});

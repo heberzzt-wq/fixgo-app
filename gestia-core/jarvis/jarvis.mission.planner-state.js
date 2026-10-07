@@ -201,6 +201,7 @@ export function compactMissionPlannerObservation(observation = {}) {
         retryable: source.retryable === true,
         sourceCount,
         ...(verifiedRead ? { verifiedRead } : {}),
+        ...(source.ok === true && source.executionOk !== false && source.blocked !== true && Array.isArray(source.repoCandidates || evidence.candidates) ? { repoCandidates: (source.repoCandidates || evidence.candidates).slice(0, 12).map(item => ({file: text(item.file || item.path, 500), reasons: Array.isArray(item.reasons) ? item.reasons.slice(0, 4).map(reason => text(reason, 180)) : []})).filter(item => item.file) } : {}),
         ...(source.ok === true && source.executionOk !== false && source.blocked !== true && source.inventoryEvidence?.source === "LIVE_REPOSITORY_INVENTORY" ? { inventoryEvidence: source.inventoryEvidence } : {}),
         ...(source.ok === true && source.executionOk !== false && source.blocked !== true && (source.recordEvidence || evidence.recordEvidence)?.source === "FIRESTORE_SERVER_AUTHENTICATED" ? { recordEvidence: source.recordEvidence || evidence.recordEvidence } : {}),
         ...(interfaceEvidence ? { interfaceEvidence, url: interfaceEvidence.url } : {}),

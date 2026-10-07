@@ -34,6 +34,7 @@ function normalizeCatalog(catalog = []) {
         .map(item => ({
             name: String(item.name),
             investigationReadOnly: item.investigationReadOnly === true,
+            requiresEvidence: Array.isArray(item.requiresEvidence) ? item.requiresEvidence : null,
             description: String(item.description || "").slice(0, 500),
             contractStages: Array.isArray(item.contractStages) ? item.contractStages.map(String) : null,
             contractKinds: Array.isArray(item.contractKinds) ? item.contractKinds.map(String) : null,
@@ -911,6 +912,23 @@ function responsiveAuditSummary(page) {
         screenshotInspected: false, interactionVerified: false, physicalDeviceTested: false };
 }
 
+function bindEvidencePrerequisites(catalog, tasks = []) {
+    return catalog.flatMap(tool => {
+        if (!tool.requiresEvidence?.length) return [tool];
+        const schema = structuredClone(buildNativeInputSchema(tool.inputSchema));
+        for (const requirement of tool.requiresEvidence) {
+            if (!requirement || typeof requirement.argument !== "string" || !Array.isArray(requirement.observationPath)) return [];
+            const values = tasks.filter(task => task.observation?.ok === true && task.observation.executionOk !== false && task.observation.blocked !== true &&
+                task.observation.requiresInput !== true && catalog.find(definition => definition.name === task.name)?.evidenceKinds?.includes(requirement.kind))
+                .map(task => requirement.observationPath.reduce((value, key) => typeof key === "string" && !["__proto__", "prototype", "constructor"].includes(key) && value && Object.prototype.hasOwnProperty.call(value, key) ? value[key] : undefined, task.observation))
+                .filter(value => typeof value === "string" && value.trim());
+            if (!values.length || !schema.properties?.[requirement.argument]) return [];
+            schema.properties[requirement.argument] = {...schema.properties[requirement.argument], enum:[...new Set(values)]};
+        }
+        return [{...tool,inputSchema:schema}];
+    });
+}
+
 function completionAuditSchema(catalog, tasks, selectableCatalog = catalog) {
     const kinds = [...new Set(["tool_result", "visual_inspection", ...catalog.flatMap(tool => tool.evidenceKinds || [])])];
     const indices = tasks.map((_, index) => index);
@@ -1498,7 +1516,7 @@ async function runModelSemanticPlanner({
             task.args?.followUp === "prepare_repair" && task.observation?.ok === true);
         const hasReadSource = (missionState.completedTasks || []).some(task => task.name === "repo.read" &&
             task.observation?.ok === true && task.observation?.verifiedRead);
-        const selectableCatalog = safeCatalog.filter(tool => !measuredRepair ||
+        const selectableCatalog = bindEvidencePrerequisites(safeCatalog, missionState.completedTasks || []).filter(tool => !measuredRepair ||
             (tool.name !== "browser.inspect" && tool.name !== "tests.run" && (tool.name !== "repo.prepareWrite" || hasReadSource)));
         // A similarity shortlist is not a capability boundary. Closure needs
         // both executed tool contracts and every available evidence source.
