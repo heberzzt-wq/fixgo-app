@@ -1370,6 +1370,9 @@ export async function composeEvidenceGroundedConversation({
     try {
         const result = await executeConversation(prompt, {
             responseMode: "grounded_conversation",
+            maxOutputTokens: platformRecordEvidence.length
+                ? Math.min(1200, Math.max(256, 128 + Math.ceil(JSON.stringify(platformRecordEvidence).length / 3)))
+                : 256,
             responseInstruction: String(instruction || "").slice(0, 12000),
             responseBriefing: serializeConversationBriefing({
                 missionStatus: missionOutcomeObservation?.status || "UNKNOWN",

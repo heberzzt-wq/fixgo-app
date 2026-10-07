@@ -6464,7 +6464,7 @@ if (
                                         responseInstruction: compositionOptions?.responseInstruction,
                                         responseBriefing: compositionOptions?.responseBriefing,
                                         maxOutputTokens:
-                                            1200
+                                            Math.min(1200, compositionOptions?.maxOutputTokens || 256)
                                     },
                                     approved:
                                         false

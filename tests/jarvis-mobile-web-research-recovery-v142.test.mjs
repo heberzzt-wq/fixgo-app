@@ -253,7 +253,7 @@ test("v142 terminal voice speaks the same final response shown on screen", () =>
     );
 });
 
-test("v142 final conversational composition stays within the local CPU response budget", () => {
+test("v142 final conversational composition uses a bounded evidence-sized response budget", () => {
     const core = fs.readFileSync(
         new URL("../gestia-core/gestia-core.js", import.meta.url),
         "utf8"
@@ -266,7 +266,7 @@ test("v142 final conversational composition stays within the local CPU response 
     assert.ok(start >= 0);
     assert.ok(end > start);
     const block = core.slice(start, end);
-    assert.match(block, /name:\s*"conversation\.respond"[\s\S]*?maxOutputTokens:\s*256/);
+    assert.match(block, /name:\s*"conversation\.respond"[\s\S]*?maxOutputTokens:\s*Math\.min\(1200, compositionOptions\?\.maxOutputTokens \|\| 256\)/);
     assert.doesNotMatch(block, /maxOutputTokens:\s*3500/);
 });
 

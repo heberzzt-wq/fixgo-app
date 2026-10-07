@@ -1364,3 +1364,11 @@ test('complete investigation arguments are not rewritten merely because source e
  assert.equal(needs(call,{...tool,mutates:true},tasks),true);
  assert.equal(needs(call,{...tool,userArtifact:true},tasks),true);
 });
+
+
+test('verified record answers have enough bounded output space while ordinary replies retain a small budget',async()=>{
+ for(const withRecords of [false,true]){
+ const operations=withRecords?[{name:'platform.query',observation:{ok:true,executionOk:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',scope:{collection:'fixture_accounts',fields:['title']},rows:Array.from({length:30},(_,i)=>({id:String(i),values:{title:'A verified record label '+i}})),returnedCount:30,hasMore:false,completeForQuery:true}}}]:[];
+ await composeEvidenceGroundedConversation({instruction:'Enumera los registros observados.',evidenceItems:[...operations,{name:'mission.outcome',observation:{ok:true,status:'COMPLETED'}}],executeConversation:async(_input,options)=>{assert.ok(options.maxOutputTokens<=1200);assert.ok(options.maxOutputTokens>=256);if(withRecords)assert.ok(options.maxOutputTokens>256);else assert.equal(options.maxOutputTokens,256);return{ok:true,message:'Respuesta de prueba.'};}});
+ }
+});
