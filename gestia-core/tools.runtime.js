@@ -705,6 +705,31 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
         const validField = value => typeof value === "string" && value.length <= 500 && value.split(".").every(part => segment(part) && !["__proto__", "constructor", "prototype"].includes(part));
         if (!Array.isArray(fields) || fields.length > 20 || (mode === "query" && !fields.length) || !fields.every(validField)) throw new Error("PLATFORM_QUERY_FIELDS_REQUIRED");
         if (!Array.isArray(filters) || filters.length > 10 || filters.some(filter => !filter || !validField(filter.field) || !["==", "!=", "<", "<=", ">", ">=", "in", "not-in", "array-contains", "array-contains-any"].includes(filter.op) || !Object.prototype.hasOwnProperty.call(filter, "value"))) throw new Error("PLATFORM_QUERY_FILTER_INVALID");
+        const read = sourceRead.observation.verifiedRead;
+        const sourceCorpus = [
+            read.content,
+            read.numberedContent,
+            ...(read.sourceStructure?.dataBindings?.references || []).flatMap(reference => [
+                reference?.content,
+                ...(reference?.declarations || []).map(item => item?.content)
+            ])
+        ].filter(value => typeof value === "string").join("\n");
+        const requestCorpus = String(context.rootInstruction || context.rawInput || "");
+        const normalizeGroundingText = value => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const normalizedSource = normalizeGroundingText(sourceCorpus);
+        const normalizedRequest = normalizeGroundingText(requestCorpus);
+        const sourceHasField = field => field === "__name__" || String(field).split(".").some(part =>
+            part.length > 1 && normalizedSource.includes(normalizeGroundingText(part)));
+        const literalGrounded = value => {
+            if (typeof value !== "string") return true;
+            const normalized = normalizeGroundingText(value).trim();
+            return normalized.length > 0 && (normalizedSource.includes(normalized) || normalizedRequest.includes(normalized));
+        };
+        if (fields.some(field => !sourceHasField(field))) throw new Error("PLATFORM_QUERY_FIELD_NOT_DISCOVERED");
+        if (filters.some(filter => !sourceHasField(filter.field))) throw new Error("PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED");
+        if (filters.some(filter => Array.isArray(filter.value)
+            ? filter.value.some(value => !literalGrounded(value))
+            : !literalGrounded(filter.value))) throw new Error("PLATFORM_QUERY_FILTER_VALUE_NOT_DISCOVERED");
         const scalar = value => value === null || typeof value === "string" || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value));
         if (filters.some(filter => !(scalar(filter.value) || (Array.isArray(filter.value) && filter.value.length > 0 && filter.value.length <= 30 && filter.value.every(scalar))))) throw new Error("PLATFORM_QUERY_VALUE_INVALID");
         const pageSize = args.pageSize === undefined ? 50 : args.pageSize;
