@@ -1200,6 +1200,7 @@ function safeObservation(result = {}) {
         ) || null,
         preparedArtifact,
         verifiedRead,
+        ...(executionOk && payload?.source === "live_repo_ast_graph" && payload?.summary && typeof payload.summary === "object" ? { inventoryEvidence: { source: "LIVE_REPOSITORY_INVENTORY", counts: payload.summary, repositoryTarget: payload.repositoryTarget || null, scope: "Structural inventory, not executed tests or a full source review." } } : {}),
         ...(executionOk && payload?.recordEvidence?.source === "FIRESTORE_SERVER_AUTHENTICATED" ? { recordEvidence: payload.recordEvidence } : {}),
         ...(interfaceEvidence ? { interfaceEvidence, url: interfaceEvidence.url } : {}),
         repoCandidates:

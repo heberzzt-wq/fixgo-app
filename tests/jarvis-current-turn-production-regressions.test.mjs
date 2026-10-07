@@ -1219,3 +1219,15 @@ test('a failed read remains visible to the investigation planner and a missing f
  execute:async()=>({ok:false,executionOk:false,status:'FILE_NOT_FOUND',error:'FILE_NOT_FOUND',retryable:false})});
  assert.equal(audits,1);assert.notEqual(result.status,'COMPLETED');assert.equal(result.completedTasks.length,0);assert.equal(result.blockedTasks.length,1);
 });
+
+
+test('structural inventory counts survive the executed mission and final response without becoming test execution',async()=>{
+ const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
+ const mission=await runJarvisMission({instruction:'Describe el inventario',initialToolCalls:[{name:'fixture.inventory',args:{}}],requiredToolNames:['fixture.inventory'],executionContractLocked:true,toolCatalog:[{name:'fixture.inventory',mutates:false}],storage:{getItem:()=>null,setItem(){}},planner:async()=>({toolCalls:[],missionComplete:true}),execute:async()=>({ok:true,source:'live_repo_ast_graph',status:'REPO_AUDIT_READY',summary:{filesScanned:17,tests:4,dependencyEdges:9}})});
+ const observation=mission.completedTasks[0].observation;
+ assert.equal(observation.inventoryEvidence.counts.tests,4);
+ assert.equal(compactMissionPlannerObservation(observation).inventoryEvidence.counts.filesScanned,17);
+ await composeEvidenceGroundedConversation({instruction:'Describe el inventario',evidenceItems:[...mission.completedTasks,{name:'mission.outcome',observation:mission}],executeConversation:async(_input,options)=>{const inventory=JSON.parse(options.responseBriefing).repositoryInventories[0];assert.equal(inventory.counts.tests,4);assert.match(inventory.scope,/not executed tests/);return{ok:true,message:'El inventario incluye 17 archivos y 4 marcados como pruebas; las pruebas no se ejecutaron.'};}});
+ assert.equal(compactMissionPlannerObservation({...observation,executionOk:false}).executionOk,false);
+ assert.equal(compactMissionPlannerObservation({...observation,executionOk:false}).inventoryEvidence,undefined);
+});

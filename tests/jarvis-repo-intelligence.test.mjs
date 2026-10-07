@@ -142,3 +142,22 @@ test("bridge exposes structural repo evidence while the semantic brain owns file
     assert.match(intelligence, /structural_evidence_for_semantic_selection/);
     assert.match(intelligence, /local_embedding_and_structural_evidence/);
 });
+
+
+test('repository discovery honors Git ignore rules without indexing generated release copies', async () => {
+ const {execFileSync}=await import('node:child_process');
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-git-source-scope-'));
+ try {
+  const git=process.platform==='win32'&&fs.existsSync('C:/Program Files/Git/cmd/git.exe')?'C:/Program Files/Git/cmd/git.exe':'git';
+  execFileSync(git,['init',root],{stdio:'ignore',windowsHide:true});
+  fs.writeFileSync(path.join(root,'.gitignore'),'release-copies/\nignored.js\n');
+  fs.writeFileSync(path.join(root,'source.js'),'export function realSource() { return true; }');
+  fs.writeFileSync(path.join(root,'untracked-source.js'),'export function newSource() { return true; }');
+  fs.writeFileSync(path.join(root,'ignored.js'),'export function ignoredSource() { return true; }');
+  fs.mkdirSync(path.join(root,'release-copies'));fs.writeFileSync(path.join(root,'release-copies','source.js'),'export function staleSource() { return false; }');
+  execFileSync(git,['-C',root,'add','source.js'],{stdio:'ignore',windowsHide:true});
+  const graph=buildRepoIntelligence({root});
+  assert.ok(graph.nodes['source.js']);assert.ok(graph.nodes['untracked-source.js']);
+  assert.equal(graph.nodes['ignored.js'],undefined);assert.equal(graph.nodes['release-copies/source.js'],undefined);
+ } finally {fs.rmSync(root,{recursive:true,force:true});}
+});

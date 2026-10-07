@@ -1259,6 +1259,7 @@ export async function composeEvidenceGroundedConversation({
         const observation = item?.observation || item?.response || item?.data || {};
         return observation.ok === true && observation.executionOk !== false && observation.blocked !== true && observation.recordEvidence?.source === "FIRESTORE_SERVER_AUTHENTICATED" ? [observation.recordEvidence] : [];
     });
+    const repositoryInventories = (Array.isArray(evidenceItems) ? evidenceItems : []).flatMap(item => { const observation = item?.observation || item?.response || item?.data || {}; return observation.ok === true && observation.executionOk !== false && observation.blocked !== true && observation.inventoryEvidence?.source === "LIVE_REPOSITORY_INVENTORY" ? [observation.inventoryEvidence] : []; });
     const hasMeasuredInterfaceEvidence = measuredInterfaceEvidence.length > 0;
     const requiresRepairGrounding = measuredInterfaceEvidence.some(page => page.source === "RENDERED_DOM_LAYOUT_REPLAY") &&
         authoritativeOutcomes.some(item => RESPONSIVE_REPAIR_TOOLS.has(item.tool));
@@ -1376,6 +1377,7 @@ export async function composeEvidenceGroundedConversation({
                 executedTools: authoritativeOutcomes.filter(item => item.tool !== "mission.outcome"),
                 ...(hasMeasuredInterfaceEvidence ? { measuredInterfaceEvidence } : {}),
                 ...(platformRecordEvidence.length ? { platformRecordEvidence } : {}),
+                ...(repositoryInventories.length ? { repositoryInventories } : {}),
                 ...(groundedVerifiedRead
                     ? { groundedVerifiedRead }
                     : {}),

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { parse } from "./gestia-core/vendor/acorn.mjs";
 
 const SOURCE_EXTENSIONS = new Set([
@@ -19,6 +20,22 @@ function safeRelative(root, absolutePath) {
 }
 
 function listSourceFiles(root, maxFiles = 2500) {
+    if (fs.existsSync(path.join(root, ".git"))) {
+        const git = process.platform === "win32" && fs.existsSync("C:/Program Files/Git/cmd/git.exe")
+            ? "C:/Program Files/Git/cmd/git.exe" : "git";
+        let indexed;
+        try {
+            indexed = execFileSync(git, ["-C", path.resolve(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+                { encoding: "utf8", windowsHide: true, timeout: 15000, maxBuffer: 32 * 1024 * 1024 });
+        } catch { throw new Error("REPO_GIT_FILE_INDEX_UNAVAILABLE"); }
+        // Git's active source inventory, including non-ignored new files. Release
+        // staging and caches must not displace real source or tests in the budget.
+        return [...new Set(indexed.split("\0").filter(Boolean))].sort().filter(file =>
+            SOURCE_EXTENSIONS.has(path.extname(file).toLowerCase()) && !file.split("/").some(part => IGNORED_DIRECTORIES.has(part)))
+            .map(file => ({ file, absolutePath: path.resolve(root, file) }))
+            .filter(item => item.absolutePath.startsWith(path.resolve(root) + path.sep) && fs.existsSync(item.absolutePath) && fs.lstatSync(item.absolutePath).isFile())
+            .slice(0, maxFiles);
+    }
     const files = [];
     const queue = [path.resolve(root)];
 
