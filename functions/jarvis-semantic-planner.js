@@ -1782,7 +1782,9 @@ async function runModelSemanticPlanner({
                 if (evaluatedAudit.missionComplete !== true && validatedAudit.toolCalls.length === 0 && nextReaders.length) {
                     const sources = [...new Set((missionState.completedTasks || []).filter(task => task.observation?.ok === true &&
                         task.observation.executionOk !== false && task.observation.blocked !== true).flatMap(task => [
-                            ...(task.observation.repoCandidates || []).map(item => item.file), task.observation.verifiedRead?.file
+                            ...(task.observation.repoCandidates || []).map(item => item.file),
+                            ...(task.observation.repositoryMatches || []).map(item => item.file),
+                            task.observation.verifiedRead?.file
                         ]).filter(value => typeof value === "string" && value.trim()))];
                     // Resolve data dependencies from evidence metadata, not user words.
                     // When paths are already discovered, let Qwen choose which source

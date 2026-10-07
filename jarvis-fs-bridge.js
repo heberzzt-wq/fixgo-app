@@ -4157,6 +4157,9 @@ const GREP_IGNORED_DIRS =
         "build",
         "coverage",
         ".firebase",
+        ".firebase-release",
+        ".jarvis-artifacts",
+        ".sia7",
         ".next",
         ".cache"
     ]);

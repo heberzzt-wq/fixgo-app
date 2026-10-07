@@ -1480,3 +1480,12 @@ test('repository discovery contract requires inspecting candidates before anothe
  assert.match(match[1],/no encadenes otra búsqueda semántica/i);
  assert.match(match[1],/repo\.read|repo\.grep/);
 });
+
+
+test('repo grep matches survive mission compaction as grounded source locations', async () => {
+ const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
+ const result=compactMissionPlannerObservation({ok:true,executionOk:true,status:'COMPLETED',matches:[
+  {file:'app-registro.js',line:318,snippet:'const rolFinal = esAdminB2B ? "admin_b2b" : "cliente";'}
+ ]});
+ assert.deepEqual(result.repositoryMatches,[{file:'app-registro.js',line:318,snippet:'const rolFinal = esAdminB2B ? "admin_b2b" : "cliente";'}]);
+});
