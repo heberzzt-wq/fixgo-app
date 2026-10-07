@@ -535,3 +535,10 @@ test('private relay rejects another session unsupported operations and an offlin
     await assert.rejects(client.requestJson('/semantic/plan', {}, { contract: { releaseId: 'relay-test' } }), /WORKSTATION_UNAVAILABLE/);
     assert.equal(fake.writes.length, 0);
 });
+
+
+test('private relay cannot inherit the historical master wildcard bypass', () => {
+    const rules = fs.readFileSync(new URL('../security/firestore-console-snapshot-2026-07-30.rules.txt', import.meta.url), 'utf8');
+    const master = rules.slice(rules.indexOf('match /{collectionName}/{document=**}'), rules.indexOf('match /b2b_keys/'));
+    assert.ok(master.includes("collectionName != 'jarvis_private_relay'"));
+});
