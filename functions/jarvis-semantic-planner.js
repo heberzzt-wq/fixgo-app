@@ -1861,10 +1861,12 @@ async function runModelSemanticPlanner({
                         const already=(missionState.completedTasks||[]).some(task=>task.name==="repo.grep"&&String(task.args?.term||"").toLowerCase()===String(selected||"").toLowerCase());
                         if(termResponse?.providerResponse?.finishReason!=="length"&&literalTerms.includes(selected)&&!already){
                             return {
-                                toolCalls:[{name:"repo.grep",args:{term:selected},reason:"MODEL_LITERAL_SOURCE_RECOVERY",mutates:false,approved:false}],
-                                explanation:"",
-                                missionComplete:false,
-                                completionAssessment:null,
+                                ...validatePlan({
+                                    toolCalls:[{name:"repo.grep",args:{term:selected},reason:"MODEL_LITERAL_SOURCE_RECOVERY"}],
+                                    explanation:"",
+                                    missionComplete:false,
+                                    completionAssessment:null
+                                },selectableCatalog,instruction),
                                 provider:String(ai.lastProvider||"jarvis-local"),
                                 model,
                                 catalogSize:selectableCatalog.length,
