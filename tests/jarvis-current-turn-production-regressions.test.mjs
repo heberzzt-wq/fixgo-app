@@ -1452,3 +1452,31 @@ test('a generic objective evidence label still permits reading a discovered sour
  return{text:JSON.stringify({explanation:'Current records require a source schema',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'tool_result',satisfied:false,evidenceTaskIndexes:[],limitation:'Read a discovered source first'}]},toolCalls:[]})};
  }}}});assert.equal(recovered,true);assert.equal(result.missionComplete,false);assert.equal(result.toolCalls[0].approved,false);assert.equal(result.toolCalls[0].name,'fixture.readSource');
 });
+
+
+test('schema validation accepts optional empty arrays and still enforces explicit minimums', () => {
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const from=source.indexOf('function schemaValueIsExecutable('),to=source.indexOf('// Native function parsers',from);
+ assert.ok(from>0&&to>from);
+ const executable=runInNewContext('('+source.slice(from,to).trim()+')');
+ assert.equal(executable([],{type:'array'}),true);
+ assert.equal(executable([],{type:'array',minItems:0}),true);
+ assert.equal(executable([],{type:'array',minItems:1}),false);
+ assert.equal(executable(['observed'],{type:'array',minItems:1,items:{type:'string'}}),true);
+});
+
+test('repo reads ignore an isolated line hint instead of collapsing source evidence to one line', () => {
+ const source=readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
+ const from=source.indexOf('const hasRequestedLineRange ='),to=source.indexOf('const requestedLineRange =',from);
+ const block=source.slice(from,to);
+ assert.match(block,/requestedStartLine\s*&&\s*requestedEndLine/);
+ assert.doesNotMatch(block,/requestedStartLine\s*\|\|\s*requestedEndLine/);
+});
+
+test('repository discovery contract requires inspecting candidates before another semantic search', () => {
+ const source=readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
+ const match=source.match(/name: "repo\.search"[\s\S]{0,1400}?description: "([^"]+)"/);
+ assert.ok(match);
+ assert.match(match[1],/no encadenes otra búsqueda semántica/i);
+ assert.match(match[1],/repo\.read|repo\.grep/);
+});

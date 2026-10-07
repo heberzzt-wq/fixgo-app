@@ -957,9 +957,13 @@ JarvisToolRuntime.register({
                 args.lineEnd
             );
 
+        // A single model-generated line hint is not a trustworthy range. It
+        // previously collapsed a source inspection to one line and hid the
+        // surrounding schema. Only an explicit pair becomes a partial read;
+        // otherwise inspect the complete file and let evidence drive follow-up.
         const hasRequestedLineRange =
             Boolean(
-                requestedStartLine ||
+                requestedStartLine &&
                 requestedEndLine
             );
 
@@ -6302,7 +6306,7 @@ if (false) JarvisToolRuntime.register({
 JarvisToolRuntime.register({
     name: "repo.search", evidenceKinds: ["repository_search"],
     investigationReadOnly: true,
-    description: "LOCALIZA rutas existentes y fragmentos de código por símbolo, texto o descripción. Úsala para encontrar dónde se define una función cuando aún no conoces el archivo. Devuelve candidatos reales; después repo.read puede leer una ruta encontrada. No adivines rutas a partir del símbolo.",
+    description: "LOCALIZA rutas existentes y fragmentos de código por símbolo, texto o descripción. Úsala cuando todavía no conoces la fuente. Conserva el vocabulario del pedido original. Si ya devolvió candidatos para el mismo objetivo, no encadenes otra búsqueda semántica antes de inspeccionar una fuente: usa repo.read sobre un candidato o repo.grep para localizar un término literal. Sólo vuelve a buscar después de comprobar una fuente y necesitar evidencia distinta. No adivines rutas.",
     mutates: false,
     requiresApproval: false,
     output: "REPO_SEARCH_RESULT",
