@@ -1440,3 +1440,15 @@ test('a population mismatch obtains source evidence instead of executing a broad
  return{text:JSON.stringify({explanation:'Still need data',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Required population not yet observed'}]},toolCalls:[audits===1?{name:query.name,args:{collection:'accounts',sourceFile:'source.js',filters:[]}}:{name:search.name,args:{query:'member classification field'}}]})};
  }}}});assert.equal(checks,1);assert.equal(plan.missionComplete,false);assert.equal(plan.toolCalls[0].name,search.name);assert.equal(plan.toolCalls[0].approved,false);
 });
+
+
+test('a generic objective evidence label still permits reading a discovered source prerequisite',async()=>{
+ const input='Find the current records using the application source';
+ const catalog=[{name:'fixture.search',investigationReadOnly:true,mutates:false,inputSchema:{query:'string'}},{name:'fixture.readSource',investigationReadOnly:true,mutates:false,evidenceKinds:['source_schema'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}},{name:'fixture.liveQuery',investigationReadOnly:true,mutates:false,evidenceKinds:['current_records'],requiresEvidence:[{kind:'source_schema',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}},required:['sourceFile']}}];
+ let recovered=false;
+ const result=await runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'fixture.search',args:{query:'records'},observation:{ok:true,repoCandidates:[{file:'observed.js'}]}}]},ai:{models:{generateContent:async request=>{
+ if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION')return{text:'No new operation selected.'};
+ if(request.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY'){recovered=true;const variants=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;assert.deepEqual(variants.map(v=>v.properties.name.enum[0]),['fixture.readSource']);assert.deepEqual(variants[0].properties.args.properties.file.enum,['observed.js']);return{text:JSON.stringify({toolCalls:[{name:'fixture.readSource',args:{file:'observed.js'}}]})};}
+ return{text:JSON.stringify({explanation:'Current records require a source schema',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'tool_result',satisfied:false,evidenceTaskIndexes:[],limitation:'Read a discovered source first'}]},toolCalls:[]})};
+ }}}});assert.equal(recovered,true);assert.equal(result.missionComplete,false);assert.equal(result.toolCalls[0].approved,false);assert.equal(result.toolCalls[0].name,'fixture.readSource');
+});

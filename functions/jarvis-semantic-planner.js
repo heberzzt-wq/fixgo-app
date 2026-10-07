@@ -1789,8 +1789,9 @@ async function runModelSemanticPlanner({
                     // to read rather than spending the recovery on another search.
                     const neededKinds = new Set((evaluatedAudit.completionAssessment?.objectives || [])
                         .filter(objective => objective.satisfied !== true).map(objective => objective.requiredEvidenceKind));
-                    const prerequisiteKinds = new Set(pendingCapabilities.filter(tool =>
-                        safeCatalog.find(candidate => candidate.name === tool.name)?.evidenceKinds?.some(kind => neededKinds.has(kind)))
+                    // A generic evidence label is not a reason to hide available source reads.
+                    const relevantPending = pendingCapabilities.filter(tool => safeCatalog.find(candidate => candidate.name === tool.name)?.evidenceKinds?.some(kind => neededKinds.has(kind)));
+                    const prerequisiteKinds = new Set((relevantPending.length ? relevantPending : pendingCapabilities)
                         .flatMap(tool => (tool.requiresEvidence || []).map(requirement => requirement.kind)));
                     const prerequisiteReaders = sources.length ? nextReaders.filter(tool =>
                         tool.evidenceKinds?.some(kind => prerequisiteKinds.has(kind)) &&
