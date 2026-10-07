@@ -1130,6 +1130,56 @@ function serializeConversationBriefing(briefing) {
     return serialized;
 }
 
+// Preserve a complete JSON property index before the generic evidence preview
+// is shortened. Values may be abbreviated, never keys silently lost or invented.
+// This is a projection of a successful read, not a catalogue of canned answers.
+function projectCompleteJsonRead(read) {
+    const numbered = String(read?.numberedContent || "");
+    if (read?.partial !== false || read?.evidenceTextTruncated === true || read?.startLine !== 1 ||
+        !Number.isInteger(read?.totalLines) || read.totalLines < 1 || read.endLine !== read.totalLines ||
+        numbered.length <= 8000 || numbered.length > 240000) return null;
+    const lines = numbered.split(/\r?\n/);
+    if (lines.length !== read.totalLines) return null;
+    const source = [];
+    for (const [index, line] of lines.entries()) {
+        const prefix = String(index + 1) + ": ";
+        if (!line.startsWith(prefix)) return null;
+        source.push(line.slice(prefix.length));
+    }
+    let data;
+    try { data = JSON.parse(source.join("\n")); } catch { return null; }
+    if (!data || typeof data !== "object") return null;
+    const leaves = [];
+    let totalProperties = 0, depthLimited = false;
+    function visit(value, segments, depth) {
+        if (depth > 20) { depthLimited = true; return; }
+        if (value !== null && typeof value === "object" && Object.keys(value).length) {
+            for (const [key, item] of Object.entries(value)) visit(item, [...segments, key], depth + 1);
+            return;
+        }
+        totalProperties++;
+        if (leaves.length < 256) leaves.push({ path: segments, value });
+    }
+    visit(data, [], 0);
+    if (!leaves.length) return null;
+    let projection;
+    for (const valueLimit of [160, 96, 48, 0]) {
+        const entries = leaves.map(item => {
+            const isText = typeof item.value === "string", size = isText ? item.value.length : 0;
+            return { path: item.path, value: isText ? item.value.slice(0, valueLimit) : item.value,
+                ...(size > valueLimit ? { valueTruncated: true, valueCharacters: size } : {}) };
+        });
+        projection = { file: String(read.file || read.path || "").slice(0, 500), readCoverage: "COMPLETE",
+            totalProperties, propertiesComplete: !depthLimited && totalProperties === entries.length,
+            omittedProperties: totalProperties - entries.length, depthLimited, entries };
+        if (JSON.stringify(projection).length <= 9000) return projection;
+    }
+    while (projection.entries.length && JSON.stringify(projection).length > 9000) {
+        projection.entries.pop(); projection.omittedProperties++; projection.propertiesComplete = false;
+    }
+    return projection.entries.length ? projection : null;
+}
+
 export async function composeEvidenceGroundedConversation({
     instruction = "",
     evidenceItems = [],
@@ -1240,6 +1290,7 @@ export async function composeEvidenceGroundedConversation({
     ].filter(Boolean).join("\n\n");
 
     let groundedVerifiedRead = null;
+    let groundedJsonRead = null;
     if (missionOutcomeObservation?.status === "COMPLETED") {
         let parsedEvidence = [];
         try {
@@ -1273,6 +1324,15 @@ export async function composeEvidenceGroundedConversation({
             ) &&
             completeReadEvidence.length === 1
         ) {
+            const rawReads = new Map();
+            for (const item of evidenceItems) {
+                if (String(item?.name || item?.tool || "") !== "repo.read") continue;
+                const observation = item?.observation ?? item?.response ?? item?.data ?? item;
+                const read = observation?.verifiedRead;
+                if (observation?.ok !== true || observation?.executionOk === false || observation?.blocked === true || observation?.requiresInput === true || !read) continue;
+                rawReads.set(String(read.file || read.path || "") + "\u0000" + String(read.numberedContent || ""), read);
+            }
+            if (rawReads.size === 1) groundedJsonRead = projectCompleteJsonRead([...rawReads.values()][0]);
             const verifiedRead = completeReadEvidence[0];
             if (
                 verifiedRead?.readCoverage === "COMPLETE" &&
@@ -1299,7 +1359,8 @@ export async function composeEvidenceGroundedConversation({
                 ...(hasMeasuredInterfaceEvidence ? { measuredInterfaceEvidence } : {}),
                 ...(groundedVerifiedRead
                     ? { groundedVerifiedRead }
-                    : {})
+                    : {}),
+                ...(groundedJsonRead ? { groundedJsonRead } : {})
             })
         });
         const payload =

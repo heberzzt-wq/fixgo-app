@@ -992,3 +992,62 @@ test("long terminal diagnostics inherit wrapping without changing preformatted c
     assert.match(source,/#gestia-output \{ overflow-wrap: anywhere; \}/);
     assert.match(source,/#gestia-output pre \{ overflow-x: auto; \}/);
 });
+
+function longJsonReadFixture(overrides = {}) {
+    const content = JSON.stringify({ metadata: { note: 'x'.repeat(18000) }, operations: Object.fromEntries(Array.from({length: 55}, (_, i) => ['operation.' + i, 'observed command ' + i])) }, null, 2);
+    const lines = content.split('\n');
+    return { name: 'repo.read', observation: { ok: true, executionOk: true, verifiedRead: { file: 'fixture.json', partial: false, startLine: 1, endLine: lines.length, totalLines: lines.length,
+        numberedContent: lines.map((line, i) => `${i + 1}: ${line}`).join('\n'), ...overrides } } };
+}
+
+test('large verified JSON preserves every property after an oversized first value', async () => {
+    const fixture = longJsonReadFixture();
+    const original = JSON.stringify(fixture);
+    const { runJarvisSemanticResponse } = createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+    const result = await composeEvidenceGroundedConversation({ instruction: 'Enumera las operaciones del archivo leído.',
+        evidenceItems: [fixture, { name: 'mission.outcome', observation: { status: 'COMPLETED' } }],
+        executeConversation: async (input, options) => {
+            const projection = JSON.parse(options.responseBriefing).groundedJsonRead;
+            assert.ok(projection, 'derive the projection from original read bytes, not the truncated preview');
+            assert.equal(projection.propertiesComplete, true);
+            assert.equal(projection.totalProperties, 56);
+            assert.equal(projection.entries.length, 56);
+            assert.deepEqual(projection.entries.at(-1).path, ['operations', 'operation.54']);
+            assert.equal(projection.entries.at(-1).value, 'observed command 54');
+            assert.equal(projection.entries[0].valueTruncated, true);
+            assert.ok(options.responseBriefing.length <= 16000);
+            return runJarvisSemanticResponse({ input, ...options, ai: { models: { generateContent: async request => {
+                const facts = JSON.parse(request.config.chatMessages.find(m => m.content.startsWith('FACTS=')).content.split('\nREQUEST=')[0].slice(6));
+                const id = Object.keys(facts).find(key => facts[key].includes('operation.54'));
+                assert.ok(id, 'the last property must reach the same model');
+                assert.match(request.config.chatMessages[0].content, /Every relevant/);
+                return { text: JSON.stringify({requestedLineCount: 0, factIds: [id]}) };
+            } } } });
+        } });
+    assert.equal(result.ok, true, result.status);
+    assert.match(result.text, /operation.54/);
+    assert.equal(JSON.stringify(fixture), original, 'evidence and original bytes must not be rewritten');
+});
+
+test('partial truncated corrupt or failed JSON cannot claim complete property coverage', async () => {
+    for (const patch of [{partial:true}, {evidenceTextTruncated:true}, {startLine:2}, {endLine:2}, {numberedContent:'1: {"missing":'}, {numberedContent:'2: {}'}]) {
+        await composeEvidenceGroundedConversation({instruction:'Enumera las operaciones.', evidenceItems:[longJsonReadFixture(patch), {name:'mission.outcome',observation:{status:'COMPLETED'}}],
+            executeConversation: async (_input, options) => {assert.equal(JSON.parse(options.responseBriefing).groundedJsonRead, undefined); return {ok:true,message:'La evidencia disponible no permite enumerarlas todas.'};} });
+    }
+    const failed = longJsonReadFixture(); failed.observation.executionOk=false;
+    await composeEvidenceGroundedConversation({instruction:'Enumera las operaciones.', evidenceItems:[failed,{name:'mission.outcome',observation:{status:'COMPLETED'}}],
+        executeConversation:async(_input,options)=>{assert.equal(JSON.parse(options.responseBriefing).groundedJsonRead,undefined);return{ok:true,message:'Lectura no acreditada.'};}});
+});
+
+test('JSON projection output rejects unknown facts and preserves abbreviation limits', async () => {
+    const { runJarvisSemanticResponse } = createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+    const fixture=longJsonReadFixture();let options;
+    await composeEvidenceGroundedConversation({instruction:'Muestra el primer valor.', evidenceItems:[fixture,{name:'mission.outcome',observation:{status:'COMPLETED'}}],executeConversation:async(_input,o)=>{options=o;return{ok:true,message:'fixture'};}});
+    assert.ok(JSON.parse(options.responseBriefing).groundedJsonRead);
+    const result=await runJarvisSemanticResponse({input:'Muestra el primer valor.',...options,ai:{models:{generateContent:async request=>{
+        const ids=request.config.responseJsonSchema.properties.factIds.items.enum;
+        return{text:JSON.stringify({requestedLineCount:0,factIds:[ids[0]]})};
+    }}}});
+    assert.match(result.message,/abreviado/);
+    await assert.rejects(runJarvisSemanticResponse({input:'Muestra el primer valor.',...options,ai:{models:{generateContent:async()=>({text:JSON.stringify({requestedLineCount:0,factIds:['invented.success']})})}}}),/SEMANTIC_RESPONSE_FORMAT_INVALID/);
+});
