@@ -1885,11 +1885,17 @@ async function runModelSemanticPlanner({
                             ]
                         }});
                         const selected=extractJsonObject(String(termResponse?.text||""))?.term;
-                        const already=(missionState.completedTasks||[]).some(task=>task.name==="repo.grep"&&String(task.args?.term||"").toLowerCase()===String(selected||"").toLowerCase());
-                        if(termResponse?.providerResponse?.finishReason!=="length"&&literalTerms.includes(selected)&&!already){
+                        const singularCandidate=typeof selected==="string"&&selected.length>4&&/[sS]$/.test(selected)
+                            ? selected.slice(0,-1)
+                            : "";
+                        const groundedTerm=singularCandidate&&literalTerms.includes(singularCandidate)
+                            ? singularCandidate
+                            : selected;
+                        const already=(missionState.completedTasks||[]).some(task=>task.name==="repo.grep"&&String(task.args?.term||"").toLowerCase()===String(groundedTerm||"").toLowerCase());
+                        if(termResponse?.providerResponse?.finishReason!=="length"&&literalTerms.includes(groundedTerm)&&!already){
                             return {
                                 ...validatePlan({
-                                    toolCalls:[{name:"repo.grep",args:{term:selected},reason:"MODEL_LITERAL_SOURCE_RECOVERY"}],
+                                    toolCalls:[{name:"repo.grep",args:{term:groundedTerm},reason:"MODEL_LITERAL_SOURCE_RECOVERY"}],
                                     explanation:"",
                                     missionComplete:false,
                                     completionAssessment:null

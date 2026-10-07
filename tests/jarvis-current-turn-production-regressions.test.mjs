@@ -1550,3 +1550,17 @@ test('platform query accepts a literal filter value supplied by the user when it
  const result=await f.execute({...f.args,mode:'count',fields:[],filters:[{field:'title',op:'==',value:'Uno'}]},f.dependencies,f.context);
  assert.equal(result.ok,true,JSON.stringify(result));assert.equal(result.recordEvidence.totalCount,3);assert.equal(f.calls.length,1);
 });
+
+
+test('literal population recovery prefers the singular source token when Qwen selects a plural request token', async () => {
+ const input='Cuántos clientes registrados tenemos en la plataforma?';
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{collection:{type:'string'},sourceFile:{type:'string'},filters:{type:'array',minItems:0}},required:['collection','sourceFile','filters']}};
+ const grep={name:'repo.grep',investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{term:{type:'string'}},required:['term']}};
+ const result=await runJarvisSemanticPlanner({input,catalog:[query,grep],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'const kyc=true;'}}}]},ai:{models:{generateContent:async request=>{
+   if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:false,limitation:'No demuestra grupo',nextEvidenceQuery:'cliente'}),providerResponse:{finishReason:'stop'}};
+   if(request.config.semanticStage==='QUERY_POPULATION_LITERAL_RECOVERY')return{text:JSON.stringify({term:'clientes'}),providerResponse:{finishReason:'stop'}};
+   return{text:JSON.stringify({explanation:'Falta evidencia',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta población'}]},toolCalls:[{name:'platform.query',args:{collection:'users',sourceFile:'source.js',filters:[]}}]}),providerResponse:{finishReason:'stop'}};
+ }}}});
+ assert.equal(result.toolCalls[0].name,'repo.grep');
+ assert.equal(result.toolCalls[0].args.term,'cliente');
+});
