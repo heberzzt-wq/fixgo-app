@@ -6307,7 +6307,7 @@ JarvisToolRuntime.register({
         properties: {
             query: {
                 type: "string",
-                description: "Texto o simbolo que se debe localizar en el repositorio real."
+                description: "Consulta de búsqueda de código que conserva el vocabulario y los identificadores del pedido original. No traduzcas los términos de negocio a un idioma distinto ni uses la descripción genérica de una acción. Si aún no conoces nombres de campos, busca palabras del usuario, sin inventar un campo."
             }
         },
         additionalProperties: false
