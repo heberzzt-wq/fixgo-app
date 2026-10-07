@@ -1328,6 +1328,8 @@ function runtimeCatalog(context = {}) {
             contractStages: tool.contractStages || null,
             contractKinds: tool.contractKinds || null,
             evidenceKinds: Array.isArray(tool.evidenceKinds) ? [...tool.evidenceKinds] : null,
+            investigationReadOnly: tool.investigationReadOnly === true,
+            requiresEvidence: Array.isArray(tool.requiresEvidence) ? structuredClone(tool.requiresEvidence) : null,
             mutates: tool.mutates === true,
             requiresApproval: tool.requiresApproval === true,
             userArtifact: tool.userArtifact === true,
@@ -2040,7 +2042,12 @@ function planCacheKey(input = "", catalog = [], missionState = null) {
         tools: catalog.map(tool => ({
             name: tool.name,
             mutates: tool.mutates,
-            requiresApproval: tool.requiresApproval
+            requiresApproval: tool.requiresApproval,
+            investigationReadOnly: tool.investigationReadOnly === true,
+            requiresEvidence: tool.requiresEvidence || null,
+            evidenceKinds: tool.evidenceKinds || null,
+            inputSchema: tool.inputSchema || null,
+            userArtifact: tool.userArtifact === true
         }))
     });
 }

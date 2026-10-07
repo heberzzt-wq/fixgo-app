@@ -1285,3 +1285,20 @@ test('repeated discovery recovery cannot execute a fabricated source or grant wr
  }}}});assert.equal(result.missionComplete,false);assert.equal(result.toolCalls.length,0);
  }
 });
+
+
+test('browser planning preserves investigation capabilities and their evidence prerequisites end to end',async()=>{
+ const {__test:frontend}=await import('../gestia-core/jarvis/jarvis.multifunction.planner.js');
+ const requirement={kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']};
+ const tool={name:'fixture.queryCurrent',description:'Read live records after source discovery',mutates:false,requiresApproval:false,investigationReadOnly:true,evidenceKinds:['platform_records'],requiresEvidence:[requirement],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}},required:['sourceFile']}};
+ const normalized=frontend.runtimeCatalog({toolCatalog:[tool]});
+ assert.equal(normalized[0].investigationReadOnly,true);assert.deepEqual(normalized[0].requiresEvidence,[requirement]);
+ let calls=0;await buildJarvisMultifunctionToolCalls('Inspect the current records using fresh source evidence',{throwOnUnavailable:true,toolCatalog:[tool],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[]},semanticPlanner:async({catalog})=>{calls++;assert.equal(catalog[0].investigationReadOnly,true);assert.deepEqual(catalog[0].requiresEvidence,[requirement]);return{ok:true,toolCalls:[],missionComplete:false,completionAssessment:{objectives:[{objective:'Read current records',satisfied:false,limitation:'Read the source first.',requiredEvidenceKind:'platform_records',evidenceTaskIndexes:[]}]}};}});
+ assert.equal(calls,1);assert.equal(tool.mutates,false);
+});
+
+test('browser plan cache distinguishes changes to evidence contracts and argument schemas',async()=>{
+ const {__test:frontend}=await import('../gestia-core/jarvis/jarvis.multifunction.planner.js');
+ const base={name:'fixture.read',mutates:false,requiresApproval:false};const key=frontend.planCacheKey('read',[base],{});
+ for(const change of [{investigationReadOnly:true},{requiresEvidence:[{kind:'source',argument:'sourceFile'}]},{inputSchema:{type:'object',required:['file']}},{evidenceKinds:['platform_records']}])assert.notEqual(frontend.planCacheKey('read',[{...base,...change}],{}),key);
+});
