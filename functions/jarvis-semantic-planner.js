@@ -1681,6 +1681,33 @@ async function runModelSemanticPlanner({
                     evaluatedAudit?.completionAssessment?.objectives) {
                     validateCompletionEvidence(evaluatedAudit, normalizedCatalog, missionState);
                 }
+                // An evidence deficit is not automatically a blocker. Ask the SAME
+                // model for one executable discovery step before accepting a stop.
+                // Only existing pure-reader metadata is eligible; no intent table,
+                // guessed collection, permission escalation or alternate brain.
+                const nextReaders = selectableCatalog.filter(tool => tool.investigationReadOnly === true &&
+                    tool.mutates !== true && tool.requiresApproval !== true && tool.userArtifact !== true);
+                if (evaluatedAudit.missionComplete !== true && validatedAudit.toolCalls.length === 0 && nextReaders.length) {
+                    const continuation = await ai.models.generateContent({model,contents:instruction,config:{
+                        semanticStage:"READ_ONLY_EVIDENCE_CONTINUATION",nativeToolChat:true,maxOutputTokens:768,temperature:0,
+                        chatMessages:[
+                            {role:"system",content:"Eres Jarvis. El objetivo aún no está resuelto. Decide si existe UN siguiente paso de investigación ejecutable con las herramientas disponibles y llámalo. No repitas que falta evidencia cuando puedes obtenerla. Una búsqueda ya devuelve rutas candidatas: lee una ruta real pertinente para conocer la fuente; si necesitas otra fuente, busca. Antes de consultar registros actuales, lee el código que muestra la colección y campos; no los inventes. El catálogo describe fuentes, no resultados ya obtenidos. No repitas la misma operación con los mismos argumentos. Si realmente no hay un paso autorizado, no llames nada. Un permiso denegado no autoriza cambiar identidad, quitar filtros ni ampliar acceso. Nunca escribas, publiques ni concedas aprobación."},
+                            ...auditTasks.map(task=>({role:"system",content:"EVIDENCIA_OBTENIDA="+JSON.stringify(task)})),
+                            ...(missionState.blockedTasks||[]).slice(-8).map(task=>({role:"system",content:"INTENTO_FALLIDO="+JSON.stringify({name:task.name,args:task.args,observation:task.observation})})),
+                            {role:"system",content:"OBJETIVOS_PENDIENTES="+JSON.stringify(evaluatedAudit.completionAssessment?.objectives||[])},
+                            {role:"user",content:instruction}
+                        ],tools:[{functionDeclarations:buildGeminiModelTools(nextReaders)}]
+                    }});
+                    let next = extractGeminiToolCallPlan(continuation,nextReaders);
+                    if (!next && continuation.text) {try {next=normalizeTextToolPlan(extractJsonObject(continuation.text),nextReaders);}catch{}}
+                    if (continuation?.providerResponse?.finishReason !== "length" && next?.toolCalls?.length) {
+                        const checked=validatePlan({...next,missionComplete:false},nextReaders,instruction);
+                        const existing=missionState.completedTasks||[];
+                        checked.toolCalls=checked.toolCalls.filter(call=>!existing.some(task=>task.name===call.name&&JSON.stringify(task.args||{})===JSON.stringify(call.args||{}))).slice(0,1);
+                        if(checked.toolCalls.length)return {...validatedAudit,toolCalls:checked.toolCalls,missionComplete:false,
+                            provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:nextReaders.length,planKind:"READ_ONLY_EVIDENCE_CONTINUATION"};
+                    }
+                }
                 return {
                     ...validatedAudit,
                     provider: String(ai.lastProvider || "jarvis-local"),

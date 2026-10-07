@@ -1231,3 +1231,12 @@ test('structural inventory counts survive the executed mission and final respons
  assert.equal(compactMissionPlannerObservation({...observation,executionOk:false}).executionOk,false);
  assert.equal(compactMissionPlannerObservation({...observation,executionOk:false}).inventoryEvidence,undefined);
 });
+
+
+test('missing evidence continues with the same local model and actual read capability rather than a forced partial stop',async()=>{
+ let continuations=0;const input='Consulta los registros descritos por la fuente';
+ const result=await runJarvisSemanticPlanner({input,catalog:[{name:'fixture.search',investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query']}},{name:'fixture.read',investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}},{name:'fixture.write',mutates:true,requiresApproval:true}],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'fixture.search',args:{query:'records'},observation:{ok:true,summary:'Found source.js'}}]},ai:{models:{generateContent:async request=>{
+ if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){continuations++;const names=request.config.tools[0].functionDeclarations.map(t=>t.name);assert.deepEqual(names,['fixture.search','fixture.read']);assert.match(JSON.stringify(request.config.chatMessages),/source.js/);return{functionCalls:[{name:'fixture.read',args:{file:'source.js'}}]};}
+ return{text:JSON.stringify({explanation:'Falta leer la fuente encontrada',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'tool_result',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta leer la fuente encontrada'}]},toolCalls:[]})};
+ }}}});assert.equal(continuations,1);assert.equal(result.missionComplete,false);assert.equal(result.toolCalls[0].name,'fixture.read');assert.equal(result.toolCalls[0].approved,false);
+});
