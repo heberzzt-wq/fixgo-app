@@ -1745,16 +1745,27 @@ async function runModelSemanticPlanner({
                         task.observation.executionOk !== false && task.observation.blocked !== true).flatMap(task => [
                             ...(task.observation.repoCandidates || []).map(item => item.file), task.observation.verifiedRead?.file
                         ]).filter(value => typeof value === "string" && value.trim()))];
-                    const recoveryCatalog = nextReaders.map(tool => {
+                    // Resolve data dependencies from evidence metadata, not user words.
+                    // When paths are already discovered, let Qwen choose which source
+                    // to read rather than spending the recovery on another search.
+                    const neededKinds = new Set((evaluatedAudit.completionAssessment?.objectives || [])
+                        .filter(objective => objective.satisfied !== true).map(objective => objective.requiredEvidenceKind));
+                    const prerequisiteKinds = new Set(pendingCapabilities.filter(tool =>
+                        safeCatalog.find(candidate => candidate.name === tool.name)?.evidenceKinds?.some(kind => neededKinds.has(kind)))
+                        .flatMap(tool => (tool.requiresEvidence || []).map(requirement => requirement.kind)));
+                    const prerequisiteReaders = sources.length ? nextReaders.filter(tool =>
+                        tool.evidenceKinds?.some(kind => prerequisiteKinds.has(kind)) &&
+                        buildNativeInputSchema(tool.inputSchema).properties?.file) : [];
+                    const recoveryCatalog = (prerequisiteReaders.length ? prerequisiteReaders : nextReaders).map(tool => {
                         const schema = structuredClone(buildNativeInputSchema(tool.inputSchema));
-                        if (sources.length && tool.evidenceKinds?.includes("repository_source") && schema.properties?.file) {
+                        if (sources.length && (prerequisiteReaders.includes(tool) || tool.evidenceKinds?.includes("repository_source")) && schema.properties?.file) {
                             schema.properties.file = {...schema.properties.file, enum:sources};
                         }
                         return {...tool,inputSchema:schema};
                     });
                     const recovery = await ai.models.generateContent({model,contents:instruction,config:{
                         semanticStage:"READ_ONLY_NEXT_STEP_RECOVERY",maxOutputTokens:1024,temperature:0,responseMimeType:"application/json",
-                        responseJsonSchema:{type:"object",properties:{toolCalls:{type:"array",maxItems:1,items:{anyOf:recoveryCatalog.map(tool=>({
+                        responseJsonSchema:{type:"object",properties:{toolCalls:{type:"array",minItems:prerequisiteReaders.length ? 1 : 0,maxItems:1,items:{anyOf:recoveryCatalog.map(tool=>({
                             type:"object",properties:{name:{type:"string",enum:[tool.name]},args:tool.inputSchema},required:["name","args"],additionalProperties:false
                         }))}}},required:["toolCalls"],additionalProperties:false},
                         chatMessages:[
