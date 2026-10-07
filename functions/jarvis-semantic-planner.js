@@ -1728,6 +1728,33 @@ async function runModelSemanticPlanner({
                     if (tool.evidenceKinds?.includes("platform_records")) {
                         const reads=(missionState.completedTasks||[]).filter(task=>task.observation?.ok===true && task.observation.executionOk!==false && task.observation.verifiedRead?.file===call.args?.sourceFile);
                         const source=reads.flatMap(task=>{const read=task.observation.verifiedRead;return read.sourceStructure?.dataBindings?.references?.flatMap(ref=>[{line:ref.startLine,code:ref.content},...(ref.declarations||[]).map(item=>({line:item.startLine,code:item.content}))])||[{line:read.startLine,code:String(read.content||read.numberedContent||"").slice(0,5000)}];});
+                        const sourceCorpus=JSON.stringify(source).toLowerCase();
+                        const requestCorpus=String(instruction||"").toLowerCase();
+                        const scalarObserved=value=>{
+                            if(value===null)return sourceCorpus.includes("null")||requestCorpus.includes("null");
+                            if(typeof value==="string"){
+                                const token=value.trim().toLowerCase();
+                                return token.length>0&&(sourceCorpus.includes(token)||requestCorpus.includes(token));
+                            }
+                            if(typeof value==="number"||typeof value==="boolean"){
+                                const token=String(value).toLowerCase();
+                                return sourceCorpus.includes(token)||requestCorpus.includes(token);
+                            }
+                            return false;
+                        };
+                        const ungroundedFilters=(call.args?.filters||[]).filter(filter=>{
+                            const field=String(filter?.field||"").trim().toLowerCase();
+                            const fieldObserved=field&&sourceCorpus.includes(field);
+                            const valueObserved=Array.isArray(filter?.value)
+                                ? filter.value.length>0&&filter.value.every(scalarObserved)
+                                : scalarObserved(filter?.value);
+                            return !fieldObserved||!valueObserved;
+                        });
+                        if(ungroundedFilters.length){
+                            const error=new Error("SEMANTIC_QUERY_SCOPE_UNVERIFIED");
+                            error.evidence={tool:call.name,proposed:call.args,limitation:"La consulta propone campos o valores de filtro que no aparecen en la fuente leída ni en la solicitud original.",nextEvidenceQuery:"",requiredNextStep:"Search or read source evidence for the requested population before querying records."};
+                            throw error;
+                        }
                         const review=await ai.models.generateContent({model,contents:instruction,config:{semanticStage:"QUERY_POPULATION_VERIFICATION",temperature:0,maxOutputTokens:384,
                             chatMessages:[{role:"system",content:"Comprueba SOLO si el código observado DEMUESTRA qué filtro identifica a la población solicitada. No confundas todos los registros de una colección compartida con un subconjunto por rol, tipo o estado. Un estado KYC, validación, pantalla, flujo o función usada por ese grupo NO es por sí mismo el discriminador de pertenencia. Para aceptar el filtro debe existir en la fuente una asignación o comparación que mapee explícitamente el grupo pedido a un campo y valor, o una consulta existente que aplique ese mismo criterio. Ni un nombre de archivo, una condición de campo no vacío ni una propiedad que sólo describa estado operativo prueban pertenencia. Si falta esa relación, matchesRequest=false. limitation debe decir qué relación falta y nextEvidenceQuery debe ser una búsqueda breve de código que conserve literalmente el término principal usado por el usuario y busque su asignación/comparación de rol, tipo o clasificación; no inventes ejemplos de campos ni pidas datos al usuario. Si está acreditado, matchesRequest=true, limitation y nextEvidenceQuery vacíos. No inventes nombres, campos, valores ni resultados. Tu revisión no consulta registros ni concede permisos."},{role:"user",content:JSON.stringify({request:instruction,proposed:call.args,observedSource:source})}],
                             responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{matchesRequest:{type:"boolean"},limitation:{type:"string",maxLength:300},nextEvidenceQuery:{type:"string",maxLength:200}},required:["matchesRequest","limitation","nextEvidenceQuery"],additionalProperties:false}

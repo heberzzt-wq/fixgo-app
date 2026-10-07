@@ -1519,3 +1519,19 @@ test('population mismatch recovers through a literal user term and repo.grep, no
  assert.ok(stages.includes('QUERY_POPULATION_VERIFICATION'));
  assert.ok(stages.includes('QUERY_POPULATION_LITERAL_RECOVERY'));
 });
+
+
+test('record queries reject invented filter values before live execution and recover with literal source evidence', async () => {
+ const input='Cuántos clientes registrados tenemos en la plataforma?';let populationChecks=0,literalRecoveries=0;
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{collection:{type:'string'},sourceFile:{type:'string'},filters:{type:'array',minItems:0,items:{type:'object'}},mode:{type:'string'}},required:['collection','sourceFile','filters','mode'],additionalProperties:false}};
+ const grep={name:'repo.grep',investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{term:{type:'string'}},required:['term'],additionalProperties:false}};
+ const result=await runJarvisSemanticPlanner({input,catalog:[query,grep],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'const uid = user.uid; const profile = collection(db, "users");'}}}]},ai:{models:{generateContent:async request=>{
+   if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){populationChecks++;throw Error('SHOULD_NOT_REACH_POPULATION_MODEL');}
+   if(request.config.semanticStage==='QUERY_POPULATION_LITERAL_RECOVERY'){literalRecoveries++;return{text:JSON.stringify({term:'cliente'}),providerResponse:{finishReason:'stop'}};}
+   return{text:JSON.stringify({explanation:'Falta evidencia',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta filtro verificado'}]},toolCalls:[{name:'platform.query',args:{collection:'users',sourceFile:'source.js',mode:'count',filters:[{field:'uid',op:'==',value:'user123'}]}}]}),providerResponse:{finishReason:'stop'}};
+ }}}});
+ assert.equal(populationChecks,0);
+ assert.equal(literalRecoveries,1);
+ assert.equal(result.toolCalls[0].name,'repo.grep');
+ assert.equal(result.toolCalls[0].args.term,'cliente');
+});
