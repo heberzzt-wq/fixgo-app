@@ -907,3 +907,88 @@ test("terminal visible viewport preserves composer on shrink, restoration and pi
     assert.equal(styles.get('--terminal-viewport-top'),'0px');
     assert.equal(field.value,'Borrador del usuario');
 });
+
+
+test("current conversation echo is repaired by the same model, never rendered as an answer", async () => {
+    const input = "Qué sabes hacer";
+    const stages = [];
+    const result = await runJarvisSemanticPlanner({ input,
+        catalog: [{ name: "conversation.respond", description: "Respond", inputSchema: { prompt: "string" } }],
+        missionState: { phase: "CURRENT_TURN", conversationalGate: true },
+        ai: { models: { generateContent: async request => {
+            stages.push(request.config.semanticStage || "answer");
+            if (request.config.semanticStage === "CURRENT_TURN_CONVERSATION_GATE") return { text: JSON.stringify({mode:"chat",requiresConversationContext:false,missing:"",question:"",action:""}) };
+            if (request.config.semanticStage === "CURRENT_TURN_CONVERSATION_ECHO_REPAIR") {
+                assert.equal(request.config.nativeTextChat, true);
+                assert.equal(request.config.chatMessages.at(-1).content, input);
+                return { text: "Puedo explicar conceptos, redactar mensajes y ayudarte a analizar el texto que compartas." };
+            }
+            return { text: "¿Qué sabes hacer?" };
+        } } }
+    });
+    assert.equal(stages.length, 3);
+    assert.equal(result.toolCalls[0].name, "conversation.respond");
+    assert.match(result.toolCalls[0].args.prompt, /explicar conceptos/);
+    assert.equal(result.missionComplete, false);
+    assert.equal(result.toolCalls[0].approved, false);
+});
+
+test("a second echoed answer fails closed without an infinite retry or canned response", async () => {
+    const input = "Qué puedes hacer";
+    let count = 0;
+    await assert.rejects(() => runJarvisSemanticPlanner({ input,
+        catalog: [{name:"conversation.respond",description:"Respond",inputSchema:{prompt:"string"}}],
+        missionState:{phase:"CURRENT_TURN"},
+        ai:{models:{generateContent:async request=>{
+            count++;
+            if(request.config.semanticStage === "CURRENT_TURN_CONVERSATION_ECHO_REPAIR") return {text:input};
+            return {functionCalls:[{name:"jarvis_tool_0",args:{prompt:input}}]};
+        }}}
+    }), /SEMANTIC_CONVERSATION_RESPONSE_ECHO/);
+    assert.equal(count,2);
+});
+
+test("native conversational prose gets a constrained same-model plan repair, not a silent completion", async () => {
+    let count = 0;
+    const result = await runJarvisSemanticPlanner({input:"Explica para qué sirve una tabla",
+        catalog:[{name:"conversation.respond",description:"Respond",inputSchema:{prompt:"string"}}],
+        missionState:{phase:"CURRENT_TURN"},
+        ai:{models:{generateContent:async request=>{
+            count++;
+            if(count===1)return {text:"Una tabla organiza información en filas y columnas."};
+            assert.equal(request.config.semanticStage,"CURRENT_TURN_STRUCTURED_PLAN_REPAIR");
+            assert.deepEqual(request.config.responseJsonSchema.properties.missionComplete.enum,[false]);
+            assert.equal(request.config.responseJsonSchema.properties.toolCalls.maxItems,1);
+            assert.match(request.config.chatMessages[1].content,/BORRADOR_NO_VERIFICADO/);
+            return {text:JSON.stringify({toolCalls:[{name:"conversation.respond",args:{prompt:"Una tabla organiza información en filas y columnas para facilitar comparaciones."}}],missionComplete:false})};
+        }}}
+    });
+    assert.equal(count,2);
+    assert.equal(result.toolCalls[0].approved,false);
+    assert.equal(result.missionComplete,false);
+    assert.match(result.toolCalls[0].args.prompt,/facilitar comparaciones/);
+});
+
+test("mobile capability answers use the gateway limits rather than advertising the laptop registry", async () => {
+    const result = await runJarvisSemanticPlanner({input:"Qué me puedes ayudar a hacer",
+        catalog:[{name:"conversation.respond",description:"Respond",inputSchema:{prompt:"string"}},
+            {name:"video.generate",description:"Generate local video",inputSchema:{prompt:"string"}}],
+        missionState:{phase:"CURRENT_TURN",conversationalGate:true,runtimeTransport:{name:"FIRESTORE_PRIVATE"}},
+        ai:{models:{generateContent:async request=>{
+            if(request.config.semanticStage==="CURRENT_TURN_CONVERSATION_GATE")return {text:JSON.stringify({mode:"chat",requiresConversationContext:false,missing:"",question:"",action:""})};
+            const system=request.config.chatMessages[0].content;
+            assert.match(system,/CURRENT_TRANSPORT=FIRESTORE_PRIVATE/);
+            assert.match(system,/No puedes crear archivos descargables/);
+            assert.doesNotMatch(system,/REGISTERED_TOOL_NAMES=/);
+            return {text:"Puedo redactar texto y explicarte conceptos; producir video no está habilitado por este enlace."};
+        }}}
+    });
+    assert.equal(result.toolCalls[0].name,"conversation.respond");
+    assert.equal(result.missionComplete,false);
+});
+
+test("long terminal diagnostics inherit wrapping without changing preformatted code scrolling",()=>{
+    const source=readFileSync(new URL("../gestia-terminal.html",import.meta.url),"utf8");
+    assert.match(source,/#gestia-output \{ overflow-wrap: anywhere; \}/);
+    assert.match(source,/#gestia-output pre \{ overflow-x: auto; \}/);
+});

@@ -194,7 +194,16 @@ export async function startJarvisBrowserRelay({ auth, db, sdk, contract, request
         console.info("[JARVIS_PRIVATE_RELAY_RECEIVED]", { requestId: ref.id, route: approved.route });
         let result, error = null, lastProgressAt = 0;
         try {
-            const value = await requestLocal(approved.route, approved.payload, {
+            // Session facts are stamped by this authenticated gateway after
+            // envelope validation. They describe limits; they never grant rights.
+            const localPayload = approved.route === "/semantic/plan" ? {
+                ...approved.payload,
+                missionState: { ...approved.payload.missionState, runtimeTransport: {
+                    name: "FIRESTORE_PRIVATE", allowedRoutes: [...policy.routes],
+                    writesAllowed: false, publicationAllowed: false, remoteMediaAllowed: false
+                } }
+            } : approved.payload;
+            const value = await requestLocal(approved.route, localPayload, {
                 privateRelayExecution: true,
                 onProgress(frame) {
                     if (now() - lastProgressAt < 10000) return;

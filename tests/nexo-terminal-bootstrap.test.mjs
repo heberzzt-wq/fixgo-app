@@ -515,6 +515,12 @@ test('private relay crosses the authenticated queue and delivers an exact correl
         const result = await client.requestJson('/semantic/plan', { input: 'Hola' }, { contract: { releaseId: 'relay-test' } });
         fake.emit(); fake.emit(); await sleep(5);
         assert.equal(calls.length, 1); assert.equal(calls[0].route, '/semantic/plan');
+        assert.equal(calls[0].payload.input, 'Hola');
+        assert.equal(calls[0].payload.missionState.runtimeTransport.name, 'FIRESTORE_PRIVATE');
+        assert.equal(calls[0].payload.missionState.runtimeTransport.writesAllowed, false);
+        assert.equal(calls[0].payload.missionState.runtimeTransport.publicationAllowed, false);
+        assert.equal(calls[0].payload.missionState.runtimeTransport.remoteMediaAllowed, false);
+        assert.deepEqual(calls[0].payload.missionState.runtimeTransport.allowedRoutes, [...JARVIS_PRIVATE_RELAY.routes]);
         assert.equal(result.text, 'Hola pariente'); assert.equal(result.relay.requestId, relayId);
         assert.equal(result.cloudSemanticInferenceUsed, false);
         const receipt = fake.docs.get(`jarvis_private_relay/${JARVIS_PRIVATE_RELAY.ownerUid}/requests/${relayId}`);

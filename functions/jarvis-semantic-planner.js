@@ -1843,6 +1843,45 @@ async function runModelSemanticPlanner({
             );
     }
 
+    // A tool prompt is sometimes the model's request to compose an answer,
+    // not the answer itself. Repair that output with the same local model;
+    // never display an echoed instruction as a completed conversation.
+    const conversationRuntimeContext = [
+        "You can reason, explain and draft text directly. Registered tools describe potential operations, NOT proof that those operations are available in this session or have been performed.",
+        "Never claim to have read, edited, generated, sent or published anything without an actual receipt. Tool execution still requires transport, permissions and independent validation; do not promise unrestricted remote execution.",
+        missionState?.runtimeTransport?.name === "FIRESTORE_PRIVATE"
+            ? "CURRENT_TRANSPORT=FIRESTORE_PRIVATE. En este canal móvil puedes conversar, explicar, redactar texto en el chat, consultar el repositorio en modo lectura y buscar información web. No puedes crear archivos descargables, editar archivos, ejecutar comandos, capturar pantallas, producir video ni publicar desde este canal. Describe sólo estas capacidades actuales, no las herramientas adicionales de la laptop. Las lecturas y búsquedas requieren ejecución y evidencia nuevas."
+            : "REGISTERED_TOOL_NAMES=" + JSON.stringify(normalizedCatalog.map(tool => tool.name))
+    ].join("\n");
+    const isConversationEcho = message => {
+        const normalize = text => String(text || "").normalize("NFKD").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+        return Boolean(normalize(message)) && normalize(message) === normalize(instruction);
+    };
+    async function repairConversationEcho(message) {
+        if (!isConversationEcho(message)) return message;
+        const response = await ai.models.generateContent({
+            model,
+            contents: instruction,
+            config: {
+                semanticStage: "CURRENT_TURN_CONVERSATION_ECHO_REPAIR",
+                modelProfile: "conversation",
+                nativeTextChat: true,
+                chatMessages: [
+                    { role: "system", content: "Eres Jarvis/ADJUNTO, el asistente. Responde al usuario en español mexicano natural. Tu borrador anterior repitió su pregunta y no la contestó. Escribe la respuesta completa, no otra instrucción, no una oferta de responder después ni una copia de la pregunta. Usa el contexto sólo para resolver referencias, nunca como evidencia de acciones.\n" + conversationRuntimeContext },
+                    ...(currentTurnRequiresConversationContext ? recentConversationTurns : []),
+                    { role: "user", content: instruction }
+                ],
+                maxOutputTokens: 512,
+                temperature: 0
+            }
+        });
+        const answer = String(response?.text || "").trim();
+        if (response?.providerResponse?.finishReason === "length") throw new Error("SEMANTIC_RESPONSE_INCOMPLETE");
+        if (!answer) throw new Error("SEMANTIC_RESPONSE_EMPTY");
+        if (isConversationEcho(answer)) throw new Error("SEMANTIC_CONVERSATION_RESPONSE_ECHO");
+        return answer;
+    }
+
     let currentTurnGateAction = "";
     let currentTurnGateRecovery = false;
     let currentTurnRequiresConversationContext =
@@ -1858,6 +1897,7 @@ async function runModelSemanticPlanner({
     ) {
         const gateSystemInstruction = [
             'Classify the requested outcome in mode first. Only then identify information essential to that outcome in missing (empty string if none). Use context only to resolve references, never as proof of actions.',
+            'You are Jarvis/ADJUNTO, the assistant being addressed. Familiar forms of address in Spanish are greetings, not unknown external objects or a request to identify a family relationship. Questions about what you can help with are mode=chat; describe abilities and limits without auditing or executing tools. Only an explicit request to inspect installed tools or verify their current state is mode=tools. A conceptual explanation with an illustrative example is still chat. Drafting or rewriting text to return in this chat is also chat unless the user asks to save a file, publish, send it externally or use external sources.',
             browserGroundingInstruction(missionState),
             'Use mode=clarify when that information must be requested from the user before work can start; mode=tools for requested reading, searching, checking or changing external state; mode=chat for social conversation, wishes without an action request, or general explanations.',
             'General conceptual questions are chat even when their topic is also something a tool can create. Do not turn explaining a concept into creating an artifact, a spreadsheet or inspecting a system. An evaluation of a specific external object requires evidence of that object.',
@@ -1876,8 +1916,8 @@ async function runModelSemanticPlanner({
             { role: "assistant", content: "{\"mode\":\"clarify\",\"requiresConversationContext\":false,\"missing\":\"ubicacion del usuario\",\"question\":\"¿En qué ciudad o colonia quieres que busque?\",\"action\":\"\"}" },
             { role: "user", content: "Busca una panaderia en el centro de Merida." },
             { role: "assistant", content: "{\"mode\":\"tools\",\"requiresConversationContext\":false,\"missing\":\"\",\"question\":\"\",\"action\":\"search web for local businesses\"}" },
-            { role: "user", content: "Enlistame lo que sabes hacer en este repo." },
-            { role: "assistant", content: "{\"mode\":\"tools\",\"requiresConversationContext\":false,\"missing\":\"\",\"question\":\"\",\"action\":\"inspect system capabilities\"}" },
+            { role: "user", content: "Buenos días, ¿en qué me puedes ayudar?" },
+            { role: "assistant", content: '{"mode":"chat","requiresConversationContext":false,"missing":"","question":"","action":""}' },
             { role: "user", content: "Haz una campaña de marketing para mi despacho." },
             { role: "assistant", content: "{\"mode\":\"clarify\",\"requiresConversationContext\":false,\"missing\":\"mercado objetivo\",\"question\":\"¿En qué ciudad o mercado quieres enfocar la campaña?\",\"action\":\"\"}" },
             { role: "user", content: "En Cancún y a nivel nacional." },
@@ -2096,7 +2136,8 @@ async function runModelSemanticPlanner({
             const responseSystemInstruction = [
                 "You are Jarvis, also called ADJUNTO: the assistant, not the human. Reply to the human in natural Mexican Spanish.",
                 "Jarvis in a user greeting is YOUR name: it must not become a name for the human. If the human states or corrects their name, accept that exact spelling and do not ask for information already given.",
-                "Never rewrite their message in the first person as though you were the human. Answer knowledge questions directly and fully; do not offer to answer a question already asked. Do not invent performed actions."
+                "Never rewrite their message in the first person as though you were the human. Answer knowledge questions directly and fully; do not offer to answer a question already asked. Do not invent performed actions or missing facts. An unspecified detail is unknown, not false or nonexistent; omit it or use a clearly marked placeholder. Answer the actual question after a greeting, not just hello. When asked about your abilities, give at least three concrete examples of useful help and state execution limits. A vague statement that you can help with many things or asking what they want does not answer that question.",
+                conversationRuntimeContext
             ].join(" ");
             const responseResult = await ai.models.generateContent({
                 model,
@@ -2142,6 +2183,7 @@ async function runModelSemanticPlanner({
                     ""
                 ).trim();
             if (!directMessage) throw new Error("SEMANTIC_RESPONSE_EMPTY");
+            directMessage = await repairConversationEcho(directMessage);
         }
 
         if (!direct) {
@@ -2387,6 +2429,26 @@ async function runModelSemanticPlanner({
                 ].join("\n")
             ].join("\n\n"),
             config: {
+                ...(currentTurn ? {
+                    semanticStage: "CURRENT_TURN_STRUCTURED_PLAN_REPAIR",
+                    chatMessages: [
+                        { role: "system", content: buildSemanticSystemInstruction(safeCatalog, missionState) + "\nRepara sólo el formato de la selección con el mismo objetivo. Para conversation.respond, args.prompt debe contener la RESPUESTA FINAL completa para el usuario, nunca su pregunta ni una instrucción para otro modelo. El borrador no acredita acciones ejecutadas. No otorgues aprobaciones ni declares la misión completada." },
+                        { role: "assistant", content: "BORRADOR_NO_VERIFICADO=" + String(response?.text || "").slice(0, 6000) },
+                        { role: "user", content: planningInstruction }
+                    ],
+                    responseJsonSchema: {
+                        type: "object",
+                        properties: {
+                            toolCalls: { type: "array", minItems: 1, maxItems: 1, items: { anyOf: safeCatalog.map(tool => ({
+                                type: "object",
+                                properties: { name: { type: "string", enum: [tool.name] }, args: buildNativeInputSchema(tool.inputSchema) },
+                                required: ["name", "args"], additionalProperties: false
+                            })) } },
+                            missionComplete: { type: "boolean", enum: [false] }
+                        },
+                        required: ["toolCalls", "missionComplete"], additionalProperties: false
+                    }
+                } : {}),
                 maxOutputTokens: 768,
                 temperature: 0,
                 thinkingConfig: { thinkingLevel: "MINIMAL" },
@@ -2472,6 +2534,11 @@ async function runModelSemanticPlanner({
             }
             plan = { ...plan, toolCalls: [{ ...call, args, reason: "MODEL_SCHEMA_ARGUMENT_CORRECTION" }] };
         }
+    }
+
+    if (currentTurn && plan.toolCalls?.length === 1 && plan.toolCalls[0].name === "conversation.respond" && isConversationEcho(plan.toolCalls[0].args?.prompt)) {
+        const prompt = await repairConversationEcho(plan.toolCalls[0].args.prompt);
+        plan = { ...plan, missionComplete: false, toolCalls: [{ ...plan.toolCalls[0], args: { prompt }, reason: "MODEL_CURRENT_TURN_ECHO_REPAIRED" }] };
     }
 
     const validatedPlan = {
