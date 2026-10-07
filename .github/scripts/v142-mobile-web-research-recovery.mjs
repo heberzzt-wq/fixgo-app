@@ -42,7 +42,7 @@ forbid(client, "cloudfunctions.net/jarvisSemanticPlan", "cloud-semantic-endpoint
 forbid(client, "getIdToken()", "cloud-semantic-auth-token");
 
 need(fsBridge, 'const SEMANTIC_PROVIDER_MODES = new Set([\n    "LOCAL_ONLY"\n]);', "local-only-provider-mode");
-need(fsBridge, 'env.JARVIS_LOCAL_LLM_MODEL || "qwen3:1.7b"', "default-qwen3-local");
+need(fsBridge, 'env.JARVIS_LOCAL_LLM_MODEL || "qwen3:4b-instruct-2507-q4_K_M"', "default-qwen3-local");
 need(fsBridge, 'env.JARVIS_LOCAL_LLM_BASE_URL || "http://127.0.0.1:11434/v1"', "default-ollama-loopback");
 need(fsBridge, 'provider: "ollama-openai-compatible-local"', "local-provider-identity");
 need(fsBridge, "fallbackAllowed: false", "zero-cloud-fallback");
@@ -78,7 +78,7 @@ console.log(JSON.stringify({
     semanticAuthority: "jarvisSemanticPlan",
     runtimeIdentity: "JARVIS",
     localProvider: "ollama-openai-compatible-local",
-    defaultModel: "qwen3:1.7b",
+    defaultModel: "qwen3:4b-instruct-2507-q4_K_M",
     localEndpoint: "http://127.0.0.1:11434/v1",
     cloudSemanticFallback: false,
     alternateBrains: 0,

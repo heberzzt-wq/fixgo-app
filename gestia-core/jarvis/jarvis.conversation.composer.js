@@ -1018,6 +1018,13 @@ export function buildCapabilityEvidenceBriefing(evidenceItems = []) {
 
 const RESPONSIVE_REPAIR_TOOLS = new Set(["repo.prepareWrite", "repo.authorizeWrite", "repo.write", "tests.run"]);
 
+function describeToolFailure(error, depth = 0) {
+    if (depth > 3 || error == null) return "";
+    if (typeof error === "string") return error.slice(0, 500);
+    if (typeof error !== "object") return String(error).slice(0, 500);
+    return [...new Set([error.code, error.message, error.error, error.status].map(value => describeToolFailure(value, depth + 1)).filter(Boolean))].join(": ").slice(0, 500);
+}
+
 export function buildAuthoritativeToolOutcomeMatrix(evidenceItems = []) {
     return (Array.isArray(evidenceItems) ? evidenceItems : [])
         .filter(item => String(item?.name || item?.tool || "") !== "conversation.respond")
@@ -1050,7 +1057,7 @@ export function buildAuthoritativeToolOutcomeMatrix(evidenceItems = []) {
                         .map(item => ({ ok: item.ok === true, restoredSha256: String(item.restoredSha256 || "").slice(0, 64) }))
                 } : {}),
                 retryable: observation?.retryable === true,
-                error: String(observation?.error || "").slice(0, 500),
+                error: describeToolFailure(observation?.error),
                 requestedFile: String(observation?.requestedFile || observation?.evidence?.requestedFile || receipt.file || observation?.path || item?.args?.file || "").slice(0, 300)
             };
         });
@@ -1228,6 +1235,13 @@ export async function composeEvidenceGroundedConversation({
         (Array.isArray(evidenceItems) ? evidenceItems : [])
             .find(item => String(item?.name || item?.tool || "") === "mission.outcome")
             ?.observation;
+    const attemptedOperations = authoritativeOutcomes.filter(item => item.tool !== "mission.outcome");
+    if (attemptedOperations.length > 0 && attemptedOperations.every(item => !item.ok || !item.executionOk || item.blocked || item.requiresInput)) {
+        const details = [...new Set(attemptedOperations.map(item => item.tool + " — " + (item.error || item.status || "No se obtuvo un resultado verificable.") + (item.requestedFile ? "; archivo solicitado: " + item.requestedFile : "")))];
+        return { ok: true, status: "CONVERSATIONAL_EVIDENCE_INSUFFICIENT",
+            text: ["No pude obtener datos verificables para responder la solicitud. El fallo de la consulta no demuestra que no existan datos.", ...details].join("\n"),
+            prompt: "", evidence, observation: missionOutcomeObservation };
+    }
     const missingEvidence = missionOutcomeObservation?.completionAssessment?.objectives
         ?.filter(item => item.satisfied === false && typeof item.limitation === "string" && item.limitation.trim())
         .map(item => item.limitation.trim()) || [];
@@ -1240,6 +1254,10 @@ export async function composeEvidenceGroundedConversation({
             observation.executionOk !== false && observation.blocked !== true && observation.requiresInput !== true
             ? compactBrowserInterfaceEvidence(observation.interfaceEvidence || observation.evidence?.interfaceEvidence) : null;
         return measured ? [measured] : [];
+    });
+    const platformRecordEvidence = (Array.isArray(evidenceItems) ? evidenceItems : []).flatMap(item => {
+        const observation = item?.observation || item?.response || item?.data || {};
+        return observation.ok === true && observation.executionOk !== false && observation.blocked !== true && observation.recordEvidence?.source === "FIRESTORE_SERVER_AUTHENTICATED" ? [observation.recordEvidence] : [];
     });
     const hasMeasuredInterfaceEvidence = measuredInterfaceEvidence.length > 0;
     const requiresRepairGrounding = measuredInterfaceEvidence.some(page => page.source === "RENDERED_DOM_LAYOUT_REPLAY") &&
@@ -1357,6 +1375,7 @@ export async function composeEvidenceGroundedConversation({
                 missionReason: missionOutcomeObservation?.reason || "",
                 executedTools: authoritativeOutcomes.filter(item => item.tool !== "mission.outcome"),
                 ...(hasMeasuredInterfaceEvidence ? { measuredInterfaceEvidence } : {}),
+                ...(platformRecordEvidence.length ? { platformRecordEvidence } : {}),
                 ...(groundedVerifiedRead
                     ? { groundedVerifiedRead }
                     : {}),

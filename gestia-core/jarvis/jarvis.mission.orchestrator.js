@@ -1200,6 +1200,7 @@ function safeObservation(result = {}) {
         ) || null,
         preparedArtifact,
         verifiedRead,
+        ...(executionOk && payload?.recordEvidence?.source === "FIRESTORE_SERVER_AUTHENTICATED" ? { recordEvidence: payload.recordEvidence } : {}),
         ...(interfaceEvidence ? { interfaceEvidence, url: interfaceEvidence.url } : {}),
         repoCandidates:
             Array.isArray(payload?.candidates)

@@ -7,6 +7,7 @@ import * as tls from "node:tls";
 
 import {
     JARVIS_FS_BRIDGE_VERSION,
+    assertLocalModelMode,
     appendChunkedUpload,
     cancelChunkedUpload,
     completeChunkedUpload,
@@ -1264,7 +1265,7 @@ async function probeLocalJson(url, timeoutMs = 1200) {
 }
 
 export async function warmJarvisLocalModel({
-    model = "qwen3:1.7b",
+    model = "qwen3:4b-instruct-2507-q4_K_M",
     fetchImpl = globalThis.fetch,
     timeoutMs = 240000,
     keepAlive = "30m"
@@ -1309,6 +1310,9 @@ export async function warmJarvisLocalModel({
         Date.now();
 
     try {
+        const metadataResponse = await fetchImpl("http://127.0.0.1:11434/api/show", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: cleanModel }), signal: controller.signal });
+        if (!metadataResponse.ok) throw new Error("LOCAL_MODEL_METADATA_HTTP_" + metadataResponse.status);
+        const verifiedModelMode = assertLocalModelMode(JSON.parse(await metadataResponse.text()), cleanModel);
         const response =
             await fetchImpl(
                 "http://127.0.0.1:11434/api/generate",
@@ -1331,7 +1335,7 @@ export async function warmJarvisLocalModel({
                                 "30m"
                             ),
                         options: {
-                            num_ctx: 8192,
+                            num_ctx: 16384,
                             num_predict:
                                 1,
                             temperature:
@@ -1381,6 +1385,7 @@ export async function warmJarvisLocalModel({
         return {
             ok: true,
             status: "OLLAMA_MODEL_WARM",
+            verifiedModelMode,
             model:
                 cleanModel,
             keepAlive:
@@ -1537,7 +1542,7 @@ export async function ensureJarvisLocalAiRuntime({
     const repoRoot = resolveBridgeRoot(root);
     const expectedModel = String(
         env.JARVIS_LOCAL_LLM_MODEL ||
-        "qwen3:1.7b"
+        "qwen3:4b-instruct-2507-q4_K_M"
     ).trim();
     const expectedEmbeddingModel = String(
         env.JARVIS_LOCAL_EMBEDDING_MODEL ||
@@ -1981,7 +1986,7 @@ export async function inspectJarvisWorkstation({
     const expectedModel =
         String(
             process.env.JARVIS_LOCAL_LLM_MODEL ||
-            "qwen3:1.7b"
+            "qwen3:4b-instruct-2507-q4_K_M"
         ).trim();
     const expectedEmbeddingModel =
         String(

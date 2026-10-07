@@ -642,7 +642,7 @@ test("self-hosted semantic backend defaults to local-only Ollama Qwen with zero 
     assert.equal(health.ok, true);
     assert.equal(health.mode, "LOCAL_ONLY");
     assert.equal(health.provider, "ollama-openai-compatible-local");
-    assert.equal(health.model, "qwen3:1.7b");
+    assert.equal(health.model, "qwen3:4b-instruct-2507-q4_K_M");
     assert.equal(health.embeddingModel, "qwen3-embedding:0.6b");
     assert.equal(health.endpointOrigin, "http://127.0.0.1:11434");
     assert.equal(health.fallbackAllowed, false);
@@ -891,7 +891,7 @@ test("self-hosted semantic response retries one empty local result with the same
         env: {
             JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
             JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
-            JARVIS_LOCAL_LLM_MODEL: "qwen3:1.7b"
+            JARVIS_LOCAL_LLM_MODEL: "qwen3:4b-instruct-2507-q4_K_M"
         },
         fetchImpl: async (_url, options) => {
             const body = JSON.parse(options.body);
@@ -923,8 +923,8 @@ test("self-hosted semantic response retries one empty local result with the same
     });
 
     assert.equal(requests.length, 2);
-    assert.equal(requests[0].model, "qwen3:1.7b");
-    assert.equal(requests[1].model, "qwen3:1.7b");
+    assert.equal(requests[0].model, "qwen3:4b-instruct-2507-q4_K_M");
+    assert.equal(requests[1].model, "qwen3:4b-instruct-2507-q4_K_M");
     assert.ok(requests[1].options.num_predict >= 256);
     assert.match(
         requests[1].messages.at(-1).content,
@@ -994,7 +994,7 @@ test("self-hosted semantic backend feeds the canonical planner without paid API 
     assert.equal(requests.length, 1);
     assert.equal(requests[0].url, "http://127.0.0.1:11434/v1/chat/completions");
     assert.equal(requests[0].options.headers.Authorization, "Bearer test-token");
-    assert.equal(requests[0].body.tools[0].function.name, "jarvis_tool_0");
+    assert.equal(requests[0].body.tools[0].function.name, "repo.search");
     assert.equal(requests[0].body.tool_choice, "required");
     assert.equal(plan.inferenceReceipt.counters.localSemanticInferenceCalls, 1);
     assert.equal(plan.inferenceReceipt.counters.semanticExternalCalls, 0);
@@ -4032,4 +4032,33 @@ test("SIA7 patch refuses symlink traversal before reading or requesting authorit
         fs.rmSync(root, { recursive: true, force: true });
         fs.rmSync(outside, { recursive: true, force: true });
     }
+});
+
+
+test('local prompt normalization preserves the original system and final request across many evidence messages', async () => {
+    const { runInNewContext } = await import('node:vm');
+    const source=fs.readFileSync(path.join(process.cwd(),'jarvis-fs-bridge.js'),'utf8');
+    const from=source.indexOf('    function normalizeLocalChatMessages('),to=source.indexOf('    async function generateContent(',from);
+    assert.ok(from>0&&to>from);
+    const normalize=runInNewContext('(()=>{'+source.slice(from,to)+';return normalizeLocalChatMessages})()');
+    const messages=[{role:'system',content:'Preserve permissions and report only verified results.'},...Array.from({length:25},(_,i)=>({role:'system',content:'Evidence '+i})),{role:'user',content:'Read only. Do not write or deploy.'}];
+    const result=normalize(messages);
+    assert.equal(result.length,messages.length);
+    assert.equal(result[0].content,messages[0].content);
+    assert.equal(result.at(-1).content,messages.at(-1).content);
+    for(const invalid of [[{role:'user',content:'x'.repeat(12001)}],Array.from({length:6},()=>({role:'system',content:'x'.repeat(11000)}))]) {
+        assert.throws(()=>normalize(invalid),/LOCAL_SEMANTIC_(MESSAGE|CONTEXT)_TOO_LARGE/);
+    }
+});
+
+test('native local requests forbid silent prompt truncation and context shifting', async () => {
+    const engine=createSelfHostedSemanticEngine({env:{JARVIS_LOCAL_LLM_MODEL:'qwen3:4b-instruct-2507-q4_K_M'},fetchImpl:async(_url,options)=>{
+        const request=JSON.parse(options.body);
+        assert.equal(request.truncate,false);
+        assert.equal(request.shift,false);
+        return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:'Respuesta verificada'},done:true,done_reason:'stop'})};
+    }});
+    const result=await engine.respond({input:'Responde con la evidencia suministrada.'});
+    assert.equal(result.message,'Respuesta verificada');
+    assert.equal(result.externalApiUsed,false);
 });

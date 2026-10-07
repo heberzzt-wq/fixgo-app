@@ -998,6 +998,15 @@ function parseOpenAiFunctionCalls(message = {}) {
         .filter(Boolean);
 }
 
+export function assertLocalModelMode(metadata = {}, model = "") {
+    const supported = metadata?.thinking?.values;
+    if (Array.isArray(supported) && supported.length > 0 && !supported.includes(false)) {
+        throw new Error("LOCAL_MODEL_NON_THINKING_UNSUPPORTED:" + String(model));
+    }
+    return { model: String(model), requestedThinking: false,
+        declaredThinkingModes: Array.isArray(supported) ? supported : null };
+}
+
 export function createSelfHostedSemanticEngine({
     fetchImpl = globalThis.fetch,
     env = process.env,
@@ -1005,7 +1014,7 @@ export function createSelfHostedSemanticEngine({
 } = {}) {
     const mode = semanticProviderMode(env);
     const model = String(
-        env.JARVIS_LOCAL_LLM_MODEL || "qwen3:1.7b"
+        env.JARVIS_LOCAL_LLM_MODEL || "qwen3:4b-instruct-2507-q4_K_M"
     ).trim();
     const conversationModel = model;
     const embeddingModel = String(
@@ -1068,6 +1077,7 @@ export function createSelfHostedSemanticEngine({
             ),
             300000
         );
+    let verifiedModelMode = null;
     let lastModelWarmAt = 0;
     let modelWarmPromise = null;
 
@@ -1106,6 +1116,9 @@ export function createSelfHostedSemanticEngine({
             );
             try {
                 const origin = new URL(baseUrl).origin;
+                const metadataResponse = await fetchImpl(origin + "/api/show", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model }), signal: signal ? AbortSignal.any([controller.signal, signal]) : controller.signal });
+                if (!metadataResponse.ok) throw new Error("LOCAL_MODEL_METADATA_HTTP_" + metadataResponse.status);
+                verifiedModelMode = assertLocalModelMode(JSON.parse(await metadataResponse.text()), model);
                 const response = await fetchImpl(
                     origin + "/api/generate",
                     {
@@ -1122,7 +1135,7 @@ export function createSelfHostedSemanticEngine({
                                 warmKeepAlive ||
                                 "30m",
                             options: {
-                                num_ctx: 8192,
+                                num_ctx: 16384,
                                 num_predict: 1,
                                 temperature: 0
                             }
@@ -1181,6 +1194,8 @@ export function createSelfHostedSemanticEngine({
             mode,
             provider: "ollama-openai-compatible-local",
             model: model || null,
+            contextTokens: 16384,
+            verifiedModelMode,
             conversationModel:
                 conversationModel || null,
             modelProfiles: {
@@ -1286,19 +1301,21 @@ export function createSelfHostedSemanticEngine({
                     .toLowerCase();
             const content =
                 String(item?.content || "")
-                    .trim()
-                    .slice(0, fullResponseInput ? 120000 : 12000);
+                    .trim();
             if (
                 !allowedRoles.has(role) ||
                 !content
             ) {
                 continue;
             }
+            if (content.length > (fullResponseInput ? 120000 : 12000)) {
+                throw new Error("LOCAL_SEMANTIC_MESSAGE_TOO_LARGE");
+            }
             if (
                 totalCharacters + content.length >
                 (fullResponseInput ? 240000 : 60000)
             ) {
-                break;
+                throw new Error("LOCAL_SEMANTIC_CONTEXT_TOO_LARGE");
             }
             totalCharacters += content.length;
             normalized.push({
@@ -1307,7 +1324,10 @@ export function createSelfHostedSemanticEngine({
             });
         }
 
-        return normalized.slice(-20);
+        // A model must receive its permission boundary and the actual user turn.
+        // Never discard either to hide an oversized evidence packet.
+        if (normalized.length > 80) throw new Error("LOCAL_SEMANTIC_CONTEXT_TOO_LARGE");
+        return normalized;
     }
 
     async function generateContent(request = {}) {
@@ -1421,6 +1441,8 @@ export function createSelfHostedSemanticEngine({
                             selectedModel,
                         messages,
                         stream: documentGeneration,
+                        truncate: false,
+                        shift: false,
                         think: false,
                         ...(jsonOnlyNative
                             ? { format: nativeFormat }
@@ -1440,7 +1462,7 @@ export function createSelfHostedSemanticEngine({
                                 maxOutputTokens,
                             // Keep one loaded context across planning and conversation.
                             // Changing 4096/8192 makes Ollama reload the same model.
-                            num_ctx: 8192
+                            num_ctx: 16384
                         }
                     }
                     : {
@@ -7006,7 +7028,7 @@ export function createJarvisFsBridgeApp({
 
     app.post("/semantic/local/health", (_req, res) => {
         const health = semanticEngine.describe();
-        return res.status(health.ok === true ? 200 : 503).json(health);
+        return res.status(health.ok === true ? 200 : 503).json({ ...health, bridgeVersion: JARVIS_FS_BRIDGE_VERSION, identity: requestIdentity(), root: path.resolve(root) });
     });
 
     app.post("/semantic/plan", semanticPlanHandler(semanticEngine));

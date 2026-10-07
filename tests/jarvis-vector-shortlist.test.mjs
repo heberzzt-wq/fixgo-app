@@ -25,7 +25,7 @@ function fixture(t, { action = "read repository file", invalidTool = false } = {
    response = { embeddings: body.input.map(text => /repo\.read|tool\.test63|(?:^|\n)Query:read repository/.test(text) ? [1, 0] : [0, 1]) };
   } else {
    assert.equal(url, "http://127.0.0.1:11434/api/chat");
-   assert.equal(body.model, "qwen3:1.7b");
+   assert.equal(body.model, "qwen3:4b-instruct-2507-q4_K_M");
    const name = invalidTool ? "invented.readFile" : body.tools?.[0].function.name;
    response = { message: body.tools
     ? { tool_calls: [{ function: { name, arguments: { file: "jarvis-runtime-contract.json" } } }] }

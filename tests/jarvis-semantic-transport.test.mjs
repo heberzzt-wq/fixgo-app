@@ -92,7 +92,7 @@ test("a greeting after a final response retains the loaded context size across c
         catalog: [{ name: "conversation.respond", mutates: false }],
         missionState: { phase: "CURRENT_TURN", conversationalGate: true }, timeoutMs: 60000 });
     assert.equal(requests.length, 3);
-    assert.deepEqual(requests.map(x => x.body.options.num_ctx), [8192, 8192, 8192], "switching context forces Ollama to reload the same model");
+    assert.deepEqual(requests.map(x => x.body.options.num_ctx), [16384, 16384, 16384], "switching context forces Ollama to reload the same model");
     assert.ok(requests.every(x => x.url.endsWith("/api/chat")));
     assert.ok(requests.every(x => x.body.think === false), "bounded requests must not spend their answer budget on thinking");
     assert.equal(result.toolCalls[0].args.prompt, "Hola, buenas tardes, pariente.");
@@ -189,9 +189,9 @@ test("default semantic engine uses the real local HTTP transport with the unchan
     const plan = await engine.plan({ input: instruction, catalog, missionState: phase });
     assert.equal(plan.ok, true);
     assert.equal(plan.missionComplete, false);
-    assert.deepEqual(calls.map(call => call.route), ["/api/generate", "/api/chat"]);
-    assert.equal(calls[1].body.model, "qwen3:1.7b");
-    assert.equal(calls[1].body.messages[1].content, instruction);
+    assert.deepEqual(calls.map(call => call.route), ["/api/show", "/api/generate", "/api/chat"]);
+    assert.equal(calls[2].body.model, "qwen3:4b-instruct-2507-q4_K_M");
+    assert.equal(calls[2].body.messages[1].content, instruction);
     assert.equal(engine.describe().counters.semanticExternalCalls, 0);
 });
 
@@ -609,7 +609,7 @@ test("final composition preserves the entire prompt and reserves context for its
         const body = JSON.parse(options.body);
         assert.match(url, /\/api\/chat$/);
         assert.equal(body.options.num_predict, 256);
-        assert.equal(body.options.num_ctx, 8192);
+        assert.equal(body.options.num_ctx, 16384);
         assert.equal(body.messages.at(-1).content, prompt);
         assert.equal(body.format, undefined, "a natural response must not be forced into JSON");
         return { ok: true, text: async () => JSON.stringify({ message: { content: "La misión quedó parcial: búsqueda completada y diagnóstico bloqueado." } }) };

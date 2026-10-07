@@ -473,8 +473,8 @@ test("current-turn gate never executes a no-arg retrieval match without model se
     assert.notEqual(result.planKind, "CURRENT_TURN_GATE_ACTION_DIRECT_TOOL");
     assert.equal(result.toolCalls.length, 1);
     assert.equal(result.toolCalls[0].name, "system.capabilities");
-    assert.equal(result.toolCalls[0].args.instruction, "Enlistame lo que sabes hacer en este repo.");
-    assert.equal(result.toolCalls[0].args.query, "Enlistame lo que sabes hacer en este repo.");
+    assert.deepEqual(result.toolCalls[0].args, {}, "An argument-free capability schema must stay argument-free.");
+
 });
 
 
@@ -2354,7 +2354,7 @@ test("semantic planner maps provider function calls to the runtime catalog", () 
 
 test("semantic planner maps Gemini native function calls to the runtime catalog", () => {
     const declarations = buildGeminiModelTools(catalog);
-    assert.equal(declarations[0].name, "jarvis_tool_0");
+    assert.equal(declarations[0].name, "repo.search");
     assert.ok(declarations[0].description.includes("repo.search"));
     assert.equal(declarations[0].parametersJsonSchema.properties.query.type, "string");
     assert.equal(declarations[0].parametersJsonSchema.additionalProperties, false);

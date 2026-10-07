@@ -313,6 +313,7 @@ export const JarvisToolRuntime = {
                     t.version,
                 description:
                     t.description,
+                investigationReadOnly: t.investigationReadOnly === true,
                 contractStages: t.contractStages || null,
                 contractKinds: t.contractKinds || null,
                 evidenceKinds: Array.isArray(t.evidenceKinds) ? [...t.evidenceKinds] : null,
@@ -684,15 +685,107 @@ registerJarvisActuatorTools(
     JarvisToolRuntime
 );
 
+
+// Generic read-only data access: schema comes from discovered application source,
+// not an intent table. Firebase enforces the current caller's existing rules.
+export async function executePlatformQuery(args = {}, dependencies = null, context = {}) {
+    let scope;
+    try {
+        if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("PLATFORM_QUERY_ARGUMENTS_INVALID");
+        const sourceRead = (context.completedTasks || []).find(task => task.name === "repo.read" && task.observation?.ok === true && task.observation?.executionOk !== false && task.observation?.blocked !== true && task.observation?.verifiedRead?.file === args.sourceFile && String(task.observation.verifiedRead.content || task.observation.verifiedRead.numberedContent || "").trim());
+        if (!sourceRead) throw new Error("PLATFORM_QUERY_SOURCE_NOT_READ");
+        const mode = args.mode || "query", collectionPath = args.collection;
+        const segment = value => typeof value === "string" && value.length > 0 && value.length <= 500 && !/[\x00-\x1f]/.test(value) && ![".", ".."].includes(value);
+        if (typeof collectionPath !== "string" || collectionPath.length > 1500 || collectionPath.split("/").length % 2 !== 1 || !collectionPath.split("/").every(segment)) throw new Error("PLATFORM_QUERY_COLLECTION_REQUIRED");
+        if (!["query", "count"].includes(mode)) throw new Error("PLATFORM_QUERY_MODE_INVALID");
+        const fields = args.fields || [], filters = args.filters || [];
+        const validField = value => typeof value === "string" && value.length <= 500 && value.split(".").every(part => segment(part) && !["__proto__", "constructor", "prototype"].includes(part));
+        if (!Array.isArray(fields) || fields.length > 20 || (mode === "query" && !fields.length) || !fields.every(validField)) throw new Error("PLATFORM_QUERY_FIELDS_REQUIRED");
+        if (!Array.isArray(filters) || filters.length > 10 || filters.some(filter => !filter || !validField(filter.field) || !["==", "!=", "<", "<=", ">", ">=", "in", "not-in", "array-contains", "array-contains-any"].includes(filter.op) || !Object.prototype.hasOwnProperty.call(filter, "value"))) throw new Error("PLATFORM_QUERY_FILTER_INVALID");
+        const scalar = value => value === null || typeof value === "string" || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value));
+        if (filters.some(filter => !(scalar(filter.value) || (Array.isArray(filter.value) && filter.value.length > 0 && filter.value.length <= 30 && filter.value.every(scalar))))) throw new Error("PLATFORM_QUERY_VALUE_INVALID");
+        const pageSize = args.pageSize === undefined ? 50 : args.pageSize;
+        if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100 || (args.cursor !== undefined && (!segment(args.cursor) || args.cursor.includes("/")))) throw new Error("PLATFORM_QUERY_PAGE_INVALID");
+        if (args.includeCount !== undefined && typeof args.includeCount !== "boolean") throw new Error("PLATFORM_QUERY_COUNT_INVALID");
+        scope = { collection: collectionPath, filters, fields, mode, sourceFile: args.sourceFile };
+        const orders = args.orderBy || [];
+        if (!Array.isArray(orders) || orders.length > 3 || orders.some(item => !validField(item.field) || !["asc", "desc"].includes(item.direction || "asc"))) throw new Error("PLATFORM_QUERY_ORDER_INVALID");
+        const app = dependencies || await import("../firebase.js");
+        const sdk = dependencies?.sdk || await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+        const user = app.auth?.currentUser;
+        if (!user?.uid || !app.db) throw new Error("PLATFORM_QUERY_SESSION_REQUIRED");
+        const sameUser = () => { if (app.auth.currentUser?.uid !== user.uid) throw new Error("PLATFORM_QUERY_SESSION_CHANGED"); };
+        sameUser();
+        const constraints = filters.map(filter => sdk.where(filter.field, filter.op, filter.value));
+        const base = sdk.query(sdk.collection(app.db, collectionPath), ...constraints);
+        let totalCount, countObservedAt;
+        if (mode === "count" || args.includeCount === true) {
+            const count = await sdk.getCountFromServer(base); sameUser();
+            totalCount = count.data().count;
+            if (!Number.isInteger(totalCount) || totalCount < 0) throw new Error("PLATFORM_QUERY_COUNT_UNVERIFIED");
+            countObservedAt = new Date().toISOString();
+        }
+        const recordEvidence = { source: "FIRESTORE_SERVER_AUTHENTICATED", scope, readOnly: true,
+            ...(totalCount !== undefined ? { totalCount, countObservedAt } : {}) };
+        if (mode === "query") {
+            const pageConstraints = orders.map(item => sdk.orderBy(item.field, item.direction || "asc"));
+            pageConstraints.push(sdk.orderBy(sdk.documentId()));
+            if (args.cursor) {
+                const cursor = await sdk.getDocFromServer(sdk.doc(app.db, collectionPath, args.cursor)); sameUser();
+                if (!cursor.exists()) throw new Error("PLATFORM_QUERY_CURSOR_NOT_FOUND");
+                pageConstraints.push(sdk.startAfter(cursor));
+            }
+            const snapshot = await sdk.getDocsFromServer(sdk.query(base, ...pageConstraints, sdk.limit(pageSize + 1))); sameUser();
+            if (snapshot.metadata?.fromCache === true || snapshot.metadata?.hasPendingWrites === true) throw new Error("PLATFORM_QUERY_SERVER_EVIDENCE_REQUIRED");
+            const selected = snapshot.docs.slice(0, pageSize), truncatedFields = [];
+            const rows = selected.map(document => ({ id: document.id, values: Object.fromEntries(fields.map(field => {
+                const value = field === "__name__" ? document.id : document.get(field);
+                if (value === undefined) return [field, null];
+                if (typeof value?.toDate === "function") return [field, value.toDate().toISOString()];
+                if (scalar(value)) { if (typeof value === "string" && value.length > 2000) {truncatedFields.push({id:document.id,field});return [field,value.slice(0,2000)];}return [field,value]; }
+                if (Array.isArray(value) && value.length <= 30 && value.every(scalar)) return [field,value];
+                truncatedFields.push({id:document.id,field});return [field,{type:typeof value,notExpanded:true}];
+            })) }));
+            const hasMore = snapshot.docs.length > pageSize;
+            Object.assign(recordEvidence, { rows, returnedCount: rows.length, hasMore, nextCursor: hasMore ? selected.at(-1)?.id : null,
+                previousCursor: args.cursor || null, rowsObservedAt: new Date().toISOString(),
+                completeForQuery: !hasMore && !args.cursor && (totalCount === undefined || totalCount === rows.length), truncatedFields,
+                consistentCountAndList: totalCount === undefined ? null : !args.cursor && !hasMore && totalCount === rows.length });
+            if (JSON.stringify(recordEvidence).length > 100000) throw new Error("PLATFORM_QUERY_RESPONSE_TOO_LARGE_REDUCE_PAGE");
+        }
+        return { ok: true, executionOk: true, status: "PLATFORM_QUERY_READY", tool: "platform.query", readOnly: true,
+            evidenceKinds: ["platform_records"], recordEvidence };
+    } catch (error) {
+        const code = String(error?.code || error?.message || "PLATFORM_QUERY_FAILED");
+        return { ok: false, executionOk: false, status: "PLATFORM_QUERY_FAILED", tool: "platform.query", readOnly: true,
+            error: { code, message: String(error?.message || code).slice(0,1000) }, ...(scope ? {scope} : {}) };
+    }
+}
+
+JarvisToolRuntime.register({
+    name: "platform.query", investigationReadOnly: true, mutates: false, requiresApproval: false, evidenceKinds: ["platform_records"],
+    description: "Consulta registros OPERATIVOS actuales de la plataforma en Firestore con la sesión y permisos existentes. Sirve para cualquier colección y campos verificados, sin escribir. Antes de consultar, descubre colección, filtros y campos leyendo el código con repo.search/repo.read; no inventes el esquema. Devuelve los campos solicitados, conteo exacto opcional y cursor si hay más páginas. No es salud ni telemetría.",
+    inputSchema: { type: "object", properties: {
+        sourceFile: {type:"string",description:"Archivo de la aplicación ya leído con repo.read en esta misión que demuestra el esquema utilizado. Antes de la primera consulta debes localizarlo y leerlo."},
+        orderBy:{type:"array",maxItems:3,items:{type:"object",properties:{field:{type:"string"},direction:{type:"string",enum:["asc","desc"]}},required:["field"],additionalProperties:false}},
+        collection: {type:"string",description:"Ruta de colección real descubierta en la aplicación, no un nombre deducido del pedido."},
+        mode: {type:"string",enum:["query","count"]},
+        fields: {type:"array",items:{type:"string"},maxItems:20,description:"Campos exactos que pide el usuario, obligatorios para query. No traer todo el perfil por defecto."},
+        filters: {type:"array",maxItems:10,items:{type:"object",properties:{field:{type:"string"},op:{type:"string",enum:["==","!=","<","<=",">",">=","in","not-in","array-contains","array-contains-any"]},value:{type:["string","number","boolean","null","array"]}},required:["field","op","value"],additionalProperties:false}},
+        pageSize:{type:"integer",minimum:1,maximum:100},cursor:{type:"string",description:"nextCursor devuelto por la misma consulta; omitir para primera página."},includeCount:{type:"boolean"}
+    },required:["collection","sourceFile"],additionalProperties:false},
+    execute: (args, context) => executePlatformQuery(args, null, context)
+});
+
 // Registro de herramientas Read-Only iniciales
 JarvisToolRuntime.register({
     name: "repo.audit",
-    contractStages: ["sourceReview"], contractKinds: ["repository"],
+    investigationReadOnly: true,
     description: "Devuelve un INVENTARIO ESTRUCTURAL del repositorio real: lista de rutas existentes, dependencias, pruebas detectadas y duplicados desde el grafo AST vivo. Audita e inventaría el proyecto completo. No devuelve el contenido ni líneas de archivos individuales. No ejecuta pruebas ni certifica producción.",
     mutates: false,
     requiresApproval: false,
     output: "REPO_AUDIT_RESULT_V8",
-    inputSchema: {type:"object",properties:{target:{type:"string",description:"Destino explícito suministrado o verificado; omitir para el checkout del bridge. Nunca inventar un nombre de proyecto como ruta."},refresh:{type:"boolean"}},additionalProperties:false},
+    inputSchema: {type:"object",properties:{target:{type:"string",default:"",description:"OMITIR para auditar el repositorio activo completo: ya está seleccionado. Usar sólo para otro directorio o URL escrito explícitamente por el usuario o descubierto en evidencia. No es un nombre de proyecto, página, marca ni servicio."},refresh:{type:"boolean"}},additionalProperties:false},
     execute: async (args = {}) => {
         if (!window.JarvisLocalBridge?.buildRepoGraph) {
             return { ok: false, status: "LOCAL_BRIDGE_REQUIRED", error: "LIVE_REPO_GRAPH_REQUIRED", tool: "repo.audit" };
@@ -780,7 +873,7 @@ JarvisToolRuntime.register({
 
 JarvisToolRuntime.register({
     name: "repo.read",
-    contractStages: ["sourceReview"], contractKinds: ["repository"],
+    investigationReadOnly: true,
     description: "Devuelve el CONTENIDO y LÍNEAS de UN ARCHIVO de código fuente del repositorio por su ruta real ya localizada. También lee configuración, HTML y package.json. Requiere file exacto. No inventaría el proyecto, no lista rutas, no ejecuta pruebas ni modifica código.",
     mutates: false,
     requiresApproval: false,
@@ -1422,12 +1515,11 @@ window.JarvisLocalBridge.verifyIdentity ||= async function({
                         cache: "no-store"
                     }
                 ),
-                fetch(
-                    "http://localhost:3344/health",
-                    {
-                        cache: "no-store"
-                    }
-                )
+                window.JarvisLocalBridge.privateRelayState && typeof window.JarvisLocalBridge.requestJson === "function"
+                    ? window.JarvisLocalBridge.requestJson("/semantic/local/health", {}).then(data => ({
+                        ok: data?.ok === true, json: async () => ({ ...data, version: data.bridgeVersion, semantic: data })
+                    }))
+                    : fetch("http://localhost:3344/health", { cache: "no-store" })
             ]);
 
         const expected =
@@ -1477,6 +1569,7 @@ window.JarvisLocalBridge.verifyIdentity ||= async function({
                         ? "LOCAL_BRIDGE_VERSION_MISMATCH"
                         : "BRIDGE_IDENTITY_MISMATCH",
             bridgeVersion,
+            semantic: bridgeHealth?.semantic || null,
             requiredBridgeVersion:
                 JARVIS_REQUIRED_LOCAL_BRIDGE_VERSION,
             bridgeVersionCompatible,
@@ -6202,7 +6295,8 @@ if (false) JarvisToolRuntime.register({
 });
 JarvisToolRuntime.register({
     name: "repo.search",
-    description: "Busca patrones, expresiones o contexto dentro del código base.",
+    investigationReadOnly: true,
+    description: "LOCALIZA rutas existentes y fragmentos de código por símbolo, texto o descripción. Úsala para encontrar dónde se define una función cuando aún no conoces el archivo. Devuelve candidatos reales; después repo.read puede leer una ruta encontrada. No adivines rutas a partir del símbolo.",
     mutates: false,
     requiresApproval: false,
     output: "REPO_SEARCH_RESULT",
@@ -6918,8 +7012,9 @@ JarvisToolRuntime.register({
 
 JarvisToolRuntime.register({
     name: "repo.grep",
-    contractStages: ["sourceReview"], contractKinds: ["repository"],
-    description: "Busca texto real dentro del repositorio usando el bridge local read-only.",
+    investigationReadOnly: true,
+    description: "Busca un término literal o símbolo en los archivos reales del checkout y devuelve rutas y líneas coincidentes. Sirve para localizar una definición antes de leer su archivo. No es una búsqueda de negocios en internet.",
+    inputSchema: { type: "object", properties: { term: { type: "string", description: "Término literal o identificador a localizar." } }, required: ["term"], additionalProperties: false },
     mutates: false,
     requiresApproval: false,
     output: "REPO_GREP_RESULT",
@@ -7485,6 +7580,7 @@ JarvisToolRuntime.register({
 
 JarvisToolRuntime.register({
     name: "repo.diagnose",
+    investigationReadOnly: true,
     description: "Diagnóstico forense read-only de un archivo real del repo. Clasifica tipo, señales, riesgos y siguientes acciones sin escribir.",
     mutates: false,
     requiresApproval: false,

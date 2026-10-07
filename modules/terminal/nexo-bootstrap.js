@@ -294,7 +294,7 @@ function privateRelayWorkstationEnabled() {
 
 function configureJarvisPrivateRelay(bridge) {
     const direct = bridge.requestJson.bind(bridge);
-    let client, broker, starting, autoRetry;
+    let client, broker, starting, autoRetry, lastRelayError;
     bridge.privateRelayState = { status: "NOT_CHECKED", connected: false };
     const progress = detail => globalThis.dispatchEvent?.(new CustomEvent("jarvis:semantic-progress", { detail }));
     bridge.enablePrivateRelay = async () => {
@@ -327,9 +327,14 @@ function configureJarvisPrivateRelay(bridge) {
         return result;
     };
     const resumeWorkstation = () => bridge.enablePrivateRelay().catch(error => {
-        bridge.privateRelayState = { status: "RECONNECTING", connected: false, error: error.code || error.message };
-        console.warn("[JARVIS_PRIVATE_RELAY_NOT_READY]", error.code || error.message);
-        if (privateRelayWorkstationEnabled()) autoRetry = setTimeout(resumeWorkstation, 15000);
+        const code = error.code || error.message;
+        const peerOwnsLease = code === "JARVIS_RELAY_LEASE_HELD";
+        bridge.privateRelayState = { status: peerOwnsLease ? "STANDBY" : "RECONNECTING", connected: false, error: code };
+        if (lastRelayError !== code) {
+            (peerOwnsLease ? console.info : console.warn)(peerOwnsLease ? "[JARVIS_PRIVATE_RELAY_PEER_ACTIVE]" : "[JARVIS_PRIVATE_RELAY_NOT_READY]", code);
+            lastRelayError = code;
+        }
+        if (privateRelayWorkstationEnabled()) autoRetry = setTimeout(resumeWorkstation, peerOwnsLease ? 30000 : 15000);
     });
     if (privateRelayWorkstationEnabled()) autoRetry = setTimeout(resumeWorkstation, 0);
     return bridge;

@@ -4821,7 +4821,8 @@ if (
         [
             ...missionCatalogSource.filter(tool => operationalMissionToolNames.has(tool.name)),
             ...missionCatalogSource.filter(tool => !operationalMissionToolNames.has(tool.name))
-        ].filter(tool => !boundedCurrentTurnMission || operationalMissionToolNames.has(tool.name)).slice(0, 80);
+        ].filter(tool => !boundedCurrentTurnMission || operationalMissionToolNames.has(tool.name) ||
+            (tool.investigationReadOnly === true && isBoundedReadOnlyMission([{ name: tool.name, args: {} }], [tool]))).slice(0, 80);
     let missionContractToolCalls = boundedCurrentTurnMission || observationFirstCurrentTurnMission ? operationalInitialToolCalls : undefined;
     let lastMissionContractError = null;
     for (let missionContractAttempt = 1; missionContractAttempt <= 3 && !boundedCurrentTurnMission && !observationFirstCurrentTurnMission; missionContractAttempt += 1) {

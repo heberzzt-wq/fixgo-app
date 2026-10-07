@@ -5945,7 +5945,8 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "system.health",
-            description: "Entrega un diagnostico read-only del runtime, bridge, memoria y conectividad del navegador.",
+            description: "Comprueba sólo salud técnica del runtime, bridge y conectividad del navegador. No consulta registros de clientes, técnicos, trabajos, cobros ni módulos funcionales del negocio; no permite contarlos ni nombrarlos.",
+            evidenceKinds: ["system_telemetry"],
             output: "SIA7_SYSTEM_HEALTH",
             execute: async () => {
                 const registeredTools =
@@ -6006,7 +6007,7 @@ export function registerJarvisMultifunctionTools(runtime) {
                 if (
                     bridge.ok === true &&
                     workstation.ok === true &&
-                    workstation?.localAi?.ready !== true
+                    workstation?.localAi?.ready === false
                 ) {
                     failures.push(
                         "LOCAL_AI_NOT_READY"
@@ -6031,6 +6032,8 @@ export function registerJarvisMultifunctionTools(runtime) {
                         null,
                     status,
                     failures,
+                    error: failures.length ? failures.join("; ") : null,
+                    evidenceKinds: ["system_telemetry"],
                     runtime: {
                         registeredTools,
                         bridgeAvailable:
@@ -6052,9 +6055,9 @@ export function registerJarvisMultifunctionTools(runtime) {
                         memoryEntries:
                             globalThis?.JarvisToolMemory?.all?.().length || 0,
                         localAiReady:
-                            workstation?.localAi?.ready === true,
+                            workstation?.localAi?.ready ?? null,
                         localLlmModelReady:
-                            workstation?.localAi?.expectedModelPresent === true,
+                            workstation?.localAi?.expectedModelPresent ?? null,
                         localEmbeddingModelReady:
                             workstation?.localAi?.expectedEmbeddingModelPresent === true &&
                             workstation?.localAi?.embeddingProbe?.ok === true,

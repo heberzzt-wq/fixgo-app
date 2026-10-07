@@ -33,6 +33,7 @@ function normalizeCatalog(catalog = []) {
         .filter(item => isSafeToolName(item?.name))
         .map(item => ({
             name: String(item.name),
+            investigationReadOnly: item.investigationReadOnly === true,
             description: String(item.description || "").slice(0, 500),
             contractStages: Array.isArray(item.contractStages) ? item.contractStages.map(String) : null,
             contractKinds: Array.isArray(item.contractKinds) ? item.contractKinds.map(String) : null,
@@ -180,7 +181,7 @@ function validatePlan(
                     {},
                     fallbackInput
                 )
-                : fallbackInput
+                : fallbackInput && tool.inputSchema?.type !== "object" && !Array.isArray(tool.inputSchema?.anyOf)
                     ? {
                         instruction: String(fallbackInput).slice(0, 12000),
                         query: String(fallbackInput).slice(0, 600)
@@ -507,20 +508,20 @@ function buildModelTools(catalog = []) {
 
 function jsonTypeForSchemaHint(hint) {
     if (hint && typeof hint === "object" && !Array.isArray(hint)) {
-        return hint.type ? hint : { type: "object", additionalProperties: true };
+        return hint.type ? hint : { type: "object", properties: {}, additionalProperties: true };
     }
 
     const normalized = String(hint || "string").trim().toLowerCase();
     if (normalized.startsWith("array")) return { type: "array", items: {} };
     if (normalized === "number" || normalized === "integer") return { type: normalized };
     if (normalized === "boolean") return { type: "boolean" };
-    if (normalized === "object") return { type: "object", additionalProperties: true };
+    if (normalized === "object") return { type: "object", properties: {}, additionalProperties: true };
     return { type: "string" };
 }
 
 function buildNativeInputSchema(inputSchema = null) {
     if (!inputSchema || typeof inputSchema !== "object" || Array.isArray(inputSchema)) {
-        return { type: "object", additionalProperties: true };
+        return { type: "object", properties: {}, additionalProperties: true };
     }
 
     if (Array.isArray(inputSchema.anyOf) && !inputSchema.properties) return inputSchema;
@@ -814,8 +815,8 @@ function schemaValueIsExecutable(
 }
 
 function buildGeminiModelTools(catalog = []) {
-    return catalog.map((tool, index) => ({
-        name: `jarvis_tool_${index}`,
+    return catalog.map(tool => ({
+        name: tool.name,
         description: `${tool.name}: ${tool.description}`.slice(0, 900),
         parametersJsonSchema: buildNativeInputSchema(tool.inputSchema)
     }));
@@ -837,7 +838,7 @@ function extractGeminiToolCallPlan(response = {}, catalog = []) {
         const index = providerName.startsWith(prefix)
             ? Number(providerName.slice(prefix.length))
             : Number.NaN;
-        const tool = Number.isInteger(index) ? catalog[index] : null;
+        const tool = catalog.find(item => item.name === providerName) || (Number.isInteger(index) ? catalog[index] : null);
         if (!tool) return null;
         return {
             name: tool.name,
@@ -851,10 +852,9 @@ function extractGeminiToolCallPlan(response = {}, catalog = []) {
 }
 
 function validActionDescription(value = "") {
-    const source = String(value || "").trim();
-    if (!source || source.length > 240) return false;
-    const words = source.split(/\s+/).filter(Boolean);
-    return words.length >= 3 && words.length <= 8;
+    // This is retrieval text, never executable authority. Its language or word
+    // count must not block the same model from selecting a real tool.
+    return typeof value === "string" && value.trim().length > 0 && value.trim().length <= 512;
 }
 
 function browserGroundingInstruction(missionState) {
@@ -872,6 +872,9 @@ function buildSemanticSystemInstruction(catalog = [], missionState = null, inclu
         browserGroundingInstruction(missionState),
         "Interpreta el significado completo de la instruccion sin usar clasificaciones lexicas, diccionarios de intencion ni reglas de negocio hardcodeadas.",
         "El catalogo runtime y los schemas incluidos abajo son la unica fuente de verdad sobre herramientas disponibles, argumentos, mutaciones, aislamiento y entregables.",
+        "Para conocer registros operativos actuales usa platform.query con la sesión autenticada. Antes, descubre el esquema con repo.search y repo.read; si aún no conoces la colección, los campos o filtros, investiga el código que los consulta. El código demuestra el esquema, nunca cantidades o nombres registrados actualmente. No sustituyas datos por system.health ni system.observability. Un objetivo de registros requiere platform_records. Conserva su alcance B2B/B2C sin añadir filtros no solicitados. Continúa investigando hasta obtener evidencia pertinente; sólo para por permisos, datos imprescindibles faltantes o un error real.",
+        "Trabaja por evidencia: entiende el objetivo completo; descubre la fuente disponible; lee lo necesario; ejecuta la consulta u operacion pertinente; compara el resultado con cada parte del pedido y continua si falta evidencia. Un inventario de archivos no equivale a analizar todo su codigo. El codigo permite descubrir el esquema de los datos, no demostrar cuantos registros existen hoy. Para datos operativos, descubre coleccion y campos en la fuente de la plataforma y consulta los registros actuales con platform.query usando la sesion autorizada. No sustituyas datos de negocio por telemetria ni te detengas por desconocer una ruta que puedes investigar. No inventes colecciones ni nombres de archivos.",
+        "Trabaja por objetivo verificable: aclara sólo lo imprescindible, reúne la evidencia mínima pertinente, ejecuta el siguiente paso autorizado y comprueba el resultado contra el pedido original. Un fallo requiere revisar su causa con la evidencia disponible, no repetir a ciegas ni cambiar de objetivo. Una lectura no es una reparación; preparar no es escribir; pasar tests no es publicar. Conserva lo que ya quedó comprobado y expresa exactamente qué sigue pendiente.",
         "Selecciona exclusivamente herramientas presentes en el catalogo. No inventes nombres de herramientas, archivos, rutas, entidades, hechos, resultados ni evidencia.",
         "Preserva todos los objetivos explicitos, negaciones, identidades, adjuntos y restricciones del usuario. No arrastres objetivos anteriores salvo continuidad inequívoca sustentada por el estado de mision.",
         "Usa las descripciones y schemas de las herramientas para decidir cual satisface mejor cada objetivo y para construir argumentos completos.",
@@ -882,7 +885,7 @@ function buildSemanticSystemInstruction(catalog = [], missionState = null, inclu
         "Si no hace falta una herramienta operativa, usa una capacidad conversacional del catalogo si existe.",
         "Devuelve solamente una respuesta estructurada valida compatible con el contrato solicitado por el runtime.",
         includePayload ? `CATALOGO=${JSON.stringify(catalog)}` : "",
-        includePayload && missionState ? `ESTADO_DE_MISION=${JSON.stringify(missionState).slice(0, 30000)}` : ""
+        includePayload && missionState ? `ESTADO_DE_MISION=${JSON.stringify(missionState)}` : ""
     ].filter(Boolean).join("\n");
 }
 
@@ -925,7 +928,7 @@ function completionAuditSchema(catalog, tasks, selectableCatalog = catalog) {
             items: { anyOf: indices.length ? [objective(false), objective(true)] : [objective(false)] } } },
             required: ["objectives"], additionalProperties: false },
         toolCalls: { type: "array", maxItems: 1, items: { type: "object", properties: {
-            name: { type: "string", enum: selectableCatalog.map(tool => tool.name) }, args: { type: "object", additionalProperties: true }
+            name: { type: "string", enum: selectableCatalog.map(tool => tool.name) }, args: { type: "object", properties: {}, additionalProperties: true }
         }, required: ["name", "args"], additionalProperties: false } }
     }, required: ["explanation", "completionAssessment", "toolCalls"], additionalProperties: false };
 }
@@ -1850,7 +1853,7 @@ async function runModelSemanticPlanner({
         "You can reason, explain and draft text directly. Registered tools describe potential operations, NOT proof that those operations are available in this session or have been performed.",
         "Never claim to have read, edited, generated, sent or published anything without an actual receipt. Tool execution still requires transport, permissions and independent validation; do not promise unrestricted remote execution.",
         missionState?.runtimeTransport?.name === "FIRESTORE_PRIVATE"
-            ? "CURRENT_TRANSPORT=FIRESTORE_PRIVATE. En este canal móvil puedes conversar, explicar, redactar texto en el chat, consultar el repositorio en modo lectura y buscar información web. No puedes crear archivos descargables, editar archivos, ejecutar comandos, capturar pantallas, producir video ni publicar desde este canal. Describe sólo estas capacidades actuales, no las herramientas adicionales de la laptop. Las lecturas y búsquedas requieren ejecución y evidencia nuevas."
+            ? "CURRENT_TRANSPORT=FIRESTORE_PRIVATE. Firestore sólo transporta solicitudes y resultados; no aloja el código del repositorio ni ejecuta el modelo. En este canal móvil puedes conversar, explicar, redactar texto en el chat, consultar el repositorio en modo lectura y buscar información web. No puedes crear archivos descargables, editar archivos, ejecutar comandos, capturar pantallas, producir video ni publicar desde este canal. Describe sólo estas capacidades actuales, no las herramientas adicionales de la laptop. Las lecturas y búsquedas requieren ejecución y evidencia nuevas."
             : "REGISTERED_TOOL_NAMES=" + JSON.stringify(normalizedCatalog.map(tool => tool.name))
     ].join("\n");
     const isConversationEcho = message => {
@@ -1906,7 +1909,7 @@ async function runModelSemanticPlanner({
             'If the current message supplies information requested by the immediately preceding assistant question, treat it as continuation of that unresolved request. Reconstruct the pending operation from recent conversation context instead of classifying the short answer in isolation.',
             'Set requiresConversationContext=true only when unresolved references in the current instruction need earlier messages. Set it false for a self-contained instruction. Similar earlier tasks and failed attempts do not make a complete new request depend on their proposals or pending actions.',
             'External actions require new tool evidence even if earlier messages claimed success. A nearby place search needs an area, but a city or neighborhood already supplied is sufficient. Relative repository file paths already have an active repository.',
-            'When mode=tools, also describe the first requested operation in action using 3-8 English words for tool retrieval. Include the resource kind, preserve read versus write, and omit filenames, proper names and locations because the original request remains the source of arguments.',
+            'When mode=tools, also describe the first requested operation in action using a concise natural-language description for tool retrieval. Include the resource kind, preserve read versus write, and omit filenames, proper names and locations because the original request remains the source of arguments.',
             'For clarify, put one brief Spanish question asking for the missing detail in question. For tools or chat, question must be empty. For chat or clarify, action must be empty. Do not answer or perform the request. Return JSON only.'
         ].filter(Boolean).join("\n");
         const gateExamples = [
@@ -2000,7 +2003,7 @@ async function runModelSemanticPlanner({
                                 content: [
                                     "Audit whether the proposed missing detail is truly essential before any useful work can begin, not merely whether it is absent.",
                                     browserGroundingInstruction(missionState),
-                                    "A detail may be absent but non-blocking. If the resolved target and available tools allow a broad analysis, inspection, search or check to begin, return stillMissing=false and describe the first requested operation in action using 3-8 English words.",
+                                    "A detail may be absent but non-blocking. If the resolved target and available tools allow a broad analysis, inspection, search or check to begin, return stillMissing=false and describe the first requested operation in action using a concise natural-language description.",
                                     "Do not require the user to choose subtopics, aspects, style or depth when a general analysis can already start and evidence limitations can be reported after execution.",
                                     "If the request only asks for an explanation, definition, conceptual scope or conversation, return stillMissing=false, mode=chat, action=empty string. Do not transform a general knowledge question into inspection or production because currentPage or tools exist.",
                                     "For actual external work that can begin, return stillMissing=false, mode=tools and its action. Return stillMissing=true, mode=clarify only when the work cannot begin without that detail; then action must be empty.",
@@ -2135,6 +2138,7 @@ async function runModelSemanticPlanner({
         if (direct && gatePayload.mode === "chat") {
             const responseSystemInstruction = [
                 "You are Jarvis, also called ADJUNTO: the assistant, not the human. Reply to the human in natural Mexican Spanish.",
+                "Interpret familiar forms of address as friendly conversation, not as assertions about a family relationship. Match the human tone without unsolicited corrections or disclaimers about kinship. If asked to draft a message, return the requested message without claiming it has been sent. Preserve supplied details exactly; omit unspecified logistics rather than asserting their absence.",
                 "Jarvis in a user greeting is YOUR name: it must not become a name for the human. If the human states or corrects their name, accept that exact spelling and do not ask for information already given.",
                 "Never rewrite their message in the first person as though you were the human. Answer knowledge questions directly and fully; do not offer to answer a question already asked. Do not invent performed actions or missing facts. An unspecified detail is unknown, not false or nonexistent; omit it or use a clearly marked placeholder. Answer the actual question after a greeting, not just hello. When asked about your abilities, give at least three concrete examples of useful help and state execution limits. A vague statement that you can help with many things or asking what they want does not answer that question.",
                 conversationRuntimeContext
@@ -2277,7 +2281,7 @@ async function runModelSemanticPlanner({
         if (typeof retrieveToolCandidates !== "function") {
             throw new Error("SEMANTIC_TOOL_RETRIEVAL_REQUIRED");
         }
-        const actionInstruction = 'Describe the first requested operation in 3-8 English words for tool retrieval. Include the kind of resource. Preserve reading versus writing. Omit filenames, proper names and locations: they remain in the original request as arguments. Use the conversation to resolve references. Return only {"action":"short operation"}; do not answer or execute the request.';
+        const actionInstruction = 'Describe the first requested operation concisely in natural language for tool retrieval. Include the kind of resource. Preserve reading versus writing. Omit filenames, proper names and locations: they remain in the original request as arguments. Use the conversation to resolve references. Return only {"action":"short operation"}; do not answer or execute the request.';
         let action = currentTurnGateAction;
         let actionProviderResponse = null;
         if (!action) {
@@ -2335,6 +2339,13 @@ async function runModelSemanticPlanner({
             .filter(tool => Boolean(tool) && tool.name !== "conversation.respond")
             .slice(0, 6);
         const conversation = normalizedCatalog.find(tool => tool.name === "conversation.respond");
+        // Discovery tools remain reachable when retrieval finds the final data capability
+        // before its input schema is known. Metadata, never user-keyword routing,
+        // grants access only to the existing non-mutating investigation tools.
+        for (const tool of normalizedCatalog) {
+            if (tool.investigationReadOnly === true && !tool.mutates && !tool.requiresApproval && !tool.userArtifact &&
+                !safeCatalog.some(candidate => candidate.name === tool.name)) safeCatalog.push(tool);
+        }
         if (conversation) safeCatalog.push(conversation);
         if (!safeCatalog.length) throw new Error("SEMANTIC_TOOL_CANDIDATES_REQUIRED");
 
@@ -2347,7 +2358,7 @@ async function runModelSemanticPlanner({
             config: {
                 semanticStage: "CURRENT_TURN_TOOL_SELECTION",
                 chatMessages: [
-                    { role: "system", content: ["Eres Jarvis, un asistente general. Los candidatos de retrieval son sugerencias, no una orden de ejecutar. Evalua la solicitud original con las descripciones y schemas. Si basta una explicacion conceptual, selecciona conversation.respond y responde; no crees artefactos que no se solicitaron. Para evaluar un objeto real usa una fuente que aporte evidencia pertinente. Telemetria o salud no acreditan inspeccion visual ni diseno. Si ninguna herramienta puede aportar la evidencia necesaria, usa conversation.respond para explicar que falta, sin afirmar que analizaste el objeto. Solo las solicitudes de codigo o archivos pertenecen al repositorio activo. Construye argumentos con valores ejecutables del tipo indicado, no descriptores de schema. Ejecuta solo la accion solicitada y respeta las restricciones del usuario. No inventes ubicaciones, lecturas ni resultados.", browserGroundingInstruction(missionState), operativeAdvisoryContext].filter(Boolean).join("\n") },
+                    { role: "system", content: ["Eres Jarvis, un asistente general. Los candidatos de retrieval son sugerencias, no una orden de ejecutar. Evalua la solicitud original con las descripciones y schemas. Si basta una explicacion conceptual, selecciona conversation.respond y responde; no crees artefactos que no se solicitaron. Para evaluar un objeto real usa una fuente que aporte evidencia pertinente. Telemetria o salud no acreditan inspeccion visual, diseno ni registros de negocio. Si la fuente requerida no esta disponible en el catalogo, usa conversation.respond para explicar esa limitacion; no sustituyas una consulta operativa con salud del sistema ni concluyas que no existen datos. Una busqueda de codigo empieza por buscar; no inventes una ruta para leerla. Si ninguna herramienta puede aportar la evidencia necesaria, usa conversation.respond para explicar que falta, sin afirmar que analizaste el objeto. El repositorio tambien permite descubrir el esquema y las consultas de los datos de la plataforma. Cuando se necesitan registros actuales y aun no conoces la coleccion o sus campos, empieza por buscar y leer el codigo pertinente; despues usa platform.query con esos datos verificados. El codigo no prueba cantidades ni nombres de registros actuales. Construye argumentos con valores ejecutables del tipo indicado, no descriptores de schema. Ejecuta solo la accion solicitada y respeta las restricciones del usuario. No inventes ubicaciones, lecturas ni resultados.", browserGroundingInstruction(missionState), operativeAdvisoryContext].filter(Boolean).join("\n") },
                     { role: "user", content: currentTurnInstruction }
                 ],
                 maxOutputTokens: 512,
@@ -3059,7 +3070,7 @@ async function runJarvisSemanticResponse({
             (!projection.propertiesComplete || (projection.omittedProperties === 0 && projection.depthLimited === false)) &&
             projection.entries.every(item => Array.isArray(item.path) && item.path.every(key => typeof key === "string") &&
                 Object.prototype.hasOwnProperty.call(item, "value") && (!item.valueTruncated || (typeof item.value === "string" && Number.isInteger(item.valueCharacters) && item.valueCharacters > item.value.length)))) {
-            const facts = projection.entries.map((item, index) => ({ id: "json." + index,
+            const facts = projection.entries.map(item => ({ id: "file" + item.path.map(key => "/" + key.replaceAll("~", "~0").replaceAll("/", "~1")).join(""),
                 text: "- " + item.path.map(key => "[" + JSON.stringify(key) + "]").join("") + ": " + JSON.stringify(item.value) +
                     (item.valueTruncated ? " … [valor abreviado; " + item.valueCharacters + " caracteres en origen]" : "") }));
             groundedFactSelection = { mode: "VERIFIED_JSON_PROPERTY_PROJECTION", facts,
@@ -3092,7 +3103,7 @@ async function runJarvisSemanticResponse({
                             if (!text(finding.selector) || !text(finding.summary) || !["defect", "recommendation", "unverified"].includes(finding.classification)) continue;
                             const classification = { defect: "Defecto reproducible", recommendation: "Mejora recomendada", unverified: "No verificado" }[finding.classification];
                             facts.push({ id: `interface.${pageIndex}.viewport.${viewportIndex}.finding.${findingIndex}`,
-                                text: `${label}, ${text(finding.selector)}: ${classification}; ${text(finding.summary)}. ${text(finding.impact)} Gravedad: ${text(finding.severity)}; certeza: ${text(finding.certainty)}. Propuesta: ${text(finding.suggestedCorrection)} Prueba: ${text(finding.verification)}` });
+                                text: `${label}, ${text(finding.selector)}: ${classification}; ${text(finding.summary)}. ${text(finding.impact)} Gravedad: ${text(finding.severity)}; certeza: ${text(finding.certainty)}.${text(finding.suggestedCorrection) ? " Propuesta: " + text(finding.suggestedCorrection) : ""}${text(finding.verification) ? " Prueba: " + text(finding.verification) : ""}` });
                         }
                     }
                     if (!sizes.length) continue;
@@ -3121,7 +3132,7 @@ async function runJarvisSemanticResponse({
                 scopes.push("Alcance: estructura y estilos de " + url.href + " en un área visible de " + page.viewport.width + " × " + page.viewport.height + " px. No se inspeccionaron píxeles, fotografías ni otras pantallas.");
             }
             if (facts.length) groundedFactSelection = { mode: repairAnswer ? "VERIFIED_RESPONSIVE_REPAIR_FACTS" : "MEASURED_INTERFACE_FACTS",
-                facts: facts.slice(0, 40), requiredFactIds: repairAnswer?.requiredFactIds || [], scope: scopes.join(" "), missionStatus: parsedBriefing.missionStatus };
+                facts: facts.slice(0, 40), requiredFactIds: repairAnswer?.requiredFactIds || [], scope: [...new Set(scopes)].join(" "), missionStatus: parsedBriefing.missionStatus };
         }
 
     }
@@ -3301,6 +3312,7 @@ async function runJarvisSemanticResponse({
                     );
                 const selectedFacts = [];
                 const selectedIds = new Set();
+                const selectedMeasuredTexts = new Set();
                 for (const id of groundedFactSelection.requiredFactIds || []) {
                     selectedIds.add(id);
                     selectedFacts.push(factMap.get(id));
@@ -3318,6 +3330,8 @@ async function runJarvisSemanticResponse({
                     // Repeated verified selections are idempotent, never new evidence.
                     // Validate membership first so duplicates cannot hide an unknown ID.
                     if (selectedIds.has(factId)) continue;
+                    if (groundedFactSelection.mode === "MEASURED_INTERFACE_FACTS" && selectedMeasuredTexts.has(factMap.get(factId))) continue;
+                    selectedMeasuredTexts.add(factMap.get(factId));
                     selectedIds.add(factId);
                     selectedFacts.push(
                         factMap.get(factId)

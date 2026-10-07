@@ -238,6 +238,7 @@ async function prepareContract(calls, catalog, options = {}) {
         buildJarvisMultifunctionToolCalls: async () => { expansions++; return options.expanded || calls; },
         compactJarvisSemanticMemoryForPlanner: () => null,
         resolveExplicitRepositoryTargets: () => [],
+        normalizeObservationFilePath: value => String(value || "").replaceAll("\\", "/"),
         addRepositoryDiscoveryPreflights: ({ toolCalls }) => toolCalls,
         window: {}, console: quietConsole
     });
@@ -1050,4 +1051,153 @@ test('JSON projection output rejects unknown facts and preserves abbreviation li
     }}}});
     assert.match(result.message,/abreviado/);
     await assert.rejects(runJarvisSemanticResponse({input:'Muestra el primer valor.',...options,ai:{models:{generateContent:async()=>({text:JSON.stringify({requestedLineCount:0,factIds:['invented.success']})})}}}),/SEMANTIC_RESPONSE_FORMAT_INVALID/);
+});
+
+
+test("native tool schema includes explicit object properties even for untyped tools", () => {
+    const {buildGeminiModelTools}=createRequire(import.meta.url)("../functions/jarvis-semantic-planner.js");
+    for(const inputSchema of [null,{options:"object"}]){
+        const declarations=buildGeminiModelTools([{name:"repo.fixture",description:"Fixture",inputSchema}]);
+        const schema=declarations[0].parametersJsonSchema;
+        assert.equal(schema.type,"object");
+        assert.equal(typeof schema.properties,"object");
+        if(inputSchema)assert.deepEqual(schema.properties.options.properties,{});
+    }
+});
+
+
+test('failed observations cannot be rewritten as zero business records', async () => {
+    let modelCalls=0;
+    for(const instruction of ['cuantos tecnicos tenemos registrados en la plataforma y como se llaman','Enumera los pedidos pendientes.']) {
+        const result=await composeEvidenceGroundedConversation({instruction,evidenceItems:[
+            {name:'system.health',observation:{ok:false,executionOk:false,status:'TOOL_EXECUTION_FAILED',error:{code:'HEALTH_UNAVAILABLE',message:'No se pudo consultar el servicio.'}}},
+            {name:'mission.outcome',observation:{status:'PARTIAL',reason:'PARTIAL_CAPABILITY_BLOCKED',completedTasks:[]}}
+        ],executeConversation:async()=>{modelCalls++;return{ok:true,message:'La plataforma no tiene registros.'};}});
+        assert.equal(result.status,'CONVERSATIONAL_EVIDENCE_INSUFFICIENT');assert.doesNotMatch(result.text,/no tiene registros|no hay técnicos|\[object Object\]/i);assert.match(result.text,/HEALTH_UNAVAILABLE|No se pudo consultar/);
+    }
+    assert.equal(modelCalls,0,'failure receipts contain no business facts for a generative answer');
+});
+
+test('duplicate measured findings are rendered once without empty proposal labels', async () => {
+    const {runJarvisSemanticResponse}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+    const page={source:'RENDERED_DOM_LAYOUT_REPLAY',url:'https://runtime.test/terminal',phase:'before',viewports:[{viewport:{width:1280,height:720},findings:[{selector:'#small',classification:'recommendation',summary:'Texto de 11 px',severity:'low',certainty:'high'}]}],limitations:['No se inspeccionaron píxeles.']};
+    const result=await runJarvisSemanticResponse({input:'Analiza la interfaz.',responseInstruction:'Analiza la interfaz.',responseMode:'grounded_conversation',responseBriefing:JSON.stringify({missionStatus:'PARTIAL',executedTools:[{tool:'browser.inspect',ok:true}],measuredInterfaceEvidence:[page,page]}),ai:{models:{generateContent:async request=>{
+        const ids=request.config.responseJsonSchema.properties.factIds.items.enum;
+        return{text:JSON.stringify({requestedLineCount:0,factIds:ids.filter(id=>id.includes('finding.'))})};
+    }}}});
+    assert.equal(result.message.split('Texto de 11 px').length-1,1);assert.equal(result.message.split('Alcance: reproducción DOM').length-1,1);assert.doesNotMatch(result.message,/Propuesta: Prueba:/);assert.match(result.message,/1280 × 720/);
+});
+
+
+test('mobile identity verification uses the shared transport and still rejects wrong lineage', async () => {
+    const source=readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
+    const node=parse(source,{sourceType:'module',ecmaVersion:'latest'}).body.find(n=>n.type==='ExpressionStatement'&&n.expression.type==='AssignmentExpression'&&n.expression.left?.property?.name==='verifyIdentity').expression.right;
+    const expected={projectId:'fixture',repository:'owner/repo',branch:'work',releaseId:'release-fixture'};
+    for(const wrong of [false,true]){
+        const routes=[],fetches=[];
+        const bridge={privateRelayState:{status:'READY'},requestJson:async route=>{routes.push(route);return {ok:true,bridgeVersion:'2.99.0',identity:{ok:true,status:'BRIDGE_IDENTITY_OK',contract:{...expected,repository:wrong?'other/repo':expected.repository}}};}};
+        const check=runInNewContext('('+source.slice(node.start,node.end)+')',{window:{JarvisLocalBridge:bridge},fetch:async url=>{fetches.push(url);return{ok:true,json:async()=>expected};},jarvisBridgeVersionAtLeast:()=>true,JARVIS_REQUIRED_LOCAL_BRIDGE_VERSION:'2.0.0',JARVIS_RELEASE_SKEW_SAFE_MIN_BRIDGE_VERSION:'2.0.0'});
+        const result=await check({force:true});
+        assert.deepEqual(routes,['/semantic/local/health']);
+        assert.deepEqual(fetches,['/jarvis-runtime-contract.json']);
+        assert.equal(result.ok,!wrong);
+        if(wrong)assert.equal(result.status,'BRIDGE_IDENTITY_MISMATCH');
+    }
+});
+
+test('lightweight workstation health does not invent missing AI readiness or hide failures', async t => {
+    const previous=globalThis.JarvisLocalBridge;t.after(()=>{globalThis.JarvisLocalBridge=previous;});
+    const tools=runtime();registerJarvisMultifunctionTools(tools);
+    for(const ready of [undefined,false,true]){
+        globalThis.JarvisLocalBridge={verifyIdentity:async()=>({ok:true,status:'BRIDGE_IDENTITY_OK'}),requestJson:async()=>({ok:true,status:'JARVIS_WORKSTATION_LIVE',...(ready===undefined?{}:{localAi:{ready}})})};
+        const result=await tools.get('system.health').execute({});
+        assert.equal(result.environment.localAiReady,ready??null);
+        assert.deepEqual(result.evidenceKinds,['system_telemetry']);
+        assert.equal(result.failures.includes('LOCAL_AI_NOT_READY'),ready===false);
+        if(ready===false)assert.match(result.error,/LOCAL_AI_NOT_READY/);
+    }
+});
+
+test('a healthy peer lease leaves a second browser tab in standby without repeated warnings',async()=>{
+    const source=readFileSync(new URL('../modules/terminal/nexo-bootstrap.js',import.meta.url),'utf8');
+    const node=parse(source,{sourceType:'module',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='configureJarvisPrivateRelay');
+    const timers=[],messages=[];let attempts=0;
+    const configure=runInNewContext('('+source.slice(node.start,node.end)+')',{console:{info:(...a)=>messages.push(['info',...a]),warn:(...a)=>messages.push(['warn',...a])},setTimeout:(f,ms)=>{timers.push({f,ms});return timers.length;},clearTimeout(){},privateRelayWorkstationEnabled:()=>true,privateRelayDependencies:async()=>({}),readRuntimeContract:async()=>({privateRelayEnabled:true}),startJarvisBrowserRelay:async()=>{attempts++;throw Object.assign(new Error('Peer owns lease'),{code:'JARVIS_RELAY_LEASE_HELD'});}});
+    const bridge={requestJson:async()=>{throw Error('NO_DIRECT_CALL_EXPECTED');}};configure(bridge);
+    timers.shift().f();await new Promise(setImmediate);
+    assert.equal(bridge.privateRelayState.status,'STANDBY');assert.equal(bridge.privateRelayState.connected,false);assert.equal(timers[0].ms,30000);
+    timers.shift().f();await new Promise(setImmediate);assert.equal(attempts,2);assert.equal(messages.length,1);assert.equal(messages[0][0],'info');
+});
+
+
+test('retrieval actions accept meaning regardless of language and word count without granting execution', () => {
+    const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+    const from=source.indexOf('function validActionDescription('), to=source.indexOf('\nfunction browserGroundingInstruction',from);
+    const valid=runInNewContext('('+source.slice(from,to).trim()+')');
+    for(const action of ['analyze repository','auditar','分析代码库','Consultar los registros vigentes según las fuentes y permisos de esta cuenta']) assert.equal(valid(action),true);
+    for(const action of ['', ' ', null, 42, {}, 'x'.repeat(513)]) assert.equal(valid(action),false);
+    assert.doesNotMatch(source,/3-8 English words|words.length >= 3/);
+});
+
+
+test('retrieval action accepts natural phrasing without language or word-count gates', () => {
+    const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+    const start=source.indexOf('function validActionDescription('),end=source.indexOf('\nfunction browserGroundingInstruction',start);
+    const valid=runInNewContext('(()=>{'+source.slice(start,end)+'; return validActionDescription})()');
+    for(const value of ['analyze repository','Analiza','調査','audita el código y consulta registros de la aplicación según la evidencia'])assert.equal(valid(value),true,value);
+    for(const value of ['', '   ', {action:'read'}, null, 1, 'x'.repeat(513)])assert.equal(valid(value),false);
+    assert.doesNotMatch(source,/3-8 English words|words.length >= 3/);
+});
+
+function platformQueryTestFixture({signedIn=true,fail=null,fromCache=false,changeSession=false}={}) {
+    const source=readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
+    const ast=parse(source,{sourceType:'module',ecmaVersion:'latest'});
+    const declaration=ast.body.find(n=>n.type==='ExportNamedDeclaration'&&n.declaration?.id?.name==='executePlatformQuery')?.declaration;
+    assert.ok(declaration,'generic platform query must be wired into the real runtime');
+    const execute=runInNewContext('('+source.slice(declaration.start,declaration.end)+')');
+    const auth={currentUser:signedIn?{uid:'fixture-caller'}:null},calls=[];
+    const docs=[{id:'a',get:field=>({title:'Uno',privateNote:'DO_NOT_EXPOSE'}[field])},{id:'b',get:field=>({title:'Dos',privateNote:'DO_NOT_EXPOSE'}[field])},{id:'c',get:field=>({title:'Tres'}[field])}];
+    const sdk={collection:(_db,name)=>({collection:name}),query:(base,...constraints)=>({base,constraints}),where:(...args)=>({where:args}),orderBy:field=>({orderBy:field}),documentId:()=> '__name__',limit:value=>({limit:value}),doc:(_db,collection,id)=>({collection,id}),startAfter:document=>({after:document.id}),
+        getDocFromServer:async({id})=>({id,exists:()=>true}),getCountFromServer:async q=>{calls.push({kind:'count',q});if(fail)throw Object.assign(new Error('Read failed'),{code:fail});return{data:()=>({count:3})}},
+        getDocsFromServer:async q=>{calls.push({kind:'query',q});if(fail)throw Object.assign(new Error('Read failed'),{code:fail});if(changeSession)auth.currentUser={uid:'different'};return{docs,metadata:{fromCache}};}};
+    const context={completedTasks:[{name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'An observed schema lives here.'}}}]};
+    const args={collection:'arbitrary_records',sourceFile:'source.js',fields:['title'],pageSize:2,includeCount:true};
+    return{execute,args,context,calls,dependencies:{auth,db:{},sdk}};
+}
+
+test('generic platform queries use session rules and return only selected fields with truthful pagination',async()=>{
+    const f=platformQueryTestFixture();const r=await f.execute(f.args,f.dependencies,f.context);
+    assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.recordEvidence.totalCount,3);assert.equal(r.recordEvidence.returnedCount,2);assert.equal(r.recordEvidence.nextCursor,'b');assert.equal(r.recordEvidence.hasMore,true);assert.equal(r.recordEvidence.completeForQuery,false);
+    assert.doesNotMatch(JSON.stringify(r),/DO_NOT_EXPOSE|privateNote/);assert.equal(f.calls.length,2);
+    const count=await f.execute({...f.args,mode:'count',fields:[]},f.dependencies,f.context);assert.equal(count.ok,true);assert.equal(count.recordEvidence.totalCount,3);assert.equal(count.recordEvidence.rows,undefined);
+});
+
+test('missing source evidence auth and server failures never become zero registered records',async()=>{
+    for(const options of [{signedIn:false},{fail:'permission-denied'},{fail:'unavailable'},{fromCache:true},{changeSession:true}]){
+        const f=platformQueryTestFixture(options);const r=await f.execute(f.args,f.dependencies,f.context);assert.equal(r.ok,false,JSON.stringify(options));assert.equal(r.recordEvidence,undefined);assert.ok(r.error.code);
+        if(options.signedIn===false)assert.equal(f.calls.length,0);
+    }
+    const f=platformQueryTestFixture();const r=await f.execute(f.args,f.dependencies,{completedTasks:[]});assert.equal(r.ok,false);assert.equal(r.error.code,'PLATFORM_QUERY_SOURCE_NOT_READ');assert.equal(f.calls.length,0);
+});
+
+test('read investigations retain other pure readers without granting artifact or write capability',async()=>{
+    const tools=[{name:'repo.read',mutates:false},{name:'platform.query',mutates:false,investigationReadOnly:true,evidenceKinds:['platform_records']},{name:'fixture.otherRead',mutates:false,investigationReadOnly:true},{name:'repo.write',mutates:true},{name:'file.make',mutates:false,userArtifact:true}];
+    const result=await prepareContract([{name:'repo.read',args:{file:'source.js'}}],tools);
+    assert.equal(result.expansions,0);assert.deepEqual(Array.from(result.missionToolCatalog,t=>t.name),['repo.read','platform.query','fixture.otherRead']);
+});
+
+
+test('native tool declarations retain semantic names and accept only exact registered calls', () => {
+ const {buildGeminiModelTools,extractGeminiToolCallPlan}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const catalog=[{name:'fixture.read',description:'Read a source',inputSchema:{file:'string'}},{name:'fixture.query',description:'Query live records',inputSchema:{collection:'string'}}];
+ assert.deepEqual(buildGeminiModelTools(catalog).map(t=>t.name),['fixture.read','fixture.query']);
+ for(const name of ['fixture.read','jarvis_tool_0'])assert.equal(extractGeminiToolCallPlan({functionCalls:[{name,args:{file:'observed.js'}}]},catalog).toolCalls[0].name,'fixture.read');
+ assert.equal(extractGeminiToolCallPlan({functionCalls:[{name:'invented.tool',args:{}}]},catalog),null);
+});
+
+
+test('a schema with only optional parameters does not acquire invented instruction or query arguments', async () => {
+ const result=await runJarvisSemanticPlanner({input:'Inspecciona el recurso activo',catalog:[{name:'fixture.inspect',mutates:false,inputSchema:{type:'object',properties:{target:{type:'string'}},additionalProperties:false}}],
+ ai:{models:{generateContent:async()=>({functionCalls:[{name:'fixture.inspect',args:{}}]})}}});
+ assert.deepEqual(result.toolCalls[0].args,{});assert.equal(result.toolCalls[0].approved,false);
 });

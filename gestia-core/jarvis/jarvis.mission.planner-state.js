@@ -201,6 +201,7 @@ export function compactMissionPlannerObservation(observation = {}) {
         retryable: source.retryable === true,
         sourceCount,
         ...(verifiedRead ? { verifiedRead } : {}),
+        ...(source.ok === true && source.executionOk !== false && source.blocked !== true && (source.recordEvidence || evidence.recordEvidence)?.source === "FIRESTORE_SERVER_AUTHENTICATED" ? { recordEvidence: source.recordEvidence || evidence.recordEvidence } : {}),
         ...(interfaceEvidence ? { interfaceEvidence, url: interfaceEvidence.url } : {}),
         ...(source.repositoryTarget || evidence.repositoryTarget ? { repositoryTarget: source.repositoryTarget || evidence.repositoryTarget } : {}),
         ...(Array.isArray(source.files || evidence.files) ? {

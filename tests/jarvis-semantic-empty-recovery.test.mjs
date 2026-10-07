@@ -17,7 +17,7 @@ test("grounded completion accepts the observed singular toolCall without grantin
             calls++;
             const body = JSON.parse(options.body);
             const schema = body.format;
-            assert.equal(body.model, "qwen3:1.7b");
+            assert.equal(body.model, "qwen3:4b-instruct-2507-q4_K_M");
             assert.deepEqual(schema.properties.toolCalls.items.properties.args, identityCatalog[0].inputSchema);
             assert.deepEqual(schema.properties.toolCalls.items.properties.name.enum, ["marketing.identity"]);
             return reply({ content: JSON.stringify({ toolCall: { name, arguments: args }, missionComplete: true }) });
@@ -60,13 +60,13 @@ for (const reason of ["length", "stop"]) {
             const body = JSON.parse(options.body);
             requests.push(body);
             assert.equal(url, "http://127.0.0.1:11434/api/chat");
-            assert.equal(body.model, "qwen3:1.7b");
+            assert.equal(body.model, "qwen3:4b-instruct-2507-q4_K_M");
             assert.equal(body.think, false);
             assert.equal(options.signal.aborted, false);
             if (requests.length === 1) return reply({ role: "assistant", content: "" }, reason);
             assert.equal(requests.length, 2);
             assert.equal(body.tools, undefined);
-            assert.deepEqual(body.format.anyOf.map(option => option.properties.name.enum[0]), ["jarvis_tool_0"]);
+            assert.deepEqual(body.format.anyOf.map(option => option.properties.name.enum[0]), ["marketing.plan"]);
             assert.deepEqual(body.format.anyOf[0].properties.arguments, requests[0].tools[0].function.parameters);
             assert.ok(body.options.num_predict >= 1024);
             assert.deepEqual(body.messages.slice(1), requests[0].messages.slice(1));
@@ -101,7 +101,7 @@ test("exhausted empty selection fails closed with each attempt's stage, mode, bu
         assert.deepEqual(attempts.map(a => a.numPredict), [512, 1024]);
         for (const [index, attempt] of attempts.entries()) {
             assert.equal(attempt.attempt, index + 1);
-            assert.equal(attempt.model, "qwen3:1.7b");
+            assert.equal(attempt.model, "qwen3:4b-instruct-2507-q4_K_M");
             assert.equal(attempt.modelProfile, "default");
             assert.equal(attempt.nativeChat, true);
             assert.ok(attempt.durationMs >= 0);
