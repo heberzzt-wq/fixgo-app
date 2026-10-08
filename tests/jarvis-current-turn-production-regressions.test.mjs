@@ -1801,3 +1801,46 @@ test('a platform schema failure sends the same LLM back to repository evidence i
  assert.deepEqual(result.toolCalls[0].args,{term:'rol'});
  assert.ok(stages.includes('READ_ONLY_EVIDENCE_CONTINUATION'));
 });
+
+
+test('an irrelevant candidate read cannot exhaust repository evidence while discovered sources remain unread', async () => {
+ const input='Investiga datos operativos actuales y descubre el esquema real antes de consultar';
+ const catalog=[
+  {name:'repo.search',description:'Descubre rutas',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query'],additionalProperties:false}},
+  {name:'repo.read',description:'Lee una ruta real',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file'],additionalProperties:false}},
+  {name:'repo.grep',description:'Busca texto literal',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',properties:{term:{type:'string'}},required:['term'],additionalProperties:false}}
+ ];
+ const stages=[];
+ const result=await runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[
+  {name:'repo.search',args:{query:'datos operativos'},observation:{ok:true,executionOk:true,status:'REPO_SEMANTIC_SEARCH_READY',repoCandidates:[{file:'irrelevant.js'},{file:'schema.js'}]}},
+  {name:'repo.read',args:{file:'irrelevant.js'},observation:{ok:true,executionOk:true,status:'COMPLETED',verifiedRead:{file:'irrelevant.js',content:'export const ui = true;'}}}
+ ],blockedTasks:[]},ai:{models:{generateContent:async request=>{
+  stages.push(request.config.semanticStage);
+  if(request.config.semanticStage==='COMPLETION_AUDIT') return {text:JSON.stringify({
+   explanation:'La primera fuente no demuestra el esquema solicitado',
+   completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'repository_source',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta una fuente pertinente'}]},
+   toolCalls:[]
+  }),providerResponse:{finishReason:'stop'}};
+  if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){
+   const names=request.config.tools[0].functionDeclarations.map(tool=>tool.name);
+   assert.ok(names.includes('repo.read'));
+   assert.ok(names.includes('repo.search'));
+   assert.ok(names.includes('repo.grep'));
+   return {text:'',functionCalls:[],providerResponse:{finishReason:'stop'}};
+  }
+  if(request.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY'){
+   const schema=request.config.responseJsonSchema.properties.toolCalls;
+   assert.equal(schema.minItems,1);
+   const variants=schema.items.anyOf;
+   const readVariant=variants.find(item=>item.properties.name.enum[0]==='repo.read');
+   assert.deepEqual(readVariant.properties.args.properties.file.enum,['schema.js']);
+   return {text:JSON.stringify({toolCalls:[{name:'repo.read',args:{file:'schema.js'}}]}),providerResponse:{finishReason:'stop'}};
+  }
+  throw new Error('UNEXPECTED_STAGE:'+request.config.semanticStage);
+ }}}});
+ assert.equal(result.missionComplete,false);
+ assert.equal(result.planKind,'READ_ONLY_NEXT_STEP_RECOVERY');
+ assert.deepEqual(result.toolCalls,[{name:'repo.read',args:{file:'schema.js'},reason:'MODEL_SEMANTIC_TOOL_SELECTION',mutates:false,approved:false}]);
+ assert.ok(stages.includes('READ_ONLY_EVIDENCE_CONTINUATION'));
+ assert.ok(stages.includes('READ_ONLY_NEXT_STEP_RECOVERY'));
+});
