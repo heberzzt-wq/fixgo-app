@@ -1575,3 +1575,29 @@ test('repo read ranges require explicit user lines or a prior literal grep ancho
  assert.match(block,/match\.line >= requestedStartLine/);
  assert.match(block,/explicitLineRange \|\| groundedGrepRange/);
 });
+
+
+test('completion audit forces candidate inspection before another semantic repo search', async () => {
+ const input='Cuántos clientes registrados tenemos en la plataforma?';
+ const catalog=[
+  {name:'repo.search',description:'Busca',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query'],additionalProperties:false}},
+  {name:'repo.read',description:'Lee',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file'],additionalProperties:false}}
+ ];
+ const result=await runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{
+  name:'repo.search',args:{query:'cliente registrado'},observation:{ok:true,executionOk:true,status:'REPO_SEMANTIC_SEARCH_READY',repoCandidates:[{file:'panel-cliente.js'},{file:'firebase.js'}]}
+ }]},ai:{models:{generateContent:async request=>{
+  const variants=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;
+  assert.deepEqual(variants.map(v=>v.properties.name.enum[0]),['repo.read']);
+  assert.deepEqual(variants[0].properties.args.properties.file.enum,['panel-cliente.js','firebase.js']);
+  return{text:JSON.stringify({explanation:'Falta inspeccionar una fuente candidata',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'repository_source',satisfied:false,evidenceTaskIndexes:[],limitation:'Todavía no se ha leído una fuente candidata'}]},toolCalls:[{name:'repo.read',args:{file:'firebase.js'}}]})};
+ }}}});
+ assert.equal(result.toolCalls[0].name,'repo.read');
+ assert.equal(result.toolCalls[0].args.file,'firebase.js');
+});
+
+test('repo search runtime blocks candidate-skipping and vocabulary drift after first discovery', () => {
+ const source=readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
+ assert.match(source,/REPO_SEARCH_CANDIDATE_INSPECTION_REQUIRED/);
+ assert.match(source,/REPO_SEARCH_QUERY_LOST_USER_VOCABULARY/);
+ assert.match(source,/requestVocabulary\.some\(token => queryVocabulary\.has\(token\)\)/);
+});

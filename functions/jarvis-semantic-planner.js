@@ -1536,8 +1536,46 @@ async function runModelSemanticPlanner({
             task.args?.followUp === "prepare_repair" && task.observation?.ok === true);
         const hasReadSource = (missionState.completedTasks || []).some(task => task.name === "repo.read" &&
             task.observation?.ok === true && task.observation?.verifiedRead);
-        const selectableCatalog = bindEvidencePrerequisites(safeCatalog, missionState.completedTasks || []).filter(tool => !measuredRepair ||
+        const completedTasksForAudit = missionState.completedTasks || [];
+        const latestSearchIndex = completedTasksForAudit.findLastIndex(task =>
+            task?.name === "repo.search" &&
+            task?.observation?.ok === true &&
+            task?.observation?.executionOk !== false &&
+            Array.isArray(task?.observation?.repoCandidates) &&
+            task.observation.repoCandidates.length > 0
+        );
+        const pendingCandidateFiles = latestSearchIndex >= 0
+            ? [...new Set(completedTasksForAudit[latestSearchIndex].observation.repoCandidates
+                .map(item => String(item?.file || item?.path || "").trim())
+                .filter(Boolean))]
+            : [];
+        const candidateAlreadyRead = latestSearchIndex >= 0 && completedTasksForAudit.slice(latestSearchIndex + 1).some(task =>
+            task?.name === "repo.read" &&
+            task?.observation?.ok === true &&
+            task?.observation?.executionOk !== false &&
+            pendingCandidateFiles.includes(String(task?.observation?.verifiedRead?.file || ""))
+        );
+        let selectableCatalog = bindEvidencePrerequisites(safeCatalog, completedTasksForAudit).filter(tool => !measuredRepair ||
             (tool.name !== "browser.inspect" && tool.name !== "tests.run" && (tool.name !== "repo.prepareWrite" || hasReadSource)));
+        if (pendingCandidateFiles.length && !candidateAlreadyRead) {
+            selectableCatalog = selectableCatalog
+                .filter(tool => tool.name !== "repo.search")
+                .map(tool => tool.name === "repo.read" && tool.inputSchema?.properties?.file
+                    ? {
+                        ...tool,
+                        inputSchema: {
+                            ...tool.inputSchema,
+                            properties: {
+                                ...tool.inputSchema.properties,
+                                file: {
+                                    ...tool.inputSchema.properties.file,
+                                    enum: pendingCandidateFiles
+                                }
+                            }
+                        }
+                    }
+                    : tool);
+        }
         // A similarity shortlist is not a capability boundary. Closure needs
         // both executed tool contracts and every available evidence source.
         const auditInstruction = [

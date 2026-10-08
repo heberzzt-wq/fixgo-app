@@ -6409,6 +6409,67 @@ JarvisToolRuntime.register({
             };
         }
 
+        const normalizeSearchVocabulary = value =>
+            String(value || "")
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .toLowerCase();
+        const vocabularyTokens = value => [
+            ...new Set(
+                (normalizeSearchVocabulary(value).match(/[a-z0-9_/-]{4,}/g) || [])
+                    .flatMap(token => token.length > 5 && token.endsWith("s")
+                        ? [token, token.slice(0, -1)]
+                        : [token])
+            )
+        ];
+        const priorTasks = Array.isArray(context.completedTasks) ? context.completedTasks : [];
+        const priorSearchIndexes = priorTasks
+            .map((task, index) => task?.name === "repo.search" && task?.observation?.ok === true && task?.observation?.executionOk !== false ? index : -1)
+            .filter(index => index >= 0);
+        if (priorSearchIndexes.length) {
+            const requestVocabulary = vocabularyTokens(context.rootInstruction || context.rawInput || "");
+            const queryVocabulary = new Set(vocabularyTokens(query));
+            if (requestVocabulary.length && !requestVocabulary.some(token => queryVocabulary.has(token))) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "REPO_SEARCH_QUERY_LOST_USER_VOCABULARY",
+                    error: "REPO_SEARCH_QUERY_LOST_USER_VOCABULARY",
+                    query,
+                    tool: "repo.search"
+                };
+            }
+            const latestIndex = priorSearchIndexes.at(-1);
+            const latest = priorTasks[latestIndex]?.observation || {};
+            const candidates = Array.isArray(latest.repoCandidates)
+                ? latest.repoCandidates
+                : Array.isArray(latest.candidates)
+                    ? latest.candidates
+                    : [];
+            const candidateFiles = new Set(candidates.map(item => String(item?.file || item?.path || "")).filter(Boolean));
+            const inspectedAfter = priorTasks.slice(latestIndex + 1).some(task =>
+                task?.observation?.ok === true &&
+                task?.observation?.executionOk !== false &&
+                (
+                    task?.name === "repo.grep" ||
+                    (
+                        task?.name === "repo.read" &&
+                        candidateFiles.has(String(task?.observation?.verifiedRead?.file || task?.args?.file || ""))
+                    )
+                )
+            );
+            if (candidateFiles.size && !inspectedAfter) {
+                return {
+                    ok: false,
+                    success: false,
+                    status: "REPO_SEARCH_CANDIDATE_INSPECTION_REQUIRED",
+                    error: "REPO_SEARCH_CANDIDATE_INSPECTION_REQUIRED",
+                    query,
+                    candidates: [...candidateFiles].slice(0, 12),
+                    tool: "repo.search"
+                };
+            }
+        }
 
         if (
             query &&
