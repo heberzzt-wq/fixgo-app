@@ -691,13 +691,27 @@ registerJarvisActuatorTools(
 // not an intent table. Firebase enforces the current caller's existing rules.
 export async function executePlatformQuery(args = {}, dependencies = null, context = {}) {
     let scope;
+    const failQuery = (code, details = null) => {
+        const error = new Error(code);
+        error.code = code;
+        if (details && typeof details === "object") error.details = details;
+        throw error;
+    };
     try {
         if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("PLATFORM_QUERY_ARGUMENTS_INVALID");
         const sourceRead = (context.completedTasks || []).find(task => task.name === "repo.read" && task.observation?.ok === true && task.observation?.executionOk !== false && task.observation?.blocked !== true && task.observation?.verifiedRead?.file === args.sourceFile && String(task.observation.verifiedRead.content || task.observation.verifiedRead.numberedContent || "").trim());
         if (!sourceRead) throw new Error("PLATFORM_QUERY_SOURCE_NOT_READ");
         const mode = args.mode || "query", collectionPath = args.collection;
         const sourceBindings = sourceRead.observation.verifiedRead.sourceStructure?.dataBindings;
-        if (sourceBindings?.source !== "ACORN_SOURCE_REFERENCES" || !Array.isArray(sourceBindings.collections) || !sourceBindings.collections.includes(collectionPath)) throw new Error("PLATFORM_QUERY_COLLECTION_NOT_DISCOVERED");
+        if (sourceBindings?.source !== "ACORN_SOURCE_REFERENCES" || !Array.isArray(sourceBindings.collections) || !sourceBindings.collections.includes(collectionPath)) {
+            failQuery("PLATFORM_QUERY_COLLECTION_NOT_DISCOVERED", {
+                collection: collectionPath || null,
+                sourceFile: args.sourceFile || null,
+                discoveredCollections: Array.isArray(sourceBindings?.collections)
+                    ? sourceBindings.collections.slice(0, 20)
+                    : []
+            });
+        }
         const segment = value => typeof value === "string" && value.length > 0 && value.length <= 500 && !/[\x00-\x1f]/.test(value) && ![".", ".."].includes(value);
         if (typeof collectionPath !== "string" || collectionPath.length > 1500 || collectionPath.split("/").length % 2 !== 1 || !collectionPath.split("/").every(segment)) throw new Error("PLATFORM_QUERY_COLLECTION_REQUIRED");
         if (!["query", "count"].includes(mode)) throw new Error("PLATFORM_QUERY_MODE_INVALID");
@@ -734,6 +748,11 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
         const normalizeGroundingText = value => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
         const normalizedSource = normalizeGroundingText(sourceCorpus);
         const normalizedRequest = normalizeGroundingText(requestCorpus);
+        const groundingFiles = [...new Set(
+            groundingReads
+                .map(candidate => String(candidate?.file || candidate?.path || "").trim())
+                .filter(Boolean)
+        )].slice(0, 20);
         const sourceHasField = field => field === "__name__" || String(field).split(".").some(part =>
             part.length > 1 && normalizedSource.includes(normalizeGroundingText(part)));
         const literalGrounded = value => {
@@ -741,11 +760,49 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
             const normalized = normalizeGroundingText(value).trim();
             return normalized.length > 0 && (normalizedSource.includes(normalized) || normalizedRequest.includes(normalized));
         };
-        if (fields.some(field => !sourceHasField(field))) throw new Error("PLATFORM_QUERY_FIELD_NOT_DISCOVERED");
-        if (filters.some(filter => !sourceHasField(filter.field))) throw new Error("PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED");
-        if (filters.some(filter => Array.isArray(filter.value)
-            ? filter.value.some(value => !literalGrounded(value))
-            : !literalGrounded(filter.value))) throw new Error("PLATFORM_QUERY_FILTER_VALUE_NOT_DISCOVERED");
+        const undiscoveredFields = fields.filter(field => !sourceHasField(field));
+        if (undiscoveredFields.length) {
+            failQuery("PLATFORM_QUERY_FIELD_NOT_DISCOVERED", {
+                collection: collectionPath,
+                sourceFile: args.sourceFile,
+                groundingFiles,
+                undiscoveredFields: undiscoveredFields.slice(0, 20),
+                requestedFields: fields.slice(0, 20)
+            });
+        }
+        const undiscoveredFilterFields = filters
+            .filter(filter => !sourceHasField(filter.field))
+            .map(filter => String(filter.field));
+        if (undiscoveredFilterFields.length) {
+            failQuery("PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED", {
+                collection: collectionPath,
+                sourceFile: args.sourceFile,
+                groundingFiles,
+                undiscoveredFilterFields: [...new Set(undiscoveredFilterFields)].slice(0, 20),
+                requestedFilters: filters.slice(0, 10).map(filter => ({
+                    field: filter.field,
+                    op: filter.op,
+                    value: filter.value
+                }))
+            });
+        }
+        const ungroundedFilterValues = filters.filter(filter =>
+            Array.isArray(filter.value)
+                ? filter.value.some(value => !literalGrounded(value))
+                : !literalGrounded(filter.value)
+        );
+        if (ungroundedFilterValues.length) {
+            failQuery("PLATFORM_QUERY_FILTER_VALUE_NOT_DISCOVERED", {
+                collection: collectionPath,
+                sourceFile: args.sourceFile,
+                groundingFiles,
+                ungroundedFilterValues: ungroundedFilterValues.slice(0, 10).map(filter => ({
+                    field: filter.field,
+                    op: filter.op,
+                    value: filter.value
+                }))
+            });
+        }
         const scalar = value => value === null || typeof value === "string" || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value));
         if (filters.some(filter => !(scalar(filter.value) || (Array.isArray(filter.value) && filter.value.length > 0 && filter.value.length <= 30 && filter.value.every(scalar))))) throw new Error("PLATFORM_QUERY_VALUE_INVALID");
         const scalarKey = value => JSON.stringify([typeof value, value]);
@@ -853,9 +910,21 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
             "aborted",
             "internal"
         ].includes(code.toLowerCase());
+        const details =
+            error?.details &&
+            typeof error.details === "object" &&
+            !Array.isArray(error.details)
+                ? error.details
+                : null;
         return { ok: false, executionOk: false, status: "PLATFORM_QUERY_FAILED", tool: "platform.query", readOnly: true,
             retryable,
-            error: { code, message: String(error?.message || code).slice(0,1000) }, ...(scope ? {scope} : {}) };
+            error: {
+                code,
+                message: String(error?.message || code).slice(0,1000),
+                ...(details ? { details } : {})
+            },
+            ...(details ? { details } : {}),
+            ...(scope ? {scope} : {}) };
     }
 }
 

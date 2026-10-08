@@ -173,6 +173,12 @@ const {
 } = await import(
     "../gestia-core/response.composer.js?semantic-contract-test"
 );
+const {
+    ToolsBridge,
+    normalizeToolRuntimeFailure
+} = await import(
+    "../gestia-core/tools.bridge.js?semantic-contract-test"
+);
 
 test("tool observation separates technical execution from objective satisfaction", () => {
     const observation = ResponseComposer.composeToolObservation(
@@ -553,4 +559,43 @@ test("repo audit only reports completion when file evidence exists", () => {
 
     assert.equal(result.ok, true);
     assert.match(result.text, /2 archivos/);
+});
+
+
+test("tool bridge preserves the runtime error code and actionable details", async () => {
+    const previousRuntime = globalThis.window.JarvisToolRuntime;
+    globalThis.window.JarvisToolRuntime = {
+        async execute() {
+            return {
+                ok: false,
+                executionOk: false,
+                status: "PLATFORM_QUERY_FAILED",
+                retryable: false,
+                error: {
+                    code: "PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED",
+                    message: "Filter field was not grounded",
+                    details: {
+                        collection: "users",
+                        undiscoveredFilterFields: ["vehiculo.tipo"],
+                        groundingFiles: ["app-registro.js"]
+                    }
+                }
+            };
+        }
+    };
+    try {
+        const normalized = normalizeToolRuntimeFailure(await globalThis.window.JarvisToolRuntime.execute());
+        assert.equal(normalized.code, "PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED");
+        assert.equal(normalized.message, "Filter field was not grounded");
+        assert.deepEqual(normalized.details.undiscoveredFilterFields, ["vehiculo.tipo"]);
+
+        const result = await ToolsBridge.executeAndCompose("platform.query", {}, {});
+        assert.equal(result.ok, false);
+        assert.equal(result.error.code, "PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED");
+        assert.equal(result.error.message, "Filter field was not grounded");
+        assert.deepEqual(result.error.context.failureDetails.undiscoveredFilterFields, ["vehiculo.tipo"]);
+        assert.equal(result.error.code === "TOOL_EXECUTION_FAILED", false);
+    } finally {
+        globalThis.window.JarvisToolRuntime = previousRuntime;
+    }
 });

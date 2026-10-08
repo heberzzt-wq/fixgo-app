@@ -1762,11 +1762,24 @@ test('platform schema validation failures are non-retryable with the same argume
 
 test('mission planner compaction preserves a failed tool error for semantic recovery', async () => {
  const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
- const compact=compactMissionPlannerObservation({ok:false,executionOk:false,status:'PLATFORM_QUERY_FAILED',retryable:false,error:{code:'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED',message:'Filter field was not grounded in observed source'}});
+ const compact=compactMissionPlannerObservation({
+  ok:false,executionOk:false,status:'ERROR',retryable:false,
+  error:{
+   code:'TOOL_EXECUTION_FAILED',
+   message:{code:'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED'},
+   context:{runtimeResult:{error:{
+    code:'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED',
+    message:'Filter field was not grounded in observed source',
+    details:{collection:'users',undiscoveredFilterFields:['vehiculo.tipo'],groundingFiles:['app-registro.js']}
+   }}}
+  }
+ });
  assert.equal(compact.ok,false);
  assert.equal(compact.retryable,false);
  assert.equal(compact.errorCode,'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED');
  assert.equal(compact.errorMessage,'Filter field was not grounded in observed source');
+ assert.deepEqual(compact.errorDetails.undiscoveredFilterFields,['vehiculo.tipo']);
+ assert.deepEqual(compact.errorDetails.groundingFiles,['app-registro.js']);
  assert.match(compact.error,/PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED/);
  assert.doesNotMatch(compact.error,/\[object Object\]/);
 });
@@ -1782,7 +1795,7 @@ test('a platform schema failure sends the same LLM back to repository evidence i
  const stages=[];
  const result=await runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',
   completedTasks:[{name:'repo.read',args:{file:'panel.js'},observation:{ok:true,executionOk:true,verifiedRead:{file:'panel.js',content:'const users = collection(db, "users");'}}}],
-  blockedTasks:[{name:'platform.query',args:{collection:'users',sourceFile:'panel.js',mode:'count',filters:[{field:'role',op:'==',value:'tecnico'}]},observation:{ok:false,executionOk:false,retryable:false,error:{code:'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED',message:'role was not grounded'},errorCode:'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED',errorMessage:'role was not grounded'}}]
+  blockedTasks:[{name:'platform.query',args:{collection:'users',sourceFile:'panel.js',mode:'count',filters:[{field:'role',op:'==',value:'tecnico'}]},observation:{ok:false,executionOk:false,retryable:false,error:{code:'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED',message:'role was not grounded',details:{undiscoveredFilterFields:['role'],groundingFiles:['panel.js']}},errorCode:'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED',errorMessage:'role was not grounded',errorDetails:{undiscoveredFilterFields:['role'],groundingFiles:['panel.js']}}}]
  },ai:{models:{generateContent:async request=>{
    stages.push(request.config.semanticStage);
    if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({
@@ -1795,6 +1808,10 @@ test('a platform schema failure sends the same LLM back to repository evidence i
     assert.ok(names.includes('repo.grep'));
     assert.ok(names.includes('repo.read'));
     assert.equal(names.includes('platform.query'),false);
+    const recoveryContext=JSON.stringify(request.config.chatMessages);
+    assert.match(recoveryContext,/undiscoveredFilterFields/);
+    assert.match(recoveryContext,/role/);
+    assert.match(recoveryContext,/argumentos RECHAZADOS/);
     return{functionCalls:[{name:'repo.grep',args:{term:'rol'}}],providerResponse:{finishReason:'stop'}};
    }
    throw new Error('UNEXPECTED_STAGE:'+request.config.semanticStage);
@@ -1844,4 +1861,19 @@ test('an irrelevant candidate read cannot exhaust repository evidence while disc
  assert.deepEqual(result.toolCalls,[{name:'repo.read',args:{file:'schema.js'},reason:'MODEL_SEMANTIC_TOOL_SELECTION',mutates:false,approved:false}]);
  assert.ok(stages.includes('READ_ONLY_EVIDENCE_CONTINUATION'));
  assert.ok(stages.includes('READ_ONLY_NEXT_STEP_RECOVERY'));
+});
+
+
+test('platform query schema failures return actionable grounding details without touching Firestore', async () => {
+ const f=platformQueryTestFixture();
+ f.context.rootInstruction='Consulta vehiculos registrados';
+ const result=await f.execute({...f.args,mode:'count',fields:[],filters:[{field:'vehiculo.tipo',op:'==',value:'moto'}]},f.dependencies,f.context);
+ assert.equal(result.ok,false);
+ assert.equal(result.error.code,'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED');
+ assert.deepEqual(Array.from(result.error.details.undiscoveredFilterFields),['vehiculo.tipo']);
+ assert.deepEqual(Array.from(result.error.details.groundingFiles),['source.js']);
+ assert.equal(result.error.details.collection,'arbitrary_records');
+ assert.equal(result.error.details.sourceFile,'source.js');
+ assert.deepEqual(result.details,result.error.details);
+ assert.equal(f.calls.length,0);
 });

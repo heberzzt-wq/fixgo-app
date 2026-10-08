@@ -691,6 +691,47 @@ function composeActuatorResponse(
     return null;
 }
 
+export function normalizeToolRuntimeFailure(result = {}) {
+    const runtimeError =
+        result?.error &&
+        typeof result.error === "object" &&
+        !Array.isArray(result.error)
+            ? result.error
+            : null;
+    const nestedRuntimeError =
+        runtimeError?.context?.runtimeResult?.error &&
+        typeof runtimeError.context.runtimeResult.error === "object" &&
+        !Array.isArray(runtimeError.context.runtimeResult.error)
+            ? runtimeError.context.runtimeResult.error
+            : null;
+    const code = String(
+        nestedRuntimeError?.code ||
+        runtimeError?.code ||
+        result?.code ||
+        result?.status ||
+        "TOOL_EXECUTION_FAILED"
+    );
+    const messageValue =
+        nestedRuntimeError?.message ||
+        runtimeError?.message ||
+        (typeof result?.error === "string" ? result.error : "") ||
+        result?.message ||
+        code;
+    const message = typeof messageValue === "string"
+        ? messageValue
+        : JSON.stringify(messageValue);
+    const details =
+        nestedRuntimeError?.details ||
+        runtimeError?.details ||
+        result?.details ||
+        null;
+    return {
+        code,
+        message: String(message || code).slice(0, 1000),
+        ...(details && typeof details === "object" ? { details } : {})
+    };
+}
+
 function composeActuatorFailure(
     toolName = "",
     result = {},
@@ -700,12 +741,10 @@ function composeActuatorFailure(
         return null;
     }
 
-    const errorText = String(
-        result?.error?.message ||
-        result?.error ||
-        result?.status ||
-        "TOOL_FAILED"
-    );
+    const failure =
+        normalizeToolRuntimeFailure(result);
+    const errorText =
+        failure.message;
 
     if (toolName === "image.generate") {
         const credentialMissing =
@@ -936,18 +975,23 @@ export const ToolsBridge = {
             );
 
         if (!result?.ok) {
+            const failure =
+                normalizeToolRuntimeFailure(result);
             return composeActuatorFailure(
                 toolName,
                 result,
                 context
             ) || window.ResponseComposer.error(
-                result?.error || "Error desconocido",
-                "TOOL_EXECUTION_FAILED",
+                failure.message,
+                failure.code,
                 {
                     tool:
                         toolName,
                     runtimeResult:
-                        result
+                        result,
+                    ...(failure.details
+                        ? { failureDetails: failure.details }
+                        : {})
                 }
             );
         }

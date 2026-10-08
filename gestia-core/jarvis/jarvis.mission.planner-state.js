@@ -16,6 +16,21 @@ function text(value, max = MAX_PLANNER_TEXT) {
     return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
 }
 
+function compactErrorDetails(value, depth = 0) {
+    if (value == null || depth > 3) return null;
+    if (typeof value === "string") return text(value, 500);
+    if (typeof value === "number" || typeof value === "boolean") return value;
+    if (Array.isArray(value)) {
+        return value.slice(0, 20).map(item => compactErrorDetails(item, depth + 1));
+    }
+    if (typeof value !== "object") return text(value, 200);
+    const entries = Object.entries(value)
+        .filter(([key]) => !["__proto__", "prototype", "constructor"].includes(key))
+        .slice(0, 30)
+        .map(([key, item]) => [key, compactErrorDetails(item, depth + 1)]);
+    return Object.fromEntries(entries);
+}
+
 function compactSource(source = {}) {
     const item = object(source);
     const title = text(item.title || item.name || item.label, 180);
@@ -178,12 +193,29 @@ export function compactMissionPlannerObservation(observation = {}) {
         source.error ??
         evidence.error ??
         null;
+    const runtimeError =
+        rawError &&
+        typeof rawError === "object" &&
+        !Array.isArray(rawError) &&
+        rawError.context?.runtimeResult?.error &&
+        typeof rawError.context.runtimeResult.error === "object" &&
+        !Array.isArray(rawError.context.runtimeResult.error)
+            ? rawError.context.runtimeResult.error
+            : null;
     const errorCode = rawError && typeof rawError === "object" && !Array.isArray(rawError)
-        ? text(rawError.code || rawError.status || rawError.name, 180)
+        ? text(runtimeError?.code || rawError.code || rawError.status || rawError.name, 180)
         : "";
     const errorMessage = rawError && typeof rawError === "object" && !Array.isArray(rawError)
-        ? text(rawError.message || rawError.reason || rawError.detail || rawError.details, 500)
+        ? text(runtimeError?.message || rawError.message || rawError.reason || rawError.detail || "", 500)
         : "";
+    const rawErrorDetails =
+        runtimeError?.details ||
+        rawError?.details ||
+        rawError?.context?.failureDetails ||
+        source.details ||
+        evidence.details ||
+        null;
+    const errorDetails = compactErrorDetails(rawErrorDetails);
     const error = rawError && typeof rawError === "object" && !Array.isArray(rawError)
         ? text([errorCode, errorMessage].filter(Boolean).join(": "), 700)
         : text(rawError || "", 700);
@@ -231,6 +263,7 @@ export function compactMissionPlannerObservation(observation = {}) {
         ...(error ? { error } : {}),
         ...(errorCode ? { errorCode } : {}),
         ...(errorMessage ? { errorMessage } : {}),
+        ...(errorDetails && Object.keys(errorDetails).length ? { errorDetails } : {}),
         ...(sources.length ? { sources } : {}),
         ...(mediaAssets.length ? { mediaAssets } : {}),
         ...(materialReferences.length ? { materialReferences } : {}),
