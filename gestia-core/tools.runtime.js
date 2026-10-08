@@ -706,14 +706,30 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
         if (!Array.isArray(fields) || fields.length > 20 || (mode === "query" && !fields.length) || !fields.every(validField)) throw new Error("PLATFORM_QUERY_FIELDS_REQUIRED");
         if (!Array.isArray(filters) || filters.length > 10 || filters.some(filter => !filter || !validField(filter.field) || !["==", "!=", "<", "<=", ">", ">=", "in", "not-in", "array-contains", "array-contains-any"].includes(filter.op) || !Object.prototype.hasOwnProperty.call(filter, "value"))) throw new Error("PLATFORM_QUERY_FILTER_INVALID");
         const read = sourceRead.observation.verifiedRead;
-        const sourceCorpus = [
-            read.content,
-            read.numberedContent,
-            ...(read.sourceStructure?.dataBindings?.references || []).flatMap(reference => [
+        const groundingReads = (context.completedTasks || [])
+            .filter(task =>
+                task?.name === "repo.read" &&
+                task?.observation?.ok === true &&
+                task?.observation?.executionOk !== false &&
+                task?.observation?.blocked !== true &&
+                task?.observation?.verifiedRead
+            )
+            .map(task => task.observation.verifiedRead)
+            .filter(candidate => {
+                if (candidate.file === args.sourceFile) return true;
+                const collections = candidate.sourceStructure?.dataBindings?.collections;
+                return candidate.sourceStructure?.dataBindings?.source === "ACORN_SOURCE_REFERENCES" &&
+                    Array.isArray(collections) &&
+                    collections.includes(collectionPath);
+            });
+        const sourceCorpus = groundingReads.flatMap(candidate => [
+            candidate.content,
+            candidate.numberedContent,
+            ...(candidate.sourceStructure?.dataBindings?.references || []).flatMap(reference => [
                 reference?.content,
                 ...(reference?.declarations || []).map(item => item?.content)
             ])
-        ].filter(value => typeof value === "string").join("\n");
+        ]).filter(value => typeof value === "string").join("\n");
         const requestCorpus = String(context.rootInstruction || context.rawInput || "");
         const normalizeGroundingText = value => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
         const normalizedSource = normalizeGroundingText(sourceCorpus);

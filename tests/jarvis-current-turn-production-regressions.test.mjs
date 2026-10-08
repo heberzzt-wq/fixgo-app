@@ -1602,3 +1602,40 @@ test('repo search runtime blocks candidate-skipping and vocabulary drift after f
  assert.match(source,/REPO_SEARCH_QUERY_LOST_USER_VOCABULARY/);
  assert.match(source,/requestVocabulary\.some\(token => queryVocabulary\.has\(token\)\)/);
 });
+
+
+test('platform query can combine verified reads that bind the same collection without an intent dictionary', async () => {
+ const f=platformQueryTestFixture();
+ f.context.rootInstruction='Cuenta clientes registrados';
+ f.context.completedTasks.push({
+  name:'repo.read',
+  observation:{ok:true,executionOk:true,verifiedRead:{
+   file:'role-source.js',
+   content:'const q = query(collection(db, "arbitrary_records"), where("rol", "==", "cliente")); const rol = "cliente";',
+   sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['arbitrary_records'],complete:true,references:[
+    {collection:'arbitrary_records',startLine:1,endLine:1,content:'const q = query(collection(db, "arbitrary_records"), where("rol", "==", "cliente"));',declarations:[{name:'rol',startLine:1,content:'const rol = "cliente"'}]}
+   ]}}
+  }}
+ });
+ const result=await f.execute({...f.args,mode:'count',fields:[],filters:[{field:'rol',op:'==',value:'cliente'}]},f.dependencies,f.context);
+ assert.equal(result.ok,true,JSON.stringify(result));
+ assert.equal(result.recordEvidence.totalCount,3);
+ assert.equal(f.calls.length,1);
+});
+
+test('platform query refuses supplemental fields from a read bound to a different collection', async () => {
+ const f=platformQueryTestFixture();
+ f.context.rootInstruction='Cuenta clientes registrados';
+ f.context.completedTasks.push({
+  name:'repo.read',
+  observation:{ok:true,executionOk:true,verifiedRead:{
+   file:'other-source.js',
+   content:'const q = collection(db, "other_records"); const rol = "cliente";',
+   sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['other_records'],complete:true}}
+  }}
+ });
+ const result=await f.execute({...f.args,mode:'count',fields:[],filters:[{field:'rol',op:'==',value:'cliente'}]},f.dependencies,f.context);
+ assert.equal(result.ok,false);
+ assert.equal(result.error.code,'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED');
+ assert.equal(f.calls.length,0);
+});
