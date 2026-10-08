@@ -174,6 +174,12 @@ export function compactMissionPlannerObservation(observation = {}) {
         evidence.answer ||
         ""
     );
+    const error = text(
+        source.error ||
+        evidence.error ||
+        "",
+        700
+    );
     const output = text(
         typeof source.output === "string" ? source.output : "",
         420
@@ -215,6 +221,7 @@ export function compactMissionPlannerObservation(observation = {}) {
             inventoryExcerpt: true
         } : {}),
         ...(summary ? { summary } : {}),
+        ...(error ? { error } : {}),
         ...(sources.length ? { sources } : {}),
         ...(mediaAssets.length ? { mediaAssets } : {}),
         ...(materialReferences.length ? { materialReferences } : {}),

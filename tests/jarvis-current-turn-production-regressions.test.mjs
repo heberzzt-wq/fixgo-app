@@ -1748,3 +1748,56 @@ test('terminal missions use a high emergency ceiling while progress guards remai
  assert.match(source,/maximumSteps:\s*64/);
  assert.match(source,/Progress\/no-progress guards stop/);
 });
+
+
+test('platform schema validation failures are non-retryable with the same arguments', async () => {
+ const f=platformQueryTestFixture();
+ f.context.rootInstruction='Consulta role tecnico';
+ const result=await f.execute({...f.args,mode:'count',fields:[],filters:[{field:'role',op:'==',value:'tecnico'}]},f.dependencies,f.context);
+ assert.equal(result.ok,false);
+ assert.equal(result.retryable,false);
+ assert.equal(result.error.code,'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED');
+ assert.equal(f.calls.length,0);
+});
+
+test('mission planner compaction preserves a failed tool error for semantic recovery', async () => {
+ const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
+ const compact=compactMissionPlannerObservation({ok:false,executionOk:false,status:'PLATFORM_QUERY_FAILED',retryable:false,error:'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED'});
+ assert.equal(compact.ok,false);
+ assert.equal(compact.retryable,false);
+ assert.equal(compact.error,'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED');
+});
+
+test('a platform schema failure sends the same LLM back to repository evidence instead of repeating the bad query', async () => {
+ const input='Consulta registros actuales usando el esquema real';
+ const catalog=[
+  {name:'platform.query',description:'Consulta Firestore',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'},sourceFile:{type:'string'},mode:{type:'string'},filters:{type:'array',items:{type:'object'}}},required:['collection','sourceFile','filters'],additionalProperties:true}},
+  {name:'repo.search',description:'Busca código',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query'],additionalProperties:false}},
+  {name:'repo.grep',description:'Busca literal',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',properties:{term:{type:'string'}},required:['term'],additionalProperties:false}},
+  {name:'repo.read',description:'Lee fuente',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file'],additionalProperties:false}}
+ ];
+ const stages=[];
+ const result=await runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',
+  completedTasks:[{name:'repo.read',args:{file:'panel.js'},observation:{ok:true,executionOk:true,verifiedRead:{file:'panel.js',content:'const users = collection(db, "users");'}}}],
+  blockedTasks:[{name:'platform.query',args:{collection:'users',sourceFile:'panel.js',mode:'count',filters:[{field:'role',op:'==',value:'tecnico'}]},observation:{ok:false,executionOk:false,retryable:false,error:'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED'}}]
+ },ai:{models:{generateContent:async request=>{
+   stages.push(request.config.semanticStage);
+   if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({
+    explanation:'Falta acreditar el campo real',
+    completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'La consulta falló porque el campo no está acreditado'}]},
+    toolCalls:[]
+   }),providerResponse:{finishReason:'stop'}};
+   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){
+    const names=request.config.tools[0].functionDeclarations.map(tool=>tool.name);
+    assert.ok(names.includes('repo.grep'));
+    assert.ok(names.includes('repo.read'));
+    assert.equal(names.includes('platform.query'),false);
+    return{functionCalls:[{name:'repo.grep',args:{term:'rol'}}],providerResponse:{finishReason:'stop'}};
+   }
+   throw new Error('UNEXPECTED_STAGE:'+request.config.semanticStage);
+ }}}});
+ assert.equal(result.toolCalls.length,1);
+ assert.equal(result.toolCalls[0].name,'repo.grep');
+ assert.deepEqual(result.toolCalls[0].args,{term:'rol'});
+ assert.ok(stages.includes('READ_ONLY_EVIDENCE_CONTINUATION'));
+});

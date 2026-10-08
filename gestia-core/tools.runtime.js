@@ -846,7 +846,15 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
             evidenceKinds: ["platform_records"], recordEvidence };
     } catch (error) {
         const code = String(error?.code || error?.message || "PLATFORM_QUERY_FAILED");
+        const retryable = [
+            "unavailable",
+            "deadline-exceeded",
+            "resource-exhausted",
+            "aborted",
+            "internal"
+        ].includes(code.toLowerCase());
         return { ok: false, executionOk: false, status: "PLATFORM_QUERY_FAILED", tool: "platform.query", readOnly: true,
+            retryable,
             error: { code, message: String(error?.message || code).slice(0,1000) }, ...(scope ? {scope} : {}) };
     }
 }

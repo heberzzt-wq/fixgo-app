@@ -1842,11 +1842,18 @@ async function runModelSemanticPlanner({
                 }
                 const canonicalArgs = value => Array.isArray(value) ? value.map(canonicalArgs) : value && typeof value === "object"
                     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalArgs(value[key])])) : value;
-                const wasExecuted = call => (missionState.completedTasks || []).some(task => task.name === call.name &&
-                    JSON.stringify(canonicalArgs(task.args || {})) === JSON.stringify(canonicalArgs(call.args || {})));
-                // A repeated successful read is not progress. Keep the objective
-                // pending and let the same model choose a different grounded step.
-                if (evaluatedAudit.missionComplete !== true) validatedAudit.toolCalls = validatedAudit.toolCalls.filter(call => !wasExecuted(call));
+                const sameCall = (task, call) => task?.name === call?.name &&
+                    JSON.stringify(canonicalArgs(task?.args || {})) === JSON.stringify(canonicalArgs(call?.args || {}));
+                const wasExecuted = call => (missionState.completedTasks || []).some(task => sameCall(task, call));
+                const wasRejected = call => (missionState.blockedTasks || []).some(task =>
+                    sameCall(task, call) &&
+                    task?.observation?.retryable !== true
+                );
+                // Repeating an already successful operation or the exact same
+                // non-transient failed arguments is not progress. A different
+                // grounded call remains fully available to the model.
+                if (evaluatedAudit.missionComplete !== true) validatedAudit.toolCalls = validatedAudit.toolCalls
+                    .filter(call => !wasExecuted(call) && !wasRejected(call));
                 if (evaluatedAudit?.missionComplete === true || validatedAudit.toolCalls.length === 0 ||
                     evaluatedAudit?.completionAssessment?.objectives) {
                     validateCompletionEvidence(evaluatedAudit, normalizedCatalog, missionState);
@@ -1857,15 +1864,37 @@ async function runModelSemanticPlanner({
                 // guessed collection, permission escalation or alternate brain.
                 const generalReaders = selectableCatalog.filter(tool => tool.investigationReadOnly === true &&
                     tool.mutates !== true && tool.requiresApproval !== true && tool.userArtifact !== true);
-                const nextReaders = directEvidenceCatalog.length
-                    ? directEvidenceCatalog
-                    : generalReaders;
+                const latestPlatformSchemaFailure = [...(missionState.blockedTasks || [])].reverse().find(task => {
+                    if (task?.name !== "platform.query") return false;
+                    const error = String(task?.observation?.error || task?.reason || "");
+                    return [
+                        "PLATFORM_QUERY_SOURCE_NOT_READ",
+                        "PLATFORM_QUERY_COLLECTION_NOT_DISCOVERED",
+                        "PLATFORM_QUERY_FIELD_NOT_DISCOVERED",
+                        "PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED",
+                        "PLATFORM_QUERY_FILTER_VALUE_NOT_DISCOVERED"
+                    ].some(code => error.includes(code));
+                }) || null;
+                const repositoryRecoveryReaders = latestPlatformSchemaFailure
+                    ? generalReaders.filter(tool =>
+                        tool.name !== "platform.query" &&
+                        (tool.evidenceKinds || []).some(kind =>
+                            ["repository_search", "repository_source", "repository_inventory"].includes(kind)
+                        )
+                    )
+                    : [];
+                const nextReaders = repositoryRecoveryReaders.length
+                    ? repositoryRecoveryReaders
+                    : directEvidenceCatalog.length
+                        ? directEvidenceCatalog
+                        : generalReaders;
                 if (evaluatedAudit.missionComplete !== true && validatedAudit.toolCalls.length === 0 && nextReaders.length) {
                     const continuation = await ai.models.generateContent({model,contents:instruction,config:{
                         semanticStage:"READ_ONLY_EVIDENCE_CONTINUATION",nativeToolChat:true,maxOutputTokens:768,temperature:0,
                         chatMessages:[
                             {role:"system",content:"Eres Jarvis. El objetivo aún no está resuelto. Decide si existe UN siguiente paso de investigación ejecutable con las herramientas disponibles y llámalo. No repitas que falta evidencia cuando puedes obtenerla. Una búsqueda ya devuelve rutas candidatas: lee una ruta real pertinente para conocer la fuente; si necesitas otra fuente, busca. Conserva el objetivo del usuario, pero puedes reformular búsquedas con identificadores, campos, símbolos y vocabulario técnico que hayas aprendido de evidencia ya observada. No inventes esos identificadores: deben provenir de la solicitud o de una observación real. Si una búsqueda semántica ya fue insuficiente, usa repo.grep con un término literal observado o formula una nueva búsqueda usando la evidencia disponible. Antes de consultar registros actuales, lee el código que muestre la colección, el discriminador y los campos; no los inventes. El catálogo describe fuentes, no resultados ya obtenidos. No repitas la misma operación con los mismos argumentos. Una fuente irrelevante no cierra la investigación: continúa con otra fuente o búsqueda read-only distinta mientras exista un paso fundamentado. Si realmente no hay un paso autorizado, no llames nada. Un permiso denegado no autoriza cambiar identidad, quitar filtros ni ampliar acceso. Nunca escribas, publiques ni concedas aprobación."},
                             ...(pendingCapabilities.length ? [{role:"system",content:"CAPACIDADES_DISPONIBLES_DESPUES_DEL_REQUISITO="+JSON.stringify(pendingCapabilities)+"\nLa consulta de datos existe, pero falta leer la fuente. Elige primero una lectura o búsqueda pertinente. No sustituyas el requisito con una negativa ni con un esquema inventado."}] : []),
+                            ...(latestPlatformSchemaFailure ? [{role:"system",content:"RECUPERACION_DE_CONSULTA: la última platform.query fue rechazada por evidencia de esquema insuficiente. No repitas la misma consulta ni adivines un alias. Usa las herramientas de repositorio disponibles para localizar el campo, colección o valor real y después formula una consulta nueva con esa evidencia."}] : []),
                             ...auditTasks.map(task=>({role:"system",content:"EVIDENCIA_OBTENIDA="+JSON.stringify(task)})),
                             ...(missionState.blockedTasks||[]).slice(-8).map(task=>({role:"system",content:"INTENTO_FALLIDO="+JSON.stringify({name:task.name,args:task.args,observation:task.observation})})),
                             {role:"system",content:"OBJETIVOS_PENDIENTES="+JSON.stringify(evaluatedAudit.completionAssessment?.objectives||[])},
@@ -1876,7 +1905,7 @@ async function runModelSemanticPlanner({
                     if (!next && continuation.text) {try {next=normalizeTextToolPlan(extractJsonObject(continuation.text),nextReaders);}catch{}}
                     if (continuation?.providerResponse?.finishReason !== "length" && next?.toolCalls?.length) {
                         const checked=validatePlan({...next,missionComplete:false},nextReaders,instruction);
-                        checked.toolCalls=checked.toolCalls.filter(call=>!wasExecuted(call)).slice(0,1);
+                        checked.toolCalls=checked.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)).slice(0,1);
                         if(checked.toolCalls.length)return {...validatedAudit,toolCalls:checked.toolCalls,missionComplete:false,
                             provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:nextReaders.length,planKind:"READ_ONLY_EVIDENCE_CONTINUATION"};
                     }
@@ -1925,7 +1954,7 @@ async function runModelSemanticPlanner({
                     if (recovery?.providerResponse?.finishReason !== "length") {
                         let payload;try{payload=extractJsonObject(recovery.text);}catch{payload=null;}
                         const recovered=validatePlan({...payload,missionComplete:false},recoveryCatalog,instruction);
-                        const calls=recovered.toolCalls.filter(call=>!wasExecuted(call)&&hasRequiredToolArguments(recoveryCatalog.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
+                        const calls=recovered.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&hasRequiredToolArguments(recoveryCatalog.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
                         if(calls.length)return {...validatedAudit,toolCalls:calls,missionComplete:false,provider:String(ai.lastProvider||"jarvis-local"),
                             model,catalogSize:recoveryCatalog.length,planKind:"READ_ONLY_NEXT_STEP_RECOVERY"};
                     }
