@@ -1810,6 +1810,36 @@ async function runModelSemanticPlanner({
                     }
                 }
                 const validatedAudit = validatePlan(evaluatedAudit, safeCatalog, instruction);
+                const pendingEvidenceKinds = new Set(
+                    (evaluatedAudit?.completionAssessment?.objectives || [])
+                        .filter(objective => objective?.satisfied !== true)
+                        .map(objective => String(objective?.requiredEvidenceKind || "").trim())
+                        .filter(kind => kind && kind !== "tool_result")
+                );
+                const directEvidenceCatalog = selectableCatalog.filter(tool =>
+                    tool.investigationReadOnly === true &&
+                    tool.mutates !== true &&
+                    tool.requiresApproval !== true &&
+                    tool.userArtifact !== true &&
+                    (tool.evidenceKinds || []).some(kind => pendingEvidenceKinds.has(kind))
+                );
+                const directEvidenceToolNames = new Set(
+                    directEvidenceCatalog.map(tool => tool.name)
+                );
+                if (
+                    evaluatedAudit.missionComplete !== true &&
+                    pendingEvidenceKinds.size > 0 &&
+                    directEvidenceToolNames.size > 0
+                ) {
+                    // The model itself declared the missing evidence kind. Once
+                    // an executable tool that produces that exact evidence is
+                    // available, do not let a familiar discovery tool replace
+                    // the evidence-producing action. Exact arguments remain
+                    // authored by the same LLM and are still grounded below.
+                    validatedAudit.toolCalls = validatedAudit.toolCalls.filter(call =>
+                        directEvidenceToolNames.has(call.name)
+                    );
+                }
                 const canonicalArgs = value => Array.isArray(value) ? value.map(canonicalArgs) : value && typeof value === "object"
                     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalArgs(value[key])])) : value;
                 const wasExecuted = call => (missionState.completedTasks || []).some(task => task.name === call.name &&
@@ -1825,8 +1855,11 @@ async function runModelSemanticPlanner({
                 // model for one executable discovery step before accepting a stop.
                 // Only existing pure-reader metadata is eligible; no intent table,
                 // guessed collection, permission escalation or alternate brain.
-                const nextReaders = selectableCatalog.filter(tool => tool.investigationReadOnly === true &&
+                const generalReaders = selectableCatalog.filter(tool => tool.investigationReadOnly === true &&
                     tool.mutates !== true && tool.requiresApproval !== true && tool.userArtifact !== true);
+                const nextReaders = directEvidenceCatalog.length
+                    ? directEvidenceCatalog
+                    : generalReaders;
                 if (evaluatedAudit.missionComplete !== true && validatedAudit.toolCalls.length === 0 && nextReaders.length) {
                     const continuation = await ai.models.generateContent({model,contents:instruction,config:{
                         semanticStage:"READ_ONLY_EVIDENCE_CONTINUATION",nativeToolChat:true,maxOutputTokens:768,temperature:0,

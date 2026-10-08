@@ -1639,3 +1639,34 @@ test('platform query refuses supplemental fields from a read bound to a differen
  assert.equal(result.error.code,'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED');
  assert.equal(f.calls.length,0);
 });
+
+
+test('completion audit advances to an executable tool that produces the evidence kind declared by the LLM', async () => {
+ const input='Resuelve dos objetivos usando evidencia actual';
+ const catalog=[
+  {name:'fixture.discover',description:'Descubre fuentes',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query'],additionalProperties:false}},
+  {name:'fixture.fetch',description:'Consulta evidencia final',investigationReadOnly:true,mutates:false,evidenceKinds:['business_records'],inputSchema:{type:'object',properties:{scope:{type:'string'}},required:['scope'],additionalProperties:false}}
+ ];
+ const stages=[];
+ const result=await runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[
+  {name:'fixture.discover',args:{query:'source'},observation:{ok:true,executionOk:true,status:'DISCOVERED'}}
+ ]},ai:{models:{generateContent:async request=>{
+   stages.push(request.config.semanticStage);
+   if(request.config.semanticStage==='COMPLETION_AUDIT') return {text:JSON.stringify({
+    explanation:'Faltan registros actuales',
+    completionAssessment:{objectives:[{objective:'Obtener registros actuales',requiredEvidenceKind:'business_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Todavía no se consultaron registros'}]},
+    toolCalls:[{name:'fixture.discover',args:{query:'another source'}}]
+   }),providerResponse:{finishReason:'stop'}};
+   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){
+    const names=request.config.tools[0].functionDeclarations.map(tool=>tool.name);
+    assert.deepEqual(names,['fixture.fetch']);
+    return {functionCalls:[{name:'fixture.fetch',args:{scope:'current'}}],providerResponse:{finishReason:'stop'}};
+   }
+   throw new Error('UNEXPECTED_STAGE:'+request.config.semanticStage);
+ }}}});
+ assert.equal(result.toolCalls.length,1);
+ assert.equal(result.toolCalls[0].name,'fixture.fetch');
+ assert.deepEqual(result.toolCalls[0].args,{scope:'current'});
+ assert.ok(stages.includes('COMPLETION_AUDIT'));
+ assert.ok(stages.includes('READ_ONLY_EVIDENCE_CONTINUATION'));
+});
