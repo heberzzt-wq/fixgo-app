@@ -1581,6 +1581,7 @@ test('completion audit forces candidate inspection before another semantic repo 
  const input='Cuántos clientes registrados tenemos en la plataforma?';
  const catalog=[
   {name:'repo.search',description:'Busca',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query'],additionalProperties:false}},
+  {name:'repo.audit',description:'Audita el repo',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_inventory'],inputSchema:{type:'object',properties:{target:{type:'string'}},additionalProperties:false}},
   {name:'repo.read',description:'Lee',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file'],additionalProperties:false}}
  ];
  const result=await runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{

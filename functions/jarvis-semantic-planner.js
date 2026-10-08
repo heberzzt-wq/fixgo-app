@@ -1557,24 +1557,30 @@ async function runModelSemanticPlanner({
         );
         let selectableCatalog = bindEvidencePrerequisites(safeCatalog, completedTasksForAudit).filter(tool => !measuredRepair ||
             (tool.name !== "browser.inspect" && tool.name !== "tests.run" && (tool.name !== "repo.prepareWrite" || hasReadSource)));
-        if (pendingCandidateFiles.length && !candidateAlreadyRead) {
+        const candidateReaderAvailable = selectableCatalog.some(tool =>
+            tool.name === "repo.read" &&
+            tool.investigationReadOnly === true &&
+            tool.mutates !== true
+        );
+        if (pendingCandidateFiles.length && !candidateAlreadyRead && candidateReaderAvailable) {
+            // Semantic discovery already supplied real paths. The next step is
+            // source inspection, not a different repository meta-tool or a new
+            // semantic search. Qwen still chooses WHICH discovered file to read.
             selectableCatalog = selectableCatalog
-                .filter(tool => tool.name !== "repo.search")
-                .map(tool => tool.name === "repo.read" && tool.inputSchema?.properties?.file
-                    ? {
-                        ...tool,
-                        inputSchema: {
-                            ...tool.inputSchema,
-                            properties: {
-                                ...tool.inputSchema.properties,
-                                file: {
-                                    ...tool.inputSchema.properties.file,
-                                    enum: pendingCandidateFiles
-                                }
+                .filter(tool => tool.name === "repo.read")
+                .map(tool => ({
+                    ...tool,
+                    inputSchema: {
+                        ...tool.inputSchema,
+                        properties: {
+                            ...tool.inputSchema.properties,
+                            file: {
+                                ...tool.inputSchema.properties.file,
+                                enum: pendingCandidateFiles
                             }
                         }
                     }
-                    : tool);
+                }));
         }
         // A similarity shortlist is not a capability boundary. Closure needs
         // both executed tool contracts and every available evidence source.
