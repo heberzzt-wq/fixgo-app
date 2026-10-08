@@ -6425,36 +6425,17 @@ JarvisToolRuntime.register({
             };
         }
 
-        const normalizeSearchVocabulary = value =>
-            String(value || "")
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .toLowerCase();
-        const vocabularyTokens = value => [
-            ...new Set(
-                (normalizeSearchVocabulary(value).match(/[a-z0-9_/-]{4,}/g) || [])
-                    .flatMap(token => token.length > 5 && token.endsWith("s")
-                        ? [token, token.slice(0, -1)]
-                        : [token])
-            )
-        ];
         const priorTasks = Array.isArray(context.completedTasks) ? context.completedTasks : [];
         const priorSearchIndexes = priorTasks
             .map((task, index) => task?.name === "repo.search" && task?.observation?.ok === true && task?.observation?.executionOk !== false ? index : -1)
             .filter(index => index >= 0);
         if (priorSearchIndexes.length) {
-            const requestVocabulary = vocabularyTokens(context.rootInstruction || context.rawInput || "");
-            const queryVocabulary = new Set(vocabularyTokens(query));
-            if (requestVocabulary.length && !requestVocabulary.some(token => queryVocabulary.has(token))) {
-                return {
-                    ok: false,
-                    success: false,
-                    status: "REPO_SEARCH_QUERY_LOST_USER_VOCABULARY",
-                    error: "REPO_SEARCH_QUERY_LOST_USER_VOCABULARY",
-                    query,
-                    tool: "repo.search"
-                };
-            }
+            // Follow-up repository searches may legitimately use identifiers,
+            // field names and symbols learned from verified source evidence,
+            // even when the user did not type those exact tokens. Do not turn
+            // vocabulary preservation into an intent dictionary or a hard
+            // lexical gate. Live actions remain grounded separately by their
+            // source/field/value evidence contracts.
             const latestIndex = priorSearchIndexes.at(-1);
             const latest = priorTasks[latestIndex]?.observation || {};
             const candidates = Array.isArray(latest.repoCandidates)

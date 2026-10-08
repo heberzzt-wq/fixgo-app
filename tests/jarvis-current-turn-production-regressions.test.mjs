@@ -1596,11 +1596,11 @@ test('completion audit forces candidate inspection before another semantic repo 
  assert.equal(result.toolCalls[0].args.file,'firebase.js');
 });
 
-test('repo search runtime blocks candidate-skipping and vocabulary drift after first discovery', () => {
+test('repo search runtime blocks candidate-skipping without imposing a lexical vocabulary gate', () => {
  const source=readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
  assert.match(source,/REPO_SEARCH_CANDIDATE_INSPECTION_REQUIRED/);
- assert.match(source,/REPO_SEARCH_QUERY_LOST_USER_VOCABULARY/);
- assert.match(source,/requestVocabulary\.some\(token => queryVocabulary\.has\(token\)\)/);
+ assert.doesNotMatch(source,/REPO_SEARCH_QUERY_LOST_USER_VOCABULARY/);
+ assert.match(source,/identifiers,[\s\S]{0,120}field names and symbols learned from verified source evidence/);
 });
 
 
