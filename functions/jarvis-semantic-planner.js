@@ -1826,20 +1826,11 @@ async function runModelSemanticPlanner({
                 const directEvidenceToolNames = new Set(
                     directEvidenceCatalog.map(tool => tool.name)
                 );
-                if (
-                    evaluatedAudit.missionComplete !== true &&
-                    pendingEvidenceKinds.size > 0 &&
-                    directEvidenceToolNames.size > 0
-                ) {
-                    // The model itself declared the missing evidence kind. Once
-                    // an executable tool that produces that exact evidence is
-                    // available, do not let a familiar discovery tool replace
-                    // the evidence-producing action. Exact arguments remain
-                    // authored by the same LLM and are still grounded below.
-                    validatedAudit.toolCalls = validatedAudit.toolCalls.filter(call =>
-                        directEvidenceToolNames.has(call.name)
-                    );
-                }
+                // Missing evidence describes the destination, not the only
+                // permissible next hand. Keep prerequisite discovery/read tools
+                // available so an irrelevant source cannot trap the LLM in a
+                // dead end. Repetition and evidence contracts still prevent
+                // fabricated progress or unsafe execution.
                 const canonicalArgs = value => Array.isArray(value) ? value.map(canonicalArgs) : value && typeof value === "object"
                     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalArgs(value[key])])) : value;
                 const sameCall = (task, call) => task?.name === call?.name &&
@@ -1883,11 +1874,13 @@ async function runModelSemanticPlanner({
                         )
                     )
                     : [];
+                const orderedEvidenceReaders = [
+                    ...directEvidenceCatalog,
+                    ...generalReaders.filter(tool => !directEvidenceToolNames.has(tool.name))
+                ];
                 const nextReaders = repositoryRecoveryReaders.length
                     ? repositoryRecoveryReaders
-                    : directEvidenceCatalog.length
-                        ? directEvidenceCatalog
-                        : generalReaders;
+                    : orderedEvidenceReaders;
                 if (evaluatedAudit.missionComplete !== true && validatedAudit.toolCalls.length === 0 && nextReaders.length) {
                     const continuation = await ai.models.generateContent({model,contents:instruction,config:{
                         semanticStage:"READ_ONLY_EVIDENCE_CONTINUATION",nativeToolChat:true,maxOutputTokens:768,temperature:0,
@@ -1913,12 +1906,20 @@ async function runModelSemanticPlanner({
                 // One bounded recovery, not an infinite retry. The registry and
                 // executed sources constrain shape/paths; Qwen still decides intent.
                 if (evaluatedAudit.missionComplete !== true && validatedAudit.toolCalls.length === 0 && nextReaders.length) {
-                    const sources = [...new Set((missionState.completedTasks || []).filter(task => task.observation?.ok === true &&
-                        task.observation.executionOk !== false && task.observation.blocked !== true).flatMap(task => [
-                            ...(task.observation.repoCandidates || []).map(item => item.file),
-                            ...(task.observation.repositoryMatches || []).map(item => item.file),
-                            task.observation.verifiedRead?.file
-                        ]).filter(value => typeof value === "string" && value.trim()))];
+                    const successfulTasks = (missionState.completedTasks || []).filter(task =>
+                        task.observation?.ok === true &&
+                        task.observation.executionOk !== false &&
+                        task.observation.blocked !== true
+                    );
+                    const candidateSources = [...new Set(successfulTasks.flatMap(task => [
+                        ...(task.observation.repoCandidates || []).map(item => item.file),
+                        ...(task.observation.repositoryMatches || []).map(item => item.file)
+                    ]).filter(value => typeof value === "string" && value.trim()))];
+                    const readSources = new Set(successfulTasks
+                        .map(task => task.observation.verifiedRead?.file)
+                        .filter(value => typeof value === "string" && value.trim()));
+                    const unreadSources = candidateSources.filter(file => !readSources.has(file));
+                    const sources = [...new Set([...candidateSources, ...readSources])];
                     // Resolve data dependencies from evidence metadata, not user words.
                     // When paths are already discovered, let Qwen choose which source
                     // to read rather than spending the recovery on another search.
@@ -1931,23 +1932,33 @@ async function runModelSemanticPlanner({
                     const prerequisiteReaders = sources.length ? nextReaders.filter(tool =>
                         tool.evidenceKinds?.some(kind => prerequisiteKinds.has(kind)) &&
                         buildNativeInputSchema(tool.inputSchema).properties?.file) : [];
-                    const recoveryCatalog = (prerequisiteReaders.length ? prerequisiteReaders : nextReaders).map(tool => {
+                    const evidencePathReaders = [
+                        ...prerequisiteReaders,
+                        ...nextReaders.filter(tool => !prerequisiteReaders.includes(tool))
+                    ];
+                    const recoveryCatalog = evidencePathReaders.flatMap(tool => {
                         const schema = structuredClone(buildNativeInputSchema(tool.inputSchema));
-                        if (sources.length && (prerequisiteReaders.includes(tool) || tool.evidenceKinds?.includes("repository_source")) && schema.properties?.file) {
-                            schema.properties.file = {...schema.properties.file, enum:sources};
+                        const isRepositorySourceReader =
+                            tool.evidenceKinds?.includes("repository_source") &&
+                            schema.properties?.file;
+                        if (isRepositorySourceReader && candidateSources.length && unreadSources.length === 0) {
+                            return [];
                         }
-                        return {...tool,inputSchema:schema};
+                        if (isRepositorySourceReader && unreadSources.length) {
+                            schema.properties.file = {...schema.properties.file, enum:unreadSources};
+                        }
+                        return [{...tool,inputSchema:schema}];
                     });
                     const recovery = await ai.models.generateContent({model,contents:instruction,config:{
                         semanticStage:"READ_ONLY_NEXT_STEP_RECOVERY",maxOutputTokens:1024,temperature:0,responseMimeType:"application/json",
-                        responseJsonSchema:{type:"object",properties:{toolCalls:{type:"array",minItems:prerequisiteReaders.length ? 1 : 0,maxItems:1,items:{anyOf:recoveryCatalog.map(tool=>({
+                        responseJsonSchema:{type:"object",properties:{toolCalls:{type:"array",minItems:(unreadSources.length || directEvidenceCatalog.length) && recoveryCatalog.length ? 1 : 0,maxItems:1,items:{anyOf:recoveryCatalog.map(tool=>({
                             type:"object",properties:{name:{type:"string",enum:[tool.name]},args:tool.inputSchema},required:["name","args"],additionalProperties:false
                         }))}}},required:["toolCalls"],additionalProperties:false},
                         chatMessages:[
                             {role:"system",content:"La investigación no ha terminado. El intento anterior no produjo un paso nuevo. Selecciona UNA operación diferente que obtenga la evidencia faltante, o toolCalls=[] sólo si no queda ninguna autorizada y las fuentes pertinentes localizadas ya fueron examinadas. Las rutas candidatas son archivos existentes, no registros consultados. Lee una fuente candidata pertinente antes de concluir que no contiene datos. Si una fuente no demuestra el concepto solicitado, continúa: puedes usar en la siguiente búsqueda términos del usuario o identificadores/campos/símbolos que ya aparecieron en evidencia observada. Después de una búsqueda semántica insuficiente, repo.grep puede localizar un término exacto observado dentro del código. No inventes un campo o esquema sólo para avanzar. Si hace falta otra búsqueda, formula una consulta nueva fundamentada en la solicitud o en evidencia ya obtenida; no repitas la búsqueda ya realizada. Nunca inventes rutas ni esquemas. Un permiso denegado no autoriza otro usuario, quitar filtros ni ampliar acceso. Usa solamente el catálogo y argumentos válidos. Devuelve JSON {toolCalls:[{name,args}]} sin conclusiones inventadas."},
                             {role:"system",content:"CATALOGO_EJECUTABLE="+JSON.stringify(recoveryCatalog.map(({name,description,inputSchema})=>({name,description,inputSchema})))},
                             ...auditTasks.map(task=>({role:"system",content:"YA_EJECUTADO="+JSON.stringify(task)})),
-                            {role:"system",content:"RUTAS_LOCALIZADAS="+JSON.stringify(sources)+"\nCAPACIDADES_TRAS_LEER_LA_FUENTE="+JSON.stringify(pendingCapabilities)},
+                            {role:"system",content:"RUTAS_LOCALIZADAS="+JSON.stringify(sources)+"\nRUTAS_CANDIDATAS_AUN_NO_LEIDAS="+JSON.stringify(unreadSources)+"\nCAPACIDADES_TRAS_LEER_LA_FUENTE="+JSON.stringify(pendingCapabilities)},
                             {role:"user",content:instruction}
                         ]
                     }});
