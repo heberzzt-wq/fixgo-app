@@ -19,6 +19,7 @@ import {
     createHuMoLanCacheInspector,
     createHuMoLanEphemeralStager,
     createSelfHostedSemanticEngine,
+    grepRepo,
     describeJarvisBridgeIdentity,
     describeJarvisFsBridge,
     editDocxArtifact,
@@ -4061,4 +4062,23 @@ test('native local requests forbid silent prompt truncation and context shifting
     const result=await engine.respond({input:'Responde con la evidencia suministrada.'});
     assert.equal(result.message,'Respuesta verificada');
     assert.equal(result.externalApiUsed,false);
+});
+
+
+test('repo grep ranks executable source evidence ahead of noisy UI text and ignores generated release copies', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'jarvis-grep-rank-'));
+    try {
+        fs.writeFileSync(path.join(root, 'ui.js'), Array.from({ length: 120 }, (_, index) => `// cliente visible label ${index}`).join('\n'));
+        fs.writeFileSync(path.join(root, 'model.js'), 'if (rol === "cliente" && tipo_cuenta === "B2C") { return perfil; }\n');
+        fs.mkdirSync(path.join(root, '.firebase-release'), { recursive: true });
+        fs.writeFileSync(path.join(root, '.firebase-release', 'stale.js'), 'if (rol === "cliente") { return stale; }\n');
+        const result = grepRepo({ term: 'cliente', root, maxMatches: 10 });
+        assert.equal(result.ok, true);
+        assert.equal(result.matches[0].file, 'model.js');
+        assert.match(result.matches[0].snippet, /rol === "cliente"/);
+        assert.ok(result.totalMatches > result.matches.length);
+        assert.equal(result.matches.some(match => String(match.file).includes('.firebase-release')), false);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
 });

@@ -4295,19 +4295,106 @@ export function grepRepo({
     const lowerTerm =
         safeTerm.toLowerCase();
 
-    const matches =
+    const requestedMaxMatches =
+        Math.max(
+            1,
+            Math.min(
+                500,
+                Number(maxMatches) || 80
+            )
+        );
+    const candidateLimit =
+        Math.max(
+            requestedMaxMatches * 4,
+            160
+        );
+    const rankedMatches =
         [];
+    let totalMatches = 0;
+
+    const relevanceScore =
+        (line = "", file = "") => {
+            const trimmed =
+                String(line || "").trim();
+            const lower =
+                trimmed.toLowerCase();
+            const extension =
+                path.extname(file)
+                    .toLowerCase();
+            let score = 0;
+
+            if (
+                lower.includes(`"${lowerTerm}"`) ||
+                lower.includes(`'${lowerTerm}'`) ||
+                lower.includes(`\`${lowerTerm}\``)
+            ) {
+                score += 80;
+            }
+
+            if (
+                /(?:===|!==|==|!=|=>|\bcase\b|\bwhere\s*\()/i
+                    .test(trimmed)
+            ) {
+                score += 35;
+            }
+
+            if (
+                /\b(?:const|let|var|if|else\s+if|return)\b/i
+                    .test(trimmed)
+            ) {
+                score += 18;
+            }
+
+            if (
+                /[:=]/.test(trimmed)
+            ) {
+                score += 8;
+            }
+
+            if (
+                [".js", ".mjs", ".cjs"].includes(extension)
+            ) {
+                score += 8;
+            }
+
+            if (
+                /^\s*(?:\/\/|\/\*|\*|#|<!--)/.test(line)
+            ) {
+                score -= 40;
+            }
+
+            score +=
+                Math.max(
+                    0,
+                    12 - Math.floor(trimmed.length / 24)
+                );
+
+            return score;
+        };
+
+    const trimCandidates =
+        () => {
+            rankedMatches.sort((left, right) =>
+                right.relevanceScore - left.relevanceScore ||
+                left.file.localeCompare(right.file) ||
+                left.line - right.line
+            );
+            if (
+                rankedMatches.length >
+                candidateLimit
+            ) {
+                rankedMatches.length =
+                    Math.max(
+                        requestedMaxMatches * 2,
+                        requestedMaxMatches
+                    );
+            }
+        };
 
     for (
         const file
         of files
     ) {
-        if (
-            matches.length >= maxMatches
-        ) {
-            break;
-        }
-
         const stat =
             fs.statSync(file.absolutePath);
 
@@ -4331,12 +4418,6 @@ export function grepRepo({
             index < lines.length;
             index++
         ) {
-            if (
-                matches.length >= maxMatches
-            ) {
-                break;
-            }
-
             const line =
                 lines[index];
 
@@ -4344,17 +4425,48 @@ export function grepRepo({
                 line.toLowerCase()
                     .includes(lowerTerm)
             ) {
-                matches.push({
+                totalMatches += 1;
+                rankedMatches.push({
                     file:
                         file.relativePath,
                     line:
                         index + 1,
                     snippet:
-                        line.trim().slice(0, 240)
+                        line.trim().slice(0, 240),
+                    relevanceScore:
+                        relevanceScore(
+                            line,
+                            file.relativePath
+                        )
                 });
+                if (
+                    rankedMatches.length >
+                    candidateLimit
+                ) {
+                    trimCandidates();
+                }
             }
         }
     }
+
+    trimCandidates();
+
+    const matches =
+        rankedMatches
+            .slice(
+                0,
+                requestedMaxMatches
+            )
+            .map(match => ({
+                file:
+                    match.file,
+                line:
+                    match.line,
+                snippet:
+                    match.snippet,
+                relevanceScore:
+                    match.relevanceScore
+            }));
 
     return {
         ok: true,
@@ -4362,8 +4474,7 @@ export function grepRepo({
             safeTerm,
         totalFilesScanned:
             files.length,
-        totalMatches:
-            matches.length,
+        totalMatches,
         matches,
         source:
             "jarvis_fs_bridge_grep_v1",
