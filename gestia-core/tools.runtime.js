@@ -748,6 +748,51 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
             : !literalGrounded(filter.value))) throw new Error("PLATFORM_QUERY_FILTER_VALUE_NOT_DISCOVERED");
         const scalar = value => value === null || typeof value === "string" || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value));
         if (filters.some(filter => !(scalar(filter.value) || (Array.isArray(filter.value) && filter.value.length > 0 && filter.value.length <= 30 && filter.value.every(scalar))))) throw new Error("PLATFORM_QUERY_VALUE_INVALID");
+        const scalarKey = value => JSON.stringify([typeof value, value]);
+        const filtersByField = new Map();
+        for (const filter of filters) {
+            const list = filtersByField.get(filter.field) || [];
+            list.push(filter);
+            filtersByField.set(filter.field, list);
+        }
+        for (const fieldFilters of filtersByField.values()) {
+            const equalValues = [...new Set(fieldFilters
+                .filter(filter => filter.op === "==" && scalar(filter.value))
+                .map(filter => scalarKey(filter.value)))];
+            if (equalValues.length > 1) throw new Error("PLATFORM_QUERY_CONTRADICTORY_FILTERS");
+            const equalValue = equalValues.length === 1
+                ? fieldFilters.find(filter => filter.op === "==")?.value
+                : undefined;
+            const inSets = fieldFilters
+                .filter(filter => filter.op === "in" && Array.isArray(filter.value))
+                .map(filter => new Set(filter.value.map(scalarKey)));
+            if (equalValues.length === 1 && inSets.some(values => !values.has(scalarKey(equalValue)))) {
+                throw new Error("PLATFORM_QUERY_CONTRADICTORY_FILTERS");
+            }
+            if (inSets.length > 1) {
+                let intersection = new Set(inSets[0]);
+                for (const values of inSets.slice(1)) {
+                    intersection = new Set([...intersection].filter(value => values.has(value)));
+                }
+                if (intersection.size === 0) throw new Error("PLATFORM_QUERY_CONTRADICTORY_FILTERS");
+            }
+            if (equalValues.length === 1 && fieldFilters.some(filter =>
+                (filter.op === "!=" && scalarKey(filter.value) === scalarKey(equalValue)) ||
+                (filter.op === "not-in" && Array.isArray(filter.value) && filter.value.some(value => scalarKey(value) === scalarKey(equalValue)))
+            )) {
+                throw new Error("PLATFORM_QUERY_CONTRADICTORY_FILTERS");
+            }
+            const positiveDomain = inSets.length
+                ? [...inSets.reduce((current, values) => new Set([...current].filter(value => values.has(value))))]
+                : [];
+            if (positiveDomain.length && fieldFilters.some(filter =>
+                filter.op === "not-in" &&
+                Array.isArray(filter.value) &&
+                positiveDomain.every(value => filter.value.some(excluded => scalarKey(excluded) === value))
+            )) {
+                throw new Error("PLATFORM_QUERY_CONTRADICTORY_FILTERS");
+            }
+        }
         const pageSize = args.pageSize === undefined ? 50 : args.pageSize;
         if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100 || (args.cursor !== undefined && (!segment(args.cursor) || args.cursor.includes("/")))) throw new Error("PLATFORM_QUERY_PAGE_INVALID");
         if (args.includeCount !== undefined && typeof args.includeCount !== "boolean") throw new Error("PLATFORM_QUERY_COUNT_INVALID");

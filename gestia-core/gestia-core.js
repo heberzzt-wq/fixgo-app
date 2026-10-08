@@ -5061,8 +5061,11 @@ if (
                     ? context.trustedMissionAuthorizations
                     : {},
             memoryContext: semanticMemoryContext,
+            // Complex private missions may need several independent reads,
+            // joins and verification passes. Progress/no-progress guards stop
+            // loops; this ceiling is only a high emergency brake.
             maximumSteps:
-                20,
+                64,
             maximumRetries:
                 2,
             noDeadline:

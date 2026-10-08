@@ -1670,3 +1670,81 @@ test('completion audit advances to an executable tool that produces the evidence
  assert.ok(stages.includes('COMPLETION_AUDIT'));
  assert.ok(stages.includes('READ_ONLY_EVIDENCE_CONTINUATION'));
 });
+
+
+test('platform query rejects logically contradictory filters before Firestore instead of turning them into a false zero', async () => {
+ const f=platformQueryTestFixture();
+ f.context.rootInstruction='Consulta registros con title Uno y title Dos';
+ const result=await f.execute({...f.args,mode:'count',fields:[],filters:[
+  {field:'title',op:'==',value:'Uno'},
+  {field:'title',op:'==',value:'Dos'}
+ ]},f.dependencies,f.context);
+ assert.equal(result.ok,false);
+ assert.equal(result.error.code,'PLATFORM_QUERY_CONTRADICTORY_FILTERS');
+ assert.equal(f.calls.length,0);
+});
+
+test('platform record responses render verified scoped facts and never promote a partial zero to global absence', async () => {
+ const {runJarvisSemanticResponse}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const briefing={
+  missionStatus:'PARTIAL',
+  missionReason:'PLANNER_NO_EXECUTABLE_PLAN',
+  executedTools:[{tool:'platform.query',ok:true,executionOk:true}],
+  platformRecordEvidence:[{
+   source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,
+   scope:{collection:'vehicles',filters:[{field:'type',op:'==',value:'motorcycle'}],fields:[],mode:'count',sourceFile:'vehicles.js'},
+   totalCount:0,countObservedAt:'2026-10-08T00:00:00Z'
+  }]
+ };
+ const result=await runJarvisSemanticResponse({
+  input:'¿Cuántos vehículos y motos tenemos y quién los trae?',
+  responseMode:'grounded_conversation',
+  responseInstruction:'¿Cuántos vehículos y motos tenemos y quién los trae?',
+  responseBriefing:JSON.stringify(briefing),
+  ai:{models:{generateContent:async request=>{
+   const ids=request.config.responseJsonSchema.properties.factIds.items.enum;
+   assert.ok(ids.includes('platform.0.scope'));
+   assert.ok(ids.includes('platform.0.count'));
+   assert.ok(ids.includes('platform.mission.scope'));
+   return{text:JSON.stringify({requestedLineCount:0,factIds:['platform.0.count']})};
+  }}}
+ });
+ assert.equal(result.grounding.mode,'VERIFIED_PLATFORM_RECORD_FACTS');
+ assert.match(result.message,/colección vehicles/);
+ assert.match(result.message,/type == "motorcycle"/);
+ assert.match(result.message,/devolvió 0 registro/);
+ assert.match(result.message,/sólo acredita ese alcance exacto/);
+ assert.match(result.message,/no demuestra ausencia fuera de esos filtros/);
+ assert.doesNotMatch(result.message,/no (?:hay|existen) vehículos/i);
+});
+
+test('platform record grounding preserves independent query scopes and rows for general multi-objective questions', async () => {
+ const {runJarvisSemanticResponse}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const briefing={missionStatus:'COMPLETED',platformRecordEvidence:[
+  {source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'assets',filters:[{field:'kind',op:'==',value:'car'}],fields:['name','assignedTo'],mode:'query',sourceFile:'assets.js'},rows:[{id:'a',values:{name:'Auto 1',assignedTo:'tech-a'}}],returnedCount:1,hasMore:false,completeForQuery:true},
+  {source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'documents',filters:[{field:'status',op:'==',value:'expiring'}],fields:['ownerId','expiresAt'],mode:'query',sourceFile:'documents.js'},rows:[{id:'d',values:{ownerId:'tech-a',expiresAt:'2026-10-20'}}],returnedCount:1,hasMore:false,completeForQuery:true}
+ ]};
+ const result=await runJarvisSemanticResponse({
+  input:'Dime qué vehículos hay, quién los trae y qué documentos están por vencer',
+  responseMode:'grounded_conversation',
+  responseInstruction:'Dime qué vehículos hay, quién los trae y qué documentos están por vencer',
+  responseBriefing:JSON.stringify(briefing),
+  ai:{models:{generateContent:async request=>{
+   const ids=request.config.responseJsonSchema.properties.factIds.items.enum;
+   assert.ok(ids.includes('platform.0.row.0'));
+   assert.ok(ids.includes('platform.1.row.0'));
+   return{text:JSON.stringify({requestedLineCount:0,factIds:['platform.0.row.0','platform.1.row.0']})};
+  }}}
+ });
+ assert.match(result.message,/Auto 1/);
+ assert.match(result.message,/tech-a/);
+ assert.match(result.message,/2026-10-20/);
+ assert.match(result.message,/colección assets/);
+ assert.match(result.message,/colección documents/);
+});
+
+test('terminal missions use a high emergency ceiling while progress guards remain the real loop control', () => {
+ const source=readFileSync(new URL('../gestia-core/gestia-core.js',import.meta.url),'utf8');
+ assert.match(source,/maximumSteps:\s*64/);
+ assert.match(source,/Progress\/no-progress guards stop/);
+});

@@ -1273,7 +1273,7 @@ export async function composeEvidenceGroundedConversation({
     const hasMeasuredInterfaceEvidence = measuredInterfaceEvidence.length > 0;
     const requiresRepairGrounding = measuredInterfaceEvidence.some(page => page.source === "RENDERED_DOM_LAYOUT_REPLAY") &&
         authoritativeOutcomes.some(item => RESPONSIVE_REPAIR_TOOLS.has(item.tool));
-    if (missionOutcomeObservation?.status !== "COMPLETED" && missingEvidence?.length && !hasMeasuredInterfaceEvidence) {
+    if (missionOutcomeObservation?.status !== "COMPLETED" && missingEvidence?.length && !hasMeasuredInterfaceEvidence && platformRecordEvidence.length === 0) {
         // These are the same Qwen's validated limitations. A second prose pass
         // must not turn the refused completion into an unsupported success.
         return {
