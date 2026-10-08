@@ -1823,9 +1823,7 @@ test('an irrelevant candidate read cannot exhaust repository evidence while disc
   }),providerResponse:{finishReason:'stop'}};
   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){
    const names=request.config.tools[0].functionDeclarations.map(tool=>tool.name);
-   assert.ok(names.includes('repo.read'));
-   assert.ok(names.includes('repo.search'));
-   assert.ok(names.includes('repo.grep'));
+   assert.deepEqual(names,['repo.read']);
    return {text:'',functionCalls:[],providerResponse:{finishReason:'stop'}};
   }
   if(request.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY'){

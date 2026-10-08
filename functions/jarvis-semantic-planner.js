@@ -1826,11 +1826,21 @@ async function runModelSemanticPlanner({
                 const directEvidenceToolNames = new Set(
                     directEvidenceCatalog.map(tool => tool.name)
                 );
-                // Missing evidence describes the destination, not the only
-                // permissible next hand. Keep prerequisite discovery/read tools
-                // available so an irrelevant source cannot trap the LLM in a
-                // dead end. Repetition and evidence contracts still prevent
-                // fabricated progress or unsafe execution.
+                // Evidence kinds describe the destination. If a tool that
+                // produces that evidence is ALREADY executable after binding
+                // its declared prerequisites, prefer that tool family. If it is
+                // not executable yet, prerequisite discovery/read tools remain
+                // available below. This is evidence dependency resolution, not
+                // an intent or business-domain router.
+                if (
+                    evaluatedAudit.missionComplete !== true &&
+                    pendingEvidenceKinds.size > 0 &&
+                    directEvidenceToolNames.size > 0
+                ) {
+                    validatedAudit.toolCalls = validatedAudit.toolCalls.filter(call =>
+                        directEvidenceToolNames.has(call.name)
+                    );
+                }
                 const canonicalArgs = value => Array.isArray(value) ? value.map(canonicalArgs) : value && typeof value === "object"
                     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalArgs(value[key])])) : value;
                 const sameCall = (task, call) => task?.name === call?.name &&
@@ -1874,13 +1884,11 @@ async function runModelSemanticPlanner({
                         )
                     )
                     : [];
-                const orderedEvidenceReaders = [
-                    ...directEvidenceCatalog,
-                    ...generalReaders.filter(tool => !directEvidenceToolNames.has(tool.name))
-                ];
                 const nextReaders = repositoryRecoveryReaders.length
                     ? repositoryRecoveryReaders
-                    : orderedEvidenceReaders;
+                    : directEvidenceCatalog.length
+                        ? directEvidenceCatalog
+                        : generalReaders;
                 if (evaluatedAudit.missionComplete !== true && validatedAudit.toolCalls.length === 0 && nextReaders.length) {
                     const continuation = await ai.models.generateContent({model,contents:instruction,config:{
                         semanticStage:"READ_ONLY_EVIDENCE_CONTINUATION",nativeToolChat:true,maxOutputTokens:768,temperature:0,
@@ -1932,19 +1940,22 @@ async function runModelSemanticPlanner({
                     const prerequisiteReaders = sources.length ? nextReaders.filter(tool =>
                         tool.evidenceKinds?.some(kind => prerequisiteKinds.has(kind)) &&
                         buildNativeInputSchema(tool.inputSchema).properties?.file) : [];
-                    const evidencePathReaders = [
-                        ...prerequisiteReaders,
-                        ...nextReaders.filter(tool => !prerequisiteReaders.includes(tool))
-                    ];
+                    const evidencePathReaders =
+                        unreadSources.length && prerequisiteReaders.length
+                            ? prerequisiteReaders
+                            : nextReaders;
                     const recoveryCatalog = evidencePathReaders.flatMap(tool => {
                         const schema = structuredClone(buildNativeInputSchema(tool.inputSchema));
-                        const isRepositorySourceReader =
-                            tool.evidenceKinds?.includes("repository_source") &&
-                            schema.properties?.file;
-                        if (isRepositorySourceReader && candidateSources.length && unreadSources.length === 0) {
+                        const isEvidencePathReader =
+                            Boolean(schema.properties?.file) &&
+                            (
+                                prerequisiteReaders.includes(tool) ||
+                                tool.evidenceKinds?.includes("repository_source")
+                            );
+                        if (isEvidencePathReader && candidateSources.length && unreadSources.length === 0) {
                             return [];
                         }
-                        if (isRepositorySourceReader && unreadSources.length) {
+                        if (isEvidencePathReader && unreadSources.length) {
                             schema.properties.file = {...schema.properties.file, enum:unreadSources};
                         }
                         return [{...tool,inputSchema:schema}];
