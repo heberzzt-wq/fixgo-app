@@ -1867,14 +1867,24 @@ async function runModelSemanticPlanner({
                     tool.mutates !== true && tool.requiresApproval !== true && tool.userArtifact !== true);
                 const latestPlatformSchemaFailure = [...(missionState.blockedTasks || [])].reverse().find(task => {
                     if (task?.name !== "platform.query") return false;
-                    const error = String(task?.observation?.error || task?.reason || "");
+                    const observedError = task?.observation?.error;
+                    const errorText = [
+                        task?.observation?.errorCode,
+                        task?.observation?.errorMessage,
+                        typeof observedError === "string"
+                            ? observedError
+                            : observedError && typeof observedError === "object"
+                                ? observedError.code || observedError.message || observedError.status || ""
+                                : "",
+                        task?.reason
+                    ].filter(Boolean).map(String).join(" ");
                     return [
                         "PLATFORM_QUERY_SOURCE_NOT_READ",
                         "PLATFORM_QUERY_COLLECTION_NOT_DISCOVERED",
                         "PLATFORM_QUERY_FIELD_NOT_DISCOVERED",
                         "PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED",
                         "PLATFORM_QUERY_FILTER_VALUE_NOT_DISCOVERED"
-                    ].some(code => error.includes(code));
+                    ].some(code => errorText.includes(code));
                 }) || null;
                 const repositoryRecoveryReaders = latestPlatformSchemaFailure
                     ? generalReaders.filter(tool =>

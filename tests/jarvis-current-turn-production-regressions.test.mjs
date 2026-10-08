@@ -1762,10 +1762,13 @@ test('platform schema validation failures are non-retryable with the same argume
 
 test('mission planner compaction preserves a failed tool error for semantic recovery', async () => {
  const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
- const compact=compactMissionPlannerObservation({ok:false,executionOk:false,status:'PLATFORM_QUERY_FAILED',retryable:false,error:'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED'});
+ const compact=compactMissionPlannerObservation({ok:false,executionOk:false,status:'PLATFORM_QUERY_FAILED',retryable:false,error:{code:'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED',message:'Filter field was not grounded in observed source'}});
  assert.equal(compact.ok,false);
  assert.equal(compact.retryable,false);
- assert.equal(compact.error,'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED');
+ assert.equal(compact.errorCode,'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED');
+ assert.equal(compact.errorMessage,'Filter field was not grounded in observed source');
+ assert.match(compact.error,/PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED/);
+ assert.doesNotMatch(compact.error,/\[object Object\]/);
 });
 
 test('a platform schema failure sends the same LLM back to repository evidence instead of repeating the bad query', async () => {
@@ -1779,7 +1782,7 @@ test('a platform schema failure sends the same LLM back to repository evidence i
  const stages=[];
  const result=await runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',
   completedTasks:[{name:'repo.read',args:{file:'panel.js'},observation:{ok:true,executionOk:true,verifiedRead:{file:'panel.js',content:'const users = collection(db, "users");'}}}],
-  blockedTasks:[{name:'platform.query',args:{collection:'users',sourceFile:'panel.js',mode:'count',filters:[{field:'role',op:'==',value:'tecnico'}]},observation:{ok:false,executionOk:false,retryable:false,error:'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED'}}]
+  blockedTasks:[{name:'platform.query',args:{collection:'users',sourceFile:'panel.js',mode:'count',filters:[{field:'role',op:'==',value:'tecnico'}]},observation:{ok:false,executionOk:false,retryable:false,error:{code:'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED',message:'role was not grounded'},errorCode:'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED',errorMessage:'role was not grounded'}}]
  },ai:{models:{generateContent:async request=>{
    stages.push(request.config.semanticStage);
    if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({

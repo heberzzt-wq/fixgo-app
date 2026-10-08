@@ -174,12 +174,19 @@ export function compactMissionPlannerObservation(observation = {}) {
         evidence.answer ||
         ""
     );
-    const error = text(
-        source.error ||
-        evidence.error ||
-        "",
-        700
-    );
+    const rawError =
+        source.error ??
+        evidence.error ??
+        null;
+    const errorCode = rawError && typeof rawError === "object" && !Array.isArray(rawError)
+        ? text(rawError.code || rawError.status || rawError.name, 180)
+        : "";
+    const errorMessage = rawError && typeof rawError === "object" && !Array.isArray(rawError)
+        ? text(rawError.message || rawError.reason || rawError.detail || rawError.details, 500)
+        : "";
+    const error = rawError && typeof rawError === "object" && !Array.isArray(rawError)
+        ? text([errorCode, errorMessage].filter(Boolean).join(": "), 700)
+        : text(rawError || "", 700);
     const output = text(
         typeof source.output === "string" ? source.output : "",
         420
@@ -222,6 +229,8 @@ export function compactMissionPlannerObservation(observation = {}) {
         } : {}),
         ...(summary ? { summary } : {}),
         ...(error ? { error } : {}),
+        ...(errorCode ? { errorCode } : {}),
+        ...(errorMessage ? { errorMessage } : {}),
         ...(sources.length ? { sources } : {}),
         ...(mediaAssets.length ? { mediaAssets } : {}),
         ...(materialReferences.length ? { materialReferences } : {}),
