@@ -1293,6 +1293,10 @@ export function createSelfHostedSemanticEngine({
             new Set(["system", "user", "assistant"]);
         const normalized = [];
         let totalCharacters = 0;
+        const maximumContextCharacters =
+            fullResponseInput
+                ? 240000
+                : 60000;
 
         for (const item of Array.isArray(messages) ? messages : []) {
             const role =
@@ -1308,12 +1312,15 @@ export function createSelfHostedSemanticEngine({
             ) {
                 continue;
             }
-            if (content.length > (fullResponseInput ? 120000 : 12000)) {
+            // Do not impose a stricter per-message ceiling than the model
+            // context itself. A large system/tool evidence packet is valid as
+            // long as the complete request still fits the local context budget.
+            if (content.length > maximumContextCharacters) {
                 throw new Error("LOCAL_SEMANTIC_MESSAGE_TOO_LARGE");
             }
             if (
                 totalCharacters + content.length >
-                (fullResponseInput ? 240000 : 60000)
+                maximumContextCharacters
             ) {
                 throw new Error("LOCAL_SEMANTIC_CONTEXT_TOO_LARGE");
             }

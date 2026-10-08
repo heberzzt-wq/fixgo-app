@@ -107,9 +107,19 @@ export function mergeEvidenceGroundedToolCalls(...groups) {
     const seenSingletons = new Set();
     // This contract is the same Qwen's complete ordered plan. Earlier
     // CURRENT_TURN candidates are provisional, not additional obligations.
-    const candidates = groups[0]?.planKind === "MISSION_CONTRACT_COMPACT_LOCAL"
-        ? groups[0]
-        : groups.flat();
+    const firstPlanKind =
+        String(
+            groups[0]?.planKind ||
+            ""
+        ).trim();
+    const authoritativeMissionContract =
+        firstPlanKind.startsWith(
+            "MISSION_CONTRACT_"
+        );
+    const candidates =
+        authoritativeMissionContract
+            ? groups[0]
+            : groups.flat();
     for (const call of candidates) {
         if (!call?.name || call.name === "conversation.respond") continue;
         if (

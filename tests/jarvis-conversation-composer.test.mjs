@@ -1075,3 +1075,41 @@ test('partial response retains exact failed tool and requested file', async () =
     assert.match(result.text,/repo\.impact — FILE_NOT_FOUND_IN_COGNITION/);
     assert.match(result.text,/archivo solicitado: src\/missing\.js/);
 });
+
+
+test("mission contract replaces provisional current-turn candidates across all contract plan kinds", () => {
+    for (const planKind of [
+        "MISSION_CONTRACT_COMPACT_LOCAL",
+        "MISSION_CONTRACT_AUDITED",
+        "MISSION_CONTRACT_EXISTING_TOOLS_VERIFIED"
+    ]) {
+        const contract = [
+            { name: "repo.search", args: { query: "tecnico" } },
+            { name: "repo.read", args: { file: "firebase.js" } }
+        ];
+        Object.defineProperty(contract, "planKind", { value: planKind, enumerable: false });
+        const provisional = [
+            { name: "repo.search", args: { query: "registered technicians in users" } },
+            { name: "repo.audit", args: { target: "technicians" } }
+        ];
+        const merged = mergeEvidenceGroundedToolCalls(contract, provisional);
+        assert.deepEqual(
+            merged.map(call => [call.name, call.args]),
+            contract.map(call => [call.name, call.args]),
+            planKind
+        );
+    }
+});
+
+test("authoritative mission contract may keep multiple independent searches selected by the LLM", () => {
+    const contract = [
+        { name: "repo.search", args: { query: "tecnico" } },
+        { name: "repo.search", args: { query: "payout settlement" } }
+    ];
+    Object.defineProperty(contract, "planKind", { value: "MISSION_CONTRACT_AUDITED", enumerable: false });
+    const merged = mergeEvidenceGroundedToolCalls(contract, [
+        { name: "repo.search", args: { query: "provisional search" } }
+    ]);
+    assert.equal(merged.length, 2);
+    assert.deepEqual(merged.map(call => call.args.query), ["tecnico", "payout settlement"]);
+});

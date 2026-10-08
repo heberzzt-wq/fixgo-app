@@ -4047,9 +4047,10 @@ test('local prompt normalization preserves the original system and final request
     assert.equal(result.length,messages.length);
     assert.equal(result[0].content,messages[0].content);
     assert.equal(result.at(-1).content,messages.at(-1).content);
-    for(const invalid of [[{role:'user',content:'x'.repeat(12001)}],Array.from({length:6},()=>({role:'system',content:'x'.repeat(11000)}))]) {
-        assert.throws(()=>normalize(invalid),/LOCAL_SEMANTIC_(MESSAGE|CONTEXT)_TOO_LARGE/);
-    }
+    const largeSingleMessage=normalize([{role:'system',content:'x'.repeat(12001)},{role:'user',content:'continua'}]);
+    assert.equal(largeSingleMessage[0].content.length,12001);
+    assert.throws(()=>normalize([{role:'user',content:'x'.repeat(60001)}]),/LOCAL_SEMANTIC_MESSAGE_TOO_LARGE/);
+    assert.throws(()=>normalize(Array.from({length:6},()=>({role:'system',content:'x'.repeat(11000)}))),/LOCAL_SEMANTIC_CONTEXT_TOO_LARGE/);
 });
 
 test('native local requests forbid silent prompt truncation and context shifting', async () => {
