@@ -1677,7 +1677,7 @@ test('AST source bindings survive execution and repeated planner compaction when
 test('nested tenant collection paths remain grounded as source templates',async()=>{
  const {inspectSourceDataBindings}=await import('../gestia-core/repo/repo.source.structure.js');
  const bindings=inspectSourceDataBindings('const ref=collection(db,"tenants",tenantId,"vehicles"); const q=query(ref,where("tipo","==","moto"));');
- assert.deepEqual(bindings.collections,['tenants','tenants/{tenantId}/vehicles']);
+ assert.deepEqual(bindings.collections,['tenants/{tenantId}/vehicles']);
  assert.equal(bindings.references[0].collection,'tenants/{tenantId}/vehicles');
  assert.match(bindings.references[0].content,/vehicles/);
 });
@@ -2413,4 +2413,32 @@ test('a truncated completion audit retries the same model with more output budge
   return{text:JSON.stringify({explanation:'Falta la fuente',completionAssessment:{objectives:[{objective:'Investigar registros',requiredEvidenceKind:'repository_source',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta leer fuente'}]},toolCalls:[{name:'repo.read',args:{file:'schema.js'}}]}),providerResponse:{finishReason:'stop'}};
  }}}});
  assert.equal(attempts,2);assert.ok(budgets[1]>budgets[0]);assert.equal(result.toolCalls[0].args.file,'schema.js');assert.equal(result.missionComplete,false);
+});
+
+
+test('AST query destinations preserve concrete constant segments and collection-specific write shapes', () => {
+ const content='const tenant="acme"; const units=collection(db,"tenants",tenant,"equipment"); addDoc(units,{serial:serial,assignedTo:owner,policy:{expiresAt:date}}); updateDoc(doc(db,"tenants",tenant,"operators",id),{permitExpiresAt:date});';
+ const bindings=analyzeRepoSourceStructure(content).dataBindings;
+ assert.deepEqual(bindings.collections,['tenants/acme/equipment','tenants/acme/operators']);
+ assert.equal(bindings.collections.includes('tenants'),false);
+ const equipment=bindings.writeShapes.find(shape=>shape.collection==='tenants/acme/equipment');
+ assert.deepEqual(equipment.fields,['serial','assignedTo','policy','policy.expiresAt']);
+ assert.match(equipment.content,/assignedTo:owner/);
+ const operator=bindings.writeShapes.find(shape=>shape.collection==='tenants/acme/operators');
+ assert.deepEqual(operator.fields,['permitExpiresAt']);
+ assert.ok(bindings.fieldPaths.includes('serial'));
+ const mutable=analyzeRepoSourceStructure('let tenant="first"; tenant="second"; collection(db,"tenants",tenant,"equipment");').dataBindings;
+ assert.deepEqual(mutable.collections,['tenants/{tenant}/equipment']);
+ const dynamic=analyzeRepoSourceStructure('collection(db,"tenants",getTenant(),"equipment");').dataBindings;
+ assert.equal(dynamic.collections.includes('tenants'),false);
+});
+
+test('a nested collection reference does not authorize querying the parent collection', async () => {
+ const f=platformQueryTestFixture();const read=f.context.completedTasks[0].observation.verifiedRead;
+ read.content='const tenant="acme"; const ref=collection(db,"tenants",tenant,"equipment"); addDoc(ref,{serial:"x"});';
+ read.sourceStructure=analyzeRepoSourceStructure(read.content);
+ const rejected=await f.execute({...f.args,collection:'tenants',mode:'count',fields:[],filters:[]},f.dependencies,f.context);
+ assert.equal(rejected.ok,false);assert.equal(rejected.error.code,'PLATFORM_QUERY_COLLECTION_NOT_DISCOVERED');assert.equal(f.calls.length,0);
+ const accepted=await f.execute({...f.args,collection:'tenants/acme/equipment',mode:'query',fields:['serial'],filters:[]},f.dependencies,f.context);
+ assert.equal(accepted.ok,true,JSON.stringify(accepted));
 });

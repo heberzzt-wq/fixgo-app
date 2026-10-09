@@ -758,7 +758,7 @@ export function inspectSourceDataBindings(source = "") {
     const content = String(source || "");
     const scriptBodies = [...content.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)].map(match => ({code:match[1],offset:match.index+match[0].indexOf(">")+1}));
     const units = scriptBodies.length ? scriptBodies : [{code:content,offset:0}];
-    const collections = new Set(), referenceGroups = new Map(), fieldPaths = new Set();
+    const collections = new Set(), referenceGroups = new Map(), fieldPaths = new Set(), writeShapes = [];
     let parsedUnits = 0;
     const string = node => node?.type === "Literal" && typeof node.value === "string" ? node.value : null;
     for (const sourceUnit of units) {
@@ -767,18 +767,48 @@ export function inspectSourceDataBindings(source = "") {
         try { program = parseSourceAst(unit, {ecmaVersion:"latest",sourceType:"module",allowHashBang:true}); }
         catch { try { program = parseSourceAst(unit, {ecmaVersion:"latest",sourceType:"script",allowHashBang:true}); } catch { continue; } }
         parsedUnits++;
-        const functions = new Map([["collection","collection"],["doc","doc"]]);
+        const operations = ["collection", "doc", "addDoc", "setDoc", "updateDoc"];
+        const functions = new Map(operations.map(name => [name,name]));
         for (const statement of program.body) {
             if (statement.type !== "ImportDeclaration" || !String(statement.source?.value || "").includes("firebase")) continue;
-            for (const specifier of statement.specifiers || []) if (["collection","doc"].includes(specifier.imported?.name)) functions.set(specifier.local.name,specifier.imported.name);
+            for (const specifier of statement.specifiers || []) if (operations.includes(specifier.imported?.name)) functions.set(specifier.local.name,specifier.imported.name);
         }
-        const declarations = new Map();
+        const declarations = new Map(), constants = new Set();
         const indexDeclarations = node => {
             if (!node || typeof node !== "object") return;
+            if (node.type === "VariableDeclaration" && node.kind === "const") {
+                for (const declaration of node.declarations) if (declaration.id?.type === "Identifier") constants.add(declaration.id.name);
+            }
             if (node.type === "VariableDeclarator" && node.id?.type === "Identifier") declarations.set(node.id.name,[...(declarations.get(node.id.name)||[]),node]);
             for (const value of Object.values(node)) {if(Array.isArray(value)) value.forEach(indexDeclarations); else if(value && typeof value === "object" && value.type) indexDeclarations(value);}
         };
         indexDeclarations(program);
+        const initializer = (node, before) => {
+            const entries = node?.type === "Identifier" && constants.has(node.name) ? declarations.get(node.name) || [] : [];
+            return entries.length === 1 && entries[0].start < before ? entries[0].init : null;
+        };
+        const segmentValue = (node, before) => {
+            const literal = string(node);
+            if (literal !== null) return literal;
+            const bound = initializer(node, before);
+            if (string(bound) !== null) return string(bound);
+            return node?.type === "Identifier" ? `{${node.name}}` : null;
+        };
+        const collectionPath = (node, before = Infinity, depth = 0) => {
+            if (depth > 5) return null;
+            if (node?.type === "Identifier") return collectionPath(initializer(node, before), node.start, depth + 1);
+            if (node?.type !== "CallExpression") return null;
+            const member = node.callee?.type === "MemberExpression" && !node.callee.computed;
+            const operation = member ? node.callee.property?.name : functions.get(node.callee?.name);
+            if (!["collection", "doc"].includes(operation) || (member && operation === "doc")) return null;
+            let parts = (member ? node.arguments : node.arguments.slice(1)).map(arg => segmentValue(arg, node.start));
+            if (!parts.length || !parts.every(part => typeof part === "string" && part.length > 0 && part.length <= 500 && !part.includes("/") && ![".",".."].includes(part))) return null;
+            if (operation === "doc") {
+                if (parts.length % 2 !== 0) return null;
+                parts = parts.slice(0,-1);
+            }
+            return parts.length % 2 === 1 ? parts.join("/") : null;
+        };
         const staticKey = node => node?.type === "Identifier" ? node.name : string(node);
         const memberKeys = node => {
             if (node?.type === "ChainExpression") return memberKeys(node.expression);
@@ -811,32 +841,41 @@ export function inspectSourceDataBindings(source = "") {
             }
             if (node.type === "CallExpression") {
                 const operation = node.callee?.property?.name || node.callee?.name;
+                const writeOperation = functions.get(node.callee?.name);
+                if (["addDoc", "setDoc", "updateDoc"].includes(writeOperation)) {
+                    const destination = collectionPath(node.arguments?.[0], node.start);
+                    const supplied = node.arguments?.[1];
+                    const payload = supplied?.type === "ObjectExpression" ? supplied : initializer(supplied, node.start);
+                    if (destination && payload?.type === "ObjectExpression") {
+                        const fields = new Set();
+                        const collectFields = (object, prefix = []) => {
+                            for (const property of object.properties || []) {
+                                if (property.type !== "Property") continue;
+                                const key = property.computed ? string(property.key) : staticKey(property.key);
+                                if (key === null) continue;
+                                const parts = [...prefix,...key.split(".")];
+                                if (parts.every(part => /^[\w$]+$/.test(part))) {fields.add(parts.join("."));fieldPaths.add(parts.join("."));}
+                                if (property.value?.type === "ObjectExpression") collectFields(property.value, parts);
+                            }
+                        };
+                        collectFields(payload);
+                        collections.add(destination);
+                        if (writeShapes.length < 8) writeShapes.push({collection:destination,operation:writeOperation,
+                            startLine:content.slice(0,sourceUnit.offset+payload.start).split("\n").length,
+                            fields:[...fields].slice(0,200),fieldsComplete:fields.size<=200 && !payload.properties.some(property=>property.type==="SpreadElement"),
+                            content:unit.slice(payload.start,payload.end).slice(0,1200),truncated:payload.end-payload.start>1200});
+                    }
+                }
                 if (["where", "orderBy", "get"].includes(operation) && string(node.arguments?.[0])) {
                     addPath(string(node.arguments[0]).split("."));
                 }
                 const member = node.callee?.type === "MemberExpression" && !node.callee.computed;
                 const name = member ? node.callee.property?.name : functions.get(node.callee?.name);
-                const pathArgs = member ? node.arguments || [] : (node.arguments || []).slice(1);
-                const templateSegments = pathArgs.map(segment => {
-                    const literalValue = string(segment);
-                    if (literalValue !== null) return literalValue;
-                    if (segment?.type === "Identifier" && /^[A-Za-z_$][\w$]*$/.test(segment.name)) {
-                        return `{${segment.name}}`;
-                    }
-                    return null;
-                });
-                const pathTemplate =
-                    name === "collection" &&
-                    templateSegments.length > 0 &&
-                    templateSegments.every(segment => typeof segment === "string" && segment.length > 0 && segment.length <= 500 && !segment.includes("/") && ![".",".."].includes(segment)) &&
-                    templateSegments.length % 2 === 1
-                        ? templateSegments.join("/")
-                        : null;
+                const pathTemplate = collectionPath(node);
                 const arg = member ? node.arguments?.[0] : node.arguments?.[1];
                 const literal = string(arg);
-                if ((name === "collection" || (!member && name === "doc")) && literal && !literal.includes("/") && literal.length <= 500 && ![".",".."].includes(literal)) {
-                    collections.add(literal);
-                    if (pathTemplate) collections.add(pathTemplate);
+                if ((name === "collection" || (!member && name === "doc")) && literal && pathTemplate) {
+                    collections.add(pathTemplate);
                     const from = Math.max(0,unit.lastIndexOf("\n",Math.max(0,node.start-650))+1);
                     const limit = Math.min(unit.length,from+1100,node.end+400);
                     const lastNewline = unit.lastIndexOf("\n",limit);
@@ -870,5 +909,5 @@ export function inspectSourceDataBindings(source = "") {
         visit(program);
     }
     const references = [...referenceGroups.values()].flat();
-    return {source:"ACORN_SOURCE_REFERENCES",collections:[...collections].slice(0,100),fieldPaths:[...fieldPaths].slice(0,200),fieldPathsComplete:fieldPaths.size<=200 && parsedUnits===units.length,references:references.slice(0,4),referencesComplete:references.length<=4,complete:parsedUnits===units.length && collections.size<=100,scope:"Static code references and bounded source excerpts, not a database inventory or query result."};
+    return {source:"ACORN_SOURCE_REFERENCES",collections:[...collections].slice(0,100),fieldPaths:[...fieldPaths].slice(0,200),fieldPathsComplete:fieldPaths.size<=200 && parsedUnits===units.length,writeShapes,references:references.slice(0,4),referencesComplete:references.length<=4,complete:parsedUnits===units.length && collections.size<=100,scope:"Static code references and bounded source excerpts, not a database inventory or query result."};
 }
