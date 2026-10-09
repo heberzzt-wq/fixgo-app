@@ -2539,3 +2539,33 @@ test('record inspection review receives collection-specific AST write evidence w
  }}}});
  assert.equal(reviewed,true);assert.equal(result.missionComplete,false);assert.deepEqual(result.toolCalls[0].args,args);
 });
+
+test('long source investigations compact parser metadata while preserving live records and task identities', () => {
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='boundedAuditTasks');
+ const compact=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const records={source:'FIRESTORE_SERVER_AUTHENTICATED',scope:{collection:'records'},rows:[{id:'r1',values:{assignedTo:'Observed owner',expiresAt:'2026-01-01'}}],completeForQuery:true};
+ const tasks=[{index:0,name:'fixture.query',observation:{ok:true,recordEvidence:records}},...Array.from({length:20},(_,i)=>({index:i+1,name:'repo.read',args:{file:'source'+i+'.js'},observation:{ok:true,verifiedRead:{file:'source'+i+'.js',content:'x'.repeat(6000),sourceStructure:{dataBindings:{collections:['records'+i],fieldPaths:['assignedTo','expiresAt'],writeShapes:[{collection:'records'+i,fields:['assignedTo','expiresAt'],fieldsComplete:true}],references:Array.from({length:16},()=>({collection:'records'+i,content:'x'.repeat(1200),startLine:1,endLine:20,pathTemplate:'records'+i,rootCollection:'records'+i,declarations:[]}))}}}}}))];
+ const result=compact(tasks);
+ assert.ok(JSON.stringify(result).length<16000);
+ assert.equal(JSON.stringify(result[0].observation.recordEvidence),JSON.stringify(records));
+ assert.equal(result.length,tasks.length);
+ for(let i=1;i<result.length;i++){
+  assert.equal(result[i].index,i);const read=result[i].observation.verifiedRead;
+  assert.equal(read.file,'source'+(i-1)+'.js');assert.equal(read.sourceStructure.dataBindings.collections[0],'records'+(i-1));
+  assert.equal(read.contentTruncated,true);assert.equal(read.sourceStructure.dataBindings.complete,false);
+ }
+});
+
+test('AST resolves constant references in their lexical scope and respects shadowing', () => {
+ const content='function first(){const ref=doc(db,"alpha",id);setDoc(ref,{firstField:1});} function second(){const ref=doc(db,"beta",id);setDoc(ref,{nested:{value:2}});}';
+ const shapes=analyzeRepoSourceStructure(content).dataBindings.writeShapes;
+ assert.equal(shapes.length,2);
+ assert.deepEqual(shapes.map(s=>[s.collection,s.fields]),[['alpha',['firstField']],['beta',['nested','nested.value']]]);
+ for(const shadow of ['function inner(ref){setDoc(ref,{wrong:1});}','function inner(){let ref;setDoc(ref,{wrong:1});}','function inner(){function ref(){};setDoc(ref,{wrong:1});}','function inner(){const {ref}=other;setDoc(ref,{wrong:1});}']) {
+  const bindings=analyzeRepoSourceStructure('const ref=doc(db,"outer",id);'+shadow).dataBindings;
+  assert.equal(bindings.writeShapes.length,0,shadow);
+ }
+ const scoped=analyzeRepoSourceStructure('const tenant="outer";function inner(){const tenant="inner";const ref=collection(db,"tenants",tenant,"records");addDoc(ref,{stored:1});}').dataBindings;
+ assert.equal(scoped.writeShapes[0].collection,'tenants/inner/records');
+});

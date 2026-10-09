@@ -892,8 +892,31 @@ function boundedAuditTasks(tasks) {
                 }}} : {})
             }}};
         });
-        if (JSON.stringify(compact).length <= 20000 || bodyLimit === 0) return compact;
+        if (JSON.stringify(compact).length <= 16000) return compact;
     }
+    // Empty excerpts still carried every parser bookkeeping property. With many
+    // reads that alone exceeded the context budget. Keep evidence identities and
+    // collection associations; omit redundant AST metadata, not live records.
+    return tasks.map(task => {
+        const read = task.observation?.verifiedRead;
+        if (!read) return task;
+        const bindings = read.sourceStructure?.dataBindings;
+        return {...task, observation:{...task.observation, verifiedRead:{
+            file:read.file, startLine:read.startLine, endLine:read.endLine,
+            partial:true, truncated:true, contentTruncated:true,
+            sourceStructure:{dataBindings:{
+                collections:bindings?.collections || [],
+                fieldPaths:(bindings?.fieldPaths || []).slice(0,30),
+                fieldPathsComplete:false,
+                writeShapes:(bindings?.writeShapes || []).map(shape=>({
+                    collection:shape.collection, startLine:shape.startLine,
+                    fields:shape.fields, fieldsComplete:shape.fieldsComplete,
+                    truncated:true
+                })),
+                referencesComplete:false, complete:false
+            }}
+        }}};
+    });
 }
 
 function extractGeminiToolCallPlan(response = {}, catalog = []) {
@@ -1672,17 +1695,17 @@ async function runModelSemanticPlanner({
         const auditCatalog = selectableCatalog.map(({ name, description, evidenceKinds, inputSchema, requiresEvidence, mutates, requiresApproval }) => {
             const schema = buildNativeInputSchema(inputSchema);
             const branches = schema.anyOf || [schema];
-            return { name, description: description.slice(0, 100), evidenceKinds: evidenceKinds || ["tool_result"],
+            return { name, description: description.slice(0, 60), evidenceKinds: evidenceKinds || ["tool_result"],
                 // Tool selection needs the callable arguments; the complete schema
                 // is supplied separately as responseJsonSchema and validated again.
-                arguments: [...new Set(branches.flatMap(branch => Object.keys(branch.properties || {})))],
+                requiredArguments: [...new Set(branches.flatMap(branch => branch.required || []))],
                 // The full schema remains in responseJsonSchema and execution
                 // validation. In prose keep only correlated bound arguments;
                 // repeating a whole query schema per source exhausts context.
-                ...(requiresEvidence?.length ? {evidenceBindings: branches.map(branch =>
+                ...(requiresEvidence?.length ? {evidenceBindings: [...new Set(branches.map(branch => JSON.stringify(
                     Object.fromEntries(Object.entries(branch.properties || {})
                         .filter(([, property]) => property.enum || Object.prototype.hasOwnProperty.call(property, "const"))
-                        .map(([key, property]) => [key, compactCatalogSchema(property)])))} : {}),
+                        .map(([key, property]) => [key, property.enum || [property.const]])))))].map(value=>JSON.parse(value))} : {}),
                 mutates, requiresApproval };
         });
         const pendingCapabilities = safeCatalog.filter(tool => !selectableCatalog.some(available => available.name === tool.name))

@@ -783,9 +783,41 @@ export function inspectSourceDataBindings(source = "") {
             for (const value of Object.values(node)) {if(Array.isArray(value)) value.forEach(indexDeclarations); else if(value && typeof value === "object" && value.type) indexDeclarations(value);}
         };
         indexDeclarations(program);
+        const scopeByNode = new WeakMap();
+        const patternNames = node => !node ? [] : node.type === "Identifier" ? [node.name]
+            : node.type === "RestElement" ? patternNames(node.argument)
+            : node.type === "AssignmentPattern" ? patternNames(node.left)
+            : node.type === "ArrayPattern" ? node.elements.flatMap(patternNames)
+            : node.type === "ObjectPattern" ? node.properties.flatMap(item=>patternNames(item.type === "RestElement" ? item.argument : item.value)) : [];
+        const bind = (scope, name, entry) => scope.bindings.set(name,[...(scope.bindings.get(name)||[]),entry]);
+        const indexScopes = (node, parentScope = null) => {
+            if (!node || typeof node !== "object") return;
+            const functionScope = ["FunctionDeclaration","FunctionExpression","ArrowFunctionExpression"].includes(node.type);
+            const opensScope = functionScope || ["Program","BlockStatement","CatchClause","ForStatement","ForOfStatement","ForInStatement","SwitchStatement"].includes(node.type);
+            const scope = opensScope ? {parent:parentScope,bindings:new Map(),functionScope:functionScope || node.type === "Program"} : parentScope;
+            scopeByNode.set(node,scope);
+            if (node.type === "FunctionDeclaration" && node.id && parentScope) bind(parentScope,node.id.name,{kind:"function"});
+            if (node.type === "FunctionExpression" && node.id) bind(scope,node.id.name,{kind:"function"});
+            if (node.type === "ClassDeclaration" && node.id) bind(scope,node.id.name,{kind:"class"});
+            if (functionScope) for (const param of node.params || []) for (const name of patternNames(param)) bind(scope,name,{kind:"parameter"});
+            if (node.type === "CatchClause") for (const name of patternNames(node.param)) bind(scope,name,{kind:"parameter"});
+            if (node.type === "VariableDeclaration") for (const declaration of node.declarations) {
+                let owner = scope;
+                if (node.kind === "var") while (owner?.parent && !owner.functionScope) owner = owner.parent;
+                for (const name of patternNames(declaration.id)) bind(owner,name,{kind:node.kind,declaration});
+            }
+            for (const value of Object.values(node)) {if(Array.isArray(value)) value.forEach(item=>{if(item?.type)indexScopes(item,scope);}); else if(value && typeof value === "object" && value.type) indexScopes(value,scope);}
+        };
+        indexScopes(program);
         const initializer = (node, before) => {
-            const entries = node?.type === "Identifier" && constants.has(node.name) ? declarations.get(node.name) || [] : [];
-            return entries.length === 1 && entries[0].start < before ? entries[0].init : null;
+            if (node?.type !== "Identifier") return null;
+            for (let scope=scopeByNode.get(node); scope; scope=scope.parent) {
+                if (!scope.bindings.has(node.name)) continue;
+                const entries=scope.bindings.get(node.name);
+                const entry=entries.length === 1 ? entries[0] : null;
+                return entry?.kind === "const" && entry.declaration.id.type === "Identifier" && entry.declaration.start < before ? entry.declaration.init : null;
+            }
+            return null;
         };
         const segmentValue = (node, before) => {
             const literal = string(node);
