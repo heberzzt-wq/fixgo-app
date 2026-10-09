@@ -1348,6 +1348,28 @@ test('AST source bindings survive execution and repeated planner compaction when
  assert.deepEqual(Array.from(bind(catalog,[{name:'fixture.read',observation:evidence}])[1].inputSchema.properties.collection.enum),['actual_records']);
 });
 
+test('nested tenant collection paths remain grounded as source templates',async()=>{
+ const {inspectSourceDataBindings}=await import('../gestia-core/repo/repo.source.structure.js');
+ const bindings=inspectSourceDataBindings('const ref=collection(db,"tenants",tenantId,"vehicles"); const q=query(ref,where("tipo","==","moto"));');
+ assert.deepEqual(bindings.collections,['tenants','tenants/{tenantId}/vehicles']);
+ assert.equal(bindings.references[0].collection,'tenants/{tenantId}/vehicles');
+ assert.match(bindings.references[0].content,/vehicles/);
+});
+
+test('platform query resolves only a source-grounded tenant template with the active tenant',async()=>{
+ const f=platformQueryTestFixture();
+ f.context.tenantId='uxmal39';
+ f.context.completedTasks[0].observation.verifiedRead.content='const ref=collection(db,"tenants",tenantId,"vehicles");';
+ f.context.completedTasks[0].observation.verifiedRead.sourceStructure.dataBindings.collections=['tenants','tenants/{tenantId}/vehicles'];
+ const result=await f.execute({...f.args,collection:'tenants/{tenantId}/vehicles',mode:'count',fields:[]},f.dependencies,f.context);
+ assert.equal(result.ok,true,JSON.stringify(result));
+ assert.equal(result.recordEvidence.scope.collection,'tenants/uxmal39/vehicles');
+ assert.equal(f.calls[0].q.base.collection,'tenants/uxmal39/vehicles');
+ const concrete=await f.execute({...f.args,collection:'tenants/uxmal39/vehicles',mode:'count',fields:[]},f.dependencies,f.context);
+ assert.equal(concrete.ok,true,JSON.stringify(concrete));
+ assert.equal(concrete.recordEvidence.scope.collection,'tenants/uxmal39/vehicles');
+});
+
 test('nested document identifiers and comments never become collection destinations',async()=>{
  const {inspectSourceDataBindings}=await import('../gestia-core/repo/repo.source.structure.js');
  assert.deepEqual(inspectSourceDataBindings('db.collection("records").doc("not_a_collection");').collections,['records']);

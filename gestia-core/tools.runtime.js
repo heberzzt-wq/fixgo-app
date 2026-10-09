@@ -701,17 +701,30 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
         if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("PLATFORM_QUERY_ARGUMENTS_INVALID");
         const sourceRead = (context.completedTasks || []).find(task => task.name === "repo.read" && task.observation?.ok === true && task.observation?.executionOk !== false && task.observation?.blocked !== true && task.observation?.verifiedRead?.file === args.sourceFile && String(task.observation.verifiedRead.content || task.observation.verifiedRead.numberedContent || "").trim());
         if (!sourceRead) throw new Error("PLATFORM_QUERY_SOURCE_NOT_READ");
-        const mode = args.mode || "query", collectionPath = args.collection;
+        const mode = args.mode || "query";
+        const requestedCollection = String(args.collection || "").trim();
         const sourceBindings = sourceRead.observation.verifiedRead.sourceStructure?.dataBindings;
-        if (sourceBindings?.source !== "ACORN_SOURCE_REFERENCES" || !Array.isArray(sourceBindings.collections) || !sourceBindings.collections.includes(collectionPath)) {
+        const discoveredCollections = Array.isArray(sourceBindings?.collections)
+            ? sourceBindings.collections.filter(value => typeof value === "string").slice(0, 100)
+            : [];
+        const tenantId = String(context.tenantId || "").trim();
+        const resolveCollectionTemplate = template => String(template || "").replace(/\{tenantId\}/g, () => tenantId);
+        const matchedCollection = discoveredCollections.find(candidate => {
+            if (candidate === requestedCollection) return true;
+            if (!candidate.includes("{tenantId}") || !tenantId) return false;
+            return resolveCollectionTemplate(candidate) === requestedCollection;
+        });
+        if (sourceBindings?.source !== "ACORN_SOURCE_REFERENCES" || !matchedCollection) {
             failQuery("PLATFORM_QUERY_COLLECTION_NOT_DISCOVERED", {
-                collection: collectionPath || null,
+                collection: requestedCollection || null,
                 sourceFile: args.sourceFile || null,
-                discoveredCollections: Array.isArray(sourceBindings?.collections)
-                    ? sourceBindings.collections.slice(0, 20)
-                    : []
+                tenantIdAvailable: Boolean(tenantId),
+                discoveredCollections: discoveredCollections.slice(0, 20)
             });
         }
+        const collectionPath = matchedCollection.includes("{tenantId}")
+            ? resolveCollectionTemplate(matchedCollection)
+            : requestedCollection;
         const segment = value => typeof value === "string" && value.length > 0 && value.length <= 500 && !/[\x00-\x1f]/.test(value) && ![".", ".."].includes(value);
         if (typeof collectionPath !== "string" || collectionPath.length > 1500 || collectionPath.split("/").length % 2 !== 1 || !collectionPath.split("/").every(segment)) throw new Error("PLATFORM_QUERY_COLLECTION_REQUIRED");
         if (!["query", "count"].includes(mode)) throw new Error("PLATFORM_QUERY_MODE_INVALID");

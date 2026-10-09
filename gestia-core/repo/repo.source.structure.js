@@ -784,16 +784,33 @@ export function inspectSourceDataBindings(source = "") {
             if (node.type === "CallExpression") {
                 const member = node.callee?.type === "MemberExpression" && !node.callee.computed;
                 const name = member ? node.callee.property?.name : functions.get(node.callee?.name);
+                const pathArgs = member ? node.arguments || [] : (node.arguments || []).slice(1);
+                const templateSegments = pathArgs.map(segment => {
+                    const literalValue = string(segment);
+                    if (literalValue !== null) return literalValue;
+                    if (segment?.type === "Identifier" && /^[A-Za-z_$][\w$]*$/.test(segment.name)) {
+                        return `{${segment.name}}`;
+                    }
+                    return null;
+                });
+                const pathTemplate =
+                    name === "collection" &&
+                    templateSegments.length > 0 &&
+                    templateSegments.every(segment => typeof segment === "string" && segment.length > 0 && segment.length <= 500 && !segment.includes("/") && ![".",".."].includes(segment)) &&
+                    templateSegments.length % 2 === 1
+                        ? templateSegments.join("/")
+                        : null;
                 const arg = member ? node.arguments?.[0] : node.arguments?.[1];
                 const literal = string(arg);
                 if ((name === "collection" || (!member && name === "doc")) && literal && !literal.includes("/") && literal.length <= 500 && ![".",".."].includes(literal)) {
                     collections.add(literal);
+                    if (pathTemplate) collections.add(pathTemplate);
                     const from = Math.max(0,unit.lastIndexOf("\n",Math.max(0,node.start-650))+1);
                     const limit = Math.min(unit.length,from+1100,node.end+400);
                     const lastNewline = unit.lastIndexOf("\n",limit);
                     const to = lastNewline > node.end ? lastNewline+1 : limit;
                     const excerpt = unit.slice(from,to), startLine = content.slice(0,sourceUnit.offset+from).split("\n").length;
-                    const reference = {collection:literal,startLine,endLine:startLine+excerpt.split("\n").length-1-(excerpt.endsWith("\n")?1:0),content:excerpt};
+                    const reference = {collection:pathTemplate || literal,rootCollection:literal,...(pathTemplate ? {pathTemplate} : {}),startLine,endLine:startLine+excerpt.split("\n").length-1-(excerpt.endsWith("\n")?1:0),content:excerpt};
                     const observedDeclarations = new Map();
                     const addDeclaration = (name,depth=0) => {
                         if(depth>1 || observedDeclarations.size>=2 || observedDeclarations.has(name)) return;
@@ -806,8 +823,10 @@ export function inspectSourceDataBindings(source = "") {
                     };
                     for(const arg of parent?.type === "CallExpression" ? parent.arguments : [])if(arg?.type === "Identifier")addDeclaration(arg.name);
                     reference.declarations=[...observedDeclarations.values()];
-                    const prior = referenceGroups.get(literal);
-                    referenceGroups.set(literal,prior ? [prior[0],reference] : [reference]);
+                    const referenceKey = pathTemplate || literal;
+                    const prior = referenceGroups.get(referenceKey) || [];
+                    if (prior.length < 4) prior.push(reference);
+                    referenceGroups.set(referenceKey, prior);
                 }
             }
             for (const [key,value] of Object.entries(node)) {
