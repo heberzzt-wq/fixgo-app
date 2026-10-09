@@ -770,7 +770,17 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
         const observedFieldPaths = new Set(groundingReads.flatMap(candidate =>
             candidate.sourceStructure?.dataBindings?.fieldPaths ||
             analyzeRepoSourceStructure(candidate.content || "").dataBindings?.fieldPaths || []));
-        const sourceHasField = field => field === "__name__" || (String(field).includes(".")
+        // The parser inspected the complete file even when the visible source
+        // window/reference excerpts omit a later write. Preserve that positive
+        // evidence only for the collection to which the parser bound the shape.
+        const collectionWriteFields = new Set(groundingReads.flatMap(candidate => {
+            const bindings = candidate.sourceStructure?.dataBindings;
+            if (bindings?.source !== "ACORN_SOURCE_REFERENCES") return [];
+            return (bindings.writeShapes || [])
+                .filter(shape => resolveCollectionTemplate(shape.collection) === collectionPath)
+                .flatMap(shape => shape.fields || []);
+        }));
+        const sourceHasField = field => field === "__name__" || collectionWriteFields.has(field) || (String(field).includes(".")
             ? observedFieldPaths.has(field)
             : String(field).length > 1 && normalizedSource.includes(normalizeGroundingText(field)));
         const literalGrounded = value => {

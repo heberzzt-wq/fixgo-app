@@ -1489,6 +1489,25 @@ function platformQueryTestFixture({signedIn=true,fail=null,fromCache=false,chang
     return{execute,args,context,calls,dependencies:{auth,db:{},sdk}};
 }
 
+test('record queries accept parser-observed write fields for the matching collection beyond the visible source window',async()=>{
+ const f=platformQueryTestFixture();
+ const read=f.context.completedTasks[0].observation.verifiedRead;
+ const complete='const records=collection(db,"arbitrary_records"); await addDoc(records,{assignedLabel:"observed",meta:{deadline:"2026-11-01"}}); const others=collection(db,"other_records"); await addDoc(others,{unrelatedLabel:"other"});';
+ read.sourceStructure=analyzeRepoSourceStructure(complete);
+ read.sourceStructure.dataBindings.references=[]; // Bounded reference excerpts can omit the later write.
+ read.content='// visible beginning; data bindings were parsed from the full source';
+ read.partial=true;
+ const accepted=await f.execute({...f.args,fields:['assignedLabel','meta.deadline']},f.dependencies,f.context);
+ assert.equal(accepted.ok,true,JSON.stringify(accepted));
+ const calls=f.calls.length;
+ for(const field of ['unrelatedLabel','fabricatedLabel']){
+  const rejected=await f.execute({...f.args,fields:[field]},f.dependencies,f.context);
+  assert.equal(rejected.ok,false,JSON.stringify(rejected));
+  assert.equal(rejected.error.code,'PLATFORM_QUERY_FIELD_NOT_DISCOVERED');
+  assert.equal(f.calls.length,calls);
+ }
+});
+
 test('generic platform queries use session rules and return only selected fields with truthful pagination',async()=>{
     const f=platformQueryTestFixture();const r=await f.execute(f.args,f.dependencies,f.context);
     assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.recordEvidence.totalCount,3);assert.equal(r.recordEvidence.returnedCount,2);assert.equal(r.recordEvidence.nextCursor,'b');assert.equal(r.recordEvidence.hasMore,true);assert.equal(r.recordEvidence.completeForQuery,false);
