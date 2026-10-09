@@ -1375,7 +1375,7 @@ async function runModelSemanticPlanner({
                 !["population","relationship","temporal","other"].includes(o.coverageMode)||!["all_sources","explicit_scope"].includes(o.scope))) {
             throw new Error("SEMANTIC_OBJECTIVE_CONTRACT_INVALID");
         }
-        return {toolCalls:[],missionComplete:false,completionAssessment:{objectives:objectives.map(o=>({
+        return {ok:true,status:"SEMANTIC_PLAN_READY",version:VERSION,toolCalls:[],missionComplete:false,completionAssessment:{objectives:objectives.map(o=>({
             ...o,objective:o.requestQuote,satisfied:false,evidenceTaskIndexes:[],limitation:"Aún no se ha obtenido la evidencia requerida para este objetivo."
         }))},provider:String(ai.lastProvider||"jarvis-local"),model,planKind:"OBJECTIVE_CONTRACT"};
     }

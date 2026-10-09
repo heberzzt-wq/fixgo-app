@@ -1489,7 +1489,7 @@ function platformQueryTestFixture({signedIn=true,fail=null,fromCache=false,chang
     return{execute,args,context,calls,dependencies:{auth,db:{},sdk}};
 }
 
-test('objective contract precedes observations and keeps independent quoted requirements',async()=>{
+test('objective contract precedes observations and keeps independent quoted requirements',async(t)=>{
  const input='Cuenta equipos, identifica sus responsables y revisa fechas de renovación. Sólo consulta.';
  const goals=[['Cuenta equipos','population'],['identifica sus responsables','relationship'],['revisa fechas de renovación','temporal']];
  const result=await runJarvisSemanticPlanner({input,catalog:[{name:'fixture.records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false}],missionState:{phase:'OBJECTIVE_CONTRACT'},ai:{models:{generateContent:async request=>{
@@ -1497,6 +1497,15 @@ test('objective contract precedes observations and keeps independent quoted requ
   assert.equal(request.config.chatMessages.at(-1).content,input);
   return{text:JSON.stringify({objectives:goals.map(([requestQuote,coverageMode])=>({requestQuote,requiredEvidenceKind:'platform_records',coverageMode,scope:'all_sources'}))})};
  }}}});
+ assert.equal(result.ok,true);
+ assert.equal(result.status,'SEMANTIC_PLAN_READY');
+ assert.ok(result.version);
+ const previous=globalThis.JarvisLocalBridge;
+ t.after(()=>{globalThis.JarvisLocalBridge=previous;});
+ globalThis.JarvisLocalBridge={requestJson:async()=>({...result,localSemanticInferenceUsed:true,cloudSemanticInferenceUsed:false,externalApiUsed:false})};
+ const calls=await buildJarvisMultifunctionToolCalls(input,{throwOnUnavailable:true,toolCatalog:[{name:'fixture.records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false}],missionState:{phase:'OBJECTIVE_CONTRACT'}});
+ assert.deepEqual(calls.completionAssessment,result.completionAssessment);
+ assert.equal(calls.planKind,'OBJECTIVE_CONTRACT');
  assert.equal(result.missionComplete,false);
  assert.equal(result.toolCalls.length,0);
  assert.deepEqual(result.completionAssessment.objectives.map(o=>o.objective),goals.map(g=>g[0]));
