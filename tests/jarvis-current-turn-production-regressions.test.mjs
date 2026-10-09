@@ -2618,3 +2618,20 @@ test('rejected population count preserves the same reader for a separately revie
  }}}});
  assert.equal(audits,2);assert.equal(reviews,2);assert.equal(result.toolCalls[0].args.mode,'query');assert.equal(result.missionComplete,false);
 });
+
+test('mission persistence omits duplicate oversized numbered source bodies without changing live evidence', async () => {
+ const source=readFileSync(new URL('../gestia-core/jarvis/jarvis.mission.orchestrator.js',import.meta.url),'utf8');
+ const ast=parse(source,{sourceType:'module',ecmaVersion:'latest'});
+ const fn=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='compactMissionStorageValue');
+ const compact=runInNewContext('('+source.slice(fn.start,fn.end)+')');
+ const content='source line\n'.repeat(3000),numbered=content.split('\n').map((line,i)=>(i+1)+': '+line).join('\n');
+ const recordEvidence={source:'FIRESTORE_SERVER_AUTHENTICATED',scope:{collection:'records'},rows:[{id:'r1',values:{owner:'Actual owner'}}]};
+ const mission={originalInstruction:'user instruction '.repeat(1000),completedTasks:[{observation:{verifiedRead:{file:'source.js',content,numberedContent:numbered,sourceStructure:{dataBindings:{collections:['records']}}}}},{observation:{recordEvidence}}]};
+ const saved=compact(mission),read=saved.completedTasks[0].observation.verifiedRead;
+ assert.equal(read.content,undefined);assert.equal(read.numberedContent,undefined);
+ assert.equal(read.numberedContentPersisted,false);assert.equal(read.numberedContentLength,numbered.length);
+ assert.equal(JSON.stringify(saved.completedTasks[1].observation.recordEvidence),JSON.stringify(recordEvidence));
+ assert.equal(saved.originalInstruction,mission.originalInstruction);
+ assert.equal(mission.completedTasks[0].observation.verifiedRead.numberedContent,numbered);
+ assert.ok(JSON.stringify(saved).length<JSON.stringify(mission).length/3);
+});

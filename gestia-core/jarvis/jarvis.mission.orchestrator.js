@@ -443,18 +443,15 @@ function compactMissionStorageValue(
         )
     ) {
         if (
-            key ===
-                "content" &&
+            ["content", "numberedContent"].includes(key) &&
             typeof item ===
                 "string" &&
             item.length >
                 4000
         ) {
-            compacted
-                .contentLength =
+            compacted[`${key}Length`] =
                 item.length;
-            compacted
-                .contentPersisted =
+            compacted[`${key}Persisted`] =
                 false;
             continue;
         }
