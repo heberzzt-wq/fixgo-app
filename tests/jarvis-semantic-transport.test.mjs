@@ -268,6 +268,7 @@ test("browser transport sends one streamed plan and preserves the final failure"
     t.after(() => { globalThis.fetch = oldFetch; globalThis.JarvisLocalBridge = oldBridge; });
     globalThis.fetch = async (url, options) => {
         if (String(url).includes("jarvis-runtime-contract.json")) return Response.json({ releaseId: "test" });
+        if (String(url).includes("release-manifest.json")) return Response.json({ git_sha: "a".repeat(40) });
         calls++;
         assert.equal(options.headers["X-Jarvis-Release-Id"], "test");
         const body = JSON.parse(options.body);
@@ -308,6 +309,7 @@ test("browser semantic streaming has no absolute deadline while the local reques
     let ready = new Promise(resolve => { accepted = resolve; });
     globalThis.fetch = async (url, options) => {
         if (String(url).includes("jarvis-runtime-contract.json")) return Response.json({ releaseId: "test" });
+        if (String(url).includes("release-manifest.json")) return Response.json({ git_sha: "a".repeat(40) });
         calls++;
         signal = options.signal;
         payloads.push(JSON.parse(options.body));
@@ -333,7 +335,16 @@ test("browser semantic streaming has no absolute deadline while the local reques
     ready = new Promise(resolve => { accepted = resolve; });
     const longRunning = bridge.requestJson("/semantic/respond", { input: "Continua analizando", timeoutMs: 60000 });
     await ready;
-    t.mock.timers.tick(10 * 60 * 1000);
+    for (let minute = 0; minute < 10; minute++) {
+        t.mock.timers.tick(30 * 1000);
+        assert.equal(signal.aborted, false, "active LOCAL_ONLY semantic work must stay alive");
+        stream.enqueue(new TextEncoder().encode('{"type":"progress","stage":"inference"}\n'));
+        await Promise.resolve();
+        t.mock.timers.tick(30 * 1000);
+        assert.equal(signal.aborted, false, "progress must reset the silence watchdog without imposing an absolute deadline");
+        stream.enqueue(new TextEncoder().encode('{"type":"progress","stage":"inference"}\n'));
+        await Promise.resolve();
+    }
     assert.equal(signal.aborted, false, "LOCAL_ONLY semantic work must not die from an artificial wall-clock deadline");
     stream.enqueue(new TextEncoder().encode('{"type":"result","result":{"ok":true,"message":"Analisis terminado"}}\n'));
     stream.close();
