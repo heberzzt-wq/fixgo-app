@@ -2522,3 +2522,20 @@ test('browser planner preserves a schema-valid unfiltered inspection returned by
  assert.equal(executable([],{type:'array'}),true);
  assert.equal(executable([],{type:'array',minItems:1}),false);
 });
+
+test('record inspection review receives collection-specific AST write evidence without requiring a completed count', async () => {
+ const query={name:'fixture.query',evidenceKinds:['platform_records'],mutates:false,investigationReadOnly:true,inputSchema:{type:'object',properties:{collection:{type:'string'},sourceFile:{type:'string'},mode:{type:'string'},fields:{type:'array',items:{type:'string'}},filters:{type:'array'}},required:['collection','sourceFile','mode']}};
+ let reviewed=false;
+ const args={collection:'records',sourceFile:'source.js',mode:'query',fields:['owner','expiresAt'],filters:[]};
+ const result=await runJarvisSemanticPlanner({input:'Count records, inspect owners and expiration dates',catalog:[query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',observation:{ok:true,verifiedRead:{file:'source.js',sourceStructure:{dataBindings:{references:[{content:'collection(db,"records")',startLine:1}],writeShapes:[{collection:'records',fields:['owner','expiresAt'],content:'{owner,expiresAt}',startLine:2},{collection:'unrelated',fields:['other'],content:'{other}',startLine:3}]}}}}}]},ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){
+   reviewed=true;const packet=JSON.parse(request.config.chatMessages.at(-1).content);
+   assert.ok(packet.observedSource.some(item=>item.collection==='records'&&item.fields.includes('expiresAt')));
+   assert.ok(!packet.observedSource.some(item=>item.collection==='unrelated'));
+   assert.match(request.config.chatMessages[0].content,/ALGUNO/);
+   return{text:JSON.stringify({matchesRequest:true,limitation:'',nextEvidenceQuery:''})};
+  }
+  return{text:JSON.stringify({explanation:'Inspect current evidence',completionAssessment:{objectives:[{objective:'Count and inspect records',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Current records still required'}]},toolCalls:[{name:query.name,args}]})};
+ }}}});
+ assert.equal(reviewed,true);assert.equal(result.missionComplete,false);assert.deepEqual(result.toolCalls[0].args,args);
+});
