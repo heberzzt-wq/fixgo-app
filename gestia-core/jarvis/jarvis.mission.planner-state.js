@@ -6,6 +6,18 @@ const MAX_PLANNER_MEDIA_ASSETS = 8;
 const MAX_PLANNER_PERSISTED_ARTIFACTS = 8;
 const MAX_PLANNER_CODE = 8000;
 
+export function compactRepositoryMatches(matches = [], maximum = 16) {
+    const normalized = matches.map(item => ({file: text(item.file || item.path, 500),
+        line: Number.isInteger(item.line) && item.line > 0 ? item.line : null,
+        snippet: text(item.snippet || item.content || item.text, 320)})).filter(item => item.file);
+    const seen = new Set(), distinct = [], remaining = [];
+    for (const item of normalized) {
+        if (seen.has(item.file)) remaining.push(item);
+        else { seen.add(item.file); distinct.push(item); }
+    }
+    return [...distinct, ...remaining].slice(0, maximum);
+}
+
 function object(value) {
     return value && typeof value === "object" && !Array.isArray(value)
         ? value
@@ -252,7 +264,7 @@ export function compactMissionPlannerObservation(observation = {}) {
         sourceCount,
         ...(verifiedRead ? { verifiedRead } : {}),
         ...(source.ok === true && source.executionOk !== false && source.blocked !== true && Array.isArray(source.repoCandidates || evidence.candidates) ? { repoCandidates: (source.repoCandidates || evidence.candidates).slice(0, 12).map(item => ({file: text(item.file || item.path, 500), reasons: Array.isArray(item.reasons) ? item.reasons.slice(0, 4).map(reason => text(reason, 180)) : []})).filter(item => item.file) } : {}),
-        ...(source.ok === true && source.executionOk !== false && source.blocked !== true && Array.isArray(source.matches || evidence.matches) ? { repositoryMatches: (source.matches || evidence.matches).slice(0, 16).map(item => ({file: text(item.file || item.path, 500), line: Number.isInteger(item.line) && item.line > 0 ? item.line : null, snippet: text(item.snippet || item.content || item.text, 320)})).filter(item => item.file) } : {}),
+        ...(source.ok === true && source.executionOk !== false && source.blocked !== true && Array.isArray(source.repositoryMatches || source.matches || evidence.matches) ? { repositoryMatches: compactRepositoryMatches(source.repositoryMatches || source.matches || evidence.matches) } : {}),
         ...(source.ok === true && source.executionOk !== false && source.blocked !== true && source.inventoryEvidence?.source === "LIVE_REPOSITORY_INVENTORY" ? { inventoryEvidence: source.inventoryEvidence } : {}),
         ...(source.ok === true && source.executionOk !== false && source.blocked !== true && (source.recordEvidence || evidence.recordEvidence)?.source === "FIRESTORE_SERVER_AUTHENTICATED" ? { recordEvidence: source.recordEvidence || evidence.recordEvidence } : {}),
         ...(interfaceEvidence ? { interfaceEvidence, url: interfaceEvidence.url } : {}),

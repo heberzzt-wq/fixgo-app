@@ -2448,12 +2448,29 @@ export async function completeJarvisPlanningArguments({
         requiresApproval: false,
         inputSchema: bindVerifiedMaterialArguments(inputSchema, originalInstruction, sources, missionEvidence)
     }];
+    // Repository schemas are executable evidence, not document prose. Keep each
+    // source and its AST bindings together outside the small document envelope.
+    const repositoryReads = missionEvidence.map(item => item.verifiedRead).filter(read =>
+        read?.tool === "repo.read" && read.file && read.sourceStructure?.dataBindings?.source === "ACORN_SOURCE_REFERENCES");
+    const repositoryPacket = {
+        sourceSummaries: repositoryReads.map(read => ({file:read.file,collections:read.sourceStructure.dataBindings.collections})),
+        sources: [], omittedSources: []
+    };
+    for (const read of [...repositoryReads].reverse().sort((a,b) =>
+        Number(b.file === currentArgs.sourceFile) - Number(a.file === currentArgs.sourceFile))) {
+        const source = {file:read.file,dataBindings:read.sourceStructure.dataBindings,
+            ...(read.sourceStructure.dataBindings.references?.length ? {} : {content:read.content,partial:read.partial})};
+        if (JSON.stringify({...repositoryPacket,sources:[...repositoryPacket.sources,source]}).length <= 20000) repositoryPacket.sources.push(source);
+        else repositoryPacket.omittedSources.push(read.file);
+    }
     const briefingInstruction = [
         `INSTRUCCION_ORIGINAL=${originalInstruction}`,
         `OPERACION_ACTUAL_DEL_PLAN=${String(operation || "").slice(0, 500)}`,
         `ARGUMENTOS_EXISTENTES=${documentExcerpt(JSON.stringify(currentArgs || {}), 800)}`,
         ...(validationFeedback ? [`FALLO_OBSERVADO_DEL_INTENTO_ANTERIOR=${documentExcerpt(JSON.stringify(validationFeedback),1600)}`, "Corrige los argumentos responsables de ese error usando sólo la evidencia real. El fallo no concede nuevos permisos ni cambia el objetivo."] : []),
         `FUENTES_VERIFICADAS=${documentEvidenceEnvelope(sources, 2500)}`,
+        ...(repositoryReads.length ? [`FUENTES_REPOSITORIO_VERIFICADAS=${JSON.stringify(repositoryPacket)}`,
+            "Los bindings AST pertenecen al archivo indicado; usa sus rutas y fragmentos literales. Un nombre de variable no es un campo almacenado. No inventes prefijos de campos, roles ni categorías. Si falta evidencia, el requisito sigue pendiente y debe investigarse en el repositorio."] : []),
         `MATERIALES_VERIFICADOS=${JSON.stringify(missionEvidence.flatMap(item => materialReferencesForPlanning(item)))}`,
         `PUBLICIDAD_YA_ENTREGADA=${JSON.stringify(missionEvidence.flatMap(item => item.evidence?.advertisingHistory || item.advertisingHistory || []).filter(item => item.creative).slice(0, 30).map(item => ({createdAt:item.createdAt,visual:item.visual})))}`,
         "No repitas publicidad del historial, aunque sea otro día, conversación, nombre de archivo o formato. Redacta otro mensaje y enfoque publicitario y varía la composición. Conserva el logo original; reutilizar el logo no es repetir un anuncio.",

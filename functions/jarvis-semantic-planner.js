@@ -854,6 +854,33 @@ function compactCatalogSchema(schema) {
                 : ["enum", "const", "default"].includes(key) ? value : compactCatalogSchema(value)]));
 }
 
+function boundedAuditTasks(tasks) {
+    // Preserve every task index and source association. Older bodies can be
+    // re-read; repeating all source bytes on every turn is not cumulative memory.
+    for (const [bodyLimit, referenceLimit, pathLimit] of [[2000,500,100],[700,180,60],[0,0,30]]) {
+        const compact = tasks.map(task => {
+            const read = task.observation?.verifiedRead;
+            if (!read) return task;
+            const bindings = read.sourceStructure?.dataBindings;
+            const content = String(read.content || "").slice(0,bodyLimit);
+            return {...task,observation:{...task.observation,verifiedRead:{...read,
+                content, numberedContent: undefined,
+                partial:true,truncated:true,contentTruncated:true,
+                endLine:content ? (read.startLine || 1) + content.split("\n").length - 1 : null,
+                ...(bindings ? {sourceStructure:{dataBindings:{...bindings,
+                    fieldPaths:(bindings.fieldPaths || []).slice(0,pathLimit),
+                    fieldPathsComplete:bindings.fieldPathsComplete === true && (bindings.fieldPaths || []).length <= pathLimit,
+                    references:(bindings.references || []).map(reference=>({...reference,
+                        content:String(reference.content || "").slice(0,referenceLimit),partial:true,
+                        declarations:(reference.declarations || []).map(declaration=>({...declaration,
+                            content:String(declaration.content || "").slice(0,referenceLimit),truncated:true}))}))
+                }}} : {})
+            }}};
+        });
+        if (JSON.stringify(compact).length <= 26000 || bodyLimit === 0) return compact;
+    }
+}
+
 function extractGeminiToolCallPlan(response = {}, catalog = []) {
     const directCalls = Array.isArray(response?.functionCalls)
         ? response.functionCalls
@@ -1636,10 +1663,11 @@ async function runModelSemanticPlanner({
                 mutates, requiresApproval };
         });
         const pendingCapabilities = safeCatalog.filter(tool => !selectableCatalog.some(available => available.name === tool.name))
-            .map(tool => ({name:tool.name,description:tool.description,requiresEvidence:tool.requiresEvidence}));
-        const auditTasks = (missionState.completedTasks || []).map((task, index) => ({ index, name: task.name, args: task.args,
+            .map(tool => ({name:tool.name,description:tool.description.slice(0,120),requiresEvidence:tool.requiresEvidence}));
+        const fullAuditTasks = (missionState.completedTasks || []).map((task, index) => ({ index, name: task.name, args: task.args,
             allowedEvidenceKinds: safeCatalog.find(tool => tool.name === task.name)?.evidenceKinds || ["tool_result"],
             observation: Object.fromEntries(Object.entries(task.observation || {}).filter(([key]) => key !== "interfaceEvidence")) }));
+        const auditTasks = measuredRepair ? fullAuditTasks : boundedAuditTasks(fullAuditTasks);
         const preparedRepair = (missionState.completedTasks || []).some(task => task.name === "repo.prepareWrite" && task.observation?.ok === true);
         if (measuredRepair && !preparedRepair) {
             // Preparing a repair is a continuation, not a completion verdict.

@@ -1,5 +1,6 @@
 import { marketingMediaDeliveryIssue, marketingRequirementMetadata } from "./jarvis.marketing.presenter.js";
 import { compactBrowserInterfaceEvidence } from "./jarvis.browser.grounding.js";
+import { compactMissionPlannerObservation, compactRepositoryMatches } from "./jarvis.mission.planner-state.js";
 const VERSION =
     "1.20.0-v142-deadline-reconciliation";
 const REEL_MEDIA_RECOVERY_MAX_ATTEMPTS = 3;
@@ -1210,6 +1211,7 @@ function safeObservation(result = {}) {
         ...(executionOk && payload?.source === "live_repo_ast_graph" && payload?.summary && typeof payload.summary === "object" ? { inventoryEvidence: { source: "LIVE_REPOSITORY_INVENTORY", counts: payload.summary, repositoryTarget: payload.repositoryTarget || null, scope: "Structural inventory, not executed tests or a full source review." } } : {}),
         ...(executionOk && payload?.recordEvidence?.source === "FIRESTORE_SERVER_AUTHENTICATED" ? { recordEvidence: payload.recordEvidence } : {}),
         ...(interfaceEvidence ? { interfaceEvidence, url: interfaceEvidence.url } : {}),
+        ...(executionOk && Array.isArray(payload?.matches) ? { repositoryMatches: compactRepositoryMatches(payload.matches) } : {}),
         repoCandidates:
             Array.isArray(payload?.candidates)
                 ? payload.candidates
@@ -1274,7 +1276,7 @@ function canonicalMissionEvidence(mission = {}) {
             status: text(item?.observation?.status, 120),
             summary: text(item?.observation?.summary, 3000),
             validSources: compactEvidence(item?.observation?.validSources || []),
-            verifiedRead: compactEvidence(item?.observation?.verifiedRead || null),
+            verifiedRead: compactMissionPlannerObservation(item?.observation || {}).verifiedRead || null,
             evidence: compactEvidence({
                 ...(item?.observation?.evidence &&
                 typeof item.observation.evidence === "object"

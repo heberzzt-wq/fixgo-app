@@ -2309,3 +2309,33 @@ test('completion audit keeps a general catalogue within local context without dr
  }}}}),/CATALOG_CAPTURE_COMPLETE/);
  assert.equal(checked,true);
 });
+
+test('grep compaction preserves distinct discovered files before repeated matches from one file', async () => {
+ const {__test}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
+ const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
+ const matches=[...Array.from({length:30},(_,i)=>({file:'notes.json',line:i+1,snippet:'asset'})),{file:'registration.js',line:91,snippet:'setDoc(doc(db,"accounts",uid), {asset:{kind}});'},{file:'billing.js',line:42,snippet:'invoice.expiresAt'}];
+ const observed=__test.safeObservation({ok:true,status:'COMPLETED',matches});
+ const compact=compactMissionPlannerObservation(observed);
+ assert.deepEqual(compact.repositoryMatches.slice(0,3).map(m=>m.file),['notes.json','registration.js','billing.js']);
+ assert.equal(compact.repositoryMatches[1].line,91);
+});
+
+test('canonical repository AST survives argument completion instead of disappearing into document excerpts', async () => {
+ const {__test}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
+ const {completeJarvisPlanningArguments}=await import('../gestia-core/jarvis/jarvis.multifunction.planner.js');
+ const content='// lengthy preamble\n'.repeat(200)+'setDoc(doc(db,"accounts",uid), {equipment:{serial:"a1"},policy:{expiresAt:date}});';
+ const observed=__test.safeObservation({ok:true,status:'COMPLETED',file:'registration.js',content,numberedContent:content,sourceStructure:analyzeRepoSourceStructure(content)});
+ const evidence=__test.canonicalMissionEvidence({completedTasks:[{name:'repo.read',observation:observed}]});
+ assert.ok(evidence[0].verifiedRead.sourceStructure.dataBindings.fieldPaths.includes('policy.expiresAt'));
+ let captured=false;
+ const result=await completeJarvisPlanningArguments({toolName:'platform.query',instruction:'Consulta registros actuales de equipos',description:'Query records',inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},fields:{type:'array',items:{type:'string'}}},required:['sourceFile','collection','fields']},missionEvidence:evidence,semanticPlanner:async request=>{
+  const line=request.input.split('\n').find(value=>value.startsWith('FUENTES_REPOSITORIO_VERIFICADAS='));
+  const packet=JSON.parse(line.slice(line.indexOf('=')+1));
+  assert.equal(packet.sources[0].file,'registration.js');
+  assert.deepEqual(packet.sources[0].dataBindings.collections,['accounts']);
+  assert.ok(packet.sources[0].dataBindings.fieldPaths.includes('equipment.serial'));
+  assert.ok(packet.sources[0].dataBindings.references.some(ref=>ref.content.includes('setDoc')));
+  captured=true;return{toolCalls:[{name:'platform.query',args:{sourceFile:'registration.js',collection:'accounts',fields:['equipment.serial']}}]};
+ }});
+ assert.equal(captured,true);assert.equal(result.args.fields[0],'equipment.serial');
+});
