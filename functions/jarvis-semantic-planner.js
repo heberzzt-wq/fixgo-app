@@ -711,6 +711,9 @@ function schemaValueIsExecutable(
 ) {
     if (Array.isArray(schema.enum) && !schema.enum.some(candidate => JSON.stringify(candidate) === JSON.stringify(value))) return false;
     if (Object.prototype.hasOwnProperty.call(schema, "const") && JSON.stringify(schema.const) !== JSON.stringify(value)) return false;
+    if (Array.isArray(schema.type)) return schema.type.some(type =>
+        schemaValueIsExecutable(value, {...schema, type}));
+    if (schema.type === "null") return value === null;
     if (value == null) {
         return false;
     }
@@ -1008,18 +1011,37 @@ function bindEvidencePrerequisites(catalog, tasks = []) {
     return catalog.flatMap(tool => {
         if (!tool.requiresEvidence?.length) return [tool];
         const schema = structuredClone(buildNativeInputSchema(tool.inputSchema));
-        const alternatives = Array.isArray(schema.anyOf) ? schema.anyOf : [schema];
+        let alternatives = Array.isArray(schema.anyOf) ? schema.anyOf : [schema];
+        const groups = new Map();
         for (const requirement of tool.requiresEvidence) {
             if (!requirement || typeof requirement.argument !== "string" || !Array.isArray(requirement.observationPath)) return [];
-            const values = tasks.filter(task => task.observation?.ok === true && task.observation.executionOk !== false && task.observation.blocked !== true &&
-                task.observation.requiresInput !== true && catalog.find(definition => definition.name === task.name)?.evidenceKinds?.includes(requirement.kind))
-                .map(task => requirement.observationPath.reduce((value, key) => typeof key === "string" && !["__proto__", "prototype", "constructor"].includes(key) && value && Object.prototype.hasOwnProperty.call(value, key) ? value[key] : undefined, task.observation))
-                .flatMap(value => Array.isArray(value) ? value : [value])
-                .filter(value => typeof value === "string" && value.trim());
-            if (!values.length || alternatives.some(branch => !branch.properties?.[requirement.argument])) return [];
-            for (const branch of alternatives) branch.properties[requirement.argument] = {...branch.properties[requirement.argument], enum:[...new Set(values)]};
+            if (!groups.has(requirement.kind)) groups.set(requirement.kind, []);
+            groups.get(requirement.kind).push(requirement);
         }
-        return [{...tool,inputSchema:schema}];
+        // Each tuple must be witnessed by ONE successful observation. The
+        // browser argument completer is not the only caller of this backend:
+        // closure/continuation must preserve the same relational contract.
+        for (const [kind, requirements] of groups) {
+            const witnesses = tasks.filter(task => task.observation?.ok === true && task.observation.executionOk !== false && task.observation.blocked !== true &&
+                task.observation.requiresInput !== true && catalog.find(definition => definition.name === task.name)?.evidenceKinds?.includes(kind));
+            alternatives = alternatives.flatMap(branch => witnesses.flatMap(task => {
+                const bound = structuredClone(branch);
+                for (const requirement of requirements) {
+                    const property = bound.properties?.[requirement.argument];
+                    if (!property) return [];
+                    const observed = requirement.observationPath.reduce((value, key) => typeof key === "string" && !["__proto__", "prototype", "constructor"].includes(key) && value && Object.prototype.hasOwnProperty.call(value, key) ? value[key] : undefined, task.observation);
+                    const values = [...new Set((Array.isArray(observed) ? observed : [observed])
+                        .filter(value => typeof value === "string" && value.trim())
+                        .filter(value => (!property.enum || property.enum.includes(value)) && (!Object.hasOwn(property, "const") || property.const === value)))];
+                    if (!values.length) return [];
+                    bound.properties[requirement.argument] = {...property, enum:values};
+                }
+                return [bound];
+            }));
+            alternatives = [...new Map(alternatives.map(branch => [JSON.stringify(branch), branch])).values()];
+            if (!alternatives.length) return [];
+        }
+        return [{...tool,inputSchema:alternatives.length === 1 ? alternatives[0] : {anyOf:alternatives}}];
     });
 }
 
@@ -1881,6 +1903,20 @@ async function runModelSemanticPlanner({
                             objectives.every(objective => objective?.satisfied === true) &&
                             Array.isArray(auditPlan?.toolCalls) && auditPlan.toolCalls.length === 0
                     };
+                const canonicalArgs = value => Array.isArray(value) ? value.map(canonicalArgs) : value && typeof value === "object"
+                    ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalArgs(value[key])])) : value;
+                const sameCall = (task, call) => task?.name === call?.name &&
+                    JSON.stringify(canonicalArgs(task?.args || {})) === JSON.stringify(canonicalArgs(call?.args || {}));
+                const wasExecuted = call => (missionState.completedTasks || []).some(task => sameCall(task, call));
+                const wasRejected = call => (missionState.blockedTasks || []).some(task =>
+                    sameCall(task, call) &&
+                    task?.observation?.retryable !== true
+                );
+                // Deduplicate before scope review: a known failed call is not a
+                // new semantic error and must reach next-step recovery instead
+                // of throwing before the continuation code can run.
+                if (evaluatedAudit.missionComplete !== true) evaluatedAudit.toolCalls = (evaluatedAudit.toolCalls || [])
+                    .filter(call => !wasExecuted(call) && !wasRejected(call));
                 for (const call of (evaluatedAudit.toolCalls || [])) {
                     const tool = selectableCatalog.find(item => item.name === call.name);
                     if (!tool || !hasRequiredToolArguments(tool, normalizeSchemaBoundArguments(tool, call.args || {})) || hasUnexpectedToolArguments(tool, call.args || {})) {
@@ -1952,15 +1988,6 @@ async function runModelSemanticPlanner({
                 // An executable destination does not prove that its schema or
                 // scope answers every objective. Preserve the model's source
                 // investigation instead of routing solely by evidence kind.
-                const canonicalArgs = value => Array.isArray(value) ? value.map(canonicalArgs) : value && typeof value === "object"
-                    ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalArgs(value[key])])) : value;
-                const sameCall = (task, call) => task?.name === call?.name &&
-                    JSON.stringify(canonicalArgs(task?.args || {})) === JSON.stringify(canonicalArgs(call?.args || {}));
-                const wasExecuted = call => (missionState.completedTasks || []).some(task => sameCall(task, call));
-                const wasRejected = call => (missionState.blockedTasks || []).some(task =>
-                    sameCall(task, call) &&
-                    task?.observation?.retryable !== true
-                );
                 // Repeating an already successful operation or the exact same
                 // non-transient failed arguments is not progress. A different
                 // grounded call remains fully available to the model.
@@ -2015,7 +2042,7 @@ async function runModelSemanticPlanner({
                     const continuation = await ai.models.generateContent({model,contents:instruction,config:{
                         semanticStage:"READ_ONLY_EVIDENCE_CONTINUATION",nativeToolChat:true,maxOutputTokens:768,temperature:0,
                         chatMessages:[
-                            {role:"system",content:"Eres Jarvis. El objetivo aún no está resuelto. Decide si existe UN siguiente paso de investigación ejecutable con las herramientas disponibles y llámalo. No repitas que falta evidencia cuando puedes obtenerla. Una búsqueda ya devuelve rutas candidatas: lee una ruta real pertinente para conocer la fuente; si necesitas otra fuente, busca. Conserva el objetivo del usuario, pero puedes reformular búsquedas con identificadores, campos, símbolos y vocabulario técnico que hayas aprendido de evidencia ya observada. No inventes esos identificadores: deben provenir de la solicitud o de una observación real. Si una búsqueda semántica ya fue insuficiente, usa repo.grep con un término literal observado o formula una nueva búsqueda usando la evidencia disponible. Antes de consultar registros actuales, lee el código que muestre la colección, el discriminador y los campos; no los inventes. El catálogo describe fuentes, no resultados ya obtenidos. No repitas la misma operación con los mismos argumentos. Una fuente irrelevante no cierra la investigación: continúa con otra fuente o búsqueda read-only distinta mientras exista un paso fundamentado. Si realmente no hay un paso autorizado, no llames nada. Un permiso denegado no autoriza cambiar identidad, quitar filtros ni ampliar acceso. Nunca escribas, publiques ni concedas aprobación."},
+                            {role:"system",content:"Eres Jarvis. El objetivo aún no está resuelto. Decide si existe UN siguiente paso de investigación ejecutable con las herramientas disponibles y llámalo. No repitas que falta evidencia cuando puedes obtenerla. Una búsqueda ya devuelve rutas candidatas: lee una ruta real pertinente para conocer la fuente; si necesitas otra fuente, busca. Conserva el objetivo del usuario, pero puedes reformular búsquedas con identificadores, campos, símbolos y vocabulario técnico que hayas aprendido de evidencia ya observada. No inventes esos identificadores: deben provenir de la solicitud o de una observación real. Si una búsqueda semántica ya fue insuficiente, usa repo.grep con un término literal observado o formula una nueva búsqueda usando la evidencia disponible. Para consultar registros actuales necesitas colección y campos acreditados. El discriminador es necesario para contar un subconjunto; si aún lo desconoces, puedes inspeccionar campos pertinentes con mode=query y filters=[] dentro del alcance autorizado, para conocer valores reales y resolver otros objetivos. La inspección no acredita por sí sola un conteo global ni la pertenencia a un subconjunto. No inventes filtros. El catálogo describe fuentes, no resultados ya obtenidos. No repitas la misma operación con los mismos argumentos. Una fuente irrelevante no cierra la investigación: continúa con otra fuente o búsqueda read-only distinta mientras exista un paso fundamentado. Si realmente no hay un paso autorizado, no llames nada. Un permiso denegado no autoriza cambiar identidad, quitar filtros ni ampliar acceso. Nunca escribas, publiques ni concedas aprobación."},
                             ...(pendingCapabilities.length ? [{role:"system",content:"CAPACIDADES_DISPONIBLES_DESPUES_DEL_REQUISITO="+JSON.stringify(pendingCapabilities)+"\nLa consulta de datos existe, pero falta leer la fuente. Elige primero una lectura o búsqueda pertinente. No sustituyas el requisito con una negativa ni con un esquema inventado."}] : []),
                             ...(latestPlatformSchemaFailure && !evidenceAfterSchemaFailure ? [{role:"system",content:"RECUPERACION_DE_CONSULTA: la última platform.query fue rechazada por evidencia de esquema insuficiente. No repitas la misma consulta ni adivines un alias. Usa las herramientas de repositorio disponibles para localizar el campo, colección o valor real y después formula una consulta nueva con esa evidencia. Si INTENTO_FALLIDO incluye errorDetails.discoveredCollections, esas colecciones SÍ fueron observadas por AST en el sourceFile indicado y la colección rechazada NO fue acreditada por ese archivo: conserva la relación sourceFile→discoveredCollections, vuelve al repo si ninguna observada sirve al objetivo y sólo después formula otra consulta. Si errorDetails incluye undiscoveredFields, undiscoveredFilterFields o ungroundedFilterValues, esos literales son argumentos RECHAZADOS: puedes usarlos como pistas para repo.grep/repo.search, pero no los trates como esquema válido hasta observar su definición real en una fuente."}] : []),
                             ...auditTasks.map(task=>({role:"system",content:"EVIDENCIA_OBTENIDA="+JSON.stringify(task)})),
@@ -2064,7 +2091,7 @@ async function runModelSemanticPlanner({
                         tool.evidenceKinds?.some(kind => prerequisiteKinds.has(kind) || kind === "repository_source") &&
                         buildNativeInputSchema(tool.inputSchema).properties?.file) : [];
                     const evidencePathReaders =
-                        unreadSources.length && prerequisiteReaders.length
+                        unreadSources.length && prerequisiteReaders.length && !directEvidenceCatalog.length
                             ? prerequisiteReaders
                             : nextReaders;
                     const recoveryCatalog = evidencePathReaders.flatMap(tool => {

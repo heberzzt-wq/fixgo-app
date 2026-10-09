@@ -1858,6 +1858,9 @@ function schemaValueIsExecutable(
     value,
     schema = {}
 ) {
+    if (Array.isArray(schema.type)) return schema.type.some(type =>
+        schemaValueIsExecutable(value, {...schema, type}));
+    if (schema.type === "null") return value === null;
     if (value == null) {
         return false;
     }
