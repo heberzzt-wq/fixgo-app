@@ -2474,3 +2474,38 @@ test('an explicit zero-argument tool rejects a record-query payload during audit
  }}}});
  assert.equal(calls,2);assert.equal(result.toolCalls[0].name,'repo.read');
 });
+
+test('registered operational tools expose closed schemas that reject database payloads', () => {
+ const expected=new Set(['system.capabilities','system.forensics','connector.list','system.supervision','repo.scan','repo.graph','repo.uiCompact','repo.gitStatus','repo.gitDiff','repo.gitCommitPlan']);
+ const found=new Set();
+ for(const file of ['gestia-core/jarvis/jarvis.multitool.pack.js','gestia-core/jarvis/jarvis.actuator.pack.js','gestia-core/tools.runtime.js']) {
+  const source=readFileSync(new URL('../'+file,import.meta.url),'utf8');
+  const visit=node=>{
+   if(!node||typeof node!=='object')return;
+   if(node.type==='ObjectExpression') {
+    const props=Object.fromEntries(node.properties.filter(p=>p.type==='Property').map(p=>[p.key.name||p.key.value,p.value]));
+    if(expected.has(props.name?.value)&&props.execute) {
+     assert.ok(props.inputSchema,props.name.value);
+     const schema=runInNewContext('('+source.slice(props.inputSchema.start,props.inputSchema.end)+')');
+     assert.equal(schema.additionalProperties,false,props.name.value);
+     assert.equal('collection' in schema.properties,false);assert.equal('fields' in schema.properties,false);
+     found.add(props.name.value);
+    }
+   }
+   for(const value of Object.values(node))if(Array.isArray(value))value.forEach(visit);else if(value&&typeof value==='object')visit(value);
+  };
+  visit(parse(source,{sourceType:'module',ecmaVersion:'latest'}));
+ }
+ assert.deepEqual([...found].sort(),[...expected].sort());
+});
+
+test('audit rejects database arguments on a closed nonempty operational schema', async () => {
+ let attempts=0;
+ const catalog=[{name:'repo.scan',evidenceKinds:['repository_inventory'],inputSchema:{type:'object',properties:{refresh:{type:'boolean'}},additionalProperties:false}},
+ {name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file'],additionalProperties:false}}];
+ const result=await runJarvisSemanticPlanner({input:'Consulta registros actuales',catalog,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[]},ai:{models:{generateContent:async request=>{
+  attempts++;assert.equal(request.config.semanticStage,'COMPLETION_AUDIT');
+  return{text:JSON.stringify({explanation:'Falta evidencia',completionAssessment:{objectives:[{objective:'Consultar registros',requiredEvidenceKind:'repository_source',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta fuente'}]},toolCalls:[attempts===1?{name:'repo.scan',args:{collection:'records',fields:['id']}}:{name:'repo.read',args:{file:'schema.js'}}]}),providerResponse:{finishReason:'stop'}};
+ }}}});
+ assert.equal(attempts,2);assert.equal(result.toolCalls[0].name,'repo.read');
+});

@@ -1008,6 +1008,11 @@ JarvisToolRuntime.register({
 
 JarvisToolRuntime.register({
     name: "repo.scan",
+    inputSchema: {type: "object", properties: {
+        target: {type: "string"}, url: {type: "string"}, repository: {type: "string"}, ref: {type: "string"},
+        refresh: {type: "boolean"}, maxFiles: {type: "integer"}, maxFileSizeBytes: {type: "integer"},
+        module: {type: "string"}, type: {type: "string", enum: ["test", "runtime"]}
+    }, additionalProperties: false},
     description: "Escanea archivos reales desde el grafo AST vivo; el indice manual solo puede aportar metadata secundaria.",
     mutates: false,
     requiresApproval: false,
@@ -3343,6 +3348,7 @@ window.JarvisCompactUi =
 JarvisToolRuntime.register({
     name:
         "repo.uiCompact",
+    inputSchema: {type: "object", properties: {action: {type: "string", enum: ["apply", "toggleReview", "toggleQueue", "cleanClosed", "closeCard"]}, cardId: {type: "string"}}, additionalProperties: false},
     description:
         "Controla la UI compacta de Jarvis: minimizar review, minimizar queue, limpiar cards cerradas.",
     mutates:
@@ -4763,6 +4769,7 @@ window.JarvisGitWorkflowBridge =
 JarvisToolRuntime.register({
     name:
         "repo.gitStatus",
+    inputSchema: {type: "object", properties: {cwd: {type: "string"}, timeoutMs: {type: "number"}}, additionalProperties: false},
     description:
         "Ejecuta git status --short --branch mediante Local FS Bridge.",
     mutates:
@@ -4817,6 +4824,7 @@ JarvisToolRuntime.register({
 JarvisToolRuntime.register({
     name:
         "repo.gitDiff",
+    inputSchema: {type: "object", properties: {cwd: {type: "string"}, timeoutMs: {type: "number"}, cached: {type: "boolean"}}, additionalProperties: false},
     description:
         "Ejecuta git diff mediante Local FS Bridge.",
     mutates:
@@ -4872,6 +4880,7 @@ JarvisToolRuntime.register({
 JarvisToolRuntime.register({
     name:
         "repo.gitCommitPlan",
+    inputSchema: {type: "object", properties: {cwd: {type: "string"}, message: {type: "string"}}, additionalProperties: false},
     description:
         "Genera un plan de commit con status y diff, sin mutar.",
     mutates:
@@ -7460,6 +7469,7 @@ JarvisToolRuntime.register({
 
 JarvisToolRuntime.register({
     name: "repo.graph",
+    inputSchema: {type: "object", properties: {refresh: {type: "boolean"}, maxFiles: {type: "integer"}, maxFileSizeBytes: {type: "integer"}}, additionalProperties: false},
     description: "Construye el grafo vivo del repositorio real con dependencias, funciones, llamadas, listeners, endpoints, colecciones y pruebas.",
     mutates: false,
     requiresApproval: false,

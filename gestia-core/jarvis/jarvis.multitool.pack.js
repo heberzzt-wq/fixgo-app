@@ -5892,6 +5892,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "system.capabilities",
+            inputSchema: {type: "object", properties: {}, additionalProperties: false},
             description: "Describe las herramientas activas de SIA7 agrupadas por dominio y su politica de aprobacion.",
             output: "SIA7_CAPABILITY_REPORT",
             execute: async () => {
@@ -5938,6 +5939,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "system.forensics",
+            inputSchema: {type: "object", properties: {}, additionalProperties: false},
             description: "Audita capacidades operativas reales, actuadores, evidencia, brechas y paridad sin exagerar funciones.",
             output: "SIA7_CAPABILITY_FORENSICS",
             execute: async () =>
@@ -6222,6 +6224,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "system.supervision",
+            inputSchema: {type: "object", properties: {timeoutMs: {type: "number"}}, additionalProperties: false},
             description: "Consulta el ultimo reporte del supervisor diario read-only de Jarvis.",
             output: "SIA7_DAILY_SUPERVISION_STATUS",
             execute: async (args = {}) =>

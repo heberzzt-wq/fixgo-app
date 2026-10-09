@@ -673,6 +673,14 @@ function seedSemanticCompletionArguments(
     return normalized;
 }
 
+function hasUnexpectedToolArguments(tool = {}, args = {}) {
+    const schema = buildNativeInputSchema(tool.inputSchema);
+    if (Array.isArray(schema.anyOf)) return schema.anyOf.every(branch =>
+        hasUnexpectedToolArguments({inputSchema:branch}, args));
+    return schema.additionalProperties === false &&
+        Object.keys(args).some(name => !Object.prototype.hasOwnProperty.call(schema.properties || {}, name));
+}
+
 function hasRequiredToolArguments(tool = {}, args = {}) {
     if (!args || typeof args !== "object" || Array.isArray(args)) return false;
     const schema = buildNativeInputSchema(tool?.inputSchema);
@@ -1851,7 +1859,7 @@ async function runModelSemanticPlanner({
                     };
                 for (const call of (evaluatedAudit.toolCalls || [])) {
                     const tool = selectableCatalog.find(item => item.name === call.name);
-                    if (!tool || !hasRequiredToolArguments(tool, normalizeSchemaBoundArguments(tool, call.args || {}))) {
+                    if (!tool || !hasRequiredToolArguments(tool, normalizeSchemaBoundArguments(tool, call.args || {})) || hasUnexpectedToolArguments(tool, call.args || {})) {
                         const error = new Error("SEMANTIC_TOOL_ARGUMENTS_INVALID");
                         error.evidence = { tool: call.name, args: call.args, requiredSchema: tool?.inputSchema || null };
                         throw error;
@@ -1989,7 +1997,7 @@ async function runModelSemanticPlanner({
                     if (!next && continuation.text) {try {next=normalizeTextToolPlan(extractJsonObject(continuation.text),nextReaders);}catch{}}
                     if (continuation?.providerResponse?.finishReason !== "length" && next?.toolCalls?.length) {
                         const checked=validatePlan({...next,missionComplete:false},nextReaders,instruction);
-                        checked.toolCalls=checked.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)).slice(0,1);
+                        checked.toolCalls=checked.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&!hasUnexpectedToolArguments(nextReaders.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
                         if(checked.toolCalls.length)return {...validatedAudit,toolCalls:checked.toolCalls,missionComplete:false,
                             provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:nextReaders.length,planKind:"READ_ONLY_EVIDENCE_CONTINUATION"};
                     }
@@ -2059,7 +2067,7 @@ async function runModelSemanticPlanner({
                     if (recovery?.providerResponse?.finishReason !== "length") {
                         let payload;try{payload=extractJsonObject(recovery.text);}catch{payload=null;}
                         const recovered=validatePlan({...payload,missionComplete:false},recoveryCatalog,instruction);
-                        const calls=recovered.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&hasRequiredToolArguments(recoveryCatalog.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
+                        const calls=recovered.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&hasRequiredToolArguments(recoveryCatalog.find(tool=>tool.name===call.name)||{},call.args||{})&&!hasUnexpectedToolArguments(recoveryCatalog.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
                         if(calls.length)return {...validatedAudit,toolCalls:calls,missionComplete:false,provider:String(ai.lastProvider||"jarvis-local"),
                             model,catalogSize:recoveryCatalog.length,planKind:"READ_ONLY_NEXT_STEP_RECOVERY"};
                     }

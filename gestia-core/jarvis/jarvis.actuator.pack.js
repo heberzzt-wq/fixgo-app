@@ -2800,6 +2800,7 @@ export function registerJarvisActuatorTools(runtime) {
         }),
         register(runtime, {
             name: "connector.list",
+            inputSchema: {type: "object", properties: {}, additionalProperties: false},
             description: "Enumera conectores instalados y su estado real sin inventar disponibilidad.",
             output: "CONNECTOR_LIST",
             execute: async () => {
