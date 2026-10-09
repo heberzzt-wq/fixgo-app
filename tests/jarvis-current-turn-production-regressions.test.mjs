@@ -2790,3 +2790,37 @@ test('browser and planner evidence contracts preserve monotonic read-only depend
   assert.deepEqual(fn('source',[...catalog,{investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'analysis'}],evidenceKinds:['source']}]),['source']);
  }
 });
+
+test('closure context retains the latest source window when older source metadata fills the budget',async()=>{
+ const input='Inspect the requested balance';
+ const reader={name:'repo.read',mutates:false,investigationReadOnly:true,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'},startLine:{type:'integer'},endLine:{type:'integer'}},required:['file']}};
+ const completedTasks=Array.from({length:20},(_,index)=>({name:reader.name,args:{file:`source-${index}.js`},observation:{ok:true,verifiedRead:{file:`source-${index}.js`,startLine:1,endLine:400,content:'// previous source\n'.repeat(250),sourceStructure:{dataBindings:{collections:[`records${index}`],fieldPaths:Array.from({length:100},(_,field)=>`longObservedProperty_${index}_${field}_with_metadata`),fieldPathsComplete:true,references:[]}}}}}));
+ const content='const observedAmount = record.balance;';
+ completedTasks.push({name:reader.name,args:{file:'detail.js',startLine:200,endLine:200},observation:{ok:true,verifiedRead:{file:'detail.js',startLine:200,endLine:200,content,sourceStructure:{dataBindings:{collections:['records'],fieldPaths:['balance'],references:[]}}}}});
+ let visible;
+ const result=await runJarvisSemanticPlanner({input,catalog:[reader],missionState:{phase:'COMPLETION_AUDIT',completedTasks},ai:{models:{generateContent:async request=>{
+  visible=request.config.chatMessages.filter(message=>message.content.startsWith('OBSERVACION_EJECUTADA=')).map(message=>JSON.parse(message.content.slice('OBSERVACION_EJECUTADA='.length)));
+  assert.equal(visible.at(-1).observation.verifiedRead.content,content);
+  assert.equal(visible.at(-1).observation.verifiedRead.startLine,200);
+  return{text:JSON.stringify({explanation:'Read the adjacent source window',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'repository_source',satisfied:false,evidenceTaskIndexes:[],limitation:'Need adjacent definition'}]},toolCalls:[{name:reader.name,args:{file:'detail.js',startLine:201,endLine:230}}]})};
+ }}}});
+ assert.equal(visible.length,completedTasks.length);
+ assert.equal(result.toolCalls[0].args.startLine,201);
+});
+
+test('source reader follows observed AST and truncated-window anchors without treating answer length as a source range',()=>{
+ const source=readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
+ const from=source.indexOf('const parseLineNumber =',source.indexOf('name: "repo.read"'));
+ const to=source.indexOf('const structuralTarget =',from);
+ const range=new Function('args','context','normalizedFile',source.slice(from,to)+';return requestedLineRange;');
+ const args={startLine:68,endLine:100};
+ const context={rootInstruction:'Resume en 3 líneas',completedTasks:[]};
+ assert.equal(range(args,context,'source.js'),null);
+ context.completedTasks=[{name:'repo.read',observation:{ok:true,verifiedRead:{file:'source.js',endLine:67,totalLines:500,partial:true}}}];
+ assert.deepEqual(range(args,context,'source.js'),args);
+ assert.equal(range(args,context,'other.js'),null);
+ context.completedTasks[0].observation.verifiedRead={file:'source.js',sourceStructure:{dataBindings:{references:[{startLine:200,declarations:[{startLine:400}]}]}}};
+ assert.deepEqual(range({startLine:190,endLine:220},context,'source.js'),{startLine:190,endLine:220});
+ assert.deepEqual(range({startLine:400},context,'source.js'),{startLine:400,endLine:499});
+ assert.equal(range(args,context,'source.js'),null);
+});

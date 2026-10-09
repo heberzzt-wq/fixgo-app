@@ -900,12 +900,13 @@ function compactCatalogSchema(schema) {
 function boundedAuditTasks(tasks) {
     // Preserve every task index and source association. Older bodies can be
     // re-read; repeating all source bytes on every turn is not cumulative memory.
+    const latestRead = tasks.findLast(task => task.observation?.verifiedRead);
     for (const [bodyLimit, referenceLimit, pathLimit] of [[2000,500,100],[700,180,60],[0,0,30]]) {
         const compact = tasks.map(task => {
             const read = task.observation?.verifiedRead;
             if (!read) return task;
             const bindings = read.sourceStructure?.dataBindings;
-            const content = String(read.content || "").slice(0,bodyLimit);
+            const content = String(read.content || "").slice(0,task === latestRead ? Math.max(4000,bodyLimit) : bodyLimit);
             return {...task,observation:{...task.observation,verifiedRead:{...read,
                 content, numberedContent: undefined,
                 partial:true,truncated:true,contentTruncated:true,
@@ -929,12 +930,16 @@ function boundedAuditTasks(tasks) {
     // Empty excerpts still carried every parser bookkeeping property. With many
     // reads that alone exceeded the context budget. Keep evidence identities and
     // collection associations; omit redundant AST metadata, not live records.
-    return tasks.map(task => {
+    const minimal = tasks.map(task => {
         const read = task.observation?.verifiedRead;
         if (!read) return task;
         const bindings = read.sourceStructure?.dataBindings;
+        const fresh = task === latestRead;
+        const content = fresh ? String(read.content || "").slice(0,4000) : "";
         return {...task, observation:{ok:task.observation.ok, executionOk:task.observation.executionOk, verifiedRead:{
-            file:read.file, startLine:read.startLine, endLine:read.endLine,
+            file:read.file, startLine:read.startLine,
+            endLine:content ? (read.startLine || 1) + content.split("\n").length - 1 : null,
+            ...(fresh ? {content} : {}),
             partial:true, truncated:true, contentTruncated:true,
             sourceStructure:{dataBindings:{
                 collections:bindings?.collections || [],
@@ -945,6 +950,23 @@ function boundedAuditTasks(tasks) {
             }}
         }}};
     });
+    const freshRead = minimal[tasks.indexOf(latestRead)]?.observation?.verifiedRead;
+    if (freshRead) {
+        const overflow = JSON.stringify(minimal).length - 15900;
+        if (overflow > 0) {
+            freshRead.content = freshRead.content.slice(0,Math.max(0,freshRead.content.length-overflow));
+            freshRead.endLine = freshRead.content ? (freshRead.startLine || 1) + freshRead.content.split("\n").length - 1 : null;
+        }
+        const references = [...(latestRead.observation.verifiedRead.sourceStructure?.dataBindings?.references || [])]
+            .sort((a,b)=>Math.abs((a.startLine||1)-(freshRead.startLine||1))-Math.abs((b.startLine||1)-(freshRead.startLine||1)));
+        const kept = freshRead.sourceStructure.dataBindings.references = [];
+        for (const reference of references.slice(0,6)) {
+            kept.push({collection:reference.collection,startLine:reference.startLine,endLine:reference.endLine,
+                content:String(reference.content||"").slice(0,700),partial:true});
+            if (JSON.stringify(minimal).length >= 16000) { kept.pop(); break; }
+        }
+    }
+    return minimal;
 }
 
 function extractGeminiToolCallPlan(response = {}, catalog = []) {
@@ -1759,6 +1781,7 @@ async function runModelSemanticPlanner({
             "Cada objetivo requiere objective, requiredEvidenceKind, satisfied, evidenceTaskIndexes y limitation. Los índices identifican tareas, no viewports. Los tipos permitidos están en allowedEvidenceKinds; un nombre de herramienta no es tipo de evidencia.",
             "satisfied=true exige evidencia pertinente ya ejecutada e índices válidos y limitation vacía. Si falta evidencia: satisfied=false, índices vacíos y limitation concreta. No rebajes el tipo de evidencia para conseguir cumplimiento. DOM/CSS no acredita píxeles, interacción, lectura de código, aprobación, escritura ni tests.",
             "Selecciona una sola siguiente herramienta NUEVA con argumentos fundamentados para un objetivo pendiente. Si no hay operación ejecutable, toolCalls=[] y explica qué falta. No repitas trabajo ya satisfecho. Nunca inventes rutas ni resultados.",
+            "Las lecturas resumidas con contentTruncated/partial no muestran todo el archivo. Para entender un campo o relación, usa repo.read con startLine/endLine alrededor de una coincidencia o referencia observada; no declares inexistente lo que quedó fuera del fragmento. Una mención en otro objeto del mismo archivo no prueba que el campo pertenezca a la colección elegida. Si una búsqueda es demasiado amplia, enfoca un objetivo pendiente o un identificador observado; repo.grep busca un literal, no una lista de conceptos.",
             "Escribe en español. No generes missionComplete: el runtime lo calcula con tus objetivos, referencias y toolCalls. Tus evaluaciones no sustituyen validaciones físicas. La aprobación y publicación quedan fuera de la autoridad del modelo.",
             "Antes de consultar o contar registros, compara explícitamente cada objetivo de datos con collection, filters, fields y relaciones observadas. Una colección compartida puede contener varias clases, estados o relaciones; su conteo total NO representa automáticamente un subconjunto pedido. Si la solicitud contiene varios grupos, conteos o relaciones, no los fusiones en filtros AND incompatibles: ejecuta consultas separadas o una unión que conserve el discriminador y permita separar los resultados. Una consulta sólo acredita su scope exacto y no satisface objetivos vecinos. Si falta comprobar un campo, valor o relación, sigue leyendo la fuente o sus referencias. No inventes que todos los registros pertenecen a la misma categoría ni conviertas un cero scoped en ausencia global.",
             `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`

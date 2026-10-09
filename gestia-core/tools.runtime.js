@@ -1084,11 +1084,11 @@ JarvisToolRuntime.register({
             },
             startLine: {
                 type: "integer",
-                description: "Primera linea del archivo, solo si el usuario pide consultar un rango de la fuente. Omitir para leer el archivo completo."
+                description: "Primera línea de un rango solicitado o necesario para investigar una coincidencia/referencia observada o ampliar una lectura truncada. Omitir para leer desde el inicio. La longitud pedida para la respuesta no determina este rango."
             },
             endLine: {
                 type: "integer",
-                description: "Ultima linea del archivo, solo para un rango de la fuente solicitado explicitamente. Un resumen o respuesta de N lineas NO limita la lectura: omitir este argumento en ese caso."
+                description: "Última línea del rango de fuente solicitado o necesario para investigar. Un resumen o respuesta de N líneas NO limita la lectura: no derives endLine de la extensión de la respuesta."
             },
             maxBytes: {
                 type: "integer",
@@ -1144,17 +1144,28 @@ JarvisToolRuntime.register({
             .filter(task => task?.name === "repo.grep" && task?.observation?.ok === true && task?.observation?.executionOk !== false)
             .flatMap(task => task.observation.repositoryMatches || task.observation.matches || [])
             .filter(match => String(match?.file || "").replace(/\\/g, "/") === normalizedFile.replace(/\\/g, "/") && Number.isInteger(match?.line));
+        const observedReadAnchors = (context.completedTasks || [])
+            .filter(task => task?.name === "repo.read" && task?.observation?.ok === true && task?.observation?.executionOk !== false)
+            .map(task => task.observation.verifiedRead)
+            .filter(read => read && String(read.file || "").replace(/\\/g, "/") === normalizedFile.replace(/\\/g, "/"))
+            .flatMap(read => [
+                ...((read.partial === true || read.contentTruncated === true) && Number.isInteger(read.endLine) &&
+                    Number.isInteger(read.totalLines) && read.endLine < read.totalLines ? [read.endLine + 1] : []),
+                ...(read.sourceStructure?.dataBindings?.references || []).flatMap(reference =>
+                    [reference.startLine,...(reference.declarations || []).map(declaration => declaration.startLine)]),
+                ...(read.sourceStructure?.dataBindings?.writeShapes || []).map(shape => shape.startLine)
+            ]).filter(line => Number.isInteger(line) && line > 0);
         const requestedEndLine =
             parseLineNumber(
                 args.endLine ||
                 args.toLine ||
                 args.lineEnd
-            ) || (requestedStartLine && observedGrepMatches.some(match => match.line === requestedStartLine)
+            ) || (requestedStartLine && (observedGrepMatches.some(match => match.line === requestedStartLine) || observedReadAnchors.includes(requestedStartLine))
                 ? requestedStartLine + 99 : null);
 
         // A model-generated line range is trustworthy only when the user
-        // explicitly requested lines or prior literal grep evidence anchors a
-        // match inside that same file/range. Otherwise read the whole source.
+        // requested lines or observed grep/source evidence anchors the same
+        // file/range, including continuation of a truncated source window.
         const originalInstruction = String(context.rootInstruction || context.rawInput || "");
         const explicitLineRange = /(?:line|lines|línea|líneas)\s*\d+\s*(?:-|–|—|a|to|through)\s*\d+/iu.test(originalInstruction) ||
             /(?:from|de)\s+(?:line|línea)\s*\d+\s+(?:to|a|hasta)\s+(?:line|línea)?\s*\d+/iu.test(originalInstruction);
@@ -1170,7 +1181,7 @@ JarvisToolRuntime.register({
             Boolean(
                 requestedStartLine &&
                 requestedEndLine &&
-                (explicitLineRange || groundedGrepRange)
+                (explicitLineRange || groundedGrepRange || observedReadAnchors.some(line => line >= requestedStartLine && line <= requestedEndLine))
             );
 
         const requestedLineRange =
