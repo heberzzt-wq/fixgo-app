@@ -1684,6 +1684,28 @@ async function runModelSemanticPlanner({
         );
         let selectableCatalog = bindEvidencePrerequisites(safeCatalog, completedTasksForAudit).filter(tool => !measuredRepair ||
             (tool.name !== "browser.inspect" && tool.name !== "tests.run" && (tool.name !== "repo.prepareWrite" || hasReadSource)));
+        let objectiveScopedCatalog = safeCatalog;
+        const objectiveKinds = new Set((missionState.evidenceObjectives || []).map(item => item.requiredEvidenceKind));
+        if (objectiveKinds.size && !objectiveKinds.has("tool_result") && !measuredRepair) {
+            // Follow declared evidence dependencies, never words from the user's
+            // domain. A media reader cannot satisfy a record objective merely
+            // because both tools are available in the global registry.
+            let previousSize;
+            do {
+                previousSize = objectiveKinds.size;
+                for (const tool of safeCatalog) {
+                    if (!(tool.evidenceKinds || []).some(kind => objectiveKinds.has(kind))) continue;
+                    for (const requirement of tool.requiresEvidence || []) objectiveKinds.add(requirement.kind);
+                }
+            } while (objectiveKinds.size !== previousSize);
+            if (objectiveKinds.has("repository_source")) {
+                objectiveKinds.add("repository_search");
+                objectiveKinds.add("repository_inventory");
+            }
+            objectiveScopedCatalog = safeCatalog.filter(tool =>
+                (tool.evidenceKinds || []).some(kind => objectiveKinds.has(kind)));
+            selectableCatalog = selectableCatalog.filter(tool => objectiveScopedCatalog.some(candidate => candidate.name === tool.name));
+        }
         const candidateReaderAvailable = selectableCatalog.some(tool =>
             tool.name === "repo.read" &&
             tool.investigationReadOnly === true &&
@@ -1743,7 +1765,7 @@ async function runModelSemanticPlanner({
                         .map(([key, property]) => [key, property.enum || [property.const]])))))].map(value=>JSON.parse(value))} : {}),
                 mutates, requiresApproval };
         });
-        const pendingCapabilities = safeCatalog.filter(tool => !selectableCatalog.some(available => available.name === tool.name))
+        const pendingCapabilities = objectiveScopedCatalog.filter(tool => !selectableCatalog.some(available => available.name === tool.name))
             .map(tool => ({name:tool.name,description:tool.description.slice(0,120),requiresEvidence:tool.requiresEvidence}));
         const fullAuditTasks = (missionState.completedTasks || []).map((task, index) => ({ index, name: task.name, args: task.args,
             allowedEvidenceKinds: safeCatalog.find(tool => tool.name === task.name)?.evidenceKinds || ["tool_result"],
@@ -1989,7 +2011,7 @@ async function runModelSemanticPlanner({
                         }
                     }
                 }
-                const validatedAudit = validatePlan(evaluatedAudit, safeCatalog, instruction);
+                const validatedAudit = validatePlan(evaluatedAudit, selectableCatalog, instruction);
                 if (missionState.evidenceObjectives?.length) validateCompletionEvidence(evaluatedAudit, normalizedCatalog, missionState);
                 if (missionState.evidenceObjectives?.length) {
                     for(const objective of evaluatedAudit.completionAssessment?.objectives||[]) {

@@ -2736,3 +2736,22 @@ test('completion review uses observed records without the tool success assessmen
  assert.equal(result.completionAssessment.objectives[0].satisfied,false);
  assert.equal(result.toolCalls[0].args.collection,'second');
 });
+
+test('typed evidence recovery cannot execute an unrelated media capability',async()=>{
+ const input='Inspect current records';
+ const records={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'}},required:['collection']}};
+ const media={name:'fixture.media',mutates:false,evidenceKinds:['media_analysis'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
+ let attempts=0;
+ const result=await runJarvisSemanticPlanner({input,catalog:[records,media],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[{objective:input,requiredEvidenceKind:'platform_records'}],completedTasks:[]},ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='COMPLETION_AUDIT') {
+   attempts++;
+   assert.deepEqual(request.config.responseJsonSchema.properties.toolCalls.items.anyOf.map(branch=>branch.properties.name.enum[0]),[records.name]);
+   return{text:JSON.stringify({explanation:'Need records',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'No records yet'}]},toolCalls:[attempts===1?{name:media.name,args:{file:'source.js'}}:{name:records.name,args:{collection:'observed'}}]})};
+  }
+  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:true})};
+  if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION')return{functionCalls:[{name:records.name,args:{collection:'observed'}}]};
+  throw Error('Unexpected stage '+request.config.semanticStage);
+ }}}});
+ assert.equal(result.toolCalls[0].name,records.name);
+ assert.equal(attempts,2);
+});

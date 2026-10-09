@@ -886,6 +886,25 @@ test("self-hosted semantic requests ignore artificial local timeout budgets", as
     assert.equal(signal.aborted, false);
 });
 
+test("Qwen 3 minor versions retain native local inference and explicit non-thinking mode", async () => {
+    const engine = createSelfHostedSemanticEngine({
+        env: { JARVIS_LOCAL_LLM_MODEL: "qwen3.5:9b" },
+        fetchImpl: async (url, options) => {
+            assert.match(String(url), /\/api\/chat$/);
+            const payload = JSON.parse(options.body);
+            assert.equal(payload.model, "qwen3.5:9b");
+            assert.equal(payload.think, false);
+            assert.equal(payload.options.num_ctx, 16384);
+            return { ok: true, status: 200, text: async () => JSON.stringify({
+                message: { content: "Respuesta local." }, done: true, done_reason: "stop"
+            }) };
+        }
+    });
+    const response = await engine.respond({ input: "Responde brevemente" });
+    assert.equal(response.message, "Respuesta local.");
+    assert.equal(response.externalApiUsed, false);
+});
+
 test("self-hosted semantic response retries one empty local result with the same model", async () => {
     const requests = [];
     const engine = createSelfHostedSemanticEngine({
