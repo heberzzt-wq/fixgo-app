@@ -62,7 +62,12 @@ class GuardianTests(unittest.TestCase):
             subprocess.run([sys.executable,__file__,'--spawn',str(receipt)],check=True,timeout=5)
             limit=time.monotonic()+6
             while time.monotonic()<limit:
-                if receipt.exists() and json.loads(receipt.read_text()).get('terminationVerified'):break
+                try:
+                    if json.loads(receipt.read_text()).get('terminationVerified'):break
+                except (FileNotFoundError, PermissionError, json.JSONDecodeError):
+                    # The child atomically replaces this receipt; Windows may
+                    # briefly deny a concurrent read. Keep the bounded deadline.
+                    pass
                 time.sleep(.1)
             self.assertTrue(json.loads(receipt.read_text())['terminationVerified'])
 

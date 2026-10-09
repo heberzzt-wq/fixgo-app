@@ -1470,7 +1470,7 @@ export async function composeEvidenceGroundedConversation({
         return {
             ok: true,
             status: "CONVERSATIONAL_COMPOSITION_COMPLETED",
-            text: requiresRepairGrounding ? text : [text,...authoritativeOutcomes.filter(item=>item.tool!=="mission.outcome" && item.error).map(item=>`Detalle verificado: ${item.tool} — ${item.error}${item.requestedFile ? `; archivo solicitado: ${item.requestedFile}` : ""}.`)].join("\n\n"),
+            text: requiresRepairGrounding || payload?.grounding?.scopedRecordPresentation === true ? text : [text,...authoritativeOutcomes.filter(item=>item.tool!=="mission.outcome" && item.error).map(item=>`Detalle verificado: ${item.tool} — ${item.error}${item.requestedFile ? `; archivo solicitado: ${item.requestedFile}` : ""}.`)].join("\n\n"),
             prompt,
             evidence,
             provider: payload?.provider || null,

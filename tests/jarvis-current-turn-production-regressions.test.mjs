@@ -2966,5 +2966,31 @@ test('record presentation preserves exact entity roles and states pending covera
  }}}});
  assert.equal(calls.length,1);assert.equal(result.grounding.scopedRecordPresentation,true);
  assert.match(result.message,/client/);assert.match(result.message,/Ana/);assert.match(result.message,/Complete inventory/);assert.match(result.message,/second registry/);
- assert.doesNotMatch(result.message,/emitido por Ana|vencid|COMPLETED|FIRESTORE_SERVER_AUTHENTICATED/);
+ assert.doesNotMatch(result.message,/emitido por Ana|vencid|COMPLETED|FIRESTORE_SERVER_AUTHENTICATED|\| ---/);
+ assert.match(result.message,/• client: Ana/);
+});
+
+
+test('bounded evidence shares repeated field schemas losslessly and preserves the latest read and every record scope',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='boundedAuditTasks');
+ const compact=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const fields=Array.from({length:70},(_,i)=>'entity.attribute_'+i+'_verified');
+ const records={source:'FIRESTORE_SERVER_AUTHENTICATED',scope:{collection:'fixture_scope',filters:[{field:'segment',op:'==',value:'observed'}],fields:['owner']},rows:[{id:'observed-id',values:{owner:'Observed owner'}}],completeForQuery:true,totalCount:1};
+ const tasks=[{index:0,name:'fixture.query',completedAt:'observed-time',observation:{ok:true,recordEvidence:records}},...Array.from({length:14},(_,i)=>({index:i+1,name:'repo.read',args:{file:'module'+i+'.js'},observation:{ok:true,executionOk:true,verifiedRead:{file:'module'+i+'.js',startLine:100,content:'LATEST_RELEVANT_READ '+('schema body '.repeat(500)),sourceStructure:{dataBindings:{collections:['scope'+i],fieldPaths:[...fields,'unique_'+i],fieldPathsComplete:true,writeShapes:[{collection:'scope'+i,fields:[...fields,'unique_'+i],fieldsComplete:true}]}}}}}))];
+ const before=JSON.stringify(tasks),result=compact(tasks);
+ assert.equal(JSON.stringify(tasks),before,'compaction must not mutate original evidence');
+ assert.ok(JSON.stringify(result).length<=28000);
+ assert.equal(result.length,tasks.length);
+ assert.equal(JSON.stringify(result[0].observation.recordEvidence),JSON.stringify(records));
+ assert.ok(result.at(-1).observation.verifiedRead.content.length>=4000,'latest relevant read cannot disappear');
+ assert.match(result.at(-1).observation.verifiedRead.content,/LATEST_RELEVANT_READ/);
+ const dictionary=typeof result[0].sharedFieldDictionary==='string'?result[0].sharedFieldDictionary.split('|'):result[0].sharedFieldDictionary;
+ const decode=ids=>Array.from(ids).flatMap(id=>Array.isArray(id)?Array.from({length:id[1]-id[0]+1},(_,n)=>dictionary[id[0]+n]):[dictionary[id]]);
+ for(let i=1;i<result.length;i++){
+  const bindings=result[i].observation.verifiedRead.sourceStructure.dataBindings;
+  assert.equal(result[i].index,i);assert.equal(bindings.collections[0],'scope'+(i-1));
+  assert.deepEqual(decode(bindings.fieldIds),[...fields,'unique_'+(i-1)]);
+  assert.deepEqual(decode(bindings.writeShapes[0].fieldIds),[...fields,'unique_'+(i-1)]);
+ }
 });
