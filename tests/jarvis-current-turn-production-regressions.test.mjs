@@ -4,13 +4,13 @@ import { runInNewContext } from "node:vm";
 import test from "node:test";
 import { parse } from "acorn";
 import { createRequire } from "node:module";
-import { buildJarvisMultifunctionToolCalls, isBoundedReadOnlyMission, shouldCompleteJarvisPlanningArguments } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
+import { buildJarvisMultifunctionToolCalls, buildEvidenceDependencyPlannerCatalog, bindRequiredEvidenceArguments, isBoundedReadOnlyMission, shouldCompleteJarvisPlanningArguments } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
 import { registerJarvisMultifunctionTools } from "../gestia-core/jarvis/jarvis.multitool.pack.js";
 import { registerJarvisActuatorTools } from "../gestia-core/jarvis/jarvis.actuator.pack.js";
 import { validateBrowserUrl } from "../gestia-core/jarvis/jarvis.browser.grounding.js";
 import { ensureExecutableArtifactDependencies } from "../gestia-core/jarvis/jarvis.mission.dependencies.js";
 import { mergeEvidenceGroundedToolCalls } from "../gestia-core/jarvis/jarvis.conversation.composer.js";
-import { runJarvisMission } from "../gestia-core/jarvis/jarvis.mission.orchestrator.js";
+import { runJarvisMission, unmetMissionEvidenceRequirements } from "../gestia-core/jarvis/jarvis.mission.orchestrator.js";
 import { composeEvidenceGroundedConversation } from "../gestia-core/jarvis/jarvis.conversation.composer.js";
 import { buildResponsiveRepairOptions, buildResponsiveRepairPatch } from "../gestia-core/jarvis/jarvis.autopatch.engine.js";
 
@@ -261,6 +261,329 @@ test("one read-only inspection keeps the CURRENT_TURN mission bounded with no do
     assert.equal(result.boundedCurrentTurnMission, true);
     assert.deepEqual(Array.from(result.missionInitialToolCalls, call => call.name), ["browser.inspect"]);
     assert.deepEqual(Array.from(result.missionToolCatalog, tool => tool.name), ["browser.inspect"]);
+});
+
+test("investigation read-only seeds never skip the full mission contract", async () => {
+    const searchTool = {
+        name: "repo.search",
+        mutates: false,
+        requiresApproval: false,
+        userArtifact: false,
+        investigationReadOnly: true,
+        evidenceKinds: ["repository_search"]
+    };
+    const readTool = {
+        name: "repo.read",
+        mutates: false,
+        requiresApproval: false,
+        userArtifact: false,
+        investigationReadOnly: true,
+        evidenceKinds: ["repository_source"]
+    };
+    const queryTool = {
+        name: "platform.query",
+        mutates: false,
+        requiresApproval: false,
+        userArtifact: false,
+        investigationReadOnly: true,
+        evidenceKinds: ["platform_records"],
+        requiresEvidence: [{ kind: "repository_source", argument: "sourceFile", observationPath: ["verifiedRead", "file"] }]
+    };
+    const calls = [{ name: "repo.search", args: { query: "asset records" }, approved: false }];
+    const catalog = [searchTool, readTool, queryTool];
+    assert.equal(isBoundedReadOnlyMission(calls, catalog), false);
+    const result = await prepareContract(calls, catalog, {
+        instruction: "Investigate current platform records from verified source evidence",
+        expanded: [
+            { name: "repo.read", args: {}, deferred: true, obligationId: "evidence:repository_source:repo.read" },
+            { name: "platform.query", args: {}, deferred: true, obligationId: "semantic:current records" }
+        ]
+    });
+    assert.equal(result.expansions, 1);
+    assert.equal(result.boundedCurrentTurnMission, false);
+    assert.deepEqual(
+        Array.from(result.missionInitialToolCalls, call => call.name),
+        ["repo.search", "repo.read", "platform.query"]
+    );
+
+    const dependencyCatalog = buildEvidenceDependencyPlannerCatalog(
+        [
+            searchTool,
+            readTool,
+            queryTool,
+            { name: "document.create", mutates: true, investigationReadOnly: false }
+        ],
+        ["platform.query"],
+        []
+    );
+    assert.deepEqual(
+        dependencyCatalog.map(tool => tool.name),
+        ["repo.search", "repo.read", "platform.query"]
+    );
+});
+
+test("generic evidence prerequisites are satisfied only by verified producer observations", () => {
+    const catalog = [
+        {
+            name: "repo.read",
+            evidenceKinds: ["repository_source"],
+            investigationReadOnly: true,
+            mutates: false
+        },
+        {
+            name: "platform.query",
+            evidenceKinds: ["platform_records"],
+            investigationReadOnly: true,
+            mutates: false,
+            requiresEvidence: [
+                { kind: "repository_source", argument: "sourceFile", observationPath: ["verifiedRead", "file"] },
+                { kind: "repository_source", argument: "collection", observationPath: ["verifiedRead", "sourceStructure", "dataBindings", "collections"] }
+            ]
+        }
+    ];
+    const task = { name: "platform.query", args: {} };
+    assert.equal(unmetMissionEvidenceRequirements(task, [], catalog).length, 2);
+    assert.equal(unmetMissionEvidenceRequirements(task, [{
+        name: "repo.read",
+        observation: {
+            ok: true,
+            executionOk: true,
+            verifiedRead: {
+                file: "source.js",
+                sourceStructure: {
+                    dataBindings: {
+                        collections: ["users"]
+                    }
+                }
+            }
+        }
+    }], catalog).length, 0);
+});
+
+test("grounded argument completion binds evidence-dependent arguments to observed values", () => {
+    const catalog = [
+        {
+            name: "repo.read",
+            evidenceKinds: ["repository_source"],
+            investigationReadOnly: true,
+            mutates: false
+        }
+    ];
+    const tool = {
+        name: "platform.query",
+        requiresEvidence: [
+            { kind: "repository_source", argument: "sourceFile", observationPath: ["verifiedRead", "file"] },
+            { kind: "repository_source", argument: "collection", observationPath: ["verifiedRead", "sourceStructure", "dataBindings", "collections"] }
+        ]
+    };
+    const schema = {
+        type: "object",
+        properties: {
+            sourceFile: { type: "string" },
+            collection: { type: "string" },
+            mode: { type: "string", enum: ["query", "count"] }
+        }
+    };
+    const bound = bindRequiredEvidenceArguments(
+        schema,
+        tool,
+        [{
+            name: "repo.read",
+            observation: {
+                ok: true,
+                executionOk: true,
+                verifiedRead: {
+                    file: "panel-tecnico.js",
+                    sourceStructure: {
+                        dataBindings: {
+                            collections: ["users"]
+                        }
+                    }
+                }
+            }
+        }],
+        catalog
+    );
+    assert.deepEqual(bound.properties.sourceFile.enum, ["panel-tecnico.js"]);
+    assert.deepEqual(bound.properties.collection.enum, ["users"]);
+    assert.equal(schema.properties.sourceFile.enum, undefined);
+});
+
+test("evidence argument binding preserves source-to-collection pairs instead of creating a cross-product", () => {
+    const catalog = [{
+        name: "repo.read",
+        evidenceKinds: ["repository_source"],
+        investigationReadOnly: true,
+        mutates: false
+    }];
+    const tool = {
+        name: "platform.query",
+        requiresEvidence: [
+            { kind: "repository_source", argument: "sourceFile", observationPath: ["verifiedRead", "file"] },
+            { kind: "repository_source", argument: "collection", observationPath: ["verifiedRead", "sourceStructure", "dataBindings", "collections"] }
+        ]
+    };
+    const schema = {
+        type: "object",
+        properties: {
+            sourceFile: { type: "string" },
+            collection: { type: "string" },
+            mode: { type: "string", enum: ["query", "count"] }
+        },
+        required: ["sourceFile", "collection"],
+        anyOf: [
+            { properties: { mode: { type: "string", enum: ["count"] } }, required: ["mode"] },
+            { properties: { mode: { type: "string", enum: ["query"] } }, required: ["mode"] }
+        ]
+    };
+    const read = (file, collections) => ({
+        name: "repo.read",
+        observation: {
+            ok: true,
+            executionOk: true,
+            verifiedRead: {
+                file,
+                sourceStructure: { dataBindings: { collections } }
+            }
+        }
+    });
+    const bound = bindRequiredEvidenceArguments(
+        schema,
+        tool,
+        [
+            read("app-registro.js", ["users"]),
+            read("app-bi.js", ["services", "transacciones"])
+        ],
+        catalog
+    );
+    const pairs = bound.anyOf.map(branch => ({
+        sourceFile: branch.properties.sourceFile.enum[0],
+        collection: branch.properties.collection.enum[0],
+        mode: branch.properties.mode.enum[0]
+    }));
+    assert.ok(pairs.some(pair => pair.sourceFile === "app-registro.js" && pair.collection === "users"));
+    assert.ok(pairs.some(pair => pair.sourceFile === "app-bi.js" && pair.collection === "services"));
+    assert.ok(pairs.some(pair => pair.sourceFile === "app-bi.js" && pair.collection === "transacciones"));
+    assert.equal(pairs.some(pair => pair.sourceFile === "app-registro.js" && pair.collection === "services"), false);
+    assert.equal(pairs.some(pair => pair.sourceFile === "app-bi.js" && pair.collection === "users"), false);
+});
+
+test("mission scheduler obtains missing read-only evidence before executing a dependent obligation", async () => {
+    const catalog = [
+        {
+            name: "repo.search",
+            evidenceKinds: ["repository_search"],
+            investigationReadOnly: true,
+            mutates: false,
+            requiresApproval: false,
+            userArtifact: false
+        },
+        {
+            name: "repo.read",
+            evidenceKinds: ["repository_source"],
+            investigationReadOnly: true,
+            mutates: false,
+            requiresApproval: false,
+            userArtifact: false
+        },
+        {
+            name: "platform.query",
+            evidenceKinds: ["platform_records"],
+            investigationReadOnly: true,
+            mutates: false,
+            requiresApproval: false,
+            userArtifact: false,
+            requiresEvidence: [
+                { kind: "repository_source", argument: "sourceFile", observationPath: ["verifiedRead", "file"] },
+                { kind: "repository_source", argument: "collection", observationPath: ["verifiedRead", "sourceStructure", "dataBindings", "collections"] }
+            ]
+        }
+    ];
+    const executed = [];
+    let plannerCalls = 0;
+    const mission = await runJarvisMission({
+        instruction: "Consulta registros actuales usando el esquema verificado",
+        initialToolCalls: [
+            { name: "repo.search", args: { query: "records" } },
+            { name: "platform.query", args: {}, deferred: true, obligationId: "semantic:records" }
+        ],
+        requiredToolNames: ["repo.search", "platform.query"],
+        executionContractLocked: true,
+        toolCatalog: catalog,
+        storage: { getItem: () => null, setItem() {} },
+        planner: async ({ mission }) => {
+            plannerCalls += 1;
+            const completed = new Set(mission.completedTasks.map(item => item.name));
+            if (completed.has("repo.search") && !completed.has("repo.read")) {
+                return {
+                    toolCalls: [{ name: "repo.read", args: { file: "source.js" } }],
+                    missionComplete: false
+                };
+            }
+            if (completed.has("platform.query")) {
+                return {
+                    toolCalls: [],
+                    missionComplete: true,
+                    completionAssessment: {
+                        objectives: [{
+                            objective: "Consulta actual",
+                            requiredEvidenceKind: "platform_records",
+                            evidenceTaskIndexes: [mission.completedTasks.findIndex(item => item.name === "platform.query")],
+                            satisfied: true,
+                            limitation: ""
+                        }]
+                    }
+                };
+            }
+            return { toolCalls: [], missionComplete: false };
+        },
+        execute: async call => {
+            executed.push(call.name);
+            if (call.name === "repo.search") {
+                return {
+                    ok: true,
+                    executionOk: true,
+                    status: "REPO_SEMANTIC_SEARCH_READY",
+                    repoCandidates: [{ file: "source.js" }]
+                };
+            }
+            if (call.name === "repo.read") {
+                return {
+                    ok: true,
+                    executionOk: true,
+                    status: "COMPLETED",
+                    file: "source.js",
+                    path: "source.js",
+                    content: "const users = collection(db, \"users\");",
+                    numberedContent: "1: const users = collection(db, \"users\");",
+                    sourceStructure: {
+                        dataBindings: {
+                            source: "ACORN_SOURCE_REFERENCES",
+                            collections: ["users"]
+                        }
+                    }
+                };
+            }
+            if (call.name === "platform.query") {
+                return {
+                    ok: true,
+                    executionOk: true,
+                    status: "PLATFORM_QUERY_READY",
+                    recordEvidence: {
+                        source: "FIRESTORE_SERVER_AUTHENTICATED",
+                        scope: { collection: "users", filters: [], fields: [], mode: "count", sourceFile: "source.js" },
+                        totalCount: 3,
+                        readOnly: true
+                    }
+                };
+            }
+            throw new Error("UNEXPECTED_TOOL:" + call.name);
+        }
+    });
+    assert.deepEqual(executed, ["repo.search", "repo.read", "platform.query"]);
+    assert.ok(plannerCalls >= 2);
+    assert.deepEqual(mission.requiredToolNames, ["repo.search", "platform.query"]);
+    assert.equal(mission.status, "COMPLETED");
 });
 
 test("production metadata, mutations, artifacts, approvals and declared dependencies retain contract planning", async () => {
@@ -1180,10 +1503,12 @@ test('missing source evidence auth and server failures never become zero registe
     const f=platformQueryTestFixture();const r=await f.execute(f.args,f.dependencies,{completedTasks:[]});assert.equal(r.ok,false);assert.equal(r.error.code,'PLATFORM_QUERY_SOURCE_NOT_READ');assert.equal(f.calls.length,0);
 });
 
-test('read investigations retain other pure readers without granting artifact or write capability',async()=>{
-    const tools=[{name:'repo.read',mutates:false},{name:'platform.query',mutates:false,investigationReadOnly:true,evidenceKinds:['platform_records']},{name:'fixture.otherRead',mutates:false,investigationReadOnly:true},{name:'repo.write',mutates:true},{name:'file.make',mutates:false,userArtifact:true}];
+test('read investigations retain the general capability catalog without implicitly scheduling writes or artifacts',async()=>{
+    const tools=[{name:'repo.read',mutates:false,investigationReadOnly:true,evidenceKinds:['repository_source']},{name:'platform.query',mutates:false,investigationReadOnly:true,evidenceKinds:['platform_records']},{name:'fixture.otherRead',mutates:false,investigationReadOnly:true},{name:'repo.write',mutates:true},{name:'file.make',mutates:false,userArtifact:true}];
     const result=await prepareContract([{name:'repo.read',args:{file:'source.js'}}],tools);
-    assert.equal(result.expansions,0);assert.deepEqual(Array.from(result.missionToolCatalog,t=>t.name),['repo.read','platform.query','fixture.otherRead']);
+    assert.equal(result.expansions,1);
+    assert.deepEqual(Array.from(result.missionToolCatalog,t=>t.name),['repo.read','platform.query','fixture.otherRead','repo.write','file.make']);
+    assert.deepEqual(Array.from(result.missionInitialToolCalls,call=>call.name),['repo.read']);
 });
 
 
@@ -1844,6 +2169,42 @@ test('a platform schema failure sends the same LLM back to repository evidence i
  assert.ok(stages.includes('READ_ONLY_EVIDENCE_CONTINUATION'));
 });
 
+
+test('a rejected collection exposes discovered AST collections and returns the same LLM to repository evidence', async () => {
+ const input='Consulta registros actuales usando la colección realmente acreditada';
+ const catalog=[
+  {name:'platform.query',description:'Consulta Firestore',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'},sourceFile:{type:'string'},mode:{type:'string'},filters:{type:'array',items:{type:'object'}}},required:['collection','sourceFile','filters'],additionalProperties:true}},
+  {name:'repo.search',description:'Busca código',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query'],additionalProperties:false}},
+  {name:'repo.grep',description:'Busca literal',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',properties:{term:{type:'string'}},required:['term'],additionalProperties:false}},
+  {name:'repo.read',description:'Lee fuente',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file'],additionalProperties:false}}
+ ];
+ const result=await runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',
+  completedTasks:[{name:'repo.read',args:{file:'source-a.js'},observation:{ok:true,executionOk:true,verifiedRead:{file:'source-a.js',content:'const users = collection(db, "users");',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['users']}}}}}],
+  blockedTasks:[{name:'platform.query',args:{collection:'vehicles',sourceFile:'source-a.js',mode:'count',filters:[]},observation:{ok:false,executionOk:false,retryable:false,errorCode:'PLATFORM_QUERY_COLLECTION_NOT_DISCOVERED',errorMessage:'PLATFORM_QUERY_COLLECTION_NOT_DISCOVERED',errorDetails:{collection:'vehicles',sourceFile:'source-a.js',discoveredCollections:['users']}}}]
+ },ai:{models:{generateContent:async request=>{
+   if(request.config.semanticStage==='COMPLETION_AUDIT') return{text:JSON.stringify({
+    explanation:'La colección propuesta no fue acreditada por la fuente leída',
+    completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta localizar una fuente pertinente o reformular desde las colecciones observadas'}]},
+    toolCalls:[]
+   }),providerResponse:{finishReason:'stop'}};
+   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){
+    const names=request.config.tools[0].functionDeclarations.map(tool=>tool.name);
+    assert.equal(names.includes('platform.query'),false);
+    assert.ok(names.includes('repo.search') || names.includes('repo.grep') || names.includes('repo.read'));
+    const recoveryContext=JSON.stringify(request.config.chatMessages);
+    assert.match(recoveryContext,/discoveredCollections/);
+    assert.match(recoveryContext,/source-a\.js/);
+    assert.match(recoveryContext,/vehicles/);
+    assert.match(recoveryContext,/users/);
+    assert.match(recoveryContext,/sourceFile.*discoveredCollections/);
+    return{functionCalls:[{name:'repo.grep',args:{term:'users'}}],providerResponse:{finishReason:'stop'}};
+   }
+   throw new Error('UNEXPECTED_STAGE:'+request.config.semanticStage);
+ }}}});
+ assert.equal(result.missionComplete,false);
+ assert.equal(result.toolCalls[0].name,'repo.grep');
+ assert.deepEqual(result.toolCalls[0].args,{term:'users'});
+});
 
 test('an irrelevant candidate read cannot exhaust repository evidence while discovered sources remain unread', async () => {
  const input='Investiga datos operativos actuales y descubre el esquema real antes de consultar';

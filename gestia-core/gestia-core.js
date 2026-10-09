@@ -40,6 +40,8 @@ import {
 import { generarPropuesta } from '/gestia-core/propose.engine.js';
 import {
     buildJarvisMultifunctionToolCalls,
+    buildEvidenceDependencyPlannerCatalog,
+    bindRequiredEvidenceArguments,
     completeJarvisPlanningArguments,
     isBoundedReadOnlyMission,
     shouldCompleteJarvisPlanningArguments
@@ -4881,7 +4883,30 @@ if (
         }
         missionContractToolCalls = recoveredInitialToolCalls;
     }
-    if (conversationalPlan.requiresFinalConversation) {
+    const contractHasEvidencePrerequisites =
+        missionContractToolCalls.some(call => {
+            const definition = missionToolCatalog.find(tool => tool?.name === call?.name);
+            return Array.isArray(definition?.requiresEvidence) &&
+                definition.requiresEvidence.length > 0;
+        });
+    const provisionalEvidenceSeeds =
+        contractHasEvidencePrerequisites
+            ? operationalInitialToolCalls.filter(call => {
+                const definition = missionToolCatalog.find(tool => tool?.name === call?.name);
+                return definition?.investigationReadOnly === true &&
+                    definition?.mutates !== true &&
+                    definition?.requiresApproval !== true &&
+                    definition?.userArtifact !== true;
+            })
+            : [];
+    if (provisionalEvidenceSeeds.length > 0) {
+        missionContractToolCalls =
+            mergeEvidenceGroundedToolCalls([
+                ...provisionalEvidenceSeeds,
+                ...missionContractToolCalls
+            ]);
+    }
+    else if (conversationalPlan.requiresFinalConversation) {
         missionContractToolCalls =
             mergeEvidenceGroundedToolCalls(
                 missionContractToolCalls,
@@ -5267,6 +5292,12 @@ if (
                             }
                         };
                     }
+                    const dependencyAwarePlannerCatalog =
+                        buildEvidenceDependencyPlannerCatalog(
+                            globalThis.JarvisToolRuntime?.list?.() || [],
+                            [...requiredToolNames],
+                            [...resolvedToolNames]
+                        );
                     const nextToolCalls =
                         await buildMissionToolCallsWithTransientRetry(
                             originalInstruction.slice(0, 120000),
@@ -5274,15 +5305,9 @@ if (
                                 ...context,
                                 throwOnUnavailable: true,
                                 toolCatalog:
-                                    globalThis.JarvisToolRuntime
-                                        ?.list?.()
-                                        ?.filter(tool =>
-                                            tool?.name !== "conversation.respond" &&
-                                            requiredToolNames.has(tool?.name) &&
-                                            !resolvedToolNames.has(tool?.name)
-                                        ) ||
-                                    [],
+                                    dependencyAwarePlannerCatalog,
                                 missionState: {
+                                    phase: "COMPLETION_AUDIT",
                                     currentPage: context.currentPage || null,
                                     missionId: mission.missionId,
                                     caseId: mission.caseId,
@@ -6107,7 +6132,13 @@ if (
                                 await completeJarvisPlanningArguments({
                                     toolName: call.name,
                                     description: toolDefinition?.description || "",
-                                    inputSchema: toolDefinition?.inputSchema || null,
+                                    inputSchema:
+                                        bindRequiredEvidenceArguments(
+                                            toolDefinition?.inputSchema || null,
+                                            toolDefinition || {},
+                                            missionContext?.completedTasks || [],
+                                            registeredMissionTools
+                                        ),
                                     instruction: missionContext.rawInput.slice(0, 120000),
                                     operation: executionCall.reason || call.reason || "",
                                     currentArgs: executionCall.args,

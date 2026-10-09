@@ -23,13 +23,50 @@ export function isBoundedReadOnlyMission(calls = [], catalog = []) {
     if (call?.name === "browser.inspect" && call.args?.followUp === "prepare_repair") return false;
     const tool = catalog.find(item => item.name === call?.name);
     if (!tool || tool.mutates !== false || tool.userArtifact === true ||
-        tool.requiresApproval === true || call.approved === true ||
-        call.deferred === true || call.name === "conversation.respond") return false;
+        tool.requiresApproval === true || tool.investigationReadOnly === true ||
+        call.approved === true || call.deferred === true ||
+        call.name === "conversation.respond") return false;
     const declaresContract = source => [...CONTRACT_SCOPE_FIELDS, "obligationId"].some(key => {
         const value = source?.[key];
         return Array.isArray(value) ? value.length > 0 : Boolean(value);
     });
     return ![calls, tool, call, call.args].some(declaresContract);
+}
+
+export function buildEvidenceDependencyPlannerCatalog(
+    catalog = [],
+    requiredNames = [],
+    resolvedNames = []
+) {
+    const normalizedCatalog = Array.isArray(catalog) ? catalog : [];
+    const required = new Set(Array.isArray(requiredNames) ? requiredNames : [...requiredNames || []]);
+    const resolved = new Set(Array.isArray(resolvedNames) ? resolvedNames : [...resolvedNames || []]);
+    const unresolvedDefinitions = normalizedCatalog.filter(tool =>
+        required.has(tool?.name) && !resolved.has(tool?.name)
+    );
+    const unresolvedEvidenceKinds = new Set(
+        unresolvedDefinitions.flatMap(tool =>
+            Array.isArray(tool?.requiresEvidence)
+                ? tool.requiresEvidence
+                    .map(requirement => String(requirement?.kind || "").trim())
+                    .filter(Boolean)
+                : []
+        )
+    );
+    const needsEvidence = unresolvedEvidenceKinds.size > 0;
+    return normalizedCatalog.filter(tool =>
+        tool?.name !== "conversation.respond" &&
+        (
+            (required.has(tool?.name) && !resolved.has(tool?.name)) ||
+            (
+                needsEvidence &&
+                tool?.investigationReadOnly === true &&
+                tool?.mutates !== true &&
+                tool?.requiresApproval !== true &&
+                tool?.userArtifact !== true
+            )
+        )
+    );
 }
 
 const LOCAL_MISSION_CONTRACT_TIMEOUT_MS =
@@ -2116,6 +2153,145 @@ function filterSemanticArguments(args = {}, inputSchema = null) {
     return Object.fromEntries(
         Object.entries(args).filter(([key]) => allowed.has(key))
     );
+}
+
+export function bindRequiredEvidenceArguments(
+    inputSchema,
+    tool = {},
+    completedTasks = [],
+    catalog = []
+) {
+    if (!inputSchema || typeof inputSchema !== "object") return inputSchema;
+    const requirements = Array.isArray(tool?.requiresEvidence)
+        ? tool.requiresEvidence
+        : [];
+    if (requirements.length === 0) return inputSchema;
+    const schema = structuredClone(inputSchema);
+    const definitions = Array.isArray(catalog) ? catalog : [];
+
+    const readPath = (observation, path = []) => {
+        let value = observation;
+        for (const key of Array.isArray(path) ? path : []) {
+            if (
+                typeof key !== "string" ||
+                ["__proto__", "prototype", "constructor"].includes(key) ||
+                !value ||
+                typeof value !== "object" ||
+                !Object.prototype.hasOwnProperty.call(value, key)
+            ) {
+                return [];
+            }
+            value = value[key];
+        }
+        return (Array.isArray(value) ? value : [value])
+            .filter(item => typeof item === "string" && item.trim())
+            .map(item => item.trim());
+    };
+
+    for (const requirement of requirements) {
+        const argument = String(requirement?.argument || "").trim();
+        const kind = String(requirement?.kind || "").trim();
+        if (!argument || !kind) continue;
+        const values = [
+            ...new Set(
+                (Array.isArray(completedTasks) ? completedTasks : [])
+                    .filter(task => {
+                        const producer = definitions.find(definition => definition?.name === task?.name);
+                        const observation = task?.observation || {};
+                        return Array.isArray(producer?.evidenceKinds) &&
+                            producer.evidenceKinds.includes(kind) &&
+                            observation?.ok === true &&
+                            observation?.executionOk !== false &&
+                            observation?.blocked !== true &&
+                            observation?.requiresInput !== true;
+                    })
+                    .flatMap(task => readPath(
+                        task.observation,
+                        requirement?.observationPath || []
+                    ))
+            )
+        ];
+        if (values.length === 0) continue;
+        if (schema.properties?.[argument]) {
+            schema.properties[argument] = {
+                ...schema.properties[argument],
+                enum: values
+            };
+        }
+        for (const branch of Array.isArray(schema.anyOf) ? schema.anyOf : []) {
+            if (branch?.properties?.[argument]) {
+                branch.properties[argument] = {
+                    ...branch.properties[argument],
+                    enum: values
+                };
+            }
+        }
+    }
+
+    // Preserve correlations between arguments that come from the SAME evidence
+    // observation. Independent enums create an invalid cross-product (for example,
+    // sourceFile from one repo.read with collection from another). Build bounded
+    // alternatives from observed tuples instead; this is capability metadata, not
+    // domain semantics.
+    const groupedRequirements = new Map();
+    for (const requirement of requirements) {
+        const kind = String(requirement?.kind || "").trim();
+        const argument = String(requirement?.argument || "").trim();
+        if (!kind || !argument) continue;
+        if (!groupedRequirements.has(kind)) groupedRequirements.set(kind, []);
+        groupedRequirements.get(kind).push(requirement);
+    }
+    for (const [kind, group] of groupedRequirements) {
+        const uniqueArguments = [...new Set(group.map(item => String(item?.argument || "").trim()).filter(Boolean))];
+        if (uniqueArguments.length < 2) continue;
+        const tupleBranches = [];
+        for (const task of Array.isArray(completedTasks) ? completedTasks : []) {
+            const producer = definitions.find(definition => definition?.name === task?.name);
+            const observation = task?.observation || {};
+            if (!Array.isArray(producer?.evidenceKinds) || !producer.evidenceKinds.includes(kind) ||
+                observation?.ok !== true || observation?.executionOk === false ||
+                observation?.blocked === true || observation?.requiresInput === true) continue;
+            const entries = group.map(requirement => ({
+                argument: String(requirement.argument),
+                values: readPath(observation, requirement?.observationPath || [])
+            }));
+            if (entries.some(entry => entry.values.length === 0)) continue;
+            let tuples = [{}];
+            for (const entry of entries) {
+                tuples = tuples.flatMap(tuple => entry.values.map(value => ({
+                    ...tuple,
+                    [entry.argument]: value
+                }))).slice(0, 40);
+            }
+            for (const tuple of tuples) {
+                tupleBranches.push({
+                    properties: Object.fromEntries(Object.entries(tuple).map(([argument, value]) => [
+                        argument,
+                        {
+                            ...(schema.properties?.[argument] || {}),
+                            enum: [value]
+                        }
+                    ])),
+                    required: Object.keys(tuple)
+                });
+                if (tupleBranches.length >= 40) break;
+            }
+            if (tupleBranches.length >= 40) break;
+        }
+        if (!tupleBranches.length) continue;
+        const existingBranches = Array.isArray(schema.anyOf) && schema.anyOf.length
+            ? schema.anyOf
+            : [{}];
+        schema.anyOf = existingBranches.flatMap(branch => tupleBranches.map(tupleBranch => ({
+            ...branch,
+            properties: {
+                ...(branch.properties || {}),
+                ...tupleBranch.properties
+            },
+            required: [...new Set([...(branch.required || []), ...(tupleBranch.required || [])])]
+        }))).slice(0, 80);
+    }
+    return schema;
 }
 
 export function shouldCompleteJarvisPlanningArguments(call = {}, tool = {}, completedTasks = []) {

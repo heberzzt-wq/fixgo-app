@@ -2163,6 +2163,61 @@ function reelCreateArgsFromMissionLineage(args = {}, mission = {}) {
     };
 }
 
+function evidenceValuesAtPath(observation = {}, path = []) {
+    let value = observation;
+    for (const key of Array.isArray(path) ? path : []) {
+        if (
+            typeof key !== "string" ||
+            ["__proto__", "prototype", "constructor"].includes(key) ||
+            !value ||
+            typeof value !== "object" ||
+            !Object.prototype.hasOwnProperty.call(value, key)
+        ) {
+            return [];
+        }
+        value = value[key];
+    }
+    return (Array.isArray(value) ? value : [value]).filter(item =>
+        typeof item === "string"
+            ? Boolean(item.trim())
+            : item !== null && item !== undefined
+    );
+}
+
+export function unmetMissionEvidenceRequirements(task = {}, completedTasks = [], catalog = []) {
+    const definition = (Array.isArray(catalog) ? catalog : [])
+        .find(tool => tool?.name === task?.name);
+    const requirements = Array.isArray(definition?.requiresEvidence)
+        ? definition.requiresEvidence
+        : [];
+    if (requirements.length === 0) return [];
+
+    return requirements.filter(requirement => {
+        const kind = text(requirement?.kind, 120);
+        if (!kind) return false;
+        return !(Array.isArray(completedTasks) ? completedTasks : []).some(completed => {
+            const producer = (Array.isArray(catalog) ? catalog : [])
+                .find(tool => tool?.name === completed?.name);
+            if (!Array.isArray(producer?.evidenceKinds) || !producer.evidenceKinds.includes(kind)) {
+                return false;
+            }
+            const observation = completed?.observation || {};
+            if (
+                observation?.ok !== true ||
+                observation?.executionOk === false ||
+                observation?.blocked === true ||
+                observation?.requiresInput === true
+            ) {
+                return false;
+            }
+            return evidenceValuesAtPath(
+                observation,
+                requirement?.observationPath || []
+            ).length > 0;
+        });
+    });
+}
+
 export async function runJarvisMission({
     instruction,
     initialToolCalls = [],
@@ -2524,6 +2579,76 @@ export async function runJarvisMission({
         }
 
         const task = mission.pendingTasks.shift();
+        const unmetEvidence =
+            unmetMissionEvidenceRequirements(
+                task,
+                mission.completedTasks,
+                toolCatalog
+            );
+        if (unmetEvidence.length > 0) {
+            mission.pendingTasks.unshift(task);
+            let dependencyPlan;
+            try {
+                dependencyPlan = await planner({
+                    originalInstruction: mission.rootInstruction || mission.originalInstruction,
+                    followupInstruction: recovered ? originalInstruction : null,
+                    routingInstruction: mission.routingInstruction,
+                    mission: structuredClone(mission),
+                    memoryContext: memoryContext && typeof memoryContext === "object"
+                        ? structuredClone(memoryContext)
+                        : null
+                });
+                recordMissionAccounting(mission, dependencyPlan || {});
+            }
+            catch(error) {
+                mission.reason = "PLANNER_UNAVAILABLE";
+                mission.errors.push({
+                    tool: "semantic.planner",
+                    status: text(error?.message || "PLANNER_UNAVAILABLE", 500),
+                    retryable: true,
+                    at: now()
+                });
+                break;
+            }
+            const supportTasks =
+                trustedCalls(
+                    dependencyPlan?.toolCalls || dependencyPlan || [],
+                    mission
+                )
+                    .filter(candidate =>
+                        candidate?.name &&
+                        candidate.name !== task.name
+                    );
+            if (supportTasks.length === 0) {
+                mission.reason = "MISSION_EVIDENCE_PREREQUISITE_UNRESOLVED";
+                mission.completionAssessment = {
+                    validationFailed: true,
+                    objectives: [{
+                        objective:
+                            text(task?.reason || task?.obligationId || task?.name, 500),
+                        requiredEvidenceKind:
+                            text(unmetEvidence[0]?.kind || "tool_result", 120),
+                        evidenceTaskIndexes: [],
+                        satisfied: false,
+                        limitation:
+                            "Falta evidencia requerida por " + task.name +
+                            "; el planner no encontró un siguiente paso read-only ejecutable."
+                    }]
+                };
+                break;
+            }
+            mission.pendingTasks.unshift(...supportTasks);
+            mission.plannedTools.push(...supportTasks.map(item => item.name));
+            for (const support of supportTasks) {
+                if (!mission.authorityScope.allowedTools.includes(support.name)) {
+                    mission.authorityScope.allowedTools.push(support.name);
+                }
+            }
+            mission.updatedAt = now();
+            saveMission(persistence, mission);
+            continue;
+        }
+
         const speechDependency =
             reelSpeechDependencyCall(
                 task,
