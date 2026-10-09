@@ -901,19 +901,14 @@ function boundedAuditTasks(tasks) {
         const read = task.observation?.verifiedRead;
         if (!read) return task;
         const bindings = read.sourceStructure?.dataBindings;
-        return {...task, observation:{...task.observation, verifiedRead:{
+        return {...task, observation:{ok:task.observation.ok, executionOk:task.observation.executionOk, verifiedRead:{
             file:read.file, startLine:read.startLine, endLine:read.endLine,
             partial:true, truncated:true, contentTruncated:true,
             sourceStructure:{dataBindings:{
                 collections:bindings?.collections || [],
                 ...(bindings?.structuralRead ? {structuralRead:bindings.structuralRead} : {}),
-                fieldPaths:(bindings?.fieldPaths || []).slice(0,30),
                 fieldPathsComplete:false,
-                writeShapes:(bindings?.writeShapes || []).map(shape=>({
-                    collection:shape.collection, startLine:shape.startLine,
-                    fields:shape.fields, fieldsComplete:shape.fieldsComplete,
-                    truncated:true
-                })),
+                schemaFieldsInSharedSummary:true,
                 referencesComplete:false, complete:false
             }}
         }}};
@@ -1715,13 +1710,18 @@ async function runModelSemanticPlanner({
             allowedEvidenceKinds: safeCatalog.find(tool => tool.name === task.name)?.evidenceKinds || ["tool_result"],
             observation: Object.fromEntries(Object.entries(task.observation || {}).filter(([key]) => key !== "interfaceEvidence")) }));
         const auditTasks = measuredRepair ? fullAuditTasks : boundedAuditTasks(fullAuditTasks);
-        const observedWriteSchemas = [...new Map(completedTasksForAudit.flatMap(task => {
+        const schemaBySourceCollection = new Map();
+        for (const task of completedTasksForAudit) {
             const read = task.observation?.ok === true && task.observation.executionOk !== false ? task.observation.verifiedRead : null;
-            return (read?.sourceStructure?.dataBindings?.writeShapes || []).map(shape => {
-                const entry = {sourceFile:read.file,collection:shape.collection,fields:shape.fields,startLine:shape.startLine};
-                return [JSON.stringify(entry),entry];
-            });
-        })).values()].slice(0,24);
+            for (const shape of read?.sourceStructure?.dataBindings?.writeShapes || []) {
+                const key = JSON.stringify([read.file,shape.collection]);
+                const entry = schemaBySourceCollection.get(key) || {sourceFile:read.file,collection:shape.collection,fields:[],startLines:[]};
+                entry.fields = [...new Set([...entry.fields,...(shape.fields || [])])];
+                entry.startLines = [...new Set([...entry.startLines,shape.startLine])];
+                schemaBySourceCollection.set(key,entry);
+            }
+        }
+        const observedWriteSchemas = [...schemaBySourceCollection.values()].slice(0,24);
         const preparedRepair = (missionState.completedTasks || []).some(task => task.name === "repo.prepareWrite" && task.observation?.ok === true);
         if (measuredRepair && !preparedRepair) {
             // Preparing a repair is a continuation, not a completion verdict.
@@ -2019,6 +2019,7 @@ async function runModelSemanticPlanner({
                             ...(pendingCapabilities.length ? [{role:"system",content:"CAPACIDADES_DISPONIBLES_DESPUES_DEL_REQUISITO="+JSON.stringify(pendingCapabilities)+"\nLa consulta de datos existe, pero falta leer la fuente. Elige primero una lectura o búsqueda pertinente. No sustituyas el requisito con una negativa ni con un esquema inventado."}] : []),
                             ...(latestPlatformSchemaFailure && !evidenceAfterSchemaFailure ? [{role:"system",content:"RECUPERACION_DE_CONSULTA: la última platform.query fue rechazada por evidencia de esquema insuficiente. No repitas la misma consulta ni adivines un alias. Usa las herramientas de repositorio disponibles para localizar el campo, colección o valor real y después formula una consulta nueva con esa evidencia. Si INTENTO_FALLIDO incluye errorDetails.discoveredCollections, esas colecciones SÍ fueron observadas por AST en el sourceFile indicado y la colección rechazada NO fue acreditada por ese archivo: conserva la relación sourceFile→discoveredCollections, vuelve al repo si ninguna observada sirve al objetivo y sólo después formula otra consulta. Si errorDetails incluye undiscoveredFields, undiscoveredFilterFields o ungroundedFilterValues, esos literales son argumentos RECHAZADOS: puedes usarlos como pistas para repo.grep/repo.search, pero no los trates como esquema válido hasta observar su definición real en una fuente."}] : []),
                             ...auditTasks.map(task=>({role:"system",content:"EVIDENCIA_OBTENIDA="+JSON.stringify(task)})),
+                            {role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedWriteSchemas)},
                             ...(missionState.blockedTasks||[]).slice(-8).map(task=>({role:"system",content:"INTENTO_FALLIDO="+JSON.stringify({name:task.name,args:task.args,observation:task.observation})})),
                             {role:"system",content:"OBJETIVOS_PENDIENTES="+JSON.stringify(evaluatedAudit.completionAssessment?.objectives||[])},
                             {role:"user",content:instruction}
@@ -2091,6 +2092,7 @@ async function runModelSemanticPlanner({
                             {role:"system",content:"La investigación no ha terminado. El intento anterior no produjo un paso nuevo. Selecciona UNA operación diferente que obtenga la evidencia faltante, o toolCalls=[] sólo si no queda ninguna autorizada y las fuentes pertinentes localizadas ya fueron examinadas. Las rutas candidatas son archivos existentes, no registros consultados. Lee una fuente candidata pertinente antes de concluir que no contiene datos. Una lectura irrelevante no agota las demás rutas descubiertas: si RUTAS_CANDIDATAS_AUN_NO_LEIDAS contiene opciones, elige otra fuente pertinente o una búsqueda mejor fundamentada antes de concluir ausencia. Si una fuente no demuestra el concepto solicitado, continúa: puedes usar en la siguiente búsqueda términos del usuario o identificadores/campos/símbolos que ya aparecieron en evidencia observada. Después de una búsqueda semántica insuficiente, repo.grep puede localizar un término exacto observado dentro del código. No inventes un campo o esquema sólo para avanzar. Si hace falta otra búsqueda, formula una consulta nueva fundamentada en la solicitud o en evidencia ya obtenida; no repitas la búsqueda ya realizada. Nunca inventes rutas ni esquemas. Un permiso denegado no autoriza otro usuario, quitar filtros ni ampliar acceso. Usa solamente el catálogo y argumentos válidos. Devuelve JSON {toolCalls:[{name,args}]} sin conclusiones inventadas."},
                             {role:"system",content:"CATALOGO_EJECUTABLE="+JSON.stringify(recoveryCatalog.map(({name,description,inputSchema})=>({name,description,inputSchema})))},
                             ...auditTasks.map(task=>({role:"system",content:"YA_EJECUTADO="+JSON.stringify(task)})),
+                            {role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedWriteSchemas)},
                             {role:"system",content:"RUTAS_LOCALIZADAS="+JSON.stringify(sources)+"\nRUTAS_CANDIDATAS_AUN_NO_LEIDAS="+JSON.stringify(unreadSources)+"\nCAPACIDADES_TRAS_LEER_LA_FUENTE="+JSON.stringify(pendingCapabilities)},
                             {role:"user",content:instruction}
                         ]
@@ -2117,7 +2119,6 @@ async function runModelSemanticPlanner({
                     // Obtain literal source evidence before retrying a rejected
                     // population. The same local model chooses one token from
                     // the user's own wording; no intent dictionary maps roles.
-                    const excluded=error.evidence?.tool;
                     const grepTool=selectableCatalog.find(tool=>tool.name==="repo.grep"&&tool.investigationReadOnly===true&&tool.mutates!==true);
                     const rawTerms=String(instruction||"").match(/[\p{L}\p{N}_-]{3,}/gu)||[];
                     const literalTerms=[...new Set(rawTerms.flatMap(term=>{
@@ -2157,9 +2158,9 @@ async function runModelSemanticPlanner({
                             };
                         }
                     }
-                    const excludedTool=excluded;
-                    selectableCatalog.splice(0,selectableCatalog.length,...selectableCatalog.filter(tool=>tool.name!==excludedTool));
-                    auditCatalog.splice(0,auditCatalog.length,...auditCatalog.filter(tool=>tool.name!==excludedTool));
+                    // A rejected population/filter is not a capability failure.
+                    // Keep the reader available for a DIFFERENT grounded scope or
+                    // bounded inspection. Every repaired call is reviewed again.
                 }
                 lastAuditError = error;
                 lastRejectedAuditPlan = auditPlan;

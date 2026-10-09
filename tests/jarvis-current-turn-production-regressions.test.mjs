@@ -1784,7 +1784,7 @@ test('a population mismatch obtains source evidence instead of executing a broad
  const search={name:'fixture.findSource',mutates:false,investigationReadOnly:true,inputSchema:{query:'string'}};
  const plan=await runJarvisSemanticPlanner({input,catalog:[query,search],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'fixture.read',observation:{ok:true,verifiedRead:{file:'source.js',content:'const tableHasSeveralKinds=true;'}}}]},ai:{models:{generateContent:async request=>{
  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){checks++;return{text:JSON.stringify({matchesRequest:false,limitation:'The table contains other kinds too',nextEvidenceQuery:'member classification field'})};}
- audits++;if(audits===2){assert.match(JSON.stringify(request.config.chatMessages),/SEMANTIC_QUERY_SCOPE_UNVERIFIED/);assert.ok(request.config.responseJsonSchema.properties.toolCalls.items.anyOf.every(v=>v.properties.name.enum[0]!==query.name));}
+ audits++;if(audits===2){assert.match(JSON.stringify(request.config.chatMessages),/SEMANTIC_QUERY_SCOPE_UNVERIFIED/);assert.ok(request.config.responseJsonSchema.properties.toolCalls.items.anyOf.some(v=>v.properties.name.enum[0]===query.name));}
  return{text:JSON.stringify({explanation:'Still need data',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Required population not yet observed'}]},toolCalls:[audits===1?{name:query.name,args:{collection:'accounts',sourceFile:'source.js',filters:[]}}:{name:search.name,args:{query:'member classification field'}}]})};
  }}}});assert.equal(checks,1);assert.equal(plan.missionComplete,false);assert.equal(plan.toolCalls[0].name,search.name);assert.equal(plan.toolCalls[0].approved,false);
 });
@@ -2586,4 +2586,35 @@ test('an incomplete source excerpt obtains explicit same-file structural evidenc
  const denied=await resolveRepoReadSourceStructure(read,async()=>({ok:false,status:'DENIED'}));
  assert.equal(denied.dataBindings.structuralRead,undefined);
  await resolveRepoReadSourceStructure({ok:true,partial:false,content},async()=>{throw Error('must not reread complete source');});
+});
+
+test('closure shares schema fields once per source and collection without mixing source identities', async () => {
+ const tasks=Array.from({length:30},(_,i)=>({name:'repo.read',args:{file:i%2?'b.js':'a.js'},observation:{ok:true,verifiedRead:{file:i%2?'b.js':'a.js',content:'x'.repeat(4000),sourceStructure:{dataBindings:{collections:['records'],fieldPaths:['owner'],writeShapes:[{collection:'records',fields:i%2?['expiresAt']:['owner'],startLine:10}],references:[]}}}}}));
+ let captured=false;
+ await assert.rejects(runJarvisSemanticPlanner({input:'Inspect source schemas',catalog:[{name:'repo.read',evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}}],missionState:{phase:'COMPLETION_AUDIT',completedTasks:tasks},ai:{models:{generateContent:async request=>{
+  captured=true;
+  const message=request.config.chatMessages.find(m=>m.content.startsWith('ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST='));
+  const schemas=JSON.parse(message.content.split('\n')[0].slice(message.content.indexOf('=')+1));
+  assert.equal(schemas.length,2);
+  assert.deepEqual(schemas.find(s=>s.sourceFile==='a.js').fields,['owner']);
+  assert.deepEqual(schemas.find(s=>s.sourceFile==='b.js').fields,['expiresAt']);
+  assert.ok(request.config.chatMessages.reduce((n,m)=>n+m.content.length,0)<40000);
+  throw Error('SCHEMA_PROBE_ONLY');
+ }}}}),/SCHEMA_PROBE_ONLY/);
+ assert.equal(captured,true);
+});
+
+test('rejected population count preserves the same reader for a separately reviewed inspection', async () => {
+ const query={name:'fixture.records',evidenceKinds:['platform_records'],mutates:false,investigationReadOnly:true,inputSchema:{type:'object',properties:{collection:{type:'string'},sourceFile:{type:'string'},mode:{type:'string'},fields:{type:'array',items:{type:'string'}},filters:{type:'array'}},required:['collection','sourceFile','mode']}};
+ let audits=0,reviews=0;
+ const result=await runJarvisSemanticPlanner({input:'Count a subgroup and inspect assignment dates',catalog:[query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',observation:{ok:true,verifiedRead:{file:'source.js',content:'collection(db,"records")',sourceStructure:{dataBindings:{writeShapes:[{collection:'records',fields:['assignedTo','expiresAt'],content:'{assignedTo,expiresAt}'}]}}}}}]},ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){
+   reviews++;const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;
+   return{text:JSON.stringify({matchesRequest:proposed.mode==='query',limitation:proposed.mode==='count'?'Subgroup is not identified':'',nextEvidenceQuery:''})};
+  }
+  audits++;assert.equal(request.config.semanticStage,'COMPLETION_AUDIT');
+  assert.ok(request.config.responseJsonSchema.properties.toolCalls.items.anyOf.some(v=>v.properties.name.enum[0]===query.name));
+  return{text:JSON.stringify({explanation:'Collect evidence',completionAssessment:{objectives:[{objective:'Count subgroup and inspect dates',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Need records'}]},toolCalls:[{name:query.name,args:{collection:'records',sourceFile:'source.js',mode:audits===1?'count':'query',filters:[],fields:['assignedTo','expiresAt']}}]})};
+ }}}});
+ assert.equal(audits,2);assert.equal(reviews,2);assert.equal(result.toolCalls[0].args.mode,'query');assert.equal(result.missionComplete,false);
 });
