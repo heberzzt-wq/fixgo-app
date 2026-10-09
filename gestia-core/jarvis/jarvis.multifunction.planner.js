@@ -1894,11 +1894,10 @@ function schemaValueIsExecutable(
         }
         const minimum =
             Math.max(
-                1,
-                Number(
-                    schema?.minItems
-                ) ||
-                0
+                0,
+                Number.isInteger(schema?.minItems)
+                    ? schema.minItems
+                    : 0
             );
         if (
             value.length <

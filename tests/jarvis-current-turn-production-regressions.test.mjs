@@ -2509,3 +2509,16 @@ test('audit rejects database arguments on a closed nonempty operational schema',
  }}}});
  assert.equal(attempts,2);assert.equal(result.toolCalls[0].name,'repo.read');
 });
+
+test('browser planner preserves a schema-valid unfiltered inspection returned by the semantic planner', async () => {
+ const tool={name:'fixture.inspect',mutates:false,investigationReadOnly:true,inputSchema:{type:'object',properties:{sourceFile:{type:'string'},filters:{type:'array',minItems:0,items:{type:'object'}}},required:['sourceFile','filters']}};
+ const args={sourceFile:'observed.js',filters:[]};
+ const calls=await buildJarvisMultifunctionToolCalls('Inspect current records',{throwOnUnavailable:true,toolCatalog:[tool],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[]},semanticPlanner:async()=>({ok:true,toolCalls:[{name:tool.name,args}],missionComplete:false})});
+ assert.equal(calls.length,1);assert.deepEqual(calls[0].args,args);
+ const source=readFileSync(new URL('../gestia-core/jarvis/jarvis.multifunction.planner.js',import.meta.url),'utf8');
+ const ast=parse(source,{sourceType:'module',ecmaVersion:'latest'});
+ const fn=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='schemaValueIsExecutable');
+ const executable=runInNewContext('('+source.slice(fn.start,fn.end)+')');
+ assert.equal(executable([],{type:'array'}),true);
+ assert.equal(executable([],{type:'array',minItems:1}),false);
+});
