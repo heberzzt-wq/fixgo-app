@@ -1892,7 +1892,7 @@ function schemaValueIsExecutable(
             Array.isArray(value)
         )
     ) {
-        if (!Array.isArray(value)) {
+        if (!Array.isArray(value) || (Number.isInteger(schema.maxItems) && value.length > schema.maxItems)) {
             return false;
         }
         const minimum =

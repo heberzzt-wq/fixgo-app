@@ -962,7 +962,7 @@ JarvisToolRuntime.register({
         filters: {type:"array",minItems:0,maxItems:10,description:"Sólo filtros acreditados. En mode=query, [] permite inspeccionar campos pertinentes dentro de una colección autorizada para descubrir sus valores; no afirma pertenencia a un subconjunto. En mode=count, [] cuenta toda esa colección y no un grupo particular. Nunca retires restricciones de tenant o permisos ni eludas una denegación.",items:{type:"object",properties:{field:{type:"string"},op:{type:"string",enum:["==","!=","<","<=",">",">=","in","not-in","array-contains","array-contains-any"]},value:{type:["string","number","boolean","null","array"]}},required:["field","op","value"],additionalProperties:false}},
         pageSize:{type:"integer",minimum:1,maximum:100},cursor:{type:"string",description:"nextCursor devuelto por la misma consulta; omitir para primera página."},includeCount:{type:"boolean"}
     },required:["collection","sourceFile","filters"],anyOf:[
-        {properties:{mode:{type:"string",enum:["count"]}},required:["mode"]},
+        {properties:{mode:{type:"string",enum:["count"]},fields:{type:"array",maxItems:0}},required:["mode"]},
         {properties:{mode:{type:"string",enum:["query"]},fields:{type:"array",minItems:1,items:{type:"string"}}},required:["mode","fields"]}
     ],additionalProperties:false},
     execute: (args, context) => executePlatformQuery(args, null, context)

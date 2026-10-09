@@ -1842,7 +1842,7 @@ test('repo grep matches survive mission compaction as grounded source locations'
 test('population verification rejects workflow state as membership evidence and keeps user vocabulary for recovery', () => {
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  assert.match(source,/Un estado KYC, validación, pantalla, flujo o función usada por ese grupo NO es por sí mismo el discriminador de pertenencia/);
- assert.match(source,/conserve literalmente el término principal usado por el usuario/);
+ assert.match(source,/Elige UNA palabra literal de la solicitud del usuario/);
 });
 
 
@@ -2687,4 +2687,16 @@ test('unread source candidates do not hide an already grounded record reader dur
  if(request.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY'){recovered=true;const names=request.config.responseJsonSchema.properties.toolCalls.items.anyOf.map(v=>v.properties.name.enum[0]);assert.ok(names.includes(query.name));assert.ok(names.includes(read.name));return{text:JSON.stringify({toolCalls:[{name:query.name,args:{collection:'observed_records'}}]})};}
  throw Error('Unexpected stage');
  }}}});assert.equal(recovered,true);assert.equal(result.toolCalls[0].name,query.name);
+});
+
+test('count contract cannot silently carry fields that only a record inspection can return', () => {
+ const source=readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
+ const ast=parse(source,{sourceType:'module',ecmaVersion:'latest'});
+ const node=ast.body.find(n=>n.type==='ExpressionStatement'&&n.expression?.callee?.object?.name==='JarvisToolRuntime'&&n.expression?.callee?.property?.name==='register'&&n.expression.arguments[0]?.properties?.some(p=>p.key.name==='name'&&p.value.value==='platform.query'));
+ const tool=runInNewContext('('+source.slice(node.expression.arguments[0].start,node.expression.arguments[0].end)+')');
+ const {validatePlan}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const args={collection:'observed',sourceFile:'source.js',filters:[],fields:['owner']};
+ assert.equal(validatePlan({toolCalls:[{name:tool.name,args:{...args,mode:'count'}}]},[tool],'Inspect owner').toolCalls.length,0);
+ assert.equal(validatePlan({toolCalls:[{name:tool.name,args:{...args,mode:'query'}}]},[tool],'Inspect owner').toolCalls.length,1);
+ assert.equal(validatePlan({toolCalls:[{name:tool.name,args:{...args,mode:'count',fields:[]}}]},[tool],'Count observed').toolCalls.length,1);
 });
