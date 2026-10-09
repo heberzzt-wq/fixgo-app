@@ -14,6 +14,7 @@ import { fileURLToPath, pathToFileURL } from "url";
 import { execFileSync, spawn } from "child_process";
 import {
     buildRepoEmbeddingDocuments,
+    scoreRepoSemanticPreselection,
     buildRepoIntelligence,
     cosineSimilarity,
     rankRepoCandidates,
@@ -7416,10 +7417,6 @@ export function createJarvisFsBridgeApp({
                         .normalize("NFD")
                         .replace(/[\u0300-\u036f]/g, "")
                         .toLowerCase();
-                    const normalizedFile = String(document.file || "")
-                        .normalize("NFD")
-                        .replace(/[\u0300-\u036f]/g, "")
-                        .toLowerCase();
                     const normalizedSemanticQuery = semanticQuery
                         .normalize("NFD")
                         .replace(/[\u0300-\u036f]/g, "")
@@ -7428,22 +7425,14 @@ export function createJarvisFsBridgeApp({
                     const exactStructuralMatch =
                         normalizedSemanticQuery &&
                         normalizedStructuralText.includes(normalizedSemanticQuery);
-                    let queryOverlap =
-                        (plannedSet.has(document.file) ? 1000 : 0) +
-                        (exactStructuralMatch ? 500 : 0);
-                    for (const token of queryTokens) {
-                        if (!normalizedStructuralText.includes(token)) continue;
-                        queryOverlap += normalizedFile.includes(token) ? 4 : 1;
-                    }
                     const relationCount =
                         Number(node.dependencies?.length || 0) +
                         Number(node.dependents?.length || 0);
-                    const preselectionScore =
-                        queryOverlap +
-                        Math.min(12, relationCount) +
-                        (node.isTest ? -12 : 0) +
-                        (node.isGenerated ? -100 : 0) +
-                        (node.isDecorative ? -50 : 0);
+                    const {queryOverlap, preselectionScore} = scoreRepoSemanticPreselection({
+                        file: document.file, structuralText, literals: node.literals || [], queryTokens,
+                        planned: plannedSet.has(document.file), exactStructuralMatch, relationCount,
+                        isTest: node.isTest, isGenerated: node.isGenerated, isDecorative: node.isDecorative
+                    });
                     return {
                         ...document,
                         text: compactText,

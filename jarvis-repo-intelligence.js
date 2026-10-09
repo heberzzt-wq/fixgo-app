@@ -356,6 +356,24 @@ export function buildRepoEmbeddingDocuments({ graph, maximumDocuments = 2500 } =
         }));
 }
 
+// Lexical retrieval only: parsed source facts supply candidates for the local
+// embedding model. Connectivity cannot outweigh a real query-token match.
+export function scoreRepoSemanticPreselection({file = "", structuralText = "", literals = [], queryTokens = [], planned = false, exactStructuralMatch = false, relationCount = 0, isTest = false, isGenerated = false, isDecorative = false} = {}) {
+    const normalize = value => String(value).replace(/([a-z])([A-Z])/g, "$1 $2")
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const source = normalize(structuralText + "\n" + literals.join("\n"));
+    const path = normalize(file);
+    let queryOverlap = (planned ? 1000 : 0) + (exactStructuralMatch ? 500 : 0);
+    for (const token of queryTokens) {
+        const escaped = normalize(token).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        if (!escaped) continue;
+        const pattern = new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}(?=$|[^\\p{L}\\p{N}])`, "u");
+        if (pattern.test(source)) queryOverlap += pattern.test(path) ? 4 : 1;
+    }
+    const penalty = (isTest ? -12 : 0) + (isGenerated ? -100 : 0) + (isDecorative ? -50 : 0);
+    return {queryOverlap, preselectionScore: (queryOverlap + penalty) * 16 + Math.min(12, relationCount)};
+}
+
 export function cosineSimilarity(left = [], right = []) {
     if (!Array.isArray(left) || !Array.isArray(right) || left.length === 0 || left.length !== right.length) {
         return 0;

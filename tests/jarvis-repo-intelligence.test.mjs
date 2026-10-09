@@ -5,11 +5,25 @@ import os from "node:os";
 import path from "node:path";
 import {
     buildRepoEmbeddingDocuments,
+    scoreRepoSemanticPreselection,
     buildRepoIntelligence,
     cosineSimilarity,
     rankRepoCandidates,
     rankRepoHybridCandidates
 } from "../jarvis-repo-intelligence.js";
+
+test('semantic preselection uses parsed literals and cannot replace relevant source with an unrelated hub', () => {
+    const relevant = scoreRepoSemanticPreselection({file:'registration.js', structuralText:'FILE: registration.js', literals:['equipmentSerial'], queryTokens:['equipment'], relationCount:0});
+    const hub = scoreRepoSemanticPreselection({file:'central.js', structuralText:'FILE: central.js', queryTokens:['equipment'], relationCount:100});
+    assert.ok(relevant.preselectionScore > hub.preselectionScore);
+    assert.equal(relevant.queryOverlap,1);
+    const substring = scoreRepoSemanticPreselection({file:'authorization.js', structuralText:'FILE: authorization.js', queryTokens:['author'], relationCount:0});
+    assert.equal(substring.queryOverlap,0);
+    const fixture = scoreRepoSemanticPreselection({file:'fixture.test.js', structuralText:'FILE: fixture.test.js', literals:['equipment'], queryTokens:['equipment'],isTest:true});
+    assert.ok(fixture.preselectionScore < relevant.preselectionScore);
+    const explicit = scoreRepoSemanticPreselection({file:'fixture.test.js', structuralText:'FILE: fixture.test.js', planned:true,isTest:true});
+    assert.ok(explicit.preselectionScore > relevant.preselectionScore);
+});
 
 function makeFixture() {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-repo-graph-"));

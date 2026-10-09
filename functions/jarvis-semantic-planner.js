@@ -993,15 +993,15 @@ function completionAuditSchema(catalog, tasks, selectableCatalog = catalog) {
     const kinds = [...new Set(["tool_result", "visual_inspection", ...catalog.flatMap(tool => tool.evidenceKinds || [])])];
     const indices = tasks.map((_, index) => index);
     const objective = satisfied => ({ type: "object", properties: {
-        objective: { type: "string", minLength: 1 },
+        objective: { type: "string", minLength: 1, maxLength: 240 },
         requiredEvidenceKind: { type: "string", enum: kinds },
         evidenceTaskIndexes: { type: "array", ...(satisfied ? { minItems: 1 } : {}),
             maxItems: indices.length, items: { type: "integer", enum: indices } },
         satisfied: { type: "boolean", enum: [satisfied] },
-        limitation: { type: "string", ...(satisfied ? { enum: [""] } : { minLength: 1 }) }
+        limitation: { type: "string", maxLength: 320, ...(satisfied ? { enum: [""] } : { minLength: 1 }) }
     }, required: ["objective", "requiredEvidenceKind", "evidenceTaskIndexes", "satisfied", "limitation"], additionalProperties: false });
     return { type: "object", properties: {
-        explanation: { type: "string", minLength: 1 },
+        explanation: { type: "string", minLength: 1, maxLength: 320 },
         completionAssessment: { type: "object", properties: { objectives: { type: "array", minItems: 1,
             items: { anyOf: indices.length ? [objective(false), objective(true)] : [objective(false)] } } },
             required: ["objectives"], additionalProperties: false },
@@ -1803,7 +1803,7 @@ async function runModelSemanticPlanner({
                             { role: "user", content: instruction }
                         ],
                         temperature: 0,
-                        maxOutputTokens: 768,
+                        maxOutputTokens: auditAttempt > 0 ? 3072 : 1536,
                         thinkingConfig: {
                             thinkingLevel: "MINIMAL"
                         },
@@ -1811,10 +1811,13 @@ async function runModelSemanticPlanner({
                         responseJsonSchema: completionAuditSchema(safeCatalog, missionState.completedTasks || [], selectableCatalog)
                     }
                 });
-                auditPlan = extractJsonObject(String(auditResponse?.text || ""));
                 if (auditResponse?.providerResponse?.finishReason === "length") {
-                    throw new Error("SEMANTIC_COMPLETION_AUDIT_INCOMPLETE");
+                    const error = new Error("SEMANTIC_COMPLETION_AUDIT_INCOMPLETE");
+                    error.evidence = {finishReason: "length", outputTokens: auditResponse.providerResponse.outputTokens};
+                    throw error;
                 }
+                try { auditPlan = extractJsonObject(String(auditResponse?.text || "")); }
+                catch { throw new Error("SEMANTIC_COMPLETION_AUDIT_INVALID_JSON"); }
                 if (auditPlan?.missionComplete === true && auditPlan?.toolCalls?.length) {
                     throw new Error("SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY");
                 }
@@ -2051,7 +2054,7 @@ async function runModelSemanticPlanner({
                     planKind: "COMPLETION_AUDIT"
                 };
             } catch (error) {
-                const repairable = ["SEMANTIC_QUERY_SCOPE_UNVERIFIED", "SEMANTIC_TOOL_ARGUMENTS_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_REQUIRED", "SEMANTIC_COMPLETION_EVIDENCE_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH", "SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY"];
+                const repairable = ["SEMANTIC_COMPLETION_AUDIT_INCOMPLETE", "SEMANTIC_COMPLETION_AUDIT_INVALID_JSON", "SEMANTIC_QUERY_SCOPE_UNVERIFIED", "SEMANTIC_TOOL_ARGUMENTS_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_REQUIRED", "SEMANTIC_COMPLETION_EVIDENCE_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH", "SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY"];
                 if (auditAttempt > 0 || !repairable.includes(error?.message)) throw error;
                 if (error.message === "SEMANTIC_QUERY_SCOPE_UNVERIFIED") {
                     // Obtain literal source evidence before retrying a rejected

@@ -2402,3 +2402,15 @@ test('a start-only source read uses the canonical grep anchor instead of rereadi
  assert.equal(resolve({startLine:100},[{file:'source.js',line:800}]).hasRequestedLineRange,false);
  assert.equal(resolve({startLine:800},[{file:'other.js',line:800}]).hasRequestedLineRange,false);
 });
+
+
+test('a truncated completion audit retries the same model with more output budget and never executes partial JSON', async () => {
+ let attempts=0;const budgets=[];
+ const catalog=[{name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}}];
+ const result=await runJarvisSemanticPlanner({input:'Investiga registros actuales',catalog,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.grep',observation:{ok:true,repositoryMatches:[{file:'schema.js',line:5}]}}]},ai:{models:{generateContent:async request=>{
+  assert.equal(request.config.semanticStage,'COMPLETION_AUDIT');budgets.push(request.config.maxOutputTokens);attempts++;
+  if(attempts===1)return{text:'{"explanation":"partial',providerResponse:{finishReason:'length',outputTokens:768}};
+  return{text:JSON.stringify({explanation:'Falta la fuente',completionAssessment:{objectives:[{objective:'Investigar registros',requiredEvidenceKind:'repository_source',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta leer fuente'}]},toolCalls:[{name:'repo.read',args:{file:'schema.js'}}]}),providerResponse:{finishReason:'stop'}};
+ }}}});
+ assert.equal(attempts,2);assert.ok(budgets[1]>budgets[0]);assert.equal(result.toolCalls[0].args.file,'schema.js');assert.equal(result.missionComplete,false);
+});
