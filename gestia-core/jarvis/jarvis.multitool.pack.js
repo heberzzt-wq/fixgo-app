@@ -5945,6 +5945,7 @@ export function registerJarvisMultifunctionTools(runtime) {
         }),
         register(runtime, {
             name: "system.health",
+            inputSchema: {type: "object", properties: {}, additionalProperties: false},
             description: "Comprueba sólo salud técnica del runtime, bridge y conectividad del navegador. No consulta registros de clientes, técnicos, trabajos, cobros ni módulos funcionales del negocio; no permite contarlos ni nombrarlos.",
             evidenceKinds: ["system_telemetry"],
             output: "SIA7_SYSTEM_HEALTH",

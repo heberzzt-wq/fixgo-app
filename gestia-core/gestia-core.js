@@ -5165,6 +5165,7 @@ if (
                                                 mission.requiredToolNames,
                                             completedTasks:
                                                 mission.completedTasks.map(item => ({
+                                                    completedAt: item.completedAt,
                                                     name:
                                                         item.name,
                                                     args:
@@ -5181,6 +5182,7 @@ if (
                                                 })),
                                             blockedTasks:
                                                 mission.blockedTasks.map(item => ({
+                                                    completedAt: item.completedAt,
                                                     name:
                                                         item.name,
                                                     args:
@@ -5319,6 +5321,7 @@ if (
                                     requiredToolNames: mission.requiredToolNames,
                                     missingRequiredToolNames,
                                     completedTasks: mission.completedTasks.map(item => ({
+                                        completedAt: item.completedAt,
                                         name: item.name,
                                         args: item.args,
                                         observation:
@@ -5326,6 +5329,7 @@ if (
                                     })),
                                     pendingTasks: mission.pendingTasks.map(item => ({ name: item.name, args: item.args })),
                                     blockedTasks: mission.blockedTasks.map(item => ({
+                                        completedAt: item.completedAt,
                                         name: item.name,
                                         args: item.args,
                                         reason: item.reason,

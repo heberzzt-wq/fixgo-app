@@ -2442,3 +2442,35 @@ test('a nested collection reference does not authorize querying the parent colle
  const accepted=await f.execute({...f.args,collection:'tenants/acme/equipment',mode:'query',fields:['serial'],filters:[]},f.dependencies,f.context);
  assert.equal(accepted.ok,true,JSON.stringify(accepted));
 });
+
+
+test('new source evidence reopens record inspection after an earlier schema failure', async () => {
+ const input='Revisa registros actuales y sus relaciones';
+ const catalog=[
+  {name:'platform.query',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'},sourceFile:{type:'string'},mode:{type:'string'},fields:{type:'array',items:{type:'string'}}},required:['collection','sourceFile','mode']}},
+  {name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}}
+ ];
+ const result=await runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',completedAt:'2026-01-01T00:02:00Z',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'const ref=collection(db,"records");',sourceStructure:{dataBindings:{writeShapes:[{collection:'records',fields:['assignedTo'],startLine:5}]}}}}}],blockedTasks:[{name:'platform.query',completedAt:'2026-01-01T00:01:00Z',args:{collection:'records',sourceFile:'source.js',mode:'count'},observation:{ok:false,errorCode:'PLATFORM_QUERY_FILTER_VALUE_NOT_DISCOVERED'}}]},ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='COMPLETION_AUDIT') {
+   const context=JSON.stringify(request.config.chatMessages);assert.match(context,/ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST/);assert.match(context,/assignedTo/);
+   return{text:JSON.stringify({explanation:'Faltan datos',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta leer registros'}]},toolCalls:[]}),providerResponse:{finishReason:'stop'}};
+  }
+  assert.equal(request.config.semanticStage,'READ_ONLY_EVIDENCE_CONTINUATION');
+  assert.ok(request.config.tools[0].functionDeclarations.some(tool=>tool.name==='platform.query'));
+  assert.doesNotMatch(JSON.stringify(request.config.chatMessages),/RECUPERACION_DE_CONSULTA:/);
+  return{functionCalls:[{name:'platform.query',args:{collection:'records',sourceFile:'source.js',mode:'query',fields:['assignedTo']}}],providerResponse:{finishReason:'stop'}};
+ }}}});
+ assert.equal(result.toolCalls[0].name,'platform.query');assert.equal(result.missionComplete,false);
+});
+
+
+test('an explicit zero-argument tool rejects a record-query payload during audit', async () => {
+ let calls=0;
+ const catalog=[{name:'fixture.health',evidenceKinds:['system_telemetry'],inputSchema:{type:'object',properties:{},additionalProperties:false}},
+ {name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}}];
+ const result=await runJarvisSemanticPlanner({input:'Consulta datos actuales',catalog,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[]},ai:{models:{generateContent:async request=>{
+  calls++;assert.equal(request.config.semanticStage,'COMPLETION_AUDIT');
+  return{text:JSON.stringify({explanation:'Falta evidencia',completionAssessment:{objectives:[{objective:'Consultar datos',requiredEvidenceKind:'repository_source',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta una fuente'}]},toolCalls:[calls===1?{name:'fixture.health',args:{collection:'records',mode:'query'}}:{name:'repo.read',args:{file:'schema.js'}}]}),providerResponse:{finishReason:'stop'}};
+ }}}});
+ assert.equal(calls,2);assert.equal(result.toolCalls[0].name,'repo.read');
+});
