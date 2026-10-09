@@ -277,8 +277,17 @@ export async function startJarvisBrowserRelay({ auth, db, sdk, contract, request
         if (local?.ok !== true || local.status !== "JARVIS_WORKSTATION_LIVE") throw new Error("JARVIS_RELAY_LOCAL_HEALTH_REQUIRED");
         await sdk.runTransaction(db, async tx => {
             const prior = (await tx.get(parent)).data();
-            if (prior?.workerId && prior.workerId !== workerId && prior.online &&
-                now() - relayTimestampMs(prior.heartbeatAt) < policy.offlineMs) throw new Error("JARVIS_RELAY_LEASE_HELD");
+            if (
+                prior?.workerId &&
+                prior.workerId !== workerId &&
+                jarvisRelayPresenceIsLive(
+                    prior,
+                    contract.releaseId,
+                    now()
+                )
+            ) {
+                throw new Error("JARVIS_RELAY_LEASE_HELD");
+            }
             tx.set(parent, { schemaVersion: policy.version, ownerUid: policy.ownerUid, workerId, online: true,
                 releaseId: contract.releaseId, heartbeatAt: sdk.serverTimestamp(),
                 loadedHead: String(local.runtime?.loadedHead || "").slice(0, 64) });
@@ -445,7 +454,32 @@ function configureJarvisPrivateRelay(bridge) {
             return direct(route, payload, options);
         }
         if (!client) client = createJarvisPrivateRelayClient({ ...await privateRelayDependencies(), onProgress: progress });
-        const result = await client.requestJson(route, payload, { ...options, contract });
+        let result;
+        try {
+            result = await client.requestJson(route, payload, { ...options, contract });
+        } catch (error) {
+            const code = String(error?.code || error?.message || "");
+            if (code !== "JARVIS_RELAY_WORKSTATION_UNAVAILABLE") throw error;
+            // The prior lease can disappear between STANDBY detection and the
+            // first request. WORKSTATION_UNAVAILABLE happens before the relay
+            // request is created, so taking the lease here cannot replay work.
+            try {
+                await bridge.enablePrivateRelay();
+            } catch (takeoverError) {
+                const takeoverCode = String(takeoverError?.code || takeoverError?.message || "");
+                if (takeoverCode !== "JARVIS_RELAY_LEASE_HELD") throw takeoverError;
+                bridge.privateRelayState = {
+                    status: "STANDBY",
+                    connected: false,
+                    error: takeoverCode
+                };
+            }
+            if (broker) {
+                return direct(route, payload, options);
+            }
+            await new Promise(resolve => setTimeout(resolve, 250));
+            result = await client.requestJson(route, payload, { ...options, contract });
+        }
         bridge.privateRelayState = { status: "RESPONSE_RECEIVED", connected: true, requestId: result.relay?.requestId };
         return result;
     };

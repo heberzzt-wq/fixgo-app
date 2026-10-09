@@ -676,3 +676,65 @@ test('private relay recovers a completed receipt by server polling when snapshot
     assert.equal(result.text, 'Recovered by polling');
     assert.equal(result.relay.requestId, relayId);
 });
+
+
+test('private relay lease uses the same verified-presence contract as relay clients', async () => {
+    const auth = {
+        currentUser: { uid: JARVIS_PRIVATE_RELAY.ownerUid },
+        async authStateReady() {}
+    };
+    const local = async route => {
+        if (route === '/workstation/health') {
+            return { ok: true, status: 'JARVIS_WORKSTATION_LIVE', runtime: { bridgeStarted: true, loadedHead: 'lease-test-head' } };
+        }
+        throw new Error('UNEXPECTED_LOCAL_ROUTE:' + route);
+    };
+
+    const stale = relayFakeSdk();
+    const parentPath = `jarvis_private_relay/${JARVIS_PRIVATE_RELAY.ownerUid}`;
+    stale.docs.set(parentPath, {
+        schemaVersion: JARVIS_PRIVATE_RELAY.version,
+        ownerUid: JARVIS_PRIVATE_RELAY.ownerUid,
+        workerId: 'old-worker',
+        online: true,
+        releaseId: 'old-release',
+        heartbeatAt: { toMillis: () => Date.now() }
+    });
+    const worker = await startJarvisBrowserRelay({
+        auth,
+        db: {},
+        sdk: stale.sdk,
+        contract: { releaseId: 'relay-test' },
+        requestLocal: local,
+        uuid: () => 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
+    });
+    try {
+        const presence = stale.docs.get(parentPath);
+        assert.equal(presence.workerId, 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee');
+        assert.equal(presence.releaseId, 'relay-test');
+        assert.equal(presence.online, true);
+    } finally {
+        await worker.stop();
+    }
+
+    const live = relayFakeSdk();
+    live.docs.set(parentPath, {
+        schemaVersion: JARVIS_PRIVATE_RELAY.version,
+        ownerUid: JARVIS_PRIVATE_RELAY.ownerUid,
+        workerId: 'healthy-peer',
+        online: true,
+        releaseId: 'relay-test',
+        heartbeatAt: { toMillis: () => Date.now() }
+    });
+    await assert.rejects(
+        startJarvisBrowserRelay({
+            auth,
+            db: {},
+            sdk: live.sdk,
+            contract: { releaseId: 'relay-test' },
+            requestLocal: local,
+            uuid: () => 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff'
+        }),
+        /JARVIS_RELAY_LEASE_HELD/
+    );
+});
