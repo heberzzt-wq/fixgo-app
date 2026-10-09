@@ -1075,6 +1075,33 @@ function boundedAuditTasks(tasks) {
         if (dictionary.length) minimal[0] = {...minimal[0], sharedFieldDictionary:dictionary.some(field=>field.includes('|')) ? dictionary : dictionary.join('|'),
             sharedFieldEncoding:'Split sharedFieldDictionary on | when it is a string. fieldIds reference its zero-based entries; [a,b] expands all IDs from a through b. Source and collection associations remain local to each schema.'};
     }
+    if (JSON.stringify(minimal).length > 27000) {
+        for (const task of minimal) {
+            const original=task.observation;
+            if (!original || original.verifiedRead) continue;
+            const observation=task.observation={...original};
+            for(const key of ["objectiveSatisfied","requiresInput","retryable","blocked","sourceCount"])
+                if(observation[key]===false || key==="objectiveSatisfied"&&observation[key]===true || observation[key]===0) delete observation[key];
+            if(observation.ok===true && observation.executionOk!==false) delete observation.status;
+            const record=observation.recordEvidence;
+            if(!Array.isArray(record?.rows) || !record.rows.length || record.rows.some(row=>typeof row.id!=="string" || !row.values || Object.keys(row).some(key=>!["id","values"].includes(key)))) continue;
+            const columns=[...new Set(record.rows.flatMap(row=>Object.keys(row.values)))];
+            const absent=record.rows.flatMap((row,index)=>{
+                const missing=columns.flatMap((field,i)=>Object.hasOwn(row.values,field)?[]:[i]);
+                return missing.length?[[index,missing]]:[];
+            });
+            const packed={...record,rows:undefined,rowColumns:columns,
+                rowValues:record.rows.map(row=>[row.id,...columns.flatMap((field,i)=>row.values[field]==null?[]:[[i,row.values[field]]])]),
+                ...(absent.length?{rowAbsentColumns:absent}:{}),
+                rowEncoding:"Each rowValues entry is [recordId,[columnIndex,value],...]. Indexes refer to rowColumns. Omitted values are null except rowAbsentColumns=[rowIndex,[absentColumnIndexes]]. All records are retained; this is not a sample."};
+            if(JSON.stringify(packed).length<JSON.stringify(record).length) observation.recordEvidence=packed;
+            const scope=record.scope || {};
+            if(task.args && Object.keys(task.args).some(key=>JSON.stringify(task.args[key])===JSON.stringify(scope[key]))) {
+                task.args=Object.fromEntries(Object.entries(task.args).filter(([key,value])=>JSON.stringify(value)!==JSON.stringify(scope[key])));
+                task.argsAlsoInRecordScope=true;
+            }
+        }
+    }
     const freshRead = minimal[tasks.indexOf(latestRead)]?.observation?.verifiedRead;
     if (freshRead) {
         const overflow = JSON.stringify(minimal).length - 27900;
@@ -2421,7 +2448,7 @@ async function runModelSemanticPlanner({
                         }))}}},required:["toolCalls"],additionalProperties:false},
                         chatMessages:[
                             {role:"system",content:"La investigación no ha terminado. El intento anterior no produjo un paso nuevo. Selecciona UNA operación diferente que obtenga la evidencia faltante, o toolCalls=[] sólo si no queda ninguna autorizada y las fuentes pertinentes localizadas ya fueron examinadas. Las rutas candidatas son archivos existentes, no registros consultados. Lee una fuente candidata pertinente antes de concluir que no contiene datos. Una lectura irrelevante no agota las demás rutas descubiertas: si RUTAS_CANDIDATAS_AUN_NO_LEIDAS contiene opciones, elige otra fuente pertinente o una búsqueda mejor fundamentada antes de concluir ausencia. Si una fuente no demuestra el concepto solicitado, continúa: puedes usar en la siguiente búsqueda términos del usuario o identificadores/campos/símbolos que ya aparecieron en evidencia observada. Después de una búsqueda semántica insuficiente, repo.grep puede localizar un término exacto observado dentro del código. No inventes un campo o esquema sólo para avanzar. Si hace falta otra búsqueda, formula una consulta nueva fundamentada en la solicitud o en evidencia ya obtenida; no repitas la búsqueda ya realizada. Nunca inventes rutas ni esquemas. Un permiso denegado no autoriza otro usuario, quitar filtros ni ampliar acceso. Usa solamente el catálogo y argumentos válidos. Devuelve JSON {toolCalls:[{name,args}]} sin conclusiones inventadas."},
-                            {role:"system",content:"CATALOGO_EJECUTABLE="+JSON.stringify(recoveryCatalog.map(({name,description,inputSchema})=>({name,description,inputSchema})))},
+                            {role:"system",content:"CATALOGO_EJECUTABLE="+JSON.stringify(recoveryCatalog.map(tool=>auditCatalog.find(entry=>entry.name===tool.name) || {name:tool.name,description:String(tool.description||"").slice(0,120),evidenceKinds:tool.evidenceKinds,requiredArguments:tool.inputSchema?.required || []}))},
                             ...auditTasks.map(task=>({role:"system",content:"YA_EJECUTADO="+JSON.stringify(task)})),
                             {role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedWriteSchemas)},
                             {role:"system",content:"RUTAS_LOCALIZADAS="+JSON.stringify(sources)+"\nRUTAS_CANDIDATAS_AUN_NO_LEIDAS="+JSON.stringify(unreadSources)+"\nCAPACIDADES_TRAS_LEER_LA_FUENTE="+JSON.stringify(pendingCapabilities)},

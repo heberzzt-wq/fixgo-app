@@ -2728,7 +2728,7 @@ test('unread source candidates do not hide an already grounded record reader dur
  const result=await runJarvisSemanticPlanner({input:'Inspect current records',catalog:[read,query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.search',observation:{ok:true,repoCandidates:[{file:'read.js'},{file:'unread.js'}]}},{name:read.name,args:{file:'read.js'},observation:{ok:true,verifiedRead:{file:'read.js',content:'source'}}}]},ai:{models:{generateContent:async request=>{
  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({explanation:'Current records pending',completionAssessment:{objectives:[{objective:'Inspect current records',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Need records'}]},toolCalls:[]})};
  if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION')return{text:'{}'};
- if(request.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY'){recovered=true;const names=request.config.responseJsonSchema.properties.toolCalls.items.anyOf.map(v=>v.properties.name.enum[0]);assert.ok(names.includes(query.name));assert.ok(names.includes(read.name));return{text:JSON.stringify({toolCalls:[{name:query.name,args:{collection:'observed_records'}}]})};}
+ if(request.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY'){recovered=true;const textCatalog=request.config.chatMessages.find(message=>message.content.startsWith('CATALOGO_EJECUTABLE=')).content;assert.doesNotMatch(textCatalog,/\"inputSchema\":/);const names=request.config.responseJsonSchema.properties.toolCalls.items.anyOf.map(v=>v.properties.name.enum[0]);assert.ok(names.includes(query.name));assert.ok(names.includes(read.name));return{text:JSON.stringify({toolCalls:[{name:query.name,args:{collection:'observed_records'}}]})};}
  throw Error('Unexpected stage');
  }}}});assert.equal(recovered,true);assert.equal(result.toolCalls[0].name,query.name);
 });
@@ -3014,4 +3014,22 @@ test('contracted closure grammar fixes each objective key and permits only succe
  tasks.push({name:'records.reader',observation:{ok:true,executionOk:true}});
  const ready=schemaFor(catalog,tasks,[],contract).properties.completionAssessment.properties.objectives;
  for(const item of Object.values(ready.properties))for(const branch of item.anyOf)assert.deepEqual(Array.from(branch.properties.evidenceTaskIndexes.items.enum),[2]);
+});
+
+
+test('large operational evidence compacts repeated columns without losing nulls absent fields rows or query scope',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='boundedAuditTasks');
+ const compact=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const fields=Array.from({length:18},(_,i)=>'observed_attribute_'+i);
+ const rows=Array.from({length:100},(_,i)=>({id:'record-'+i,values:Object.fromEntries(fields.map((field,j)=>[field,j===i%18?'observed-'+i:null]))}));
+ delete rows[3].values[fields[4]];
+ const scope={collection:'scoped_records',filters:[{field:'segment',op:'==',value:'observed'}],fields,mode:'query',sourceFile:'definitions.js'};
+ const evidence={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope,rows,totalCount:100,returnedCount:100,hasMore:false,completeForQuery:true};
+ const tasks=[{index:0,name:'records.reader',args:{...scope,pageSize:100},observation:{ok:true,executionOk:true,recordEvidence:evidence}},{index:1,name:'repo.read',args:{file:'definitions.js'},observation:{ok:true,verifiedRead:{file:'definitions.js',startLine:20,content:'LATEST_SOURCE '+('visible source '.repeat(500)),sourceStructure:{dataBindings:{collections:['scoped_records'],fieldPaths:fields}}}}}];
+ const before=JSON.stringify(tasks),result=compact(tasks),packed=result[0].observation.recordEvidence;
+ assert.equal(JSON.stringify(tasks),before);assert.ok(JSON.stringify(result).length<=28000);assert.ok(result[1].observation.verifiedRead.content.length>=4000);
+ assert.equal(packed.rowValues.length,100);assert.equal(JSON.stringify(packed.scope),JSON.stringify(scope));assert.equal(packed.totalCount,100);
+ const restored=Array.from(packed.rowValues,(row,index)=>{const values=Object.fromEntries(Array.from(packed.rowColumns,field=>[field,null]));for(const [col,value]of row.slice(1))values[packed.rowColumns[col]]=value;for(const col of packed.rowAbsentColumns?.find(entry=>entry[0]===index)?.[1]||[])delete values[packed.rowColumns[col]];return{id:row[0],values};});
+ assert.deepEqual(restored,rows);assert.equal(result[0].args.pageSize,100);assert.equal(result[0].argsAlsoInRecordScope,true);
 });
