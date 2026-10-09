@@ -1884,24 +1884,9 @@ async function runModelSemanticPlanner({
                     tool.userArtifact !== true &&
                     (tool.evidenceKinds || []).some(kind => pendingEvidenceKinds.has(kind))
                 );
-                const directEvidenceToolNames = new Set(
-                    directEvidenceCatalog.map(tool => tool.name)
-                );
-                // Evidence kinds describe the destination. If a tool that
-                // produces that evidence is ALREADY executable after binding
-                // its declared prerequisites, prefer that tool family. If it is
-                // not executable yet, prerequisite discovery/read tools remain
-                // available below. This is evidence dependency resolution, not
-                // an intent or business-domain router.
-                if (
-                    evaluatedAudit.missionComplete !== true &&
-                    pendingEvidenceKinds.size > 0 &&
-                    directEvidenceToolNames.size > 0
-                ) {
-                    validatedAudit.toolCalls = validatedAudit.toolCalls.filter(call =>
-                        directEvidenceToolNames.has(call.name)
-                    );
-                }
+                // An executable destination does not prove that its schema or
+                // scope answers every objective. Preserve the model's source
+                // investigation instead of routing solely by evidence kind.
                 const canonicalArgs = value => Array.isArray(value) ? value.map(canonicalArgs) : value && typeof value === "object"
                     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalArgs(value[key])])) : value;
                 const sameCall = (task, call) => task?.name === call?.name &&
@@ -1957,9 +1942,7 @@ async function runModelSemanticPlanner({
                     : [];
                 const nextReaders = repositoryRecoveryReaders.length
                     ? repositoryRecoveryReaders
-                    : directEvidenceCatalog.length
-                        ? directEvidenceCatalog
-                        : generalReaders;
+                    : generalReaders;
                 if (evaluatedAudit.missionComplete !== true && validatedAudit.toolCalls.length === 0 && nextReaders.length) {
                     const continuation = await ai.models.generateContent({model,contents:instruction,config:{
                         semanticStage:"READ_ONLY_EVIDENCE_CONTINUATION",nativeToolChat:true,maxOutputTokens:768,temperature:0,

@@ -1893,6 +1893,18 @@ test('platform query rejects invented filter fields and values before network ac
  assert.equal(inventedValue.ok,false);assert.equal(inventedValue.error.code,'PLATFORM_QUERY_FILTER_VALUE_NOT_DISCOVERED');assert.equal(f.calls.length,0);
 });
 
+test('filter literals cannot be invented from substrings of source or request tokens', async () => {
+ for(const [request,source,value] of [
+  ['Consulta los documentos vencidos','const title = row.title;', 'vencido'],
+  ['Consulta registros','const authorization = true; const title=row.title;', 'auto']
+ ]) {
+  const f=platformQueryTestFixture();f.context.rootInstruction=request;
+  f.context.completedTasks[0].observation.verifiedRead.content+='\n'+source;
+  const result=await f.execute({...f.args,mode:'count',fields:[],filters:[{field:'title',op:'==',value}]},f.dependencies,f.context);
+  assert.equal(result.ok,false);assert.equal(result.error.code,'PLATFORM_QUERY_FILTER_VALUE_NOT_DISCOVERED');assert.equal(f.calls.length,0);
+ }
+});
+
 test('platform query accepts a literal filter value supplied by the user when its field is observed in source',async()=>{
  const f=platformQueryTestFixture();f.context.rootInstruction='Consulta los registros con title igual a Uno';
  const result=await f.execute({...f.args,mode:'count',fields:[],filters:[{field:'title',op:'==',value:'Uno'}]},f.dependencies,f.context);
@@ -1989,7 +2001,7 @@ test('platform query refuses supplemental fields from a read bound to a differen
 });
 
 
-test('completion audit advances to an executable tool that produces the evidence kind declared by the LLM', async () => {
+test('completion audit preserves a source investigation selected by the LLM even when a record reader is executable', async () => {
  const input='Resuelve dos objetivos usando evidencia actual';
  const catalog=[
   {name:'fixture.discover',description:'Descubre fuentes',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query'],additionalProperties:false}},
@@ -2013,10 +2025,10 @@ test('completion audit advances to an executable tool that produces the evidence
    throw new Error('UNEXPECTED_STAGE:'+request.config.semanticStage);
  }}}});
  assert.equal(result.toolCalls.length,1);
- assert.equal(result.toolCalls[0].name,'fixture.fetch');
- assert.deepEqual(result.toolCalls[0].args,{scope:'current'});
+ assert.equal(result.toolCalls[0].name,'fixture.discover');
+ assert.deepEqual(result.toolCalls[0].args,{query:'another source'});
  assert.ok(stages.includes('COMPLETION_AUDIT'));
- assert.ok(stages.includes('READ_ONLY_EVIDENCE_CONTINUATION'));
+ assert.equal(stages.includes('READ_ONLY_EVIDENCE_CONTINUATION'),false);
 });
 
 
@@ -2227,7 +2239,8 @@ test('an irrelevant candidate read cannot exhaust repository evidence while disc
   }),providerResponse:{finishReason:'stop'}};
   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){
    const names=request.config.tools[0].functionDeclarations.map(tool=>tool.name);
-   assert.deepEqual(names,['repo.read']);
+   assert.ok(names.includes('repo.read'));
+   assert.ok(names.includes('repo.grep'));
    return {text:'',functionCalls:[],providerResponse:{finishReason:'stop'}};
   }
   if(request.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY'){

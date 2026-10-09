@@ -775,7 +775,9 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
         const literalGrounded = value => {
             if (typeof value !== "string") return true;
             const normalized = normalizeGroundingText(value).trim();
-            return normalized.length > 0 && (normalizedSource.includes(normalized) || normalizedRequest.includes(normalized));
+            const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const exactToken = new RegExp(`(^|[^\\p{L}\\p{N}_$])${escaped}(?=$|[^\\p{L}\\p{N}_$])`, "u");
+            return normalized.length > 0 && (exactToken.test(normalizedSource) || exactToken.test(normalizedRequest));
         };
         const undiscoveredFields = fields.filter(field => !sourceHasField(field));
         if (undiscoveredFields.length) {
