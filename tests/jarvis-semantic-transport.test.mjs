@@ -482,7 +482,9 @@ test("verification retains Qwen's contract stage and selects a name without exec
     }});
     const plan=await engine.plan({input:'Ejecuta las pruebas relevantes del cambio preparado.',catalog:[{name:'tests.run',description:'Ejecuta pruebas del repositorio'},{name:'repo.prepareWrite',description:'Prepara cambios del código'}],missionState:{phase:'MISSION_CONTRACT'}});
     assert.deepEqual(plan.toolCalls.map(call=>call.name),['tests.run']);
-    assert.deepEqual(plan.toolCalls[0].args,{});
+    assert.ok(plan.toolCalls[0].args.instruction);
+    assert.equal(plan.toolCalls[0].args.query,plan.toolCalls[0].args.instruction);
+    assert.equal(plan.toolCalls[0].deferred,true);
 });
 
 test("empty contract selection recovers the same operation with a name-only schema", async () => {
@@ -503,7 +505,9 @@ test("empty contract selection recovers the same operation with a name-only sche
     const plan=await engine.plan({input:'Crea un HTML descargable.',catalog:[{name:'page.create',description:'Crea HTML descargable'},{name:'page.compose',description:'Prepara un esquema JSON'}],missionState:{phase:'MISSION_CONTRACT'}});
     assert.equal(nativeAttempts,1);assert.equal(recovered,1);
     assert.deepEqual(plan.toolCalls.map(call=>call.name),['page.create']);
-    assert.deepEqual(plan.toolCalls[0].args,{});
+    assert.ok(plan.toolCalls[0].args.instruction);
+    assert.equal(plan.toolCalls[0].args.query,plan.toolCalls[0].args.instruction);
+    assert.equal(plan.toolCalls[0].deferred,true);
 });
 
 test("planner retries remain alive without an artificial local deadline", async () => {

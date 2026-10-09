@@ -86,7 +86,7 @@ test("insufficient visual evidence returns an incomplete assessment without inve
 test("completion retains the full catalog for evidence acquisition even when retrieval returns only telemetry", async () => {
     const result = await audit({ toolCalls: [{ name: visual.name, args: { url: "https://platform.test" } }], missionComplete: false }, {
         inspect: request => {
-            assert.ok(request.config.chatMessages[0].content.includes(visual.name));
+            assert.ok(JSON.stringify(request.config.responseJsonSchema).includes(visual.name));
             assert.equal(request.config.chatMessages.at(-1).content, visualRequest, "audit the original objective, not the phase instruction");
         }
     });
@@ -199,7 +199,7 @@ test("registered evidence scopes survive client planning and do not make a captu
     const registry = new Map();
     registerJarvisActuatorTools({ register(tool) { registry.set(tool.name, tool); return tool; } });
     assert.deepEqual(registry.get(telemetry.name).evidenceKinds, ["system_telemetry"]);
-    assert.deepEqual(registry.get("browser.inspect").evidenceKinds, ["interface_structure"]);
+    assert.deepEqual(registry.get("browser.inspect").evidenceKinds, ["interface_structure", "interface_styles", "responsive_layout"]);
     assert.deepEqual(registry.get("browser.screenshot").evidenceKinds, ["visual_capture"]);
     await buildJarvisMultifunctionToolCalls(visualRequest, {
         toolCatalog: [registry.get(telemetry.name)], missionState: { phase: "COMPLETION_AUDIT" },

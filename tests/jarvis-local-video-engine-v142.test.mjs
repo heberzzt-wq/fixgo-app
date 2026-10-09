@@ -8455,25 +8455,36 @@ test("V142 HuMo17 auxiliary downloader physically resumes and fails closed using
         const requests=[],times=[],timers=[];
         if(['ignore','bad-range'].includes(mode))fs.writeFileSync(partial,data.subarray(0,1024));
         if(mode==='oversize')fs.writeFileSync(partial,Buffer.alloc(data.length+1));
+        const sendBody=(res,bytes)=>{
+            let offset=0;
+            const pump=()=>{
+                if(res.destroyed)return;
+                if(offset>=bytes.length){res.end();return;}
+                const next=Math.min(offset+16*1024,bytes.length);
+                const writable=res.write(bytes.subarray(offset,next));offset=next;
+                if(writable)setImmediate(pump);else res.once('drain',pump);
+            };pump();
+        };
         const server=createServer((req,res)=>{
+            res.setHeader("Connection","close");
             requests.push(req.headers.range||null);times.push(Date.now());const n=requests.length;
             if(['401','403','404'].includes(mode)){res.writeHead(Number(mode));res.end();return;}
-            if(mode.startsWith('http')&&n===1){res.writeHead(Number(mode.slice(4)));res.end();return;}
-            if(mode==='bad-range'){res.writeHead(206,{'Content-Range':`bytes 0-${data.length-1}/${data.length}`,'Content-Length':data.length});res.end(data);return;}
+            if(mode.startsWith('http')&&n===1){res.writeHead(Number(mode.slice(4)), {'Connection':'close','Content-Length':'0'});res.end();return;}
+            if(mode==='bad-range'){res.writeHead(206,{'Content-Range':`bytes 0-${data.length-1}/${data.length}`,'Content-Length':data.length});sendBody(res,data);return;}
             if(mode==='exhaust'||(mode==='transient'&&n===1)){res.writeHead(503);res.end();return;}
-            if(mode==='transient'&&n===2){res.writeHead(200,{'Content-Length':data.length});res.flushHeaders();timers.push(setTimeout(()=>res.end(data),2500));return;}
+            if(mode==='transient'&&n===2){res.writeHead(200,{'Content-Length':data.length});res.flushHeaders();timers.push(setTimeout(()=>sendBody(res,data),5000));return;}
             if(mode==='cut'&&n===1){res.writeHead(200,{'Content-Length':data.length});res.write(data.subarray(0,192*1024));timers.push(setTimeout(()=>res.destroy(),50));return;}
             const offset=Number((req.headers.range||'').match(/bytes=(\d+)-/)?.[1]||0);
-            if(offset&&mode!=='ignore'){res.writeHead(206,{'Content-Length':data.length-offset,'Content-Range':`bytes ${offset}-${data.length-1}/${data.length}`});res.end(data.subarray(offset));}
-            else {res.writeHead(200,{'Content-Length':data.length});res.end(data);}
+            if(offset&&mode!=='ignore'){res.writeHead(206,{'Content-Length':data.length-offset,'Content-Range':`bytes ${offset}-${data.length-1}/${data.length}`});sendBody(res,data.subarray(offset));}
+            else {res.writeHead(200,{'Content-Length':data.length});sendBody(res,data);}
         });
         await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
         try{
             const asset={role:'text_encoder',path:'fixture.bin',bytes:data.length,sha256:mode==='hash'?'0'.repeat(64):sha};
-            const program=buildHuMo17AuxiliaryDownloader()+"\nimport sys\na=json.loads(sys.argv[1])\ndownload_auxiliary(a,sys.argv[2],sys.argv[3],attempts=3,connect_timeout=5,read_timeout="+(mode==='transient'?"1":"5")+",backoff=0.05)\n";
+            const program=buildHuMo17AuxiliaryDownloader()+"\nimport sys\na=json.loads(sys.argv[1])\ndownload_auxiliary(a,sys.argv[2],sys.argv[3],attempts=3,connect_timeout=5,read_timeout="+(mode==='transient'?"3":"10")+",backoff=0.05)\n";
             const result=await new Promise((resolve,reject)=>{const child=spawn(python,['-c',program,JSON.stringify(asset),final,`http://127.0.0.1:${server.address().port}/asset`],{windowsHide:true});let out='',err='';const timeout=setTimeout(()=>{child.kill();reject(Error('FIXTURE_TIMEOUT:'+JSON.stringify({requests,stdout:out,stderr:err})));},60000);child.stdout.on('data',b=>out+=b);child.stderr.on('data',b=>err+=b);child.on('error',e=>{clearTimeout(timeout);reject(e);});child.on('close',code=>{clearTimeout(timeout);resolve({code,out,err});});});
             if(['cut','ignore','transient'].includes(mode)||mode.startsWith('http')){
-                assert.equal(result.code,0,result.err);assert.deepEqual(fs.readFileSync(final),data);assert.equal(fs.existsSync(partial),false);
+                assert.equal(result.code,0,JSON.stringify({requests,times,stdout:result.out,stderr:result.err}));assert.deepEqual(fs.readFileSync(final),data);assert.equal(fs.existsSync(partial),false);
                 assert.match(result.out,/HUMO17_AUX_SHA_VERIFIED/);assert.match(result.out,/HUMO17_AUX_DOWNLOAD_COMPLETED/);
                 assert.ok(result.out.indexOf('HUMO17_AUX_SHA_VERIFIED')<result.out.indexOf('HUMO17_AUX_DOWNLOAD_COMPLETED'));
             }else {assert.notEqual(result.code,0);assert.equal(fs.existsSync(final),false);}
@@ -8481,7 +8492,7 @@ test("V142 HuMo17 auxiliary downloader physically resumes and fails closed using
             if(mode==='ignore'){assert.equal(requests[0],'bytes=1024-');assert.match(result.out,/HUMO17_AUX_RANGE_IGNORED_RESTART/);}
             if(mode==='transient'){assert.equal(requests.length,3);assert.ok(times[1]-times[0]>=40);assert.ok(times[2]-times[1]>=90);assert.match(result.out,/TimeoutError/);}
             if(['401','403','404'].includes(mode)){assert.equal(requests.length,1);assert.ok(result.err.includes('HUMO17_AUX_HTTP_'+mode));}
-            if(mode.startsWith('http'))assert.equal(requests.length,2);
+            if(mode.startsWith('http'))assert.equal(requests.length,2,result.out);
             if(mode==='bad-range'){assert.equal(requests.length,1);assert.match(result.err,/HUMO17_AUX_CONTENT_RANGE_INVALID/);}
             if(mode==='hash'){assert.equal(requests.length,1);assert.match(result.err,/HUMO17_AUX_SHA_INVALID/);}
             if(mode==='oversize'){assert.equal(requests.length,0);assert.match(result.err,/HUMO17_AUX_PARTIAL_OVERSIZE/);}

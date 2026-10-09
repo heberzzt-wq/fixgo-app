@@ -58,7 +58,7 @@ test('local mission contract retrieves semantic operations without lexical catal
     assert.deepEqual(retrieved,['research external website','create downloadable document']);
     assert.deepEqual(result.toolCalls.map(t=>t.name), ['web.research','document.create']);
     assert.ok(result.toolCalls.every(t=>t.deferred===true));
-    assert.ok(result.toolCalls.every(t=>Object.keys(t.args).length===0));
+    assert.ok(result.toolCalls.every(t=>t.args.instruction && t.args.query===t.args.instruction));
 });
 
 test('short advertising contract uses native selection and keeps research, image and export distinct', async () => {
@@ -85,7 +85,7 @@ test('short advertising contract uses native selection and keeps research, image
     });
     assert.deepEqual(stages,['sourceReview','work','delivery']);
     assert.deepEqual(result.toolCalls.map(call=>call.name),['advertising.research','image.adapt','media.library']);
-    assert.ok(result.toolCalls.every(call=>call.deferred && Object.keys(call.args).length===0));
+    assert.ok(result.toolCalls.every(call=>call.deferred && call.args.instruction && call.args.query===call.args.instruction));
 });
 
 test('external URLs cannot be accepted as repository file paths',()=>{
@@ -110,7 +110,9 @@ test('project review preserves ordered inventory and source-reading operations',
     }});
     assert.deepEqual(seen,operations);
     assert.deepEqual(result.toolCalls.map(item=>item.name),['repo.audit','repo.read']);
-    assert.ok(result.toolCalls.every(item=>item.deferred && Object.keys(item.args).length===0));
+    assert.ok(result.toolCalls.every(item=>item.deferred));
+    assert.deepEqual(result.toolCalls[0].args,{});
+    assert.equal(result.toolCalls[1].args.file,undefined,"a contract cannot invent the source path before discovery");
 });
 
 test('local contract reads Qwen tool-name aliases and rejects conflicting or unavailable names', async () => {

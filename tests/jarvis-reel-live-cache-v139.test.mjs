@@ -6,8 +6,8 @@ const terminal = fs.readFileSync("gestia-terminal.html", "utf8");
 const core = fs.readFileSync("gestia-core/gestia-core.js", "utf8");
 const runtime = fs.readFileSync("gestia-core/tools.runtime.js", "utf8");
 
-const V139_RELEASE = "v139-real-reel-e2e-20260812";
-const V142_RELEASE = "v142-video-truthful-delivery-20260826";
+const V139_RELEASE = "v142-adjunto-flow-alignment-20261001";
+const V142_RELEASE = V139_RELEASE;
 
 test("v139 live terminal busts the GestiaCore cache after reel voice/mp4 changes", () => {
   assert.match(

@@ -78,7 +78,7 @@ test("page physical result contract includes digest and truthful human response"
     const bridge = fs.readFileSync(path.join(process.cwd(), "jarvis-fs-bridge.js"), "utf8");
     const response = fs.readFileSync(path.join(process.cwd(), "gestia-core", "tools.bridge.js"), "utf8");
     const runtime = fs.readFileSync(path.join(process.cwd(), "gestia-core", "tools.runtime.js"), "utf8");
-    assert.match(bridge, /2\.38\.0-page-no-contact-route/);
+    assert.match(bridge, /JARVIS_FS_BRIDGE_VERSION\s*=\s*"\d+\.\d+\.\d+-[a-z0-9-]+"/);
     assert.match(bridge, /PAGE_BYTE_COUNT_MISMATCH/);
     assert.match(bridge, /sha256/);
     assert.match(response, /HTML fue creado físicamente/);

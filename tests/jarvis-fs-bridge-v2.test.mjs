@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import vm from "node:vm";
+import { resolveRepoReadSourceStructure } from "../gestia-core/repo/repo.source.structure.js";
 
 import {
     applyReadLineRange,
@@ -2534,6 +2535,7 @@ test("ranged Terminal bytes survive repo.read, mission compaction and responsive
         JarvisToolRuntime: { register(tool) { readTool = tool; } },
         parseRepositoryTarget: () => ({ ok: false }),
         analyzeRepoSourceStructure: () => ({}),
+        resolveRepoReadSourceStructure,
         window: { JarvisLocalBridge: { async readFile(args) {
             const ranged = applyReadLineRange(source, normalizeReadLineRange(args));
             return { ok: true, file: args.file, ...ranged,
@@ -2541,12 +2543,13 @@ test("ranged Terminal bytes survive repo.read, mission compaction and responsive
         } } }
     });
     const mission = await runJarvisMission({
-        instruction: "Leer el primer bloque de presentación de Terminal.",
+        instruction: "Leer líneas 1 a 100 de Terminal.",
         initialToolCalls: [{ name: "repo.read", args: { file: "gestia-terminal.html", startLine: 1, endLine: 100 } }],
-        execute: async call => ({ ok: true, status: "COMPLETED", data: await readTool.execute(call.args) }),
+        execute: async call => ({ ok: true, status: "COMPLETED", data: await readTool.execute(call.args, {rootInstruction:"Leer líneas 1 a 100 de Terminal."}) }),
         planner: async () => ({ toolCalls: [], missionComplete: true }),
         storage: { getItem() { return null; }, setItem() {}, removeItem() {} }
     });
+    assert.equal(mission.completedTasks.length,1,JSON.stringify(mission.blockedTasks));
     const read = compactMissionPlannerObservation(mission.completedTasks[0].observation).verifiedRead;
     const page = { source: "RENDERED_DOM_LAYOUT_REPLAY", url: "http://localhost:5000/gestia-terminal.html", viewports: [{
         viewport: { width: 360, height: 800 },

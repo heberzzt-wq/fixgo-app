@@ -1489,6 +1489,20 @@ function platformQueryTestFixture({signedIn=true,fail=null,fromCache=false,chang
     return{execute,args,context,calls,dependencies:{auth,db:{},sdk}};
 }
 
+test('objective contract precedes observations and keeps independent quoted requirements',async()=>{
+ const input='Cuenta equipos, identifica sus responsables y revisa fechas de renovación. Sólo consulta.';
+ const goals=[['Cuenta equipos','population'],['identifica sus responsables','relationship'],['revisa fechas de renovación','temporal']];
+ const result=await runJarvisSemanticPlanner({input,catalog:[{name:'fixture.records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false}],missionState:{phase:'OBJECTIVE_CONTRACT'},ai:{models:{generateContent:async request=>{
+  assert.equal(request.config.semanticStage,'OBJECTIVE_CONTRACT');
+  assert.equal(request.config.chatMessages.at(-1).content,input);
+  return{text:JSON.stringify({objectives:goals.map(([requestQuote,coverageMode])=>({requestQuote,requiredEvidenceKind:'platform_records',coverageMode,scope:'all_sources'}))})};
+ }}}});
+ assert.equal(result.missionComplete,false);
+ assert.equal(result.toolCalls.length,0);
+ assert.deepEqual(result.completionAssessment.objectives.map(o=>o.objective),goals.map(g=>g[0]));
+ assert.ok(result.completionAssessment.objectives.every(o=>!o.satisfied&&o.scope==='all_sources'));
+});
+
 test('record queries accept parser-observed write fields for the matching collection beyond the visible source window',async()=>{
  const f=platformQueryTestFixture();
  const read=f.context.completedTasks[0].observation.verifiedRead;
@@ -2089,11 +2103,11 @@ test('platform record responses render verified scoped facts and never promote a
   }}}
  });
  assert.equal(result.grounding.mode,'VERIFIED_PLATFORM_RECORD_FACTS');
- assert.match(result.message,/colección vehicles/);
- assert.match(result.message,/type == "motorcycle"/);
- assert.match(result.message,/devolvió 0 registro/);
- assert.match(result.message,/sólo acredita ese alcance exacto/);
- assert.match(result.message,/no demuestra ausencia fuera de esos filtros/);
+ assert.match(result.message,/fuente «vehicles»/);
+ assert.match(result.message,/type == motorcycle/);
+ assert.match(result.message,/conteo consultado es 0/);
+ assert.match(result.message,/únicamente a ese alcance/);
+ assert.match(result.message,/no representan automáticamente el total/);
  assert.doesNotMatch(result.message,/no (?:hay|existen) vehículos/i);
 });
 
@@ -2112,14 +2126,14 @@ test('platform record grounding preserves independent query scopes and rows for 
    const ids=request.config.responseJsonSchema.properties.factIds.items.enum;
    assert.ok(ids.includes('platform.0.row.0'));
    assert.ok(ids.includes('platform.1.row.0'));
-   return{text:JSON.stringify({requestedLineCount:0,factIds:['platform.0.row.0','platform.1.row.0']})};
+   return{text:JSON.stringify({requestedLineCount:0,factIds:ids.filter(id=>id.startsWith('platform.0.row.0.field.')||id.startsWith('platform.1.row.0.field.'))})};
   }}}
  });
  assert.match(result.message,/Auto 1/);
  assert.match(result.message,/tech-a/);
  assert.match(result.message,/2026-10-20/);
- assert.match(result.message,/colección assets/);
- assert.match(result.message,/colección documents/);
+ assert.match(result.message,/fuente «assets»/);
+ assert.match(result.message,/fuente «documents»/);
 });
 
 test('terminal missions use a high emergency ceiling while progress guards remain the real loop control', () => {
@@ -2566,13 +2580,15 @@ test('long source investigations compact parser metadata while preserving live r
  const records={source:'FIRESTORE_SERVER_AUTHENTICATED',scope:{collection:'records'},rows:[{id:'r1',values:{assignedTo:'Observed owner',expiresAt:'2026-01-01'}}],completeForQuery:true};
  const tasks=[{index:0,name:'fixture.query',observation:{ok:true,recordEvidence:records}},...Array.from({length:20},(_,i)=>({index:i+1,name:'repo.read',args:{file:'source'+i+'.js'},observation:{ok:true,verifiedRead:{file:'source'+i+'.js',content:'x'.repeat(6000),sourceStructure:{dataBindings:{collections:['records'+i],fieldPaths:['assignedTo','expiresAt'],writeShapes:[{collection:'records'+i,fields:['assignedTo','expiresAt'],fieldsComplete:true}],references:Array.from({length:16},()=>({collection:'records'+i,content:'x'.repeat(1200),startLine:1,endLine:20,pathTemplate:'records'+i,rootCollection:'records'+i,declarations:[]}))}}}}}))];
  const result=compact(tasks);
- assert.ok(JSON.stringify(result).length<16000);
+ assert.ok(JSON.stringify(result).length<=28000);
  assert.equal(JSON.stringify(result[0].observation.recordEvidence),JSON.stringify(records));
  assert.equal(result.length,tasks.length);
  for(let i=1;i<result.length;i++){
   assert.equal(result[i].index,i);const read=result[i].observation.verifiedRead;
   assert.equal(read.file,'source'+(i-1)+'.js');assert.equal(read.sourceStructure.dataBindings.collections[0],'records'+(i-1));
   assert.equal(read.contentTruncated,true);assert.equal(read.sourceStructure.dataBindings.complete,false);
+  assert.deepEqual(Array.from(read.sourceStructure.dataBindings.fieldPaths),['assignedTo','expiresAt']);
+  assert.deepEqual(Array.from(read.sourceStructure.dataBindings.writeShapes[0].fields),['assignedTo','expiresAt']);
  }
 });
 
@@ -2877,4 +2893,69 @@ test('a repeatedly unverified query scope can return to an observed unread sourc
  assert.equal(result.toolCalls[0].args.file,'registration.js');
  assert.equal(result.toolCalls[0].approved,false);
  }
+});
+
+
+test('objective coverage rejects partial populations, foreign domains and scoped zero as global proof',()=>{
+ const {qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const contract={objective:'Inventory',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['group A','group B']};
+ const tasks=[{name:'source',observation:{ok:true,verifiedRead:{sourceStructure:{dataBindings:{collections:['alpha','beta']}}}}},{name:'query',observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'alpha',filters:[]},totalCount:0}}}];
+ const objective={...contract,evidenceTaskIndexes:[1],coverageProof:{proven:true,missing:[],groups:[{group:'group A',proven:true,evidence:[{taskIndex:1,fields:[]}]}],sources:[{collection:'alpha',relevant:true,reason:'Observed registry',taskIndexes:[1]}]}};
+ const partial=qualify(objective,contract,tasks);
+ assert.equal(partial.status,'partial');assert.equal(partial.consultedScopes[0].totalCount,0);
+ assert.ok(partial.missing.some(item=>item.includes('group B')));assert.ok(partial.missing.some(item=>item.includes('otras fuentes')));
+ objective.coverageProof.groups.push({group:'group B',proven:false,evidence:[]});
+ objective.coverageProof.sources.push({collection:'beta',relevant:true,reason:'Second registry',taskIndexes:[]});
+ assert.equal(qualify(objective,contract,tasks).status,'partial');
+ // Static evidence never substitutes for authenticated records.
+ objective.evidenceTaskIndexes=[0];assert.equal(qualify(objective,contract,tasks).consultedScopes.length,0);
+});
+
+test('independent record objectives require their own fields and complete cursor chains',()=>{
+ const {qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const contract={objective:'Inspect assigned entities',coverageMode:'relationship',scope:'explicit_scope',groups:['entities']};
+ const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'alpha',filters:[],fields:['owner','due']},rows:[{id:'a',values:{owner:'Observed person',due:null}}],hasMore:true,nextCursor:'a',previousCursor:null};
+ const tasks=[{observation:{ok:true,recordEvidence:record}}];
+ const objective={...contract,evidenceTaskIndexes:[0],coverageProof:{proven:true,missing:[],groups:[{group:'entities',proven:true,evidence:[{taskIndex:0,fields:['owner']}]}],sources:[]}};
+ assert.equal(qualify(objective,contract,tasks).status,'partial');
+ tasks.push({observation:{ok:true,recordEvidence:{...record,rows:[{id:'b',values:{owner:'Another person',due:null}}],hasMore:false,previousCursor:'a',nextCursor:null}}});objective.evidenceTaskIndexes.push(1);
+ assert.equal(qualify(objective,contract,tasks).status,'complete');
+ objective.coverageProof.groups[0].evidence[0].fields=['due'];
+ assert.equal(qualify(objective,{...contract,coverageMode:'temporal'},tasks).status,'partial');
+ objective.coverageProof.groups[0].evidence[0].fields=['fabricated'];
+ assert.equal(qualify(objective,contract,tasks).status,'partial');
+});
+
+test('complete evidence for every requested group can close a global record objective',()=>{
+ const {qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const contract={objective:'Count categories',coverageMode:'population',scope:'all_sources',groups:['first','second']};
+ const tasks=[{observation:{ok:true,verifiedRead:{sourceStructure:{dataBindings:{collections:['first_records','second_records']}}}}},...['first_records','second_records'].map(collection=>({observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection,filters:[]},totalCount:0}}}))];
+ const objective={...contract,evidenceTaskIndexes:[1,2],coverageProof:{proven:true,missing:[],groups:contract.groups.map((group,i)=>({group,proven:true,evidence:[{taskIndex:i+1,fields:[]}]})),sources:['first_records','second_records'].map((collection,i)=>({collection,relevant:true,reason:'Exclusive registry grounded by source definitions',taskIndexes:[i+1]}))}};
+ assert.equal(qualify(objective,contract,tasks).status,'complete');
+ objective.coverageProof.proven=false;assert.equal(qualify(objective,contract,tasks).status,'partial');
+});
+
+
+test('mission closure cannot erase or complete independent record requirements from one successful query',async()=>{
+ const objectives=['Count equipment','Identify owners','Check renewal dates'].map((objective,i)=>({objective,requestQuote:objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][i],scope:'all_sources',groups:['equipment']}));
+ const calls=[];
+ const result=await runJarvisMission({instruction:objectives.map(o=>o.objective).join('; '),initialEvidenceObjectives:objectives,
+  initialToolCalls:[{name:'fixture.query',args:{}}],toolCatalog:[{name:'fixture.query',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records']}],
+  execute:async call=>{calls.push(call);return {ok:true,data:{recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'event_log',filters:[]},totalCount:0}}};},
+  planner:async state=>{assert.deepEqual(state.evidenceObjectives.map(o=>o.objective),objectives.map(o=>o.objective));return {toolCalls:[],missionComplete:true,completionAssessment:{objectives:objectives.map(o=>({...o,satisfied:true,evidenceTaskIndexes:[0],limitation:'',coverage:{status:'partial',missing:['Only one unrelated source was queried']}}))}};},
+  storage:{getItem(){return null;},setItem(){},removeItem(){}}
+ });
+ assert.equal(calls.length,1);assert.notEqual(result.status,'COMPLETED');assert.equal(result.evidenceObjectives.length,3);
+});
+
+test('record presentation preserves exact entity roles and states pending coverage without generated factual prose',async()=>{
+ const {runJarvisSemanticResponse}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const calls=[];
+ const result=await runJarvisSemanticResponse({input:'Explain the records',responseInstruction:'Explain the records',responseMode:'grounded_conversation',responseBriefing:JSON.stringify({missionStatus:'PARTIAL',objectiveCoverage:[{objective:'Complete inventory',satisfied:false,limitation:'The second registry has not been queried.'}],platformRecordEvidence:[{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',filters:[],mode:'query',fields:['client','issuedAt']},rows:[{id:'r1',values:{client:'Ana',issuedAt:'2020-01-01'}}],returnedCount:1,completeForQuery:true,hasMore:false}]}),ai:{models:{generateContent:async request=>{
+  calls.push(request.config.semanticStage);
+  return{text:JSON.stringify({requestedLineCount:0,factIds:request.config.responseJsonSchema.properties.factIds.items.enum})};
+ }}}});
+ assert.equal(calls.length,1);assert.equal(result.grounding.scopedRecordPresentation,true);
+ assert.match(result.message,/client/);assert.match(result.message,/Ana/);assert.match(result.message,/Complete inventory/);assert.match(result.message,/second registry/);
+ assert.doesNotMatch(result.message,/emitido por Ana|vencid|COMPLETED|FIRESTORE_SERVER_AUTHENTICATED/);
 });

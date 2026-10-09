@@ -75,7 +75,8 @@ test("terminal accepts finalResponse without requiring AGENT_TOOL_RESULT and nev
     assert.match(terminal, /coreResult\?\.finalResponse\s*\|\|/);
     assert.doesNotMatch(terminal, /coreResult\?\.type === "AGENT_TOOL_RESULT"\s*&&\s*typeof preferredAgentFinalResponse/);
     assert.doesNotMatch(terminal, /reformula el objetivo tecnico para reentrar por GestiaCore/);
-    assert.match(terminal, /TERMINAL_CORE_RESPONSE_NOT_PRESENTED/);
+    assert.match(terminal, /preferredAgentFinalResponse\.text/);
+    assert.match(terminal, /shouldPreferAgentFinalResponse/);
 });
 
 test("reel creator and bridge require a physical verified final video", () => {

@@ -2257,6 +2257,7 @@ export async function runJarvisMission({
     objectiveId,
     now = () => new Date().toISOString(),
     maximumSteps = 12,
+    initialEvidenceObjectives = [],
     maximumRetries = 1,
     timeoutMs = null,
     noDeadline = true,
@@ -2345,6 +2346,14 @@ export async function runJarvisMission({
         mission.rootInstruction || mission.originalInstruction,
         200000
     );
+    if (!recovered && initialEvidenceObjectives.length) {
+        mission.evidenceObjectives = initialEvidenceObjectives.map(({objective,requiredEvidenceKind,requestQuote,coverageMode,scope,groups})=>({
+            objective,requiredEvidenceKind,requestQuote,coverageMode,scope,groups
+        }));
+        mission.completionAssessment = {objectives:mission.evidenceObjectives.map(objective=>({
+            ...objective,satisfied:false,evidenceTaskIndexes:[],limitation:"La investigación aún no ha obtenido la evidencia requerida."
+        }))};
+    }
     mission.rootInstructionHash = text(
         mission.rootInstructionHash || mission.instructionHash,
         128
@@ -2451,7 +2460,7 @@ export async function runJarvisMission({
 
     // Completing a scoped evidence tool proves execution, not that its scope
     // satisfies the user's objective. Let the single semantic planner audit it.
-    const requiresEvidenceAudit = () => mission.requiredToolNames.some(name =>
+    const requiresEvidenceAudit = () => Boolean(mission.evidenceObjectives?.length) || mission.requiredToolNames.some(name =>
         toolCatalog.some(tool => tool.name === name && (tool.evidenceKinds?.length > 0 || tool.investigationReadOnly === true)));
 
     while (mission.iterations < maximumSteps) {
@@ -2529,7 +2538,6 @@ export async function runJarvisMission({
                         : null
                 });
                 recordMissionAccounting(mission, plan || {});
-                mission.completionAssessment = plan?.completionAssessment || null;
                 if (!mission.evidenceObjectives?.length && plan?.completionAssessment?.objectives?.length &&
                     plan.completionAssessment.objectives.every(item=>typeof item.objective==='string' && item.objective.trim() &&
                         typeof item.requiredEvidenceKind==='string' && item.requiredEvidenceKind.trim())) {
@@ -2543,8 +2551,10 @@ export async function runJarvisMission({
                             evidenceRequirementSuccessors(expected.requiredEvidenceKind,toolCatalog).includes(actual.requiredEvidenceKind)))) {
                         throw new Error("SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH");
                     }
-                    mission.evidenceObjectives = proposed.map(({objective,requiredEvidenceKind})=>({objective,requiredEvidenceKind}));
+                    mission.evidenceObjectives = mission.evidenceObjectives.map(expected=>({...expected,
+                        requiredEvidenceKind:proposed.find(actual=>actual.objective===expected.objective).requiredEvidenceKind}));
                 }
+                if (plan?.completionAssessment?.objectives) mission.completionAssessment = plan.completionAssessment;
             } catch (error) {
                 mission.reason = "PLANNER_UNAVAILABLE";
                 mission.errors.push({
@@ -2603,8 +2613,20 @@ export async function runJarvisMission({
                     contractSatisfied &&
                     mission.requiredToolNames.length > 0 &&
                     mission.completedTasks.length > 0;
+                const objectiveCoverageSatisfied = !mission.evidenceObjectives?.length ||
+                    mission.evidenceObjectives.every(expected => {
+                        const actual=mission.completionAssessment?.objectives?.find(item=>item.objective===expected.objective);
+                        if(!actual?.satisfied || actual.requiredEvidenceKind!==expected.requiredEvidenceKind) return false;
+                        if(expected.requiredEvidenceKind!=="platform_records" || !expected.coverageMode) return true;
+                        return actual.coverage?.status==="complete" &&
+                            actual.evidenceTaskIndexes?.length>0 && actual.evidenceTaskIndexes.every(index=>{
+                                const observation=mission.completedTasks[index]?.observation;
+                                return observation?.ok===true && observation.executionOk!==false &&
+                                    observation.recordEvidence?.source==="FIRESTORE_SERVER_AUTHENTICATED";
+                            });
+                    });
                 mission.reason = (
-                    plan?.missionComplete === true ||
+                    (plan?.missionComplete === true && objectiveCoverageSatisfied) ||
                     (!requiresEvidenceAudit() &&
                         !plan?.completionAssessment?.objectives?.some(item => item.satisfied === false) &&
                         verifiedContractSatisfied)
@@ -2664,7 +2686,10 @@ export async function runJarvisMission({
                 mission.reason = "MISSION_EVIDENCE_PREREQUISITE_UNRESOLVED";
                 mission.completionAssessment = {
                     validationFailed: true,
-                    objectives: [{
+                    objectives: mission.evidenceObjectives?.length ? mission.evidenceObjectives.map(expected=>{
+                        const previous=mission.completionAssessment?.objectives?.find(item=>item.objective===expected.objective);
+                        return {...expected,...previous,satisfied:false,limitation:previous?.limitation || "Falta completar la evidencia operativa; la dependencia de lectura no resolvió este objetivo.",evidenceTaskIndexes:previous?.evidenceTaskIndexes || []};
+                    }) : [{
                         objective:
                             text(task?.reason || task?.obligationId || task?.name, 500),
                         requiredEvidenceKind:
@@ -3059,7 +3084,13 @@ export async function runJarvisMission({
     mission.status = mission.reason === "ALL_EXECUTABLE_TASKS_COMPLETED" ? "COMPLETED" : "PARTIAL";
     if (requiresEvidenceAudit() && mission.status !== "COMPLETED" &&
         !mission.completionAssessment?.objectives?.some(item => item.satisfied === false)) {
-        mission.completionAssessment = { validationFailed: true };
+        mission.completionAssessment = { validationFailed: true, ...(mission.evidenceObjectives?.length ? {
+            objectives:mission.evidenceObjectives.map(expected=>{
+                const previous=mission.completionAssessment?.objectives?.find(item=>item.objective===expected.objective);
+                return {...expected,...previous,satisfied:false,evidenceTaskIndexes:previous?.evidenceTaskIndexes || [],
+                    limitation:previous?.limitation || "El cierre no acreditó toda la cobertura de este objetivo."};
+            })
+        } : {}) };
     }
     mission.durationMs = Date.now() - startedAt;
     mission.pendingTasks = mission.pendingTasks.map(item => ({ ...item, status: "PENDING" }));

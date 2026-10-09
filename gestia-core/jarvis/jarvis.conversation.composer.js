@@ -1079,6 +1079,18 @@ export function buildAuthoritativeToolOutcomeMatrix(evidenceItems = []) {
 // omitted findings mean a clean viewport.
 function serializeConversationBriefing(briefing) {
     const limit = 11000;
+    if(briefing.platformRecordEvidence?.length) {
+        // Source bytes explain discovery; only authenticated query results and
+        // objective coverage can support the operational answer.
+        const compact={...briefing};
+        delete compact.groundedVerifiedRead;
+        delete compact.groundedJsonRead;
+        delete compact.repositoryInventories;
+        compact.executedTools=(compact.executedTools || []).map(({tool,status,ok})=>({tool,status,ok}));
+        compact.objectiveCoverage=(compact.objectiveCoverage || []).map(({objective,requiredEvidenceKind,satisfied,limitation,evidenceTaskIndexes,coverage})=>({objective,requiredEvidenceKind,satisfied,limitation,evidenceTaskIndexes,coverage}));
+        if(JSON.stringify(compact).length<=limit) return JSON.stringify(compact);
+        throw new Error("CONVERSATION_BRIEFING_BUDGET_EXCEEDED");
+    }
     const original = JSON.stringify(briefing);
     if (original.length <= limit || !briefing.measuredInterfaceEvidence?.some(page => page.source === "RENDERED_DOM_LAYOUT_REPLAY")) return original;
     const relatedSelectors = new Set(briefing.measuredInterfaceEvidence.flatMap(page =>
@@ -1390,6 +1402,7 @@ export async function composeEvidenceGroundedConversation({
             responseBriefing: serializeConversationBriefing({
                 missionStatus: missionOutcomeObservation?.status || "UNKNOWN",
                 missionReason: missionOutcomeObservation?.reason || "",
+                ...(missionOutcomeObservation?.completionAssessment?.objectives?.length ? {objectiveCoverage:missionOutcomeObservation.completionAssessment.objectives} : {}),
                 executedTools: authoritativeOutcomes.filter(item => item.tool !== "mission.outcome"),
                 ...(hasMeasuredInterfaceEvidence ? { measuredInterfaceEvidence } : {}),
                 ...(platformRecordEvidence.length ? { platformRecordEvidence } : {}),

@@ -456,9 +456,8 @@ function validateCompletionEvidence(plan, catalog, missionState) {
         }
         if (!objective.satisfied) {
             if (!objective.limitation.trim()) throw new Error("SEMANTIC_COMPLETION_EVIDENCE_REQUIRED");
-            continue;
         }
-        if (!objective.evidenceTaskIndexes.length || objective.limitation.trim()) {
+        if (objective.satisfied && (!objective.evidenceTaskIndexes.length || objective.limitation.trim())) {
             throw new Error("SEMANTIC_COMPLETION_EVIDENCE_REQUIRED");
         }
         for (const index of objective.evidenceTaskIndexes) {
@@ -490,6 +489,82 @@ function validateCompletionEvidence(plan, catalog, missionState) {
         plan.missionComplete !== true && !plan.toolCalls?.length && objectives.every(item => item.satisfied)) {
         throw new Error("SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY");
     }
+}
+
+function observedRecordSources(tasks) {
+    return [...new Set(tasks.flatMap(task=> task.observation?.ok===true && task.observation.executionOk!==false
+        ? task.observation.verifiedRead?.sourceStructure?.dataBindings?.collections || [] : []))].sort();
+}
+
+function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
+    const records=(objective.evidenceTaskIndexes || []).flatMap(index=>{
+        const observation=tasks[index]?.observation;
+        return observation?.ok===true && observation.executionOk!==false && observation.blocked!==true &&
+            observation.recordEvidence?.source==="FIRESTORE_SERVER_AUTHENTICATED" && observation.recordEvidence.readOnly===true
+            ? [{taskIndex:index,...observation.recordEvidence}] : [];
+    });
+    const consultedScopes=records.map(record=>({taskIndex:record.taskIndex,...record.scope,
+        totalCount:record.totalCount,returnedCount:record.returnedCount,hasMore:record.hasMore,
+        completeForQuery:record.completeForQuery}));
+    const queryKey=record=>JSON.stringify({collection:record.scope?.collection,filters:record.scope?.filters || [],fields:record.scope?.fields || [],orderBy:record.scope?.orderBy || []});
+    const complete=record=>{
+        if(record.completeForQuery===true || (!Array.isArray(record.rows) && Number.isInteger(record.totalCount) && record.totalCount>=0)) return true;
+        const pages=records.filter(item=>queryKey(item)===queryKey(record));
+        let page=pages.find(item=>!item.previousCursor), seen=new Set();
+        while(page && !seen.has(page.taskIndex)) {
+            seen.add(page.taskIndex);
+            if(page.hasMore===false) return true;
+            page=pages.find(item=>item.previousCursor && item.previousCursor===page.nextCursor);
+        }
+        return false;
+    };
+    const missing=[];
+    const proof=objective.coverageProof;
+    if(!records.length) missing.push("Faltan registros operativos consultados para este objetivo.");
+    if(records.some(record=>!complete(record)||record.truncatedFields?.length)) missing.push("La consulta conserva páginas o campos pendientes de leer.");
+    const groups=contract?.groups || [contract?.requestQuote || objective.objective];
+    for(const group of groups) {
+        const covered=proof?.groups?.find(item=>item.group===group);
+        const citations=covered?.evidence || [];
+        if(!covered?.proven || !citations.length || citations.some(citation=>{
+            const record=records.find(item=>item.taskIndex===citation.taskIndex);
+            if(!record || !complete(record)) return true;
+            if(contract?.scope==="all_sources" && !proof?.sources?.some(source=>source.relevant===true && source.taskIndexes?.includes(record.taskIndex) &&
+                (record.scope?.collection===source.collection || record.scope?.collection?.startsWith(source.collection+"/")))) return true;
+            if(["relationship","temporal"].includes(contract?.coverageMode) && (!record.rows?.length || !citation.fields?.length)) return true;
+            return (citation.fields || []).some(field=>!record.rows?.every(row=>
+                Object.prototype.hasOwnProperty.call(row.values || {},field) && row.values[field]!=null));
+        })) missing.push("Falta acreditar el grupo solicitado: "+group+".");
+    }
+    if(contract?.scope==="all_sources") {
+        const sources=observedRecordSources(tasks);
+        if(!sources.length || sources.some(collection=>{
+            const source=proof?.sources?.find(item=>item.collection===collection);
+            if(!source?.reason?.trim()) return true;
+            if(source.relevant===false) return false;
+            return source.relevant!==true || !source.taskIndexes?.length || source.taskIndexes.some(index=>{
+                const record=records.find(item=>item.taskIndex===index);
+                return !record || !complete(record) || !(record.scope?.collection===collection || record.scope?.collection?.startsWith(collection+"/"));
+            });
+        })) missing.push("La evidencia sólo cubre las rutas y filtros consultados; quedan fuentes observadas sin acreditar o sin descartar para este objetivo. Un cero no demuestra ausencia en otras fuentes.");
+    }
+    if(proof?.proven!==true || proof?.missing?.length) missing.push(...(proof?.missing?.length ? proof.missing : ["Falta verificar que los registros pertenecen al dominio y cubren todo el objetivo."]));
+    return {status:missing.length?"partial":"complete",consultedScopes,groups,missing:[...new Set(missing)]};
+}
+
+async function reviewRecordObjectiveCoverage({ai,model,instruction,objective,contract,tasks}) {
+    const response=await ai.models.generateContent({model,contents:instruction,config:{
+        semanticStage:"RECORD_OBJECTIVE_COVERAGE",temperature:0,maxOutputTokens:2048,
+        responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{
+            proven:{type:"boolean"},missing:{type:"array",items:{type:"string"}},
+            groups:{type:"array",items:{type:"object",properties:{group:{type:"string",enum:contract.groups || [contract.requestQuote || objective.objective]},proven:{type:"boolean"},evidence:{type:"array",items:{type:"object",properties:{taskIndex:{type:"integer"},fields:{type:"array",items:{type:"string"}}},required:["taskIndex","fields"],additionalProperties:false}}},required:["group","proven","evidence"],additionalProperties:false}},
+            sources:{type:"array",items:{type:"object",properties:{collection:{type:"string"},relevant:{type:"boolean"},reason:{type:"string"},taskIndexes:{type:"array",items:{type:"integer"}}},required:["collection","relevant","reason","taskIndexes"],additionalProperties:false}}
+        },required:["proven","missing","groups","sources"],additionalProperties:false},
+        chatMessages:[{role:"system",content:"Audita la cobertura de UN objetivo. Conserva cada grupo del contrato. Cita únicamente índices de registros operativos autenticados para demostrar valores. El código sólo acredita dónde y cómo se almacenan datos, nunca su existencia actual. Evalúa TODAS las colecciones observadas: cuáles contienen la población solicitada y cuáles sólo eventos, transacciones u otro dominio. Una muestra relacionada no es inventario. Para cada grupo exige que los datos y su definición de almacenamiento acrediten pertenencia y totalidad; registros de otros grupos no sirven. Un cero sólo acredita su ruta y filtros, nunca otras fuentes. Para relaciones exige entidad y asignación explícitas; para vencimientos exige fecha con significado de vencimiento, no fecha histórica de evento. No supongas exclusividad de una fuente si la evidencia no la establece. Campos null/ausentes significan desconocido. Si queda alguna población, fuente, página, relación o fecha sin acreditar, proven=false y explica missing. No aceptes la afirmación del planner como prueba. No inventes campos. No descartes una fuente pertinente para conseguir el cierre."},
+        {role:"user",content:JSON.stringify({request:instruction,contract,objective,observedSources:observedRecordSources(tasks),evidence:boundedAuditTasks(tasks)})}]
+    }});
+    if(response?.providerResponse?.finishReason==='length') return {proven:false,missing:["La revisión de cobertura no terminó dentro del presupuesto."]};
+    return extractJsonObject(String(response?.text||"")) || {proven:false,missing:["No se obtuvo una revisión de cobertura válida."]};
 }
 
 function compactMissionEvidence(value, depth = 0) {
@@ -898,6 +973,18 @@ function compactCatalogSchema(schema) {
 }
 
 function boundedAuditTasks(tasks) {
+    const fieldsSummary=fields=>{
+        if(!fields?.length) return {fieldPaths:[]};
+        let prefix=fields[0], suffix=fields[0];
+        for(const field of fields){while(prefix&&!field.startsWith(prefix))prefix=prefix.slice(0,-1);while(suffix&&!field.endsWith(suffix))suffix=suffix.slice(1);}
+        const suffixLimit=Math.max(0,Math.min(...fields.map(field=>field.length))-prefix.length);
+        suffix=suffixLimit ? suffix.slice(-suffixLimit) : "";
+        const members=fields.map(field=>field.slice(prefix.length,suffix?-suffix.length:undefined));
+        const numeric=members.length>2 && members.every((member,i)=>String(Number(member))===member && Number(member)===Number(members[0])+i);
+        const dictionary={prefix,suffix,...(numeric?{integerRange:[Number(members[0]),Number(members.at(-1))]}:{members})};
+        return JSON.stringify(dictionary).length<JSON.stringify(fields).length
+            ? {fieldPathDictionary:dictionary,fieldPathEncoding:"Each exact field = prefix + member + suffix; integerRange expands inclusively when present."} : {fieldPaths:fields};
+    };
     // Preserve every task index and source association. Older bodies can be
     // re-read; repeating all source bytes on every turn is not cumulative memory.
     const latestRead = tasks.findLast(task => task.observation?.verifiedRead);
@@ -912,11 +999,11 @@ function boundedAuditTasks(tasks) {
                 partial:true,truncated:true,contentTruncated:true,
                 endLine:content ? (read.startLine || 1) + content.split("\n").length - 1 : null,
                 ...(bindings ? {sourceStructure:{dataBindings:{...bindings,
-                    fieldPaths:(bindings.fieldPaths || []).slice(0,pathLimit),
-                    fieldPathsComplete:bindings.fieldPathsComplete === true && (bindings.fieldPaths || []).length <= pathLimit,
+                    fieldPaths:undefined,...fieldsSummary(bindings.fieldPaths || []),
+                    fieldPathsComplete:bindings.fieldPathsComplete === true,
                     writeShapes:(bindings.writeShapes || []).map(shape=>({...shape,
-                        fields:(shape.fields || []).slice(0,pathLimit),
-                        fieldsComplete:shape.fieldsComplete === true && (shape.fields || []).length <= pathLimit,
+                        fields:shape.fields || [],
+                        fieldsComplete:shape.fieldsComplete === true,
                         content:String(shape.content || "").slice(0,referenceLimit),truncated:true})),
                     references:(bindings.references || []).map(reference=>({...reference,
                         content:String(reference.content || "").slice(0,referenceLimit),partial:true,
@@ -944,7 +1031,9 @@ function boundedAuditTasks(tasks) {
             sourceStructure:{dataBindings:{
                 collections:bindings?.collections || [],
                 ...(bindings?.structuralRead ? {structuralRead:bindings.structuralRead} : {}),
-                fieldPathsComplete:false,
+                ...fieldsSummary(bindings?.fieldPaths || []),
+                writeShapes:(bindings?.writeShapes || []).map(({collection,fields,fieldsComplete})=>({collection,fields,fieldsComplete})),
+                fieldPathsComplete:bindings?.fieldPathsComplete===true,
                 schemaFieldsInSharedSummary:true,
                 referencesComplete:false, complete:false
             }}
@@ -952,7 +1041,7 @@ function boundedAuditTasks(tasks) {
     });
     const freshRead = minimal[tasks.indexOf(latestRead)]?.observation?.verifiedRead;
     if (freshRead) {
-        const overflow = JSON.stringify(minimal).length - 15900;
+        const overflow = JSON.stringify(minimal).length - 27900;
         if (overflow > 0) {
             freshRead.content = freshRead.content.slice(0,Math.max(0,freshRead.content.length-overflow));
             freshRead.endLine = freshRead.content ? (freshRead.startLine || 1) + freshRead.content.split("\n").length - 1 : null;
@@ -963,9 +1052,10 @@ function boundedAuditTasks(tasks) {
         for (const reference of references.slice(0,6)) {
             kept.push({collection:reference.collection,startLine:reference.startLine,endLine:reference.endLine,
                 content:String(reference.content||"").slice(0,700),partial:true});
-            if (JSON.stringify(minimal).length >= 16000) { kept.pop(); break; }
+            if (JSON.stringify(minimal).length >= 28000) { kept.pop(); break; }
         }
     }
+    if(JSON.stringify(minimal).length>28000) throw new Error("SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED");
     return minimal;
 }
 
@@ -1253,6 +1343,42 @@ async function runModelSemanticPlanner({
     if (!ai?.models?.generateContent) throw new Error("SEMANTIC_GEMINI_REQUIRED");
     const instruction = String(input || "").trim();
     const normalizedCatalog = normalizeCatalog(catalog);
+    if (missionState?.phase === "OBJECTIVE_CONTRACT") {
+        const kinds = [...new Set(normalizedCatalog.flatMap(tool => tool.evidenceKinds || ["tool_result"]))];
+        const words=[...instruction.matchAll(/[^\s,.;:!?]+/gu)];
+        const groupQuotes=[...new Set(words.flatMap((word,i)=>Array.from({length:Math.min(4,words.length-i)},(_,n)=>instruction.slice(word.index,words[i+n].index+words[i+n][0].length))))];
+        const response = await ai.models.generateContent({model,contents:instruction,config:{
+            semanticStage:"OBJECTIVE_CONTRACT",temperature:0,maxOutputTokens:1536,responseMimeType:"application/json",
+            responseJsonSchema:{type:"object",properties:{objectives:{type:"array",minItems:1,maxItems:12,items:{
+                type:"object",properties:{requestQuote:{type:"string",minLength:1,maxLength:500},
+                    requiredEvidenceKind:{type:"string",enum:kinds},coverageMode:{type:"string",enum:["population","relationship","temporal","other"]},
+                    scope:{type:"string",enum:["all_sources","explicit_scope"]},groups:{type:"array",minItems:1,maxItems:12,items:{type:"string",enum:groupQuotes}}},
+                required:["requestQuote","requiredEvidenceKind","coverageMode","scope","groups"],additionalProperties:false
+            }}},required:["objectives"],additionalProperties:false},
+            chatMessages:[
+                {role:"system",content:"Antes de investigar, separa TODAS las preguntas y resultados independientes pedidos por el usuario. No elijas herramientas ni respondas. Cada objetivo será inmutable hasta el cierre. requestQuote debe ser una cita textual continua de la solicitud que identifique una sola pregunta: no combines un inventario/conteo, una relación/asignación ni un análisis de fechas en el mismo objetivo. Separa también otras preguntas independientes. Las restricciones de ejecución no son objetivos. requiredEvidenceKind describe la prueba FINAL necesaria, no la búsqueda/lectura preparatoria: datos operativos actuales exigen platform_records si está disponible; código fuente no los sustituye. coverageMode: population para contar/listar una población, relationship para vincular entidades, temporal para comprobar fechas, other para los demás. scope=all_sources salvo que el usuario limite expresamente la pregunta a una fuente/colección/ruta concreta; no presupongas que una sola colección representa toda la aplicación. Conserva todos los grupos pedidos en cada pregunta. groups contiene NOMBRES de las entidades, no descripciones de la tarea, en citas textuales cortas de cada grupo pedido POR SEPARADO. Ejemplo: contar aulas y laboratorios exige dos grupos separados (aulas; laboratorios) para cada objetivo que se refiera a ambos. Selecciona sólo las palabras exactas de la solicitud, resolviendo referencias a entidades anteriores de la solicitud. No fusiones dos grupos enumerados. Para una pregunta sin grupos enumerados usa una cita de su entidad principal."},
+                {role:"user",content:instruction}
+            ]
+        }});
+        const payload=extractJsonObject(String(response?.text||""));
+        const objectives=payload?.objectives;
+        for(const objective of Array.isArray(objectives)?objectives:[]) {
+            if(typeof objective.requestQuote!=="string") continue;
+            const offset=instruction.toLowerCase().indexOf(objective.requestQuote.toLowerCase());
+            if(offset>=0) objective.requestQuote=instruction.slice(offset,offset+objective.requestQuote.length);
+            objective.groups=(objective.groups || [objective.requestQuote]).map(group=>{const offset=instruction.toLowerCase().indexOf(String(group).toLowerCase());return offset<0?group:instruction.slice(offset,offset+group.length);});
+        }
+        if(response?.providerResponse?.finishReason==='length'||!Array.isArray(objectives)||!objectives.length||
+            new Set(objectives.map(o=>o.requestQuote)).size!==objectives.length||objectives.some(o=>
+                !o.requestQuote?.trim()||!instruction.includes(o.requestQuote)||!kinds.includes(o.requiredEvidenceKind)||
+                !o.groups?.length || o.groups.some(group=>!group?.trim()||!instruction.includes(group)) ||
+                !["population","relationship","temporal","other"].includes(o.coverageMode)||!["all_sources","explicit_scope"].includes(o.scope))) {
+            throw new Error("SEMANTIC_OBJECTIVE_CONTRACT_INVALID");
+        }
+        return {toolCalls:[],missionComplete:false,completionAssessment:{objectives:objectives.map(o=>({
+            ...o,objective:o.requestQuote,satisfied:false,evidenceTaskIndexes:[],limitation:"Aún no se ha obtenido la evidencia requerida para este objetivo."
+        }))},provider:String(ai.lastProvider||"jarvis-local"),model,planKind:"OBJECTIVE_CONTRACT"};
+    }
     // Operational planning and mission contracts preserve the full input prefix.
     const currentTurnMessages = [
         { role: "system", content: "Eres Jarvis, la unica autoridad semantica local. La primera entrada es la instruccion original completa; la ultima indica la fase a resolver. Conserva todos los objetivos y restricciones. Devuelve JSON, no inventes evidencia ni concedas permisos." },
@@ -1779,7 +1905,7 @@ async function runModelSemanticPlanner({
             buildSemanticSystemInstruction(safeCatalog, missionState, false),
             "Evalúa cada objetivo original contra las observaciones ejecutadas. Primero comprueba que la URL observada coincide con el objeto o pagina solicitado; una página nunca acredita otra.",
             "Cada objetivo requiere objective, requiredEvidenceKind, satisfied, evidenceTaskIndexes y limitation. Los índices identifican tareas, no viewports. Los tipos permitidos están en allowedEvidenceKinds; un nombre de herramienta no es tipo de evidencia.",
-            "satisfied=true exige evidencia pertinente ya ejecutada e índices válidos y limitation vacía. Si falta evidencia: satisfied=false, índices vacíos y limitation concreta. No rebajes el tipo de evidencia para conseguir cumplimiento. DOM/CSS no acredita píxeles, interacción, lectura de código, aprobación, escritura ni tests.",
+            "satisfied=true exige evidencia pertinente ya ejecutada e índices válidos y limitation vacía. Si la cobertura es parcial: satisfied=false, conserva índices de registros parciales pertinentes y explica exactamente qué parte falta. No rebajes el tipo de evidencia para conseguir cumplimiento. DOM/CSS no acredita píxeles, interacción, lectura de código, aprobación, escritura ni tests.",
             "Selecciona una sola siguiente herramienta NUEVA con argumentos fundamentados para un objetivo pendiente. Si no hay operación ejecutable, toolCalls=[] y explica qué falta. No repitas trabajo ya satisfecho. Nunca inventes rutas ni resultados.",
             "Las lecturas resumidas con contentTruncated/partial no muestran todo el archivo. Para entender un campo o relación, usa repo.read con startLine/endLine alrededor de una coincidencia o referencia observada; no declares inexistente lo que quedó fuera del fragmento. Una mención en otro objeto del mismo archivo no prueba que el campo pertenezca a la colección elegida. Si una búsqueda es demasiado amplia, enfoca un objetivo pendiente o un identificador observado; repo.grep busca un literal, no una lista de conceptos.",
             "Escribe en español. No generes missionComplete: el runtime lo calcula con tus objetivos, referencias y toolCalls. Tus evaluaciones no sustituyen validaciones físicas. La aprobación y publicación quedan fuera de la autoridad del modelo.",
@@ -1951,7 +2077,7 @@ async function runModelSemanticPlanner({
                                 { role: "system", content: "El borrador anterior fue rechazado; no es evidencia. Revisa sus contradicciones contra las observaciones originales. No inventes referencias, cambies el alcance ni marques objetivos satisfechos solo para reparar el formato. ERROR_CONCRETO=" + JSON.stringify(lastAuditError?.evidence || {}) }
                             ] : []),
                             ...(observedWriteSchemas.length ? [{role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedWriteSchemas)+"\nEstas claves se observaron en objetos guardados en la colección indicada: no declares que faltan las claves listadas. No prueban registros actuales ni un esquema exhaustivo. Un filtro de clasificación rechazado no invalida otros objetivos que sí tienen campos acreditados. Puedes elegir una consulta de inspección paginada (mode=query) con campos pertinentes y acreditados para observar datos actuales sin inventar un filtro; esa lectura sólo demuestra su alcance y no acredita automáticamente conteos de subconjuntos. Conserva el tenant y los límites de permisos; nunca eludas una denegación."}] : []),
-                            { role: "system", content: "Decide el siguiente paso con la evidencia anterior. Sólo OBSERVACION_EJECUTADA acredita operaciones ya realizadas. Medir DOM/CSS no lee archivos fuente ni prepara un patch ni acredita una aprobación, escritura o prueba posterior. Si faltan operaciones del pedido, sus objetivos siguen satisfied=false, evidenceTaskIndexes=[] y limitation concreta. Selecciona una sola operación nueva del catálogo que avance ese trabajo; no repitas la inspección ya ejecutada con los mismos argumentos. El diagnóstico puede guiar la lectura del código antes de preparar un cambio exacto." },
+                            { role: "system", content: "Decide el siguiente paso con la evidencia anterior. Sólo OBSERVACION_EJECUTADA acredita operaciones ya realizadas. Medir DOM/CSS no lee archivos fuente ni prepara un patch ni acredita una aprobación, escritura o prueba posterior. Si faltan operaciones del pedido, sus objetivos siguen satisfied=false; conserva referencias a evidencia parcial pertinente y una limitation concreta. Selecciona una sola operación nueva del catálogo que avance ese trabajo; no repitas la inspección ya ejecutada con los mismos argumentos. El diagnóstico puede guiar la lectura del código antes de preparar un cambio exacto." },
                             { role: "user", content: instruction }
                         ],
                         temperature: 0,
@@ -2059,6 +2185,11 @@ async function runModelSemanticPlanner({
                 if (missionState.evidenceObjectives?.length) {
                     for(const objective of evaluatedAudit.completionAssessment?.objectives||[]) {
                         if(!objective.satisfied)continue;
+                        const contract=missionState.evidenceObjectives.find(item=>item.objective===objective.objective);
+                        if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode) {
+                            objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,instruction,objective,contract,tasks:completedTasksForAudit});
+                            continue;
+                        }
                         const cited=objective.evidenceTaskIndexes.map(index=>{
                             const task=completedTasksForAudit[index];
                             const {objectiveSatisfied, ...observation}=task?.observation||{};
@@ -2074,8 +2205,19 @@ async function runModelSemanticPlanner({
                             ]
                         }});
                         if(review?.providerResponse?.finishReason==='length'||extractJsonObject(String(review?.text||""))?.proven!==true) {
-                            objective.satisfied=false;objective.evidenceTaskIndexes=[];
+                            objective.satisfied=false;
                             objective.limitation="La evidencia citada no acredita todo el alcance de este objetivo; falta investigar o consultar la parte no demostrada.";
+                            evaluatedAudit.missionComplete=false;validatedAudit.missionComplete=false;
+                        }
+                    }
+                    for(const objective of evaluatedAudit.completionAssessment?.objectives||[]) {
+                        if(objective.requiredEvidenceKind!=="platform_records") continue;
+                        const contract=missionState.evidenceObjectives.find(item=>item.objective===objective.objective);
+                        if(!contract?.coverageMode) continue;
+                        objective.coverage=qualifyRecordObjectiveCoverage(objective,contract,completedTasksForAudit);
+                        if(objective.coverage.status!=="complete") {
+                            objective.satisfied=false;
+                            objective.limitation=objective.coverage.missing.join(" ");
                             evaluatedAudit.missionComplete=false;validatedAudit.missionComplete=false;
                         }
                     }
@@ -3569,6 +3711,7 @@ async function runJarvisSemanticResponse({
     }
 
     let groundedFactSelection = null;
+    let objectiveCoverage=[];
     if (groundedConversation) {
         let parsedBriefing = null;
         try {
@@ -3579,6 +3722,7 @@ async function runJarvisSemanticResponse({
             parsedBriefing = null;
         }
 
+        objectiveCoverage=parsedBriefing?.objectiveCoverage || [];
         const platformEvidence =
             Array.isArray(parsedBriefing?.platformRecordEvidence)
                 ? parsedBriefing.platformRecordEvidence.filter(item =>
@@ -3625,13 +3769,14 @@ async function runJarvisSemanticResponse({
                 }
                 if (Array.isArray(record.rows)) {
                     for (const [rowIndex, row] of record.rows.slice(0, 30).entries()) {
-                        const values = row?.values && typeof row.values === "object"
-                            ? Object.entries(row.values).map(([key, value]) => `${key}=${compactValue(value)}`).join("; ")
-                            : "";
                         facts.push({
                             id: `platform.${queryIndex}.row.${rowIndex}`,
-                            text: `Registro ${String(row?.id || rowIndex + 1)}${values ? ": " + values : ""}`.slice(0, 900)
+                            text: `Registro ${String(row?.id || rowIndex + 1)} de ${collection}.`
                         });
+                        for(const [fieldIndex,[field,value]] of Object.entries(row?.values||{}).entries()) {
+                            facts.push({id:`platform.${queryIndex}.row.${rowIndex}.field.${fieldIndex}`,
+                                text:`Registro ${String(row?.id||rowIndex+1)}: ${field}=${compactValue(value)}`.slice(0,900)});
+                        }
                     }
                     const pageId = `platform.${queryIndex}.page`;
                     facts.push({
@@ -3657,6 +3802,11 @@ async function runJarvisSemanticResponse({
                 groundedFactSelection = {
                     mode: "VERIFIED_PLATFORM_RECORD_FACTS",
                     facts: limitedFacts,
+                    records:platformEvidence,
+                    dateValues: platformEvidence.flatMap((record,queryIndex)=>(record.rows||[]).flatMap((row,rowIndex)=>Object.entries(row.values||{}).flatMap(([field,value],fieldIndex)=>
+                        typeof value==='string' && /^\d{4}-\d{2}-\d{2}(?:T|$)/.test(value) &&
+                        Number.isFinite(Date.parse(value)) && new Date(Date.parse(value)).toISOString().slice(0,10)===value.slice(0,10)
+                            ? [{factId:`platform.${queryIndex}.row.${rowIndex}.field.${fieldIndex}`,collection:record.scope.collection,rowId:row.id,field,value}] : []))),
                     requiredFactIds: [...new Set(requiredFactIds)].filter(id => limitedIds.has(id)),
                     missionStatus: parsedBriefing?.missionStatus || "UNKNOWN"
                 };
@@ -4142,6 +4292,34 @@ async function runJarvisSemanticResponse({
                         selectedFactIds: [...selectedIds],
                         missionStatus: groundedFactSelection.missionStatus
                     };
+                    // Explain coverage naturally while rendering record values
+                    // directly. Free prose must not change an observed entity's
+                    // role, infer a global population, or reinterpret an event date.
+                    const label=value=>String(value).replace(/([a-z])([A-Z])/g,"$1 $2").replace(/_/g," ");
+                    const dateNote=value=>{
+                        if(typeof value!=="string" || !/^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(value) || !Number.isFinite(Date.parse(value))) return "";
+                        const day=value.slice(0,10),today=new Date().toISOString().slice(0,10);
+                        const days=Math.round((Date.parse(day)-Date.parse(today))/86400000);
+                        return days<0?" (fecha pasada: hace "+Math.abs(days)+" días)":days>0?" (faltan "+days+" días)":" (hoy)";
+                    };
+                    const cell=value=>value==null ? "Sin dato acreditado" : (typeof value==="object" ? JSON.stringify(value) : String(value)+dateNote(value)).replaceAll("|","／").replace(/[\r\n]+/g," ");
+                    const paragraphs=[groundedFactSelection.missionStatus==="COMPLETED" ? "La revisión cubre los objetivos solicitados con los registros consultados." : "La revisión sigue parcial. Estos son los datos que pude comprobar; no representan automáticamente el total de todas las fuentes."];
+                    for(const [queryIndex,record] of (groundedFactSelection.records || []).entries()) {
+                        const scope=record.scope || {};
+                        const filters=(scope.filters || []).map(filter=>label(filter.field)+" "+filter.op+" "+cell(filter.value)).join("; ");
+                        paragraphs.push("En la fuente «"+scope.collection+"»"+(filters?", con "+filters:", sin filtros adicionales")+", "+
+                            (Number.isInteger(record.totalCount)?"el conteo consultado es "+record.totalCount+".":"la consulta devolvió "+(record.returnedCount ?? record.rows?.length ?? 0)+" registros.")+
+                            (record.hasMore?" Quedan páginas por consultar.":"")+" Esta cifra corresponde únicamente a ese alcance.");
+                        const rows=record.rows || [];
+                        const fields=[...new Set(rows.flatMap((row,rowIndex)=>Object.keys(row.values || {}).filter((field,fieldIndex)=>selectedIds.has("platform."+queryIndex+".row."+rowIndex+".field."+fieldIndex))))];
+                        if(fields.length && rows.length) paragraphs.push(
+                            "| "+fields.map(label).join(" | ")+" |\n| "+fields.map(()=>"---").join(" | ")+" |\n"+
+                            rows.map(row=>"| "+fields.map(field=>cell(row.values?.[field])).join(" | ")+" |").join("\n"));
+                    }
+                    const pending=objectiveCoverage.filter(objective=>objective.satisfied!==true);
+                    if(pending.length) paragraphs.push("Falta completar:\n"+pending.map(objective=>"- "+objective.objective+": "+(objective.limitation || "Aún falta evidencia para todo su alcance.")).join("\n"));
+                    message=paragraphs.join("\n\n");
+                    grounding.scopedRecordPresentation=true;
                 }
                 if (groundedFactSelection.mode === "MEASURED_INTERFACE_FACTS") {
                     const partial = groundedFactSelection.missionStatus !== "COMPLETED" ? " Revisión parcial. " : " ";
@@ -4188,6 +4366,7 @@ module.exports = {
     normalizeTextToolPlan,
     compactMissionObservation,
     evidenceRequirementSuccessors,
+    qualifyRecordObjectiveCoverage,
     runModelSemanticPlanner,
     runGeminiSemanticPlanner: runModelSemanticPlanner,
     runJarvisSemanticPlanner,

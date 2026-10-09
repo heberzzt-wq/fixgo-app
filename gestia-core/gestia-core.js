@@ -5059,12 +5059,19 @@ if (
             }
             throw lastPlannerError || new Error("SEMANTIC_PLANNER_UNAVAILABLE");
         };
+    const initialCoverageContract = !pendingMissionId && !missionIsIsolated &&
+        missionToolCatalog.some(tool => tool.evidenceKinds?.includes("platform_records"))
+        ? await buildMissionToolCallsWithTransientRetry(effectiveMissionInstruction, {
+            ...context, throwOnUnavailable:true, toolCatalog:missionToolCatalog,
+            missionState:{phase:"OBJECTIVE_CONTRACT",writeAllowed:false}
+        }) : null;
     const missionResult =
         await runJarvisMission({
             instruction:
                 effectiveMissionInstruction,
             initialToolCalls:
                 missionInitialToolCalls,
+            initialEvidenceObjectives: initialCoverageContract?.completionAssessment?.objectives || [],
             requiredToolNames:
                 [...new Set(missionInitialToolCalls.map(call => call.name))],
             toolCatalog: boundedCurrentTurnMission || observationFirstCurrentTurnMission ? missionToolCatalog : registeredMissionTools,

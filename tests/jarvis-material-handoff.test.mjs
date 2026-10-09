@@ -80,16 +80,16 @@ test("local completion audit uses semantic candidates and bounded system/user me
         retrieveToolCandidates:async (...args)=>{retrieval=args;return[{name:"media.library"}];},
         ai:{lastProvider:"ollama-openai-compatible-local",models:{generateContent:async request=>{
             assert.equal(request.config.semanticStage,"COMPLETION_AUDIT");
-            assert.equal(request.config.maxOutputTokens,768);
+            assert.equal(request.config.maxOutputTokens,1536);
             assert.equal(request.config.chatMessages[0].role,"system");
-            assert.ok(request.config.chatMessages[0].content.includes(input));
-            assert.ok(request.config.chatMessages[1].content.includes("Audita únicamente"));
-            assert.equal(request.config.responseJsonSchema.properties.missionComplete.type,"boolean");
+            assert.equal(request.config.chatMessages.at(-1).content,input);
+            assert.ok(request.config.chatMessages.some(message=>message.content.startsWith("CATALOGO_EJECUTABLE=")));
+            assert.ok(request.config.responseJsonSchema.properties.completionAssessment);
             return{text:JSON.stringify({toolCalls:[{name:"media.library",args:{action:"export",output:".jarvis-artifacts/images/ad.png"}}],missionComplete:false})};
         }}}
     });
-    assert.deepEqual(retrieval,[input,12]);
-    assert.equal(result.catalogSize,1);
+    assert.equal(retrieval,undefined,"completion preserves the authorized catalog rather than a semantic shortlist");
+    assert.equal(result.catalogSize,2);
     assert.equal(result.missionComplete,false);
     assert.equal(result.toolCalls[0].name,"media.library");
 });

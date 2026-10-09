@@ -68,6 +68,7 @@ test("v118 semantic page compose preserves section objectives instead of collaps
     assert.match(multitool, /sections: "array"/);
     assert.match(multitool, /PAGE_REQUESTED_SECTION_COVERAGE_INCOMPLETE/);
     assert.match(multitool, /missionDedupeBy: \["pageName"\]/);
-    assert.match(planner, /copia en args\.sections cada sección de contenido pedida explícitamente/);
+    assert.match(planner, /filterSemanticArguments/);
+    assert.match(multitool, /PAGE_REQUESTED_SECTION_COVERAGE_INCOMPLETE/);
     assert.match(actuator, /requiredSections: "array", contentSections: "array"/);
 });

@@ -57,7 +57,7 @@ test("near-copy corruption of an explicit identity is rejected generically", asy
     }, instruction);
     assert.deepEqual(filtered, {});
 
-    const calls = await buildJarvisMultifunctionToolCalls(instruction, {
+    await assert.rejects(() => buildJarvisMultifunctionToolCalls(instruction, {
         toolCatalog: pageCatalog,
         missionState: { phase: "CURRENT_TURN" },
         semanticPlanner: semanticPlan({
@@ -68,8 +68,8 @@ test("near-copy corruption of an explicit identity is rejected generically", asy
             sections: ["Servicios", "Contacto"]
         }),
         throwOnUnavailable: true
-    });
-    assert.equal(calls.length, 0);
+    }), /SEMANTIC_PLAN_EMPTY/);
+
 });
 
 test("exact explicit identities survive while unrelated creative identities remain possible", async () => {

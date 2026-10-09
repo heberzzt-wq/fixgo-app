@@ -317,10 +317,10 @@ test("semantic tool planner keeps repo plans read-only and filters unsafe tools"
     assert.equal(plan.toolCalls[0].mutates, false);
     assert.equal(plan.toolCalls[0].approved, false);
     assert.equal(plan.toolCalls[0].args.term, "render terminal");
-    assert.equal(plan.toolCalls[0].args.nested, undefined);
+    assert.deepEqual(plan.toolCalls[0].args.nested, {drop:true}, "structured arguments remain data; executable fields are validated against the registered tool schema");
 });
 
-test("semantic tool planner replaces audit-only plans with focused discovery", () => {
+test("semantic tool planner does not invent discovery when an audit is unavailable", () => {
     const plan =
         normalizeSemanticToolPlan(
             {
@@ -347,20 +347,10 @@ test("semantic tool planner replaces audit-only plans with focused discovery", (
         plan.toolCalls.some(call => call.name === "repo.audit"),
         false
     );
-    assert.deepEqual(
-        plan.toolCalls.map(call => call.name).slice(0, 2),
-        [
-            "repo.rankCandidates",
-            "repo.search"
-        ]
-    );
-    assert.match(plan.toolCalls[0].args.query, /tarjetas/);
-    assert.equal(plan.toolCalls[1].args.term, "tarjetas");
-    assert.equal(plan.toolCalls[0].mutates, false);
-    assert.equal(plan.toolCalls[0].approved, false);
+    assert.deepEqual(plan.toolCalls, [], "the normalizer cannot invent lexical discovery steps");
 });
 
-test("semantic tool planner replaces scan-only plans with focused discovery", () => {
+test("semantic tool planner preserves a scan without lexical expansion", () => {
     const plan =
         normalizeSemanticToolPlan(
             {
@@ -379,17 +369,7 @@ test("semantic tool planner replaces scan-only plans with focused discovery", ()
             }
         );
 
-    assert.deepEqual(
-        plan.toolCalls.map(call => call.name),
-        [
-            "repo.rankCandidates",
-            "repo.search",
-            "repo.grep"
-        ]
-    );
-    assert.match(plan.toolCalls[0].args.query, /render/);
-    assert.equal(plan.toolCalls[1].args.term, "render");
-    assert.equal(plan.toolCalls[2].args.term, "render");
+    assert.deepEqual(plan.toolCalls.map(call=>call.name), ["repo.scan"], "preserve the semantic choice without guessing search terms");
 });
 
 test("semantic tool planner falls back to general response without tool calls", () => {
@@ -1857,7 +1837,7 @@ test("verified read-only missions stay outside retrying Firestore transactions",
     );
     assert.match(
         core,
-        /const completionAuditCatalog\s*=\s*registeredMissionTools\s*\.slice\(0,\s*80\)/
+        /const completionAuditCatalog\s*=\s*\(boundedCurrentTurnMission \|\| observationFirstCurrentTurnMission \? missionToolCatalog : registeredMissionTools\)\s*\.slice\(0,\s*80\)/
     );
     assert.doesNotMatch(
         core,
@@ -1881,7 +1861,7 @@ test("verified read-only missions stay outside retrying Firestore transactions",
     );
     assert.match(
         terminal,
-        /gestia-terminal\.js\?v=v94-[a-z0-9-]+-[0-9]{8}/
+        /gestia-terminal\.js\?v=v[0-9]+-[a-z0-9-]+-[0-9]{8}/
     );
     assert.match(
         toolsRuntime,
