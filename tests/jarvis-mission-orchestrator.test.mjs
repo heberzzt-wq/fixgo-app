@@ -198,6 +198,31 @@ test("mission continues from research through marketing, page and reel planning"
     assert.deepEqual(recovered.requiredToolNames, sequence);
 });
 
+test("mission preserves its original evidence objectives across follow-ups and recovery", async () => {
+    const storage = memoryStorage();
+    const objectives = [{ objective: "Inspect current records", requiredEvidenceKind: "platform_records" }];
+    let calls = 0;
+    const mission = await runJarvisMission({
+        instruction: "Inspect current records without changing them",
+        initialToolCalls: [{ name: "repo.search", args: { query: "records" } }],
+        planner: async ({ mission: current }) => {
+            calls++;
+            if (calls === 1) return {
+                completionAssessment: { objectives: objectives.map(item => ({ ...item, satisfied: false })) },
+                toolCalls: [{ name: "repo.read", args: { file: "records.js" } }]
+            };
+            assert.deepEqual(current.evidenceObjectives, objectives);
+            return { toolCalls: [], missionComplete: false,
+                completionAssessment: { objectives: [{ objective: "Find code", requiredEvidenceKind: "repository_search", satisfied: false }] } };
+        },
+        execute: async () => ({ ok: true, status: "READY" }),
+        storage
+    });
+    assert.equal(calls, 2);
+    assert.deepEqual(mission.evidenceObjectives, objectives);
+    assert.deepEqual(recoverJarvisMission(mission.missionId, { storage }).evidenceObjectives, objectives);
+});
+
 test("mission grounds dependent execution arguments with prior evidence", async () => {
     const mission = await runJarvisMission({
         instruction: "Revisa tecnico b2b y explica su impacto sin modificar.",

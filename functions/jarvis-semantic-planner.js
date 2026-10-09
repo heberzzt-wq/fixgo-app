@@ -418,6 +418,16 @@ function validateCompletionEvidence(plan, catalog, missionState) {
         throw new Error("SEMANTIC_COMPLETION_EVIDENCE_REQUIRED");
     }
     const tasks = missionState?.completedTasks || [];
+    const contracted = missionState?.evidenceObjectives || [];
+    if (contracted.length && (objectives.length !== contracted.length ||
+        new Set(objectives.map(o=>o.objective)).size !== contracted.length ||
+        contracted.some(expected=>!objectives.some(actual=>actual.objective===expected.objective &&
+            actual.requiredEvidenceKind===expected.requiredEvidenceKind)))) {
+        throw Object.assign(new Error("SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH"), {evidence:{
+            requiredObjectives:contracted,
+            correction:"Conserva exactamente los objetivos y tipos de evidencia establecidos; no los omitas, reformules ni rebajes para conseguir un cierre."
+        }});
+    }
     for (const objective of objectives) {
         if (typeof objective?.objective !== "string" || !objective.objective.trim() ||
             typeof objective.requiredEvidenceKind !== "string" || !objective.requiredEvidenceKind.trim() ||
@@ -1045,7 +1055,7 @@ function bindEvidencePrerequisites(catalog, tasks = []) {
     });
 }
 
-function completionAuditSchema(catalog, tasks, selectableCatalog = catalog) {
+function completionAuditSchema(catalog, tasks, selectableCatalog = catalog, contracted = []) {
     const kinds = [...new Set(["tool_result", "visual_inspection", ...catalog.flatMap(tool => tool.evidenceKinds || [])])];
     const indices = tasks.map((_, index) => index);
     const objective = satisfied => ({ type: "object", properties: {
@@ -1056,10 +1066,17 @@ function completionAuditSchema(catalog, tasks, selectableCatalog = catalog) {
         satisfied: { type: "boolean", enum: [satisfied] },
         limitation: { type: "string", maxLength: 320, ...(satisfied ? { enum: [""] } : { minLength: 1 }) }
     }, required: ["objective", "requiredEvidenceKind", "evidenceTaskIndexes", "satisfied", "limitation"], additionalProperties: false });
+    const alternatives = contracted.length ? contracted.flatMap(expected =>
+        (indices.length ? [false,true] : [false]).map(satisfied => {
+            const branch=objective(satisfied);
+            branch.properties.objective={type:"string",enum:[expected.objective]};
+            branch.properties.requiredEvidenceKind={type:"string",enum:[expected.requiredEvidenceKind]};
+            return branch;
+        })) : indices.length ? [objective(false), objective(true)] : [objective(false)];
     return { type: "object", properties: {
         explanation: { type: "string", minLength: 1, maxLength: 320 },
-        completionAssessment: { type: "object", properties: { objectives: { type: "array", minItems: 1,
-            items: { anyOf: indices.length ? [objective(false), objective(true)] : [objective(false)] } } },
+        completionAssessment: { type: "object", properties: { objectives: { type: "array", minItems: contracted.length || 1,
+            ...(contracted.length ? {maxItems:contracted.length} : {}), items: { anyOf: alternatives } } },
             required: ["objectives"], additionalProperties: false },
         toolCalls: { type: "array", maxItems: selectableCatalog.length ? 1 : 0, items: selectableCatalog.length ? { anyOf: selectableCatalog.map(tool => ({
             type: "object", properties: { name: { type: "string", enum: [tool.name] }, args: buildNativeInputSchema(tool.inputSchema) },
@@ -1859,6 +1876,7 @@ async function runModelSemanticPlanner({
                         chatMessages: [
                             { role: "system", content: auditInstruction + (lastAuditError ? "\nRepara el contrato rechazado: " + lastAuditError.message + ". Conserva las pruebas reales. satisfied=false exige una limitation no vacia; satisfied=true exige referencias validas y limitation vacia. No inventes evidencia para corregir el formato." : "") },
                             { role: "system", content: "CATALOGO_EJECUTABLE=" + JSON.stringify(auditCatalog) },
+                            ...(missionState.evidenceObjectives?.length ? [{role:"system",content:"OBJETIVOS_ESTABLECIDOS_INMUTABLES="+JSON.stringify(missionState.evidenceObjectives)+"\nEvalúa todos con estos mismos nombres y tipos de evidencia. Sólo cambian el cumplimiento, las referencias y lo que falta; una búsqueda de código no puede sustituir registros actuales."}] : []),
                             ...(pendingCapabilities.length ? [{role:"system",content:"CAPACIDADES_INSTALADAS_PENDIENTES_DE_EVIDENCIA="+JSON.stringify(pendingCapabilities)+"\nEstas capacidades sí existen. Antes de usarlas obtén la evidencia que necesitan, buscando y leyendo la fuente. No declares ausencia de capacidad, de colección o de registros por no haber cumplido aún su requisito."}] : []),
                             ...auditTasks.map(task => ({ role: "system", content: "OBSERVACION_EJECUTADA=" + JSON.stringify(task) })),
                             ...(missionState.blockedTasks || []).slice(-12).map(task => ({ role: "system", content: "INTENTO_FALLIDO_NO_ACREDITA_CUMPLIMIENTO=" + JSON.stringify({ name: task.name, args: task.args, observation: task.observation }) + "\nUsa el fallo para corregir el siguiente paso sin repetir argumentos ya rechazados. Una ruta no encontrada requiere corregir el destino o explicar que no se obtuvo; permisos denegados no autorizan otra identidad, quitar filtros ni ampliar acceso. Nunca conviertas un fallo en cero registros." })),
@@ -1877,7 +1895,7 @@ async function runModelSemanticPlanner({
                             thinkingLevel: "MINIMAL"
                         },
                         responseMimeType: "application/json",
-                        responseJsonSchema: completionAuditSchema(safeCatalog, missionState.completedTasks || [], selectableCatalog)
+                        responseJsonSchema: completionAuditSchema(safeCatalog, missionState.completedTasks || [], selectableCatalog, missionState.evidenceObjectives || [])
                     }
                 });
                 if (auditResponse?.providerResponse?.finishReason === "length") {
@@ -1972,6 +1990,31 @@ async function runModelSemanticPlanner({
                     }
                 }
                 const validatedAudit = validatePlan(evaluatedAudit, safeCatalog, instruction);
+                if (missionState.evidenceObjectives?.length) validateCompletionEvidence(evaluatedAudit, normalizedCatalog, missionState);
+                if (missionState.evidenceObjectives?.length) {
+                    for(const objective of evaluatedAudit.completionAssessment?.objectives||[]) {
+                        if(!objective.satisfied)continue;
+                        const cited=objective.evidenceTaskIndexes.map(index=>{
+                            const task=completedTasksForAudit[index];
+                            const {objectiveSatisfied, ...observation}=task?.observation||{};
+                            return {index,name:task?.name,args:task?.args,
+                                observation:observation.recordEvidence || observation};
+                        });
+                        const review=await ai.models.generateContent({model,contents:instruction,config:{
+                            semanticStage:"CLOSURE_OBJECTIVE_VERIFICATION",temperature:0,maxOutputTokens:64,
+                            responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{proven:{type:"boolean"}},required:["proven"],additionalProperties:false},
+                            chatMessages:[
+                                {role:"system",content:"Verifica sólo ESTE objetivo, por completo, contra las observaciones citadas. Una operación útil no demuestra cumplimiento. Un conteo sólo prueba su colección y filtros; no demuestra subconjuntos sin discriminación ni otras fuentes. Si el objetivo pide varios grupos, deben estar identificados por evidencia pertinente. La ausencia de un campo no demuestra cero registros de ese grupo. Una búsqueda o código no demuestra registros actuales. Para relaciones o fechas deben constar los valores, no sólo un conteo. Si falta alguna parte, proven=false. No combines con otros objetivos ni aceptes una afirmación del planner como prueba. Devuelve sólo proven."},
+                                {role:"user",content:JSON.stringify({objective:objective.objective,requiredEvidenceKind:objective.requiredEvidenceKind,evidence:cited})}
+                            ]
+                        }});
+                        if(review?.providerResponse?.finishReason==='length'||extractJsonObject(String(review?.text||""))?.proven!==true) {
+                            objective.satisfied=false;objective.evidenceTaskIndexes=[];
+                            objective.limitation="La evidencia citada no acredita todo el alcance de este objetivo; falta investigar o consultar la parte no demostrada.";
+                            evaluatedAudit.missionComplete=false;validatedAudit.missionComplete=false;
+                        }
+                    }
+                }
                 const pendingEvidenceKinds = new Set(
                     (evaluatedAudit?.completionAssessment?.objectives || [])
                         .filter(objective => objective?.satisfied !== true)

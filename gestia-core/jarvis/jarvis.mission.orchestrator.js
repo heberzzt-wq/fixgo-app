@@ -2511,6 +2511,11 @@ export async function runJarvisMission({
                 });
                 recordMissionAccounting(mission, plan || {});
                 mission.completionAssessment = plan?.completionAssessment || null;
+                if (!mission.evidenceObjectives?.length && plan?.completionAssessment?.objectives?.length &&
+                    plan.completionAssessment.objectives.every(item=>typeof item.objective==='string' && item.objective.trim() &&
+                        typeof item.requiredEvidenceKind==='string' && item.requiredEvidenceKind.trim())) {
+                    mission.evidenceObjectives = plan.completionAssessment.objectives.map(({objective,requiredEvidenceKind})=>({objective,requiredEvidenceKind}));
+                }
             } catch (error) {
                 mission.reason = "PLANNER_UNAVAILABLE";
                 mission.errors.push({

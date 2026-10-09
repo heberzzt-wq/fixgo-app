@@ -5163,6 +5163,7 @@ if (
                                                 mission.routingInstructionLength,
                                             requiredToolNames:
                                                 mission.requiredToolNames,
+                                            evidenceObjectives: mission.evidenceObjectives || [],
                                             completedTasks:
                                                 mission.completedTasks.map(item => ({
                                                     completedAt: item.completedAt,
@@ -5319,6 +5320,7 @@ if (
                                     rawInstructionLength: mission.rawInstructionLength,
                                     routingInstructionLength: mission.routingInstructionLength,
                                     requiredToolNames: mission.requiredToolNames,
+                                    evidenceObjectives: mission.evidenceObjectives || [],
                                     missingRequiredToolNames,
                                     completedTasks: mission.completedTasks.map(item => ({
                                         completedAt: item.completedAt,

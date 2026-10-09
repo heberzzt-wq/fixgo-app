@@ -2713,3 +2713,26 @@ test('duplicate recovery calls cannot exhaust unread discovered sources',async()
  throw Error('Unexpected stage');
  }}}});assert.equal(selected,true);assert.equal(result.planKind,'UNREAD_SOURCE_CONTINUATION');assert.equal(result.toolCalls[0].args.file,'unread.js');
 });
+
+test('mission objective evidence requirements cannot be downgraded by a later completion audit',async()=>{
+ const input='Check current records';const reader={name:'repo.search',mutates:false,evidenceKinds:['repository_search']};
+ await assert.rejects(runJarvisSemanticPlanner({input,catalog:[reader],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[{objective:input,requiredEvidenceKind:'platform_records'}],completedTasks:[{name:reader.name,observation:{ok:true}}]},ai:{models:{generateContent:async()=>({text:JSON.stringify({explanation:'Done',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'repository_search',satisfied:true,evidenceTaskIndexes:[0],limitation:''}]},toolCalls:[]})})}}}),/SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH/);
+});
+
+test('completion review uses observed records without the tool success assessment and reopens unsupported objectives',async()=>{
+ const input='Inspect all requested groups';
+ const query={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'}},required:['collection']}};
+ const result=await runJarvisSemanticPlanner({input,catalog:[query],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[{objective:input,requiredEvidenceKind:'platform_records'}],completedTasks:[{name:query.name,args:{collection:'first'},observation:{ok:true,objectiveSatisfied:true,recordEvidence:{scope:{collection:'first'},totalCount:1}}}]},ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({explanation:'Done',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:true,evidenceTaskIndexes:[0],limitation:''}]},toolCalls:[]})};
+  if(request.config.semanticStage==='CLOSURE_OBJECTIVE_VERIFICATION'){
+   const context=JSON.stringify(request.config.chatMessages);
+   assert.doesNotMatch(context,/objectiveSatisfied/);assert.match(context,/totalCount/);
+   return{text:JSON.stringify({proven:false})};
+  }
+  if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION')return{functionCalls:[{name:query.name,args:{collection:'second'}}]};
+  throw Error('Unexpected stage '+request.config.semanticStage);
+ }}}});
+ assert.equal(result.missionComplete,false);
+ assert.equal(result.completionAssessment.objectives[0].satisfied,false);
+ assert.equal(result.toolCalls[0].args.collection,'second');
+});
