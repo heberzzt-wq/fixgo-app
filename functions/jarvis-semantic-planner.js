@@ -1233,17 +1233,29 @@ function completionAuditSchema(catalog, tasks, selectableCatalog = catalog, cont
         satisfied: { type: "boolean", enum: [satisfied] },
         limitation: { type: "string", maxLength: 320, ...(satisfied ? { enum: [""] } : { minLength: 1 }) }
     }, required: ["objective", "requiredEvidenceKind", "evidenceTaskIndexes", "satisfied", "limitation"], additionalProperties: false });
-    const alternatives = contracted.length ? contracted.flatMap(expected =>
-        (indices.length ? [false,true] : [false]).map(satisfied => {
-            const branch=objective(satisfied);
-            branch.properties.objective={type:"string",enum:[expected.objective]};
-            branch.properties.requiredEvidenceKind={type:"string",enum:evidenceRequirementSuccessors(expected.requiredEvidenceKind,catalog)};
-            return branch;
-        })) : indices.length ? [objective(false), objective(true)] : [objective(false)];
+    const contractedItems = contracted.map(expected => ({anyOf:
+        evidenceRequirementSuccessors(expected.requiredEvidenceKind,catalog).flatMap(kind => {
+            const eligible = indices.filter(index => {
+                const task=tasks[index], observation=task.observation;
+                return observation?.ok===true && observation.executionOk!==false && observation.blocked!==true && observation.requiresInput!==true &&
+                    (catalog.find(tool=>tool.name===task.name)?.evidenceKinds || ["tool_result"]).includes(kind);
+            });
+            return (eligible.length ? [false,true] : [false]).map(satisfied => {
+                const branch=objective(satisfied);
+                branch.properties.objective={type:"string",enum:[expected.objective]};
+                branch.properties.requiredEvidenceKind={type:"string",enum:[kind]};
+                branch.properties.evidenceTaskIndexes={type:"array",minItems:satisfied?1:0,maxItems:eligible.length,
+                    items:eligible.length?{type:"integer",enum:eligible}:{type:"integer"}};
+                return branch;
+            });
+        })}));
+    const alternatives = indices.length ? [objective(false), objective(true)] : [objective(false)];
     return { type: "object", properties: {
         explanation: { type: "string", minLength: 1, maxLength: 320 },
-        completionAssessment: { type: "object", properties: { objectives: { type: "array", minItems: contracted.length || 1,
-            ...(contracted.length ? {maxItems:contracted.length} : {}), items: { anyOf: alternatives } } },
+        completionAssessment: { type: "object", properties: { objectives: contracted.length ? {
+            type:"object",properties:Object.fromEntries(contractedItems.map((item,index)=>["objective_"+index,item])),
+            required:contractedItems.map((_,index)=>"objective_"+index),additionalProperties:false
+        } : {type:"array",minItems:1,items:{anyOf:alternatives}} },
             required: ["objectives"], additionalProperties: false },
         toolCalls: { type: "array", maxItems: selectableCatalog.length ? 1 : 0, items: selectableCatalog.length ? { anyOf: selectableCatalog.map(tool => ({
             type: "object", properties: { name: { type: "string", enum: [tool.name] }, args: buildNativeInputSchema(tool.inputSchema) },
@@ -2132,6 +2144,12 @@ async function runModelSemanticPlanner({
                 }
                 try { auditPlan = extractJsonObject(String(auditResponse?.text || "")); }
                 catch { throw new Error("SEMANTIC_COMPLETION_AUDIT_INVALID_JSON"); }
+                const objectiveMap=auditPlan?.completionAssessment?.objectives;
+                if(missionState.evidenceObjectives?.length && objectiveMap && !Array.isArray(objectiveMap)) {
+                    const keys=missionState.evidenceObjectives.map((_,index)=>"objective_"+index);
+                    if(Object.keys(objectiveMap).length!==keys.length || keys.some(key=>!Object.hasOwn(objectiveMap,key))) throw new Error("SEMANTIC_COMPLETION_EVIDENCE_REQUIRED");
+                    auditPlan.completionAssessment.objectives=keys.map(key=>objectiveMap[key]);
+                }
                 if (auditPlan?.missionComplete === true && auditPlan?.toolCalls?.length) {
                     throw new Error("SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY");
                 }

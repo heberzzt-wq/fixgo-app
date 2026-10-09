@@ -2811,8 +2811,8 @@ test('source evidence requirements can advance to dependent read-only records wi
   assert.equal(request.config.semanticStage,'COMPLETION_AUDIT');
   const schema=request.config.responseJsonSchema;
   assert.deepEqual(schema.properties.toolCalls.items.anyOf.map(x=>x.properties.name.enum[0]),[read.name,records.name]);
-  assert.deepEqual(schema.properties.completionAssessment.properties.objectives.items.anyOf[0].properties.requiredEvidenceKind.enum,['repository_source','platform_records']);
-  return{text:JSON.stringify({explanation:'The source identifies the next data reader',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Need current records'}]},toolCalls:[{name:records.name,args:{sourceFile:'records.js'}}]})};
+  assert.deepEqual([...new Set(schema.properties.completionAssessment.properties.objectives.properties.objective_0.anyOf.flatMap(branch=>branch.properties.requiredEvidenceKind.enum))],['repository_source','platform_records']);
+  return{text:JSON.stringify({explanation:'The source identifies the next data reader',completionAssessment:{objectives:{objective_0:{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Need current records'}}},toolCalls:[{name:records.name,args:{sourceFile:'records.js'}}]})};
  }}}});
  assert.equal(result.toolCalls[0].name,records.name);
  assert.equal(result.completionAssessment.objectives[0].requiredEvidenceKind,'platform_records');
@@ -2993,4 +2993,25 @@ test('bounded evidence shares repeated field schemas losslessly and preserves th
   assert.deepEqual(decode(bindings.fieldIds),[...fields,'unique_'+(i-1)]);
   assert.deepEqual(decode(bindings.writeShapes[0].fieldIds),[...fields,'unique_'+(i-1)]);
  }
+});
+
+
+test('contracted closure grammar fixes each objective key and permits only successful evidence of its required kind',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const declaration=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='completionAuditSchema');
+ const schemaFor=runInNewContext('('+source.slice(declaration.start,declaration.end)+')',{evidenceRequirementSuccessors:kind=>[kind]});
+ const catalog=[{name:'source.reader',evidenceKinds:['repository_source']},{name:'records.reader',evidenceKinds:['platform_records']}];
+ const contract=['population','relationships','deadlines'].map(objective=>({objective,requiredEvidenceKind:'platform_records'}));
+ const tasks=[{name:'source.reader',observation:{ok:true}},{name:'records.reader',observation:{ok:false}}];
+ const schema=schemaFor(catalog,tasks,[],contract).properties.completionAssessment.properties.objectives;
+ assert.equal(schema.type,'object');assert.equal(schema.additionalProperties,false);assert.deepEqual(Array.from(schema.required),['objective_0','objective_1','objective_2']);
+ for(const [i,item] of Object.values(schema.properties).entries()){
+  assert.equal(item.anyOf.length,1);const p=item.anyOf[0].properties;
+  assert.deepEqual(Array.from(p.objective.enum),[contract[i].objective]);
+  assert.deepEqual(Array.from(p.requiredEvidenceKind.enum),['platform_records']);
+  assert.deepEqual(Array.from(p.satisfied.enum),[false]);assert.equal(p.evidenceTaskIndexes.maxItems,0);
+ }
+ tasks.push({name:'records.reader',observation:{ok:true,executionOk:true}});
+ const ready=schemaFor(catalog,tasks,[],contract).properties.completionAssessment.properties.objectives;
+ for(const item of Object.values(ready.properties))for(const branch of item.anyOf)assert.deepEqual(Array.from(branch.properties.evidenceTaskIndexes.items.enum),[2]);
 });
