@@ -2755,3 +2755,38 @@ test('typed evidence recovery cannot execute an unrelated media capability',asyn
  assert.equal(result.toolCalls[0].name,records.name);
  assert.equal(attempts,2);
 });
+
+test('source evidence requirements can advance to dependent read-only records without admitting unrelated tools',async()=>{
+ const input='Inspect current amounts and owners';
+ const read={name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
+ const records={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}},required:['sourceFile']}};
+ const media={name:'fixture.media',investigationReadOnly:true,mutates:false,evidenceKinds:['media_analysis']};
+ const writer={name:'fixture.write',mutates:true,evidenceKinds:['written_records'],requiresEvidence:[{kind:'repository_source'}]};
+ const result=await runJarvisSemanticPlanner({input,catalog:[read,records,media,writer],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[{objective:input,requiredEvidenceKind:'repository_source'}],completedTasks:[{name:read.name,args:{file:'records.js'},observation:{ok:true,verifiedRead:{file:'records.js'}}}]},ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:true})};
+  assert.equal(request.config.semanticStage,'COMPLETION_AUDIT');
+  const schema=request.config.responseJsonSchema;
+  assert.deepEqual(schema.properties.toolCalls.items.anyOf.map(x=>x.properties.name.enum[0]),[read.name,records.name]);
+  assert.deepEqual(schema.properties.completionAssessment.properties.objectives.items.anyOf[0].properties.requiredEvidenceKind.enum,['repository_source','platform_records']);
+  return{text:JSON.stringify({explanation:'The source identifies the next data reader',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Need current records'}]},toolCalls:[{name:records.name,args:{sourceFile:'records.js'}}]})};
+ }}}});
+ assert.equal(result.toolCalls[0].name,records.name);
+ assert.equal(result.completionAssessment.objectives[0].requiredEvidenceKind,'platform_records');
+ assert.equal(result.missionComplete,false);
+});
+
+test('browser and planner evidence contracts preserve monotonic read-only dependencies',async()=>{
+ const browser=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
+ const planner=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const catalog=[
+  {investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'source'}],evidenceKinds:['records']},
+  {investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'records'}],evidenceKinds:['analysis']},
+  {investigationReadOnly:true,mutates:true,requiresEvidence:[{kind:'source'}],evidenceKinds:['written']},
+  {investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'source'},{kind:'other'}],evidenceKinds:['unrelated']}
+ ];
+ for(const fn of [browser.evidenceRequirementSuccessors,planner.evidenceRequirementSuccessors]) {
+  assert.deepEqual(fn('source',catalog),['source','records','analysis']);
+  assert.deepEqual(fn('records',catalog),['records','analysis']);
+  assert.deepEqual(fn('source',[...catalog,{investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'analysis'}],evidenceKinds:['source']}]),['source']);
+ }
+});

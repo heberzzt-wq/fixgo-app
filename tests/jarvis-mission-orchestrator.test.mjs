@@ -223,6 +223,24 @@ test("mission preserves its original evidence objectives across follow-ups and r
     assert.deepEqual(recoverJarvisMission(mission.missionId, { storage }).evidenceObjectives, objectives);
 });
 
+test("mission persists stronger evidence requirements and rejects a later downgrade", async () => {
+    const storage=memoryStorage();
+    const objective='Inspect current records';
+    const catalog=[{name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source']},{name:'fixture.records',investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source'}],evidenceKinds:['platform_records']}];
+    let calls=0;
+    const mission=await runJarvisMission({instruction:objective,initialToolCalls:[{name:'repo.search',args:{query:'records'}}],toolCatalog:catalog,
+        planner:async({mission:current})=>{
+            calls++;
+            if(calls===3)assert.deepEqual(current.evidenceObjectives,[{objective,requiredEvidenceKind:'platform_records'}]);
+            return {missionComplete:false,completionAssessment:{objectives:[{objective,requiredEvidenceKind:calls===2?'platform_records':'repository_source',satisfied:false}]},
+                toolCalls:calls===1?[{name:'repo.read',args:{file:'records.js'}}]:calls===2?[{name:'fixture.records',args:{}}]:[]};
+        },execute:async()=>({ok:true,status:'READY'}),storage});
+    assert.equal(calls,3);
+    assert.equal(mission.reason,'PLANNER_UNAVAILABLE');
+    assert.equal(mission.errors.at(-1).status,'SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH');
+    assert.deepEqual(recoverJarvisMission(mission.missionId,{storage}).evidenceObjectives,[{objective,requiredEvidenceKind:'platform_records'}]);
+});
+
 test("mission grounds dependent execution arguments with prior evidence", async () => {
     const mission = await runJarvisMission({
         instruction: "Revisa tecnico b2b y explica su impacto sin modificar.",

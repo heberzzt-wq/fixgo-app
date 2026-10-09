@@ -412,6 +412,25 @@ function requireExecutablePlan(plan = {}) {
 
 // Qwen determines the objective and the evidence it needs. The runtime only
 // checks its proof references against executed observations and catalog scopes.
+function evidenceRequirementSuccessors(kind, catalog = []) {
+    const reachable = start => {
+        const found = new Set([start]);
+        let previousSize;
+        do {
+            previousSize = found.size;
+            for (const tool of catalog) {
+                const requirements = tool.requiresEvidence || [];
+                if (tool.investigationReadOnly !== true || tool.mutates === true || !requirements.length ||
+                    !requirements.every(requirement => found.has(requirement.kind))) continue;
+                for (const output of tool.evidenceKinds || []) found.add(output);
+            }
+        } while (found.size !== previousSize);
+        return found;
+    };
+    // Cyclic dependencies do not establish a stronger evidence requirement.
+    return [...reachable(kind)].filter(next => next === kind || !reachable(next).has(kind));
+}
+
 function validateCompletionEvidence(plan, catalog, missionState) {
     const objectives = plan?.completionAssessment?.objectives;
     if (!Array.isArray(objectives) || !objectives.length) {
@@ -422,10 +441,10 @@ function validateCompletionEvidence(plan, catalog, missionState) {
     if (contracted.length && (objectives.length !== contracted.length ||
         new Set(objectives.map(o=>o.objective)).size !== contracted.length ||
         contracted.some(expected=>!objectives.some(actual=>actual.objective===expected.objective &&
-            actual.requiredEvidenceKind===expected.requiredEvidenceKind)))) {
+            evidenceRequirementSuccessors(expected.requiredEvidenceKind,catalog).includes(actual.requiredEvidenceKind))))) {
         throw Object.assign(new Error("SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH"), {evidence:{
             requiredObjectives:contracted,
-            correction:"Conserva exactamente los objetivos y tipos de evidencia establecidos; no los omitas, reformules ni rebajes para conseguir un cierre."
+            correction:"Conserva exactamente los objetivos. Sólo puedes elevar el tipo de evidencia siguiendo dependencias de herramientas de lectura; nunca omitirlo ni rebajarlo para conseguir un cierre."
         }});
     }
     for (const objective of objectives) {
@@ -1070,7 +1089,7 @@ function completionAuditSchema(catalog, tasks, selectableCatalog = catalog, cont
         (indices.length ? [false,true] : [false]).map(satisfied => {
             const branch=objective(satisfied);
             branch.properties.objective={type:"string",enum:[expected.objective]};
-            branch.properties.requiredEvidenceKind={type:"string",enum:[expected.requiredEvidenceKind]};
+            branch.properties.requiredEvidenceKind={type:"string",enum:evidenceRequirementSuccessors(expected.requiredEvidenceKind,catalog)};
             return branch;
         })) : indices.length ? [objective(false), objective(true)] : [objective(false)];
     return { type: "object", properties: {
@@ -1685,7 +1704,8 @@ async function runModelSemanticPlanner({
         let selectableCatalog = bindEvidencePrerequisites(safeCatalog, completedTasksForAudit).filter(tool => !measuredRepair ||
             (tool.name !== "browser.inspect" && tool.name !== "tests.run" && (tool.name !== "repo.prepareWrite" || hasReadSource)));
         let objectiveScopedCatalog = safeCatalog;
-        const objectiveKinds = new Set((missionState.evidenceObjectives || []).map(item => item.requiredEvidenceKind));
+        const objectiveKinds = new Set((missionState.evidenceObjectives || []).flatMap(item =>
+            evidenceRequirementSuccessors(item.requiredEvidenceKind,safeCatalog)));
         if (objectiveKinds.size && !objectiveKinds.has("tool_result") && !measuredRepair) {
             // Follow declared evidence dependencies, never words from the user's
             // domain. A media reader cannot satisfy a record objective merely
@@ -1898,7 +1918,7 @@ async function runModelSemanticPlanner({
                         chatMessages: [
                             { role: "system", content: auditInstruction + (lastAuditError ? "\nRepara el contrato rechazado: " + lastAuditError.message + ". Conserva las pruebas reales. satisfied=false exige una limitation no vacia; satisfied=true exige referencias validas y limitation vacia. No inventes evidencia para corregir el formato." : "") },
                             { role: "system", content: "CATALOGO_EJECUTABLE=" + JSON.stringify(auditCatalog) },
-                            ...(missionState.evidenceObjectives?.length ? [{role:"system",content:"OBJETIVOS_ESTABLECIDOS_INMUTABLES="+JSON.stringify(missionState.evidenceObjectives)+"\nEvalúa todos con estos mismos nombres y tipos de evidencia. Sólo cambian el cumplimiento, las referencias y lo que falta; una búsqueda de código no puede sustituir registros actuales."}] : []),
+                            ...(missionState.evidenceObjectives?.length ? [{role:"system",content:"OBJETIVOS_ESTABLECIDOS_INMUTABLES="+JSON.stringify(missionState.evidenceObjectives)+"\nConserva todos los nombres. Si el tipo inicial sólo era evidencia preparatoria, elévalo a un tipo permitido por el esquema y las dependencias de lectura del catálogo. El código puede permitir consultar datos actuales, pero no los sustituye. Nunca rebajes un requisito ya establecido; evalúa cada objetivo completo."}] : []),
                             ...(pendingCapabilities.length ? [{role:"system",content:"CAPACIDADES_INSTALADAS_PENDIENTES_DE_EVIDENCIA="+JSON.stringify(pendingCapabilities)+"\nEstas capacidades sí existen. Antes de usarlas obtén la evidencia que necesitan, buscando y leyendo la fuente. No declares ausencia de capacidad, de colección o de registros por no haber cumplido aún su requisito."}] : []),
                             ...auditTasks.map(task => ({ role: "system", content: "OBSERVACION_EJECUTADA=" + JSON.stringify(task) })),
                             ...(missionState.blockedTasks || []).slice(-12).map(task => ({ role: "system", content: "INTENTO_FALLIDO_NO_ACREDITA_CUMPLIMIENTO=" + JSON.stringify({ name: task.name, args: task.args, observation: task.observation }) + "\nUsa el fallo para corregir el siguiente paso sin repetir argumentos ya rechazados. Una ruta no encontrada requiere corregir el destino o explicar que no se obtuvo; permisos denegados no autorizan otra identidad, quitar filtros ni ampliar acceso. Nunca conviertas un fallo en cero registros." })),
@@ -4099,6 +4119,7 @@ module.exports = {
     normalizeCatalog,
     normalizeTextToolPlan,
     compactMissionObservation,
+    evidenceRequirementSuccessors,
     runModelSemanticPlanner,
     runGeminiSemanticPlanner: runModelSemanticPlanner,
     runJarvisSemanticPlanner,

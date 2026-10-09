@@ -8,6 +8,25 @@ const STORAGE_KEY = "jarvis.missions.v1";
 const SINGLETON_MISSION_TOOLS = new Set(["marketing.plan", "reel.plan"]);
 const COMPLETED_SINGLETON_MISSION_TOOLS = new Set(["reel.plan"]);
 
+// Keep the browser and CommonJS planner contract aligned (covered by parity tests).
+export function evidenceRequirementSuccessors(kind, catalog = []) {
+    const reachable = start => {
+        const found = new Set([start]);
+        let previousSize;
+        do {
+            previousSize = found.size;
+            for (const tool of catalog) {
+                const requirements = tool.requiresEvidence || [];
+                if (tool.investigationReadOnly !== true || tool.mutates === true || !requirements.length ||
+                    !requirements.every(requirement => found.has(requirement.kind))) continue;
+                for (const output of tool.evidenceKinds || []) found.add(output);
+            }
+        } while (found.size !== previousSize);
+        return found;
+    };
+    return [...reachable(kind)].filter(next => next === kind || !reachable(next).has(kind));
+}
+
 function text(value = "", maximum = 120000) {
     return String(value ?? "").trim().slice(0, maximum);
 }
@@ -2515,6 +2534,16 @@ export async function runJarvisMission({
                     plan.completionAssessment.objectives.every(item=>typeof item.objective==='string' && item.objective.trim() &&
                         typeof item.requiredEvidenceKind==='string' && item.requiredEvidenceKind.trim())) {
                     mission.evidenceObjectives = plan.completionAssessment.objectives.map(({objective,requiredEvidenceKind})=>({objective,requiredEvidenceKind}));
+                } else if (mission.evidenceObjectives?.length && plan?.completionAssessment?.objectives?.length) {
+                    const proposed = plan.completionAssessment.objectives;
+                    if (proposed.length !== mission.evidenceObjectives.length ||
+                        new Set(proposed.map(item => item.objective)).size !== proposed.length ||
+                        mission.evidenceObjectives.some(expected => !proposed.some(actual =>
+                            actual.objective === expected.objective &&
+                            evidenceRequirementSuccessors(expected.requiredEvidenceKind,toolCatalog).includes(actual.requiredEvidenceKind)))) {
+                        throw new Error("SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH");
+                    }
+                    mission.evidenceObjectives = proposed.map(({objective,requiredEvidenceKind})=>({objective,requiredEvidenceKind}));
                 }
             } catch (error) {
                 mission.reason = "PLANNER_UNAVAILABLE";
