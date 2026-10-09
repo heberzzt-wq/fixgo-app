@@ -11,7 +11,7 @@ import { readSemanticStream, semanticFailurePresentation, JARVIS_PRIVATE_RELAY, 
  */
 
 export const JARVIS_TERMINAL_BOOTSTRAP_VERSION =
-    "1.17.0-private-firestore-relay";
+    "1.18.0-private-firestore-relay-head-lock";
 export const NEXO_TERMINAL_BOOTSTRAP_VERSION =
     JARVIS_TERMINAL_BOOTSTRAP_VERSION; // compatibility export only
 
@@ -26,31 +26,62 @@ function runtimeContractUrl() {
     ).toString();
 }
 
+function releaseManifestUrl() {
+    return new URL(
+        "../../release-manifest.json",
+        import.meta.url
+    ).toString();
+}
+
 async function readRuntimeContract() {
     if (!runtimeContractPromise) {
         runtimeContractPromise = (async () => {
-            const response = await globalThis.fetch(
-                runtimeContractUrl(),
-                {
-                    method: "GET",
-                    cache: "no-store"
-                }
-            );
+            const [response, releaseResponse] = await Promise.all([
+                globalThis.fetch(
+                    runtimeContractUrl(),
+                    {
+                        method: "GET",
+                        cache: "no-store"
+                    }
+                ),
+                globalThis.fetch(
+                    releaseManifestUrl(),
+                    {
+                        method: "GET",
+                        cache: "no-store"
+                    }
+                )
+            ]);
             if (!response?.ok) {
                 throw new Error(
                     `JARVIS_RUNTIME_CONTRACT_HTTP_${response?.status || 0}`
                 );
             }
-            const contract = await response.json();
+            if (!releaseResponse?.ok) {
+                throw new Error(
+                    `JARVIS_RELEASE_MANIFEST_HTTP_${releaseResponse?.status || 0}`
+                );
+            }
+            const [contract, manifest] = await Promise.all([
+                response.json(),
+                releaseResponse.json()
+            ]);
             const releaseId = String(
                 contract?.releaseId || ""
+            ).trim();
+            const gitSha = String(
+                manifest?.git_sha || ""
             ).trim();
             if (!releaseId) {
                 throw new Error("JARVIS_RUNTIME_RELEASE_ID_REQUIRED");
             }
+            if (!/^[0-9a-f]{40}$/i.test(gitSha)) {
+                throw new Error("JARVIS_RELEASE_GIT_SHA_REQUIRED");
+            }
             return {
                 ...contract,
-                releaseId
+                releaseId,
+                gitSha
             };
         })().catch(error => {
             runtimeContractPromise = null;
@@ -122,7 +153,7 @@ export function createJarvisPrivateRelayClient({ auth, db, sdk, now = Date.now,
             signal?.throwIfAborted();
             const parent = sdk.doc(db, policy.collection, policy.ownerUid);
             const live = await sdk.getDocFromServer(parent);
-            if (!jarvisRelayPresenceIsLive(live.data(), contract.releaseId, now())) throw new Error("JARVIS_RELAY_WORKSTATION_UNAVAILABLE");
+            if (!jarvisRelayPresenceIsLive(live.data(), contract.releaseId, now(), contract.gitSha)) throw new Error("JARVIS_RELAY_WORKSTATION_UNAVAILABLE");
             const body = JSON.stringify(payload || {});
             if (new TextEncoder().encode(body).length > policy.maxBytes) throw new Error("JARVIS_RELAY_PAYLOAD_TOO_LARGE");
             const requestId = uuid(), ref = sdk.doc(parent, "requests", requestId);
@@ -199,7 +230,7 @@ export function createJarvisPrivateRelayClient({ auth, db, sdk, now = Date.now,
                         if (settled) return;
                         if (auth.currentUser?.uid !== policy.ownerUid) {
                             finish(new Error("JARVIS_RELAY_OWNER_REQUIRED"));
-                        } else if (presenceConfirmed && !jarvisRelayPresenceIsLive(lastPresence, contract.releaseId, now())) {
+                        } else if (presenceConfirmed && !jarvisRelayPresenceIsLive(lastPresence, contract.releaseId, now(), contract.gitSha)) {
                             finish(new Error("JARVIS_RELAY_RESULT_UNCONFIRMED"));
                         } else if (!accepted && now() > request.expiresAt.toMillis()) {
                             finish(new Error("JARVIS_RELAY_REQUEST_EXPIRED"));
@@ -237,7 +268,7 @@ export function createJarvisPrivateRelayClient({ auth, db, sdk, now = Date.now,
                     }
                     const silence = now() - lastReceiptSignalAt;
                     if (silence >= Math.max(1, Number(receiptSilenceMs) || 15000) ||
-                        !jarvisRelayPresenceIsLive(lastPresence, contract.releaseId, now())) {
+                        !jarvisRelayPresenceIsLive(lastPresence, contract.releaseId, now(), contract.gitSha)) {
                         void pollServerReceipt();
                     }
                 }, Math.max(5, Number(pollIntervalMs) || 5000));
@@ -271,10 +302,22 @@ export async function startJarvisBrowserRelay({ auth, db, sdk, contract, request
     if (health?.ok !== true || health.status !== "JARVIS_WORKSTATION_LIVE" || !health.runtime?.bridgeStarted) {
         throw new Error("JARVIS_RELAY_LOCAL_HEALTH_REQUIRED");
     }
+    if (
+        contract.gitSha &&
+        String(health.runtime?.loadedHead || "").trim() !== String(contract.gitSha).trim()
+    ) {
+        throw new Error("JARVIS_RELAY_LOCAL_RELEASE_MISMATCH");
+    }
     const heartbeat = async () => {
         if (stopped || auth.currentUser?.uid !== policy.ownerUid) throw new Error("JARVIS_RELAY_OWNER_REQUIRED");
         const local = await requestLocal("/workstation/health", {}, { timeoutMs: 4000 });
         if (local?.ok !== true || local.status !== "JARVIS_WORKSTATION_LIVE") throw new Error("JARVIS_RELAY_LOCAL_HEALTH_REQUIRED");
+        if (
+            contract.gitSha &&
+            String(local.runtime?.loadedHead || "").trim() !== String(contract.gitSha).trim()
+        ) {
+            throw new Error("JARVIS_RELAY_LOCAL_RELEASE_MISMATCH");
+        }
         await sdk.runTransaction(db, async tx => {
             const prior = (await tx.get(parent)).data();
             if (
@@ -283,7 +326,8 @@ export async function startJarvisBrowserRelay({ auth, db, sdk, contract, request
                 jarvisRelayPresenceIsLive(
                     prior,
                     contract.releaseId,
-                    now()
+                    now(),
+                    contract.gitSha
                 )
             ) {
                 throw new Error("JARVIS_RELAY_LEASE_HELD");

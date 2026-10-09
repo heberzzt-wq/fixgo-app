@@ -50,6 +50,10 @@ export function isSemanticTimeout(error = "") {
 
 export function semanticFailurePresentation(error = "") {
     const value = String(error);
+    if (/JARVIS_RELAY_LOCAL_RELEASE_MISMATCH/.test(value)) return {
+        title: "La Terminal y el bridge no están en la misma versión",
+        detail: "El relay rechazó una pestaña o bridge de otro SHA. Recarga la Terminal para que tome el lease con la versión pública actual; no se ejecutará trabajo mezclando releases."
+    };
     if (/JARVIS_RELAY_WORKSTATION_UNAVAILABLE|JARVIS_RELAY_LOCAL_HEALTH_REQUIRED/.test(value)) return {
         title: "La laptop no está enlazada",
         detail: "No hay un enlace privado activo. Mantén abierta la Terminal autorizada en la laptop. Esto no demuestra que Qwen esté apagado."
@@ -138,9 +142,12 @@ export function validateJarvisRelayRequest(request, { requestId, releaseId, now 
     return { route: request.route, payload, requestId, ownerUid: policy.ownerUid };
 }
 
-export function jarvisRelayPresenceIsLive(presence, releaseId, now = Date.now()) {
+export function jarvisRelayPresenceIsLive(presence, releaseId, now = Date.now(), expectedLoadedHead = null) {
     const at = relayTimestampMs(presence?.heartbeatAt);
+    const expectedHead = String(expectedLoadedHead || "").trim();
+    const loadedHead = String(presence?.loadedHead || "").trim();
     return presence?.online === true && presence?.schemaVersion === JARVIS_PRIVATE_RELAY.version &&
         presence?.releaseId === releaseId && typeof presence.workerId === "string" && presence.workerId.length > 0 &&
+        (!expectedHead || loadedHead === expectedHead) &&
         Number.isFinite(at) && at <= now + 10000 && now - at < JARVIS_PRIVATE_RELAY.offlineMs;
 }

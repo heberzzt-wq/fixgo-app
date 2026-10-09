@@ -13,7 +13,7 @@ const bootstrap = fs.readFileSync(
 );
 
 const PRODUCTION_ORIGIN = "https://fixgo-44e4d.web.app";
-const PRODUCTION_BOOTSTRAP_VERSION = "1.17.0-private-firestore-relay";
+const PRODUCTION_BOOTSTRAP_VERSION = "1.18.0-private-firestore-relay-head-lock";
 
 test("historical NEXO bootstrap is Jarvis-only and installs no alternate semantic authority", () => {
     assert.match(bootstrap, /installJarvisRealMediaTools/);
@@ -470,10 +470,18 @@ test('private relay validates owner route proof lifetime and payload before invo
 });
 
 test('private relay presence rejects cached old disconnected and mismatched workers', () => {
-    const presence = { schemaVersion: 1, online: true, releaseId: 'relay-test', workerId: relayId, heartbeatAt: Date.now() };
-    assert.equal(jarvisRelayPresenceIsLive(presence, 'relay-test'), true);
-    for (const patch of [{ online: false }, { workerId: '' }, { releaseId: 'wrong' }, { heartbeatAt: Date.now() - 121000 }, { heartbeatAt: null }]) {
-        assert.equal(jarvisRelayPresenceIsLive({ ...presence, ...patch }, 'relay-test'), false);
+    const expectedHead = 'a'.repeat(40);
+    const presence = { schemaVersion: 1, online: true, releaseId: 'relay-test', loadedHead: expectedHead, workerId: relayId, heartbeatAt: Date.now() };
+    assert.equal(jarvisRelayPresenceIsLive(presence, 'relay-test', Date.now(), expectedHead), true);
+    for (const patch of [
+        { online: false },
+        { workerId: '' },
+        { releaseId: 'wrong' },
+        { loadedHead: 'b'.repeat(40) },
+        { heartbeatAt: Date.now() - 121000 },
+        { heartbeatAt: null }
+    ]) {
+        assert.equal(jarvisRelayPresenceIsLive({ ...presence, ...patch }, 'relay-test', Date.now(), expectedHead), false);
     }
 });
 
@@ -683,12 +691,15 @@ test('private relay lease uses the same verified-presence contract as relay clie
         currentUser: { uid: JARVIS_PRIVATE_RELAY.ownerUid },
         async authStateReady() {}
     };
+    const currentHead = 'a'.repeat(40);
+    const staleHead = 'b'.repeat(40);
     const local = async route => {
         if (route === '/workstation/health') {
-            return { ok: true, status: 'JARVIS_WORKSTATION_LIVE', runtime: { bridgeStarted: true, loadedHead: 'lease-test-head' } };
+            return { ok: true, status: 'JARVIS_WORKSTATION_LIVE', runtime: { bridgeStarted: true, loadedHead: currentHead } };
         }
         throw new Error('UNEXPECTED_LOCAL_ROUTE:' + route);
     };
+    const contract = { releaseId: 'relay-test', gitSha: currentHead };
 
     const stale = relayFakeSdk();
     const parentPath = `jarvis_private_relay/${JARVIS_PRIVATE_RELAY.ownerUid}`;
@@ -697,14 +708,15 @@ test('private relay lease uses the same verified-presence contract as relay clie
         ownerUid: JARVIS_PRIVATE_RELAY.ownerUid,
         workerId: 'old-worker',
         online: true,
-        releaseId: 'old-release',
+        releaseId: 'relay-test',
+        loadedHead: staleHead,
         heartbeatAt: { toMillis: () => Date.now() }
     });
     const worker = await startJarvisBrowserRelay({
         auth,
         db: {},
         sdk: stale.sdk,
-        contract: { releaseId: 'relay-test' },
+        contract,
         requestLocal: local,
         uuid: () => 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
     });
@@ -712,6 +724,7 @@ test('private relay lease uses the same verified-presence contract as relay clie
         const presence = stale.docs.get(parentPath);
         assert.equal(presence.workerId, 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee');
         assert.equal(presence.releaseId, 'relay-test');
+        assert.equal(presence.loadedHead, currentHead);
         assert.equal(presence.online, true);
     } finally {
         await worker.stop();
@@ -724,6 +737,7 @@ test('private relay lease uses the same verified-presence contract as relay clie
         workerId: 'healthy-peer',
         online: true,
         releaseId: 'relay-test',
+        loadedHead: currentHead,
         heartbeatAt: { toMillis: () => Date.now() }
     });
     await assert.rejects(
@@ -731,10 +745,34 @@ test('private relay lease uses the same verified-presence contract as relay clie
             auth,
             db: {},
             sdk: live.sdk,
-            contract: { releaseId: 'relay-test' },
+            contract,
             requestLocal: local,
             uuid: () => 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff'
         }),
         /JARVIS_RELAY_LEASE_HELD/
+    );
+});
+
+test('relay worker refuses to register when local bridge head differs from the public release head', async () => {
+    const auth = {
+        currentUser: { uid: JARVIS_PRIVATE_RELAY.ownerUid },
+        async authStateReady() {}
+    };
+    const fake = relayFakeSdk();
+    await assert.rejects(
+        startJarvisBrowserRelay({
+            auth,
+            db: {},
+            sdk: fake.sdk,
+            contract: { releaseId: 'relay-test', gitSha: 'a'.repeat(40) },
+            requestLocal: async route => {
+                if (route === '/workstation/health') {
+                    return { ok: true, status: 'JARVIS_WORKSTATION_LIVE', runtime: { bridgeStarted: true, loadedHead: 'b'.repeat(40) } };
+                }
+                throw new Error('UNEXPECTED_LOCAL_ROUTE:' + route);
+            },
+            uuid: () => 'cccccccc-dddd-4eee-8fff-111111111111'
+        }),
+        /JARVIS_RELAY_LOCAL_RELEASE_MISMATCH/
     );
 });
