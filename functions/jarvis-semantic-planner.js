@@ -1590,14 +1590,16 @@ async function runModelSemanticPlanner({
             task.observation?.ok === true && task.observation?.verifiedRead);
         const completedTasksForAudit = missionState.completedTasks || [];
         const latestSearchIndex = completedTasksForAudit.findLastIndex(task =>
-            task?.name === "repo.search" &&
+            ["repo.search", "repo.grep"].includes(task?.name) &&
             task?.observation?.ok === true &&
             task?.observation?.executionOk !== false &&
-            Array.isArray(task?.observation?.repoCandidates) &&
-            task.observation.repoCandidates.length > 0
+            ((task.observation.repoCandidates || []).length > 0 ||
+                (task.observation.repositoryMatches || []).length > 0)
         );
         const pendingCandidateFiles = latestSearchIndex >= 0
-            ? [...new Set(completedTasksForAudit[latestSearchIndex].observation.repoCandidates
+            ? [...new Set([
+                ...(completedTasksForAudit[latestSearchIndex].observation.repoCandidates || []),
+                ...(completedTasksForAudit[latestSearchIndex].observation.repositoryMatches || [])]
                 .map(item => String(item?.file || item?.path || "").trim())
                 .filter(Boolean))]
             : [];
@@ -1992,7 +1994,7 @@ async function runModelSemanticPlanner({
                     const prerequisiteKinds = new Set((relevantPending.length ? relevantPending : pendingCapabilities)
                         .flatMap(tool => (tool.requiresEvidence || []).map(requirement => requirement.kind)));
                     const prerequisiteReaders = sources.length ? nextReaders.filter(tool =>
-                        tool.evidenceKinds?.some(kind => prerequisiteKinds.has(kind)) &&
+                        tool.evidenceKinds?.some(kind => prerequisiteKinds.has(kind) || kind === "repository_source") &&
                         buildNativeInputSchema(tool.inputSchema).properties?.file) : [];
                     const evidencePathReaders =
                         unreadSources.length && prerequisiteReaders.length

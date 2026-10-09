@@ -29,9 +29,10 @@ function text(value, max = MAX_PLANNER_TEXT) {
 }
 
 function compactErrorDetails(value, depth = 0) {
-    if (value == null || depth > 3) return null;
+    if (value == null) return null;
     if (typeof value === "string") return text(value, 500);
     if (typeof value === "number" || typeof value === "boolean") return value;
+    if (depth > 3) return null;
     if (Array.isArray(value)) {
         return value.slice(0, 20).map(item => compactErrorDetails(item, depth + 1));
     }

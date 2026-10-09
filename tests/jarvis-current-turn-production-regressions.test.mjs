@@ -2352,3 +2352,39 @@ test('canonical repository AST survives argument completion instead of disappear
  }});
  assert.equal(captured,true);assert.equal(result.args.fields[0],'equipment.serial');
 });
+
+
+test('grep candidates remain selectable source reads when a record capability already exists', async () => {
+ const input='Investiga registros y sus fechas actuales';
+ const catalog=[
+  {name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}},
+  {name:'repo.grep',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',properties:{term:{type:'string'}},required:['term']}},
+  {name:'fixture.fetch',investigationReadOnly:true,mutates:false,evidenceKinds:['business_records'],inputSchema:{type:'object',properties:{scope:{type:'string'}},required:['scope']}}
+ ];
+ const result=await runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[
+  {name:'repo.read',args:{file:'first.js'},observation:{ok:true,executionOk:true,verifiedRead:{file:'first.js',content:'const first=true;'}}},
+  {name:'repo.grep',args:{term:'expiresAt'},observation:{ok:true,executionOk:true,repositoryMatches:[{file:'actual-schema.js',line:20,snippet:'expiresAt: value'}]}}
+ ]},ai:{models:{generateContent:async request=>{
+  const stage=request.config.semanticStage;
+  if(stage==='COMPLETION_AUDIT') {
+   assert.match(JSON.stringify(request.config.responseJsonSchema),/actual-schema\.js/);
+   return{text:JSON.stringify({completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'business_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta leer fuente localizada'}]},toolCalls:[]}),providerResponse:{finishReason:'stop'}};
+  }
+  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION')return{text:'',functionCalls:[],providerResponse:{finishReason:'stop'}};
+  assert.equal(stage,'READ_ONLY_NEXT_STEP_RECOVERY');
+  const schema=request.config.responseJsonSchema.properties.toolCalls;
+  assert.equal(schema.minItems,1);
+  assert.deepEqual(schema.items.anyOf.map(branch=>branch.properties.name.enum[0]),['repo.read']);
+  assert.deepEqual(schema.items.anyOf[0].properties.args.properties.file.enum,['actual-schema.js']);
+  return{text:JSON.stringify({toolCalls:[{name:'repo.read',args:{file:'actual-schema.js'}}]}),providerResponse:{finishReason:'stop'}};
+ }}}});
+ assert.equal(result.toolCalls[0].name,'repo.read');
+ assert.equal(result.toolCalls[0].args.file,'actual-schema.js');
+});
+
+test('structured rejected filter arrays retain scalar values through planner compaction', async () => {
+ const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
+ const details={ungroundedFilterValues:[{field:'category',op:'in',value:['alpha','beta']}]};
+ const compact=compactMissionPlannerObservation({ok:false,errorCode:'PLATFORM_QUERY_FILTER_VALUE_NOT_DISCOVERED',errorDetails:details});
+ assert.deepEqual(compact.errorDetails,details);
+});
