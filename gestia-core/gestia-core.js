@@ -27,6 +27,7 @@
  */
 
 import { auth, db, onAuthStateChanged } from '/firebase.js';
+import { traceJarvisMission } from './jarvis/jarvis.mission.trace.js';
 import { 
     doc, 
     getDoc,
@@ -6343,6 +6344,7 @@ if (
                 : missionResult.reason === "PARTIAL_CAPABILITY_BLOCKED"
                     ? "Mision Jarvis parcialmente completada"
                     : "Mision Jarvis incompleta";
+    traceJarvisMission("mission.final", missionResult);
     const missionAuthorityInstruction =
         missionResult.rootInstruction || inputRaw;
 

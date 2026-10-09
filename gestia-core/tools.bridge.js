@@ -9,6 +9,8 @@
    Guarda observaciones recientes de tools para respuesta inmediata sin re-ejecutar.
 ====================================================================================== */
 
+import { traceJarvisMission } from "./jarvis/jarvis.mission.trace.js";
+
 window.__JARVIS_TOOL_MEMORY__ ||= {
     version:
         "7.0.0",
@@ -61,6 +63,7 @@ function rememberToolResult(
                 Date.now()
         };
 
+    traceJarvisMission("tool", safeEntry);
     memory.entries.unshift(
         safeEntry
     );

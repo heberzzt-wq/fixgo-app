@@ -1,4 +1,5 @@
 import { semanticPlanBudgetMs } from "./jarvis.semantic.transport.js";
+import { traceJarvisMission } from "./jarvis.mission.trace.js";
 import { advertisingContacts, validateAdvertisingDirection } from "./jarvis.advertising.benchmark.js";
 import { documentEvidenceEnvelope, documentExcerpt } from "./jarvis.document.context.js";
 import { materialReferencesForPlanning } from "./jarvis.mission.planner-state.js?v=v142-material-handoff-20261002";
@@ -2008,6 +2009,7 @@ function attachPlanMetadata(calls = [], plan = {}) {
 }
 
 async function callSemanticPlanner(input = "", catalog = [], missionState = null) {
+    traceJarvisMission("planner.request", { input, catalog, missionState });
     const timeoutMs = semanticPlanBudgetMs({ input, missionState, timeoutMs:
         [
             "MISSION_CONTRACT",
@@ -2045,6 +2047,7 @@ async function callSemanticPlanner(input = "", catalog = [], missionState = null
         }
     );
 
+    traceJarvisMission("planner.response", localResult);
     globalThis.__JARVIS_SEMANTIC_PLANNER_HEALTH__ = {
         ...localResult,
         checkedAt: new Date().toISOString(),
