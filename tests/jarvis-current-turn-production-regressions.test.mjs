@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import test from "node:test";
 import { parse } from "acorn";
+import { analyzeRepoSourceStructure } from "../gestia-core/repo/repo.source.structure.js";
 import { createRequire } from "node:module";
 import { buildJarvisMultifunctionToolCalls, buildEvidenceDependencyPlannerCatalog, bindRequiredEvidenceArguments, isBoundedReadOnlyMission, shouldCompleteJarvisPlanningArguments } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
 import { registerJarvisMultifunctionTools } from "../gestia-core/jarvis/jarvis.multitool.pack.js";
@@ -1477,7 +1478,7 @@ function platformQueryTestFixture({signedIn=true,fail=null,fromCache=false,chang
     const ast=parse(source,{sourceType:'module',ecmaVersion:'latest'});
     const declaration=ast.body.find(n=>n.type==='ExportNamedDeclaration'&&n.declaration?.id?.name==='executePlatformQuery')?.declaration;
     assert.ok(declaration,'generic platform query must be wired into the real runtime');
-    const execute=runInNewContext('('+source.slice(declaration.start,declaration.end)+')');
+    const execute=runInNewContext('('+source.slice(declaration.start,declaration.end)+')',{analyzeRepoSourceStructure});
     const auth={currentUser:signedIn?{uid:'fixture-caller'}:null},calls=[];
     const docs=[{id:'a',get:field=>({title:'Uno',privateNote:'DO_NOT_EXPOSE'}[field])},{id:'b',get:field=>({title:'Dos',privateNote:'DO_NOT_EXPOSE'}[field])},{id:'c',get:field=>({title:'Tres'}[field])}];
     const sdk={collection:(_db,name)=>({collection:name}),query:(base,...constraints)=>({base,constraints}),where:(...args)=>({where:args}),orderBy:field=>({orderBy:field}),documentId:()=> '__name__',limit:value=>({limit:value}),doc:(_db,collection,id)=>({collection,id}),startAfter:document=>({after:document.id}),
@@ -2259,4 +2260,52 @@ test('platform query schema failures return actionable grounding details without
  assert.equal(result.error.details.sourceFile,'source.js');
  assert.deepEqual(result.details,result.error.details);
  assert.equal(f.calls.length,0);
+});
+
+test('nested query paths must be observed together rather than assembled from a known segment', async () => {
+ const f=platformQueryTestFixture();
+ const read=f.context.completedTasks[0].observation.verifiedRead;
+ read.content='setDoc(doc(db,"arbitrary_records",id), {asset:{kind:"moto"}, title:"Uno"});';
+ read.sourceStructure=analyzeRepoSourceStructure(read.content);
+ for(const field of ['profile.asset','asset.missing','missing.kind']) {
+  const result=await f.execute({...f.args,mode:'count',fields:[],filters:[{field,op:'==',value:'moto'}]},f.dependencies,f.context);
+  assert.equal(result.error?.code,'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED',JSON.stringify(result));
+ }
+ assert.equal(f.calls.length,0);
+ const result=await f.execute({...f.args,mode:'count',fields:[],filters:[{field:'asset.kind',op:'==',value:'moto'}]},f.dependencies,f.context);
+ assert.equal(result.ok,true,JSON.stringify(result));assert.equal(f.calls.length,1);
+});
+
+test('AST field paths preserve property relationships without treating variable names or comments as fields', () => {
+ const bindings=analyzeRepoSourceStructure('const value={equipment:{serial:"x"}}; const x=row.equipment.serial; // invented.equipment\nconst z=row[dynamic].serial; where("policy.expiresAt", ">", now);').dataBindings;
+ assert.ok(bindings.fieldPaths.includes('equipment.serial'));
+ assert.ok(bindings.fieldPaths.includes('policy.expiresAt'));
+ assert.ok(!bindings.fieldPaths.includes('row.equipment'));
+ assert.ok(!bindings.fieldPaths.includes('invented.equipment'));
+ assert.ok(!bindings.fieldPaths.includes('dynamic.serial'));
+});
+
+test('production failure envelope keeps schema details through mission normalization and planner compaction', async () => {
+ const {__test}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
+ const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
+ const details={collection:'records',sourceFile:'schema.js',discoveredCollections:['accounts'],undiscoveredFilterFields:['invented.kind']};
+ const observed=__test.safeObservation({ok:false,status:'ERROR',error:{code:'PLATFORM_QUERY_COLLECTION_NOT_DISCOVERED',message:'Rejected query',context:{failureDetails:details,runtimeResult:{error:{code:'PLATFORM_QUERY_COLLECTION_NOT_DISCOVERED',details}}}}});
+ const compact=compactMissionPlannerObservation(observed);
+ assert.equal(compact.errorCode,'PLATFORM_QUERY_COLLECTION_NOT_DISCOVERED');
+ assert.deepEqual(compact.errorDetails,details);
+});
+
+test('completion audit keeps a general catalogue within local context without dropping output constraints', async () => {
+ const readers=[{name:'repo.read',description:'Read known source',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}}];
+ const catalogue=[...readers,...Array.from({length:45},(_,i)=>({name:'fixture.operation'+i,description:'An available operation with a specific output and explicit authority requirements.',mutates:true,requiresApproval:true,inputSchema:{type:'object',properties:Object.fromEntries(Array.from({length:10},(_,n)=>['argument'+n,{type:'string',description:'A detailed schema annotation for argument completion. '.repeat(5)}])),required:['argument0'],additionalProperties:false}}))];
+ let checked=false;
+ await assert.rejects(runJarvisSemanticPlanner({input:'Investigate current records without changing them',catalog:catalogue,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',args:{file:'schema.js'},observation:{ok:true,verifiedRead:{file:'schema.js',content:'const record = {};\n'.repeat(350)}}}]},ai:{models:{generateContent:async request=>{
+  checked=true;
+  assert.ok(request.config.chatMessages.reduce((total,message)=>total+message.content.length,0)<60000);
+  const alternatives=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;
+  assert.equal(alternatives.length,catalogue.length);
+  assert.ok(JSON.stringify(alternatives).includes('A detailed schema annotation'));
+  throw Error('CATALOG_CAPTURE_COMPLETE');
+ }}}}),/CATALOG_CAPTURE_COMPLETE/);
+ assert.equal(checked,true);
 });

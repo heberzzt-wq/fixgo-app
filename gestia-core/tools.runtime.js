@@ -766,8 +766,12 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
                 .map(candidate => String(candidate?.file || candidate?.path || "").trim())
                 .filter(Boolean)
         )].slice(0, 20);
-        const sourceHasField = field => field === "__name__" || String(field).split(".").some(part =>
-            part.length > 1 && normalizedSource.includes(normalizeGroundingText(part)));
+        const observedFieldPaths = new Set(groundingReads.flatMap(candidate =>
+            candidate.sourceStructure?.dataBindings?.fieldPaths ||
+            analyzeRepoSourceStructure(candidate.content || "").dataBindings?.fieldPaths || []));
+        const sourceHasField = field => field === "__name__" || (String(field).includes(".")
+            ? observedFieldPaths.has(field)
+            : String(field).length > 1 && normalizedSource.includes(normalizeGroundingText(field)));
         const literalGrounded = value => {
             if (typeof value !== "string") return true;
             const normalized = normalizeGroundingText(value).trim();
@@ -780,6 +784,7 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
                 sourceFile: args.sourceFile,
                 groundingFiles,
                 undiscoveredFields: undiscoveredFields.slice(0, 20),
+                discoveredFieldPaths: [...observedFieldPaths].slice(0, 100),
                 requestedFields: fields.slice(0, 20)
             });
         }
@@ -792,6 +797,7 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
                 sourceFile: args.sourceFile,
                 groundingFiles,
                 undiscoveredFilterFields: [...new Set(undiscoveredFilterFields)].slice(0, 20),
+                discoveredFieldPaths: [...observedFieldPaths].slice(0, 100),
                 requestedFilters: filters.slice(0, 10).map(filter => ({
                     field: filter.field,
                     op: filter.op,

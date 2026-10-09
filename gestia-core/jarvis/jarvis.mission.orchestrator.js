@@ -662,6 +662,12 @@ function safeObservation(result = {}) {
         unwrapObservationPayload(
             result
         );
+    const rawFailure = payload?.error || result?.error;
+    const failureEnvelope = rawFailure && typeof rawFailure === "object" ? rawFailure : {};
+    const nestedFailure = failureEnvelope.context?.runtimeResult?.error;
+    const failureCode = text(nestedFailure?.code || failureEnvelope.code || payload?.errorCode || result?.errorCode, 180);
+    const failureDetails = nestedFailure?.details || failureEnvelope.details ||
+        failureEnvelope.context?.failureDetails || payload?.errorDetails || payload?.details || result?.errorDetails;
     const envelopeStatus = text(result?.status, 120);
     const payloadStatus = text(payload?.status, 120);
     const genericEnvelopeStatus =
@@ -1098,6 +1104,8 @@ function safeObservation(result = {}) {
             marketingPackageReady && marketingDeliverableReady
                 ? payload.plan
                 : null,
+        ...(failureCode ? { errorCode: failureCode } : {}),
+        ...(failureDetails && typeof failureDetails === "object" ? { errorDetails: structuredClone(failureDetails) } : {}),
         error:
             diagnosticErrorText(
                 payload?.error ||

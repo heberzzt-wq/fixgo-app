@@ -758,7 +758,7 @@ export function inspectSourceDataBindings(source = "") {
     const content = String(source || "");
     const scriptBodies = [...content.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)].map(match => ({code:match[1],offset:match.index+match[0].indexOf(">")+1}));
     const units = scriptBodies.length ? scriptBodies : [{code:content,offset:0}];
-    const collections = new Set(), referenceGroups = new Map();
+    const collections = new Set(), referenceGroups = new Map(), fieldPaths = new Set();
     let parsedUnits = 0;
     const string = node => node?.type === "Literal" && typeof node.value === "string" ? node.value : null;
     for (const sourceUnit of units) {
@@ -779,9 +779,41 @@ export function inspectSourceDataBindings(source = "") {
             for (const value of Object.values(node)) {if(Array.isArray(value)) value.forEach(indexDeclarations); else if(value && typeof value === "object" && value.type) indexDeclarations(value);}
         };
         indexDeclarations(program);
+        const staticKey = node => node?.type === "Identifier" ? node.name : string(node);
+        const memberKeys = node => {
+            if (node?.type === "ChainExpression") return memberKeys(node.expression);
+            if (node?.type !== "MemberExpression") return [];
+            const key = node.computed ? string(node.property) : staticKey(node.property);
+            return key === null ? [] : [...memberKeys(node.object), key];
+        };
+        const addPath = parts => {
+            if (parts.length > 1 && parts.every(part => typeof part === "string" && /^[\w$]+$/.test(part))) {
+                fieldPaths.add(parts.join("."));
+            }
+        };
+        const objectPaths = (node, prefix = []) => {
+            if (node?.type !== "ObjectExpression") return;
+            for (const property of node.properties || []) {
+                if (property.type !== "Property") continue;
+                const key = property.computed ? string(property.key) : staticKey(property.key);
+                if (key === null) continue;
+                const parts = [...prefix, ...key.split(".")];
+                addPath(parts);
+                objectPaths(property.value, parts);
+            }
+        };
         const visit = (node, parent = null) => {
             if (!node || typeof node !== "object") return;
+            if (node.type === "ObjectExpression") objectPaths(node);
+            if (node.type === "MemberExpression") {
+                const keys = memberKeys(node);
+                for (let index = 0; index < keys.length - 1; index++) addPath(keys.slice(index));
+            }
             if (node.type === "CallExpression") {
+                const operation = node.callee?.property?.name || node.callee?.name;
+                if (["where", "orderBy", "get"].includes(operation) && string(node.arguments?.[0])) {
+                    addPath(string(node.arguments[0]).split("."));
+                }
                 const member = node.callee?.type === "MemberExpression" && !node.callee.computed;
                 const name = member ? node.callee.property?.name : functions.get(node.callee?.name);
                 const pathArgs = member ? node.arguments || [] : (node.arguments || []).slice(1);
@@ -838,5 +870,5 @@ export function inspectSourceDataBindings(source = "") {
         visit(program);
     }
     const references = [...referenceGroups.values()].flat();
-    return {source:"ACORN_SOURCE_REFERENCES",collections:[...collections].slice(0,100),references:references.slice(0,4),referencesComplete:references.length<=4,complete:parsedUnits===units.length && collections.size<=100,scope:"Static code references and bounded source excerpts, not a database inventory or query result."};
+    return {source:"ACORN_SOURCE_REFERENCES",collections:[...collections].slice(0,100),fieldPaths:[...fieldPaths].slice(0,200),fieldPathsComplete:fieldPaths.size<=200 && parsedUnits===units.length,references:references.slice(0,4),referencesComplete:references.length<=4,complete:parsedUnits===units.length && collections.size<=100,scope:"Static code references and bounded source excerpts, not a database inventory or query result."};
 }

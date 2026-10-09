@@ -840,6 +840,20 @@ function buildGeminiModelTools(catalog = []) {
     }));
 }
 
+// The executable response schema already carries annotations. Avoid repeating
+// those descriptions for every alternative in the model's textual catalogue.
+// Keep every constraint, including correlated anyOf branches, intact.
+function compactCatalogSchema(schema) {
+    if (Array.isArray(schema)) return schema.map(compactCatalogSchema);
+    if (!schema || typeof schema !== "object") return schema;
+    return Object.fromEntries(Object.entries(schema)
+        .filter(([key]) => !["description", "title", "examples", "$comment"].includes(key))
+        .map(([key, value]) => [key,
+            ["properties", "patternProperties", "$defs", "definitions"].includes(key)
+                ? Object.fromEntries(Object.entries(value || {}).map(([name, field]) => [name, compactCatalogSchema(field)]))
+                : ["enum", "const", "default"].includes(key) ? value : compactCatalogSchema(value)]));
+}
+
 function extractGeminiToolCallPlan(response = {}, catalog = []) {
     const directCalls = Array.isArray(response?.functionCalls)
         ? response.functionCalls
@@ -1611,8 +1625,16 @@ async function runModelSemanticPlanner({
             task.observation.blocked !== true && task.observation.requiresInput !== true &&
             ["CURRENT_RENDERED_DOM_COMPUTED_STYLE", "RENDERED_DOM_LAYOUT_REPLAY"].includes(task.observation.interfaceEvidence?.source))
             .slice(0, 2).map(task => ({ index: task.index, name: task.name, interfaceEvidence: responsiveAuditSummary(task.observation.interfaceEvidence) }));
-        const auditCatalog = selectableCatalog.map(({ name, description, evidenceKinds, inputSchema, mutates, requiresApproval }) =>
-            ({ name, description: description.slice(0, 240), evidenceKinds: evidenceKinds || ["tool_result"], inputSchema, mutates, requiresApproval }));
+        const auditCatalog = selectableCatalog.map(({ name, description, evidenceKinds, inputSchema, requiresEvidence, mutates, requiresApproval }) => {
+            const schema = buildNativeInputSchema(inputSchema);
+            const branches = schema.anyOf || [schema];
+            return { name, description: description.slice(0, 240), evidenceKinds: evidenceKinds || ["tool_result"],
+                // Tool selection needs the callable arguments; the complete schema
+                // is supplied separately as responseJsonSchema and validated again.
+                arguments: [...new Set(branches.flatMap(branch => Object.keys(branch.properties || {})))],
+                ...(requiresEvidence?.length ? {inputSchema: compactCatalogSchema(inputSchema)} : {}),
+                mutates, requiresApproval };
+        });
         const pendingCapabilities = safeCatalog.filter(tool => !selectableCatalog.some(available => available.name === tool.name))
             .map(tool => ({name:tool.name,description:tool.description,requiresEvidence:tool.requiresEvidence}));
         const auditTasks = (missionState.completedTasks || []).map((task, index) => ({ index, name: task.name, args: task.args,

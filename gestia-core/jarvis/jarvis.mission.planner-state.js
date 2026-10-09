@@ -202,13 +202,15 @@ export function compactMissionPlannerObservation(observation = {}) {
         !Array.isArray(rawError.context.runtimeResult.error)
             ? rawError.context.runtimeResult.error
             : null;
-    const errorCode = rawError && typeof rawError === "object" && !Array.isArray(rawError)
+    const errorCode = text(source.errorCode || evidence.errorCode, 180) || (rawError && typeof rawError === "object" && !Array.isArray(rawError)
         ? text(runtimeError?.code || rawError.code || rawError.status || rawError.name, 180)
-        : "";
+        : "");
     const errorMessage = rawError && typeof rawError === "object" && !Array.isArray(rawError)
         ? text(runtimeError?.message || rawError.message || rawError.reason || rawError.detail || "", 500)
         : "";
     const rawErrorDetails =
+        source.errorDetails ||
+        evidence.errorDetails ||
         runtimeError?.details ||
         rawError?.details ||
         rawError?.context?.failureDetails ||
