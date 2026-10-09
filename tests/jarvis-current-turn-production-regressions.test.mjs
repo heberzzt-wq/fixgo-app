@@ -2569,3 +2569,21 @@ test('AST resolves constant references in their lexical scope and respects shado
  const scoped=analyzeRepoSourceStructure('const tenant="outer";function inner(){const tenant="inner";const ref=collection(db,"tenants",tenant,"records");addDoc(ref,{stored:1});}').dataBindings;
  assert.equal(scoped.writeShapes[0].collection,'tenants/inner/records');
 });
+
+test('an incomplete source excerpt obtains explicit same-file structural evidence without changing excerpt bytes', async () => {
+ const {resolveRepoReadSourceStructure}=await import('../gestia-core/repo/repo.source.structure.js');
+ const content='function save(){const ref=doc(db,"records",id);setDoc(ref,{nested:{classification:kind},expiresAt:date});}';
+ const read={ok:true,partial:true,startLine:8,endLine:9,content:'setDoc(ref,{nested:{classification:kind},'};
+ let calls=0;
+ const structure=await resolveRepoReadSourceStructure(read,async()=>{calls++;return{ok:true,partial:false,content};});
+ assert.equal(calls,1);assert.equal(read.content,'setDoc(ref,{nested:{classification:kind},');
+ assert.deepEqual(structure.dataBindings.collections,['records']);
+ assert.ok(structure.dataBindings.writeShapes[0].fields.includes('nested.classification'));
+ assert.equal(structure.dataBindings.structuralRead.coverage,'COMPLETE_FILE');
+ assert.equal(structure.dataBindings.structuralRead.requestedExcerptStartLine,8);
+ const truncated=await resolveRepoReadSourceStructure(read,async()=>({ok:true,truncated:true,content}));
+ assert.equal(truncated.dataBindings.structuralRead,undefined);
+ const denied=await resolveRepoReadSourceStructure(read,async()=>({ok:false,status:'DENIED'}));
+ assert.equal(denied.dataBindings.structuralRead,undefined);
+ await resolveRepoReadSourceStructure({ok:true,partial:false,content},async()=>{throw Error('must not reread complete source');});
+});

@@ -906,6 +906,7 @@ function boundedAuditTasks(tasks) {
             partial:true, truncated:true, contentTruncated:true,
             sourceStructure:{dataBindings:{
                 collections:bindings?.collections || [],
+                ...(bindings?.structuralRead ? {structuralRead:bindings.structuralRead} : {}),
                 fieldPaths:(bindings?.fieldPaths || []).slice(0,30),
                 fieldPathsComplete:false,
                 writeShapes:(bindings?.writeShapes || []).map(shape=>({

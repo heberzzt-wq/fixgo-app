@@ -633,6 +633,24 @@ export function buildExecutableSourceView(source = "") {
     return output;
 }
 
+export async function resolveRepoReadSourceStructure(read = {}, readFull = null) {
+    const initial = analyzeRepoSourceStructure(read.content || "");
+    if (read.partial !== true || initial.dataBindings?.complete === true || typeof readFull !== "function") return initial;
+    let full;
+    try { full = await readFull(); } catch { return initial; }
+    if (full?.ok !== true || full.partial === true || full.truncated === true || typeof full.content !== "string") return initial;
+    const structure = analyzeRepoSourceStructure(full.content);
+    if (structure.dataBindings?.complete !== true) return initial;
+    structure.dataBindings.structuralRead = {
+        coverage:"COMPLETE_FILE", source:"SUPPLEMENTAL_READ_OF_SAME_FILE",
+        startLine:1, endLine:full.content.split("\n").length,
+        contentLength:full.content.length,
+        requestedExcerptStartLine:read.startLine || null,
+        requestedExcerptEndLine:read.endLine || null
+    };
+    return structure;
+}
+
 export function analyzeRepoSourceStructure(source = "") {
     const originalLines =
         String(source || "").split("\n");

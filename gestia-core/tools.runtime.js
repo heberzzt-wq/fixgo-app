@@ -14,6 +14,7 @@ import {
 } from "./jarvis/jarvis.chief.architect.js?v=v142-adjunto-flow-alignment-20261001";
 import {
     analyzeRepoSourceStructure,
+    resolveRepoReadSourceStructure,
     buildExecutableSourceView,
     extractQualifiedSourceIdentifiers
 } from "./repo/repo.source.structure.js?v=v142-adjunto-flow-alignment-20261001";
@@ -1345,6 +1346,14 @@ JarvisToolRuntime.register({
                     applyRequestedLineRange(
                         bridgeRead
                     );
+                const readSourceStructure = await resolveRepoReadSourceStructure(
+                    materializedBridgeRead,
+                    () => window.JarvisLocalBridge.readFile({
+                        file:normalizedFile, path:normalizedFile,
+                        maxBytes:args.maxBytes || 300000,
+                        source:"jarvis_repo_read_structure_v1"
+                    })
+                );
 
                 return {
                     ok: true,
@@ -1353,11 +1362,8 @@ JarvisToolRuntime.register({
                     path:
                         bridgeRead.path ||
                         normalizedFile,
-                    sourceStructure:
-                        analyzeRepoSourceStructure(
-                            materializedBridgeRead.content
-                        ),
                     ...materializedBridgeRead,
+                    sourceStructure:readSourceStructure,
                     content:
                         materializedBridgeRead.content,
                     numberedContent:
