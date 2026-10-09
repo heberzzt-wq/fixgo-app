@@ -66,6 +66,10 @@ export function semanticFailurePresentation(error = "") {
         title: "Esta operación requiere la laptop",
         detail: "El enlace de pruebas no permite escritura, publicación ni video remoto. La conversación y las consultas autorizadas sí usan el canal privado."
     };
+    if (/JARVIS_LOCAL_BRIDGE_TRANSPORT_STALLED/.test(value)) return {
+        title: "El enlace dejó de reportar actividad",
+        detail: "La conexión semántica dejó de recibir heartbeats del transporte. Esto no limita el tiempo de razonamiento de Qwen; el intento se trata como fallo transitorio para poder reconectar."
+    };
     if (isSemanticTimeout(value)) return {
         title: "El análisis agotó su tiempo",
         detail: "La planificación no terminó dentro del tiempo disponible. Este error no demuestra que Jarvis esté desconectado."

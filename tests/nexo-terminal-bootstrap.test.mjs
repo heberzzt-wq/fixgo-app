@@ -439,7 +439,12 @@ test("V142 predeploy Chrome verifies production loopback transport while source 
 
 // Private relay regressions: transport evidence is not model completion.
 import { JARVIS_PRIVATE_RELAY, validateJarvisRelayRequest, jarvisRelayPresenceIsLive } from '../gestia-core/jarvis/jarvis.semantic.transport.js';
-import { createJarvisPrivateRelayClient, startJarvisBrowserRelay } from '../modules/terminal/nexo-bootstrap.js';
+import {
+    createJarvisPrivateRelayClient,
+    startJarvisBrowserRelay,
+    shouldUseJarvisPrivateRelay,
+    createJarvisTransportSilenceWatchdog
+} from '../modules/terminal/nexo-bootstrap.js';
 const relayId = '11111111-2222-4333-8444-555555555555';
 function relayEnvelope(overrides = {}) {
     const now = Date.now();
@@ -557,4 +562,117 @@ test('private relay cannot inherit the historical master wildcard bypass', () =>
     const rules = fs.readFileSync(new URL('../security/firestore-console-snapshot-2026-07-30.rules.txt', import.meta.url), 'utf8');
     const master = rules.slice(rules.indexOf('match /{collectionName}/{document=**}'), rules.indexOf('match /b2b_keys/'));
     assert.ok(master.includes("collectionName != 'jarvis_private_relay'"));
+});
+
+
+test('standby workstation tabs use the private relay instead of loopback while the lease peer is active', () => {
+    assert.equal(shouldUseJarvisPrivateRelay({
+        publicOrigin: true,
+        privateRelayEnabled: true,
+        workstationEnabled: true,
+        relayState: { status: 'STANDBY' },
+        brokerActive: false
+    }), true);
+    assert.equal(shouldUseJarvisPrivateRelay({
+        publicOrigin: true,
+        privateRelayEnabled: true,
+        workstationEnabled: true,
+        relayState: { status: 'READY' },
+        brokerActive: true
+    }), false);
+    assert.equal(shouldUseJarvisPrivateRelay({
+        publicOrigin: true,
+        privateRelayEnabled: true,
+        workstationEnabled: false,
+        relayState: { status: 'NOT_CHECKED' },
+        brokerActive: false
+    }), true);
+    assert.equal(shouldUseJarvisPrivateRelay({
+        publicOrigin: false,
+        privateRelayEnabled: true,
+        workstationEnabled: false
+    }), false);
+});
+
+test('semantic transport silence watchdog resets on activity and aborts only a silent channel', async () => {
+    const activeController = new AbortController();
+    const active = createJarvisTransportSilenceWatchdog(activeController, { silenceMs: 20 });
+    active.start();
+    await sleep(10);
+    active.touch();
+    await sleep(10);
+    active.touch();
+    await sleep(10);
+    assert.equal(activeController.signal.aborted, false);
+    active.clear();
+
+    const silentController = new AbortController();
+    let stalled = 0;
+    const silent = createJarvisTransportSilenceWatchdog(silentController, {
+        silenceMs: 15,
+        onStall: () => stalled++
+    });
+    silent.start();
+    await sleep(30);
+    assert.equal(silentController.signal.aborted, true);
+    assert.equal(silent.stalled, true);
+    assert.equal(stalled, 1);
+    silent.clear();
+
+    assert.match(bootstrap, /onActivity:\s*\(\)\s*=>\s*silenceWatchdog\?\.touch\(\)/);
+    assert.match(bootstrap, /JARVIS_LOCAL_BRIDGE_TRANSPORT_STALLED/);
+});
+
+test('private relay recovers a completed receipt by server polling when snapshot listeners are silent', async () => {
+    const fake = relayFakeSdk();
+    const parentPath = `jarvis_private_relay/${JARVIS_PRIVATE_RELAY.ownerUid}`;
+    fake.docs.set(parentPath, {
+        schemaVersion: JARVIS_PRIVATE_RELAY.version,
+        ownerUid: JARVIS_PRIVATE_RELAY.ownerUid,
+        workerId: 'poll-worker',
+        online: true,
+        releaseId: 'relay-test',
+        heartbeatAt: { toMillis: () => Date.now() }
+    });
+    const silentSdk = {
+        ...fake.sdk,
+        onSnapshot() { return () => {}; }
+    };
+    const auth = {
+        currentUser: { uid: JARVIS_PRIVATE_RELAY.ownerUid },
+        async authStateReady() {}
+    };
+    const client = createJarvisPrivateRelayClient({
+        auth,
+        db: {},
+        sdk: silentSdk,
+        uuid: () => relayId,
+        pollIntervalMs: 5,
+        receiptSilenceMs: 5,
+        pollReadTimeoutMs: 50
+    });
+    const pending = client.requestJson('/semantic/plan', { input: 'poll me' }, {
+        contract: { releaseId: 'relay-test' }
+    });
+    const jobPath = `${parentPath}/requests/${relayId}`;
+    for (let attempt = 0; attempt < 30 && !fake.docs.has(jobPath); attempt++) await sleep(5);
+    assert.ok(fake.docs.has(jobPath), 'relay request should be persisted before poll recovery');
+    fake.docs.set(jobPath, {
+        ...fake.docs.get(jobPath),
+        state: 'COMPLETED',
+        result: JSON.stringify({
+            ok: true,
+            text: 'Recovered by polling',
+            localSemanticInferenceUsed: true,
+            cloudSemanticInferenceUsed: false,
+            relay: { requestId: relayId, workerId: 'poll-worker', transport: 'FIRESTORE_PRIVATE', executionStarted: true }
+        }),
+        body: undefined
+    });
+    const result = await Promise.race([
+        pending,
+        sleep(500).then(() => { throw new Error('POLL_RECOVERY_TIMEOUT'); })
+    ]);
+    assert.equal(result.text, 'Recovered by polling');
+    assert.equal(result.relay.requestId, relayId);
 });

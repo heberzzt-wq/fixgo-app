@@ -63,7 +63,43 @@ async function readRuntimeContract() {
 // Private beta relay. It uses the existing Firebase web session, not CLI
 // credentials. Only the authenticated owner can submit or read these records.
 const PRIVATE_RELAY_WORKSTATION_KEY = "jarvis.privateRelay.workstation.v1";
+const SEMANTIC_TRANSPORT_SILENCE_MS = 45000;
 let privateRelaySdkPromise;
+
+export function shouldUseJarvisPrivateRelay({
+    publicOrigin = false,
+    privateRelayEnabled = false,
+    workstationEnabled = false,
+    relayState = null,
+    brokerActive = false
+} = {}) {
+    if (!publicOrigin || privateRelayEnabled !== true) return false;
+    if (!workstationEnabled) return true;
+    if (brokerActive) return false;
+    return relayState?.status === "STANDBY";
+}
+
+export function createJarvisTransportSilenceWatchdog(
+    controller,
+    { silenceMs = SEMANTIC_TRANSPORT_SILENCE_MS, onStall = () => {} } = {}
+) {
+    let timer = null, stalled = false;
+    const arm = () => {
+        if (stalled) return;
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+            stalled = true;
+            onStall();
+            controller.abort();
+        }, Math.max(1, Number(silenceMs) || SEMANTIC_TRANSPORT_SILENCE_MS));
+    };
+    return {
+        start: arm,
+        touch: arm,
+        clear() { clearTimeout(timer); timer = null; },
+        get stalled() { return stalled; }
+    };
+}
 async function privateRelayDependencies() {
     if (!privateRelaySdkPromise) privateRelaySdkPromise = Promise.all([
         import("../../firebase.js"),
@@ -75,7 +111,8 @@ async function privateRelayDependencies() {
 }
 
 export function createJarvisPrivateRelayClient({ auth, db, sdk, now = Date.now,
-    uuid = () => globalThis.crypto.randomUUID(), onProgress = () => {} }) {
+    uuid = () => globalThis.crypto.randomUUID(), onProgress = () => {},
+    pollIntervalMs = 5000, receiptSilenceMs = 15000, pollReadTimeoutMs = 10000 }) {
     const policy = JARVIS_PRIVATE_RELAY;
     return {
         async requestJson(route, payload, { contract, signal } = {}) {
@@ -93,6 +130,7 @@ export function createJarvisPrivateRelayClient({ auth, db, sdk, now = Date.now,
                 route, releaseId: contract.releaseId, body, state: "QUEUED", createdAt: sdk.serverTimestamp(),
                 expiresAt: sdk.Timestamp.fromMillis(now() + policy.queueMaxAgeMs) };
             let accepted = false, lastPresence = live.data(), settled = false, created = false;
+            let lastReceiptSignalAt = now(), pollingReceipt = false;
             let unwatchJob = () => {}, unwatchWorker = () => {}, timer;
             const result = new Promise((resolve, reject) => {
                 const finish = (error, value) => {
@@ -101,14 +139,24 @@ export function createJarvisPrivateRelayClient({ auth, db, sdk, now = Date.now,
                     if (error) { error.requestId = requestId; error.executionStarted = accepted ? true : null; reject(error); }
                     else resolve(value);
                 };
-                const abort = () => finish(new Error(accepted ? "JARVIS_RELAY_RESULT_UNCONFIRMED" : "JARVIS_RELAY_REQUEST_CANCELLED"));
-                signal?.addEventListener("abort", abort, { once: true });
-                unwatchJob = sdk.onSnapshot(ref, snapshot => {
-                    if (snapshot.metadata?.fromCache || !snapshot.exists()) return;
-                    const data = snapshot.data();
-                    if (data.requestId !== requestId || data.ownerUid !== policy.ownerUid) return finish(new Error("JARVIS_RELAY_RECEIPT_INVALID"));
-                    if (data.state === "RUNNING") { accepted = true; onProgress(data.progress || { type: "progress", stage: "planning", requestId, noDeadline: true }); }
-                    if (data.state === "FAILED") return finish(new Error(data.error || "JARVIS_RELAY_RESULT_UNCONFIRMED"));
+                const consumeReceipt = (data, source = "listener") => {
+                    if (!data || typeof data !== "object" || settled) return;
+                    lastReceiptSignalAt = now();
+                    if (data.requestId !== requestId || data.ownerUid !== policy.ownerUid) {
+                        finish(new Error("JARVIS_RELAY_RECEIPT_INVALID"));
+                        return;
+                    }
+                    if (data.state === "RUNNING") {
+                        accepted = true;
+                        onProgress({
+                            ...(data.progress || { type: "progress", stage: "planning", requestId, noDeadline: true }),
+                            transportSource: source
+                        });
+                    }
+                    if (data.state === "FAILED") {
+                        finish(new Error(data.error || "JARVIS_RELAY_RESULT_UNCONFIRMED"));
+                        return;
+                    }
                     if (data.state === "COMPLETED") {
                         try {
                             const value = JSON.parse(data.result);
@@ -116,21 +164,88 @@ export function createJarvisPrivateRelayClient({ auth, db, sdk, now = Date.now,
                             finish(null, value);
                         } catch (error) { finish(error); }
                     }
-                }, error => finish(new Error("JARVIS_RELAY_RESULT_UNCONFIRMED:" + (error.code || "listener"))));
+                };
+                const boundedServerRead = target => new Promise((resolveRead, rejectRead) => {
+                    let done = false;
+                    const timeout = setTimeout(() => {
+                        if (done) return;
+                        done = true;
+                        rejectRead(new Error("JARVIS_RELAY_POLL_READ_STALLED"));
+                    }, Math.max(1000, Number(pollReadTimeoutMs) || 10000));
+                    Promise.resolve(sdk.getDocFromServer(target)).then(value => {
+                        if (done) return;
+                        done = true; clearTimeout(timeout); resolveRead(value);
+                    }, error => {
+                        if (done) return;
+                        done = true; clearTimeout(timeout); rejectRead(error);
+                    });
+                });
+                const pollServerReceipt = async () => {
+                    if (settled || pollingReceipt) return;
+                    pollingReceipt = true;
+                    try {
+                        const [jobRead, presenceRead] = await Promise.allSettled([
+                            boundedServerRead(ref),
+                            boundedServerRead(parent)
+                        ]);
+                        let presenceConfirmed = false;
+                        if (presenceRead.status === "fulfilled" && presenceRead.value?.exists?.()) {
+                            lastPresence = presenceRead.value.data();
+                            presenceConfirmed = true;
+                        }
+                        if (jobRead.status === "fulfilled" && jobRead.value?.exists?.()) {
+                            consumeReceipt(jobRead.value.data(), "server_poll");
+                        }
+                        if (settled) return;
+                        if (auth.currentUser?.uid !== policy.ownerUid) {
+                            finish(new Error("JARVIS_RELAY_OWNER_REQUIRED"));
+                        } else if (presenceConfirmed && !jarvisRelayPresenceIsLive(lastPresence, contract.releaseId, now())) {
+                            finish(new Error("JARVIS_RELAY_RESULT_UNCONFIRMED"));
+                        } else if (!accepted && now() > request.expiresAt.toMillis()) {
+                            finish(new Error("JARVIS_RELAY_REQUEST_EXPIRED"));
+                        } else if (jobRead.status === "rejected" || presenceRead.status === "rejected") {
+                            onProgress({ type: "progress", stage: "relay_server_poll_wait", requestId, noDeadline: true });
+                        }
+                    } finally {
+                        pollingReceipt = false;
+                    }
+                };
+                const abort = () => finish(new Error(accepted ? "JARVIS_RELAY_RESULT_UNCONFIRMED" : "JARVIS_RELAY_REQUEST_CANCELLED"));
+                signal?.addEventListener("abort", abort, { once: true });
+                unwatchJob = sdk.onSnapshot(ref, snapshot => {
+                    if (snapshot.metadata?.fromCache || !snapshot.exists()) return;
+                    consumeReceipt(snapshot.data(), "listener");
+                }, error => {
+                    onProgress({ type: "progress", stage: "relay_listener_recovering", requestId, noDeadline: true,
+                        error: String(error?.code || "listener").slice(0, 80) });
+                });
                 unwatchWorker = sdk.onSnapshot(parent, snapshot => {
                     if (!snapshot.metadata?.fromCache) lastPresence = snapshot.data();
-                }, () => { lastPresence = null; });
+                }, error => {
+                    onProgress({ type: "progress", stage: "relay_presence_recovering", requestId, noDeadline: true,
+                        error: String(error?.code || "listener").slice(0, 80) });
+                });
                 timer = setInterval(() => {
-                    if (auth.currentUser?.uid !== policy.ownerUid ||
-                        !jarvisRelayPresenceIsLive(lastPresence, contract.releaseId, now())) {
-                        finish(new Error("JARVIS_RELAY_RESULT_UNCONFIRMED"));
-                    } else if (!accepted && now() > request.expiresAt.toMillis()) {
-                        finish(new Error("JARVIS_RELAY_REQUEST_EXPIRED"));
+                    if (settled) return;
+                    if (auth.currentUser?.uid !== policy.ownerUid) {
+                        finish(new Error("JARVIS_RELAY_OWNER_REQUIRED"));
+                        return;
                     }
-                }, 5000);
-                // No inference deadline while a verified worker is still alive.
+                    if (!accepted && now() > request.expiresAt.toMillis()) {
+                        finish(new Error("JARVIS_RELAY_REQUEST_EXPIRED"));
+                        return;
+                    }
+                    const silence = now() - lastReceiptSignalAt;
+                    if (silence >= Math.max(1, Number(receiptSilenceMs) || 15000) ||
+                        !jarvisRelayPresenceIsLive(lastPresence, contract.releaseId, now())) {
+                        void pollServerReceipt();
+                    }
+                }, Math.max(5, Number(pollIntervalMs) || 5000));
+                // No inference deadline while the worker reports progress. Polling
+                // only recovers a lost Firestore listener and never replays work.
                 sdk.setDoc(ref, request).then(() => {
                     created = true;
+                    lastReceiptSignalAt = now();
                     if (settled && !accepted) sdk.updateDoc(ref, { state: "CANCELLED", finishedAt: sdk.serverTimestamp() }).catch(() => {});
                     if (!settled) onProgress({ type: "progress", stage: "relay_queued", requestId, noDeadline: true });
                 }).catch(error => finish(new Error("JARVIS_RELAY_SUBMISSION_FAILED:" + (error.code || "unknown"))));
@@ -318,7 +433,15 @@ function configureJarvisPrivateRelay(bridge) {
     bridge.requestJson = async (route, payload = {}, options = {}) => {
         const contract = await readRuntimeContract();
         const publicOrigin = ["fixgo-44e4d.web.app", "fixgo-44e4d.firebaseapp.com"].includes(globalThis.location?.hostname);
-        if (!publicOrigin || contract.privateRelayEnabled !== true || privateRelayWorkstationEnabled()) {
+        const workstationEnabled = privateRelayWorkstationEnabled();
+        const useRelay = shouldUseJarvisPrivateRelay({
+            publicOrigin,
+            privateRelayEnabled: contract.privateRelayEnabled === true,
+            workstationEnabled,
+            relayState: bridge.privateRelayState,
+            brokerActive: Boolean(broker)
+        });
+        if (!useRelay) {
             return direct(route, payload, options);
         }
         if (!client) client = createJarvisPrivateRelayClient({ ...await privateRelayDependencies(), onProgress: progress });
@@ -400,10 +523,21 @@ export function installJarvisLocalBridgeTransport() {
                         () => { deadlineExceeded = true; controller.abort(); },
                         timeoutMs
                     );
+                const silenceWatchdog = semanticRequest
+                    ? createJarvisTransportSilenceWatchdog(controller, {
+                        silenceMs: Number(options?.semanticSilenceMs) || SEMANTIC_TRANSPORT_SILENCE_MS,
+                        onStall: () => console.warn("[JARVIS_SEMANTIC_TRANSPORT_STALLED]", {
+                            route: path,
+                            elapsedMs: Date.now() - startedAt,
+                            silenceMs: Number(options?.semanticSilenceMs) || SEMANTIC_TRANSPORT_SILENCE_MS
+                        })
+                    })
+                    : null;
+                silenceWatchdog?.start();
 
-                // Heartbeats report progress. A delayed chunk (including browser
-                // scheduling under CPU pressure) must not override the bounded
-                // inference deadline or cancel work already accepted by Qwen.
+                // No total inference deadline applies to semantic work. The
+                // watchdog above only detects a transport that stops delivering
+                // the server's 5-second progress heartbeat.
                 try {
                     const response = await globalThis.fetch(
                         `${LOCAL_BRIDGE_BASE_URL}${path}`,
@@ -423,11 +557,15 @@ export function installJarvisLocalBridgeTransport() {
                             targetAddressSpace: "loopback"
                         }
                     );
+                    silenceWatchdog?.touch();
                     if (semanticRequest && response.headers.get("content-type")?.includes("application/x-ndjson")) {
-                        return await readSemanticStream(response, { onProgress: detail => {
-                            if (options.privateRelayExecution === true) options.onProgress?.(detail);
-                            else globalThis.dispatchEvent?.(new CustomEvent("jarvis:semantic-progress", { detail }));
-                        } });
+                        return await readSemanticStream(response, {
+                            onActivity: () => silenceWatchdog?.touch(),
+                            onProgress: detail => {
+                                if (options.privateRelayExecution === true) options.onProgress?.(detail);
+                                else globalThis.dispatchEvent?.(new CustomEvent("jarvis:semantic-progress", { detail }));
+                            }
+                        });
                     }
                     // An older bridge can still reply with one JSON result.
                     const text = await response.text();
@@ -457,6 +595,21 @@ export function installJarvisLocalBridgeTransport() {
                         error?.name === "AbortError";
 
                     if (aborted) {
+                        if (semanticRequest && silenceWatchdog?.stalled) {
+                            const stalledError =
+                                new Error("JARVIS_LOCAL_BRIDGE_TRANSPORT_STALLED");
+                            stalledError.code =
+                                "JARVIS_LOCAL_BRIDGE_TRANSPORT_STALLED";
+                            stalledError.route =
+                                path;
+                            stalledError.timeoutReason =
+                                "TRANSPORT_SILENCE";
+                            stalledError.elapsedMs =
+                                Date.now() - startedAt;
+                            stalledError.silenceMs =
+                                Number(options?.semanticSilenceMs) || SEMANTIC_TRANSPORT_SILENCE_MS;
+                            throw stalledError;
+                        }
                         const timeoutError =
                             new Error("JARVIS_LOCAL_BRIDGE_TIMEOUT_REQUEST");
                         timeoutError.code =
@@ -499,6 +652,7 @@ export function installJarvisLocalBridgeTransport() {
                     );
                 }
                 finally {
+                    silenceWatchdog?.clear();
                     if (timeout) clearTimeout(timeout);
                 }
             }
