@@ -2843,3 +2843,38 @@ test('source reader follows observed AST and truncated-window anchors without tr
  assert.deepEqual(range({startLine:400},context,'source.js'),{startLine:400,endLine:499});
  assert.equal(range(args,context,'source.js'),null);
 });
+
+test('a repeatedly unverified query scope can return to an observed unread source instead of ending the mission',async()=>{
+ const input='Investiga equipos y sus fechas';
+ const catalog=[
+  {name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file'],additionalProperties:false}},
+  {name:'repo.grep',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',properties:{term:{type:'string'}},required:['term']}},
+  {name:'platform.query',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string'},fields:{type:'array',items:{type:'string'}},filters:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}}
+ ];
+ for(const selectedFile of ['registration.js','first.js','invented.js']) {
+ let recovered=0;
+ const operation=runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[
+  {name:'repo.grep',args:{term:'equipo'},observation:{ok:true,repositoryMatches:[{file:'first.js',line:1,snippet:'records'},{file:'registration.js',line:40,snippet:'equipment'}]}},
+  {name:'repo.read',args:{file:'first.js'},observation:{ok:true,verifiedRead:{file:'first.js',content:'const title=row.title; collection(db,"records");'}}}
+ ]},ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":false}'};
+  if(request.config.semanticStage==='QUERY_POPULATION_LITERAL_RECOVERY')return{text:'{"term":"equipos"}'};
+  if(request.config.semanticStage==='QUERY_SCOPE_SOURCE_RECOVERY'){
+   recovered++;
+   const variants=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;
+   assert.deepEqual(variants.map(v=>v.properties.name.enum[0]),['repo.read']);
+   assert.deepEqual(variants[0].properties.args.properties.file.enum,['registration.js']);
+   assert.match(JSON.stringify(request.config.chatMessages),/SEMANTIC_QUERY_SCOPE_UNVERIFIED/);
+   return{text:JSON.stringify({toolCalls:[{name:'repo.read',args:{file:selectedFile}}]})};
+  }
+  return{text:JSON.stringify({completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Need relevant source'}]},toolCalls:[{name:'platform.query',args:{sourceFile:'first.js',collection:'records',mode:'query',fields:['title'],filters:[]}}]})};
+ }}}});
+ if(selectedFile!=='registration.js') {await assert.rejects(operation);assert.equal(recovered,1);continue;}
+ const result=await operation;
+ assert.equal(recovered,1);
+ assert.equal(result.missionComplete,false);
+ assert.equal(result.planKind,'QUERY_SCOPE_SOURCE_RECOVERY');
+ assert.equal(result.toolCalls[0].args.file,'registration.js');
+ assert.equal(result.toolCalls[0].approved,false);
+ }
+});

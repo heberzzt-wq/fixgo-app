@@ -2280,6 +2280,51 @@ async function runModelSemanticPlanner({
                 };
             } catch (error) {
                 const repairable = ["SEMANTIC_COMPLETION_AUDIT_INCOMPLETE", "SEMANTIC_COMPLETION_AUDIT_INVALID_JSON", "SEMANTIC_QUERY_SCOPE_UNVERIFIED", "SEMANTIC_TOOL_ARGUMENTS_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_REQUIRED", "SEMANTIC_COMPLETION_EVIDENCE_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH", "SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY"];
+                if (auditAttempt > 0 && error?.message === "SEMANTIC_QUERY_SCOPE_UNVERIFIED") {
+                    // Rejecting a query does not exhaust the sources already
+                    // discovered. Give this same model one bounded source choice
+                    // before propagating the failure; never execute that query.
+                    const successful = completedTasksForAudit.filter(task => task.observation?.ok === true &&
+                        task.observation.executionOk !== false && task.observation.blocked !== true);
+                    const readFiles = new Set(successful.map(task => task.observation.verifiedRead?.file).filter(Boolean));
+                    const unreadFiles = [...new Set(successful.flatMap(task => [
+                        ...(task.observation.repoCandidates || []), ...(task.observation.repositoryMatches || [])
+                    ]).map(item => item.file || item.path).filter(file => typeof file === "string" && file.trim() && !readFiles.has(file)))];
+                    const readers = selectableCatalog.filter(tool => tool.investigationReadOnly === true &&
+                        tool.mutates !== true && tool.requiresApproval !== true && tool.userArtifact !== true &&
+                        tool.evidenceKinds?.includes("repository_source") && buildNativeInputSchema(tool.inputSchema).properties?.file)
+                        .map(tool => {
+                            const schema = structuredClone(buildNativeInputSchema(tool.inputSchema));
+                            const allowed = schema.properties.file.enum;
+                            schema.properties.file = {...schema.properties.file, enum:unreadFiles.filter(file => !allowed || allowed.includes(file))};
+                            return {...tool,inputSchema:schema};
+                        }).filter(tool => tool.inputSchema.properties.file.enum.length);
+                    if (readers.length) {
+                        const recovery = await ai.models.generateContent({model,contents:instruction,config:{
+                            semanticStage:"QUERY_SCOPE_SOURCE_RECOVERY",temperature:0,maxOutputTokens:512,responseMimeType:"application/json",
+                            responseJsonSchema:{type:"object",properties:{toolCalls:{type:"array",minItems:0,maxItems:1,items:{anyOf:readers.map(tool=>({
+                                type:"object",properties:{name:{type:"string",enum:[tool.name]},args:tool.inputSchema},required:["name","args"],additionalProperties:false
+                            }))}}},required:["toolCalls"],additionalProperties:false},
+                            chatMessages:[
+                                {role:"system",content:"La consulta fue rechazada porque su alcance no acredita el pedido. Eso no demuestra ausencia de datos ni agota la investigación. Elige UNA fuente pertinente AÚN NO LEÍDA entre las rutas reales del esquema para descubrir registros, campos o relaciones que faltan. No repitas la consulta rechazada, no inventes rutas ni conclusiones. Si ninguna fuente es pertinente, devuelve toolCalls=[]. Esta recuperación sólo permite leer código y no amplía acceso ni concede aprobación."},
+                                {role:"system",content:"RECHAZO="+JSON.stringify({code:error.message,evidence:error.evidence})},
+                                ...auditTasks.map(task=>({role:"system",content:"EVIDENCIA_OBTENIDA="+JSON.stringify(task)})),
+                                {role:"system",content:"OBJETIVOS="+JSON.stringify(missionState.evidenceObjectives || auditPlan?.completionAssessment?.objectives || [])},
+                                {role:"user",content:instruction}
+                            ]
+                        }});
+                        if (recovery?.providerResponse?.finishReason !== "length") {
+                            let payload;try {payload=extractJsonObject(recovery.text);}catch {payload=null;}
+                            const plan=validatePlan({...payload,missionComplete:false,completionAssessment:null},readers,instruction);
+                            const calls=plan.toolCalls.filter(call=>unreadFiles.includes(call.args?.file) &&
+                                readers.find(tool=>tool.name===call.name)?.inputSchema.properties.file.enum.includes(call.args.file) &&
+                                hasRequiredToolArguments(readers.find(tool=>tool.name===call.name)||{},call.args||{}) &&
+                                !hasUnexpectedToolArguments(readers.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
+                            if (calls.length) return {...plan,toolCalls:calls,missionComplete:false,
+                                provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:readers.length,planKind:"QUERY_SCOPE_SOURCE_RECOVERY"};
+                        }
+                    }
+                }
                 if (auditAttempt > 0 || !repairable.includes(error?.message)) throw error;
                 if (error.message === "SEMANTIC_QUERY_SCOPE_UNVERIFIED") {
                     // Obtain literal source evidence before retrying a rejected
