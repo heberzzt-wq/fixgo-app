@@ -1931,7 +1931,7 @@ test('repo read ranges require explicit user lines or a prior literal grep ancho
  const from=source.indexOf('const explicitLineRange ='),to=source.indexOf('const requestedLineRange =',from);
  const block=source.slice(from,to);
  assert.match(block,/groundedGrepRange/);
- assert.match(block,/task\?\.name === "repo\.grep"/);
+ assert.match(block,/observedGrepMatches/);
  assert.match(block,/match\.line >= requestedStartLine/);
  assert.match(block,/explicitLineRange \|\| groundedGrepRange/);
 });
@@ -2387,4 +2387,18 @@ test('structured rejected filter arrays retain scalar values through planner com
  const details={ungroundedFilterValues:[{field:'category',op:'in',value:['alpha','beta']}]};
  const compact=compactMissionPlannerObservation({ok:false,errorCode:'PLATFORM_QUERY_FILTER_VALUE_NOT_DISCOVERED',errorDetails:details});
  assert.deepEqual(compact.errorDetails,details);
+});
+
+
+test('a start-only source read uses the canonical grep anchor instead of rereading the whole file', () => {
+ const source=readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
+ const from=source.indexOf('const requestedStartLine ='),to=source.indexOf('const requestedLineRange =',from);
+ const resolve=(args,matches)=>runInNewContext(source.slice(from,to)+';({requestedStartLine,requestedEndLine,hasRequestedLineRange})',{
+  args,normalizedFile:'source.js',parseLineNumber:v=>Number.parseInt(v,10)||null,
+  context:{rootInstruction:'Investiga el esquema',completedTasks:[{name:'repo.grep',observation:{ok:true,repositoryMatches:matches}}]}
+ });
+ const anchored=resolve({startLine:800},[{file:'source.js',line:800}]);
+ assert.equal(anchored.hasRequestedLineRange,true);assert.equal(anchored.requestedEndLine,899);
+ assert.equal(resolve({startLine:100},[{file:'source.js',line:800}]).hasRequestedLineRange,false);
+ assert.equal(resolve({startLine:800},[{file:'other.js',line:800}]).hasRequestedLineRange,false);
 });

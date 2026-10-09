@@ -1134,12 +1134,17 @@ JarvisToolRuntime.register({
                 args.lineStart
             );
 
+        const observedGrepMatches = (context.completedTasks || [])
+            .filter(task => task?.name === "repo.grep" && task?.observation?.ok === true && task?.observation?.executionOk !== false)
+            .flatMap(task => task.observation.repositoryMatches || task.observation.matches || [])
+            .filter(match => String(match?.file || "").replace(/\\/g, "/") === normalizedFile.replace(/\\/g, "/") && Number.isInteger(match?.line));
         const requestedEndLine =
             parseLineNumber(
                 args.endLine ||
                 args.toLine ||
                 args.lineEnd
-            );
+            ) || (requestedStartLine && observedGrepMatches.some(match => match.line === requestedStartLine)
+                ? requestedStartLine + 99 : null);
 
         // A model-generated line range is trustworthy only when the user
         // explicitly requested lines or prior literal grep evidence anchors a
@@ -1150,16 +1155,9 @@ JarvisToolRuntime.register({
         const groundedGrepRange = Boolean(
             requestedStartLine &&
             requestedEndLine &&
-            (context.completedTasks || []).some(task =>
-                task?.name === "repo.grep" &&
-                task?.observation?.ok === true &&
-                task?.observation?.executionOk !== false &&
-                (task.observation.matches || []).some(match =>
-                    String(match?.file || "").replace(/\\/g, "/") === normalizedFile.replace(/\\/g, "/") &&
-                    Number.isInteger(match?.line) &&
+            observedGrepMatches.some(match =>
                     match.line >= requestedStartLine &&
                     match.line <= requestedEndLine
-                )
             )
         );
         const hasRequestedLineRange =

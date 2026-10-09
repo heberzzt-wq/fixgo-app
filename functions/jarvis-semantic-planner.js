@@ -877,7 +877,7 @@ function boundedAuditTasks(tasks) {
                 }}} : {})
             }}};
         });
-        if (JSON.stringify(compact).length <= 26000 || bodyLimit === 0) return compact;
+        if (JSON.stringify(compact).length <= 20000 || bodyLimit === 0) return compact;
     }
 }
 
@@ -1657,11 +1657,17 @@ async function runModelSemanticPlanner({
         const auditCatalog = selectableCatalog.map(({ name, description, evidenceKinds, inputSchema, requiresEvidence, mutates, requiresApproval }) => {
             const schema = buildNativeInputSchema(inputSchema);
             const branches = schema.anyOf || [schema];
-            return { name, description: description.slice(0, 240), evidenceKinds: evidenceKinds || ["tool_result"],
+            return { name, description: description.slice(0, 100), evidenceKinds: evidenceKinds || ["tool_result"],
                 // Tool selection needs the callable arguments; the complete schema
                 // is supplied separately as responseJsonSchema and validated again.
                 arguments: [...new Set(branches.flatMap(branch => Object.keys(branch.properties || {})))],
-                ...(requiresEvidence?.length ? {inputSchema: compactCatalogSchema(inputSchema)} : {}),
+                // The full schema remains in responseJsonSchema and execution
+                // validation. In prose keep only correlated bound arguments;
+                // repeating a whole query schema per source exhausts context.
+                ...(requiresEvidence?.length ? {evidenceBindings: branches.map(branch =>
+                    Object.fromEntries(Object.entries(branch.properties || {})
+                        .filter(([, property]) => property.enum || Object.prototype.hasOwnProperty.call(property, "const"))
+                        .map(([key, property]) => [key, compactCatalogSchema(property)])))} : {}),
                 mutates, requiresApproval };
         });
         const pendingCapabilities = safeCatalog.filter(tool => !selectableCatalog.some(available => available.name === tool.name))
