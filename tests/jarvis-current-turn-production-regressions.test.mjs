@@ -2700,3 +2700,16 @@ test('count contract cannot silently carry fields that only a record inspection 
  assert.equal(validatePlan({toolCalls:[{name:tool.name,args:{...args,mode:'query'}}]},[tool],'Inspect owner').toolCalls.length,1);
  assert.equal(validatePlan({toolCalls:[{name:tool.name,args:{...args,mode:'count',fields:[]}}]},[tool],'Count observed').toolCalls.length,1);
 });
+
+test('duplicate recovery calls cannot exhaust unread discovered sources',async()=>{
+ const read={name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
+ const query={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'}},required:['collection']}};
+ const repeated={name:query.name,args:{collection:'records'}};let selected=false;
+ const result=await runJarvisSemanticPlanner({input:'Inspect current records',catalog:[read,query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.search',observation:{ok:true,repoCandidates:[{file:'read.js'},{file:'unread.js'}]}},{name:read.name,args:{file:'read.js'},observation:{ok:true,verifiedRead:{file:'read.js'}}},{...repeated,observation:{ok:true,recordEvidence:{scope:{collection:'records'},totalCount:1}}}]},ai:{models:{generateContent:async request=>{
+ if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({explanation:'Missing details',completionAssessment:{objectives:[{objective:'Inspect current records',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Need more records'}]},toolCalls:[]})};
+ if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION')return{functionCalls:[repeated]};
+ if(request.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY')return{text:JSON.stringify({toolCalls:[repeated]})};
+ if(request.config.semanticStage==='UNREAD_SOURCE_CONTINUATION'){selected=true;assert.deepEqual(request.config.responseJsonSchema.properties.toolCalls.items.anyOf[0].properties.args.properties.file.enum,['unread.js']);return{text:JSON.stringify({toolCalls:[{name:read.name,args:{file:'unread.js'}}]})};}
+ throw Error('Unexpected stage');
+ }}}});assert.equal(selected,true);assert.equal(result.planKind,'UNREAD_SOURCE_CONTINUATION');assert.equal(result.toolCalls[0].args.file,'unread.js');
+});

@@ -2131,6 +2131,37 @@ async function runModelSemanticPlanner({
                         if(calls.length)return {...validatedAudit,toolCalls:calls,missionComplete:false,provider:String(ai.lastProvider||"jarvis-local"),
                             model,catalogSize:recoveryCatalog.length,planKind:"READ_ONLY_NEXT_STEP_RECOVERY"};
                     }
+                    // A duplicate data call does not exhaust discovered sources.
+                    // Give the same model one bounded choice among real unread
+                    // candidates before the runtime accepts a no-plan result.
+                    const unreadReaders = recoveryCatalog.filter(tool =>
+                        tool.evidenceKinds?.includes("repository_source") &&
+                        tool.inputSchema?.properties?.file?.enum?.length);
+                    if (unreadSources.length && unreadReaders.length) {
+                        const sourceChoice = await ai.models.generateContent({model,contents:instruction,config:{
+                            semanticStage:"UNREAD_SOURCE_CONTINUATION",temperature:0,maxOutputTokens:256,
+                            responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{
+                                toolCalls:{type:"array",minItems:1,maxItems:1,items:{anyOf:unreadReaders.map(tool=>({
+                                    type:"object",properties:{name:{type:"string",enum:[tool.name]},args:tool.inputSchema},
+                                    required:["name","args"],additionalProperties:false
+                                }))}}
+                            },required:["toolCalls"],additionalProperties:false},
+                            chatMessages:[
+                                {role:"system",content:"La investigación sigue pendiente y los intentos anteriores repitieron operaciones. La búsqueda real ya encontró estas fuentes AÚN NO LEÍDAS. Elige UNA pertinente al objetivo pendiente para obtener evidencia nueva. No inventes rutas, no repitas una fuente leída ni concluyas ausencia de registros desde el código. Esta lectura no concede permisos ni escribe datos."},
+                                {role:"system",content:"FUENTES_CANDIDATAS="+JSON.stringify(unreadSources)+"\nESQUEMAS_YA_LEIDOS="+JSON.stringify(observedWriteSchemas)},
+                                {role:"system",content:"OBJETIVOS_PENDIENTES="+JSON.stringify(evaluatedAudit.completionAssessment?.objectives?.filter(o=>o.satisfied!==true)||[])},
+                                {role:"user",content:instruction}
+                            ]
+                        }});
+                        if (sourceChoice?.providerResponse?.finishReason !== "length") {
+                            let payload;try{payload=extractJsonObject(sourceChoice.text);}catch{payload=null;}
+                            const selected=validatePlan({...payload,missionComplete:false},unreadReaders,instruction);
+                            const calls=selected.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&
+                                unreadSources.includes(call.args?.file)&&!hasUnexpectedToolArguments(unreadReaders.find(t=>t.name===call.name)||{},call.args||{})).slice(0,1);
+                            if(calls.length)return {...validatedAudit,toolCalls:calls,missionComplete:false,
+                                provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:unreadReaders.length,planKind:"UNREAD_SOURCE_CONTINUATION"};
+                        }
+                    }
                 }
                 return {
                     ...validatedAudit,
