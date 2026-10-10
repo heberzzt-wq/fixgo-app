@@ -431,6 +431,31 @@ function evidenceRequirementSuccessors(kind, catalog = []) {
     return [...reachable(kind)].filter(next => next === kind || !reachable(next).has(kind));
 }
 
+function recordProjectionAlreadyObserved(call, tasks) {
+    if(call.args?.mode!=="query" || call.args?.cursor || !call.args?.fields?.length) return false;
+    const canonical=value=>Array.isArray(value)?value.map(canonical):value && typeof value==="object"
+        ?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;
+    const scope=args=>JSON.stringify(canonical(Object.fromEntries(Object.entries({...args,filters:args?.filters||[],orderBy:args?.orderBy||[]})
+        .filter(([key])=>!["fields","pageSize","includeCount"].includes(key)))));
+    const snapshots=[];
+    for(const task of tasks) {
+        const record=task.observation?.recordEvidence;
+        if(task.name!==call.name || task.observation?.ok!==true || task.observation.executionOk===false ||
+            record?.completeForQuery!==true || record.hasMore===true || task.args?.cursor || !Array.isArray(record.rows) ||
+            scope(task.args)!==scope(call.args))continue;
+        const ids=JSON.stringify(record.rows.map(row=>row.id).sort());
+        let snapshot=snapshots.find(item=>item.ids===ids && record.rows.every(row=>{
+            const known=item.rows.get(row.id)||{};
+            return Object.keys(row.values||{}).every(field=>!Object.hasOwn(known,field)||JSON.stringify(canonical(known[field]))===JSON.stringify(canonical(row.values[field])));
+        }));
+        if(!snapshot){snapshot={ids,rows:new Map(),fields:new Set(),count:false};snapshots.push(snapshot);}
+        for(const row of record.rows)snapshot.rows.set(row.id,{...(snapshot.rows.get(row.id)||{}),...(row.values||{})});
+        for(const field of record.scope?.fields||[])snapshot.fields.add(field);
+        snapshot.count ||= Number.isFinite(record.totalCount);
+    }
+    return snapshots.some(snapshot=>(call.args.includeCount!==true||snapshot.count) && call.args.fields.every(field=>snapshot.fields.has(field)));
+}
+
 function validateCompletionEvidence(plan, catalog, missionState) {
     const objectives = plan?.completionAssessment?.objectives;
     if (!Array.isArray(objectives) || !objectives.length) {
@@ -564,7 +589,7 @@ async function reviewRecordObjectiveCoverage({ai,model,instruction,objective,con
             groups:{type:"array",items:{type:"object",properties:{group:{type:"string",enum:contract.groups || [contract.requestQuote || objective.objective]},proven:{type:"boolean"},evidence:{type:"array",items:{type:"object",properties:{taskIndex:{type:"integer"},fields:{type:"array",items:{type:"string"}}},required:["taskIndex","fields"],additionalProperties:false}}},required:["group","proven","evidence"],additionalProperties:false}},
             sources:{type:"array",items:{type:"object",properties:{collection:{type:"string"},relevant:{type:"boolean"},reason:{type:"string"},taskIndexes:{type:"array",items:{type:"integer"}}},required:["collection","relevant","reason","taskIndexes"],additionalProperties:false}}
         },required:["proven","missing","groups","sources"],additionalProperties:false},
-        chatMessages:[{role:"system",content:"Audita la cobertura de UN objetivo. Conserva cada grupo del contrato. Cita únicamente índices de registros operativos autenticados para demostrar valores. El código sólo acredita dónde y cómo se almacenan datos, nunca su existencia actual. Evalúa TODAS las colecciones observadas: cuáles contienen la población solicitada y cuáles sólo eventos, transacciones u otro dominio. Una muestra relacionada no es inventario. Para cada grupo exige que los datos y su definición de almacenamiento acrediten pertenencia y totalidad; registros de otros grupos no sirven. Un cero sólo acredita su ruta y filtros, nunca otras fuentes. Para relaciones exige entidad y asignación explícitas; para vencimientos exige fecha con significado de vencimiento, no fecha histórica de evento. No supongas exclusividad de una fuente si la evidencia no la establece. Campos null/ausentes significan desconocido. Si queda alguna población, fuente, página, relación o fecha sin acreditar, proven=false y explica missing. No aceptes la afirmación del planner como prueba. No inventes campos. No descartes una fuente pertinente para conseguir el cierre."},
+        chatMessages:[{role:"system",content:"Audita exclusivamente el resultado pedido en contract.requestQuote y su coverageMode. Los demás objetivos de la solicitud se evalúan por separado: sus faltantes no son requisitos adicionales de este objetivo. Conserva cada grupo del contrato. Cita únicamente índices de registros operativos autenticados para demostrar valores. El código sólo acredita dónde y cómo se almacenan datos, nunca su existencia actual. Evalúa TODAS las colecciones observadas: cuáles contienen la población solicitada y cuáles sólo eventos, transacciones u otro dominio. Una muestra relacionada no es inventario. Para cada grupo exige que los datos y su definición de almacenamiento acrediten pertenencia y totalidad; registros de otros grupos no sirven. Un cero sólo acredita su ruta y filtros, nunca otras fuentes. Para relaciones exige entidad y asignación explícitas; para vencimientos exige fecha con significado de vencimiento, no fecha histórica de evento. No supongas exclusividad de una fuente si la evidencia no la establece. Campos null/ausentes significan desconocido. Si queda alguna población, fuente, página, relación o fecha sin acreditar, proven=false y explica missing. No aceptes la afirmación del planner como prueba. No inventes campos. No descartes una fuente pertinente para conseguir el cierre."},
         {role:"user",content:JSON.stringify({request:instruction,contract,objective,observedSources:observedRecordSources(tasks),evidence:boundedAuditTasks(tasks)})}]
     }});
     if(response?.providerResponse?.finishReason==='length') return {proven:false,missing:["La revisión de cobertura no terminó dentro del presupuesto."]};
@@ -1143,6 +1168,32 @@ function boundedAuditTasks(tasks) {
             }
         }
     }
+    // Share identical transport metadata before taking bytes from the latest
+    // source window. Operational rows, field names and query scopes stay intact.
+    if (JSON.stringify(minimal).length > 27000) {
+        const defaults={verifiedRead:{partial:true,truncated:true,contentTruncated:true},dataBindings:{fieldPathsComplete:false,schemaFieldsInSharedSummary:true,referencesComplete:false,complete:false}};
+        const kinds={};
+        for(const [index,task] of minimal.entries()) {
+            if(task.index===index)delete task.index;
+            if(Array.isArray(task.allowedEvidenceKinds)) {
+                if(!Object.hasOwn(kinds,task.name))kinds[task.name]=task.allowedEvidenceKinds;
+                if(JSON.stringify(kinds[task.name])===JSON.stringify(task.allowedEvidenceKinds))delete task.allowedEvidenceKinds;
+            }
+            const read=task.observation?.verifiedRead;
+            if(!read)continue;
+            for(const [key,value]of Object.entries(defaults.verifiedRead))if(read[key]===value)delete read[key];
+            const bindings=read.sourceStructure?.dataBindings;
+            for(const [key,value]of Object.entries(defaults.dataBindings))if(bindings?.[key]===value)delete bindings[key];
+            const inherited=Object.keys(task.args||{}).filter(key=>Object.hasOwn(read,key)&&JSON.stringify(task.args[key])===JSON.stringify(read[key]));
+            if(inherited.length){
+                const remaining=Object.fromEntries(Object.entries(task.args).filter(([key])=>!inherited.includes(key)));
+                if(JSON.stringify({args:remaining,readArgs:inherited}).length<JSON.stringify({args:task.args}).length){task.args=remaining;task.readArgs=inherited;}
+            }
+        }
+        minimal[0]={...minimal[0],sourceReadDefaults:defaults,
+            ...(Object.keys(kinds).length?{toolEvidenceKinds:kinds}:{}),
+            evidenceMetadataEncoding:"Task index is its array position unless explicit. Missing allowedEvidenceKinds inherit toolEvidenceKinds[task.name]. Each verifiedRead and its dataBindings inherit only their missing sourceReadDefaults keys. readArgs lists argument keys stored unchanged in verifiedRead. These encodings never add operational evidence or coverage."};
+    }
     const freshRead = minimal[tasks.indexOf(latestRead)]?.observation?.verifiedRead;
     if (freshRead) {
         const overflow = JSON.stringify(minimal).length - 27900;
@@ -1250,6 +1301,40 @@ function responsiveAuditSummary(page) {
                 suggestedCorrection: String(finding.suggestedCorrection || "").slice(0, 160), evidence: finding.evidence,
                 viewports: finding.occurrences.map(item => `${item.viewport.width}x${item.viewport.height}`) })),
         screenshotInspected: false, interactionVerified: false, physicalDeviceTested: false };
+}
+
+function bindRejectedRecordFields(catalog, tasks, failedTasks) {
+    return catalog.map(tool=>{
+        if(tool.name!=="platform.query")return tool;
+        const failures=(failedTasks||[]).filter(task=>task.name===tool.name && task.observation?.errorDetails?.undiscoveredFields?.length && task.observation.errorDetails.discoveredFieldPaths?.length);
+        if(!failures.length)return tool;
+        const schema=buildNativeInputSchema(tool.inputSchema);
+        const branches=Array.isArray(schema.anyOf)?schema.anyOf:[schema];
+        const bound=branches.flatMap(branch=>{
+            const files=branch.properties?.sourceFile?.enum,collections=branch.properties?.collection?.enum;
+            if(!files?.length||!collections?.length||!branch.properties?.fields||branch.properties.fields.maxItems===0)return [branch];
+            return files.flatMap(file=>collections.map(collection=>{
+                const failuresForScope=failures.filter(task=>task.args?.sourceFile===file && task.args?.collection===collection);
+                if(!failuresForScope.length)return {...branch,properties:{...branch.properties,sourceFile:{...branch.properties.sourceFile,enum:[file]},collection:{...branch.properties.collection,enum:[collection]}}};
+                const fields=new Set(failuresForScope.flatMap(task=>task.observation.errorDetails.discoveredFieldPaths));
+                for(const task of tasks){
+                    const read=task.observation?.verifiedRead;
+                    if(task.observation?.ok!==true||task.observation.executionOk===false||task.observation.blocked===true||task.observation.requiresInput===true||!read)continue;
+                    const bindings=read.sourceStructure?.dataBindings;
+                    if(read.file!==file&&!bindings?.collections?.includes(collection))continue;
+                    for(const field of bindings?.fieldPaths||[])fields.add(field);
+                    for(const shape of bindings?.writeShapes||[])if(shape.collection===collection)for(const field of shape.fields||[])fields.add(field);
+                }
+                // A later source may accredit a formerly rejected name. Keep only
+                // positive current evidence, never an invented alias or intent rule.
+                const available=[...fields].filter(field=>typeof field==="string" && field.trim());
+                if(!available.length)return branch;
+                const property=branch.properties.fields;
+                return {...branch,properties:{...branch.properties,sourceFile:{...branch.properties.sourceFile,enum:[file]},collection:{...branch.properties.collection,enum:[collection]},fields:{...property,items:{...property.items,enum:available}}}};
+            }));
+        });
+        return {...tool,inputSchema:bound.length===1?bound[0]:{anyOf:bound}};
+    });
 }
 
 function bindEvidencePrerequisites(catalog, tasks = []) {
@@ -2045,6 +2130,7 @@ async function runModelSemanticPlanner({
             task.observation.blocked !== true && task.observation.requiresInput !== true &&
             ["CURRENT_RENDERED_DOM_COMPUTED_STYLE", "RENDERED_DOM_LAYOUT_REPLAY"].includes(task.observation.interfaceEvidence?.source))
             .slice(0, 2).map(task => ({ index: task.index, name: task.name, interfaceEvidence: responsiveAuditSummary(task.observation.interfaceEvidence) }));
+        selectableCatalog = bindRejectedRecordFields(selectableCatalog, completedTasksForAudit, missionState.blockedTasks);
         const auditCatalog = selectableCatalog.map(({ name, description, evidenceKinds, inputSchema, requiresEvidence, mutates, requiresApproval }) => {
             const schema = buildNativeInputSchema(inputSchema);
             const branches = schema.anyOf || [schema];
@@ -2196,7 +2282,7 @@ async function runModelSemanticPlanner({
                             { role: "system", content: "CATALOGO_EJECUTABLE=" + JSON.stringify(auditCatalog) },
                             ...(missionState.evidenceObjectives?.length ? [{role:"system",content:"OBJETIVOS_ESTABLECIDOS_INMUTABLES="+JSON.stringify(missionState.evidenceObjectives)+"\nConserva todos los nombres. Si el tipo inicial sólo era evidencia preparatoria, elévalo a un tipo permitido por el esquema y las dependencias de lectura del catálogo. El código puede permitir consultar datos actuales, pero no los sustituye. Nunca rebajes un requisito ya establecido; evalúa cada objetivo completo."}] : []),
                             ...(pendingCapabilities.length ? [{role:"system",content:"CAPACIDADES_INSTALADAS_PENDIENTES_DE_EVIDENCIA="+JSON.stringify(pendingCapabilities)+"\nEstas capacidades sí existen. Antes de usarlas obtén la evidencia que necesitan, buscando y leyendo la fuente. No declares ausencia de capacidad, de colección o de registros por no haber cumplido aún su requisito."}] : []),
-                            ...(missionState.completionAssessment?.objectives?.length ? [{role:"system",content:"PROGRESO_PREVIO_POR_OBJETIVO="+JSON.stringify(missionState.completionAssessment.objectives.map(({objective,requiredEvidenceKind,satisfied,evidenceTaskIndexes,limitation})=>({objective,requiredEvidenceKind,satisfied,evidenceTaskIndexes,limitation:String(limitation||"").slice(0,1200)})))+"\nSon conclusiones previas del mismo LLM para orientar la investigación, no hechos ni pruebas nuevas. Contrástalas con las observaciones originales. Conserva las limitaciones específicas aún vigentes; no vuelvas a usar una fuente ya identificada como insuficiente sin explicar qué evidencia nueva puede aportar. Puedes corregir una conclusión previa cuando la evidencia lo justifique. No conviertas progreso previo en cumplimiento."}] : []),
+                            ...(missionState.completionAssessment?.objectives?.length ? [{role:"system",content:"PROGRESO_PREVIO_POR_OBJETIVO="+JSON.stringify(missionState.completionAssessment.objectives.map(({objective,requiredEvidenceKind,satisfied,evidenceTaskIndexes,limitation,modelLimitation,coverage})=>({objective,requiredEvidenceKind,satisfied,evidenceTaskIndexes,limitation:String(modelLimitation??limitation??"").slice(0,800),coverageMissing:(coverage?.missing||[]).filter(gap=>!String(modelLimitation??limitation??"").includes(gap)).join(" ").slice(0,400)})))+"\nSon conclusiones previas del mismo LLM para orientar la investigación, no hechos ni pruebas nuevas. Contrástalas con las observaciones originales. Conserva las limitaciones específicas aún vigentes; no vuelvas a usar una fuente ya identificada como insuficiente sin explicar qué evidencia nueva puede aportar. Puedes corregir una conclusión previa cuando la evidencia lo justifique. No conviertas progreso previo en cumplimiento."}] : []),
                             {role:"system",content:"newSincePreviousAssessment=true identifica observaciones posteriores a la evaluación previa. Actualiza primero las limitaciones de cada objetivo con esos resultados: una conclusión anterior de que faltaba esa consulta ya no describe el estado actual. Evalúa su cobertura sin convertir el éxito técnico en cumplimiento."},
                             ...auditTasks.map((task,index) => ({ role: "system", content: "OBSERVACION_EJECUTADA=" + JSON.stringify({...task,newSincePreviousAssessment:index >= (Number.isInteger(missionState.completionAssessment?.evaluatedTaskCount) ? missionState.completionAssessment.evaluatedTaskCount : 0)}) })),
                             ...(missionState.blockedTasks || []).slice(-12).map(task => ({ role: "system", content: "INTENTO_FALLIDO_NO_ACREDITA_CUMPLIMIENTO=" + JSON.stringify({ name: task.name, args: task.args, observation: task.observation }) + "\nUsa el fallo para corregir el siguiente paso sin repetir argumentos ya rechazados. Una ruta no encontrada requiere corregir el destino o explicar que no se obtuvo; permisos denegados no autorizan otra identidad, quitar filtros ni ampliar acceso. Nunca conviertas un fallo en cero registros." })),
@@ -2207,7 +2293,7 @@ async function runModelSemanticPlanner({
                             ] : []),
                             ...(observedWriteSchemas.length ? [{role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedWriteSchemas)+"\nEstas claves se observaron en objetos guardados en la colección indicada: no declares que faltan las claves listadas. No prueban registros actuales ni un esquema exhaustivo. Un filtro de clasificación rechazado no invalida otros objetivos que sí tienen campos acreditados. Puedes elegir una consulta de inspección paginada (mode=query) con campos pertinentes y acreditados para observar datos actuales sin inventar un filtro; esa lectura sólo demuestra su alcance y no acredita automáticamente conteos de subconjuntos. Conserva el tenant y los límites de permisos; nunca eludas una denegación."}] : []),
                             { role: "system", content: "Decide el siguiente paso con la evidencia anterior. Sólo OBSERVACION_EJECUTADA acredita operaciones ya realizadas. Medir DOM/CSS no lee archivos fuente ni prepara un patch ni acredita una aprobación, escritura o prueba posterior. Si faltan operaciones del pedido, sus objetivos siguen satisfied=false; conserva referencias a evidencia parcial pertinente y una limitation concreta. Selecciona una sola operación nueva del catálogo que avance ese trabajo; no repitas la inspección ya ejecutada con los mismos argumentos. El diagnóstico puede guiar la lectura del código antes de preparar un cambio exacto." },
-                            { role: "user", content: instruction }
+                            { role: "user", content: instruction + ((missionState.blockedTasks||[]).some(task=>task.observation?.errorDetails?.undiscoveredFields?.length) ? "\n\nRevisa el estado actual de la investigación antes de decidir: un rechazo por campos no acreditados no significa permiso denegado ni colección vacía. En errorDetails, undiscoveredFields enumera solamente los nombres rechazados y discoveredFieldPaths enumera campos observados que puedes consultar usando la misma fuente y alcance autorizado. No declares inaccesibles esos campos observados. Consulta evidencia que falta; no repitas combinaciones de campos ya leídos." : "") }
                         ],
                         temperature: 0,
                         maxOutputTokens: auditAttempt > 0 ? 3072 : 1536,
@@ -2251,7 +2337,7 @@ async function runModelSemanticPlanner({
                     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalArgs(value[key])])) : value;
                 const sameCall = (task, call) => task?.name === call?.name &&
                     JSON.stringify(canonicalArgs(task?.args || {})) === JSON.stringify(canonicalArgs(call?.args || {}));
-                const wasExecuted = call => (missionState.completedTasks || []).some(task => {
+                const wasExecuted = call => recordProjectionAlreadyObserved(call, missionState.completedTasks || []) || (missionState.completedTasks || []).some(task => {
                     if (sameCall(task, call)) return true;
                     // Once a complete unpaged scope has been read, increasing its
                     // page size cannot expand nested fields or add new evidence.
@@ -2359,10 +2445,11 @@ async function runModelSemanticPlanner({
                         if(objective.requiredEvidenceKind!=="platform_records") continue;
                         const contract=missionState.evidenceObjectives.find(item=>item.objective===objective.objective);
                         if(!contract?.coverageMode) continue;
+                        objective.modelLimitation=objective.limitation || "";
                         objective.coverage=qualifyRecordObjectiveCoverage(objective,contract,completedTasksForAudit);
                         if(objective.coverage.status!=="complete") {
                             objective.satisfied=false;
-                            objective.limitation=[objective.limitation,...objective.coverage.missing].filter(Boolean).join(" ");
+                            objective.limitation=[objective.modelLimitation,...objective.coverage.missing.filter(gap=>!objective.modelLimitation.includes(gap))].filter(Boolean).join(" ");
                             evaluatedAudit.missionComplete=false;validatedAudit.missionComplete=false;
                         }
                     }

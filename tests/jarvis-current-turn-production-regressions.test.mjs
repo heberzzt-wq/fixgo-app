@@ -3102,7 +3102,7 @@ test('a corrected read in the same record scope recovers its failed attempt',asy
 test('objective-specific coverage gaps survive validation and guide the next semantic audit without becoming facts',async()=>{
  const gap='Observed event records do not establish the registered population; inspect its authoritative source.';
  const contract={objective:'Count registered entities',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['entities']};
- const prior={evaluatedTaskCount:1,objectives:[{...contract,satisfied:false,evidenceTaskIndexes:[0],limitation:gap}]};
+ const prior={evaluatedTaskCount:1,objectives:[{...contract,satisfied:false,evidenceTaskIndexes:[0],modelLimitation:gap,limitation:gap+' Repeated structural warning.'.repeat(100),coverage:{missing:['Other observed scopes remain pending.']}}]};
  const reader={name:'fixture.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
  const records={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{page:{type:'integer'},sourceFile:{type:'string'}},required:['page']}};
  let messages=[];
@@ -3112,6 +3112,7 @@ test('objective-specific coverage gaps survive validation and guide the next sem
  return{text:JSON.stringify({explanation:'Continue investigating the missing scope',completionAssessment:prior,toolCalls:[{name:records.name,args:{page:2,sourceFile:'observed-source.js'}}]})};
  }}}});
  assert.ok(messages.some(m=>m.content.includes(gap)),'the previous objective gap must reach the next audit');
+ const progress=messages.find(m=>m.content.startsWith('PROGRESO_PREVIO_POR_OBJETIVO='));assert.ok(progress.content.includes('Other observed scopes remain pending.'));assert.ok(!progress.content.includes('Repeated structural warning'),'derived warnings must not recursively crowd out the model-specific gap');
  const observations=messages.filter(m=>m.content.startsWith('OBSERVACION_EJECUTADA=')).map(m=>JSON.parse(m.content.slice('OBSERVACION_EJECUTADA='.length)));
  assert.equal(observations.filter(o=>o.newSincePreviousAssessment).length,1);
  assert.equal(observations.find(o=>o.newSincePreviousAssessment).observation.verifiedRead.file,'observed-source.js');
@@ -3167,4 +3168,57 @@ test('the same LLM repairs nonliteral objective quotes without dropping requeste
 
 test('invalid objective contracts exhaust bounded LLM repairs without inventing a replacement contract',async()=>{
  let attempts=0;await assert.rejects(runJarvisSemanticPlanner({input:'Inspect current records',catalog:[{name:'fixture.records',evidenceKinds:['platform_records']}],missionState:{phase:'OBJECTIVE_CONTRACT'},ai:{models:{generateContent:async()=>{attempts++;return{text:'{"objectives":['}}}}}),/SEMANTIC_OBJECTIVE_CONTRACT_INVALID/);assert.equal(attempts,3);
+});
+
+test('combining previously read projections cannot replace investigation of missing evidence',async()=>{
+ const query={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'},mode:{type:'string'},fields:{type:'array',items:{type:'string'}},pageSize:{type:'integer'},includeCount:{type:'boolean'}},required:['collection','mode','fields']}};
+ const args={collection:'registry',mode:'query',pageSize:20,includeCount:true};let recovered=false;
+ const tasks=[['category','owner'],['owner','label']].map(fields=>({name:query.name,args:{...args,fields},observation:{ok:true,recordEvidence:{scope:{collection:'registry',fields},rows:[{id:'one',values:Object.fromEntries(fields.map(field=>[field,field==='owner'?null:'observed']))}],totalCount:1,completeForQuery:true,hasMore:false}}}));
+ const result=await runJarvisSemanticPlanner({input:'Inspect current records and expiration evidence',catalog:[query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:tasks},ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:[{objective:'Inspect current records and expiration evidence',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0,1],limitation:'Expiration evidence remains missing'}]},toolCalls:[{name:query.name,args:{...args,pageSize:100,fields:['category','owner','label']}}]})};
+  if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){recovered=true;return{functionCalls:[{name:query.name,args:{...args,fields:['expiresAt']}}]};}
+  throw Error('Unexpected stage '+request.config.semanticStage);
+ }}}});assert.equal(recovered,true);assert.deepEqual(result.toolCalls[0].args.fields,['expiresAt']);assert.equal(result.missionComplete,false);
+});
+
+test('projection reuse preserves new fields counts pages scopes and inconsistent snapshots as unread work',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');
+ const covered=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const args={collection:'registry',mode:'query',fields:['label','owner'],filters:[],includeCount:true};const call={name:'records.read',args};
+ const tasks=[['label'],['owner']].map(fields=>({name:call.name,args:{...args,fields},observation:{ok:true,recordEvidence:{scope:{collection:'registry',fields},rows:[{id:'one',values:Object.fromEntries(fields.map(field=>[field,'observed']))}],totalCount:1,completeForQuery:true}}}));
+ assert.equal(covered(call,tasks),true);
+ for(const changed of [{fields:['expiresAt']},{collection:'another'},{filters:[{field:'category',op:'==',value:'other'}]},{cursor:'next'},{mode:'count'}])assert.equal(covered({...call,args:{...args,...changed}},tasks),false);
+ for(const change of [t=>{delete t.observation.recordEvidence.totalCount;},t=>{t.observation.recordEvidence.completeForQuery=false;},t=>{t.observation.recordEvidence.hasMore=true;},t=>{t.observation.ok=false;}]){const altered=structuredClone(tasks);altered.forEach(change);assert.equal(covered(call,altered),false);}
+ const changedRows=structuredClone(tasks);changedRows[1].observation.recordEvidence.rows[0].id='different';assert.equal(covered(call,changedRows),false);
+ const conflicting=structuredClone(tasks);conflicting[1].observation.recordEvidence.rows[0].values.label='changed';assert.equal(covered(call,conflicting),false);
+ assert.equal(covered({...call,args:{...args,includeCount:false}},tasks.map(t=>({...t,observation:{...t.observation,recordEvidence:{...t.observation.recordEvidence,totalCount:undefined}}}))),true);
+});
+
+test('shared source metadata preserves accredited fields and latest reading inside the evidence budget',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='boundedAuditTasks');const compact=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const tasks=Array.from({length:16},(_,i)=>{const fields=Array.from({length:44},(_,j)=>String.fromCharCode(97+j%26)+('_'+i+'_'+j).padEnd(25,String.fromCharCode(97+(j*7+i)%26)));return{index:i,name:'source.read',allowedEvidenceKinds:['repository_source'],args:{file:'module-'+i+'.js'},observation:{ok:true,executionOk:true,verifiedRead:{file:'module-'+i+'.js',startLine:1,content:'LATEST_SOURCE '+('body '.repeat(1000)),sourceStructure:{dataBindings:{collections:['registry-'+i],fieldPaths:fields,writeShapes:[{collection:'registry-'+i,fields,fieldsComplete:true}]}}}}}});
+ const before=JSON.stringify(tasks);const result=JSON.parse(JSON.stringify(compact(tasks)));assert.equal(JSON.stringify(tasks),before);assert.ok(JSON.stringify(result).length<=28000);assert.match(result.at(-1).observation.verifiedRead.content,/LATEST_SOURCE/);assert.ok(result.at(-1).observation.verifiedRead.content.length>=1000);
+ const dictionary=typeof result[0].sharedFieldDictionary==='string'?result[0].sharedFieldDictionary.split('|'):result[0].sharedFieldDictionary;
+ const unpack=ids=>ids.flatMap(id=>Array.isArray(id)?Array.from({length:id[1]-id[0]+1},(_,n)=>dictionary[id[0]+n]):[dictionary[id]]);
+ for(let i=0;i<tasks.length;i++){
+  const task=result[i],read={...result[0].sourceReadDefaults.verifiedRead,...task.observation.verifiedRead},bindings={...result[0].sourceReadDefaults.dataBindings,...read.sourceStructure.dataBindings};
+  assert.equal(task.index??i,tasks[i].index);assert.deepEqual(task.allowedEvidenceKinds??result[0].toolEvidenceKinds[task.name],tasks[i].allowedEvidenceKinds);
+  assert.deepEqual({...task.args,...Object.fromEntries((task.readArgs||[]).map(key=>[key,read[key]]))},tasks[i].args);
+  assert.deepEqual(unpack(bindings.fieldIds),tasks[i].observation.verifiedRead.sourceStructure.dataBindings.fieldPaths);
+  assert.deepEqual(unpack(bindings.writeShapes[0].fieldIds),tasks[i].observation.verifiedRead.sourceStructure.dataBindings.writeShapes[0].fields);
+  assert.equal(bindings.writeShapes[0].collection,'registry-'+i);assert.equal(bindings.writeShapes[0].fieldsComplete,true);assert.equal(read.partial,true);assert.equal(bindings.complete,false);
+ }
+});
+
+test('field rejection constrains recovery to observed fields without changing other collection or count scopes',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='bindRejectedRecordFields');const bind=runInNewContext('('+source.slice(node.start,node.end)+')',{buildNativeInputSchema:x=>x});
+ const query={name:'platform.query',inputSchema:{type:'object',properties:{sourceFile:{type:'string',enum:['source.js']},collection:{type:'string',enum:['registry','events']},fields:{type:'array',items:{type:'string'}}}}};
+ const failures=[{name:query.name,args:{sourceFile:'source.js',collection:'registry'},observation:{errorDetails:{undiscoveredFields:['guessed'],discoveredFieldPaths:['details.owner']}}}];
+ const reads=[{observation:{ok:true,verifiedRead:{file:'source.js',sourceStructure:{dataBindings:{collections:['registry','events'],fieldPaths:['details.owner','details.expiresAt'],writeShapes:[{collection:'registry',fields:['label']},{collection:'events',fields:['unrelated']}]}}}}}];
+ const output=JSON.parse(JSON.stringify(bind([query],reads,failures)[0].inputSchema.anyOf));
+ assert.deepEqual(output.find(x=>x.properties.collection.enum[0]==='registry').properties.fields.items.enum,['details.owner','details.expiresAt','label']);assert.equal(output.find(x=>x.properties.collection.enum[0]==='events').properties.fields.items.enum,undefined);
+ const unchanged=bind([{...query,inputSchema:{...query.inputSchema,properties:{...query.inputSchema.properties,fields:{type:'array',maxItems:0}}}}],reads,failures);assert.equal(unchanged[0].inputSchema.properties.fields.maxItems,0);
+ assert.deepEqual(bind([query],reads,[{name:query.name,observation:{errorCode:'PERMISSION_DENIED'}}]),[query]);
+ reads[0].observation.verifiedRead.sourceStructure.dataBindings.writeShapes[0].fields.push('guessed');assert.ok(bind([query],reads,failures)[0].inputSchema.anyOf[0].properties.fields.items.enum.includes('guessed'),'a later positive source may accredit a formerly rejected field');
 });
