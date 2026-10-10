@@ -1711,6 +1711,14 @@ test('platform collection destinations are extracted from real AST calls, never 
  assert.equal(inspectSourceDataBindings('not valid JavaScript {').complete,false);
 });
 
+test('source field evidence excludes invoked methods and retains their data receivers',async()=>{
+ const {inspectSourceDataBindings}=await import('../gestia-core/repo/repo.source.structure.js');
+ const bindings=inspectSourceDataBindings('const ref=collection(db,"entries"); rows.map(row=>[row.label.normalize(),row.details.code.trim(),row?.details?.alias?.format(),row["category"]["render"](),row.details.value]);');
+ for(const field of ['label','details.code','details.alias','category','details.value']) assert.ok(bindings.fieldPaths.includes(field),field);
+ for(const field of ['label.normalize','details.code.trim','code.trim','details.alias.format','alias.format','category.render']) assert.ok(!bindings.fieldPaths.includes(field),field);
+ assert.deepEqual(bindings.collections,['entries']);
+});
+
 test('a source read cannot authorize an invented collection even when the session could read it',async()=>{
  const f=platformQueryTestFixture();const result=await f.execute({...f.args,collection:'guessed_collection'},f.dependencies,f.context);
  assert.equal(result.ok,false);assert.equal(result.error.code,'PLATFORM_QUERY_COLLECTION_NOT_DISCOVERED');assert.equal(f.calls.length,0);assert.equal(result.recordEvidence,undefined);

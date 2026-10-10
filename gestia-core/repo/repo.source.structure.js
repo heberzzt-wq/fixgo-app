@@ -866,8 +866,8 @@ export function inspectSourceDataBindings(source = "") {
             const key = node.computed ? string(node.property) : staticKey(node.property);
             return key === null ? [] : [...memberKeys(node.object), key];
         };
-        const addPath = parts => {
-            if (parts.length > 1 && parts.every(part => typeof part === "string" && /^[\w$]+$/.test(part))) {
+        const addPath = (parts, minimumLength = 2) => {
+            if (parts.length >= minimumLength && parts.every(part => typeof part === "string" && /^[\w$]+$/.test(part))) {
                 fieldPaths.add(parts.join("."));
             }
         };
@@ -886,8 +886,11 @@ export function inspectSourceDataBindings(source = "") {
             if (!node || typeof node !== "object") return;
             if (node.type === "ObjectExpression") objectPaths(node);
             if (node.type === "MemberExpression") {
-                const keys = memberKeys(node);
-                for (let index = 0; index < keys.length - 1; index++) addPath(keys.slice(index));
+                // A call's property is an operation, not a stored nested field.
+                // Retain the receiver's data path without inventing method fields.
+                const invoked = parent?.type === "CallExpression" && parent.callee === node;
+                const keys = memberKeys(invoked ? node.object : node);
+                for (let index = 0; index < keys.length - (invoked ? 0 : 1); index++) addPath(keys.slice(index), invoked ? 1 : 2);
             }
             if (node.type === "CallExpression") {
                 const operation = node.callee?.property?.name || node.callee?.name;
