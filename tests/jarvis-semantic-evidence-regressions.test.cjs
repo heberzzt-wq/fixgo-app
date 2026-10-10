@@ -244,6 +244,30 @@ test("an observed partial source remains available for a new range when recovery
     assert.equal(result.toolCalls[0].args.startLine,40);
 });
 
+test("partial source recovery accumulates observed ranges and rejects a still-visible repeated range", async () => {
+    const reader={name:"repo.read",evidenceKinds:["repository_source"],investigationReadOnly:true,mutates:false,inputSchema:{type:"object",properties:{file:{type:"string"},startLine:{type:"integer"},endLine:{type:"integer"}},required:["file"]}};
+    const completedTasks=[[1,10,10],[35,40,40],[11,20,30]].map(([startLine,endLine,requestedEnd])=>({name:reader.name,args:{file:"observed.js",startLine,endLine:requestedEnd},observation:{ok:true,verifiedRead:{file:"observed.js",content:Array(endLine-startLine+1).fill("observed line").join("\n"),startLine,endLine,totalLines:80,partial:true,sourceStructure:{dataBindings:{writeShapes:[{collection:"entries",startLine:15,fields:["owner"]},{collection:"entries",startLine:45,fields:["renewal"]}]}}}}}));
+    let recovered=false;
+    const result=await runJarvisSemanticPlanner({input:"Inspect the remaining source evidence",catalog:[reader],missionState:{phase:"COMPLETION_AUDIT",completedTasks},ai:{models:{generateContent:async request=>{
+        if(request.config.semanticStage==="COMPLETION_AUDIT")return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:"observed.js",startLine:11,endLine:20}}],completionAssessment:{objectives:[{objective:"Inspect the remaining source evidence",requiredEvidenceKind:"repository_source",satisfied:false,evidenceTaskIndexes:[],limitation:"More evidence required"}]}})};
+        if(request.config.semanticStage==="READ_ONLY_EVIDENCE_CONTINUATION")return{text:'{"toolCalls":[]}'};
+        assert.equal(request.config.semanticStage,"READ_ONLY_NEXT_STEP_RECOVERY");
+        const message=request.config.chatMessages.find(item=>item.content.startsWith("LECTURAS_PARCIALES="));
+        const progress=JSON.parse(message.content.split("\n")[0].slice("LECTURAS_PARCIALES=".length));
+        assert.equal(progress.length,1);
+        assert.deepEqual(progress[0].observedRanges,[[1,20],[35,40]]);
+        assert.deepEqual(progress[0].unreadRanges,[[21,34],[41,80]]);
+        assert.equal(progress[0].nextStartLine,21);
+        assert.equal(progress[0].schemaAnchors.find(a=>a.startLine===15).observed,true);
+        assert.equal(progress[0].schemaAnchors.find(a=>a.startLine===45).observed,false);
+        recovered=true;
+        return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:"observed.js",startLine:21,endLine:34}}]})};
+    }}}});
+    assert.equal(recovered,true);
+    assert.equal(result.missionComplete,false);
+    assert.equal(result.toolCalls[0].args.startLine,21);
+});
+
 test("a locked telemetry contract must reach semantic audit and preserve its insufficient-evidence verdict", async () => {
     const { runJarvisMission } = await import("../gestia-core/jarvis/jarvis.mission.orchestrator.js");
     let auditCalls = 0;

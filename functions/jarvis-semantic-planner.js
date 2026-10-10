@@ -615,6 +615,47 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
     return extractJsonObject(String(response?.text||"")) || {proven:false,missing:["No se obtuvo una revisión de cobertura válida."]};
 }
 
+function partialSourceProgress(tasks = []) {
+    const files = new Map();
+    for (const task of tasks) {
+        const read = task.observation?.verifiedRead;
+        if (task.observation?.ok !== true || task.observation.executionOk === false || !read?.file ||
+            !Number.isInteger(read.endLine) || !Number.isInteger(read.totalLines)) continue;
+        const progress = files.get(read.file) || {file:read.file,observedRanges:[],totalLines:0,schemaAnchors:[]};
+        progress.totalLines = Math.max(progress.totalLines,read.totalLines);
+        progress.observedRanges.push([read.startLine || 1,read.endLine]);
+        progress.schemaAnchors.push(...(read.sourceStructure?.dataBindings?.writeShapes || [])
+            .filter(shape=>Number.isInteger(shape.startLine)).map(({collection,startLine,fields})=>({collection,startLine,fields})));
+        files.set(read.file,progress);
+    }
+    return [...files.values()].flatMap(progress=>{
+        const merged=[];
+        for (const range of progress.observedRanges.sort((a,b)=>a[0]-b[0])) {
+            if (merged.length && range[0]<=merged.at(-1)[1]+1) merged.at(-1)[1]=Math.max(merged.at(-1)[1],range[1]);
+            else merged.push([...range]);
+        }
+        const unread=[];
+        let next=1;
+        for (const [start,end] of merged) {if(start>next)unread.push([next,start-1]);next=Math.max(next,end+1);}
+        if(next<=progress.totalLines)unread.push([next,progress.totalLines]);
+        if(!unread.length)return [];
+        return [{...progress,observedRanges:merged,unreadRanges:unread,nextStartLine:unread[0][0],
+            schemaAnchors:[...new Map(progress.schemaAnchors.map(anchor=>[JSON.stringify(anchor),anchor])).values()]
+                .map(anchor=>({...anchor,observed:merged.some(([start,end])=>anchor.startLine>=start && anchor.startLine<=end)}))}];
+    });
+}
+
+function sourceRangeStillVisible(call, tasks = []) {
+    // Only the latest source body is guaranteed to survive audit compaction.
+    // Older bodies may legitimately need a re-read even if once consulted.
+    const latest=boundedAuditTasks(tasks).findLast(task=>task.observation?.verifiedRead);
+    const read=latest?.observation?.verifiedRead;
+    return !!read?.content && latest.observation.ok===true && latest.observation.executionOk!==false &&
+        latest.name===call.name && read.file===call.args?.file &&
+        Number.isInteger(call.args.startLine) && Number.isInteger(call.args.endLine) &&
+        call.args.startLine>=(read.startLine || 1) && call.args.endLine>=call.args.startLine && call.args.endLine<=read.endLine;
+}
+
 function continuationObjectiveSummaries(objectives = []) {
     return objectives.map(({objective,requiredEvidenceKind,satisfied,evidenceTaskIndexes,limitation})=>({
         objective,requiredEvidenceKind,satisfied,evidenceTaskIndexes,
@@ -2364,7 +2405,7 @@ async function runModelSemanticPlanner({
                     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalArgs(value[key])])) : value;
                 const sameCall = (task, call) => task?.name === call?.name &&
                     JSON.stringify(canonicalArgs(task?.args || {})) === JSON.stringify(canonicalArgs(call?.args || {}));
-                const wasExecuted = call => recordProjectionAlreadyObserved(call, missionState.completedTasks || []) || (missionState.completedTasks || []).some(task => {
+                const wasExecuted = call => sourceRangeStillVisible(call, missionState.completedTasks || []) || recordProjectionAlreadyObserved(call, missionState.completedTasks || []) || (missionState.completedTasks || []).some(task => {
                     if (sameCall(task, call)) return true;
                     // Once a complete unpaged scope has been read, increasing its
                     // page size cannot expand nested fields or add new evidence.
@@ -2610,13 +2651,7 @@ async function runModelSemanticPlanner({
                     const readSources = new Set(successfulTasks
                         .map(task => task.observation.verifiedRead?.file)
                         .filter(value => typeof value === "string" && value.trim()));
-                    const partialSources = successfulTasks.flatMap(task=>{
-                        const read=task.observation.verifiedRead;
-                        if(!read?.file || read.partial!==true || !Number.isInteger(read.endLine) || !Number.isInteger(read.totalLines) || read.endLine>=read.totalLines)return [];
-                        return [{file:read.file,observedRange:[read.startLine||1,read.endLine],totalLines:read.totalLines,
-                            nextStartLine:read.endLine+1,
-                            schemaAnchors:(read.sourceStructure?.dataBindings?.writeShapes||[]).filter(shape=>Number.isInteger(shape.startLine)).map(({collection,startLine,fields})=>({collection,startLine,fields}))}];
-                    });
+                    const partialSources = partialSourceProgress(successfulTasks);
                     const unreadSources = [...new Set([...candidateSources.filter(file => !readSources.has(file)),...partialSources.map(read=>read.file)])];
                     const sources = [...new Set([...candidateSources, ...readSources])];
                     // Resolve data dependencies from evidence metadata, not user words.
