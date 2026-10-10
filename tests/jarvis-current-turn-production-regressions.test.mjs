@@ -3097,3 +3097,51 @@ test('a corrected read in the same record scope recovers its failed attempt',asy
  planner:async()=>++planned===1?{toolCalls:[{name:initial.name,args:{...initial.args,fields:['owner']}}],missionComplete:false}:{toolCalls:[],missionComplete:false},storage:{getItem(){return null;},setItem(){},removeItem(){}}});
  assert.equal(result.completedTasks.length,1);assert.equal(result.blockedTasks.length,0);assert.equal(result.recoveredToolAttempts.length,1);
 });
+
+
+test('objective-specific coverage gaps survive validation and guide the next semantic audit without becoming facts',async()=>{
+ const gap='Observed event records do not establish the registered population; inspect its authoritative source.';
+ const contract={objective:'Count registered entities',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['entities']};
+ const prior={objectives:[{...contract,satisfied:false,evidenceTaskIndexes:[0],limitation:gap}]};
+ const reader={name:'fixture.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
+ const records={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{page:{type:'integer'},sourceFile:{type:'string'}},required:['page']}};
+ let messages=[];
+ const result=await runJarvisSemanticPlanner({input:'Count registered entities',catalog:[reader,records],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[contract],completionAssessment:prior,completedTasks:[{name:records.name,args:{},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'events',filters:[],fields:['entity']},rows:[],totalCount:0,completeForQuery:true}}},{name:'repo.read',args:{file:'observed-source.js'},observation:{ok:true,verifiedRead:{file:'observed-source.js',content:'observed event source',sourceStructure:{dataBindings:{collections:['events'],fieldPaths:['entity']}}}}}]},ai:{models:{generateContent:async request=>{
+ if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:true})};
+ assert.equal(request.config.semanticStage,'COMPLETION_AUDIT');messages=request.config.chatMessages;
+ return{text:JSON.stringify({explanation:'Continue investigating the missing scope',completionAssessment:prior,toolCalls:[{name:records.name,args:{page:2,sourceFile:'observed-source.js'}}]})};
+ }}}});
+ assert.ok(messages.some(m=>m.content.includes(gap)),'the previous objective gap must reach the next audit');
+ assert.match(result.completionAssessment.objectives[0].limitation,/Observed event records/);
+ assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives[0].satisfied,false);
+});
+
+
+test('repeated record snapshots compact losslessly without conflating filters values or missing fields',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='boundedAuditTasks');
+ const compact=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const tasks=Array.from({length:18},(_,i)=>({name:'records.read',args:{},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',filters:i===17?[{field:'group',op:'==',value:'other'}]:[],fields:['description','owner','optional']},rows:Array.from({length:8},(_,r)=>({id:'r'+r,values:{description:'observed content '.repeat(25),owner:r===0?'owner-'+i:null,...(i%2?{}:{optional:null})}})),rowsObservedAt:'time-'+i,totalCount:8,completeForQuery:true}}}));
+ tasks.push({name:'source.read',args:{file:'latest.js'},observation:{ok:true,verifiedRead:{file:'latest.js',startLine:1,content:'LATEST_READ '+('source '.repeat(900)),sourceStructure:{dataBindings:{collections:['registry'],fieldPaths:['description','owner','optional']}}}}});
+ const before=JSON.stringify(tasks),result=compact(tasks);assert.equal(JSON.stringify(tasks),before);assert.ok(JSON.stringify(result).length<=28000);assert.match(result.at(-1).observation.verifiedRead.content,/LATEST_READ/);
+ const restored=[];
+ for(let i=0;i<18;i++){
+  const packed=JSON.parse(JSON.stringify(result[i].observation.recordEvidence));
+  const {recordBaseTaskIndex,recordRemovedKeys,recordRowPatches,...overrides}=packed;
+  const record=recordBaseTaskIndex===undefined?overrides:{...structuredClone(restored[recordBaseTaskIndex]),...overrides};
+  for(const key of recordRemovedKeys||[])delete record[key];
+  if(record.rowValues){record.rows=record.rowValues.map((row,index)=>{const values=Object.fromEntries(record.rowColumns.map(field=>[field,null]));for(const [col,value]of row.slice(1))values[record.rowColumns[col]]=value;for(const col of record.rowAbsentColumns?.find(entry=>entry[0]===index)?.[1]||[])delete values[record.rowColumns[col]];return{id:row[0],values}});for(const key of ['rowColumns','rowValues','rowAbsentColumns','rowEncoding'])delete record[key];}
+  for(const [id,values,absent]of recordRowPatches||[]){const row=record.rows.find(r=>r.id===id);Object.assign(row.values,values);for(const field of absent)delete row.values[field];}
+  restored.push(record);assert.deepEqual(record,tasks[i].observation.recordEvidence);
+ }
+ assert.equal(result[17].observation.recordEvidence.recordBaseTaskIndex,undefined,'distinct filters must retain a separate snapshot');
+});
+
+
+test('both production audit paths forward the per-objective assessment to the next planner request',()=>{
+ const ast=parse(coreSource,{sourceType:'module',ecmaVersion:'latest'}),states=[];
+ const walk=node=>{if(!node||typeof node!=='object')return;if(node.type==='ObjectExpression'&&node.properties.some(p=>p.key?.name==='phase'&&p.value?.value==='COMPLETION_AUDIT'))states.push(node);for(const value of Object.values(node))if(Array.isArray(value))value.forEach(walk);else if(value&&typeof value==='object')walk(value);};walk(ast);
+ assert.equal(states.length,2);const assessment={objectives:[{objective:'Verify requested relationships',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0],limitation:'Observed references do not establish assignment'}]};
+ const mission={completionAssessment:assessment,evidenceObjectives:assessment.objectives,completedTasks:[],pendingTasks:[],blockedTasks:[],requiredToolNames:[]};
+ for(const node of states){const state=runInNewContext('('+coreSource.slice(node.start,node.end)+')',{mission,context:{},boundedCurrentTurnMission:false,observationFirstCurrentTurnMission:false,semanticMemoryContext:null,missingRequiredToolNames:[],compactJarvisSemanticMemoryForPlanner:()=>null,compactMissionPlannerObservation:x=>x});assert.equal(state.completionAssessment,assessment);}
+});

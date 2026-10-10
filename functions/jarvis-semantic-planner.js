@@ -1079,6 +1079,37 @@ function boundedAuditTasks(tasks) {
         if (dictionary.length) minimal[0] = {...minimal[0], sharedFieldDictionary:dictionary.some(field=>field.includes('|')) ? dictionary : dictionary.join('|'),
             sharedFieldEncoding:'Split sharedFieldDictionary on | when it is a string. fieldIds reference its zero-based entries; [a,b] expands all IDs from a through b. Source and collection associations remain local to each schema.'};
     }
+    // Lossless transport compression: repeated snapshots retain their timestamps,
+    // query scopes and changed values. References never imply new coverage.
+    if (JSON.stringify(minimal).length > 27000) {
+        const originals=minimal.map(task=>task.observation?.recordEvidence);
+        let reused=false;
+        for(let index=0;index<minimal.length;index++) {
+            const current=originals[index];
+            if(!current) continue;
+            let best=current;
+            for(let previous=0;previous<index;previous++) {
+                const base=originals[previous];
+                if(!base || typeof current.scope?.collection!=="string" || JSON.stringify(base.scope?.collection)!==JSON.stringify(current.scope?.collection) || JSON.stringify(base.scope?.filters)!==JSON.stringify(current.scope?.filters))continue;
+                const delta={recordBaseTaskIndex:previous};
+                for(const [key,value]of Object.entries(current))if(JSON.stringify(value)!==JSON.stringify(base[key]))delta[key]=value;
+                const removed=Object.keys(base).filter(key=>!Object.hasOwn(current,key));
+                if(removed.length)delta.recordRemovedKeys=removed;
+                if(Array.isArray(current.rows)&&Array.isArray(base.rows)&&current.rows.length===base.rows.length&&current.rows.every((row,i)=>row.id===base.rows[i].id && [row,base.rows[i]].every(item=>Object.keys(item).every(key=>["id","values"].includes(key))))) {
+                    const patches=current.rows.flatMap((row,i)=>{
+                        const old=base.rows[i];
+                        const values=Object.fromEntries(Object.entries(row.values||{}).filter(([key,value])=>JSON.stringify(value)!==JSON.stringify(old.values?.[key])));
+                        const absent=Object.keys(old.values||{}).filter(key=>!Object.hasOwn(row.values||{},key));
+                        return Object.keys(values).length||absent.length?[[row.id,values,absent]]:[];
+                    });
+                    if(JSON.stringify(patches).length<JSON.stringify(delta.rows||[]).length) {delete delta.rows;delta.recordRowPatches=patches;}
+                }
+                if(JSON.stringify(delta).length<JSON.stringify(best).length)best=delta;
+            }
+            if(best!==current){minimal[index].observation={...minimal[index].observation,recordEvidence:best};reused=true;}
+        }
+        if(reused)minimal[0]={...minimal[0],recordSnapshotEncoding:"recordBaseTaskIndex copies that earlier task's full recordEvidence (recursively), then overrides keys here and removes recordRemovedKeys. recordRowPatches=[recordId,changedValues,absentFields] updates the inherited row values exactly. Unchanged rows and fields remain. Each snapshot keeps its own scope and observation time; reuse does not widen coverage."};
+    }
     if (JSON.stringify(minimal).length > 27000) {
         for (const task of minimal) {
             const original=task.observation;
@@ -2154,6 +2185,7 @@ async function runModelSemanticPlanner({
                             { role: "system", content: "CATALOGO_EJECUTABLE=" + JSON.stringify(auditCatalog) },
                             ...(missionState.evidenceObjectives?.length ? [{role:"system",content:"OBJETIVOS_ESTABLECIDOS_INMUTABLES="+JSON.stringify(missionState.evidenceObjectives)+"\nConserva todos los nombres. Si el tipo inicial sólo era evidencia preparatoria, elévalo a un tipo permitido por el esquema y las dependencias de lectura del catálogo. El código puede permitir consultar datos actuales, pero no los sustituye. Nunca rebajes un requisito ya establecido; evalúa cada objetivo completo."}] : []),
                             ...(pendingCapabilities.length ? [{role:"system",content:"CAPACIDADES_INSTALADAS_PENDIENTES_DE_EVIDENCIA="+JSON.stringify(pendingCapabilities)+"\nEstas capacidades sí existen. Antes de usarlas obtén la evidencia que necesitan, buscando y leyendo la fuente. No declares ausencia de capacidad, de colección o de registros por no haber cumplido aún su requisito."}] : []),
+                            ...(missionState.completionAssessment?.objectives?.length ? [{role:"system",content:"PROGRESO_PREVIO_POR_OBJETIVO="+JSON.stringify(missionState.completionAssessment.objectives.map(({objective,requiredEvidenceKind,satisfied,evidenceTaskIndexes,limitation})=>({objective,requiredEvidenceKind,satisfied,evidenceTaskIndexes,limitation:String(limitation||"").slice(0,1200)})))+"\nSon conclusiones previas del mismo LLM para orientar la investigación, no hechos ni pruebas nuevas. Contrástalas con las observaciones originales. Conserva las limitaciones específicas aún vigentes; no vuelvas a usar una fuente ya identificada como insuficiente sin explicar qué evidencia nueva puede aportar. Puedes corregir una conclusión previa cuando la evidencia lo justifique. No conviertas progreso previo en cumplimiento."}] : []),
                             ...auditTasks.map(task => ({ role: "system", content: "OBSERVACION_EJECUTADA=" + JSON.stringify(task) })),
                             ...(missionState.blockedTasks || []).slice(-12).map(task => ({ role: "system", content: "INTENTO_FALLIDO_NO_ACREDITA_CUMPLIMIENTO=" + JSON.stringify({ name: task.name, args: task.args, observation: task.observation }) + "\nUsa el fallo para corregir el siguiente paso sin repetir argumentos ya rechazados. Una ruta no encontrada requiere corregir el destino o explicar que no se obtuvo; permisos denegados no autorizan otra identidad, quitar filtros ni ampliar acceso. Nunca conviertas un fallo en cero registros." })),
                             ...(measuredAuditEvidence.length ? [{ role: "system", content: "MEDICIONES_REALES_DE_LA_PAGINA=" + JSON.stringify(measuredAuditEvidence) + "\nEstos valores solo describen la URL indicada en cada registro: no acreditan ninguna otra pagina u objeto. Compara primero el objeto solicitado con esa URL y su contenido. Si no coinciden, conserva el objetivo pendiente aunque las medidas sean validas. Solo despues evalua los estilos y medidas; nunca los conviertas en inspeccion de pixeles." }] : []),
@@ -2318,7 +2350,7 @@ async function runModelSemanticPlanner({
                         objective.coverage=qualifyRecordObjectiveCoverage(objective,contract,completedTasksForAudit);
                         if(objective.coverage.status!=="complete") {
                             objective.satisfied=false;
-                            objective.limitation=objective.coverage.missing.join(" ");
+                            objective.limitation=[objective.limitation,...objective.coverage.missing].filter(Boolean).join(" ");
                             evaluatedAudit.missionComplete=false;validatedAudit.missionComplete=false;
                         }
                     }
