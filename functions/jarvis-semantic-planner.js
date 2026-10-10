@@ -440,6 +440,8 @@ function recordProjectionAlreadyObserved(call, tasks) {
             record?.source==="FIRESTORE_SERVER_AUTHENTICATED" && record.readOnly===true &&
             Number.isInteger(record.totalCount) && record.totalCount>=0 && record.completeForQuery===true && record.hasMore!==true &&
             record.scope?.collection===call.args.collection &&
+            !task.args?.cursor && !call.args?.cursor &&
+            JSON.stringify(canonical(task.args?.orderBy||[]))===JSON.stringify(canonical(call.args.orderBy||[])) &&
             JSON.stringify(canonical(record.scope?.filters||[]))===JSON.stringify(canonical(call.args.filters||[]));
     });
     if(call.args?.mode!=="query" || call.args?.cursor || !call.args?.fields?.length) return false;
@@ -451,6 +453,9 @@ function recordProjectionAlreadyObserved(call, tasks) {
         if(task.name!==call.name || task.observation?.ok!==true || task.observation.executionOk===false ||
             record?.completeForQuery!==true || record.hasMore===true || task.args?.cursor || !Array.isArray(record.rows) ||
             scope(task.args)!==scope(call.args))continue;
+        // A complete empty population cannot acquire rows by changing only its
+        // projection. Keep the zero scoped and investigate a different source.
+        if(record.source==="FIRESTORE_SERVER_AUTHENTICATED" && record.readOnly===true && record.totalCount===0 && record.rows.length===0)return true;
         const ids=JSON.stringify(record.rows.map(row=>row.id).sort());
         let snapshot=snapshots.find(item=>item.ids===ids && record.rows.every(row=>{
             const known=item.rows.get(row.id)||{};

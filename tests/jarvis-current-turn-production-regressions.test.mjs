@@ -3215,8 +3215,21 @@ test('verified counts already returned by complete queries are reused only for t
   assert.equal(covered(call,[task]),true);
   assert.equal(covered({...call,args:{...call.args,collection:'another'}},[task]),false);
   assert.equal(covered({...call,args:{...call.args,filters:[{field:'category',op:'==',value:'subgroup'}]}},[task]),false);
+  assert.equal(covered({...call,args:{...call.args,orderBy:[{field:'label',direction:'asc'}]}},[task]),false);
   for(const change of [t=>{delete t.observation.recordEvidence.totalCount;},t=>{t.observation.recordEvidence.completeForQuery=false;},t=>{t.observation.recordEvidence.source='REPOSITORY_SOURCE';},t=>{t.observation.ok=false;}]){const altered=structuredClone(task);change(altered);assert.equal(covered(call,[altered]),false);}
  }
+});
+
+test('changing a projection of a verified empty scope cannot masquerade as new evidence',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');
+ const covered=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const args={collection:'groups/{scope}/entries',mode:'query',filters:[],fields:['label'],pageSize:20,includeCount:true};
+ const task={name:'records.read',args,observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'groups/authorized/entries',filters:[],fields:['label']},totalCount:0,rows:[],completeForQuery:true,hasMore:false}}};
+ const call={name:task.name,args:{...args,fields:['owner','expiresAt'],pageSize:100}};
+ assert.equal(covered(call,[task]),true);
+ for(const change of [{collection:'groups/{scope}/other'},{filters:[{field:'category',op:'==',value:'other'}]},{orderBy:[{field:'label',direction:'asc'}]},{cursor:'next'}])assert.equal(covered({...call,args:{...call.args,...change}},[task]),false);
+ for(const change of [r=>{r.totalCount=1;r.rows=[{id:'one',values:{label:'Known'}}];},r=>{r.completeForQuery=false;},r=>{r.source='REPOSITORY_SOURCE';}]){const altered=structuredClone(task);change(altered.observation.recordEvidence);assert.equal(covered(call,[altered]),false);}
 });
 
 test('projection reuse preserves new fields counts pages scopes and inconsistent snapshots as unread work',()=>{
