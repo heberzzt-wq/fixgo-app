@@ -1463,7 +1463,7 @@ async function runModelSemanticPlanner({
         const kinds = [...new Set(normalizedCatalog.flatMap(tool => tool.evidenceKinds || ["tool_result"]))];
         const words=[...instruction.matchAll(/[^\s,.;:!?]+/gu)];
         const groupQuotes=[...new Set(words.flatMap((word,i)=>Array.from({length:Math.min(4,words.length-i)},(_,n)=>instruction.slice(word.index,words[i+n].index+words[i+n][0].length))))];
-        const response = await ai.models.generateContent({model,contents:instruction,config:{
+        const contractRequest = {model,contents:instruction,config:{
             semanticStage:"OBJECTIVE_CONTRACT",temperature:0,maxOutputTokens:1536,responseMimeType:"application/json",
             responseJsonSchema:{type:"object",properties:{objectives:{type:"array",minItems:1,maxItems:12,items:{
                 type:"object",properties:{requestQuote:{type:"string",minLength:1,maxLength:500},
@@ -1475,25 +1475,36 @@ async function runModelSemanticPlanner({
                 {role:"system",content:"Antes de investigar, separa TODAS las preguntas y resultados independientes pedidos por el usuario. No elijas herramientas ni respondas. Cada objetivo será inmutable hasta el cierre. requestQuote debe ser una cita textual continua de la solicitud que identifique una sola pregunta: no combines un inventario/conteo, una relación/asignación ni un análisis de fechas en el mismo objetivo. Separa también otras preguntas independientes. Las restricciones de ejecución no son objetivos. requiredEvidenceKind describe la prueba FINAL necesaria, no la búsqueda/lectura preparatoria: datos operativos actuales exigen platform_records si está disponible; código fuente no los sustituye. coverageMode: population para contar/listar una población, relationship para vincular entidades, temporal para comprobar fechas, other para los demás. scope=all_sources salvo que el usuario limite expresamente la pregunta a una fuente/colección/ruta concreta; no presupongas que una sola colección representa toda la aplicación. Conserva todos los grupos pedidos en cada pregunta. groups contiene NOMBRES de las entidades, no descripciones de la tarea, en citas textuales cortas de cada grupo pedido POR SEPARADO. Ejemplo: contar aulas y laboratorios exige dos grupos separados (aulas; laboratorios) para cada objetivo que se refiera a ambos. Selecciona sólo las palabras exactas de la solicitud, resolviendo referencias a entidades anteriores de la solicitud. No fusiones dos grupos enumerados. Para una pregunta sin grupos enumerados usa una cita de su entidad principal."},
                 {role:"user",content:instruction}
             ]
-        }});
-        const payload=extractJsonObject(String(response?.text||""));
-        const objectives=payload?.objectives;
-        for(const objective of Array.isArray(objectives)?objectives:[]) {
-            if(typeof objective.requestQuote!=="string") continue;
-            const offset=instruction.toLowerCase().indexOf(objective.requestQuote.toLowerCase());
-            if(offset>=0) objective.requestQuote=instruction.slice(offset,offset+objective.requestQuote.length);
-            objective.groups=(objective.groups || [objective.requestQuote]).map(group=>{const offset=instruction.toLowerCase().indexOf(String(group).toLowerCase());return offset<0?group:instruction.slice(offset,offset+group.length);});
+        }};
+        const contractMessages=[...contractRequest.config.chatMessages];
+        for(let attempt=0;attempt<3;attempt++) {
+            const response=await ai.models.generateContent({...contractRequest,config:{...contractRequest.config,chatMessages:[...contractMessages]}});
+            let payload;try{payload=extractJsonObject(String(response?.text||""));}catch{payload=null;}
+            const objectives=payload?.objectives;
+            for(const objective of Array.isArray(objectives)?objectives:[]) {
+                if(!objective || typeof objective.requestQuote!=="string") continue;
+                const offset=instruction.toLowerCase().indexOf(objective.requestQuote.toLowerCase());
+                if(offset>=0) objective.requestQuote=instruction.slice(offset,offset+objective.requestQuote.length);
+                objective.groups=(Array.isArray(objective.groups)?objective.groups:objective.groups===undefined?[objective.requestQuote]:[]).map(group=>{const offset=instruction.toLowerCase().indexOf(String(group).toLowerCase());return offset<0?group:instruction.slice(offset,offset+group.length);});
+            }
+            if(response?.providerResponse?.finishReason==='length'||!Array.isArray(objectives)||!objectives.length||
+                new Set(objectives.map(o=>o?.requestQuote)).size!==objectives.length||objectives.some(o=>
+                    typeof o?.requestQuote!=="string"||!o.requestQuote.trim()||!instruction.includes(o.requestQuote)||!kinds.includes(o.requiredEvidenceKind)||
+                    !o.groups?.length || o.groups.some(group=>!group?.trim()||!instruction.includes(group)) ||
+                    !["population","relationship","temporal","other"].includes(o.coverageMode)||!["all_sources","explicit_scope"].includes(o.scope))) {
+                const invalidRequestQuotes=(Array.isArray(objectives)?objectives:[]).filter(o=>!o || !instruction.includes(o.requestQuote)).map(o=>o?.requestQuote);
+                contractMessages.push({role:"assistant",content:String(response?.text||"")},{role:"user",content:
+                    "VALIDACIÓN DEL CONTRATO: la salida anterior no cumple el formato requerido. Citas que NO aparecen literalmente en la solicitud: "+JSON.stringify(invalidRequestQuotes)+
+                    ". Copia una cita continua EXACTA para cada pregunta, sin añadir palabras aunque expliquen su alcance. Una pregunta que enumera varios grupos conserva todos sus grupos en un solo objetivo con su cita completa; las preguntas independientes siguen separadas. Las aclaraciones restringen el alcance y no son preguntas nuevas. Conserva todos los objetivos y requisitos de evidencia final. No respondas la misión ni inventes datos. Devuelve sólo el contrato completo corregido con citas únicas, grupos textuales no vacíos y los campos del esquema."});
+                if(attempt<2)continue;
+                const error=new Error("SEMANTIC_OBJECTIVE_CONTRACT_INVALID");
+                error.evidence={invalidRequestQuotes:(Array.isArray(objectives)?objectives:[]).filter(o=>!o || !instruction.includes(o.requestQuote)).map(o=>o?.requestQuote),attempts:attempt+1};
+                throw error;
+            }
+            return {ok:true,status:"SEMANTIC_PLAN_READY",version:VERSION,toolCalls:[],missionComplete:false,completionAssessment:{objectives:objectives.map(o=>({
+                ...o,objective:o.requestQuote,satisfied:false,evidenceTaskIndexes:[],limitation:"Aún no se ha obtenido la evidencia requerida para este objetivo."
+            }))},provider:String(ai.lastProvider||"jarvis-local"),model,planKind:"OBJECTIVE_CONTRACT"};
         }
-        if(response?.providerResponse?.finishReason==='length'||!Array.isArray(objectives)||!objectives.length||
-            new Set(objectives.map(o=>o.requestQuote)).size!==objectives.length||objectives.some(o=>
-                !o.requestQuote?.trim()||!instruction.includes(o.requestQuote)||!kinds.includes(o.requiredEvidenceKind)||
-                !o.groups?.length || o.groups.some(group=>!group?.trim()||!instruction.includes(group)) ||
-                !["population","relationship","temporal","other"].includes(o.coverageMode)||!["all_sources","explicit_scope"].includes(o.scope))) {
-            throw new Error("SEMANTIC_OBJECTIVE_CONTRACT_INVALID");
-        }
-        return {ok:true,status:"SEMANTIC_PLAN_READY",version:VERSION,toolCalls:[],missionComplete:false,completionAssessment:{objectives:objectives.map(o=>({
-            ...o,objective:o.requestQuote,satisfied:false,evidenceTaskIndexes:[],limitation:"Aún no se ha obtenido la evidencia requerida para este objetivo."
-        }))},provider:String(ai.lastProvider||"jarvis-local"),model,planKind:"OBJECTIVE_CONTRACT"};
     }
     // Operational planning and mission contracts preserve the full input prefix.
     const currentTurnMessages = [

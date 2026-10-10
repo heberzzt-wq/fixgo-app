@@ -3156,3 +3156,15 @@ test('objective progress identifies exactly which successful reads preceded its 
  await runJarvisMission({instruction:'Inspect records',initialToolCalls:[{name:tool.name,args:{page:1}}],toolCatalog:[tool],execute:async call=>({ok:true,data:{recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'records',fields:['owner']},rows:[{id:String(call.args.page),values:{owner:'observed'}}],completeForQuery:true}}}),planner:async({mission})=>{seen.push({count:mission.completedTasks.length,assessed:mission.completionAssessment?.evaluatedTaskCount});return ++turns===1?{toolCalls:[{name:tool.name,args:{page:2}}],completionAssessment:assessment,missionComplete:false}:{toolCalls:[],completionAssessment:assessment,missionComplete:false}},storage:{getItem(){return null;},setItem(){},removeItem(){}}});
  assert.equal(seen[1].count,2);assert.equal(seen[1].assessed,1,'the second read must remain newer than the prior assessment');
 });
+
+
+test('the same LLM repairs nonliteral objective quotes without dropping requested groups',async()=>{
+ const input='Cuenta aulas y laboratorios; identifica sus responsables. Aclaración: los espacios declarados no equivalen a asignaciones oficiales.';let attempts=0;
+ const result=await runJarvisSemanticPlanner({input,catalog:[{name:'fixture.records',evidenceKinds:['platform_records']}],missionState:{phase:'OBJECTIVE_CONTRACT'},ai:{models:{generateContent:async request=>{attempts++;assert.equal(request.config.semanticStage,'OBJECTIVE_CONTRACT');assert.equal(request.config.chatMessages[1].content,input);if(attempts>1){assert.equal(request.config.chatMessages.at(-1).role,'user');assert.match(request.config.chatMessages.at(-1).content,/Cuenta aulas registradas/);}if(attempts===1)return{text:JSON.stringify({objectives:[{requestQuote:'Cuenta aulas registradas',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['aulas']}]})};assert.ok(request.config.chatMessages.some(m=>m.content.includes('Cuenta aulas registradas')));return{text:JSON.stringify({objectives:[{requestQuote:'Cuenta aulas y laboratorios',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['aulas','laboratorios']},{requestQuote:'identifica sus responsables',requiredEvidenceKind:'platform_records',coverageMode:'relationship',scope:'all_sources',groups:['responsables']}]})};}}}});
+ assert.equal(attempts,2);assert.equal(result.missionComplete,false);assert.deepEqual(result.completionAssessment.objectives[0].groups,['aulas','laboratorios']);assert.equal(result.completionAssessment.objectives.length,2);
+});
+
+
+test('invalid objective contracts exhaust bounded LLM repairs without inventing a replacement contract',async()=>{
+ let attempts=0;await assert.rejects(runJarvisSemanticPlanner({input:'Inspect current records',catalog:[{name:'fixture.records',evidenceKinds:['platform_records']}],missionState:{phase:'OBJECTIVE_CONTRACT'},ai:{models:{generateContent:async()=>{attempts++;return{text:'{"objectives":['}}}}}),/SEMANTIC_OBJECTIVE_CONTRACT_INVALID/);assert.equal(attempts,3);
+});
