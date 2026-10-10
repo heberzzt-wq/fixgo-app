@@ -2357,7 +2357,7 @@ export async function runJarvisMission({
         mission.evidenceObjectives = initialEvidenceObjectives.map(({objective,requiredEvidenceKind,requestQuote,coverageMode,scope,groups})=>({
             objective,requiredEvidenceKind,requestQuote,coverageMode,scope,groups
         }));
-        mission.completionAssessment = {objectives:mission.evidenceObjectives.map(objective=>({
+        mission.completionAssessment = {evaluatedTaskCount:0,objectives:mission.evidenceObjectives.map(objective=>({
             ...objective,satisfied:false,evidenceTaskIndexes:[],limitation:"La investigación aún no ha obtenido la evidencia requerida."
         }))};
     }
@@ -2561,7 +2561,7 @@ export async function runJarvisMission({
                     mission.evidenceObjectives = mission.evidenceObjectives.map(expected=>({...expected,
                         requiredEvidenceKind:proposed.find(actual=>actual.objective===expected.objective).requiredEvidenceKind}));
                 }
-                if (plan?.completionAssessment?.objectives) mission.completionAssessment = plan.completionAssessment;
+                if (plan?.completionAssessment?.objectives) mission.completionAssessment = {...plan.completionAssessment,evaluatedTaskCount:mission.completedTasks.length};
             } catch (error) {
                 mission.reason = "PLANNER_UNAVAILABLE";
                 mission.errors.push({

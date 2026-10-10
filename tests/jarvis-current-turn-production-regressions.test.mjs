@@ -3102,7 +3102,7 @@ test('a corrected read in the same record scope recovers its failed attempt',asy
 test('objective-specific coverage gaps survive validation and guide the next semantic audit without becoming facts',async()=>{
  const gap='Observed event records do not establish the registered population; inspect its authoritative source.';
  const contract={objective:'Count registered entities',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['entities']};
- const prior={objectives:[{...contract,satisfied:false,evidenceTaskIndexes:[0],limitation:gap}]};
+ const prior={evaluatedTaskCount:1,objectives:[{...contract,satisfied:false,evidenceTaskIndexes:[0],limitation:gap}]};
  const reader={name:'fixture.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
  const records={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{page:{type:'integer'},sourceFile:{type:'string'}},required:['page']}};
  let messages=[];
@@ -3112,6 +3112,9 @@ test('objective-specific coverage gaps survive validation and guide the next sem
  return{text:JSON.stringify({explanation:'Continue investigating the missing scope',completionAssessment:prior,toolCalls:[{name:records.name,args:{page:2,sourceFile:'observed-source.js'}}]})};
  }}}});
  assert.ok(messages.some(m=>m.content.includes(gap)),'the previous objective gap must reach the next audit');
+ const observations=messages.filter(m=>m.content.startsWith('OBSERVACION_EJECUTADA=')).map(m=>JSON.parse(m.content.slice('OBSERVACION_EJECUTADA='.length)));
+ assert.equal(observations.filter(o=>o.newSincePreviousAssessment).length,1);
+ assert.equal(observations.find(o=>o.newSincePreviousAssessment).observation.verifiedRead.file,'observed-source.js');
  assert.match(result.completionAssessment.objectives[0].limitation,/Observed event records/);
  assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives[0].satisfied,false);
 });
@@ -3144,4 +3147,12 @@ test('both production audit paths forward the per-objective assessment to the ne
  assert.equal(states.length,2);const assessment={objectives:[{objective:'Verify requested relationships',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0],limitation:'Observed references do not establish assignment'}]};
  const mission={completionAssessment:assessment,evidenceObjectives:assessment.objectives,completedTasks:[],pendingTasks:[],blockedTasks:[],requiredToolNames:[]};
  for(const node of states){const state=runInNewContext('('+coreSource.slice(node.start,node.end)+')',{mission,context:{},boundedCurrentTurnMission:false,observationFirstCurrentTurnMission:false,semanticMemoryContext:null,missingRequiredToolNames:[],compactJarvisSemanticMemoryForPlanner:()=>null,compactMissionPlannerObservation:x=>x});assert.equal(state.completionAssessment,assessment);}
+});
+
+
+test('objective progress identifies exactly which successful reads preceded its evaluation',async()=>{
+ let turns=0;const seen=[];const tool={name:'fixture.read',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records']};
+ const assessment={objectives:[{objective:'Inspect records',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0],limitation:'More evidence is required'}]};
+ await runJarvisMission({instruction:'Inspect records',initialToolCalls:[{name:tool.name,args:{page:1}}],toolCatalog:[tool],execute:async call=>({ok:true,data:{recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'records',fields:['owner']},rows:[{id:String(call.args.page),values:{owner:'observed'}}],completeForQuery:true}}}),planner:async({mission})=>{seen.push({count:mission.completedTasks.length,assessed:mission.completionAssessment?.evaluatedTaskCount});return ++turns===1?{toolCalls:[{name:tool.name,args:{page:2}}],completionAssessment:assessment,missionComplete:false}:{toolCalls:[],completionAssessment:assessment,missionComplete:false}},storage:{getItem(){return null;},setItem(){},removeItem(){}}});
+ assert.equal(seen[1].count,2);assert.equal(seen[1].assessed,1,'the second read must remain newer than the prior assessment');
 });
