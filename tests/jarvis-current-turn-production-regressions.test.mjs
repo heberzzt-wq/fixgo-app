@@ -15,6 +15,19 @@ import { runJarvisMission, unmetMissionEvidenceRequirements } from "../gestia-co
 import { composeEvidenceGroundedConversation } from "../gestia-core/jarvis/jarvis.conversation.composer.js";
 import { buildResponsiveRepairOptions, buildResponsiveRepairPatch } from "../gestia-core/jarvis/jarvis.autopatch.engine.js";
 
+test('record coverage review receives conversational scope separately from operational evidence',async()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>[],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse});
+ const advisoryContext='CONVERSATION_CONTEXT_FOR_REFERENCE_ONLY=Preferences do not establish allocations. Never evidence.';
+ let messages;
+ const result=await review({instruction:'Review allocations',objective:{objective:'Review allocations'},contract:{groups:['allocations']},tasks:[],advisoryContext,
+ ai:{models:{generateContent:async request=>{messages=request.config.chatMessages;return{text:JSON.stringify({proven:false,missing:['No operational records'],groups:[],sources:[]})};}}}});
+ assert.ok(messages.some(message=>message.content===advisoryContext));
+ assert.equal(JSON.parse(messages.at(-1).content).evidence.length,0);
+ assert.equal(result.proven,false);
+});
+
 const { runJarvisSemanticPlanner } = createRequire(import.meta.url)("../functions/jarvis-semantic-planner.js");
 const coreSource = readFileSync(new URL("../gestia-core/gestia-core.js", import.meta.url), "utf8").replaceAll("\r", "");
 const coreNode = parse(coreSource, { sourceType: "module", ecmaVersion: "latest" }).body
@@ -775,11 +788,13 @@ test("a bounded DOM inspection still audits visual evidence and cannot expand to
     const planner = runInNewContext(`({${coreSource.slice(start, end)}}).planner`, {
         boundedCurrentTurnMission: true, missionIsIsolated: false,
         missionToolCatalog: [tools.get("browser.inspect")], registeredMissionTools: tools.list(),
-        context: {}, semanticMemoryContext: null,
+        context: {}, semanticMemoryContext: {turns:[{role:'user',content:'Evaluate the customer view, not the administration view.'}]},
+        compactJarvisSemanticMemoryForPlanner: memory => memory,
         compactMissionPlannerObservation: observation => observation,
         buildMissionToolCallsWithTransientRetry: async (input, options) => {
             audits++;
             assert.equal(options.missionState.phase, "COMPLETION_AUDIT");
+            assert.equal(options.missionState.advisorySemanticContext.turns[0].content,'Evaluate the customer view, not the administration view.');
             assert.equal(options.missionState.userArtifactAllowed, false);
             assert.deepEqual(Array.from(options.toolCatalog, tool => tool.name), ["browser.inspect"]);
             // Exercise the real client validation even if Qwen proposes an
@@ -2912,10 +2927,15 @@ test('objective coverage rejects partial populations, foreign domains and scoped
  const objective={...contract,evidenceTaskIndexes:[1],coverageProof:{proven:true,missing:[],groups:[{group:'group A',proven:true,evidence:[{taskIndex:1,fields:[]}]}],sources:[{collection:'alpha',relevant:true,reason:'Observed registry',taskIndexes:[1]}]}};
  const partial=qualify(objective,contract,tasks);
  assert.equal(partial.status,'partial');assert.equal(partial.consultedScopes[0].totalCount,0);
+ assert.ok(partial.missing.some(item=>item.includes('Fuente observada pendiente para este objetivo: beta.')));
  assert.ok(partial.missing.some(item=>item.includes('group B')));assert.ok(partial.missing.some(item=>item.includes('otras fuentes')));
  objective.coverageProof.groups.push({group:'group B',proven:false,evidence:[]});
  objective.coverageProof.sources.push({collection:'beta',relevant:true,reason:'Second registry',taskIndexes:[]});
  assert.equal(qualify(objective,contract,tasks).status,'partial');
+ objective.coverageProof.sources[1].taskIndexes=[1];
+ assert.ok(qualify(objective,contract,tasks).missing.some(item=>item.includes('Fuente observada pendiente para este objetivo: beta.')),'a reference to alpha must identify the still-unread beta scope');
+ tasks[1].observation.recordEvidence.scope.collection='alpha/partition/entries';
+ assert.ok(qualify(objective,contract,tasks).missing.some(item=>item.includes('Fuente observada pendiente para este objetivo: alpha.')),'a complete child collection cannot establish coverage of its parent');
  // Static evidence never substitutes for authenticated records.
  objective.evidenceTaskIndexes=[0];assert.equal(qualify(objective,contract,tasks).consultedScopes.length,0);
 });

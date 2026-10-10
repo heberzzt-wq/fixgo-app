@@ -5206,7 +5206,8 @@ if (
                                                 false,
                                             userArtifactAllowed:
                                                 !boundedCurrentTurnMission && !observationFirstCurrentTurnMission,
-                                            semanticMemoryAvailable: Boolean(semanticMemoryContext)
+                                            semanticMemoryAvailable: Boolean(semanticMemoryContext),
+                                            advisorySemanticContext: semanticMemoryContext ? compactJarvisSemanticMemoryForPlanner(semanticMemoryContext) : null
                                         }
                                     }
                                 );

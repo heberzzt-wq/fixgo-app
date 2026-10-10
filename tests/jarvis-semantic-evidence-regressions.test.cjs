@@ -117,6 +117,28 @@ test("canonical catalog preserves evidence kinds independently of retrieval meta
     assert.deepEqual(normalizeCatalog([telemetry])[0].evidenceKinds, ["system_telemetry"]);
 });
 
+test("a completion audit retains bounded conversational distinctions without treating them as evidence", async () => {
+    const input = "Review the requested population";
+    const distinction = "Declared preferences and official allocations are separate populations.";
+    let messages;
+    const result = await runJarvisSemanticPlanner({input,catalog:[telemetry],
+        missionState:{phase:"COMPLETION_AUDIT",completedTasks:[observedTelemetry],
+            advisorySemanticContext:{turns:[{role:"user",content:distinction},{role:"user",content:input}],
+                historicalMissions:[{finalText:"OLD_RESULT_MUST_NOT_BECOME_EVIDENCE"}]}},
+        ai:{models:{generateContent:async request=>{
+            messages=request.config.chatMessages;
+            return {text:JSON.stringify({toolCalls:[],completionAssessment:{objectives:[objective("platform_records",false,[])]}})};
+        }}}
+    });
+    const advisory=messages.find(message=>message.content.startsWith("CONVERSATION_CONTEXT_FOR_REFERENCE_ONLY="));
+    assert.ok(advisory.content.includes(distinction));
+    assert.match(advisory.content,/never as evidence/);
+    assert.ok(!JSON.stringify(messages).includes("OLD_RESULT_MUST_NOT_BECOME_EVIDENCE"));
+    assert.equal(messages.at(-1).content,input);
+    assert.equal(result.missionComplete,false);
+    assert.deepEqual(result.completionAssessment.objectives[0].evidenceTaskIndexes,[]);
+});
+
 test("a locked telemetry contract must reach semantic audit and preserve its insufficient-evidence verdict", async () => {
     const { runJarvisMission } = await import("../gestia-core/jarvis/jarvis.mission.orchestrator.js");
     let auditCalls = 0;

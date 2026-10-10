@@ -567,21 +567,23 @@ function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
     }
     if(contract?.scope==="all_sources") {
         const sources=observedRecordSources(tasks);
-        if(!sources.length || sources.some(collection=>{
+        const uncoveredSources=sources.filter(collection=>{
             const source=proof?.sources?.find(item=>item.collection===collection);
             if(!source?.reason?.trim()) return true;
             if(source.relevant===false) return false;
             return source.relevant!==true || !source.taskIndexes?.length || source.taskIndexes.some(index=>{
                 const record=records.find(item=>item.taskIndex===index);
-                return !record || !complete(record) || !(record.scope?.collection===collection || record.scope?.collection?.startsWith(collection+"/"));
+                return !record || !complete(record) || record.scope?.collection!==collection;
             });
-        })) missing.push("La evidencia sólo cubre las rutas y filtros consultados; quedan fuentes observadas sin acreditar o sin descartar para este objetivo. Un cero no demuestra ausencia en otras fuentes.");
+        });
+        if(!sources.length || uncoveredSources.length) missing.push("La evidencia sólo cubre las rutas y filtros consultados; quedan fuentes observadas sin acreditar o sin descartar para este objetivo. Un cero no demuestra ausencia en otras fuentes.");
+        if(proof) for(const collection of uncoveredSources) missing.push("Fuente observada pendiente para este objetivo: "+collection+". Su revisión de cobertura debe justificar que no pertenece al objetivo o citar una consulta completa de esa misma ruta; las referencias a otra ruta no la acreditan.");
     }
     if(proof?.proven!==true || proof?.missing?.length) missing.push(...(proof?.missing?.length ? proof.missing : ["Falta verificar que los registros pertenecen al dominio y cubren todo el objetivo."]));
     return {status:missing.length?"partial":"complete",consultedScopes,groups,missing:[...new Set(missing)]};
 }
 
-async function reviewRecordObjectiveCoverage({ai,model,instruction,objective,contract,tasks}) {
+async function reviewRecordObjectiveCoverage({ai,model,instruction,objective,contract,tasks,advisoryContext=""}) {
     const response=await ai.models.generateContent({model,contents:instruction,config:{
         semanticStage:"RECORD_OBJECTIVE_COVERAGE",temperature:0,maxOutputTokens:2048,
         responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{
@@ -590,6 +592,7 @@ async function reviewRecordObjectiveCoverage({ai,model,instruction,objective,con
             sources:{type:"array",items:{type:"object",properties:{collection:{type:"string"},relevant:{type:"boolean"},reason:{type:"string"},taskIndexes:{type:"array",items:{type:"integer"}}},required:["collection","relevant","reason","taskIndexes"],additionalProperties:false}}
         },required:["proven","missing","groups","sources"],additionalProperties:false},
         chatMessages:[{role:"system",content:"Audita exclusivamente el resultado pedido en contract.requestQuote y su coverageMode. Los demás objetivos de la solicitud se evalúan por separado: sus faltantes no son requisitos adicionales de este objetivo. Conserva cada grupo del contrato. Cita únicamente índices de registros operativos autenticados para demostrar valores. El código sólo acredita dónde y cómo se almacenan datos, nunca su existencia actual. Evalúa TODAS las colecciones observadas: cuáles contienen la población solicitada y cuáles sólo eventos, transacciones u otro dominio. Una muestra relacionada no es inventario. Para cada grupo exige que los datos y su definición de almacenamiento acrediten pertenencia y totalidad; registros de otros grupos no sirven. Un cero sólo acredita su ruta y filtros, nunca otras fuentes. Para relaciones exige entidad y asignación explícitas; para vencimientos exige fecha con significado de vencimiento, no fecha histórica de evento. No supongas exclusividad de una fuente si la evidencia no la establece. Campos null/ausentes significan desconocido. Si queda alguna población, fuente, página, relación o fecha sin acreditar, proven=false y explica missing. No aceptes la afirmación del planner como prueba. No inventes campos. No descartes una fuente pertinente para conseguir el cierre."},
+        ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
         {role:"user",content:JSON.stringify({request:instruction,contract,objective,observedSources:observedRecordSources(tasks),evidence:boundedAuditTasks(tasks)})}]
     }});
     if(response?.providerResponse?.finishReason==='length') return {proven:false,missing:["La revisión de cobertura no terminó dentro del presupuesto."]};
@@ -2280,6 +2283,7 @@ async function runModelSemanticPlanner({
                         chatMessages: [
                             { role: "system", content: auditInstruction + (lastAuditError ? "\nRepara el contrato rechazado: " + lastAuditError.message + ". Conserva las pruebas reales. satisfied=false exige una limitation no vacia; satisfied=true exige referencias validas y limitation vacia. No inventes evidencia para corregir el formato." : "") },
                             { role: "system", content: "CATALOGO_EJECUTABLE=" + JSON.stringify(auditCatalog) },
+                            ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
                             ...(missionState.evidenceObjectives?.length ? [{role:"system",content:"OBJETIVOS_ESTABLECIDOS_INMUTABLES="+JSON.stringify(missionState.evidenceObjectives)+"\nConserva todos los nombres. Si el tipo inicial sólo era evidencia preparatoria, elévalo a un tipo permitido por el esquema y las dependencias de lectura del catálogo. El código puede permitir consultar datos actuales, pero no los sustituye. Nunca rebajes un requisito ya establecido; evalúa cada objetivo completo."}] : []),
                             ...(pendingCapabilities.length ? [{role:"system",content:"CAPACIDADES_INSTALADAS_PENDIENTES_DE_EVIDENCIA="+JSON.stringify(pendingCapabilities)+"\nEstas capacidades sí existen. Antes de usarlas obtén la evidencia que necesitan, buscando y leyendo la fuente. No declares ausencia de capacidad, de colección o de registros por no haber cumplido aún su requisito."}] : []),
                             ...(missionState.completionAssessment?.objectives?.length ? [{role:"system",content:"PROGRESO_PREVIO_POR_OBJETIVO="+JSON.stringify(missionState.completionAssessment.objectives.map(({objective,requiredEvidenceKind,satisfied,evidenceTaskIndexes,limitation,modelLimitation,coverage})=>({objective,requiredEvidenceKind,satisfied,evidenceTaskIndexes,limitation:String(modelLimitation??limitation??"").slice(0,800),coverageMissing:(coverage?.missing||[]).filter(gap=>!String(modelLimitation??limitation??"").includes(gap)).join(" ").slice(0,400)})))+"\nSon conclusiones previas del mismo LLM para orientar la investigación, no hechos ni pruebas nuevas. Contrástalas con las observaciones originales. Conserva las limitaciones específicas aún vigentes; no vuelvas a usar una fuente ya identificada como insuficiente sin explicar qué evidencia nueva puede aportar. Puedes corregir una conclusión previa cuando la evidencia lo justifique. No conviertas progreso previo en cumplimiento."}] : []),
@@ -2418,7 +2422,7 @@ async function runModelSemanticPlanner({
                         if(!objective.satisfied)continue;
                         const contract=missionState.evidenceObjectives.find(item=>item.objective===objective.objective);
                         if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode) {
-                            objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,instruction,objective,contract,tasks:completedTasksForAudit});
+                            objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,instruction,objective,contract,tasks:completedTasksForAudit,advisoryContext});
                             continue;
                         }
                         const cited=objective.evidenceTaskIndexes.map(index=>{
