@@ -596,7 +596,7 @@ function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
     return {status:missing.length?"partial":"complete",consultedScopes,groups,missing:[...new Set(missing)]};
 }
 
-async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,advisoryContext=""}) {
+async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,advisoryContext="",evaluatedAt}) {
     const sourcePaths=[...new Set([...observedRecordSources(tasks),...tasks.flatMap(task=>task.observation?.recordEvidence?.scope?.collection ? [task.observation.recordEvidence.scope.collection] : [])])];
     const recordIndexes=tasks.flatMap((task,index)=>task.observation?.ok===true && task.observation.recordEvidence?.source==="FIRESTORE_SERVER_AUTHENTICATED" ? [index] : []);
     const response=await ai.models.generateContent({model,contents:contract.requestQuote,config:{
@@ -609,7 +609,8 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         chatMessages:[{role:"system",content:"Evalúa únicamente el contrato adjunto contra la evidencia. Decide qué fuentes observadas son pertinentes a este contrato y explica las exclusiones. Cita las lecturas autenticadas de registros por taskIndex y campos exactos; el código sólo explica el esquema. Usa el esquema observado para interpretar los valores y conserva los grupos del contrato. Los campos ausentes/null son desconocidos. No transfieras requisitos de otros contratos a éste. Un faltante es algo necesario para ESTE contrato que la evidencia no acredita. Devuelve un grupo por cada grupo del contrato. proven=true sólo si esos grupos están cubiertos por registros pertinentes y por las páginas necesarias en las fuentes pertinentes; de lo contrario enumera brechas concretas en missing. Una fuente parcial no demuestra un inventario global y un cero sólo prueba el alcance de su consulta. No inventes otras entidades o fuentes hipotéticas como requisitos: si hay otra fuente observada pertinente sin consultar, nómbrala y mantén el objetivo pendiente. No conviertas un informe de valores registrados en una auditoría de integridad referencial que el contrato no pide. No aceptes afirmaciones previas del planner como prueba ni descartes una fuente pertinente para conseguir el cierre."},
         ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
         {role:"system",content:"Cada evidencia conserva taskIndex: cita ese número exacto, no renumeres los registros al excluir lecturas de código. completeForQuery=true con hasMore=false y totalCount acredita la totalidad de ESA consulta, incluso si devuelve uno o cero; no demuestra otras poblaciones. Determina las fuentes pertinentes sólo para ESTE contrato. No exijas fechas para un contrato de relaciones ni relaciones para un conteo. Una relación puede almacenarse por identificador, nombre u otro valor según el esquema observado; no exijas una clave ajena que la plataforma no use. No inventes rutas a partir de una descripción del usuario: observedSources y scope.collection contienen las rutas observadas. missing debe describir sólo brechas concretas de este contrato, sin repetir hechos acreditados como si fueran faltantes."},
-        {role:"user",content:JSON.stringify({request:contract.requestQuote,contract,objective:{objective:objective.objective,requiredEvidenceKind:objective.requiredEvidenceKind},observedSources:sourcePaths,evidence:boundedAuditTasks(tasks).map((task,taskIndex)=>({...task,taskIndex}))})}]
+        {role:"system",content:"evaluatedAt es la fecha y hora actual del sistema para esta evaluación. Úsala como referencia para comparaciones temporales con las fechas registradas; no necesitas otra consulta para conocer el presente. No sustituye fechas operativas ausentes ni define por sí sola un horizonte de proximidad que no esté acreditado."},
+        {role:"user",content:JSON.stringify({request:contract.requestQuote,evaluatedAt,contract,objective:{objective:objective.objective,requiredEvidenceKind:objective.requiredEvidenceKind},observedSources:sourcePaths,evidence:boundedAuditTasks(tasks).map((task,taskIndex)=>({...task,taskIndex}))})}]
     }});
     if(response?.providerResponse?.finishReason==='length') return {proven:false,missing:["La revisión de cobertura no terminó dentro del presupuesto."]};
     return extractJsonObject(String(response?.text||"")) || {proven:false,missing:["No se obtuvo una revisión de cobertura válida."]};
@@ -2103,6 +2104,7 @@ async function runModelSemanticPlanner({
     }
 
     if (missionState?.phase === "COMPLETION_AUDIT") {
+        const evaluatedAt = new Date().toISOString();
         const measuredRepair = (missionState.completedTasks || []).some(task => task.name === "browser.inspect" &&
             task.args?.followUp === "prepare_repair" && task.observation?.ok === true);
         const hasReadSource = (missionState.completedTasks || []).some(task => task.name === "repo.read" &&
@@ -2346,6 +2348,7 @@ async function runModelSemanticPlanner({
                         // models otherwise audit this phase's meta-instruction instead.
                         chatMessages: [
                             { role: "system", content: auditInstruction + (lastAuditError ? "\nRepara el contrato rechazado: " + lastAuditError.message + ". Conserva las pruebas reales. satisfied=false exige una limitation no vacia; satisfied=true exige referencias validas y limitation vacia. No inventes evidencia para corregir el formato." : "") },
+                            { role: "system", content: "RELOJ_DE_EVALUACION="+evaluatedAt+"\nFecha y hora actual del sistema. Es la referencia para evaluar fechas relativas, no evidencia de valores operativos ausentes ni de cobertura de una fuente." },
                             { role: "system", content: "CATALOGO_EJECUTABLE=" + JSON.stringify(auditCatalog) },
                             ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
                             ...(missionState.evidenceObjectives?.length ? [{role:"system",content:"OBJETIVOS_ESTABLECIDOS_INMUTABLES="+JSON.stringify(missionState.evidenceObjectives)+"\nConserva todos los nombres. Si el tipo inicial sólo era evidencia preparatoria, elévalo a un tipo permitido por el esquema y las dependencias de lectura del catálogo. El código puede permitir consultar datos actuales, pero no los sustituye. Nunca rebajes un requisito ya establecido; evalúa cada objetivo completo."}] : []),
@@ -2500,7 +2503,7 @@ async function runModelSemanticPlanner({
                         const contract=missionState.evidenceObjectives.find(item=>item.objective===objective.objective);
                         const previouslySatisfied=missionState.completionAssessment?.objectives?.some(item=>item.objective===objective.objective && item.satisfied===true);
                         if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode && (objective.satisfied || hasNewRecords || previouslySatisfied)) {
-                            objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,advisoryContext});
+                            objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,advisoryContext,evaluatedAt});
                             const reviewedReferences=(objective.coverageProof.groups||[]).flatMap(group=>(group.evidence||[]).map(item=>item.taskIndex)).filter(authenticatedRecordAt);
                             objective.evidenceTaskIndexes=[...new Set([...(objective.evidenceTaskIndexes||[]),...reviewedReferences])];
                             continue;
