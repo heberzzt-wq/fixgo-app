@@ -152,7 +152,14 @@ function explicitObligationId(task = {}) {
 function logicalObligationKey(task = {}) {
     const name = text(task?.name, 120);
     const obligationId = explicitObligationId(task);
-    return obligationId ? `${name}::${obligationId}` : name;
+    const base = obligationId ? `${name}::${obligationId}` : name;
+    const args = task?.args || {};
+    // Success in one operational population cannot recover a failed read of
+    // another population, even when both use the same installed capability.
+    if (["query", "count"].includes(args.mode) && typeof args.collection === "string" && args.collection) {
+        return base + "::record-scope:" + JSON.stringify({collection:args.collection,mode:args.mode,filters:args.filters || []});
+    }
+    return base;
 }
 
 export function verifiedArtifactDeliveryForMission({

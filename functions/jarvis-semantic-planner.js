@@ -1084,6 +1084,12 @@ function boundedAuditTasks(tasks) {
             const original=task.observation;
             if (!original || original.verifiedRead) continue;
             const observation=task.observation={...original};
+            // Search excerpts are discovery hints, not operational evidence. Their
+            // exact locations survive so older bodies can be read again on demand.
+            if (Array.isArray(observation.repositoryMatches)) {
+                observation.repositoryMatches=observation.repositoryMatches.map(({snippet,...location})=>location);
+                observation.matchExcerptsOmitted=true;
+            }
             for(const key of ["objectiveSatisfied","requiresInput","retryable","blocked","sourceCount"])
                 if(observation[key]===false || key==="objectiveSatisfied"&&observation[key]===true || observation[key]===0) delete observation[key];
             if(observation.ok===true && observation.executionOk!==false) delete observation.status;

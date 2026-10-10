@@ -3054,3 +3054,46 @@ test('a larger page size cannot repeat a fully read scope instead of resolving u
  throw Error('Unexpected stage '+request.config.semanticStage);
  }}}});assert.equal(recovered,true);assert.deepEqual(result.toolCalls[0].args.fields,['details.owner']);
 });
+
+
+test('a successful record query cannot retire failures from another collection or filter scope',async()=>{
+ for(const differingScope of [{collection:'other_records',filters:[]},{collection:'registry',filters:[{field:'segment',op:'==',value:'other'}]},{collection:'registry',mode:'count',filters:[]}]) {
+  let planned=0;
+  const initial={name:'fixture.records',args:{collection:'registry',mode:'query',filters:[],fields:['owner']}};
+  const result=await runJarvisMission({instruction:'Inspect all requested record scopes',initialToolCalls:[initial],
+   toolCatalog:[{name:initial.name,mutates:false,investigationReadOnly:true,evidenceKinds:['platform_records']}],
+   execute:async call=>call.args.collection===initial.args.collection && call.args.mode===initial.args.mode && !call.args.filters.length
+    ? {ok:false,status:'SOURCE_UNAVAILABLE',error:'Cannot read this scope'}
+    : {ok:true,data:{recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...differingScope,mode:'query',fields:['owner']},rows:[],totalCount:0,completeForQuery:true}}},
+   planner:async()=>++planned===1 ? {toolCalls:[{name:initial.name,args:{...initial.args,...differingScope}}],missionComplete:false}
+    : {toolCalls:[],missionComplete:false},
+   storage:{getItem(){return null;},setItem(){},removeItem(){}}
+  });
+  assert.equal(result.completedTasks.length,1);assert.equal(result.blockedTasks.length,1,'unrelated successful zero must not erase the unread scope');
+  assert.equal(result.blockedTasks[0].args.collection,'registry');assert.equal(result.blockedTasks[0].args.filters.length,0);
+  assert.notEqual(result.status,'COMPLETED');
+ }
+});
+
+
+test('bounded evidence retains the latest source and match locations when accumulated search excerpts fill the budget',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='boundedAuditTasks');
+ const compact=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const matches=Array.from({length:80},(_,i)=>({file:'module-'+i+'.js',line:i+1,snippet:'previous search excerpt '.repeat(25)}));
+ const tasks=[{name:'source.find',args:{term:'registry'},observation:{ok:true,repositoryMatches:matches}},{name:'source.read',args:{file:'latest.js'},observation:{ok:true,verifiedRead:{file:'latest.js',startLine:10,content:'LATEST_READ '+('record schema '.repeat(500)),sourceStructure:{dataBindings:{collections:['registry'],fieldPaths:['owner','expiry']}}}}}];
+ const before=JSON.stringify(tasks);const result=compact(tasks);
+ assert.equal(JSON.stringify(tasks),before);assert.ok(JSON.stringify(result).length<=28000);
+ assert.deepEqual(Array.from(result[0].observation.repositoryMatches,m=>[m.file,m.line]),matches.map(m=>[m.file,m.line]));
+ assert.match(result[1].observation.verifiedRead.content,/LATEST_READ/);
+ assert.ok(result[1].observation.verifiedRead.content.length>=4000);
+});
+
+
+test('a corrected read in the same record scope recovers its failed attempt',async()=>{
+ let planned=0;const initial={name:'fixture.records',args:{collection:'registry',mode:'query',filters:[],fields:['unobserved']}};
+ const result=await runJarvisMission({instruction:'Inspect the requested scope',initialToolCalls:[initial],toolCatalog:[{name:initial.name,mutates:false,investigationReadOnly:true,evidenceKinds:['platform_records']}],
+ execute:async call=>call.args.fields[0]==='unobserved'?{ok:false,status:'FIELD_NOT_OBSERVED',error:'Read a verified field'}:{ok:true,data:{recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...call.args},rows:[],totalCount:0,completeForQuery:true}}},
+ planner:async()=>++planned===1?{toolCalls:[{name:initial.name,args:{...initial.args,fields:['owner']}}],missionComplete:false}:{toolCalls:[],missionComplete:false},storage:{getItem(){return null;},setItem(){},removeItem(){}}});
+ assert.equal(result.completedTasks.length,1);assert.equal(result.blockedTasks.length,0);assert.equal(result.recoveredToolAttempts.length,1);
+});
