@@ -3270,6 +3270,32 @@ test('shared source metadata preserves accredited fields and latest reading insi
  }
 });
 
+test('repeated source windows share identical schemas without losing records or source identity',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='boundedAuditTasks');const compact=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const fields=Array.from({length:80},(_,i)=>'detail.'+String.fromCharCode(97+i%26)+'_'+i+'_observed_attribute');
+ const bindings={collections:['entries'],fieldPaths:fields,fieldPathsComplete:true,writeShapes:Array.from({length:7},(_,i)=>({collection:'entries',fields:fields.slice(i,i+30),fieldsComplete:true}))};
+ const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'entries',filters:[],fields:['detail']},rows:Array.from({length:29},(_,i)=>({id:'entry-'+i,values:{detail:{type:'object',notExpanded:true}}})),totalCount:29,completeForQuery:true,hasMore:false};
+ const tasks=[{name:'fixture.query',observation:{ok:true,recordEvidence:record}},...Array.from({length:23},(_,i)=>({name:'source.read',args:{file:i===22?'separate.js':'shared.js',startLine:i*100+1,endLine:i*100+80},observation:{ok:true,verifiedRead:{file:i===22?'separate.js':'shared.js',startLine:i*100+1,endLine:i*100+80,totalLines:3000,content:'LATEST_SOURCE '+('body '.repeat(900)),sourceStructure:{dataBindings:{...structuredClone(bindings),structuralRead:{coverage:'COMPLETE_FILE',startLine:1,endLine:3000,requestedExcerptStartLine:i*100+1,requestedExcerptEndLine:i*100+80}}}}}}))];
+ const before=JSON.stringify(tasks),result=JSON.parse(JSON.stringify(compact(tasks)));
+ assert.equal(JSON.stringify(tasks),before);assert.ok(JSON.stringify(result).length<=28000);
+ assert.deepEqual(result[0].observation.recordEvidence,record);
+ assert.match(result.at(-1).observation.verifiedRead.content,/LATEST_SOURCE/);
+ assert.ok(result.at(-1).observation.verifiedRead.content.length>=1000);
+ const shared=result[1].observation.verifiedRead.sourceStructure.dataBindings;
+ assert.equal(shared.sharedSourceSchemaTaskIndex,22);
+ assert.deepEqual(shared.collections,['entries']);
+ for(let i=1;i<result.length;i++)assert.deepEqual(result[i].observation.verifiedRead.sourceStructure.dataBindings.structuralRead,tasks[i].observation.verifiedRead.sourceStructure.dataBindings.structuralRead);
+ assert.equal(result[22].observation.verifiedRead.file,'shared.js');
+ assert.equal(result[23].observation.verifiedRead.file,'separate.js');
+ assert.equal(result[23].observation.verifiedRead.sourceStructure.dataBindings.sharedSourceSchemaTaskIndex,undefined);
+ const owner=result[22].observation.verifiedRead.sourceStructure.dataBindings;
+ const dictionary=typeof result[0].sharedFieldDictionary==='string'?result[0].sharedFieldDictionary.split('|'):result[0].sharedFieldDictionary;
+ const decode=ids=>ids.flatMap(id=>Array.isArray(id)?Array.from({length:id[1]-id[0]+1},(_,n)=>dictionary[id[0]+n]):[dictionary[id]]);
+ const restored=owner.fieldPaths || (owner.fieldPathDictionary?owner.fieldPathDictionary.members.map(member=>owner.fieldPathDictionary.prefix+member+owner.fieldPathDictionary.suffix):decode(owner.fieldIds));
+ assert.deepEqual(restored,fields);
+ assert.deepEqual(owner.writeShapes.map(({fieldIds,...shape})=>({...shape,fields:shape.fields || decode(fieldIds)})),bindings.writeShapes);
+});
+
 test('field rejection constrains recovery to observed fields without changing other collection or count scopes',()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='bindRejectedRecordFields');const bind=runInNewContext('('+source.slice(node.start,node.end)+')',{buildNativeInputSchema:x=>x});
  const query={name:'platform.query',inputSchema:{type:'object',properties:{sourceFile:{type:'string',enum:['source.js']},collection:{type:'string',enum:['registry','events']},fields:{type:'array',items:{type:'string'}}}}};

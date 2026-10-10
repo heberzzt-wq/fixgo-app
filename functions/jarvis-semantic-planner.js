@@ -1136,6 +1136,28 @@ function boundedAuditTasks(tasks) {
             }}
         }}};
     });
+    // Re-reading windows of one source must not replicate its full schema on
+    // every task. Keep the latest identical definition and explicit references;
+    // different files or different definitions never share a schema identity.
+    const schemaOwners = new Map();
+    const schemaKeys = minimal.map((task,index)=>{
+        const read=task.observation?.verifiedRead, bindings=read?.sourceStructure?.dataBindings;
+        if(!bindings)return null;
+        const {structuralRead,...schema}=bindings;
+        const key=JSON.stringify([read.file,schema]);
+        schemaOwners.set(key,index);
+        return key;
+    });
+    let sharedSchemas=false;
+    for(let index=0;index<minimal.length;index++) {
+        const key=schemaKeys[index], owner=key===null?index:schemaOwners.get(key);
+        if(owner===index)continue;
+        const read=minimal[index].observation.verifiedRead;
+        const {collections,structuralRead}=read.sourceStructure.dataBindings;
+        read.sourceStructure.dataBindings={collections,...(structuralRead?{structuralRead}:{}),sharedSourceSchemaTaskIndex:owner};
+        sharedSchemas=true;
+    }
+    if(sharedSchemas)minimal[0]={...minimal[0],sharedSourceSchemaEncoding:"sharedSourceSchemaTaskIndex references the identical schema definition at that original task index, excluding structuralRead, which stays local to each read and must never be inherited. Only schema metadata is shared; each read keeps its own file and range, and operational records keep their own scope and timestamps. Resolve this reference before reading field paths or write shapes."};
     // Share repeated field spellings across source schemas without dropping any
     // field or changing its source/collection association. Ranges are lossless.
     if (JSON.stringify(minimal).length > 27000) {
