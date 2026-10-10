@@ -139,6 +139,33 @@ test("a completion audit retains bounded conversational distinctions without tre
     assert.deepEqual(result.completionAssessment.objectives[0].evidenceTaskIndexes,[]);
 });
 
+test("query scope review retains accredited fields and successful sources for the same collection", async () => {
+    const reader={name:"repo.read",evidenceKinds:["repository_source"],investigationReadOnly:true,mutates:false,inputSchema:{file:"string"}};
+    const query={name:"platform.query",evidenceKinds:["platform_records"],investigationReadOnly:true,mutates:false,inputSchema:{type:"object",properties:{sourceFile:{type:"string"},collection:{type:"string"},mode:{type:"string"},fields:{type:"array",items:{type:"string"}},filters:{type:"array",items:{type:"object"}}},required:["sourceFile","collection","mode","fields","filters"]}};
+    const source=(file,collection,field,extra={})=>({name:reader.name,args:{file},observation:{ok:true,...extra,verifiedRead:{file,content:"observed collection access",sourceStructure:{dataBindings:{source:"ACORN_SOURCE_REFERENCES",collections:[collection],fieldPaths:[field],references:[{startLine:1,content:"observed reference"}]}}}}});
+    const contract={objective:"Inspect current states",requiredEvidenceKind:"platform_records",coverageMode:"temporal",scope:"explicit_scope",groups:["states"]};
+    let reviewed=false;
+    const result=await runJarvisSemanticPlanner({input:contract.objective,catalog:[reader,query],
+        missionState:{phase:"COMPLETION_AUDIT",evidenceObjectives:[contract],advisorySemanticContext:{turns:[{role:"user",content:"Declared and official states are distinct."}]},completedTasks:[source("primary.js","alpha","state"),source("supplement.js","alpha","state.expiresAt"),source("unrelated.js","beta","foreign"),source("failed.js","alpha","untrusted",{executionOk:false})]},
+        ai:{models:{generateContent:async request=>{
+            if(request.config.semanticStage==="QUERY_POPULATION_VERIFICATION"){
+                const payload=JSON.parse(request.config.chatMessages.at(-1).content);
+                assert.deepEqual(payload.observedFieldSchemas.map(item=>item.file),["primary.js","supplement.js"]);
+                assert.ok(payload.observedFieldSchemas.some(item=>item.fieldPaths.includes("state.expiresAt")));
+                assert.deepEqual(payload.objectives,[contract]);
+                assert.ok(request.config.chatMessages.some(message=>message.content.includes("Declared and official states are distinct.")));
+                reviewed=true;
+                return{text:'{"matchesRequest":true}'};
+            }
+            assert.equal(request.config.semanticStage,"COMPLETION_AUDIT");
+            return{text:JSON.stringify({completionAssessment:{objectives:[{...contract,satisfied:false,evidenceTaskIndexes:[],limitation:"Operational values remain unread."}]},toolCalls:[{name:query.name,args:{sourceFile:"primary.js",collection:"alpha",mode:"query",fields:["state.expiresAt"],filters:[]}}]})};
+        }}}
+    });
+    assert.equal(reviewed,true);
+    assert.equal(result.toolCalls[0].name,query.name);
+    assert.equal(result.missionComplete,false);
+});
+
 test("a locked telemetry contract must reach semantic audit and preserve its insufficient-evidence verdict", async () => {
     const { runJarvisMission } = await import("../gestia-core/jarvis/jarvis.mission.orchestrator.js");
     let auditCalls = 0;
