@@ -521,7 +521,11 @@ function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
     const missing=[];
     const proof=objective.coverageProof;
     if(!records.length) missing.push("Faltan registros operativos consultados para este objetivo.");
-    if(records.some(record=>!complete(record)||record.truncatedFields?.length)) missing.push("La consulta conserva páginas o campos pendientes de leer.");
+    if(records.some(record=>!complete(record))) missing.push("La consulta conserva páginas pendientes de leer; continúa desde el cursor observado.");
+    for(const record of records.filter(record=>record.truncatedFields?.length)) {
+        const fields=[...new Set(record.truncatedFields.map(item=>item.field))];
+        missing.push("Campos sin expandir o truncados en "+record.scope?.collection+": "+fields.join(", ")+". Aumentar pageSize no los resuelve: consulta sus campos hijos acreditados por la fuente o lee la definición que falta; no inventes campos ni interpretes notExpanded como un valor operativo.");
+    }
     const groups=contract?.groups || [contract?.requestQuote || objective.objective];
     for(const group of groups) {
         const covered=proof?.groups?.find(item=>item.group===group);
@@ -2197,7 +2201,17 @@ async function runModelSemanticPlanner({
                     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalArgs(value[key])])) : value;
                 const sameCall = (task, call) => task?.name === call?.name &&
                     JSON.stringify(canonicalArgs(task?.args || {})) === JSON.stringify(canonicalArgs(call?.args || {}));
-                const wasExecuted = call => (missionState.completedTasks || []).some(task => sameCall(task, call));
+                const wasExecuted = call => (missionState.completedTasks || []).some(task => {
+                    if (sameCall(task, call)) return true;
+                    // Once a complete unpaged scope has been read, increasing its
+                    // page size cannot expand nested fields or add new evidence.
+                    const record=task.observation?.recordEvidence;
+                    if(task.name!==call.name || task.observation?.ok!==true || task.observation.executionOk===false ||
+                        record?.completeForQuery!==true || task.args?.cursor || call.args?.cursor ||
+                        !Number.isInteger(call.args?.pageSize)) return false;
+                    const withoutPageSize=args=>Object.fromEntries(Object.entries({...args,filters:args?.filters || [],orderBy:args?.orderBy || []}).filter(([key])=>key!=="pageSize"));
+                    return sameCall({...task,args:withoutPageSize(task.args)},{...call,args:withoutPageSize(call.args)});
+                });
                 const wasRejected = call => (missionState.blockedTasks || []).some(task =>
                     sameCall(task, call) &&
                     task?.observation?.retryable !== true

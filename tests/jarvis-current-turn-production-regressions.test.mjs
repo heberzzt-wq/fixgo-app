@@ -3033,3 +3033,24 @@ test('large operational evidence compacts repeated columns without losing nulls 
  const restored=Array.from(packed.rowValues,(row,index)=>{const values=Object.fromEntries(Array.from(packed.rowColumns,field=>[field,null]));for(const [col,value]of row.slice(1))values[packed.rowColumns[col]]=value;for(const col of packed.rowAbsentColumns?.find(entry=>entry[0]===index)?.[1]||[])delete values[packed.rowColumns[col]];return{id:row[0],values};});
  assert.deepEqual(restored,rows);assert.equal(result[0].args.pageSize,100);assert.equal(result[0].argsAlsoInRecordScope,true);
 });
+
+
+test('coverage distinguishes unread pages from unexpanded fields and names the required read scope',()=>{
+ const {qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',fields:['details']},rows:[{id:'one',values:{details:{notExpanded:true}}}],totalCount:1,returnedCount:1,hasMore:false,completeForQuery:true,truncatedFields:[{id:'one',field:'details'}]};
+ const contract={coverageMode:'relationship',scope:'explicit_scope',groups:['owner']};
+ const objective={objective:'Identify owners',evidenceTaskIndexes:[0],coverageProof:{proven:true,missing:[],groups:[{group:'owner',proven:true,evidence:[{taskIndex:0,fields:['details']}]}]}};
+ const result=qualify(objective,contract,[{observation:{ok:true,recordEvidence:record}}]);
+ assert.equal(result.status,'partial');assert.ok(result.missing.some(s=>s.includes('details')&&s.includes('registry')&&s.includes('pageSize')));
+ assert.ok(!result.missing.some(s=>s.includes('páginas pendientes')),'a fully read collection has no pending pages');
+});
+
+test('a larger page size cannot repeat a fully read scope instead of resolving unexpanded fields',async()=>{
+ const query={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'},fields:{type:'array',items:{type:'string'}},orderBy:{type:'array',items:{type:'object'}},pageSize:{type:'integer'}},required:['collection','fields','pageSize']}};
+ const args={collection:'registry',fields:['details'],orderBy:[],pageSize:10};let recovered=false;
+ const result=await runJarvisSemanticPlanner({input:'Inspect current owners',catalog:[query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',args:{file:'registry.js'},observation:{ok:true,verifiedRead:{file:'registry.js',content:'observed registry',sourceStructure:{dataBindings:{collections:['registry'],fieldPaths:['details','details.owner']}}}}},{name:query.name,args,observation:{ok:true,recordEvidence:{scope:{collection:'registry',fields:['details']},completeForQuery:true,hasMore:false,totalCount:1,rows:[{id:'one',values:{details:{notExpanded:true}}}],truncatedFields:[{id:'one',field:'details'}]}}}]},ai:{models:{generateContent:async request=>{
+ if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({explanation:'Owner details remain unread',completionAssessment:{objectives:[{objective:'Inspect current owners',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[1],limitation:'Need nested fields'}]},toolCalls:[{name:query.name,args:{collection:args.collection,fields:args.fields,pageSize:100}}]})};
+ if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){recovered=true;return{functionCalls:[{name:query.name,args:{...args,fields:['details.owner']}}]};}
+ throw Error('Unexpected stage '+request.config.semanticStage);
+ }}}});assert.equal(recovered,true);assert.deepEqual(result.toolCalls[0].args.fields,['details.owner']);
+});
