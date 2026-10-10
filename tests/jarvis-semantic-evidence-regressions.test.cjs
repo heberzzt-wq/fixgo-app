@@ -166,6 +166,62 @@ test("query scope review retains accredited fields and successful sources for th
     assert.equal(result.missionComplete,false);
 });
 
+test("new records trigger independent objective review even when the initial audit repeats a stale deficit", async () => {
+    const records={name:"fixture.records",evidenceKinds:["platform_records"],investigationReadOnly:true,mutates:false,inputSchema:{}};
+    const code={name:"fixture.code",evidenceKinds:["repository_source"],investigationReadOnly:true,mutates:false,inputSchema:{}};
+    const contract={objective:"Identify allocations",requestQuote:"Identify allocations",requiredEvidenceKind:"platform_records",coverageMode:"relationship",scope:"explicit_scope",groups:["entities"]};
+    const evidence={source:"FIRESTORE_SERVER_AUTHENTICATED",readOnly:true,scope:{collection:"allocations",fields:["entity","owner"],filters:[]},rows:[{id:"a",values:{entity:"Observed asset",owner:"Observed owner"}}],totalCount:1,completeForQuery:true};
+    for(const citation of [1,0]) {
+        let reviews=0,continuations=0;
+        const result=await runJarvisSemanticPlanner({input:contract.objective,catalog:[records,code],missionState:{phase:"COMPLETION_AUDIT",evidenceObjectives:[contract],completedTasks:[{name:code.name,observation:{ok:true,recordEvidence:evidence}},{name:records.name,observation:{ok:true,recordEvidence:evidence}}]},ai:{models:{generateContent:async request=>{
+            if(request.config.semanticStage==="COMPLETION_AUDIT")return{text:JSON.stringify({toolCalls:[],completionAssessment:{objectives:[{...contract,satisfied:false,evidenceTaskIndexes:[],limitation:"The records have not yet been read."}]}})};
+            if(request.config.semanticStage==="RECORD_OBJECTIVE_COVERAGE") {
+                reviews++;
+                const payload=JSON.parse(request.config.chatMessages.at(-1).content);
+                assert.equal(payload.objective.limitation,undefined,"the independent review must not inherit the stale diagnosis");
+                assert.deepEqual(payload.evidence.map(task=>task.taskIndex),[0,1],"citations must retain explicit original task indexes, including source reads");
+                return{text:JSON.stringify({proven:true,missing:[],groups:[{group:"entities",proven:true,evidence:[{taskIndex:citation,fields:["entity","owner"]}]}],sources:[{collection:"allocations",relevant:true,reason:"Observed relationship. ".repeat(1000),taskIndexes:[citation]}]})};
+            }
+            if(request.config.semanticStage==="READ_ONLY_EVIDENCE_CONTINUATION") {
+                continuations++;
+                const message=request.config.chatMessages.find(item=>item.content.startsWith("OBJETIVOS_PENDIENTES="));
+                assert.ok(message.content.length<2000,"continuation must not duplicate full coverage reports");
+                const pending=JSON.parse(message.content.split("=").slice(1).join("="))[0];
+                assert.equal(pending.objective,contract.objective);
+                assert.equal(pending.requiredEvidenceKind,"platform_records");
+                assert.equal(pending.satisfied,false);
+                assert.equal(pending.coverageProof,undefined);
+            }
+            return{text:'{"toolCalls":[]}'};
+        }}}});
+        assert.equal(reviews,1);
+        assert.equal(continuations,citation===1?0:1);
+        assert.equal(result.missionComplete,citation===1);
+        assert.equal(result.completionAssessment.objectives[0].satisfied,citation===1);
+        assert.deepEqual(result.completionAssessment.objectives[0].evidenceTaskIndexes,citation===1?[1]:[]);
+    }
+});
+
+test("an observed partial source remains available for a new range when recovery has no unread files", async () => {
+    const reader={name:"repo.read",evidenceKinds:["repository_source"],investigationReadOnly:true,mutates:false,inputSchema:{type:"object",properties:{file:{type:"string"},startLine:{type:"integer"},endLine:{type:"integer"}},required:["file"]}};
+    let recovered=false;
+    const result=await runJarvisSemanticPlanner({input:"Inspect the stored relationship",catalog:[reader],missionState:{phase:"COMPLETION_AUDIT",completedTasks:[{name:reader.name,args:{file:"observed.js"},observation:{ok:true,verifiedRead:{file:"observed.js",content:"Source header",startLine:1,endLine:5,totalLines:80,partial:true,sourceStructure:{dataBindings:{writeShapes:[{collection:"entries",startLine:40,fields:["owner"]}]}}}}}]},ai:{models:{generateContent:async request=>{
+        if(request.config.semanticStage==="COMPLETION_AUDIT")return{text:JSON.stringify({toolCalls:[],completionAssessment:{objectives:[{objective:"Inspect the stored relationship",requiredEvidenceKind:"repository_source",satisfied:false,evidenceTaskIndexes:[],limitation:"The field definition is outside the observed excerpt."}]}})};
+        if(request.config.semanticStage==="READ_ONLY_EVIDENCE_CONTINUATION")return{text:'{"toolCalls":[]}'};
+        assert.equal(request.config.semanticStage,"READ_ONLY_NEXT_STEP_RECOVERY");
+        const schema=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;
+        assert.ok(schema.some(branch=>branch.properties.args.properties.file.enum.includes("observed.js")));
+        const partial=request.config.chatMessages.find(message=>message.content.startsWith("LECTURAS_PARCIALES="));
+        assert.match(partial.content,/"startLine":40/);
+        assert.match(partial.content,/"nextStartLine":6/);
+        recovered=true;
+        return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:"observed.js",startLine:40,endLine:60}}]})};
+    }}}});
+    assert.equal(recovered,true);
+    assert.equal(result.missionComplete,false);
+    assert.equal(result.toolCalls[0].args.startLine,40);
+});
+
 test("a locked telemetry contract must reach semantic audit and preserve its insufficient-evidence verdict", async () => {
     const { runJarvisMission } = await import("../gestia-core/jarvis/jarvis.mission.orchestrator.js");
     let auditCalls = 0;

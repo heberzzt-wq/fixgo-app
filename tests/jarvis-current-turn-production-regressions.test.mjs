@@ -3119,7 +3119,7 @@ test('a corrected read in the same record scope recovers its failed attempt',asy
 });
 
 
-test('objective-specific coverage gaps survive validation and guide the next semantic audit without becoming facts',async()=>{
+test('objective state and references survive without anchoring a fresh audit to stale conclusions',async()=>{
  const gap='Observed event records do not establish the registered population; inspect its authoritative source.';
  const contract={objective:'Count registered entities',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['entities']};
  const prior={evaluatedTaskCount:1,objectives:[{...contract,satisfied:false,evidenceTaskIndexes:[0],modelLimitation:gap,limitation:gap+' Repeated structural warning.'.repeat(100),coverage:{missing:['Other observed scopes remain pending.']}}]};
@@ -3131,8 +3131,12 @@ test('objective-specific coverage gaps survive validation and guide the next sem
  assert.equal(request.config.semanticStage,'COMPLETION_AUDIT');messages=request.config.chatMessages;
  return{text:JSON.stringify({explanation:'Continue investigating the missing scope',completionAssessment:prior,toolCalls:[{name:records.name,args:{page:2,sourceFile:'observed-source.js'}}]})};
  }}}});
- assert.ok(messages.some(m=>m.content.includes(gap)),'the previous objective gap must reach the next audit');
- const progress=messages.find(m=>m.content.startsWith('PROGRESO_PREVIO_POR_OBJETIVO='));assert.ok(progress.content.includes('Other observed scopes remain pending.'));assert.ok(!progress.content.includes('Repeated structural warning'),'derived warnings must not recursively crowd out the model-specific gap');
+ const progress=messages.find(m=>m.content.startsWith('PROGRESO_PREVIO_POR_OBJETIVO='));
+ const state=JSON.parse(progress.content.split('\n')[0].slice('PROGRESO_PREVIO_POR_OBJETIVO='.length));
+ assert.deepEqual(state,[{objective:contract.objective,requiredEvidenceKind:'platform_records',previouslySatisfied:false,evidenceTaskIndexes:[0]}]);
+ assert.ok(!progress.content.includes(gap));
+ assert.ok(!progress.content.includes('Other observed scopes remain pending.'));
+ assert.ok(!progress.content.includes('Repeated structural warning'),'reassess limitations from observations instead of copying old conclusions');
  const observations=messages.filter(m=>m.content.startsWith('OBSERVACION_EJECUTADA=')).map(m=>JSON.parse(m.content.slice('OBSERVACION_EJECUTADA='.length)));
  assert.equal(observations.filter(o=>o.newSincePreviousAssessment).length,1);
  assert.equal(observations.find(o=>o.newSincePreviousAssessment).observation.verifiedRead.file,'observed-source.js');
