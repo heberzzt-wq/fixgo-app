@@ -3205,6 +3205,20 @@ test('combining previously read projections cannot replace investigation of miss
  }}}});assert.equal(recovered,true);assert.deepEqual(result.toolCalls[0].args.fields,['expiresAt']);assert.equal(result.missionComplete,false);
 });
 
+test('verified counts already returned by complete queries are reused only for their exact scope',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');
+ const covered=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const call={name:'records.read',args:{collection:'entries',mode:'count',filters:[]}};
+ for(const count of [0,1,20]){
+  const task={name:call.name,args:{collection:'entries',mode:'query',includeCount:true},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'entries',filters:[]},totalCount:count,completeForQuery:true,hasMore:false}}};
+  assert.equal(covered(call,[task]),true);
+  assert.equal(covered({...call,args:{...call.args,collection:'another'}},[task]),false);
+  assert.equal(covered({...call,args:{...call.args,filters:[{field:'category',op:'==',value:'subgroup'}]}},[task]),false);
+  for(const change of [t=>{delete t.observation.recordEvidence.totalCount;},t=>{t.observation.recordEvidence.completeForQuery=false;},t=>{t.observation.recordEvidence.source='REPOSITORY_SOURCE';},t=>{t.observation.ok=false;}]){const altered=structuredClone(task);change(altered);assert.equal(covered(call,[altered]),false);}
+ }
+});
+
 test('projection reuse preserves new fields counts pages scopes and inconsistent snapshots as unread work',()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');

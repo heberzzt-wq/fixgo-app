@@ -432,9 +432,17 @@ function evidenceRequirementSuccessors(kind, catalog = []) {
 }
 
 function recordProjectionAlreadyObserved(call, tasks) {
-    if(call.args?.mode!=="query" || call.args?.cursor || !call.args?.fields?.length) return false;
     const canonical=value=>Array.isArray(value)?value.map(canonical):value && typeof value==="object"
         ?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;
+    if(call.args?.mode==="count") return tasks.some(task=>{
+        const record=task.observation?.recordEvidence;
+        return task.name===call.name && task.observation?.ok===true && task.observation.executionOk!==false &&
+            record?.source==="FIRESTORE_SERVER_AUTHENTICATED" && record.readOnly===true &&
+            Number.isInteger(record.totalCount) && record.totalCount>=0 && record.completeForQuery===true && record.hasMore!==true &&
+            record.scope?.collection===call.args.collection &&
+            JSON.stringify(canonical(record.scope?.filters||[]))===JSON.stringify(canonical(call.args.filters||[]));
+    });
+    if(call.args?.mode!=="query" || call.args?.cursor || !call.args?.fields?.length) return false;
     const scope=args=>JSON.stringify(canonical(Object.fromEntries(Object.entries({...args,filters:args?.filters||[],orderBy:args?.orderBy||[]})
         .filter(([key])=>!["fields","pageSize","includeCount"].includes(key)))));
     const snapshots=[];
@@ -583,18 +591,20 @@ function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
     return {status:missing.length?"partial":"complete",consultedScopes,groups,missing:[...new Set(missing)]};
 }
 
-async function reviewRecordObjectiveCoverage({ai,model,instruction,objective,contract,tasks,advisoryContext=""}) {
-    const response=await ai.models.generateContent({model,contents:instruction,config:{
+async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,advisoryContext=""}) {
+    const sourcePaths=[...new Set([...observedRecordSources(tasks),...tasks.flatMap(task=>task.observation?.recordEvidence?.scope?.collection ? [task.observation.recordEvidence.scope.collection] : [])])];
+    const recordIndexes=tasks.flatMap((task,index)=>task.observation?.ok===true && task.observation.recordEvidence?.source==="FIRESTORE_SERVER_AUTHENTICATED" ? [index] : []);
+    const response=await ai.models.generateContent({model,contents:contract.requestQuote,config:{
         semanticStage:"RECORD_OBJECTIVE_COVERAGE",temperature:0,maxOutputTokens:2048,
         responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{
             proven:{type:"boolean"},missing:{type:"array",items:{type:"string"}},
-            groups:{type:"array",items:{type:"object",properties:{group:{type:"string",enum:contract.groups || [contract.requestQuote || objective.objective]},proven:{type:"boolean"},evidence:{type:"array",items:{type:"object",properties:{taskIndex:{type:"integer"},fields:{type:"array",items:{type:"string"}}},required:["taskIndex","fields"],additionalProperties:false}}},required:["group","proven","evidence"],additionalProperties:false}},
-            sources:{type:"array",items:{type:"object",properties:{collection:{type:"string"},relevant:{type:"boolean"},reason:{type:"string"},taskIndexes:{type:"array",items:{type:"integer"}}},required:["collection","relevant","reason","taskIndexes"],additionalProperties:false}}
+            groups:{type:"array",items:{type:"object",properties:{group:{type:"string",enum:contract.groups || [contract.requestQuote || objective.objective]},proven:{type:"boolean"},evidence:{type:"array",items:{type:"object",properties:{taskIndex:{type:"integer",...(recordIndexes.length?{enum:recordIndexes}:{})},fields:{type:"array",items:{type:"string"}}},required:["taskIndex","fields"],additionalProperties:false}}},required:["group","proven","evidence"],additionalProperties:false}},
+            sources:{type:"array",items:{type:"object",properties:{collection:{type:"string",...(sourcePaths.length?{enum:sourcePaths}:{})},relevant:{type:"boolean"},reason:{type:"string"},taskIndexes:{type:"array",items:{type:"integer",...(recordIndexes.length?{enum:recordIndexes}:{})}}},required:["collection","relevant","reason","taskIndexes"],additionalProperties:false}}
         },required:["proven","missing","groups","sources"],additionalProperties:false},
-        chatMessages:[{role:"system",content:"Audita exclusivamente el resultado pedido en contract.requestQuote y su coverageMode. Los demás objetivos de la solicitud se evalúan por separado: sus faltantes no son requisitos adicionales de este objetivo. Conserva cada grupo del contrato. Cita únicamente índices de registros operativos autenticados para demostrar valores. El código sólo acredita dónde y cómo se almacenan datos, nunca su existencia actual. Evalúa TODAS las colecciones observadas: cuáles contienen la población solicitada y cuáles sólo eventos, transacciones u otro dominio. Una muestra relacionada no es inventario. Para cada grupo exige que los datos y su definición de almacenamiento acrediten pertenencia y totalidad; registros de otros grupos no sirven. Un cero sólo acredita su ruta y filtros, nunca otras fuentes. Para relaciones exige entidad y asignación explícitas; para vencimientos exige fecha con significado de vencimiento, no fecha histórica de evento. No supongas exclusividad de una fuente si la evidencia no la establece. Campos null/ausentes significan desconocido. Si queda alguna población, fuente, página, relación o fecha sin acreditar, proven=false y explica missing. No aceptes la afirmación del planner como prueba. No inventes campos. No descartes una fuente pertinente para conseguir el cierre."},
+        chatMessages:[{role:"system",content:"Evalúa únicamente el contrato adjunto contra la evidencia. Decide qué fuentes observadas son pertinentes a este contrato y explica las exclusiones. Cita las lecturas autenticadas de registros por taskIndex y campos exactos; el código sólo explica el esquema. Usa el esquema observado para interpretar los valores y conserva los grupos del contrato. Los campos ausentes/null son desconocidos. No transfieras requisitos de otros contratos a éste. Un faltante es algo necesario para ESTE contrato que la evidencia no acredita. Devuelve un grupo por cada grupo del contrato. proven=true sólo si esos grupos están cubiertos por registros pertinentes y por las páginas necesarias en las fuentes pertinentes; de lo contrario enumera brechas concretas en missing. Una fuente parcial no demuestra un inventario global y un cero sólo prueba el alcance de su consulta. No inventes otras entidades o fuentes hipotéticas como requisitos: si hay otra fuente observada pertinente sin consultar, nómbrala y mantén el objetivo pendiente. No conviertas un informe de valores registrados en una auditoría de integridad referencial que el contrato no pide. No aceptes afirmaciones previas del planner como prueba ni descartes una fuente pertinente para conseguir el cierre."},
         ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
         {role:"system",content:"Cada evidencia conserva taskIndex: cita ese número exacto, no renumeres los registros al excluir lecturas de código. completeForQuery=true con hasMore=false y totalCount acredita la totalidad de ESA consulta, incluso si devuelve uno o cero; no demuestra otras poblaciones. Determina las fuentes pertinentes sólo para ESTE contrato. No exijas fechas para un contrato de relaciones ni relaciones para un conteo. Una relación puede almacenarse por identificador, nombre u otro valor según el esquema observado; no exijas una clave ajena que la plataforma no use. No inventes rutas a partir de una descripción del usuario: observedSources y scope.collection contienen las rutas observadas. missing debe describir sólo brechas concretas de este contrato, sin repetir hechos acreditados como si fueran faltantes."},
-        {role:"user",content:JSON.stringify({request:instruction,contract,objective:{objective:objective.objective,requiredEvidenceKind:objective.requiredEvidenceKind},observedSources:observedRecordSources(tasks),evidence:boundedAuditTasks(tasks).map((task,taskIndex)=>({...task,taskIndex}))})}]
+        {role:"user",content:JSON.stringify({request:contract.requestQuote,contract,objective:{objective:objective.objective,requiredEvidenceKind:objective.requiredEvidenceKind},observedSources:sourcePaths,evidence:boundedAuditTasks(tasks).map((task,taskIndex)=>({...task,taskIndex}))})}]
     }});
     if(response?.providerResponse?.finishReason==='length') return {proven:false,missing:["La revisión de cobertura no terminó dentro del presupuesto."]};
     return extractJsonObject(String(response?.text||"")) || {proven:false,missing:["No se obtuvo una revisión de cobertura válida."]};
@@ -2444,7 +2454,7 @@ async function runModelSemanticPlanner({
                         const contract=missionState.evidenceObjectives.find(item=>item.objective===objective.objective);
                         const previouslySatisfied=missionState.completionAssessment?.objectives?.some(item=>item.objective===objective.objective && item.satisfied===true);
                         if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode && (objective.satisfied || hasNewRecords || previouslySatisfied)) {
-                            objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,instruction,objective,contract,tasks:completedTasksForAudit,advisoryContext});
+                            objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,advisoryContext});
                             const reviewedReferences=(objective.coverageProof.groups||[]).flatMap(group=>(group.evidence||[]).map(item=>item.taskIndex)).filter(authenticatedRecordAt);
                             objective.evidenceTaskIndexes=[...new Set([...(objective.evidenceTaskIndexes||[]),...reviewedReferences])];
                             continue;

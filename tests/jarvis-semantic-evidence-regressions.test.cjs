@@ -202,6 +202,28 @@ test("new records trigger independent objective review even when the initial aud
     }
 });
 
+test("coverage reviews receive one objective at a time and cite only observed source paths", async () => {
+    const tool={name:"fixture.records",investigationReadOnly:true,mutates:false,evidenceKinds:["platform_records"],inputSchema:{}};
+    const objectives=[{objective:"Identify allocations",requestQuote:"Identify allocations",coverageMode:"relationship",groups:["entities"]},{objective:"Report renewal dates",requestQuote:"Report renewal dates",coverageMode:"temporal",groups:["dates"]}].map(o=>({...o,requiredEvidenceKind:"platform_records",scope:"explicit_scope"}));
+    const reviewed=[];
+    const result=await runJarvisSemanticPlanner({input:"Identify allocations and report renewal dates",catalog:[tool],missionState:{phase:"COMPLETION_AUDIT",evidenceObjectives:objectives,completedTasks:[{name:tool.name,observation:{ok:true,recordEvidence:{source:"FIRESTORE_SERVER_AUTHENTICATED",readOnly:true,scope:{collection:"registered_entries",fields:["owner"]},rows:[{id:"a",values:{owner:"Observed owner"}}],totalCount:1,completeForQuery:true}}}]},ai:{models:{generateContent:async request=>{
+        if(request.config.semanticStage==="COMPLETION_AUDIT")return{text:JSON.stringify({toolCalls:[],completionAssessment:{objectives:objectives.map(o=>({...o,satisfied:false,evidenceTaskIndexes:[],limitation:"Needs evaluation"}))}})};
+        if(request.config.semanticStage==="RECORD_OBJECTIVE_COVERAGE") {
+            const payload=JSON.parse(request.config.chatMessages.at(-1).content),isAllocation=payload.contract.coverageMode==="relationship";
+            assert.equal(payload.request,payload.contract.requestQuote);
+            assert.equal(request.contents,payload.contract.requestQuote);
+            assert.deepEqual(request.config.responseJsonSchema.properties.sources.items.properties.collection.enum,["registered_entries"]);
+            assert.deepEqual(request.config.responseJsonSchema.properties.groups.items.properties.evidence.items.properties.taskIndex.enum,[0]);
+            reviewed.push(payload.request);
+            return{text:JSON.stringify({proven:isAllocation,missing:isAllocation?[]:["Renewal dates are not present"],groups:[{group:payload.contract.groups[0],proven:isAllocation,evidence:isAllocation?[{taskIndex:0,fields:["owner"]}]:[]}],sources:[{collection:"registered_entries",relevant:true,reason:"Observed values",taskIndexes:[0]}]})};
+        }
+        return{text:'{"toolCalls":[]}'};
+    }}}});
+    assert.deepEqual(reviewed,objectives.map(o=>o.requestQuote));
+    assert.deepEqual(result.completionAssessment.objectives.map(o=>o.satisfied),[true,false]);
+    assert.equal(result.missionComplete,false);
+});
+
 test("an observed partial source remains available for a new range when recovery has no unread files", async () => {
     const reader={name:"repo.read",evidenceKinds:["repository_source"],investigationReadOnly:true,mutates:false,inputSchema:{type:"object",properties:{file:{type:"string"},startLine:{type:"integer"},endLine:{type:"integer"}},required:["file"]}};
     let recovered=false;
