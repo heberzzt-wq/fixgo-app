@@ -1921,14 +1921,14 @@ test('population mismatch recovers through a literal user term and repo.grep, no
    if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:false,limitation:'KYC no demuestra pertenencia al grupo cliente',nextEvidenceQuery:'cliente rol'}),providerResponse:{finishReason:'stop'}};
    if(request.config.semanticStage==='QUERY_POPULATION_LITERAL_RECOVERY'){
      const allowed=request.config.responseJsonSchema.properties.term.enum;
-     assert.ok(allowed.includes('clientes'));assert.ok(allowed.includes('cliente'));
-     return{text:JSON.stringify({term:'cliente'}),providerResponse:{finishReason:'stop'}};
+     assert.ok(allowed.includes('clientes'));assert.ok(!allowed.includes('cliente'));
+     return{text:JSON.stringify({term:'clientes'}),providerResponse:{finishReason:'stop'}};
    }
    return{text:JSON.stringify({explanation:'Falta acreditar la población',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta el discriminador observado'}]},toolCalls:[{name:'platform.query',args:{collection:'users',sourceFile:'source.js',filters:[{field:'kyc',op:'==',value:true}]}}]}),providerResponse:{finishReason:'stop'}};
  }}}});
  assert.equal(result.missionComplete,false);
  assert.equal(result.planKind,'QUERY_POPULATION_LITERAL_RECOVERY');
- assert.deepEqual(result.toolCalls,[{name:'repo.grep',args:{term:'cliente'},reason:'MODEL_LITERAL_SOURCE_RECOVERY',mutates:false,approved:false}]);
+ assert.deepEqual(result.toolCalls,[{name:'repo.grep',args:{term:'clientes'},reason:'MODEL_LITERAL_SOURCE_RECOVERY',mutates:false,approved:false}]);
  assert.ok(stages.includes('QUERY_POPULATION_VERIFICATION'));
  assert.ok(stages.includes('QUERY_POPULATION_LITERAL_RECOVERY'));
 });
@@ -1940,13 +1940,13 @@ test('record queries reject invented filter values before live execution and rec
  const grep={name:'repo.grep',investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{term:{type:'string'}},required:['term'],additionalProperties:false}};
  const result=await runJarvisSemanticPlanner({input,catalog:[query,grep],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'const uid = user.uid; const profile = collection(db, "users");'}}}]},ai:{models:{generateContent:async request=>{
    if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){populationChecks++;throw Error('SHOULD_NOT_REACH_POPULATION_MODEL');}
-   if(request.config.semanticStage==='QUERY_POPULATION_LITERAL_RECOVERY'){literalRecoveries++;return{text:JSON.stringify({term:'cliente'}),providerResponse:{finishReason:'stop'}};}
+   if(request.config.semanticStage==='QUERY_POPULATION_LITERAL_RECOVERY'){literalRecoveries++;return{text:JSON.stringify({term:'clientes'}),providerResponse:{finishReason:'stop'}};}
    return{text:JSON.stringify({explanation:'Falta evidencia',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta filtro verificado'}]},toolCalls:[{name:'platform.query',args:{collection:'users',sourceFile:'source.js',mode:'count',filters:[{field:'uid',op:'==',value:'user123'}]}}]}),providerResponse:{finishReason:'stop'}};
  }}}});
  assert.equal(populationChecks,0);
  assert.equal(literalRecoveries,1);
  assert.equal(result.toolCalls[0].name,'repo.grep');
- assert.equal(result.toolCalls[0].args.term,'cliente');
+ assert.equal(result.toolCalls[0].args.term,'clientes');
 });
 
 
@@ -1977,17 +1977,25 @@ test('platform query accepts a literal filter value supplied by the user when it
 });
 
 
-test('literal population recovery prefers the singular source token when Qwen selects a plural request token', async () => {
- const input='Cuántos clientes registrados tenemos en la plataforma?';
+test('literal population recovery preserves the exact plural token selected by Qwen', async () => {
+ const input='Consulta clientes, status y series registrados';
  const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{collection:{type:'string'},sourceFile:{type:'string'},filters:{type:'array',minItems:0}},required:['collection','sourceFile','filters']}};
  const grep={name:'repo.grep',investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{term:{type:'string'}},required:['term']}};
+ for(const selected of ['clientes','status','series']) {
  const result=await runJarvisSemanticPlanner({input,catalog:[query,grep],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'const kyc=true;'}}}]},ai:{models:{generateContent:async request=>{
    if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:false,limitation:'No demuestra grupo',nextEvidenceQuery:'cliente'}),providerResponse:{finishReason:'stop'}};
-   if(request.config.semanticStage==='QUERY_POPULATION_LITERAL_RECOVERY')return{text:JSON.stringify({term:'clientes'}),providerResponse:{finishReason:'stop'}};
+   if(request.config.semanticStage==='QUERY_POPULATION_LITERAL_RECOVERY') {
+    const allowed=request.config.responseJsonSchema.properties.term.enum;
+    assert.ok(allowed.includes(selected));
+    assert.ok(!allowed.includes(selected.slice(0,-1)),'the runtime must not invent a stem for an exact user token');
+    return{text:JSON.stringify({term:selected}),providerResponse:{finishReason:'stop'}};
+   }
    return{text:JSON.stringify({explanation:'Falta evidencia',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta población'}]},toolCalls:[{name:'platform.query',args:{collection:'users',sourceFile:'source.js',filters:[]}}]}),providerResponse:{finishReason:'stop'}};
  }}}});
  assert.equal(result.toolCalls[0].name,'repo.grep');
- assert.equal(result.toolCalls[0].args.term,'cliente');
+ assert.equal(result.toolCalls[0].args.term,selected);
+ assert.equal(result.missionComplete,false);
+ }
 });
 
 
@@ -2923,7 +2931,7 @@ test('a repeatedly unverified query scope can return to an observed unread sourc
  for(const selectedFile of ['registration.js','first.js','invented.js']) {
  let recovered=0;
  const operation=runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[
-  {name:'repo.grep',args:{term:'equipo'},observation:{ok:true,repositoryMatches:[{file:'first.js',line:1,snippet:'records'},{file:'registration.js',line:40,snippet:'equipment'}]}},
+  {name:'repo.grep',args:{term:'equipos'},observation:{ok:true,repositoryMatches:[{file:'first.js',line:1,snippet:'records'},{file:'registration.js',line:40,snippet:'equipment'}]}},
   {name:'repo.read',args:{file:'first.js'},observation:{ok:true,verifiedRead:{file:'first.js',content:'const title=row.title; collection(db,"records");'}}}
  ]},ai:{models:{generateContent:async request=>{
   if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":false}'};
@@ -3411,7 +3419,7 @@ test('operational coverage citations bind row fields to their own task and keep 
  const tasks=[evidence({totalCount:1,completeForQuery:true}),evidence({rows:[{id:'a',values:{owner:'Observed owner',deadline:null}}],completeForQuery:true}),evidence({rows:[{id:'b',values:{deadline:'2028-04-20'}}],completeForQuery:true})];
  let schema,payload,outputBudget;
  await review({instruction:'Count all entries and identify owners',objective:{objective:'Identify owners'},contract:{requestQuote:'Identify owners',groups:['owners'],coverageMode:'relationship',scope:'all_sources'},tasks,ai:{models:{generateContent:async request=>{schema=request.config.responseJsonSchema;outputBudget=request.config.maxOutputTokens;payload=JSON.parse(request.config.chatMessages.at(-1).content);return{text:JSON.stringify({proven:false,missing:['Related records remain pending'],groups:[],sources:[]})};}}}});
- assert.equal(payload.missionRequest,'Count all entries and identify owners');assert.ok(outputBudget>2048 && outputBudget<=4096,'source decisions must have a bounded budget that scales with observed scopes');
+ assert.equal(payload.missionRequest,undefined);assert.equal(payload.request,'Identify owners');assert.ok(outputBudget>2048 && outputBudget<=4096,'source decisions must have a bounded budget that scales with observed scopes');
  const citations=schema.properties.groups.items.properties.evidence.items.anyOf;
  const branch=index=>citations.find(item=>item.properties.taskIndex.const===index).properties.fields;
  assert.equal(branch(0).maxItems,0,'a count cannot cite metadata as row fields');
@@ -3469,7 +3477,14 @@ test('source exclusions cannot narrow a global contract using another objectives
  const stages=[];
  const proof=await review({instruction:'Count registered entries and identify official allocations',objective:contract,contract,tasks,advisoryContext:'Declared entries are registered entries; official allocations are a separate objective.',ai:{models:{generateContent:async request=>{
   stages.push(request.config.semanticStage);
-  if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE')return{text:JSON.stringify({proven:true,missing:[],groups:[{group:'entries',proven:true,evidence:[{taskIndex:0,fields:[]}]}],sources:[{collection:'allocated_registry',relevant:true,reason:'Allocated entries',taskIndexes:[0]},{collection:'declared_registry',relevant:false,reason:'Declarations are not official allocations',taskIndexes:[]}]})};
+  if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE') {
+   const payload=JSON.parse(request.config.chatMessages.at(-1).content);
+   assert.equal(payload.request,contract.requestQuote);
+   assert.equal(payload.missionRequest,undefined,'record coverage must not import another objectives requirements');
+   assert.equal(request.contents,contract.requestQuote);
+   assert.ok(!request.config.chatMessages.some(message=>message.content.includes('Count registered entries and identify official allocations')));
+   return{text:JSON.stringify({proven:true,missing:[],groups:[{group:'entries',proven:true,evidence:[{taskIndex:0,fields:[]}]}],sources:[{collection:'allocated_registry',relevant:true,reason:'Allocated entries',taskIndexes:[0]},{collection:'declared_registry',relevant:false,reason:'Declarations are not official allocations',taskIndexes:[]}]})};
+  }
   assert.equal(request.config.semanticStage,'OBJECTIVE_SOURCE_SCOPE_VERIFICATION');const payload=JSON.parse(request.config.chatMessages.at(-1).content);assert.equal(payload.contract.requestQuote,contract.requestQuote);assert.equal(payload.request,contract.requestQuote);assert.equal(payload.missionRequest,undefined,'another mission objective must not become the scope verification request');assert.equal(payload.exclusions[0].collection,'declared_registry');assert.ok(request.config.chatMessages.some(message=>message.content.includes('Declared entries are registered entries')));
   return{text:JSON.stringify({exclusionReviews:[{collection:'declared_registry',contradictsObjective:true,reason:'Registered declarations belong to the counting objective despite not being official allocations.'}]})};
  }}}});
