@@ -74,6 +74,22 @@ test('record coverage keeps source truncation separate from complete operational
   return{text:JSON.stringify({proven:false,missing:['Other observed scope remains pending'],groups:[],sources:[]})};
  }}}});
 });
+test('truncated prefix repetitions require a new window without blocking bounded rereads',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='sourceRangeRepeatsTruncatedPrefix');
+ assert.ok(node,'missing non-advancing range guard');
+ const repeats=runInNewContext('('+source.slice(node.start,node.end)+')',{});
+ const tasks=[{name:'repo.read',observation:{ok:true,verifiedRead:{file:'observed.js',startLine:1,endLine:80,readEndLine:500,contentTruncated:true}}},{name:'repo.read',observation:{ok:true,verifiedRead:{file:'other.js',startLine:1,endLine:50}}}];
+ const call=args=>({name:'repo.read',args:{file:'observed.js',...args}});
+ assert.equal(repeats(call({startLine:1,endLine:300}),tasks),true);
+ assert.equal(repeats(call({startLine:1,endLine:500}),tasks),true);
+ assert.equal(repeats(call({startLine:81,endLine:150}),tasks),false);
+ assert.equal(repeats(call({startLine:1,endLine:60}),tasks),false);
+ assert.equal(repeats(call({startLine:1,endLine:600}),tasks),false);
+ assert.equal(repeats(call({startLine:1,endLine:300}),[{...tasks[0],observation:{...tasks[0].observation,executionOk:false}}]),false);
+ assert.equal(repeats(call({startLine:1,endLine:300}),[{...tasks[0],observation:{ok:true,verifiedRead:{...tasks[0].observation.verifiedRead,contentTruncated:false}}}]),false);
+ assert.equal(repeats({name:'another.read',args:call({startLine:1,endLine:300}).args},tasks),false);
+});
 const coreSource = readFileSync(new URL("../gestia-core/gestia-core.js", import.meta.url), "utf8").replaceAll("\r", "");
 const coreNode = parse(coreSource, { sourceType: "module", ecmaVersion: "latest" }).body
     .find(node => node.type === "ExportNamedDeclaration" && node.declaration?.declarations?.[0]?.id?.name === "GestiaCore")

@@ -745,6 +745,19 @@ function partialSourceProgress(tasks = []) {
     });
 }
 
+function sourceRangeRepeatsTruncatedPrefix(call, tasks = []) {
+    if(!Number.isInteger(call.args?.startLine) || !Number.isInteger(call.args?.endLine))return false;
+    return tasks.some(task=>{
+        const read=task.observation?.verifiedRead;
+        // A same-start, shorter request cannot expose a window beyond the
+        // prefix actually retained for a previous truncated read. Small
+        // bounded rereads remain allowed when an older body was compacted.
+        return task.name===call.name && task.observation?.ok===true && task.observation.executionOk!==false &&
+            read?.file===call.args.file && read.contentTruncated===true &&
+            Number.isInteger(read.endLine) && Number.isInteger(read.readEndLine) &&
+            call.args.startLine===(read.startLine || 1) && call.args.endLine>read.endLine && call.args.endLine<=read.readEndLine;
+    });
+}
 function sourceRangeStillVisible(call, tasks = []) {
     // Only the latest source body is guaranteed to survive audit compaction.
     // Older bodies may legitimately need a re-read even if once consulted.
@@ -2531,7 +2544,7 @@ async function runModelSemanticPlanner({
                     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalArgs(value[key])])) : value;
                 const sameCall = (task, call) => task?.name === call?.name &&
                     JSON.stringify(canonicalArgs(task?.args || {})) === JSON.stringify(canonicalArgs(call?.args || {}));
-                const wasExecuted = call => sourceRangeStillVisible(call, missionState.completedTasks || []) || recordProjectionAlreadyObserved(call, missionState.completedTasks || []) || (missionState.completedTasks || []).some(task => {
+                const wasExecuted = call => sourceRangeRepeatsTruncatedPrefix(call, missionState.completedTasks || []) || sourceRangeStillVisible(call, missionState.completedTasks || []) || recordProjectionAlreadyObserved(call, missionState.completedTasks || []) || (missionState.completedTasks || []).some(task => {
                     if (sameCall(task, call)) return true;
                     // Once a complete unpaged scope has been read, increasing its
                     // page size cannot expand nested fields or add new evidence.
