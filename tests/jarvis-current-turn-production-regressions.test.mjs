@@ -3326,6 +3326,7 @@ test('objective field coverage ignores unclaimed projections but rejects truncat
 });
 
 test('new record coverage replans the next read against fresh independent gaps',async()=>{
+ for(const recoverDuplicate of [false,true]){
  const tool={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'},fields:{type:'array',items:{type:'string'}}},required:['collection','fields']}};
  const contracts=[{objective:'Identify owners',requestQuote:'Identify owners',requiredEvidenceKind:'platform_records',coverageMode:'relationship',scope:'explicit_scope',groups:['owners']},{objective:'Inspect deadlines',requestQuote:'Inspect deadlines',requiredEvidenceKind:'platform_records',coverageMode:'temporal',scope:'explicit_scope',groups:['deadlines']}];
  const tasks=[{name:tool.name,args:{collection:'registry',fields:['owner']},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',fields:['owner']},rows:[{id:'one',values:{owner:'Observed owner'}}],totalCount:1,completeForQuery:true,hasMore:false}}}];
@@ -3338,9 +3339,15 @@ test('new record coverage replans the next read against fresh independent gaps',
   }
   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){
    freshPlan=true;const pending=request.config.chatMessages.find(m=>m.content.startsWith('OBJETIVOS_PENDIENTES='));assert.match(pending.content,/Read the observed deadline source/);assert.doesNotMatch(pending.content,/Pre-review assessment/);
+   if(recoverDuplicate)return{functionCalls:[{name:tool.name,args:tasks[0].args}]};
    return{functionCalls:[{name:tool.name,args:{collection:'deadline_registry',fields:['expiresAt']}}]};
+  }
+  if(request.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY'){
+   const pending=request.config.chatMessages.find(m=>m.content.startsWith('OBJETIVOS_PENDIENTES='));assert.ok(pending,'duplicate recovery must preserve fresh per-objective coverage');assert.match(pending.content,/Read the observed deadline source/);assert.doesNotMatch(pending.content,/Pre-review assessment/);
+   return{text:JSON.stringify({toolCalls:[{name:tool.name,args:{collection:'deadline_registry',fields:['expiresAt']}}]})};
   }
   throw Error('Unexpected stage '+request.config.semanticStage);
  }}}});
  assert.equal(freshPlan,true);assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives[0].satisfied,true);assert.equal(result.completionAssessment.objectives[1].satisfied,false);assert.deepEqual(result.toolCalls[0].args,{collection:'deadline_registry',fields:['expiresAt']});
+ }
 });

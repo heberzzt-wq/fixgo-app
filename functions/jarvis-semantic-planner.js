@@ -2736,6 +2736,7 @@ async function runModelSemanticPlanner({
                             ...auditTasks.map(task=>({role:"system",content:"YA_EJECUTADO="+JSON.stringify(task)})),
                             {role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedWriteSchemas)},
                             {role:"system",content:"RUTAS_LOCALIZADAS="+JSON.stringify(sources)+"\nRUTAS_CANDIDATAS_AUN_NO_LEIDAS="+JSON.stringify(unreadSources)+"\nCAPACIDADES_TRAS_LEER_LA_FUENTE="+JSON.stringify(pendingCapabilities)},
+                            {role:"system",content:"OBJETIVOS_PENDIENTES="+JSON.stringify(continuationObjectiveSummaries(evaluatedAudit.completionAssessment?.objectives))+"\nEsta evaluación conserva la cobertura actual de cada objetivo. El siguiente paso debe obtener evidencia para una brecha pendiente; añadir un campo distinto no demuestra avance por sí solo. No vuelvas a investigar un objetivo satisfecho para sustituir otro pendiente."},
                             {role:"system",content:"LECTURAS_PARCIALES="+JSON.stringify(partialSources)+"\nEstos archivos sólo se leyeron por fragmentos. Puedes elegir repo.read con file y startLine/endLine para ampliar una región pertinente aún no observada, usando los anclajes de esquema o el límite de la lectura anterior. No repitas los mismos argumentos de lectura completa; un archivo parcialmente leído no equivale a una fuente agotada."},
                             {role:"user",content:instruction}
                         ]
