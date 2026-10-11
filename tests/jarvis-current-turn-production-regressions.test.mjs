@@ -3307,3 +3307,20 @@ test('field rejection constrains recovery to observed fields without changing ot
  assert.deepEqual(bind([query],reads,[{name:query.name,observation:{errorCode:'PERMISSION_DENIED'}}]),[query]);
  reads[0].observation.verifiedRead.sourceStructure.dataBindings.writeShapes[0].fields.push('guessed');assert.ok(bind([query],reads,failures)[0].inputSchema.anyOf[0].properties.fields.items.enum.includes('guessed'),'a later positive source may accredit a formerly rejected field');
 });
+
+test('objective field coverage ignores unclaimed projections but rejects truncated cited values',()=>{
+ const {qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',fields:['details','details.owner','attachments']},rows:[{id:'one',values:{details:{notExpanded:true},'details.owner':'Observed owner',attachments:{notExpanded:true}}}],totalCount:1,returnedCount:1,hasMore:false,completeForQuery:true,truncatedFields:[{id:'one',field:'details'},{id:'one',field:'attachments'}]};
+ const contract={coverageMode:'relationship',scope:'explicit_scope',groups:['owner']};
+ const objective={objective:'Identify owners',evidenceTaskIndexes:[0],coverageProof:{proven:true,missing:[],groups:[{group:'owner',proven:true,evidence:[{taskIndex:0,fields:['details.owner']}]}]}};
+ const tasks=[{observation:{ok:true,recordEvidence:record}}];
+ assert.equal(qualify(objective,contract,tasks).status,'complete','unrelated or parent projections do not invalidate a fully observed cited child field');
+ objective.coverageProof.groups[0].evidence[0].fields=['attachments'];
+ assert.equal(qualify(objective,contract,tasks).status,'partial','a placeholder cannot support the objective that cites it');
+ objective.coverageProof.groups[0].evidence[0].fields=['details.owner'];
+ record.rows[0].values['details.owner']=null;
+ assert.equal(qualify(objective,contract,tasks).status,'partial','a missing value stays unknown');
+ record.rows[0].values['details.owner']='Observed owner';
+ objective.coverageProof.proven=false;
+ assert.equal(qualify(objective,contract,tasks).status,'partial','mechanical projection checks cannot overrule Qwen coverage');
+});

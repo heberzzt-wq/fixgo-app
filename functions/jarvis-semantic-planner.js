@@ -561,7 +561,13 @@ function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
     if(!records.length) missing.push("Faltan registros operativos consultados para este objetivo.");
     if(records.some(record=>!complete(record))) missing.push("La consulta conserva páginas pendientes de leer; continúa desde el cursor observado.");
     for(const record of records.filter(record=>record.truncatedFields?.length)) {
-        const fields=[...new Set(record.truncatedFields.map(item=>item.field))];
+        // Coverage belongs to this objective's cited fields, not every projected
+        // column. A separately read child value does not inherit its parent's
+        // placeholder; absent/null cited values are still rejected below.
+        const citedFields=new Set((proof?.groups||[]).flatMap(group=>(group.evidence||[])
+            .filter(citation=>citation.taskIndex===record.taskIndex).flatMap(citation=>citation.fields||[])));
+        const fields=[...new Set(record.truncatedFields.map(item=>item.field).filter(field=>citedFields.has(field)))];
+        if(!fields.length)continue;
         missing.push("Campos sin expandir o truncados en "+record.scope?.collection+": "+fields.join(", ")+". Aumentar pageSize no los resuelve: consulta sus campos hijos acreditados por la fuente o lee la definición que falta; no inventes campos ni interpretes notExpanded como un valor operativo.");
     }
     const groups=contract?.groups || [contract?.requestQuote || objective.objective];
