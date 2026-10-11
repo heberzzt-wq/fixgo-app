@@ -2253,18 +2253,32 @@ async function runModelSemanticPlanner({
             ((task.observation.repoCandidates || []).length > 0 ||
                 (task.observation.repositoryMatches || []).length > 0)
         );
-        const pendingCandidateFiles = latestSearchIndex >= 0
-            ? [...new Set([
-                ...(completedTasksForAudit[latestSearchIndex].observation.repoCandidates || []),
-                ...(completedTasksForAudit[latestSearchIndex].observation.repositoryMatches || [])]
+        // A new shortlist does not erase sources already observed for pending
+        // objectives. Keep the discovery frontier across literal and semantic
+        // searches; this model still chooses which existing source is relevant.
+        const observedCandidateFiles = latestSearchIndex >= 0
+            ? [...new Set(completedTasksForAudit.slice(0,latestSearchIndex+1).filter(task=>
+                ["repo.search","repo.grep"].includes(task.name) && task.observation?.ok===true &&
+                task.observation.executionOk!==false && task.observation.blocked!==true
+            ).reverse().flatMap(task=>[
+                ...(task.observation.repoCandidates || []),
+                ...(task.observation.repositoryMatches || [])])
                 .map(item => String(item?.file || item?.path || "").trim())
                 .filter(Boolean))]
             : [];
+        // This frontier governs the first inspection after discovery. Previously
+        // read files retain their partial ranges below; pruning them here does
+        // not declare their source or operational coverage complete.
+        const inspectedCandidateFiles=new Set(completedTasksForAudit.filter(task=>
+            task.name==="repo.read" && task.observation?.ok===true &&
+            task.observation.executionOk!==false && task.observation.blocked!==true
+        ).map(task=>task.observation.verifiedRead?.file).filter(Boolean));
+        const pendingCandidateFiles=observedCandidateFiles.filter(file=>!inspectedCandidateFiles.has(file));
         const candidateAlreadyRead = latestSearchIndex >= 0 && completedTasksForAudit.slice(latestSearchIndex + 1).some(task =>
             task?.name === "repo.read" &&
             task?.observation?.ok === true &&
             task?.observation?.executionOk !== false &&
-            pendingCandidateFiles.includes(String(task?.observation?.verifiedRead?.file || ""))
+            observedCandidateFiles.includes(String(task?.observation?.verifiedRead?.file || ""))
         );
         let selectableCatalog = bindEvidencePrerequisites(safeCatalog, completedTasksForAudit).filter(tool => !measuredRepair ||
             (tool.name !== "browser.inspect" && tool.name !== "tests.run" && (tool.name !== "repo.prepareWrite" || hasReadSource)));

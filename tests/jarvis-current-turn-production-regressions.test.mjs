@@ -90,6 +90,21 @@ test('truncated prefix repetitions require a new window without blocking bounded
  assert.equal(repeats(call({startLine:1,endLine:300}),[{...tasks[0],observation:{ok:true,verifiedRead:{...tasks[0].observation.verifiedRead,contentTruncated:false}}}]),false);
  assert.equal(repeats({name:'another.read',args:call({startLine:1,endLine:300}).args},tasks),false);
 });
+test('new discovery retains unread sources observed by earlier literal searches',async()=>{
+ const input='Inspect current allocations';
+ const read={name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file'],additionalProperties:false}};
+ const records={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}},required:['sourceFile']}};
+ let sawFrontier=false;
+ const result=await runJarvisSemanticPlanner({input,catalog:[read,records],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[{objective:input,requiredEvidenceKind:'platform_records'}],completedTasks:[{name:'repo.grep',observation:{ok:true,repositoryMatches:[{file:'earlier-source.js',line:70},{file:'already-read.js',line:20}]}},{name:'repo.read',observation:{ok:true,verifiedRead:{file:'already-read.js'}}},{name:'repo.search',observation:{ok:true,repoCandidates:[{file:'recent-source.js'}]}}]},ai:{models:{generateContent:async request=>{
+  assert.equal(request.config.semanticStage,'COMPLETION_AUDIT');
+  const options=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;
+  const paths=options.find(branch=>branch.properties.name.enum.includes('repo.read')).properties.args.properties.file.enum;
+  assert.ok(paths.includes('earlier-source.js'),'earlier observed unread source disappeared');
+  assert.ok(paths.includes('recent-source.js'));assert.ok(!paths.includes('already-read.js'),'a new-discovery frontier should retain sources still awaiting their first read');sawFrontier=true;
+  return{text:JSON.stringify({toolCalls:[{name:read.name,args:{file:'earlier-source.js'}}],completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Current records remain pending'}]}})};
+ }}}});
+ assert.equal(sawFrontier,true);assert.equal(result.missionComplete,false);assert.equal(result.toolCalls[0].args.file,'earlier-source.js');
+});
 const coreSource = readFileSync(new URL("../gestia-core/gestia-core.js", import.meta.url), "utf8").replaceAll("\r", "");
 const coreNode = parse(coreSource, { sourceType: "module", ecmaVersion: "latest" }).body
     .find(node => node.type === "ExportNamedDeclaration" && node.declaration?.declarations?.[0]?.id?.name === "GestiaCore")
