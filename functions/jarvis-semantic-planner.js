@@ -2922,7 +2922,7 @@ async function runModelSemanticPlanner({
                         const schema=buildNativeInputSchema(tool.inputSchema);
                         const branches=(schema.anyOf || [schema]).flatMap(branch=>{
                             const properties=branch.properties || {};
-                            if(!properties.mode?.enum?.includes("query") || properties.fields?.type!=="array" || properties.fields.maxItems===0)return [];
+                            if(!properties.mode?.enum?.includes("query") || properties.fields?.type!=="array" || properties.fields.maxItems===0 || branch.required?.includes("cursor"))return [];
                             return (properties.sourceFile?.enum || []).flatMap(sourceFile=>(properties.collection?.enum || []).flatMap(collection=>{
                                 if(!pendingRecordScopes.has(collection) || /[{}]/.test(collection))return [];
                                 if(completedTasksForAudit.some(task=>task.observation?.ok===true && task.observation.executionOk!==false && task.observation.blocked!==true &&
@@ -2936,6 +2936,9 @@ async function runModelSemanticPlanner({
                                     sourceFile:{...properties.sourceFile,enum:[sourceFile]},collection:{...properties.collection,enum:[collection]},
                                     mode:{...properties.mode,enum:["query"]},fields:{...properties.fields,minItems:Math.max(1,properties.fields.minItems || 0),items:{...properties.fields.items,enum:fields}}},
                                     required:[...new Set([...(branch.required || []),"sourceFile","collection","mode","fields"])]};
+                                // This scope has never been queried, so no continuation cursor
+                                // is grounded. Omit the optional argument from this first-page contract.
+                                delete bounded.properties.cursor;
                                 while(fields.length && JSON.stringify(bounded).length>recordRecoveryBudget)fields.pop();
                                 if(!fields.length)return [];
                                 recordRecoveryBudget-=JSON.stringify(bounded).length;
