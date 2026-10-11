@@ -639,18 +639,37 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
     const proof=extractJsonObject(String(response?.text||"")) || {proven:false,missing:["No se obtuvo una revisión de cobertura válida."]};
     const exclusions=(proof.sources || []).filter(source=>source.relevant===false);
     if(contract.scope!=="all_sources" || !exclusions.length)return proof;
+    const observedDefinitions=[...new Map([...tasks].reverse().flatMap(task=>{
+        const read=task.observation?.verifiedRead;
+        return task.observation?.ok===true && task.observation.executionOk!==false
+            ? (read?.sourceStructure?.dataBindings?.writeShapes || []).map(shape=>({file:read.file,collection:shape.collection,fields:shape.fields,fieldsComplete:shape.fieldsComplete})) : [];
+    }).map(shape=>[JSON.stringify(shape),shape])).values()];
+    const sourceDefinitions=[];
+    let definitionBudget=6000;
+    for(const observed of observedDefinitions) {
+        if(sourceDefinitions.length>=24 || definitionBudget<256)break;
+        const definition={...observed,fields:[...(observed.fields || [])]};
+        while(definition.fields.length && JSON.stringify(definition).length>definitionBudget) {
+            definition.fields.pop();definition.fieldsComplete=false;
+        }
+        const cost=JSON.stringify(definition).length;
+        if(cost>definitionBudget)continue;
+        sourceDefinitions.push(definition);definitionBudget-=cost;
+    }
     const scopeReview=await ai.models.generateContent({model,contents:contract.requestQuote,config:{
-        semanticStage:"OBJECTIVE_SOURCE_SCOPE_VERIFICATION",temperature:0,maxOutputTokens:768,
+        semanticStage:"OBJECTIVE_SOURCE_SCOPE_VERIFICATION",temperature:0,maxOutputTokens:Math.min(2048,Math.max(768,exclusions.length*160)),
         chatMessages:[{role:"system",content:"Verifica únicamente si las exclusiones de fuentes respetan el alcance literal del objetivo y las aclaraciones explícitas del usuario. No evalúes cumplimiento ni registros. Una distinción entre dos clases no autoriza eliminar una de ellas de un objetivo que las incluye. No sustituyas la población original por una categoría más estrecha inferida de la primera fuente consultada ni transfieras el requisito de otro objetivo. Señala sólo exclusiones con una contradicción clara frente a la solicitud o aclaración explícita del usuario. No invalides una exclusión por probabilidad, semejanza de nombres de rutas ni funciones hipotéticas que no están acreditadas. La incertidumbre no autoriza inventar nuevos requisitos de dominio. La respuesta no prueba datos operativos ni concede permisos."},
             ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
             {role:"system",content:"La decisión pertenece exclusivamente a contract.requestQuote. El contexto puede aclarar su población, pero las otras preguntas de la misión no son requisitos de este contrato. Una fuente ajena a este objetivo puede ser pertinente a otro sin invalidar su exclusión aquí. No amplíes el objetivo usando esos otros pedidos. Conserva las exclusiones justificadas por el esquema observado; señala solamente una contradicción explícita con ESTE objetivo o una aclaración de su propia población."},
-            {role:"user",content:JSON.stringify({request:contract.requestQuote,contract,exclusions})}],
-        responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{invalidExclusions:{type:"array",maxItems:exclusions.length,items:{type:"object",properties:{collection:{type:"string",enum:[...new Set(exclusions.map(source=>source.collection))]},reason:{type:"string",maxLength:240}},required:["collection","reason"],additionalProperties:false}}},required:["invalidExclusions"],additionalProperties:false}
+            {role:"system",content:"Emite un veredicto para cada exclusión: contradictsObjective=false cuando respeta este objetivo; true sólo si contradice explícitamente su alcance o una aclaración propia. Explicar que una exclusión es correcta requiere false. sourceDefinitions sólo acredita el esquema, nunca registros. Usa sus campos para evitar atribuir a una fuente funciones hipotéticas."},
+            {role:"user",content:JSON.stringify({request:contract.requestQuote,contract,exclusions,sourceDefinitions,sourceDefinitionsMayBeIncomplete:sourceDefinitions.length<observedDefinitions.length || sourceDefinitions.some(source=>source.fieldsComplete!==true)})}],
+        responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{exclusionReviews:{type:"array",minItems:exclusions.length,maxItems:exclusions.length,items:{type:"object",properties:{collection:{type:"string",enum:[...new Set(exclusions.map(source=>source.collection))]},contradictsObjective:{type:"boolean"},reason:{type:"string",maxLength:160}},required:["collection","contradictsObjective","reason"],additionalProperties:false}}},required:["exclusionReviews"],additionalProperties:false}
     }});
     const verdict=extractJsonObject(String(scopeReview?.text || ""));
-    const valid=scopeReview?.providerResponse?.finishReason!=="length" && Array.isArray(verdict?.invalidExclusions) &&
-        verdict.invalidExclusions.every(item=>exclusions.some(source=>source.collection===item.collection) && typeof item.reason==="string" && item.reason.trim());
-    const invalid=valid ? verdict.invalidExclusions : exclusions.map(source=>({collection:source.collection,reason:"No se pudo comprobar esta exclusión contra el alcance original."}));
+    const valid=scopeReview?.providerResponse?.finishReason!=="length" && Array.isArray(verdict?.exclusionReviews) &&
+        exclusions.every(source=>verdict.exclusionReviews.filter(item=>item.collection===source.collection).length===1) &&
+        verdict.exclusionReviews.length===exclusions.length && verdict.exclusionReviews.every(item=>exclusions.some(source=>source.collection===item.collection) && typeof item.contradictsObjective==="boolean" && typeof item.reason==="string" && item.reason.trim());
+    const invalid=valid ? verdict.exclusionReviews.filter(item=>item.contradictsObjective===true) : exclusions.map(source=>({collection:source.collection,reason:"No se pudo comprobar esta exclusión contra el alcance original."}));
     for(const item of invalid) {
         proof.proven=false;
         proof.missing=[...(proof.missing || []),"Fuente pendiente por alcance: "+item.collection+". "+item.reason];

@@ -3452,8 +3452,25 @@ test('source exclusions cannot narrow a global contract using another objectives
   stages.push(request.config.semanticStage);
   if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE')return{text:JSON.stringify({proven:true,missing:[],groups:[{group:'entries',proven:true,evidence:[{taskIndex:0,fields:[]}]}],sources:[{collection:'allocated_registry',relevant:true,reason:'Allocated entries',taskIndexes:[0]},{collection:'declared_registry',relevant:false,reason:'Declarations are not official allocations',taskIndexes:[]}]})};
   assert.equal(request.config.semanticStage,'OBJECTIVE_SOURCE_SCOPE_VERIFICATION');const payload=JSON.parse(request.config.chatMessages.at(-1).content);assert.equal(payload.contract.requestQuote,contract.requestQuote);assert.equal(payload.request,contract.requestQuote);assert.equal(payload.missionRequest,undefined,'another mission objective must not become the scope verification request');assert.equal(payload.exclusions[0].collection,'declared_registry');assert.ok(request.config.chatMessages.some(message=>message.content.includes('Declared entries are registered entries')));
-  return{text:JSON.stringify({invalidExclusions:[{collection:'declared_registry',reason:'Registered declarations belong to the counting objective despite not being official allocations.'}]})};
+  return{text:JSON.stringify({exclusionReviews:[{collection:'declared_registry',contradictsObjective:true,reason:'Registered declarations belong to the counting objective despite not being official allocations.'}]})};
  }}}});
  assert.deepEqual(stages,['RECORD_OBJECTIVE_COVERAGE','OBJECTIVE_SOURCE_SCOPE_VERIFICATION']);assert.equal(proof.proven,false);
  const result=qualify({evidenceTaskIndexes:[0],coverageProof:proof},contract,tasks);assert.equal(result.status,'partial');assert.deepEqual(result.pendingSources,['declared_registry']);assert.equal(result.consultedScopes[0].totalCount,1);
+});
+
+test('scope reviews distinguish justified exclusions from violations and bound their observed schema',async()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry','events'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse});
+ const tasks=[{observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry'},totalCount:0}}},{observation:{ok:true,verifiedRead:{file:'observed.js',sourceStructure:{dataBindings:{writeShapes:[{collection:'events',fields:Array.from({length:500},(_,i)=>'observed_field_'+i+'_'+ 'x'.repeat(40)),fieldsComplete:true}]}}}}}];
+ const contract={requestQuote:'Count registered entries',groups:['entries'],coverageMode:'population',scope:'all_sources'};
+ for(const mode of ['justified','violation','missing','duplicate']) {
+  const proof=await review({contract,objective:contract,tasks,ai:{models:{generateContent:async request=>{
+   if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE')return{text:JSON.stringify({proven:true,missing:[],groups:[],sources:[{collection:'registry',relevant:true,reason:'Population',taskIndexes:[0]},{collection:'events',relevant:false,reason:'Historical events outside the requested population',taskIndexes:[]}]})};
+   const payload=JSON.parse(request.config.chatMessages.at(-1).content);assert.ok(JSON.stringify(payload.sourceDefinitions).length<=6024);assert.equal(payload.sourceDefinitionsMayBeIncomplete,true);assert.equal(payload.sourceDefinitions[0].fieldsComplete,false);
+   const verdict={collection:'events',contradictsObjective:mode==='violation',reason:mode==='violation'?'The user explicitly included these entries.':'The exclusion respects the requested population.'};
+   return{text:JSON.stringify({exclusionReviews:mode==='missing'?[]:mode==='duplicate'?[verdict,verdict]:[verdict]})};
+  }}}});
+  assert.equal(proof.proven,mode==='justified');assert.equal(proof.sources[1].relevant,mode==='justified'?false:null);
+ }
 });
