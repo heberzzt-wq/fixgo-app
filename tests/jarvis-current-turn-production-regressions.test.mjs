@@ -3362,9 +3362,11 @@ test('source discovery preserves the last operational coverage and its pending s
  const previous={evaluatedTaskCount:1,objectives:[{objective:contract.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0],coverageProof:proof}]};
  const before=JSON.stringify(previous);
  const tasks=[{name:records.name,observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'primary',fields:['owner']},rows:[{id:'one',values:{owner:'Observed owner'}}],totalCount:1,completeForQuery:true,hasMore:false}}},{name:reader.name,args:{file:'source.js'},observation:{ok:true,verifiedRead:{file:'source.js',startLine:1,endLine:9,totalLines:20,content:'Related schema',sourceStructure:{dataBindings:{collections:['primary','related'],fieldPaths:['owner']}}}}}];
+ let replanned=false;
  const result=await runJarvisSemanticPlanner({input:'Identify owners',catalog:[records,reader],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[contract],completionAssessment:previous,completedTasks:tasks},ai:{models:{generateContent:async request=>{
-  assert.equal(request.config.semanticStage,'COMPLETION_AUDIT');return{text:JSON.stringify({completionAssessment:{objectives:[{objective:contract.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0],limitation:'Unconfirmed pagination'}]},toolCalls:[{name:reader.name,args:{file:'source.js',startLine:10}}]})};
+  if(request.config.semanticStage!=='COMPLETION_AUDIT'){replanned=true;assert.ok(request.config.chatMessages.some(message=>message.content.includes('related')),'the retained pending source must reach the next-step choice');return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'source.js',startLine:10}}]})};}return{text:JSON.stringify({completionAssessment:{objectives:[{objective:contract.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0],limitation:'Unconfirmed pagination'}]},toolCalls:[{name:reader.name,args:{file:'source.js',startLine:3}}]})};
  }}}});
+ assert.equal(replanned,true);assert.equal(result.toolCalls[0].args.startLine,10,'discard the choice made before retained coverage was qualified');
  const current=result.completionAssessment.objectives[0];assert.deepEqual(current.coverageProof,proof);assert.match(current.limitation,/Related registry remains unqueried/);assert.doesNotMatch(current.limitation,/Unconfirmed pagination/);assert.equal(current.satisfied,false);assert.equal(result.missionComplete,false);assert.equal(current.coverage.consultedScopes[0].completeForQuery,true);assert.equal(JSON.stringify(previous),before,'retention must not mutate an earlier assessment');
 });
 
@@ -3380,4 +3382,60 @@ test('source continuation uses the exact window delivered to the planner when ra
  assert.equal(range(args,context,'other.js',compact),null,'a window never anchors another file');
  assert.equal(range({...args,startLine:args.startLine+7},context,'source.js',compact),null,'an arbitrary unobserved range remains ungrounded');
  observation.ok=false;assert.equal(range(args,context,'source.js',compact),null,'failed reads do not authorize a continuation');
+});
+
+test('operational coverage citations bind row fields to their own task and keep count metadata separate',async()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry',...Array.from({length:34},(_,i)=>'observed_scope_'+i)],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse});
+ const evidence=(recordEvidence)=>({observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry'},...recordEvidence}}});
+ const tasks=[evidence({totalCount:1,completeForQuery:true}),evidence({rows:[{id:'a',values:{owner:'Observed owner',deadline:null}}],completeForQuery:true}),evidence({rows:[{id:'b',values:{deadline:'2028-04-20'}}],completeForQuery:true})];
+ let schema,payload,outputBudget;
+ await review({instruction:'Count all entries and identify owners',objective:{objective:'Identify owners'},contract:{requestQuote:'Identify owners',groups:['owners'],coverageMode:'relationship',scope:'all_sources'},tasks,ai:{models:{generateContent:async request=>{schema=request.config.responseJsonSchema;outputBudget=request.config.maxOutputTokens;payload=JSON.parse(request.config.chatMessages.at(-1).content);return{text:JSON.stringify({proven:false,missing:['Related records remain pending'],groups:[],sources:[]})};}}}});
+ assert.equal(payload.missionRequest,'Count all entries and identify owners');assert.ok(outputBudget>2048 && outputBudget<=4096,'source decisions must have a bounded budget that scales with observed scopes');
+ const citations=schema.properties.groups.items.properties.evidence.items.anyOf;
+ const branch=index=>citations.find(item=>item.properties.taskIndex.const===index).properties.fields;
+ assert.equal(branch(0).maxItems,0,'a count cannot cite metadata as row fields');
+ assert.equal(branch(1).maxItems,1,'a field citation list cannot repeat indefinitely');assert.equal(schema.properties.sources.maxItems,35);assert.equal(schema.properties.sources.minItems,35);assert.equal(schema.properties.sources.items.properties.reason.maxLength,160);assert.equal(schema.properties.missing.maxItems,6);
+ assert.deepEqual(Array.from(branch(1).items.enum),['owner'],'null and foreign-task fields cannot become proof');
+ assert.deepEqual(Array.from(branch(2).items.enum),['deadline'],'each task retains its own observed fields');
+});
+
+test('bounded continuation preserves named pending sources after verbose coverage explanations',()=>{
+ const {qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='continuationObjectiveSummaries');
+ const summarize=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const objective={objective:'Count registered entries',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[1],limitation:'Already observed '.repeat(150),coverageProof:{proven:false,missing:['Related source remains unqueried'],groups:[],sources:[{collection:'primary',relevant:true,reason:'Observed population',taskIndexes:[1]}]}};
+ objective.coverage=qualify(objective,{scope:'all_sources',coverageMode:'population',groups:['entries']},[{observation:{ok:true,verifiedRead:{sourceStructure:{dataBindings:{collections:['primary','related']}}}}},{observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'primary'},totalCount:0}}}]);
+ const summary=JSON.parse(JSON.stringify(summarize([objective])))[0];
+ assert.equal(summary.limitation.length,1200);assert.deepEqual(summary.pendingSources,['related']);assert.deepEqual(summary.objectiveGaps,['Related source remains unqueried']);assert.deepEqual(summary.evidenceTaskIndexes,[1]);assert.equal(summary.requiredEvidenceKind,'platform_records');assert.equal(summary.satisfied,false);
+});
+
+test('contradictory decisions for one source keep its objective pending',()=>{
+ const {qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const contract={scope:'all_sources',coverageMode:'population',groups:['entries']};
+ const tasks=[{observation:{ok:true,verifiedRead:{sourceStructure:{dataBindings:{collections:['registry']}}}}},{observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry'},totalCount:1}}}];
+ const objective={evidenceTaskIndexes:[1],coverageProof:{proven:true,missing:[],groups:[{group:'entries',proven:true,evidence:[{taskIndex:1,fields:[]}]}],sources:[{collection:'registry',relevant:true,reason:'Observed population',taskIndexes:[1]}]}};
+ assert.equal(qualify(objective,contract,tasks).status,'complete');
+ objective.coverageProof.sources.push({collection:'registry',relevant:false,reason:'An incompatible exclusion',taskIndexes:[]});
+ const result=qualify(objective,contract,tasks);assert.equal(result.status,'partial');assert.deepEqual(result.pendingSources,['registry']);
+});
+
+test('source exclusions cannot narrow a global contract using another objectives distinction',async()=>{
+ const {qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['declared_registry','allocated_registry'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse});
+ const contract={requestQuote:'Count registered entries',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['entries']};
+ const tasks=[{observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'allocated_registry'},totalCount:1,completeForQuery:true}}},{observation:{ok:true,verifiedRead:{sourceStructure:{dataBindings:{collections:['declared_registry','allocated_registry']}}}}}];
+ const stages=[];
+ const proof=await review({instruction:'Count registered entries and identify official allocations',objective:contract,contract,tasks,advisoryContext:'Declared entries are registered entries; official allocations are a separate objective.',ai:{models:{generateContent:async request=>{
+  stages.push(request.config.semanticStage);
+  if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE')return{text:JSON.stringify({proven:true,missing:[],groups:[{group:'entries',proven:true,evidence:[{taskIndex:0,fields:[]}]}],sources:[{collection:'allocated_registry',relevant:true,reason:'Allocated entries',taskIndexes:[0]},{collection:'declared_registry',relevant:false,reason:'Declarations are not official allocations',taskIndexes:[]}]})};
+  assert.equal(request.config.semanticStage,'OBJECTIVE_SOURCE_SCOPE_VERIFICATION');const payload=JSON.parse(request.config.chatMessages.at(-1).content);assert.equal(payload.contract.requestQuote,contract.requestQuote);assert.equal(payload.exclusions[0].collection,'declared_registry');assert.ok(request.config.chatMessages.some(message=>message.content.includes('Declared entries are registered entries')));
+  return{text:JSON.stringify({invalidExclusions:[{collection:'declared_registry',reason:'Registered declarations belong to the counting objective despite not being official allocations.'}]})};
+ }}}});
+ assert.deepEqual(stages,['RECORD_OBJECTIVE_COVERAGE','OBJECTIVE_SOURCE_SCOPE_VERIFICATION']);assert.equal(proof.proven,false);
+ const result=qualify({evidenceTaskIndexes:[0],coverageProof:proof},contract,tasks);assert.equal(result.status,'partial');assert.deepEqual(result.pendingSources,['declared_registry']);assert.equal(result.consultedScopes[0].totalCount,1);
 });
