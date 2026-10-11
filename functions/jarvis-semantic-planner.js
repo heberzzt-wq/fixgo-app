@@ -1285,7 +1285,7 @@ function boundedAuditTasks(tasks) {
         read.sourceStructure.dataBindings={collections,...(structuralRead?{structuralRead}:{}),sharedSourceSchemaTaskIndex:owner};
         sharedSchemas=true;
     }
-    if(sharedSchemas)minimal[0]={...minimal[0],sharedSourceSchemaEncoding:"sharedSourceSchemaTaskIndex references the identical schema definition at that original task index, excluding structuralRead, which stays local to each read and must never be inherited. Only schema metadata is shared; each read keeps its own file and range, and operational records keep their own scope and timestamps. Resolve this reference before reading field paths or write shapes."};
+    if(sharedSchemas)minimal[0]={...minimal[0],sharedSourceSchemaEncoding:"sharedSourceSchemaTaskIndex references identical schema metadata at that original task index. structuralRead, file and range remain local. Records retain their own scope and timestamps. Resolve before reading fields or write shapes."};
     // Share repeated field spellings across source schemas without dropping any
     // field or changing its source/collection association. Ranges are lossless.
     if (JSON.stringify(minimal).length > 27000) {
@@ -1313,6 +1313,12 @@ function boundedAuditTasks(tasks) {
                     repoCandidates:task.observation.repoCandidates.map(({file})=>({file}))};
                 continue;
             }
+            if (bindings.fieldPathDictionary) {
+                const {prefix,suffix,members,integerRange}=bindings.fieldPathDictionary;
+                const values=members || Array.from({length:integerRange[1]-integerRange[0]+1},(_,i)=>String(integerRange[0]+i));
+                bindings.fieldPaths=values.map(member=>(prefix || "")+member+(suffix || ""));
+                delete bindings.fieldPathDictionary;delete bindings.fieldPathEncoding;
+            }
             if (bindings.fieldPaths) { bindings.fieldIds = fieldIds(bindings.fieldPaths); delete bindings.fieldPaths; }
             for (const shape of bindings.writeShapes || []) {
                 shape.fieldIds = fieldIds(shape.fields || []);
@@ -1320,7 +1326,7 @@ function boundedAuditTasks(tasks) {
             }
         }
         if (dictionary.length) minimal[0] = {...minimal[0], sharedFieldDictionary:dictionary.some(field=>field.includes('|')) ? dictionary : dictionary.join('|'),
-            sharedFieldEncoding:'Split sharedFieldDictionary on | when it is a string. fieldIds reference its zero-based entries; [a,b] expands all IDs from a through b. Source and collection associations remain local to each schema.'};
+            sharedFieldEncoding:'Split string sharedFieldDictionary on |. fieldIds are zero-based; [a,b] expands inclusive IDs. Source/collection associations stay local.'};
     }
     // Lossless transport compression: repeated snapshots retain their timestamps,
     // query scopes and changed values. References never imply new coverage.
@@ -1351,7 +1357,7 @@ function boundedAuditTasks(tasks) {
             }
             if(best!==current){minimal[index].observation={...minimal[index].observation,recordEvidence:best};reused=true;}
         }
-        if(reused)minimal[0]={...minimal[0],recordSnapshotEncoding:"recordBaseTaskIndex copies that earlier task's full recordEvidence (recursively), then overrides keys here and removes recordRemovedKeys. recordRowPatches=[recordId,changedValues,absentFields] updates the inherited row values exactly. Unchanged rows and fields remain. Each snapshot keeps its own scope and observation time; reuse does not widen coverage."};
+        if(reused)minimal[0]={...minimal[0],recordSnapshotEncoding:"recordBaseTaskIndex copies earlier recordEvidence recursively; override keys here, remove recordRemovedKeys. recordRowPatches=[id,changedValues,absentFields] patches inherited rows. Keep unchanged values, scope and time; no added coverage."};
     }
     if (JSON.stringify(minimal).length > 27000) {
         for (const task of minimal) {
@@ -1410,13 +1416,66 @@ function boundedAuditTasks(tasks) {
         }
         minimal[0]={...minimal[0],sourceReadDefaults:defaults,
             ...(Object.keys(kinds).length?{toolEvidenceKinds:kinds}:{}),
-            evidenceMetadataEncoding:"Task index is its array position unless explicit. Missing allowedEvidenceKinds inherit toolEvidenceKinds[task.name]. Each verifiedRead and its dataBindings inherit only their missing sourceReadDefaults keys. readArgs lists argument keys stored unchanged in verifiedRead. These encodings never add operational evidence or coverage."};
+            evidenceMetadataEncoding:"Task index=array position unless explicit. allowedEvidenceKinds inherit toolEvidenceKinds[name]. Missing read/binding keys inherit sourceReadDefaults. readArgs lists args stored in verifiedRead. No added evidence."};
+    }
+    // Dense rows repeat column indexes and values. Encode the same JSON values
+    // once per snapshot; retain every row ID, null, absent key and query scope.
+    if (JSON.stringify(minimal).length > 27000) {
+        for (const [index,task] of minimal.entries()) {
+            const current=task.observation?.recordEvidence;
+            const original=tasks[index].observation?.recordEvidence;
+            if(!current || current.recordBaseTaskIndex!==undefined || !original?.rows?.length ||
+                original.rows.some(row=>typeof row.id!=="string" || !row.values || Object.keys(row).some(key=>!["id","values"].includes(key))))continue;
+            const columns=[...new Set(original.rows.flatMap(row=>Object.keys(row.values)))];
+            const values=[],valueIds=new Map();
+            const valueId=value=>{
+                const key=JSON.stringify(value);
+                if(!valueIds.has(key)){valueIds.set(key,values.length);values.push(value);}
+                return valueIds.get(key);
+            };
+            const absent=original.rows.flatMap((row,rowIndex)=>{
+                const indexes=columns.flatMap((field,columnIndex)=>Object.hasOwn(row.values,field)?[]:[columnIndex]);
+                return indexes.length?[[rowIndex,indexes]]:[];
+            });
+            const packed={...original,rows:undefined,rowColumns:columns,recordValueTable:values,
+                rowTuples:original.rows.map(row=>[row.id,...columns.map(field=>valueId(row.values[field]??null))]),
+                ...(absent.length?{rowAbsentColumns:absent}:{}),
+                rowEncoding:"rowTuples=[id,...recordValueTable indexes in rowColumns order]. Types stay unchanged. rowAbsentColumns=[rowIndex,[absent column IDs]] removes keys; other nulls stay null. All rows and query metadata remain."};
+            if(JSON.stringify(packed).length<JSON.stringify(current).length)task.observation={...task.observation,recordEvidence:packed};
+        }
+        const targetOwners=new Map();
+        let sharedTargets=false;
+        for(const [index,task]of minimal.entries()){
+            const observation=task.observation;
+            if(!observation)continue;
+            if(Array.isArray(observation.repoCandidates) && observation.repoCandidates.length===0)delete observation.repoCandidates;
+            if(!observation.repositoryTarget)continue;
+            const key=JSON.stringify(observation.repositoryTarget);
+            if(targetOwners.has(key)){
+                task.observation={...observation,repositoryTargetTaskIndex:targetOwners.get(key)};
+                delete task.observation.repositoryTarget;sharedTargets=true;
+            }else targetOwners.set(key,index);
+        }
+        if(sharedTargets)minimal[0].repositoryTargetEncoding="repositoryTargetTaskIndex inherits only the identical repositoryTarget from that earlier task; no new permission or evidence.";
+        const dictionary=minimal[0]?.sharedFieldDictionary;
+        if(dictionary){
+            const fields=typeof dictionary==="string"?dictionary.split("|"):dictionary;
+            let previous="";
+            const encoded=fields.map(field=>{
+                let prefix=0;while(prefix<previous.length && prefix<field.length && previous[prefix]===field[prefix])prefix++;
+                const entry=[prefix,field.slice(prefix)];previous=field;return entry;
+            });
+            const encoding="sharedFieldDictionary entries [prefixLength,suffix] decode in order: each field = previous decoded field sliced to prefixLength + suffix; the first previous field is empty. Field IDs still reference the same zero-based positions.";
+            if(JSON.stringify(encoded).length+encoding.length<JSON.stringify(dictionary).length){
+                minimal[0].sharedFieldDictionary=encoded;minimal[0].sharedFieldPrefixEncoding=encoding;
+            }
+        }
     }
     const freshRead = minimal[tasks.indexOf(latestRead)]?.observation?.verifiedRead;
     if (freshRead) {
         const overflow = JSON.stringify(minimal).length - 27900;
         if (overflow > 0) {
-            freshRead.content = freshRead.content.slice(0,Math.max(0,freshRead.content.length-overflow));
+            freshRead.content = freshRead.content.slice(0,Math.max(Math.min(700,freshRead.content.length),freshRead.content.length-overflow));
             freshRead.endLine = freshRead.content ? (freshRead.startLine || 1) + freshRead.content.split("\n").length - 1 : null;
         }
         const references = [...(latestRead.observation.verifiedRead.sourceStructure?.dataBindings?.references || [])]
@@ -2346,8 +2405,17 @@ async function runModelSemanticPlanner({
         }
         // A similarity shortlist is not a capability boundary. Closure needs
         // both executed tool contracts and every available evidence source.
+        const recordOnlyAudit=missionState.evidenceObjectives?.length && missionState.evidenceObjectives.every(objective=>objective.requiredEvidenceKind==="platform_records");
+        const auditAuthorityInstruction=recordOnlyAudit ? [
+            "Eres Jarvis, la única autoridad semántica local. Interpreta el pedido completo sin diccionarios de intención ni reglas de negocio hardcodeadas.",
+            "Conserva cada objetivo, negación, identidad y restricción del usuario. Usa sólo el catálogo y sus schemas para herramientas y argumentos; nunca inventes rutas, campos, valores o resultados.",
+            "Para datos actuales usa consultas autenticadas de registros. Descubre sus fuentes y campos en el código: éste acredita esquemas, nunca datos operativos. Cada lectura acredita únicamente su ruta, filtros, campos y páginas. Un cero no acredita otras fuentes ni un inventario global.",
+            "Mantén los requisitos de evidencia por objetivo. Conserva lo acreditado y continúa las fuentes o dependencias autorizadas necesarias para brechas pendientes. No rebajes platform_records a repository_source, telemetría o conversación.",
+            "El runtime controla permisos, seguridad, aislamiento, escritura y publicación. Nunca concedas aprobación: approved=false. Respeta restricciones y denegaciones; no retires filtros para eludirlas. Una preparación no es escritura y un éxito técnico no demuestra cobertura.",
+            "Sólo las observaciones ejecutadas prueban resultados. Las propuestas anteriores no son hechos. No cierres por agotar herramientas: todos los objetivos necesitan evidencia pertinente. Devuelve únicamente el contrato estructurado solicitado."
+        ].join("\n") : buildSemanticSystemInstruction(safeCatalog, missionState, false);
         const auditInstruction = [
-            buildSemanticSystemInstruction(safeCatalog, missionState, false),
+            auditAuthorityInstruction,
             "Evalúa cada objetivo original contra las observaciones ejecutadas. Primero comprueba que la URL observada coincide con el objeto o pagina solicitado; una página nunca acredita otra.",
             "Cada objetivo requiere objective, requiredEvidenceKind, satisfied, evidenceTaskIndexes y limitation. Los índices identifican tareas, no viewports. Los tipos permitidos están en allowedEvidenceKinds; un nombre de herramienta no es tipo de evidencia.",
             "satisfied=true exige evidencia pertinente ya ejecutada e índices válidos y limitation vacía. Si la cobertura es parcial: satisfied=false, conserva índices de registros parciales pertinentes y explica exactamente qué parte falta. No rebajes el tipo de evidencia para conseguir cumplimiento. DOM/CSS no acredita píxeles, interacción, lectura de código, aprobación, escritura ni tests.",
@@ -2398,6 +2466,26 @@ async function runModelSemanticPlanner({
             }
         }
         const observedWriteSchemas = [...schemaBySourceCollection.values()].slice(0,24);
+        // The bounded evidence packet already preserves every credited field.
+        // Refer to its original task indexes instead of repeating full field lists
+        // alongside that packet and leaving no room for the model's reply.
+        const observedSchemaHints=JSON.stringify(auditTasks).length>16000 ? observedWriteSchemas.map(({sourceFile,collection,startLines})=>({
+            sourceFile,collection,startLines,schemaTaskIndexes:auditTasks.flatMap((task,index)=>{
+                const read=task.observation?.verifiedRead;
+                return read?.file===sourceFile && read.sourceStructure?.dataBindings?.collections?.includes(collection)
+                    ? [read.sourceStructure.dataBindings.sharedSourceSchemaTaskIndex ?? index] : [];
+            }).filter((index,position,indexes)=>indexes.indexOf(index)===position)
+        })) : observedWriteSchemas;
+        // Partial read anchors keep their ranges, while credited schema fields
+        // remain in the bounded packet rather than being repeated in recovery.
+        const partialSourceHints=partialSourceProgress(completedTasksForAudit).map(progress=>({
+            ...progress,schemaAnchors:progress.schemaAnchors.map(anchor=>{
+                const hint=observedSchemaHints.find(shape=>shape.sourceFile===progress.file && shape.collection===anchor.collection);
+                if(!hint?.schemaTaskIndexes?.length)return anchor;
+                const {fields,...location}=anchor;
+                return {...location,schemaTaskIndexes:hint.schemaTaskIndexes};
+            })
+        }));
         const preparedRepair = (missionState.completedTasks || []).some(task => task.name === "repo.prepareWrite" && task.observation?.ok === true);
         if (measuredRepair && !preparedRepair) {
             // Preparing a repair is a continuation, not a completion verdict.
@@ -2526,7 +2614,7 @@ async function runModelSemanticPlanner({
                                 { role: "assistant", content: JSON.stringify(lastRejectedAuditPlan) },
                                 { role: "system", content: "El borrador anterior fue rechazado; no es evidencia. Revisa sus contradicciones contra las observaciones originales. No inventes referencias, cambies el alcance ni marques objetivos satisfechos solo para reparar el formato. ERROR_CONCRETO=" + JSON.stringify(lastAuditError?.evidence || {}) }
                             ] : []),
-                            ...(observedWriteSchemas.length ? [{role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedWriteSchemas)+"\nEstas claves se observaron en objetos guardados en la colección indicada: no declares que faltan las claves listadas. No prueban registros actuales ni un esquema exhaustivo. Un filtro de clasificación rechazado no invalida otros objetivos que sí tienen campos acreditados. Puedes elegir una consulta de inspección paginada (mode=query) con campos pertinentes y acreditados para observar datos actuales sin inventar un filtro; esa lectura sólo demuestra su alcance y no acredita automáticamente conteos de subconjuntos. Conserva el tenant y los límites de permisos; nunca eludas una denegación."}] : []),
+                            ...(observedWriteSchemas.length ? [{role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedSchemaHints)+"\nEstas claves se observaron en objetos guardados en la colección indicada: no declares que faltan las claves listadas. No prueban registros actuales ni un esquema exhaustivo. Un filtro de clasificación rechazado no invalida otros objetivos que sí tienen campos acreditados. Puedes elegir una consulta de inspección paginada (mode=query) con campos pertinentes y acreditados para observar datos actuales sin inventar un filtro; esa lectura sólo demuestra su alcance y no acredita automáticamente conteos de subconjuntos. Conserva el tenant y los límites de permisos; nunca eludas una denegación."}] : []),
                             { role: "system", content: "Decide el siguiente paso con la evidencia anterior. Sólo OBSERVACION_EJECUTADA acredita operaciones ya realizadas. Medir DOM/CSS no lee archivos fuente ni prepara un patch ni acredita una aprobación, escritura o prueba posterior. Si faltan operaciones del pedido, sus objetivos siguen satisfied=false; conserva referencias a evidencia parcial pertinente y una limitation concreta. Selecciona una sola operación nueva del catálogo que avance ese trabajo; no repitas la inspección ya ejecutada con los mismos argumentos. El diagnóstico puede guiar la lectura del código antes de preparar un cambio exacto." },
                             { role: "user", content: instruction + ((missionState.blockedTasks||[]).some(task=>task.observation?.errorDetails?.undiscoveredFields?.length) ? "\n\nRevisa el estado actual de la investigación antes de decidir: un rechazo por campos no acreditados no significa permiso denegado ni colección vacía. En errorDetails, undiscoveredFields enumera solamente los nombres rechazados y discoveredFieldPaths enumera campos observados que puedes consultar usando la misma fuente y alcance autorizado. No declares inaccesibles esos campos observados. Consulta evidencia que falta; no repitas combinaciones de campos ya leídos." : "") }
                         ],
@@ -2809,19 +2897,27 @@ async function runModelSemanticPlanner({
                     ? repositoryRecoveryReaders
                     : generalReaders;
                 if (evaluatedAudit.missionComplete !== true && validatedAudit.toolCalls.length === 0 && nextReaders.length) {
+                    const compactContinuation=JSON.stringify(auditTasks).length>16000;
                     const continuation = await ai.models.generateContent({model,contents:instruction,config:{
-                        semanticStage:"READ_ONLY_EVIDENCE_CONTINUATION",nativeToolChat:true,maxOutputTokens:768,temperature:0,
+                        semanticStage:"READ_ONLY_EVIDENCE_CONTINUATION",maxOutputTokens:768,temperature:0,
+                        ...(compactContinuation ? {responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{
+                            toolCalls:{type:"array",minItems:0,maxItems:1,items:{anyOf:nextReaders.map(tool=>({
+                                type:"object",properties:{name:{type:"string",enum:[tool.name]},args:buildNativeInputSchema(tool.inputSchema)},
+                                required:["name","args"],additionalProperties:false
+                            }))}}
+                        },required:["toolCalls"],additionalProperties:false}} : {nativeToolChat:true,tools:[{functionDeclarations:buildGeminiModelTools(nextReaders)}]}),
                         chatMessages:[
                             ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
                             {role:"system",content:"Eres Jarvis. El objetivo aún no está resuelto. Decide si existe UN siguiente paso de investigación ejecutable con las herramientas disponibles y llámalo. No repitas que falta evidencia cuando puedes obtenerla. Una búsqueda ya devuelve rutas candidatas: lee una ruta real pertinente para conocer la fuente; si necesitas otra fuente, busca. Conserva el objetivo del usuario, pero puedes reformular búsquedas con identificadores, campos, símbolos y vocabulario técnico que hayas aprendido de evidencia ya observada. No inventes esos identificadores: deben provenir de la solicitud o de una observación real. Si una búsqueda semántica ya fue insuficiente, usa repo.grep con un término literal observado o formula una nueva búsqueda usando la evidencia disponible. Para consultar registros actuales necesitas colección y campos acreditados. El discriminador es necesario para contar un subconjunto; si aún lo desconoces, puedes inspeccionar campos pertinentes con mode=query y filters=[] dentro del alcance autorizado, para conocer valores reales y resolver otros objetivos. La inspección no acredita por sí sola un conteo global ni la pertenencia a un subconjunto. No inventes filtros. El catálogo describe fuentes, no resultados ya obtenidos. No repitas la misma operación con los mismos argumentos. Una fuente irrelevante no cierra la investigación: continúa con otra fuente o búsqueda read-only distinta mientras exista un paso fundamentado. Si realmente no hay un paso autorizado, no llames nada. Un permiso denegado no autoriza cambiar identidad, quitar filtros ni ampliar acceso. Nunca escribas, publiques ni concedas aprobación."},
                             ...(pendingCapabilities.length ? [{role:"system",content:"CAPACIDADES_DISPONIBLES_DESPUES_DEL_REQUISITO="+JSON.stringify(pendingCapabilities)+"\nLa consulta de datos existe, pero falta leer la fuente. Elige primero una lectura o búsqueda pertinente. No sustituyas el requisito con una negativa ni con un esquema inventado."}] : []),
                             ...(latestPlatformSchemaFailure && !evidenceAfterSchemaFailure ? [{role:"system",content:"RECUPERACION_DE_CONSULTA: la última platform.query fue rechazada por evidencia de esquema insuficiente. No repitas la misma consulta ni adivines un alias. Usa las herramientas de repositorio disponibles para localizar el campo, colección o valor real y después formula una consulta nueva con esa evidencia. Si INTENTO_FALLIDO incluye errorDetails.discoveredCollections, esas colecciones SÍ fueron observadas por AST en el sourceFile indicado y la colección rechazada NO fue acreditada por ese archivo: conserva la relación sourceFile→discoveredCollections, vuelve al repo si ninguna observada sirve al objetivo y sólo después formula otra consulta. Si errorDetails incluye undiscoveredFields, undiscoveredFilterFields o ungroundedFilterValues, esos literales son argumentos RECHAZADOS: puedes usarlos como pistas para repo.grep/repo.search, pero no los trates como esquema válido hasta observar su definición real en una fuente."}] : []),
+                            ...(compactContinuation ? [{role:"system",content:"CATALOGO_EJECUTABLE="+JSON.stringify(auditCatalog.filter(tool=>nextReaders.some(reader=>reader.name===tool.name)))}] : []),
                             ...auditTasks.map(task=>({role:"system",content:"EVIDENCIA_OBTENIDA="+JSON.stringify(task)})),
-                            {role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedWriteSchemas)},
+                            {role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedSchemaHints)},
                             ...(missionState.blockedTasks||[]).slice(-8).map(task=>({role:"system",content:"INTENTO_FALLIDO="+JSON.stringify({name:task.name,args:task.args,observation:task.observation})})),
                             {role:"system",content:"OBJETIVOS_PENDIENTES="+JSON.stringify(continuationObjectiveSummaries(evaluatedAudit.completionAssessment?.objectives))},
                             {role:"user",content:instruction}
-                        ],tools:[{functionDeclarations:buildGeminiModelTools(nextReaders)}]
+                        ]
                     }});
                     let next = extractGeminiToolCallPlan(continuation,nextReaders);
                     if (!next && continuation.text) {try {next=normalizeTextToolPlan(extractJsonObject(continuation.text),nextReaders);}catch{}}
@@ -2897,10 +2993,10 @@ async function runModelSemanticPlanner({
                             {role:"system",content:"La investigación no ha terminado. El intento anterior no produjo un paso nuevo. Selecciona UNA operación diferente que obtenga la evidencia faltante, o toolCalls=[] sólo si no queda ninguna autorizada y las fuentes pertinentes localizadas ya fueron examinadas. Las rutas candidatas son archivos existentes, no registros consultados. Lee una fuente candidata pertinente antes de concluir que no contiene datos. Una lectura irrelevante no agota las demás rutas descubiertas: si RUTAS_CANDIDATAS_AUN_NO_LEIDAS contiene opciones, elige otra fuente pertinente o una búsqueda mejor fundamentada antes de concluir ausencia. Si una fuente no demuestra el concepto solicitado, continúa: puedes usar en la siguiente búsqueda términos del usuario o identificadores/campos/símbolos que ya aparecieron en evidencia observada. Después de una búsqueda semántica insuficiente, repo.grep puede localizar un término exacto observado dentro del código. No inventes un campo o esquema sólo para avanzar. Si hace falta otra búsqueda, formula una consulta nueva fundamentada en la solicitud o en evidencia ya obtenida; no repitas la búsqueda ya realizada. Nunca inventes rutas ni esquemas. Un permiso denegado no autoriza otro usuario, quitar filtros ni ampliar acceso. Usa solamente el catálogo y argumentos válidos. Devuelve JSON {toolCalls:[{name,args}]} sin conclusiones inventadas."},
                             {role:"system",content:"CATALOGO_EJECUTABLE="+JSON.stringify(recoveryCatalog.map(tool=>auditCatalog.find(entry=>entry.name===tool.name) || {name:tool.name,description:String(tool.description||"").slice(0,120),evidenceKinds:tool.evidenceKinds,requiredArguments:tool.inputSchema?.required || []}))},
                             ...auditTasks.map(task=>({role:"system",content:"YA_EJECUTADO="+JSON.stringify(task)})),
-                            {role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedWriteSchemas)},
+                            {role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedSchemaHints)},
                             {role:"system",content:"RUTAS_LOCALIZADAS="+JSON.stringify(sources)+"\nRUTAS_CANDIDATAS_AUN_NO_LEIDAS="+JSON.stringify(unreadSources)+"\nCAPACIDADES_TRAS_LEER_LA_FUENTE="+JSON.stringify(pendingCapabilities)},
                             {role:"system",content:"OBJETIVOS_PENDIENTES="+JSON.stringify(continuationObjectiveSummaries(evaluatedAudit.completionAssessment?.objectives))+"\nEsta evaluación conserva la cobertura actual de cada objetivo. El siguiente paso debe obtener evidencia para una brecha pendiente; añadir un campo distinto no demuestra avance por sí solo. No vuelvas a investigar un objetivo satisfecho para sustituir otro pendiente."},
-                            {role:"system",content:"LECTURAS_PARCIALES="+JSON.stringify(partialSources)+"\nEstos archivos sólo se leyeron por fragmentos. Puedes elegir repo.read con file y startLine/endLine para ampliar una región pertinente aún no observada, usando los anclajes de esquema o el límite de la lectura anterior. No repitas los mismos argumentos de lectura completa; un archivo parcialmente leído no equivale a una fuente agotada."},
+                            {role:"system",content:"LECTURAS_PARCIALES="+JSON.stringify(partialSourceHints)+"\nEstos archivos sólo se leyeron por fragmentos. Puedes elegir repo.read con file y startLine/endLine para ampliar una región pertinente aún no observada, usando los anclajes de esquema o el límite de la lectura anterior. No repitas los mismos argumentos de lectura completa; un archivo parcialmente leído no equivale a una fuente agotada."},
                             {role:"user",content:instruction}
                         ]
                     }});

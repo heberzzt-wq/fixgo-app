@@ -29,6 +29,77 @@ test('record coverage review receives conversational scope separately from opera
 });
 
 const { runJarvisSemanticPlanner } = createRequire(import.meta.url)("../functions/jarvis-semantic-planner.js");
+
+test('dense operational snapshots fit the evidence budget without losing typed values or the latest read',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='boundedAuditTasks');
+ const compact=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const fields=Array.from({length:300},(_,i)=>'observed_details.group_'+Math.floor(i/20)+'.attribute_'+i);
+ const tasks=Array.from({length:5},(_,i)=>({name:'fixture.source',args:{file:'source'+i+'.js'},observation:{ok:true,verifiedRead:{file:'source'+i+'.js',startLine:30,content:'LATEST_RELEVANT_READ '+('observed '.repeat(900)),sourceStructure:{dataBindings:{collections:['scope'+i],fieldPaths:fields,writeShapes:[{collection:'scope'+i,fields,fieldsComplete:true}]}}}}}));
+ const rows=Array.from({length:50},(_,i)=>({id:'record-'+i,values:Object.fromEntries(Array.from({length:13},(_,j)=>['attribute'+j,j===0?('unique detail '+i+' '+('description '.repeat(8))):j===1?null:j===2?0:j===3?false:j===4?'':j===5?{nested:['observed',1]}:'shared value '+j]))}));
+ delete rows[2].values.attribute1;
+ const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'related',mode:'query',filters:[],fields:Object.keys(rows[0].values)},rows,totalCount:50,completeForQuery:true,hasMore:false,rowsObservedAt:'observed-now'};
+ tasks.push({name:'fixture.records',args:{...record.scope},observation:{ok:true,recordEvidence:record}});
+ const before=JSON.stringify(tasks);const result=JSON.parse(JSON.stringify(compact(tasks)));
+ assert.equal(JSON.stringify(tasks),before);assert.ok(JSON.stringify(result).length<=28000);
+ assert.ok(result[4].observation.verifiedRead.content.length>=700,'preserve a usable latest source window');
+ const packed=result[5].observation.recordEvidence;
+ const decoded=decodePlannerRecordTuples(packed);
+ assert.deepEqual(decoded,record);assert.equal(decoded.rows.length,50);assert.equal(decoded.scope.collection,'related');
+ const dictionary=decodePlannerFieldDictionary(result[0]);
+ for(let i=0;i<5;i++){
+  const bindings=result[i].observation.verifiedRead.sourceStructure.dataBindings;
+  const owner=bindings.sharedSourceSchemaTaskIndex===undefined?bindings:result[bindings.sharedSourceSchemaTaskIndex].observation.verifiedRead.sourceStructure.dataBindings;
+  const expand=ids=>ids.flatMap(id=>Array.isArray(id)?Array.from({length:id[1]-id[0]+1},(_,n)=>dictionary[id[0]+n]):[dictionary[id]]);
+  assert.deepEqual(owner.fieldPaths||expand(owner.fieldIds),fields);assert.deepEqual(owner.collections,['scope'+i]);
+ }
+});
+function decodePlannerFieldDictionary(task){
+ const encoded=task.sharedFieldDictionary;
+ if(typeof encoded==='string')return encoded.split('|');
+ if(!task.sharedFieldPrefixEncoding)return encoded;
+ const decoded=[];for(const [prefixLength,suffix]of encoded)decoded.push((decoded.at(-1)||'').slice(0,prefixLength)+suffix);return decoded;
+}
+function decodePlannerRecordTuples(packed){
+ if(!packed.rowTuples)return packed;
+ const record=structuredClone(packed);
+ record.rows=record.rowTuples.map((row,i)=>{const values=Object.fromEntries(record.rowColumns.map((field,j)=>[field,record.recordValueTable[row[j+1]]]));for(const col of record.rowAbsentColumns?.find(entry=>entry[0]===i)?.[1]||[])delete values[record.rowColumns[col]];return{id:row[0],values};});
+ for(const key of ['rowTuples','rowColumns','rowAbsentColumns','recordValueTable','rowEncoding'])delete record[key];return record;
+}
+
+test('record-only audits reserve reply space and refer to credited schemas without duplicating their fields',async()=>{
+ const source={name:'fixture.source',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'},startLine:{type:'integer'}},required:['file']}};
+ const records={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}},required:['sourceFile']}};
+ const fields=Array.from({length:300},(_,i)=>'observed_details.group_'+Math.floor(i/20)+'.attribute_'+i);
+ const tasks=Array.from({length:5},(_,i)=>({name:source.name,args:{file:'source'+i+'.js'},observation:{ok:true,verifiedRead:{file:'source'+i+'.js',startLine:1,endLine:70,totalLines:2000,content:'Observed source '.repeat(400),sourceStructure:{dataBindings:{collections:['scope'+i],fieldPaths:fields,writeShapes:[{collection:'scope'+i,startLine:120,fields,fieldsComplete:true}]}}}}}));
+ tasks.push({name:records.name,args:{sourceFile:'source0.js'},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'scope0',sourceFile:'source0.js',mode:'count',fields:[],filters:[]},totalCount:1}}});
+ const contract={objective:'Inspect current entries',requestQuote:'Inspect current entries',requiredEvidenceKind:'platform_records',scope:'all_sources',coverageMode:'population',groups:['entries']};
+ let checked=false;
+ const result=await runJarvisSemanticPlanner({input:contract.objective,catalog:[records,source],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[contract],completionAssessment:{evaluatedTaskCount:tasks.length,objectives:[{...contract,satisfied:false,evidenceTaskIndexes:[],coverageProof:{proven:false,missing:['Records missing'],groups:[],sources:tasks.slice(0,5).map((_,i)=>({collection:'scope'+i,relevant:true,reason:'Observed scope',taskIndexes:i===0?[5]:[]}))}}]},completedTasks:tasks},ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage!=='COMPLETION_AUDIT'){
+   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){assert.equal(request.config.tools,undefined,'large evidence recovery must not inject duplicate native tool schemas');assert.ok(request.config.responseJsonSchema);}
+   if(request.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY'){
+    const hint=request.config.chatMessages.find(m=>m.content.startsWith('LECTURAS_PARCIALES='));
+    const partials=JSON.parse(hint.content.slice(hint.content.indexOf('=')+1).split('\n')[0]);
+    assert.equal(partials.length,5);
+    assert.ok(partials.every(p=>p.schemaAnchors.every(a=>a.fields===undefined && a.schemaTaskIndexes?.length)),'partial read anchors reference credited fields rather than duplicating them');
+    assert.ok(partials.every(p=>p.nextStartLine===71 && p.schemaAnchors[0].startLine===120));
+   }
+   return{text:'{"toolCalls":[]}'};
+  }
+  checked=true;
+  const messages=request.config.chatMessages;
+  assert.ok(messages[0].content.length<5500,'record-only audits keep the evidence and permission contract without unrelated UI repair prose');
+  const hint=messages.find(m=>m.content.startsWith('ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST='));
+  const schemas=JSON.parse(hint.content.slice(hint.content.indexOf('=')+1).split('\n')[0]);
+  assert.ok(schemas.every(s=>s.fields===undefined && s.schemaTaskIndexes?.length),'fields remain in the referenced original observations');
+  assert.ok(messages.some(m=>m.content.includes('OBJETIVOS_ESTABLECIDOS_INMUTABLES=')));
+  assert.ok(messages.some(m=>m.content.includes('PROGRESO_PREVIO_POR_OBJETIVO=')));
+  return{text:JSON.stringify({completionAssessment:{objectives:[{objective:contract.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Records still missing'}]},toolCalls:[]})};
+ }}}});
+ assert.equal(checked,true);assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives[0].requiredEvidenceKind,'platform_records');
+});
+
 test('duplicate recovery consults an unqueried observed pending record scope before accepting no plan',async()=>{
  for(const variant of ['new','no_fields','blocked','already_queried','failed_source']){
   const reader={name:'fixture.source',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file'],additionalProperties:false}};
@@ -3271,7 +3342,7 @@ test('bounded evidence shares repeated field schemas losslessly and preserves th
  assert.equal(JSON.stringify(result[0].observation.recordEvidence),JSON.stringify(records));
  assert.ok(result.at(-1).observation.verifiedRead.content.length>=4000,'latest relevant read cannot disappear');
  assert.match(result.at(-1).observation.verifiedRead.content,/LATEST_RELEVANT_READ/);
- const dictionary=typeof result[0].sharedFieldDictionary==='string'?result[0].sharedFieldDictionary.split('|'):result[0].sharedFieldDictionary;
+ const dictionary=decodePlannerFieldDictionary(result[0]);
  const decode=ids=>Array.from(ids).flatMap(id=>Array.isArray(id)?Array.from({length:id[1]-id[0]+1},(_,n)=>dictionary[id[0]+n]):[dictionary[id]]);
  for(let i=1;i<result.length;i++){
   const bindings=result[i].observation.verifiedRead.sourceStructure.dataBindings;
@@ -3420,7 +3491,7 @@ test('repeated record snapshots compact losslessly without conflating filters va
  const before=JSON.stringify(tasks),result=compact(tasks);assert.equal(JSON.stringify(tasks),before);assert.ok(JSON.stringify(result).length<=28000);assert.match(result.at(-1).observation.verifiedRead.content,/LATEST_READ/);
  const restored=[];
  for(let i=0;i<18;i++){
-  const packed=JSON.parse(JSON.stringify(result[i].observation.recordEvidence));
+  const packed=decodePlannerRecordTuples(JSON.parse(JSON.stringify(result[i].observation.recordEvidence)));
   const {recordBaseTaskIndex,recordRemovedKeys,recordRowPatches,...overrides}=packed;
   const record=recordBaseTaskIndex===undefined?overrides:{...structuredClone(restored[recordBaseTaskIndex]),...overrides};
   for(const key of recordRemovedKeys||[])delete record[key];
@@ -3516,7 +3587,7 @@ test('shared source metadata preserves accredited fields and latest reading insi
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='boundedAuditTasks');const compact=runInNewContext('('+source.slice(node.start,node.end)+')');
  const tasks=Array.from({length:16},(_,i)=>{const fields=Array.from({length:44},(_,j)=>String.fromCharCode(97+j%26)+('_'+i+'_'+j).padEnd(25,String.fromCharCode(97+(j*7+i)%26)));return{index:i,name:'source.read',allowedEvidenceKinds:['repository_source'],args:{file:'module-'+i+'.js'},observation:{ok:true,executionOk:true,verifiedRead:{file:'module-'+i+'.js',startLine:1,content:'LATEST_SOURCE '+('body '.repeat(1000)),sourceStructure:{dataBindings:{collections:['registry-'+i],fieldPaths:fields,writeShapes:[{collection:'registry-'+i,fields,fieldsComplete:true}]}}}}}});
  const before=JSON.stringify(tasks);const result=JSON.parse(JSON.stringify(compact(tasks)));assert.equal(JSON.stringify(tasks),before);assert.ok(JSON.stringify(result).length<=28000);assert.match(result.at(-1).observation.verifiedRead.content,/LATEST_SOURCE/);assert.ok(result.at(-1).observation.verifiedRead.content.length>=1000);
- const dictionary=typeof result[0].sharedFieldDictionary==='string'?result[0].sharedFieldDictionary.split('|'):result[0].sharedFieldDictionary;
+ const dictionary=decodePlannerFieldDictionary(result[0]);
  const unpack=ids=>ids.flatMap(id=>Array.isArray(id)?Array.from({length:id[1]-id[0]+1},(_,n)=>dictionary[id[0]+n]):[dictionary[id]]);
  for(let i=0;i<tasks.length;i++){
   const task=result[i],read={...result[0].sourceReadDefaults.verifiedRead,...task.observation.verifiedRead},bindings={...result[0].sourceReadDefaults.dataBindings,...read.sourceStructure.dataBindings};
@@ -3547,7 +3618,7 @@ test('repeated source windows share identical schemas without losing records or 
  assert.equal(result[23].observation.verifiedRead.file,'separate.js');
  assert.equal(result[23].observation.verifiedRead.sourceStructure.dataBindings.sharedSourceSchemaTaskIndex,undefined);
  const owner=result[22].observation.verifiedRead.sourceStructure.dataBindings;
- const dictionary=typeof result[0].sharedFieldDictionary==='string'?result[0].sharedFieldDictionary.split('|'):result[0].sharedFieldDictionary;
+ const dictionary=decodePlannerFieldDictionary(result[0]);
  const decode=ids=>ids.flatMap(id=>Array.isArray(id)?Array.from({length:id[1]-id[0]+1},(_,n)=>dictionary[id[0]+n]):[dictionary[id]]);
  const restored=owner.fieldPaths || (owner.fieldPathDictionary?owner.fieldPathDictionary.members.map(member=>owner.fieldPathDictionary.prefix+member+owner.fieldPathDictionary.suffix):decode(owner.fieldIds));
  assert.deepEqual(restored,fields);
