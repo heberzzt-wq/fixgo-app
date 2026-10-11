@@ -2728,6 +2728,7 @@ async function runModelSemanticPlanner({
                     const continuation = await ai.models.generateContent({model,contents:instruction,config:{
                         semanticStage:"READ_ONLY_EVIDENCE_CONTINUATION",nativeToolChat:true,maxOutputTokens:768,temperature:0,
                         chatMessages:[
+                            ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
                             {role:"system",content:"Eres Jarvis. El objetivo aún no está resuelto. Decide si existe UN siguiente paso de investigación ejecutable con las herramientas disponibles y llámalo. No repitas que falta evidencia cuando puedes obtenerla. Una búsqueda ya devuelve rutas candidatas: lee una ruta real pertinente para conocer la fuente; si necesitas otra fuente, busca. Conserva el objetivo del usuario, pero puedes reformular búsquedas con identificadores, campos, símbolos y vocabulario técnico que hayas aprendido de evidencia ya observada. No inventes esos identificadores: deben provenir de la solicitud o de una observación real. Si una búsqueda semántica ya fue insuficiente, usa repo.grep con un término literal observado o formula una nueva búsqueda usando la evidencia disponible. Para consultar registros actuales necesitas colección y campos acreditados. El discriminador es necesario para contar un subconjunto; si aún lo desconoces, puedes inspeccionar campos pertinentes con mode=query y filters=[] dentro del alcance autorizado, para conocer valores reales y resolver otros objetivos. La inspección no acredita por sí sola un conteo global ni la pertenencia a un subconjunto. No inventes filtros. El catálogo describe fuentes, no resultados ya obtenidos. No repitas la misma operación con los mismos argumentos. Una fuente irrelevante no cierra la investigación: continúa con otra fuente o búsqueda read-only distinta mientras exista un paso fundamentado. Si realmente no hay un paso autorizado, no llames nada. Un permiso denegado no autoriza cambiar identidad, quitar filtros ni ampliar acceso. Nunca escribas, publiques ni concedas aprobación."},
                             ...(pendingCapabilities.length ? [{role:"system",content:"CAPACIDADES_DISPONIBLES_DESPUES_DEL_REQUISITO="+JSON.stringify(pendingCapabilities)+"\nLa consulta de datos existe, pero falta leer la fuente. Elige primero una lectura o búsqueda pertinente. No sustituyas el requisito con una negativa ni con un esquema inventado."}] : []),
                             ...(latestPlatformSchemaFailure && !evidenceAfterSchemaFailure ? [{role:"system",content:"RECUPERACION_DE_CONSULTA: la última platform.query fue rechazada por evidencia de esquema insuficiente. No repitas la misma consulta ni adivines un alias. Usa las herramientas de repositorio disponibles para localizar el campo, colección o valor real y después formula una consulta nueva con esa evidencia. Si INTENTO_FALLIDO incluye errorDetails.discoveredCollections, esas colecciones SÍ fueron observadas por AST en el sourceFile indicado y la colección rechazada NO fue acreditada por ese archivo: conserva la relación sourceFile→discoveredCollections, vuelve al repo si ninguna observada sirve al objetivo y sólo después formula otra consulta. Si errorDetails incluye undiscoveredFields, undiscoveredFilterFields o ungroundedFilterValues, esos literales son argumentos RECHAZADOS: puedes usarlos como pistas para repo.grep/repo.search, pero no los trates como esquema válido hasta observar su definición real en una fuente."}] : []),
@@ -2803,6 +2804,7 @@ async function runModelSemanticPlanner({
                             type:"object",properties:{name:{type:"string",enum:[tool.name]},args:tool.inputSchema},required:["name","args"],additionalProperties:false
                         }))}}},required:["toolCalls"],additionalProperties:false},
                         chatMessages:[
+                            ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
                             {role:"system",content:"La investigación no ha terminado. El intento anterior no produjo un paso nuevo. Selecciona UNA operación diferente que obtenga la evidencia faltante, o toolCalls=[] sólo si no queda ninguna autorizada y las fuentes pertinentes localizadas ya fueron examinadas. Las rutas candidatas son archivos existentes, no registros consultados. Lee una fuente candidata pertinente antes de concluir que no contiene datos. Una lectura irrelevante no agota las demás rutas descubiertas: si RUTAS_CANDIDATAS_AUN_NO_LEIDAS contiene opciones, elige otra fuente pertinente o una búsqueda mejor fundamentada antes de concluir ausencia. Si una fuente no demuestra el concepto solicitado, continúa: puedes usar en la siguiente búsqueda términos del usuario o identificadores/campos/símbolos que ya aparecieron en evidencia observada. Después de una búsqueda semántica insuficiente, repo.grep puede localizar un término exacto observado dentro del código. No inventes un campo o esquema sólo para avanzar. Si hace falta otra búsqueda, formula una consulta nueva fundamentada en la solicitud o en evidencia ya obtenida; no repitas la búsqueda ya realizada. Nunca inventes rutas ni esquemas. Un permiso denegado no autoriza otro usuario, quitar filtros ni ampliar acceso. Usa solamente el catálogo y argumentos válidos. Devuelve JSON {toolCalls:[{name,args}]} sin conclusiones inventadas."},
                             {role:"system",content:"CATALOGO_EJECUTABLE="+JSON.stringify(recoveryCatalog.map(tool=>auditCatalog.find(entry=>entry.name===tool.name) || {name:tool.name,description:String(tool.description||"").slice(0,120),evidenceKinds:tool.evidenceKinds,requiredArguments:tool.inputSchema?.required || []}))},
                             ...auditTasks.map(task=>({role:"system",content:"YA_EJECUTADO="+JSON.stringify(task)})),
@@ -2836,6 +2838,7 @@ async function runModelSemanticPlanner({
                                 }))}}
                             },required:["toolCalls"],additionalProperties:false},
                             chatMessages:[
+                                ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
                                 {role:"system",content:"La investigación sigue pendiente y los intentos anteriores repitieron operaciones. La búsqueda real ya encontró estas fuentes AÚN NO LEÍDAS. Elige UNA pertinente al objetivo pendiente para obtener evidencia nueva. No inventes rutas, no repitas una fuente leída ni concluyas ausencia de registros desde el código. Esta lectura no concede permisos ni escribe datos."},
                                 {role:"system",content:"FUENTES_CANDIDATAS="+JSON.stringify(unreadSources)+"\nESQUEMAS_YA_LEIDOS="+JSON.stringify(observedWriteSchemas)},
                                 {role:"system",content:"LECTURAS_PARCIALES="+JSON.stringify(partialSources)+"\nPara ampliar una fuente parcial elige un rango nuevo con startLine/endLine desde estos límites o anclajes observados. No vuelvas a pedir el archivo entero con los mismos argumentos."},
@@ -2888,6 +2891,7 @@ async function runModelSemanticPlanner({
                                 type:"object",properties:{name:{type:"string",enum:[tool.name]},args:tool.inputSchema},required:["name","args"],additionalProperties:false
                             }))}}},required:["toolCalls"],additionalProperties:false},
                             chatMessages:[
+                                ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
                                 {role:"system",content:"La consulta fue rechazada porque su alcance no acredita el pedido. Eso no demuestra ausencia de datos ni agota la investigación. Elige UNA fuente pertinente AÚN NO LEÍDA entre las rutas reales del esquema para descubrir registros, campos o relaciones que faltan. No repitas la consulta rechazada, no inventes rutas ni conclusiones. Si ninguna fuente es pertinente, devuelve toolCalls=[]. Esta recuperación sólo permite leer código y no amplía acceso ni concede aprobación."},
                                 {role:"system",content:"RECHAZO="+JSON.stringify({code:error.message,evidence:error.evidence})},
                                 ...auditTasks.map(task=>({role:"system",content:"EVIDENCIA_OBTENIDA="+JSON.stringify(task)})),
@@ -2913,17 +2917,19 @@ async function runModelSemanticPlanner({
                     // population. The same local model chooses one token from
                     // the user's own wording; no intent dictionary maps roles.
                     const grepTool=selectableCatalog.find(tool=>tool.name==="repo.grep"&&tool.investigationReadOnly===true&&tool.mutates!==true);
-                    const rawTerms=String(instruction||"").match(/[\p{L}\p{N}_-]{3,}/gu)||[];
+                    const literalContext=[instruction,...recentConversationTurns.filter(turn=>turn.role==="user").map(turn=>turn.content)].join("\n");
+                    const rawTerms=literalContext.match(/[\p{L}\p{N}_-]{3,}/gu)||[];
                     const literalTerms=[...new Set(rawTerms.flatMap(term=>{
                         const clean=term.trim();
                         return clean.length>4&&/[sS]$/.test(clean)?[clean,clean.slice(0,-1)]:[clean];
-                    }))].slice(0,40);
+                    }))].slice(0,80);
                     if(grepTool&&literalTerms.length){
                         const termResponse=await ai.models.generateContent({model,contents:instruction,config:{
                             semanticStage:"QUERY_POPULATION_LITERAL_RECOVERY",
                             temperature:0,maxOutputTokens:64,responseMimeType:"application/json",
                             responseJsonSchema:{type:"object",properties:{term:{type:"string",enum:literalTerms}},required:["term"],additionalProperties:false},
                             chatMessages:[
+                                ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
                                 {role:"system",content:"El filtro propuesto no demostró la población solicitada. Elige UNA palabra literal de la solicitud del usuario que identifique mejor ese grupo en el código fuente. No traduzcas, no inventes un campo, no devuelvas SQL ni una frase. El runtime hará grep literal con esa palabra."},
                                 {role:"user",content:instruction}
                             ]

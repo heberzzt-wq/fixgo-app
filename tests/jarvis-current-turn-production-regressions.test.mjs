@@ -2772,13 +2772,32 @@ test('duplicate recovery calls cannot exhaust unread discovered sources',async()
  const read={name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
  const query={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'}},required:['collection']}};
  const repeated={name:query.name,args:{collection:'records'}};let selected=false;
- const result=await runJarvisSemanticPlanner({input:'Inspect current records',catalog:[read,query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.search',observation:{ok:true,repoCandidates:[{file:'read.js'},{file:'unread.js'}]}},{name:read.name,args:{file:'read.js'},observation:{ok:true,verifiedRead:{file:'read.js'}}},{...repeated,observation:{ok:true,recordEvidence:{scope:{collection:'records'},totalCount:1}}}]},ai:{models:{generateContent:async request=>{
+ const clarification='Declared registrations belong to account profiles; official allocations are a separate objective.';
+ const result=await runJarvisSemanticPlanner({input:'Inspect current records',catalog:[read,query],missionState:{phase:'COMPLETION_AUDIT',advisorySemanticContext:{turns:[{role:'user',content:clarification}],historicalMissions:[{finalText:'OLD_RESULT_NOT_CURRENT_EVIDENCE'}]},completedTasks:[{name:'repo.search',observation:{ok:true,repoCandidates:[{file:'read.js'},{file:'unread.js'}]}},{name:read.name,args:{file:'read.js'},observation:{ok:true,verifiedRead:{file:'read.js'}}},{...repeated,observation:{ok:true,recordEvidence:{scope:{collection:'records'},totalCount:1}}}]},ai:{models:{generateContent:async request=>{
+ if(['READ_ONLY_EVIDENCE_CONTINUATION','READ_ONLY_NEXT_STEP_RECOVERY','UNREAD_SOURCE_CONTINUATION'].includes(request.config.semanticStage)) {
+  const context=request.config.chatMessages.filter(message=>message.content.startsWith('CONVERSATION_CONTEXT_FOR_REFERENCE_ONLY='));assert.equal(context.length,1);assert.ok(context[0].content.includes(clarification));assert.match(context[0].content,/never as evidence/);assert.ok(!JSON.stringify(request.config.chatMessages).includes('OLD_RESULT_NOT_CURRENT_EVIDENCE'));
+ }
  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({explanation:'Missing details',completionAssessment:{objectives:[{objective:'Inspect current records',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Need more records'}]},toolCalls:[]})};
  if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION')return{functionCalls:[repeated]};
  if(request.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY')return{text:JSON.stringify({toolCalls:[repeated]})};
  if(request.config.semanticStage==='UNREAD_SOURCE_CONTINUATION'){selected=true;assert.deepEqual(request.config.responseJsonSchema.properties.toolCalls.items.anyOf[0].properties.args.properties.file.enum,['unread.js']);return{text:JSON.stringify({toolCalls:[{name:read.name,args:{file:'unread.js'}}]})};}
  throw Error('Unexpected stage');
  }}}});assert.equal(selected,true);assert.equal(result.planKind,'UNREAD_SOURCE_CONTINUATION');assert.equal(result.toolCalls[0].args.file,'unread.js');
+});
+
+test('literal evidence recovery retains explicit source identifiers from user scope clarifications',async()=>{
+ const input='Count registered entries';const clarification='Declared registrations are in declared_registry; official allocations are a separate population.';
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{collection:{type:'string'},sourceFile:{type:'string'},filters:{type:'array',items:{type:'object'}}},required:['collection','sourceFile','filters'],additionalProperties:false}};
+ const grep={name:'repo.grep',investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{term:{type:'string'}},required:['term'],additionalProperties:false}};
+ let recovered=false;
+ const result=await runJarvisSemanticPlanner({input,catalog:[query,grep],missionState:{phase:'COMPLETION_AUDIT',advisorySemanticContext:{turns:[{role:'user',content:clarification},{role:'assistant',content:'untrusted_assistant_registry'}]},completedTasks:[{name:'repo.read',observation:{ok:true,verifiedRead:{file:'source.js',content:'Observed state field'}}}]},ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:false,limitation:'A workflow state does not define the requested population.'})};
+  if(request.config.semanticStage==='QUERY_POPULATION_LITERAL_RECOVERY') {
+   const allowed=request.config.responseJsonSchema.properties.term.enum;assert.ok(allowed.includes('declared_registry'));assert.ok(!allowed.includes('untrusted_assistant_registry'));assert.ok(allowed.length<=80);assert.ok(request.config.chatMessages.some(message=>message.content.startsWith('CONVERSATION_CONTEXT_FOR_REFERENCE_ONLY=')&&message.content.includes(clarification)));recovered=true;return{text:JSON.stringify({term:'declared_registry'})};
+  }
+  return{text:JSON.stringify({toolCalls:[{name:query.name,args:{collection:'registry',sourceFile:'source.js',filters:[{field:'state',op:'==',value:true}]}}],completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Population remains unverified'}]}})};
+ }}}});
+ assert.equal(recovered,true);assert.equal(result.missionComplete,false);assert.equal(result.planKind,'QUERY_POPULATION_LITERAL_RECOVERY');assert.deepEqual(result.toolCalls[0].args,{term:'declared_registry'});
 });
 
 test('mission objective evidence requirements cannot be downgraded by a later completion audit',async()=>{
