@@ -615,13 +615,28 @@ function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
 async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,advisoryContext="",evaluatedAt,instruction=contract.requestQuote}) {
     const sourcePaths=[...new Set([...observedRecordSources(tasks),...tasks.flatMap(task=>task.observation?.recordEvidence?.scope?.collection ? [task.observation.recordEvidence.scope.collection] : [])])];
     const recordIndexes=tasks.flatMap((task,index)=>task.observation?.ok===true && task.observation.recordEvidence?.source==="FIRESTORE_SERVER_AUTHENTICATED" ? [index] : []);
+    // Code excerpts describe schemas. Their truncation is unrelated to the
+    // completeness of an authenticated operational query at another task index.
+    const coverageEvidence=boundedAuditTasks(tasks).map((task,taskIndex)=>{
+        const read=task.observation?.verifiedRead;
+        if(!read)return {...task,taskIndex,evidenceRole:task.observation?.recordEvidence ? "operational_records" : "discovery"};
+        const bindings=read.sourceStructure?.dataBindings || {};
+        const schemaKeys=["collections","fieldPaths","fieldPathDictionary","fieldPathEncoding","fieldIds","sharedSourceSchemaTaskIndex"];
+        const schema=Object.fromEntries(schemaKeys.filter(key=>bindings[key]!==undefined).map(key=>[key,bindings[key]]));
+        schema.writeShapes=(bindings.writeShapes || []).map(({collection,fields,fieldIds,fieldsComplete})=>({collection,fields,fieldIds,fieldsComplete}));
+        const {observation,...metadata}=task;
+        return {...metadata,args:{file:read.file},taskIndex,evidenceRole:"schema_reference",observation:{
+            ok:observation.ok,executionOk:observation.executionOk,
+            schemaReference:{file:read.file,dataBindings:schema}
+        }};
+    });
     const citationSchema={type:"object",properties:{taskIndex:{type:"integer",...(recordIndexes.length?{enum:recordIndexes}:{})},fields:{type:"array",items:{type:"string"}}},required:["taskIndex","fields"],additionalProperties:false,
         ...(recordIndexes.length ? {anyOf:recordIndexes.map(taskIndex=>{
             const rows=tasks[taskIndex].observation.recordEvidence.rows || [];
             const fields=rows.length ? Object.keys(rows[0].values || {}).filter(field=>rows.every(row=>Object.prototype.hasOwnProperty.call(row.values || {},field) && row.values[field]!=null)) : [];
             return {type:"object",properties:{taskIndex:{type:"integer",const:taskIndex},fields:{type:"array",...(fields.length ? {items:{type:"string",enum:fields},maxItems:fields.length,uniqueItems:true} : {items:{type:"string"},maxItems:0})}},required:["taskIndex","fields"],additionalProperties:false};
         })} : {})};
-    const response=await ai.models.generateContent({model,contents:contract.requestQuote,config:{
+    const reviewConfig={
         semanticStage:"RECORD_OBJECTIVE_COVERAGE",temperature:0,maxOutputTokens:Math.min(4096,Math.max(2048,1024+sourcePaths.length*96+(contract.groups || []).length*128)),
         responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{
             proven:{type:"boolean"},missing:{type:"array",maxItems:6,items:{type:"string",maxLength:240}},
@@ -633,10 +648,30 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         {role:"system",content:"Cada evidencia conserva taskIndex: cita ese número exacto, no renumeres los registros al excluir lecturas de código. completeForQuery=true con hasMore=false y totalCount acredita la totalidad de ESA consulta, incluso si devuelve uno o cero; no demuestra otras poblaciones. Determina las fuentes pertinentes sólo para ESTE contrato. No exijas fechas para un contrato de relaciones ni relaciones para un conteo. Una relación puede almacenarse por identificador, nombre u otro valor según el esquema observado; no exijas una clave ajena que la plataforma no use. No inventes rutas a partir de una descripción del usuario: observedSources y scope.collection contienen las rutas observadas. missing debe describir sólo brechas concretas de este contrato, sin repetir hechos acreditados como si fueran faltantes."},
         {role:"system",content:"El contrato conserva exclusivamente este objetivo y el contexto conversacional conserva las aclaraciones de su alcance. Los otros objetivos no son requisitos de este contrato. No restrinjas su población a la primera colección leída ni reemplaces términos del usuario por una definición más estrecha. Respeta all_sources y las fuentes relacionadas aclaradas por el usuario. Cita sólo campos de valores indispensables para este objetivo, nunca todos los campos proyectados: un dato ausente de otro objetivo no invalida los campos acreditados de éste. fields contiene exclusivamente claves exactas de rows[].values; totalCount, returnedCount y completeForQuery son metadatos del alcance, no campos de filas. Para citar un conteo usa fields=[] y el taskIndex de ese conteo. completeForQuery=true y hasMore=false también acredita que la lista contiene todas las filas de esa consulta, aun sin totalCount. Si una fecha o relación falta, identifica ese faltante concreto sin repetir una consulta ya completa de los mismos campos. Incluye una entrada en sources para cada observedSources, con una razón breve; no interpretes la omisión como exclusión. Mantén missing breve y centrado en las brechas concretas, sin volver a narrar registros acreditados. Una definición de esquema ya acreditada no exige leer todas las líneas del archivo; elige la fuente o consulta que avance una brecha pendiente."},
         {role:"system",content:"evaluatedAt es la fecha y hora actual del sistema para esta evaluación. Úsala como referencia para comparaciones temporales con las fechas registradas; no necesitas otra consulta para conocer el presente. No sustituye fechas operativas ausentes ni define por sí sola un horizonte de proximidad que no esté acreditado."},
-        {role:"user",content:JSON.stringify({request:contract.requestQuote,evaluatedAt,contract,objective:{objective:objective.objective,requiredEvidenceKind:objective.requiredEvidenceKind},observedSources:sourcePaths,evidence:boundedAuditTasks(tasks).map((task,taskIndex)=>({...task,taskIndex}))})}]
-    }});
+        {role:"system",content:"evidenceRole distingue las fuentes: schema_reference sólo acredita colecciones y campos del código; operational_records contiene los datos autenticados y su propio alcance. La lectura parcial o el esquema incompleto del código nunca convierte una consulta operativa completa en una muestra. Evalúa la totalidad de cada consulta con su propio recordEvidence, no con propiedades de otro taskIndex."},
+        {role:"user",content:JSON.stringify({request:contract.requestQuote,evaluatedAt,contract,objective:{objective:objective.objective,requiredEvidenceKind:objective.requiredEvidenceKind},observedSources:sourcePaths,evidence:coverageEvidence})}]
+    };
+    const response=await ai.models.generateContent({model,contents:contract.requestQuote,config:reviewConfig});
     if(response?.providerResponse?.finishReason==='length') return {proven:false,missing:["La revisión de cobertura no terminó dentro del presupuesto."]};
-    const proof=extractJsonObject(String(response?.text||"")) || {proven:false,missing:["No se obtuvo una revisión de cobertura válida."]};
+    let proof=extractJsonObject(String(response?.text||"")) || {proven:false,missing:["No se obtuvo una revisión de cobertura válida."]};
+    if((proof.proven!==true || proof.missing?.length) && qualifyRecordObjectiveCoverage({
+        evidenceTaskIndexes:recordIndexes,coverageProof:{...proof,proven:true,missing:[]}
+    },contract,tasks).status==="complete") {
+        // Structural consistency is not semantic approval. Ask this same model
+        // to reconcile its aggregate verdict with its own cited group/source
+        // decisions; an invalid or still-negative answer remains pending.
+        const reconciled=await ai.models.generateContent({model,contents:contract.requestQuote,config:{
+            ...reviewConfig,semanticStage:"RECORD_OBJECTIVE_COVERAGE_CONSISTENCY",
+            chatMessages:[...reviewConfig.chatMessages.slice(0,-1),
+                {role:"system",content:"VEREDICTO_A_RECONCILIAR="+JSON.stringify(proof)},
+                {role:"system",content:"Tu veredicto general contradice tus propias decisiones: acreditaste todos los grupos, citaste campos presentes y consultas completas de las fuentes pertinentes. Reevalúa exclusivamente este contrato y devuelve una decisión coherente. Una consulta completa con una fila acredita esa ruta, no una muestra ni otras rutas. No inventes filtros implícitos, poblaciones o requisitos ajenos. Si existe una brecha real, identifica el grupo o fuente que todavía no está acreditado y corrige su decisión específica; conserva proven=false. Si toda la cobertura pertinente está acreditada, devuelve proven=true y missing=[]. La comprobación estructural sólo detectó la contradicción: no acredita pertinencia semántica ni te obliga a cerrar. No uses el código como registros."},
+                reviewConfig.chatMessages.at(-1)]
+        }});
+        if(reconciled?.providerResponse?.finishReason!=="length") {
+            let corrected;try{corrected=extractJsonObject(String(reconciled?.text||""));}catch{}
+            if(corrected && typeof corrected.proven==="boolean" && Array.isArray(corrected.missing) && Array.isArray(corrected.groups) && Array.isArray(corrected.sources)) proof=corrected;
+        }
+    }
     const exclusions=(proof.sources || []).filter(source=>source.relevant===false);
     if(contract.scope!=="all_sources" || !exclusions.length)return proof;
     const observedDefinitions=[...new Map([...tasks].reverse().flatMap(task=>{

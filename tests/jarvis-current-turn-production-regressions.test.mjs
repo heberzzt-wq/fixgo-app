@@ -18,7 +18,7 @@ import { buildResponsiveRepairOptions, buildResponsiveRepairPatch } from "../ges
 test('record coverage review receives conversational scope separately from operational evidence',async()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
- const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>[],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse});
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>[],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').qualifyRecordObjectiveCoverage});
  const advisoryContext='CONVERSATION_CONTEXT_FOR_REFERENCE_ONLY=Preferences do not establish allocations. Never evidence.';
  let messages;
  const result=await review({instruction:'Review allocations',objective:{objective:'Review allocations'},contract:{groups:['allocations']},tasks:[],advisoryContext,
@@ -29,6 +29,51 @@ test('record coverage review receives conversational scope separately from opera
 });
 
 const { runJarvisSemanticPlanner } = createRequire(import.meta.url)("../functions/jarvis-semantic-planner.js");
+test('contradictory record coverage returns to the same semantic authority without automatically completing it',async()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
+ const {qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:qualify});
+ const contract={requestQuote:'List allocations',scope:'all_sources',groups:['allocations'],coverageMode:'relationship'};
+ for(const outcome of ['fixed','unresolved','invalid','foreign_scope','partial_page','missing_field']) {
+  const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:outcome==='foreign_scope'?'other_registry':'registry',filters:[]},completeForQuery:outcome!=='partial_page',hasMore:outcome==='partial_page',totalCount:1,rows:[{id:'entry',values:{owner:outcome==='missing_field'?null:'Observed owner'}}]};
+  const tasks=[{name:'platform.query',observation:{ok:true,recordEvidence:record}},{name:'repo.read',observation:{ok:true,verifiedRead:{file:'observed-source.js',sourceStructure:{dataBindings:{collections:['registry'],writeShapes:[{collection:'registry',fields:['owner'],fieldsComplete:true}]}}}}}];
+  const original={proven:false,missing:['A single returned row cannot establish the whole scope'],groups:[{group:'allocations',proven:true,evidence:[{taskIndex:0,fields:['owner']}]}],sources:[{collection:'registry',relevant:true,reason:'Allocation records',taskIndexes:[0]}]};
+  const stages=[];
+  const result=await review({model:'same-local-authority',contract,objective:{objective:contract.requestQuote},tasks,ai:{models:{generateContent:async request=>{
+   stages.push(request.config.semanticStage);assert.equal(request.model,'same-local-authority');
+   if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE')return{text:JSON.stringify(original)};
+   assert.equal(request.config.semanticStage,'RECORD_OBJECTIVE_COVERAGE_CONSISTENCY');
+   assert.equal(request.contents,contract.requestQuote);
+   const payload=JSON.parse(request.config.chatMessages.at(-1).content);
+   assert.equal(payload.request,contract.requestQuote);assert.equal(payload.missionRequest,undefined);
+   assert.ok(request.config.chatMessages.some(message=>message.content.includes('VEREDICTO_A_RECONCILIAR=')));
+   if(outcome==='invalid')return{text:'invalid JSON'};
+   return{text:JSON.stringify({...original,proven:outcome==='fixed',missing:outcome==='fixed'?[]:original.missing})};
+  }}}});
+  assert.equal(stages.length,['foreign_scope','partial_page','missing_field'].includes(outcome)?1:2);
+  const coverage=qualify({evidenceTaskIndexes:[0],coverageProof:result},contract,tasks);
+  assert.equal(coverage.status,outcome==='fixed'?'complete':'partial');
+ }
+});
+test('record coverage keeps source truncation separate from complete operational query scopes',async()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').qualifyRecordObjectiveCoverage});
+ const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',filters:[]},totalCount:1,completeForQuery:true,hasMore:false,rows:[{id:'entry',values:{owner:'Observed owner',due:'2028-04-20'}}]};
+ const tasks=[{name:'repo.read',observation:{ok:true,verifiedRead:{file:'source.js',partial:true,contentTruncated:true,content:'partial code body',sourceStructure:{dataBindings:{collections:['registry'],complete:false,writeShapes:[{collection:'registry',fields:['owner','due'],fieldsComplete:true,content:'truncated code',truncated:true}]}}}}},{name:'platform.query',observation:{ok:true,recordEvidence:record}}];
+ await review({contract:{requestQuote:'Identify assigned entries',groups:['allocations']},objective:{objective:'Identify assigned entries'},tasks,ai:{models:{generateContent:async request=>{
+  const payload=JSON.parse(request.config.chatMessages.at(-1).content);
+  assert.equal(payload.evidence[0].taskIndex,0);assert.equal(payload.evidence[0].evidenceRole,'schema_reference');
+  assert.equal(payload.evidence[0].observation.verifiedRead,undefined);
+  assert.deepEqual(Array.from(payload.evidence[0].observation.schemaReference.dataBindings.writeShapes[0].fields),['owner','due']);
+  assert.ok(!JSON.stringify(payload.evidence[0]).includes('partial code body'));
+  assert.ok(!JSON.stringify(payload.evidence[0]).includes('contentTruncated'));
+  assert.equal(payload.evidence[1].taskIndex,1);assert.equal(payload.evidence[1].evidenceRole,'operational_records');
+  assert.deepEqual(JSON.parse(JSON.stringify(payload.evidence[1].observation.recordEvidence)),record);
+  return{text:JSON.stringify({proven:false,missing:['Other observed scope remains pending'],groups:[],sources:[]})};
+ }}}});
+});
 const coreSource = readFileSync(new URL("../gestia-core/gestia-core.js", import.meta.url), "utf8").replaceAll("\r", "");
 const coreNode = parse(coreSource, { sourceType: "module", ecmaVersion: "latest" }).body
     .find(node => node.type === "ExportNamedDeclaration" && node.declaration?.declarations?.[0]?.id?.name === "GestiaCore")
@@ -3414,7 +3459,7 @@ test('source continuation uses the exact window delivered to the planner when ra
 test('operational coverage citations bind row fields to their own task and keep count metadata separate',async()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
- const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry',...Array.from({length:34},(_,i)=>'observed_scope_'+i)],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse});
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry',...Array.from({length:34},(_,i)=>'observed_scope_'+i)],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').qualifyRecordObjectiveCoverage});
  const evidence=(recordEvidence)=>({observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry'},...recordEvidence}}});
  const tasks=[evidence({totalCount:1,completeForQuery:true}),evidence({rows:[{id:'a',values:{owner:'Observed owner',deadline:null}}],completeForQuery:true}),evidence({rows:[{id:'b',values:{deadline:'2028-04-20'}}],completeForQuery:true})];
  let schema,payload,outputBudget;
@@ -3471,7 +3516,7 @@ test('source exclusions cannot narrow a global contract using another objectives
  const {qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
- const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['declared_registry','allocated_registry'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse});
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['declared_registry','allocated_registry'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').qualifyRecordObjectiveCoverage});
  const contract={requestQuote:'Count registered entries',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['entries']};
  const tasks=[{observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'allocated_registry'},totalCount:1,completeForQuery:true}}},{observation:{ok:true,verifiedRead:{sourceStructure:{dataBindings:{collections:['declared_registry','allocated_registry']}}}}}];
  const stages=[];
@@ -3495,7 +3540,7 @@ test('source exclusions cannot narrow a global contract using another objectives
 test('scope reviews distinguish justified exclusions from violations and bound their observed schema',async()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
- const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry','events'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse});
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry','events'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').qualifyRecordObjectiveCoverage});
  const tasks=[{observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry'},totalCount:0}}},{observation:{ok:true,verifiedRead:{file:'observed.js',sourceStructure:{dataBindings:{writeShapes:[{collection:'events',fields:Array.from({length:500},(_,i)=>'observed_field_'+i+'_'+ 'x'.repeat(40)),fieldsComplete:true}]}}}}}];
  const contract={requestQuote:'Count registered entries',groups:['entries'],coverageMode:'population',scope:'all_sources'};
  for(const mode of ['justified','violation','missing','duplicate']) {
