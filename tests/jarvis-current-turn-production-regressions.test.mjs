@@ -29,6 +29,33 @@ test('record coverage review receives conversational scope separately from opera
 });
 
 const { runJarvisSemanticPlanner } = createRequire(import.meta.url)("../functions/jarvis-semantic-planner.js");
+test('independent source relevance uses user scope and observed schemas without proposed exclusions',async()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
+ const qualify=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').qualifyRecordObjectiveCoverage;
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['primary','declared','events'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:qualify});
+ const contract={requestQuote:'Count registered entries',scope:'all_sources',groups:['entries'],coverageMode:'population'};
+ const tasks=[{observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'primary'},totalCount:0}}},{observation:{ok:true,verifiedRead:{file:'observed.js',sourceStructure:{dataBindings:{collections:['primary','declared','events'],writeShapes:[{collection:'declared',fields:['category'],fieldsComplete:true},{collection:'events',fields:['event'],fieldsComplete:true}]}}}}}];
+ const proof=await review({model:'same-authority',contract,objective:contract,tasks,scopeClarifications:['Declared entries are registered entries; allocations are separate.'],advisoryContext:'Assistant recap incorrectly narrowed the population.',ai:{models:{generateContent:async request=>{
+  assert.equal(request.model,'same-authority');
+  if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE')return{text:JSON.stringify({proven:true,missing:[],groups:[{group:'entries',proven:true,evidence:[{taskIndex:0,fields:[]}]}],sources:[{collection:'primary',relevant:true,reason:'Consulted population',taskIndexes:[0]},{collection:'declared',relevant:false,reason:'UNTRUSTED_PRIOR_EXCLUSION',taskIndexes:[]},{collection:'events',relevant:false,reason:'Metadata events',taskIndexes:[]}]})};
+  assert.equal(request.config.semanticStage,'OBJECTIVE_SOURCE_SCOPE_VERIFICATION');
+  const payload=JSON.parse(request.config.chatMessages.at(-1).content);
+  assert.equal(payload.exclusions,undefined,'proposed verdicts must not anchor an independent relevance decision');
+  assert.deepEqual(Array.from(payload.sources),['declared','events']);
+  assert.deepEqual(Array.from(payload.userClarifications),['Declared entries are registered entries; allocations are separate.']);
+  assert.ok(!JSON.stringify(request.config.chatMessages).includes('UNTRUSTED_PRIOR_EXCLUSION'));
+  assert.ok(!JSON.stringify(request.config.chatMessages).includes('Assistant recap'));
+  const schema=request.config.responseJsonSchema.properties.sourceRelevance;
+  assert.deepEqual(Array.from(schema.required),['declared','events']);assert.equal(schema.additionalProperties,false);
+  return{text:JSON.stringify({sourceRelevance:{declared:{relevantToObjective:true,reason:'The user includes declared entries'},events:{relevantToObjective:false,reason:'Events are outside this inventory'}}})};
+ }}}});
+ const coverage=qualify({evidenceTaskIndexes:[0],coverageProof:proof},contract,tasks);
+ assert.equal(proof.proven,false);assert.equal(coverage.status,'partial');assert.deepEqual(coverage.pendingSources,['declared']);
+ assert.equal(proof.sources.find(s=>s.collection==='events').relevant,false,'a justified exclusion remains intact');
+ assert.equal(coverage.consultedScopes[0].totalCount,0,'a scoped zero remains accredited without representing another source');
+ assert.deepEqual(proof.groups[0].evidence,[{taskIndex:0,fields:[]}],'code does not become a record citation');
+});
 test('unreviewed observed sources refresh pending record coverage without promoting code to records',async()=>{
  for(const variant of ['new','known','failed','no_records']){
   const records={name:'fixture.records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}]};
@@ -115,7 +142,7 @@ test('source coverage and exclusions retain exactly one decision per observed so
     return{text:JSON.stringify({proven:true,missing:[],groups:[{group:'entries',proven:true,evidence:[{taskIndex:0,fields:[]}]}],sources:{...(mode==='missing_source'?{}:{events:{relevant:false,reason:'Historical events outside the population',taskIndexes:[]}}),registry:{relevant:true,reason:'Complete population read',taskIndexes:[0]}}})};
    }
    assert.equal(request.config.semanticStage,'OBJECTIVE_SOURCE_SCOPE_VERIFICATION');
-   const schema=request.config.responseJsonSchema.properties.exclusionReviews;
+   const schema=request.config.responseJsonSchema.properties.sourceRelevance;
    assert.equal(schema.type,'object');assert.deepEqual(Array.from(schema.required),['events']);assert.equal(schema.additionalProperties,false);
    return{text:JSON.stringify({exclusionReviews:mode==='missing_exclusion'?{}:{events:{contradictsObjective:mode==='contradictory_exclusion',reason:'Observed scope decision'}}})};
   }}}});
@@ -3647,7 +3674,7 @@ test('source exclusions cannot narrow a global contract using another objectives
  const contract={requestQuote:'Count registered entries',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['entries']};
  const tasks=[{observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'allocated_registry'},totalCount:1,completeForQuery:true}}},{observation:{ok:true,verifiedRead:{sourceStructure:{dataBindings:{collections:['declared_registry','allocated_registry']}}}}}];
  const stages=[];
- const proof=await review({instruction:'Count registered entries and identify official allocations',objective:contract,contract,tasks,advisoryContext:'Declared entries are registered entries; official allocations are a separate objective.',ai:{models:{generateContent:async request=>{
+ const proof=await review({instruction:'Count registered entries and identify official allocations',objective:contract,contract,tasks,scopeClarifications:['Declared entries are registered entries; official allocations are a separate objective.'],advisoryContext:'Declared entries are registered entries; official allocations are a separate objective.',ai:{models:{generateContent:async request=>{
   stages.push(request.config.semanticStage);
   if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE') {
    const payload=JSON.parse(request.config.chatMessages.at(-1).content);
@@ -3657,7 +3684,7 @@ test('source exclusions cannot narrow a global contract using another objectives
    assert.ok(!request.config.chatMessages.some(message=>message.content.includes('Count registered entries and identify official allocations')));
    return{text:JSON.stringify({proven:true,missing:[],groups:[{group:'entries',proven:true,evidence:[{taskIndex:0,fields:[]}]}],sources:[{collection:'allocated_registry',relevant:true,reason:'Allocated entries',taskIndexes:[0]},{collection:'declared_registry',relevant:false,reason:'Declarations are not official allocations',taskIndexes:[]}]})};
   }
-  assert.equal(request.config.semanticStage,'OBJECTIVE_SOURCE_SCOPE_VERIFICATION');const payload=JSON.parse(request.config.chatMessages.at(-1).content);assert.equal(payload.contract.requestQuote,contract.requestQuote);assert.equal(payload.request,contract.requestQuote);assert.equal(payload.missionRequest,undefined,'another mission objective must not become the scope verification request');assert.equal(payload.exclusions[0].collection,'declared_registry');assert.ok(request.config.chatMessages.some(message=>message.content.includes('Declared entries are registered entries')));
+  assert.equal(request.config.semanticStage,'OBJECTIVE_SOURCE_SCOPE_VERIFICATION');const payload=JSON.parse(request.config.chatMessages.at(-1).content);assert.equal(payload.contract.requestQuote,contract.requestQuote);assert.equal(payload.request,contract.requestQuote);assert.equal(payload.missionRequest,undefined,'another mission objective must not become the scope verification request');assert.equal(payload.sources[0],'declared_registry');assert.ok(request.config.chatMessages.some(message=>message.content.includes('Declared entries are registered entries')));
   return{text:JSON.stringify({exclusionReviews:[{collection:'declared_registry',contradictsObjective:true,reason:'Registered declarations belong to the counting objective despite not being official allocations.'}]})};
  }}}});
  assert.deepEqual(stages,['RECORD_OBJECTIVE_COVERAGE','OBJECTIVE_SOURCE_SCOPE_VERIFICATION']);assert.equal(proof.proven,false);

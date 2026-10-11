@@ -615,7 +615,7 @@ function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
     return {status:missing.length?"partial":"complete",consultedScopes,groups,pendingSources,missing:[...new Set(missing)]};
 }
 
-async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,advisoryContext="",evaluatedAt,instruction=contract.requestQuote}) {
+async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,advisoryContext="",scopeClarifications=[],evaluatedAt,instruction=contract.requestQuote}) {
     const sourcePaths=[...new Set([...observedRecordSources(tasks),...tasks.flatMap(task=>task.observation?.recordEvidence?.scope?.collection ? [task.observation.recordEvidence.scope.collection] : [])])];
     const recordIndexes=tasks.flatMap((task,index)=>task.observation?.ok===true && task.observation.recordEvidence?.source==="FIRESTORE_SERVER_AUTHENTICATED" ? [index] : []);
     // Required source keys prevent the constrained model from repeating one
@@ -704,14 +704,15 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
     }
     const scopeReview=await ai.models.generateContent({model,contents:contract.requestQuote,config:{
         semanticStage:"OBJECTIVE_SOURCE_SCOPE_VERIFICATION",temperature:0,maxOutputTokens:Math.min(2048,Math.max(768,exclusions.length*160)),
-        chatMessages:[{role:"system",content:"Verifica únicamente si las exclusiones de fuentes respetan el alcance literal del objetivo y las aclaraciones explícitas del usuario. No evalúes cumplimiento ni registros. Una distinción entre dos clases no autoriza eliminar una de ellas de un objetivo que las incluye. No sustituyas la población original por una categoría más estrecha inferida de la primera fuente consultada ni transfieras el requisito de otro objetivo. Señala sólo exclusiones con una contradicción clara frente a la solicitud o aclaración explícita del usuario. No invalides una exclusión por probabilidad, semejanza de nombres de rutas ni funciones hipotéticas que no están acreditadas. La incertidumbre no autoriza inventar nuevos requisitos de dominio. La respuesta no prueba datos operativos ni concede permisos."},
-            ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
-            {role:"system",content:"La decisión pertenece exclusivamente a contract.requestQuote. El contexto puede aclarar su población, pero las otras preguntas de la misión no son requisitos de este contrato. Una fuente ajena a este objetivo puede ser pertinente a otro sin invalidar su exclusión aquí. No amplíes el objetivo usando esos otros pedidos. Conserva las exclusiones justificadas por el esquema observado; señala solamente una contradicción explícita con ESTE objetivo o una aclaración de su propia población."},
-            {role:"system",content:"Emite un veredicto para cada exclusión: contradictsObjective=false cuando respeta este objetivo; true sólo si contradice explícitamente su alcance o una aclaración propia. Explicar que una exclusión es correcta requiere false. sourceDefinitions sólo acredita el esquema, nunca registros. Usa sus campos para evitar atribuir a una fuente funciones hipotéticas."},
-            {role:"user",content:JSON.stringify({request:contract.requestQuote,contract,exclusions,sourceDefinitions,sourceDefinitionsMayBeIncomplete:sourceDefinitions.length<observedDefinitions.length || sourceDefinitions.some(source=>source.fieldsComplete!==true)})}],
-        responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{exclusionReviews:{type:"object",properties:Object.fromEntries(exclusions.map(source=>[source.collection,{type:"object",properties:{contradictsObjective:{type:"boolean"},reason:{type:"string",maxLength:160}},required:["contradictsObjective","reason"],additionalProperties:false}])),required:[...new Set(exclusions.map(source=>source.collection))],additionalProperties:false}},required:["exclusionReviews"],additionalProperties:false}
+        // Ask for relevance directly, without the earlier exclusion or assistant
+        // recap. Repeating a proposed verdict would anchor this independent check.
+        chatMessages:[{role:"system",content:"Decide la pertinencia de cada fuente para ESTE objetivo, usando su esquema observado y las aclaraciones del usuario. relevantToObjective=true si puede aportar registros pedidos por ese objetivo; false si el esquema acredita que queda fuera. El alcance all_sources incluye las distintas clases de registros solicitadas: una distinción obliga a mantenerlas separadas, no a borrar una clase del inventario. No sustituyas un pedido general por el dominio de la primera fuente. Una fuente no consultada puede ser pertinente: no confundas falta de lectura con irrelevancia. No evalúes cumplimiento ni pruebes datos con código. No transfieras requisitos de otros objetivos. Emite una decisión para cada ruta adjunta sin inventar otras."},
+            {role:"user",content:JSON.stringify({request:contract.requestQuote,contract,userClarifications:scopeClarifications,sources:exclusions.map(source=>source.collection),sourceDefinitions,sourceDefinitionsMayBeIncomplete:sourceDefinitions.length<observedDefinitions.length || sourceDefinitions.some(source=>source.fieldsComplete!==true)})}],
+        responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{sourceRelevance:{type:"object",properties:Object.fromEntries(exclusions.map(source=>[source.collection,{type:"object",properties:{relevantToObjective:{type:"boolean"},reason:{type:"string",maxLength:160}},required:["relevantToObjective","reason"],additionalProperties:false}])),required:[...new Set(exclusions.map(source=>source.collection))],additionalProperties:false}},required:["sourceRelevance"],additionalProperties:false}
     }});
     const verdict=extractJsonObject(String(scopeReview?.text || ""));
+    if(verdict?.sourceRelevance && typeof verdict.sourceRelevance==="object" && !Array.isArray(verdict.sourceRelevance))
+        verdict.exclusionReviews=Object.entries(verdict.sourceRelevance).map(([collection,decision])=>({collection,contradictsObjective:decision.relevantToObjective,reason:decision.reason}));
     if(verdict?.exclusionReviews && typeof verdict.exclusionReviews==="object" && !Array.isArray(verdict.exclusionReviews))
         verdict.exclusionReviews=Object.entries(verdict.exclusionReviews).map(([collection,decision])=>({...decision,collection}));
     const valid=scopeReview?.providerResponse?.finishReason!=="length" && Array.isArray(verdict?.exclusionReviews) &&
@@ -2676,7 +2677,7 @@ async function runModelSemanticPlanner({
                         const hasUnreviewedSources=hasAuthenticatedRecords && previousObjective?.coverageProof && contract?.scope==="all_sources" &&
                             observedCoverageSources.some(collection=>!(previousObjective?.coverageProof?.sources || []).some(source=>source.collection===collection));
                         if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode && (objective.satisfied || hasNewRecords || previouslySatisfied || hasUnreviewedSources)) {
-                            objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,advisoryContext,evaluatedAt,instruction});
+                            objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,advisoryContext,scopeClarifications:recentConversationTurns.filter(turn=>turn.role==="user").map(turn=>turn.content),evaluatedAt,instruction});
                             refreshedRecordCoverage=true;
                             const reviewedReferences=recordCoverageTaskIndexes(objective).filter(authenticatedRecordAt);
                             objective.evidenceTaskIndexes=[...new Set([...(objective.evidenceTaskIndexes||[]),...reviewedReferences])];
