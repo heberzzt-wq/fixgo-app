@@ -29,6 +29,32 @@ test('record coverage review receives conversational scope separately from opera
 });
 
 const { runJarvisSemanticPlanner } = createRequire(import.meta.url)("../functions/jarvis-semantic-planner.js");
+test('source coverage and exclusions retain exactly one decision per observed source',async()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
+ const {qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry','events'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:qualify});
+ const contract={requestQuote:'Count registered entries',scope:'all_sources',groups:['entries'],coverageMode:'population'};
+ const tasks=[{observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',filters:[]},completeForQuery:true,hasMore:false,totalCount:0}}},{observation:{ok:true,verifiedRead:{file:'observed.js',sourceStructure:{dataBindings:{collections:['registry','events']}}}}}];
+ for(const mode of ['valid','missing_source','missing_exclusion','contradictory_exclusion']) {
+  const proof=await review({model:'same-authority',contract,objective:contract,tasks,ai:{models:{generateContent:async request=>{
+   assert.equal(request.model,'same-authority');
+   if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE') {
+    const schema=request.config.responseJsonSchema.properties.sources;
+    assert.equal(schema.type,'object');assert.deepEqual(Array.from(schema.required),['registry','events']);assert.equal(schema.additionalProperties,false);
+    return{text:JSON.stringify({proven:true,missing:[],groups:[{group:'entries',proven:true,evidence:[{taskIndex:0,fields:[]}]}],sources:{...(mode==='missing_source'?{}:{events:{relevant:false,reason:'Historical events outside the population',taskIndexes:[]}}),registry:{relevant:true,reason:'Complete population read',taskIndexes:[0]}}})};
+   }
+   assert.equal(request.config.semanticStage,'OBJECTIVE_SOURCE_SCOPE_VERIFICATION');
+   const schema=request.config.responseJsonSchema.properties.exclusionReviews;
+   assert.equal(schema.type,'object');assert.deepEqual(Array.from(schema.required),['events']);assert.equal(schema.additionalProperties,false);
+   return{text:JSON.stringify({exclusionReviews:mode==='missing_exclusion'?{}:{events:{contradictsObjective:mode==='contradictory_exclusion',reason:'Observed scope decision'}}})};
+  }}}});
+  const coverage=qualify({evidenceTaskIndexes:[0],coverageProof:proof},contract,tasks);
+  assert.equal(coverage.status,mode==='valid'?'complete':'partial');
+  assert.equal(proof.sources.filter(item=>item.collection==='registry').length,1);
+  assert.equal(proof.sources.filter(item=>item.collection==='events').length,mode==='missing_source'?0:1);
+ }
+});
 test('contradictory record coverage returns to the same semantic authority without automatically completing it',async()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
@@ -3499,7 +3525,7 @@ test('operational coverage citations bind row fields to their own task and keep 
  const citations=schema.properties.groups.items.properties.evidence.items.anyOf;
  const branch=index=>citations.find(item=>item.properties.taskIndex.const===index).properties.fields;
  assert.equal(branch(0).maxItems,0,'a count cannot cite metadata as row fields');
- assert.equal(branch(1).maxItems,1,'a field citation list cannot repeat indefinitely');assert.equal(schema.properties.sources.maxItems,35);assert.equal(schema.properties.sources.minItems,35);assert.equal(schema.properties.sources.items.properties.reason.maxLength,160);assert.equal(schema.properties.missing.maxItems,6);
+ assert.equal(branch(1).maxItems,1,'a field citation list cannot repeat indefinitely');assert.equal(schema.properties.sources.required.length,35);assert.equal(Object.keys(schema.properties.sources.properties).length,35);assert.equal(schema.properties.sources.additionalProperties,false);assert.equal(Object.values(schema.properties.sources.properties)[0].properties.reason.maxLength,160);assert.equal(schema.properties.missing.maxItems,6);
  assert.deepEqual(Array.from(branch(1).items.enum),['owner'],'null and foreign-task fields cannot become proof');
  assert.deepEqual(Array.from(branch(2).items.enum),['deadline'],'each task retains its own observed fields');
 });

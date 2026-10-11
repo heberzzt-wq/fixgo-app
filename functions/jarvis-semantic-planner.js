@@ -615,6 +615,14 @@ function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
 async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,advisoryContext="",evaluatedAt,instruction=contract.requestQuote}) {
     const sourcePaths=[...new Set([...observedRecordSources(tasks),...tasks.flatMap(task=>task.observation?.recordEvidence?.scope?.collection ? [task.observation.recordEvidence.scope.collection] : [])])];
     const recordIndexes=tasks.flatMap((task,index)=>task.observation?.ok===true && task.observation.recordEvidence?.source==="FIRESTORE_SERVER_AUTHENTICATED" ? [index] : []);
+    // Required source keys prevent the constrained model from repeating one
+    // path while omitting another. Preserve the existing array proof contract.
+    const sourceDecisionSchema={type:"object",properties:{relevant:{type:"boolean"},reason:{type:"string",maxLength:160},taskIndexes:{type:"array",maxItems:recordIndexes.length,items:{type:"integer",...(recordIndexes.length?{enum:recordIndexes}:{})}}},required:["relevant","reason","taskIndexes"],additionalProperties:false};
+    const normalizeProof=proof=>{
+        if(proof?.sources && typeof proof.sources==="object" && !Array.isArray(proof.sources))
+            proof.sources=Object.entries(proof.sources).map(([collection,decision])=>({...decision,collection}));
+        return proof;
+    };
     // Code excerpts describe schemas. Their truncation is unrelated to the
     // completeness of an authenticated operational query at another task index.
     const coverageEvidence=boundedAuditTasks(tasks).map((task,taskIndex)=>{
@@ -641,7 +649,7 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{
             proven:{type:"boolean"},missing:{type:"array",maxItems:6,items:{type:"string",maxLength:240}},
             groups:{type:"array",maxItems:(contract.groups || [contract.requestQuote || objective.objective]).length,items:{type:"object",properties:{group:{type:"string",enum:contract.groups || [contract.requestQuote || objective.objective]},proven:{type:"boolean"},evidence:{type:"array",maxItems:recordIndexes.length,items:citationSchema}},required:["group","proven","evidence"],additionalProperties:false}},
-            sources:{type:"array",minItems:sourcePaths.length,maxItems:sourcePaths.length,items:{type:"object",properties:{collection:{type:"string",...(sourcePaths.length?{enum:sourcePaths}:{})},relevant:{type:"boolean"},reason:{type:"string",maxLength:160},taskIndexes:{type:"array",maxItems:recordIndexes.length,items:{type:"integer",...(recordIndexes.length?{enum:recordIndexes}:{})}}},required:["collection","relevant","reason","taskIndexes"],additionalProperties:false}}
+            sources:{type:"object",properties:Object.fromEntries(sourcePaths.map(collection=>[collection,sourceDecisionSchema])),required:sourcePaths,additionalProperties:false}
         },required:["proven","missing","groups","sources"],additionalProperties:false},
         chatMessages:[{role:"system",content:"Evalúa únicamente el contrato adjunto contra la evidencia. Decide qué fuentes observadas son pertinentes a este contrato y explica las exclusiones. Cita las lecturas autenticadas de registros por taskIndex y campos exactos; el código sólo explica el esquema. Usa el esquema observado para interpretar los valores y conserva los grupos del contrato. Los campos ausentes/null son desconocidos. No transfieras requisitos de otros contratos a éste. Un faltante es algo necesario para ESTE contrato que la evidencia no acredita. Devuelve un grupo por cada grupo del contrato. proven=true sólo si esos grupos están cubiertos por registros pertinentes y por las páginas necesarias en las fuentes pertinentes; de lo contrario enumera brechas concretas en missing. Una fuente parcial no demuestra un inventario global y un cero sólo prueba el alcance de su consulta. No inventes otras entidades o fuentes hipotéticas como requisitos: si hay otra fuente observada pertinente sin consultar, nómbrala y mantén el objetivo pendiente. No conviertas un informe de valores registrados en una auditoría de integridad referencial que el contrato no pide. No aceptes afirmaciones previas del planner como prueba ni descartes una fuente pertinente para conseguir el cierre."},
         ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
@@ -653,7 +661,7 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
     };
     const response=await ai.models.generateContent({model,contents:contract.requestQuote,config:reviewConfig});
     if(response?.providerResponse?.finishReason==='length') return {proven:false,missing:["La revisión de cobertura no terminó dentro del presupuesto."]};
-    let proof=extractJsonObject(String(response?.text||"")) || {proven:false,missing:["No se obtuvo una revisión de cobertura válida."]};
+    let proof=normalizeProof(extractJsonObject(String(response?.text||""))) || {proven:false,missing:["No se obtuvo una revisión de cobertura válida."]};
     if((proof.proven!==true || proof.missing?.length) && qualifyRecordObjectiveCoverage({
         evidenceTaskIndexes:recordIndexes,coverageProof:{...proof,proven:true,missing:[]}
     },contract,tasks).status==="complete") {
@@ -668,7 +676,7 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
                 reviewConfig.chatMessages.at(-1)]
         }});
         if(reconciled?.providerResponse?.finishReason!=="length") {
-            let corrected;try{corrected=extractJsonObject(String(reconciled?.text||""));}catch{}
+            let corrected;try{corrected=normalizeProof(extractJsonObject(String(reconciled?.text||"")));}catch{}
             if(corrected && typeof corrected.proven==="boolean" && Array.isArray(corrected.missing) && Array.isArray(corrected.groups) && Array.isArray(corrected.sources)) proof=corrected;
         }
     }
@@ -698,9 +706,11 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
             {role:"system",content:"La decisión pertenece exclusivamente a contract.requestQuote. El contexto puede aclarar su población, pero las otras preguntas de la misión no son requisitos de este contrato. Una fuente ajena a este objetivo puede ser pertinente a otro sin invalidar su exclusión aquí. No amplíes el objetivo usando esos otros pedidos. Conserva las exclusiones justificadas por el esquema observado; señala solamente una contradicción explícita con ESTE objetivo o una aclaración de su propia población."},
             {role:"system",content:"Emite un veredicto para cada exclusión: contradictsObjective=false cuando respeta este objetivo; true sólo si contradice explícitamente su alcance o una aclaración propia. Explicar que una exclusión es correcta requiere false. sourceDefinitions sólo acredita el esquema, nunca registros. Usa sus campos para evitar atribuir a una fuente funciones hipotéticas."},
             {role:"user",content:JSON.stringify({request:contract.requestQuote,contract,exclusions,sourceDefinitions,sourceDefinitionsMayBeIncomplete:sourceDefinitions.length<observedDefinitions.length || sourceDefinitions.some(source=>source.fieldsComplete!==true)})}],
-        responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{exclusionReviews:{type:"array",minItems:exclusions.length,maxItems:exclusions.length,items:{type:"object",properties:{collection:{type:"string",enum:[...new Set(exclusions.map(source=>source.collection))]},contradictsObjective:{type:"boolean"},reason:{type:"string",maxLength:160}},required:["collection","contradictsObjective","reason"],additionalProperties:false}}},required:["exclusionReviews"],additionalProperties:false}
+        responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{exclusionReviews:{type:"object",properties:Object.fromEntries(exclusions.map(source=>[source.collection,{type:"object",properties:{contradictsObjective:{type:"boolean"},reason:{type:"string",maxLength:160}},required:["contradictsObjective","reason"],additionalProperties:false}])),required:[...new Set(exclusions.map(source=>source.collection))],additionalProperties:false}},required:["exclusionReviews"],additionalProperties:false}
     }});
     const verdict=extractJsonObject(String(scopeReview?.text || ""));
+    if(verdict?.exclusionReviews && typeof verdict.exclusionReviews==="object" && !Array.isArray(verdict.exclusionReviews))
+        verdict.exclusionReviews=Object.entries(verdict.exclusionReviews).map(([collection,decision])=>({...decision,collection}));
     const valid=scopeReview?.providerResponse?.finishReason!=="length" && Array.isArray(verdict?.exclusionReviews) &&
         exclusions.every(source=>verdict.exclusionReviews.filter(item=>item.collection===source.collection).length===1) &&
         verdict.exclusionReviews.length===exclusions.length && verdict.exclusionReviews.every(item=>exclusions.some(source=>source.collection===item.collection) && typeof item.contradictsObjective==="boolean" && typeof item.reason==="string" && item.reason.trim());
