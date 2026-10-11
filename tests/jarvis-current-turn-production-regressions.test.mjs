@@ -29,6 +29,28 @@ test('record coverage review receives conversational scope separately from opera
 });
 
 const { runJarvisSemanticPlanner } = createRequire(import.meta.url)("../functions/jarvis-semantic-planner.js");
+test('recovery preserves the first new-source inspection frontier before reopening prior partial ranges',async()=>{
+ const input='Inspect current allocations';
+ const reader={name:'repo.read',investigationReadOnly:true,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'},startLine:{type:'integer'},endLine:{type:'integer'}},required:['file']}};
+ const records={name:'fixture.records',investigationReadOnly:true,evidenceKinds:['platform_records'],requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}},required:['sourceFile']}};
+ const prior={name:reader.name,args:{file:'prior-source.js'},observation:{ok:true,verifiedRead:{file:'prior-source.js',startLine:1,endLine:5,readEndLine:80,totalLines:80,partial:true,contentTruncated:true,content:'Observed source header'}}};
+ const discovery={name:'repo.search',observation:{ok:true,repoCandidates:[{file:'prior-source.js'},{file:'new-source.js'}]}};
+ for(const inspected of [false,true]) {
+  let recovered=false;
+  const tasks=[prior,discovery,...(inspected?[{name:reader.name,args:{file:'new-source.js'},observation:{ok:true,verifiedRead:{file:'new-source.js',startLine:1,endLine:20,totalLines:20}}}]:[])];
+  const result=await runJarvisSemanticPlanner({input,catalog:[reader,records],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[{objective:input,requiredEvidenceKind:'platform_records'}],completedTasks:tasks},ai:{models:{generateContent:async request=>{
+   if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({toolCalls:[],completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Current records remain pending'}]}})};
+   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION')return{text:'{"toolCalls":[]}'};
+   assert.equal(request.config.semanticStage,'READ_ONLY_NEXT_STEP_RECOVERY');
+   const branch=request.config.responseJsonSchema.properties.toolCalls.items.anyOf.find(x=>x.properties.name.enum.includes(reader.name));
+   assert.deepEqual(Array.from(branch.properties.args.properties.file.enum),[inspected?'prior-source.js':'new-source.js']);
+   recovered=true;
+   return{text:JSON.stringify({toolCalls:[{name:reader.name,args:inspected?{file:'prior-source.js',startLine:6,endLine:20}:{file:'new-source.js'}}]})};
+  }}}});
+  assert.equal(recovered,true);assert.equal(result.missionComplete,false);
+  assert.equal(result.toolCalls[0].args.file,inspected?'prior-source.js':'new-source.js');
+ }
+});
 test('authenticated count-only evidence prevents equivalent recounts without requiring row pagination flags',()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');

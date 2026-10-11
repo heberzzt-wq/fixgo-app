@@ -2869,7 +2869,12 @@ async function runModelSemanticPlanner({
                             return [];
                         }
                         if (isEvidencePathReader && unreadSources.length) {
-                            schema.properties.file = {...schema.properties.file, enum:unreadSources};
+                            // Recovery can narrow the current path contract, but
+                            // cannot reopen files excluded by a discovery frontier.
+                            const allowedPaths=schema.properties.file.enum;
+                            const eligiblePaths=unreadSources.filter(file=>!Array.isArray(allowedPaths) || allowedPaths.includes(file));
+                            if(!eligiblePaths.length)return [];
+                            schema.properties.file = {...schema.properties.file, enum:eligiblePaths};
                         }
                         return [{...tool,inputSchema:schema}];
                     });
