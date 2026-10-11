@@ -2875,11 +2875,13 @@ test('closure context retains the latest source window when older source metadat
  assert.equal(result.toolCalls[0].args.startLine,201);
 });
 
-test('source reader follows observed AST and truncated-window anchors without treating answer length as a source range',()=>{
+test('source reader follows observed AST and truncated-window anchors without treating answer length as a source range',async()=>{
+ const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
  const source=readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
  const from=source.indexOf('const parseLineNumber =',source.indexOf('name: "repo.read"'));
  const to=source.indexOf('const structuralTarget =',from);
- const range=new Function('args','context','normalizedFile',source.slice(from,to)+';return requestedLineRange;');
+ const resolve=new Function('args','context','normalizedFile','compactMissionPlannerObservation',source.slice(from,to)+';return requestedLineRange;');
+ const range=(...args)=>resolve(...args,compactMissionPlannerObservation);
  const args={startLine:68,endLine:100};
  const context={rootInstruction:'Resume en 3 líneas',completedTasks:[]};
  assert.equal(range(args,context,'source.js'),null);
@@ -3350,4 +3352,32 @@ test('new record coverage replans the next read against fresh independent gaps',
  }}}});
  assert.equal(freshPlan,true);assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives[0].satisfied,true);assert.equal(result.completionAssessment.objectives[1].satisfied,false);assert.deepEqual(result.toolCalls[0].args,{collection:'deadline_registry',fields:['expiresAt']});
  }
+});
+
+test('source discovery preserves the last operational coverage and its pending scope',async()=>{
+ const records={name:'fixture.records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}]};
+ const reader={name:'fixture.source',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string'},startLine:{type:'integer'}},required:['file']}};
+ const contract={objective:'Identify owners',requestQuote:'Identify owners',requiredEvidenceKind:'platform_records',coverageMode:'relationship',scope:'all_sources',groups:['owners']};
+ const proof={proven:false,missing:['Related registry remains unqueried'],groups:[{group:'owners',proven:true,evidence:[{taskIndex:0,fields:['owner']}]}],sources:[{collection:'primary',relevant:true,reason:'Observed owners',taskIndexes:[0]},{collection:'related',relevant:true,reason:'Related registry remains unqueried',taskIndexes:[]}]};
+ const previous={evaluatedTaskCount:1,objectives:[{objective:contract.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0],coverageProof:proof}]};
+ const before=JSON.stringify(previous);
+ const tasks=[{name:records.name,observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'primary',fields:['owner']},rows:[{id:'one',values:{owner:'Observed owner'}}],totalCount:1,completeForQuery:true,hasMore:false}}},{name:reader.name,args:{file:'source.js'},observation:{ok:true,verifiedRead:{file:'source.js',startLine:1,endLine:9,totalLines:20,content:'Related schema',sourceStructure:{dataBindings:{collections:['primary','related'],fieldPaths:['owner']}}}}}];
+ const result=await runJarvisSemanticPlanner({input:'Identify owners',catalog:[records,reader],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[contract],completionAssessment:previous,completedTasks:tasks},ai:{models:{generateContent:async request=>{
+  assert.equal(request.config.semanticStage,'COMPLETION_AUDIT');return{text:JSON.stringify({completionAssessment:{objectives:[{objective:contract.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0],limitation:'Unconfirmed pagination'}]},toolCalls:[{name:reader.name,args:{file:'source.js',startLine:10}}]})};
+ }}}});
+ const current=result.completionAssessment.objectives[0];assert.deepEqual(current.coverageProof,proof);assert.match(current.limitation,/Related registry remains unqueried/);assert.doesNotMatch(current.limitation,/Unconfirmed pagination/);assert.equal(current.satisfied,false);assert.equal(result.missionComplete,false);assert.equal(current.coverage.consultedScopes[0].completeForQuery,true);assert.equal(JSON.stringify(previous),before,'retention must not mutate an earlier assessment');
+});
+
+test('source continuation uses the exact window delivered to the planner when raw read reaches EOF',async()=>{
+ const {compactMissionPlannerObservation:compact}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
+ const source=readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
+ const from=source.indexOf('const parseLineNumber =',source.indexOf('name: "repo.read"')),to=source.indexOf('const structuralTarget =',from);
+ const range=new Function('args','context','normalizedFile','compactMissionPlannerObservation',source.slice(from,to)+';return requestedLineRange;');
+ const observation={ok:true,executionOk:true,verifiedRead:{tool:'repo.read',file:'source.js',startLine:101,endLine:180,totalLines:180,partial:true,content:Array.from({length:80},(_,i)=>'source '+i+' '+('x'.repeat(55))).join('\n'),sourceStructure:{dataBindings:{references:[{startLine:102,content:'Observed schema'}]}}}};
+ const visible=compact(observation).verifiedRead;assert.ok(visible.endLine<180);
+ const args={startLine:visible.endLine+1,endLine:180},context={rootInstruction:'Resolve the pending objectives',completedTasks:[{name:'repo.read',observation}]};
+ assert.deepEqual(range(args,context,'source.js',compact),args,'the planner-visible boundary must anchor the remaining source');
+ assert.equal(range(args,context,'other.js',compact),null,'a window never anchors another file');
+ assert.equal(range({...args,startLine:args.startLine+7},context,'source.js',compact),null,'an arbitrary unobserved range remains ungrounded');
+ observation.ok=false;assert.equal(range(args,context,'source.js',compact),null,'failed reads do not authorize a continuation');
 });

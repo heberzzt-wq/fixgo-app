@@ -3,6 +3,8 @@
  * Arquitectura: Singleton Registry + Middleware Chain + Error Boundary
  */
 
+import { compactMissionPlannerObservation } from "./jarvis/jarvis.mission.planner-state.js?v=v142-adjunto-flow-alignment-20261001";
+
 import {
     registerJarvisMultifunctionTools
 } from "./jarvis/jarvis.multitool.pack.js?v=v142-adjunto-flow-alignment-20261001";
@@ -1156,7 +1158,7 @@ JarvisToolRuntime.register({
             .filter(match => String(match?.file || "").replace(/\\/g, "/") === normalizedFile.replace(/\\/g, "/") && Number.isInteger(match?.line));
         const observedReadAnchors = (context.completedTasks || [])
             .filter(task => task?.name === "repo.read" && task?.observation?.ok === true && task?.observation?.executionOk !== false)
-            .map(task => task.observation.verifiedRead)
+            .flatMap(task => [task.observation.verifiedRead, compactMissionPlannerObservation(task.observation).verifiedRead])
             .filter(read => read && String(read.file || "").replace(/\\/g, "/") === normalizedFile.replace(/\\/g, "/"))
             .flatMap(read => [
                 ...((read.partial === true || read.contentTruncated === true) && Number.isInteger(read.endLine) &&

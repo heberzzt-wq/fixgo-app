@@ -2530,12 +2530,23 @@ async function runModelSemanticPlanner({
                     const hasNewRecords=completedTasksForAudit.some((task,index)=>index>=assessedCount && authenticatedRecordAt(index));
                     for(const objective of evaluatedAudit.completionAssessment?.objectives||[]) {
                         const contract=missionState.evidenceObjectives.find(item=>item.objective===objective.objective);
-                        const previouslySatisfied=missionState.completionAssessment?.objectives?.some(item=>item.objective===objective.objective && item.satisfied===true);
+                        const previousObjective=missionState.completionAssessment?.objectives?.find(item=>item.objective===objective.objective);
+                        const previouslySatisfied=previousObjective?.satisfied===true;
                         if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode && (objective.satisfied || hasNewRecords || previouslySatisfied)) {
                             objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,advisoryContext,evaluatedAt});
                             if(hasNewRecords)refreshedRecordCoverage=true;
                             const reviewedReferences=(objective.coverageProof.groups||[]).flatMap(group=>(group.evidence||[]).map(item=>item.taskIndex)).filter(authenticatedRecordAt);
                             objective.evidenceTaskIndexes=[...new Set([...(objective.evidenceTaskIndexes||[]),...reviewedReferences])];
+                            continue;
+                        }
+                        if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode && !hasNewRecords &&
+                            previousObjective?.requiredEvidenceKind===objective.requiredEvidenceKind && previousObjective.coverageProof) {
+                            // A source read does not replace the operational review.
+                            // Preserve its credited fields and pending scopes; the
+                            // qualification below still checks all current evidence.
+                            objective.coverageProof=structuredClone(previousObjective.coverageProof);
+                            const retainedReferences=(objective.coverageProof.groups||[]).flatMap(group=>(group.evidence||[]).map(item=>item.taskIndex)).filter(authenticatedRecordAt);
+                            objective.evidenceTaskIndexes=[...new Set([...(objective.evidenceTaskIndexes||[]),...retainedReferences])];
                             continue;
                         }
                         if(!objective.satisfied)continue;
