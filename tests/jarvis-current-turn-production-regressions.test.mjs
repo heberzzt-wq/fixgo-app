@@ -29,6 +29,35 @@ test('record coverage review receives conversational scope separately from opera
 });
 
 const { runJarvisSemanticPlanner } = createRequire(import.meta.url)("../functions/jarvis-semantic-planner.js");
+test('duplicate recovery consults an unqueried observed pending record scope before accepting no plan',async()=>{
+ for(const variant of ['new','no_fields','blocked','already_queried','failed_source']){
+  const reader={name:'fixture.source',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file'],additionalProperties:false}};
+  const records={name:'fixture.records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['count','query']},fields:{type:'array',items:{type:'string'}},filters:{type:'array',items:{type:'object'}}},required:['sourceFile','collection','mode'],additionalProperties:false}};
+  const contract={objective:'Count registered entries',requestQuote:'Count registered entries',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['entries']};
+  const scopeTask=collection=>({name:records.name,args:{sourceFile:'source.js',collection,mode:'query',fields:['owner'],filters:[]},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{sourceFile:'source.js',collection,mode:'query',fields:['owner'],filters:[]},rows:[{id:'one',values:{owner:'Observed owner'}}],totalCount:1,completeForQuery:true,hasMore:false}}});
+  const tasks=[scopeTask('primary'),{name:reader.name,args:{file:'source.js'},observation:{ok:true,verifiedRead:{file:'source.js',startLine:1,endLine:9,totalLines:9,content:'Observed source',sourceStructure:{dataBindings:{collections:['primary','related'],writeShapes:[{collection:'primary',fields:['owner']},{collection:'related',fields:['no_fields','failed_source'].includes(variant)?[]:['owner']}]}}}}}];
+  if(variant==='failed_source')tasks.push({name:reader.name,observation:{ok:true,blocked:true,verifiedRead:{file:'source.js',sourceStructure:{dataBindings:{writeShapes:[{collection:'related',fields:['owner']}]}}}}});
+  if(variant==='already_queried')tasks.push(scopeTask('related'));
+  const previous={evaluatedTaskCount:tasks.length,objectives:[{...contract,satisfied:false,evidenceTaskIndexes:[0],coverageProof:{proven:false,missing:['Related source remains pending'],groups:[{group:'entries',proven:true,evidence:[{taskIndex:0,fields:[]}]}],sources:[{collection:'primary',relevant:true,reason:'Consulted entries',taskIndexes:[0]},{collection:'related',relevant:true,reason:'Related entries',taskIndexes:[]}]}}]};
+  const duplicate={name:records.name,args:{sourceFile:'source.js',collection:'primary',mode:'count',filters:[]}};
+  let recovered=false;
+  const result=await runJarvisSemanticPlanner({input:contract.objective,catalog:[records,reader],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[contract],completionAssessment:previous,completedTasks:tasks,blockedTasks:variant==='blocked'?[{name:records.name,args:{collection:'related'},observation:{blocked:true,retryable:false,errorCode:'PERMISSION_DENIED'}}]:[]},ai:{models:{generateContent:async request=>{
+   if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:[{objective:contract.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0],limitation:'Pending'}]},toolCalls:[duplicate]})};
+   if(request.config.semanticStage==='PENDING_RECORD_SCOPE_RECOVERY'){
+    recovered=true;assert.equal(variant,'new');
+    const choice=request.config.responseJsonSchema.properties.toolCalls.items.anyOf[0];
+    const schema=choice.properties.args;const branches=schema.anyOf||[schema];
+    assert.ok(branches.every(b=>JSON.stringify(b.properties.collection.enum)==='["related"]'));
+    assert.ok(branches.every(b=>JSON.stringify(b.properties.sourceFile.enum)==='["source.js"]'));
+    assert.ok(branches.every(b=>JSON.stringify(b.properties.fields.items.enum)==='["owner"]'));
+    return{text:JSON.stringify({toolCalls:[{name:records.name,args:{sourceFile:'source.js',collection:'related',mode:'query',fields:['owner'],filters:[]}}]})};
+   }
+   return{text:JSON.stringify({toolCalls:[duplicate]})};
+  }}}});
+  assert.equal(recovered,variant==='new',variant);assert.equal(result.missionComplete,false,variant);
+  if(variant==='new')assert.equal(result.toolCalls[0].args.collection,'related');else assert.equal(result.toolCalls.length,0,variant);
+ }
+});
 test('independent source relevance uses user scope and observed schemas without proposed exclusions',async()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');

@@ -2388,7 +2388,7 @@ async function runModelSemanticPlanner({
         const auditTasks = measuredRepair ? fullAuditTasks : boundedAuditTasks(fullAuditTasks);
         const schemaBySourceCollection = new Map();
         for (const task of completedTasksForAudit) {
-            const read = task.observation?.ok === true && task.observation.executionOk !== false ? task.observation.verifiedRead : null;
+            const read = task.observation?.ok === true && task.observation.executionOk !== false && task.observation.blocked !== true && task.observation.requiresInput !== true ? task.observation.verifiedRead : null;
             for (const shape of read?.sourceStructure?.dataBindings?.writeShapes || []) {
                 const key = JSON.stringify([read.file,shape.collection]);
                 const entry = schemaBySourceCollection.get(key) || {sourceFile:read.file,collection:shape.collection,fields:[],startLines:[]};
@@ -2910,6 +2910,61 @@ async function runModelSemanticPlanner({
                         const calls=recovered.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&hasRequiredToolArguments(recoveryCatalog.find(tool=>tool.name===call.name)||{},call.args||{})&&!hasUnexpectedToolArguments(recoveryCatalog.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
                         if(calls.length)return {...validatedAudit,toolCalls:calls,missionComplete:false,provider:String(ai.lastProvider||"jarvis-local"),
                             model,catalogSize:recoveryCatalog.length,planKind:"READ_ONLY_NEXT_STEP_RECOVERY"};
+                    }
+                    // A repeated query does not exhaust a different observed
+                    // record scope. Narrow one same-model recovery to grounded,
+                    // unqueried pending routes before returning to source text.
+                    const pendingRecordScopes=new Set((evaluatedAudit.completionAssessment?.objectives || [])
+                        .filter(objective=>objective.requiredEvidenceKind==="platform_records" && objective.satisfied!==true)
+                        .flatMap(objective=>objective.coverage?.pendingSources || []));
+                    let recordRecoveryBudget=6000;
+                    const pendingRecordCatalog=nextReaders.filter(tool=>tool.evidenceKinds?.includes("platform_records")).flatMap(tool=>{
+                        const schema=buildNativeInputSchema(tool.inputSchema);
+                        const branches=(schema.anyOf || [schema]).flatMap(branch=>{
+                            const properties=branch.properties || {};
+                            if(!properties.mode?.enum?.includes("query") || properties.fields?.type!=="array" || properties.fields.maxItems===0)return [];
+                            return (properties.sourceFile?.enum || []).flatMap(sourceFile=>(properties.collection?.enum || []).flatMap(collection=>{
+                                if(!pendingRecordScopes.has(collection) || /[{}]/.test(collection))return [];
+                                if(completedTasksForAudit.some(task=>task.observation?.ok===true && task.observation.executionOk!==false && task.observation.blocked!==true &&
+                                    task.observation.recordEvidence?.source==="FIRESTORE_SERVER_AUTHENTICATED" && task.observation.recordEvidence.readOnly===true && task.observation.recordEvidence.scope?.collection===collection))return [];
+                                if((missionState.blockedTasks || []).some(task=>task.args?.collection===collection && task.observation?.retryable!==true))return [];
+                                const fields=[...new Set(observedWriteSchemas.filter(shape=>shape.sourceFile===sourceFile && shape.collection===collection)
+                                    .flatMap(shape=>shape.fields || []))].filter(field=>typeof field==="string" && field.trim() &&
+                                        (!properties.fields.items?.enum || properties.fields.items.enum.includes(field)));
+                                if(!fields.length)return [];
+                                const bounded={...branch,properties:{...properties,
+                                    sourceFile:{...properties.sourceFile,enum:[sourceFile]},collection:{...properties.collection,enum:[collection]},
+                                    mode:{...properties.mode,enum:["query"]},fields:{...properties.fields,minItems:Math.max(1,properties.fields.minItems || 0),items:{...properties.fields.items,enum:fields}}},
+                                    required:[...new Set([...(branch.required || []),"sourceFile","collection","mode","fields"])]};
+                                while(fields.length && JSON.stringify(bounded).length>recordRecoveryBudget)fields.pop();
+                                if(!fields.length)return [];
+                                recordRecoveryBudget-=JSON.stringify(bounded).length;
+                                return [bounded];
+                            }));
+                        });
+                        return branches.length ? [{...tool,inputSchema:branches.length===1?branches[0]:{anyOf:branches}}] : [];
+                    });
+                    if(pendingRecordCatalog.length){
+                        const recordStep=await ai.models.generateContent({model,contents:instruction,config:{
+                            semanticStage:"PENDING_RECORD_SCOPE_RECOVERY",temperature:0,maxOutputTokens:768,responseMimeType:"application/json",
+                            responseJsonSchema:{type:"object",properties:{toolCalls:{type:"array",minItems:1,maxItems:1,items:{anyOf:pendingRecordCatalog.map(tool=>({
+                                type:"object",properties:{name:{type:"string",enum:[tool.name]},args:tool.inputSchema},required:["name","args"],additionalProperties:false
+                            }))}}},required:["toolCalls"],additionalProperties:false},
+                            chatMessages:[...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
+                                {role:"system",content:"Los intentos anteriores repitieron evidencia ya consultada. Elige UNA consulta de registros para una fuente pendiente del esquema adjunto. Sus rutas y campos proceden de lecturas exitosas; no son datos actuales ni prueba de cierre. Selecciona los campos pertinentes para un objetivo pendiente y conserva los filtros y permisos autorizados. No inventes filtros, relaciones ni valores. La consulta es una inspección acotada: no demuestra por sí sola inventario global ni resuelve los demás objetivos. El código no sustituye sus registros."},
+                                {role:"system",content:"CATALOGO_PENDIENTE_DE_REGISTROS="+JSON.stringify(pendingRecordCatalog.map(tool=>({name:tool.name,scopes:(tool.inputSchema.anyOf || [tool.inputSchema]).map(branch=>({sourceFile:branch.properties.sourceFile.enum[0],collection:branch.properties.collection.enum[0],fields:branch.properties.fields.items.enum}))})))},
+                                {role:"system",content:"OBJETIVOS_PENDIENTES="+JSON.stringify(continuationObjectiveSummaries(evaluatedAudit.completionAssessment?.objectives?.filter(objective=>objective.satisfied!==true)))},
+                                {role:"user",content:instruction}]
+                        }});
+                        if(recordStep?.providerResponse?.finishReason!=="length"){
+                            let payload;try{payload=extractJsonObject(recordStep.text);}catch{payload=null;}
+                            const selected=validatePlan({...payload,missionComplete:false},pendingRecordCatalog,instruction);
+                            const calls=selected.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&
+                                hasRequiredToolArguments(pendingRecordCatalog.find(tool=>tool.name===call.name)||{},call.args||{}) &&
+                                !hasUnexpectedToolArguments(pendingRecordCatalog.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
+                            if(calls.length)return {...validatedAudit,toolCalls:calls,missionComplete:false,provider:String(ai.lastProvider||"jarvis-local"),
+                                model,catalogSize:pendingRecordCatalog.length,planKind:"PENDING_RECORD_SCOPE_RECOVERY"};
+                        }
                     }
                     // A duplicate data call does not exhaust discovered sources.
                     // Give the same model one bounded choice among real unread
