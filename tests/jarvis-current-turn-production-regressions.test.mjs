@@ -29,6 +29,23 @@ test('record coverage review receives conversational scope separately from opera
 });
 
 const { runJarvisSemanticPlanner } = createRequire(import.meta.url)("../functions/jarvis-semantic-planner.js");
+test('authenticated count-only evidence prevents equivalent recounts without requiring row pagination flags',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');
+ const observed=runInNewContext('('+source.slice(node.start,node.end)+')',{});
+ const call={name:'fixture.records',args:{collection:'registry',mode:'count',filters:[]}};
+ for(const totalCount of [0,3]) {
+  const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',mode:'count',filters:[],fields:[]},totalCount};
+  const task={name:call.name,args:{...call.args,fields:[]},observation:{ok:true,recordEvidence:record}};
+  assert.equal(observed(call,[task]),true);
+  assert.equal(observed({...call,args:{...call.args,fields:['other'],pageSize:20}},[task]),true);
+  assert.equal(observed({...call,args:{...call.args,collection:'related'}},[task]),false);
+  assert.equal(observed({...call,args:{...call.args,filters:[{field:'status',op:'==',value:'active'}]}},[task]),false);
+  for(const changes of [{source:'UNAUTHENTICATED'},{readOnly:false},{totalCount:null},{scope:{...record.scope,mode:'query'}},{hasMore:true}])
+   assert.equal(observed(call,[{...task,observation:{...task.observation,recordEvidence:{...record,...changes}}}]),false);
+  assert.equal(observed(call,[{...task,observation:{...task.observation,executionOk:false}}]),false);
+ }
+});
 test('source coverage and exclusions retain exactly one decision per observed source',async()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');

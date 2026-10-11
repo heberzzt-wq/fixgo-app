@@ -438,7 +438,10 @@ function recordProjectionAlreadyObserved(call, tasks) {
         const record=task.observation?.recordEvidence;
         return task.name===call.name && task.observation?.ok===true && task.observation.executionOk!==false &&
             record?.source==="FIRESTORE_SERVER_AUTHENTICATED" && record.readOnly===true &&
-            Number.isInteger(record.totalCount) && record.totalCount>=0 && record.completeForQuery===true && record.hasMore!==true &&
+            // A server aggregate has no row-pagination flags. Its count proves
+            // this exact scope without certifying rows or any other population.
+            Number.isInteger(record.totalCount) && record.totalCount>=0 &&
+            (record.scope?.mode==="count" || record.completeForQuery===true) && record.hasMore!==true &&
             record.scope?.collection===call.args.collection &&
             !task.args?.cursor && !call.args?.cursor &&
             JSON.stringify(canonical(task.args?.orderBy||[]))===JSON.stringify(canonical(call.args.orderBy||[])) &&
