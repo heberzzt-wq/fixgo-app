@@ -534,6 +534,13 @@ function observedRecordSources(tasks) {
         ? task.observation.verifiedRead?.sourceStructure?.dataBindings?.collections || [] : []))].sort();
 }
 
+function recordCoverageTaskIndexes(objective) {
+    return [...new Set([...(objective.evidenceTaskIndexes || []),
+        ...(objective.coverageProof?.groups || []).flatMap(group=>(group.evidence || []).map(citation=>citation.taskIndex)),
+        ...(objective.coverageProof?.sources || []).filter(source=>source.relevant===true).flatMap(source=>source.taskIndexes || [])
+    ].filter(Number.isInteger))];
+}
+
 function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
     const records=(objective.evidenceTaskIndexes || []).flatMap(index=>{
         const observation=tasks[index]?.observation;
@@ -636,7 +643,8 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         semanticStage:"OBJECTIVE_SOURCE_SCOPE_VERIFICATION",temperature:0,maxOutputTokens:768,
         chatMessages:[{role:"system",content:"Verifica únicamente si las exclusiones de fuentes respetan el alcance literal del objetivo y las aclaraciones explícitas del usuario. No evalúes cumplimiento ni registros. Una distinción entre dos clases no autoriza eliminar una de ellas de un objetivo que las incluye. No sustituyas la población original por una categoría más estrecha inferida de la primera fuente consultada ni transfieras el requisito de otro objetivo. Señala sólo exclusiones con una contradicción clara frente a la solicitud o aclaración explícita del usuario. No invalides una exclusión por probabilidad, semejanza de nombres de rutas ni funciones hipotéticas que no están acreditadas. La incertidumbre no autoriza inventar nuevos requisitos de dominio. La respuesta no prueba datos operativos ni concede permisos."},
             ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
-            {role:"user",content:JSON.stringify({missionRequest:instruction,contract,exclusions})}],
+            {role:"system",content:"La decisión pertenece exclusivamente a contract.requestQuote. El contexto puede aclarar su población, pero las otras preguntas de la misión no son requisitos de este contrato. Una fuente ajena a este objetivo puede ser pertinente a otro sin invalidar su exclusión aquí. No amplíes el objetivo usando esos otros pedidos. Conserva las exclusiones justificadas por el esquema observado; señala solamente una contradicción explícita con ESTE objetivo o una aclaración de su propia población."},
+            {role:"user",content:JSON.stringify({request:contract.requestQuote,contract,exclusions})}],
         responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{invalidExclusions:{type:"array",maxItems:exclusions.length,items:{type:"object",properties:{collection:{type:"string",enum:[...new Set(exclusions.map(source=>source.collection))]},reason:{type:"string",maxLength:240}},required:["collection","reason"],additionalProperties:false}}},required:["invalidExclusions"],additionalProperties:false}
     }});
     const verdict=extractJsonObject(String(scopeReview?.text || ""));
@@ -2568,7 +2576,7 @@ async function runModelSemanticPlanner({
                         if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode && (objective.satisfied || hasNewRecords || previouslySatisfied)) {
                             objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,advisoryContext,evaluatedAt,instruction});
                             refreshedRecordCoverage=true;
-                            const reviewedReferences=(objective.coverageProof.groups||[]).flatMap(group=>(group.evidence||[]).map(item=>item.taskIndex)).filter(authenticatedRecordAt);
+                            const reviewedReferences=recordCoverageTaskIndexes(objective).filter(authenticatedRecordAt);
                             objective.evidenceTaskIndexes=[...new Set([...(objective.evidenceTaskIndexes||[]),...reviewedReferences])];
                             continue;
                         }
@@ -2579,7 +2587,7 @@ async function runModelSemanticPlanner({
                             // qualification below still checks all current evidence.
                             objective.coverageProof=structuredClone(previousObjective.coverageProof);
                             refreshedRecordCoverage=true;
-                            const retainedReferences=(objective.coverageProof.groups||[]).flatMap(group=>(group.evidence||[]).map(item=>item.taskIndex)).filter(authenticatedRecordAt);
+                            const retainedReferences=recordCoverageTaskIndexes(objective).filter(authenticatedRecordAt);
                             objective.evidenceTaskIndexes=[...new Set([...(objective.evidenceTaskIndexes||[]),...retainedReferences])];
                             continue;
                         }
