@@ -2663,11 +2663,19 @@ async function runModelSemanticPlanner({
                     };
                     const assessedCount=Number.isInteger(missionState.completionAssessment?.evaluatedTaskCount)?missionState.completionAssessment.evaluatedTaskCount:0;
                     const hasNewRecords=completedTasksForAudit.some((task,index)=>index>=assessedCount && authenticatedRecordAt(index));
+                    const hasAuthenticatedRecords=completedTasksForAudit.some((task,index)=>authenticatedRecordAt(index));
+                    const observedCoverageSources=observedRecordSources(completedTasksForAudit);
                     for(const objective of evaluatedAudit.completionAssessment?.objectives||[]) {
                         const contract=missionState.evidenceObjectives.find(item=>item.objective===objective.objective);
                         const previousObjective=missionState.completionAssessment?.objectives?.find(item=>item.objective===objective.objective);
                         const previouslySatisfied=previousObjective?.satisfied===true;
-                        if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode && (objective.satisfied || hasNewRecords || previouslySatisfied)) {
+                        // Discovery changes the set of sources to classify, not
+                        // the operational facts. Let this same model review a
+                        // newly observed scope against the existing records;
+                        // code alone still cannot supply a record citation.
+                        const hasUnreviewedSources=hasAuthenticatedRecords && previousObjective?.coverageProof && contract?.scope==="all_sources" &&
+                            observedCoverageSources.some(collection=>!(previousObjective?.coverageProof?.sources || []).some(source=>source.collection===collection));
+                        if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode && (objective.satisfied || hasNewRecords || previouslySatisfied || hasUnreviewedSources)) {
                             objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,advisoryContext,evaluatedAt,instruction});
                             refreshedRecordCoverage=true;
                             const reviewedReferences=recordCoverageTaskIndexes(objective).filter(authenticatedRecordAt);

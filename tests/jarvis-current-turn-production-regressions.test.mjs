@@ -29,6 +29,37 @@ test('record coverage review receives conversational scope separately from opera
 });
 
 const { runJarvisSemanticPlanner } = createRequire(import.meta.url)("../functions/jarvis-semantic-planner.js");
+test('unreviewed observed sources refresh pending record coverage without promoting code to records',async()=>{
+ for(const variant of ['new','known','failed','no_records']){
+  const records={name:'fixture.records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}]};
+  const reader={name:'fixture.source',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string'},startLine:{type:'integer'}},required:['file']}};
+  const contract={objective:'Count registered entries',requestQuote:'Count registered entries',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['entries']};
+  const proof={proven:false,missing:['Scope not yet resolved'],groups:[{group:'entries',proven:true,evidence:[{taskIndex:0,fields:[]}]}],sources:[{collection:'primary',relevant:true,reason:'Observed entries',taskIndexes:[0]}]};
+  if(variant==='known')proof.sources.push({collection:'related',relevant:true,reason:'Still pending',taskIndexes:[]});
+  const previous={evaluatedTaskCount:1,objectives:[{objective:contract.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0],coverageProof:proof}]};
+  const original=JSON.stringify(previous);
+  const tasks=[{name:records.name,observation:{ok:variant!=='no_records',recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'primary',mode:'count',fields:[]},totalCount:0}}},{name:reader.name,args:{file:'source.js'},observation:{ok:variant!=='failed',verifiedRead:{file:'source.js',startLine:1,endLine:9,totalLines:20,content:'Observed schema',sourceStructure:{dataBindings:{collections:['primary','related'],fieldPaths:['owner']}}}}}];
+  let reviews=0;
+  const result=await runJarvisSemanticPlanner({input:contract.objective,catalog:[records,reader],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[contract],completionAssessment:previous,completedTasks:tasks},ai:{models:{generateContent:async request=>{
+   if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:[{objective:contract.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:variant==='no_records'?[]:[0],limitation:'Pending'}]},toolCalls:[{name:reader.name,args:{file:'source.js',startLine:10}}]})};
+   if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE'){
+    reviews++;const payload=JSON.parse(request.config.chatMessages.at(-1).content);
+    assert.ok(payload.observedSources.includes('related'));
+    return{text:JSON.stringify({...proof,missing:['Related records have not been consulted'],sources:[...proof.sources,{collection:'related',relevant:true,reason:'Related entries',taskIndexes:[]}]})};
+   }
+   return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'source.js',startLine:10}}]})};
+  }}}});
+  assert.equal(reviews,variant==='new'?1:0,variant);
+  assert.equal(result.missionComplete,false,variant);
+  assert.equal(result.completionAssessment.objectives[0].satisfied,false,variant);
+  if(variant==='new'){
+   assert.deepEqual(result.completionAssessment.objectives[0].coverage.pendingSources,['related']);
+   assert.deepEqual(result.completionAssessment.objectives[0].coverageProof.groups[0].evidence,[{taskIndex:0,fields:[]}]);
+   assert.match(result.completionAssessment.objectives[0].limitation,/Related records have not been consulted/);
+  }
+  assert.equal(JSON.stringify(previous),original,'the earlier operational review remains immutable');
+ }
+});
 test('recovery preserves the first new-source inspection frontier before reopening prior partial ranges',async()=>{
  const input='Inspect current allocations';
  const reader={name:'repo.read',investigationReadOnly:true,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'},startLine:{type:'integer'},endLine:{type:'integer'}},required:['file']}};
