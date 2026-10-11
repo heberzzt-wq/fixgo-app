@@ -2519,6 +2519,7 @@ async function runModelSemanticPlanner({
                     }
                 }
                 const validatedAudit = validatePlan(evaluatedAudit, selectableCatalog, instruction);
+                let refreshedRecordCoverage = false;
                 if (missionState.evidenceObjectives?.length) validateCompletionEvidence(evaluatedAudit, normalizedCatalog, missionState);
                 if (missionState.evidenceObjectives?.length) {
                     const authenticatedRecordAt=index=>{
@@ -2532,6 +2533,7 @@ async function runModelSemanticPlanner({
                         const previouslySatisfied=missionState.completionAssessment?.objectives?.some(item=>item.objective===objective.objective && item.satisfied===true);
                         if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode && (objective.satisfied || hasNewRecords || previouslySatisfied)) {
                             objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,advisoryContext,evaluatedAt});
+                            if(hasNewRecords)refreshedRecordCoverage=true;
                             const reviewedReferences=(objective.coverageProof.groups||[]).flatMap(group=>(group.evidence||[]).map(item=>item.taskIndex)).filter(authenticatedRecordAt);
                             objective.evidenceTaskIndexes=[...new Set([...(objective.evidenceTaskIndexes||[]),...reviewedReferences])];
                             continue;
@@ -2576,6 +2578,12 @@ async function runModelSemanticPlanner({
                         validatedAudit.toolCalls=validatedAudit.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call));
                         evaluatedAudit.toolCalls=validatedAudit.toolCalls;
                         evaluatedAudit.missionComplete=validatedAudit.missionComplete=validatedAudit.toolCalls.length===0;
+                    }
+                    else if(refreshedRecordCoverage) {
+                        // The audit selected its next step before these independent
+                        // reviews. Let the same model choose again from the fresh
+                        // gaps; an added projection is not automatically progress.
+                        evaluatedAudit.toolCalls=validatedAudit.toolCalls=[];
                     }
                 }
                 const pendingEvidenceKinds = new Set(

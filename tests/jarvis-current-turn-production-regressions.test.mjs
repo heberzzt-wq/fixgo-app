@@ -3324,3 +3324,23 @@ test('objective field coverage ignores unclaimed projections but rejects truncat
  objective.coverageProof.proven=false;
  assert.equal(qualify(objective,contract,tasks).status,'partial','mechanical projection checks cannot overrule Qwen coverage');
 });
+
+test('new record coverage replans the next read against fresh independent gaps',async()=>{
+ const tool={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'},fields:{type:'array',items:{type:'string'}}},required:['collection','fields']}};
+ const contracts=[{objective:'Identify owners',requestQuote:'Identify owners',requiredEvidenceKind:'platform_records',coverageMode:'relationship',scope:'explicit_scope',groups:['owners']},{objective:'Inspect deadlines',requestQuote:'Inspect deadlines',requiredEvidenceKind:'platform_records',coverageMode:'temporal',scope:'explicit_scope',groups:['deadlines']}];
+ const tasks=[{name:tool.name,args:{collection:'registry',fields:['owner']},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',fields:['owner']},rows:[{id:'one',values:{owner:'Observed owner'}}],totalCount:1,completeForQuery:true,hasMore:false}}}];
+ let freshPlan=false;
+ const result=await runJarvisSemanticPlanner({input:'Identify owners and inspect deadlines',catalog:[tool],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:contracts,completedTasks:tasks},ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:contracts.map(c=>({objective:c.objective,requiredEvidenceKind:c.requiredEvidenceKind,satisfied:false,evidenceTaskIndexes:[0],limitation:'Pre-review assessment'}))},toolCalls:[{name:tool.name,args:{collection:'registry',fields:['owner','description']}}]})};
+  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":true}'};
+  if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE'){
+   const covered=request.contents==='Identify owners';return{text:JSON.stringify({proven:covered,missing:covered?[]:['Read the observed deadline source'],groups:[{group:covered?'owners':'deadlines',proven:covered,evidence:covered?[{taskIndex:0,fields:['owner']}]:[]}],sources:[]})};
+  }
+  if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){
+   freshPlan=true;const pending=request.config.chatMessages.find(m=>m.content.startsWith('OBJETIVOS_PENDIENTES='));assert.match(pending.content,/Read the observed deadline source/);assert.doesNotMatch(pending.content,/Pre-review assessment/);
+   return{functionCalls:[{name:tool.name,args:{collection:'deadline_registry',fields:['expiresAt']}}]};
+  }
+  throw Error('Unexpected stage '+request.config.semanticStage);
+ }}}});
+ assert.equal(freshPlan,true);assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives[0].satisfied,true);assert.equal(result.completionAssessment.objectives[1].satisfied,false);assert.deepEqual(result.toolCalls[0].args,{collection:'deadline_registry',fields:['expiresAt']});
+});
