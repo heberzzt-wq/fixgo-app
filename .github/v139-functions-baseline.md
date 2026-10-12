@@ -1,7 +1,7 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `2acf72861024b6fbf7be97f754672e52db38bc4f`, the locally verified mission-reference context recovery release.
-This explicit advance admits only the committed planner/runtime regression fixes, including original mission context without merging objective evidence contracts;
+Current baseline: `a852d49744bf9989f5ea57dc3af3b535aa619362`, the locally verified operational objective isolation release.
+This explicit advance admits only the committed planner/runtime regression fixes, including mission context for source selection while operational audits exclude sibling goals and assistant summaries;
 it does not accept unfinished working-tree changes or certify a real mission.
 The baseline remains pinned, ancestor-checked and enforced against every future
 Functions change. Local full-suite and fresh focal checks passed; the workstation
