@@ -1,7 +1,7 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `e240273887aa5a2d3f04e07ca2f7c64b330ca3b5`, the locally verified source-scope conflict recovery release.
-This explicit advance admits only the committed planner/runtime regression fixes, including preservation of unconsulted sources when semantic reviews disagree;
+Current baseline: `2acf72861024b6fbf7be97f754672e52db38bc4f`, the locally verified mission-reference context recovery release.
+This explicit advance admits only the committed planner/runtime regression fixes, including original mission context without merging objective evidence contracts;
 it does not accept unfinished working-tree changes or certify a real mission.
 The baseline remains pinned, ancestor-checked and enforced against every future
 Functions change. Local full-suite and fresh focal checks passed; the workstation
