@@ -103,7 +103,7 @@ test('record-only audits reserve reply space and refer to credited schemas witho
 });
 
 test('duplicate recovery consults an unqueried observed pending record scope before accepting no plan',async()=>{
- for(const variant of ['new','no_fields','blocked','already_queried','failed_source']){
+ for(const variant of ['new','no_fields','blocked','already_queried','already_read_new_names','failed_source']){
   const reader={name:'fixture.source',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file'],additionalProperties:false}};
   const records={name:'fixture.records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['count','query']},fields:{type:'array',items:{type:'string'}},cursor:{type:'string'},filters:{type:'array',items:{type:'object'}}},required:['sourceFile','collection','mode'],additionalProperties:false}};
   const contract={objective:'Count registered entries',requestQuote:'Count registered entries',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['entries']};
@@ -111,25 +111,31 @@ test('duplicate recovery consults an unqueried observed pending record scope bef
   const tasks=[scopeTask('primary'),{name:reader.name,args:{file:'source.js'},observation:{ok:true,verifiedRead:{file:'source.js',startLine:1,endLine:9,totalLines:9,content:'Observed source',sourceStructure:{dataBindings:{collections:['primary','related'],writeShapes:[{collection:'primary',fields:['owner']},{collection:'related',fields:['no_fields','failed_source'].includes(variant)?[]:['owner']}]}}}}}];
   if(variant==='failed_source')tasks.push({name:reader.name,observation:{ok:true,blocked:true,verifiedRead:{file:'source.js',sourceStructure:{dataBindings:{writeShapes:[{collection:'related',fields:['owner']}]}}}}});
   if(variant==='already_queried')tasks.push(scopeTask('related'));
+  if(variant==='already_read_new_names'){
+   const read=scopeTask('related');
+   read.observation.recordEvidence.fieldSchema={source:'SERVER_RECORD_FIELD_NAMES',collection:'related',scope:'returned_rows_only',sampledRows:1,paths:['owner','allocation.holder'],completeForObservedRows:true};
+   tasks.push(read);
+  }
   const previous={evaluatedTaskCount:tasks.length,objectives:[{...contract,satisfied:false,evidenceTaskIndexes:[0],coverageProof:{proven:false,missing:['Related source remains pending'],groups:[{group:'entries',proven:true,evidence:[{taskIndex:0,fields:[]}]}],sources:[{collection:'primary',relevant:true,reason:'Consulted entries',taskIndexes:[0]},{collection:'related',relevant:true,reason:'Related entries',taskIndexes:[]}]}}]};
   const duplicate={name:records.name,args:{sourceFile:'source.js',collection:'primary',mode:'count',filters:[]}};
   let recovered=false;
   const result=await runJarvisSemanticPlanner({input:contract.objective,catalog:[records,reader],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[contract],completionAssessment:previous,completedTasks:tasks,blockedTasks:variant==='blocked'?[{name:records.name,args:{collection:'related'},observation:{blocked:true,retryable:false,errorCode:'PERMISSION_DENIED'}}]:[]},ai:{models:{generateContent:async request=>{
    if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:[{objective:contract.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0],limitation:'Pending'}]},toolCalls:[duplicate]})};
    if(request.config.semanticStage==='PENDING_RECORD_SCOPE_RECOVERY'){
-    recovered=true;assert.equal(variant,'new');
+    recovered=true;assert.ok(['new','already_read_new_names'].includes(variant));
     const choice=request.config.responseJsonSchema.properties.toolCalls.items.anyOf[0];
     const schema=choice.properties.args;const branches=schema.anyOf||[schema];
     assert.ok(branches.every(b=>JSON.stringify(b.properties.collection.enum)==='["related"]'));
     assert.ok(branches.every(b=>JSON.stringify(b.properties.sourceFile.enum)==='["source.js"]'));
-    assert.ok(branches.every(b=>JSON.stringify(b.properties.fields.items.enum)==='["owner"]'));
+    const field=variant==='already_read_new_names'?'allocation.holder':'owner';
+    assert.ok(branches.every(b=>JSON.stringify(b.properties.fields.items.enum)===JSON.stringify([field])));
     assert.ok(branches.every(b=>!('cursor' in b.properties)),'an unqueried scope has no observed continuation cursor');
-    return{text:JSON.stringify({toolCalls:[{name:records.name,args:{sourceFile:'source.js',collection:'related',mode:'query',fields:['owner'],filters:[]}}]})};
+    return{text:JSON.stringify({toolCalls:[{name:records.name,args:{sourceFile:'source.js',collection:'related',mode:'query',fields:[field],filters:[]}}]})};
    }
    return{text:JSON.stringify({toolCalls:[duplicate]})};
   }}}});
-  assert.equal(recovered,variant==='new',variant);assert.equal(result.missionComplete,false,variant);
-  if(variant==='new')assert.equal(result.toolCalls[0].args.collection,'related');else assert.equal(result.toolCalls.length,0,variant);
+  assert.equal(recovered,['new','already_read_new_names'].includes(variant),variant);assert.equal(result.missionComplete,false,variant);
+  if(recovered)assert.equal(result.toolCalls[0].args.collection,'related');else assert.equal(result.toolCalls.length,0,variant);
  }
 });
 test('independent source relevance uses user scope and observed schemas without proposed exclusions',async()=>{
@@ -1927,21 +1933,77 @@ test('retrieval action accepts natural phrasing without language or word-count g
     assert.doesNotMatch(source,/3-8 English words|words.length >= 3/);
 });
 
-function platformQueryTestFixture({signedIn=true,fail=null,fromCache=false,changeSession=false}={}) {
+function platformQueryTestFixture({signedIn=true,fail=null,fromCache=false,changeSession=false,recordData=null}={}) {
     const source=readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
     const ast=parse(source,{sourceType:'module',ecmaVersion:'latest'});
     const declaration=ast.body.find(n=>n.type==='ExportNamedDeclaration'&&n.declaration?.id?.name==='executePlatformQuery')?.declaration;
     assert.ok(declaration,'generic platform query must be wired into the real runtime');
     const execute=runInNewContext('('+source.slice(declaration.start,declaration.end)+')',{analyzeRepoSourceStructure});
     const auth={currentUser:signedIn?{uid:'fixture-caller'}:null},calls=[];
-    const docs=[{id:'a',get:field=>({title:'Uno',privateNote:'DO_NOT_EXPOSE'}[field])},{id:'b',get:field=>({title:'Dos',privateNote:'DO_NOT_EXPOSE'}[field])},{id:'c',get:field=>({title:'Tres'}[field])}];
+    const docs=recordData ? recordData.map((data,index)=>({id:String(index),data:()=>data,get:field=>field.split('.').reduce((value,key)=>value?.[key],data)})) : [{id:'a',get:field=>({title:'Uno',privateNote:'DO_NOT_EXPOSE'}[field])},{id:'b',get:field=>({title:'Dos',privateNote:'DO_NOT_EXPOSE'}[field])},{id:'c',get:field=>({title:'Tres'}[field])}];
     const sdk={collection:(_db,name)=>({collection:name}),query:(base,...constraints)=>({base,constraints}),where:(...args)=>({where:args}),orderBy:field=>({orderBy:field}),documentId:()=> '__name__',limit:value=>({limit:value}),doc:(_db,collection,id)=>({collection,id}),startAfter:document=>({after:document.id}),
-        getDocFromServer:async({id})=>({id,exists:()=>true}),getCountFromServer:async q=>{calls.push({kind:'count',q});if(fail)throw Object.assign(new Error('Read failed'),{code:fail});return{data:()=>({count:3})}},
+        getDocFromServer:async({id})=>({id,exists:()=>true}),getCountFromServer:async q=>{calls.push({kind:'count',q});if(fail)throw Object.assign(new Error('Read failed'),{code:fail});return{data:()=>({count:docs.length})}},
         getDocsFromServer:async q=>{calls.push({kind:'query',q});if(fail)throw Object.assign(new Error('Read failed'),{code:fail});if(changeSession)auth.currentUser={uid:'different'};return{docs,metadata:{fromCache}};}};
     const context={rootInstruction:'Consulta los registros observados',completedTasks:[{name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'const data = collection(db, "arbitrary_records"); const title = record.title;',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['arbitrary_records'],complete:true}}}}}]};
     const args={collection:'arbitrary_records',sourceFile:'source.js',fields:['title'],pageSize:2,includeCount:true};
     return{execute,args,context,calls,dependencies:{auth,db:{},sdk}};
 }
+
+test('server record field names stay bounded to returned rows and unlock only a same-route follow-up projection',async()=>{
+ const f=platformQueryTestFixture({recordData:[{title:'First',classification:'observed',allocation:{holder:'PRIVATE_VALUE'},documents:{renewal:{end:'2026-11-01'}}},{title:'Second',classification:null},{title:'Third',unseenField:'NOT_RETURNED'}]});
+ const first=await f.execute(f.args,f.dependencies,f.context);
+ assert.equal(first.ok,true);
+ const schema=first.recordEvidence.fieldSchema;
+ assert.equal(schema.source,'SERVER_RECORD_FIELD_NAMES');
+ assert.equal(schema.collection,f.args.collection);
+ assert.equal(schema.scope,'returned_rows_only');
+ assert.equal(schema.sampledRows,2);
+ assert.equal(first.recordEvidence.hasMore,true);
+ assert.deepEqual(Array.from(schema.paths),['title','classification','allocation','allocation.holder','documents','documents.renewal','documents.renewal.end']);
+ assert.doesNotMatch(JSON.stringify(first),/PRIVATE_VALUE|2026-11-01|NOT_RETURNED|unseenField/);
+ assert.deepEqual(Object.keys(first.recordEvidence.rows[0].values),['title']);
+ f.context.completedTasks.push({name:'platform.query',observation:first});
+ const next=await f.execute({...f.args,fields:['classification','allocation.holder']},f.dependencies,f.context);
+ assert.equal(next.ok,true,JSON.stringify(next));
+ assert.equal(next.recordEvidence.rows[0].values['allocation.holder'],'PRIVATE_VALUE');
+ const base=f.context.completedTasks[1];
+ for(const variant of ['foreign_route','foreign_schema','cache','failed','wrong_sample_size']){
+  const changed=structuredClone(base);
+  if(variant==='foreign_route')changed.observation.recordEvidence.scope.collection='unrelated_records';
+  if(variant==='foreign_schema')changed.observation.recordEvidence.fieldSchema.collection='unrelated_records';
+  if(variant==='cache')changed.observation.recordEvidence.source='FIRESTORE_CACHE';
+  if(variant==='failed')changed.observation.ok=false;
+  if(variant==='wrong_sample_size')changed.observation.recordEvidence.fieldSchema.sampledRows=99;
+  f.context.completedTasks[1]=changed;
+  const count=f.calls.length;
+  const rejected=await f.execute({...f.args,fields:['allocation.holder']},f.dependencies,f.context);
+  assert.equal(rejected.ok,false,variant);
+  assert.equal(rejected.error.code,'PLATFORM_QUERY_FIELD_NOT_DISCOVERED',variant);
+  assert.equal(f.calls.length,count,variant);
+ }
+});
+
+test('record field metadata never turns a limited schema, empty route or count into operational value coverage',async()=>{
+ const large=Object.fromEntries(Array.from({length:500},(_,i)=>['observed_property_'+i+'_'+ 'x'.repeat(20),'PRIVATE_VALUE']));
+ const f=platformQueryTestFixture({recordData:[{title:'Only',...large}]});
+ const result=await f.execute(f.args,f.dependencies,f.context);
+ assert.equal(result.ok,true);
+ assert.equal(result.recordEvidence.fieldSchema.completeForObservedRows,false);
+ assert.ok(result.recordEvidence.fieldSchema.paths.length<=128);
+ assert.ok(JSON.stringify(result.recordEvidence.fieldSchema.paths).length<=3000);
+ assert.doesNotMatch(JSON.stringify(result),/PRIVATE_VALUE/);
+ const empty=platformQueryTestFixture({recordData:[]});
+ const zero=await empty.execute(empty.args,empty.dependencies,empty.context);
+ assert.equal(zero.recordEvidence.totalCount,0);
+ assert.equal(zero.recordEvidence.rows.length,0);
+ assert.equal(zero.recordEvidence.fieldSchema,undefined);
+ const count=await f.execute({...f.args,mode:'count',fields:[]},f.dependencies,f.context);
+ assert.equal(count.recordEvidence.fieldSchema,undefined);
+ const {qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const contract={requiredEvidenceKind:'platform_records',coverageMode:'relationship',scope:'explicit_scope',groups:['holder']};
+ const proof={proven:true,missing:[],sources:[],groups:[{group:'holder',proven:true,evidence:[{taskIndex:0,fields:['allocation.holder']}]}]};
+ assert.equal(qualify({evidenceTaskIndexes:[0],coverageProof:proof},contract,[{observation:{ok:true,recordEvidence:result.recordEvidence}}]).status,'partial');
+});
 
 test('objective contract precedes observations and keeps independent quoted requirements',async(t)=>{
  const input='Cuenta equipos, identifica sus responsables y revisa fechas de renovación. Sólo consulta.';
@@ -3791,7 +3853,7 @@ test('repeated source windows share identical schemas without losing records or 
 });
 
 test('field rejection constrains recovery to observed fields without changing other collection or count scopes',()=>{
- const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='bindRejectedRecordFields');const bind=runInNewContext('('+source.slice(node.start,node.end)+')',{buildNativeInputSchema:x=>x});
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='bindRejectedRecordFields');const bind=runInNewContext('('+source.slice(node.start,node.end)+')',{buildNativeInputSchema:x=>x,observedRecordFieldPaths:createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').observedRecordFieldPaths});
  const query={name:'platform.query',inputSchema:{type:'object',properties:{sourceFile:{type:'string',enum:['source.js']},collection:{type:'string',enum:['registry','events']},fields:{type:'array',items:{type:'string'}}}}};
  const failures=[{name:query.name,args:{sourceFile:'source.js',collection:'registry'},observation:{errorDetails:{undiscoveredFields:['guessed'],discoveredFieldPaths:['details.owner']}}}];
  const reads=[{observation:{ok:true,verifiedRead:{file:'source.js',sourceStructure:{dataBindings:{collections:['registry','events'],fieldPaths:['details.owner','details.expiresAt'],writeShapes:[{collection:'registry',fields:['label']},{collection:'events',fields:['unrelated']}]}}}}}];
@@ -3800,6 +3862,81 @@ test('field rejection constrains recovery to observed fields without changing ot
  const unchanged=bind([{...query,inputSchema:{...query.inputSchema,properties:{...query.inputSchema.properties,fields:{type:'array',maxItems:0}}}}],reads,failures);assert.equal(unchanged[0].inputSchema.properties.fields.maxItems,0);
  assert.deepEqual(bind([query],reads,[{name:query.name,observation:{errorCode:'PERMISSION_DENIED'}}]),[query]);
  reads[0].observation.verifiedRead.sourceStructure.dataBindings.writeShapes[0].fields.push('guessed');assert.ok(bind([query],reads,failures)[0].inputSchema.anyOf[0].properties.fields.items.enum.includes('guessed'),'a later positive source may accredit a formerly rejected field');
+});
+
+test('field recovery accepts authenticated observed names without granting values, foreign routes or failed observations',()=>{
+ const {observedRecordFieldPaths,qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='bindRejectedRecordFields');
+ const bind=runInNewContext('('+source.slice(node.start,node.end)+')',{buildNativeInputSchema:x=>x,observedRecordFieldPaths});
+ const query={name:'platform.query',inputSchema:{type:'object',properties:{sourceFile:{type:'string',enum:['source.js']},collection:{type:'string',enum:['registry','unrelated']},fields:{type:'array',items:{type:'string'}}}}};
+ const failure={name:query.name,args:{sourceFile:'source.js',collection:'registry'},observation:{errorDetails:{undiscoveredFields:['invented'],discoveredFieldPaths:['internal.ok']}}};
+ const record={name:query.name,observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',mode:'query'},rows:[{id:'first',values:{'internal.ok':null}}],hasMore:true,completeForQuery:false,
+  fieldSchema:{source:'SERVER_RECORD_FIELD_NAMES',collection:'registry',scope:'returned_rows_only',sampledRows:1,paths:['category','allocation.holder'],completeForObservedRows:true}}}};
+ const output=JSON.parse(JSON.stringify(bind([query],[record],[failure])))[0].inputSchema.anyOf;
+ assert.deepEqual(output[0].properties.fields.items.enum,['category','allocation.holder','internal.ok']);
+ assert.equal(output[1].properties.fields.items.enum,undefined);
+ for(const variant of ['failed','foreign','wrong_source','count','wrong_sample','invalid_key']){
+  const changed=structuredClone(record);
+  if(variant==='failed')changed.observation.ok=false;
+  if(variant==='foreign')changed.observation.recordEvidence.scope.collection='unrelated';
+  if(variant==='wrong_source')changed.observation.recordEvidence.fieldSchema.source='CODE_FIELD_NAMES';
+  if(variant==='count')changed.observation.recordEvidence.scope.mode='count';
+  if(variant==='wrong_sample')changed.observation.recordEvidence.fieldSchema.sampledRows=2;
+  if(variant==='invalid_key')changed.observation.recordEvidence.fieldSchema.paths=['__proto__.polluted'];
+  assert.deepEqual(observedRecordFieldPaths([changed],'registry'),[],variant);
+ }
+ const contract={requiredEvidenceKind:'platform_records',coverageMode:'relationship',scope:'explicit_scope',groups:['holder']};
+ const objective={evidenceTaskIndexes:[0],coverageProof:{proven:true,missing:[],sources:[],groups:[{group:'holder',proven:true,evidence:[{taskIndex:0,fields:['allocation.holder']}]}]}};
+ assert.equal(qualify(objective,contract,[record]).status,'partial');
+ const full=structuredClone(record);Object.assign(full.observation.recordEvidence,{hasMore:false,completeForQuery:true,totalCount:1,returnedCount:1});
+ assert.equal(qualify(objective,contract,[full]).status,'partial','even a complete collection page proves no values for names that were not projected');
+});
+
+test('observed record field discovery has a cumulative budget and prefers the latest authenticated names',()=>{
+ const {observedRecordFieldPaths}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const task=(paths)=>({observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',mode:'query'},rows:[{id:'observed',values:{}}],fieldSchema:{source:'SERVER_RECORD_FIELD_NAMES',collection:'registry',scope:'returned_rows_only',sampledRows:1,paths}}}});
+ const tasks=Array.from({length:12},(_,i)=>task(Array.from({length:50},(_,j)=>'attribute_'+i+'_'+j)));
+ const before=JSON.stringify(tasks),fields=observedRecordFieldPaths(tasks,'registry');
+ assert.equal(fields[0],'attribute_11_0');assert.ok(fields.length<=128);assert.ok(JSON.stringify(fields).length<=3000);assert.equal(JSON.stringify(tasks),before);
+ assert.deepEqual(observedRecordFieldPaths(tasks,'another-route'),[]);
+ const long=Array.from({length:6},(_,i)=>task(['attribute_'+i+'_'+'x'.repeat(470)]));
+ const bounded=observedRecordFieldPaths(long,'registry');assert.equal(bounded[0],long.at(-1).observation.recordEvidence.fieldSchema.paths[0]);assert.ok(JSON.stringify(bounded).length<=3000);
+});
+
+test('same-model source review receives observed record names as schema only and keeps missing values pending',async()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
+ const helpers=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry','history'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:helpers.qualifyRecordObjectiveCoverage,observedRecordFieldPaths:helpers.observedRecordFieldPaths});
+ const task=collection=>({observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection,mode:'query',sourceFile:'schema.js',fields:['status'],filters:[]},rows:[{id:'observed',values:{status:'active'}}],hasMore:true,completeForQuery:false,fieldSchema:{source:'SERVER_RECORD_FIELD_NAMES',collection,scope:'returned_rows_only',sampledRows:1,paths:['status','allocation.holder']}}}});
+ let payload;const models=[];
+ const result=await review({model:'local-model',objective:{objective:'Identify holders'},contract:{requiredEvidenceKind:'platform_records',requestQuote:'Identify holders',groups:['holders'],coverageMode:'relationship',scope:'all_sources'},tasks:[task('registry'),task('history')],ai:{models:{generateContent:async request=>{
+  models.push(request.model);
+  if(request.config.semanticStage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION'){
+   payload=JSON.parse(request.config.chatMessages.at(-1).content);
+   return{text:JSON.stringify({sourceRelevance:{registry:{relevantToObjective:true,reason:'Observed relationship field'},history:{relevantToObjective:true,reason:'Observed related field'}}})};
+  }
+  return{text:JSON.stringify({proven:false,missing:['Holder values have not been read'],groups:[{group:'holders',proven:false,evidence:[]}],sources:[{collection:'registry',relevant:true,reason:'Related',taskIndexes:[0]},{collection:'history',relevant:true,reason:'Related',taskIndexes:[1]}]})};
+ }}}});
+ assert.ok(payload);assert.deepEqual(models,['local-model','local-model']);assert.equal(result.proven,false);
+ for(const definition of payload.sourceDefinitions){assert.equal(definition.recordNamesOnly,true);assert.equal(definition.fieldsComplete,false);assert.ok(definition.fields.includes('allocation.holder'));assert.equal(definition.rows,undefined);assert.equal(definition.values,undefined);}
+ assert.equal(result.groups[0].proven,false);
+});
+
+test('record field schema compaction preserves query scopes, rows, recent reading and pending objectives within budget',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='boundedAuditTasks');const compact=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const paths=Array.from({length:80},(_,i)=>'detail.attribute_'+i+'_observed');
+ const records=Array.from({length:12},(_,i)=>({index:i,name:'fixture.query',pendingObjectives:['inventory','relationships','dates'],observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'entries',mode:'query',filters:[{field:'batch',op:'==',value:i}],fields:['detail'],limit:1},rows:[{id:'entry-'+i,values:{detail:{type:'object',notExpanded:true}}}],observedAt:'2028-01-'+String(i+1).padStart(2,'0'),returnedCount:1,totalCount:2,hasMore:true,completeForQuery:false,fieldSchema:{source:'SERVER_RECORD_FIELD_NAMES',collection:'entries',scope:'returned_rows_only',sampledRows:1,paths,completeForObservedRows:true}}}}));
+ const reads=Array.from({length:18},(_,i)=>({name:'source.read',args:{file:'schema.js',startLine:i+1},observation:{ok:true,verifiedRead:{file:'schema.js',startLine:i+1,content:'LATEST_RELEVANT_READ '+'body '.repeat(1000),sourceStructure:{dataBindings:{collections:['entries'],fieldPaths:paths,writeShapes:[{collection:'entries',fields:paths,fieldsComplete:true}]}}}}}));
+ const tasks=[...records,...reads],before=JSON.stringify(tasks),result=JSON.parse(JSON.stringify(compact(tasks)));
+ assert.equal(JSON.stringify(tasks),before);assert.ok(JSON.stringify(result).length<=28000);assert.match(result.at(-1).observation.verifiedRead.content,/LATEST_RELEVANT_READ/);
+ for(let i=0;i<records.length;i++){
+  const record=result[i].observation.recordEvidence,original=records[i].observation.recordEvidence,schema=record.fieldSchema;
+  assert.deepEqual(record.scope,original.scope);assert.deepEqual(record.rows,original.rows);assert.equal(record.observedAt,original.observedAt);assert.equal(record.completeForQuery,false);assert.equal(record.hasMore,true);assert.deepEqual(result[i].pendingObjectives,records[i].pendingObjectives);
+  const owner=schema.sharedFieldSchemaTaskIndex;assert.deepEqual(schema.paths??result[owner].observation.recordEvidence.fieldSchema.paths,paths);
+  if(i!==records.length-1)assert.equal(owner,records.length-1);
+  assert.equal(schema.sampledRows,1);assert.equal(schema.scope,'returned_rows_only');
+ }
 });
 
 test('objective field coverage ignores unclaimed projections but rejects truncated cited values',()=>{

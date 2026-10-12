@@ -782,7 +782,16 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
                 .filter(shape => resolveCollectionTemplate(shape.collection) === collectionPath)
                 .flatMap(shape => shape.fields || []);
         }));
-        const sourceHasField = field => field === "__name__" || collectionWriteFields.has(field) || (String(field).includes(".")
+        const recordFieldPaths = new Set((context.completedTasks || []).flatMap(task => {
+            const record=task?.observation?.recordEvidence,schema=record?.fieldSchema;
+            if(task.observation?.ok!==true || task.observation.executionOk===false || task.observation.blocked===true ||
+                record?.source!=="FIRESTORE_SERVER_AUTHENTICATED" || record.readOnly!==true || record.scope?.collection!==collectionPath || record.scope.mode!=="query" ||
+                !Array.isArray(record.rows) || !record.rows.length || schema?.source!=="SERVER_RECORD_FIELD_NAMES" ||
+                schema.collection!==collectionPath || schema.scope!=="returned_rows_only" || schema.sampledRows!==record.rows.length ||
+                !Array.isArray(schema.paths) || schema.paths.length>128 || JSON.stringify(schema.paths).length>3000)return [];
+            return schema.paths.filter(validField);
+        }));
+        const sourceHasField = field => field === "__name__" || recordFieldPaths.has(field) || collectionWriteFields.has(field) || (String(field).includes(".")
             ? observedFieldPaths.has(field)
             : String(field).length > 1 && normalizedSource.includes(normalizeGroundingText(field)));
         const literalGrounded = value => {
@@ -799,7 +808,7 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
                 sourceFile: args.sourceFile,
                 groundingFiles,
                 undiscoveredFields: undiscoveredFields.slice(0, 20),
-                discoveredFieldPaths: [...observedFieldPaths].slice(0, 100),
+                discoveredFieldPaths: [...new Set([...recordFieldPaths,...observedFieldPaths])].slice(0, 100),
                 requestedFields: fields.slice(0, 20)
             });
         }
@@ -812,7 +821,7 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
                 sourceFile: args.sourceFile,
                 groundingFiles,
                 undiscoveredFilterFields: [...new Set(undiscoveredFilterFields)].slice(0, 20),
-                discoveredFieldPaths: [...observedFieldPaths].slice(0, 100),
+                discoveredFieldPaths: [...new Set([...recordFieldPaths,...observedFieldPaths])].slice(0, 100),
                 requestedFilters: filters.slice(0, 10).map(filter => ({
                     field: filter.field,
                     op: filter.op,
@@ -918,6 +927,32 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
             const snapshot = await sdk.getDocsFromServer(sdk.query(base, ...pageConstraints, sdk.limit(pageSize + 1))); sameUser();
             if (snapshot.metadata?.fromCache === true || snapshot.metadata?.hasPendingWrites === true) throw new Error("PLATFORM_QUERY_SERVER_EVIDENCE_REQUIRED");
             const selected = snapshot.docs.slice(0, pageSize), truncatedFields = [];
+            // Names come from the already fetched, authorized server page. They
+            // authorize a later projection of this route, never values or closure.
+            const observedNames=new Set();
+            let namesBytes=2,namesComplete=true;
+            const plainMap=value=>value && typeof value==="object" && !Array.isArray(value) && typeof value.toDate!=="function" &&
+                (Object.getPrototypeOf(value)===null || Object.getPrototypeOf(value)?.constructor?.name==="Object");
+            const collectNames=(value,prefix=[],depth=0)=>{
+                if(!plainMap(value))return;
+                for(const key of Object.keys(value)){
+                    const path=[...prefix,key].join('.');
+                    if(key.includes('.') || !validField(path)){namesComplete=false;continue;}
+                    if(!observedNames.has(path)){
+                        const cost=JSON.stringify(path).length+1;
+                        if(observedNames.size>=128 || namesBytes+cost>3000){namesComplete=false;return;}
+                        observedNames.add(path);namesBytes+=cost;
+                    }
+                    if(plainMap(value[key])){
+                        if(depth<3)collectNames(value[key],[...prefix,key],depth+1);
+                        else if(Object.keys(value[key]).length)namesComplete=false;
+                    }
+                }
+            };
+            for(const document of selected){
+                if(typeof document.data==="function")collectNames(document.data());
+                else namesComplete=false;
+            }
             const rows = selected.map(document => ({ id: document.id, values: Object.fromEntries(fields.map(field => {
                 const value = field === "__name__" ? document.id : document.get(field);
                 if (value === undefined) return [field, null];
@@ -929,6 +964,8 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
             const hasMore = snapshot.docs.length > pageSize;
             Object.assign(recordEvidence, { rows, returnedCount: rows.length, hasMore, nextCursor: hasMore ? selected.at(-1)?.id : null,
                 previousCursor: args.cursor || null, rowsObservedAt: new Date().toISOString(),
+                ...(observedNames.size ? {fieldSchema:{source:"SERVER_RECORD_FIELD_NAMES",collection:collectionPath,scope:"returned_rows_only",
+                    sampledRows:selected.length,paths:[...observedNames],completeForObservedRows:namesComplete}} : {}),
                 completeForQuery: !hasMore && !args.cursor && (totalCount === undefined || totalCount === rows.length), truncatedFields,
                 consistentCountAndList: totalCount === undefined ? null : !args.cursor && !hasMore && totalCount === rows.length });
             if (JSON.stringify(recordEvidence).length > 100000) throw new Error("PLATFORM_QUERY_RESPONSE_TOO_LARGE_REDUCE_PAGE");

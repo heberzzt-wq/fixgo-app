@@ -734,8 +734,11 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
     if(contract.scope!=="all_sources" || !scopeSources.length || ((proof.sources || []).length<2 && !exclusions.length))return proof;
     const observedDefinitions=[...new Map([...tasks].reverse().flatMap(task=>{
         const read=task.observation?.verifiedRead;
-        return task.observation?.ok===true && task.observation.executionOk!==false
-            ? [...(read?.sourceStructure?.dataBindings?.writeShapes || []),...(read?.sourceStructure?.dataBindings?.references || []).filter(reference=>reference.collection && reference.content).map(reference=>({...reference,fields:[],fieldsComplete:false,referenceOnly:true}))].map(shape=>({file:read.file,collection:shape.collection,fields:shape.fields,fieldsComplete:shape.fieldsComplete,...(shape.referenceOnly ? {referenceOnly:true} : {}),...(shape.content ? {definition:shape.content.slice(0,600),definitionTruncated:shape.truncated===true || shape.content.length>600} : {})})) : [];
+        if(task.observation?.ok!==true || task.observation.executionOk===false || task.observation.blocked===true || task.observation.requiresInput===true)return [];
+        const record=task.observation?.recordEvidence;
+        const names=record?.fieldSchema ? observedRecordFieldPaths([task],record.scope?.collection) : [];
+        return [...(names.length ? [{file:record.scope.sourceFile,collection:record.scope.collection,fields:names,fieldsComplete:false,recordNamesOnly:true}] : []),
+            ...(read ? [...(read.sourceStructure?.dataBindings?.writeShapes || []),...(read.sourceStructure?.dataBindings?.references || []).filter(reference=>reference.collection && reference.content).map(reference=>({...reference,fields:[],fieldsComplete:false,referenceOnly:true}))].map(shape=>({file:read.file,collection:shape.collection,fields:shape.fields,fieldsComplete:shape.fieldsComplete,...(shape.referenceOnly ? {referenceOnly:true} : {}),...(shape.content ? {definition:shape.content.slice(0,600),definitionTruncated:shape.truncated===true || shape.content.length>600} : {})})) : [])];
     }).map(shape=>[JSON.stringify(shape),shape])).values()];
     const sourceDefinitions=[],representedCollections=new Set();
     const distinctDefinitions=observedDefinitions.filter(definition=>{if(representedCollections.has(definition.collection))return false;representedCollections.add(definition.collection);return true;});
@@ -760,6 +763,7 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         // Review inclusions and exclusions without the earlier verdict or assistant
         // recap. Repeating a proposed verdict would anchor this independent check.
         chatMessages:[{role:"system",content:"Decide la pertinencia de cada fuente para ESTE objetivo, usando su esquema observado y las aclaraciones del usuario. relevantToObjective=true si puede aportar registros pedidos por ese objetivo; false si el esquema acredita que queda fuera. Devuelve null si la pertinencia queda indeterminada. La ausencia de una definición en sourceDefinitions no acredita irrelevancia: considera las aclaraciones literales y las referencias observadas; si no bastan, conserva null. referenceOnly es una expresión de consulta observada, no una escritura ni datos operativos. El alcance all_sources incluye las distintas clases de registros solicitadas: una distinción obliga a mantenerlas separadas, no a borrar una clase del inventario. No sustituyas un pedido general por el dominio de la primera fuente. La entidad principal de una colección no excluye los registros o atributos anidados que guarda. Si el usuario incluyó esos registros, no exijas una colección independiente ni pertenencia a otra clase para contarlos. Una fuente no consultada puede ser pertinente: no confundas falta de lectura con irrelevancia. Comprueba tanto inclusiones como exclusiones. Una fuente que autentica, registra eventos o describe herramientas no representa por ello los registros pedidos: interpreta sus campos con el esquema, no sólo el nombre de la ruta. Una aclaración que distingue clases no limita un objetivo general a una sola de ellas. No evalúes cumplimiento ni pruebes datos con código. No transfieras requisitos de otros objetivos. Emite una decisión para cada ruta adjunta sin inventar otras."},
+            {role:"system",content:"recordNamesOnly indica nombres presentes en páginas de registros ya consultadas de esa ruta. Sirven para evaluar pertinencia y elegir otra lectura; no contienen valores no proyectados ni prueban conteos, ausencia en otras filas o cumplimiento."},
             {role:"user",content:JSON.stringify({request:contract.requestQuote,contract,userClarifications:scopeClarifications,sources:scopeSources,sourceDefinitions,sourceDefinitionsMayBeIncomplete:sourceDefinitions.length<observedDefinitions.length || sourceDefinitions.some(source=>source.fieldsComplete!==true)})}],
         responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{sourceRelevance:{type:"object",properties:Object.fromEntries(scopeSources.map(collection=>[collection,{type:"object",properties:{relevantToObjective:{type:["boolean","null"],enum:definedSources.has(collection)?[true,false,null]:[true,null]},reason:{type:"string",maxLength:160}},required:["relevantToObjective","reason"],additionalProperties:false}])),required:scopeSources,additionalProperties:false}},required:["sourceRelevance"],additionalProperties:false}
     }});
@@ -1261,6 +1265,24 @@ function compactCatalogSchema(schema) {
 }
 
 function boundedAuditTasks(tasks) {
+    const nameOwners=new Map();
+    const nameKeys=tasks.map((task,index)=>{
+        const record=task.observation?.recordEvidence,schema=record?.fieldSchema;
+        if(task.observation?.ok!==true || task.observation.executionOk===false || task.observation.blocked===true ||
+            record?.source!=="FIRESTORE_SERVER_AUTHENTICATED" || record.readOnly!==true || schema?.source!=="SERVER_RECORD_FIELD_NAMES" ||
+            typeof record.scope?.collection!=="string" || schema.collection!==record.scope.collection || schema.scope!=="returned_rows_only" ||
+            !Array.isArray(schema.paths))return null;
+        const key=JSON.stringify([record.scope.collection,schema.paths]);nameOwners.set(key,index);return key;
+    });
+    let sharedNames=false;
+    tasks=tasks.map((task,index)=>{
+        const key=nameKeys[index],owner=key===null?index:nameOwners.get(key);
+        if(owner===index)return task;
+        sharedNames=true;
+        const record=task.observation.recordEvidence;
+        return {...task,observation:{...task.observation,recordEvidence:{...record,fieldSchema:{...record.fieldSchema,paths:undefined,sharedFieldSchemaTaskIndex:owner}}}};
+    });
+    if(sharedNames)tasks[0]={...tasks[0],sharedRecordFieldSchemaEncoding:"fieldSchema.sharedFieldSchemaTaskIndex points to identical observed field names for the same collection at that original task index. Resolve only paths there. Scope, sample size, completeness, rows and timestamps remain local. Names never prove values or objective coverage."};
     const fieldsSummary=fields=>{
         if(!fields?.length) return {fieldPaths:[]};
         let prefix=fields[0], suffix=fields[0];
@@ -1643,6 +1665,26 @@ function responsiveAuditSummary(page) {
         screenshotInspected: false, interactionVerified: false, physicalDeviceTested: false };
 }
 
+function observedRecordFieldPaths(tasks, collection) {
+    const valid=field=>typeof field==="string" && field.length<=500 && field.split('.').every(part=>part && part.length<=500 &&
+        !/[\x00-\x1f]/.test(part) && ![".","..","__proto__","constructor","prototype"].includes(part));
+    const paths=[];
+    for(const task of [...(tasks || [])].reverse()) {
+        const observation=task.observation,record=observation?.recordEvidence,schema=record?.fieldSchema;
+        if(observation?.ok!==true || observation.executionOk===false || observation.blocked===true || observation.requiresInput===true ||
+            record?.source!=="FIRESTORE_SERVER_AUTHENTICATED" || record.readOnly!==true || record.scope?.collection!==collection || record.scope.mode!=="query" ||
+            !Array.isArray(record.rows) || !record.rows.length || schema?.source!=="SERVER_RECORD_FIELD_NAMES" || schema.collection!==collection ||
+            schema.scope!=="returned_rows_only" || schema.sampledRows!==record.rows.length || !Array.isArray(schema.paths) ||
+            schema.paths.length>128 || JSON.stringify(schema.paths).length>3000)continue;
+        for(const field of schema.paths.filter(valid)) {
+            if(paths.includes(field))continue;
+            if(paths.length>=128 || JSON.stringify([...paths,field]).length>3000)return paths;
+            paths.push(field);
+        }
+    }
+    return paths;
+}
+
 function bindRejectedRecordFields(catalog, tasks, failedTasks) {
     return catalog.map(tool=>{
         if(tool.name!=="platform.query")return tool;
@@ -1656,7 +1698,7 @@ function bindRejectedRecordFields(catalog, tasks, failedTasks) {
             return files.flatMap(file=>collections.map(collection=>{
                 const failuresForScope=failures.filter(task=>task.args?.sourceFile===file && task.args?.collection===collection);
                 if(!failuresForScope.length)return {...branch,properties:{...branch.properties,sourceFile:{...branch.properties.sourceFile,enum:[file]},collection:{...branch.properties.collection,enum:[collection]}}};
-                const fields=new Set(failuresForScope.flatMap(task=>task.observation.errorDetails.discoveredFieldPaths));
+                const fields=new Set([...observedRecordFieldPaths(tasks,collection),...failuresForScope.flatMap(task=>task.observation.errorDetails.discoveredFieldPaths)]);
                 for(const task of tasks){
                     const read=task.observation?.verifiedRead;
                     if(task.observation?.ok!==true||task.observation.executionOk===false||task.observation.blocked===true||task.observation.requiresInput===true||!read)continue;
@@ -2760,6 +2802,9 @@ async function runModelSemanticPlanner({
                             const read=task.observation.verifiedRead,bindings=read.sourceStructure?.dataBindings;
                             return {file:read.file,collections:bindings?.collections||[],fieldPaths:bindings?.fieldPaths||[]};
                         });
+                        const recordNames=observedRecordFieldPaths(completedTasksForAudit,call.args?.collection);
+                        if(recordNames.length)observedFieldSchemas.push({source:"SERVER_RECORD_FIELD_NAMES",collections:[call.args.collection],fieldPaths:recordNames,
+                            scope:"returned_rows_only",valuesOrObjectiveCoverageProven:false});
                         const source=reads.flatMap(task=>{
                             const read=task.observation.verifiedRead;
                             const bindings=read.sourceStructure?.dataBindings;
@@ -3084,11 +3129,14 @@ async function runModelSemanticPlanner({
                             if(!properties.mode?.enum?.includes("query") || properties.fields?.type!=="array" || properties.fields.maxItems===0 || branch.required?.includes("cursor"))return [];
                             return (properties.sourceFile?.enum || []).flatMap(sourceFile=>(properties.collection?.enum || []).flatMap(collection=>{
                                 if(!pendingRecordScopes.has(collection) || /[{}]/.test(collection))return [];
-                                if(completedTasksForAudit.some(task=>task.observation?.ok===true && task.observation.executionOk!==false && task.observation.blocked!==true &&
-                                    task.observation.recordEvidence?.source==="FIRESTORE_SERVER_AUTHENTICATED" && task.observation.recordEvidence.readOnly===true && task.observation.recordEvidence.scope?.collection===collection))return [];
+                                const priorQueries=completedTasksForAudit.filter(task=>task.observation?.ok===true && task.observation.executionOk!==false && task.observation.blocked!==true &&
+                                    task.observation.recordEvidence?.source==="FIRESTORE_SERVER_AUTHENTICATED" && task.observation.recordEvidence.readOnly===true && task.observation.recordEvidence.scope?.collection===collection);
                                 if((missionState.blockedTasks || []).some(task=>task.args?.collection===collection && task.observation?.retryable!==true))return [];
-                                const fields=[...new Set(observedWriteSchemas.filter(shape=>shape.sourceFile===sourceFile && shape.collection===collection)
-                                    .flatMap(shape=>shape.fields || []))].filter(field=>typeof field==="string" && field.trim() &&
+                                const recordNames=observedRecordFieldPaths(completedTasksForAudit,collection);
+                                const projected=new Set(priorQueries.flatMap(task=>task.observation.recordEvidence.scope?.fields || []));
+                                const fields=[...new Set([...recordNames,...observedWriteSchemas.filter(shape=>shape.sourceFile===sourceFile && shape.collection===collection)
+                                    .flatMap(shape=>shape.fields || [])])].filter(field=>typeof field==="string" && field.trim() &&
+                                        (!priorQueries.length || (recordNames.includes(field) && !projected.has(field))) &&
                                         (!properties.fields.items?.enum || properties.fields.items.enum.includes(field)));
                                 if(!fields.length)return [];
                                 const bounded={...branch,properties:{...properties,
@@ -5118,6 +5166,7 @@ module.exports = {
     compactMissionObservation,
     evidenceRequirementSuccessors,
     qualifyRecordObjectiveCoverage,
+    observedRecordFieldPaths,
     runModelSemanticPlanner,
     runGeminiSemanticPlanner: runModelSemanticPlanner,
     runJarvisSemanticPlanner,
