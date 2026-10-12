@@ -165,6 +165,25 @@ test('independent source relevance uses user scope and observed schemas without 
  assert.equal(coverage.consultedScopes[0].totalCount,0,'a scoped zero remains accredited without representing another source');
  assert.deepEqual(proof.groups[0].evidence,[{taskIndex:0,fields:[]}],'code does not become a record citation');
 });
+test('conflicting exclusion cannot erase an unconsulted source needed by the objective',async()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
+ const qualify=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').qualifyRecordObjectiveCoverage;
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry','related'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:qualify});
+ const contract={requestQuote:'Check recorded expiration dates',scope:'all_sources',groups:['documents'],coverageMode:'temporal'};
+ const tasks=[{observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry'},rows:[{id:'a',values:{expires:'2030-01-01'}}],completeForQuery:true,hasMore:false}}},{observation:{ok:true,verifiedRead:{file:'observed.js',sourceStructure:{dataBindings:{collections:['registry','related'],writeShapes:[{collection:'related',fields:['expires'],fieldsComplete:true}]}}}}}];
+ const proof=await review({model:'same-authority',contract,objective:contract,tasks,ai:{models:{generateContent:async request=>{
+  assert.equal(request.model,'same-authority');
+  if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE')return{text:JSON.stringify({proven:false,missing:['Related expiration records have not been read'],groups:[{group:'documents',proven:false,evidence:[]}],sources:[{collection:'registry',relevant:true,reason:'Observed dates',taskIndexes:[0]},{collection:'related',relevant:true,reason:'Additional requested dates need reading',taskIndexes:[]}]})};
+  return{text:JSON.stringify({sourceRelevance:{registry:{relevantToObjective:true,reason:'Observed dates'},related:{relevantToObjective:false,reason:'Different primary entity'}}})};
+ }}}});
+ assert.equal(proof.proven,false);
+ assert.equal(proof.sources[1].relevant,null,'conflicting semantic decisions are unresolved, never an exclusion');
+ const coverage=qualify({evidenceTaskIndexes:[0],coverageProof:proof},contract,tasks);
+ assert.equal(coverage.status,'partial');assert.deepEqual(coverage.pendingSources,['related']);
+ assert.deepEqual(Array.from(proof.sources[1].taskIndexes),[],'a conflict cannot create operational evidence');
+});
+
 test('independent source review checks positive relevance and removes another domains inclusion',async()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');

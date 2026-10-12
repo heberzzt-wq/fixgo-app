@@ -785,7 +785,16 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         const decisions=(proof.sources || []).filter(source=>source.collection===item.collection);
         if(decisions.length!==1)continue;
         const source=decisions[0];
-        if(item.contradictsObjective===false && definedSources.has(item.collection)) {
+        // An independently proposed exclusion cannot silently erase a source
+        // that the same model identified as needed but has not consulted. Keep
+        // that disagreement available to continuation; neither verdict is data.
+        const unconsultedInclusion=source.relevant===true && !source.taskIndexes?.length;
+        if(item.contradictsObjective===false && unconsultedInclusion) {
+            proof.proven=false;
+            const reason="Las revisiones discrepan sobre una fuente aún no consultada: "+item.collection+". Inclusión: "+source.reason+". Exclusión: "+item.reason;
+            proof.missing=[...(proof.missing || []),reason];
+            source.relevant=null;source.reason=reason;source.taskIndexes=[];
+        } else if(item.contradictsObjective===false && definedSources.has(item.collection)) {
             source.relevant=false;source.reason=item.reason;source.taskIndexes=[];
         } else if(item.contradictsObjective!==true || source.relevant!==true) {
             proof.proven=false;
