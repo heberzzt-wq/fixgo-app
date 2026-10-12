@@ -8,6 +8,8 @@ on:
     paths:
       - '.github/workflows/v139-real-reel-e2e-cert.yml'
       - '.github/scripts/v139-canonical-real-reel.mjs'
+      - '.github/scripts/v139-functions-guard.mjs'
+      - 'tests/v139-functions-guard.test.mjs'
       - 'gestia-terminal.html'
       - 'gestia-core/gestia-core.js'
       - 'gestia-core/tools.runtime.js'
@@ -61,9 +63,7 @@ jobs:
       - name: Guard branch and Functions unchanged
         shell: bash
         run: |
-          set -euo pipefail
-          test "$GITHUB_REF_NAME" = "v94-media-v4n-negative-claims"
-          ! git diff --name-only 45c9231715ad1d8f50756328c6e4128deebba581..HEAD | grep -E '^functions/'
+          node .github/scripts/v139-functions-guard.mjs
 
       - name: Focal syntax contracts
         shell: bash
@@ -160,9 +160,8 @@ jobs:
       - name: Guard branch and Functions unchanged
         shell: pwsh
         run: |
-          if ($env:GITHUB_REF_NAME -ne 'v94-media-v4n-negative-claims') { throw 'WRONG_BRANCH' }
-          $changed = git diff --name-only dbe0a94b660008d4620f9ce4726ca66b2a5db555..HEAD
-          if ($changed -match '^functions/') { throw 'FUNCTIONS_CHANGED' }
+          node .github/scripts/v139-functions-guard.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'V139_FUNCTIONS_GUARD_FAILED' }
       - name: Start bridge and run canonical real-reel mission in same step
         shell: pwsh
         env:
