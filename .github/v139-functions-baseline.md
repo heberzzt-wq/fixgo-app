@@ -80,14 +80,24 @@ installed dependencies do not count as source changes.
 
 ## Certification and execution boundaries
 
-The job conditions, canonical same-step bridge/mission, Windows marker, Linux
-`certify-v139`, dependency installation and all existing tests remain unchanged.
-No marker runs after a failed guard or mission. The repair introduces no
-`continue-on-error` or equivalent suppression. Both jobs now verify the same base
-and use explicit Git exit statuses, avoiding the old Bash negated-pipeline gap.
+The main workflow now runs `certify-v139` on push or manual dispatch, without
+external credentials or a live provider call. All its existing syntax, focal,
+business and full-CI checks remain; guard regressions are also run explicitly.
+Its marker identifies local **compatibility tests only**, not an Ollama end-to-end
+mission. This change neither installs nor selects another semantic model.
 
-The Windows canonical script uses Google/Vertex and a Runpod remote video adapter.
-Running it is an external-provider exercise, not certification of the workstation's
-single local Qwen model. Publishing this workflow on the configured branch triggers
-that Windows job automatically. Do not describe its success as a local Qwen mission
-or start it under an instruction prohibiting external AI API usage.
+The former Windows job is retained in
+`.github/workflows/v139-legacy-external-reel.yml`, with the same bridge/canonical
+mission step and Windows certification marker. Its only trigger is manual
+`workflow_dispatch`, gated by `authorize_paid_external_reel == true`; the boolean
+input defaults to false and explicitly warns about Google/Vertex and Runpod usage
+and potential charges. There is no push, schedule, workflow-call or downstream-run
+trigger. No historical external mission is authorized or executed for this repair.
+No marker executes following a guard or mission failure. Neither workflow suppresses
+failures with `continue-on-error` or equivalent constructs.
+
+An opt-in historical result is provider compatibility evidence, not certification
+of the workstation's single Qwen3.5:9b/Ollama model. The current local mission and
+unfinished planner work still require their separate real Chrome certification.
+The other legacy canonical workflows are outside this repair; their push filters
+do not match the files changed here and no workflow-run hook was found.

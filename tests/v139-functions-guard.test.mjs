@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { verifyFunctionsBaseline, CERTIFICATION_BRANCH } from '../.github/scripts/v139-functions-guard.mjs';
+import { fileURLToPath } from 'node:url';
+import { verifyFunctionsBaseline, CERTIFICATION_BRANCH, FUNCTIONS_BASELINE } from '../.github/scripts/v139-functions-guard.mjs';
 
 function fixture(t) {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'v139-guard-'));
@@ -66,4 +67,37 @@ test('a missing Git repository fails instead of reporting an unchanged tree', t 
   const f = fixture(t);
   fs.rmSync(path.join(f.cwd, '.git'), { recursive: true });
   assert.throws(() => f.verify());
+});
+
+const localWorkflow = fs.readFileSync(new URL('../.github/workflows/v139-real-reel-e2e-cert.yml', import.meta.url), 'utf8').replace(/\r/g, '');
+const externalWorkflow = fs.readFileSync(new URL('../.github/workflows/v139-legacy-external-reel.yml', import.meta.url), 'utf8').replace(/\r/g, '');
+
+test('automatic certification contains tests and the guard, never external credentials or the live reel', () => {
+  assert.match(localWorkflow, /  push:\n/);
+  assert.match(localWorkflow, /  workflow_dispatch: \{\}/);
+  assert.match(localWorkflow, /  certify-v139:\n    runs-on: ubuntu-latest/);
+  assert.match(localWorkflow, /node \.github\/scripts\/v139-functions-guard\.mjs/);
+  assert.match(localWorkflow, /node --test tests\/v139-functions-guard\.test\.mjs/);
+  assert.match(localWorkflow, /run: npm run ci:test/);
+  assert.doesNotMatch(localWorkflow.slice(localWorkflow.indexOf('\njobs:')), /secrets\.|v139-canonical-real-reel|real-reel-e2e:|Start-Process|GoogleGenAI|authorize_paid_external_reel/);
+  assert.match(localWorkflow, /V139_LOCAL_COMPATIBILITY_TESTS_ONLY=true/);
+  assert.doesNotMatch(localWorkflow, /V139_CANONICAL_REAL_REEL_E2E_GREEN/);
+});
+
+test('historical providers are isolated behind manual explicit opt-in that defaults to false', () => {
+  const triggers = externalWorkflow.slice(externalWorkflow.indexOf('\non:\n'), externalWorkflow.indexOf('\npermissions:'));
+  assert.match(triggers, /  workflow_dispatch:\n/);
+  assert.doesNotMatch(triggers, /push:|pull_request:|schedule:|workflow_run:|workflow_call:/);
+  assert.match(triggers, /authorize_paid_external_reel:[\s\S]*type: boolean\n        default: false/);
+  assert.match(externalWorkflow, /if: \$\{\{ github.event_name == 'workflow_dispatch' && inputs.authorize_paid_external_reel == true \}\}/);
+  assert.match(externalWorkflow, /node \.github\/scripts\/v139-functions-guard\.mjs/);
+  assert.doesNotMatch(externalWorkflow, /continue-on-error|\|\| true/);
+});
+
+test('moving historical certification preserves its canonical mission and Windows marker byte for byte', () => {
+  const cwd = fileURLToPath(new URL('..', import.meta.url));
+  const original = execFileSync('git', ['show', `${FUNCTIONS_BASELINE}:.github/workflows/v139-real-reel-e2e-cert.yml`], { cwd, encoding: 'utf8' }).replace(/\r/g, '');
+  const marker = '      - name: Start bridge and run canonical real-reel mission in same step';
+  assert.ok(original.includes(marker));
+  assert.equal(externalWorkflow.slice(externalWorkflow.indexOf(marker)), original.slice(original.indexOf(marker)));
 });
