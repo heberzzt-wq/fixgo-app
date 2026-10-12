@@ -1719,6 +1719,34 @@ function bindRejectedRecordFields(catalog, tasks, failedTasks) {
     });
 }
 
+function bindRejectedQueryOrderings(catalog, failedTasks = []) {
+    const rejected=failedTasks.filter(task=>task.name==="platform.query" && task.observation?.ok===false &&
+        task.observation.errorCode==="failed-precondition" && Array.isArray(task.args?.orderBy) && task.args.orderBy.length &&
+        typeof task.args.collection==="string" && typeof task.args.sourceFile==="string" &&
+        /https:\/\/console\.firebase\.google\.com\/[^\s]*\/firestore\/indexes\?create_composite=/.test(String(task.observation.error || "")));
+    if(!rejected.length)return catalog;
+    return catalog.map(tool=>{
+        if(tool.name!=="platform.query")return tool;
+        const schema=structuredClone(buildNativeInputSchema(tool.inputSchema));
+        const alternatives=Array.isArray(schema.anyOf)?schema.anyOf:[schema];
+        const bound=alternatives.flatMap(branch=>{
+            const files=branch.properties?.sourceFile?.enum,collections=branch.properties?.collection?.enum;
+            if(!files?.length || !collections?.length || branch.properties.fields?.maxItems===0)return [branch];
+            return files.flatMap(file=>collections.map(collection=>{
+                if(!rejected.some(task=>task.args.sourceFile===file && task.args.collection===collection))return {...branch,properties:{...branch.properties,sourceFile:{...branch.properties.sourceFile,enum:[file]},collection:{...branch.properties.collection,enum:[collection]}}};
+                // This changes only the model's available optional ordering. It
+                // never executes a retry, removes filters, changes permissions,
+                // creates an index, or grants evidence to the failed query.
+                return {...branch,properties:{...branch.properties,sourceFile:{...branch.properties.sourceFile,enum:[file]},collection:{...branch.properties.collection,enum:[collection]},
+                    orderBy:{...(branch.properties.orderBy || {type:"array"}),maxItems:0,
+                        description:"This source/route rejected ordered reading with a Firestore composite-index precondition. Choose an authorized first-page query without optional orderBy or investigate another observed source. Preserve filters and permissions; a failed query proves no records or coverage."},
+                    cursor:{...(branch.properties.cursor || {type:"string"}),enum:[""]}}};
+            }));
+        });
+        return {...tool,inputSchema:bound.length===1?bound[0]:{anyOf:bound}};
+    });
+}
+
 function bindEvidencePrerequisites(catalog, tasks = []) {
     return catalog.flatMap(tool => {
         if (!tool.requiresEvidence?.length) return [tool];
@@ -2537,6 +2565,7 @@ async function runModelSemanticPlanner({
             ["CURRENT_RENDERED_DOM_COMPUTED_STYLE", "RENDERED_DOM_LAYOUT_REPLAY"].includes(task.observation.interfaceEvidence?.source))
             .slice(0, 2).map(task => ({ index: task.index, name: task.name, interfaceEvidence: responsiveAuditSummary(task.observation.interfaceEvidence) }));
         selectableCatalog = bindRejectedRecordFields(selectableCatalog, completedTasksForAudit, missionState.blockedTasks);
+        selectableCatalog = bindRejectedQueryOrderings(selectableCatalog, missionState.blockedTasks);
         const auditCatalog = selectableCatalog.map(({ name, description, evidenceKinds, inputSchema, requiresEvidence, mutates, requiresApproval }) => {
             const schema = buildNativeInputSchema(inputSchema);
             const branches = schema.anyOf || [schema];
@@ -5167,6 +5196,7 @@ module.exports = {
     evidenceRequirementSuccessors,
     qualifyRecordObjectiveCoverage,
     observedRecordFieldPaths,
+    bindRejectedQueryOrderings,
     runModelSemanticPlanner,
     runGeminiSemanticPlanner: runModelSemanticPlanner,
     runJarvisSemanticPlanner,

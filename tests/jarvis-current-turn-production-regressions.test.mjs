@@ -3904,6 +3904,32 @@ test('observed record field discovery has a cumulative budget and prefers the la
  const bounded=observedRecordFieldPaths(long,'registry');assert.equal(bounded[0],long.at(-1).observation.recordEvidence.fieldSchema.paths[0]);assert.ok(JSON.stringify(bounded).length<=3000);
 });
 
+test('index rejection constrains only optional ordering on its observed source and route while preserving permissions and filters',()=>{
+ const {bindRejectedQueryOrderings:bind}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const filters={type:'array',minItems:1,maxItems:1,items:{type:'object',properties:{field:{type:'string',enum:['scopeId']},op:{type:'string',enum:['==']},value:{type:'string',enum:['authorized-scope']}},required:['field','op','value']}};
+ const query={name:'platform.query',inputSchema:{type:'object',properties:{sourceFile:{type:'string',enum:['one.js','two.js']},collection:{type:'string',enum:['entries','related']},mode:{type:'string',enum:['query']},fields:{type:'array',minItems:1,items:{type:'string',enum:['label']}},filters,orderBy:{type:'array',maxItems:3,items:{type:'object'}},cursor:{type:'string'}},required:['sourceFile','collection','filters','mode','fields']}};
+ const failure={name:'platform.query',args:{sourceFile:'one.js',collection:'entries',orderBy:[{field:'sequence',direction:'desc'}]},observation:{ok:false,errorCode:'failed-precondition',error:'The query requires an index: https://console.firebase.google.com/v1/r/project/example/firestore/indexes?create_composite=fixture'}};
+ const before=JSON.stringify(query),result=bind([query],[failure])[0].inputSchema.anyOf;
+ assert.equal(JSON.stringify(query),before);assert.equal(result.length,4);
+ for(const branch of result){
+  assert.deepEqual(branch.properties.filters,filters);assert.deepEqual(branch.required,query.inputSchema.required);assert.deepEqual(branch.properties.fields,query.inputSchema.properties.fields);
+  const targeted=branch.properties.sourceFile.enum[0]==='one.js'&&branch.properties.collection.enum[0]==='entries';
+  assert.equal(branch.properties.orderBy.maxItems,targeted?0:3);
+  if(targeted)assert.deepEqual(branch.properties.cursor.enum,['']);else assert.equal(branch.properties.cursor.enum,undefined);
+ }
+ for(const variant of ['other_error','not_sdk_index','success','no_order']){
+  const changed=structuredClone(failure);
+  if(variant==='other_error')changed.observation.errorCode='permission-denied';
+  if(variant==='not_sdk_index')changed.observation.error='A different precondition failed';
+  if(variant==='success')changed.observation.ok=true;
+  if(variant==='no_order')changed.args.orderBy=[];
+  assert.deepEqual(bind([query],[changed]),[query],variant);
+ }
+ const count=structuredClone(query);count.inputSchema.properties.mode.enum=['count'];count.inputSchema.properties.fields.maxItems=0;
+ assert.deepEqual(bind([count],[failure])[0].inputSchema,count.inputSchema);
+ assert.deepEqual(bind([{name:'another.tool',inputSchema:{}}],[failure]),[{name:'another.tool',inputSchema:{}}]);
+});
+
 test('same-model source review receives observed record names as schema only and keeps missing values pending',async()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
  const helpers=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
