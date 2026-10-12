@@ -255,18 +255,33 @@ test('source coverage and exclusions retain exactly one decision per observed so
   assert.equal(proof.sources.filter(item=>item.collection==='events').length,mode==='missing_source'?0:1);
  }
 });
+test('unresolved collection placeholders cannot establish operational population coverage',()=>{
+ const {qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ for(const collection of ['parents/{entryKey}/related','parents/observed-entry/related']){
+  const tasks=[{name:'fixture.records',observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection,mode:'query',filters:[]},rows:[],totalCount:0,completeForQuery:true,hasMore:false}}},{name:'fixture.source',observation:{ok:true,verifiedRead:{file:'observed.js',sourceStructure:{dataBindings:{collections:[collection]}}}}}];
+  const contract={requestQuote:'Count related entries',scope:'all_sources',groups:['entries'],coverageMode:'population'};
+  const objective={evidenceTaskIndexes:[0],coverageProof:{proven:true,missing:[],groups:[{group:'entries',proven:true,evidence:[{taskIndex:0,fields:[]}]}],sources:[{collection,relevant:true,reason:'Related entries',taskIndexes:[0]}]}};
+  const before=JSON.stringify(tasks),coverage=qualify(objective,contract,tasks);
+  assert.equal(coverage.status,collection.includes('{')?'partial':'complete');
+  assert.equal(coverage.consultedScopes[0].totalCount,0,'the zero remains evidence for the exact queried path');
+  if(collection.includes('{'))assert.ok(coverage.missing.some(m=>m.includes('plantilla')));
+  assert.equal(JSON.stringify(tasks),before);
+ }
+});
+
 test('coverage scope facts distinguish complete unfiltered routes from counts, subsets and partial pages',async()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
  const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').qualifyRecordObjectiveCoverage});
- for(const variant of ['full','empty','count','filtered','partial','blocked']){
-  const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',mode:variant==='count'?'count':'query',filters:variant==='filtered'?[{field:'category',op:'==',value:'observed'}]:[]},totalCount:variant==='empty'?0:variant==='partial'?2:1,completeForQuery:variant!=='partial',hasMore:variant==='partial',...(variant==='count'?{}:{rows:variant==='empty'?[]:[{id:'entry',values:{holder:'Recorded holder'}}]})};
+ for(const variant of ['full','empty','count','filtered','partial','blocked','unresolved']){
+  const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:variant==='unresolved'?'parents/{entryKey}/related':'registry',mode:variant==='count'?'count':'query',filters:variant==='filtered'?[{field:'category',op:'==',value:'observed'}]:[]},totalCount:variant==='empty'?0:variant==='partial'?2:1,completeForQuery:variant!=='partial',hasMore:variant==='partial',...(variant==='count'?{}:{rows:variant==='empty'?[]:[{id:'entry',values:{holder:'Recorded holder'}}]})};
   const tasks=[{name:'fixture.records',observation:{ok:true,blocked:variant==='blocked',recordEvidence:record}}];
   const result=await review({model:'same-local-model',objective:{objective:'Inspect recorded relationships'},contract:{requestQuote:'Inspect recorded relationships',scope:'explicit_scope',groups:['relationships'],coverageMode:'relationship'},tasks,ai:{models:{generateContent:async request=>{
    const packet=JSON.parse(request.config.chatMessages.at(-1).content);
    assert.equal(packet.queryScopeFacts.length,variant==='blocked'?0:1);
    if(variant!=='blocked'){
-    const fact=packet.queryScopeFacts[0];assert.equal(fact.collection,'registry');assert.equal(fact.taskIndex,0);
+    const fact=packet.queryScopeFacts[0];assert.equal(fact.collection,variant==='unresolved'?'parents/{entryKey}/related':'registry');assert.equal(fact.taskIndex,0);
+    assert.equal(fact.collectionTemplateUnresolved,variant==='unresolved');
     assert.equal(fact.unfilteredCollectionFullyObserved,['full','empty'].includes(variant));
     assert.equal(fact.unfilteredCollectionCountObserved,['full','empty','count','partial'].includes(variant));
     assert.equal(fact.provesOtherSources,false);
@@ -3721,6 +3736,22 @@ test('objective field coverage ignores unclaimed projections but rejects truncat
  assert.equal(qualify(objective,contract,tasks).status,'partial','mechanical projection checks cannot overrule Qwen coverage');
 });
 
+test('row-specific citations preserve mixed populations without promoting partial or missing evidence',()=>{
+ const {qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry'},rows:[{id:'a',values:{category:'declared',owner:'Observed'}},{id:'b',values:{category:null,owner:null}}],totalCount:2,completeForQuery:true,hasMore:false};
+ const citation={taskIndex:0,fields:['category'],rowIndexes:[0]};
+ const proof={proven:true,missing:[],groups:[{group:'declared entries',proven:true,evidence:[citation]}],sources:[{collection:'registry',relevant:true,reason:'Observed classified population',taskIndexes:[0]}]};
+ const objective={objective:'Count declared entries',evidenceTaskIndexes:[0],coverageProof:proof};
+ const contract={scope:'all_sources',coverageMode:'population',groups:['declared entries']};
+ const tasks=[{observation:{ok:true,recordEvidence:record}},{observation:{ok:true,verifiedRead:{sourceStructure:{dataBindings:{collections:['registry']}}}}}];const before=JSON.stringify(record);
+ assert.equal(qualify(objective,contract,tasks).status,'complete');
+ for(const indexes of [undefined,[],[1],[2],[-1],[0,0],[0.5]]){citation.rowIndexes=indexes;assert.equal(qualify(objective,contract,tasks).status,'partial','invalid selection or absent fields cannot prove a group');}
+ citation.rowIndexes=[0];record.completeForQuery=false;record.hasMore=true;assert.equal(qualify(objective,contract,tasks).status,'partial','selected rows never remove pagination requirements');
+ record.completeForQuery=true;record.hasMore=false;proof.proven=false;assert.equal(qualify(objective,contract,tasks).status,'partial','row selection never replaces the semantic verdict');proof.proven=true;
+ tasks.push({observation:{ok:true,verifiedRead:{sourceStructure:{dataBindings:{collections:['related']}}}}});assert.equal(qualify(objective,contract,tasks).status,'partial','selected rows do not establish another source');
+ assert.equal(JSON.stringify(record),before);
+});
+
 test('new record coverage replans the next read against fresh independent gaps',async()=>{
  for(const recoverDuplicate of [false,true]){
  const tool={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'},fields:{type:'array',items:{type:'string'}}},required:['collection','fields']}};
@@ -3783,7 +3814,7 @@ test('operational coverage citations bind row fields to their own task and keep 
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
  const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry',...Array.from({length:34},(_,i)=>'observed_scope_'+i)],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').qualifyRecordObjectiveCoverage});
  const evidence=(recordEvidence)=>({observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry'},...recordEvidence}}});
- const tasks=[evidence({totalCount:1,completeForQuery:true}),evidence({rows:[{id:'a',values:{owner:'Observed owner',deadline:null}}],completeForQuery:true}),evidence({rows:[{id:'b',values:{deadline:'2028-04-20'}}],completeForQuery:true})];
+ const tasks=[evidence({totalCount:1,completeForQuery:true}),evidence({rows:[{id:'a',values:{owner:'Observed owner',deadline:null}}],completeForQuery:true}),evidence({rows:[{id:'b',values:{deadline:'2028-04-20'}}],completeForQuery:true}),evidence({rows:[{id:'c',values:{category:'declared'}},{id:'d',values:{category:null}}],completeForQuery:true})];
  let schema,payload,outputBudget;
  await review({instruction:'Count all entries and identify owners',objective:{objective:'Identify owners'},contract:{requestQuote:'Identify owners',groups:['owners'],coverageMode:'relationship',scope:'all_sources'},tasks,ai:{models:{generateContent:async request=>{schema=request.config.responseJsonSchema;outputBudget=request.config.maxOutputTokens;payload=JSON.parse(request.config.chatMessages.at(-1).content);return{text:JSON.stringify({proven:false,missing:['Related records remain pending'],groups:[],sources:[]})};}}}});
  assert.equal(payload.missionRequest,undefined);assert.equal(payload.request,'Identify owners');assert.ok(outputBudget>2048 && outputBudget<=4096,'source decisions must have a bounded budget that scales with observed scopes');
@@ -3793,6 +3824,8 @@ test('operational coverage citations bind row fields to their own task and keep 
  assert.equal(branch(1).maxItems,1,'a field citation list cannot repeat indefinitely');assert.equal(schema.properties.sources.required.length,35);assert.equal(Object.keys(schema.properties.sources.properties).length,35);assert.equal(schema.properties.sources.additionalProperties,false);assert.equal(Object.values(schema.properties.sources.properties)[0].properties.reason.maxLength,160);assert.equal(schema.properties.missing.maxItems,6);
  assert.deepEqual(Array.from(branch(1).items.enum),['owner'],'null and foreign-task fields cannot become proof');
  assert.deepEqual(Array.from(branch(2).items.enum),['deadline'],'each task retains its own observed fields');
+ assert.deepEqual(Array.from(branch(3).items.enum),['category'],'mixed rows retain selectable positive values');
+ const selected=citations.find(item=>item.properties.taskIndex.const===3).properties.rowIndexes;assert.equal(selected.items.maximum,1);assert.equal(selected.minItems,1);assert.equal(selected.uniqueItems,true);
 });
 
 test('bounded continuation preserves named pending sources after verbose coverage explanations',()=>{
