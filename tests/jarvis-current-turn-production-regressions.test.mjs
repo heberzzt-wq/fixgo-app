@@ -20,11 +20,13 @@ test('record coverage review receives conversational scope separately from opera
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
  const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>[],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').qualifyRecordObjectiveCoverage});
  const advisoryContext='CONVERSATION_CONTEXT_FOR_REFERENCE_ONLY=Preferences do not establish allocations. Never evidence.';
+ const scopeClarifications=['Declared entries and official allocations are separate requested populations.'];
  let messages;
- const result=await review({instruction:'Review allocations',objective:{objective:'Review allocations'},contract:{groups:['allocations']},tasks:[],advisoryContext,
+ const result=await review({instruction:'Review allocations',objective:{objective:'Review allocations'},contract:{groups:['allocations']},tasks:[],advisoryContext,scopeClarifications,
  ai:{models:{generateContent:async request=>{messages=request.config.chatMessages;return{text:JSON.stringify({proven:false,missing:['No operational records'],groups:[],sources:[]})};}}}});
  assert.ok(messages.some(message=>message.content===advisoryContext));
  assert.equal(JSON.parse(messages.at(-1).content).evidence.length,0);
+ assert.deepEqual(JSON.parse(messages.at(-1).content).userClarifications,scopeClarifications);
  assert.equal(result.proven,false);
 });
 
@@ -253,6 +255,28 @@ test('source coverage and exclusions retain exactly one decision per observed so
   assert.equal(proof.sources.filter(item=>item.collection==='events').length,mode==='missing_source'?0:1);
  }
 });
+test('negative group verdicts with complete consulted scopes return to the same LLM without automatic coverage',async()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
+ const {qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:qualify});
+ const contract={requestQuote:'List recorded relationships',scope:'all_sources',groups:['relationships'],coverageMode:'relationship'};
+ for(const outcome of ['fixed','unresolved','missing_field','partial_page','foreign_scope']){
+  const tasks=[{name:'fixture.records',observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:outcome==='foreign_scope'?'other':'registry',filters:[]},completeForQuery:outcome!=='partial_page',hasMore:outcome==='partial_page',rows:[{id:'entry',values:{holder:outcome==='missing_field'?null:'Recorded holder'}}],totalCount:1}}},{name:'fixture.source',observation:{ok:true,verifiedRead:{file:'observed.js',sourceStructure:{dataBindings:{collections:['registry']}}}}}];
+  const original={proven:false,missing:['Related scope has not been consulted'],groups:[{group:'relationships',proven:false,evidence:[]}],sources:[{collection:'registry',relevant:true,reason:'Recorded relationships',taskIndexes:[0]}]};
+  const stages=[];
+  const result=await review({ai:{models:{generateContent:async request=>{
+   stages.push(request.config.semanticStage);assert.equal(request.model,'same-local-model');
+   if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE')return{text:JSON.stringify(original)};
+   assert.equal(request.config.semanticStage,'RECORD_OBJECTIVE_COVERAGE_CONSISTENCY');
+   assert.ok(request.config.chatMessages.some(m=>m.content.includes('VEREDICTO_A_RECONCILIAR=')));
+   return{text:JSON.stringify(outcome==='unresolved'?original:{...original,proven:true,missing:[],groups:[{group:'relationships',proven:true,evidence:[{taskIndex:0,fields:['holder']}]}]})};
+  }}},model:'same-local-model',objective:{objective:contract.requestQuote},contract,tasks});
+  assert.equal(stages.length,['partial_page','foreign_scope'].includes(outcome)?1:2);
+  assert.equal(qualify({evidenceTaskIndexes:[0],coverageProof:result},contract,tasks).status,outcome==='fixed'?'complete':'partial');
+ }
+});
+
 test('contradictory record coverage returns to the same semantic authority without automatically completing it',async()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
