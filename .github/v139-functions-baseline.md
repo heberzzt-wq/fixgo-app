@@ -1,6 +1,15 @@
 # V139 reviewed Functions baseline
 
-Both certification jobs use `.github/scripts/v139-functions-guard.mjs` and the
+Current baseline: `5933f9b11b9fd85c656ff03da632d34649e9e011`, the locally verified record-field recovery release.
+This explicit advance admits only the committed planner/runtime regression fix;
+it does not accept unfinished working-tree changes or certify a real mission.
+The baseline remains pinned, ancestor-checked and enforced against every future
+Functions change. Local full-suite and fresh focal checks passed; the workstation
+embedding check and Linux-only browser check are verified separately before closure.
+
+## Initial workflow repair baseline
+
+The initial workflow repair used `.github/scripts/v139-functions-guard.mjs` and the
 explicit baseline `7f50f7d306f789a8dbde355435895b8d54abb872`. This is the integrated
 branch HEAD before this workflow-only repair, not a dynamically accepted HEAD.
 Platform CI run https://github.com/heberzzt-wq/fixgo-app/actions/runs/38281211531

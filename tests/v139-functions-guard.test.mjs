@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { verifyFunctionsBaseline, CERTIFICATION_BRANCH, FUNCTIONS_BASELINE } from '../.github/scripts/v139-functions-guard.mjs';
+import { verifyFunctionsBaseline, CERTIFICATION_BRANCH } from '../.github/scripts/v139-functions-guard.mjs';
 
 function fixture(t) {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'v139-guard-'));
@@ -96,7 +96,7 @@ test('historical providers are isolated behind manual explicit opt-in that defau
 
 test('moving historical certification preserves its canonical mission and Windows marker byte for byte', () => {
   const cwd = fileURLToPath(new URL('..', import.meta.url));
-  const original = execFileSync('git', ['show', `${FUNCTIONS_BASELINE}:.github/workflows/v139-real-reel-e2e-cert.yml`], { cwd, encoding: 'utf8' }).replace(/\r/g, '');
+  const original = execFileSync('git', ['show', '7f50f7d306f789a8dbde355435895b8d54abb872:.github/workflows/v139-real-reel-e2e-cert.yml'], { cwd, encoding: 'utf8' }).replace(/\r/g, '');
   const marker = '      - name: Start bridge and run canonical real-reel mission in same step';
   assert.ok(original.includes(marker));
   assert.equal(externalWorkflow.slice(externalWorkflow.indexOf(marker)), original.slice(original.indexOf(marker)));
