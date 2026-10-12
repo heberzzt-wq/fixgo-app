@@ -735,27 +735,33 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
     const observedDefinitions=[...new Map([...tasks].reverse().flatMap(task=>{
         const read=task.observation?.verifiedRead;
         return task.observation?.ok===true && task.observation.executionOk!==false
-            ? (read?.sourceStructure?.dataBindings?.writeShapes || []).map(shape=>({file:read.file,collection:shape.collection,fields:shape.fields,fieldsComplete:shape.fieldsComplete,...(shape.content ? {definition:shape.content.slice(0,600),definitionTruncated:shape.truncated===true || shape.content.length>600} : {})})) : [];
+            ? [...(read?.sourceStructure?.dataBindings?.writeShapes || []),...(read?.sourceStructure?.dataBindings?.references || []).filter(reference=>reference.collection && reference.content).map(reference=>({...reference,fields:[],fieldsComplete:false,referenceOnly:true}))].map(shape=>({file:read.file,collection:shape.collection,fields:shape.fields,fieldsComplete:shape.fieldsComplete,...(shape.referenceOnly ? {referenceOnly:true} : {}),...(shape.content ? {definition:shape.content.slice(0,600),definitionTruncated:shape.truncated===true || shape.content.length>600} : {})})) : [];
     }).map(shape=>[JSON.stringify(shape),shape])).values()];
-    const sourceDefinitions=[];
+    const sourceDefinitions=[],representedCollections=new Set();
+    const distinctDefinitions=observedDefinitions.filter(definition=>{if(representedCollections.has(definition.collection))return false;representedCollections.add(definition.collection);return true;});
+    const balancedDefinitions=[...distinctDefinitions,...observedDefinitions.filter(definition=>!distinctDefinitions.includes(definition))];
+    const perSourceBudget=Math.max(256,Math.floor(6000/Math.max(1,Math.min(24,distinctDefinitions.length))));
     let definitionBudget=6000;
-    for(const observed of observedDefinitions) {
+    for(const observed of balancedDefinitions) {
         if(sourceDefinitions.length>=24 || definitionBudget<256)break;
         const definition={...observed,fields:[...(observed.fields || [])]};
-        while(definition.fields.length && JSON.stringify(definition).length>definitionBudget) {
+        const entryBudget=Math.min(definitionBudget,perSourceBudget);
+        if(definition.definition && definition.definition.length>Math.max(0,entryBudget-240)){definition.definition=definition.definition.slice(0,Math.max(0,entryBudget-240));definition.definitionTruncated=true;}
+        while(definition.fields.length && JSON.stringify(definition).length>entryBudget) {
             definition.fields.pop();definition.fieldsComplete=false;
         }
         const cost=JSON.stringify(definition).length;
-        if(cost>definitionBudget)continue;
+        if(cost>entryBudget)continue;
         sourceDefinitions.push(definition);definitionBudget-=cost;
     }
+    const definedSources=new Set(sourceDefinitions.map(definition=>definition.collection));
     const scopeReview=await ai.models.generateContent({model,contents:contract.requestQuote,config:{
         semanticStage:"OBJECTIVE_SOURCE_SCOPE_VERIFICATION",temperature:0,maxOutputTokens:Math.min(4096,Math.max(768,scopeSources.length*128)),
         // Review inclusions and exclusions without the earlier verdict or assistant
         // recap. Repeating a proposed verdict would anchor this independent check.
-        chatMessages:[{role:"system",content:"Decide la pertinencia de cada fuente para ESTE objetivo, usando su esquema observado y las aclaraciones del usuario. relevantToObjective=true si puede aportar registros pedidos por ese objetivo; false si el esquema acredita que queda fuera. El alcance all_sources incluye las distintas clases de registros solicitadas: una distinción obliga a mantenerlas separadas, no a borrar una clase del inventario. No sustituyas un pedido general por el dominio de la primera fuente. Una fuente no consultada puede ser pertinente: no confundas falta de lectura con irrelevancia. Comprueba tanto inclusiones como exclusiones. Una fuente que autentica, registra eventos o describe herramientas no representa por ello los registros pedidos: interpreta sus campos con el esquema, no sólo el nombre de la ruta. Una aclaración que distingue clases no limita un objetivo general a una sola de ellas. No evalúes cumplimiento ni pruebes datos con código. No transfieras requisitos de otros objetivos. Emite una decisión para cada ruta adjunta sin inventar otras."},
+        chatMessages:[{role:"system",content:"Decide la pertinencia de cada fuente para ESTE objetivo, usando su esquema observado y las aclaraciones del usuario. relevantToObjective=true si puede aportar registros pedidos por ese objetivo; false si el esquema acredita que queda fuera. Devuelve null si la pertinencia queda indeterminada. La ausencia de una definición en sourceDefinitions no acredita irrelevancia: considera las aclaraciones literales y las referencias observadas; si no bastan, conserva null. referenceOnly es una expresión de consulta observada, no una escritura ni datos operativos. El alcance all_sources incluye las distintas clases de registros solicitadas: una distinción obliga a mantenerlas separadas, no a borrar una clase del inventario. No sustituyas un pedido general por el dominio de la primera fuente. La entidad principal de una colección no excluye los registros o atributos anidados que guarda. Si el usuario incluyó esos registros, no exijas una colección independiente ni pertenencia a otra clase para contarlos. Una fuente no consultada puede ser pertinente: no confundas falta de lectura con irrelevancia. Comprueba tanto inclusiones como exclusiones. Una fuente que autentica, registra eventos o describe herramientas no representa por ello los registros pedidos: interpreta sus campos con el esquema, no sólo el nombre de la ruta. Una aclaración que distingue clases no limita un objetivo general a una sola de ellas. No evalúes cumplimiento ni pruebes datos con código. No transfieras requisitos de otros objetivos. Emite una decisión para cada ruta adjunta sin inventar otras."},
             {role:"user",content:JSON.stringify({request:contract.requestQuote,contract,userClarifications:scopeClarifications,sources:scopeSources,sourceDefinitions,sourceDefinitionsMayBeIncomplete:sourceDefinitions.length<observedDefinitions.length || sourceDefinitions.some(source=>source.fieldsComplete!==true)})}],
-        responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{sourceRelevance:{type:"object",properties:Object.fromEntries(scopeSources.map(collection=>[collection,{type:"object",properties:{relevantToObjective:{type:"boolean"},reason:{type:"string",maxLength:160}},required:["relevantToObjective","reason"],additionalProperties:false}])),required:scopeSources,additionalProperties:false}},required:["sourceRelevance"],additionalProperties:false}
+        responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{sourceRelevance:{type:"object",properties:Object.fromEntries(scopeSources.map(collection=>[collection,{type:"object",properties:{relevantToObjective:{type:["boolean","null"],enum:definedSources.has(collection)?[true,false,null]:[true,null]},reason:{type:"string",maxLength:160}},required:["relevantToObjective","reason"],additionalProperties:false}])),required:scopeSources,additionalProperties:false}},required:["sourceRelevance"],additionalProperties:false}
     }});
     const verdict=extractJsonObject(String(scopeReview?.text || ""));
     if(verdict?.sourceRelevance && typeof verdict.sourceRelevance==="object" && !Array.isArray(verdict.sourceRelevance))
@@ -764,7 +770,7 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         verdict.exclusionReviews=Object.entries(verdict.exclusionReviews).map(([collection,decision])=>({...decision,collection}));
     const valid=scopeReview?.providerResponse?.finishReason!=="length" && Array.isArray(verdict?.exclusionReviews) &&
         scopeSources.every(collection=>verdict.exclusionReviews.filter(item=>item.collection===collection).length===1) &&
-        verdict.exclusionReviews.length===scopeSources.length && verdict.exclusionReviews.every(item=>scopeSources.includes(item.collection) && typeof item.contradictsObjective==="boolean" && typeof item.reason==="string" && item.reason.trim());
+        verdict.exclusionReviews.length===scopeSources.length && verdict.exclusionReviews.every(item=>scopeSources.includes(item.collection) && (typeof item.contradictsObjective==="boolean" || item.contradictsObjective===null) && typeof item.reason==="string" && item.reason.trim());
     if(!valid) {
         proof.proven=false;
         proof.missing=[...(proof.missing || []),"No se pudo comprobar la pertinencia de todas las fuentes contra este objetivo."];
@@ -775,12 +781,12 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         const decisions=(proof.sources || []).filter(source=>source.collection===item.collection);
         if(decisions.length!==1)continue;
         const source=decisions[0];
-        if(item.contradictsObjective===false) {
+        if(item.contradictsObjective===false && definedSources.has(item.collection)) {
             source.relevant=false;source.reason=item.reason;source.taskIndexes=[];
-        } else if(source.relevant!==true) {
+        } else if(item.contradictsObjective!==true || source.relevant!==true) {
             proof.proven=false;
             proof.missing=[...(proof.missing || []),"Fuente pendiente por alcance: "+item.collection+". "+item.reason];
-            source.relevant=null;source.reason=item.reason;source.taskIndexes=[];
+            source.relevant=null;source.reason=item.contradictsObjective===false ? "No se acreditó una definición observada para excluir esta fuente: "+item.reason : item.reason;source.taskIndexes=[];
         } else source.reason=item.reason;
     }
     return proof;

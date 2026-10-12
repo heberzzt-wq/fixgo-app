@@ -180,6 +180,41 @@ test('independent source review checks positive relevance and removes another do
  assert.equal(qualify({evidenceTaskIndexes:[0],coverageProof:proof},contract,tasks).status,'partial','source relevance never proves absent operational fields');
 });
 
+test('unknown source relevance retains its goal and read-only schema references without claiming data',async()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
+ const qualify=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').qualifyRecordObjectiveCoverage;
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry','related'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:qualify});
+ const contract={requestQuote:'Count registered entries',scope:'all_sources',groups:['entries'],coverageMode:'population'};
+ const tasks=[{observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry'},totalCount:0}}},{observation:{ok:true,verifiedRead:{file:'observed.js',sourceStructure:{dataBindings:{collections:['registry','related'],writeShapes:Array.from({length:5},(_,i)=>({collection:'registry',fields:Array.from({length:300},(_,j)=>'observed_field_'+j+'_'+ 'x'.repeat(40)),fieldsComplete:true,startLine:i+1})),references:[{collection:'related',content:'observe(collection("related"))',startLine:12}]}}}}}];
+ const proof=await review({model:'same-authority',contract,objective:contract,tasks,ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE')return{text:JSON.stringify({proven:true,missing:[],groups:[{group:'entries',proven:true,evidence:[{taskIndex:0,fields:[]}]}],sources:[{collection:'registry',relevant:true,reason:'Recorded entries',taskIndexes:[0]},{collection:'related',relevant:false,reason:'Definition missing',taskIndexes:[]}]})};
+  assert.equal(request.config.semanticStage,'OBJECTIVE_SOURCE_SCOPE_VERIFICATION');
+  const payload=JSON.parse(request.config.chatMessages.at(-1).content),definition=payload.sourceDefinitions.find(d=>d.collection==='related');
+  assert.ok(JSON.stringify(payload.sourceDefinitions).length<=6000,'repeated write definitions cannot displace another observed collection');assert.equal(definition.referenceOnly,true);assert.equal(definition.fieldsComplete,false);assert.equal(definition.definition,'observe(collection("related"))');
+  assert.deepEqual(Array.from(request.config.responseJsonSchema.properties.sourceRelevance.properties.related.properties.relevantToObjective.type),['boolean','null']);
+  return{text:JSON.stringify({sourceRelevance:{registry:{relevantToObjective:true,reason:'Current count'},related:{relevantToObjective:null,reason:'Observed read lacks a definition of its population'}}})};
+ }}}});
+ assert.equal(proof.proven,false);assert.equal(proof.sources[1].relevant,null);const coverage=qualify({evidenceTaskIndexes:[0],coverageProof:proof},contract,tasks);assert.equal(coverage.status,'partial');assert.deepEqual(coverage.pendingSources,['related']);assert.equal(coverage.consultedScopes[0].totalCount,0);
+});
+
+test('missing schema definitions cannot support a negative source exclusion',async()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
+ const qualify=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').qualifyRecordObjectiveCoverage;
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry','related'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:qualify});
+ const contract={requestQuote:'Count registered entries',scope:'all_sources',groups:['entries'],coverageMode:'population'};
+ const tasks=[{observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry'},totalCount:0}}},{observation:{ok:true,verifiedRead:{file:'observed.js',sourceStructure:{dataBindings:{collections:['registry','related'],writeShapes:[]}}}}}];
+ for(const decision of [false,null,true]){
+ const proof=await review({model:'same-authority',contract,objective:contract,tasks,scopeClarifications:['Related declarations are registered entries.'],ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE')return{text:JSON.stringify({proven:true,missing:[],groups:[{group:'entries',proven:true,evidence:[{taskIndex:0,fields:[]}]}],sources:[{collection:'registry',relevant:true,reason:'Recorded entries',taskIndexes:[0]},{collection:'related',relevant:false,reason:'No definition supplied',taskIndexes:[]}]})};
+  assert.deepEqual(Array.from(request.config.responseJsonSchema.properties.sourceRelevance.properties.related.properties.relevantToObjective.enum),[true,null]);
+  return{text:JSON.stringify({sourceRelevance:{registry:{relevantToObjective:true,reason:'Scoped count'},related:{relevantToObjective:decision,reason:'Definition not supplied'}}})};
+ }}}});
+ assert.equal(proof.proven,false);assert.equal(proof.sources[1].relevant,null);assert.deepEqual(qualify({evidenceTaskIndexes:[0],coverageProof:proof},contract,tasks).pendingSources,['related']);
+ }
+});
+
 test('unreviewed observed sources refresh pending record coverage without promoting code to records',async()=>{
  for(const variant of ['new','known','failed','no_records']){
   const records={name:'fixture.records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}]};
@@ -257,7 +292,7 @@ test('source coverage and exclusions retain exactly one decision per observed so
  const {qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry','events'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:qualify});
  const contract={requestQuote:'Count registered entries',scope:'all_sources',groups:['entries'],coverageMode:'population'};
- const tasks=[{observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',filters:[]},completeForQuery:true,hasMore:false,totalCount:0}}},{observation:{ok:true,verifiedRead:{file:'observed.js',sourceStructure:{dataBindings:{collections:['registry','events']}}}}}];
+ const tasks=[{observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',filters:[]},completeForQuery:true,hasMore:false,totalCount:0}}},{observation:{ok:true,verifiedRead:{file:'observed.js',sourceStructure:{dataBindings:{collections:['registry','events'],writeShapes:[{collection:'events',fields:['event'],fieldsComplete:true}]}}}}}];
  for(const mode of ['valid','missing_source','missing_exclusion','contradictory_exclusion']) {
   const proof=await review({model:'same-authority',contract,objective:contract,tasks,ai:{models:{generateContent:async request=>{
    assert.equal(request.model,'same-authority');
