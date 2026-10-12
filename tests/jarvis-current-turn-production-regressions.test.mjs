@@ -2150,6 +2150,32 @@ test('platform collection destinations are extracted from real AST calls, never 
  assert.equal(inspectSourceDataBindings('not valid JavaScript {').complete,false);
 });
 
+test('bounded source references preserve distinct observed routes before duplicate excerpts',async()=>{
+ const {inspectSourceDataBindings}=await import('../gestia-core/repo/repo.source.structure.js');
+ const source=[...Array.from({length:4},(_,i)=>`const repeated${i}=collection(db,"primary");`),
+  'const related=collection(db,"related");','const nested=collection(db,"parents",entryId,"children");','const other=collection(db,"other");'].join('\n');
+ const bindings=inspectSourceDataBindings(source);
+ assert.deepEqual(bindings.references.map(reference=>reference.collection),['primary','related','parents/{entryId}/children','other']);
+ assert.equal(bindings.references.length,4);
+ assert.equal(bindings.referencesComplete,false);
+ for(const reference of bindings.references){
+  assert.ok(source.includes(reference.content));
+  assert.ok(reference.content.length<=1100);
+  assert.ok(reference.endLine>=reference.startLine);
+ }
+ const small=inspectSourceDataBindings('const first=collection(db,"primary"); const second=collection(db,"related");');
+ assert.equal(small.referencesComplete,true);
+ assert.deepEqual(small.references.map(reference=>reference.collection),['primary','related']);
+ const overflow=inspectSourceDataBindings(Array.from({length:6},(_,i)=>`const ref${i}=collection(db,"route_${i}");`).join('\n'));
+ assert.equal(overflow.references.length,4);
+ assert.equal(overflow.referencesComplete,false);
+ assert.equal(overflow.collections.length,6);
+ const padded=Array.from({length:12},(_,i)=>`const padding${i}="${'x'.repeat(70)}";`).join('\n')+'\nconst observed=collection(db,"late_related");\n';
+ const reference=inspectSourceDataBindings(padded).references[0];
+ assert.ok(reference.content.slice(0,600).includes('collection(db,"late_related")'));
+ assert.equal(reference.content,padded.split('\n').slice(reference.startLine-1,reference.endLine).join('\n')+'\n');
+});
+
 test('source field evidence excludes invoked methods and retains their data receivers',async()=>{
  const {inspectSourceDataBindings}=await import('../gestia-core/repo/repo.source.structure.js');
  const bindings=inspectSourceDataBindings('const ref=collection(db,"entries"); rows.map(row=>[row.label.normalize(),row.details.code.trim(),row?.details?.alias?.format(),row["category"]["render"](),row.details.value]);');

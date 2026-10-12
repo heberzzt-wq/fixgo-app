@@ -929,7 +929,7 @@ export function inspectSourceDataBindings(source = "") {
                 const literal = string(arg);
                 if ((name === "collection" || (!member && name === "doc")) && literal && pathTemplate) {
                     collections.add(pathTemplate);
-                    const from = Math.max(0,unit.lastIndexOf("\n",Math.max(0,node.start-650))+1);
+                    const from = Math.max(0,unit.lastIndexOf("\n",Math.max(0,node.start-200))+1,node.start-300);
                     const limit = Math.min(unit.length,from+1100,node.end+400);
                     const lastNewline = unit.lastIndexOf("\n",limit);
                     const to = lastNewline > node.end ? lastNewline+1 : limit;
@@ -961,6 +961,7 @@ export function inspectSourceDataBindings(source = "") {
         };
         visit(program);
     }
-    const references = [...referenceGroups.values()].flat();
+    const groups = [...referenceGroups.values()];
+    const references = [...groups.map(group=>group[0]),...groups.flatMap(group=>group.slice(1))];
     return {source:"ACORN_SOURCE_REFERENCES",collections:[...collections].slice(0,100),fieldPaths:[...fieldPaths].slice(0,200),fieldPathsComplete:fieldPaths.size<=200 && parsedUnits===units.length,writeShapes,references:references.slice(0,4),referencesComplete:references.length<=4,complete:parsedUnits===units.length && collections.size<=100,scope:"Static code references and bounded source excerpts, not a database inventory or query result."};
 }
