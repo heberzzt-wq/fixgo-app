@@ -1,7 +1,7 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `3900f36c058160e56ea18bbd12987bd2f8033c3b`, the locally verified record-query recovery release.
-This explicit advance admits only the committed planner/runtime regression fixes, including optional index-order recovery;
+Current baseline: `e240273887aa5a2d3f04e07ca2f7c64b330ca3b5`, the locally verified source-scope conflict recovery release.
+This explicit advance admits only the committed planner/runtime regression fixes, including preservation of unconsulted sources when semantic reviews disagree;
 it does not accept unfinished working-tree changes or certify a real mission.
 The baseline remains pinned, ancestor-checked and enforced against every future
 Functions change. Local full-suite and fresh focal checks passed; the workstation
