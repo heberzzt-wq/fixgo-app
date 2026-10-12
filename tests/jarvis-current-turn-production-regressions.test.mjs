@@ -145,13 +145,13 @@ test('independent source relevance uses user scope and observed schemas without 
   assert.equal(request.config.semanticStage,'OBJECTIVE_SOURCE_SCOPE_VERIFICATION');
   const payload=JSON.parse(request.config.chatMessages.at(-1).content);
   assert.equal(payload.exclusions,undefined,'proposed verdicts must not anchor an independent relevance decision');
-  assert.deepEqual(Array.from(payload.sources),['declared','events']);
+  assert.deepEqual(Array.from(payload.sources),['declared','events','primary']);
   assert.deepEqual(Array.from(payload.userClarifications),['Declared entries are registered entries; allocations are separate.']);
   assert.ok(!JSON.stringify(request.config.chatMessages).includes('UNTRUSTED_PRIOR_EXCLUSION'));
   assert.ok(!JSON.stringify(request.config.chatMessages).includes('Assistant recap'));
   const schema=request.config.responseJsonSchema.properties.sourceRelevance;
-  assert.deepEqual(Array.from(schema.required),['declared','events']);assert.equal(schema.additionalProperties,false);
-  return{text:JSON.stringify({sourceRelevance:{declared:{relevantToObjective:true,reason:'The user includes declared entries'},events:{relevantToObjective:false,reason:'Events are outside this inventory'}}})};
+  assert.deepEqual(Array.from(schema.required),['declared','events','primary']);assert.equal(schema.additionalProperties,false);
+  return{text:JSON.stringify({sourceRelevance:{primary:{relevantToObjective:true,reason:'Requested registry'},declared:{relevantToObjective:true,reason:'The user includes declared entries'},events:{relevantToObjective:false,reason:'Events are outside this inventory'}}})};
  }}}});
  const coverage=qualify({evidenceTaskIndexes:[0],coverageProof:proof},contract,tasks);
  assert.equal(proof.proven,false);assert.equal(coverage.status,'partial');assert.deepEqual(coverage.pendingSources,['declared']);
@@ -159,6 +159,27 @@ test('independent source relevance uses user scope and observed schemas without 
  assert.equal(coverage.consultedScopes[0].totalCount,0,'a scoped zero remains accredited without representing another source');
  assert.deepEqual(proof.groups[0].evidence,[{taskIndex:0,fields:[]}],'code does not become a record citation');
 });
+test('independent source review checks positive relevance and removes another domains inclusion',async()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
+ const qualify=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').qualifyRecordObjectiveCoverage;
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry','authorization'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:qualify});
+ const contract={requestQuote:'Identify recorded owners',scope:'all_sources',groups:['owners'],coverageMode:'relationship'};
+ const tasks=[{observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry'},rows:[{id:'a',values:{owner:'Observed'}}],completeForQuery:true,hasMore:false}}},{observation:{ok:true,verifiedRead:{file:'observed.js',sourceStructure:{dataBindings:{collections:['registry','authorization'],writeShapes:[{collection:'authorization',fields:['accessRole'],fieldsComplete:true}]}}}}}];
+ let reviewed=false;
+ const proof=await review({model:'same-authority',contract,objective:contract,tasks,ai:{models:{generateContent:async request=>{
+  assert.equal(request.model,'same-authority');
+  if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE')return{text:JSON.stringify({proven:true,missing:[],groups:[{group:'owners',proven:true,evidence:[{taskIndex:0,fields:['owner']}]}],sources:[{collection:'registry',relevant:true,reason:'Recorded owners',taskIndexes:[0]},{collection:'authorization',relevant:true,reason:'Permissions for the records',taskIndexes:[0]}]})};
+  assert.equal(request.config.semanticStage,'OBJECTIVE_SOURCE_SCOPE_VERIFICATION');reviewed=true;
+  const payload=JSON.parse(request.config.chatMessages.at(-1).content);assert.deepEqual(Array.from(payload.sources),['registry','authorization']);assert.equal(payload.exclusions,undefined);
+  return{text:JSON.stringify({sourceRelevance:{registry:{relevantToObjective:true,reason:'Stored owners'},authorization:{relevantToObjective:false,reason:'Access roles do not store the requested owners'}}})};
+ }}}});
+ assert.equal(reviewed,true);assert.equal(proof.sources[1].relevant,false);assert.deepEqual(Array.from(proof.sources[1].taskIndexes),[]);
+ assert.equal(qualify({evidenceTaskIndexes:[0],coverageProof:proof},contract,tasks).status,'complete');
+ tasks[0].observation.recordEvidence.rows[0].values.owner=null;
+ assert.equal(qualify({evidenceTaskIndexes:[0],coverageProof:proof},contract,tasks).status,'partial','source relevance never proves absent operational fields');
+});
+
 test('unreviewed observed sources refresh pending record coverage without promoting code to records',async()=>{
  for(const variant of ['new','known','failed','no_records']){
   const records={name:'fixture.records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}]};
@@ -177,6 +198,7 @@ test('unreviewed observed sources refresh pending record coverage without promot
     assert.ok(payload.observedSources.includes('related'));
     return{text:JSON.stringify({...proof,missing:['Related records have not been consulted'],sources:[...proof.sources,{collection:'related',relevant:true,reason:'Related entries',taskIndexes:[]}]})};
    }
+   if(request.config.semanticStage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:{primary:{relevantToObjective:true,reason:'Primary entries'},related:{relevantToObjective:true,reason:'Related entries remain pending'}}})};
    return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'source.js',startLine:10}}]})};
   }}}});
   assert.equal(reviews,variant==='new'?1:0,variant);
@@ -246,8 +268,8 @@ test('source coverage and exclusions retain exactly one decision per observed so
    }
    assert.equal(request.config.semanticStage,'OBJECTIVE_SOURCE_SCOPE_VERIFICATION');
    const schema=request.config.responseJsonSchema.properties.sourceRelevance;
-   assert.equal(schema.type,'object');assert.deepEqual(Array.from(schema.required),['events']);assert.equal(schema.additionalProperties,false);
-   return{text:JSON.stringify({exclusionReviews:mode==='missing_exclusion'?{}:{events:{contradictsObjective:mode==='contradictory_exclusion',reason:'Observed scope decision'}}})};
+   assert.equal(schema.type,'object');assert.deepEqual(Array.from(schema.required),['events','registry']);assert.equal(schema.additionalProperties,false);
+   return{text:JSON.stringify({exclusionReviews:mode==='missing_exclusion'?{}:{registry:{contradictsObjective:true,reason:'Requested registry'},events:{contradictsObjective:mode==='contradictory_exclusion',reason:'Observed scope decision'}}})};
   }}}});
   const coverage=qualify({evidenceTaskIndexes:[0],coverageProof:proof},contract,tasks);
   assert.equal(coverage.status,mode==='valid'?'complete':'partial');
@@ -3859,6 +3881,7 @@ test('independent source coverage retains authenticated citations outside the pr
  for(const citation of [1,2,0]) {
   const result=await run({input:contract.objective,catalog:[records,code],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[contract],completedTasks:tasks},ai:{models:{generateContent:async request=>{
    if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({toolCalls:[],completionAssessment:{objectives:[{...contract,satisfied:false,evidenceTaskIndexes:[0],limitation:'Related population remains pending'}]}})};
+   if(request.config.semanticStage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:{registry:{relevantToObjective:true,reason:'Requested registered entries'},related:{relevantToObjective:true,reason:'Additional requested registered entries'}}})};
    if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE')return{text:JSON.stringify({proven:true,missing:[],groups:[{group:'entries',proven:true,evidence:[{taskIndex:0,fields:[]}]}],sources:[{collection:'registry',relevant:true,reason:'Registered entries',taskIndexes:[0]},{collection:'related',relevant:true,reason:'Related population consulted in full',taskIndexes:[citation]}]})};
    return{text:'{"toolCalls":[]}'};
   }}}});
@@ -3886,7 +3909,7 @@ test('source exclusions cannot narrow a global contract using another objectives
    return{text:JSON.stringify({proven:true,missing:[],groups:[{group:'entries',proven:true,evidence:[{taskIndex:0,fields:[]}]}],sources:[{collection:'allocated_registry',relevant:true,reason:'Allocated entries',taskIndexes:[0]},{collection:'declared_registry',relevant:false,reason:'Declarations are not official allocations',taskIndexes:[]}]})};
   }
   assert.equal(request.config.semanticStage,'OBJECTIVE_SOURCE_SCOPE_VERIFICATION');const payload=JSON.parse(request.config.chatMessages.at(-1).content);assert.equal(payload.contract.requestQuote,contract.requestQuote);assert.equal(payload.request,contract.requestQuote);assert.equal(payload.missionRequest,undefined,'another mission objective must not become the scope verification request');assert.equal(payload.sources[0],'declared_registry');assert.ok(request.config.chatMessages.some(message=>message.content.includes('Declared entries are registered entries')));
-  return{text:JSON.stringify({exclusionReviews:[{collection:'declared_registry',contradictsObjective:true,reason:'Registered declarations belong to the counting objective despite not being official allocations.'}]})};
+  return{text:JSON.stringify({exclusionReviews:[{collection:'declared_registry',contradictsObjective:true,reason:'Registered declarations belong to the counting objective despite not being official allocations.'},{collection:'allocated_registry',contradictsObjective:true,reason:'Registered allocations are included separately.'}]})};
  }}}});
  assert.deepEqual(stages,['RECORD_OBJECTIVE_COVERAGE','OBJECTIVE_SOURCE_SCOPE_VERIFICATION']);assert.equal(proof.proven,false);
  const result=qualify({evidenceTaskIndexes:[0],coverageProof:proof},contract,tasks);assert.equal(result.status,'partial');assert.deepEqual(result.pendingSources,['declared_registry']);assert.equal(result.consultedScopes[0].totalCount,1);
@@ -3903,7 +3926,7 @@ test('scope reviews distinguish justified exclusions from violations and bound t
    if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE')return{text:JSON.stringify({proven:true,missing:[],groups:[],sources:[{collection:'registry',relevant:true,reason:'Population',taskIndexes:[0]},{collection:'events',relevant:false,reason:'Historical events outside the requested population',taskIndexes:[]}]})};
    const payload=JSON.parse(request.config.chatMessages.at(-1).content);assert.ok(JSON.stringify(payload.sourceDefinitions).length<=6024);assert.equal(payload.sourceDefinitionsMayBeIncomplete,true);assert.equal(payload.sourceDefinitions[0].fieldsComplete,false);
    const verdict={collection:'events',contradictsObjective:mode==='violation',reason:mode==='violation'?'The user explicitly included these entries.':'The exclusion respects the requested population.'};
-   return{text:JSON.stringify({exclusionReviews:mode==='missing'?[]:mode==='duplicate'?[verdict,verdict]:[verdict]})};
+   return{text:JSON.stringify({exclusionReviews:mode==='missing'?[]:mode==='duplicate'?[verdict,verdict]:[verdict,{collection:'registry',contradictsObjective:true,reason:'Requested population'}]})};
   }}}});
   assert.equal(proof.proven,mode==='justified');assert.equal(proof.sources[1].relevant,mode==='justified'?false:null);
  }
