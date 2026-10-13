@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 // Reviewed integrated Functions baseline; see ../v139-functions-baseline.md.
-export const FUNCTIONS_BASELINE = '2ad364a90c1cee318f4cb86258df7158445d80de';
+export const FUNCTIONS_BASELINE = '80a1642969cd30f9da722aacb16d946400d18272';
 export const CERTIFICATION_BRANCH = 'v94-media-v4n-negative-claims';
 
 export function verifyFunctionsBaseline({ cwd = process.cwd(), refName = process.env.GITHUB_REF_NAME, baseline = FUNCTIONS_BASELINE } = {}) {

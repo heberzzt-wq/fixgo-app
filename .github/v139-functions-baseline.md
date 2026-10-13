@@ -1,16 +1,17 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `2ad364a90c1cee318f4cb86258df7158445d80de`, the locally verified persistent source-path grounding release.
-This explicit advance admits only a narrower read contract for record research:
-after the first inspected file, repository reads remain constrained to paths
-already discovered or inspected. Existing path restrictions are intersected,
-never expanded. Partial ranges remain available, and Qwen can discover new
-paths with the authorized research tools. No case names or domains are fixed.
-The actual failed state now exposes 16 observed paths and excludes the invented
-filename while preserving range expansion. This does not expand permissions,
-accept unfinished changes or certify a real mission.
+Current baseline: `80a1642969cd30f9da722aacb16d946400d18272`, the locally verified bounded conversation transport release.
+This explicit advance admits only gzip JSON decoding before the existing record
+response checks. The frontend compresses oversized operational briefings without
+dropping snapshots, fields, scopes or pending objectives. The local backend
+restores the same JSON, bounds decompression to 262,144 bytes and rejects malformed
+encoding or mismatched lengths before inference. Small briefings are unchanged.
+The captured partial-state replay now transports 47,533 bytes in 8,700 characters
+and preserves all three pending record objectives. This is a diagnostic replay,
+not a certification of the real mission. No model, permission, data or external
+provider changes are admitted; Qwen remains the sole local semantic authority.
 The baseline remains pinned, ancestor-checked and enforced against every future
-Functions change. The new general regression, 243 focal checks and 1,925 local
+Functions change. Three general regressions, 263 focal checks and 1,928 local
 full-suite checks passed with zero failures. The one Linux-only browser check
 and Firestore emulator checks require fresh CI verification before closure.
 
