@@ -2205,6 +2205,28 @@ test('missing evidence continues with the same local model and actual read capab
 });
 
 
+test('late collection anchors survive bounded discovery and direct continuation to unobserved regions',async()=>{
+ const {inspectSourceDataBindings}=await import('../gestia-core/repo/repo.source.structure.js');
+ const {__test}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
+ const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
+ const names=Array.from({length:12},(_,i)=>'observed_scope_'+i);
+ const content=names.map(name=>'const scope_'+name+' = db.collection('+JSON.stringify(name)+').where("measure", "==", observedMeasure);').join('\n');
+ const bindings=inspectSourceDataBindings(content);
+ assert.equal(bindings.references.length,4,'full excerpts remain bounded');assert.equal(bindings.referencesComplete,false);
+ assert.deepEqual(bindings.collectionAnchors.map(anchor=>anchor.collection),names);assert.ok(JSON.stringify(bindings.collectionAnchors).length<=4000);
+ assert.ok(bindings.collectionAnchors.every(anchor=>anchor.content.includes(JSON.stringify(anchor.collection))&&anchor.truncated===true),'each bounded excerpt belongs to its own source and stays partial');
+ const observed=__test.safeObservation({ok:true,status:'SUCCESS',file:'observed.js',content,numberedContent:content,startLine:1,endLine:12,totalLines:12,sourceStructure:{dataBindings:bindings}});
+ const compact=compactMissionPlannerObservation(observed);
+ assert.deepEqual(compact.verifiedRead.sourceStructure.dataBindings.collectionAnchors.map(anchor=>anchor.collection),names);
+ assert.equal(compact.recordEvidence,undefined,'source locations never become operational values');
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='partialSourceProgress');
+ const progress=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const hints=progress([{name:'repo.read',observation:{...compact,verifiedRead:{...compact.verifiedRead,startLine:1,endLine:2,totalLines:12}}}]);
+ assert.ok(hints[0].schemaAnchors.some(anchor=>anchor.collection===names.at(-1)&&anchor.startLine===12&&anchor.observed===false));
+ assert.equal(hints[0].schemaAnchors.find(anchor=>anchor.collection===names.at(-1)).content,undefined,'continuation locations do not duplicate code bodies');
+});
+
 test('observed source controls survive both discovery compaction boundaries without becoming record evidence',async()=>{
  const {__test}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
  const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');

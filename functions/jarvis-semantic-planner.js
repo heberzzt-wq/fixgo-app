@@ -745,7 +745,7 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         const record=task.observation?.recordEvidence;
         const names=record?.fieldSchema ? observedRecordFieldPaths([task],record.scope?.collection) : [];
         return [...(names.length ? [{file:record.scope.sourceFile,collection:record.scope.collection,fields:names,fieldsComplete:false,recordNamesOnly:true}] : []),
-            ...(read ? [...(read.sourceStructure?.dataBindings?.writeShapes || []),...(read.sourceStructure?.dataBindings?.references || []).filter(reference=>reference.collection && reference.content).map(reference=>({...reference,fields:[],fieldsComplete:false,referenceOnly:true}))].map(shape=>({file:read.file,collection:shape.collection,fields:shape.fields,fieldsComplete:shape.fieldsComplete,...(shape.referenceOnly ? {referenceOnly:true} : {}),...(shape.content ? {definition:shape.content.slice(0,600),definitionTruncated:shape.truncated===true || shape.content.length>600} : {})})) : [])];
+            ...(read ? [...(read.sourceStructure?.dataBindings?.writeShapes || []),...[...(read.sourceStructure?.dataBindings?.references || []),...(read.sourceStructure?.dataBindings?.collectionAnchors || [])].filter(reference=>reference.collection && reference.content).map(reference=>({...reference,fields:[],fieldsComplete:false,referenceOnly:true}))].map(shape=>({file:read.file,collection:shape.collection,fields:shape.fields,fieldsComplete:shape.fieldsComplete,...(shape.referenceOnly ? {referenceOnly:true} : {}),...(shape.content ? {definition:shape.content.slice(0,600),definitionTruncated:shape.truncated===true || shape.content.length>600} : {})})) : [])];
     }).map(shape=>[JSON.stringify(shape),shape])).values()];
     const sourceDefinitions=[],representedCollections=new Set();
     // Keep current record-name observations first, then substantive schema
@@ -830,6 +830,8 @@ function partialSourceProgress(tasks = []) {
         progress.observedRanges.push([read.startLine || 1,read.endLine]);
         progress.schemaAnchors.push(...(read.sourceStructure?.dataBindings?.writeShapes || [])
             .filter(shape=>Number.isInteger(shape.startLine)).map(({collection,startLine,fields})=>({collection,startLine,fields})));
+        progress.schemaAnchors.push(...(read.sourceStructure?.dataBindings?.collectionAnchors || [])
+            .filter(anchor=>Number.isInteger(anchor.startLine)).map(({collection,startLine})=>({collection,startLine,fields:[]})));
         files.set(read.file,progress);
     }
     return [...files.values()].flatMap(progress=>{

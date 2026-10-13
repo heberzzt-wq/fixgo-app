@@ -776,7 +776,7 @@ export function inspectSourceDataBindings(source = "") {
     const content = String(source || "");
     const scriptBodies = [...content.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)].map(match => ({code:match[1],offset:match.index+match[0].indexOf(">")+1}));
     const units = scriptBodies.length ? scriptBodies : [{code:content,offset:0}];
-    const collections = new Set(), referenceGroups = new Map(), fieldPaths = new Set(), writeShapes = [];
+    const collections = new Set(), referenceGroups = new Map(), referenceAnchors = new Map(), fieldPaths = new Set(), writeShapes = [];
     let parsedUnits = 0;
     const string = node => node?.type === "Literal" && typeof node.value === "string" ? node.value : null;
     for (const sourceUnit of units) {
@@ -949,7 +949,16 @@ export function inspectSourceDataBindings(source = "") {
                     reference.declarations=[...observedDeclarations.values()];
                     const referenceKey = pathTemplate || literal;
                     const prior = referenceGroups.get(referenceKey) || [];
-                    if (prior.length < 4) prior.push(reference);
+                    if (prior.length < 4) {
+                        prior.push(reference);
+                        const lineStart=unit.lastIndexOf("\n",node.start)+1;
+                        const prefix=unit.slice(lineStart,node.start);
+                        const anchorCode=(prefix.length<=80 ? prefix : "")+unit.slice(node.start,Math.min(unit.length,node.end+100));
+                        const anchorLine=content.slice(0,sourceUnit.offset+node.start).split("\n").length;
+                        const anchorContent=anchorCode.slice(0,180);
+                        referenceAnchors.set(reference,{collection:reference.collection,startLine:anchorLine,
+                            endLine:anchorLine+anchorContent.split("\n").length-1,content:anchorContent,truncated:true});
+                    }
                     referenceGroups.set(referenceKey, prior);
                 }
             }
@@ -963,5 +972,18 @@ export function inspectSourceDataBindings(source = "") {
     }
     const groups = [...referenceGroups.values()];
     const references = [...groups.map(group=>group[0]),...groups.flatMap(group=>group.slice(1))];
-    return {source:"ACORN_SOURCE_REFERENCES",collections:[...collections].slice(0,100),fieldPaths:[...fieldPaths].slice(0,200),fieldPathsComplete:fieldPaths.size<=200 && parsedUnits===units.length,writeShapes,references:references.slice(0,4),referencesComplete:references.length<=4,complete:parsedUnits===units.length && collections.size<=100,scope:"Static code references and bounded source excerpts, not a database inventory or query result."};
+    // Full reference bodies stay bounded. Preserve small per-collection locations
+    // so later sources do not lose their next readable region behind that cap.
+    const collectionAnchors=[];
+    let anchorBudget=3998;
+    for(const group of groups) {
+        const reference=group[0];
+        if(!reference?.collection || !Number.isInteger(reference.startLine))continue;
+        const anchor=referenceAnchors.get(reference);
+        if(!anchor)continue;
+        const cost=JSON.stringify(anchor).length+1;
+        if(collectionAnchors.length>=24 || cost>anchorBudget)continue;
+        collectionAnchors.push(anchor);anchorBudget-=cost;
+    }
+    return {source:"ACORN_SOURCE_REFERENCES",collections:[...collections].slice(0,100),fieldPaths:[...fieldPaths].slice(0,200),fieldPathsComplete:fieldPaths.size<=200 && parsedUnits===units.length,writeShapes,references:references.slice(0,4),referencesComplete:references.length<=4,collectionAnchors,complete:parsedUnits===units.length && collections.size<=100,scope:"Static code references and bounded source excerpts, not a database inventory or query result."};
 }
