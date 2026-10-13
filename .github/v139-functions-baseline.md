@@ -1,7 +1,7 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `a852d49744bf9989f5ea57dc3af3b535aa619362`, the locally verified operational objective isolation release.
-This explicit advance admits only the committed planner/runtime regression fixes, including mission context for source selection while operational audits exclude sibling goals and assistant summaries;
+Current baseline: `fa5159ac484695e235b5289928e96a98a0a529df`, the locally verified source-definition budget release.
+This explicit advance admits only the committed planner/runtime regression fixes, including retention of substantive observed source definitions within the fixed context budget;
 it does not accept unfinished working-tree changes or certify a real mission.
 The baseline remains pinned, ancestor-checked and enforced against every future
 Functions change. Local full-suite and fresh focal checks passed; the workstation
