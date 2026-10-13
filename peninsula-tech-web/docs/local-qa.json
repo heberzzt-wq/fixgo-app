@@ -1,0 +1,109 @@
+{
+  "url": "http://127.0.0.1:8787/",
+  "checks": [
+    {
+      "name": "Page loads and renders 12 services",
+      "pass": true
+    },
+    {
+      "name": "Images decoded",
+      "pass": true
+    },
+    {
+      "name": "Version marker",
+      "pass": true
+    },
+    {
+      "name": "No misleading private label",
+      "pass": true
+    },
+    {
+      "name": "Indexing disabled",
+      "pass": true
+    },
+    {
+      "name": "Reduced motion pauses carousel",
+      "pass": true
+    },
+    {
+      "name": "No horizontal overflow 1440",
+      "pass": true
+    },
+    {
+      "name": "No horizontal overflow 768",
+      "pass": true
+    },
+    {
+      "name": "No horizontal overflow 390",
+      "pass": true
+    },
+    {
+      "name": "No horizontal overflow 320",
+      "pass": true
+    },
+    {
+      "name": "Carousel next",
+      "pass": true
+    },
+    {
+      "name": "Carousel previous",
+      "pass": true
+    },
+    {
+      "name": "Digital filter",
+      "pass": true
+    },
+    {
+      "name": "Search filters services",
+      "pass": true
+    },
+    {
+      "name": "Client modal and preselected service",
+      "pass": true
+    },
+    {
+      "name": "Empty submission invalid",
+      "pass": true
+    },
+    {
+      "name": "Client example is generated locally",
+      "pass": true
+    },
+    {
+      "name": "Input rendered as text, not HTML",
+      "pass": true
+    },
+    {
+      "name": "Professional flow distinct",
+      "pass": true
+    },
+    {
+      "name": "Gallery opens",
+      "pass": true
+    },
+    {
+      "name": "Gallery advances",
+      "pass": true
+    },
+    {
+      "name": "Blog article opens",
+      "pass": true
+    },
+    {
+      "name": "Historical archive opens",
+      "pass": true
+    },
+    {
+      "name": "No JavaScript exceptions",
+      "pass": true,
+      "detail": []
+    },
+    {
+      "name": "No external network calls",
+      "pass": true
+    }
+  ],
+  "passed": 25,
+  "total": 25,
+  "errors": []
+}

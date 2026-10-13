@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-10-13T05:27:29.987Z",
+  "version": "0.1.0",
+  "branch": "peninsula-tech-v0.1",
+  "stage": "SPARK_PROJECT_CREATED_PLAN_VERIFICATION_PENDING",
+  "constraints": [
+    "NO_NEW_CHARGES",
+    "DO_NOT_MODIFY_CODEX_WORKTREE",
+    "DO_NOT_CANCEL_SHUTDOWN"
+  ],
+  "localQA": {
+    "interfacePassed": 25,
+    "staticPassed": 37
+  },
+  "next": [
+    "Verify Spark and no billing account in new project console",
+    "Deploy only Hosting after verification",
+    "Run hosted QA and record final URL"
+  ],
+  "canonicalProject": "fixgo-44e4d untouched",
+  "candidateProject": "peninsula-tech-v01",
+  "createdProject": "peninsula-tech-v01",
+  "projectNumber": "592553654850",
+  "billingLinkedByThisWork": false,
+  "qa": {
+    "staticPassed": 50,
+    "interfacePriorPassed": 25
+  },
+  "shutdown": "Codex owns the shutdown; do not cancel or reschedule"
+}

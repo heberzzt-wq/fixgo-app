@@ -1,0 +1,85 @@
+{
+  "totalBytes": 708778,
+  "files": [
+    {
+      "file": "404.html",
+      "bytes": 324,
+      "sha256": "d45aa5f947fabcd2ef2b622dc71ad5b39a3783b51018cc3d8c51bb6b0044ca02"
+    },
+    {
+      "file": "app.js",
+      "bytes": 21357,
+      "sha256": "a3ce1ff1d32fcc5ff9c8aabd2cf67c95a0b86c40207a89a7c1eeb80a09616937"
+    },
+    {
+      "file": "assets/adjunto-oficial.webp",
+      "bytes": 80654,
+      "sha256": "56f703ae209345cf468564ad729f15e0255997774be3071197d03436b3f20b57"
+    },
+    {
+      "file": "assets/espacios.jpg",
+      "bytes": 36492,
+      "sha256": "018ea1dee30969f54dd02ba2835aebda744f018ae4c88b4924864f67d7006af2"
+    },
+    {
+      "file": "assets/maqueta-completa-2018.webp",
+      "bytes": 190030,
+      "sha256": "0362717731413bc79327bb6406124f1f633c6a82ebdf5321f09c1773ef1f4cdd"
+    },
+    {
+      "file": "assets/peninsula-emblema.webp",
+      "bytes": 53428,
+      "sha256": "6b77fd6a99ac9431e21e47b6735d72a1a242d437b215228ece1fec473c293e6e"
+    },
+    {
+      "file": "assets/peninsula-oficial.webp",
+      "bytes": 116834,
+      "sha256": "23a45e3c5fc30807e732a140cf8a76f26cdd75b50e752b21b2a23b485af10450"
+    },
+    {
+      "file": "assets/trabajo-01.jpg",
+      "bytes": 28090,
+      "sha256": "ccd39edf12d5c0a5eb5cc1a1ccba325e5aa457876e992e0ade163a54f9e73723"
+    },
+    {
+      "file": "assets/trabajo-02.jpg",
+      "bytes": 22531,
+      "sha256": "f76cad294d56616e880d61506da1a84c8e8f9414ce2fd6de217ecfc65806903e"
+    },
+    {
+      "file": "assets/trabajo-03.jpg",
+      "bytes": 31894,
+      "sha256": "4a5c018632b70309c6edd70a8be2dd90673b2125562336b5502698cb6287a1fd"
+    },
+    {
+      "file": "assets/trabajo-04.jpg",
+      "bytes": 20450,
+      "sha256": "a303f89837b94ef2aa26bae2c3cccf7a6486d1b0f843c2891bffb696d96d4b85"
+    },
+    {
+      "file": "assets/web-multiservicios-2018.webp",
+      "bytes": 63142,
+      "sha256": "90928234d61185ea9c93eb70c84505f1c8d813b0ab7a79bceb47b56e2ca6227e"
+    },
+    {
+      "file": "index.html",
+      "bytes": 14896,
+      "sha256": "b301f290519c7207b9c79e3ba8b5856481d3325f1056a2ea676e6e4371b4067b"
+    },
+    {
+      "file": "robots.txt",
+      "bytes": 26,
+      "sha256": "331ea9090db0c9f6f597bd9840fd5b171830f6e0b3ba1cb24dfa91f0c95aedc1"
+    },
+    {
+      "file": "styles.css",
+      "bytes": 28431,
+      "sha256": "f399961020af097cdf0e3ce3b5603108c9718fc898c919b6e710a29b5aba1b9c"
+    },
+    {
+      "file": "version.json",
+      "bytes": 199,
+      "sha256": "de0344d094086cf041d0b61591b608b590504136603e8edf96da71ed9f8940bc"
+    }
+  ]
+}

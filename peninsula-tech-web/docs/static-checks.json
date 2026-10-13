@@ -1,0 +1,208 @@
+{
+  "checkedAt": "2026-10-13T05:26:42.604Z",
+  "passed": 50,
+  "total": 50,
+  "publicBytes": 708778,
+  "checks": [
+    {
+      "name": "Only isolated static Hosting configured",
+      "pass": true
+    },
+    {
+      "name": "Exact separate project, never FixGo Blaze",
+      "pass": true
+    },
+    {
+      "name": "Exact isolated site",
+      "pass": true
+    },
+    {
+      "name": "Actual deploy project cannot be changed",
+      "pass": true
+    },
+    {
+      "name": "No backend rewrites",
+      "pass": true
+    },
+    {
+      "name": "Not symlink 404.html",
+      "pass": true
+    },
+    {
+      "name": "Not symlink app.js",
+      "pass": true
+    },
+    {
+      "name": "Not symlink assets",
+      "pass": true
+    },
+    {
+      "name": "Not symlink adjunto-oficial.webp",
+      "pass": true
+    },
+    {
+      "name": "Not symlink espacios.jpg",
+      "pass": true
+    },
+    {
+      "name": "Not symlink maqueta-completa-2018.webp",
+      "pass": true
+    },
+    {
+      "name": "Not symlink peninsula-emblema.webp",
+      "pass": true
+    },
+    {
+      "name": "Not symlink peninsula-oficial.webp",
+      "pass": true
+    },
+    {
+      "name": "Not symlink trabajo-01.jpg",
+      "pass": true
+    },
+    {
+      "name": "Not symlink trabajo-02.jpg",
+      "pass": true
+    },
+    {
+      "name": "Not symlink trabajo-03.jpg",
+      "pass": true
+    },
+    {
+      "name": "Not symlink trabajo-04.jpg",
+      "pass": true
+    },
+    {
+      "name": "Not symlink web-multiservicios-2018.webp",
+      "pass": true
+    },
+    {
+      "name": "Not symlink index.html",
+      "pass": true
+    },
+    {
+      "name": "Not symlink robots.txt",
+      "pass": true
+    },
+    {
+      "name": "Not symlink styles.css",
+      "pass": true
+    },
+    {
+      "name": "Not symlink version.json",
+      "pass": true
+    },
+    {
+      "name": "Allowed static file 404.html",
+      "pass": true
+    },
+    {
+      "name": "No secret material 404.html",
+      "pass": true
+    },
+    {
+      "name": "Allowed static file app.js",
+      "pass": true
+    },
+    {
+      "name": "No secret material app.js",
+      "pass": true
+    },
+    {
+      "name": "Allowed static file assets/adjunto-oficial.webp",
+      "pass": true
+    },
+    {
+      "name": "Allowed static file assets/espacios.jpg",
+      "pass": true
+    },
+    {
+      "name": "Allowed static file assets/maqueta-completa-2018.webp",
+      "pass": true
+    },
+    {
+      "name": "Allowed static file assets/peninsula-emblema.webp",
+      "pass": true
+    },
+    {
+      "name": "Allowed static file assets/peninsula-oficial.webp",
+      "pass": true
+    },
+    {
+      "name": "Allowed static file assets/trabajo-01.jpg",
+      "pass": true
+    },
+    {
+      "name": "Allowed static file assets/trabajo-02.jpg",
+      "pass": true
+    },
+    {
+      "name": "Allowed static file assets/trabajo-03.jpg",
+      "pass": true
+    },
+    {
+      "name": "Allowed static file assets/trabajo-04.jpg",
+      "pass": true
+    },
+    {
+      "name": "Allowed static file assets/web-multiservicios-2018.webp",
+      "pass": true
+    },
+    {
+      "name": "Allowed static file index.html",
+      "pass": true
+    },
+    {
+      "name": "No secret material index.html",
+      "pass": true
+    },
+    {
+      "name": "Allowed static file robots.txt",
+      "pass": true
+    },
+    {
+      "name": "No secret material robots.txt",
+      "pass": true
+    },
+    {
+      "name": "Allowed static file styles.css",
+      "pass": true
+    },
+    {
+      "name": "No secret material styles.css",
+      "pass": true
+    },
+    {
+      "name": "Allowed static file version.json",
+      "pass": true
+    },
+    {
+      "name": "No secret material version.json",
+      "pass": true
+    },
+    {
+      "name": "Static public bundle under 1 MB",
+      "pass": true
+    },
+    {
+      "name": "Demo cannot send requests or persist data",
+      "pass": true
+    },
+    {
+      "name": "No live external scripts",
+      "pass": true
+    },
+    {
+      "name": "Nonindexed demo",
+      "pass": true
+    },
+    {
+      "name": "No external network allowed in CSP",
+      "pass": true
+    },
+    {
+      "name": "JavaScript syntax valid",
+      "pass": true
+    }
+  ]
+}

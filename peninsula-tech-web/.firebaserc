@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "peninsula-tech-v01"
+  },
+  "targets": {
+    "peninsula-tech-v01": {
+      "hosting": {
+        "peninsula-tech": [
+          "peninsula-tech-v01"
+        ]
+      }
+    }
+  }
+}
