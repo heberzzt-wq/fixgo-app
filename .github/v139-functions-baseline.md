@@ -1,13 +1,14 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `f3d3a7bba18842375e2fd6cc2faace2c594c2938`, the locally verified failed-citation isolation release.
-This explicit advance admits only the reviewed native coverage correction: failed
-hypotheses or foreign groups cannot impose field-expansion requirements on this
-objective. Its required groups remain pending, and asserted truncated values are
-still rejected. This does not expand permissions, accept unfinished changes or
-certify a real mission.
+Current baseline: `9de38c0835917d181cdb39aab0f7b2d65f97bd0a`, the locally verified evidence-context compression release.
+This explicit advance admits only lossless transport compression of observed
+field names and identical JSON literals across record snapshots. Each query
+retains its records, scope, sampling and authority; latest source evidence and
+pending objectives remain bounded. Four actual receipts were reconstructed
+exactly, without changing raw input, within 27,854 characters. This does not
+expand permissions, accept unfinished changes or certify a real mission.
 The baseline remains pinned, ancestor-checked and enforced against every future
-Functions change. The new general regression, 240 focal checks and 1,922 local
+Functions change. The new general regression, 241 focal checks and 1,923 local
 full-suite checks passed with zero failures. The one Linux-only browser check
 and Firestore emulator checks require fresh CI verification before closure.
 
