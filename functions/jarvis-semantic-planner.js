@@ -2627,11 +2627,18 @@ async function runModelSemanticPlanner({
         // A similarity shortlist is not a capability boundary. Closure needs
         // both executed tool contracts and every available evidence source.
         const recordOnlyAudit=missionState.evidenceObjectives?.length && missionState.evidenceObjectives.every(objective=>objective.requiredEvidenceKind==="platform_records");
-        if(recordOnlyAudit && observedCandidateFiles.length) {
+        const observedInventoryFiles=completedTasksForAudit.filter(task=>task.name==='repo.audit' &&
+            task.observation?.ok===true && task.observation.executionOk!==false && task.observation.blocked!==true &&
+            task.observation.requiresInput!==true && task.observation.inventoryEvidence?.source==='LIVE_REPOSITORY_INVENTORY')
+            .flatMap(task=>Array.isArray(task.observation.files)?task.observation.files:[])
+            .filter(file=>typeof file==='string' && file.trim()).map(file=>file.trim());
+        if(recordOnlyAudit && (observedCandidateFiles.length || observedInventoryFiles.length)) {
             // Reading one discovered source must not release path grounding for
             // the rest of the investigation. The same model can choose another
             // observed file, expand a partial read, or discover a new path first.
-            const groundedFiles=[...new Set([...observedCandidateFiles,...inspectedCandidateFiles])];
+            // An executed repository inventory is also path discovery. Its
+            // observed list permits inspection only; it is never record proof.
+            const groundedFiles=[...new Set([...observedCandidateFiles,...inspectedCandidateFiles,...observedInventoryFiles])];
             selectableCatalog=selectableCatalog.flatMap(tool=>{
                 const file=tool.inputSchema?.properties?.file;
                 if(tool.name!=="repo.read" || tool.investigationReadOnly!==true || tool.mutates===true || !file)return [tool];

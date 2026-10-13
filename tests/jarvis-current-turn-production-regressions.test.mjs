@@ -83,6 +83,33 @@ test('record research retains grounded reader paths after the first discovered f
  assert.equal(checked,true);
 });
 
+test('record research can inspect paths discovered by an authorized repository inventory',async()=>{
+ const planner=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').runJarvisSemanticPlanner;
+ const reader={name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
+ const records={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}},required:['sourceFile']}};
+ const tasks=[{name:'repo.search',observation:{ok:true,repoCandidates:[{file:'first_source.js'}]}},{name:'repo.read',observation:{ok:true,verifiedRead:{file:'first_source.js',content:'Observed schema',sourceStructure:{dataBindings:{collections:['registry']}}}}},{name:'repo.audit',observation:{ok:true,executionOk:true,inventoryEvidence:{source:'LIVE_REPOSITORY_INVENTORY'},files:['new_source.js']}}];
+ let checked=false;
+ await assert.rejects(planner({input:'Inspect current entries',catalog:[reader,records],missionState:{phase:'COMPLETION_AUDIT',completedTasks:tasks,evidenceObjectives:[{objective:'Inspect current entries',requiredEvidenceKind:'platform_records',scope:'all_sources',groups:['entries']}]},ai:{models:{generateContent:async request=>{
+  const schema=request.config.responseJsonSchema.properties.toolCalls.items.anyOf.find(branch=>branch.properties.name.enum.includes(reader.name)).properties.args;
+  assert.deepEqual([...schema.properties.file.enum].sort(),['first_source.js','new_source.js'],'inventory discovery must remain executable without permitting invented paths');
+  checked=true;throw Error('INVENTORY_GROUNDING_CAPTURE_COMPLETE');
+ }}}}),/INVENTORY_GROUNDING_CAPTURE_COMPLETE/);
+ assert.equal(checked,true);
+});
+
+test('unverified inventory paths cannot expand a grounded repository reader',async()=>{
+ const planner=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').runJarvisSemanticPlanner;
+ const reader={name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
+ const records={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}},required:['sourceFile']}};
+ for(const observation of [{ok:false,inventoryEvidence:{source:'LIVE_REPOSITORY_INVENTORY'}},{ok:true,executionOk:false,inventoryEvidence:{source:'LIVE_REPOSITORY_INVENTORY'}},{ok:true,blocked:true,inventoryEvidence:{source:'LIVE_REPOSITORY_INVENTORY'}},{ok:true,inventoryEvidence:{source:'UNVERIFIED_LIST'}}]) {
+  const tasks=[{name:'repo.search',observation:{ok:true,repoCandidates:[{file:'first_source.js'}]}},{name:'repo.read',observation:{ok:true,verifiedRead:{file:'first_source.js',content:'Observed schema',sourceStructure:{dataBindings:{collections:['registry']}}}}},{name:'repo.audit',observation:{...observation,files:['unverified_source.js']}}];
+  await assert.rejects(planner({input:'Inspect current entries',catalog:[reader,records],missionState:{phase:'COMPLETION_AUDIT',completedTasks:tasks,evidenceObjectives:[{objective:'Inspect current entries',requiredEvidenceKind:'platform_records',scope:'all_sources',groups:['entries']}]},ai:{models:{generateContent:async request=>{
+   const schema=request.config.responseJsonSchema.properties.toolCalls.items.anyOf.find(branch=>branch.properties.name.enum.includes(reader.name)).properties.args;
+   assert.deepEqual([...schema.properties.file.enum],['first_source.js']);throw Error('UNVERIFIED_INVENTORY_CAPTURE_COMPLETE');
+  }}}}),/UNVERIFIED_INVENTORY_CAPTURE_COMPLETE/);
+ }
+});
+
 test('continuation retains every objective gap and source without repeating shared text across objectives',()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='continuationObjectiveSummaries');
