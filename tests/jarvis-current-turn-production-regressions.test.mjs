@@ -15,6 +15,35 @@ import { runJarvisMission, unmetMissionEvidenceRequirements } from "../gestia-co
 import { composeEvidenceGroundedConversation } from "../gestia-core/jarvis/jarvis.conversation.composer.js";
 import { buildResponsiveRepairOptions, buildResponsiveRepairPatch } from "../gestia-core/jarvis/jarvis.autopatch.engine.js";
 
+test('continuation retains every objective gap and source without repeating shared text across objectives',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='continuationObjectiveSummaries');
+ const summarize=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const sources=Array.from({length:20},(_,i)=>'observed_source_'+i);
+ const common=sources.map(path=>'Observed source '+path+' remains pending. Its records must be consulted within their authenticated scope or its exclusion justified for this objective. A different route does not prove this source.');
+ const objectives=Array.from({length:3},(_,i)=>({objective:'Independent question '+i,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[i],limitation:'Incomplete question '+i,coverage:{pendingSources:sources,groups:['group_'+i]},coverageProof:{missing:[...common,'Independent gap '+i]}}));
+ const before=JSON.stringify(objectives);const compact=JSON.parse(JSON.stringify(summarize(objectives)));
+ assert.equal(JSON.stringify(objectives),before);
+ assert.ok(JSON.stringify(compact).length<JSON.stringify(objectives).length*.6,'whole continuation must leave room for its operational evidence and executable catalog');
+ for(const [i,item] of compact.entries()){
+  assert.equal(item.objective,objectives[i].objective);
+  assert.equal(item.requiredEvidenceKind,'platform_records');assert.equal(item.satisfied,false);
+  assert.deepEqual(item.pendingSources,sources);assert.deepEqual(item.evidenceTaskIndexes,[i]);
+  assert.deepEqual(item.groups,['group_'+i]);
+  const decode=text=>Array.isArray(text)?text.map(part=>typeof part==='number'?compact[0].sharedContinuationPhrases[part]:part).join(''):text;
+  const gaps=item.objectiveGaps||item.objectiveGapIds.map(id=>decode(compact[0].sharedObjectiveGapText[id]));
+  assert.deepEqual(gaps,objectives[i].coverageProof.missing,'transport sharing must not erase or transfer a gap');
+  assert.equal(item.limitation??decode(item.limitationParts),objectives[i].limitation);
+ }
+ const verbose=objectives.map(item=>({...item,limitation:'Lengthy explanatory recap. '.repeat(80)}));
+ const bounded=JSON.parse(JSON.stringify(summarize(verbose)));
+ for(const [i,item] of bounded.entries()){
+  assert.equal(item.limitation.length,320);assert.equal(item.limitationTruncated,true);
+  assert.deepEqual(item.objectiveGaps||item.objectiveGapIds.map(id=>bounded[0].sharedObjectiveGapText[id]),verbose[i].coverageProof.missing);
+  assert.deepEqual(item.pendingSources,sources);assert.deepEqual(item.groups,['group_'+i]);
+ }
+});
+
 test('failed or foreign coverage groups cannot impose expansion requirements on another objective',()=>{
  const qualify=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').qualifyRecordObjectiveCoverage;
  const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',fields:['label','detail']},rows:[{id:'one',values:{label:'Observed',detail:{type:'object',notExpanded:true}}}],totalCount:1,completeForQuery:true,hasMore:false,truncatedFields:[{id:'one',field:'detail'}]};
@@ -143,6 +172,12 @@ test('record-only audits reserve reply space and refer to credited schemas witho
   const hint=messages.find(m=>m.content.startsWith('ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST='));
   const schemas=JSON.parse(hint.content.slice(hint.content.indexOf('=')+1).split('\n')[0]);
   assert.ok(schemas.every(s=>s.fields===undefined && s.schemaTaskIndexes?.length),'fields remain in the referenced original observations');
+  const catalogMessage=messages.find(m=>m.content.startsWith('CATALOGO_EJECUTABLE='));
+  const displayedCatalog=JSON.parse(catalogMessage.content.slice('CATALOGO_EJECUTABLE='.length));
+  const bindings=displayedCatalog.find(tool=>tool.name===records.name).evidenceBindings;
+  assert.deepEqual(bindings.schemaTaskIndexes,[0,1,2,3,4],'large catalogs reference every credited schema instead of repeating bindings');
+  assert.ok(bindings.encoding.includes('runtime'));
+  for(let i=0;i<5;i++)assert.ok(JSON.stringify(request.config.responseJsonSchema).includes('source'+i+'.js'),'native argument constraints remain enforced');
   assert.ok(messages.some(m=>m.content.includes('OBJETIVOS_ESTABLECIDOS_INMUTABLES=')));
   assert.ok(messages.some(m=>m.content.includes('PROGRESO_PREVIO_POR_OBJETIVO=')));
   return{text:JSON.stringify({completionAssessment:{objectives:[{objective:contract.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Records still missing'}]},toolCalls:[]})};

@@ -890,12 +890,30 @@ function sourceRangeStillVisible(call, tasks = []) {
 }
 
 function continuationObjectiveSummaries(objectives = []) {
-    return objectives.map(({objective,requiredEvidenceKind,satisfied,evidenceTaskIndexes,limitation,coverage,coverageProof})=>({
+    const summaries=objectives.map(({objective,requiredEvidenceKind,satisfied,evidenceTaskIndexes,limitation,coverage,coverageProof})=>({
         objective,requiredEvidenceKind,satisfied,evidenceTaskIndexes,
         limitation:String(limitation || "").slice(0,1200),
+        groups:coverage?.groups || [],
         pendingSources:coverage?.pendingSources || [],
         objectiveGaps:(coverageProof?.missing || []).map(item=>String(item).slice(0,700))
     }));
+    if(JSON.stringify(summaries).length<=6000)return summaries;
+    // The explanatory paragraph is a recap, not the objective's contract or
+    // gap list. Bound only this recap under pressure; retain every gap below.
+    for(const item of summaries)if(item.limitation.length>320){
+        item.limitation=item.limitation.slice(0,320);item.limitationTruncated=true;
+    }
+    // A dependency can remain pending for several independent objectives.
+    // Share identical wording as transport bytes only: each objective retains
+    // every gap ID, source, evidence requirement and unsatisfied verdict.
+    const texts=[],ids=new Map();
+    const shared=summaries.map(({objectiveGaps,...summary})=>({...summary,objectiveGapIds:objectiveGaps.map(gap=>{
+        if(!ids.has(gap)){ids.set(gap,texts.length);texts.push(gap);}
+        return ids.get(gap);
+    })}));
+    if(shared.length)shared[0]={...shared[0],sharedObjectiveGapText:texts,
+        sharedObjectiveGapEncoding:"objectiveGapIds indexes sharedObjectiveGapText on the first objective. Expand every ID to recover that objective's exact gaps. Sharing identical text does not transfer evidence, sources, requirements or satisfaction between objectives."};
+    return JSON.stringify(shared).length<JSON.stringify(summaries).length ? shared : summaries;
 }
 
 function compactMissionEvidence(value, depth = 0) {
@@ -2656,6 +2674,12 @@ async function runModelSemanticPlanner({
             allowedEvidenceKinds: safeCatalog.find(tool => tool.name === task.name)?.evidenceKinds || ["tool_result"],
             observation: Object.fromEntries(Object.entries(task.observation || {}).filter(([key]) => key !== "interfaceEvidence")) }));
         const auditTasks = measuredRepair ? fullAuditTasks : boundedAuditTasks(fullAuditTasks);
+        if(!measuredRepair && JSON.stringify(auditTasks).length>16000) {
+            const schemaTaskIndexes=auditTasks.flatMap((task,index)=>task.observation?.verifiedRead?.sourceStructure?.dataBindings ? [index] : []);
+            const recordFieldSchemaTaskIndexes=auditTasks.flatMap((task,index)=>task.observation?.recordEvidence?.fieldSchema ? [index] : []);
+            for(const tool of auditCatalog)if(tool.evidenceBindings)tool.evidenceBindings={schemaTaskIndexes,recordFieldSchemaTaskIndexes,
+                encoding:"Source files, collections and credited field names are in these OBSERVACION_EJECUTADA/EVIDENCIA_OBTENIDA task indexes. Follow their shared schema/field references. These are the same argument bindings enforced by the response schema and runtime; they grant no permission or operational coverage."};
+        }
         const schemaBySourceCollection = new Map();
         for (const task of completedTasksForAudit) {
             const read = task.observation?.ok === true && task.observation.executionOk !== false && task.observation.blocked !== true && task.observation.requiresInput !== true ? task.observation.verifiedRead : null;
