@@ -299,8 +299,8 @@ function decodePlannerRecordTuples(packed,shared){
  if(!packed.rowTuples)return packed;
  const record=structuredClone(packed);
  if(record.recordValueIds){record.recordValueTable=record.recordValueIds.map(id=>shared.sharedRecordValueTable[id]);delete record.recordValueIds;}
- record.rows=record.rowTuples.map((row,i)=>{const values=Object.fromEntries(record.rowColumns.map((field,j)=>[field,record.recordValueTable[row[j+1]]]));for(const col of record.rowAbsentColumns?.find(entry=>entry[0]===i)?.[1]||[])delete values[record.rowColumns[col]];return{id:row[0],values};});
- for(const key of ['rowTuples','rowColumns','rowAbsentColumns','recordValueTable','rowEncoding'])delete record[key];return record;
+ record.rows=record.rowTuples.map((row,i)=>{const values=Object.fromEntries(record.rowColumns.map((field,j)=>[field,record.recordValueTable[row[j+1]]]));for(const col of record.rowAbsentColumns?.find(entry=>entry[0]===i)?.[1]||[])delete values[record.rowColumns[col]];return{id:record.recordIdsShared?shared.sharedRecordIds[row[0]]:row[0],values};});
+ for(const key of ['rowTuples','rowColumns','rowAbsentColumns','recordValueTable','rowEncoding','recordIdsShared'])delete record[key];return record;
 }
 
 test('record-only audits reserve reply space and refer to credited schemas without duplicating their fields',async()=>{
@@ -4334,6 +4334,20 @@ test('shared source metadata preserves accredited fields and latest reading insi
   assert.deepEqual(unpack(bindings.fieldIds),tasks[i].observation.verifiedRead.sourceStructure.dataBindings.fieldPaths);
   assert.deepEqual(unpack(bindings.writeShapes[0].fieldIds),tasks[i].observation.verifiedRead.sourceStructure.dataBindings.writeShapes[0].fields);
   assert.equal(bindings.writeShapes[0].collection,'registry-'+i);assert.equal(bindings.writeShapes[0].fieldsComplete,true);assert.equal(read.partial,true);assert.equal(bindings.complete,false);
+ }
+});
+
+test('repeated record IDs compact losslessly across independent snapshots and preserve the latest source',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='boundedAuditTasks');const compact=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const reads=Array.from({length:16},(_,i)=>{const fields=Array.from({length:36},(_,j)=>String.fromCharCode(97+j%26)+('_'+i+'_'+j).padEnd(25,String.fromCharCode(97+(j*7+i)%26)));return{name:'source.read',args:{file:'module-'+i+'.js'},observation:{ok:true,executionOk:true,verifiedRead:{file:'module-'+i+'.js',startLine:1,content:'LATEST_SOURCE '+('body '.repeat(1000)),sourceStructure:{dataBindings:{collections:['registry-'+i],fieldPaths:fields,writeShapes:[{collection:'registry-'+i,fields,fieldsComplete:true}]}}}}}});
+ const receipts=Array.from({length:3},(_,snapshot)=>({source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry_'+snapshot,fields:['attribute_'+snapshot],filters:[],cursor:null},rows:Array.from({length:32},(_,i)=>({id:'unique-record-identity-'+String(i).padStart(4,'0')+'-persistent',values:{['attribute_'+snapshot]:i%3?null:'observed-'+snapshot}})),rowsObservedAt:'2030-01-0'+(snapshot+1),completeForQuery:true,totalCount:32,hasMore:false}));
+ const tasks=[...receipts.map(recordEvidence=>({name:'records.read',observation:{ok:true,executionOk:true,recordEvidence}})),...reads];const before=JSON.stringify(tasks),result=JSON.parse(JSON.stringify(compact(tasks)));
+ assert.equal(JSON.stringify(tasks),before);assert.ok(JSON.stringify(result).length<=28000);assert.match(result.at(-1).observation.verifiedRead.content,/LATEST_SOURCE/);assert.ok(result.at(-1).observation.verifiedRead.content.length>=700);
+ assert.ok(result[0].sharedRecordIds?.length);assert.match(result[0].sharedRecordIdEncoding,/adds no values, scope or coverage/);
+ for(let i=0;i<receipts.length;i++){
+  const record=result[i].observation.recordEvidence;assert.equal(record.recordIdsShared,true);
+  const rows=record.rowTuples?record.rowTuples.map(([id,...cells])=>({id:result[0].sharedRecordIds[id],values:Object.fromEntries(record.rowColumns.map((field,j)=>[field,record.recordValueTable[cells[j]]]))})):record.rowValues.map(([id,...cells])=>({id:result[0].sharedRecordIds[id],values:{...Object.fromEntries(record.rowColumns.map(field=>[field,null])),...Object.fromEntries(cells.map(([column,value])=>[record.rowColumns[column],value]))}}));
+  assert.deepEqual(rows,receipts[i].rows);assert.deepEqual(record.scope,receipts[i].scope);assert.equal(record.rowsObservedAt,receipts[i].rowsObservedAt);assert.equal(record.completeForQuery,true);assert.equal(record.totalCount,32);
  }
 });
 

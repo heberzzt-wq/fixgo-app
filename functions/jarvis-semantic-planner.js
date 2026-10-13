@@ -1644,6 +1644,28 @@ function boundedAuditTasks(tasks) {
             if(JSON.stringify(shared).length<JSON.stringify(minimal).length)minimal.splice(0,minimal.length,...shared);
         }
     }
+    if (JSON.stringify(minimal).length > 27000) {
+        // Repeated record identities share spelling only. Each snapshot retains
+        // its own values, source, scope, timestamps and completeness.
+        const ids=[],positions=new Map();
+        const shared=minimal.map(task=>{
+            const record=task.observation?.recordEvidence;
+            if(!record || (!Array.isArray(record.rowTuples) && !Array.isArray(record.rowValues)))return task;
+            const key=Array.isArray(record.rowTuples)?"rowTuples":"rowValues";
+            const rows=record[key];
+            if(rows.some(row=>typeof row[0]!=="string"))return task;
+            const packed={...record,[key]:rows.map(([id,...cells])=>{
+                if(!positions.has(id)){positions.set(id,ids.length);ids.push(id);}
+                return [positions.get(id),...cells];
+            }),recordIdsShared:true};
+            return {...task,observation:{...task.observation,recordEvidence:packed}};
+        });
+        if(ids.length){
+            shared[0]={...shared[0],sharedRecordIds:ids,
+                sharedRecordIdEncoding:"When recordIdsShared is true, the first cell of each rowTuples or rowValues entry indexes sharedRecordIds. Decode to the exact record ID. Sharing identity adds no values, scope or coverage."};
+            if(JSON.stringify(shared).length<JSON.stringify(minimal).length)minimal.splice(0,minimal.length,...shared);
+        }
+    }
     const freshRead = minimal[tasks.indexOf(latestRead)]?.observation?.verifiedRead;
     if (freshRead) {
         const overflow = JSON.stringify(minimal).length - 27900;
