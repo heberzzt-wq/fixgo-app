@@ -162,6 +162,25 @@ test('source selection retains mission references while operational coverage iso
  assert.equal(proof.proven,false);assert.deepEqual(qualify({evidenceTaskIndexes:[0],coverageProof:proof},contract,tasks).pendingSources,['related']);
 });
 
+test('bounded source review preserves substantive definitions behind newer weak references',async()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
+ const qualify=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').qualifyRecordObjectiveCoverage;
+ const names=Array.from({length:18},(_,i)=>'observed_scope_'+i),all=['registry',...names];
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>all,boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:qualify});
+ const contract={requestQuote:'Count registered entries',scope:'all_sources',groups:['entries'],coverageMode:'population'};
+ const tasks=[{observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry'},totalCount:0,completeForQuery:true}}},{observation:{ok:true,verifiedRead:{file:'definitions.js',sourceStructure:{dataBindings:{collections:names,writeShapes:names.map(collection=>({collection,fields:['measure','category'],fieldsComplete:true,content:'persist({measure: observedMeasure, category: observedCategory})'}))}}}}},{observation:{ok:true,verifiedRead:{file:'references.js',sourceStructure:{dataBindings:{collections:names,references:names.map(collection=>({collection,content:'query('+JSON.stringify(collection)+') '+('observed reference '.repeat(80))}))}}}}}];
+ const proof=await review({model:'same-authority',contract,objective:contract,tasks,ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE')return{text:JSON.stringify({proven:true,missing:[],groups:[{group:'entries',proven:true,evidence:[{taskIndex:0,fields:[]}]}],sources:all.map(collection=>({collection,relevant:collection==='registry',reason:'Observed objective-specific scope',taskIndexes:collection==='registry'?[0]:[]}))})};
+  const payload=JSON.parse(request.config.chatMessages.at(-1).content);
+  assert.ok(JSON.stringify(payload.sourceDefinitions).length<=6000);
+  for(const collection of names){const definition=payload.sourceDefinitions.find(d=>d.collection===collection);assert.equal(definition.fieldsComplete,true,collection);assert.deepEqual(Array.from(definition.fields),['measure','category']);assert.equal(definition.referenceOnly,undefined);assert.equal(definition.definition,'persist({measure: observedMeasure, category: observedCategory})');}
+  return{text:JSON.stringify({sourceRelevance:Object.fromEntries(all.map(collection=>[collection,{relevantToObjective:collection==='registry',reason:'Observed objective-specific scope'}]))})};
+ }}}});
+ assert.deepEqual(proof.groups[0].evidence,[{taskIndex:0,fields:[]}],'source definitions never become operational record citations');
+ assert.equal(qualify({evidenceTaskIndexes:[0],coverageProof:proof},contract,tasks).status,'complete');
+});
+
 test('independent source relevance uses user scope and observed schemas without proposed exclusions',async()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');

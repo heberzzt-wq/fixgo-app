@@ -743,7 +743,13 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
             ...(read ? [...(read.sourceStructure?.dataBindings?.writeShapes || []),...(read.sourceStructure?.dataBindings?.references || []).filter(reference=>reference.collection && reference.content).map(reference=>({...reference,fields:[],fieldsComplete:false,referenceOnly:true}))].map(shape=>({file:read.file,collection:shape.collection,fields:shape.fields,fieldsComplete:shape.fieldsComplete,...(shape.referenceOnly ? {referenceOnly:true} : {}),...(shape.content ? {definition:shape.content.slice(0,600),definitionTruncated:shape.truncated===true || shape.content.length>600} : {})})) : [])];
     }).map(shape=>[JSON.stringify(shape),shape])).values()];
     const sourceDefinitions=[],representedCollections=new Set();
-    const distinctDefinitions=observedDefinitions.filter(definition=>{if(representedCollections.has(definition.collection))return false;representedCollections.add(definition.collection);return true;});
+    // Keep current record-name observations first, then substantive schema
+    // definitions. A newer bare query reference must not displace a complete
+    // observed definition when balancing the fixed budget across sources.
+    const definitionQuality=definition=>definition.recordNamesOnly?4:definition.referenceOnly?0:
+        definition.definition ? (definition.fieldsComplete===true?3:2) : 1;
+    const preferredDefinitions=[...observedDefinitions].sort((left,right)=>definitionQuality(right)-definitionQuality(left));
+    const distinctDefinitions=preferredDefinitions.filter(definition=>{if(representedCollections.has(definition.collection))return false;representedCollections.add(definition.collection);return true;});
     const balancedDefinitions=[...distinctDefinitions,...observedDefinitions.filter(definition=>!distinctDefinitions.includes(definition))];
     const perSourceBudget=Math.max(256,Math.floor(6000/Math.max(1,Math.min(24,distinctDefinitions.length))));
     let definitionBudget=6000;
