@@ -1,12 +1,13 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `abb44d47a79de48248c518e127941640cc193dc6`, the locally verified ordering-scope coverage release.
-This explicit advance admits only reviewed query-scope metadata and native coverage
-checks: exhausting ordered pages cannot prove records excluded by field existence.
-The same scoped base count or a complete unordered read is still needed. This does
-not expand permissions, accept unfinished changes or certify a real mission.
+Current baseline: `f3d3a7bba18842375e2fd6cc2faace2c594c2938`, the locally verified failed-citation isolation release.
+This explicit advance admits only the reviewed native coverage correction: failed
+hypotheses or foreign groups cannot impose field-expansion requirements on this
+objective. Its required groups remain pending, and asserted truncated values are
+still rejected. This does not expand permissions, accept unfinished changes or
+certify a real mission.
 The baseline remains pinned, ancestor-checked and enforced against every future
-Functions change. Two new general regressions, 239 focal checks and 1,921 local
+Functions change. The new general regression, 240 focal checks and 1,922 local
 full-suite checks passed with zero failures. The one Linux-only browser check
 and Firestore emulator checks require fresh CI verification before closure.
 
