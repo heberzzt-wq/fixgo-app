@@ -1,6 +1,22 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `3b03937d4b352f7ddb0eb2df0d2abc9cfaaaa942`, the locally verified initial user scope context release.
+Current baseline: `2091cf39f82ed30cf9b492bcd1d451ae9595feb0`, the reviewed collection-scoped field recovery release.
+The only Functions change since the prior reviewed baseline is the repair of
+`bindRejectedRecordFields` in `functions/jarvis-semantic-planner.js`: global
+file field names no longer accredit the queried collection. Positive scoped
+write/query bindings and authenticated same-route field names remain usable.
+An ID-only discovery projection remains available when no stored field is known;
+it proves neither operational values nor objective coverage. Recovery orderings
+use the same credited names. Source routes, filters, permissions, models and
+per-objective completion requirements are unchanged. No domain dictionary or
+case-specific schema is introduced. All 282 focal checks and 1,939 local full-suite
+checks passed with zero failures. This advance does not certify the Chrome mission;
+fresh Linux/emulator CI and the full physical mission are still required.
+The guard remains pinned, ancestor-checked and fail-closed for future Functions changes.
+
+## Previous initial-scope context baseline
+
+Previous baseline: `3b03937d4b352f7ddb0eb2df0d2abc9cfaaaa942`, the locally verified initial user scope context release.
 This explicit advance preserves bounded prior user scope at the first operational
 tool selection even when the new request requires no reference resolution.
 The same local model decides relevance; no keyword routing or domain dictionary
