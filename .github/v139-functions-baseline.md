@@ -1,17 +1,18 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `80a1642969cd30f9da722aacb16d946400d18272`, the locally verified bounded conversation transport release.
-This explicit advance admits only gzip JSON decoding before the existing record
-response checks. The frontend compresses oversized operational briefings without
-dropping snapshots, fields, scopes or pending objectives. The local backend
-restores the same JSON, bounds decompression to 262,144 bytes and rejects malformed
-encoding or mismatched lengths before inference. Small briefings are unchanged.
-The captured partial-state replay now transports 47,533 bytes in 8,700 characters
-and preserves all three pending record objectives. This is a diagnostic replay,
-not a certification of the real mission. No model, permission, data or external
-provider changes are admitted; Qwen remains the sole local semantic authority.
+Current baseline: `d768656328259620c88f27ec1464cb91fa9376b8`, the locally verified inventory path grounding release.
+This explicit advance admits paths actually listed by a successful, unblocked
+`repo.audit` with `LIVE_REPOSITORY_INVENTORY` authority into the existing reader
+path boundary. Failed, blocked and unverified inventories do not widen it.
+Existing reader enum/const restrictions remain intersected, and repository
+inventory is still preparation rather than operational record evidence.
+The captured real state had 24 observed inventory paths but admitted zero;
+the replay now admits those 24 paths and uses 12,481 of 16,384 local context tokens.
+This is a diagnostic replay, not a certification of the real mission. No model,
+permission, data or external provider changes are admitted; Qwen remains the sole
+local semantic authority. The bounded conversation transport remains unchanged.
 The baseline remains pinned, ancestor-checked and enforced against every future
-Functions change. Three general regressions, 263 focal checks and 1,928 local
+Functions change. Two new general regressions, 265 focal checks and 1,930 local
 full-suite checks passed with zero failures. The one Linux-only browser check
 and Firestore emulator checks require fresh CI verification before closure.
 
