@@ -1,6 +1,19 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `5bdf34c41152c79785ae7729c875e88c07c67842`, the reviewed lossless field-prefix transport release.
+Current baseline: `385c2f5ebef4820eebf7df83fc9dcbf803117562`, the reviewed authenticated field-constraint continuity release.
+The only additional Functions change retains projection and ordering constraints
+from authenticated same-collection field names after a rejected task is retired.
+Positive scoped code declarations remain usable. Cold unrelated collections and
+aggregate schemas keep their prior behavior; name authority never proves values
+or coverage. A general regression proves persistence without a pending failure,
+source isolation, invalid-receipt rejection, immutable inputs and unchanged count
+schemas. All 279 focused checks and 1,945 local full-suite checks passed with zero
+failures. CI and the complete Chrome mission are still separately required.
+The guard remains pinned and fail-closed; this review authorizes no external AI.
+
+## Previous field-prefix transport baseline
+
+Previous baseline: `5bdf34c41152c79785ae7729c875e88c07c67842`, the reviewed lossless field-prefix transport release.
 The only additional Functions change stores a prefix table without redundant JSON
 array punctuation when this reduces its size. A literal delimiter preserves the
 existing array representation; colons in field names remain exact. No field,
