@@ -3226,9 +3226,21 @@ async function runModelSemanticPlanner({
                     // A duplicate data call does not exhaust discovered sources.
                     // Give the same model one bounded choice among real unread
                     // candidates before the runtime accepts a no-plan result.
+                    // Earlier recoveries may extend partial bodies. If they keep
+                    // returning rejected rereads, preserve a final same-model
+                    // choice among genuinely uninspected discovered sources.
+                    // This changes only the next read, never evidence coverage.
+                    const firstReadSources=candidateSources.filter(file=>!readSources.has(file));
+                    const sourceContinuationSources=firstReadSources.length ? firstReadSources : unreadSources;
                     const unreadReaders = recoveryCatalog.filter(tool =>
                         tool.evidenceKinds?.includes("repository_source") &&
-                        tool.inputSchema?.properties?.file?.enum?.length);
+                        tool.inputSchema?.properties?.file?.enum?.length).flatMap(tool=>{
+                            const schema=structuredClone(tool.inputSchema);
+                            const eligible=schema.properties.file.enum.filter(file=>sourceContinuationSources.includes(file));
+                            if(!eligible.length)return [];
+                            schema.properties.file={...schema.properties.file,enum:eligible};
+                            return [{...tool,inputSchema:schema}];
+                        });
                     if (unreadSources.length && unreadReaders.length) {
                         const sourceChoice = await ai.models.generateContent({model,contents:instruction,config:{
                             semanticStage:"UNREAD_SOURCE_CONTINUATION",temperature:0,maxOutputTokens:256,
@@ -3241,7 +3253,7 @@ async function runModelSemanticPlanner({
                             chatMessages:[
                                 ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
                                 {role:"system",content:"La investigación sigue pendiente y los intentos anteriores repitieron operaciones. La búsqueda real ya encontró estas fuentes AÚN NO LEÍDAS. Elige UNA pertinente al objetivo pendiente para obtener evidencia nueva. No inventes rutas, no repitas una fuente leída ni concluyas ausencia de registros desde el código. Esta lectura no concede permisos ni escribe datos."},
-                                {role:"system",content:"FUENTES_CANDIDATAS="+JSON.stringify(unreadSources)+"\nESQUEMAS_YA_LEIDOS="+JSON.stringify(observedWriteSchemas)},
+                                {role:"system",content:"FUENTES_CANDIDATAS="+JSON.stringify(sourceContinuationSources)+"\nESQUEMAS_YA_LEIDOS="+JSON.stringify(observedWriteSchemas)},
                                 {role:"system",content:"LECTURAS_PARCIALES="+JSON.stringify(partialSources)+"\nPara ampliar una fuente parcial elige un rango nuevo con startLine/endLine desde estos límites o anclajes observados. No vuelvas a pedir el archivo entero con los mismos argumentos."},
                                 {role:"system",content:"OBJETIVOS_PENDIENTES="+JSON.stringify(continuationObjectiveSummaries(evaluatedAudit.completionAssessment?.objectives?.filter(o=>o.satisfied!==true)))},
                                 {role:"user",content:instruction}

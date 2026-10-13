@@ -3382,6 +3382,23 @@ test('duplicate recovery calls cannot exhaust unread discovered sources',async()
  }}}});assert.equal(selected,true);assert.equal(result.planKind,'UNREAD_SOURCE_CONTINUATION');assert.equal(result.toolCalls[0].args.file,'unread.js');
 });
 
+test('last source recovery keeps uninspected candidates separate from partial rereads',async()=>{
+ const read={name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'},startLine:{type:'integer'},endLine:{type:'integer'}},required:['file']}};
+ const repeated={name:read.name,args:{file:'partial.js',startLine:3,endLine:10}};
+ const tasks=[{name:'repo.search',observation:{ok:true,repoCandidates:[{file:'partial.js'},{file:'uninspected.js'}]}},{name:read.name,args:{file:'partial.js'},observation:{ok:true,verifiedRead:{file:'partial.js',content:'observed prefix',startLine:1,endLine:2,totalLines:10,readEndLine:10,contentTruncated:true}}}];
+ let recovered=false;
+ const result=await runJarvisSemanticPlanner({input:'Inspect current entries',catalog:[read],missionState:{phase:'COMPLETION_AUDIT',completedTasks:tasks,blockedTasks:[{...repeated,observation:{ok:false,executionOk:false,blocked:true,error:'TRANSPORT_INTERRUPTED'}}]},ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({explanation:'Evidence pending',completionAssessment:{objectives:[{objective:'Inspect current entries',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Current entries pending'}]},toolCalls:[]})};
+  if(['READ_ONLY_EVIDENCE_CONTINUATION','READ_ONLY_NEXT_STEP_RECOVERY'].includes(request.config.semanticStage))return{text:JSON.stringify({toolCalls:[repeated]})};
+  if(request.config.semanticStage==='UNREAD_SOURCE_CONTINUATION'){
+   recovered=true;assert.deepEqual(request.config.responseJsonSchema.properties.toolCalls.items.anyOf[0].properties.args.properties.file.enum,['uninspected.js']);
+   return{text:JSON.stringify({toolCalls:[{name:read.name,args:{file:'uninspected.js'}}]})};
+  }
+  throw Error('Unexpected stage: '+request.config.semanticStage);
+ }}}});
+ assert.equal(recovered,true);assert.equal(result.planKind,'UNREAD_SOURCE_CONTINUATION');assert.equal(result.missionComplete,false);assert.equal(result.toolCalls[0].args.file,'uninspected.js');assert.equal(result.completionAssessment.objectives[0].satisfied,false);
+});
+
 test('literal evidence recovery retains explicit source identifiers from user scope clarifications',async()=>{
  const input='Count registered entries';const clarification='Declared registrations are in declared_registry; official allocations are a separate population.';
  const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{collection:{type:'string'},sourceFile:{type:'string'},filters:{type:'array',items:{type:'object'}}},required:['collection','sourceFile','filters'],additionalProperties:false}};
