@@ -15,6 +15,56 @@ import { runJarvisMission, unmetMissionEvidenceRequirements } from "../gestia-co
 import { composeEvidenceGroundedConversation } from "../gestia-core/jarvis/jarvis.conversation.composer.js";
 import { buildResponsiveRepairOptions, buildResponsiveRepairPatch } from "../gestia-core/jarvis/jarvis.autopatch.engine.js";
 
+test('large record conversation transport preserves every snapshot and pending objective within its budget',async()=>{
+ const fields=Array.from({length:35},(_,i)=>'observed_field_'+i);
+ const records=Array.from({length:3},(_,snapshot)=>({source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,
+  scope:{collection:'registry_'+snapshot,filters:[],fields,mode:'query'},queriedAt:'2026-01-0'+(snapshot+1),
+  rows:Array.from({length:29},(_,i)=>({id:'entry_'+i,values:Object.fromEntries(fields.map((field,j)=>[field,j===0?'Observed owner '+i:j===1?'2026-02-01':null]))})),
+  returnedCount:29,totalCount:29,completeForQuery:true,hasMore:false,fieldSchema:{paths:fields,complete:true}}));
+ const objectives=['Inventory','Relationships','Renewal dates'].map((objective,i)=>({objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[i],limitation:'Related observed source remains unqueried. '.repeat(20),coverage:{status:'partial',pendingSources:['unqueried_registry_'+i],missing:['No global coverage'],consultedScopes:[records[i].scope]}}));
+ const before=JSON.stringify({records,objectives});let captured;
+ const result=await composeEvidenceGroundedConversation({instruction:'Report current entries, owners and renewals.',evidenceItems:[...records.map(recordEvidence=>({name:'platform.query',observation:{ok:true,recordEvidence}})),{name:'mission.outcome',observation:{status:'PARTIAL',reason:'MISSING_EVIDENCE',completionAssessment:{objectives}}}],executeConversation:async(_prompt,options)=>{
+  assert.ok(options.responseBriefing.length<=11000);
+  const envelope=JSON.parse(options.responseBriefing);
+  assert.equal(envelope.encoding,'gzip-json-v1');
+  const {gunzipSync}=createRequire(import.meta.url)('node:zlib');
+  captured=JSON.parse(gunzipSync(Buffer.from(envelope.data,'base64')).toString('utf8'));
+  return {ok:true,message:'The investigation remains partial; related sources still need evidence.'};
+ }});
+ assert.equal(result.ok,true,result.status);
+ assert.deepEqual(captured.platformRecordEvidence,records);
+ assert.deepEqual(captured.objectiveCoverage,objectives);
+ assert.equal(captured.missionStatus,'PARTIAL');
+ assert.equal(JSON.stringify({records,objectives}),before,'transport cannot mutate operational receipts or coverage');
+});
+
+test('compressed record briefing restores scoped facts without completing pending objectives',async()=>{
+ const {gzipSync}=createRequire(import.meta.url)('node:zlib');
+ const {runJarvisSemanticResponse}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const briefing={missionStatus:'PARTIAL',objectiveCoverage:['Inventory','Relationships','Renewals'].map(objective=>({objective,requiredEvidenceKind:'platform_records',satisfied:false,limitation:'A related registry remains unqueried.'})),platformRecordEvidence:[{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'observed_registry',filters:[],fields:['owner'],mode:'query'},rows:[{id:'observed_entry',values:{owner:'Observed owner'}}],returnedCount:1,totalCount:1,hasMore:false,completeForQuery:true}]};
+ const bytes=Buffer.from(JSON.stringify(briefing));
+ const result=await runJarvisSemanticResponse({input:'Report current records.',responseInstruction:'Report current records.',responseMode:'grounded_conversation',responseBriefing:JSON.stringify({encoding:'gzip-json-v1',byteLength:bytes.length,data:gzipSync(bytes).toString('base64')}),ai:{models:{generateContent:async request=>({text:JSON.stringify({requestedLineCount:0,factIds:request.config.responseJsonSchema.properties.factIds.items.enum})})}}});
+ assert.equal(result.ok,true);
+ assert.match(result.message,/Observed owner/);
+ assert.match(result.message,/observed_registry/);
+ for(const objective of briefing.objectiveCoverage)assert.ok(result.message.includes(objective.objective));
+ assert.equal(result.grounding.missionStatus,'PARTIAL');
+ assert.match(result.message,/revisión sigue parcial/i);
+});
+
+test('compressed conversation rejects corrupt lengths and decompression beyond the bounded receipt budget',async()=>{
+ const {gzipSync}=createRequire(import.meta.url)('node:zlib');
+ const {runJarvisSemanticResponse}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ let generated=false;
+ const invoke=responseBriefing=>runJarvisSemanticResponse({input:'Report current records.',responseMode:'grounded_conversation',responseBriefing:JSON.stringify(responseBriefing),ai:{models:{generateContent:async()=>{generated=true;throw Error('NOT_EXPECTED');}}}});
+ for(const envelope of [
+  {encoding:'gzip-json-v1',byteLength:2,data:gzipSync(Buffer.from('{"missionStatus":"PARTIAL"}')).toString('base64')},
+  {encoding:'gzip-json-v1',byteLength:262144,data:gzipSync(Buffer.from('x'.repeat(262145))).toString('base64')},
+  {encoding:'gzip-json-v1',byteLength:1,data:'invalid!'}
+ ])await assert.rejects(invoke(envelope),/SEMANTIC_RESPONSE_BRIEFING_ENCODING_INVALID/);
+ assert.equal(generated,false,'invalid transport must never reach semantic inference');
+});
+
 test('record research retains grounded reader paths after the first discovered file has been inspected',async()=>{
  const planner=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').runJarvisSemanticPlanner;
  const reader={name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'},startLine:{type:'integer'},endLine:{type:'integer'}},required:['file']}};

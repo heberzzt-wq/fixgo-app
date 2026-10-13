@@ -1077,7 +1077,7 @@ export function buildAuthoritativeToolOutcomeMatrix(evidenceItems = []) {
 // matrix. Keep the original verification evidence intact and budget this prose
 // briefing by whole records; never truncate serialized JSON or imply that
 // omitted findings mean a clean viewport.
-function serializeConversationBriefing(briefing) {
+async function serializeConversationBriefing(briefing) {
     const limit = 11000;
     if(briefing.platformRecordEvidence?.length) {
         // Source bytes explain discovery; only authenticated query results and
@@ -1088,7 +1088,19 @@ function serializeConversationBriefing(briefing) {
         delete compact.repositoryInventories;
         compact.executedTools=(compact.executedTools || []).map(({tool,status,ok})=>({tool,status,ok}));
         compact.objectiveCoverage=(compact.objectiveCoverage || []).map(({objective,requiredEvidenceKind,satisfied,limitation,evidenceTaskIndexes,coverage})=>({objective,requiredEvidenceKind,satisfied,limitation,evidenceTaskIndexes,coverage}));
-        if(JSON.stringify(compact).length<=limit) return JSON.stringify(compact);
+        const serialized=JSON.stringify(compact);
+        if(serialized.length<=limit) return serialized;
+        // This is byte transport only. Restore every receipt and coverage claim
+        // before semantic evaluation; compression cannot certify omitted data.
+        const bytes=new TextEncoder().encode(serialized);
+        if(bytes.length<=262144 && typeof CompressionStream==='function') {
+            const stream=new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'));
+            const compressed=new Uint8Array(await new Response(stream).arrayBuffer());
+            let binary='';
+            for(const byte of compressed)binary+=String.fromCharCode(byte);
+            const envelope=JSON.stringify({encoding:'gzip-json-v1',byteLength:bytes.length,data:btoa(binary)});
+            if(envelope.length<=limit)return envelope;
+        }
         throw new Error("CONVERSATION_BRIEFING_BUDGET_EXCEEDED");
     }
     const original = JSON.stringify(briefing);
@@ -1399,7 +1411,7 @@ export async function composeEvidenceGroundedConversation({
                 ? Math.min(1200, Math.max(256, 128 + Math.ceil(JSON.stringify(platformRecordEvidence).length / 3)))
                 : 256,
             responseInstruction: String(instruction || "").slice(0, 12000),
-            responseBriefing: serializeConversationBriefing({
+            responseBriefing: await serializeConversationBriefing({
                 missionStatus: missionOutcomeObservation?.status || "UNKNOWN",
                 missionReason: missionOutcomeObservation?.reason || "",
                 ...(missionOutcomeObservation?.completionAssessment?.objectives?.length ? {objectiveCoverage:missionOutcomeObservation.completionAssessment.objectives} : {}),

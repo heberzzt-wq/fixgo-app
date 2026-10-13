@@ -1,5 +1,7 @@
 "use strict";
 
+const {gunzipSync}=require('node:zlib');
+
 const VERSION = "1.24.0-local-only-single-jarvis";
 const DEFAULT_SEMANTIC_MODEL = "jarvis-local";
 const DEFAULT_GEMINI_MODEL = DEFAULT_SEMANTIC_MODEL; // compatibility alias only
@@ -4661,6 +4663,18 @@ async function runJarvisSemanticResponse({
             parsedBriefing = null;
         }
 
+        if(parsedBriefing?.encoding==='gzip-json-v1') {
+            // Fail closed on malformed or oversized transport. The restored
+            // JSON uses the same evidence checks as an ordinary briefing.
+            try {
+                if(!Number.isInteger(parsedBriefing.byteLength) || parsedBriefing.byteLength<1 || parsedBriefing.byteLength>262144 ||
+                    typeof parsedBriefing.data!=='string' || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(parsedBriefing.data))throw new Error('INVALID_ENCODING');
+                const restored=gunzipSync(Buffer.from(parsedBriefing.data,'base64'),{maxOutputLength:262144});
+                if(restored.length!==parsedBriefing.byteLength)throw new Error('LENGTH_MISMATCH');
+                parsedBriefing=JSON.parse(restored.toString('utf8'));
+                if(!parsedBriefing || typeof parsedBriefing!=='object' || Array.isArray(parsedBriefing) || parsedBriefing.encoding)throw new Error('INVALID_BRIEFING');
+            }catch{throw new Error('SEMANTIC_RESPONSE_BRIEFING_ENCODING_INVALID');}
+        }
         objectiveCoverage=parsedBriefing?.objectiveCoverage || [];
         const platformEvidence =
             Array.isArray(parsedBriefing?.platformRecordEvidence)
