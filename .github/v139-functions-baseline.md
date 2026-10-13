@@ -1,18 +1,18 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `d768656328259620c88f27ec1464cb91fa9376b8`, the locally verified inventory path grounding release.
-This explicit advance admits paths actually listed by a successful, unblocked
-`repo.audit` with `LIVE_REPOSITORY_INVENTORY` authority into the existing reader
-path boundary. Failed, blocked and unverified inventories do not widen it.
-Existing reader enum/const restrictions remain intersected, and repository
-inventory is still preparation rather than operational record evidence.
-The captured real state had 24 observed inventory paths but admitted zero;
-the replay now admits those 24 paths and uses 12,481 of 16,384 local context tokens.
-This is a diagnostic replay, not a certification of the real mission. No model,
+Current baseline: `8fffda31dafe3b6206f21983e1aea5cea1293fec`, the locally verified user scope context release.
+This explicit advance corrects one contradictory context instruction: relevant
+user scope clarifications and exclusions now remain applicable during planning,
+instead of being labeled never usable as instructions. The current request
+controls conflicting older details. Conversation still cannot prove operational
+records or completed actions, grant new action/approval authority, or reactivate
+older tasks. Assistant history remains unverified reference rather than authority.
+The general continuation regression verifies these separate roles. No model,
 permission, data or external provider changes are admitted; Qwen remains the sole
-local semantic authority. The bounded conversation transport remains unchanged.
+local semantic authority. Inventory path grounding and bounded conversation
+transport remain unchanged. This review does not certify the real Chrome mission.
 The baseline remains pinned, ancestor-checked and enforced against every future
-Functions change. Two new general regressions, 265 focal checks and 1,930 local
+Functions change. One new general regression, 266 focal checks and 1,931 local
 full-suite checks passed with zero failures. The one Linux-only browser check
 and Firestore emulator checks require fresh CI verification before closure.
 
