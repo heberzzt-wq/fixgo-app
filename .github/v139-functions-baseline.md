@@ -1,7 +1,7 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `fa5159ac484695e235b5289928e96a98a0a529df`, the locally verified source-definition budget release.
-This explicit advance admits only the committed planner/runtime regression fixes, including retention of substantive observed source definitions within the fixed context budget;
+Current baseline: `a57e676dd095522ef7215a90cb6956f7aa41e7e7`, the locally verified uninspected-source continuation release.
+This explicit advance admits only the committed planner/runtime regression fixes, including a bounded same-model choice of uninspected discovered sources after rejected partial rereads;
 it does not accept unfinished working-tree changes or certify a real mission.
 The baseline remains pinned, ancestor-checked and enforced against every future
 Functions change. Local full-suite and fresh focal checks passed; the workstation
