@@ -17,6 +17,14 @@ const __dirname =
         fileURLToPath(import.meta.url)
     );
 
+test('namespaced writes retain exact nested collection ownership and ignore unrelated setters', () => {
+ const bindings=analyzeRepoSourceStructure('const ref=db.collection("accounts").doc(accountId).collection("devices").doc(); ref.set({details:{serial:value}}); db.collection("owners").doc(uid).update({name:value}); db.collection("entries").add({label:value}); cache.set({invented:value});').dataBindings;
+ assert.deepEqual(bindings.writeShapes.map(shape=>[shape.collection,shape.fields]),[
+  ['accounts/{accountId}/devices',['details','details.serial']],['owners',['name']],['entries',['label']]
+ ]);
+ assert.ok(!bindings.writeShapes.some(shape=>shape.fields.includes('invented')));
+});
+
 test("an explicit file read uses the filesystem even when absent from the browser index", () => {
     const catalog = [
         { name: "repo.search", mutates: false, inputSchema: { required: ["query"] } },

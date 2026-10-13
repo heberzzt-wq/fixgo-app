@@ -345,7 +345,8 @@ test("argument completion receives exact material references including logos bey
     let request;
     await completeJarvisPlanningArguments({
         toolName: "image.adapt", instruction: "Crea un anuncio con el original y el logo oficial.", operation: "compose the requested image",
-        inputSchema: { type: "object", properties: { sourceOutput: { type: "string" } } },
+        // Keep the creative capability declared by the real image.adapt schema.
+        inputSchema: { type: "object", properties: { sourceOutput: { type: "string" }, composition: {type:"object"} } },
         missionEvidence: [{ tool: "media.library", status: observation.status, summary: observation.summary, evidence: observation.evidence }],
         semanticPlanner: async input => { request = input; return { toolCalls: [{ name: "image.adapt", args: { sourceOutput: "library:Entradas/Firma/imagen-0.png" } }] }; }
     });

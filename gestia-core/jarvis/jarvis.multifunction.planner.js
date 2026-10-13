@@ -2465,6 +2465,11 @@ export async function completeJarvisPlanningArguments({
         if (JSON.stringify({...repositoryPacket,sources:[...repositoryPacket.sources,source]}).length <= 20000) repositoryPacket.sources.push(source);
         else repositoryPacket.omittedSources.push(read.file);
     }
+    // Guidance follows the selected capability's schema, never words in the
+    // user's request. Record reads must not acquire a creative objective.
+    const creativeCapability = Boolean(inputSchema?.properties?.composition || inputSchema?.properties?.creativeDirection);
+    const materialCapability = creativeCapability || ['sourceOutput','brandLogoOutput','assetOutput','logoOutput','audioOutput','output']
+        .some(field => Object.hasOwn(inputSchema?.properties || {},field));
     const briefingInstruction = [
         `INSTRUCCION_ORIGINAL=${originalInstruction}`,
         `OPERACION_ACTUAL_DEL_PLAN=${String(operation || "").slice(0, 500)}`,
@@ -2474,14 +2479,17 @@ export async function completeJarvisPlanningArguments({
         ...(repositoryReads.length ? [`FUENTES_REPOSITORIO_VERIFICADAS=${JSON.stringify(repositoryPacket)}`,
             "Los bindings AST pertenecen al archivo indicado; usa sus rutas y fragmentos literales. Un nombre de variable no es un campo almacenado. No inventes prefijos de campos, roles ni categorías. Si falta evidencia, el requisito sigue pendiente y debe investigarse en el repositorio."] : []),
         `MATERIALES_VERIFICADOS=${JSON.stringify(missionEvidence.flatMap(item => materialReferencesForPlanning(item)))}`,
-        `PUBLICIDAD_YA_ENTREGADA=${JSON.stringify(missionEvidence.flatMap(item => item.evidence?.advertisingHistory || item.advertisingHistory || []).filter(item => item.creative).slice(0, 30).map(item => ({createdAt:item.createdAt,visual:item.visual})))}`,
-        "No repitas publicidad del historial, aunque sea otro día, conversación, nombre de archivo o formato. Redacta otro mensaje y enfoque publicitario y varía la composición. Conserva el logo original; reutilizar el logo no es repetir un anuncio.",
+        ...(creativeCapability ? [
+            `PUBLICIDAD_YA_ENTREGADA=${JSON.stringify(missionEvidence.flatMap(item => item.evidence?.advertisingHistory || item.advertisingHistory || []).filter(item => item.creative).slice(0, 30).map(item => ({createdAt:item.createdAt,visual:item.visual})))}`,
+            "No repitas publicidad del historial, aunque sea otro día, conversación, nombre de archivo o formato. Redacta otro mensaje y enfoque publicitario y varía la composición. Conserva el logo original; reutilizar el logo no es repetir un anuncio."
+        ] : []),
         `ARTEFACTOS_PRODUCIDOS=${JSON.stringify(missionEvidence.flatMap(item => materialReferencesForPlanning(item).filter(ref => ref.role === "produced_artifact").map(ref => ({ tool: item.tool, status: item.status, output: ref.ref, mimeType: ref.mimeType }))))}`,
         `EVIDENCIA_CANONICA_DE_MISION=${documentEvidenceEnvelope(missionEvidence.filter(item => !Array.isArray(item.evidence?.entries)).map(item => {
             const refs = materialReferencesForPlanning(item);
             return refs.length ? {tool:item.tool,status:item.status,summary:item.summary,evidence:{output:item.evidence?.output,outputs:refs}} : item;
         }), 2500)}`,
-        "Las referencias library: son originales del inventario; sourceOutput, brandLogoOutput, assetOutput, logoOutput y audioOutput admiten esas referencias exactas y el runtime realiza la importación. Para composición nueva usa photoRegion como composition.photoCrop. No construyas nombres de archivo ni hashes. Para exportar usa el output del resultado producido, nunca una referencia de original.",
+        ...(materialCapability ? ["Las referencias library: son originales del inventario; sourceOutput, brandLogoOutput, assetOutput, logoOutput y audioOutput admiten esas referencias exactas y el runtime realiza la importación. No construyas nombres de archivo ni hashes. Para exportar usa el output del resultado producido, nunca una referencia de original."] : []),
+        ...(creativeCapability ? ["Para composición nueva usa photoRegion como composition.photoCrop."] : []),
         "Completa los argumentos solamente de la operación actual del plan. Conserva las restricciones de la instrucción original. Las otras operaciones tienen llamadas separadas; no repitas una consulta cuando la operación actual pide exportar un resultado producido."
     ].join("\n");
 

@@ -776,7 +776,7 @@ export function inspectSourceDataBindings(source = "") {
     const content = String(source || "");
     const scriptBodies = [...content.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)].map(match => ({code:match[1],offset:match.index+match[0].indexOf(">")+1}));
     const units = scriptBodies.length ? scriptBodies : [{code:content,offset:0}];
-    const collections = new Set(), referenceGroups = new Map(), referenceAnchors = new Map(), fieldPaths = new Set(), writeShapes = [];
+    const collections = new Set(), referenceGroups = new Map(), referenceAnchors = new Map(), fieldPaths = new Set(), writeShapes = [], queryShapes = [];
     let parsedUnits = 0;
     const string = node => node?.type === "Literal" && typeof node.value === "string" ? node.value : null;
     for (const sourceUnit of units) {
@@ -844,7 +844,25 @@ export function inspectSourceDataBindings(source = "") {
             if (string(bound) !== null) return string(bound);
             return node?.type === "Identifier" ? `{${node.name}}` : null;
         };
+        const referencePath = (node, before = Infinity, depth = 0) => {
+            if (depth > 8) return null;
+            if (node?.type === 'Identifier') return referencePath(initializer(node,before),node.start,depth+1);
+            if (node?.type !== 'CallExpression') return null;
+            const member=node.callee?.type === 'MemberExpression' && !node.callee.computed;
+            const operation=member ? node.callee.property?.name : functions.get(node.callee?.name);
+            if(member && ['where','orderBy','limit'].includes(operation)) return referencePath(node.callee.object,node.start,depth+1);
+            if (!['collection','doc'].includes(operation)) return null;
+            const parent=referencePath(member ? node.callee.object : node.arguments[0],node.start,depth+1);
+            const args=member ? node.arguments : node.arguments.slice(1);
+            const parts=args.map(arg=>segmentValue(arg,node.start));
+            if (!parts.length && operation==='doc' && parent?.split('/').length%2===1) parts.push('{generatedId}');
+            if (!parts.length || !parts.every(part=>typeof part==='string' && part.length>0 && part.length<=500 && !part.includes('/') && !['.','..'].includes(part))) return null;
+            const path=[...(parent ? parent.split('/') : []),...parts];
+            return path.length%2===(operation==='collection' ? 1 : 0) ? path.join('/') : null;
+        };
         const collectionPath = (node, before = Infinity, depth = 0) => {
+            const reference=referencePath(node,before,depth);
+            if (reference) { const parts=reference.split('/'); return (parts.length%2 ? parts : parts.slice(0,-1)).join('/'); }
             if (depth > 5) return null;
             if (node?.type === "Identifier") return collectionPath(initializer(node, before), node.start, depth + 1);
             if (node?.type !== "CallExpression") return null;
@@ -894,10 +912,24 @@ export function inspectSourceDataBindings(source = "") {
             }
             if (node.type === "CallExpression") {
                 const operation = node.callee?.property?.name || node.callee?.name;
-                const writeOperation = functions.get(node.callee?.name);
-                if (["addDoc", "setDoc", "updateDoc"].includes(writeOperation)) {
-                    const destination = collectionPath(node.arguments?.[0], node.start);
-                    const supplied = node.arguments?.[1];
+                if (operation === 'query') {
+                    const destination=collectionPath(node.arguments[0],node.start);
+                    const fields=node.arguments.slice(1).filter(arg=>arg.type==='CallExpression' && ['where','orderBy'].includes(arg.callee?.name))
+                        .map(arg=>string(arg.arguments[0])).filter(Boolean);
+                    if(destination && fields.length && queryShapes.length<8) queryShapes.push({collection:destination,fields:[...new Set(fields)].slice(0,200)});
+                }
+                if (node.callee?.type==='MemberExpression' && !node.callee.computed && ['where','orderBy'].includes(operation)) {
+                    const destination=collectionPath(node.callee.object,node.start),field=string(node.arguments[0]);
+                    if(destination && field && queryShapes.length<8) queryShapes.push({collection:destination,fields:[field]});
+                }
+                const modularOperation = functions.get(node.callee?.name);
+                const memberWrite = node.callee?.type==='MemberExpression' && !node.callee.computed && ['add','set','update'].includes(operation);
+                const writeOperation = memberWrite ? operation : modularOperation;
+                if (["addDoc", "setDoc", "updateDoc", "add", "set", "update"].includes(writeOperation)) {
+                    const receiver=memberWrite ? referencePath(node.callee.object,node.start) : null;
+                    const validReceiver=!memberWrite || (receiver && receiver.split('/').length%2===(operation==='add' ? 1 : 0));
+                    const destination = validReceiver ? collectionPath(memberWrite ? node.callee.object : node.arguments?.[0], node.start) : null;
+                    const supplied = node.arguments?.[memberWrite ? 0 : 1];
                     const payload = supplied?.type === "ObjectExpression" ? supplied : initializer(supplied, node.start);
                     if (destination && payload?.type === "ObjectExpression") {
                         const fields = new Set();
@@ -985,5 +1017,5 @@ export function inspectSourceDataBindings(source = "") {
         if(collectionAnchors.length>=24 || cost>anchorBudget)continue;
         collectionAnchors.push(anchor);anchorBudget-=cost;
     }
-    return {source:"ACORN_SOURCE_REFERENCES",collections:[...collections].slice(0,100),fieldPaths:[...fieldPaths].slice(0,200),fieldPathsComplete:fieldPaths.size<=200 && parsedUnits===units.length,writeShapes,references:references.slice(0,4),referencesComplete:references.length<=4,collectionAnchors,complete:parsedUnits===units.length && collections.size<=100,scope:"Static code references and bounded source excerpts, not a database inventory or query result."};
+    return {source:"ACORN_SOURCE_REFERENCES",collections:[...collections].slice(0,100),fieldPaths:[...fieldPaths].slice(0,200),fieldPathsComplete:fieldPaths.size<=200 && parsedUnits===units.length,writeShapes,queryShapes,references:references.slice(0,4),referencesComplete:references.length<=4,collectionAnchors,complete:parsedUnits===units.length && collections.size<=100,scope:"Static code references and bounded source excerpts, not a database inventory or query result."};
 }

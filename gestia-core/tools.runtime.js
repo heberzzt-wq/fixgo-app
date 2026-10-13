@@ -769,16 +769,14 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
                 .map(candidate => String(candidate?.file || candidate?.path || "").trim())
                 .filter(Boolean)
         )].slice(0, 20);
-        const observedFieldPaths = new Set(groundingReads.flatMap(candidate =>
-            candidate.sourceStructure?.dataBindings?.fieldPaths ||
-            analyzeRepoSourceStructure(candidate.content || "").dataBindings?.fieldPaths || []));
         // The parser inspected the complete file even when the visible source
         // window/reference excerpts omit a later write. Preserve that positive
         // evidence only for the collection to which the parser bound the shape.
         const collectionWriteFields = new Set(groundingReads.flatMap(candidate => {
-            const bindings = candidate.sourceStructure?.dataBindings;
+            const bindings = candidate.sourceStructure?.dataBindings?.writeShapes
+                ? candidate.sourceStructure.dataBindings : analyzeRepoSourceStructure(candidate.content || "").dataBindings;
             if (bindings?.source !== "ACORN_SOURCE_REFERENCES") return [];
-            return (bindings.writeShapes || [])
+            return [...(bindings.writeShapes || []),...(bindings.queryShapes || [])]
                 .filter(shape => resolveCollectionTemplate(shape.collection) === collectionPath)
                 .flatMap(shape => shape.fields || []);
         }));
@@ -791,9 +789,7 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
                 !Array.isArray(schema.paths) || schema.paths.length>128 || JSON.stringify(schema.paths).length>3000)return [];
             return schema.paths.filter(validField);
         }));
-        const sourceHasField = field => field === "__name__" || recordFieldPaths.has(field) || collectionWriteFields.has(field) || (String(field).includes(".")
-            ? observedFieldPaths.has(field)
-            : String(field).length > 1 && normalizedSource.includes(normalizeGroundingText(field)));
+        const sourceHasField = field => field === "__name__" || recordFieldPaths.has(field) || collectionWriteFields.has(field);
         const literalGrounded = value => {
             if (typeof value !== "string") return true;
             const normalized = normalizeGroundingText(value).trim();
@@ -808,7 +804,8 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
                 sourceFile: args.sourceFile,
                 groundingFiles,
                 undiscoveredFields: undiscoveredFields.slice(0, 20),
-                discoveredFieldPaths: [...new Set([...recordFieldPaths,...observedFieldPaths])].slice(0, 100),
+                discoveredFieldPaths: [...new Set([...recordFieldPaths,...collectionWriteFields])].slice(0, 100),
+                discoveryProjection: ["__name__"],
                 requestedFields: fields.slice(0, 20)
             });
         }
@@ -821,7 +818,8 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
                 sourceFile: args.sourceFile,
                 groundingFiles,
                 undiscoveredFilterFields: [...new Set(undiscoveredFilterFields)].slice(0, 20),
-                discoveredFieldPaths: [...new Set([...recordFieldPaths,...observedFieldPaths])].slice(0, 100),
+                discoveredFieldPaths: [...new Set([...recordFieldPaths,...collectionWriteFields])].slice(0, 100),
+                discoveryProjection: ["__name__"],
                 requestedFilters: filters.slice(0, 10).map(filter => ({
                     field: filter.field,
                     op: filter.op,
@@ -899,6 +897,11 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
         scope = { collection: collectionPath, filters, fields, mode, sourceFile: args.sourceFile };
         const orders = args.orderBy || [];
         if (!Array.isArray(orders) || orders.length > 3 || orders.some(item => !validField(item.field) || !["asc", "desc"].includes(item.direction || "asc"))) throw new Error("PLATFORM_QUERY_ORDER_INVALID");
+        const undiscoveredOrderFields=mode==='query' ? orders.filter(item=>!sourceHasField(item.field)).map(item=>item.field) : [];
+        if(undiscoveredOrderFields.length) failQuery('PLATFORM_QUERY_ORDER_FIELD_NOT_DISCOVERED',{
+            collection:collectionPath,sourceFile:args.sourceFile,groundingFiles,undiscoveredOrderFields,
+            discoveredFieldPaths:[...new Set([...recordFieldPaths,...collectionWriteFields])].slice(0,100),discoveryProjection:['__name__']
+        });
         // Firestore ordering filters out records lacking the ordered field.
         // Preserve the actual page scope separately from the base count query.
         scope.orderBy = mode === "query" ? [...orders.map(item=>({field:item.field,direction:item.direction || "asc"})),{field:"__name__",direction:"asc"}] : [];
@@ -1013,7 +1016,7 @@ JarvisToolRuntime.register({
         orderBy:{type:"array",maxItems:3,items:{type:"object",properties:{field:{type:"string"},direction:{type:"string",enum:["asc","desc"]}},required:["field"],additionalProperties:false}},
         collection: {type:"string",description:"Ruta de colección real descubierta en la aplicación, no un nombre deducido del pedido."},
         mode: {type:"string",enum:["query","count"]},
-        fields: {type:"array",minItems:0,items:{type:"string"},maxItems:20,description:"Campos acreditados necesarios para investigar el pedido, obligatorios para query. Incluye sólo los pertinentes; no todo el perfil."},
+        fields: {type:"array",minItems:0,items:{type:"string"},maxItems:20,description:"Campos acreditados de esta colección, obligatorios para query. Si faltan nombres de campos, ['__name__'] proyecta sólo IDs y devuelve fieldSchema de la página autorizada para una consulta posterior de la misma ruta. Ese descubrimiento no prueba valores ni cobertura global. Incluye sólo campos pertinentes; no todo el perfil."},
         filters: {type:"array",minItems:0,maxItems:10,description:"Sólo filtros acreditados. En mode=query, [] permite inspeccionar campos pertinentes dentro de una colección autorizada para descubrir sus valores; no afirma pertenencia a un subconjunto. En mode=count, [] cuenta toda esa colección y no un grupo particular. Nunca retires restricciones de tenant o permisos ni eludas una denegación.",items:{type:"object",properties:{field:{type:"string"},op:{type:"string",enum:["==","!=","<","<=",">",">=","in","not-in","array-contains","array-contains-any"]},value:{type:["string","number","boolean","null","array"]}},required:["field","op","value"],additionalProperties:false}},
         pageSize:{type:"integer",minimum:1,maximum:100},cursor:{type:"string",description:"nextCursor devuelto por la misma consulta; omitir para primera página."},includeCount:{type:"boolean"}
     },required:["collection","sourceFile","filters"],anyOf:[

@@ -2263,7 +2263,7 @@ function platformQueryTestFixture({signedIn=true,fail=null,fromCache=false,chang
     const sdk={collection:(_db,name)=>({collection:name}),query:(base,...constraints)=>({base,constraints}),where:(...args)=>({where:args}),orderBy:field=>({orderBy:field}),documentId:()=> '__name__',limit:value=>({limit:value}),doc:(_db,collection,id)=>({collection,id}),startAfter:document=>({after:document.id}),
         getDocFromServer:async({id})=>({id,exists:()=>true}),getCountFromServer:async q=>{calls.push({kind:'count',q});if(fail)throw Object.assign(new Error('Read failed'),{code:fail});return{data:()=>({count:docs.length})}},
         getDocsFromServer:async q=>{calls.push({kind:'query',q});if(fail)throw Object.assign(new Error('Read failed'),{code:fail});if(changeSession)auth.currentUser={uid:'different'};return{docs,metadata:{fromCache}};}};
-    const context={rootInstruction:'Consulta los registros observados',completedTasks:[{name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'const data = collection(db, "arbitrary_records"); const title = record.title;',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['arbitrary_records'],complete:true}}}}}]};
+    const context={rootInstruction:'Consulta los registros observados',completedTasks:[{name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'setDoc(doc(db, "arbitrary_records", id), {title: suppliedTitle, rank: suppliedRank});',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['arbitrary_records'],complete:true}}}}}]};
     const args={collection:'arbitrary_records',sourceFile:'source.js',fields:['title'],pageSize:2,includeCount:true};
     return{execute,args,context,calls,dependencies:{auth,db:{},sdk}};
 }
@@ -2325,6 +2325,21 @@ test('empty ordered results stay partial while document-id ordering and count-ve
  const complete=await full.execute({...full.args,pageSize:100,orderBy:[{field:'rank'}]},full.dependencies,full.context);
  assert.equal(complete.recordEvidence.completeForQuery,true);
  assert.equal(complete.recordEvidence.consistentCountAndList,true);
+});
+
+test('an ID-only discovery page exposes field names without inventing a schema or returning private values',async()=>{
+ const f=platformQueryTestFixture({recordData:[{allocation:{holder:'PRIVATE_VALUE'}}]});
+ const read=f.context.completedTasks[0].observation.verifiedRead;
+ read.content='const ref=collection(db,"arbitrary_records");';
+ read.sourceStructure=analyzeRepoSourceStructure(read.content);
+ const first=await f.execute({...f.args,fields:['__name__']},f.dependencies,f.context);
+ assert.equal(first.ok,true);
+ assert.equal(first.recordEvidence.rows[0].values.__name__,'0');
+ assert.doesNotMatch(JSON.stringify(first),/PRIVATE_VALUE/);
+ assert.ok(first.recordEvidence.fieldSchema.paths.includes('allocation.holder'));
+ f.context.completedTasks.push({name:'platform.query',observation:first});
+ const next=await f.execute({...f.args,fields:['allocation.holder']},f.dependencies,f.context);
+ assert.equal(next.recordEvidence.rows[0].values['allocation.holder'],'PRIVATE_VALUE');
 });
 
 test('server record field names stay bounded to returned rows and unlock only a same-route follow-up projection',async()=>{
@@ -3274,6 +3289,22 @@ test('an irrelevant candidate read cannot exhaust repository evidence while disc
 });
 
 
+test('source words and sibling collection fields do not authorize a record projection', async () => {
+ const f=platformQueryTestFixture();
+ const read=f.context.completedTasks[0].observation.verifiedRead;
+ read.content='const data = collection(db,"arbitrary_records"); const invented = external.invented; setDoc(doc(db,"other_records",id),{details:{owner:"x"}});';
+ read.sourceStructure=analyzeRepoSourceStructure(read.content);
+ for(const field of ['data','invented','details.owner']) {
+  const result=await f.execute({...f.args,fields:[field]},f.dependencies,f.context);
+  assert.equal(result.error?.code,'PLATFORM_QUERY_FIELD_NOT_DISCOVERED',field);
+  const ordered=await f.execute({...f.args,fields:['__name__'],orderBy:[{field}]},f.dependencies,f.context);
+  assert.equal(ordered.error?.code,'PLATFORM_QUERY_ORDER_FIELD_NOT_DISCOVERED',field);
+  const filtered=await f.execute({...f.args,mode:'count',fields:[],filters:[{field,op:'==',value:'x'}]},f.dependencies,f.context);
+  assert.equal(filtered.error?.code,'PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED',field);
+ }
+ assert.equal(f.calls.length,0);
+});
+
 test('platform query schema failures return actionable grounding details without touching Firestore', async () => {
  const f=platformQueryTestFixture();
  f.context.rootInstruction='Consulta vehiculos registrados';
@@ -3344,6 +3375,28 @@ test('grep compaction preserves distinct discovered files before repeated matche
  const compact=compactMissionPlannerObservation(observed);
  assert.deepEqual(compact.repositoryMatches.slice(0,3).map(m=>m.file),['notes.json','registration.js','billing.js']);
  assert.equal(compact.repositoryMatches[1].line,91);
+});
+
+test('record argument completion does not introduce an unrelated creative objective', async () => {
+ const {completeJarvisPlanningArguments}=await import('../gestia-core/jarvis/jarvis.multifunction.planner.js');
+ let captured;
+ const result=await completeJarvisPlanningArguments({toolName:'fixture.records',instruction:'Review current devices and owners without modifying data.',operation:'Read the observed registry',inputSchema:{type:'object',properties:{scope:{type:'string',enum:['observed_scope']}},required:['scope']},semanticPlanner:async request=>{
+  captured=request.input;return{toolCalls:[{name:'fixture.records',args:{scope:'observed_scope'}}]};
+ }});
+ assert.equal(result.ok,true);
+ assert.doesNotMatch(captured,/No repitas publicidad|Redacta otro mensaje|composition\.photoCrop/);
+ assert.match(captured,/Review current devices and owners/);
+});
+
+test('a creative capability retains creative history guidance in argument completion', async () => {
+ const {completeJarvisPlanningArguments}=await import('../gestia-core/jarvis/jarvis.multifunction.planner.js');
+ let captured;
+ await completeJarvisPlanningArguments({toolName:'fixture.creative',instruction:'Prepare a new composition from observed materials.',inputSchema:{type:'object',properties:{composition:{type:'object',properties:{}}}},semanticPlanner:async request=>{
+  captured=request.input;return{toolCalls:[{name:'fixture.creative',args:{}}]};
+ }});
+ assert.match(captured,/PUBLICIDAD_YA_ENTREGADA=/);
+ assert.match(captured,/No repitas publicidad/);
+ assert.match(captured,/composition\.photoCrop/);
 });
 
 test('canonical repository AST survives argument completion instead of disappearing into document excerpts', async () => {
