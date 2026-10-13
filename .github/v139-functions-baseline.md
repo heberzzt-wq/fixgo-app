@@ -1,11 +1,12 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `b2be9c2a1bdd490b99f6c816a31c0a528f9dfaf1`, the locally verified bounded collection-anchor release.
-This explicit advance admits only reviewed static source-reference metadata:
-bounded anchors direct further source reads but do not prove operational records,
-expand permissions, accept unfinished working-tree changes or certify a real mission.
+Current baseline: `abb44d47a79de48248c518e127941640cc193dc6`, the locally verified ordering-scope coverage release.
+This explicit advance admits only reviewed query-scope metadata and native coverage
+checks: exhausting ordered pages cannot prove records excluded by field existence.
+The same scoped base count or a complete unordered read is still needed. This does
+not expand permissions, accept unfinished changes or certify a real mission.
 The baseline remains pinned, ancestor-checked and enforced against every future
-Functions change. The new general regression, 237 focal checks and 1,919 local
+Functions change. Two new general regressions, 239 focal checks and 1,921 local
 full-suite checks passed with zero failures. The one Linux-only browser check
 and Firestore emulator checks require fresh CI verification before closure.
 
