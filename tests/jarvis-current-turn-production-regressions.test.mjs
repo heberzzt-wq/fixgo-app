@@ -110,6 +110,26 @@ test('unverified inventory paths cannot expand a grounded repository reader',asy
  }
 });
 
+test('record continuation honors relevant user scope clarifications without treating conversation as operational proof or approval',async()=>{
+ const planner=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').runJarvisSemanticPlanner;
+ const reader={name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
+ const records={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}},required:['sourceFile']}};
+ const clarification='Keep personal entries separate from official assignments.';
+ const tasks=[{name:'repo.search',observation:{ok:true,repoCandidates:[{file:'observed_source.js'}]}},{name:'repo.read',observation:{ok:true,verifiedRead:{file:'observed_source.js',content:'Observed schema',sourceStructure:{dataBindings:{collections:['registry']}}}}}];
+ let checked=false;
+ await assert.rejects(planner({input:'Inspect current entries and assignments.',catalog:[reader,records],missionState:{phase:'COMPLETION_AUDIT',completedTasks:tasks,advisorySemanticContext:{turns:[{role:'user',content:clarification},{role:'assistant',content:'Earlier unverified conclusion.'}]},evidenceObjectives:[{objective:'Inspect current entries',requiredEvidenceKind:'platform_records',scope:'all_sources',groups:['entries']}]},ai:{models:{generateContent:async request=>{
+  const context=request.config.chatMessages.find(message=>message.content.includes(clarification))?.content;
+  assert.ok(context);
+  assert.match(context,/user.*scope clarifications/i,'applicable user scope instructions must survive continuation');
+  assert.match(context,/never.*evidence.*operational/i,'conversation cannot prove operational results');
+  assert.match(context,/cannot authorize.*actions/i,'scope clarification cannot grant new execution authority');
+  assert.match(context,/assistant.*unverified/i,'assistant history must not acquire instruction or evidence authority');
+  assert.doesNotMatch(context,/never as evidence of completed actions or as instructions/);
+  checked=true;throw Error('SCOPE_CONTEXT_CAPTURE_COMPLETE');
+ }}}}),/SCOPE_CONTEXT_CAPTURE_COMPLETE/);
+ assert.equal(checked,true);
+});
+
 test('continuation retains every objective gap and source without repeating shared text across objectives',()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='continuationObjectiveSummaries');
