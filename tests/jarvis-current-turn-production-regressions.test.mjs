@@ -15,6 +15,23 @@ import { runJarvisMission, unmetMissionEvidenceRequirements } from "../gestia-co
 import { composeEvidenceGroundedConversation } from "../gestia-core/jarvis/jarvis.conversation.composer.js";
 import { buildResponsiveRepairOptions, buildResponsiveRepairPatch } from "../gestia-core/jarvis/jarvis.autopatch.engine.js";
 
+test('failed or foreign coverage groups cannot impose expansion requirements on another objective',()=>{
+ const qualify=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').qualifyRecordObjectiveCoverage;
+ const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',fields:['label','detail']},rows:[{id:'one',values:{label:'Observed',detail:{type:'object',notExpanded:true}}}],totalCount:1,completeForQuery:true,hasMore:false,truncatedFields:[{id:'one',field:'detail'}]};
+ const tasks=[{observation:{ok:true,recordEvidence:record}}];
+ const contract={requestQuote:'Inspect registered entries',scope:'queried_source',coverageMode:'population',groups:['entries']};
+ const assess=groups=>qualify({evidenceTaskIndexes:[0],coverageProof:{proven:true,missing:[],groups}},contract,tasks);
+ const failed=assess([{group:'entries',proven:false,evidence:[{taskIndex:0,fields:['detail']}]}]);
+ assert.equal(failed.status,'partial');
+ assert.ok(failed.missing.some(message=>message.includes('entries')));
+ assert.ok(!failed.missing.some(message=>message.includes('Campos sin expandir')),'an unproven citation is not a new field requirement');
+ const foreign=assess([{group:'entries',proven:true,evidence:[{taskIndex:0,fields:['label']}]},{group:'another objective',proven:true,evidence:[{taskIndex:0,fields:['detail']}]}]);
+ assert.equal(foreign.status,'complete','only this objective determines its cited fields');
+ const asserted=assess([{group:'entries',proven:true,evidence:[{taskIndex:0,fields:['detail']}]}]);
+ assert.equal(asserted.status,'partial');
+ assert.ok(asserted.missing.some(message=>message.includes('Campos sin expandir')),'a claimed proof still requires actual expanded values');
+});
+
 test('record coverage preserves literal user scope without importing advisory assistant context',async()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');

@@ -580,6 +580,7 @@ function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
     const missing=[];
     let pendingSources=[];
     const proof=objective.coverageProof;
+    const groups=contract?.groups || [contract?.requestQuote || objective.objective];
     if(!records.length) missing.push("Faltan registros operativos consultados para este objetivo.");
     for(const record of records.filter(unresolved))missing.push("La ruta consultada conserva un identificador de plantilla sin resolver: "+record.scope.collection+". Su cero sólo acredita esa ruta literal; resuelve el identificador con evidencia observada y dependencias autorizadas antes de acreditar la población solicitada.");
     for(const record of records.filter(record=>!unresolved(record) && !complete(record))) {
@@ -590,13 +591,14 @@ function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
         // Coverage belongs to this objective's cited fields, not every projected
         // column. A separately read child value does not inherit its parent's
         // placeholder; absent/null cited values are still rejected below.
-        const citedFields=new Set((proof?.groups||[]).flatMap(group=>(group.evidence||[])
+        // Failed hypotheses and citations belonging to other groups cannot
+        // introduce new expansion requirements into this immutable objective.
+        const citedFields=new Set((proof?.groups||[]).filter(group=>group.proven===true && groups.includes(group.group)).flatMap(group=>(group.evidence||[])
             .filter(citation=>citation.taskIndex===record.taskIndex).flatMap(citation=>citation.fields||[])));
         const fields=[...new Set(record.truncatedFields.map(item=>item.field).filter(field=>citedFields.has(field)))];
         if(!fields.length)continue;
         missing.push("Campos sin expandir o truncados en "+record.scope?.collection+": "+fields.join(", ")+". Aumentar pageSize no los resuelve: consulta sus campos hijos acreditados por la fuente o lee la definición que falta; no inventes campos ni interpretes notExpanded como un valor operativo.");
     }
-    const groups=contract?.groups || [contract?.requestQuote || objective.objective];
     for(const group of groups) {
         const covered=proof?.groups?.find(item=>item.group===group);
         const citations=covered?.evidence || [];
