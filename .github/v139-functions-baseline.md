@@ -1,6 +1,19 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `385c2f5ebef4820eebf7df83fc9dcbf803117562`, the reviewed authenticated field-constraint continuity release.
+Current baseline: `78a57fc88c25c5d8e190ae48fe3cfbc55037f265`, the reviewed exhausted-page scope reuse release.
+The only additional Functions change recognizes authenticated, complete empty
+cursor pages as already read when source, collection, filters, ordering and cursor
+match exactly. Projection changes cannot populate that page. A requested count
+must already be known; different scopes, nonempty/incomplete pages, inconsistent
+counts and invalid receipts remain unread work. No cursor is removed and an empty
+page never proves absence in the whole collection. General regressions cover these
+boundaries and immutable inputs. All 280 focused checks and 1,946 local full-suite
+checks passed with zero failures. CI and the full Chrome mission remain required.
+The guard remains pinned and fail-closed; this review authorizes no external AI.
+
+## Previous field-constraint continuity baseline
+
+Previous baseline: `385c2f5ebef4820eebf7df83fc9dcbf803117562`, the reviewed authenticated field-constraint continuity release.
 The only additional Functions change retains projection and ordering constraints
 from authenticated same-collection field names after a rejected task is retired.
 Positive scoped code declarations remain usable. Cold unrelated collections and
