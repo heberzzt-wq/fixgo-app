@@ -1776,7 +1776,7 @@ function observedRecordFieldPaths(tasks, collection) {
 function bindRejectedRecordFields(catalog, tasks, failedTasks) {
     return catalog.map(tool=>{
         if(tool.name!=="platform.query")return tool;
-        const failures=(failedTasks||[]).filter(task=>task.name===tool.name && task.observation?.errorDetails?.undiscoveredFields?.length && task.observation.errorDetails.discoveredFieldPaths?.length);
+        const failures=(failedTasks||[]).filter(task=>task.name===tool.name && task.observation?.errorDetails?.undiscoveredFields?.length && Array.isArray(task.observation.errorDetails.discoveredFieldPaths));
         if(!failures.length)return tool;
         const schema=buildNativeInputSchema(tool.inputSchema);
         const branches=Array.isArray(schema.anyOf)?schema.anyOf:[schema];
@@ -1786,21 +1786,24 @@ function bindRejectedRecordFields(catalog, tasks, failedTasks) {
             return files.flatMap(file=>collections.map(collection=>{
                 const failuresForScope=failures.filter(task=>task.args?.sourceFile===file && task.args?.collection===collection);
                 if(!failuresForScope.length)return {...branch,properties:{...branch.properties,sourceFile:{...branch.properties.sourceFile,enum:[file]},collection:{...branch.properties.collection,enum:[collection]}}};
-                const fields=new Set([...observedRecordFieldPaths(tasks,collection),...failuresForScope.flatMap(task=>task.observation.errorDetails.discoveredFieldPaths)]);
+                // A failed projection must retain an authorized ID-only schema
+                // discovery path even when no stored field has been credited.
+                const fields=new Set(['__name__',...observedRecordFieldPaths(tasks,collection),...failuresForScope.flatMap(task=>task.observation.errorDetails.discoveredFieldPaths)]);
                 for(const task of tasks){
                     const read=task.observation?.verifiedRead;
                     if(task.observation?.ok!==true||task.observation.executionOk===false||task.observation.blocked===true||task.observation.requiresInput===true||!read)continue;
                     const bindings=read.sourceStructure?.dataBindings;
                     if(read.file!==file&&!bindings?.collections?.includes(collection))continue;
-                    for(const field of bindings?.fieldPaths||[])fields.add(field);
-                    for(const shape of bindings?.writeShapes||[])if(shape.collection===collection)for(const field of shape.fields||[])fields.add(field);
+                    for(const shape of [...(bindings?.writeShapes||[]),...(bindings?.queryShapes||[])])if(shape.collection===collection)for(const field of shape.fields||[])fields.add(field);
                 }
                 // A later source may accredit a formerly rejected name. Keep only
                 // positive current evidence, never an invented alias or intent rule.
                 const available=[...fields].filter(field=>typeof field==="string" && field.trim());
                 if(!available.length)return branch;
                 const property=branch.properties.fields;
-                return {...branch,properties:{...branch.properties,sourceFile:{...branch.properties.sourceFile,enum:[file]},collection:{...branch.properties.collection,enum:[collection]},fields:{...property,items:{...property.items,enum:available}}}};
+                const order=branch.properties.orderBy;
+                const scopedOrder=order?.items?.properties?.field ? {orderBy:{...order,items:{...order.items,properties:{...order.items.properties,field:{...order.items.properties.field,enum:available}}}}} : {};
+                return {...branch,properties:{...branch.properties,sourceFile:{...branch.properties.sourceFile,enum:[file]},collection:{...branch.properties.collection,enum:[collection]},fields:{...property,items:{...property.items,enum:available}},...scopedOrder}};
             }));
         });
         return {...tool,inputSchema:bound.length===1?bound[0]:{anyOf:bound}};

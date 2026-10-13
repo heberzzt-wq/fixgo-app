@@ -4341,10 +4341,24 @@ test('field rejection constrains recovery to observed fields without changing ot
  const failures=[{name:query.name,args:{sourceFile:'source.js',collection:'registry'},observation:{errorDetails:{undiscoveredFields:['guessed'],discoveredFieldPaths:['details.owner']}}}];
  const reads=[{observation:{ok:true,verifiedRead:{file:'source.js',sourceStructure:{dataBindings:{collections:['registry','events'],fieldPaths:['details.owner','details.expiresAt'],writeShapes:[{collection:'registry',fields:['label']},{collection:'events',fields:['unrelated']}]}}}}}];
  const output=JSON.parse(JSON.stringify(bind([query],reads,failures)[0].inputSchema.anyOf));
- assert.deepEqual(output.find(x=>x.properties.collection.enum[0]==='registry').properties.fields.items.enum,['details.owner','details.expiresAt','label']);assert.equal(output.find(x=>x.properties.collection.enum[0]==='events').properties.fields.items.enum,undefined);
+ assert.deepEqual(output.find(x=>x.properties.collection.enum[0]==='registry').properties.fields.items.enum,['__name__','details.owner','label']);assert.equal(output.find(x=>x.properties.collection.enum[0]==='events').properties.fields.items.enum,undefined);
  const unchanged=bind([{...query,inputSchema:{...query.inputSchema,properties:{...query.inputSchema.properties,fields:{type:'array',maxItems:0}}}}],reads,failures);assert.equal(unchanged[0].inputSchema.properties.fields.maxItems,0);
  assert.deepEqual(bind([query],reads,[{name:query.name,observation:{errorCode:'PERMISSION_DENIED'}}]),[query]);
  reads[0].observation.verifiedRead.sourceStructure.dataBindings.writeShapes[0].fields.push('guessed');assert.ok(bind([query],reads,failures)[0].inputSchema.anyOf[0].properties.fields.items.enum.includes('guessed'),'a later positive source may accredit a formerly rejected field');
+});
+
+test('empty field credit retains ID discovery and excludes sibling fields from recovery ordering',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='bindRejectedRecordFields');
+ const bind=runInNewContext('('+source.slice(node.start,node.end)+')',{buildNativeInputSchema:x=>x,observedRecordFieldPaths:createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').observedRecordFieldPaths});
+ const query={name:'platform.query',inputSchema:{type:'object',properties:{sourceFile:{type:'string',enum:['schema.js']},collection:{type:'string',enum:['entries']},fields:{type:'array',items:{type:'string'}},orderBy:{type:'array',items:{type:'object',properties:{field:{type:'string'},direction:{type:'string',enum:['asc','desc']}}}}}}};
+ const reads=[{observation:{ok:true,verifiedRead:{file:'schema.js',sourceStructure:{dataBindings:{collections:['entries','others'],fieldPaths:['guessed','details.owner'],writeShapes:[{collection:'others',fields:['details.owner']}],queryShapes:[{collection:'others',fields:['guessed']}]}}}}}];
+ const failures=[{name:query.name,args:{sourceFile:'schema.js',collection:'entries'},observation:{errorDetails:{undiscoveredFields:['guessed'],discoveredFieldPaths:[]}}}];
+ const schema=JSON.parse(JSON.stringify(bind([query],reads,failures)[0].inputSchema));
+ assert.deepEqual(schema.properties.fields.items.enum,['__name__']);
+ assert.deepEqual(schema.properties.orderBy.items.properties.field.enum,['__name__']);
+ assert.equal(schema.properties.orderBy.maxItems,undefined);
+ assert.equal(schema.properties.filters,undefined);
 });
 
 test('field recovery accepts authenticated observed names without granting values, foreign routes or failed observations',()=>{
@@ -4357,7 +4371,7 @@ test('field recovery accepts authenticated observed names without granting value
  const record={name:query.name,observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',mode:'query'},rows:[{id:'first',values:{'internal.ok':null}}],hasMore:true,completeForQuery:false,
   fieldSchema:{source:'SERVER_RECORD_FIELD_NAMES',collection:'registry',scope:'returned_rows_only',sampledRows:1,paths:['category','allocation.holder'],completeForObservedRows:true}}}};
  const output=JSON.parse(JSON.stringify(bind([query],[record],[failure])))[0].inputSchema.anyOf;
- assert.deepEqual(output[0].properties.fields.items.enum,['category','allocation.holder','internal.ok']);
+ assert.deepEqual(output[0].properties.fields.items.enum,['__name__','category','allocation.holder','internal.ok']);
  assert.equal(output[1].properties.fields.items.enum,undefined);
  for(const variant of ['failed','foreign','wrong_source','count','wrong_sample','invalid_key']){
   const changed=structuredClone(record);
