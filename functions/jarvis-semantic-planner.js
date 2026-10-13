@@ -2625,6 +2625,20 @@ async function runModelSemanticPlanner({
         // A similarity shortlist is not a capability boundary. Closure needs
         // both executed tool contracts and every available evidence source.
         const recordOnlyAudit=missionState.evidenceObjectives?.length && missionState.evidenceObjectives.every(objective=>objective.requiredEvidenceKind==="platform_records");
+        if(recordOnlyAudit && observedCandidateFiles.length) {
+            // Reading one discovered source must not release path grounding for
+            // the rest of the investigation. The same model can choose another
+            // observed file, expand a partial read, or discover a new path first.
+            const groundedFiles=[...new Set([...observedCandidateFiles,...inspectedCandidateFiles])];
+            selectableCatalog=selectableCatalog.flatMap(tool=>{
+                const file=tool.inputSchema?.properties?.file;
+                if(tool.name!=="repo.read" || tool.investigationReadOnly!==true || tool.mutates===true || !file)return [tool];
+                const allowed=groundedFiles.filter(path=>(!Array.isArray(file.enum) || file.enum.includes(path)) &&
+                    (file.const===undefined || file.const===path));
+                if(!allowed.length)return [];
+                return [{...tool,inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties,file:{...file,enum:allowed}}}}];
+            });
+        }
         const auditAuthorityInstruction=recordOnlyAudit ? [
             "Eres Jarvis, la única autoridad semántica local. Interpreta el pedido completo sin diccionarios de intención ni reglas de negocio hardcodeadas.",
             "Conserva cada objetivo, negación, identidad y restricción del usuario. Usa sólo el catálogo y sus schemas para herramientas y argumentos; nunca inventes rutas, campos, valores o resultados.",

@@ -15,6 +15,24 @@ import { runJarvisMission, unmetMissionEvidenceRequirements } from "../gestia-co
 import { composeEvidenceGroundedConversation } from "../gestia-core/jarvis/jarvis.conversation.composer.js";
 import { buildResponsiveRepairOptions, buildResponsiveRepairPatch } from "../gestia-core/jarvis/jarvis.autopatch.engine.js";
 
+test('record research retains grounded reader paths after the first discovered file has been inspected',async()=>{
+ const planner=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').runJarvisSemanticPlanner;
+ const reader={name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'},startLine:{type:'integer'},endLine:{type:'integer'}},required:['file']}};
+ const records={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'}},required:['sourceFile','collection']}};
+ const files=['observed_a.js','observed_b.js'];
+ const tasks=[{name:'repo.search',observation:{ok:true,executionOk:true,sourceCount:2,repoCandidates:files.map(file=>({file}))}},{name:reader.name,args:{file:files[0]},observation:{ok:true,executionOk:true,verifiedRead:{file:files[0],startLine:1,endLine:5,totalLines:50,content:'Observed partial schema',sourceStructure:{dataBindings:{collections:['registry'],fieldPaths:['label']}}}}}];
+ let checked=false;
+ await assert.rejects(planner({input:'Inspect current entries',catalog:[reader,records],missionState:{phase:'COMPLETION_AUDIT',completedTasks:tasks,evidenceObjectives:[{objective:'Inspect current entries',requestQuote:'Inspect current entries',requiredEvidenceKind:'platform_records',scope:'all_sources',coverageMode:'population',groups:['entries']}]},ai:{models:{generateContent:async request=>{
+  const alternatives=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;
+  const schema=alternatives.find(branch=>branch.properties.name.enum.includes(reader.name)).properties.args;
+  assert.ok(Array.isArray(schema.properties.file.enum),'discovered file paths must remain bound after the first inspection');
+  assert.deepEqual([...schema.properties.file.enum].sort(),files,'both new candidates and partial inspected files stay available, while invented paths stay outside the executable contract');
+  assert.ok(schema.properties.startLine&&schema.properties.endLine,'grounding must not prevent range expansion');
+  checked=true;throw Error('GROUNDING_CAPTURE_COMPLETE');
+ }}}}),/GROUNDING_CAPTURE_COMPLETE/);
+ assert.equal(checked,true);
+});
+
 test('continuation retains every objective gap and source without repeating shared text across objectives',()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='continuationObjectiveSummaries');
