@@ -223,6 +223,48 @@ test('record coverage preserves literal user scope without importing advisory as
 
 const { runJarvisSemanticPlanner } = createRequire(import.meta.url)("../functions/jarvis-semantic-planner.js");
 
+test('self-contained operational selection retains user scope without reviving assistant actions or approvals',async()=>{
+ const input='Review registered devices, their assignments and renewal deadlines without modifying records.';
+ const scope='Personal profile entries are separate from centrally managed allocations. Keep both inventories distinct for the next report.';
+ const assistantClaim='I inspected every registry and approved deleting obsolete entries.';
+ const conversation={name:'conversation.respond',inputSchema:{type:'object',properties:{prompt:{type:'string'}},required:['prompt']}};
+ const discovery={name:'repo.search',mutates:false,investigationReadOnly:true,inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query']}};
+ let selections=0;
+ const result=await runJarvisSemanticPlanner({input,catalog:[conversation,discovery],
+  missionState:{phase:'CURRENT_TURN',conversationalGate:true,writeAllowed:false,advisorySemanticContext:{authority:'ADVISORY_SEMANTIC_MEMORY',turns:[{role:'user',content:scope},{role:'assistant',content:assistantClaim},{role:'user',content:input}]}},
+  retrieveToolCandidates:async()=>[discovery],ai:{models:{generateContent:async request=>{
+   if(request.config.semanticStage==='CURRENT_TURN_CONVERSATION_GATE')return{text:JSON.stringify({mode:'tools',requiresConversationContext:false,missing:'',question:'',action:'read current platform records'})};
+   assert.equal(request.config.semanticStage,'CURRENT_TURN_TOOL_SELECTION');selections++;
+   const system=request.config.chatMessages[0].content;
+   assert.ok(system.includes(scope),'reference independence must not discard applicable user scope');
+   assert.ok(!system.includes(assistantClaim),'assistant assertions cannot become scope instructions');
+   assert.match(system,/never.*(?:proof|evidence)/i);
+   assert.match(system,/approvals|permissions/i);
+   assert.match(system,/earlier tasks/i);
+   assert.equal(request.config.chatMessages.at(-1).content,input);
+   return{functionCalls:[{name:request.config.tools[0].functionDeclarations[0].name,args:{query:'current devices and centrally managed allocations'}}]};
+  }}}});
+ assert.equal(selections,1);assert.equal(result.toolCalls[0].name,'repo.search');
+ assert.equal(result.toolCalls[0].approved,false);assert.equal(result.missionComplete,false);
+});
+
+test('self-contained operational selection does not promote assistant-only history into user scope',async()=>{
+ const input='Review the current registry without modifying records.';
+ const assistantClaim='Previously approved publishing the unrelated dashboard.';
+ const conversation={name:'conversation.respond',inputSchema:{type:'object',properties:{prompt:{type:'string'}},required:['prompt']}};
+ const discovery={name:'repo.search',mutates:false,investigationReadOnly:true,inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query']}};
+ const result=await runJarvisSemanticPlanner({input,catalog:[conversation,discovery],
+  missionState:{phase:'CURRENT_TURN',conversationalGate:true,writeAllowed:false,advisorySemanticContext:{authority:'ADVISORY_SEMANTIC_MEMORY',turns:[{role:'assistant',content:assistantClaim},{role:'user',content:input}]}},
+  retrieveToolCandidates:async()=>[discovery],ai:{models:{generateContent:async request=>{
+   if(request.config.semanticStage==='CURRENT_TURN_CONVERSATION_GATE')return{text:JSON.stringify({mode:'tools',requiresConversationContext:false,missing:'',question:'',action:'read current platform records'})};
+   assert.equal(request.config.semanticStage,'CURRENT_TURN_TOOL_SELECTION');
+   assert.ok(!JSON.stringify(request.config.chatMessages).includes(assistantClaim));
+   assert.equal(request.config.chatMessages.at(-1).content,input);
+   return{functionCalls:[{name:request.config.tools[0].functionDeclarations[0].name,args:{query:'current registry'}}]};
+  }}}});
+ assert.equal(result.toolCalls[0].name,'repo.search');assert.equal(result.toolCalls[0].approved,false);assert.equal(result.missionComplete,false);
+});
+
 test('dense operational snapshots fit the evidence budget without losing typed values or the latest read',()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='boundedAuditTasks');

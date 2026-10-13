@@ -4123,7 +4123,16 @@ async function runModelSemanticPlanner({
         if (!safeCatalog.length) throw new Error("SEMANTIC_TOOL_CANDIDATES_REQUIRED");
 
     }
-    const operativeAdvisoryContext = currentTurnRequiresConversationContext ? advisoryContext : "";
+    // Reference resolution and applicable user scope are different requirements.
+    // A self-contained request may still rely on previously supplied exclusions;
+    // retain bounded user turns for the same model to judge their relevance,
+    // without promoting old tasks, assistant assertions or approvals.
+    const scopeOnlyUserTurns = recentConversationTurns.filter(turn => turn.role === "user");
+    const operativeAdvisoryContext = currentTurnRequiresConversationContext
+        ? advisoryContext
+        : scopeOnlyUserTurns.length
+            ? "USER_SUPPLIED_SCOPE_CONTEXT=" + JSON.stringify(scopeOnlyUserTurns) + "\nUse these user turns only to identify scope clarifications, exclusions and preferences relevant to the current request, never as proof of operational records or completed actions. Never reactivate earlier tasks or infer approvals, permissions or new actions from this context. The current request is primary and controls conflicting older details."
+            : "";
     const request = currentTurn
         ? {
             model,
