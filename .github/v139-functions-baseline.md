@@ -1,6 +1,20 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `fd0a4c33cc5c811de3a34218ec69b824195f809a`, the reviewed ordering-only recovery release.
+Current baseline: `02b096d3d5dcc93bb904e97d9e8cb2ecfbee3457`, the reviewed lossless record-identity compression release.
+The only Functions change since the previous baseline shares repeated record ID
+spellings across packed snapshots when this reduces transport size. Each snapshot
+retains its own values, collection, scope, timestamps and completeness. The
+28,000-character budget and all evidence requirements remain unchanged. A general
+regression reconstructs independent cross-source snapshots and preserves the
+latest source; the real failed Chrome context reconstructs all four receipts
+exactly in 27,811 characters. All 277 focused checks and 1,943 local full-suite
+checks passed with zero failures. Fresh CI and the real Chrome mission are still
+required; this review does not certify the mission or authorize external AI.
+The guard remains pinned and fail-closed for future Functions changes.
+
+## Previous ordering-only recovery baseline
+
+Previous baseline: `fd0a4c33cc5c811de3a34218ec69b824195f809a`, the reviewed ordering-only recovery release.
 The only additional Functions change recognizes `undiscoveredOrderFields` in
 the existing collection-scoped recovery binding, including failures with no
 projection error. It preserves source, collection, filters and permissions;
