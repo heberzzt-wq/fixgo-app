@@ -1248,6 +1248,9 @@ function safeObservation(result = {}) {
                         score:
                             Number(candidate?.score) ||
                             0,
+                        ...(Array.isArray(candidate?.controls) ? {controls:candidate.controls
+                            .filter(value=>typeof value==="string" && value.trim()).slice(0,8)
+                            .map(value=>text(value,100))} : {}),
                         reasons:
                             Array.isArray(candidate?.reasons)
                                 ? candidate.reasons

@@ -264,7 +264,11 @@ export function compactMissionPlannerObservation(observation = {}) {
         retryable: source.retryable === true,
         sourceCount,
         ...(verifiedRead ? { verifiedRead } : {}),
-        ...(source.ok === true && source.executionOk !== false && source.blocked !== true && Array.isArray(source.repoCandidates || evidence.candidates) ? { repoCandidates: (source.repoCandidates || evidence.candidates).slice(0, 12).map(item => ({file: text(item.file || item.path, 500), reasons: Array.isArray(item.reasons) ? item.reasons.slice(0, 4).map(reason => text(reason, 180)) : []})).filter(item => item.file) } : {}),
+        ...(source.ok === true && source.executionOk !== false && source.blocked !== true && Array.isArray(source.repoCandidates || evidence.candidates) ? { repoCandidates: (source.repoCandidates || evidence.candidates).slice(0, 12).map(item => ({file: text(item.file || item.path, 500),
+            // Observed function names guide the same model's source selection;
+            // they are discovery hints, never read schemas or operational values.
+            ...(Array.isArray(item.controls) ? {controls:item.controls.filter(value=>typeof value==="string" && value.trim()).slice(0,8).map(value=>text(value,100))} : {}),
+            reasons: Array.isArray(item.reasons) ? item.reasons.slice(0, 4).map(reason => text(reason, 180)) : []})).filter(item => item.file) } : {}),
         ...(source.ok === true && source.executionOk !== false && source.blocked !== true && Array.isArray(source.repositoryMatches || source.matches || evidence.matches) ? { repositoryMatches: compactRepositoryMatches(source.repositoryMatches || source.matches || evidence.matches) } : {}),
         ...(source.ok === true && source.executionOk !== false && source.blocked !== true && source.inventoryEvidence?.source === "LIVE_REPOSITORY_INVENTORY" ? { inventoryEvidence: source.inventoryEvidence } : {}),
         ...(source.ok === true && source.executionOk !== false && source.blocked !== true && (source.recordEvidence || evidence.recordEvidence)?.source === "FIRESTORE_SERVER_AUTHENTICATED" ? { recordEvidence: source.recordEvidence || evidence.recordEvidence } : {}),

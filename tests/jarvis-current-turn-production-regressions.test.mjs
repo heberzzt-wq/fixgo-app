@@ -2205,6 +2205,19 @@ test('missing evidence continues with the same local model and actual read capab
 });
 
 
+test('observed source controls survive both discovery compaction boundaries without becoming record evidence',async()=>{
+ const {__test}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
+ const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
+ const controls=['listEntries','loadOwners',...Array.from({length:14},(_,i)=>'observedControl'+i)];
+ const candidate={file:'observed-source.js',controls,reasons:['Observed structural source'],score:12};
+ const observed=__test.safeObservation({ok:true,status:'SUCCESS',candidates:[candidate]});
+ assert.deepEqual(observed.repoCandidates[0].controls,controls.slice(0,8));
+ const compact=compactMissionPlannerObservation(observed);
+ assert.deepEqual(compact.repoCandidates[0].controls,controls.slice(0,8));assert.equal(compact.repoCandidates[0].file,candidate.file);
+ assert.equal(compact.recordEvidence,undefined);assert.equal(compact.verifiedRead,undefined);
+ const untrusted=compactMissionPlannerObservation({...observed,ok:false,executionOk:false});assert.equal(untrusted.repoCandidates,undefined);
+});
+
 test('source discovery paths survive planner compaction and evidence-bound arguments cannot invent a source file',async()=>{
  const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
  const observation=compactMissionPlannerObservation({ok:true,executionOk:true,repoCandidates:[{file:'actual-source.js',reasons:['Symbol and collection observed']}]});
