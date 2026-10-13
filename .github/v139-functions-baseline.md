@@ -1,6 +1,21 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `02b096d3d5dcc93bb904e97d9e8cb2ecfbee3457`, the reviewed lossless record-identity compression release.
+Current baseline: `5bdf34c41152c79785ae7729c875e88c07c67842`, the reviewed lossless field-prefix transport release.
+The only additional Functions change stores a prefix table without redundant JSON
+array punctuation when this reduces its size. A literal delimiter preserves the
+existing array representation; colons in field names remain exact. No field,
+source association, record, scope, timestamp or objective requirement is removed.
+The 28,000-character ceiling remains unchanged. General regressions reconstruct
+colon and delimiter names, source associations, latest reading and pending goals;
+all four receipts from the real failed context reconstruct exactly in 27,633
+characters. All 278 focused checks and 1,944 local full-suite checks passed with
+zero failures. CI and the complete Chrome mission remain separately required.
+This reviewed baseline does not authorize any external AI or certify the mission.
+The guard remains pinned and fail-closed for future Functions changes.
+
+## Previous record-identity compression baseline
+
+Previous baseline: `02b096d3d5dcc93bb904e97d9e8cb2ecfbee3457`, the reviewed lossless record-identity compression release.
 The only Functions change since the previous baseline shares repeated record ID
 spellings across packed snapshots when this reduces transport size. Each snapshot
 retains its own values, collection, scope, timestamps and completeness. The
