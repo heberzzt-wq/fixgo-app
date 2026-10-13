@@ -436,6 +436,20 @@ function evidenceRequirementSuccessors(kind, catalog = []) {
 function recordProjectionAlreadyObserved(call, tasks) {
     const canonical=value=>Array.isArray(value)?value.map(canonical):value && typeof value==="object"
         ?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;
+    if(call.args?.mode==='query' && call.args.cursor && call.args.fields?.length){
+        // Changing projection cannot populate an authenticated exhausted page.
+        // Its cursor remains part of the scope; this proves no global absence.
+        const pageScope=args=>JSON.stringify(canonical({sourceFile:args?.sourceFile,collection:args?.collection,
+            mode:args?.mode,filters:args?.filters||[],orderBy:args?.orderBy||[],cursor:args?.cursor}));
+        return tasks.some(task=>{const record=task.observation?.recordEvidence;
+            return task.name===call.name && task.observation?.ok===true && task.observation.executionOk!==false &&
+                record?.source==='FIRESTORE_SERVER_AUTHENTICATED' && record.readOnly===true &&
+                record.completeForQuery===true && record.queryExhausted===true && record.hasMore===false &&
+                record.consistentCountAndList!==false && Array.isArray(record.rows) && record.rows.length===0 &&
+                pageScope(task.args)===pageScope(call.args) && pageScope(record.scope)===pageScope(call.args) &&
+                (call.args.includeCount!==true || Number.isInteger(record.totalCount)&&record.totalCount>=0);
+        });
+    }
     if(call.args?.mode==="count") return tasks.some(task=>{
         const record=task.observation?.recordEvidence;
         return task.name===call.name && task.observation?.ok===true && task.observation.executionOk!==false &&
