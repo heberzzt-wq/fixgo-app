@@ -4361,6 +4361,23 @@ test('empty field credit retains ID discovery and excludes sibling fields from r
  assert.equal(schema.properties.filters,undefined);
 });
 
+test('an ordering-only rejection restricts recovery to credited fields and preserves the query scope',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='bindRejectedRecordFields');
+ const bind=runInNewContext('('+source.slice(node.start,node.end)+')',{buildNativeInputSchema:x=>x,observedRecordFieldPaths:createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').observedRecordFieldPaths});
+ const filters={type:'array',items:{type:'object',properties:{field:{type:'string'},value:{type:'string'}}}};
+ const query={name:'platform.query',inputSchema:{type:'object',properties:{sourceFile:{type:'string',enum:['schema.js']},collection:{type:'string',enum:['entries','others']},fields:{type:'array',items:{type:'string'}},filters,orderBy:{type:'array',items:{type:'object',properties:{field:{type:'string'},direction:{type:'string',enum:['asc','desc']}}}}}}};
+ const failure={name:query.name,args:{sourceFile:'schema.js',collection:'entries'},observation:{errorDetails:{undiscoveredOrderFields:['invented'],discoveredFieldPaths:['allocation.holder','observedAt']}}};
+ const recovered=JSON.parse(JSON.stringify(bind([query],[],[failure])[0].inputSchema));
+ assert.ok(recovered.anyOf,'ordering-only failures must bind recovery separately for each observed scope');
+ const output=recovered.anyOf;
+ assert.deepEqual(output[0].properties.orderBy.items.properties.field.enum,['__name__','allocation.holder','observedAt']);
+ assert.deepEqual(output[0].properties.fields.items.enum,['__name__','allocation.holder','observedAt']);
+ assert.deepEqual(output[0].properties.filters,filters);
+ assert.equal(output[1].properties.orderBy.items.properties.field.enum,undefined);
+ assert.deepEqual(output[0].properties.collection.enum,['entries']);
+});
+
 test('field recovery accepts authenticated observed names without granting values, foreign routes or failed observations',()=>{
  const {observedRecordFieldPaths,qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');

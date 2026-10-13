@@ -1776,7 +1776,9 @@ function observedRecordFieldPaths(tasks, collection) {
 function bindRejectedRecordFields(catalog, tasks, failedTasks) {
     return catalog.map(tool=>{
         if(tool.name!=="platform.query")return tool;
-        const failures=(failedTasks||[]).filter(task=>task.name===tool.name && task.observation?.errorDetails?.undiscoveredFields?.length && Array.isArray(task.observation.errorDetails.discoveredFieldPaths));
+        const failures=(failedTasks||[]).filter(task=>task.name===tool.name &&
+            (task.observation?.errorDetails?.undiscoveredFields?.length || task.observation?.errorDetails?.undiscoveredOrderFields?.length) &&
+            Array.isArray(task.observation.errorDetails.discoveredFieldPaths));
         if(!failures.length)return tool;
         const schema=buildNativeInputSchema(tool.inputSchema);
         const branches=Array.isArray(schema.anyOf)?schema.anyOf:[schema];
