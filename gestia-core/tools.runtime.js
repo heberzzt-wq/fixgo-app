@@ -897,6 +897,8 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
         scope = { collection: collectionPath, filters, fields, mode, sourceFile: args.sourceFile };
         const orders = args.orderBy || [];
         if (!Array.isArray(orders) || orders.length > 3 || orders.some(item => !validField(item.field) || !["asc", "desc"].includes(item.direction || "asc"))) throw new Error("PLATFORM_QUERY_ORDER_INVALID");
+        if (new Set(orders.map(item=>item.field)).size!==orders.length ||
+            orders.some((item,index)=>item.field==='__name__' && index!==orders.length-1)) throw new Error("PLATFORM_QUERY_ORDER_INVALID");
         const undiscoveredOrderFields=mode==='query' ? orders.filter(item=>!sourceHasField(item.field)).map(item=>item.field) : [];
         if(undiscoveredOrderFields.length) failQuery('PLATFORM_QUERY_ORDER_FIELD_NOT_DISCOVERED',{
             collection:collectionPath,sourceFile:args.sourceFile,groundingFiles,undiscoveredOrderFields,
@@ -904,7 +906,8 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
         });
         // Firestore ordering filters out records lacking the ordered field.
         // Preserve the actual page scope separately from the base count query.
-        scope.orderBy = mode === "query" ? [...orders.map(item=>({field:item.field,direction:item.direction || "asc"})),{field:"__name__",direction:"asc"}] : [];
+        scope.orderBy = mode === "query" ? [...orders.map(item=>({field:item.field,direction:item.direction || "asc"})),
+            ...(orders.some(item=>item.field==='__name__') ? [] : [{field:"__name__",direction:"asc"}])] : [];
         scope.implicitExistenceFields = mode === "query" ? [...new Set(orders.map(item=>item.field).filter(field=>field!=="__name__"))] : [];
         if(mode === "query") Object.assign(scope,{pageSize,cursor:args.cursor || null});
         const app = dependencies || await import("../firebase.js");
@@ -925,8 +928,7 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
         const recordEvidence = { source: "FIRESTORE_SERVER_AUTHENTICATED", scope, readOnly: true,
             ...(totalCount !== undefined ? { totalCount, countObservedAt } : {}) };
         if (mode === "query") {
-            const pageConstraints = orders.map(item => sdk.orderBy(item.field, item.direction || "asc"));
-            pageConstraints.push(sdk.orderBy(sdk.documentId()));
+            const pageConstraints = scope.orderBy.map(item => sdk.orderBy(item.field==='__name__' ? sdk.documentId() : item.field, item.direction));
             if (args.cursor) {
                 const cursor = await sdk.getDocFromServer(sdk.doc(app.db, collectionPath, args.cursor)); sameUser();
                 if (!cursor.exists()) throw new Error("PLATFORM_QUERY_CURSOR_NOT_FOUND");

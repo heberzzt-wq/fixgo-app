@@ -2268,6 +2268,34 @@ function platformQueryTestFixture({signedIn=true,fail=null,fromCache=false,chang
     return{execute,args,context,calls,dependencies:{auth,db:{},sdk}};
 }
 
+test('explicit document ID ordering reaches Firestore exactly once and preserves direction and pagination',async()=>{
+ const f=platformQueryTestFixture({recordData:[{title:'First'},{title:'Second'},{title:'Third'}]});
+ f.dependencies.sdk.orderBy=(field,direction)=>({orderBy:field,direction});
+ const fetchRows=f.dependencies.sdk.getDocsFromServer;
+ f.dependencies.sdk.getDocsFromServer=async query=>{
+  const orders=query.constraints.filter(item=>item.orderBy);
+  assert.equal(orders.length,1,'the implicit ID tiebreaker must not duplicate an explicit ID order');
+  assert.equal(orders[0].orderBy,'__name__');
+  assert.equal(orders[0].direction,'desc');
+  return fetchRows(query);
+ };
+ const result=await f.execute({...f.args,fields:['__name__'],orderBy:[{field:'__name__',direction:'desc'}]},f.dependencies,f.context);
+ assert.equal(result.ok,true,JSON.stringify(result));
+ assert.deepEqual(Array.from(result.recordEvidence.scope.orderBy,item=>({...item})),[{field:'__name__',direction:'desc'}]);
+ assert.equal(result.recordEvidence.hasMore,true);
+ assert.equal(result.recordEvidence.totalCount,3);
+ assert.deepEqual(Array.from(result.recordEvidence.scope.implicitExistenceFields),[]);
+});
+
+test('duplicate order fields and fields after document ID fail before count or query reads',async()=>{
+ const f=platformQueryTestFixture();
+ for(const orderBy of [[{field:'rank'},{field:'rank'}],[{field:'__name__'},{field:'rank'}],[{field:'__name__'},{field:'__name__'}]]) {
+  const result=await f.execute({...f.args,orderBy},f.dependencies,f.context);
+  assert.equal(result.error?.code,'PLATFORM_QUERY_ORDER_INVALID',JSON.stringify(result));
+ }
+ assert.equal(f.calls.length,0);
+});
+
 test('ordered queries cannot certify a whole filtered population when field existence excludes rows',async()=>{
  const f=platformQueryTestFixture({recordData:[{title:'First',rank:1},{title:'Second'}]});
  f.context.completedTasks[0].observation.verifiedRead.content+=' const rank = record.rank;';
