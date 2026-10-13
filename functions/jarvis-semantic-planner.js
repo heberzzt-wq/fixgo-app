@@ -1810,7 +1810,12 @@ function bindRejectedRecordFields(catalog, tasks, failedTasks) {
         const failures=(failedTasks||[]).filter(task=>task.name===tool.name &&
             (task.observation?.errorDetails?.undiscoveredFields?.length || task.observation?.errorDetails?.undiscoveredOrderFields?.length) &&
             Array.isArray(task.observation.errorDetails.discoveredFieldPaths));
-        if(!failures.length)return tool;
+        // Recovery does not erase authenticated name authority. Keep the same
+        // collection-scoped constraints after its rejected attempt is retired.
+        const observedScopes=new Map();
+        for(const task of tasks||[]){const collection=task.observation?.recordEvidence?.scope?.collection;
+            if(typeof collection==='string'&&!observedScopes.has(collection))observedScopes.set(collection,observedRecordFieldPaths(tasks,collection));}
+        if(!failures.length&&![...observedScopes.values()].some(fields=>fields.length))return tool;
         const schema=buildNativeInputSchema(tool.inputSchema);
         const branches=Array.isArray(schema.anyOf)?schema.anyOf:[schema];
         const bound=branches.flatMap(branch=>{
@@ -1818,10 +1823,11 @@ function bindRejectedRecordFields(catalog, tasks, failedTasks) {
             if(!files?.length||!collections?.length||!branch.properties?.fields||branch.properties.fields.maxItems===0)return [branch];
             return files.flatMap(file=>collections.map(collection=>{
                 const failuresForScope=failures.filter(task=>task.args?.sourceFile===file && task.args?.collection===collection);
-                if(!failuresForScope.length)return {...branch,properties:{...branch.properties,sourceFile:{...branch.properties.sourceFile,enum:[file]},collection:{...branch.properties.collection,enum:[collection]}}};
+                const observedFields=observedScopes.get(collection)||[];
+                if(!failuresForScope.length&&!observedFields.length)return {...branch,properties:{...branch.properties,sourceFile:{...branch.properties.sourceFile,enum:[file]},collection:{...branch.properties.collection,enum:[collection]}}};
                 // A failed projection must retain an authorized ID-only schema
                 // discovery path even when no stored field has been credited.
-                const fields=new Set(['__name__',...observedRecordFieldPaths(tasks,collection),...failuresForScope.flatMap(task=>task.observation.errorDetails.discoveredFieldPaths)]);
+                const fields=new Set(['__name__',...observedFields,...failuresForScope.flatMap(task=>task.observation.errorDetails.discoveredFieldPaths)]);
                 for(const task of tasks){
                     const read=task.observation?.verifiedRead;
                     if(task.observation?.ok!==true||task.observation.executionOk===false||task.observation.blocked===true||task.observation.requiresInput===true||!read)continue;
