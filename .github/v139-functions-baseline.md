@@ -1,18 +1,20 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `8fffda31dafe3b6206f21983e1aea5cea1293fec`, the locally verified user scope context release.
-This explicit advance corrects one contradictory context instruction: relevant
-user scope clarifications and exclusions now remain applicable during planning,
-instead of being labeled never usable as instructions. The current request
-controls conflicting older details. Conversation still cannot prove operational
-records or completed actions, grant new action/approval authority, or reactivate
-older tasks. Assistant history remains unverified reference rather than authority.
-The general continuation regression verifies these separate roles. No model,
-permission, data or external provider changes are admitted; Qwen remains the sole
-local semantic authority. Inventory path grounding and bounded conversation
-transport remain unchanged. This review does not certify the real Chrome mission.
-The baseline remains pinned, ancestor-checked and enforced against every future
-Functions change. One new general regression, 266 focal checks and 1,931 local
+Current baseline: `3b03937d4b352f7ddb0eb2df0d2abc9cfaaaa942`, the locally verified initial user scope context release.
+This explicit advance preserves bounded prior user scope at the first operational
+tool selection even when the new request requires no reference resolution.
+The same local model decides relevance; no keyword routing or domain dictionary
+is added. Assistant-only history is excluded from this scope-only context.
+Older tasks, approvals and alleged records remain non-authoritative, and the
+current request controls conflicting details. Reference resolution and the
+existing execution/record evidence validators remain unchanged.
+Two general regressions prove scope propagation and exclusion of assistant-only
+history. They do not contain case-specific domains, tenants or source paths.
+No model, permission, data or external provider changes are admitted; Qwen
+remains the sole local semantic authority. Inventory path grounding and bounded
+conversation transport remain unchanged. This review does not certify the real
+Chrome mission. The baseline remains pinned, ancestor-checked and enforced
+against every future Functions change. All 277 focal checks and 1,933 local
 full-suite checks passed with zero failures. The one Linux-only browser check
 and Firestore emulator checks require fresh CI verification before closure.
 
