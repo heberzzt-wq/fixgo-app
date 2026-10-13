@@ -899,6 +899,11 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
         scope = { collection: collectionPath, filters, fields, mode, sourceFile: args.sourceFile };
         const orders = args.orderBy || [];
         if (!Array.isArray(orders) || orders.length > 3 || orders.some(item => !validField(item.field) || !["asc", "desc"].includes(item.direction || "asc"))) throw new Error("PLATFORM_QUERY_ORDER_INVALID");
+        // Firestore ordering filters out records lacking the ordered field.
+        // Preserve the actual page scope separately from the base count query.
+        scope.orderBy = mode === "query" ? [...orders.map(item=>({field:item.field,direction:item.direction || "asc"})),{field:"__name__",direction:"asc"}] : [];
+        scope.implicitExistenceFields = mode === "query" ? [...new Set(orders.map(item=>item.field).filter(field=>field!=="__name__"))] : [];
+        if(mode === "query") Object.assign(scope,{pageSize,cursor:args.cursor || null});
         const app = dependencies || await import("../firebase.js");
         const sdk = dependencies?.sdk || await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
         const user = app.auth?.currentUser;
@@ -966,7 +971,8 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
                 previousCursor: args.cursor || null, rowsObservedAt: new Date().toISOString(),
                 ...(observedNames.size ? {fieldSchema:{source:"SERVER_RECORD_FIELD_NAMES",collection:collectionPath,scope:"returned_rows_only",
                     sampledRows:selected.length,paths:[...observedNames],completeForObservedRows:namesComplete}} : {}),
-                completeForQuery: !hasMore && !args.cursor && (totalCount === undefined || totalCount === rows.length), truncatedFields,
+                queryExhausted: !hasMore,
+                completeForQuery: !hasMore && !args.cursor && (totalCount === undefined ? scope.implicitExistenceFields.length===0 : totalCount === rows.length), truncatedFields,
                 consistentCountAndList: totalCount === undefined ? null : !args.cursor && !hasMore && totalCount === rows.length });
             if (JSON.stringify(recordEvidence).length > 100000) throw new Error("PLATFORM_QUERY_RESPONSE_TOO_LARGE_REDUCE_PAGE");
         }

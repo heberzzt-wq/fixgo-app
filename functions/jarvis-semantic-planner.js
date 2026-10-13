@@ -556,14 +556,23 @@ function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
         completeForQuery:record.completeForQuery}));
     const queryKey=record=>JSON.stringify({collection:record.scope?.collection,filters:record.scope?.filters || [],fields:record.scope?.fields || [],orderBy:record.scope?.orderBy || []});
     const unresolved=record=>String(record.scope?.collection || "").split("/").some(segment=>/^\{[^{}]+\}$/.test(segment));
+    const existenceFields=record=>[...new Set([...(record.scope?.implicitExistenceFields || []),
+        ...(record.scope?.orderBy || tasks[record.taskIndex]?.args?.orderBy || []).map(order=>order.field)]
+        .filter(field=>typeof field==="string" && field!=="__name__"))];
     const complete=record=>{
         if(unresolved(record))return false;
-        if(record.completeForQuery===true || (!Array.isArray(record.rows) && Number.isInteger(record.totalCount) && record.totalCount>=0)) return true;
+        const existenceFiltered=existenceFields(record).length>0;
+        if(!Array.isArray(record.rows) && Number.isInteger(record.totalCount) && record.totalCount>=0)return true;
+        if(record.completeForQuery===true && (!existenceFiltered || (Number.isInteger(record.totalCount) && record.totalCount===record.rows?.length)))return true;
         const pages=records.filter(item=>queryKey(item)===queryKey(record));
-        let page=pages.find(item=>!item.previousCursor), seen=new Set();
+        const counts=new Set(pages.filter(item=>Number.isInteger(item.totalCount)&&item.totalCount>=0).map(item=>item.totalCount));
+        let page=pages.find(item=>!item.previousCursor), seen=new Set(), ids=new Set();
         while(page && !seen.has(page.taskIndex)) {
             seen.add(page.taskIndex);
-            if(page.hasMore===false) return true;
+            for(const row of page.rows || [])if(typeof row.id==="string")ids.add(row.id);
+            // The last ordered page only exhausts records with the sort field.
+            // A base count must independently account for the entire population.
+            if(page.hasMore===false)return !existenceFiltered || (counts.size===1 && ids.size===[...counts][0]);
             page=pages.find(item=>item.previousCursor && item.previousCursor===page.nextCursor);
         }
         return false;
@@ -573,7 +582,10 @@ function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
     const proof=objective.coverageProof;
     if(!records.length) missing.push("Faltan registros operativos consultados para este objetivo.");
     for(const record of records.filter(unresolved))missing.push("La ruta consultada conserva un identificador de plantilla sin resolver: "+record.scope.collection+". Su cero sólo acredita esa ruta literal; resuelve el identificador con evidencia observada y dependencias autorizadas antes de acreditar la población solicitada.");
-    if(records.some(record=>!unresolved(record) && !complete(record))) missing.push("La consulta conserva páginas pendientes de leer; continúa desde el cursor observado.");
+    for(const record of records.filter(record=>!unresolved(record) && !complete(record))) {
+        const fields=existenceFields(record);
+        missing.push(fields.length ? "El ordenamiento de "+record.scope.collection+" exige campos presentes ("+fields.join(", ")+"). Agotar sus páginas no acredita registros sin esos campos; verifica el alcance con un conteo de la misma población sin ordenamiento o una lectura completa sin ese orden." : "La consulta conserva páginas pendientes de leer; continúa desde el cursor observado.");
+    }
     for(const record of records.filter(record=>record.truncatedFields?.length)) {
         // Coverage belongs to this objective's cited fields, not every projected
         // column. A separately read child value does not inherit its parent's

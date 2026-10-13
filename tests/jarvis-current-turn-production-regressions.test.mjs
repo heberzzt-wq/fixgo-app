@@ -2028,6 +2028,65 @@ function platformQueryTestFixture({signedIn=true,fail=null,fromCache=false,chang
     return{execute,args,context,calls,dependencies:{auth,db:{},sdk}};
 }
 
+test('ordered queries cannot certify a whole filtered population when field existence excludes rows',async()=>{
+ const f=platformQueryTestFixture({recordData:[{title:'First',rank:1},{title:'Second'}]});
+ f.context.completedTasks[0].observation.verifiedRead.content+=' const rank = record.rank;';
+ const fetchRows=f.dependencies.sdk.getDocsFromServer;
+ f.dependencies.sdk.getDocsFromServer=async q=>{
+  const result=await fetchRows(q);
+  const fields=q.constraints.filter(c=>c.orderBy && c.orderBy!=='__name__').map(c=>c.orderBy);
+  return {...result,docs:result.docs.filter(d=>fields.every(field=>d.get(field)!==undefined))};
+ };
+ const args={...f.args,pageSize:100,includeCount:false,orderBy:[{field:'rank',direction:'desc'}]};
+ const partial=await f.execute(args,f.dependencies,f.context);
+ assert.equal(partial.ok,true);
+ assert.equal(partial.recordEvidence.rows.length,1);
+ assert.equal(partial.recordEvidence.hasMore,false);
+ assert.equal(partial.recordEvidence.completeForQuery,false);
+ assert.equal(partial.recordEvidence.queryExhausted,true);
+ assert.deepEqual(Array.from(partial.recordEvidence.scope.orderBy,o=>({...o})),[{field:'rank',direction:'desc'},{field:'__name__',direction:'asc'}]);
+ assert.deepEqual(Array.from(partial.recordEvidence.scope.implicitExistenceFields),['rank']);
+ const {__test}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
+ const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
+ const compact=compactMissionPlannerObservation(__test.safeObservation(partial));
+ assert.equal(JSON.stringify(compact.recordEvidence.scope),JSON.stringify(partial.recordEvidence.scope));
+ assert.equal(compact.recordEvidence.queryExhausted,true);
+ const qualify=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').qualifyRecordObjectiveCoverage;
+ const objective={evidenceTaskIndexes:[0],coverageProof:{proven:true,missing:[],groups:[{group:'entries',proven:true,evidence:[{taskIndex:0,fields:['title']}]}],sources:[{collection:f.args.collection,relevant:true,reason:'Observed population',taskIndexes:[0]}]}};
+ const contract={requestQuote:'Inspect all entries',scope:'all_sources',coverageMode:'enumeration',groups:['entries']};
+ const assess=observation=>qualify(objective,contract,[{name:'platform.query',args,observation},f.context.completedTasks[0]]);
+ assert.equal(assess(partial).status,'partial','page exhaustion must not override the ordering coverage gap');
+ const counted=await f.execute({...args,includeCount:true},f.dependencies,f.context);
+ assert.equal(counted.recordEvidence.totalCount,2);
+ assert.equal(counted.recordEvidence.completeForQuery,false);
+ const full=await f.execute({...args,orderBy:[]},f.dependencies,f.context);
+ assert.equal(full.recordEvidence.rows.length,2);
+ assert.equal(full.recordEvidence.completeForQuery,true);
+ assert.equal(assess(full).status,'complete');
+ const count=await f.execute({...args,mode:'count',fields:[]},f.dependencies,f.context);
+ assert.equal(count.recordEvidence.totalCount,2);
+ assert.deepEqual(Array.from(count.recordEvidence.scope.orderBy),[]);
+ assert.deepEqual(Array.from(count.recordEvidence.scope.implicitExistenceFields),[]);
+});
+
+test('empty ordered results stay partial while document-id ordering and count-verified populations remain complete',async()=>{
+ const f=platformQueryTestFixture({recordData:[{title:'First'},{title:'Second'}]});
+ const getRows=f.dependencies.sdk.getDocsFromServer;
+ f.dependencies.sdk.getDocsFromServer=async q=>{const result=await getRows(q);return {...result,docs:q.constraints.some(c=>c.orderBy==='rank')?[]:result.docs};};
+ const args={...f.args,pageSize:100,includeCount:false,orderBy:[{field:'rank'}]};
+ const empty=await f.execute(args,f.dependencies,f.context);
+ assert.equal(empty.recordEvidence.returnedCount,0);
+ assert.equal(empty.recordEvidence.hasMore,false);
+ assert.equal(empty.recordEvidence.completeForQuery,false);
+ const ids=await f.execute({...args,orderBy:[{field:'__name__',direction:'desc'}]},f.dependencies,f.context);
+ assert.equal(ids.recordEvidence.completeForQuery,true);
+ assert.deepEqual(Array.from(ids.recordEvidence.scope.implicitExistenceFields),[]);
+ const full=platformQueryTestFixture({recordData:[{title:'First',rank:1},{title:'Second',rank:2}]});
+ const complete=await full.execute({...full.args,pageSize:100,orderBy:[{field:'rank'}]},full.dependencies,full.context);
+ assert.equal(complete.recordEvidence.completeForQuery,true);
+ assert.equal(complete.recordEvidence.consistentCountAndList,true);
+});
+
 test('server record field names stay bounded to returned rows and unlock only a same-route follow-up projection',async()=>{
  const f=platformQueryTestFixture({recordData:[{title:'First',classification:'observed',allocation:{holder:'PRIVATE_VALUE'},documents:{renewal:{end:'2026-11-01'}}},{title:'Second',classification:null},{title:'Third',unseenField:'NOT_RETURNED'}]});
  const first=await f.execute(f.args,f.dependencies,f.context);
