@@ -1,30 +1,40 @@
 {
-  "checkedAt": "2026-10-13T05:27:29.987Z",
+  "checkedAt": "2026-10-13T05:32:53.671Z",
   "version": "0.1.0",
+  "stage": "SPARK_HOSTING_DEPLOYED_AND_VERIFIED",
+  "url": "https://peninsula-tech-v01.web.app",
+  "repository": "heberzzt-wq/fixgo-app",
   "branch": "peninsula-tech-v0.1",
-  "stage": "SPARK_PROJECT_CREATED_PLAN_VERIFICATION_PENDING",
-  "constraints": [
-    "NO_NEW_CHARGES",
-    "DO_NOT_MODIFY_CODEX_WORKTREE",
-    "DO_NOT_CANCEL_SHUTDOWN"
-  ],
-  "localQA": {
-    "interfacePassed": 25,
-    "staticPassed": 37
-  },
-  "next": [
-    "Verify Spark and no billing account in new project console",
-    "Deploy only Hosting after verification",
-    "Run hosted QA and record final URL"
-  ],
-  "canonicalProject": "fixgo-44e4d untouched",
-  "candidateProject": "peninsula-tech-v01",
-  "createdProject": "peninsula-tech-v01",
+  "directory": "peninsula-tech-web",
+  "project": "peninsula-tech-v01",
   "projectNumber": "592553654850",
-  "billingLinkedByThisWork": false,
-  "qa": {
-    "staticPassed": 50,
-    "interfacePriorPassed": 25
+  "plan": "Spark",
+  "billingAccountLinked": false,
+  "sourceCommit": "ad8d7d91a9b932f7a61c3cb803e591ffc2ada843",
+  "hostingVersion": "projects/592553654850/sites/peninsula-tech-v01/versions/0b4b70da6c9b4c5f",
+  "checks": {
+    "static": 50,
+    "hostedBrowser": 25,
+    "byteMatchedFiles": 16,
+    "privateSourcePathsReturn404": true
   },
-  "shutdown": "Codex owns the shutdown; do not cancel or reschedule"
+  "codex": {
+    "branch": "v94-media-v4n-negative-claims",
+    "headAtClose": "bb75484a9e2ccb1ba857d20cddd0d332cc181956",
+    "statusAtClose": "",
+    "shutdown": "Managed by Codex. Not cancelled or rescheduled."
+  },
+  "constraints": [
+    "No billing upgrade or billing account link",
+    "Do not deploy to fixgo-44e4d",
+    "Do not modify Codex worktree",
+    "No real registrations, charges, or outbound requests"
+  ],
+  "next": [
+    "Review live design with Heberto",
+    "Approve visuals and copy; confirm rights for historical media before commercial launch",
+    "Implement actual ADJUNTO flows in a separate approved scope; current buttons are demonstrations",
+    "Custom domain is deferred; do not purchase"
+  ],
+  "remainingDeploymentWork": false
 }

@@ -1,0 +1,135 @@
+{
+  "checkedAt": "2026-10-13T05:31:08.073Z",
+  "url": "https://peninsula-tech-v01.web.app",
+  "filesMatched": 16,
+  "totalFiles": 16,
+  "headers": {
+    "content-security-policy": "default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'",
+    "x-robots-tag": "noindex, nofollow, noarchive",
+    "referrer-policy": "no-referrer",
+    "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=()",
+    "x-content-type-options": "nosniff",
+    "cache-control": "no-cache, must-revalidate"
+  },
+  "nonPublicPaths": [
+    {
+      "path": "/docs/CONTINUAR.json",
+      "status": 404
+    },
+    {
+      "path": "/.firebaserc",
+      "status": 404
+    },
+    {
+      "path": "/README.md",
+      "status": 404
+    }
+  ],
+  "checks": [
+    {
+      "file": "404.html",
+      "status": 200,
+      "match": true,
+      "bytes": 324
+    },
+    {
+      "file": "app.js",
+      "status": 200,
+      "match": true,
+      "bytes": 21357
+    },
+    {
+      "file": "assets/adjunto-oficial.webp",
+      "status": 200,
+      "match": true,
+      "bytes": 80654
+    },
+    {
+      "file": "assets/espacios.jpg",
+      "status": 200,
+      "match": true,
+      "bytes": 36492
+    },
+    {
+      "file": "assets/maqueta-completa-2018.webp",
+      "status": 200,
+      "match": true,
+      "bytes": 190030
+    },
+    {
+      "file": "assets/peninsula-emblema.webp",
+      "status": 200,
+      "match": true,
+      "bytes": 53428
+    },
+    {
+      "file": "assets/peninsula-oficial.webp",
+      "status": 200,
+      "match": true,
+      "bytes": 116834
+    },
+    {
+      "file": "assets/trabajo-01.jpg",
+      "status": 200,
+      "match": true,
+      "bytes": 28090
+    },
+    {
+      "file": "assets/trabajo-02.jpg",
+      "status": 200,
+      "match": true,
+      "bytes": 22531
+    },
+    {
+      "file": "assets/trabajo-03.jpg",
+      "status": 200,
+      "match": true,
+      "bytes": 31894
+    },
+    {
+      "file": "assets/trabajo-04.jpg",
+      "status": 200,
+      "match": true,
+      "bytes": 20450
+    },
+    {
+      "file": "assets/web-multiservicios-2018.webp",
+      "status": 200,
+      "match": true,
+      "bytes": 63142
+    },
+    {
+      "file": "index.html",
+      "status": 200,
+      "match": true,
+      "bytes": 14896
+    },
+    {
+      "file": "robots.txt",
+      "status": 200,
+      "match": true,
+      "bytes": 26
+    },
+    {
+      "file": "styles.css",
+      "status": 200,
+      "match": true,
+      "bytes": 28431
+    },
+    {
+      "file": "version.json",
+      "status": 200,
+      "match": true,
+      "bytes": 199
+    }
+  ],
+  "version": {
+    "product": "Peninsula Tech / ADJUNTO",
+    "version": "0.1.0",
+    "stage": "development-preview",
+    "realRegistrations": false,
+    "realRequests": false,
+    "payments": false,
+    "externalAI": false
+  }
+}
