@@ -291,9 +291,9 @@ test('dense operational snapshots fit the evidence budget without losing typed v
 });
 function decodePlannerFieldDictionary(task){
  const encoded=task.sharedFieldDictionary;
- if(typeof encoded==='string')return encoded.split('|');
- if(!task.sharedFieldPrefixEncoding)return encoded;
- const decoded=[];for(const [prefixLength,suffix]of encoded)decoded.push((decoded.at(-1)||'').slice(0,prefixLength)+suffix);return decoded;
+ if(!task.sharedFieldPrefixEncoding)return typeof encoded==='string'?encoded.split('|'):encoded;
+ const entries=typeof encoded==='string'?encoded.split('|').map(entry=>{const separator=entry.indexOf(':');return[Number(entry.slice(0,separator)),entry.slice(separator+1)];}):encoded;
+ const decoded=[];for(const [prefixLength,suffix]of entries)decoded.push((decoded.at(-1)||'').slice(0,prefixLength)+suffix);return decoded;
 }
 function decodePlannerRecordTuples(packed,shared){
  if(!packed.rowTuples)return packed;
@@ -4334,6 +4334,17 @@ test('shared source metadata preserves accredited fields and latest reading insi
   assert.deepEqual(unpack(bindings.fieldIds),tasks[i].observation.verifiedRead.sourceStructure.dataBindings.fieldPaths);
   assert.deepEqual(unpack(bindings.writeShapes[0].fieldIds),tasks[i].observation.verifiedRead.sourceStructure.dataBindings.writeShapes[0].fields);
   assert.equal(bindings.writeShapes[0].collection,'registry-'+i);assert.equal(bindings.writeShapes[0].fieldsComplete,true);assert.equal(read.partial,true);assert.equal(bindings.complete,false);
+ }
+});
+
+test('large field prefix tables preserve exact colon and delimiter names with source associations',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='boundedAuditTasks');const compact=runInNewContext('('+source.slice(node.start,node.end)+')');
+ for(const delimiter of [':','|']){
+  const tasks=Array.from({length:16},(_,i)=>{const fields=Array.from({length:delimiter===':'?46:44},(_,j)=>'observed'+delimiter+i+delimiter+j+delimiter+String.fromCharCode(97+(j*7+i)%26).repeat(18));return{name:'source.read',args:{file:'schema-'+i+'.js'},pendingObjectives:['inventory','relationships','dates'],observation:{ok:true,executionOk:true,verifiedRead:{file:'schema-'+i+'.js',startLine:1,content:'LATEST_RELEVANT_SOURCE '+('body '.repeat(1000)),sourceStructure:{dataBindings:{collections:['registry-'+i],fieldPaths:fields,writeShapes:[{collection:'registry-'+i,fields,fieldsComplete:true}]}}}}}});
+  const before=JSON.stringify(tasks),result=JSON.parse(JSON.stringify(compact(tasks)));assert.equal(JSON.stringify(tasks),before);assert.ok(JSON.stringify(result).length<=28000);assert.match(result.at(-1).observation.verifiedRead.content,/LATEST_RELEVANT_SOURCE/);assert.ok(result.at(-1).observation.verifiedRead.content.length>=700);
+  assert.equal(typeof result[0].sharedFieldDictionary,delimiter===':'?'string':'object');if(delimiter===':')assert.ok(result[0].sharedFieldPrefixEncoding);
+  const dictionary=decodePlannerFieldDictionary(result[0]);const decode=ids=>ids.flatMap(id=>Array.isArray(id)?Array.from({length:id[1]-id[0]+1},(_,n)=>dictionary[id[0]+n]):[dictionary[id]]);
+  for(let i=0;i<tasks.length;i++){const bindings=result[i].observation.verifiedRead.sourceStructure.dataBindings;assert.deepEqual(decode(bindings.fieldIds),tasks[i].observation.verifiedRead.sourceStructure.dataBindings.fieldPaths);assert.deepEqual(decode(bindings.writeShapes[0].fieldIds),tasks[i].observation.verifiedRead.sourceStructure.dataBindings.writeShapes[0].fields);assert.deepEqual(bindings.collections,['registry-'+i]);assert.deepEqual(result[i].pendingObjectives,tasks[i].pendingObjectives);}
  }
 });
 

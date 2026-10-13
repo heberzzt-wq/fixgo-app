@@ -1621,6 +1621,15 @@ function boundedAuditTasks(tasks) {
             if(JSON.stringify(encoded).length+encoding.length<JSON.stringify(dictionary).length){
                 minimal[0].sharedFieldDictionary=encoded;minimal[0].sharedFieldPrefixEncoding=encoding;
             }
+            // Avoid JSON array punctuation for a large prefix table. Literal |
+            // characters retain the array form, so no escaping can lose a name.
+            if(encoded.every(([,suffix])=>!suffix.includes('|'))){
+                const packed=encoded.map(([prefix,suffix])=>prefix+':'+suffix).join('|');
+                const packedEncoding="Split sharedFieldDictionary on |. Each entry is prefixLength:suffix; split only the first colon. Decode in order as previous field sliced to prefixLength + suffix, starting with empty previous field. Field IDs keep their zero-based positions.";
+                if(JSON.stringify(packed).length+packedEncoding.length<JSON.stringify(minimal[0].sharedFieldDictionary).length+(minimal[0].sharedFieldPrefixEncoding||'').length){
+                    minimal[0].sharedFieldDictionary=packed;minimal[0].sharedFieldPrefixEncoding=packedEncoding;
+                }
+            }
         }
     }
     if(JSON.stringify(minimal).length>28000) {
