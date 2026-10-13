@@ -1,11 +1,13 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `a68e8a7cca431c8c0c434b95b867a052b6c779e6`, the locally verified required coverage-group release.
-This explicit advance admits only the committed planner/runtime regression fixes, including required entries for every original coverage group while preserving independent operational citations;
-it does not accept unfinished working-tree changes or certify a real mission.
+Current baseline: `b2be9c2a1bdd490b99f6c816a31c0a528f9dfaf1`, the locally verified bounded collection-anchor release.
+This explicit advance admits only reviewed static source-reference metadata:
+bounded anchors direct further source reads but do not prove operational records,
+expand permissions, accept unfinished working-tree changes or certify a real mission.
 The baseline remains pinned, ancestor-checked and enforced against every future
-Functions change. Local full-suite and fresh focal checks passed; the workstation
-embedding check and Linux-only browser check are verified separately before closure.
+Functions change. The new general regression, 237 focal checks and 1,919 local
+full-suite checks passed with zero failures. The one Linux-only browser check
+and Firestore emulator checks require fresh CI verification before closure.
 
 ## Initial workflow repair baseline
 
