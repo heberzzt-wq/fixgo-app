@@ -220,7 +220,8 @@ test("coverage reviews receive one objective at a time and cite only observed so
             assert.equal(request.contents,payload.contract.requestQuote);
             assert.deepEqual(request.config.responseJsonSchema.properties.sources.required,["registered_entries"]);
             assert.deepEqual(Object.keys(request.config.responseJsonSchema.properties.sources.properties),["registered_entries"]);
-            assert.deepEqual(request.config.responseJsonSchema.properties.groups.items.properties.evidence.items.properties.taskIndex.enum,[0]);
+            assert.deepEqual(request.config.responseJsonSchema.properties.groups.required,payload.contract.groups);
+            assert.deepEqual(request.config.responseJsonSchema.properties.groups.properties[payload.contract.groups[0]].properties.evidence.items.properties.taskIndex.enum,[0]);
             reviewed.push(payload.request);
             return{text:JSON.stringify({proven:isAllocation,missing:isAllocation?[]:["Renewal dates are not present"],groups:[{group:payload.contract.groups[0],proven:isAllocation,evidence:isAllocation?[{taskIndex:0,fields:["owner"]}]:[]}],sources:{registered_entries:{relevant:true,reason:"Observed values",taskIndexes:[0]}}})};
         }

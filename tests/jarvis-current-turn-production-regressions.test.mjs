@@ -162,6 +162,23 @@ test('source selection retains mission references while operational coverage iso
  assert.equal(proof.proven,false);assert.deepEqual(qualify({evidenceTaskIndexes:[0],coverageProof:proof},contract,tasks).pendingSources,['related']);
 });
 
+test('record audit requires every contracted group and preserves its own citations',async()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
+ const qualify=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').qualifyRecordObjectiveCoverage;
+ const review=runInNewContext('('+source.slice(node.start,node.end)+')',{observedRecordSources:()=>['registry'],boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:qualify});
+ const contract={requestQuote:'Inspect entries and their owners',scope:'all_sources',coverageMode:'relationship',groups:['entries','owners']};
+ const tasks=[{observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry'},completeForQuery:true,hasMore:false,rows:[{id:'entry',values:{label:'Observed entry',owner:'Observed owner'}}]}}},{observation:{ok:true,verifiedRead:{file:'source.js',sourceStructure:{dataBindings:{collections:['registry']}}}}}];
+ const proof=await review({model:'same-authority',contract,objective:contract,tasks,ai:{models:{generateContent:async request=>{
+  const schema=request.config.responseJsonSchema.properties.groups;
+  assert.equal(schema.type,'object');assert.deepEqual(Array.from(schema.required),contract.groups);assert.equal(schema.additionalProperties,false);assert.deepEqual(Object.keys(schema.properties),contract.groups);
+  return{text:JSON.stringify({proven:true,missing:[],groups:{entries:{proven:true,evidence:[{taskIndex:0,fields:['label']}]},owners:{proven:true,evidence:[{taskIndex:0,fields:['owner']}]}},sources:{registry:{relevant:true,reason:'Observed current entries',taskIndexes:[0]}}})};
+ }}}});
+ assert.deepEqual(Array.from(proof.groups,g=>g.group),contract.groups);assert.deepEqual(proof.groups[0].evidence,[{taskIndex:0,fields:['label']}]);assert.deepEqual(proof.groups[1].evidence,[{taskIndex:0,fields:['owner']}]);
+ assert.equal(qualify({evidenceTaskIndexes:[0],coverageProof:proof},contract,tasks).status,'complete');
+ const omitted={...proof,groups:proof.groups.slice(0,1)};assert.equal(qualify({evidenceTaskIndexes:[0],coverageProof:omitted},contract,tasks).status,'partial');
+});
+
 test('bounded source review preserves substantive definitions behind newer weak references',async()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
@@ -4143,7 +4160,7 @@ test('operational coverage citations bind row fields to their own task and keep 
  let schema,payload,outputBudget;
  await review({instruction:'Count all entries and identify owners',objective:{objective:'Identify owners'},contract:{requestQuote:'Identify owners',groups:['owners'],coverageMode:'relationship',scope:'all_sources'},tasks,ai:{models:{generateContent:async request=>{schema=request.config.responseJsonSchema;outputBudget=request.config.maxOutputTokens;payload=JSON.parse(request.config.chatMessages.at(-1).content);return{text:JSON.stringify({proven:false,missing:['Related records remain pending'],groups:[],sources:[]})};}}}});
  assert.equal(payload.missionRequest,undefined);assert.equal(payload.request,'Identify owners');assert.equal(payload.contract.requestQuote,'Identify owners');assert.deepEqual(Array.from(payload.contract.groups),['owners']);assert.ok(outputBudget>2048 && outputBudget<=4096,'source decisions must have a bounded budget that scales with observed scopes');
- const citations=schema.properties.groups.items.properties.evidence.items.anyOf;
+ const citations=schema.properties.groups.properties.owners.properties.evidence.items.anyOf;
  const branch=index=>citations.find(item=>item.properties.taskIndex.const===index).properties.fields;
  assert.equal(branch(0).maxItems,0,'a count cannot cite metadata as row fields');
  assert.equal(branch(1).maxItems,1,'a field citation list cannot repeat indefinitely');assert.equal(schema.properties.sources.required.length,35);assert.equal(Object.keys(schema.properties.sources.properties).length,35);assert.equal(schema.properties.sources.additionalProperties,false);assert.equal(Object.values(schema.properties.sources.properties)[0].properties.reason.maxLength,160);assert.equal(schema.properties.missing.maxItems,6);
