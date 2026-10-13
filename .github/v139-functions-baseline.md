@@ -1,16 +1,16 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `3b821d776713402ea2a9c2e558626e4639ea5616`, the locally verified continuation-context release.
-This explicit advance admits only transport sharing of identical pending-gap
-text, bounded explanatory recaps under pressure, and catalog references to
-already credited schema tasks instead of repeating argument bindings. Every
-objective retains its evidence requirement, groups, gap list and pending
-sources. Native argument constraints remain unchanged. All three actual
-objectives' gaps and sources were preserved; four receipts reconstructed
-exactly. The measured local recovery prompt fits in 14,880 of 16,384 tokens.
-This does not expand permissions, accept unfinished changes or certify a real mission.
+Current baseline: `2ad364a90c1cee318f4cb86258df7158445d80de`, the locally verified persistent source-path grounding release.
+This explicit advance admits only a narrower read contract for record research:
+after the first inspected file, repository reads remain constrained to paths
+already discovered or inspected. Existing path restrictions are intersected,
+never expanded. Partial ranges remain available, and Qwen can discover new
+paths with the authorized research tools. No case names or domains are fixed.
+The actual failed state now exposes 16 observed paths and excludes the invented
+filename while preserving range expansion. This does not expand permissions,
+accept unfinished changes or certify a real mission.
 The baseline remains pinned, ancestor-checked and enforced against every future
-Functions change. The new general regression, 242 focal checks and 1,924 local
+Functions change. The new general regression, 243 focal checks and 1,925 local
 full-suite checks passed with zero failures. The one Linux-only browser check
 and Firestore emulator checks require fresh CI verification before closure.
 
