@@ -32,6 +32,36 @@ test('failed or foreign coverage groups cannot impose expansion requirements on 
  assert.ok(asserted.missing.some(message=>message.includes('Campos sin expandir')),'a claimed proof still requires actual expanded values');
 });
 
+test('cross-route server field metadata fits the context budget without losing query identities or observed names',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='boundedAuditTasks');
+ const compact=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const hash=createRequire(import.meta.url)('node:crypto').createHash;
+ const fields=Array.from({length:128},(_,i)=>'n_'+hash('sha256').update(String(i)).digest('hex').slice(0,16));
+ const sourceFields=Array.from({length:200},(_,i)=>'source_'+hash('sha256').update(String(i)).digest('hex').slice(0,14));
+ const tasks=[];
+ for(let index=0;index<4;index++){
+  const collection='observed_scope_'+index,file='definition_'+index+'.js';
+  tasks.push({name:'fixture.read',args:{file},observation:{ok:true,executionOk:true,verifiedRead:{file,startLine:1,totalLines:900,content:'LATEST_RELEVANT_SOURCE '+('observed source body\n'.repeat(400)),sourceStructure:{dataBindings:{collections:[collection],fieldPaths:sourceFields,writeShapes:[{collection,fields:sourceFields,fieldsComplete:true}]}}}}});
+  const rows=Array.from({length:50},(_,row)=>({id:'record_'+hash('sha256').update(String(row)).digest('hex').slice(0,22),values:{[fields[0]]:'Distinct observed row label '+row,[fields[1]]:row%2===0?false:null,[fields[2]]:row%3===0?0:''}}));
+  const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection,sourceFile:file,mode:'query',fields:fields.slice(0,3),filters:[{field:fields[1],op:'==',value:false}],orderBy:[{field:'__name__',direction:'asc'}],implicitExistenceFields:[],pageSize:100,cursor:null},rows,totalCount:50,returnedCount:50,hasMore:false,completeForQuery:true,rowsObservedAt:'2026-11-01T00:00:00.000Z',fieldSchema:{source:'SERVER_RECORD_FIELD_NAMES',collection,scope:'returned_rows_only',sampledRows:50,paths:fields,completeForObservedRows:false}};
+  tasks.push({name:'fixture.records',args:{...record.scope,includeCount:true},observation:{ok:true,executionOk:true,recordEvidence:record}});
+ }
+ const before=JSON.stringify(tasks);const packed=JSON.parse(JSON.stringify(compact(tasks)));
+ assert.equal(JSON.stringify(tasks),before);
+ assert.ok(JSON.stringify(packed).length<=28000);
+ const dictionary=decodePlannerFieldDictionary(packed[0]);
+ const expand=ids=>ids.flatMap(id=>Array.isArray(id)?Array.from({length:id[1]-id[0]+1},(_,i)=>dictionary[id[0]+i]):[dictionary[id]]);
+ for(let index=1;index<tasks.length;index+=2){
+  const record=decodePlannerRecordTuples(packed[index].observation.recordEvidence,packed[0]);
+  if(record.fieldSchema.pathIds){record.fieldSchema.paths=expand(record.fieldSchema.pathIds);delete record.fieldSchema.pathIds;}
+  assert.deepEqual(record,tasks[index].observation.recordEvidence,'all metadata stays local to its own query');
+ }
+ const latest=packed[6].observation.verifiedRead;
+ assert.ok(latest.content.startsWith('LATEST_RELEVANT_SOURCE'));
+ assert.ok(latest.content.length>=700);
+});
+
 test('record coverage preserves literal user scope without importing advisory assistant context',async()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
@@ -79,9 +109,10 @@ function decodePlannerFieldDictionary(task){
  if(!task.sharedFieldPrefixEncoding)return encoded;
  const decoded=[];for(const [prefixLength,suffix]of encoded)decoded.push((decoded.at(-1)||'').slice(0,prefixLength)+suffix);return decoded;
 }
-function decodePlannerRecordTuples(packed){
+function decodePlannerRecordTuples(packed,shared){
  if(!packed.rowTuples)return packed;
  const record=structuredClone(packed);
+ if(record.recordValueIds){record.recordValueTable=record.recordValueIds.map(id=>shared.sharedRecordValueTable[id]);delete record.recordValueIds;}
  record.rows=record.rowTuples.map((row,i)=>{const values=Object.fromEntries(record.rowColumns.map((field,j)=>[field,record.recordValueTable[row[j+1]]]));for(const col of record.rowAbsentColumns?.find(entry=>entry[0]===i)?.[1]||[])delete values[record.rowColumns[col]];return{id:row[0],values};});
  for(const key of ['rowTuples','rowColumns','rowAbsentColumns','recordValueTable','rowEncoding'])delete record[key];return record;
 }

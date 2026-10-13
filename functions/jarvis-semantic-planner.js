@@ -1431,6 +1431,14 @@ function boundedAuditTasks(tasks) {
         };
         for (const task of minimal) {
             delete task.completedAt;
+            const record=task.observation?.recordEvidence;
+            if(Array.isArray(record?.fieldSchema?.paths) && record.fieldSchema.paths.every(field=>typeof field==="string")) {
+                // Share spellings only, never sample sizes, scope or authority.
+                // Detach before encoding: raw receipts remain unchanged.
+                const fieldSchema={...record.fieldSchema,pathIds:fieldIds(record.fieldSchema.paths)};
+                delete fieldSchema.paths;
+                task.observation={...task.observation,recordEvidence:{...record,fieldSchema}};
+            }
             const bindings = task.observation?.verifiedRead?.sourceStructure?.dataBindings;
             if (!bindings) {
                 if (task.observation?.repoCandidates) task.observation = {...task.observation,
@@ -1450,7 +1458,7 @@ function boundedAuditTasks(tasks) {
             }
         }
         if (dictionary.length) minimal[0] = {...minimal[0], sharedFieldDictionary:dictionary.some(field=>field.includes('|')) ? dictionary : dictionary.join('|'),
-            sharedFieldEncoding:'Split string sharedFieldDictionary on |. fieldIds are zero-based; [a,b] expands inclusive IDs. Source/collection associations stay local.'};
+            sharedFieldEncoding:'Split string sharedFieldDictionary on |. fieldIds and fieldSchema.pathIds are zero-based; [a,b] expands inclusive IDs. pathIds decode only observed names; collection, sampling, scope and authority stay local.'};
     }
     // Lossless transport compression: repeated snapshots retain their timestamps,
     // query scopes and changed values. References never imply new coverage.
@@ -1561,7 +1569,7 @@ function boundedAuditTasks(tasks) {
                 const indexes=columns.flatMap((field,columnIndex)=>Object.hasOwn(row.values,field)?[]:[columnIndex]);
                 return indexes.length?[[rowIndex,indexes]]:[];
             });
-            const packed={...original,rows:undefined,rowColumns:columns,recordValueTable:values,
+            const packed={...current,rows:undefined,rowValues:undefined,rowColumns:columns,recordValueTable:values,
                 rowTuples:original.rows.map(row=>[row.id,...columns.map(field=>valueId(row.values[field]??null))]),
                 ...(absent.length?{rowAbsentColumns:absent}:{}),
                 rowEncoding:"rowTuples=[id,...recordValueTable indexes in rowColumns order]. Types stay unchanged. rowAbsentColumns=[rowIndex,[absent column IDs]] removes keys; other nulls stay null. All rows and query metadata remain."};
@@ -1593,6 +1601,27 @@ function boundedAuditTasks(tasks) {
             if(JSON.stringify(encoded).length+encoding.length<JSON.stringify(dictionary).length){
                 minimal[0].sharedFieldDictionary=encoded;minimal[0].sharedFieldPrefixEncoding=encoding;
             }
+        }
+    }
+    if(JSON.stringify(minimal).length>28000) {
+        // Identical JSON literals can share transport bytes across snapshots.
+        // Each snapshot still owns its rows, column indexes, scope and time.
+        const values=[],ids=new Map();
+        const shared=minimal.map(task=>{
+            const record=task.observation?.recordEvidence;
+            if(!Array.isArray(record?.recordValueTable))return task;
+            const recordValueIds=record.recordValueTable.map(value=>{
+                const key=JSON.stringify(value);
+                if(!ids.has(key)){ids.set(key,values.length);values.push(value);}
+                return ids.get(key);
+            });
+            const packed={...record,recordValueIds};delete packed.recordValueTable;
+            return {...task,observation:{...task.observation,recordEvidence:packed}};
+        });
+        if(values.length) {
+            shared[0]={...shared[0],sharedRecordValueTable:values,
+                sharedRecordValueEncoding:"recordValueIds indexes sharedRecordValueTable. Expand these IDs to the snapshot's local recordValueTable before decoding rowTuples. Only identical JSON literals share bytes; rows, scopes, timestamps and authority stay local."};
+            if(JSON.stringify(shared).length<JSON.stringify(minimal).length)minimal.splice(0,minimal.length,...shared);
         }
     }
     const freshRead = minimal[tasks.indexOf(latestRead)]?.observation?.verifiedRead;
