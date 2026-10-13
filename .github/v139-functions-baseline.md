@@ -1,7 +1,7 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `a57e676dd095522ef7215a90cb6956f7aa41e7e7`, the locally verified uninspected-source continuation release.
-This explicit advance admits only the committed planner/runtime regression fixes, including a bounded same-model choice of uninspected discovered sources after rejected partial rereads;
+Current baseline: `a68e8a7cca431c8c0c434b95b867a052b6c779e6`, the locally verified required coverage-group release.
+This explicit advance admits only the committed planner/runtime regression fixes, including required entries for every original coverage group while preserving independent operational citations;
 it does not accept unfinished working-tree changes or certify a real mission.
 The baseline remains pinned, ancestor-checked and enforced against every future
 Functions change. Local full-suite and fresh focal checks passed; the workstation
