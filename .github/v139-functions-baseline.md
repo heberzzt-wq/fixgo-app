@@ -1,6 +1,19 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `2091cf39f82ed30cf9b492bcd1d451ae9595feb0`, the reviewed collection-scoped field recovery release.
+Current baseline: `fd0a4c33cc5c811de3a34218ec69b824195f809a`, the reviewed ordering-only recovery release.
+The only additional Functions change recognizes `undiscoveredOrderFields` in
+the existing collection-scoped recovery binding, including failures with no
+projection error. It preserves source, collection, filters and permissions;
+only credited fields and the reserved ID discovery field are offered for
+recovery. A general regression proves ordering-only rejection, unchanged filters
+and isolation from another collection. All 283 focal checks and 1,940 local
+full-suite checks passed with zero failures. This review does not certify the
+Chrome mission. Fresh CI and the full physical mission remain required.
+The guard stays pinned and fail-closed for future Functions changes.
+
+## Previous collection-scoped recovery baseline
+
+Previous baseline: `2091cf39f82ed30cf9b492bcd1d451ae9595feb0`, the reviewed collection-scoped field recovery release.
 The only Functions change since the prior reviewed baseline is the repair of
 `bindRejectedRecordFields` in `functions/jarvis-semantic-planner.js`: global
 file field names no longer accredit the queried collection. Positive scoped
