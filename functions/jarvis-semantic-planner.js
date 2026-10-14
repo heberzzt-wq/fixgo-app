@@ -38,7 +38,7 @@ function matchesRecordedQueryCollection(collection,task) {
         /^\{[A-Za-z][A-Za-z0-9_]*\}$/.test(part)?Boolean(resolvedParts[index]):part===resolvedParts[index]);
 }
 
-function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependencyCatalog=catalog) {
+function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependencyCatalog=catalog,trustedCoverage=[]) {
     const sourceKinds=new Set(['repository_source',...dependencyCatalog.flatMap(tool=>(tool.requiresEvidence||[])
         .filter(requirement=>requirement.observationPath?.[0]==='verifiedRead').map(requirement=>requirement.kind))]);
     const successful=tasks.filter(task=>task.observation?.ok===true && task.observation.executionOk!==false &&
@@ -89,6 +89,17 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
         for(const branch of branches){
             const schema=structuredClone(branch),properties=schema.properties;
             if(!properties){eligible.push(schema);continue;}
+            if(tool.evidenceKinds?.includes('platform_records') && trustedCoverage.length && properties.collection){
+                const irrelevant=collection=>trustedCoverage.every(proof=>{
+                    const decisions=(proof.sources||[]).filter(source=>source.collection===collection);
+                    return decisions.length===1 && decisions[0].relevant===false && Boolean(decisions[0].reason?.trim());
+                });
+                if(properties.collection.const!==undefined && irrelevant(properties.collection.const))continue;
+                if(Array.isArray(properties.collection.enum)){
+                    properties.collection.enum=properties.collection.enum.filter(collection=>!irrelevant(collection));
+                    if(!properties.collection.enum.length)continue;
+                }
+            }
             if(tool.evidenceKinds?.some(kind=>sourceKinds.has(kind)) && properties.file){
                 const allowed=properties.file.enum || (known.length?known:null);
                 if(allowed){
@@ -761,6 +772,15 @@ function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
     const consultedScopes=records.map(record=>({taskIndex:record.taskIndex,...record.scope,
         totalCount:record.totalCount,returnedCount:record.returnedCount,hasMore:record.hasMore,
         completeForQuery:record.completeForQuery}));
+    const matchesSource=(collection,record)=>{
+        if(record.scope?.collection===collection)return true;
+        const task=tasks[record.taskIndex];
+        // The receipt resolves only the exact template submitted by this call.
+        // Keep its concrete scope in the proof: this never covers other actors,
+        // instances, source files or unqueried members of the template family.
+        return typeof task?.args?.sourceFile==='string' && task.args.sourceFile===record.scope?.sourceFile &&
+            matchesRecordedQueryCollection(collection,task);
+    };
     const queryKey=record=>JSON.stringify({collection:record.scope?.collection,filters:record.scope?.filters || [],fields:record.scope?.fields || [],orderBy:record.scope?.orderBy || []});
     const unresolved=record=>String(record.scope?.collection || "").split("/").some(segment=>/^\{[^{}]+\}$/.test(segment));
     const existenceFields=record=>[...new Set([...(record.scope?.implicitExistenceFields || []),
@@ -813,7 +833,7 @@ function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
             const record=records.find(item=>item.taskIndex===citation.taskIndex);
             if(!record || !complete(record)) return true;
             if(contract?.scope==="all_sources" && !proof?.sources?.some(source=>source.relevant===true && source.taskIndexes?.includes(record.taskIndex) &&
-                record.scope?.collection===source.collection)) return true;
+                matchesSource(source.collection,record))) return true;
             if(["relationship","temporal"].includes(contract?.coverageMode) && (!record.rows?.length || !citation.fields?.length)) return true;
             const indexes=citation.rowIndexes;
             if(indexes!==undefined && (!Array.isArray(indexes) || !indexes.length || new Set(indexes).size!==indexes.length || indexes.some(index=>!Number.isInteger(index) || index<0 || index>=(record.rows?.length || 0))))return true;
@@ -831,7 +851,7 @@ function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
             if(source.relevant===false) return false;
             return source.relevant!==true || !source.taskIndexes?.length || source.taskIndexes.some(index=>{
                 const record=records.find(item=>item.taskIndex===index);
-                return !record || !complete(record) || record.scope?.collection!==collection;
+                return !record || !complete(record) || !matchesSource(collection,record);
             });
         });
         pendingSources=uncoveredSources;
@@ -2969,7 +2989,7 @@ async function runModelSemanticPlanner({
         selectableCatalog = bindRejectedRecordFields(selectableCatalog, completedTasksForAudit, missionState.blockedTasks);
         selectableCatalog = bindRejectedQueryOrderings(selectableCatalog, missionState.blockedTasks);
         selectableCatalog = eligibleEvidenceActionCatalog(selectableCatalog,completedTasksForAudit,configuredSourceFiles,safeCatalog);
-        const auditCatalog = selectableCatalog.map(({ name, description, evidenceKinds, inputSchema, requiresEvidence, mutates, requiresApproval }) => {
+        const compactActionCatalog = catalog => catalog.map(({ name, description, evidenceKinds, inputSchema, requiresEvidence, mutates, requiresApproval }) => {
             const schema = buildNativeInputSchema(inputSchema);
             const branches = schema.anyOf || [schema];
             return { name, description: description.slice(0, 60), evidenceKinds: evidenceKinds || ["tool_result"],
@@ -2985,6 +3005,7 @@ async function runModelSemanticPlanner({
                         .map(([key, property]) => [key, property.enum || [property.const]])))))].map(value=>JSON.parse(value))} : {}),
                 mutates, requiresApproval };
         });
+        let auditCatalog=compactActionCatalog(selectableCatalog);
         const pendingCapabilities = objectiveScopedCatalog.filter(tool => !selectableCatalog.some(available => available.name === tool.name))
             .map(tool => ({name:tool.name,description:tool.description.slice(0,120),requiresEvidence:tool.requiresEvidence}));
         const fullAuditTasks = (missionState.completedTasks || []).map((task, index) => ({ index, name: task.name, args: task.args,
@@ -3338,6 +3359,14 @@ async function runModelSemanticPlanner({
             }
             if(coverageCache.has(revision))coverageBeforeDecision.push({objective:contract.objective,
                 requiredEvidenceKind:contract.requiredEvidenceKind,coverageProof:coverageCache.get(revision)});
+        }
+        // Only the current engine-owned independent reviews may prune routes.
+        // Client-supplied previous assessments never become authority here.
+        // Unknown or relevant for even one objective keeps the query available.
+        if(recordOnlyAudit && coverageBeforeDecision.length===missionState.evidenceObjectives.length){
+            selectableCatalog=eligibleEvidenceActionCatalog(selectableCatalog,completedTasksForAudit,configuredSourceFiles,safeCatalog,
+                coverageBeforeDecision.map(objective=>objective.coverageProof));
+            auditCatalog=compactActionCatalog(selectableCatalog);
         }
         for (let auditAttempt = 0; auditAttempt < 2; auditAttempt++) {
             let auditPlan = null;
