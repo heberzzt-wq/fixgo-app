@@ -1,5 +1,29 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `56099aec8d355deec9ec3c0dd50ca51add647fbc`, reviewed exact-source evidence release.
+Only `jarvis-semantic-planner.js` changes inside Functions. Query relevance now
+receives only the proposed collection's observed references, declarations and
+field shapes. A multi-collection file cannot lend another collection's fields
+or filter values to that query. Legacy single-collection field receipts retain
+their unambiguous field ownership. Exact authenticated template resolutions
+remain usable; no new tenant, domain or operational permissions are introduced.
+
+Coverage source citations are constrained to authenticated queries of that exact
+route or its recorded template resolution. Technical scope facts identify both
+requested and resolved routes. Query exhaustion still cannot satisfy a goal;
+all independent objective coverage and closure checks remain enforced.
+
+Both new regressions fail on the preceding source. All 304 focused checks and
+1,996 full-root checks pass, with zero failures and two explicit environment
+skips. VM-based review tests execute the real collection-identity dependency.
+The previous actual Chrome mission ended PARTIAL after 58 local semantic calls;
+that is neither success nor an external blocker. A fresh deployed Chrome mission
+is still required. No operational writes, model changes or external AI calls.
+The explicit ancestor-checked fail-closed Functions guard is retained.
+
+## Previous pending-evidence baseline
+
+
 Current baseline: `850794d464722af1a187066d1d03a858ba279296`, the reviewed pending-evidence decision release.
 Only `jarvis-semantic-planner.js` changes inside Functions. A still-pending goal
 with a validated novel next action no longer triggers independent negative
