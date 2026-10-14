@@ -95,6 +95,32 @@ test('the local planner receives configured paths as discovery, never completion
     } finally {f.cleanup();}
 });
 
+test('configured sources do not alter grounded operation transport or non-record objectives',async()=>{
+    const f=configuredSourceFixture();
+    try {
+        const {createSelfHostedSemanticEngine}=await import('../jarvis-fs-bridge.js');
+        for (const grounded of [true,false]) {
+            const instruction='Inspect the supplied object';
+            const selected={name:grounded?'fixture.inspect':'repo.read',description:'Inspect source',investigationReadOnly:true,mutates:false,evidenceKinds:[grounded?'platform_records':'repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
+            const catalog=[selected,...(grounded?[]:[{name:'fixture.records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{},required:[]}}])];
+            const state=grounded?{phase:'GROUNDED_ARGUMENT_COMPLETION',currentOperation:instruction}:{phase:'COMPLETION_AUDIT',completedTasks:[],evidenceObjectives:[{objective:instruction,requiredEvidenceKind:'repository_source'}]};
+            let inspected=false;
+            const engine=createSelfHostedSemanticEngine({root:f.root,env:{JARVIS_LOCAL_LLM_MODEL:'qwen3.5:9b'},fetchImpl:async(_url,options)=>{
+                const body=JSON.parse(options.body);
+                assert.ok(!body.messages.some(message=>message.content?.startsWith('CONFIGURACION_DE_FUENTES_VERIFICADA=')),'record configuration must not enter this transport');
+                if (grounded) assert.ok(body.messages[1].content.startsWith(instruction),'the original grounded request keeps its position and content');
+                inspected=true;
+                const content=JSON.stringify({explanation:'Inspect source',missionComplete:false,toolCalls:[{name:selected.name,args:{file:'capture.js'}}],...(grounded?{}:{completionAssessment:{objectives:[{objective:instruction,requiredEvidenceKind:'repository_source',satisfied:false,evidenceTaskIndexes:[],limitation:'Source has not been read'}]}})});
+                return {ok:true,status:200,text:async()=>JSON.stringify({message:{role:'assistant',content},done_reason:'stop'})};
+            }});
+            const result=await engine.plan({input:instruction,catalog,missionState:state});
+            assert.equal(inspected,true);
+            assert.equal(result.toolCalls[0].args.file,'capture.js');
+            assert.equal(engine.describe().sourceConfiguration,undefined);
+        }
+    } finally {f.cleanup();}
+});
+
 test('semantic preselection uses parsed literals and cannot replace relevant source with an unrelated hub', () => {
     const relevant = scoreRepoSemanticPreselection({file:'registration.js', structuralText:'FILE: registration.js', literals:['equipmentSerial'], queryTokens:['equipment'], relationCount:0});
     const hub = scoreRepoSemanticPreselection({file:'central.js', structuralText:'FILE: central.js', queryTokens:['equipment'], relationCount:100});

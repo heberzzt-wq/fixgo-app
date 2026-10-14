@@ -1907,6 +1907,10 @@ export function createSelfHostedSemanticEngine({
             const planSignal = noDeadline === true ? signal : (signal ? AbortSignal.any([signal, deadlineSignal]) : deadlineSignal);
             let semanticPreselection = null;
             let configuredSources;
+            const objectives = Array.isArray(missionState?.evidenceObjectives) ? missionState.evidenceObjectives : [];
+            const recordPlanning = objectives.length
+                ? objectives.some(objective=>objective.requiredEvidenceKind==='platform_records')
+                : catalog.some(tool=>tool.evidenceKinds?.includes('platform_records'));
             const getConfiguredSources = () => {
                 if (configuredSources === undefined) configuredSources = configuredRepositorySources(root);
                 return configuredSources;
@@ -1917,8 +1921,7 @@ export function createSelfHostedSemanticEngine({
                 'MISSION_CONTRACT_OPERATIONS','MISSION_CONTRACT_TOOL_SELECTION',
                 'COMPLETION_AUDIT','READ_ONLY_EVIDENCE_CONTINUATION',
                 'READ_ONLY_NEXT_STEP_RECOVERY','PENDING_RECORD_SCOPE_RECOVERY',
-                'UNREAD_SOURCE_CONTINUATION','QUERY_SCOPE_SOURCE_RECOVERY',
-                'GROUNDED_ARGUMENT_COMPLETION'
+                'UNREAD_SOURCE_CONTINUATION','QUERY_SCOPE_SOURCE_RECOVERY'
             ]);
             const result = await runJarvisSemanticPlanner({
                 ai: { ...ai, models: { generateContent(request = {}) {
@@ -1928,7 +1931,7 @@ export function createSelfHostedSemanticEngine({
                     // Source configuration guides selection only. Independent
                     // operational coverage/closure still sees its immutable
                     // objective and actual receipts, never catalog record proof.
-                    if (configuredPlanningStages.has(config.semanticStage)) {
+                    if (recordPlanning && configuredPlanningStages.has(config.semanticStage)) {
                         const sources = getConfiguredSources();
                         const messages = Array.isArray(config.chatMessages) ? [...config.chatMessages] : [{role:'user',content:String(request.contents || input)}];
                         const occupied = messages.reduce((sum,message)=>sum+String(message.content || '').length,0);
@@ -1962,7 +1965,7 @@ export function createSelfHostedSemanticEngine({
                     // existing read capability available even when retrieval
                     // ranks a broad search above the direct source reader.
                     const reader = catalog.find(tool=>tool.name==='repo.read'&&tool.investigationReadOnly===true&&tool.mutates!==true);
-                    if (getConfiguredSources() && reader && !shortlist.catalog.some(tool=>tool.name===reader.name)) shortlist.catalog=[...shortlist.catalog,reader];
+                    if (recordPlanning && getConfiguredSources() && reader && !shortlist.catalog.some(tool=>tool.name===reader.name)) shortlist.catalog=[...shortlist.catalog,reader];
                     semanticPreselection = { ...shortlist.evidence, querySource: "qwen_requested_operation", requestedOperation };
                     onProgress("inference");
                     return shortlist.catalog;
