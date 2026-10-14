@@ -1,6 +1,23 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `78a57fc88c25c5d8e190ae48fe3cfbc55037f265`, the reviewed exhausted-page scope reuse release.
+Current baseline: `545b63e6e837a7005a5df1cb4517610f38367c45`, the explicitly reviewed grounded-schema prompt release.
+The only additional Functions change retains the common object schema and its
+conditional alternatives in prompt prose instead of duplicating the expanded
+native grammar there. Native output constraints and runtime validation still use
+the identical full expansion. No scope, field, record, evidence requirement,
+permission, model or context ceiling is removed or widened. A general regression
+fails with LOCAL_SEMANTIC_MESSAGE_TOO_LARGE before the fix, verifies every source
+and collection alternative and field enum, and rejects crossed source bindings.
+The actual captured message shrinks from 109,126 to 46,891 characters without
+changing the native output schema (88,592 characters). All 120 affected tests
+and 1,953 full local tests pass with zero failures; the Linux-only check remains
+separately required in CI. The full clean Chrome mission is still required.
+The guard remains pinned, ancestor-checked and fail-closed for future changes;
+this explicit review authorizes no external AI.
+
+## Previous exhausted-page scope reuse baseline
+
+Previous baseline: `78a57fc88c25c5d8e190ae48fe3cfbc55037f265`, the reviewed exhausted-page scope reuse release.
 The only additional Functions change recognizes authenticated, complete empty
 cursor pages as already read when source, collection, filters, ordering and cursor
 match exactly. Projection changes cannot populate that page. A requested count
