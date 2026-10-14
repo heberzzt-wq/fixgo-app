@@ -436,6 +436,22 @@ function evidenceRequirementSuccessors(kind, catalog = []) {
 function recordProjectionAlreadyObserved(call, tasks) {
     const canonical=value=>Array.isArray(value)?value.map(canonical):value && typeof value==="object"
         ?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;
+    if(call.args?.mode==='query' && call.args.cursor){
+        // A fully exhausted first page has no continuation after its last row.
+        // Suppress this non-advancing action, never promote it to goal coverage.
+        const baseScope=args=>JSON.stringify(canonical({sourceFile:args?.sourceFile,collection:args?.collection,
+            mode:args?.mode||'query',filters:args?.filters||[],
+            orderBy:args?.orderBy?.length?args.orderBy:[{field:'__name__',direction:'asc'}]}));
+        if(tasks.some(task=>{const record=task.observation?.recordEvidence;
+            return task.name===call.name && task.observation?.ok===true && task.observation.executionOk!==false &&
+                task.observation.blocked!==true && task.observation.requiresInput!==true &&
+                record?.source==='FIRESTORE_SERVER_AUTHENTICATED' && record.readOnly===true &&
+                record.completeForQuery===true && record.hasMore===false && record.queryExhausted!==false &&
+                record.consistentCountAndList!==false && !task.args?.cursor && !record.scope?.cursor &&
+                Array.isArray(record.rows) && record.rows.length>0 && record.rows.at(-1)?.id===call.args.cursor &&
+                baseScope(task.args)===baseScope(call.args) && baseScope(record.scope)===baseScope(call.args);
+        }))return true;
+    }
     if(call.args?.mode==='query' && call.args.cursor && call.args.fields?.length){
         // Changing projection cannot populate an authenticated exhausted page.
         // Its cursor remains part of the scope; this proves no global absence.

@@ -4396,6 +4396,17 @@ test('complete observed projections reuse SDK default ID ordering without coveri
  const unknownCount=structuredClone(task);delete unknownCount.observation.recordEvidence.totalCount;assert.equal(covered(call,[unknownCount]),false);assert.equal(covered({...call,args:{...call.args,includeCount:false}},[unknownCount]),true);
 });
 
+test('an exhausted first page cannot advance past its final authenticated row',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');const covered=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const args={sourceFile:'reader.js',collection:'organizations/approved/entries',mode:'query',fields:['label'],filters:[]};
+ const task={name:'records.read',args,observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...args,orderBy:[{field:'__name__',direction:'asc'}],cursor:null},rows:[{id:'last',values:{label:'Observed'}}],completeForQuery:true,hasMore:false,nextCursor:null}}};
+ const call={name:task.name,args:{...args,cursor:'last',fields:['newField']}};const before=JSON.stringify({call,task});
+ assert.equal(covered(call,[task]),true);assert.equal(JSON.stringify({call,task}),before);
+ assert.equal(covered({...call,args:{...call.args,cursor:null}},[task]),false);
+ for(const change of [{sourceFile:'other.js'},{collection:'organizations/another/entries'},{cursor:'different'},{filters:[{field:'group',op:'==',value:'other'}]},{orderBy:[{field:'__name__',direction:'desc'}]},{orderBy:[{field:'label',direction:'asc'}]}])assert.equal(covered({...call,args:{...call.args,...change}},[task]),false);
+ for(const mutate of [t=>{t.observation.ok=false;},t=>{t.observation.blocked=true;},t=>{t.observation.requiresInput=true;},t=>{t.observation.recordEvidence.source='REPOSITORY_SOURCE';},t=>{t.observation.recordEvidence.hasMore=true;},t=>{t.observation.recordEvidence.completeForQuery=false;},t=>{t.observation.recordEvidence.queryExhausted=false;},t=>{t.observation.recordEvidence.scope.collection='organizations/another/entries';},t=>{t.args.cursor='previous';},t=>{t.observation.recordEvidence.scope.cursor='previous';}]){const altered=structuredClone(task);mutate(altered);assert.equal(covered(call,[altered]),false);}
+});
+
 test('shared source metadata preserves accredited fields and latest reading inside the evidence budget',()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='boundedAuditTasks');const compact=runInNewContext('('+source.slice(node.start,node.end)+')');
  const tasks=Array.from({length:16},(_,i)=>{const fields=Array.from({length:44},(_,j)=>String.fromCharCode(97+j%26)+('_'+i+'_'+j).padEnd(25,String.fromCharCode(97+(j*7+i)%26)));return{index:i,name:'source.read',allowedEvidenceKinds:['repository_source'],args:{file:'module-'+i+'.js'},observation:{ok:true,executionOk:true,verifiedRead:{file:'module-'+i+'.js',startLine:1,content:'LATEST_SOURCE '+('body '.repeat(1000)),sourceStructure:{dataBindings:{collections:['registry-'+i],fieldPaths:fields,writeShapes:[{collection:'registry-'+i,fields,fieldsComplete:true}]}}}}}});
