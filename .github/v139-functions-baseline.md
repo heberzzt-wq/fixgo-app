@@ -1,6 +1,27 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `1c7b2788bc64c424bcec24de6c25fa09eddb18e9`, the reviewed grounded evidence-history release.
+Current baseline: `79750515c9a523cf8b6a8d02ba1b4876793cf8f1`, the reviewed fitting-source retention release.
+The additional Functions delta is limited to `jarvis-semantic-planner.js`.
+Its existing audit packet keeps fitting source bodies inside the established
+28,000-character ceiling after metadata compaction, instead of discarding them
+at an earlier 16,000-character target. Runtime observation preserves bounded
+raw source bytes and declares the actual retained line interval when clipped.
+Replay of the real Chrome receipt retains all 18,139 characters and removes the
+duplicate full-file action before inference. Complete empty query receipts may
+reuse only their own successful template and resolved route; another literal
+scope remains eligible. Neither rule credits operational objective completion.
+
+All 321 focused planner/orchestrator checks pass on the clean functional HEAD.
+The full local suite has 1,986 PASS, zero failures and one Linux-only skip,
+including physical repository search against the live local bridge. Static
+local-only policy, syntax and whitespace checks pass. Fresh CI, deployment
+alignment and the full clean Chrome mission remain required. No model, provider
+trigger, permissions or operational records change. The guard stays explicitly
+pinned, ancestor-checked and fail-closed.
+
+## Previous grounded evidence-history baseline
+
+Previous baseline: `1c7b2788bc64c424bcec24de6c25fa09eddb18e9`, the reviewed grounded evidence-history release.
 Only `functions/jarvis-semantic-planner.js` changes from the previous pin.
 Argument completion now receives immutable objectives, original structured receipts
 and tool evidence metadata before applying the same eligible-action filter used
