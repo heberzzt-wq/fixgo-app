@@ -1,6 +1,26 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `2d98268bcb155723be4f4ba3a94a520722f778b1`, the explicitly reviewed complete-projection ID-order reuse release.
+Current baseline: `5fe802ce0772c695b5e933038cc66efcb05dcc2d`, the explicitly reviewed configured-source and first-projection coverage release.
+The additional Functions change binds the first record projection to positive
+collection-scoped source schemas instead of waiting for an invented field to fail.
+Unscoped field mentions and failed source reads cannot grant field authority.
+Untyped observed collections permit ID-only discovery; authenticated field-name
+observations and prior restrictions remain preserved. This does not accredit any
+operational value, count, group or objective from source code.
+The local bridge also caches a revision-verified structural source directory and
+constrains source-file choices to actual paths. Qwen remains the sole semantic
+authority; no intent dictionary, alternative model, operating-data mutation or
+external AI execution is introduced.
+General regressions failed on the reproduced gaps before the fix. After integration,
+372 related checks passed on the clean functional HEAD and the full local suite
+reported 1,963 PASS, zero failures and one Linux-only skip. Fresh Linux/emulator CI
+and the complete clean Chrome mission remain required; this baseline does not
+claim mission certification. The guard is explicitly pinned, ancestor-checked and
+fail-closed against subsequent Functions changes.
+
+## Previous complete-projection ID-order reuse baseline
+
+Previous baseline: `2d98268bcb155723be4f4ba3a94a520722f778b1`, the explicitly reviewed complete-projection ID-order reuse release.
 The only additional Functions change normalizes the SDK default ascending
 record-ID ordering in complete-query projection reuse. Explicit non-ID ordering,
 descending ID ordering, filters, source and collection stay distinct. New fields,
