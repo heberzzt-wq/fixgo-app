@@ -1,6 +1,25 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `6eeb0db0435c4989b995fa971ea95bf670b44069`, the explicitly reviewed multi-call source-argument recovery release.
+Current baseline: `3eba8d66864f12c2e39e7e46e7521ccf6c5c8d57`, the explicitly reviewed configured recovery-frontier and source-window retention release.
+The additional Functions change keeps the server-verified source directory in
+read-only recovery choices. Configuration only discovers paths; it cannot grant
+operational evidence, fields, permissions or objective completion. Every query
+still requires its successful source read and authenticated operational receipt.
+Source bodies with actual line bounds are retained when budget allows; reuse
+checks only the windows visible in bounded context, including adjacent windows.
+Evicted windows may still be reread. Records, fields and task indexes remain
+unchanged, and the 28,000-character ceiling is preserved. General regressions
+failed on both reproduced gaps, then 486 related tests and the full local suite
+(1,968 PASS, zero failures, one Linux-only skip) passed. The real failing trace
+roundtrips its receipt exactly in 26,235 characters and its redundant requested
+range is covered by earlier retained windows. Fresh CI and the complete clean
+Chrome mission remain required; this pin does not claim mission certification.
+No intent dictionary, alternate model, external AI or data mutation is added.
+The guard remains explicitly pinned, ancestor-checked and fail-closed.
+
+## Previous multi-call source-argument recovery baseline
+
+Previous baseline: `6eeb0db0435c4989b995fa971ea95bf670b44069`, the explicitly reviewed multi-call source-argument recovery release.
 The only additional Functions change repairs each invalid initial call with the
 same model and canonical schema, instead of recovering only a one-call plan.
 Each call is validated independently; a valid sibling with the same tool name
