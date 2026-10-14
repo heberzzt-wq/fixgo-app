@@ -1,6 +1,29 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `111f500505674a78bb1b845c38414506d4ee8e35`, the reviewed grounded-record constraints release.
+Current baseline: `44ab32a96bfa7ea7f4b7afc93d6aa7ed68ad4f98`, the reviewed complete-empty-route frontier release.
+Only `jarvis-semantic-planner.js` changes inside Functions. A consistent complete
+unfiltered zero exhausts its exact authenticated source/route, including subsets
+of that empty scope, rather than inviting an invented filter. Filtered zeros,
+other source files, other routes and incomplete/cursor-limited reads do not
+exhaust a collection. A newer authenticated positive observation invalidates
+the older empty frontier. This removes actions only; it never accredits an
+objective, global population, assignment or deadline. Filter field names now
+follow the same credited collection-scoped names as projection and ordering;
+existing value restrictions and independent scope verification remain intact.
+
+Real-receipt replay changes three eligible routes to two, excluding only the
+complete empty one. Regressions failed before the change and now preserve other
+filters after a filtered zero, reopen newer positive data and reject invented
+filter fields. All 273 focal checks pass on clean functional HEAD. The fresh
+full suite has 1,987 PASS, zero failures and two explicit environment skips:
+Linux-only transport and physical search with the service stopped. Physical
+search, fresh CI, aligned deployment and the entire isolated Chrome mission
+remain required. No model, provider trigger, operational record or permission
+changes. The explicit reviewed baseline remains ancestor-checked and fail-closed.
+
+## Previous grounded-record constraints baseline
+
+Previous baseline: `111f500505674a78bb1b845c38414506d4ee8e35`, the reviewed grounded-record constraints release.
 Only `jarvis-semantic-planner.js` changes inside Functions. Argument completion
 now receives blocked-task receipts and applies the same collection-scoped field
 name binding and rejected-ordering constraints as completion auditing, before
