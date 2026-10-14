@@ -40,28 +40,48 @@
     </header>
 
     <main class="p-4 space-y-4 mt-2">
+        <label class="block text-sm text-zinc-400">Día del cierre · Cancún
+            <input id="ceoDay" type="date" class="ml-2 rounded-lg bg-zinc-900 p-2 text-white">
+        </label>
+        <p class="text-xs text-zinc-500">Vista diaria sobre los registros originales. La administración y las finanzas generales permanecen en Admin.</p>
+        <h2 class="text-sm font-bold">Servicios B2C y soporte</h2>
+        <section aria-label="Operación diaria" class="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div class="glass-card p-4 rounded-2xl"><p class="text-xs text-zinc-400">Activos ahora</p><strong id="valActive" class="text-2xl">N/D</strong></div>
+            <div class="glass-card p-4 rounded-2xl"><p class="text-xs text-zinc-400">Cerrados en el día</p><strong id="valClosed" class="text-2xl">N/D</strong></div>
+            <div class="glass-card p-4 rounded-2xl"><p class="text-xs text-zinc-400">Cancelados en el día</p><strong id="valCancelled" class="text-2xl">N/D</strong></div>
+            <div class="glass-card p-4 rounded-2xl"><p class="text-xs text-zinc-400">Disputas / garantías abiertas en el día</p><strong id="valDisputes" class="text-2xl">N/D</strong></div>
+            <div class="glass-card p-4 rounded-2xl"><p class="text-xs text-zinc-400">Casos pendientes ahora</p><strong id="valPendingCases" class="text-2xl">N/D</strong></div>
+        </section>
+        <section aria-label="Operación B2B" class="grid grid-cols-3 gap-3">
+            <div class="glass-card p-4 rounded-2xl"><p class="text-xs text-zinc-400">Órdenes B2B activas ahora</p><strong id="valActiveB2b" class="text-2xl">N/D</strong></div>
+            <div class="glass-card p-4 rounded-2xl"><p class="text-xs text-zinc-400">Órdenes B2B creadas en el día</p><strong id="valCreatedB2b" class="text-2xl">N/D</strong></div>
+            <div class="glass-card p-4 rounded-2xl"><p class="text-xs text-zinc-400">Órdenes B2B cerradas en el día</p><strong id="valClosedB2b" class="text-2xl">N/D</strong></div>
+        </section>
+        <p class="text-xs text-zinc-500">Activos y casos pendientes son actuales, incluso de días anteriores. Cierres y cancelaciones requieren una fecha registrada; sin ella no puede acreditarse el día. Servicios B2C, órdenes B2B y tickets de soporte conservan sus fuentes y no se suman como si fueran lo mismo.</p>
+        <section aria-label="Casos para revisar en Admin"><h2 class="text-sm font-bold mb-2">Casos pendientes</h2><div id="ceoPendingCases" class="space-y-2 text-xs text-zinc-400">Consultando…</div></section>
         
         <div class="grid grid-cols-2 gap-3">
             <div class="glass-card p-4 rounded-2xl relative overflow-hidden">
                 <div class="absolute -right-4 -top-4 opacity-10 text-emerald-500">
                     <i class="fas fa-chart-line text-7xl"></i>
                 </div>
-                <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-1"><i class="fas fa-money-bill-wave text-emerald-500"></i> GTV Liquidado Hoy</p>
-                <h2 id="valRev" class="text-2xl font-black text-white truncate">$0.00</h2>
+                <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-1"><i class="fas fa-money-bill-wave text-emerald-500"></i> GTV registrado en el día</p>
+                <h2 id="valRev" class="text-2xl font-black text-white truncate">N/D</h2>
             </div>
             
             <div class="glass-card p-4 rounded-2xl relative overflow-hidden border-blue-900/30">
                 <div class="absolute -right-4 -top-4 opacity-10 text-blue-500">
                     <i class="fas fa-wallet text-7xl"></i>
                 </div>
-                <p class="text-[9px] text-blue-400 font-bold uppercase tracking-widest mb-1"><i class="fas fa-piggy-bank"></i> Comisión Gestia Hoy</p>
-                <h2 id="valCom" class="text-2xl font-black text-blue-400 truncate">$0.00</h2>
+                <p class="text-[9px] text-blue-400 font-bold uppercase tracking-widest mb-1"><i class="fas fa-piggy-bank"></i> Comisión devengada en el día</p>
+                <h2 id="valCom" class="text-2xl font-black text-blue-400 truncate">N/D</h2>
             </div>
         </div>
 
+        <div class="glass-card p-4 rounded-2xl"><p class="text-xs text-amber-400">Comisión de efectivo pendiente de cobro generada en el día</p><strong id="valCashPending" class="text-2xl">N/D</strong><p class="text-xs text-zinc-500 mt-2">Importes registrados en el ledger; no equivalen a saldo bancario ni a caja conciliada. Finanzas completas en Admin.</p></div>
         <div class="grid grid-cols-2 gap-3">
             <div class="glass-card p-4 rounded-2xl text-center">
-                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-2">Servicios Hoy</p>
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-2">Servicios creados en el día</p>
                 <div class="flex items-center justify-center gap-2">
                     <i class="fas fa-bolt text-yellow-500 text-xl"></i>
                     <span id="valServ" class="text-3xl font-black text-white">0</span>
@@ -100,10 +120,24 @@
     
 <script type="module">
         import { db, collection, query, where, orderBy, onSnapshot, observarAuth, verificarYRedireccionar } from "./firebase.js";
+        import { ceoDayBounds, ceoDayKey } from "./ceo-daily-model.js";
+        import { startCeoDailyOperations } from "./ceo-daily-operations.js";
         import { assertTechnicianCanOperate, TECHNICIAN_KYC_STATES } from "./b2c-technician-profile.js";
 
         const opcionesFecha = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
-        document.getElementById('fechaHoy').innerText = new Date().toLocaleDateString('es-MX', opcionesFecha);
+        const todayKey = ceoDayKey();
+        let dayBounds;
+        try { dayBounds = ceoDayBounds(new URLSearchParams(location.search).get("day") || todayKey); }
+        catch { dayBounds = ceoDayBounds(todayKey); }
+        const dayInput = document.getElementById("ceoDay");
+        dayInput.value = dayBounds.day; dayInput.max = todayKey;
+        dayInput.addEventListener("change", () => {
+            try { ceoDayBounds(dayInput.value); } catch { return; }
+            const url = new URL(location.href); url.searchParams.set("day", dayInput.value); location.assign(url.href);
+        });
+        document.getElementById('fechaHoy').innerText = dayBounds.start.toLocaleDateString('es-MX', {...opcionesFecha, timeZone:"America/Cancun"});
+        // Refresh the current-day view at midnight; selected historical days stay fixed.
+        if (!new URLSearchParams(location.search).has("day")) setTimeout(() => location.reload(), Math.max(1000, dayBounds.end.getTime() - Date.now() + 1000));
 
         const escapeHtml = (value) => String(value ?? "")
             .replace(/&/g, "&amp;")
@@ -139,14 +173,16 @@
             document.documentElement.classList.remove("gestia-auth-pending");
             document.getElementById("fortressLoader")?.remove();
 
-            const hoy = new Date();
-            hoy.setHours(0, 0, 0, 0);
+            const hoy = dayBounds.start;
+            const manana = dayBounds.end;
 
             const listenerHealth = {
                 technicians: null,
                 finance: null,
                 services: null,
-                withdrawals: null
+                withdrawals: null,
+                activeServices:null, closedServices:null, cancelledServices:null, cancelledMarketplace:null, openedCases:null, pendingCases:null,
+                activeB2b:null, createdB2b:null, closedB2b:null
             };
             const alertBuckets = {
                 system: {},
@@ -183,6 +219,10 @@
                     ...alertBuckets.services
                 ].filter(Boolean);
 
+                if (alerts.length === 0 && !Object.values(listenerHealth).every(value => value === true)) {
+                    contenedor.textContent = "Comprobando las fuentes; todavía no puede confirmarse ausencia de alertas.";
+                    return;
+                }
                 if (alerts.length === 0) {
                     contenedor.innerHTML = `
                     <div class="p-4 bg-emerald-900/10 border border-emerald-900/30 rounded-xl text-center shadow-inner">
@@ -213,7 +253,8 @@
 
             // Técnicos B2C: la cifra "online" usa la misma autoridad de elegibilidad del marketplace.
             const qTechs = query(collection(db, "users"), where("rol", "==", "tecnico"));
-            onSnapshot(qTechs, (snap) => {
+            onSnapshot(qTechs, {includeMetadataChanges:true}, (snap) => {
+                if (snap.metadata.fromCache) { document.getElementById("valTechs").textContent = "N/D"; setListenerHealth("technicians", false, new Error("Esperando datos del servidor")); return; }
                 let online = 0;
                 let pendingReview = 0;
                 const duplicateNames = [];
@@ -272,9 +313,11 @@
             const qTx = query(
                 collection(db, "transacciones"),
                 where("fecha", ">=", hoy),
+                where("fecha", "<", manana),
                 orderBy("fecha", "desc")
             );
-            onSnapshot(qTx, (snap) => {
+            onSnapshot(qTx, {includeMetadataChanges:true}, (snap) => {
+                if (snap.metadata.fromCache) { document.getElementById("valRev").textContent = "N/D"; document.getElementById("valCom").textContent = "N/D"; document.getElementById("valCashPending").textContent = "N/D"; setListenerHealth("finance", false, new Error("Esperando datos del servidor")); return; }
                 const ledgerByService = new Map();
 
                 snap.forEach(docSnap => {
@@ -291,17 +334,21 @@
 
                 let gtvHoy = 0;
                 let comisionHoy = 0;
+                let cashPending = 0;
                 for (const { tx } of ledgerByService.values()) {
                     gtvHoy += finiteMoney(tx.monto_total);
                     comisionHoy += finiteMoney(tx.comision_gestia ?? tx.ganancia_gestia ?? tx.comision_fixgo);
+                    if (tx.tipo === "comision_efectivo_pendiente_cobro") cashPending += finiteMoney(tx.comision_gestia ?? tx.ganancia_gestia ?? tx.comision_fixgo);
                 }
 
                 document.getElementById('valRev').innerText = `$${gtvHoy.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
                 document.getElementById('valCom').innerText = `$${comisionHoy.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                document.getElementById("valCashPending").textContent = `$${cashPending.toFixed(2)}`;
                 setListenerHealth("finance", true);
             }, (error) => {
                 document.getElementById('valRev').innerText = "N/D";
                 document.getElementById('valCom').innerText = "N/D";
+                document.getElementById('valCashPending').textContent = "N/D";
                 setListenerHealth("finance", false, error);
             });
 
@@ -309,9 +356,11 @@
             const qServ = query(
                 collection(db, "services"),
                 where("created_at", ">=", hoy),
+                where("created_at", "<", manana),
                 orderBy("created_at", "desc")
             );
-            onSnapshot(qServ, (snap) => {
+            onSnapshot(qServ, {includeMetadataChanges:true}, (snap) => {
+                if (snap.metadata.fromCache) { document.getElementById("valServ").textContent = "N/D"; setListenerHealth("services", false, new Error("Esperando datos del servidor")); return; }
                 const serviceAlerts = [];
                 let serviciosHoy = 0;
                 const nowMs = Date.now();
@@ -376,7 +425,8 @@
 
             // Retiros pendientes: acción financiera que antes sólo existía en NOC.
             const qWithdrawals = query(collection(db, "retiros"), where("estado", "==", "pendiente"));
-            onSnapshot(qWithdrawals, (snap) => {
+            onSnapshot(qWithdrawals, {includeMetadataChanges:true}, (snap) => {
+                if (snap.metadata.fromCache) { setListenerHealth("withdrawals", false, new Error("Esperando datos del servidor")); return; }
                 let total = 0;
                 snap.forEach(docSnap => {
                     total += finiteMoney(docSnap.data()?.monto);
@@ -393,6 +443,8 @@
                 setListenerHealth("withdrawals", false, error);
             });
 
+            const stopDailyOperations = startCeoDailyOperations({start:hoy, end:manana, setHealth:setListenerHealth});
+            window.addEventListener("pagehide", stopDailyOperations, {once:true});
             renderSyncState();
             renderAlerts();
         });

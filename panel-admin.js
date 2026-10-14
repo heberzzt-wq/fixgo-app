@@ -36,6 +36,7 @@ import {
 import { getDocs, increment, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { escaparHTML, cargarLibreriaPDF, urlABase64 } from "./app-utils.js";
 import "./gestia-core/contracts/b2c-platform-contract.js";
+import { showCeoAdminCase } from "./ceo-admin-case.js";
 import { renderAdminCrewReview } from "./b2c-provider-crew-admin.js";
 
 const platformContract = globalThis.GestiaB2CPlatformContract;
@@ -587,19 +588,26 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  // ======================================================================================
  // ⚖️ MESA DE AYUDA DEL JUEZ: LÓGICA DE RESOLUCIÓN DE DISPUTAS Y GARANTÍAS
  // ======================================================================================
- window.juzgarDisputaAdmin = async (serviceId, estadoActual) => {
+ window.juzgarDisputaAdmin = async (serviceId, estadoActual, selectedTicketId = "") => {
      if(document.getElementById("modalJuezAdmin")) return;
      
      try {
          const qTickets = query(collection(db, "support_tickets"), where("serviceId", "==", serviceId), limit(1));
-         const ticketSnap = await getDocs(qTickets);
+         const ticketSnap = selectedTicketId ? null : await getDocs(qTickets);
          
-         if (ticketSnap.empty) {
+         if (!selectedTicketId && ticketSnap.empty) {
              alert("No se encontró el ticket de soporte en la base de datos.");
              return;
          }
 
-         const ticketDoc = ticketSnap.docs[0];
+         const ticketDoc = selectedTicketId
+             ? await getDoc(doc(db, "support_tickets", selectedTicketId))
+             : ticketSnap.docs[0];
+         if (!ticketDoc.exists() || ticketDoc.data().serviceId !== serviceId ||
+             (selectedTicketId && ticketDoc.data().status !== "open")) {
+             alert("El ticket seleccionado no corresponde a un caso abierto de este servicio.");
+             return;
+         }
          const ticketId = ticketDoc.id;
 
          const qMessages = query(collection(db, `support_tickets/${ticketId}/messages`), orderBy("timestamp", "asc"), limit(1));
@@ -1611,6 +1619,12 @@ if (elementos.lista && !document.getElementById("btnAutorizarEfectivo")) {
  elementos.listaHistorialRetiros.innerHTML = '<p class="text-red-500 italic text-xs text-center mt-4">Construyendo índice en Firebase... (Recarga en 3 min)</p>';
  });
  }
+ const ceoServiceId = new URLSearchParams(window.location.search).get("serviceId");
+ if (ceoServiceId) await showCeoAdminCase({serviceId:ceoServiceId,
+     ticketId:new URLSearchParams(window.location.search).get("ticketId") || "",
+     getService:id => getDoc(doc(db,"services",id)),
+     getTicket:id => getDoc(doc(db,"support_tickets",id)),
+     judge:window.juzgarDisputaAdmin, audit:window.auditarServicio});
 }
 
 function generarSwitchGranular(id, label, checked, coverage = null, audience = null) {
