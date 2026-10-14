@@ -57,7 +57,8 @@ export function startCeoDailyOperations({ start, end, setHealth }) {
                 const row = document.createElement("div");
                 row.className = "glass-card p-3 rounded-xl flex justify-between items-center gap-3 text-xs";
                 const description = document.createElement("span");
-                description.textContent = `${data.issueType || "Caso de soporte"} · ${data.serviceId || "Sin servicio vinculado"}`;
+                const typeLabel = data.issueType === "warranty_claim" ? "Garantía" : data.issueType === "payment_refusal" ? "Disputa de pago" : "Caso de soporte";
+                description.textContent = `${typeLabel} · ${data.serviceId || "Sin servicio vinculado"}`;
                 row.append(description);
                 const href = ceoAdminCaseUrl(data.serviceId, ticket.id);
                 if (href) {
