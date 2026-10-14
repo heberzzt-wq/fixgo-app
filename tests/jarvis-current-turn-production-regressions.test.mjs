@@ -2268,6 +2268,31 @@ function platformQueryTestFixture({signedIn=true,fail=null,fromCache=false,chang
     return{execute,args,context,calls,dependencies:{auth,db:{},sdk}};
 }
 
+test('unresolved collection parameters cannot become authenticated empty evidence',async()=>{
+ for(const mode of ['query','count']) {
+  const f=platformQueryTestFixture();
+  const collection='registry/{groupId}/{bucketId}';
+  f.context.completedTasks[0].observation.verifiedRead.sourceStructure.dataBindings.collections=[collection];
+  const before=JSON.stringify(f.context);
+  const result=await f.execute({...f.args,collection,mode,fields:['__name__']},f.dependencies,f.context);
+  assert.equal(result.ok,false,'an unresolved route must fail before requesting records');
+  assert.equal(result.error.code,'PLATFORM_QUERY_COLLECTION_UNRESOLVED');
+  assert.deepEqual(Array.from(result.error.details.unresolvedPathParameters),['groupId','bucketId']);
+  assert.equal(result.error.details.collection,collection);
+  assert.equal(result.error.details.requiredNextStep,'Resolve the observed path parameters from source evidence and authorized dependencies before querying records.');
+  assert.equal(result.recordEvidence,undefined);
+  assert.equal(result.retryable,false);
+  assert.equal(f.calls.length,0,'neither a count nor a query may reach Firestore');
+  assert.equal(JSON.stringify(f.context),before);
+ }
+ const f=platformQueryTestFixture();
+ f.context.tenantId='observed-scope';
+ f.context.completedTasks[0].observation.verifiedRead.sourceStructure.dataBindings.collections=['registry/{tenantId}/entries'];
+ const result=await f.execute({...f.args,collection:'registry/{tenantId}/entries',fields:['__name__']},f.dependencies,f.context);
+ assert.equal(result.ok,true,JSON.stringify(result));
+ assert.equal(result.recordEvidence.scope.collection,'registry/observed-scope/entries','existing authenticated tenant resolution must remain available');
+});
+
 test('explicit document ID ordering reaches Firestore exactly once and preserves direction and pagination',async()=>{
  const f=platformQueryTestFixture({recordData:[{title:'First'},{title:'Second'},{title:'Third'}]});
  f.dependencies.sdk.orderBy=(field,direction)=>({orderBy:field,direction});

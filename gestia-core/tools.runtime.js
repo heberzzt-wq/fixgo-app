@@ -730,6 +730,19 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
             : requestedCollection;
         const segment = value => typeof value === "string" && value.length > 0 && value.length <= 500 && !/[\x00-\x1f]/.test(value) && ![".", ".."].includes(value);
         if (typeof collectionPath !== "string" || collectionPath.length > 1500 || collectionPath.split("/").length % 2 !== 1 || !collectionPath.split("/").every(segment)) throw new Error("PLATFORM_QUERY_COLLECTION_REQUIRED");
+        // A discovered path template describes a dependency, not a literal
+        // operational collection. Never turn unresolved parameters into a
+        // server-authenticated zero for a population that was not queried.
+        const unresolvedPathParameters = collectionPath.split("/")
+            .filter(part => /^\{[^{}]+\}$/.test(part)).map(part => part.slice(1, -1));
+        if (unresolvedPathParameters.length) {
+            failQuery("PLATFORM_QUERY_COLLECTION_UNRESOLVED", {
+                collection: collectionPath,
+                sourceFile: args.sourceFile,
+                unresolvedPathParameters: [...new Set(unresolvedPathParameters)],
+                requiredNextStep: "Resolve the observed path parameters from source evidence and authorized dependencies before querying records."
+            });
+        }
         if (!["query", "count"].includes(mode)) throw new Error("PLATFORM_QUERY_MODE_INVALID");
         const fields = args.fields || [], filters = args.filters || [];
         const validField = value => typeof value === "string" && value.length <= 500 && value.split(".").every(part => segment(part) && !["__proto__", "constructor", "prototype"].includes(part));
