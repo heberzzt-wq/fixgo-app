@@ -1,6 +1,20 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `3eba8d66864f12c2e39e7e46e7521ccf6c5c8d57`, the explicitly reviewed configured recovery-frontier and source-window retention release.
+Current baseline: `6d476ca3553f8bbce1d769bab4d1f5c7843a09a2`, the explicitly reviewed exhausted-cursor release.
+The sole additional Functions change suppresses a query continuation after the
+last authenticated row of a complete, exhausted first page in the same source,
+collection, filter and ordering scope. It does not accredit goal coverage or
+global absence. Changed scopes, partial pages and first-page projections of new
+fields remain eligible. The general regression failed before the fix, then 262
+related tests passed on both the working tree and clean functional HEAD. The full
+local suite passed 1,970 tests with zero failures and one Linux-only skip.
+Fresh CI and the complete clean Chrome mission remain required. No model,
+permissions, operational data or external-provider triggers change.
+The guard remains explicitly pinned, ancestor-checked and fail-closed.
+
+## Previous configured recovery and source-window baseline
+
+Previous baseline: `3eba8d66864f12c2e39e7e46e7521ccf6c5c8d57`, the explicitly reviewed configured recovery-frontier and source-window retention release.
 The additional Functions change keeps the server-verified source directory in
 read-only recovery choices. Configuration only discovers paths; it cannot grant
 operational evidence, fields, permissions or objective completion. Every query
