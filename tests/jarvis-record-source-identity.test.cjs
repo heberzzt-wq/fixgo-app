@@ -158,3 +158,64 @@ test('coverage citations are constrained to the exact queried route including au
   throw Error('Unexpected stage '+request.config.semanticStage);
  }}}});assert.equal(checked,true);
 });
+
+test('rejected query survives recovery as a typed decision receipt and advances without replaying exhausted work',async()=>{
+ // Reduced from the Chrome 92c83bf2 cycle: a completed empty route,
+ // an irrelevant timestamp projection, a scope rejection, then recovery.
+ // Domain names and tenant values are deliberately replaced by generic fixtures.
+ const input='Count entries, identify holders and report current deadlines';
+ const contracts=['Count entries','Identify holders','Report current deadlines'].map(objective=>({objective,requiredEvidenceKind:'platform_records'}));
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string'},fields:{type:'array',items:{type:'string'}},filters:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}};
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,inputSchema:{type:'object',properties:{file:{type:'string',enum:['related.js']}},required:['file']}};
+ const rejected={name:query.name,args:{sourceFile:'registry.js',collection:'profiles',mode:'query',fields:['updatedAt'],filters:[]}};
+ const tasks=[{name:reader.name,args:{file:'registry.js'},observation:{ok:true,verifiedRead:{file:'registry.js',content:'Observed independent registries',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['entries','profiles'],references:[{collection:'profiles',content:'collection(db, "profiles")'}],writeShapes:[{collection:'profiles',fields:['updatedAt','holder'],content:'{updatedAt, holder}'}]}}}}},
+ {name:query.name,args:{sourceFile:'registry.js',collection:'entries',mode:'query',fields:['__name__'],filters:[]},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{sourceFile:'registry.js',collection:'entries',mode:'query',fields:['__name__'],filters:[],orderBy:[{field:'__name__',direction:'asc'}]},rows:[],returnedCount:0,totalCount:0,completeForQuery:true,queryExhausted:true,hasMore:false}}}];
+ const stages=[];let relatedAvailable=false;
+ const result=await runJarvisSemanticPlanner({input,catalog:[query,reader],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:contracts,completedTasks:tasks},ai:{models:{generateContent:async request=>{
+  stages.push(request.config.semanticStage);
+  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:contracts.map(c=>({...c,satisfied:false,evidenceTaskIndexes:[1],limitation:'Other sources remain pending'}))},toolCalls:[rejected]})};
+  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":false}'};
+  assert.equal(request.config.semanticStage,'READ_ONLY_EVIDENCE_CONTINUATION');
+  const message=request.config.chatMessages.find(m=>m.content.startsWith('RECHAZO_DE_ALCANCE='));
+  assert.ok(message,'recovery needs the exact rejected proposal, not merely an error label');
+  const receipt=JSON.parse(message.content.slice('RECHAZO_DE_ALCANCE='.length));
+  assert.equal(receipt.code,'SEMANTIC_QUERY_SCOPE_UNVERIFIED');
+  assert.deepEqual(receipt.proposed,rejected);
+  assert.equal(receipt.operationalEvidence,false);assert.equal(receipt.objectiveSatisfied,false);
+  const choices=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;
+  relatedAvailable=choices.some(c=>c.properties.name.enum?.includes(query.name)||c.properties.name.const===query.name);
+  assert.equal(relatedAvailable,true,'a rejected projection cannot exhaust the entire collection or remove valid alternatives');
+  return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'related.js'}}]})};
+ }}}});
+ assert.deepEqual(stages,['COMPLETION_AUDIT','QUERY_POPULATION_VERIFICATION','READ_ONLY_EVIDENCE_CONTINUATION']);
+ assert.equal(result.ok,true);assert.equal(result.missionComplete,false);
+ assert.deepEqual(result.toolCalls.map(c=>({name:c.name,args:c.args})),[{name:reader.name,args:{file:'related.js'}}]);
+ assert.equal(result.completionAssessment.objectives.length,3);
+ assert.ok(result.completionAssessment.objectives.every(o=>o.satisfied===false&&o.requiredEvidenceKind==='platform_records'));
+});
+
+test('the next decision reuses an unchanged query rejection but new evidence reopens it',async()=>{
+ const contract={objective:'Inspect entries',requiredEvidenceKind:'platform_records'};
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,inputSchema:{type:'object',properties:{file:{type:'string',enum:['next.js']}},required:['file']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string'},fields:{type:'array',items:{type:'string'}},filters:{type:'array'}},required:['sourceFile','collection','mode']}};
+ const tasks=[{name:reader.name,args:{file:'source.js'},observation:{ok:true,verifiedRead:{file:'source.js',content:'Observed profile schema',sourceStructure:{dataBindings:{collections:['profiles'],writeShapes:[{collection:'profiles',fields:['stamp','label'],content:'{stamp, label}'}]}}}}}];
+ const rejected={name:query.name,args:{sourceFile:'source.js',collection:'profiles',mode:'query',fields:['stamp'],filters:[]}};
+ const cache=new Map(),stages=[];let turn=0;
+ const ai={objectiveCoverageCache:cache,models:{generateContent:async request=>{
+  stages.push(request.config.semanticStage);
+  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:[{...contract,satisfied:false,evidenceTaskIndexes:[],limitation:'Other evidence pending'}]},toolCalls:[{...rejected,reason:'Proposal explanation '+turn}]})};
+  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":false}'};
+  assert.equal(request.config.semanticStage,'READ_ONLY_EVIDENCE_CONTINUATION');
+  const message=request.config.chatMessages.find(m=>m.content.startsWith('DECISIONES_RECHAZADAS='));
+  const receipts=JSON.parse(message.content.slice('DECISIONES_RECHAZADAS='.length));assert.equal(receipts.length,1);
+  assert.deepEqual(receipts[0].proposed,rejected);
+  return{text:'{"toolCalls":[{"name":"repo.read","args":{"file":"next.js"}}]}'};
+ }}};
+ for(turn=0;turn<3;turn++){
+  stages.length=0;
+  if(turn===2)tasks[0].observation.verifiedRead.sourceStructure.dataBindings.writeShapes[0].content='{stamp: deadlineValue, label}';
+  const result=await runJarvisSemanticPlanner({input:contract.objective,catalog:[reader,query],missionState:{phase:'COMPLETION_AUDIT',missionId:'one-mission',tenantId:'approved',evidenceObjectives:[contract],completedTasks:tasks},ai});
+  assert.equal(result.missionComplete,false);assert.equal(result.toolCalls[0].args.file,'next.js');
+  assert.equal(stages.filter(s=>s==='QUERY_POPULATION_VERIFICATION').length,turn===1?0:1);
+ }
+});

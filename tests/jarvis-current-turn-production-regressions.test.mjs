@@ -5121,3 +5121,47 @@ test('scope reviews distinguish justified exclusions from violations and bound t
   assert.equal(proof.proven,mode==='justified');assert.equal(proof.sources[1].relevant,mode==='justified'?false:null);
  }
 });
+
+test('runtime resolved terminal pages are removed before planning and cannot escape deduplication through their recorded template',async()=>{
+ const f=platformQueryTestFixture({recordData:[]});
+ const template='registry/{tenantId}/entries',resolved='registry/approved/entries';
+ const source=f.context.completedTasks[0];
+ source.observation.verifiedRead.content='setDoc(doc(db, "registry/{tenantId}/entries", id), {title: suppliedTitle, rank: suppliedRank});';
+ source.observation.verifiedRead.sourceStructure.dataBindings.collections=[template];
+ f.context.tenantId='approved';
+ const args={...f.args,collection:template,mode:'query',fields:['__name__'],cursor:'0',includeCount:false};
+ const exhausted=await f.execute(args,f.dependencies,f.context);assert.equal(exhausted.ok,true,JSON.stringify(exhausted));
+ assert.equal(exhausted.recordEvidence.scope.collection,resolved);assert.equal(exhausted.recordEvidence.queryExhausted,true);assert.equal(exhausted.recordEvidence.completeForQuery,false);
+ const first=platformQueryTestFixture({recordData:[{title:'One',rank:1},{title:'Two',rank:2}]});
+ first.context.completedTasks=[structuredClone(source)];first.context.tenantId='approved';
+ const firstArgs={...args,cursor:undefined,pageSize:1};
+ const page=await first.execute(firstArgs,first.dependencies,first.context);assert.equal(page.ok,true,JSON.stringify(page));
+ assert.equal(page.recordEvidence.hasMore,true);assert.equal(page.recordEvidence.nextCursor,'0');
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,inputSchema:{type:'object',properties:{file:{type:'string',enum:['next.js']}},required:['file']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string'},fields:{type:'array',items:{type:'string'}},filters:{type:'array'},cursor:{type:'string'},pageSize:{type:'integer'},includeCount:{type:'boolean'}},required:['sourceFile','collection','mode','fields','filters']}};
+ const tasks=[structuredClone(source),{name:query.name,args:firstArgs,observation:page},{name:query.name,args,observation:exhausted}];
+ for(const collection of [template,resolved]){
+  const stages=[];
+  const result=await runJarvisSemanticPlanner({input:'Inspect all entries',catalog:[query,reader],missionState:{phase:'COMPLETION_AUDIT',tenantId:'approved',evidenceObjectives:[{objective:'Inspect all entries',requiredEvidenceKind:'platform_records'}],completedTasks:tasks},ai:{models:{generateContent:async request=>{
+   stages.push(request.config.semanticStage);
+   if(request.config.semanticStage==='COMPLETION_AUDIT'){
+    const walk=node=>node&&typeof node==='object'?(Array.isArray(node)?node.flatMap(walk):[...(node.properties?.cursor?.enum||[]),...Object.values(node).flatMap(walk)]):[];
+    assert.ok(!walk(request.config.responseJsonSchema).includes('0'),'an exhausted authenticated cursor must be absent from the next native action schema');
+    // Exercise the post-selection boundary too: even an out-of-schema model
+    // proposal must not reach query review or execution by switching aliases.
+    return{text:JSON.stringify({completionAssessment:{objectives:[{objective:'Inspect all entries',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[2],limitation:'Other evidence remains pending'}]},toolCalls:[{name:query.name,args:{...args,collection,fields:['rank'],pageSize:100}}]})};
+   }
+   assert.equal(request.config.semanticStage,'READ_ONLY_EVIDENCE_CONTINUATION');return{text:'{"toolCalls":[{"name":"repo.read","args":{"file":"next.js"}}]}'};
+  }}}});
+  assert.equal(result.ok,true);assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives[0].satisfied,false);
+  assert.equal(result.toolCalls[0].name,reader.name);assert.deepEqual(stages,['COMPLETION_AUDIT','READ_ONLY_EVIDENCE_CONTINUATION']);
+ }
+ const plannerSource=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(plannerSource,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');
+ const covered=runInNewContext('('+plannerSource.slice(node.start,node.end)+')');
+ const repeated={name:query.name,args:{...args,fields:['rank'],pageSize:100}};
+ assert.equal(covered(repeated,tasks),true);
+ for(const change of [{collection:'registry/different-organization/entries'},{sourceFile:'another.js'},{cursor:'other-cursor'},{filters:[{field:'rank',op:'==',value:2}]}])
+  assert.equal(covered({...repeated,args:{...repeated.args,...change}},tasks),false,'another organization or query scope cannot inherit exhaustion');
+ assert.equal(exhausted.recordEvidence.completeForQuery,false);
+});

@@ -581,6 +581,14 @@ function recordProjectionAlreadyObserved(call, tasks) {
         return parts.length===actual.length && parts.every((part,index)=>
             /^\{[A-Za-z][A-Za-z0-9_]*\}$/.test(part)?Boolean(actual[index]):part===actual[index]);
     };
+    const receiptScope=(args,task)=>{
+        const requested=task.args?.collection,resolved=task.observation?.recordEvidence?.scope?.collection;
+        // Bind only the exact template submitted for this authenticated
+        // receipt, or its resolved path. Never wildcard-match a new actor.
+        return typeof resolved==='string' && sameCollection(requested,resolved) &&
+            (args?.collection===requested || args?.collection===resolved)
+            ? {...args,collection:resolved} : args;
+    };
     if(call.args?.mode==='count' && !call.args.cursor){
         // An authenticated, unpaged empty query already proves zero in that
         // exact scope. Resolve only its own recorded template, never another
@@ -615,7 +623,8 @@ function recordProjectionAlreadyObserved(call, tasks) {
                 record.completeForQuery===true && record.hasMore===false && record.queryExhausted!==false &&
                 record.consistentCountAndList!==false && !task.args?.cursor && !record.scope?.cursor &&
                 Array.isArray(record.rows) && record.rows.length>0 && record.rows.at(-1)?.id===call.args.cursor &&
-                baseScope(task.args)===baseScope(call.args) && baseScope(record.scope)===baseScope(call.args);
+                baseScope(receiptScope(task.args,task))===baseScope(receiptScope(call.args,task)) &&
+                baseScope(record.scope)===baseScope(receiptScope(call.args,task));
         }))return true;
     }
     if(call.args?.mode==='query' && call.args.cursor && call.args.fields?.length){
@@ -629,7 +638,8 @@ function recordProjectionAlreadyObserved(call, tasks) {
                 task.observation.blocked!==true && task.observation.requiresInput!==true &&
                 record.queryExhausted===true && record.hasMore===false && record.nextCursor==null &&
                 Array.isArray(record.rows) && record.rows.length===0 &&
-                pageScope(task.args)===pageScope(call.args) && pageScope(record.scope)===pageScope(call.args) &&
+                pageScope(receiptScope(task.args,task))===pageScope(receiptScope(call.args,task)) &&
+                pageScope(record.scope)===pageScope(receiptScope(call.args,task)) &&
                 (call.args.includeCount!==true || Number.isInteger(record.totalCount)&&record.totalCount>=0);
         });
     }
@@ -3149,6 +3159,25 @@ async function runModelSemanticPlanner({
             return requireExecutablePlan({ ...validated, provider: String(ai.lastProvider || "jarvis-local"), model,
                 catalogSize: nextCatalog.length, planKind: "RESPONSIVE_REPAIR_CONTINUATION" });
         }
+        // Rejections are decision history, never operational evidence. Reuse
+        // only under the same instruction, identity, model and dependencies.
+        const decisionCache=ai.objectiveCoverageCache || new Map();
+        const queryDecisionKey=call=>'query-rejection:'+recordObjectiveRevision(
+            {query:canonicalArgs({name:call.name,args:call.args||{}}),instruction},completedTasksForAudit,recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content),model,missionState,evaluatedAt);
+        const knownQueryRejection=call=>decisionCache.get(queryDecisionKey(call))?.queryRejection;
+        const queryRejectionReceipt=error=>({code:error.message,proposed:{name:error.evidence?.tool,args:error.evidence?.proposed},
+            limitation:error.evidence?.limitation || '',operationalEvidence:false,objectiveSatisfied:false});
+        const currentQueryRejections=()=>{
+            const receipts=[];let bytes=2;
+            for(const [key,value] of [...decisionCache.entries()].reverse()){
+                const receipt=value?.queryRejection;
+                if(!receipt || key!==queryDecisionKey(receipt.proposed))continue;
+                const cost=JSON.stringify(receipt).length+1;
+                if(bytes+cost>2000)continue;
+                receipts.unshift(receipt);bytes+=cost;if(receipts.length===6)break;
+            }
+            return receipts;
+        };
                 const canonicalArgs = value => Array.isArray(value) ? value.map(canonicalArgs) : value && typeof value === "object"
                     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalArgs(value[key])])) : value;
                 const sameCall = (task, call) => task?.name === call?.name &&
@@ -3164,7 +3193,7 @@ async function runModelSemanticPlanner({
                     const withoutPageSize=args=>Object.fromEntries(Object.entries({...args,filters:args?.filters || [],orderBy:args?.orderBy || []}).filter(([key])=>key!=="pageSize"));
                     return sameCall({...task,args:withoutPageSize(task.args)},{...call,args:withoutPageSize(call.args)});
                 });
-                const wasRejected = call => (missionState.blockedTasks || []).some(task =>
+                const wasRejected = call => Boolean(knownQueryRejection(call)) || (missionState.blockedTasks || []).some(task =>
                     sameCall(task, call) &&
                     task?.observation?.retryable !== true
                 );
@@ -3242,7 +3271,14 @@ async function runModelSemanticPlanner({
                         }});
                         const verdict=extractJsonObject(String(review?.text||""));
                         if(review?.providerResponse?.finishReason==="length" || verdict?.matchesRequest!==true){
-                            const error=new Error("SEMANTIC_QUERY_SCOPE_UNVERIFIED");error.evidence={tool:call.name,proposed:call.args,limitation:String(verdict?.rejectionReason||verdict?.limitation||"Qwen no acreditó la pertinencia del alcance propuesto; esta decisión no demuestra ausencia de registros."),nextEvidenceQuery:String(verdict?.nextEvidenceQuery||""),requiredNextStep:"Read or search the actual source definition before querying; do not repeat this unverified query or infer missing records."};throw error;
+                            const error=new Error("SEMANTIC_QUERY_SCOPE_UNVERIFIED");error.evidence={tool:call.name,proposed:call.args,limitation:String(verdict?.rejectionReason||verdict?.limitation||"Qwen no acreditó la pertinencia del alcance propuesto; esta decisión no demuestra ausencia de registros."),nextEvidenceQuery:String(verdict?.nextEvidenceQuery||""),requiredNextStep:"Read or search the actual source definition before querying; do not repeat this unverified query or infer missing records."};
+                            // A truncated inference is retryable; only an
+                            // explicit semantic rejection can be remembered.
+                            if(review?.providerResponse?.finishReason!=="length" && verdict?.matchesRequest===false){
+                                decisionCache.set(queryDecisionKey(call),{queryRejection:queryRejectionReceipt(error)});
+                                while(decisionCache.size>96)decisionCache.delete(decisionCache.keys().next().value);
+                            }
+                            throw error;
                         }
                     }
                 }
@@ -3327,7 +3363,9 @@ async function runModelSemanticPlanner({
                                 const schema=buildNativeInputSchema(tool.inputSchema);return (schema.anyOf||[schema]).flatMap(branch=>branch.properties?.file?.enum||[]);
                             }))])},
                             {role:"system",content:"LECTURAS_PARCIALES="+JSON.stringify(partialReads.map(read=>({...read,schemaAnchors:read.schemaAnchors.map(({fields,...anchor})=>anchor)})))},
-                            ...(error ? [{role:"system",content:"RECHAZO_DE_ALCANCE="+error.message+"\nElige UNA palabra literal de la solicitud del usuario o de su aclaración cuando uses repo.grep para recuperar el esquema. El rechazo no acredita registros ni agota otras fuentes."}] : []),
+                            ...(error ? [{role:"system",content:"RECHAZO_DE_ALCANCE="+JSON.stringify(queryRejectionReceipt(error))}] : []),
+                            {role:"system",content:"DECISIONES_RECHAZADAS="+JSON.stringify(currentQueryRejections())},
+                            {role:"system",content:"No repitas esas propuestas con las mismas dependencias. Son rechazos de decisiones, no consultas ejecutadas, ausencia de datos ni objetivos satisfechos. Otras proyecciones o consultas pertinentes de la misma colección siguen disponibles. Elige UNA palabra literal de la solicitud del usuario o de su aclaración cuando uses repo.grep para recuperar el esquema."},
                             ...auditTasks.map(task=>({role:"system",content:"EVIDENCIA_OBTENIDA="+JSON.stringify(task)})),
                             {role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedSchemaHints)},
                             ...(missionState.blockedTasks||[]).slice(-8).map(task=>({role:"system",content:"INTENTO_FALLIDO="+JSON.stringify({name:task.name,args:task.args,observation:task.observation})})),
@@ -3413,6 +3451,8 @@ async function runModelSemanticPlanner({
                             { role: "system", content: auditInstruction + (lastAuditError ? "\nRepara el contrato rechazado: " + lastAuditError.message + ". Conserva las pruebas reales. satisfied=false exige una limitation no vacia; satisfied=true exige referencias validas y limitation vacia. No inventes evidencia para corregir el formato." : "") },
                             { role: "system", content: "RELOJ_DE_EVALUACION="+evaluatedAt+"\nFecha y hora actual del sistema. Es la referencia para evaluar fechas relativas, no evidencia de valores operativos ausentes ni de cobertura de una fuente." },
                             { role: "system", content: "CATALOGO_EJECUTABLE=" + JSON.stringify(auditCatalog) },
+                            {role:"system",content:"DECISIONES_RECHAZADAS="+JSON.stringify(currentQueryRejections())},
+                            {role:"system",content:"Conserva estos rechazos bajo las dependencias actuales. No son evidencia operativa ni agotan otras consultas de la misma fuente. Selecciona una acción distinta que aporte evidencia pendiente."},
                             ...(coverageBeforeDecision.length ? [{role:'system',content:'COBERTURA_REVISADA_ANTES_DE_DECIDIR='+JSON.stringify(coverageBeforeDecision)+'\nConserva la prueba por objetivo. Elige ahora una sola acción válida que aporte evidencia pendiente; no repitas operaciones agotadas ni trabajo ya demostrado.'}] : []),
                             ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
                             ...(missionState.evidenceObjectives?.length ? [{role:"system",content:"OBJETIVOS_ESTABLECIDOS_INMUTABLES="+JSON.stringify(missionState.evidenceObjectives)+"\nConserva todos los nombres. Si el tipo inicial sólo era evidencia preparatoria, elévalo a un tipo permitido por el esquema y las dependencias de lectura del catálogo. El código puede permitir consultar datos actuales, pero no los sustituye. Nunca rebajes un requisito ya establecido; evalúa cada objetivo completo."}] : []),
