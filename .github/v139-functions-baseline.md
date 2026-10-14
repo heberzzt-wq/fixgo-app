@@ -1,6 +1,28 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `79750515c9a523cf8b6a8d02ba1b4876793cf8f1`, the reviewed fitting-source retention release.
+Current baseline: `a3ff8cced69b6f58b5ab4a02f64da60b3237fd03`, the reviewed authenticated field-template association release.
+Only `jarvis-semantic-planner.js` changes inside Functions. Authenticated field
+name discovery now recognizes the exact template used by its own successful
+query when every literal path segment matches the resolved receipt. The schema
+collection remains the authenticated resolved path. Another literal scope or
+another template cannot inherit these names. The pre-inference projection
+catalog retains the association after the initial source inspection; discovered
+names do not supply values, population coverage or objective completion.
+
+A regression using the real runtime receipt failed before the change and now
+passes, including rejection of inconsistent templates and unrelated scopes.
+Replay of the live Chrome receipt recovers the same 15 names through its own
+template as through its resolved path. All 272 focused regressions pass on
+clean functional HEAD; the full local suite has 1,987 PASS, zero failures and
+one Linux-only skip, including physical local repository search. Static policy,
+syntax and whitespace checks pass. Fresh CI, deployed alignment and a genuinely
+new Chrome conversation remain required. No model, external-provider trigger,
+operational record or permission changes. The guard remains explicitly pinned
+to this reviewed functional commit, ancestor-checked and fail-closed.
+
+## Previous fitting-source retention baseline
+
+Previous baseline: `79750515c9a523cf8b6a8d02ba1b4876793cf8f1`, the reviewed fitting-source retention release.
 The additional Functions delta is limited to `jarvis-semantic-planner.js`.
 Its existing audit packet keeps fitting source bodies inside the established
 28,000-character ceiling after metadata compaction, instead of discarding them
