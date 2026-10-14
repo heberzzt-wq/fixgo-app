@@ -1,6 +1,28 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `42b8d627ecf76848e0a068018a110523fce1c75d`, the explicitly reviewed local evidence cycle release.
+Current baseline: `1c7b2788bc64c424bcec24de6c25fa09eddb18e9`, the reviewed grounded evidence-history release.
+Only `functions/jarvis-semantic-planner.js` changes from the previous pin.
+Argument completion now receives immutable objectives, original structured receipts
+and tool evidence metadata before applying the same eligible-action filter used
+by auditing. Fully retained reads and exact exhausted query scopes are removed
+before inference; partial sources, new scopes and filters remain eligible.
+An empty complete query without a count aggregate constrains only its own scope.
+Pending goals without an accredited proof advance before independent negative
+reviews; claims of completion, existing credited proof changes and final closure
+still receive independent objective verification. No query exhaustion satisfies a goal.
+
+The baseline reproduction permitted the duplicate full-file read; this revision
+removes it before inference. All 270 evidence regressions pass on clean functional
+HEAD. The full local suite has 1,984 PASS, zero failures and two explicit skips:
+Linux-only browser transport and physical repository search while the workstation
+is stopped for publication. Physical search must run after startup. Static local
+policy and syntax checks pass. Real Chrome certification is still required.
+No operational data, permissions, model or paid-provider triggers change.
+The guard remains pinned to an explicit reviewed functional commit and fail-closed.
+
+## Previous local evidence cycle baseline
+
+Previous baseline: `42b8d627ecf76848e0a068018a110523fce1c75d`, the explicitly reviewed local evidence cycle release.
 The additional Functions changes are limited to `jarvis-semantic-planner.js`
 and `index.js`. The planner recognizes actual exhausted cursor receipts with
 `completeForQuery=false`, filters exhausted continuations and equivalent empty
