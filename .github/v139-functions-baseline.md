@@ -1,5 +1,40 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `6eb34420c0883bec08aba98206aa1df080e37755`, reviewed rejection-cycle and terminal-page identity release.
+Only `jarvis-semantic-planner.js` changes inside Functions. A rejected query now
+passes a typed decision receipt into recovery and the next decision. It remains
+non-operational, cannot satisfy a goal, and excludes only the exact proposal
+under unchanged instruction, model, actor/mission identity and observed evidence.
+New source/record dependencies reopen the review. History is engine-owned,
+bounded, and never prunes an entire collection for one rejected projection.
+
+Terminal cursor deduplication normalizes only a template actually submitted for
+an authenticated receipt and that receipt's concrete route. It no longer compares
+those aliases literally. Changing projection/page size cannot rerun that empty
+page. A different organization, cursor, filters or source remains separate.
+The runtime's completeForQuery=false terminal receipt stays unchanged and cannot
+prove population or objective completion.
+
+A reduced regression from the actual 92c83bf2 Chrome trace failed before the fix
+at recovery's missing typed receipt. It now exercises proposal, semantic rejection,
+recovery and the next decision without a repeated query review. Another test
+executes the real runtime with a simulated Firestore boundary, then exercises
+both pre-inference cursor pruning and the planner's post-selection deduplication.
+Neither is represented as physical Chrome certification. All 307 focused checks
+and 1,999 full-root checks pass, with zero failures and two environment skips.
+Independent success/closure reviews remain tested and required.
+
+The preceding physical Chrome run ended PARTIAL, PLANNER_UNAVAILABLE: 25 local
+calls, 210,209 ms from submission to native final, 98,299 ms in completion audits.
+Only one source read and one empty scoped query executed. Repeated rejected
+proposals were not operational reads. This is not a successful certification.
+Fresh local physical search, CI and the complete clean Chrome mission remain
+required. No model, provider, permissions or operational data changes.
+The explicit ancestor-checked fail-closed guard remains intact.
+
+## Previous exact-source baseline
+
+
 Current baseline: `56099aec8d355deec9ec3c0dd50ca51add647fbc`, reviewed exact-source evidence release.
 Only `jarvis-semantic-planner.js` changes inside Functions. Query relevance now
 receives only the proposed collection's observed references, declarations and
