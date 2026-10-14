@@ -1,6 +1,25 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `a3ff8cced69b6f58b5ab4a02f64da60b3237fd03`, the reviewed authenticated field-template association release.
+Current baseline: `c2c6e7fc69507ec986d36f061b810cb4a810185b`, the reviewed empty-count template release.
+Only `jarvis-semantic-planner.js` changes inside Functions. The exact recorded
+query-template identity predicate is shared by authenticated field-name reuse
+and the eligible-action frontier. A successful zero count now suppresses an
+identical unfiltered read through its own template as well as its resolved route.
+Other literal routes and filters remain eligible; no objective receives coverage
+from this suppression. The live isolated Chrome count receipt reproduces the
+old redundant-query frontier and confirms its removal in this revision.
+
+All 272 focused regressions pass on clean functional HEAD, including real runtime
+query and count receipts, mismatched templates, other scopes and changed filters.
+The full local suite has 1,987 PASS, zero failures and one Linux-only skip,
+including physical local repository search. Syntax and whitespace checks pass.
+Fresh CI, deployed alignment and the complete isolated Chrome mission remain
+required. No model, provider trigger, operational record or permission changes.
+The guard remains explicitly pinned, ancestor-checked and fail-closed.
+
+## Previous authenticated field-template baseline
+
+Previous baseline: `a3ff8cced69b6f58b5ab4a02f64da60b3237fd03`, the reviewed authenticated field-template association release.
 Only `jarvis-semantic-planner.js` changes inside Functions. Authenticated field
 name discovery now recognizes the exact template used by its own successful
 query when every literal path segment matches the resolved receipt. The schema
