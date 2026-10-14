@@ -4407,13 +4407,14 @@ test('grounded record arguments use the same observed fields and rejected orderi
  const f=platformQueryTestFixture();
  const tool={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,inputSchema:{type:'object',properties:{
   sourceFile:{type:'string',enum:[f.args.sourceFile]},collection:{type:'string',enum:[f.args.collection]},mode:{type:'string',enum:['query']},
-  fields:{type:'array',items:{type:'string'},minItems:1},filters:{type:'array'},orderBy:{type:'array',items:{type:'object',properties:{field:{type:'string'}},required:['field']}}
+  fields:{type:'array',items:{type:'string'},minItems:1},filters:{type:'array',items:{type:'object',properties:{field:{type:'string'},value:{type:['string','null']}},required:['field','value']}},orderBy:{type:'array',items:{type:'object',properties:{field:{type:'string'}},required:['field']}}
  },required:['sourceFile','collection','mode','fields','filters']}};
  const blockedTasks=[{name:tool.name,args:{...f.args,orderBy:[{field:'uncredited_field'}]},observation:{ok:false,errorCode:'failed-precondition',error:'The query requires an index. https://console.firebase.google.com/v1/r/project/fixture/firestore/indexes?create_composite=observed'}}];
  let requests=0;
  const result=await runJarvisSemanticPlanner({input:'Inspect current records without changing anything',catalog:[tool],missionState:{phase:'GROUNDED_ARGUMENT_COMPLETION',completedTasks:f.context.completedTasks,blockedTasks},ai:{models:{generateContent:async request=>{
   requests++;const schema=request.config.responseJsonSchema.properties.toolCalls.items.properties.args;
   assert.deepEqual(schema.properties.fields.items.enum,['__name__'],'no collection-scoped field was accredited yet');
+  assert.deepEqual(schema.properties.filters.items.properties.field.enum,['__name__'],'filters cannot invent fields excluded from this collection projection');
   assert.equal(schema.properties.orderBy.maxItems,0,'the same rejected optional ordering must not be offered again');
   return{text:JSON.stringify({toolCalls:[{name:tool.name,args:{sourceFile:f.args.sourceFile,collection:f.args.collection,mode:'query',fields:['__name__'],filters:[]}}],missionComplete:false})};
  }}}});
@@ -4486,7 +4487,7 @@ test('argument completion transports structured receipts and immutable objective
  }});
 });
 
-test('pre-inference zero suppression preserves other sources and different filters',async()=>{
+test('complete empty routes are exhausted while filtered zeros and newer positive receipts preserve other queries',async()=>{
  const {eligibleEvidenceActionCatalog}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const f=platformQueryTestFixture({recordData:[]});const args={...f.args,mode:'count',fields:[]};
  const receipt=await f.execute(args,f.dependencies,f.context);assert.equal(receipt.ok,true);assert.equal(receipt.recordEvidence.totalCount,0);
@@ -4495,10 +4496,12 @@ test('pre-inference zero suppression preserves other sources and different filte
   mode:{type:'string',enum:['count','query']},fields:{type:'array',items:{type:'string'}},filters:{type:'array'},cursor:{type:'string'}},required:['sourceFile','collection','mode']}};
  const result=eligibleEvidenceActionCatalog([tool],[{name,args,observation:receipt}]);
  const branches=result[0].inputSchema.anyOf;const empty=branches.find(branch=>branch.properties.sourceFile.enum[0]===args.sourceFile&&branch.properties.collection.enum[0]===args.collection);
- assert.equal(empty.properties.filters.minItems,1);assert.ok(empty.required.includes('filters'));
- assert.match(empty.properties.filters.description,/cero registros sin filtros/);assert.match(empty.properties.filters.description,/nunca representa el inventario global/);
+ assert.equal(empty,undefined,'no filter or projection can add records to this complete empty route');
  for(const branch of branches.filter(branch=>branch!==empty))assert.equal(branch.properties.filters.minItems,undefined,'zero cannot constrain a different source or collection');
  assert.equal(receipt.recordEvidence.scope.collection,args.collection);
+ const noFilterTool=structuredClone(tool);delete noFilterTool.inputSchema.properties.filters;
+ const noFilterBranches=eligibleEvidenceActionCatalog([noFilterTool],[{name,args,observation:receipt}])[0].inputSchema.anyOf;
+ assert.equal(noFilterBranches.some(branch=>branch.properties.sourceFile.enum[0]===args.sourceFile&&branch.properties.collection.enum[0]===args.collection),false,'a tool without filter arguments must also retain the scoped zero instead of repeating it');
  const queryArgs={...f.args,mode:'query',includeCount:false};
  const queryReceipt=await f.execute(queryArgs,f.dependencies,f.context);
  assert.equal(queryReceipt.recordEvidence.totalCount,undefined);
@@ -4506,7 +4509,7 @@ test('pre-inference zero suppression preserves other sources and different filte
  assert.equal(queryReceipt.recordEvidence.completeForQuery,true);
  const queryBranches=eligibleEvidenceActionCatalog([tool],[{name,args:queryArgs,observation:queryReceipt}])[0].inputSchema.anyOf;
  const emptyQuery=queryBranches.find(branch=>branch.properties.sourceFile.enum[0]===queryArgs.sourceFile&&branch.properties.collection.enum[0]===queryArgs.collection);
- assert.equal(emptyQuery.properties.filters.minItems,1,'actual complete empty query does not require a count aggregate to suppress its identical first page');
+ assert.equal(emptyQuery,undefined,'a complete empty query needs no count aggregate to exhaust its own route');
  const templated=platformQueryTestFixture({recordData:[]});
  templated.context.tenantId='observed-scope';
  const template='registry/{tenantId}/entries';
@@ -4516,14 +4519,24 @@ test('pre-inference zero suppression preserves other sources and different filte
  assert.equal(templateReceipt.ok,true);assert.equal(templateReceipt.recordEvidence.scope.collection,'registry/observed-scope/entries');
  const templateTool=structuredClone(tool);templateTool.inputSchema.properties.collection.enum=[template,'registry/another-scope/entries'];
  const templateBranches=eligibleEvidenceActionCatalog([templateTool],[{name,args:templateArgs,observation:templateReceipt}])[0].inputSchema.anyOf;
- assert.equal(templateBranches.find(branch=>branch.properties.collection.enum[0]===template&&branch.properties.sourceFile.enum[0]===templateArgs.sourceFile).properties.filters.minItems,1);
+ assert.equal(templateBranches.find(branch=>branch.properties.collection.enum[0]===template&&branch.properties.sourceFile.enum[0]===templateArgs.sourceFile),undefined);
  assert.equal(templateBranches.find(branch=>branch.properties.collection.enum[0]==='registry/another-scope/entries').properties.filters.minItems,undefined,'template reuse cannot constrain another literal scope');
  const countArgs={...templateArgs,mode:'count',fields:[]};
  const countReceipt=await templated.execute(countArgs,templated.dependencies,templated.context);
  assert.equal(countReceipt.recordEvidence.totalCount,0);
  const countBranches=eligibleEvidenceActionCatalog([templateTool],[{name,args:countArgs,observation:countReceipt}])[0].inputSchema.anyOf;
- assert.equal(countBranches.find(branch=>branch.properties.collection.enum[0]===template&&branch.properties.sourceFile.enum[0]===countArgs.sourceFile).properties.filters.minItems,1,'a zero count also suppresses the identical unfiltered template query');
+ assert.equal(countBranches.find(branch=>branch.properties.collection.enum[0]===template&&branch.properties.sourceFile.enum[0]===countArgs.sourceFile),undefined);
  assert.equal(countBranches.find(branch=>branch.properties.collection.enum[0]==='registry/another-scope/entries').properties.filters.minItems,undefined);
+ const filtered=platformQueryTestFixture({recordData:[]});filtered.context.rootInstruction='Count records with title Known';
+ const filteredArgs={...filtered.args,mode:'count',fields:[],filters:[{field:'title',op:'==',value:'Known'}]};
+ const filteredReceipt=await filtered.execute(filteredArgs,filtered.dependencies,filtered.context);assert.equal(filteredReceipt.ok,true);
+ const retained=eligibleEvidenceActionCatalog([tool],[{name,args:filteredArgs,observation:filteredReceipt}]);
+ const retainedBranches=retained[0].inputSchema.anyOf||[retained[0].inputSchema];
+ assert.ok(retainedBranches.some(branch=>branch.properties.collection.enum.includes(args.collection)&&branch.properties.sourceFile.enum.includes(args.sourceFile)&&!branch.properties.cursor),'a filtered zero must not exhaust other filters or the whole collection');
+ const positive=platformQueryTestFixture({recordData:[{title:'New observed record'}]});const positiveArgs={...positive.args,mode:'query'};
+ const positiveReceipt=await positive.execute(positiveArgs,positive.dependencies,positive.context);assert.equal(positiveReceipt.ok,true);
+ const refreshed=eligibleEvidenceActionCatalog([tool],[{name,args,observation:receipt},{name,args:positiveArgs,observation:positiveReceipt}]);
+ assert.ok((refreshed[0].inputSchema.anyOf||[refreshed[0].inputSchema]).some(branch=>branch.properties.collection.enum.includes(args.collection)&&branch.properties.sourceFile.enum.includes(args.sourceFile)&&!branch.properties.cursor),'newer positive evidence invalidates an older empty-route frontier');
 });
 
 test('pre-inference frontier removes an exhausted runtime cursor while preserving another query scope',async()=>{
@@ -4744,7 +4757,9 @@ test('an ordering-only rejection restricts recovery to credited fields and prese
  const output=recovered.anyOf;
  assert.deepEqual(output[0].properties.orderBy.items.properties.field.enum,['__name__','allocation.holder','observedAt']);
  assert.deepEqual(output[0].properties.fields.items.enum,['__name__','allocation.holder','observedAt']);
- assert.deepEqual(output[0].properties.filters,filters);
+ assert.deepEqual(output[0].properties.filters.items.properties.field.enum,['__name__','allocation.holder','observedAt']);
+ assert.deepEqual(output[0].properties.filters.items.properties.value,filters.items.properties.value);
+ assert.deepEqual(output[1].properties.filters,filters,'another scope retains its own original filter contract');
  assert.equal(output[1].properties.orderBy.items.properties.field.enum,undefined);
  assert.deepEqual(output[0].properties.collection.enum,['entries']);
 });

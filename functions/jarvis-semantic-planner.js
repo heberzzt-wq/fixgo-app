@@ -49,14 +49,21 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
         ...(task.observation.repoCandidates||[]).map(item=>item.file),...(task.observation.repositoryMatches||[]).map(item=>item.file)
     ])].filter(Boolean))];
     const partial=partialSourceProgress(successful);
-    const emptyScopes=successful.flatMap(task=>{
+    const emptyScopes=successful.flatMap((task,index)=>{
         const record=task.observation.recordEvidence,scope=record?.scope;
-        const empty=record?.totalCount===0 || (scope?.mode==='query' && !scope.cursor && record?.returnedCount===0 &&
-            Array.isArray(record.rows) && record.rows.length===0 && record.queryExhausted===true && record.completeForQuery===true);
+        const empty=(scope?.mode==='count' && record?.totalCount===0) || (scope?.mode==='query' && !scope.cursor && record?.returnedCount===0 &&
+            Array.isArray(record.rows) && record.rows.length===0 && record.hasMore===false && record.queryExhausted===true && record.completeForQuery===true);
         if(record?.source!=='FIRESTORE_SERVER_AUTHENTICATED'||record.readOnly!==true||!empty||
+            record.consistentCountAndList===false||record.hasMore===true||(record.rows?.length||0)>0||
             !scope?.sourceFile||!scope.collection||(scope.filters||[]).length||(scope.implicitExistenceFields||[]).length||
             (scope.orderBy||[]).some(order=>order.field!=='__name__')||
             !(scope.mode==='count'||record.completeForQuery===true))return [];
+        // Newer positive observations prove that the old empty snapshot is no
+        // longer the frontier for this resolved route, even through another file.
+        if(successful.slice(index+1).some(later=>{const next=later.observation.recordEvidence;
+            return next?.source==='FIRESTORE_SERVER_AUTHENTICATED'&&next.readOnly===true&&next.scope?.collection===scope.collection&&
+                (next.totalCount>0||next.returnedCount>0||next.rows?.length>0);
+        }))return [];
         const collections=[scope.collection];
         // Only the template used by this successful query may alias its
         // authenticated resolved path. This does not expand global coverage.
@@ -65,15 +72,15 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
     });
     const firstPageChoices=(tool,schema)=>{
         const p=schema.properties;
-        if(!p?.sourceFile?.enum?.length||!p.collection?.enum?.length||p.filters?.type!=='array'||
+        if(!p?.sourceFile?.enum?.length||!p.collection?.enum?.length||
             !emptyScopes.some(scope=>scope.name===tool.name))return [schema];
         return p.sourceFile.enum.flatMap(sourceFile=>p.collection.enum.flatMap(collection=>{
             const empty=emptyScopes.some(scope=>scope.name===tool.name&&scope.sourceFile===sourceFile&&scope.collection===collection);
-            const filters=empty?{...p.filters,minItems:Math.max(1,p.filters.minItems||0),
-                description:[p.filters.description,"Esta ruta ya tiene evidencia autenticada completa de cero registros sin filtros. Conserva ese recibo: repetir la lectura o cambiar proyección/página no aporta registros nuevos. Investiga otra ruta o dependencia observada para los objetivos pendientes; este cero nunca representa el inventario global."].filter(Boolean).join(' ')}:p.filters;
-            if(empty&&Number.isInteger(filters.maxItems)&&filters.maxItems<filters.minItems)return [];
-            return [{...schema,properties:{...p,sourceFile:{...p.sourceFile,enum:[sourceFile]},collection:{...p.collection,enum:[collection]},filters},
-                required:empty?[...new Set([...(schema.required||[]),'filters'])]:schema.required}];
+            // A complete, unfiltered zero contains every subset of this exact
+            // source/route. Do not invite a fabricated filter merely to rerun it.
+            // Filtered zeros never enter emptyScopes; other routes stay eligible.
+            if(empty)return [];
+            return [{...schema,properties:{...p,sourceFile:{...p.sourceFile,enum:[sourceFile]},collection:{...p.collection,enum:[collection]}}}];
         }));
     };
     return catalog.flatMap(tool=>{
@@ -103,6 +110,7 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
                 for(const task of successful){const record=task.observation.recordEvidence,scope=record?.scope;
                     if(task.name!==tool.name||record?.source!=='FIRESTORE_SERVER_AUTHENTICATED'||record.readOnly!==true||
                         record.hasMore!==true||record.queryExhausted===true||typeof record.nextCursor!=='string'||!record.nextCursor)continue;
+                    if(emptyScopes.some(empty=>empty.name===tool.name&&empty.sourceFile===scope?.sourceFile&&empty.collection===scope?.collection))continue;
                     if(properties.sourceFile?.enum&&!properties.sourceFile.enum.includes(scope?.sourceFile))continue;
                     if(properties.collection?.enum&&!properties.collection.enum.includes(scope?.collection)&&!properties.collection.enum.includes(task.args?.collection))continue;
                     const nextCall={name:tool.name,args:{...(task.args||{}),...(scope||{}),mode:'query',cursor:record.nextCursor}};
@@ -2073,13 +2081,16 @@ function bindRejectedRecordFields(catalog, tasks, failedTasks) {
                 if(!available.length)return branch;
                 const property=branch.properties.fields;
                 const order=branch.properties.orderBy;
+                const filters=branch.properties.filters;
                 const retainRestriction=(items,values)=>values.filter(value=>(!Array.isArray(items?.enum)||items.enum.includes(value))&&
                     (items?.const===undefined||items.const===value));
                 const projected=retainRestriction(property.items,available);
                 const ordered=retainRestriction(order?.items?.properties?.field,available);
+                const filtered=retainRestriction(filters?.items?.properties?.field,available);
                 const scopedOrder=order?.items?.properties?.field ? {orderBy:ordered.length ? {...order,items:{...order.items,properties:{...order.items.properties,field:{...order.items.properties.field,enum:ordered}}}} : {...order,maxItems:0}} : {};
+                const scopedFilters=filters?.items?.properties?.field ? {filters:filtered.length ? {...filters,items:{...filters.items,properties:{...filters.items.properties,field:{...filters.items.properties.field,enum:filtered}}}} : {...filters,maxItems:0}} : {};
                 const scopedFields=projected.length ? {...property,items:{...property.items,enum:projected}} : {...property,maxItems:0};
-                return {...branch,properties:{...branch.properties,sourceFile:{...branch.properties.sourceFile,enum:[file]},collection:{...branch.properties.collection,enum:[collection]},fields:scopedFields,...scopedOrder}};
+                return {...branch,properties:{...branch.properties,sourceFile:{...branch.properties.sourceFile,enum:[file]},collection:{...branch.properties.collection,enum:[collection]},fields:scopedFields,...scopedOrder,...scopedFilters}};
             }));
         });
         return {...tool,inputSchema:bound.length===1?bound[0]:{anyOf:bound}};
