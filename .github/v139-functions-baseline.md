@@ -1,6 +1,35 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `ca90108a14a0f1e50b24a8b08239de4c25507750`, the reviewed source identity and query relevance release.
+Current baseline: `850794d464722af1a187066d1d03a858ba279296`, the reviewed pending-evidence decision release.
+Only `jarvis-semantic-planner.js` changes inside Functions. A still-pending goal
+with a validated novel next action no longer triggers independent negative
+coverage/scope reviews before that action. Its partial references and missing
+scopes stay pending. A positive claim, a changed accredited positive proof, or
+an attempted stop still receives independent review; code and query exhaustion
+never certify operational objectives. Negative client assessments cannot prune
+sources. Fresh engine-owned source exclusions now apply to the single immediate
+recovery decision, not just the following iteration.
+
+The fresh Chrome trace at the previous release reached another relevant module
+but was explicitly aborted for performance diagnosis after 42 local model calls;
+it was not a successful mission or an external blocker. Replay of that exact
+pending/new-source request with a controlled model boundary reproduces the old
+pre-decision negative review, while this release preserves a grounded query in
+two stages and keeps all three objectives pending. No operational tool executes
+in that replay. Four combinations of new records/schema and relationship/temporal
+goals use one decision; success/stop and immediate recovery exclusions remain
+covered by separate tests.
+
+All 302 focused checks pass. The full existing root suite has 1,988 PASS and
+zero failures, with two explicit environment skips. Six general source/cycle
+regressions pass separately and are included in the existing CI test command.
+Fresh CI, physical search, aligned release and the complete clean Chrome mission
+remain required. No model, provider, permission or operational data changes.
+The guard remains explicit, ancestor-checked and fail-closed.
+
+## Previous source identity and query relevance baseline
+
+Previous baseline: `ca90108a14a0f1e50b24a8b08239de4c25507750`, the reviewed source identity and query relevance release.
 Only `jarvis-semantic-planner.js` changes inside Functions. A cited authenticated
 receipt can account for the exact template submitted by that call, preserving
 the concrete route, source file and query scope. Other instances and sources
