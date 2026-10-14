@@ -4402,6 +4402,27 @@ test('one evidence decision cannot cascade through serial recovery planners',asy
  assert.equal(recoveries,1);assert.equal(result.missionComplete,false);assert.equal(result.toolCalls.length,0);assert.equal(result.completionAssessment.objectives[0].satisfied,false);
 });
 
+test('runtime field discovery follows only its own recorded template and resolved scope',async()=>{
+ const {observedRecordFieldPaths}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const f=platformQueryTestFixture({recordData:[{holder:'Observed holder',deadline:'2026-02-01'}]});
+ f.context.tenantId='observed-scope';const template='registry/{tenantId}/entries';
+ f.context.completedTasks[0].observation.verifiedRead.sourceStructure.dataBindings.collections=[template];
+ const args={...f.args,collection:template,fields:['__name__'],mode:'query'};
+ const observation=await f.execute(args,f.dependencies,f.context);assert.equal(observation.ok,true);
+ const task={name:'fixture.records',args,observation},resolved=observation.recordEvidence.scope.collection;
+ assert.deepEqual(observedRecordFieldPaths([task],template),['holder','deadline']);
+ assert.deepEqual(observedRecordFieldPaths([task],resolved),['holder','deadline']);
+ for(const other of ['registry/another-scope/entries','registry/{anotherId}/entries','unrelated/{tenantId}/entries'])assert.deepEqual(observedRecordFieldPaths([task],other),[]);
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='bindRejectedRecordFields');
+ const bind=runInNewContext('('+source.slice(node.start,node.end)+')',{buildNativeInputSchema:x=>x,observedRecordFieldPaths});
+ const tool={name:task.name,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{sourceFile:{type:'string',enum:[args.sourceFile]},collection:{type:'string',enum:[template]},fields:{type:'array',items:{type:'string'}}},required:['sourceFile','collection','fields']}};
+ assert.deepEqual(Array.from(bind([tool],[task],[])[0].inputSchema.properties.fields.items.enum),['__name__','holder','deadline']);
+ assert.deepEqual(Object.keys(observation.recordEvidence.rows[0].values),['__name__'],'discovering names must not fabricate the unprojected operational values');
+ const inconsistent=structuredClone(task);inconsistent.args.collection='unrelated/{tenantId}/entries';
+ assert.deepEqual(observedRecordFieldPaths([inconsistent],inconsistent.args.collection),[],'a recorded template must actually match its resolved receipt');
+});
+
 test('actual observation retains a fitting source through the grounded eligibility boundary',async()=>{
  const {__test}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
  const {eligibleEvidenceActionCatalog}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');

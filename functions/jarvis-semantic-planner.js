@@ -1998,9 +1998,13 @@ function observedRecordFieldPaths(tasks, collection) {
     const paths=[];
     for(const task of [...(tasks || [])].reverse()) {
         const observation=task.observation,record=observation?.recordEvidence,schema=record?.fieldSchema;
+        const requestedParts=typeof collection==='string'?collection.split('/'):[];
+        const resolvedParts=typeof record?.scope?.collection==='string'?record.scope.collection.split('/'):[];
+        const ownRecordedTemplate=task.args?.collection===collection && requestedParts.length===resolvedParts.length &&
+            requestedParts.every((part,index)=>/^\{[A-Za-z][A-Za-z0-9_]*\}$/.test(part)?Boolean(resolvedParts[index]):part===resolvedParts[index]);
         if(observation?.ok!==true || observation.executionOk===false || observation.blocked===true || observation.requiresInput===true ||
-            record?.source!=="FIRESTORE_SERVER_AUTHENTICATED" || record.readOnly!==true || record.scope?.collection!==collection || record.scope.mode!=="query" ||
-            !Array.isArray(record.rows) || !record.rows.length || schema?.source!=="SERVER_RECORD_FIELD_NAMES" || schema.collection!==collection ||
+            record?.source!=="FIRESTORE_SERVER_AUTHENTICATED" || record.readOnly!==true || (record.scope?.collection!==collection&&!ownRecordedTemplate) || record.scope.mode!=="query" ||
+            !Array.isArray(record.rows) || !record.rows.length || schema?.source!=="SERVER_RECORD_FIELD_NAMES" || schema.collection!==record.scope.collection ||
             schema.scope!=="returned_rows_only" || schema.sampledRows!==record.rows.length || !Array.isArray(schema.paths) ||
             schema.paths.length>128 || JSON.stringify(schema.paths).length>3000)continue;
         for(const field of schema.paths.filter(valid)) {
@@ -2021,7 +2025,7 @@ function bindRejectedRecordFields(catalog, tasks, failedTasks) {
         // Recovery does not erase authenticated name authority. Keep the same
         // collection-scoped constraints after its rejected attempt is retired.
         const observedScopes=new Map();
-        for(const task of tasks||[]){const collection=task.observation?.recordEvidence?.scope?.collection;
+        for(const task of tasks||[])for(const collection of [task.observation?.recordEvidence?.scope?.collection,task.args?.collection]){
             if(typeof collection==='string'&&!observedScopes.has(collection))observedScopes.set(collection,observedRecordFieldPaths(tasks,collection));}
         // Positive source discovery is already sufficient to constrain the
         // first projection. Do not wait for an invented field to fail, and do
