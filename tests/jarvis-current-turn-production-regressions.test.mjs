@@ -4402,6 +4402,34 @@ test('one evidence decision cannot cascade through serial recovery planners',asy
  assert.equal(recoveries,1);assert.equal(result.missionComplete,false);assert.equal(result.toolCalls.length,0);assert.equal(result.completionAssessment.objectives[0].satisfied,false);
 });
 
+test('grounded completion excludes a fully retained source before inference but retains new files',async()=>{
+ const {runJarvisSemanticPlanner}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const tool={name:'fixture.read',evidenceKinds:['repository_source'],investigationReadOnly:true,inputSchema:{type:'object',properties:{file:{type:'string',enum:['observed.js','related.js']}},required:['file']}};
+ const tasks=[{name:tool.name,args:{file:'observed.js'},observation:{ok:true,verifiedRead:{file:'observed.js',startLine:1,endLine:2,totalLines:2,content:'complete observed body'}}}];
+ let calls=0;
+ const ai={models:{generateContent:async request=>{
+  calls++;assert.deepEqual(request.config.responseJsonSchema.properties.toolCalls.items.properties.args.properties.file.enum,['related.js']);
+  assert.ok(request.config.chatMessages.some(m=>m.content.includes('TAREAS_YA_OBSERVADAS=')&&m.content.includes('complete observed body')));
+  return{text:JSON.stringify({toolCalls:[{name:tool.name,args:{file:'related.js'}}],missionComplete:false})};
+ }}};
+ const result=await runJarvisSemanticPlanner({input:'Inspect the remaining observed source',catalog:[tool],missionState:{phase:'GROUNDED_ARGUMENT_COMPLETION',completedTasks:tasks},ai});
+ assert.equal(result.toolCalls[0].args.file,'related.js');assert.equal(calls,1);
+ tool.inputSchema.properties.file.enum=['observed.js'];
+ await assert.rejects(()=>runJarvisSemanticPlanner({input:'Inspect sources',catalog:[tool],missionState:{phase:'GROUNDED_ARGUMENT_COMPLETION',completedTasks:tasks},ai}),/SEMANTIC_GROUNDED_TOOL_REQUIRED/);
+ assert.equal(calls,1,'an exhausted selected source must not call the model');
+});
+
+test('argument completion transports structured receipts and immutable objectives',async()=>{
+ const {completeJarvisPlanningArguments}=await import('../gestia-core/jarvis/jarvis.multifunction.planner.js');
+ const objectives=[{objective:'Inspect entries',requiredEvidenceKind:'platform_records'}];
+ const tasks=[{name:'fixture.read',args:{file:'observed.js'},observation:{ok:true,verifiedRead:{file:'observed.js',content:'Observed schema',startLine:1,endLine:1,totalLines:1}}}];
+ await completeJarvisPlanningArguments({toolName:'fixture.read',toolContract:{evidenceKinds:['repository_source'],investigationReadOnly:true},completedTasks:tasks,evidenceObjectives:objectives,instruction:'Inspect entries',inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']},semanticPlanner:async request=>{
+  assert.deepEqual(request.missionState.evidenceObjectives,objectives);assert.equal(request.missionState.completedTasks[0].observation.verifiedRead.file,'observed.js');
+  assert.deepEqual(request.catalog[0].evidenceKinds,['repository_source']);
+  return{toolCalls:[{name:'fixture.read',args:{file:'related.js'}}]};
+ }});
+});
+
 test('pre-inference zero suppression preserves other sources and different filters',async()=>{
  const {eligibleEvidenceActionCatalog}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const f=platformQueryTestFixture({recordData:[]});const args={...f.args,mode:'count',fields:[]};
@@ -4414,6 +4442,14 @@ test('pre-inference zero suppression preserves other sources and different filte
  assert.equal(empty.properties.filters.minItems,1);assert.ok(empty.required.includes('filters'));
  for(const branch of branches.filter(branch=>branch!==empty))assert.equal(branch.properties.filters.minItems,undefined,'zero cannot constrain a different source or collection');
  assert.equal(receipt.recordEvidence.scope.collection,args.collection);
+ const queryArgs={...f.args,mode:'query',includeCount:false};
+ const queryReceipt=await f.execute(queryArgs,f.dependencies,f.context);
+ assert.equal(queryReceipt.recordEvidence.totalCount,undefined);
+ assert.equal(queryReceipt.recordEvidence.queryExhausted,true);
+ assert.equal(queryReceipt.recordEvidence.completeForQuery,true);
+ const queryBranches=eligibleEvidenceActionCatalog([tool],[{name,args:queryArgs,observation:queryReceipt}])[0].inputSchema.anyOf;
+ const emptyQuery=queryBranches.find(branch=>branch.properties.sourceFile.enum[0]===queryArgs.sourceFile&&branch.properties.collection.enum[0]===queryArgs.collection);
+ assert.equal(emptyQuery.properties.filters.minItems,1,'actual complete empty query does not require a count aggregate to suppress its identical first page');
 });
 
 test('pre-inference frontier removes an exhausted runtime cursor while preserving another query scope',async()=>{
@@ -4798,7 +4834,7 @@ test('row-specific citations preserve mixed populations without promoting partia
  assert.equal(JSON.stringify(record),before);
 });
 
-test('new record coverage reaches the decision before its next action is selected',async()=>{
+test('pending goals without accredited coverage advance before independent negative reviews',async()=>{
  for(const recoverDuplicate of [false,true]){
  const tool={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'},fields:{type:'array',items:{type:'string'}}},required:['collection','fields']}};
  const contracts=[{objective:'Identify owners',requestQuote:'Identify owners',requiredEvidenceKind:'platform_records',coverageMode:'relationship',scope:'explicit_scope',groups:['owners']},{objective:'Inspect deadlines',requestQuote:'Inspect deadlines',requiredEvidenceKind:'platform_records',coverageMode:'temporal',scope:'explicit_scope',groups:['deadlines']}];
@@ -4807,11 +4843,12 @@ test('new record coverage reaches the decision before its next action is selecte
  const result=await runJarvisSemanticPlanner({input:'Identify owners and inspect deadlines',catalog:[tool],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:contracts,completedTasks:tasks},ai:{models:{generateContent:async request=>{
   if(request.config.semanticStage==='COMPLETION_AUDIT'){
    const reviewed=request.config.chatMessages.find(m=>m.content.startsWith('COBERTURA_REVISADA_ANTES_DE_DECIDIR='));
-   assert.ok(reviewed);assert.match(reviewed.content,/Read the observed deadline source/);freshPlan=true;
+   assert.equal(reviewed,undefined);freshPlan=true;
    return{text:JSON.stringify({completionAssessment:{objectives:contracts.map(c=>({objective:c.objective,requiredEvidenceKind:c.requiredEvidenceKind,satisfied:false,evidenceTaskIndexes:[0],limitation:'Pending verified scope'}))},toolCalls:[{name:tool.name,args:{collection:'deadline_registry',fields:['expiresAt']}}]})};
   }
   if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":true}'};
   if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE'){
+   assert.fail('Pending investigation must not trigger independent negative coverage reviews');
    const covered=request.contents==='Identify owners';return{text:JSON.stringify({proven:covered,missing:covered?[]:['Read the observed deadline source'],groups:[{group:covered?'owners':'deadlines',proven:covered,evidence:covered?[{taskIndex:0,fields:['owner']}]:[]}],sources:[]})};
   }
   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){
@@ -4825,7 +4862,7 @@ test('new record coverage reaches the decision before its next action is selecte
   }
   throw Error('Unexpected stage '+request.config.semanticStage);
  }}}});
- assert.equal(freshPlan,true);assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives[0].satisfied,true);assert.equal(result.completionAssessment.objectives[1].satisfied,false);assert.deepEqual(result.toolCalls[0].args,{collection:'deadline_registry',fields:['expiresAt']});
+ assert.equal(freshPlan,true);assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives[0].satisfied,false);assert.equal(result.completionAssessment.objectives[1].satisfied,false);assert.deepEqual(result.toolCalls[0].args,{collection:'deadline_registry',fields:['expiresAt']});
  }
 });
 

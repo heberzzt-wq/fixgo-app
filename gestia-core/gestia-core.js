@@ -6148,6 +6148,9 @@ if (
                             const grounded =
                                 await completeJarvisPlanningArguments({
                                     toolName: call.name,
+                                    toolContract: toolDefinition || {},
+                                    completedTasks: missionContext.completedTasks || [],
+                                    evidenceObjectives: missionContext.evidenceObjectives || [],
                                     description: toolDefinition?.description || "",
                                     inputSchema:
                                         bindRequiredEvidenceArguments(

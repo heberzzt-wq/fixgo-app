@@ -33,6 +33,7 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
         .filter(requirement=>requirement.observationPath?.[0]==='verifiedRead').map(requirement=>requirement.kind))]);
     const successful=tasks.filter(task=>task.observation?.ok===true && task.observation.executionOk!==false &&
         task.observation.blocked!==true && task.observation.requiresInput!==true);
+    if(!successful.length)return catalog;
     const readFiles=new Set(successful.map(task=>task.observation.verifiedRead?.file).filter(Boolean));
     const known=[...new Set([...configuredFiles,...readFiles,...successful.flatMap(task=>[
         ...(task.observation.repoCandidates||[]).map(item=>item.file),...(task.observation.repositoryMatches||[]).map(item=>item.file)
@@ -40,7 +41,9 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
     const partial=partialSourceProgress(successful);
     const emptyScopes=successful.flatMap(task=>{
         const record=task.observation.recordEvidence,scope=record?.scope;
-        if(record?.source!=='FIRESTORE_SERVER_AUTHENTICATED'||record.readOnly!==true||record.totalCount!==0||
+        const empty=record?.totalCount===0 || (scope?.mode==='query' && !scope.cursor && record?.returnedCount===0 &&
+            Array.isArray(record.rows) && record.rows.length===0 && record.queryExhausted===true && record.completeForQuery===true);
+        if(record?.source!=='FIRESTORE_SERVER_AUTHENTICATED'||record.readOnly!==true||!empty||
             !scope?.sourceFile||!scope.collection||(scope.filters||[]).length||(scope.implicitExistenceFields||[]).length||
             (scope.orderBy||[]).some(order=>order.field!=='__name__')||
             !(scope.mode==='count'||record.completeForQuery===true))return [];
@@ -59,6 +62,7 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
         }));
     };
     return catalog.flatMap(tool=>{
+        if(!tool.evidenceKinds?.some(kind=>sourceKinds.has(kind)||kind==='platform_records'))return [tool];
         const original=buildNativeInputSchema(tool.inputSchema),branches=original.anyOf||[original],eligible=[];
         for(const branch of branches){
             const schema=structuredClone(branch),properties=schema.properties;
@@ -3294,7 +3298,9 @@ async function runModelSemanticPlanner({
                 task.observation.blocked!==true && task.observation.recordEvidence?.source==='FIRESTORE_SERVER_AUTHENTICATED');
             const newSource=hasRecords && previous?.coverageProof && contract.scope==='all_sources' && observedRecordSources(completedTasksForAudit)
                 .some(collection=>!previous.coverageProof.sources?.some(source=>source.collection===collection));
-            if(!coverageCache.has(revision) && (newRecords || newSource || previous?.satisfied===true)){
+            // Pending goals without an accredited proof need no independent
+            // negative review before the model chooses its next investigation.
+            if(!coverageCache.has(revision) && ((newRecords && previous?.coverageProof) || newSource || previous?.satisfied===true)){
                 const objective={objective:contract.objective,requiredEvidenceKind:contract.requiredEvidenceKind};
                 const proof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,
                     advisoryContext,scopeClarifications:clarifications,evaluatedAt,instruction});
@@ -3427,7 +3433,7 @@ async function runModelSemanticPlanner({
                         // code alone still cannot supply a record citation.
                         const hasUnreviewedSources=hasAuthenticatedRecords && previousObjective?.coverageProof && contract?.scope==="all_sources" &&
                             observedCoverageSources.some(collection=>!(previousObjective?.coverageProof?.sources || []).some(source=>source.collection===collection));
-                        if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode && (objective.satisfied || hasNewRecords || previouslySatisfied || hasUnreviewedSources)) {
+                        if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode && (objective.satisfied || (hasNewRecords && (!evaluatedAudit.toolCalls?.length || previousObjective?.coverageProof)) || previouslySatisfied || hasUnreviewedSources)) {
                             objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,advisoryContext,scopeClarifications:recentConversationTurns.filter(turn=>turn.role==="user").map(turn=>turn.content),evaluatedAt,instruction});
                             coverageCache.set(revision,structuredClone(objective.coverageProof));
                             coverageCache.delete(dependencyKey);coverageCache.set(dependencyKey,structuredClone(objective.coverageProof));
@@ -3566,7 +3572,7 @@ async function runModelSemanticPlanner({
     ) {
         const phaseCatalog =
             phase === "GROUNDED_ARGUMENT_COMPLETION"
-                ? safeCatalog.slice(0, 1)
+                ? eligibleEvidenceActionCatalog(safeCatalog.slice(0, 1), missionState.completedTasks || [])
                 : safeCatalog;
         if (
             phase === "GROUNDED_ARGUMENT_COMPLETION" &&
@@ -3609,6 +3615,8 @@ async function runModelSemanticPlanner({
                                     "Omite campos opcionales innecesarios. No inventes precios, gratuidad, direcciones, URLs, testimonios ni resultados. Conserva la identidad y todos los mercados solicitados.",
                                     `TAREA ${phaseCatalog[0].name}: ${phaseCatalog[0].description}`,
                                     `CAMPOS=${JSON.stringify(buildNativeInputSchema(phaseCatalog[0].inputSchema, false))}`,
+                                    `TAREAS_YA_OBSERVADAS=${JSON.stringify(boundedAuditTasks(missionState.completedTasks || []))}`,
+                                    `OBJETIVOS_INMUTABLES=${JSON.stringify(missionState.evidenceObjectives || [])}`,
                                     ...(missionState?.currentOperation ? [`CONTEXTO_Y_EVIDENCIA_INMUTABLES:\n${instruction}`] : [])
                                 ].join("\n")},
                                 {role:"user",content:[missionState?.creativeCopyRepair ? instruction : missionState?.currentOperation || instruction,

@@ -2907,6 +2907,7 @@ export async function runJarvisMission({
                 rootInstructionHash: mission.rootInstructionHash || mission.instructionHash,
                 planRevision: Number(mission.planRevision || 0),
                 argumentValidationFeedback: task.argumentValidationFeedback || null,
+                evidenceObjectives: structuredClone(mission.evidenceObjectives || []),
                 requiredToolNames:
                     [...mission.requiredToolNames],
                 completedTasks: mission.completedTasks.map(item => ({

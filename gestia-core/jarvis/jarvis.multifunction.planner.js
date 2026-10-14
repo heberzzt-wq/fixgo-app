@@ -2429,6 +2429,9 @@ export async function completeJarvisPlanningArguments({
     validationFeedback = null,
     validSources = [],
     missionEvidence = [],
+    toolContract = {},
+    completedTasks = [],
+    evidenceObjectives = [],
     semanticPlanner = null
 } = {}) {
     const name = String(toolName || "").trim();
@@ -2439,6 +2442,9 @@ export async function completeJarvisPlanningArguments({
     }
 
     const catalog = [{
+        evidenceKinds: toolContract.evidenceKinds,
+        requiresEvidence: toolContract.requiresEvidence,
+        investigationReadOnly: toolContract.investigationReadOnly === true,
         name,
         description: [
             String(description || "").trim(),
@@ -2508,6 +2514,11 @@ export async function completeJarvisPlanningArguments({
         ].join("\n") : briefingInstruction;
         plan=await resolveSemanticPlan(activeInstruction+repairFeedback,activeCatalog,semanticPlanner,{
             phase:"GROUNDED_ARGUMENT_COMPLETION",toolName:name,
+            // The server bounds model context after computing eligibility.
+            // Clipping bodies here would turn a complete read into a partial
+            // read and incorrectly authorize the same full-file request.
+            completedTasks,
+            evidenceObjectives,
             creativeCopyRepair: messageRepair,
             currentOperation:messageRepair ? "Redacta un titular y un cuerpo NUEVOS para el anuncio solicitado, con otro enfoque que los mensajes ya entregados. Devuelve solamente composition.headline y composition.body." : String(operation||"").trim(),
             argumentValidationFeedback: repairFeedback || (validationFeedback ? JSON.stringify(validationFeedback) : ""),
