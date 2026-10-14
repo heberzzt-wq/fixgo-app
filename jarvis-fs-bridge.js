@@ -4,6 +4,7 @@ import { buildResponsiveRepairOptions, buildResponsiveRepairPatch } from "./gest
 import express from "express";
 import cors from "cors";
 import fs from "fs";
+import {configuredRepositorySources,configuredSourcesMessage} from './jarvis-configured-sources.js';
 import { materialLibrary, officialMaterialPolicy, assertOfficialMaterial, resolveMaterialReference, availableMaterialToolCatalog } from "./jarvis-material-library.js";
 import os from "os";
 import path from "path";
@@ -1033,6 +1034,7 @@ export function createSelfHostedSemanticEngine({
         model;
     let lastModelProfile =
         "default";
+    let lastSourceConfiguration = null;
     const counters = {
         localSemanticInferenceCalls: 0,
         localEmbeddingCalls: 0,
@@ -1218,7 +1220,8 @@ export function createSelfHostedSemanticEngine({
             paidModelApiUsed: false,
             externalApiUsed: false,
             estimatedExternalCostUsd: 0,
-            counters: { ...counters }
+            counters: { ...counters },
+            ...(lastSourceConfiguration ? {sourceConfiguration:{...lastSourceConfiguration}} : {})
         };
     }
 
@@ -1903,11 +1906,40 @@ export function createSelfHostedSemanticEngine({
             const deadlineSignal = noDeadline === true ? null : AbortSignal.timeout(Math.max(1, plannerTimeoutMs));
             const planSignal = noDeadline === true ? signal : (signal ? AbortSignal.any([signal, deadlineSignal]) : deadlineSignal);
             let semanticPreselection = null;
+            let configuredSources;
+            const getConfiguredSources = () => {
+                if (configuredSources === undefined) configuredSources = configuredRepositorySources(root);
+                return configuredSources;
+            };
+            const configuredPlanningStages = new Set([
+                'CURRENT_TURN_ACTION_DESCRIPTION','CURRENT_TURN_TOOL_SELECTION',
+                'CURRENT_TURN_STRUCTURED_PLAN_REPAIR','CURRENT_TURN_SCHEMA_ARGUMENT_REPAIR',
+                'MISSION_CONTRACT_OPERATIONS','MISSION_CONTRACT_TOOL_SELECTION',
+                'COMPLETION_AUDIT','READ_ONLY_EVIDENCE_CONTINUATION',
+                'READ_ONLY_NEXT_STEP_RECOVERY','PENDING_RECORD_SCOPE_RECOVERY',
+                'UNREAD_SOURCE_CONTINUATION','QUERY_SCOPE_SOURCE_RECOVERY',
+                'GROUNDED_ARGUMENT_COMPLETION'
+            ]);
             const result = await runJarvisSemanticPlanner({
                 ai: { ...ai, models: { generateContent(request = {}) {
                     if (noDeadline !== true && (Date.now() >= deadlineAt || deadlineSignal.aborted)) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
                     planSignal?.throwIfAborted();
-                    return generateContent({ ...request, config: { ...request.config,
+                    let config = {...request.config};
+                    // Source configuration guides selection only. Independent
+                    // operational coverage/closure still sees its immutable
+                    // objective and actual receipts, never catalog record proof.
+                    if (configuredPlanningStages.has(config.semanticStage)) {
+                        const sources = getConfiguredSources();
+                        const messages = Array.isArray(config.chatMessages) ? [...config.chatMessages] : [{role:'user',content:String(request.contents || input)}];
+                        const occupied = messages.reduce((sum,message)=>sum+String(message.content || '').length,0);
+                        const sourceMessage = configuredSourcesMessage(sources,Math.max(0,Math.min(18000,48000-occupied-1500)));
+                        if (sourceMessage) {
+                            messages.splice(Math.max(0,messages.length-1),0,sourceMessage);
+                            config.chatMessages=messages;
+                            lastSourceConfiguration={revision:sources.revision,digest:sources.digest,files:sources.files.length,collections:sources.collections.length,operationalEvidence:false,usedByStage:config.semanticStage,usedAt:new Date().toISOString()};
+                        }
+                    }
+                    return generateContent({ ...request, config: { ...config,
                         ...(noDeadline === true ? { noDeadline: true } : { timeoutMs: deadlineAt - Date.now(), deadlineAt }),
                         signal: planSignal } });
                 } } },
@@ -1926,6 +1958,11 @@ export function createSelfHostedSemanticEngine({
                         planSignal,
                         noDeadline
                     );
+                    // A configured source is already discovered. Keep the
+                    // existing read capability available even when retrieval
+                    // ranks a broad search above the direct source reader.
+                    const reader = catalog.find(tool=>tool.name==='repo.read'&&tool.investigationReadOnly===true&&tool.mutates!==true);
+                    if (getConfiguredSources() && reader && !shortlist.catalog.some(tool=>tool.name===reader.name)) shortlist.catalog=[...shortlist.catalog,reader];
                     semanticPreselection = { ...shortlist.evidence, querySource: "qwen_requested_operation", requestedOperation };
                     onProgress("inference");
                     return shortlist.catalog;

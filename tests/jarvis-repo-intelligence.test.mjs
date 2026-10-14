@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import {execFileSync} from 'node:child_process';
+import {configuredRepositorySources,configuredSourcesMessage} from '../jarvis-configured-sources.js';
 import {
     buildRepoEmbeddingDocuments,
     scoreRepoSemanticPreselection,
@@ -11,6 +13,87 @@ import {
     rankRepoCandidates,
     rankRepoHybridCandidates
 } from "../jarvis-repo-intelligence.js";
+
+function configuredSourceFixture() {
+    const root=fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-schema-fixture-'));
+    const git=process.platform==='win32'&&fs.existsSync('C:/Program Files/Git/cmd/git.exe')?'C:/Program Files/Git/cmd/git.exe':'git';
+    const run=args=>execFileSync(git,['-C',root,...args],{encoding:'utf8',windowsHide:true,stdio:['ignore','pipe','pipe']}).trim();
+    run(['init','--quiet']);
+    fs.writeFileSync(path.join(root,'capture.js'),`import {collection,doc,setDoc} from 'sdk'; export function capture(db,id,value){ return setDoc(doc(db,'groups','scope-A','entries',id),{label:value,details:{category:value},owner:value}); } export function inspect(db){return collection(db,'groups','scope-A','entries');}`);
+    fs.writeFileSync(path.join(root,'legacy.js'),`export const examples={count:999,secret:'NOT_OPERATIONAL_DATA'};`);
+    fs.writeFileSync(path.join(root,'sample.test.js'),`collection(db,'test_only_records');`);
+    const commit=()=>{run(['add','.']);run(['-c','user.name=Schema Test','-c','user.email=schema@example.invalid','commit','--quiet','-m','fixture']);};
+    commit();
+    return {root,run,commit,cleanup(){assert.equal(path.dirname(path.resolve(root)),path.resolve(os.tmpdir()));assert.ok(path.basename(root).startsWith('jarvis-schema-fixture-'));fs.rmSync(root,{recursive:true,force:true});}};
+}
+
+test('configured sources preserve modular SDK bindings without record examples and refresh on revision changes',()=>{
+    const f=configuredSourceFixture();
+    try {
+        const legacy=buildRepoIntelligence({root:f.root});
+        assert.deepEqual(legacy.nodes['capture.js'].collections,[],'reproduce the legacy graph omission');
+        const catalog=configuredRepositorySources(f.root);
+        assert.equal(catalog.operationalEvidence,false);
+        assert.equal(catalog.permissionsGranted,false);
+        assert.equal(catalog.exhaustiveOperationalCoverage,false);
+        const ref=catalog.references.find(([file,col])=>catalog.files[file]==='capture.js'&&catalog.collections[col]==='groups/scope-A/entries');
+        assert.ok(ref,'the actual modular source must be configured');
+        assert.ok(ref[2].map(index=>catalog.fields[index]).includes('details.category'));
+        assert.doesNotMatch(JSON.stringify(catalog),/NOT_OPERATIONAL_DATA|test_only_records/);
+        assert.equal(configuredRepositorySources(f.root),catalog,'reuse the same clean revision without rescanning');
+        fs.appendFileSync(path.join(f.root,'capture.js'),` export function more(db,id,value){return setDoc(doc(db,'other_records',id),{different:value});}`);
+        assert.equal(configuredRepositorySources(f.root),null,'dirty work must not use a cached clean configuration');
+        f.commit();
+        const updated=configuredRepositorySources(f.root);
+        assert.notEqual(updated.revision,catalog.revision);
+        assert.notEqual(updated.digest,catalog.digest);
+        assert.ok(updated.collections.includes('other_records'));
+    } finally {f.cleanup();}
+});
+
+test('configured source hints respect the prompt budget without dropping file and path associations',()=>{
+    const f=configuredSourceFixture();
+    try {
+        const catalog=configuredRepositorySources(f.root);
+        const expanded={...catalog,fields:Array.from({length:100},(_,i)=>'field_'+i+'x'.repeat(100))};
+        const message=configuredSourcesMessage(expanded,2000);
+        assert.ok(message);
+        assert.ok(message.content.length<=2000,'the entire message must fit, including guidance');
+        const payload=JSON.parse(message.content.split('\n')[0].split('CONFIGURACION_DE_FUENTES_VERIFICADA=')[1]);
+        assert.equal(payload.fieldHintsOmitted,true);
+        assert.deepEqual(payload.files,catalog.files);
+        assert.deepEqual(payload.collections,catalog.collections);
+        assert.deepEqual(payload.references.map(([file,col])=>[file,col]),catalog.references.map(([file,col])=>[file,col]));
+        assert.equal(configuredSourcesMessage(expanded,10),null);
+    } finally {f.cleanup();}
+});
+
+test('the local planner receives configured paths as discovery, never completion evidence',async()=>{
+    const f=configuredSourceFixture();
+    try {
+        const {createSelfHostedSemanticEngine}=await import('../jarvis-fs-bridge.js');
+        let inspected=false;
+        const objective={objective:'Report current entries',requestQuote:'Report current entries',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['entries']};
+        const engine=createSelfHostedSemanticEngine({root:f.root,env:{JARVIS_SEMANTIC_PROVIDER_MODE:'LOCAL_ONLY',JARVIS_LOCAL_LLM_MODEL:'qwen3.5:9b'},fetchImpl:async(url,options)=>{
+            assert.ok(String(url).startsWith('http://127.0.0.1:11434/'));
+            const body=JSON.parse(options.body);
+            assert.equal(body.model,'qwen3.5:9b');
+            const configuration=body.messages.find(message=>message.content?.startsWith('CONFIGURACION_DE_FUENTES_VERIFICADA='));
+            assert.ok(configuration,'the same model must receive the configured flow before planning');
+            assert.match(configuration.content,/capture[.]js/);
+            assert.match(configuration.content,/groups\/scope-A\/entries/);
+            assert.doesNotMatch(configuration.content,/NOT_OPERATIONAL_DATA/);
+            inspected=true;
+            const content=JSON.stringify({explanation:'Read the configured source, then query current entries',completionAssessment:{objectives:[{objective:objective.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Records have not been queried'}]},toolCalls:[{name:'repo.read',args:{file:'capture.js'}}]});
+            return {ok:true,status:200,text:async()=>JSON.stringify({message:{role:'assistant',content},done_reason:'stop'})};
+        }});
+        const result=await engine.plan({input:objective.requestQuote,catalog:[{name:'repo.read',description:'Read repository source',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}},{name:'fixture.records',description:'Query current records after source inspection',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}},required:['sourceFile']}}],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[objective],completedTasks:[]}});
+        assert.equal(inspected,true);
+        assert.equal(result.toolCalls[0].args.file,'capture.js');
+        assert.equal(result.missionComplete,false);
+        assert.equal(result.completionAssessment.objectives[0].requiredEvidenceKind,'platform_records');
+    } finally {f.cleanup();}
+});
 
 test('semantic preselection uses parsed literals and cannot replace relevant source with an unrelated hub', () => {
     const relevant = scoreRepoSemanticPreselection({file:'registration.js', structuralText:'FILE: registration.js', literals:['equipmentSerial'], queryTokens:['equipment'], relationCount:0});
