@@ -488,7 +488,9 @@ function recordProjectionAlreadyObserved(call, tasks) {
             emptyScope({...record.scope,collection:task.args.collection})===emptyScope(call.args) &&
             (call.args.includeCount!==true||record.totalCount===0);
     }))return true;
-    const scope=args=>JSON.stringify(canonical(Object.fromEntries(Object.entries({...args,filters:args?.filters||[],orderBy:args?.orderBy||[]})
+    // The SDK always supplies ascending ID order when none was requested.
+    // Normalize only that default; other ordering and scope remain distinct.
+    const scope=args=>JSON.stringify(canonical(Object.fromEntries(Object.entries({...args,filters:args?.filters||[],orderBy:args?.orderBy?.length?args.orderBy:[{field:"__name__",direction:"asc"}]})
         .filter(([key])=>!["fields","pageSize","includeCount"].includes(key)))));
     const snapshots=[];
     for(const task of tasks) {
