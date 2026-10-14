@@ -2627,191 +2627,11 @@ exports.jarvisWebResearch = functions
     .runWith({
         timeoutSeconds: 60,
         memory: "256MB",
-        secrets: ["GEMINI_KEY"]
+
     })
     .https
     .onCall(async (data = {}, context) => {
-        const actor =
-            await assertJarvisAdminContext(
-                context,
-                "investigar en la web"
-            );
-        const query =
-            normalizeResearchQuery(
-                data?.query ||
-                data?.prompt ||
-                ""
-            );
-
-        if (
-            query.length < 5 ||
-            query.length > 600
-        ) {
-            throw new functions.https.HttpsError(
-                "invalid-argument",
-                "La consulta web debe tener entre 5 y 600 caracteres."
-            );
-        }
-
-        try {
-            let result;
-            try {
-                result = await runJarvisWebResearch({
-                    ai: getPlannerGenAI(),
-                    query,
-                    objectiveId: data?.objectiveId || "",
-                    caseId: data?.caseId || "",
-                    allowedDomain: data?.allowedDomain || "",
-                    exactEntity: data?.exactEntity || ""
-                });
-                if (
-                    !result?.grounded &&
-                    result?.status !==
-                        "ENTITY_NOT_VERIFIED"
-                ) {
-                    throw new Error(
-                        "PRIMARY_RESEARCH_NOT_GROUNDED"
-                    );
-                }
-            } catch (primaryError) {
-                const primaryMessage =
-                    primaryError?.message ||
-                    String(primaryError);
-                const credentialFailure =
-                    primaryMessage.includes("GEMINI_KEY_MISSING") ||
-                    primaryMessage.includes("API key not valid") ||
-                    primaryMessage.includes("API_KEY_INVALID");
-                const requestedDomain =
-                    requestedDomainFromQuery(
-                        query,
-                        data?.allowedDomain || ""
-                    );
-                if (!requestedDomain) throw primaryError;
-                try {
-                    result =
-                        await runJarvisDirectDomainResearch({
-                            fetchImpl: fetch,
-                            query,
-                            objectiveId:
-                                data?.objectiveId || "",
-                            caseId:
-                                data?.caseId || "",
-                            allowedDomain:
-                                data?.allowedDomain || "",
-                            fallbackReason:
-                                credentialFailure
-                                    ? "GEMINI_CREDENTIAL_UNAVAILABLE"
-                                    : "PRIMARY_GROUNDED_RESEARCH_UNAVAILABLE"
-                        });
-                } catch (fallbackError) {
-                    result = {
-                        ok: false,
-                        grounded: false,
-                        status: "WEB_RESEARCH_NOT_GROUNDED",
-                        error: "WEB_RESEARCH_UNAVAILABLE",
-                        message: [
-                            primaryMessage,
-                            fallbackError?.message ||
-                            String(fallbackError)
-                        ].filter(Boolean).join(" | "),
-                        query,
-                        requestedDomain,
-                        objectiveId: data?.objectiveId || "",
-                        caseId: data?.caseId || "",
-                        researchedAt: new Date().toISOString(),
-                        provider: "fail_closed",
-                        answer: "",
-                        sources: [],
-                        discardedSources: [],
-                        supports: [],
-                        facts: [],
-                        inferences: [],
-                        searchQueries: [],
-                        sourceCount: 0,
-                        readOnly: true,
-                        policy: {
-                            citationsRequired: true,
-                            consultedSourcesOnly: true,
-                            requestedDomainEnforced: Boolean(requestedDomain),
-                            factsSeparatedFromInference: true,
-                            codeWrite: false,
-                            externalSideEffects: false
-                        }
-                    };
-                }
-            }
-
-            console.log(JSON.stringify({
-                level:
-                    result.grounded
-                        ? "INFO"
-                        : "WARNING",
-                message:
-                    "JARVIS_WEB_RESEARCH_COMPLETE",
-                uid:
-                    actor.uid,
-                grounded:
-                    result.grounded,
-                sourceCount:
-                    result.sourceCount,
-                searchQueryCount:
-                    Array.isArray(result.searchQueries) ? result.searchQueries.length : 0,
-                factCount:
-                    Array.isArray(result.facts) ? result.facts.length : 0,
-                objectiveId: result.objectiveId || null,
-                caseId: result.caseId || null
-            }));
-
-            if (
-                !result.grounded &&
-                result?.status !==
-                    "ENTITY_NOT_VERIFIED"
-            ) {
-                return {
-                    ...result,
-                    ok: false,
-                    grounded: false,
-                    status:
-                        result?.status ||
-                        "WEB_RESEARCH_NOT_GROUNDED",
-                    transportOk: true
-                };
-            }
-
-            return result;
-        }
-        catch(error) {
-            if (
-                error instanceof
-                    functions.https.HttpsError
-            ) {
-                throw error;
-            }
-
-            console.error(JSON.stringify({
-                level: "ERROR",
-                message:
-                    "JARVIS_WEB_RESEARCH_FAILED",
-                uid:
-                    actor.uid,
-                error:
-                    error?.message ||
-                    String(error)
-            }));
-
-            const missingKey =
-                error?.message ===
-                    "GEMINI_KEY_MISSING";
-
-            throw new functions.https.HttpsError(
-                missingKey
-                    ? "failed-precondition"
-                    : "internal",
-                missingKey
-                    ? "La investigacion web no tiene credencial Gemini configurada."
-                    : "No fue posible completar la investigacion web con fuentes."
-            );
-        }
+        throw new functions.https.HttpsError('failed-precondition', 'LOCAL_JARVIS_ONLY');
     });
 
 /**
@@ -2923,28 +2743,10 @@ exports.jarvisSemanticRespond = functions
  * Analisis multimodal autenticado con evidencia e incertidumbre explicita.
  */
 exports.jarvisMediaAnalyze = functions
-    .runWith({ timeoutSeconds: 180, memory: "1GB", secrets: ["GEMINI_KEY"] })
+    .runWith({ timeoutSeconds: 180, memory: "1GB" })
     .https
     .onCall(async (data = {}, context) => {
-        const actor = await assertJarvisAdminContext(context, "analizar documentos e imagenes");
-        try {
-            const result = await runJarvisMediaAnalysis({
-                ai: getPlannerGenAI(),
-                input: data
-            });
-            console.log(JSON.stringify({
-                level: "INFO",
-                message: "JARVIS_MEDIA_ANALYSIS_COMPLETE",
-                uid: actor.uid,
-                sources: result.sources.length,
-                model: result.model
-            }));
-            return result;
-        } catch (error) {
-            console.error(JSON.stringify({ level: "ERROR", message: "JARVIS_MEDIA_ANALYSIS_FAILED", uid: actor.uid, error: error?.message || String(error) }));
-            const invalid = /COUNT_INVALID|TYPE_UNSUPPORTED|BASE64_INVALID|SIZE_INVALID|SOURCE_COUNT_MISMATCH/.test(error?.message || "");
-            throw new functions.https.HttpsError(invalid ? "invalid-argument" : "internal", error?.message || "No fue posible analizar los archivos.");
-        }
+        throw new functions.https.HttpsError('failed-precondition', 'LOCAL_JARVIS_ONLY');
     });
 
 /**
@@ -2955,80 +2757,11 @@ exports.jarvisImageGenerate = functions
     .runWith({
         timeoutSeconds: 120,
         memory: "1GB",
-        secrets: ["GEMINI_KEY"]
+
     })
     .https
     .onCall(async (data = {}, context) => {
-        const actor = await assertJarvisAdminContext(
-            context,
-            "generar imagenes"
-        );
-
-        try {
-            let result;
-
-            try {
-                result = await runJarvisImageGeneration({
-                    ai: getPlannerGenAI(),
-                    input: data
-                });
-            }
-            catch(primaryError) {
-                const primaryMessage =
-                    primaryError?.message || String(primaryError);
-                const credentialFailure =
-                    primaryMessage.includes("GEMINI_KEY_MISSING") ||
-                    primaryMessage.toLowerCase().includes("api key not valid") ||
-                    primaryMessage.includes("API_KEY_INVALID");
-
-                if (!credentialFailure) {
-                    throw primaryError;
-                }
-
-                result = await runJarvisImageFallback({
-                    fetchImpl: fetch,
-                    input: data
-                });
-            }
-
-            console.log(JSON.stringify({
-                level: "INFO",
-                message: "JARVIS_IMAGE_GENERATION_COMPLETE",
-                uid: actor.uid,
-                model: result.model,
-                provider: result.provider || "google",
-                action: result.action || "generate",
-                bytes: result.bytes,
-                aspectRatio: result.aspectRatio,
-                objectiveId: result.objectiveId || null,
-                sourceOutput: result.sourceOutput || null,
-                transformations: result.transformations || []
-            }));
-
-            return result;
-        }
-        catch(error) {
-            console.error(JSON.stringify({
-                level: "ERROR",
-                message: "JARVIS_IMAGE_GENERATION_FAILED",
-                uid: actor.uid,
-                error: error?.message || String(error)
-            }));
-
-            const invalidArgument =
-                error?.message === "JARVIS_IMAGE_PROMPT_REQUIRED" ||
-                error?.message === "JARVIS_IMAGE_SOURCE_INVALID" ||
-                error?.message === "JARVIS_IMAGE_SOURCE_BASE64_INVALID" ||
-                error?.message === "JARVIS_IMAGE_TRANSFORMATIONS_REQUIRED";
-            throw new functions.https.HttpsError(
-                invalidArgument
-                    ? "invalid-argument"
-                    : error?.message === "GEMINI_KEY_MISSING"
-                        ? "failed-precondition"
-                        : "internal",
-                error?.message || "No fue posible generar la imagen."
-            );
-        }
+        throw new functions.https.HttpsError('failed-precondition', 'LOCAL_JARVIS_ONLY');
     });
 
 /**

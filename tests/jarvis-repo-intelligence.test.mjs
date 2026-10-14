@@ -202,7 +202,8 @@ test('record continuation can read a configured source that has not been searche
             if(readerChoice)assert.ok(!readerChoice.properties.args.properties.file.enum.includes('utility.js'),'record schema must not repeat undiscovered helper inventory');
             const recovery=body.messages.some(message=>message.content?.startsWith('RUTAS_LOCALIZADAS='));
             if(recovery){
-                const choice=body.format.properties.toolCalls.items.anyOf.find(branch=>branch.properties.name.enum.includes(reader.name));
+                const choices=body.format?.properties.toolCalls.items.anyOf || body.tools.map(tool=>({properties:{name:{enum:[tool.function.name]},args:tool.function.parameters}}));
+                const choice=choices.find(branch=>branch.properties.name.enum.includes(reader.name));
                 assert.ok(choice.properties.args.properties.file.enum.includes('capture.js'),'configured discovery must survive the recovery frontier');
                 checked=true;
             }

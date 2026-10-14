@@ -104,13 +104,14 @@ test("media analysis rejects unsupported, excessive and malformed inputs before 
     assert.throws(() => normalizeMediaFiles([{ name: "x", mimeType: "image/png", dataBase64: "not base64!" }]), /BASE64_INVALID/);
 });
 
-test("Firebase and terminal connect the authenticated real media analysis end to end", () => {
+test("historical media callable remains closed while local analysis capabilities stay declared", () => {
     const functionsIndex = fs.readFileSync(require.resolve("../functions/index.js"), "utf8");
     const workflow = fs.readFileSync(require.resolve("../.github/workflows/deploy.yml"), "utf8");
     const pack = fs.readFileSync(require.resolve("../gestia-core/jarvis/jarvis.multitool.pack.js"), "utf8");
     assert.match(functionsIndex, /exports\.jarvisMediaAnalyze/);
     assert.match(workflow, /functions:jarvisMediaAnalyze/);
-    assert.match(pack, /jarvisMediaAnalyze/);
+    const start=functionsIndex.indexOf('exports.jarvisMediaAnalyze');const handler=functionsIndex.slice(start,functionsIndex.indexOf('});',start)+3);assert.match(handler,/LOCAL_JARVIS_ONLY/);assert.doesNotMatch(handler,/GEMINI_KEY|runJarvisMediaAnalysis/);
+    assert.ok(pack.includes("externalInferenceBlocked('visual_media_analysis')"));
     assert.match(pack, /no inventare su contenido/i);
 });
 

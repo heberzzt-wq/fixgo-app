@@ -17,6 +17,25 @@ const describe = () => ({ ok: true, fallbackAllowed: false });
 const result = { ok: true, toolCalls: [{ name: "repo.audit", args: {}, approved: false }], missionComplete: false };
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+test('local timing separates Ollama stages and never invents queue wait',async()=>{
+    const engine=createSelfHostedSemanticEngine({fetchImpl:async(url,options)=>{
+        const body=JSON.parse(options.body);
+        assert.match(url,/\/api\/chat$/);
+        assert.equal(body.model,'qwen3.5:9b');assert.equal(body.think,false);
+        return {ok:true,text:async()=>JSON.stringify({message:{content:'La evidencia sigue parcial.'},
+            prompt_eval_count:40,eval_count:12,total_duration:900000000,load_duration:100000000,
+            prompt_eval_duration:200000000,eval_duration:500000000})};
+    }});
+    assert.equal((await engine.respond({input:'Describe la evidencia.'})).ok,true);
+    const timing=engine.describe().timingByStage;
+    assert.equal(timing.length,1);
+    assert.deepEqual({responses:timing[0].completedResponses,prompt:timing[0].promptTokens,output:timing[0].outputTokens,
+        total:timing[0].serverTotalMs,load:timing[0].modelLoadMs,prefill:timing[0].promptEvaluationMs,inference:timing[0].inferenceMs,
+        queue:timing[0].queueWaitMs,samples:timing[0].serverTimingSamples},
+        {responses:1,prompt:40,output:12,total:900,load:100,prefill:200,inference:500,queue:null,samples:1});
+    assert.equal(engine.describe().counters.semanticExternalCalls,0);
+});
+
 test("grounding focuses the current operation while retaining the full mission as context", async () => {
     const original = "Consulta originales, crea un anuncio y exporta el PNG a Salidas.";
     const operation = "consultar originales de la biblioteca local de materiales";
@@ -178,10 +197,11 @@ test("default semantic engine uses the real local HTTP transport with the unchan
     const upstream = createServer(async (req, res) => {
         const chunks = [];
         for await (const chunk of req) chunks.push(chunk);
-        const body = JSON.parse(Buffer.concat(chunks).toString());
+        const body = JSON.parse(Buffer.concat(chunks).toString()||'{}');
         calls.push({ route: req.url, body });
         res.setHeader("content-type", "application/json");
-        res.end(JSON.stringify(req.url === "/api/generate" ? { done: true } : { message: { content: JSON.stringify(result) } }));
+        res.end(JSON.stringify(req.url === '/api/tags' ? {models:[{name:'qwen3.5:9b',digest:'fixture-digest'}]} :
+            req.url === "/api/generate" ? { done: true } : { message: { content: JSON.stringify(result) } }));
     }).listen(0, "127.0.0.1");
     await new Promise(resolve => upstream.once("listening", resolve));
     t.after(() => { upstream.closeAllConnections(); upstream.close(); });
@@ -189,9 +209,10 @@ test("default semantic engine uses the real local HTTP transport with the unchan
     const plan = await engine.plan({ input: instruction, catalog, missionState: phase });
     assert.equal(plan.ok, true);
     assert.equal(plan.missionComplete, false);
-    assert.deepEqual(calls.map(call => call.route), ["/api/show", "/api/generate", "/api/chat"]);
-    assert.equal(calls[2].body.model, "qwen3:4b-instruct-2507-q4_K_M");
-    assert.equal(calls[2].body.messages[1].content, instruction);
+    assert.deepEqual(calls.map(call => call.route), ["/api/show",'/api/tags', "/api/generate", "/api/chat"]);
+    assert.equal(calls[3].body.model, "qwen3.5:9b");
+    assert.equal(calls[3].body.messages[1].content, instruction);
+    assert.equal(engine.describe().verifiedModelMode.digest,'fixture-digest');
     assert.equal(engine.describe().counters.semanticExternalCalls, 0);
 });
 
@@ -434,7 +455,7 @@ test("mission decomposition retains the full instruction; selection is scoped to
             assert.equal(body.messages.at(-1).content, instruction);
             assert.equal(body.format.properties.work.type, "string", 'one complete result operation has native shape without a tool-name enum');
             assert.equal(body.format.properties.verification.type,"string","requested executable verification remains independent of creation");
-            assert.match(body.messages[0].content,/\/no_think$/);
+            assert.equal(body.model,'qwen3.5:9b');
             assert.equal(body.think, false);
             assert.ok(body.options.num_predict >= 256);
             return {ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({sourceReview:'',work:'audit repository',delivery:''})},done_reason:'stop'})};

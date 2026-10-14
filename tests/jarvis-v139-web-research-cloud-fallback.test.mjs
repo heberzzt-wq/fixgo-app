@@ -1,7 +1,51 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
+import {parse} from 'acorn';
+import {externalInferenceBlocked,hasExactLocalModel} from '../gestia-core/jarvis/jarvis.local.policy.js';
 
-import { registerJarvisMultifunctionTools } from "../gestia-core/jarvis/jarvis.multitool.pack.js";
+import { registerJarvisMultifunctionTools, fetchGroundedWebResearch } from "../gestia-core/jarvis/jarvis.multitool.pack.js";
+
+test('historical cloud callable handlers reject before invoking any provider',async()=>{
+ const source=readFileSync(new URL('../functions/index.js',import.meta.url),'utf8');
+ const ast=parse(source,{ecmaVersion:'latest',sourceType:'script'});
+ for(const name of ['jarvisWebResearch','jarvisMediaAnalyze','jarvisImageGenerate']){
+  const assignment=ast.body.find(node=>node.expression?.left?.object?.name==='exports'&&node.expression.left.property?.name===name).expression;
+  const handler=assignment.right.arguments[0];let providerCalls=0;
+  class HttpsError extends Error{constructor(code,message){super(message);this.code=code;}}
+  const deny=()=>{providerCalls++;throw Error('PROVIDER_MUST_NOT_BE_REACHED');};
+  const invoke=runInNewContext('('+source.slice(handler.start,handler.end)+')',{functions:{https:{HttpsError}},fetch:deny,callGenAi:deny});
+  await assert.rejects(invoke({query:'Read current evidence',prompt:'Create an image'},{auth:{uid:'authorized-fixture'}}),error=>error.code==='failed-precondition'&&error.message==='LOCAL_JARVIS_ONLY');
+  assert.equal(providerCalls,0);
+  assert.doesNotMatch(source.slice(assignment.start,assignment.end),/GEMINI_KEY|VERTEX|RUNPOD/);
+ }
+});
+
+test('unavailable local vision does not read attachment bytes or request cloud inference',async()=>{
+ const source=readFileSync(new URL('../gestia-core/jarvis/jarvis.multitool.pack.js',import.meta.url),'utf8');
+ const node=parse(source,{ecmaVersion:'latest',sourceType:'module'}).body.find(node=>node.type==='FunctionDeclaration'&&node.id.name==='fetchGroundedMediaAnalysis');
+ let reads=0;const forbidden=()=>{reads++;throw Error('EXTERNAL_READ_FORBIDDEN');};
+ const invoke=runInNewContext('('+source.slice(node.start,node.end)+')',{externalInferenceBlocked,fetch:forbidden,invokeGroundedMediaAnalysis:forbidden});
+ const result=await invoke([{kind:'image',url:'https://fixture.test/private.png'}],'Explain the visible contents');
+ assert.equal(reads,0);assert.equal(result.ok,false);assert.equal(result.error,'EXTERNAL_INFERENCE_DISABLED');assert.equal(result.externalApiUsed,false);
+});
+
+test('a related model tag cannot satisfy exact local model readiness',()=>{
+ assert.equal(hasExactLocalModel(['qwen3.5:4b','qwen3.5:9b-custom']),false);
+ assert.equal(hasExactLocalModel(['qwen3.5:9b']),true);
+});
+
+test('local research failure cannot request a cloud token or call an external inference endpoint',async()=>{
+ const previous={auth:globalThis.auth,bridge:globalThis.JarvisLocalBridge,fetch:globalThis.fetch};let tokens=0,calls=0;
+ try{
+  globalThis.auth={currentUser:{getIdToken:async()=>{tokens++;return 'fixture-token';}}};
+  globalThis.JarvisLocalBridge={requestJson:async()=>({ok:false,error:'LOCAL_SOURCE_UNAVAILABLE'})};
+  globalThis.fetch=async()=>{calls++;throw Error('EXTERNAL_CALL_FORBIDDEN');};
+  const result=await fetchGroundedWebResearch('Inspect the authorized public source');
+  assert.equal(calls,0);assert.equal(tokens,0);assert.equal(result.ok,false);assert.equal(result.error,'EXTERNAL_INFERENCE_DISABLED');
+ }finally{globalThis.auth=previous.auth;globalThis.JarvisLocalBridge=previous.bridge;globalThis.fetch=previous.fetch;}
+});
 
 test("v139 web.research preserves the newer grounded local-primary authority", async () => {
     const previousAuth = globalThis.auth;

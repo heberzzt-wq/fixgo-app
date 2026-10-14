@@ -239,9 +239,9 @@ test("an observed partial source remains available for a new range when recovery
     let recovered=false;
     const result=await runJarvisSemanticPlanner({input:"Inspect the stored relationship",catalog:[reader],missionState:{phase:"COMPLETION_AUDIT",completedTasks:[{name:reader.name,args:{file:"observed.js"},observation:{ok:true,verifiedRead:{file:"observed.js",content:"Source header",startLine:1,endLine:5,totalLines:80,partial:true,sourceStructure:{dataBindings:{writeShapes:[{collection:"entries",startLine:40,fields:["owner"]}]}}}}}]},ai:{models:{generateContent:async request=>{
         if(request.config.semanticStage==="COMPLETION_AUDIT")return{text:JSON.stringify({toolCalls:[],completionAssessment:{objectives:[{objective:"Inspect the stored relationship",requiredEvidenceKind:"repository_source",satisfied:false,evidenceTaskIndexes:[],limitation:"The field definition is outside the observed excerpt."}]}})};
-        if(request.config.semanticStage==="READ_ONLY_EVIDENCE_CONTINUATION")return{text:'{"toolCalls":[]}'};
-        assert.equal(request.config.semanticStage,"READ_ONLY_NEXT_STEP_RECOVERY");
-        const schema=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;
+
+        assert.equal(request.config.semanticStage,"READ_ONLY_EVIDENCE_CONTINUATION");
+        const schema=request.config.responseJsonSchema?.properties.toolCalls.items.anyOf || request.config.tools[0].functionDeclarations.map(tool=>({properties:{name:{enum:[tool.name]},args:tool.parametersJsonSchema}}));
         assert.ok(schema.some(branch=>branch.properties.args.properties.file.enum.includes("observed.js")));
         const partial=request.config.chatMessages.find(message=>message.content.startsWith("LECTURAS_PARCIALES="));
         assert.match(partial.content,/"startLine":40/);
@@ -260,8 +260,8 @@ test("partial source recovery accumulates observed ranges and rejects a still-vi
     let recovered=false;
     const result=await runJarvisSemanticPlanner({input:"Inspect the remaining source evidence",catalog:[reader],missionState:{phase:"COMPLETION_AUDIT",completedTasks},ai:{models:{generateContent:async request=>{
         if(request.config.semanticStage==="COMPLETION_AUDIT")return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:"observed.js",startLine:11,endLine:20}}],completionAssessment:{objectives:[{objective:"Inspect the remaining source evidence",requiredEvidenceKind:"repository_source",satisfied:false,evidenceTaskIndexes:[],limitation:"More evidence required"}]}})};
-        if(request.config.semanticStage==="READ_ONLY_EVIDENCE_CONTINUATION")return{text:'{"toolCalls":[]}'};
-        assert.equal(request.config.semanticStage,"READ_ONLY_NEXT_STEP_RECOVERY");
+
+        assert.equal(request.config.semanticStage,"READ_ONLY_EVIDENCE_CONTINUATION");
         const message=request.config.chatMessages.find(item=>item.content.startsWith("LECTURAS_PARCIALES="));
         const progress=JSON.parse(message.content.split("\n")[0].slice("LECTURAS_PARCIALES=".length));
         assert.equal(progress.length,1);

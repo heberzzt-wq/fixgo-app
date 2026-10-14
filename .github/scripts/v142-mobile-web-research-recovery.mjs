@@ -5,6 +5,7 @@ const P = Object.freeze({
     core: "gestia-core/gestia-core.js",
     multitool: "gestia-core/jarvis/jarvis.multitool.pack.js",
     fsBridge: "jarvis-fs-bridge.js",
+    localPolicy: "gestia-core/jarvis/jarvis.local.policy.js",
     functionsIndex: "functions/index.js",
     intentLegacy: "functions/jarvis-intent-runtime-v7.cjs",
     repoPlannerLegacy: "functions/repo-semantic-tool-planner.js",
@@ -42,7 +43,8 @@ forbid(client, "cloudfunctions.net/jarvisSemanticPlan", "cloud-semantic-endpoint
 forbid(client, "getIdToken()", "cloud-semantic-auth-token");
 
 need(fsBridge, 'const SEMANTIC_PROVIDER_MODES = new Set([\n    "LOCAL_ONLY"\n]);', "local-only-provider-mode");
-need(fsBridge, 'env.JARVIS_LOCAL_LLM_MODEL || "qwen3:4b-instruct-2507-q4_K_M"', "default-qwen3-local");
+need(fsBridge, 'env.JARVIS_LOCAL_LLM_MODEL || JARVIS_LOCAL_MODEL', "default-qwen35-local");
+need(read(P.localPolicy), "JARVIS_LOCAL_MODEL = 'qwen3.5:9b'", "exact-qwen35-model");
 need(fsBridge, 'env.JARVIS_LOCAL_LLM_BASE_URL || "http://127.0.0.1:11434/v1"', "default-ollama-loopback");
 need(fsBridge, 'provider: "ollama-openai-compatible-local"', "local-provider-identity");
 need(fsBridge, "fallbackAllowed: false", "zero-cloud-fallback");
@@ -70,7 +72,8 @@ forbid(terminalBootstrap, "__NEXO_TERMINAL_BOOTSTRAP__", "active-nexo-bootstrap"
 
 need(read(P.core), 'call?.name === "speech.synthesize"', "speech-grounding");
 need(read(P.core), 'call?.name === "reel.plan"', "reel-grounding");
-need(read(P.multitool), 'status: "GROUNDED_LOCAL_FALLBACK"', "local-research");
+need(read(P.multitool), 'status: "GROUNDED_LOCAL_PRIMARY"', "local-research");
+need(read(P.multitool), "externalInferenceBlocked('web_research')", "external-research-disabled");
 
 console.log(JSON.stringify({
     ok: true,
@@ -78,7 +81,9 @@ console.log(JSON.stringify({
     semanticAuthority: "jarvisSemanticPlan",
     runtimeIdentity: "JARVIS",
     localProvider: "ollama-openai-compatible-local",
-    defaultModel: "qwen3:4b-instruct-2507-q4_K_M",
+    defaultModel: "qwen3.5:9b",
+    certificationLevel: "STATIC_POLICY_ONLY",
+    physicalMissionVerified: false,
     localEndpoint: "http://127.0.0.1:11434/v1",
     cloudSemanticFallback: false,
     alternateBrains: 0,

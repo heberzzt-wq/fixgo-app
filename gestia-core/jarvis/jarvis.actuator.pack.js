@@ -595,6 +595,9 @@ async function createBrowserVerifiedPageArtifact(args = {}) {
 }
 
 async function callAdminFunction(name, data = {}) {
+    if (["jarvisImageGenerate", "jarvisMediaAnalyze", "jarvisWebResearch"].includes(name)) {
+        throw new Error('EXTERNAL_INFERENCE_DISABLED:La capacidad requiere una implementación local.');
+    }
     if (["jarvisImageGenerate", "jarvisVideoGenerate"].includes(name) && !["status", "poll", "cleanup"].includes(data.action)) {
         const policy = await bridgeRequest("/media/library", { action: "policy" }, 15000);
         if (policy?.ok !== true || policy.externalGenerationAllowed !== true) {

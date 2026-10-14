@@ -353,7 +353,7 @@ test("v142 recovery query removes the inaccessible source anchor but preserves i
     assert.doesNotMatch(query, /site:tiktok\.com/i);
 });
 
-test("v142 mobile web research retries the same authenticated cloud tool cross-source when TikTok scope fails", async () => {
+test("v142 mobile research failure cannot activate the historical cloud recovery", async () => {
     const previousAuth = globalThis.auth;
     const previousWindow = globalThis.window;
     const previousFetch = globalThis.fetch;
@@ -404,24 +404,8 @@ test("v142 mobile web research retries the same authenticated cloud tool cross-s
             }
         );
 
-        assert.equal(calls.length, 2);
-        assert.equal(calls[0].allowedDomain, "tiktok.com");
-        assert.match(calls[0].query, /tiktok\.com/i);
-        assert.equal(calls[1].allowedDomain, "");
-        assert.equal(calls[1].exactEntity, "Taquería El Dorado");
-        assert.doesNotMatch(calls[1].query, /https?:\/\//i);
-        assert.equal(result.ok, true);
-        assert.equal(result.grounded, true);
-        assert.equal(result.status, "GROUNDED_CROSS_SOURCE_RECOVERY");
-        assert.equal(result.source, "JARVIS_CROSS_SOURCE_WEB_RESEARCH_RECOVERY");
-        assert.equal(result.exactAnchorVerified, false);
-        assert.equal(result.sourceScopeRecovered, true);
-        assert.equal(
-            result.anchorStatus,
-            "EXACT_ANCHOR_UNAVAILABLE_CROSS_SOURCE_GROUNDED"
-        );
-        assert.equal(result.anchor.seedUrl, seedUrl);
-        assert.equal(result.sources[0].url, "https://example.com/taqueria-el-dorado-cancun");
+        assert.equal(calls.length,0);assert.equal(result.ok,false);assert.equal(result.error,'EXTERNAL_INFERENCE_DISABLED');
+        assert.equal(result.externalApiUsed,false);assert.equal(result.objectiveSatisfied,false);assert.equal(result.query.includes(seedUrl),true);
     }
     finally {
         if (previousAuth === undefined) delete globalThis.auth;
@@ -565,10 +549,10 @@ test("v142 hard domain scope never relaxes an unrelated allowedDomain", async ()
                 exactEntity: "Taquería El Dorado"
             }
         );
-        assert.equal(calls.length, 1);
-        assert.equal(calls[0].allowedDomain, "multiserviciospeninsulareshmh.com");
+        assert.equal(calls.length, 0);
+
         assert.equal(result.ok, false);
-        assert.equal(result.error, "WEB_RESEARCH_UNAVAILABLE");
+        assert.equal(result.error, "EXTERNAL_INFERENCE_DISABLED");
     } finally {
         if (previousAuth === undefined) delete globalThis.auth; else globalThis.auth = previousAuth;
         if (previousWindow === undefined) delete globalThis.window; else globalThis.window = previousWindow;

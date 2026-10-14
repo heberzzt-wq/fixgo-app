@@ -23,7 +23,7 @@ function sha256(bytes) {
     return createHash("sha256").update(bytes).digest("hex");
 }
 
-test("brand-scene image.edit forbids generated logos and composites the official logo after provider output", async () => {
+test("brand-scene image edit preserves source assets when external generation is disabled", async () => {
     const previousAuth = globalThis.auth;
     const previousFetch = globalThis.fetch;
     const previousBridge = globalThis.JarvisLocalBridge;
@@ -139,7 +139,7 @@ test("brand-scene image.edit forbids generated logos and composites the official
 
         const runtime = createRuntime();
         registerJarvisActuatorTools(runtime);
-        const result = await runtime.get("image.edit").execute({
+        const operation = runtime.get("image.edit").execute({
             sourceOutput: ".jarvis-artifacts/web-media/foto-real.jpg",
             brandLogoOutput: ".jarvis-artifacts/web-media/emblema-hmh.png",
             marketingRequirementId: "social-instagram",
@@ -155,27 +155,8 @@ test("brand-scene image.edit forbids generated logos and composites the official
             caseId: "CASE_HMH"
         });
 
-        assert.equal(result.ok, true);
-        assert.equal(result.persisted, true);
-        assert.equal(result.referenceGrounded, true);
-        assert.equal(result.identityMode, "brand-scene");
-        assert.equal(result.marketingRequirementId, "social-instagram");
-        assert.equal(result.variantId, "social-instagram");
-        assert.equal(result.brandLogoOutput, ".jarvis-artifacts/web-media/emblema-hmh.png");
-        assert.equal(result.brandLogoSha256, sha256(logoBytes));
-        assert.equal(result.brandLogoOverlayVerified, true);
-        assert.equal(result.generatedLogoAllowed, false);
-        assert.equal(result.outputSha256, sha256(compositeBytes));
-        assert.equal(savedImageBase64, compositeBase64);
-        assert.notEqual(savedImageBase64, generatedBase64);
-        assert.equal(draws.length, 2);
-
-        assert.equal(providerPayload.sourceImageBase64, sourceBase64);
-        assert.equal(providerPayload.preserveLogos, false);
-        assert.equal(providerPayload.preserveApprovedText, false);
-        assert.match(providerPayload.prompt, /PROHIBIDO generar cualquier logo/i);
-        assert.match(providerPayload.prompt, /unico logotipo permitido sera compuesto despues/i);
-        assert.ok(providerPayload.transformations.some(item => /No generar, redibujar/i.test(item)));
+        await assert.rejects(operation,/EXTERNAL_INFERENCE_DISABLED/);
+        assert.equal(providerPayload,null);assert.equal(savedImageBase64,null);assert.equal(draws.length,0);
     }
     finally {
         globalThis.auth = previousAuth;

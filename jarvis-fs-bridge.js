@@ -1,4 +1,5 @@
 import { semanticPlanHandler, semanticResponseHandler, fetchLocalSemanticResponse } from "./jarvis-semantic-http.js";
+import { JARVIS_LOCAL_MODEL } from './gestia-core/jarvis/jarvis.local.policy.js';
 import { SEMANTIC_MAX_BUDGET_MS } from "./gestia-core/jarvis/jarvis.semantic.transport.js";
 import { buildResponsiveRepairOptions, buildResponsiveRepairPatch } from "./gestia-core/jarvis/jarvis.autopatch.engine.js";
 import express from "express";
@@ -1007,7 +1008,12 @@ export function assertLocalModelMode(metadata = {}, model = "") {
         throw new Error("LOCAL_MODEL_NON_THINKING_UNSUPPORTED:" + String(model));
     }
     return { model: String(model), requestedThinking: false,
-        declaredThinkingModes: Array.isArray(supported) ? supported : null };
+        declaredThinkingModes: Array.isArray(supported) ? supported : null,
+        family:metadata.details?.family || null,
+        parameterSize:metadata.details?.parameter_size || null,
+        quantization:metadata.details?.quantization_level || null,
+        metadataFingerprint:createHash('sha256').update(JSON.stringify({model,details:metadata.details,
+            modelInfo:metadata.model_info,parameters:metadata.parameters,template:metadata.template,capabilities:metadata.capabilities})).digest('hex') };
 }
 
 export function createSelfHostedSemanticEngine({
@@ -1017,7 +1023,7 @@ export function createSelfHostedSemanticEngine({
 } = {}) {
     const mode = semanticProviderMode(env);
     const model = String(
-        env.JARVIS_LOCAL_LLM_MODEL || "qwen3:4b-instruct-2507-q4_K_M"
+        env.JARVIS_LOCAL_LLM_MODEL || JARVIS_LOCAL_MODEL
     ).trim();
     const conversationModel = model;
     const embeddingModel = String(
@@ -1036,6 +1042,8 @@ export function createSelfHostedSemanticEngine({
     let lastModelProfile =
         "default";
     let lastSourceConfiguration = null;
+    const objectiveCoverageCache = new Map();
+    const timingByStage = new Map();
     const counters = {
         localSemanticInferenceCalls: 0,
         localEmbeddingCalls: 0,
@@ -1122,7 +1130,15 @@ export function createSelfHostedSemanticEngine({
                 const origin = new URL(baseUrl).origin;
                 const metadataResponse = await fetchImpl(origin + "/api/show", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model }), signal: signal ? AbortSignal.any([controller.signal, signal]) : controller.signal });
                 if (!metadataResponse.ok) throw new Error("LOCAL_MODEL_METADATA_HTTP_" + metadataResponse.status);
+                const previousModelDigest=verifiedModelMode?.digest;
                 verifiedModelMode = assertLocalModelMode(JSON.parse(await metadataResponse.text()), model);
+                const tagsResponse=await fetchImpl(origin+'/api/tags',{signal:signal ? AbortSignal.any([controller.signal,signal]) : controller.signal});
+                if(!tagsResponse.ok)throw new Error('LOCAL_MODEL_TAGS_HTTP_'+tagsResponse.status);
+                const installed=JSON.parse(await tagsResponse.text()).models;
+                const exact=Array.isArray(installed) ? installed.find(item=>(item.name||item.model)===model) : null;
+                if(!exact?.digest)throw new Error('LOCAL_MODEL_EXACT_IDENTITY_UNVERIFIED');
+                if(previousModelDigest && previousModelDigest!==exact.digest)objectiveCoverageCache.clear();
+                verifiedModelMode={...verifiedModelMode,digest:exact.digest};
                 const response = await fetchImpl(
                     origin + "/api/generate",
                     {
@@ -1222,6 +1238,7 @@ export function createSelfHostedSemanticEngine({
             externalApiUsed: false,
             estimatedExternalCostUsd: 0,
             counters: { ...counters },
+            timingByStage: [...timingByStage.values()].map(stage=>({...stage})),
             ...(lastSourceConfiguration ? {sourceConfiguration:{...lastSourceConfiguration}} : {})
         };
     }
@@ -1345,7 +1362,9 @@ export function createSelfHostedSemanticEngine({
     async function generateContent(request = {}) {
         const health = describe();
         if (health.ok !== true) throw new Error(health.status);
+        const warmStartedAt = Date.now();
         await ensureMainModelWarm({ signal: request?.config?.signal });
+        const warmWaitMs = Math.max(0, Date.now() - warmStartedAt);
         const tools = openAiToolsFromGemini(request?.config || {});
         const noDeadline = true;
         const inferenceTimeoutMs = noDeadline
@@ -1402,6 +1421,7 @@ export function createSelfHostedSemanticEngine({
                 modelProfile === "conversation"
                     ? conversationModel
                     : model;
+            const qwenNative = selectedModel.startsWith("qwen3:") || selectedModel.startsWith("qwen3.5:");
             lastInferenceModel =
                 selectedModel;
             lastModelProfile =
@@ -1433,12 +1453,12 @@ export function createSelfHostedSemanticEngine({
                     "application/json";
             const nativeToolChat =
                 tools.length > 0 &&
-                (request?.config?.nativeToolChat === true || selectedModel.startsWith("qwen3:"));
+                (request?.config?.nativeToolChat === true || qwenNative);
             const nativeChat =
                 jsonOnlyNative ||
                 nativeToolChat ||
                 request?.config?.nativeTextChat === true ||
-                selectedModel.startsWith("qwen3:");
+                qwenNative;
             const origin =
                 new URL(baseUrl).origin;
             const documentGeneration = ["document_initial", "document_segment", "document_repair", "spreadsheet_initial", "spreadsheet_repair"].includes(request?.config?.semanticStage);
@@ -1631,11 +1651,32 @@ export function createSelfHostedSemanticEngine({
                     nativeToolChat: nativeChat && Array.isArray(payload.tools) && payload.tools.length > 0,
                     jsonOnlyNative: nativeChat && Boolean(payload.format) && !payload.tools?.length,
                     numPredict: nativeChat ? payload.options.num_predict : payload.max_tokens,
+                    effectiveOptions:nativeChat ? {...payload.options,think:payload.think} : {maxTokens:payload.max_tokens,temperature:payload.temperature},
                     finishReason: String(nativeChat ? data?.done_reason || "" : data?.choices?.[0]?.finish_reason || "").slice(0, 80),
                     messageKeys: Object.keys(message).slice(0, 20),
                     message: { content: text.slice(0, 1200), tool_calls: Array.isArray(message.tool_calls) ? message.tool_calls.slice(0, 12) : [] },
+                    promptTokens: Number(data?.prompt_eval_count) || 0,
+                    outputTokens: Number(data?.eval_count) || 0,
+                    serverTotalMs: Number.isFinite(data?.total_duration) ? data.total_duration / 1e6 : null,
+                    modelLoadMs: Number.isFinite(data?.load_duration) ? data.load_duration / 1e6 : null,
+                    promptEvaluationMs: Number.isFinite(data?.prompt_eval_duration) ? data.prompt_eval_duration / 1e6 : null,
+                    inferenceMs: Number.isFinite(data?.eval_duration) ? data.eval_duration / 1e6 : null,
+                    // Ollama does not expose queue wait separately. Do not
+                    // mislabel HTTP overhead or model loading as queue time.
+                    queueWaitMs: null,
                     durationMs: Date.now() - attemptStartedAt
                 });
+                const stageKey=String(request?.config?.semanticStage||'unspecified').slice(0,80);
+                if(!timingByStage.has(stageKey) && timingByStage.size>=64)timingByStage.delete(timingByStage.keys().next().value);
+                const timing=timingByStage.get(stageKey)||{stage:stageKey,completedResponses:0,promptTokens:0,outputTokens:0,
+                    roundTripMs:0,serverTotalMs:0,modelLoadMs:0,promptEvaluationMs:0,inferenceMs:0,serverTimingSamples:0,queueWaitMs:null};
+                const sample=attemptEvidence.at(-1);
+                timing.completedResponses+=1;
+                for(const key of ['promptTokens','outputTokens','serverTotalMs','modelLoadMs','promptEvaluationMs','inferenceMs'])
+                    timing[key]+=sample[key]||0;
+                timing.roundTripMs+=sample.durationMs;
+                if(sample.serverTotalMs!==null)timing.serverTimingSamples+=1;
+                timingByStage.set(stageKey,timing);
 
                 if (text.trim() || functionCalls.length > 0) {
                     break;
@@ -1673,6 +1714,7 @@ export function createSelfHostedSemanticEngine({
                 functionCalls,
                 providerResponse: {
                     phase,
+                    warmWaitMs,
                     promptTokens: Number(data?.prompt_eval_count) || 0,
                     outputTokens: Number(data?.eval_count) || 0,
                     attemptEvidence,
@@ -1886,7 +1928,8 @@ export function createSelfHostedSemanticEngine({
 
     const ai = {
         lastProvider: "ollama-openai-compatible-local",
-        models: { generateContent }
+        models: { generateContent },
+        objectiveCoverageCache
     };
 
     return {

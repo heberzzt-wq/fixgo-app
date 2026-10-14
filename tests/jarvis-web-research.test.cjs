@@ -592,7 +592,7 @@ test("direct domain fallback prioritizes claim-specific official pages over gene
     );
 });
 
-test("Firebase deploys grounded web research on the supported Node runtime", () => {
+test("Firebase compatibility web endpoint rejects inference on the supported Node runtime", () => {
     const root =
         path.join(__dirname, "..");
     const functionsIndex =
@@ -634,20 +634,14 @@ test("Firebase deploys grounded web research on the supported Node runtime", () 
     assert.match(functionsIndex, /process\.env\.GEMINI_API_KEY/);
     assert.match(functionsIndex, /functions\.config\?\.\(\)/);
     assert.match(functionsIndex, /runtimeConfig\?\.gemini\?\.api_key/);
-    assert.match(webSection, /runJarvisWebResearch\(\{/);
-    assert.match(webSection, /PRIMARY_RESEARCH_NOT_GROUNDED/);
-    assert.match(webSection, /requestedDomainFromQuery/);
-    assert.match(webSection, /runJarvisDirectDomainResearch\(\{/);
-    assert.match(webSection, /assertJarvisAdminContext/);
-    assert.doesNotMatch(webSection, /initCore\(\)/);
+    const handler=webSection.slice(0,webSection.indexOf('});')+3);
+    assert.match(handler,/LOCAL_JARVIS_ONLY/);assert.doesNotMatch(handler,/runJarvisWebResearch|runJarvisDirectDomainResearch|GEMINI_KEY/);
+    assert.doesNotMatch(handler,/initCore\(\)/);
     assert.equal(functionsPackage.engines.node, "22");
     assert.ok(functionsPackage.dependencies["@google/genai"]);
     assert.match(workflow, /node-version:\s*22/);
     assert.match(workflow, /functions:jarvisWebResearch/);
-    assert.match(
-        functionsIndex,
-        /exports\.jarvisWebResearch[\s\S]{0,240}secrets:\s*\["GEMINI_KEY"\]/
-    );
+
     assert.match(workflow, /fetch-depth:\s*0/);
     assert.match(workflow, /group:\s*deploy-gestia-\$\{\{ github\.ref \}\}/);
     assert.match(workflow, /cancel-in-progress:\s*true/);

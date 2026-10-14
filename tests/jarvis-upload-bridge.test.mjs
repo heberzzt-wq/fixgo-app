@@ -93,15 +93,32 @@ test("bridge startup preserves dirty edits before any Git synchronization", () =
     assert.throws(() => runInNewContext(source, {
         require(name) {
             if (name === "child_process") return { spawnSync(_cmd, args) { commands.push(args); return { status: 0, stdout: " M jarvis-fs-bridge.js\n" }; } };
-            if (name === "fs") return { existsSync: () => false, readFileSync: () => 'JARVIS_FS_BRIDGE_VERSION = "2.64.0-semantic-progress-deadline-v142";' };
+            if (name === "fs") return { existsSync: () => false, readFileSync: file => file==='jarvis-runtime-contract.json'
+                ? JSON.stringify({semanticModel:'qwen3.5:9b',inferencePolicy:'LOCAL_ONLY'}) : 'JARVIS_FS_BRIDGE_VERSION = "2.64.0-semantic-progress-deadline-v142";' };
             return {};
-        }, process: { platform: "win32" }
+        }, process: { platform: "win32",env:{} }
     }), /DIRTY_BEFORE_BRIDGE_SYNC/);
     assert.deepEqual(commands.map(args => Array.from(args)), [["status", "--porcelain"]]);
     assert.doesNotMatch(pkg.scripts.bridge, /--autostash/);
 });
 const gitExecutable = process.platform === "win32" && fs.existsSync("C:/Program Files/Git/cmd/git.exe")
     ? "C:/Program Files/Git/cmd/git.exe" : "git";
+
+test('startup rejects a model override before synchronizing Git or contacting inference',()=>{
+ const pkg=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8'));
+ const source=pkg.scripts.bridge.match(/^node -e "([\s\S]*)"$/)[1].split('const git=')[0];
+ for(const override of [{JARVIS_LOCAL_LLM_MODEL:'other-model'},{JARVIS_CONVERSATION_MODEL:'other-model'},{}]){
+  const runtime={env:{...override}};let sideEffects=0;
+  const run=()=>runInNewContext(source,{process:runtime,require(name){
+   if(name==='fs')return{readFileSync(file){return file==='jarvis-runtime-contract.json'
+    ? JSON.stringify({semanticModel:'qwen3.5:9b',inferencePolicy:'LOCAL_ONLY'}) : 'JARVIS_FS_BRIDGE_VERSION = "1.0.0-fixture-v142";';}};
+   return{spawnSync(){sideEffects++;throw Error('NO_SIDE_EFFECT_ALLOWED');}};
+  }});
+  if(Object.keys(override).length)assert.throws(run,/JARVIS_LOCAL_MODEL_CONTRACT_MISMATCH/);
+  else{run();assert.equal(runtime.env.JARVIS_LOCAL_LLM_MODEL,'qwen3.5:9b');assert.equal(runtime.env.JARVIS_CONVERSATION_MODEL,'qwen3.5:9b');}
+  assert.equal(sideEffects,0);
+ }
+});
 
 test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     const settings = JSON.parse(
@@ -131,7 +148,7 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     );
     assert.equal(
         settings["terminal.integrated.env.windows"].JARVIS_LOCAL_LLM_MODEL,
-        "qwen3:4b-instruct-2507-q4_K_M"
+        "qwen3.5:9b"
     );
     assert.equal(
         settings["terminal.integrated.env.windows"].JARVIS_LOCAL_EMBEDDING_MODEL,
@@ -695,7 +712,7 @@ test("workstation doctor reports governed local capabilities without requiring t
         assert.equal(result.status, "JARVIS_WORKSTATION_INSPECTED");
         assert.equal(result.runtime.node.ok, true);
         assert.equal(result.localAi.provider, "ollama-openai-compatible-local");
-        assert.equal(result.localAi.expectedModel, "qwen3:4b-instruct-2507-q4_K_M");
+        assert.equal(result.localAi.expectedModel, "qwen3.5:9b");
         assert.equal(result.localAi.expectedEmbeddingModel, "qwen3-embedding:0.6b");
         assert.equal(result.localAi.externalFallback, false);
         assert.equal(result.localVideo.runpodPaidFallbackAuthorized, false);

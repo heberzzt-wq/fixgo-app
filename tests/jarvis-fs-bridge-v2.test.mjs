@@ -644,7 +644,7 @@ test("self-hosted semantic backend defaults to local-only Ollama Qwen with zero 
     assert.equal(health.ok, true);
     assert.equal(health.mode, "LOCAL_ONLY");
     assert.equal(health.provider, "ollama-openai-compatible-local");
-    assert.equal(health.model, "qwen3:4b-instruct-2507-q4_K_M");
+    assert.equal(health.model, "qwen3.5:9b");
     assert.equal(health.embeddingModel, "qwen3-embedding:0.6b");
     assert.equal(health.endpointOrigin, "http://127.0.0.1:11434");
     assert.equal(health.fallbackAllowed, false);

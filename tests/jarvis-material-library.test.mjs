@@ -154,8 +154,8 @@ test("workstation policy stops cloud image generation before any external reques
     } };
     const definitions = new Map();
     registerJarvisActuatorTools({ register: d => definitions.set(d.name, d) });
-    await assert.rejects(definitions.get("image.generate").execute({ prompt: "Anuncio" }), /EXTERNAL_MEDIA_GENERATION_DISABLED/);
-    assert.deepEqual(calls, [{ route: "/media/library", args: { action: "policy" } }]);
+    await assert.rejects(definitions.get("image.generate").execute({ prompt: "Anuncio" }), /EXTERNAL_INFERENCE_DISABLED/);
+    assert.deepEqual(calls, []);
 });
 
 test("official-only policy accepts imported originals and rejects unregistered, changed and remote page references", t => {

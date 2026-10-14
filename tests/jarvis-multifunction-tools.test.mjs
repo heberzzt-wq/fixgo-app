@@ -3544,20 +3544,10 @@ test("multifunction media analysis consumes a complete 30-file persisted manifes
             attachments
         }, { analysisId: "MULTI-MEDIA-30" });
 
-        assert.equal(analysis.ok, true);
-        assert.equal(analysis.receivedFiles, 30);
-        assert.equal(analysis.boundedFiles, 8);
-        assert.equal(analysis.analyzedFiles, 8);
-        assert.equal(analysis.pendingFiles, 22);
-        assert.deepEqual(
-            analysis.pendingAttachments.map(item => item.name),
-            attachments.slice(8).map(item => item.name)
-        );
-        assert.equal(analysis.persistedArtifacts.length, 30);
-        assert.equal(analysis.status, "MEDIA_ANALYSIS_GROUNDED");
-        assert.equal(mediaAnalysisCalls, 2);
-        assert.equal(analysis.precisionAudit.status, "MEDIA_ANALYSIS_PRECISION_VERIFIED");
-        assert.equal(analysis.precisionAudit.effectiveToolExecutions, 1);
+        assert.equal(analysis.ok,false);assert.equal(analysis.status,'LOCAL_CAPABILITY_UNAVAILABLE');
+        assert.equal(analysis.error,'EXTERNAL_INFERENCE_DISABLED');assert.equal(analysis.objectiveSatisfied,false);
+        assert.equal(mediaAnalysisCalls,0);assert.equal(analysis.externalApiUsed,false);
+        assert.equal(analysis.receivedFiles,30);assert.equal(analysis.persistedArtifacts.length,30);
     } finally {
         globalThis.auth = previousAuth;
         globalThis.JarvisLocalBridge = previousBridge;
@@ -3656,22 +3646,10 @@ test("multifunction media analysis prefers the complete authoritative prompt man
             }
         );
 
-        assert.equal(analysis.ok, true);
-        assert.equal(analysis.receivedFiles, 2);
-        assert.equal(analysis.boundedFiles, 2);
-        assert.equal(analysis.analyzedFiles, 2);
-        assert.equal(analysis.pendingFiles, 0);
-        assert.deepEqual(
-            analysis.sources.map(source => source.name),
-            ["uno.png", "dos.png"]
-        );
-        assert.equal(mediaAnalysisCalls, 2);
-        assert.match(precisionAuditQuestion, /AUDITORIA_DE_PRECISION_VISUAL_INDEPENDIENTE/);
-        assert.match(precisionAuditQuestion, /solicitud original no pide recomendaciones/i);
-        assert.match(precisionAuditQuestion, /recommendations=\[\]/);
-        assert.match(precisionAuditQuestion, /evidencia estructurada y exhaustiva de cardinalidad/i);
-        assert.doesNotMatch(precisionAuditQuestion, /carencias concretas de la experiencia de adjuntos/i);
-        assert.equal(analysis.precisionAudit.sourceIdentityVerified, true);
+        assert.equal(analysis.ok,false);assert.equal(analysis.status,'LOCAL_CAPABILITY_UNAVAILABLE');
+        assert.equal(analysis.error,'EXTERNAL_INFERENCE_DISABLED');assert.equal(analysis.objectiveSatisfied,false);
+        assert.equal(mediaAnalysisCalls,0);assert.equal(analysis.externalApiUsed,false);
+        assert.equal(analysis.receivedFiles,2);assert.equal(analysis.persistedArtifacts.length,2);
     } finally {
         globalThis.auth = previousAuth;
         globalThis.JarvisLocalBridge = previousBridge;
@@ -3745,13 +3723,10 @@ test("multifunction media analysis rejects the deployed legacy precision contrac
             }
         );
 
-        assert.equal(analysis.ok, false);
-        assert.equal(
-            analysis.status,
-            "MEDIA_ANALYSIS_PRECISION_CONTRACT_UNAVAILABLE"
-        );
-        assert.equal(mediaAnalysisCalls, 1);
-        assert.doesNotMatch(JSON.stringify(analysis), /Motion No-Code/);
+        assert.equal(analysis.ok,false);assert.equal(analysis.status,'LOCAL_CAPABILITY_UNAVAILABLE');
+        assert.equal(analysis.error,'EXTERNAL_INFERENCE_DISABLED');assert.equal(analysis.objectiveSatisfied,false);
+        assert.equal(mediaAnalysisCalls,0);assert.equal(analysis.externalApiUsed,false);
+        assert.doesNotMatch(JSON.stringify(analysis),/Motion No-Code/);
     } finally {
         globalThis.auth = previousAuth;
         globalThis.JarvisLocalBridge = previousBridge;
@@ -4327,7 +4302,7 @@ test("web research receives the semantic query without phrase stripping", () => 
     assert.doesNotMatch(source, /\(jarvis\|heberto\|gestia\)/);
     assert.doesNotMatch(source, /investiga\|investigar\|busca\|buscar/);
     assert.match(source, /objectiveId: context\.objectiveId \|\| args\.objectiveId/);
-    assert.match(source, /facts:\s*Array\.isArray\((?:primaryResult|recoveryResult)\?\.facts\)/);
+    assert.match(source, /facts:\s*Array\.isArray\(localResult\?\.facts\)/);
 });
 
 test("multifunction planner routes capability boundary questions to forensics", async () => {
@@ -5535,7 +5510,7 @@ test("entity-not-verified research cannot satisfy the mission objective", () => 
 
     assert.match(source, /objectiveSatisfied:\s*!entityNotVerified/);
     assert.match(source, /requiresInput:\s*entityNotVerified/);
-    assert.match(source, /const primaryEntityNotVerified/);
+    assert.match(source, /localResult.status==='ENTITY_NOT_VERIFIED'/);
     assert.match(source, /objectiveSatisfied:\s*false/);
 });
 

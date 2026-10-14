@@ -3,6 +3,47 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import test from "node:test";
 import { parse } from "acorn";
+
+function recoverySchemas(request){
+ return request.config.responseJsonSchema?.properties.toolCalls?.items?.anyOf || (request.config.tools?.[0]?.functionDeclarations || []).map(tool=>({properties:{name:{enum:[tool.name]},args:tool.parametersJsonSchema}}));
+}
+
+test('trusted coverage is reused for unchanged evidence and reopened when a credited value changes',async()=>{
+ const planner=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').runJarvisSemanticPlanner;
+ const contract={objective:'Identify each holder',requestQuote:'Identify each holder',requiredEvidenceKind:'platform_records',coverageMode:'relationship',scope:'all_sources',groups:['holders']};
+ const tool={name:'fixture.records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{collection:{type:'string'}},required:['collection']}};
+ const tasks=[{name:'repo.read',observation:{ok:true,verifiedRead:{file:'source.js',content:'Observed owner schema',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['registry'],writeShapes:[{collection:'registry',fields:['owner']}]}}}}},
+  {name:tool.name,args:{collection:'registry'},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',filters:[],fields:['owner'],mode:'query'},rows:[{id:'entry',values:{owner:'Observed holder'}}],totalCount:1,returnedCount:1,completeForQuery:true,hasMore:false}}}];
+ let reviews=0;
+ const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
+  if(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(request.config.semanticStage)){
+   reviews++;const present=tasks[1].observation.recordEvidence.rows[0].values.owner!==null;
+   return{text:JSON.stringify({proven:present,missing:present?[]:['Holder value is missing'],groups:[{group:'holders',proven:present,evidence:present?[{taskIndex:1,fields:['owner']}]:[]}],sources:[{collection:'registry',relevant:true,reason:'Observed registry',taskIndexes:[1]},{collection:'separate_registry',relevant:false,reason:'Schema holds independent counters, no holder relation',taskIndexes:[]}]})};
+  }
+  if(request.config.semanticStage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:'{"sourceRelevance":{"registry":{"relevantToObjective":true,"reason":"Observed holder registry"},"separate_registry":{"relevantToObjective":false,"reason":"Independent counters without holder relationships"}}}'};
+  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:[{objective:contract.objective,requiredEvidenceKind:'platform_records',satisfied:true,evidenceTaskIndexes:[1],limitation:''}]},toolCalls:[]})};
+  if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION')return{text:'{"toolCalls":[]}'};
+  throw Error('UNEXPECTED_STAGE:'+request.config.semanticStage);
+ }}};
+ const state={phase:'COMPLETION_AUDIT',missionId:'cache-mission',userId:'cache-actor',evidenceObjectives:[contract],completedTasks:tasks};
+ tasks[0].observation.verifiedRead.sourceStructure.dataBindings.collections.push('separate_registry');
+ tasks[0].observation.verifiedRead.sourceStructure.dataBindings.writeShapes.push({collection:'separate_registry',fields:['counter']});
+ tasks.push({name:tool.name,args:{collection:'separate_registry'},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,
+  scope:{collection:'separate_registry',filters:[],fields:['counter'],mode:'query'},rows:[{id:'independent',values:{counter:3}}],totalCount:1,completeForQuery:true,hasMore:false}}});
+ const invoke=()=>planner({input:contract.objective,catalog:[tool],missionState:state,ai});
+ const first=await invoke();assert.equal(first.completionAssessment.objectives[0].satisfied,true);const reviewed=reviews;
+ state.completionAssessment=first.completionAssessment;
+ const second=await invoke();assert.equal(second.completionAssessment.objectives[0].satisfied,true);assert.equal(reviews,reviewed,'unchanged trusted evidence needs no second coverage inference');
+ assert.deepEqual(second.coverageEvaluation,{reused:true,changed:false});
+ tasks[2].observation.recordEvidence.rows[0].values.counter=4;
+ state.completionAssessment=second.completionAssessment;
+ const unrelated=await invoke();assert.equal(unrelated.completionAssessment.objectives[0].satisfied,true);assert.equal(reviews,reviewed,'independently excluded values do not reopen this holder objective');
+ tasks[1].observation.recordEvidence.rows[0].values.owner=null;
+ state.completionAssessment=second.completionAssessment;
+ const changed=await invoke();assert.ok(reviews>reviewed);assert.equal(changed.missionComplete,false);assert.equal(changed.completionAssessment.objectives[0].satisfied,false);
+ assert.equal(changed.coverageEvaluation.changed,true);
+});
+
 import { analyzeRepoSourceStructure } from "../gestia-core/repo/repo.source.structure.js";
 import { createRequire } from "node:module";
 import { buildJarvisMultifunctionToolCalls, buildEvidenceDependencyPlannerCatalog, bindRequiredEvidenceArguments, isBoundedReadOnlyMission, shouldCompleteJarvisPlanningArguments } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
@@ -73,7 +114,7 @@ test('record research retains grounded reader paths after the first discovered f
  const tasks=[{name:'repo.search',observation:{ok:true,executionOk:true,sourceCount:2,repoCandidates:files.map(file=>({file}))}},{name:reader.name,args:{file:files[0]},observation:{ok:true,executionOk:true,verifiedRead:{file:files[0],startLine:1,endLine:5,totalLines:50,content:'Observed partial schema',sourceStructure:{dataBindings:{collections:['registry'],fieldPaths:['label']}}}}}];
  let checked=false;
  await assert.rejects(planner({input:'Inspect current entries',catalog:[reader,records],missionState:{phase:'COMPLETION_AUDIT',completedTasks:tasks,evidenceObjectives:[{objective:'Inspect current entries',requestQuote:'Inspect current entries',requiredEvidenceKind:'platform_records',scope:'all_sources',coverageMode:'population',groups:['entries']}]},ai:{models:{generateContent:async request=>{
-  const alternatives=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;
+  const alternatives=recoverySchemas(request);
   const schema=alternatives.find(branch=>branch.properties.name.enum.includes(reader.name)).properties.args;
   assert.ok(Array.isArray(schema.properties.file.enum),'discovered file paths must remain bound after the first inspection');
   assert.deepEqual([...schema.properties.file.enum].sort(),files,'both new candidates and partial inspected files stay available, while invented paths stay outside the executable contract');
@@ -90,7 +131,7 @@ test('record research can inspect paths discovered by an authorized repository i
  const tasks=[{name:'repo.search',observation:{ok:true,repoCandidates:[{file:'first_source.js'}]}},{name:'repo.read',observation:{ok:true,verifiedRead:{file:'first_source.js',content:'Observed schema',sourceStructure:{dataBindings:{collections:['registry']}}}}},{name:'repo.audit',observation:{ok:true,executionOk:true,inventoryEvidence:{source:'LIVE_REPOSITORY_INVENTORY'},files:['new_source.js']}}];
  let checked=false;
  await assert.rejects(planner({input:'Inspect current entries',catalog:[reader,records],missionState:{phase:'COMPLETION_AUDIT',completedTasks:tasks,evidenceObjectives:[{objective:'Inspect current entries',requiredEvidenceKind:'platform_records',scope:'all_sources',groups:['entries']}]},ai:{models:{generateContent:async request=>{
-  const schema=request.config.responseJsonSchema.properties.toolCalls.items.anyOf.find(branch=>branch.properties.name.enum.includes(reader.name)).properties.args;
+  const schema=recoverySchemas(request).find(branch=>branch.properties.name.enum.includes(reader.name)).properties.args;
   assert.deepEqual([...schema.properties.file.enum].sort(),['first_source.js','new_source.js'],'inventory discovery must remain executable without permitting invented paths');
   checked=true;throw Error('INVENTORY_GROUNDING_CAPTURE_COMPLETE');
  }}}}),/INVENTORY_GROUNDING_CAPTURE_COMPLETE/);
@@ -104,7 +145,7 @@ test('unverified inventory paths cannot expand a grounded repository reader',asy
  for(const observation of [{ok:false,inventoryEvidence:{source:'LIVE_REPOSITORY_INVENTORY'}},{ok:true,executionOk:false,inventoryEvidence:{source:'LIVE_REPOSITORY_INVENTORY'}},{ok:true,blocked:true,inventoryEvidence:{source:'LIVE_REPOSITORY_INVENTORY'}},{ok:true,inventoryEvidence:{source:'UNVERIFIED_LIST'}}]) {
   const tasks=[{name:'repo.search',observation:{ok:true,repoCandidates:[{file:'first_source.js'}]}},{name:'repo.read',observation:{ok:true,verifiedRead:{file:'first_source.js',content:'Observed schema',sourceStructure:{dataBindings:{collections:['registry']}}}}},{name:'repo.audit',observation:{...observation,files:['unverified_source.js']}}];
   await assert.rejects(planner({input:'Inspect current entries',catalog:[reader,records],missionState:{phase:'COMPLETION_AUDIT',completedTasks:tasks,evidenceObjectives:[{objective:'Inspect current entries',requiredEvidenceKind:'platform_records',scope:'all_sources',groups:['entries']}]},ai:{models:{generateContent:async request=>{
-   const schema=request.config.responseJsonSchema.properties.toolCalls.items.anyOf.find(branch=>branch.properties.name.enum.includes(reader.name)).properties.args;
+   const schema=recoverySchemas(request).find(branch=>branch.properties.name.enum.includes(reader.name)).properties.args;
    assert.deepEqual([...schema.properties.file.enum],['first_source.js']);throw Error('UNVERIFIED_INVENTORY_CAPTURE_COMPLETE');
   }}}}),/UNVERIFIED_INVENTORY_CAPTURE_COMPLETE/);
  }
@@ -348,7 +389,7 @@ test('duplicate recovery consults an unqueried observed pending record scope bef
   const records={name:'fixture.records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['count','query']},fields:{type:'array',items:{type:'string'}},cursor:{type:'string'},filters:{type:'array',items:{type:'object'}}},required:['sourceFile','collection','mode'],additionalProperties:false}};
   const contract={objective:'Count registered entries',requestQuote:'Count registered entries',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['entries']};
   const scopeTask=collection=>({name:records.name,args:{sourceFile:'source.js',collection,mode:'query',fields:['owner'],filters:[]},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{sourceFile:'source.js',collection,mode:'query',fields:['owner'],filters:[]},rows:[{id:'one',values:{owner:'Observed owner'}}],totalCount:1,completeForQuery:true,hasMore:false}}});
-  const tasks=[scopeTask('primary'),{name:reader.name,args:{file:'source.js'},observation:{ok:true,verifiedRead:{file:'source.js',startLine:1,endLine:9,totalLines:9,content:'Observed source',sourceStructure:{dataBindings:{collections:['primary','related'],writeShapes:[{collection:'primary',fields:['owner']},{collection:'related',fields:['no_fields','failed_source'].includes(variant)?[]:['owner']}]}}}}}];
+  const tasks=[scopeTask('primary'),{name:reader.name,args:{file:'source.js'},observation:{ok:true,verifiedRead:{file:'source.js',startLine:1,endLine:9,totalLines:9,content:'Observed source',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['primary','related'],writeShapes:[{collection:'primary',fields:['owner']},{collection:'related',fields:['no_fields','failed_source'].includes(variant)?[]:['owner']}]}}}}}];
   if(variant==='failed_source')tasks.push({name:reader.name,observation:{ok:true,blocked:true,verifiedRead:{file:'source.js',sourceStructure:{dataBindings:{writeShapes:[{collection:'related',fields:['owner']}]}}}}});
   if(variant==='already_queried')tasks.push(scopeTask('related'));
   if(variant==='already_read_new_names'){
@@ -360,15 +401,17 @@ test('duplicate recovery consults an unqueried observed pending record scope bef
   const duplicate={name:records.name,args:{sourceFile:'source.js',collection:'primary',mode:'count',filters:[]}};
   let recovered=false;
   const result=await runJarvisSemanticPlanner({input:contract.objective,catalog:[records,reader],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[contract],completionAssessment:previous,completedTasks:tasks,blockedTasks:variant==='blocked'?[{name:records.name,args:{collection:'related'},observation:{blocked:true,retryable:false,errorCode:'PERMISSION_DENIED'}}]:[]},ai:{models:{generateContent:async request=>{
+   if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":true}'};
    if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:[{objective:contract.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0],limitation:'Pending'}]},toolCalls:[duplicate]})};
-   if(request.config.semanticStage==='PENDING_RECORD_SCOPE_RECOVERY'){
-    recovered=true;assert.ok(['new','already_read_new_names'].includes(variant));
-    const choice=request.config.responseJsonSchema.properties.toolCalls.items.anyOf[0];
-    const schema=choice.properties.args;const branches=schema.anyOf||[schema];
-    assert.ok(branches.every(b=>JSON.stringify(b.properties.collection.enum)==='["related"]'));
+   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){
+    if(!['new','already_read_new_names'].includes(variant))return{text:JSON.stringify({toolCalls:[duplicate]})};
+    recovered=true;
+    const choice=recoverySchemas(request).find(v=>v.properties.name.enum[0]===records.name);
+    const schema=choice.properties.args;const branches=(schema.anyOf||[schema]).filter(b=>b.properties.mode?.enum?.includes('query'));
+    assert.ok(branches.some(b=>b.properties.collection.enum.includes('related')));
     assert.ok(branches.every(b=>JSON.stringify(b.properties.sourceFile.enum)==='["source.js"]'));
     const field=variant==='already_read_new_names'?'allocation.holder':'owner';
-    assert.ok(branches.every(b=>JSON.stringify(b.properties.fields.items.enum)===JSON.stringify([field])));
+    assert.ok(branches.some(b=>b.properties.fields.items?.enum?.includes(field)),variant+': '+JSON.stringify(branches.map(b=>b.properties.fields)));
     assert.ok(branches.every(b=>!('cursor' in b.properties)),'an unqueried scope has no observed continuation cursor');
     return{text:JSON.stringify({toolCalls:[{name:records.name,args:{sourceFile:'source.js',collection:'related',mode:'query',fields:[field],filters:[]}}]})};
    }
@@ -583,10 +626,10 @@ test('recovery preserves the first new-source inspection frontier before reopeni
   const tasks=[prior,discovery,...(inspected?[{name:reader.name,args:{file:'new-source.js'},observation:{ok:true,verifiedRead:{file:'new-source.js',startLine:1,endLine:20,totalLines:20}}}]:[])];
   const result=await runJarvisSemanticPlanner({input,catalog:[reader,records],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[{objective:input,requiredEvidenceKind:'platform_records'}],completedTasks:tasks},ai:{models:{generateContent:async request=>{
    if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({toolCalls:[],completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Current records remain pending'}]}})};
-   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION')return{text:'{"toolCalls":[]}'};
-   assert.equal(request.config.semanticStage,'READ_ONLY_NEXT_STEP_RECOVERY');
-   const branch=request.config.responseJsonSchema.properties.toolCalls.items.anyOf.find(x=>x.properties.name.enum.includes(reader.name));
-   assert.deepEqual(Array.from(branch.properties.args.properties.file.enum),[inspected?'prior-source.js':'new-source.js']);
+
+   assert.equal(request.config.semanticStage,'READ_ONLY_EVIDENCE_CONTINUATION');
+   const branch=recoverySchemas(request).find(x=>x.properties.name.enum.includes(reader.name));
+   assert.ok(branch.properties.args.properties.file.enum.includes(inspected?'prior-source.js':'new-source.js'));if(!inspected)assert.deepEqual(Array.from(branch.properties.args.properties.file.enum),['new-source.js']);
    recovered=true;
    return{text:JSON.stringify({toolCalls:[{name:reader.name,args:inspected?{file:'prior-source.js',startLine:6,endLine:20}:{file:'new-source.js'}}]})};
   }}}});
@@ -802,7 +845,7 @@ test('new discovery retains unread sources observed by earlier literal searches'
  let sawFrontier=false;
  const result=await runJarvisSemanticPlanner({input,catalog:[read,records],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[{objective:input,requiredEvidenceKind:'platform_records'}],completedTasks:[{name:'repo.grep',observation:{ok:true,repositoryMatches:[{file:'earlier-source.js',line:70},{file:'already-read.js',line:20}]}},{name:'repo.read',observation:{ok:true,verifiedRead:{file:'already-read.js'}}},{name:'repo.search',observation:{ok:true,repoCandidates:[{file:'recent-source.js'}]}}]},ai:{models:{generateContent:async request=>{
   assert.equal(request.config.semanticStage,'COMPLETION_AUDIT');
-  const options=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;
+  const options=recoverySchemas(request);
   const paths=options.find(branch=>branch.properties.name.enum.includes('repo.read')).properties.args.properties.file.enum;
   assert.ok(paths.includes('earlier-source.js'),'earlier observed unread source disappeared');
   assert.ok(paths.includes('recent-source.js'));assert.ok(!paths.includes('already-read.js'),'a new-discovery frontier should retain sources still awaiting their first read');sawFrontier=true;
@@ -893,7 +936,7 @@ test("responsive completion keeps instructions and all sizes inside local messag
             assert.ok(measurements.content.includes('1920'));
             assert.ok(measurements.content.includes('hidden ocupa espacio'));
             assert.equal(request.config.semanticStage,"RESPONSIVE_REPAIR_CONTINUATION");
-            assert.equal(request.config.responseJsonSchema.properties.toolCalls.items.anyOf.length,1);
+            assert.equal(recoverySchemas(request).length,1);
             return {functionCalls:[{name:"jarvis_tool_0",args:{file:"gestia-terminal.html"}}]};
         }}}
     });
@@ -2652,7 +2695,7 @@ test('an already completed search triggers one same-model continuation rather th
      return{text:JSON.stringify({toolCalls:[{name:read.name,args:{file:'actual-source.js'}}]})};
    }
    return{text:JSON.stringify({explanation:'Falta leer una fuente ya localizada',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'tool_result',satisfied:false,evidenceTaskIndexes:[],limitation:'La búsqueda no acredita datos actuales'}]},toolCalls:[{name:search.name,args:{limit:3,query:'records'}}]})};
- }}}});assert.equal(result.missionComplete,false);assert.equal(result.toolCalls.length,1);assert.equal(result.toolCalls[0].name,read.name);assert.equal(result.toolCalls[0].approved,false);
+ }}}});assert.equal(result.missionComplete,false);assert.equal(result.toolCalls.length,repeatedAgain?0:1);if(!repeatedAgain){assert.equal(result.toolCalls[0].name,read.name);assert.equal(result.toolCalls[0].approved,false);}
  }assert.equal(continuations,2);
 });
 
@@ -2691,8 +2734,8 @@ test('read recovery obtains a discovered prerequisite instead of repeating disco
  const catalog=[{name:'fixture.search',investigationReadOnly:true,mutates:false,inputSchema:{query:'string'}},{name:'fixture.readSource',investigationReadOnly:true,mutates:false,evidenceKinds:['source_schema'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}},{name:'fixture.liveQuery',investigationReadOnly:true,mutates:false,evidenceKinds:['current_records'],requiresEvidence:[{kind:'source_schema',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}},required:['sourceFile']}}];
  let recovered=false;
  const result=await runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'fixture.search',args:{query:'records'},observation:{ok:true,repoCandidates:[{file:'observed.js'}]}}]},ai:{models:{generateContent:async request=>{
- if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION')return{text:'No new operation selected.'};
- if(request.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY'){recovered=true;const variants=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;assert.deepEqual(variants.map(v=>v.properties.name.enum[0]),['fixture.readSource']);assert.deepEqual(variants[0].properties.args.properties.file.enum,['observed.js']);return{text:JSON.stringify({toolCalls:[{name:'fixture.readSource',args:{file:'observed.js'}}]})};}
+
+ if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){recovered=true;const variants=recoverySchemas(request);const source=variants.find(v=>v.properties.name.enum[0]==='fixture.readSource');assert.ok(source);assert.deepEqual(source.properties.args.properties.file.enum,['observed.js']);return{text:JSON.stringify({toolCalls:[{name:'fixture.readSource',args:{file:'observed.js'}}]})};}
  return{text:JSON.stringify({explanation:'Current records require a source schema',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'current_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Read a discovered source first'}]},toolCalls:[]})};
  }}}});assert.equal(recovered,true);assert.equal(result.missionComplete,false);assert.equal(result.toolCalls[0].approved,false);assert.equal(result.toolCalls[0].name,'fixture.readSource');
 });
@@ -2816,7 +2859,7 @@ test('completion follow-ups retain each tool schema and repair out-of-range argu
  const input='Lee la siguiente página de registros';let attempts=0;
  const tool={name:'fixture.page',mutates:false,investigationReadOnly:true,inputSchema:{type:'object',properties:{pageSize:{type:'integer',minimum:1,maximum:100}},required:['pageSize'],additionalProperties:false}};
  const result=await runJarvisSemanticPlanner({input,catalog:[tool],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:tool.name,args:{pageSize:1},observation:{ok:true,executionOk:true,status:'PAGE_READ'}}]},ai:{models:{generateContent:async request=>{
- attempts++;const variants=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;
+ attempts++;const variants=recoverySchemas(request);
  assert.deepEqual(variants[0].properties.args,tool.inputSchema);assert.equal(variants[0].properties.name.enum[0],tool.name);
  if(attempts===2)assert.match(JSON.stringify(request.config.chatMessages),/SEMANTIC_TOOL_ARGUMENTS_INVALID/);
  return{text:JSON.stringify({explanation:'Falta consultar registros',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'tool_result',satisfied:false,evidenceTaskIndexes:[],limitation:'Pendiente de ejecución'}]},toolCalls:[{name:tool.name,args:{pageSize:attempts===1?1000:50}}]})};
@@ -2844,7 +2887,7 @@ test('conditional query schemas bind every alternative to the observed collectio
  const read={name:'fixture.readSource',mutates:false,investigationReadOnly:true,evidenceKinds:['source']};
  const query={name:'fixture.queryRecords',mutates:false,investigationReadOnly:true,requiresEvidence:[{kind:'source',argument:'collection',observationPath:['collections']}],inputSchema:{type:'object',properties:{collection:{type:'string'},mode:{type:'string'},fields:{type:'array',items:{type:'string'}}},required:['collection'],anyOf:[{properties:{mode:{enum:['count']}},required:['mode']},{properties:{mode:{enum:['query']}},required:['mode','fields']}]}};
  const input='Cuenta los registros observados';const result=await runJarvisSemanticPlanner({input,catalog:[read,query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:read.name,args:{},observation:{ok:true,collections:['observed_records']}}]},ai:{models:{generateContent:async request=>{
- const q=request.config.responseJsonSchema.properties.toolCalls.items.anyOf.find(v=>v.properties.name.enum[0]===query.name);assert.ok(q);for(const branch of q.properties.args.anyOf)assert.deepEqual(branch.properties.collection.enum,['observed_records']);
+ const q=recoverySchemas(request).find(v=>v.properties.name.enum[0]===query.name);assert.ok(q);for(const branch of q.properties.args.anyOf)assert.deepEqual(branch.properties.collection.enum,['observed_records']);
  return{text:JSON.stringify({explanation:'Falta contar',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'tool_result',satisfied:false,evidenceTaskIndexes:[],limitation:'Conteo pendiente'}]},toolCalls:[{name:query.name,args:{collection:'observed_records',mode:'count'}}]})};
  }}}});assert.equal(result.toolCalls[0].args.mode,'count');assert.equal(result.missionComplete,false);
 });
@@ -2874,7 +2917,7 @@ test('a population mismatch obtains source evidence instead of executing a broad
  const search={name:'fixture.findSource',mutates:false,investigationReadOnly:true,inputSchema:{query:'string'}};
  const plan=await runJarvisSemanticPlanner({input,catalog:[query,search],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'fixture.read',observation:{ok:true,verifiedRead:{file:'source.js',content:'const tableHasSeveralKinds=true;'}}}]},ai:{models:{generateContent:async request=>{
  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){checks++;return{text:JSON.stringify({matchesRequest:false,limitation:'The table contains other kinds too',nextEvidenceQuery:'member classification field'})};}
- audits++;if(audits===2){assert.match(JSON.stringify(request.config.chatMessages),/SEMANTIC_QUERY_SCOPE_UNVERIFIED/);assert.ok(request.config.responseJsonSchema.properties.toolCalls.items.anyOf.some(v=>v.properties.name.enum[0]===query.name));}
+ audits++;if(audits===2){assert.match(JSON.stringify(request.config.chatMessages),/SEMANTIC_QUERY_SCOPE_UNVERIFIED/);assert.ok(recoverySchemas(request).some(v=>v.properties.name.enum[0]===search.name));}
  return{text:JSON.stringify({explanation:'Still need data',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Required population not yet observed'}]},toolCalls:[audits===1?{name:query.name,args:{collection:'accounts',sourceFile:'source.js',filters:[]}}:{name:search.name,args:{query:'member classification field'}}]})};
  }}}});assert.equal(checks,1);assert.equal(plan.missionComplete,false);assert.equal(plan.toolCalls[0].name,search.name);assert.equal(plan.toolCalls[0].approved,false);
 });
@@ -2885,8 +2928,8 @@ test('a generic objective evidence label still permits reading a discovered sour
  const catalog=[{name:'fixture.search',investigationReadOnly:true,mutates:false,inputSchema:{query:'string'}},{name:'fixture.readSource',investigationReadOnly:true,mutates:false,evidenceKinds:['source_schema'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}},{name:'fixture.liveQuery',investigationReadOnly:true,mutates:false,evidenceKinds:['current_records'],requiresEvidence:[{kind:'source_schema',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}},required:['sourceFile']}}];
  let recovered=false;
  const result=await runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'fixture.search',args:{query:'records'},observation:{ok:true,repoCandidates:[{file:'observed.js'}]}}]},ai:{models:{generateContent:async request=>{
- if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION')return{text:'No new operation selected.'};
- if(request.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY'){recovered=true;const variants=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;assert.deepEqual(variants.map(v=>v.properties.name.enum[0]),['fixture.readSource']);assert.deepEqual(variants[0].properties.args.properties.file.enum,['observed.js']);return{text:JSON.stringify({toolCalls:[{name:'fixture.readSource',args:{file:'observed.js'}}]})};}
+
+ if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){recovered=true;const variants=recoverySchemas(request);const source=variants.find(v=>v.properties.name.enum[0]==='fixture.readSource');assert.ok(source);assert.deepEqual(source.properties.args.properties.file.enum,['observed.js']);return{text:JSON.stringify({toolCalls:[{name:'fixture.readSource',args:{file:'observed.js'}}]})};}
  return{text:JSON.stringify({explanation:'Current records require a source schema',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'tool_result',satisfied:false,evidenceTaskIndexes:[],limitation:'Read a discovered source first'}]},toolCalls:[]})};
  }}}});assert.equal(recovered,true);assert.equal(result.missionComplete,false);assert.equal(result.toolCalls[0].approved,false);assert.equal(result.toolCalls[0].name,'fixture.readSource');
 });
@@ -2944,18 +2987,18 @@ test('population mismatch recovers through a literal user term and repo.grep, no
  const result=await runJarvisSemanticPlanner({input,catalog:[query,grep],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'const kycState = true;'}}}]},ai:{models:{generateContent:async request=>{
    stages.push(request.config.semanticStage);
    if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:false,limitation:'KYC no demuestra pertenencia al grupo cliente',nextEvidenceQuery:'cliente rol'}),providerResponse:{finishReason:'stop'}};
-   if(request.config.semanticStage==='QUERY_POPULATION_LITERAL_RECOVERY'){
-     const allowed=request.config.responseJsonSchema.properties.term.enum;
+   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){
+     const allowed=recoverySchemas(request).find(v=>v.properties.name.enum[0]==='repo.grep').properties.args.properties.term.enum;
      assert.ok(allowed.includes('clientes'));assert.ok(!allowed.includes('cliente'));
-     return{text:JSON.stringify({term:'clientes'}),providerResponse:{finishReason:'stop'}};
+     return{text:JSON.stringify({toolCalls:[{name:'repo.grep',args:{term:'clientes'}}]}),providerResponse:{finishReason:'stop'}};
    }
    return{text:JSON.stringify({explanation:'Falta acreditar la población',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta el discriminador observado'}]},toolCalls:[{name:'platform.query',args:{collection:'users',sourceFile:'source.js',filters:[{field:'kyc',op:'==',value:true}]}}]}),providerResponse:{finishReason:'stop'}};
  }}}});
  assert.equal(result.missionComplete,false);
- assert.equal(result.planKind,'QUERY_POPULATION_LITERAL_RECOVERY');
- assert.deepEqual(result.toolCalls,[{name:'repo.grep',args:{term:'clientes'},reason:'MODEL_LITERAL_SOURCE_RECOVERY',mutates:false,approved:false}]);
+ assert.equal(result.planKind,'READ_ONLY_EVIDENCE_CONTINUATION');
+ assert.deepEqual(result.toolCalls,[{name:'repo.grep',args:{term:'clientes'},reason:'MODEL_SEMANTIC_TOOL_SELECTION',mutates:false,approved:false}]);
  assert.ok(stages.includes('QUERY_POPULATION_VERIFICATION'));
- assert.ok(stages.includes('QUERY_POPULATION_LITERAL_RECOVERY'));
+ assert.ok(stages.includes('READ_ONLY_EVIDENCE_CONTINUATION'));
 });
 
 
@@ -2965,7 +3008,7 @@ test('record queries reject invented filter values before live execution and rec
  const grep={name:'repo.grep',investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{term:{type:'string'}},required:['term'],additionalProperties:false}};
  const result=await runJarvisSemanticPlanner({input,catalog:[query,grep],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'const uid = user.uid; const profile = collection(db, "users");'}}}]},ai:{models:{generateContent:async request=>{
    if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){populationChecks++;throw Error('SHOULD_NOT_REACH_POPULATION_MODEL');}
-   if(request.config.semanticStage==='QUERY_POPULATION_LITERAL_RECOVERY'){literalRecoveries++;return{text:JSON.stringify({term:'clientes'}),providerResponse:{finishReason:'stop'}};}
+   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){literalRecoveries++;return{text:JSON.stringify({toolCalls:[{name:'repo.grep',args:{term:'clientes'}}]}),providerResponse:{finishReason:'stop'}};}
    return{text:JSON.stringify({explanation:'Falta evidencia',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta filtro verificado'}]},toolCalls:[{name:'platform.query',args:{collection:'users',sourceFile:'source.js',mode:'count',filters:[{field:'uid',op:'==',value:'user123'}]}}]}),providerResponse:{finishReason:'stop'}};
  }}}});
  assert.equal(populationChecks,0);
@@ -3009,11 +3052,11 @@ test('literal population recovery preserves the exact plural token selected by Q
  for(const selected of ['clientes','status','series']) {
  const result=await runJarvisSemanticPlanner({input,catalog:[query,grep],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'const kyc=true;'}}}]},ai:{models:{generateContent:async request=>{
    if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:false,limitation:'No demuestra grupo',nextEvidenceQuery:'cliente'}),providerResponse:{finishReason:'stop'}};
-   if(request.config.semanticStage==='QUERY_POPULATION_LITERAL_RECOVERY') {
-    const allowed=request.config.responseJsonSchema.properties.term.enum;
+   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION') {
+    const allowed=recoverySchemas(request).find(v=>v.properties.name.enum[0]==='repo.grep').properties.args.properties.term.enum;
     assert.ok(allowed.includes(selected));
     assert.ok(!allowed.includes(selected.slice(0,-1)),'the runtime must not invent a stem for an exact user token');
-    return{text:JSON.stringify({term:selected}),providerResponse:{finishReason:'stop'}};
+    return{text:JSON.stringify({toolCalls:[{name:'repo.grep',args:{term:selected}}]}),providerResponse:{finishReason:'stop'}};
    }
    return{text:JSON.stringify({explanation:'Falta evidencia',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta población'}]},toolCalls:[{name:'platform.query',args:{collection:'users',sourceFile:'source.js',filters:[]}}]}),providerResponse:{finishReason:'stop'}};
  }}}});
@@ -3045,7 +3088,7 @@ test('completion audit forces candidate inspection before another semantic repo 
  const result=await runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{
   name:'repo.search',args:{query:'cliente registrado'},observation:{ok:true,executionOk:true,status:'REPO_SEMANTIC_SEARCH_READY',repoCandidates:[{file:'panel-cliente.js'},{file:'firebase.js'}]}
  }]},ai:{models:{generateContent:async request=>{
-  const variants=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;
+  const variants=recoverySchemas(request);
   assert.deepEqual(variants.map(v=>v.properties.name.enum[0]),['repo.read']);
   assert.deepEqual(variants[0].properties.args.properties.file.enum,['panel-cliente.js','firebase.js']);
   return{text:JSON.stringify({explanation:'Falta inspeccionar una fuente candidata',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'repository_source',satisfied:false,evidenceTaskIndexes:[],limitation:'Todavía no se ha leído una fuente candidata'}]},toolCalls:[{name:'repo.read',args:{file:'firebase.js'}}]})};
@@ -3335,16 +3378,9 @@ test('an irrelevant candidate read cannot exhaust repository evidence while disc
    completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'repository_source',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta una fuente pertinente'}]},
    toolCalls:[]
   }),providerResponse:{finishReason:'stop'}};
+
   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){
-   const names=request.config.tools[0].functionDeclarations.map(tool=>tool.name);
-   assert.ok(names.includes('repo.read'));
-   assert.ok(names.includes('repo.grep'));
-   return {text:'',functionCalls:[],providerResponse:{finishReason:'stop'}};
-  }
-  if(request.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY'){
-   const schema=request.config.responseJsonSchema.properties.toolCalls;
-   assert.equal(schema.minItems,1);
-   const variants=schema.items.anyOf;
+   const variants=recoverySchemas(request);
    const readVariant=variants.find(item=>item.properties.name.enum[0]==='repo.read');
    assert.deepEqual(readVariant.properties.args.properties.file.enum,['schema.js']);
    return {text:JSON.stringify({toolCalls:[{name:'repo.read',args:{file:'schema.js'}}]}),providerResponse:{finishReason:'stop'}};
@@ -3352,10 +3388,9 @@ test('an irrelevant candidate read cannot exhaust repository evidence while disc
   throw new Error('UNEXPECTED_STAGE:'+request.config.semanticStage);
  }}}});
  assert.equal(result.missionComplete,false);
- assert.equal(result.planKind,'READ_ONLY_NEXT_STEP_RECOVERY');
+ assert.equal(result.planKind,'READ_ONLY_EVIDENCE_CONTINUATION');
  assert.deepEqual(result.toolCalls,[{name:'repo.read',args:{file:'schema.js'},reason:'MODEL_SEMANTIC_TOOL_SELECTION',mutates:false,approved:false}]);
- assert.ok(stages.includes('READ_ONLY_EVIDENCE_CONTINUATION'));
- assert.ok(stages.includes('READ_ONLY_NEXT_STEP_RECOVERY'));
+ assert.equal(stages.filter(stage=>stage==='READ_ONLY_EVIDENCE_CONTINUATION').length,1);
 });
 
 
@@ -3429,7 +3464,7 @@ test('completion audit keeps a general catalogue within local context without dr
  await assert.rejects(runJarvisSemanticPlanner({input:'Investigate current records without changing them',catalog:catalogue,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',args:{file:'schema.js'},observation:{ok:true,verifiedRead:{file:'schema.js',content:'const record = {};\n'.repeat(350)}}}]},ai:{models:{generateContent:async request=>{
   checked=true;
   assert.ok(request.config.chatMessages.reduce((total,message)=>total+message.content.length,0)<60000);
-  const alternatives=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;
+  const alternatives=recoverySchemas(request);
   assert.equal(alternatives.length,catalogue.length);
   assert.ok(JSON.stringify(alternatives).includes('A detailed schema annotation'));
   throw Error('CATALOG_CAPTURE_COMPLETE');
@@ -3506,12 +3541,9 @@ test('grep candidates remain selectable source reads when a record capability al
    assert.match(JSON.stringify(request.config.responseJsonSchema),/actual-schema\.js/);
    return{text:JSON.stringify({completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'business_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta leer fuente localizada'}]},toolCalls:[]}),providerResponse:{finishReason:'stop'}};
   }
-  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION')return{text:'',functionCalls:[],providerResponse:{finishReason:'stop'}};
-  assert.equal(stage,'READ_ONLY_NEXT_STEP_RECOVERY');
-  const schema=request.config.responseJsonSchema.properties.toolCalls;
-  assert.equal(schema.minItems,1);
-  assert.deepEqual(schema.items.anyOf.map(branch=>branch.properties.name.enum[0]),['repo.read']);
-  assert.deepEqual(schema.items.anyOf[0].properties.args.properties.file.enum,['actual-schema.js']);
+
+  assert.equal(stage,'READ_ONLY_EVIDENCE_CONTINUATION');
+  const variants=recoverySchemas(request);const read=variants.find(branch=>branch.properties.name.enum[0]==='repo.read');assert.ok(read);assert.deepEqual(read.properties.args.properties.file.enum,['actual-schema.js']);
   return{text:JSON.stringify({toolCalls:[{name:'repo.read',args:{file:'actual-schema.js'}}]}),providerResponse:{finishReason:'stop'}};
  }}}});
  assert.equal(result.toolCalls[0].name,'repo.read');
@@ -3587,6 +3619,8 @@ test('new source evidence reopens record inspection after an earlier schema fail
   {name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}}
  ];
  const result=await runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',completedAt:'2026-01-01T00:02:00Z',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'const ref=collection(db,"records");',sourceStructure:{dataBindings:{writeShapes:[{collection:'records',fields:['assignedTo'],startLine:5}]}}}}}],blockedTasks:[{name:'platform.query',completedAt:'2026-01-01T00:01:00Z',args:{collection:'records',sourceFile:'source.js',mode:'count'},observation:{ok:false,errorCode:'PLATFORM_QUERY_FILTER_VALUE_NOT_DISCOVERED'}}]},ai:{models:{generateContent:async request=>{
+ if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return{text:'{"matchesRequest":true}'};}
+
   if(request.config.semanticStage==='COMPLETION_AUDIT') {
    const context=JSON.stringify(request.config.chatMessages);assert.match(context,/ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST/);assert.match(context,/assignedTo/);
    return{text:JSON.stringify({explanation:'Faltan datos',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta leer registros'}]},toolCalls:[]}),providerResponse:{finishReason:'stop'}};
@@ -3750,8 +3784,8 @@ test('rejected population count preserves the same reader for a separately revie
    reviews++;const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;
    return{text:JSON.stringify({matchesRequest:proposed.mode==='query',limitation:proposed.mode==='count'?'Subgroup is not identified':'',nextEvidenceQuery:''})};
   }
-  audits++;assert.equal(request.config.semanticStage,'COMPLETION_AUDIT');
-  assert.ok(request.config.responseJsonSchema.properties.toolCalls.items.anyOf.some(v=>v.properties.name.enum[0]===query.name));
+  audits++;assert.ok(['COMPLETION_AUDIT','READ_ONLY_EVIDENCE_CONTINUATION'].includes(request.config.semanticStage));
+  assert.ok(recoverySchemas(request).some(v=>v.properties.name.enum[0]===query.name));
   return{text:JSON.stringify({explanation:'Collect evidence',completionAssessment:{objectives:[{objective:'Count subgroup and inspect dates',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Need records'}]},toolCalls:[{name:query.name,args:{collection:'records',sourceFile:'source.js',mode:audits===1?'count':'query',filters:[],fields:['assignedTo','expiresAt']}}]})};
  }}}});
  assert.equal(audits,2);assert.equal(reviews,2);assert.equal(result.toolCalls[0].args.mode,'query');assert.equal(result.missionComplete,false);
@@ -3779,7 +3813,7 @@ test('completion audit preserves correlated evidence arguments across separate s
  const query={name:'fixture.query',investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'source',argument:'sourceFile',observationPath:['file']},{kind:'source',argument:'collection',observationPath:['collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string'}},required:['sourceFile','collection'],anyOf:[{properties:{mode:{enum:['count']}},required:['mode']},{properties:{mode:{enum:['query']}},required:['mode']}]}};
  const input='Inspecciona los registros acreditados';
  await runJarvisSemanticPlanner({input,catalog:[reader,query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:reader.name,observation:{ok:true,file:'alpha.js',collections:['alpha_records']}},{name:reader.name,observation:{ok:true,file:'beta.js',collections:['beta_records','beta_events']}}]},ai:{models:{generateContent:async request=>{
-  const schema=request.config.responseJsonSchema.properties.toolCalls.items.anyOf.find(v=>v.properties.name.enum[0]===query.name).properties.args;
+  const schema=recoverySchemas(request).find(v=>v.properties.name.enum[0]===query.name).properties.args;
   const branches=schema.anyOf||[schema];
   const pairs=branches.flatMap(b=>b.properties.sourceFile.enum.flatMap(f=>b.properties.collection.enum.map(c=>[f,c,b.properties.mode.enum[0]])));
   assert.equal(pairs.some(([f,c])=>f==='alpha.js'&&c==='beta_records'),false);
@@ -3794,6 +3828,8 @@ test('a repeated rejected query enters continuation before semantic scope verifi
  const bad={sourceFile:'source.js',collection:'records',mode:'count',filters:[{field:'invented',op:'==',value:'subset'}]};
  let continuation=false;
  const result=await runJarvisSemanticPlanner({input:'Inspect assignments and dates',catalog:[query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',observation:{ok:true,verifiedRead:{file:'source.js',content:'collection(db,"records")',sourceStructure:{dataBindings:{writeShapes:[{collection:'records',fields:['owner','expiresAt']}]}}}}}],blockedTasks:[{name:query.name,args:bad,observation:{ok:false,retryable:false,error:'UNVERIFIED_FILTER'}}]},ai:{models:{generateContent:async request=>{
+ if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return{text:'{"matchesRequest":true}'};}
+
   if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({explanation:'Read current evidence',completionAssessment:{objectives:[{objective:'Inspect assignments and dates',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Current records needed'}]},toolCalls:[{name:query.name,args:bad}]})};
   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){continuation=true;return{functionCalls:[{name:query.name,args:{sourceFile:'source.js',collection:'records',mode:'query',filters:[],fields:['owner','expiresAt']}}]};}
   throw Error('Rejected arguments were incorrectly revalidated: '+request.config.semanticStage);
@@ -3820,9 +3856,11 @@ test('unread source candidates do not hide an already grounded record reader dur
  const query={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'}},required:['collection']}};
  let recovered=false;
  const result=await runJarvisSemanticPlanner({input:'Inspect current records',catalog:[read,query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.search',observation:{ok:true,repoCandidates:[{file:'read.js'},{file:'unread.js'}]}},{name:read.name,args:{file:'read.js'},observation:{ok:true,verifiedRead:{file:'read.js',content:'source'}}}]},ai:{models:{generateContent:async request=>{
+ if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return{text:'{"matchesRequest":true}'};}
+
  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({explanation:'Current records pending',completionAssessment:{objectives:[{objective:'Inspect current records',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Need records'}]},toolCalls:[]})};
- if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION')return{text:'{}'};
- if(request.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY'){recovered=true;const textCatalog=request.config.chatMessages.find(message=>message.content.startsWith('CATALOGO_EJECUTABLE=')).content;assert.doesNotMatch(textCatalog,/\"inputSchema\":/);const names=request.config.responseJsonSchema.properties.toolCalls.items.anyOf.map(v=>v.properties.name.enum[0]);assert.ok(names.includes(query.name));assert.ok(names.includes(read.name));return{text:JSON.stringify({toolCalls:[{name:query.name,args:{collection:'observed_records'}}]})};}
+
+ if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){recovered=true;const textCatalog=request.config.chatMessages.find(message=>message.content.startsWith('CATALOGO_EJECUTABLE=')).content;assert.doesNotMatch(textCatalog,/\"inputSchema\":/);const names=recoverySchemas(request).map(v=>v.properties.name.enum[0]);assert.ok(names.includes(query.name));assert.ok(names.includes(read.name));return{text:JSON.stringify({toolCalls:[{name:query.name,args:{collection:'observed_records'}}]})};}
  throw Error('Unexpected stage');
  }}}});assert.equal(recovered,true);assert.equal(result.toolCalls[0].name,query.name);
 });
@@ -3845,15 +3883,15 @@ test('duplicate recovery calls cannot exhaust unread discovered sources',async()
  const repeated={name:query.name,args:{collection:'records'}};let selected=false;
  const clarification='Declared registrations belong to account profiles; official allocations are a separate objective.';
  const result=await runJarvisSemanticPlanner({input:'Inspect current records',catalog:[read,query],missionState:{phase:'COMPLETION_AUDIT',advisorySemanticContext:{turns:[{role:'user',content:clarification}],historicalMissions:[{finalText:'OLD_RESULT_NOT_CURRENT_EVIDENCE'}]},completedTasks:[{name:'repo.search',observation:{ok:true,repoCandidates:[{file:'read.js'},{file:'unread.js'}]}},{name:read.name,args:{file:'read.js'},observation:{ok:true,verifiedRead:{file:'read.js'}}},{...repeated,observation:{ok:true,recordEvidence:{scope:{collection:'records'},totalCount:1}}}]},ai:{models:{generateContent:async request=>{
- if(['READ_ONLY_EVIDENCE_CONTINUATION','READ_ONLY_NEXT_STEP_RECOVERY','UNREAD_SOURCE_CONTINUATION'].includes(request.config.semanticStage)) {
+ if(['READ_ONLY_EVIDENCE_CONTINUATION','READ_ONLY_NEXT_STEP_RECOVERY','READ_ONLY_EVIDENCE_CONTINUATION'].includes(request.config.semanticStage)) {
   const context=request.config.chatMessages.filter(message=>message.content.startsWith('CONVERSATION_CONTEXT_FOR_REFERENCE_ONLY='));assert.equal(context.length,1);assert.ok(context[0].content.includes(clarification));assert.match(context[0].content,/never as evidence/);assert.ok(!JSON.stringify(request.config.chatMessages).includes('OLD_RESULT_NOT_CURRENT_EVIDENCE'));
  }
  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({explanation:'Missing details',completionAssessment:{objectives:[{objective:'Inspect current records',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Need more records'}]},toolCalls:[]})};
- if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION')return{functionCalls:[repeated]};
- if(request.config.semanticStage==='READ_ONLY_NEXT_STEP_RECOVERY')return{text:JSON.stringify({toolCalls:[repeated]})};
- if(request.config.semanticStage==='UNREAD_SOURCE_CONTINUATION'){selected=true;assert.deepEqual(request.config.responseJsonSchema.properties.toolCalls.items.anyOf[0].properties.args.properties.file.enum,['unread.js']);return{text:JSON.stringify({toolCalls:[{name:read.name,args:{file:'unread.js'}}]})};}
+
+
+ if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){selected=true;assert.deepEqual(recoverySchemas(request)[0].properties.args.properties.file.enum,['unread.js']);return{text:JSON.stringify({toolCalls:[{name:read.name,args:{file:'unread.js'}}]})};}
  throw Error('Unexpected stage');
- }}}});assert.equal(selected,true);assert.equal(result.planKind,'UNREAD_SOURCE_CONTINUATION');assert.equal(result.toolCalls[0].args.file,'unread.js');
+ }}}});assert.equal(selected,true);assert.equal(result.planKind,'READ_ONLY_EVIDENCE_CONTINUATION');assert.equal(result.toolCalls[0].args.file,'unread.js');
 });
 
 test('last source recovery keeps uninspected candidates separate from partial rereads',async()=>{
@@ -3863,14 +3901,14 @@ test('last source recovery keeps uninspected candidates separate from partial re
  let recovered=false;
  const result=await runJarvisSemanticPlanner({input:'Inspect current entries',catalog:[read],missionState:{phase:'COMPLETION_AUDIT',completedTasks:tasks,blockedTasks:[{...repeated,observation:{ok:false,executionOk:false,blocked:true,error:'TRANSPORT_INTERRUPTED'}}]},ai:{models:{generateContent:async request=>{
   if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({explanation:'Evidence pending',completionAssessment:{objectives:[{objective:'Inspect current entries',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Current entries pending'}]},toolCalls:[]})};
-  if(['READ_ONLY_EVIDENCE_CONTINUATION','READ_ONLY_NEXT_STEP_RECOVERY'].includes(request.config.semanticStage))return{text:JSON.stringify({toolCalls:[repeated]})};
-  if(request.config.semanticStage==='UNREAD_SOURCE_CONTINUATION'){
-   recovered=true;assert.deepEqual(request.config.responseJsonSchema.properties.toolCalls.items.anyOf[0].properties.args.properties.file.enum,['uninspected.js']);
+
+  if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){
+   recovered=true;assert.deepEqual(recoverySchemas(request)[0].properties.args.properties.file.enum,['uninspected.js']);
    return{text:JSON.stringify({toolCalls:[{name:read.name,args:{file:'uninspected.js'}}]})};
   }
   throw Error('Unexpected stage: '+request.config.semanticStage);
  }}}});
- assert.equal(recovered,true);assert.equal(result.planKind,'UNREAD_SOURCE_CONTINUATION');assert.equal(result.missionComplete,false);assert.equal(result.toolCalls[0].args.file,'uninspected.js');assert.equal(result.completionAssessment.objectives[0].satisfied,false);
+ assert.equal(recovered,true);assert.equal(result.planKind,'READ_ONLY_EVIDENCE_CONTINUATION');assert.equal(result.missionComplete,false);assert.equal(result.toolCalls[0].args.file,'uninspected.js');assert.equal(result.completionAssessment.objectives[0].satisfied,false);
 });
 
 test('literal evidence recovery retains explicit source identifiers from user scope clarifications',async()=>{
@@ -3880,12 +3918,12 @@ test('literal evidence recovery retains explicit source identifiers from user sc
  let recovered=false;
  const result=await runJarvisSemanticPlanner({input,catalog:[query,grep],missionState:{phase:'COMPLETION_AUDIT',advisorySemanticContext:{turns:[{role:'user',content:clarification},{role:'assistant',content:'untrusted_assistant_registry'}]},completedTasks:[{name:'repo.read',observation:{ok:true,verifiedRead:{file:'source.js',content:'Observed state field'}}}]},ai:{models:{generateContent:async request=>{
   if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:false,limitation:'A workflow state does not define the requested population.'})};
-  if(request.config.semanticStage==='QUERY_POPULATION_LITERAL_RECOVERY') {
-   const allowed=request.config.responseJsonSchema.properties.term.enum;assert.ok(allowed.includes('declared_registry'));assert.ok(!allowed.includes('untrusted_assistant_registry'));assert.ok(allowed.length<=80);assert.ok(request.config.chatMessages.some(message=>message.content.startsWith('CONVERSATION_CONTEXT_FOR_REFERENCE_ONLY=')&&message.content.includes(clarification)));recovered=true;return{text:JSON.stringify({term:'declared_registry'})};
+  if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION') {
+   const allowed=recoverySchemas(request).find(v=>v.properties.name.enum[0]==='repo.grep').properties.args.properties.term.enum;assert.ok(allowed.includes('declared_registry'));assert.ok(!allowed.includes('untrusted_assistant_registry'));assert.ok(allowed.length<=80);assert.ok(request.config.chatMessages.some(message=>message.content.startsWith('CONVERSATION_CONTEXT_FOR_REFERENCE_ONLY=')&&message.content.includes(clarification)));recovered=true;return{text:JSON.stringify({toolCalls:[{name:'repo.grep',args:{term:'declared_registry'}}]})};
   }
   return{text:JSON.stringify({toolCalls:[{name:query.name,args:{collection:'registry',sourceFile:'source.js',filters:[{field:'state',op:'==',value:true}]}}],completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Population remains unverified'}]}})};
  }}}});
- assert.equal(recovered,true);assert.equal(result.missionComplete,false);assert.equal(result.planKind,'QUERY_POPULATION_LITERAL_RECOVERY');assert.deepEqual(result.toolCalls[0].args,{term:'declared_registry'});
+ assert.equal(recovered,true);assert.equal(result.missionComplete,false);assert.equal(result.planKind,'READ_ONLY_EVIDENCE_CONTINUATION');assert.deepEqual(result.toolCalls[0].args,{term:'declared_registry'});
 });
 
 test('mission objective evidence requirements cannot be downgraded by a later completion audit',async()=>{
@@ -3897,6 +3935,8 @@ test('completion review uses observed records without the tool success assessmen
  const input='Inspect all requested groups';
  const query={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'}},required:['collection']}};
  const result=await runJarvisSemanticPlanner({input,catalog:[query],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[{objective:input,requiredEvidenceKind:'platform_records'}],completedTasks:[{name:query.name,args:{collection:'first'},observation:{ok:true,objectiveSatisfied:true,recordEvidence:{scope:{collection:'first'},totalCount:1}}}]},ai:{models:{generateContent:async request=>{
+ if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return{text:'{"matchesRequest":true}'};}
+
   if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({explanation:'Done',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:true,evidenceTaskIndexes:[0],limitation:''}]},toolCalls:[]})};
   if(request.config.semanticStage==='CLOSURE_OBJECTIVE_VERIFICATION'){
    const context=JSON.stringify(request.config.chatMessages);
@@ -3919,7 +3959,7 @@ test('typed evidence recovery cannot execute an unrelated media capability',asyn
  const result=await runJarvisSemanticPlanner({input,catalog:[records,media],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[{objective:input,requiredEvidenceKind:'platform_records'}],completedTasks:[]},ai:{models:{generateContent:async request=>{
   if(request.config.semanticStage==='COMPLETION_AUDIT') {
    attempts++;
-   assert.deepEqual(request.config.responseJsonSchema.properties.toolCalls.items.anyOf.map(branch=>branch.properties.name.enum[0]),[records.name]);
+   assert.deepEqual(recoverySchemas(request).map(branch=>branch.properties.name.enum[0]),[records.name]);
    return{text:JSON.stringify({explanation:'Need records',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'No records yet'}]},toolCalls:[attempts===1?{name:media.name,args:{file:'source.js'}}:{name:records.name,args:{collection:'observed'}}]})};
   }
   if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:true})};
@@ -4016,11 +4056,10 @@ test('a repeatedly unverified query scope can return to an observed unread sourc
  ]},ai:{models:{generateContent:async request=>{
   if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":false}'};
   if(request.config.semanticStage==='QUERY_POPULATION_LITERAL_RECOVERY')return{text:'{"term":"equipos"}'};
-  if(request.config.semanticStage==='QUERY_SCOPE_SOURCE_RECOVERY'){
+  if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){
    recovered++;
-   const variants=request.config.responseJsonSchema.properties.toolCalls.items.anyOf;
-   assert.deepEqual(variants.map(v=>v.properties.name.enum[0]),['repo.read']);
-   assert.deepEqual(variants[0].properties.args.properties.file.enum,['registration.js']);
+   const variants=recoverySchemas(request);
+   const read=variants.find(v=>v.properties.name.enum[0]==='repo.read');assert.ok(read);assert.deepEqual(read.properties.args.properties.file.enum,['registration.js']);
    assert.match(JSON.stringify(request.config.chatMessages),/SEMANTIC_QUERY_SCOPE_UNVERIFIED/);
    return{text:JSON.stringify({toolCalls:[{name:'repo.read',args:{file:selectedFile}}]})};
   }
@@ -4030,7 +4069,7 @@ test('a repeatedly unverified query scope can return to an observed unread sourc
  const result=await operation;
  assert.equal(recovered,1);
  assert.equal(result.missionComplete,false);
- assert.equal(result.planKind,'QUERY_SCOPE_SOURCE_RECOVERY');
+ assert.equal(result.planKind,'READ_ONLY_EVIDENCE_CONTINUATION');
  assert.equal(result.toolCalls[0].args.file,'registration.js');
  assert.equal(result.toolCalls[0].approved,false);
  }
@@ -4186,6 +4225,8 @@ test('a larger page size cannot repeat a fully read scope instead of resolving u
  const query={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'},fields:{type:'array',items:{type:'string'}},orderBy:{type:'array',items:{type:'object'}},pageSize:{type:'integer'}},required:['collection','fields','pageSize']}};
  const args={collection:'registry',fields:['details'],orderBy:[],pageSize:10};let recovered=false;
  const result=await runJarvisSemanticPlanner({input:'Inspect current owners',catalog:[query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',args:{file:'registry.js'},observation:{ok:true,verifiedRead:{file:'registry.js',content:'observed registry',sourceStructure:{dataBindings:{collections:['registry'],fieldPaths:['details','details.owner']}}}}},{name:query.name,args,observation:{ok:true,recordEvidence:{scope:{collection:'registry',fields:['details']},completeForQuery:true,hasMore:false,totalCount:1,rows:[{id:'one',values:{details:{notExpanded:true}}}],truncatedFields:[{id:'one',field:'details'}]}}}]},ai:{models:{generateContent:async request=>{
+ if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return{text:'{"matchesRequest":true}'};}
+
  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({explanation:'Owner details remain unread',completionAssessment:{objectives:[{objective:'Inspect current owners',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[1],limitation:'Need nested fields'}]},toolCalls:[{name:query.name,args:{collection:args.collection,fields:args.fields,pageSize:100}}]})};
  if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){recovered=true;return{functionCalls:[{name:query.name,args:{...args,fields:['details.owner']}}]};}
  throw Error('Unexpected stage '+request.config.semanticStage);
@@ -4316,6 +4357,8 @@ test('combining previously read projections cannot replace investigation of miss
  const args={collection:'registry',mode:'query',pageSize:20,includeCount:true};let recovered=false;
  const tasks=[['category','owner'],['owner','label']].map(fields=>({name:query.name,args:{...args,fields},observation:{ok:true,recordEvidence:{scope:{collection:'registry',fields},rows:[{id:'one',values:Object.fromEntries(fields.map(field=>[field,field==='owner'?null:'observed']))}],totalCount:1,completeForQuery:true,hasMore:false}}}));
  const result=await runJarvisSemanticPlanner({input:'Inspect current records and expiration evidence',catalog:[query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:tasks},ai:{models:{generateContent:async request=>{
+ if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return{text:'{"matchesRequest":true}'};}
+
   if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:[{objective:'Inspect current records and expiration evidence',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0,1],limitation:'Expiration evidence remains missing'}]},toolCalls:[{name:query.name,args:{...args,pageSize:100,fields:['category','owner','label']}}]})};
   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){recovered=true;return{functionCalls:[{name:query.name,args:{...args,fields:['expiresAt']}}]};}
   throw Error('Unexpected stage '+request.config.semanticStage);
@@ -4349,13 +4392,71 @@ test('changing a projection of a verified empty scope cannot masquerade as new e
  for(const change of [r=>{r.totalCount=1;r.rows=[{id:'one',values:{label:'Known'}}];},r=>{r.completeForQuery=false;},r=>{r.source='REPOSITORY_SOURCE';}]){const altered=structuredClone(task);change(altered.observation.recordEvidence);assert.equal(covered(call,[altered]),false);}
 });
 
+test('one evidence decision cannot cascade through serial recovery planners',async()=>{
+ const tool={name:'fixture.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
+ const contract={objective:'Inspect the source',requiredEvidenceKind:'repository_source'};let recoveries=0;
+ const result=await runJarvisSemanticPlanner({input:'Inspect the source',catalog:[tool],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[contract],completedTasks:[]},ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:[{...contract,satisfied:false,evidenceTaskIndexes:[],limitation:'Source evidence remains missing'}]},toolCalls:[]})};
+  recoveries++;return{text:'{"toolCalls":[]}'};
+ }}}});
+ assert.equal(recoveries,1);assert.equal(result.missionComplete,false);assert.equal(result.toolCalls.length,0);assert.equal(result.completionAssessment.objectives[0].satisfied,false);
+});
+
+test('pre-inference zero suppression preserves other sources and different filters',async()=>{
+ const {eligibleEvidenceActionCatalog}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const f=platformQueryTestFixture({recordData:[]});const args={...f.args,mode:'count',fields:[]};
+ const receipt=await f.execute(args,f.dependencies,f.context);assert.equal(receipt.ok,true);assert.equal(receipt.recordEvidence.totalCount,0);
+ const name='fixture.records',tool={name,evidenceKinds:['platform_records'],investigationReadOnly:true,inputSchema:{type:'object',properties:{
+  sourceFile:{type:'string',enum:[args.sourceFile,'related-source.js']},collection:{type:'string',enum:[args.collection,'related_registry']},
+  mode:{type:'string',enum:['count','query']},fields:{type:'array',items:{type:'string'}},filters:{type:'array'},cursor:{type:'string'}},required:['sourceFile','collection','mode']}};
+ const result=eligibleEvidenceActionCatalog([tool],[{name,args,observation:receipt}]);
+ const branches=result[0].inputSchema.anyOf;const empty=branches.find(branch=>branch.properties.sourceFile.enum[0]===args.sourceFile&&branch.properties.collection.enum[0]===args.collection);
+ assert.equal(empty.properties.filters.minItems,1);assert.ok(empty.required.includes('filters'));
+ for(const branch of branches.filter(branch=>branch!==empty))assert.equal(branch.properties.filters.minItems,undefined,'zero cannot constrain a different source or collection');
+ assert.equal(receipt.recordEvidence.scope.collection,args.collection);
+});
+
+test('pre-inference frontier removes an exhausted runtime cursor while preserving another query scope',async()=>{
+ const {eligibleEvidenceActionCatalog}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const f=platformQueryTestFixture({recordData:[]});
+ const args={...f.args,mode:'query',cursor:'observed-cursor',includeCount:false};
+ const exhausted=await f.execute(args,f.dependencies,f.context);assert.equal(exhausted.ok,true);
+ const name='fixture.records';
+ const earlier={name,args:{...args,cursor:undefined},observation:{ok:true,recordEvidence:{...structuredClone(exhausted.recordEvidence),
+  scope:{...exhausted.recordEvidence.scope,cursor:null},rows:[{id:'observed-cursor',values:{title:'Observed row'}}],returnedCount:1,hasMore:true,queryExhausted:false,nextCursor:'observed-cursor'}}};
+ const distinct=structuredClone(earlier);distinct.args.collection='related_registry';distinct.observation.recordEvidence.scope.collection='related_registry';distinct.observation.recordEvidence.nextCursor='related-cursor';
+ const tool={name,evidenceKinds:['platform_records'],investigationReadOnly:true,inputSchema:{type:'object',properties:{
+  sourceFile:{type:'string',enum:[args.sourceFile]},collection:{type:'string',enum:[args.collection,'related_registry']},mode:{type:'string',enum:['query']},
+  fields:{type:'array',items:{type:'string'}},filters:{type:'array'},orderBy:{type:'array'},cursor:{type:'string'},pageSize:{type:'integer'}},required:['sourceFile','collection','mode']}};
+ const receipts=[earlier,{name,args,observation:exhausted},distinct];const before=JSON.stringify(receipts);
+ const result=eligibleEvidenceActionCatalog([tool],receipts);
+ const branches=result[0].inputSchema.anyOf;
+ assert.ok(branches.some(branch=>!branch.properties.cursor),'first-page queries remain available for different fields or filters');
+ const cursors=branches.flatMap(branch=>branch.properties.cursor?.enum||[]);
+ assert.deepEqual(cursors,['related-cursor']);
+ const related=branches.find(branch=>branch.properties.cursor);assert.deepEqual(related.properties.collection.enum,['related_registry']);
+ assert.equal(JSON.stringify(receipts),before);assert.equal(exhausted.recordEvidence.completeForQuery,false);
+});
+
+test('runtime terminal cursor receipts suppress empty-page rereads without proving population coverage',async()=>{
+ const f=platformQueryTestFixture({recordData:[]});
+ const args={...f.args,mode:'query',cursor:'observed-cursor',includeCount:false};
+ const result=await f.execute(args,f.dependencies,f.context);assert.equal(result.ok,true);
+ assert.equal(result.recordEvidence.queryExhausted,true);assert.equal(result.recordEvidence.completeForQuery,false);
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');const covered=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const task={name:'records.read',args,observation:result},call={name:task.name,args:{...args,fields:['rank'],pageSize:100}};
+ assert.equal(covered(call,[task]),true);
+ assert.equal(result.recordEvidence.completeForQuery,false,'deduplication never upgrades a receipt');
+ for(const change of [{cursor:'another'},{collection:'other_records'},{sourceFile:'another.js'},{filters:[{field:'rank',op:'==',value:1}]},{orderBy:[{field:'__name__',direction:'desc'}]}])assert.equal(covered({...call,args:{...call.args,...change}},[task]),false);
+});
+
 test('an exhausted empty cursor page reuses its exact scope without crediting the whole population',()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');const covered=runInNewContext('('+source.slice(node.start,node.end)+')');
- const args={sourceFile:'registry.js',collection:'registry',mode:'query',fields:['details'],filters:[{field:'category',op:'==',value:'selected'}],orderBy:[{field:'__name__',direction:'asc'}],cursor:'last-key',pageSize:25};const task={name:'records.read',args,observation:{ok:true,executionOk:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...args},rows:[],returnedCount:0,hasMore:false,queryExhausted:true,completeForQuery:true}}};const call={name:task.name,args:{...args,fields:['details.owner'],pageSize:50}};const before=JSON.stringify({call,task});
+ const args={sourceFile:'registry.js',collection:'registry',mode:'query',fields:['details'],filters:[{field:'category',op:'==',value:'selected'}],orderBy:[{field:'__name__',direction:'asc'}],cursor:'last-key',pageSize:25};const task={name:'records.read',args,observation:{ok:true,executionOk:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...args},rows:[],returnedCount:0,hasMore:false,queryExhausted:true,completeForQuery:false}}};const call={name:task.name,args:{...args,fields:['details.owner'],pageSize:50}};const before=JSON.stringify({call,task});
  assert.equal(covered(call,[task]),true);assert.equal(JSON.stringify({call,task}),before);assert.equal(task.observation.recordEvidence.scope.cursor,'last-key');assert.equal(task.observation.recordEvidence.totalCount,undefined);
  for(const changed of [{sourceFile:'another.js'},{collection:'another'},{cursor:'different-key'},{cursor:null},{filters:[]},{orderBy:[{field:'__name__',direction:'desc'}]},{mode:'count'},{includeCount:true}])assert.equal(covered({...call,args:{...call.args,...changed}},[task]),false);
- for(const mutate of [t=>{t.observation.ok=false;},t=>{t.observation.executionOk=false;},t=>{t.observation.recordEvidence.source='REPOSITORY_SOURCE';},t=>{t.observation.recordEvidence.readOnly=false;},t=>{t.observation.recordEvidence.hasMore=true;},t=>{t.observation.recordEvidence.queryExhausted=false;},t=>{t.observation.recordEvidence.completeForQuery=false;},t=>{t.observation.recordEvidence.rows=[{id:'entry',values:{details:null}}];},t=>{t.observation.recordEvidence.scope.collection='foreign';},t=>{t.observation.recordEvidence.scope.cursor='foreign-key';},t=>{t.observation.recordEvidence.scope.filters=[];},t=>{t.observation.recordEvidence.scope.orderBy=[];}]){const invalid=structuredClone(task);mutate(invalid);assert.equal(covered(call,[invalid]),false);}
- const counted=structuredClone(task);counted.observation.recordEvidence.totalCount=0;assert.equal(covered({...call,args:{...call.args,includeCount:true}},[counted]),true);counted.observation.recordEvidence.consistentCountAndList=false;assert.equal(covered(call,[counted]),false);
+ for(const mutate of [t=>{t.observation.ok=false;},t=>{t.observation.executionOk=false;},t=>{t.observation.recordEvidence.source='REPOSITORY_SOURCE';},t=>{t.observation.recordEvidence.readOnly=false;},t=>{t.observation.recordEvidence.hasMore=true;},t=>{t.observation.recordEvidence.queryExhausted=false;},t=>{t.observation.recordEvidence.rows=[{id:'entry',values:{details:null}}];},t=>{t.observation.recordEvidence.scope.collection='foreign';},t=>{t.observation.recordEvidence.scope.cursor='foreign-key';},t=>{t.observation.recordEvidence.scope.filters=[];}]){const invalid=structuredClone(task);mutate(invalid);assert.equal(covered(call,[invalid]),false);}
+ const counted=structuredClone(task);counted.observation.recordEvidence.totalCount=0;assert.equal(covered({...call,args:{...call.args,includeCount:true}},[counted]),true);counted.observation.recordEvidence.consistentCountAndList=false;assert.equal(covered(call,[counted]),true);
 });
 
 test('complete empty first pages reuse equivalent default ID order without inventing a count or field values',()=>{
@@ -4697,14 +4798,18 @@ test('row-specific citations preserve mixed populations without promoting partia
  assert.equal(JSON.stringify(record),before);
 });
 
-test('new record coverage replans the next read against fresh independent gaps',async()=>{
+test('new record coverage reaches the decision before its next action is selected',async()=>{
  for(const recoverDuplicate of [false,true]){
  const tool={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'},fields:{type:'array',items:{type:'string'}}},required:['collection','fields']}};
  const contracts=[{objective:'Identify owners',requestQuote:'Identify owners',requiredEvidenceKind:'platform_records',coverageMode:'relationship',scope:'explicit_scope',groups:['owners']},{objective:'Inspect deadlines',requestQuote:'Inspect deadlines',requiredEvidenceKind:'platform_records',coverageMode:'temporal',scope:'explicit_scope',groups:['deadlines']}];
  const tasks=[{name:tool.name,args:{collection:'registry',fields:['owner']},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',fields:['owner']},rows:[{id:'one',values:{owner:'Observed owner'}}],totalCount:1,completeForQuery:true,hasMore:false}}}];
  let freshPlan=false;
  const result=await runJarvisSemanticPlanner({input:'Identify owners and inspect deadlines',catalog:[tool],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:contracts,completedTasks:tasks},ai:{models:{generateContent:async request=>{
-  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:contracts.map(c=>({objective:c.objective,requiredEvidenceKind:c.requiredEvidenceKind,satisfied:false,evidenceTaskIndexes:[0],limitation:'Pre-review assessment'}))},toolCalls:[{name:tool.name,args:{collection:'registry',fields:['owner','description']}}]})};
+  if(request.config.semanticStage==='COMPLETION_AUDIT'){
+   const reviewed=request.config.chatMessages.find(m=>m.content.startsWith('COBERTURA_REVISADA_ANTES_DE_DECIDIR='));
+   assert.ok(reviewed);assert.match(reviewed.content,/Read the observed deadline source/);freshPlan=true;
+   return{text:JSON.stringify({completionAssessment:{objectives:contracts.map(c=>({objective:c.objective,requiredEvidenceKind:c.requiredEvidenceKind,satisfied:false,evidenceTaskIndexes:[0],limitation:'Pending verified scope'}))},toolCalls:[{name:tool.name,args:{collection:'deadline_registry',fields:['expiresAt']}}]})};
+  }
   if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":true}'};
   if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE'){
    const covered=request.contents==='Identify owners';return{text:JSON.stringify({proven:covered,missing:covered?[]:['Read the observed deadline source'],groups:[{group:covered?'owners':'deadlines',proven:covered,evidence:covered?[{taskIndex:0,fields:['owner']}]:[]}],sources:[]})};
@@ -4736,7 +4841,7 @@ test('source discovery preserves the last operational coverage and its pending s
  const result=await runJarvisSemanticPlanner({input:'Identify owners',catalog:[records,reader],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[contract],completionAssessment:previous,completedTasks:tasks},ai:{models:{generateContent:async request=>{
   if(request.config.semanticStage!=='COMPLETION_AUDIT'){replanned=true;assert.ok(request.config.chatMessages.some(message=>message.content.includes('related')),'the retained pending source must reach the next-step choice');return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'source.js',startLine:10}}]})};}return{text:JSON.stringify({completionAssessment:{objectives:[{objective:contract.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0],limitation:'Unconfirmed pagination'}]},toolCalls:[{name:reader.name,args:{file:'source.js',startLine:3}}]})};
  }}}});
- assert.equal(replanned,true);assert.equal(result.toolCalls[0].args.startLine,10,'discard the choice made before retained coverage was qualified');
+ assert.equal(replanned,false);assert.equal(result.toolCalls[0].args.startLine,3,'unchanged coverage must preserve a still-valid next action');
  const current=result.completionAssessment.objectives[0];assert.deepEqual(current.coverageProof,proof);assert.match(current.limitation,/Related registry remains unqueried/);assert.doesNotMatch(current.limitation,/Unconfirmed pagination/);assert.equal(current.satisfied,false);assert.equal(result.missionComplete,false);assert.equal(current.coverage.consultedScopes[0].completeForQuery,true);assert.equal(JSON.stringify(previous),before,'retention must not mutate an earlier assessment');
 });
 

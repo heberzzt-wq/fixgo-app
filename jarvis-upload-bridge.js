@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { JARVIS_LOCAL_MODEL, hasExactLocalModel } from './gestia-core/jarvis/jarvis.local.policy.js';
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -1265,7 +1266,7 @@ async function probeLocalJson(url, timeoutMs = 1200) {
 }
 
 export async function warmJarvisLocalModel({
-    model = "qwen3:4b-instruct-2507-q4_K_M",
+    model = JARVIS_LOCAL_MODEL,
     fetchImpl = globalThis.fetch,
     timeoutMs = 240000,
     keepAlive = "30m"
@@ -1542,7 +1543,7 @@ export async function ensureJarvisLocalAiRuntime({
     const repoRoot = resolveBridgeRoot(root);
     const expectedModel = String(
         env.JARVIS_LOCAL_LLM_MODEL ||
-        "qwen3:4b-instruct-2507-q4_K_M"
+        JARVIS_LOCAL_MODEL
     ).trim();
     const expectedEmbeddingModel = String(
         env.JARVIS_LOCAL_EMBEDDING_MODEL ||
@@ -1704,13 +1705,7 @@ export async function ensureJarvisLocalAiRuntime({
                 .filter(Boolean)
             : [];
 
-    const hasModel = (names, expected) =>
-        names.includes(expected) ||
-        names.some(name =>
-            name.startsWith(
-                `${expected.split(":")[0]}:`
-            )
-        );
+    const hasModel = hasExactLocalModel;
 
     let installedModels = modelNames(tags);
     const pulledModels = [];
@@ -1986,7 +1981,7 @@ export async function inspectJarvisWorkstation({
     const expectedModel =
         String(
             process.env.JARVIS_LOCAL_LLM_MODEL ||
-            "qwen3:4b-instruct-2507-q4_K_M"
+            JARVIS_LOCAL_MODEL
         ).trim();
     const expectedEmbeddingModel =
         String(
@@ -2011,20 +2006,8 @@ export async function inspectJarvisWorkstation({
                 )
                 .filter(Boolean)
             : [];
-    const expectedModelPresent =
-        ollamaModels.includes(expectedModel) ||
-        ollamaModels.some(name =>
-            name.startsWith(
-                `${expectedModel.split(":")[0]}:`
-            )
-        );
-    const expectedEmbeddingModelPresent =
-        ollamaModels.includes(expectedEmbeddingModel) ||
-        ollamaModels.some(name =>
-            name.startsWith(
-                `${expectedEmbeddingModel.split(":")[0]}:`
-            )
-        );
+    const expectedModelPresent = hasExactLocalModel(ollamaModels, expectedModel);
+    const expectedEmbeddingModelPresent = hasExactLocalModel(ollamaModels, expectedEmbeddingModel);
 
     let embeddingProbe = {
         ok: false,

@@ -1,6 +1,106 @@
 "use strict";
 
 const {gunzipSync}=require('node:zlib');
+const {createHash}=require('node:crypto');
+
+function recordObjectiveRevision(contract,tasks,clarifications,model,missionState,evaluatedAt,trustedProof=null) {
+    const schemas=new Map(),records=[],excludedSchemas=new Map();
+    const excluded=new Set((trustedProof?.sources||[]).filter(source=>source.relevant===false).map(source=>source.collection));
+    tasks.forEach((task,index)=>{
+        const observation=task.observation;
+        if(observation?.ok!==true||observation.executionOk===false||observation.blocked===true||observation.requiresInput===true)return;
+        if(observation.recordEvidence){
+            const record=observation.recordEvidence;
+            if(excluded.has(record.scope?.collection)){
+                // Only engine-owned, independently checked source exclusions
+                // can omit unrelated values. Keep their scope and field names:
+                // a newly observed dependency still invalidates this decision.
+                const metadata={scope:record.scope,fieldPaths:record.fieldSchema?.paths||[]};
+                excludedSchemas.set(JSON.stringify(metadata),metadata);
+            }else records.push({index,name:task.name,record});
+        }
+        const read=observation.verifiedRead;
+        if(read?.sourceStructure?.dataBindings){const item={file:read.file,bindings:read.sourceStructure.dataBindings};schemas.set(JSON.stringify(item),item);}
+    });
+    return createHash('sha256').update(JSON.stringify({contract,records,schemas:[...schemas.values()],excludedSchemas:[...excludedSchemas.values()],clarifications,model,
+        identity:[missionState.userId,missionState.workspaceId,missionState.tenantId,missionState.projectId,missionState.missionId],
+        sourceRevision:missionState.configuredSourceDiscovery?.revision,
+        evaluationInstant:contract?.coverageMode==='temporal'?String(evaluatedAt):null})).digest('hex');
+}
+
+function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependencyCatalog=catalog) {
+    const sourceKinds=new Set(['repository_source',...dependencyCatalog.flatMap(tool=>(tool.requiresEvidence||[])
+        .filter(requirement=>requirement.observationPath?.[0]==='verifiedRead').map(requirement=>requirement.kind))]);
+    const successful=tasks.filter(task=>task.observation?.ok===true && task.observation.executionOk!==false &&
+        task.observation.blocked!==true && task.observation.requiresInput!==true);
+    const readFiles=new Set(successful.map(task=>task.observation.verifiedRead?.file).filter(Boolean));
+    const known=[...new Set([...configuredFiles,...readFiles,...successful.flatMap(task=>[
+        ...(task.observation.repoCandidates||[]).map(item=>item.file),...(task.observation.repositoryMatches||[]).map(item=>item.file)
+    ])].filter(Boolean))];
+    const partial=partialSourceProgress(successful);
+    const emptyScopes=successful.flatMap(task=>{
+        const record=task.observation.recordEvidence,scope=record?.scope;
+        if(record?.source!=='FIRESTORE_SERVER_AUTHENTICATED'||record.readOnly!==true||record.totalCount!==0||
+            !scope?.sourceFile||!scope.collection||(scope.filters||[]).length||(scope.implicitExistenceFields||[]).length||
+            (scope.orderBy||[]).some(order=>order.field!=='__name__')||
+            !(scope.mode==='count'||record.completeForQuery===true))return [];
+        return [{name:task.name,sourceFile:scope.sourceFile,collection:scope.collection}];
+    });
+    const firstPageChoices=(tool,schema)=>{
+        const p=schema.properties;
+        if(!p?.sourceFile?.enum?.length||!p.collection?.enum?.length||p.filters?.type!=='array'||
+            !emptyScopes.some(scope=>scope.name===tool.name))return [schema];
+        return p.sourceFile.enum.flatMap(sourceFile=>p.collection.enum.flatMap(collection=>{
+            const empty=emptyScopes.some(scope=>scope.name===tool.name&&scope.sourceFile===sourceFile&&scope.collection===collection);
+            const filters=empty?{...p.filters,minItems:Math.max(1,p.filters.minItems||0)}:p.filters;
+            if(empty&&Number.isInteger(filters.maxItems)&&filters.maxItems<filters.minItems)return [];
+            return [{...schema,properties:{...p,sourceFile:{...p.sourceFile,enum:[sourceFile]},collection:{...p.collection,enum:[collection]},filters},
+                required:empty?[...new Set([...(schema.required||[]),'filters'])]:schema.required}];
+        }));
+    };
+    return catalog.flatMap(tool=>{
+        const original=buildNativeInputSchema(tool.inputSchema),branches=original.anyOf||[original],eligible=[];
+        for(const branch of branches){
+            const schema=structuredClone(branch),properties=schema.properties;
+            if(!properties){eligible.push(schema);continue;}
+            if(tool.evidenceKinds?.some(kind=>sourceKinds.has(kind)) && properties.file){
+                const allowed=properties.file.enum || (known.length?known:null);
+                if(allowed){
+                    // A file is not a query. Partial reads, missing range metadata
+                    // and bodies evicted by compaction must remain readable.
+                    const retained=boundedAuditTasks(successful);
+                    const available=allowed.filter(file=>!readFiles.has(file) || partial.some(read=>read.file===file) ||
+                        !retained.some(task=>{const read=task.observation?.verifiedRead;
+                            return read?.file===file && read.content && read.contentTruncated!==true &&
+                                Number.isInteger(read.totalLines) && (read.startLine||1)===1 && read.endLine>=read.totalLines;
+                        }));
+                    if(available.length)eligible.push({...schema,properties:{...properties,file:{...properties.file,enum:available}}});
+                    continue;
+                }
+            }
+            if(tool.evidenceKinds?.includes('platform_records') && properties.cursor){
+                const firstPage={...schema,properties:{...properties},required:(schema.required||[]).filter(key=>key!=='cursor')};
+                delete firstPage.properties.cursor;eligible.push(...firstPageChoices(tool,firstPage));
+                for(const task of successful){const record=task.observation.recordEvidence,scope=record?.scope;
+                    if(task.name!==tool.name||record?.source!=='FIRESTORE_SERVER_AUTHENTICATED'||record.readOnly!==true||
+                        record.hasMore!==true||record.queryExhausted===true||typeof record.nextCursor!=='string'||!record.nextCursor)continue;
+                    if(properties.sourceFile?.enum&&!properties.sourceFile.enum.includes(scope?.sourceFile))continue;
+                    if(properties.collection?.enum&&!properties.collection.enum.includes(scope?.collection)&&!properties.collection.enum.includes(task.args?.collection))continue;
+                    const nextCall={name:tool.name,args:{...(task.args||{}),...(scope||{}),mode:'query',cursor:record.nextCursor}};
+                    if(recordProjectionAlreadyObserved(nextCall,successful))continue;
+                    const next={...schema,properties:{...properties,cursor:{type:'string',enum:[record.nextCursor]}},required:[...new Set([...(schema.required||[]),'cursor'])]};
+                    for(const key of ['sourceFile','collection','filters','orderBy','fields'])if(properties[key]&&scope?.[key]!==undefined)
+                        next.properties[key]={...properties[key],enum:[scope[key]]};
+                    if(properties.mode)next.properties.mode={...properties.mode,enum:['query']};
+                    eligible.push(next);
+                }
+                continue;
+            }
+            eligible.push(...(tool.evidenceKinds?.includes('platform_records')?firstPageChoices(tool,schema):[schema]));
+        }
+        return eligible.length?[{...tool,inputSchema:eligible.length===1?eligible[0]:{anyOf:eligible}}]:[];
+    });
+}
 
 const VERSION = "1.24.0-local-only-single-jarvis";
 const DEFAULT_SEMANTIC_MODEL = "jarvis-local";
@@ -484,12 +584,13 @@ function recordProjectionAlreadyObserved(call, tasks) {
         // Changing projection cannot populate an authenticated exhausted page.
         // Its cursor remains part of the scope; this proves no global absence.
         const pageScope=args=>JSON.stringify(canonical({sourceFile:args?.sourceFile,collection:args?.collection,
-            mode:args?.mode,filters:args?.filters||[],orderBy:args?.orderBy||[],cursor:args?.cursor}));
+            mode:args?.mode,filters:args?.filters||[],orderBy:args?.orderBy?.length?args.orderBy:[{field:'__name__',direction:'asc'}],cursor:args?.cursor}));
         return tasks.some(task=>{const record=task.observation?.recordEvidence;
             return task.name===call.name && task.observation?.ok===true && task.observation.executionOk!==false &&
                 record?.source==='FIRESTORE_SERVER_AUTHENTICATED' && record.readOnly===true &&
-                record.completeForQuery===true && record.queryExhausted===true && record.hasMore===false &&
-                record.consistentCountAndList!==false && Array.isArray(record.rows) && record.rows.length===0 &&
+                task.observation.blocked!==true && task.observation.requiresInput!==true &&
+                record.queryExhausted===true && record.hasMore===false && record.nextCursor==null &&
+                Array.isArray(record.rows) && record.rows.length===0 &&
                 pageScope(task.args)===pageScope(call.args) && pageScope(record.scope)===pageScope(call.args) &&
                 (call.args.includeCount!==true || Number.isInteger(record.totalCount)&&record.totalCount>=0);
         });
@@ -1903,7 +2004,7 @@ function observedRecordFieldPaths(tasks, collection) {
 
 function bindRejectedRecordFields(catalog, tasks, failedTasks) {
     return catalog.map(tool=>{
-        if(tool.name!=="platform.query")return tool;
+        if(tool.name!=="platform.query" && !tool.evidenceKinds?.includes("platform_records"))return tool;
         const failures=(failedTasks||[]).filter(task=>task.name===tool.name &&
             (task.observation?.errorDetails?.undiscoveredFields?.length || task.observation?.errorDetails?.undiscoveredOrderFields?.length) &&
             Array.isArray(task.observation.errorDetails.discoveredFieldPaths));
@@ -2837,6 +2938,7 @@ async function runModelSemanticPlanner({
             .slice(0, 2).map(task => ({ index: task.index, name: task.name, interfaceEvidence: responsiveAuditSummary(task.observation.interfaceEvidence) }));
         selectableCatalog = bindRejectedRecordFields(selectableCatalog, completedTasksForAudit, missionState.blockedTasks);
         selectableCatalog = bindRejectedQueryOrderings(selectableCatalog, missionState.blockedTasks);
+        selectableCatalog = eligibleEvidenceActionCatalog(selectableCatalog,completedTasksForAudit,configuredSourceFiles,safeCatalog);
         const auditCatalog = selectableCatalog.map(({ name, description, evidenceKinds, inputSchema, requiresEvidence, mutates, requiresApproval }) => {
             const schema = buildNativeInputSchema(inputSchema);
             const branches = schema.anyOf || [schema];
@@ -2987,86 +3089,6 @@ async function runModelSemanticPlanner({
             return requireExecutablePlan({ ...validated, provider: String(ai.lastProvider || "jarvis-local"), model,
                 catalogSize: nextCatalog.length, planKind: "RESPONSIVE_REPAIR_CONTINUATION" });
         }
-        let lastAuditError = null;
-        let lastRejectedAuditPlan = null;
-        for (let auditAttempt = 0; auditAttempt < 2; auditAttempt++) {
-            let auditPlan = null;
-            try {
-                const auditResponse = await ai.models.generateContent({
-                    model,
-                    contents: [
-                        buildSemanticSystemInstruction(safeCatalog, missionState),
-                        `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
-                        [
-                            "AUDITORIA_DE_CIERRE_CONTROLADA: evalua cada objetivo explicito contra completedTasks, blockedTasks y sus observaciones reales.",
-                            "Si toda la evidencia requerida demuestra cumplimiento, marca satisfechos los objetivos y devuelve toolCalls=[].",
-                            "Si falta un objetivo, marcalo satisfied=false y selecciona la siguiente herramienta del catalogo que pueda avanzar ese objetivo con argumentos fundamentados.",
-                            "No explores capacidades no solicitadas, no repitas trabajo ya satisfecho y no inventes recursos ni evidencia.",
-                            "Devuelve JSON valido con completionAssessment, toolCalls y explanation. No generes missionComplete: el runtime proyecta ese estado despues de validar tus objetivos y evidencias."
-                        ].join("\n")
-                    ].join("\n\n"),
-                    config: {
-                        semanticStage: "COMPLETION_AUDIT",
-                        // Keep the actual objective in the user turn. Small local
-                        // models otherwise audit this phase's meta-instruction instead.
-                        chatMessages: [
-                            { role: "system", content: auditInstruction + (lastAuditError ? "\nRepara el contrato rechazado: " + lastAuditError.message + ". Conserva las pruebas reales. satisfied=false exige una limitation no vacia; satisfied=true exige referencias validas y limitation vacia. No inventes evidencia para corregir el formato." : "") },
-                            { role: "system", content: "RELOJ_DE_EVALUACION="+evaluatedAt+"\nFecha y hora actual del sistema. Es la referencia para evaluar fechas relativas, no evidencia de valores operativos ausentes ni de cobertura de una fuente." },
-                            { role: "system", content: "CATALOGO_EJECUTABLE=" + JSON.stringify(auditCatalog) },
-                            ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
-                            ...(missionState.evidenceObjectives?.length ? [{role:"system",content:"OBJETIVOS_ESTABLECIDOS_INMUTABLES="+JSON.stringify(missionState.evidenceObjectives)+"\nConserva todos los nombres. Si el tipo inicial sólo era evidencia preparatoria, elévalo a un tipo permitido por el esquema y las dependencias de lectura del catálogo. El código puede permitir consultar datos actuales, pero no los sustituye. Nunca rebajes un requisito ya establecido; evalúa cada objetivo completo."}] : []),
-                            ...(pendingCapabilities.length ? [{role:"system",content:"CAPACIDADES_INSTALADAS_PENDIENTES_DE_EVIDENCIA="+JSON.stringify(pendingCapabilities)+"\nEstas capacidades sí existen. Antes de usarlas obtén la evidencia que necesitan, buscando y leyendo la fuente. No declares ausencia de capacidad, de colección o de registros por no haber cumplido aún su requisito."}] : []),
-                            ...(missionState.completionAssessment?.objectives?.length ? [{role:"system",content:"PROGRESO_PREVIO_POR_OBJETIVO="+JSON.stringify(missionState.completionAssessment.objectives.map(({objective,requiredEvidenceKind,satisfied,evidenceTaskIndexes})=>({objective,requiredEvidenceKind,previouslySatisfied:satisfied,evidenceTaskIndexes})))+"\nEste es el estado de la evaluación previa, no una conclusión actual. Conserva todos los objetivos. Reevalúa sus límites y cobertura desde las observaciones completas y nuevas que siguen; no supongas que una lectura sigue faltando porque antes no se había ejecutado. Las referencias previas no restringen qué evidencia real puedes citar ahora. No conviertas el estado previo en cumplimiento."}] : []),
-                            {role:"system",content:"newSincePreviousAssessment=true identifica observaciones posteriores a la evaluación previa. Actualiza primero las limitaciones de cada objetivo con esos resultados: una conclusión anterior de que faltaba esa consulta ya no describe el estado actual. Evalúa su cobertura sin convertir el éxito técnico en cumplimiento."},
-                            ...auditTasks.map((task,index) => ({ role: "system", content: "OBSERVACION_EJECUTADA=" + JSON.stringify({...task,newSincePreviousAssessment:index >= (Number.isInteger(missionState.completionAssessment?.evaluatedTaskCount) ? missionState.completionAssessment.evaluatedTaskCount : 0)}) })),
-                            ...(missionState.blockedTasks || []).slice(-12).map(task => ({ role: "system", content: "INTENTO_FALLIDO_NO_ACREDITA_CUMPLIMIENTO=" + JSON.stringify({ name: task.name, args: task.args, observation: task.observation }) + "\nUsa el fallo para corregir el siguiente paso sin repetir argumentos ya rechazados. Una ruta no encontrada requiere corregir el destino o explicar que no se obtuvo; permisos denegados no autorizan otra identidad, quitar filtros ni ampliar acceso. Nunca conviertas un fallo en cero registros." })),
-                            ...(measuredAuditEvidence.length ? [{ role: "system", content: "MEDICIONES_REALES_DE_LA_PAGINA=" + JSON.stringify(measuredAuditEvidence) + "\nEstos valores solo describen la URL indicada en cada registro: no acreditan ninguna otra pagina u objeto. Compara primero el objeto solicitado con esa URL y su contenido. Si no coinciden, conserva el objetivo pendiente aunque las medidas sean validas. Solo despues evalua los estilos y medidas; nunca los conviertas en inspeccion de pixeles." }] : []),
-                            ...(lastRejectedAuditPlan ? [
-                                { role: "assistant", content: JSON.stringify(lastRejectedAuditPlan) },
-                                { role: "system", content: "El borrador anterior fue rechazado; no es evidencia. Revisa sus contradicciones contra las observaciones originales. No inventes referencias, cambies el alcance ni marques objetivos satisfechos solo para reparar el formato. ERROR_CONCRETO=" + JSON.stringify(lastAuditError?.evidence || {}) }
-                            ] : []),
-                            ...(observedWriteSchemas.length ? [{role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedSchemaHints)+"\nEstas claves se observaron en objetos guardados en la colección indicada: no declares que faltan las claves listadas. No prueban registros actuales ni un esquema exhaustivo. Un filtro de clasificación rechazado no invalida otros objetivos que sí tienen campos acreditados. Puedes elegir una consulta de inspección paginada (mode=query) con campos pertinentes y acreditados para observar datos actuales sin inventar un filtro; esa lectura sólo demuestra su alcance y no acredita automáticamente conteos de subconjuntos. Conserva el tenant y los límites de permisos; nunca eludas una denegación."}] : []),
-                            { role: "system", content: "Decide el siguiente paso con la evidencia anterior. Sólo OBSERVACION_EJECUTADA acredita operaciones ya realizadas. Medir DOM/CSS no lee archivos fuente ni prepara un patch ni acredita una aprobación, escritura o prueba posterior. Si faltan operaciones del pedido, sus objetivos siguen satisfied=false; conserva referencias a evidencia parcial pertinente y una limitation concreta. Selecciona una sola operación nueva del catálogo que avance ese trabajo; no repitas la inspección ya ejecutada con los mismos argumentos. El diagnóstico puede guiar la lectura del código antes de preparar un cambio exacto." },
-                            { role: "user", content: instruction + ((missionState.blockedTasks||[]).some(task=>task.observation?.errorDetails?.undiscoveredFields?.length) ? "\n\nRevisa el estado actual de la investigación antes de decidir: un rechazo por campos no acreditados no significa permiso denegado ni colección vacía. En errorDetails, undiscoveredFields enumera solamente los nombres rechazados y discoveredFieldPaths enumera campos observados que puedes consultar usando la misma fuente y alcance autorizado. No declares inaccesibles esos campos observados. Consulta evidencia que falta; no repitas combinaciones de campos ya leídos." : "") }
-                        ],
-                        temperature: 0,
-                        maxOutputTokens: auditAttempt > 0 ? 3072 : 1536,
-                        thinkingConfig: {
-                            thinkingLevel: "MINIMAL"
-                        },
-                        responseMimeType: "application/json",
-                        responseJsonSchema: completionAuditSchema(safeCatalog, missionState.completedTasks || [], selectableCatalog, missionState.evidenceObjectives || [])
-                    }
-                });
-                if (auditResponse?.providerResponse?.finishReason === "length") {
-                    const error = new Error("SEMANTIC_COMPLETION_AUDIT_INCOMPLETE");
-                    error.evidence = {finishReason: "length", outputTokens: auditResponse.providerResponse.outputTokens};
-                    throw error;
-                }
-                try { auditPlan = extractJsonObject(String(auditResponse?.text || "")); }
-                catch { throw new Error("SEMANTIC_COMPLETION_AUDIT_INVALID_JSON"); }
-                const objectiveMap=auditPlan?.completionAssessment?.objectives;
-                if(missionState.evidenceObjectives?.length && objectiveMap && !Array.isArray(objectiveMap)) {
-                    const keys=missionState.evidenceObjectives.map((_,index)=>"objective_"+index);
-                    if(Object.keys(objectiveMap).length!==keys.length || keys.some(key=>!Object.hasOwn(objectiveMap,key))) throw new Error("SEMANTIC_COMPLETION_EVIDENCE_REQUIRED");
-                    auditPlan.completionAssessment.objectives=keys.map(key=>objectiveMap[key]);
-                }
-                if (auditPlan?.missionComplete === true && auditPlan?.toolCalls?.length) {
-                    throw new Error("SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY");
-                }
-                // Qwen owns each objective verdict. Do not generate a second,
-                // independent aggregate. Validate every proof before returning
-                // the projected state; no missing or invalid evidence can pass.
-                // Explicit legacy verdicts still face contradiction checks.
-                const objectives = auditPlan?.completionAssessment?.objectives;
-                const evaluatedAudit = Object.prototype.hasOwnProperty.call(auditPlan || {}, "missionComplete")
-                    ? auditPlan
-                    : {
-                        ...auditPlan,
-                        missionComplete: Array.isArray(objectives) && objectives.length > 0 &&
-                            objectives.every(objective => objective?.satisfied === true) &&
-                            Array.isArray(auditPlan?.toolCalls) && auditPlan.toolCalls.length === 0
-                    };
                 const canonicalArgs = value => Array.isArray(value) ? value.map(canonicalArgs) : value && typeof value === "object"
                     ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalArgs(value[key])])) : value;
                 const sameCall = (task, call) => task?.name === call?.name &&
@@ -3086,13 +3108,10 @@ async function runModelSemanticPlanner({
                     sameCall(task, call) &&
                     task?.observation?.retryable !== true
                 );
-                // Deduplicate before scope review: a known failed call is not a
-                // new semantic error and must reach next-step recovery instead
-                // of throwing before the continuation code can run.
-                if (evaluatedAudit.missionComplete !== true) evaluatedAudit.toolCalls = (evaluatedAudit.toolCalls || [])
-                    .filter(call => !wasExecuted(call) && !wasRejected(call));
-                for (const call of (evaluatedAudit.toolCalls || [])) {
-                    const tool = selectableCatalog.find(item => item.name === call.name);
+
+        const verifyOperationalCalls=async(calls,callCatalog=selectableCatalog)=>{
+                for (const call of calls) {
+                    const tool = callCatalog.find(item => item.name === call.name);
                     if (!tool || !hasRequiredToolArguments(tool, normalizeSchemaBoundArguments(tool, call.args || {})) || hasUnexpectedToolArguments(tool, call.args || {})) {
                         const error = new Error("SEMANTIC_TOOL_ARGUMENTS_INVALID");
                         error.evidence = { tool: call.name, args: call.args, requiredSchema: tool?.inputSchema || null };
@@ -3156,8 +3175,226 @@ async function runModelSemanticPlanner({
                         }
                     }
                 }
+        };
+        let evidenceRecoveryUsed=false;
+        const recoverEvidenceAction=async(evaluatedAudit,validatedAudit,error=null)=>{
+            if(evidenceRecoveryUsed)return null;
+            evidenceRecoveryUsed=true;
+                const generalReaders = selectableCatalog.filter(tool => tool.investigationReadOnly === true &&
+                    tool.mutates !== true && tool.requiresApproval !== true && tool.userArtifact !== true);
+                const latestPlatformSchemaFailure = [...(missionState.blockedTasks || [])].reverse().find(task => {
+                    if (task?.name !== "platform.query") return false;
+                    const observedError = task?.observation?.error;
+                    const errorText = [
+                        task?.observation?.errorCode,
+                        task?.observation?.errorMessage,
+                        typeof observedError === "string"
+                            ? observedError
+                            : observedError && typeof observedError === "object"
+                                ? observedError.code || observedError.message || observedError.status || ""
+                                : "",
+                        task?.reason
+                    ].filter(Boolean).map(String).join(" ");
+                    return [
+                        "PLATFORM_QUERY_SOURCE_NOT_READ",
+                        "PLATFORM_QUERY_COLLECTION_NOT_DISCOVERED",
+                        "PLATFORM_QUERY_FIELD_NOT_DISCOVERED",
+                        "PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED",
+                        "PLATFORM_QUERY_FILTER_VALUE_NOT_DISCOVERED"
+                    ].some(code => errorText.includes(code));
+                }) || null;
+                const evidenceAfterSchemaFailure = latestPlatformSchemaFailure?.completedAt && completedTasksForAudit.some(task =>
+                    task.name === "repo.read" && task.observation?.ok === true && task.observation.executionOk !== false &&
+                    task.completedAt && Date.parse(task.completedAt) > Date.parse(latestPlatformSchemaFailure.completedAt));
+                const repositoryRecoveryReaders = latestPlatformSchemaFailure && !evidenceAfterSchemaFailure
+                    ? generalReaders.filter(tool =>
+                        tool.name !== "platform.query" &&
+                        (tool.evidenceKinds || []).some(kind =>
+                            ["repository_search", "repository_source", "repository_inventory"].includes(kind)
+                        )
+                    )
+                    : [];
+                let nextReaders = repositoryRecoveryReaders.length
+                    ? repositoryRecoveryReaders
+                    : generalReaders;
+                const seenFiles=new Set(completedTasksForAudit.filter(task=>task.observation?.ok===true &&
+                    task.observation.executionOk!==false && task.observation.blocked!==true).map(task=>task.observation.verifiedRead?.file).filter(Boolean));
+                const partialReads=partialSourceProgress(completedTasksForAudit);
+                const literalContext=[instruction,...recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content)].join('\n');
+                const literalTerms=[...new Set(literalContext.match(/[\p{L}\p{N}_-]{3,}/gu)||[])].slice(0,80);
+                nextReaders=nextReaders.map(tool=>{
+                    const schema=tool.inputSchema,properties=schema?.properties;
+                    if(!properties)return tool;
+                    if(error?.message==='SEMANTIC_QUERY_SCOPE_UNVERIFIED' && tool.name==='repo.grep' && properties.term && literalTerms.length)
+                        return {...tool,inputSchema:{...schema,properties:{...properties,term:{...properties.term,enum:literalTerms}}}};
+                    const files=properties.file?.enum;
+                    if(properties.file && files){
+                        const unread=files.filter(file=>!seenFiles.has(file));
+                        if(unread.length)return {...tool,inputSchema:{...schema,properties:{...properties,file:{...properties.file,enum:unread}}}};
+                    }
+                    return tool;
+                });
+                if(!nextReaders.length)return null;
+
+                    const compactContinuation=JSON.stringify(auditTasks).length>16000;
+                    const continuation = await ai.models.generateContent({model,contents:instruction,config:{
+                        semanticStage:"READ_ONLY_EVIDENCE_CONTINUATION",maxOutputTokens:768,temperature:0,
+                        ...(compactContinuation || error ? {responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{
+                            toolCalls:{type:"array",minItems:0,maxItems:1,items:{anyOf:nextReaders.map(tool=>({
+                                type:"object",properties:{name:{type:"string",enum:[tool.name]},args:buildNativeInputSchema(tool.inputSchema)},
+                                required:["name","args"],additionalProperties:false
+                            }))}}
+                        },required:["toolCalls"],additionalProperties:false}} : {nativeToolChat:true,tools:[{functionDeclarations:buildGeminiModelTools(nextReaders)}]}),
+                        chatMessages:[
+                            ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
+                            {role:"system",content:"Eres Jarvis. El objetivo aún no está resuelto. Decide si existe UN siguiente paso de investigación ejecutable con las herramientas disponibles y llámalo. No repitas que falta evidencia cuando puedes obtenerla. Una búsqueda ya devuelve rutas candidatas: lee una ruta real pertinente para conocer la fuente; si necesitas otra fuente, busca. Conserva el objetivo del usuario, pero puedes reformular búsquedas con identificadores, campos, símbolos y vocabulario técnico que hayas aprendido de evidencia ya observada. No inventes esos identificadores: deben provenir de la solicitud o de una observación real. Si una búsqueda semántica ya fue insuficiente, usa repo.grep con un término literal observado o formula una nueva búsqueda usando la evidencia disponible. Para consultar registros actuales necesitas colección y campos acreditados. El discriminador es necesario para contar un subconjunto; si aún lo desconoces, puedes inspeccionar campos pertinentes con mode=query y filters=[] dentro del alcance autorizado, para conocer valores reales y resolver otros objetivos. La inspección no acredita por sí sola un conteo global ni la pertenencia a un subconjunto. No inventes filtros. El catálogo describe fuentes, no resultados ya obtenidos. No repitas la misma operación con los mismos argumentos. Una fuente irrelevante no cierra la investigación: continúa con otra fuente o búsqueda read-only distinta mientras exista un paso fundamentado. Si realmente no hay un paso autorizado, no llames nada. Un permiso denegado no autoriza cambiar identidad, quitar filtros ni ampliar acceso. Nunca escribas, publiques ni concedas aprobación."},
+                            ...(pendingCapabilities.length ? [{role:"system",content:"CAPACIDADES_DISPONIBLES_DESPUES_DEL_REQUISITO="+JSON.stringify(pendingCapabilities)+"\nLa consulta de datos existe, pero falta leer la fuente. Elige primero una lectura o búsqueda pertinente. No sustituyas el requisito con una negativa ni con un esquema inventado."}] : []),
+                            ...(latestPlatformSchemaFailure && !evidenceAfterSchemaFailure ? [{role:"system",content:"RECUPERACION_DE_CONSULTA: la última platform.query fue rechazada por evidencia de esquema insuficiente. No repitas la misma consulta ni adivines un alias. Usa las herramientas de repositorio disponibles para localizar el campo, colección o valor real y después formula una consulta nueva con esa evidencia. Si INTENTO_FALLIDO incluye errorDetails.discoveredCollections, esas colecciones SÍ fueron observadas por AST en el sourceFile indicado y la colección rechazada NO fue acreditada por ese archivo: conserva la relación sourceFile→discoveredCollections, vuelve al repo si ninguna observada sirve al objetivo y sólo después formula otra consulta. Si errorDetails incluye undiscoveredFields, undiscoveredFilterFields o ungroundedFilterValues, esos literales son argumentos RECHAZADOS: puedes usarlos como pistas para repo.grep/repo.search, pero no los trates como esquema válido hasta observar su definición real en una fuente."}] : []),
+                            {role:"system",content:"CATALOGO_EJECUTABLE="+JSON.stringify(auditCatalog.filter(tool=>nextReaders.some(reader=>reader.name===tool.name)))},
+                            {role:"system",content:"RUTAS_LOCALIZADAS="+JSON.stringify([...new Set(nextReaders.flatMap(tool=>{
+                                const schema=buildNativeInputSchema(tool.inputSchema);return (schema.anyOf||[schema]).flatMap(branch=>branch.properties?.file?.enum||[]);
+                            }))])},
+                            {role:"system",content:"LECTURAS_PARCIALES="+JSON.stringify(partialReads.map(read=>({...read,schemaAnchors:read.schemaAnchors.map(({fields,...anchor})=>anchor)})))},
+                            ...(error ? [{role:"system",content:"RECHAZO_DE_ALCANCE="+error.message+"\nElige UNA palabra literal de la solicitud del usuario o de su aclaración cuando uses repo.grep para recuperar el esquema. El rechazo no acredita registros ni agota otras fuentes."}] : []),
+                            ...auditTasks.map(task=>({role:"system",content:"EVIDENCIA_OBTENIDA="+JSON.stringify(task)})),
+                            {role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedSchemaHints)},
+                            ...(missionState.blockedTasks||[]).slice(-8).map(task=>({role:"system",content:"INTENTO_FALLIDO="+JSON.stringify({name:task.name,args:task.args,observation:task.observation})})),
+                            {role:"system",content:"OBJETIVOS_PENDIENTES="+JSON.stringify(continuationObjectiveSummaries(evaluatedAudit.completionAssessment?.objectives))},
+                            {role:"user",content:instruction}
+                        ]
+                    }});
+                    let next = extractGeminiToolCallPlan(continuation,nextReaders);
+                    if (!next && continuation.text) {try {next=normalizeTextToolPlan(extractJsonObject(continuation.text),nextReaders);}catch{}}
+                    if (continuation?.providerResponse?.finishReason !== "length" && next?.toolCalls?.length) {
+                        const checked=validatePlan({...next,missionComplete:false},nextReaders,instruction);
+                        checked.toolCalls=checked.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&!(error?.evidence?.tool===call.name && sameCall({name:call.name,args:error.evidence.proposed},call))&&!hasUnexpectedToolArguments(nextReaders.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
+                        await verifyOperationalCalls(checked.toolCalls,nextReaders);
+                        if(checked.toolCalls.length)return {...validatedAudit,toolCalls:checked.toolCalls,missionComplete:false,
+                            provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:nextReaders.length,planKind:"READ_ONLY_EVIDENCE_CONTINUATION"};
+                    }
+
+            return null;
+        };
+        let lastAuditError = null;
+        let lastRejectedAuditPlan = null;
+        const coverageCache=ai.objectiveCoverageCache || new Map();
+        const freshlyReviewedCoverage=new Set();
+        const coverageBeforeDecision=[];
+        const priorTaskCount=missionState.completionAssessment?.evaluatedTaskCount || 0;
+        for(const contract of missionState.evidenceObjectives || []){
+            if(contract.requiredEvidenceKind!=='platform_records' || !contract.coverageMode)continue;
+            const previous=missionState.completionAssessment?.objectives?.find(item=>item.objective===contract.objective);
+            const clarifications=recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content);
+            const dependencyKey='dependency:'+recordObjectiveRevision(contract,[],clarifications,model,missionState,evaluatedAt);
+            const revision=recordObjectiveRevision(contract,completedTasksForAudit,clarifications,model,missionState,evaluatedAt,coverageCache.get(dependencyKey));
+            const newRecords=completedTasksForAudit.some((task,index)=>index>=priorTaskCount && task.observation?.ok===true &&
+                task.observation.executionOk!==false && task.observation.blocked!==true &&
+                task.observation.recordEvidence?.source==='FIRESTORE_SERVER_AUTHENTICATED');
+            const hasRecords=completedTasksForAudit.some(task=>task.observation?.ok===true && task.observation.executionOk!==false &&
+                task.observation.blocked!==true && task.observation.recordEvidence?.source==='FIRESTORE_SERVER_AUTHENTICATED');
+            const newSource=hasRecords && previous?.coverageProof && contract.scope==='all_sources' && observedRecordSources(completedTasksForAudit)
+                .some(collection=>!previous.coverageProof.sources?.some(source=>source.collection===collection));
+            if(!coverageCache.has(revision) && (newRecords || newSource || previous?.satisfied===true)){
+                const objective={objective:contract.objective,requiredEvidenceKind:contract.requiredEvidenceKind};
+                const proof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,
+                    advisoryContext,scopeClarifications:clarifications,evaluatedAt,instruction});
+                coverageCache.set(revision,structuredClone(proof));
+                coverageCache.delete(dependencyKey);coverageCache.set(dependencyKey,structuredClone(proof));
+                const proofRevision=recordObjectiveRevision(contract,completedTasksForAudit,clarifications,model,missionState,evaluatedAt,proof);
+                coverageCache.set(proofRevision,structuredClone(proof));freshlyReviewedCoverage.add(proofRevision);
+                while(coverageCache.size>96)coverageCache.delete(coverageCache.keys().next().value);
+            }
+            if(coverageCache.has(revision))coverageBeforeDecision.push({objective:contract.objective,
+                requiredEvidenceKind:contract.requiredEvidenceKind,coverageProof:coverageCache.get(revision)});
+        }
+        for (let auditAttempt = 0; auditAttempt < 2; auditAttempt++) {
+            let auditPlan = null;
+            try {
+                const auditResponse = await ai.models.generateContent({
+                    model,
+                    contents: [
+                        buildSemanticSystemInstruction(safeCatalog, missionState),
+                        `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`,
+                        [
+                            "AUDITORIA_DE_CIERRE_CONTROLADA: evalua cada objetivo explicito contra completedTasks, blockedTasks y sus observaciones reales.",
+                            "Si toda la evidencia requerida demuestra cumplimiento, marca satisfechos los objetivos y devuelve toolCalls=[].",
+                            "Si falta un objetivo, marcalo satisfied=false y selecciona la siguiente herramienta del catalogo que pueda avanzar ese objetivo con argumentos fundamentados.",
+                            "No explores capacidades no solicitadas, no repitas trabajo ya satisfecho y no inventes recursos ni evidencia.",
+                            "Devuelve JSON valido con completionAssessment, toolCalls y explanation. No generes missionComplete: el runtime proyecta ese estado despues de validar tus objetivos y evidencias."
+                        ].join("\n")
+                    ].join("\n\n"),
+                    config: {
+                        semanticStage: "COMPLETION_AUDIT",
+                        // Keep the actual objective in the user turn. Small local
+                        // models otherwise audit this phase's meta-instruction instead.
+                        chatMessages: [
+                            { role: "system", content: auditInstruction + (lastAuditError ? "\nRepara el contrato rechazado: " + lastAuditError.message + ". Conserva las pruebas reales. satisfied=false exige una limitation no vacia; satisfied=true exige referencias validas y limitation vacia. No inventes evidencia para corregir el formato." : "") },
+                            { role: "system", content: "RELOJ_DE_EVALUACION="+evaluatedAt+"\nFecha y hora actual del sistema. Es la referencia para evaluar fechas relativas, no evidencia de valores operativos ausentes ni de cobertura de una fuente." },
+                            { role: "system", content: "CATALOGO_EJECUTABLE=" + JSON.stringify(auditCatalog) },
+                            ...(coverageBeforeDecision.length ? [{role:'system',content:'COBERTURA_REVISADA_ANTES_DE_DECIDIR='+JSON.stringify(coverageBeforeDecision)+'\nConserva la prueba por objetivo. Elige ahora una sola acción válida que aporte evidencia pendiente; no repitas operaciones agotadas ni trabajo ya demostrado.'}] : []),
+                            ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
+                            ...(missionState.evidenceObjectives?.length ? [{role:"system",content:"OBJETIVOS_ESTABLECIDOS_INMUTABLES="+JSON.stringify(missionState.evidenceObjectives)+"\nConserva todos los nombres. Si el tipo inicial sólo era evidencia preparatoria, elévalo a un tipo permitido por el esquema y las dependencias de lectura del catálogo. El código puede permitir consultar datos actuales, pero no los sustituye. Nunca rebajes un requisito ya establecido; evalúa cada objetivo completo."}] : []),
+                            ...(pendingCapabilities.length ? [{role:"system",content:"CAPACIDADES_INSTALADAS_PENDIENTES_DE_EVIDENCIA="+JSON.stringify(pendingCapabilities)+"\nEstas capacidades sí existen. Antes de usarlas obtén la evidencia que necesitan, buscando y leyendo la fuente. No declares ausencia de capacidad, de colección o de registros por no haber cumplido aún su requisito."}] : []),
+                            ...(missionState.completionAssessment?.objectives?.length ? [{role:"system",content:"PROGRESO_PREVIO_POR_OBJETIVO="+JSON.stringify(missionState.completionAssessment.objectives.map(({objective,requiredEvidenceKind,satisfied,evidenceTaskIndexes})=>({objective,requiredEvidenceKind,previouslySatisfied:satisfied,evidenceTaskIndexes})))+"\nEste es el estado de la evaluación previa, no una conclusión actual. Conserva todos los objetivos. Reevalúa sus límites y cobertura desde las observaciones completas y nuevas que siguen; no supongas que una lectura sigue faltando porque antes no se había ejecutado. Las referencias previas no restringen qué evidencia real puedes citar ahora. No conviertas el estado previo en cumplimiento."}] : []),
+                            {role:"system",content:"newSincePreviousAssessment=true identifica observaciones posteriores a la evaluación previa. Actualiza primero las limitaciones de cada objetivo con esos resultados: una conclusión anterior de que faltaba esa consulta ya no describe el estado actual. Evalúa su cobertura sin convertir el éxito técnico en cumplimiento."},
+                            ...auditTasks.map((task,index) => ({ role: "system", content: "OBSERVACION_EJECUTADA=" + JSON.stringify({...task,newSincePreviousAssessment:index >= (Number.isInteger(missionState.completionAssessment?.evaluatedTaskCount) ? missionState.completionAssessment.evaluatedTaskCount : 0)}) })),
+                            ...(missionState.blockedTasks || []).slice(-12).map(task => ({ role: "system", content: "INTENTO_FALLIDO_NO_ACREDITA_CUMPLIMIENTO=" + JSON.stringify({ name: task.name, args: task.args, observation: task.observation }) + "\nUsa el fallo para corregir el siguiente paso sin repetir argumentos ya rechazados. Una ruta no encontrada requiere corregir el destino o explicar que no se obtuvo; permisos denegados no autorizan otra identidad, quitar filtros ni ampliar acceso. Nunca conviertas un fallo en cero registros." })),
+                            ...(measuredAuditEvidence.length ? [{ role: "system", content: "MEDICIONES_REALES_DE_LA_PAGINA=" + JSON.stringify(measuredAuditEvidence) + "\nEstos valores solo describen la URL indicada en cada registro: no acreditan ninguna otra pagina u objeto. Compara primero el objeto solicitado con esa URL y su contenido. Si no coinciden, conserva el objetivo pendiente aunque las medidas sean validas. Solo despues evalua los estilos y medidas; nunca los conviertas en inspeccion de pixeles." }] : []),
+                            ...(lastRejectedAuditPlan ? [
+                                { role: "assistant", content: JSON.stringify(lastRejectedAuditPlan) },
+                                { role: "system", content: "El borrador anterior fue rechazado; no es evidencia. Revisa sus contradicciones contra las observaciones originales. No inventes referencias, cambies el alcance ni marques objetivos satisfechos solo para reparar el formato. ERROR_CONCRETO=" + JSON.stringify(lastAuditError?.evidence || {}) }
+                            ] : []),
+                            ...(observedWriteSchemas.length ? [{role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedSchemaHints)+"\nEstas claves se observaron en objetos guardados en la colección indicada: no declares que faltan las claves listadas. No prueban registros actuales ni un esquema exhaustivo. Un filtro de clasificación rechazado no invalida otros objetivos que sí tienen campos acreditados. Puedes elegir una consulta de inspección paginada (mode=query) con campos pertinentes y acreditados para observar datos actuales sin inventar un filtro; esa lectura sólo demuestra su alcance y no acredita automáticamente conteos de subconjuntos. Conserva el tenant y los límites de permisos; nunca eludas una denegación."}] : []),
+                            { role: "system", content: "Decide el siguiente paso con la evidencia anterior. Sólo OBSERVACION_EJECUTADA acredita operaciones ya realizadas. Medir DOM/CSS no lee archivos fuente ni prepara un patch ni acredita una aprobación, escritura o prueba posterior. Si faltan operaciones del pedido, sus objetivos siguen satisfied=false; conserva referencias a evidencia parcial pertinente y una limitation concreta. Selecciona una sola operación nueva del catálogo que avance ese trabajo; no repitas la inspección ya ejecutada con los mismos argumentos. El diagnóstico puede guiar la lectura del código antes de preparar un cambio exacto." },
+                            { role: "user", content: instruction + ((missionState.blockedTasks||[]).some(task=>task.observation?.errorDetails?.undiscoveredFields?.length) ? "\n\nRevisa el estado actual de la investigación antes de decidir: un rechazo por campos no acreditados no significa permiso denegado ni colección vacía. En errorDetails, undiscoveredFields enumera solamente los nombres rechazados y discoveredFieldPaths enumera campos observados que puedes consultar usando la misma fuente y alcance autorizado. No declares inaccesibles esos campos observados. Consulta evidencia que falta; no repitas combinaciones de campos ya leídos." : "") }
+                        ],
+                        temperature: 0,
+                        maxOutputTokens: auditAttempt > 0 ? 3072 : 1536,
+                        thinkingConfig: {
+                            thinkingLevel: "MINIMAL"
+                        },
+                        responseMimeType: "application/json",
+                        responseJsonSchema: completionAuditSchema(safeCatalog, missionState.completedTasks || [], selectableCatalog, missionState.evidenceObjectives || [])
+                    }
+                });
+                if (auditResponse?.providerResponse?.finishReason === "length") {
+                    const error = new Error("SEMANTIC_COMPLETION_AUDIT_INCOMPLETE");
+                    error.evidence = {finishReason: "length", outputTokens: auditResponse.providerResponse.outputTokens};
+                    throw error;
+                }
+                try { auditPlan = extractJsonObject(String(auditResponse?.text || "")); }
+                catch { throw new Error("SEMANTIC_COMPLETION_AUDIT_INVALID_JSON"); }
+                const objectiveMap=auditPlan?.completionAssessment?.objectives;
+                if(missionState.evidenceObjectives?.length && objectiveMap && !Array.isArray(objectiveMap)) {
+                    const keys=missionState.evidenceObjectives.map((_,index)=>"objective_"+index);
+                    if(Object.keys(objectiveMap).length!==keys.length || keys.some(key=>!Object.hasOwn(objectiveMap,key))) throw new Error("SEMANTIC_COMPLETION_EVIDENCE_REQUIRED");
+                    auditPlan.completionAssessment.objectives=keys.map(key=>objectiveMap[key]);
+                }
+                if (auditPlan?.missionComplete === true && auditPlan?.toolCalls?.length) {
+                    throw new Error("SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY");
+                }
+                // Qwen owns each objective verdict. Do not generate a second,
+                // independent aggregate. Validate every proof before returning
+                // the projected state; no missing or invalid evidence can pass.
+                // Explicit legacy verdicts still face contradiction checks.
+                const objectives = auditPlan?.completionAssessment?.objectives;
+                const evaluatedAudit = Object.prototype.hasOwnProperty.call(auditPlan || {}, "missionComplete")
+                    ? auditPlan
+                    : {
+                        ...auditPlan,
+                        missionComplete: Array.isArray(objectives) && objectives.length > 0 &&
+                            objectives.every(objective => objective?.satisfied === true) &&
+                            Array.isArray(auditPlan?.toolCalls) && auditPlan.toolCalls.length === 0
+                    };
+                // Deduplicate before scope review: a known failed call is not a
+                // new semantic error and must reach next-step recovery instead
+                // of throwing before the continuation code can run.
+                if (evaluatedAudit.missionComplete !== true) evaluatedAudit.toolCalls = (evaluatedAudit.toolCalls || [])
+                    .filter(call => !wasExecuted(call) && !wasRejected(call));
+                await verifyOperationalCalls(evaluatedAudit.toolCalls || []);
                 const validatedAudit = validatePlan(evaluatedAudit, selectableCatalog, instruction);
-                let refreshedRecordCoverage = false;
+                let coverageReused = false;
+                let coverageChanged = false;
                 if (missionState.evidenceObjectives?.length) validateCompletionEvidence(evaluatedAudit, normalizedCatalog, missionState);
                 if (missionState.evidenceObjectives?.length) {
                     const authenticatedRecordAt=index=>{
@@ -3172,6 +3409,18 @@ async function runModelSemanticPlanner({
                         const contract=missionState.evidenceObjectives.find(item=>item.objective===objective.objective);
                         const previousObjective=missionState.completionAssessment?.objectives?.find(item=>item.objective===objective.objective);
                         const previouslySatisfied=previousObjective?.satisfied===true;
+                        const clarifications=recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content);
+                        const dependencyKey='dependency:'+recordObjectiveRevision(contract,[],clarifications,model,missionState,evaluatedAt);
+                        const revision=recordObjectiveRevision(contract,completedTasksForAudit,clarifications,model,missionState,evaluatedAt,coverageCache.get(dependencyKey));
+                        // Engine-owned proof, never a client assertion of success.
+                        const cached=coverageCache.get(revision);
+                        if(objective.requiredEvidenceKind==='platform_records' && cached){
+                            objective.coverageProof=structuredClone(cached);
+                            if(freshlyReviewedCoverage.has(revision))coverageChanged ||= JSON.stringify(cached)!==JSON.stringify(previousObjective?.coverageProof);
+                            else coverageReused=true;
+                            objective.evidenceTaskIndexes=[...new Set([...(objective.evidenceTaskIndexes||[]),...recordCoverageTaskIndexes(objective).filter(authenticatedRecordAt)])];
+                            continue;
+                        }
                         // Discovery changes the set of sources to classify, not
                         // the operational facts. Let this same model review a
                         // newly observed scope against the existing records;
@@ -3180,7 +3429,11 @@ async function runModelSemanticPlanner({
                             observedCoverageSources.some(collection=>!(previousObjective?.coverageProof?.sources || []).some(source=>source.collection===collection));
                         if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode && (objective.satisfied || hasNewRecords || previouslySatisfied || hasUnreviewedSources)) {
                             objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,advisoryContext,scopeClarifications:recentConversationTurns.filter(turn=>turn.role==="user").map(turn=>turn.content),evaluatedAt,instruction});
-                            refreshedRecordCoverage=true;
+                            coverageCache.set(revision,structuredClone(objective.coverageProof));
+                            coverageCache.delete(dependencyKey);coverageCache.set(dependencyKey,structuredClone(objective.coverageProof));
+                            coverageCache.set(recordObjectiveRevision(contract,completedTasksForAudit,clarifications,model,missionState,evaluatedAt,objective.coverageProof),structuredClone(objective.coverageProof));
+                            while(coverageCache.size>96)coverageCache.delete(coverageCache.keys().next().value);
+                            coverageChanged ||= JSON.stringify(objective.coverageProof)!==JSON.stringify(previousObjective?.coverageProof);
                             const reviewedReferences=recordCoverageTaskIndexes(objective).filter(authenticatedRecordAt);
                             objective.evidenceTaskIndexes=[...new Set([...(objective.evidenceTaskIndexes||[]),...reviewedReferences])];
                             continue;
@@ -3191,7 +3444,7 @@ async function runModelSemanticPlanner({
                             // Preserve its credited fields and pending scopes; the
                             // qualification below still checks all current evidence.
                             objective.coverageProof=structuredClone(previousObjective.coverageProof);
-                            refreshedRecordCoverage=true;
+                            coverageReused=true;
                             const retainedReferences=recordCoverageTaskIndexes(objective).filter(authenticatedRecordAt);
                             objective.evidenceTaskIndexes=[...new Set([...(objective.evidenceTaskIndexes||[]),...retainedReferences])];
                             continue;
@@ -3237,13 +3490,11 @@ async function runModelSemanticPlanner({
                         evaluatedAudit.toolCalls=validatedAudit.toolCalls;
                         evaluatedAudit.missionComplete=validatedAudit.missionComplete=validatedAudit.toolCalls.length===0;
                     }
-                    else if(refreshedRecordCoverage) {
-                        // The audit selected its next step before these independent
-                        // reviews. Let the same model choose again from the fresh
-                        // gaps; an added projection is not automatically progress.
-                        evaluatedAudit.toolCalls=validatedAudit.toolCalls=[];
-                    }
+                    // Reused or refreshed coverage does not invalidate an action.
+                    // Keep its validated schema, prerequisites and novelty checks;
+                    // a proof update alone must never create another planning turn.
                 }
+                validatedAudit.coverageEvaluation={reused:coverageReused,changed:coverageChanged};
                 const pendingEvidenceKinds = new Set(
                     (evaluatedAudit?.completionAssessment?.objectives || [])
                         .filter(objective => objective?.satisfied !== true)
@@ -3273,261 +3524,14 @@ async function runModelSemanticPlanner({
                 // model for one executable discovery step before accepting a stop.
                 // Only existing pure-reader metadata is eligible; no intent table,
                 // guessed collection, permission escalation or alternate brain.
-                const generalReaders = selectableCatalog.filter(tool => tool.investigationReadOnly === true &&
-                    tool.mutates !== true && tool.requiresApproval !== true && tool.userArtifact !== true);
-                const latestPlatformSchemaFailure = [...(missionState.blockedTasks || [])].reverse().find(task => {
-                    if (task?.name !== "platform.query") return false;
-                    const observedError = task?.observation?.error;
-                    const errorText = [
-                        task?.observation?.errorCode,
-                        task?.observation?.errorMessage,
-                        typeof observedError === "string"
-                            ? observedError
-                            : observedError && typeof observedError === "object"
-                                ? observedError.code || observedError.message || observedError.status || ""
-                                : "",
-                        task?.reason
-                    ].filter(Boolean).map(String).join(" ");
-                    return [
-                        "PLATFORM_QUERY_SOURCE_NOT_READ",
-                        "PLATFORM_QUERY_COLLECTION_NOT_DISCOVERED",
-                        "PLATFORM_QUERY_FIELD_NOT_DISCOVERED",
-                        "PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED",
-                        "PLATFORM_QUERY_FILTER_VALUE_NOT_DISCOVERED"
-                    ].some(code => errorText.includes(code));
-                }) || null;
-                const evidenceAfterSchemaFailure = latestPlatformSchemaFailure?.completedAt && completedTasksForAudit.some(task =>
-                    task.name === "repo.read" && task.observation?.ok === true && task.observation.executionOk !== false &&
-                    task.completedAt && Date.parse(task.completedAt) > Date.parse(latestPlatformSchemaFailure.completedAt));
-                const repositoryRecoveryReaders = latestPlatformSchemaFailure && !evidenceAfterSchemaFailure
-                    ? generalReaders.filter(tool =>
-                        tool.name !== "platform.query" &&
-                        (tool.evidenceKinds || []).some(kind =>
-                            ["repository_search", "repository_source", "repository_inventory"].includes(kind)
-                        )
-                    )
-                    : [];
-                const nextReaders = repositoryRecoveryReaders.length
-                    ? repositoryRecoveryReaders
-                    : generalReaders;
-                if (evaluatedAudit.missionComplete !== true && validatedAudit.toolCalls.length === 0 && nextReaders.length) {
-                    const compactContinuation=JSON.stringify(auditTasks).length>16000;
-                    const continuation = await ai.models.generateContent({model,contents:instruction,config:{
-                        semanticStage:"READ_ONLY_EVIDENCE_CONTINUATION",maxOutputTokens:768,temperature:0,
-                        ...(compactContinuation ? {responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{
-                            toolCalls:{type:"array",minItems:0,maxItems:1,items:{anyOf:nextReaders.map(tool=>({
-                                type:"object",properties:{name:{type:"string",enum:[tool.name]},args:buildNativeInputSchema(tool.inputSchema)},
-                                required:["name","args"],additionalProperties:false
-                            }))}}
-                        },required:["toolCalls"],additionalProperties:false}} : {nativeToolChat:true,tools:[{functionDeclarations:buildGeminiModelTools(nextReaders)}]}),
-                        chatMessages:[
-                            ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
-                            {role:"system",content:"Eres Jarvis. El objetivo aún no está resuelto. Decide si existe UN siguiente paso de investigación ejecutable con las herramientas disponibles y llámalo. No repitas que falta evidencia cuando puedes obtenerla. Una búsqueda ya devuelve rutas candidatas: lee una ruta real pertinente para conocer la fuente; si necesitas otra fuente, busca. Conserva el objetivo del usuario, pero puedes reformular búsquedas con identificadores, campos, símbolos y vocabulario técnico que hayas aprendido de evidencia ya observada. No inventes esos identificadores: deben provenir de la solicitud o de una observación real. Si una búsqueda semántica ya fue insuficiente, usa repo.grep con un término literal observado o formula una nueva búsqueda usando la evidencia disponible. Para consultar registros actuales necesitas colección y campos acreditados. El discriminador es necesario para contar un subconjunto; si aún lo desconoces, puedes inspeccionar campos pertinentes con mode=query y filters=[] dentro del alcance autorizado, para conocer valores reales y resolver otros objetivos. La inspección no acredita por sí sola un conteo global ni la pertenencia a un subconjunto. No inventes filtros. El catálogo describe fuentes, no resultados ya obtenidos. No repitas la misma operación con los mismos argumentos. Una fuente irrelevante no cierra la investigación: continúa con otra fuente o búsqueda read-only distinta mientras exista un paso fundamentado. Si realmente no hay un paso autorizado, no llames nada. Un permiso denegado no autoriza cambiar identidad, quitar filtros ni ampliar acceso. Nunca escribas, publiques ni concedas aprobación."},
-                            ...(pendingCapabilities.length ? [{role:"system",content:"CAPACIDADES_DISPONIBLES_DESPUES_DEL_REQUISITO="+JSON.stringify(pendingCapabilities)+"\nLa consulta de datos existe, pero falta leer la fuente. Elige primero una lectura o búsqueda pertinente. No sustituyas el requisito con una negativa ni con un esquema inventado."}] : []),
-                            ...(latestPlatformSchemaFailure && !evidenceAfterSchemaFailure ? [{role:"system",content:"RECUPERACION_DE_CONSULTA: la última platform.query fue rechazada por evidencia de esquema insuficiente. No repitas la misma consulta ni adivines un alias. Usa las herramientas de repositorio disponibles para localizar el campo, colección o valor real y después formula una consulta nueva con esa evidencia. Si INTENTO_FALLIDO incluye errorDetails.discoveredCollections, esas colecciones SÍ fueron observadas por AST en el sourceFile indicado y la colección rechazada NO fue acreditada por ese archivo: conserva la relación sourceFile→discoveredCollections, vuelve al repo si ninguna observada sirve al objetivo y sólo después formula otra consulta. Si errorDetails incluye undiscoveredFields, undiscoveredFilterFields o ungroundedFilterValues, esos literales son argumentos RECHAZADOS: puedes usarlos como pistas para repo.grep/repo.search, pero no los trates como esquema válido hasta observar su definición real en una fuente."}] : []),
-                            ...(compactContinuation ? [{role:"system",content:"CATALOGO_EJECUTABLE="+JSON.stringify(auditCatalog.filter(tool=>nextReaders.some(reader=>reader.name===tool.name)))}] : []),
-                            ...auditTasks.map(task=>({role:"system",content:"EVIDENCIA_OBTENIDA="+JSON.stringify(task)})),
-                            {role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedSchemaHints)},
-                            ...(missionState.blockedTasks||[]).slice(-8).map(task=>({role:"system",content:"INTENTO_FALLIDO="+JSON.stringify({name:task.name,args:task.args,observation:task.observation})})),
-                            {role:"system",content:"OBJETIVOS_PENDIENTES="+JSON.stringify(continuationObjectiveSummaries(evaluatedAudit.completionAssessment?.objectives))},
-                            {role:"user",content:instruction}
-                        ]
-                    }});
-                    let next = extractGeminiToolCallPlan(continuation,nextReaders);
-                    if (!next && continuation.text) {try {next=normalizeTextToolPlan(extractJsonObject(continuation.text),nextReaders);}catch{}}
-                    if (continuation?.providerResponse?.finishReason !== "length" && next?.toolCalls?.length) {
-                        const checked=validatePlan({...next,missionComplete:false},nextReaders,instruction);
-                        checked.toolCalls=checked.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&!hasUnexpectedToolArguments(nextReaders.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
-                        if(checked.toolCalls.length)return {...validatedAudit,toolCalls:checked.toolCalls,missionComplete:false,
-                            provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:nextReaders.length,planKind:"READ_ONLY_EVIDENCE_CONTINUATION"};
-                    }
+                if(evaluatedAudit.missionComplete!==true && !validatedAudit.toolCalls.length){
+                    const recovered=await recoverEvidenceAction(evaluatedAudit,validatedAudit);
+                    if(recovered)return recovered;
                 }
+
                 // One bounded recovery, not an infinite retry. The registry and
                 // executed sources constrain shape/paths; Qwen still decides intent.
-                if (evaluatedAudit.missionComplete !== true && validatedAudit.toolCalls.length === 0 && nextReaders.length) {
-                    const successfulTasks = (missionState.completedTasks || []).filter(task =>
-                        task.observation?.ok === true &&
-                        task.observation.executionOk !== false &&
-                        task.observation.blocked !== true
-                    );
-                    const candidateSources = [...new Set([...configuredSourceFiles,...successfulTasks.flatMap(task => [
-                        ...(task.observation.repoCandidates || []).map(item => item.file),
-                        ...(task.observation.repositoryMatches || []).map(item => item.file)
-                    ])].filter(value => typeof value === "string" && value.trim()))];
-                    const readSources = new Set(successfulTasks
-                        .map(task => task.observation.verifiedRead?.file)
-                        .filter(value => typeof value === "string" && value.trim()));
-                    const partialSources = partialSourceProgress(successfulTasks);
-                    const unreadSources = [...new Set([...candidateSources.filter(file => !readSources.has(file)),...partialSources.map(read=>read.file)])];
-                    const sources = [...new Set([...candidateSources, ...readSources])];
-                    // Resolve data dependencies from evidence metadata, not user words.
-                    // When paths are already discovered, let Qwen choose which source
-                    // to read rather than spending the recovery on another search.
-                    const neededKinds = new Set((evaluatedAudit.completionAssessment?.objectives || [])
-                        .filter(objective => objective.satisfied !== true).map(objective => objective.requiredEvidenceKind));
-                    // A generic evidence label is not a reason to hide available source reads.
-                    const relevantPending = pendingCapabilities.filter(tool => safeCatalog.find(candidate => candidate.name === tool.name)?.evidenceKinds?.some(kind => neededKinds.has(kind)));
-                    const prerequisiteKinds = new Set((relevantPending.length ? relevantPending : pendingCapabilities)
-                        .flatMap(tool => (tool.requiresEvidence || []).map(requirement => requirement.kind)));
-                    const prerequisiteReaders = sources.length ? nextReaders.filter(tool =>
-                        tool.evidenceKinds?.some(kind => prerequisiteKinds.has(kind) || kind === "repository_source") &&
-                        buildNativeInputSchema(tool.inputSchema).properties?.file) : [];
-                    const evidencePathReaders =
-                        unreadSources.length && prerequisiteReaders.length && !directEvidenceCatalog.length
-                            ? prerequisiteReaders
-                            : nextReaders;
-                    const recoveryCatalog = evidencePathReaders.flatMap(tool => {
-                        const schema = structuredClone(buildNativeInputSchema(tool.inputSchema));
-                        const isEvidencePathReader =
-                            Boolean(schema.properties?.file) &&
-                            (
-                                prerequisiteReaders.includes(tool) ||
-                                tool.evidenceKinds?.includes("repository_source")
-                            );
-                        if (isEvidencePathReader && candidateSources.length && unreadSources.length === 0) {
-                            return [];
-                        }
-                        if (isEvidencePathReader && unreadSources.length) {
-                            // Recovery can narrow the current path contract, but
-                            // cannot reopen files excluded by a discovery frontier.
-                            const allowedPaths=schema.properties.file.enum;
-                            const eligiblePaths=unreadSources.filter(file=>!Array.isArray(allowedPaths) || allowedPaths.includes(file));
-                            if(!eligiblePaths.length)return [];
-                            schema.properties.file = {...schema.properties.file, enum:eligiblePaths};
-                        }
-                        return [{...tool,inputSchema:schema}];
-                    });
-                    const recovery = await ai.models.generateContent({model,contents:instruction,config:{
-                        semanticStage:"READ_ONLY_NEXT_STEP_RECOVERY",maxOutputTokens:1024,temperature:0,responseMimeType:"application/json",
-                        responseJsonSchema:{type:"object",properties:{toolCalls:{type:"array",minItems:(unreadSources.length || directEvidenceCatalog.length) && recoveryCatalog.length ? 1 : 0,maxItems:1,items:{anyOf:recoveryCatalog.map(tool=>({
-                            type:"object",properties:{name:{type:"string",enum:[tool.name]},args:tool.inputSchema},required:["name","args"],additionalProperties:false
-                        }))}}},required:["toolCalls"],additionalProperties:false},
-                        chatMessages:[
-                            ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
-                            {role:"system",content:"La investigación no ha terminado. El intento anterior no produjo un paso nuevo. Selecciona UNA operación diferente que obtenga la evidencia faltante, o toolCalls=[] sólo si no queda ninguna autorizada y las fuentes pertinentes localizadas ya fueron examinadas. Las rutas candidatas son archivos existentes, no registros consultados. Lee una fuente candidata pertinente antes de concluir que no contiene datos. Una lectura irrelevante no agota las demás rutas descubiertas: si RUTAS_CANDIDATAS_AUN_NO_LEIDAS contiene opciones, elige otra fuente pertinente o una búsqueda mejor fundamentada antes de concluir ausencia. Si una fuente no demuestra el concepto solicitado, continúa: puedes usar en la siguiente búsqueda términos del usuario o identificadores/campos/símbolos que ya aparecieron en evidencia observada. Después de una búsqueda semántica insuficiente, repo.grep puede localizar un término exacto observado dentro del código. No inventes un campo o esquema sólo para avanzar. Si hace falta otra búsqueda, formula una consulta nueva fundamentada en la solicitud o en evidencia ya obtenida; no repitas la búsqueda ya realizada. Nunca inventes rutas ni esquemas. Un permiso denegado no autoriza otro usuario, quitar filtros ni ampliar acceso. Usa solamente el catálogo y argumentos válidos. Devuelve JSON {toolCalls:[{name,args}]} sin conclusiones inventadas."},
-                            {role:"system",content:"CATALOGO_EJECUTABLE="+JSON.stringify(recoveryCatalog.map(tool=>auditCatalog.find(entry=>entry.name===tool.name) || {name:tool.name,description:String(tool.description||"").slice(0,120),evidenceKinds:tool.evidenceKinds,requiredArguments:tool.inputSchema?.required || []}))},
-                            ...auditTasks.map(task=>({role:"system",content:"YA_EJECUTADO="+JSON.stringify(task)})),
-                            {role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedSchemaHints)},
-                            {role:"system",content:"RUTAS_LOCALIZADAS="+JSON.stringify(sources)+"\nRUTAS_CANDIDATAS_AUN_NO_LEIDAS="+JSON.stringify(unreadSources)+"\nCAPACIDADES_TRAS_LEER_LA_FUENTE="+JSON.stringify(pendingCapabilities)},
-                            {role:"system",content:"OBJETIVOS_PENDIENTES="+JSON.stringify(continuationObjectiveSummaries(evaluatedAudit.completionAssessment?.objectives))+"\nEsta evaluación conserva la cobertura actual de cada objetivo. El siguiente paso debe obtener evidencia para una brecha pendiente; añadir un campo distinto no demuestra avance por sí solo. No vuelvas a investigar un objetivo satisfecho para sustituir otro pendiente."},
-                            {role:"system",content:"LECTURAS_PARCIALES="+JSON.stringify(partialSourceHints)+"\nEstos archivos sólo se leyeron por fragmentos. Puedes elegir repo.read con file y startLine/endLine para ampliar una región pertinente aún no observada, usando los anclajes de esquema o el límite de la lectura anterior. No repitas los mismos argumentos de lectura completa; un archivo parcialmente leído no equivale a una fuente agotada."},
-                            {role:"user",content:instruction}
-                        ]
-                    }});
-                    if (recovery?.providerResponse?.finishReason !== "length") {
-                        let payload;try{payload=extractJsonObject(recovery.text);}catch{payload=null;}
-                        const recovered=validatePlan({...payload,missionComplete:false},recoveryCatalog,instruction);
-                        const calls=recovered.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&hasRequiredToolArguments(recoveryCatalog.find(tool=>tool.name===call.name)||{},call.args||{})&&!hasUnexpectedToolArguments(recoveryCatalog.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
-                        if(calls.length)return {...validatedAudit,toolCalls:calls,missionComplete:false,provider:String(ai.lastProvider||"jarvis-local"),
-                            model,catalogSize:recoveryCatalog.length,planKind:"READ_ONLY_NEXT_STEP_RECOVERY"};
-                    }
-                    // A repeated query does not exhaust a different observed
-                    // record scope. Narrow one same-model recovery to grounded,
-                    // unqueried pending routes before returning to source text.
-                    const pendingRecordScopes=new Set((evaluatedAudit.completionAssessment?.objectives || [])
-                        .filter(objective=>objective.requiredEvidenceKind==="platform_records" && objective.satisfied!==true)
-                        .flatMap(objective=>objective.coverage?.pendingSources || []));
-                    let recordRecoveryBudget=6000;
-                    const pendingRecordCatalog=nextReaders.filter(tool=>tool.evidenceKinds?.includes("platform_records")).flatMap(tool=>{
-                        const schema=buildNativeInputSchema(tool.inputSchema);
-                        const branches=(schema.anyOf || [schema]).flatMap(branch=>{
-                            const properties=branch.properties || {};
-                            if(!properties.mode?.enum?.includes("query") || properties.fields?.type!=="array" || properties.fields.maxItems===0 || branch.required?.includes("cursor"))return [];
-                            return (properties.sourceFile?.enum || []).flatMap(sourceFile=>(properties.collection?.enum || []).flatMap(collection=>{
-                                if(!pendingRecordScopes.has(collection) || /[{}]/.test(collection))return [];
-                                const priorQueries=completedTasksForAudit.filter(task=>task.observation?.ok===true && task.observation.executionOk!==false && task.observation.blocked!==true &&
-                                    task.observation.recordEvidence?.source==="FIRESTORE_SERVER_AUTHENTICATED" && task.observation.recordEvidence.readOnly===true && task.observation.recordEvidence.scope?.collection===collection);
-                                if((missionState.blockedTasks || []).some(task=>task.args?.collection===collection && task.observation?.retryable!==true))return [];
-                                const recordNames=observedRecordFieldPaths(completedTasksForAudit,collection);
-                                const projected=new Set(priorQueries.flatMap(task=>task.observation.recordEvidence.scope?.fields || []));
-                                const fields=[...new Set([...recordNames,...observedWriteSchemas.filter(shape=>shape.sourceFile===sourceFile && shape.collection===collection)
-                                    .flatMap(shape=>shape.fields || [])])].filter(field=>typeof field==="string" && field.trim() &&
-                                        (!priorQueries.length || (recordNames.includes(field) && !projected.has(field))) &&
-                                        (!properties.fields.items?.enum || properties.fields.items.enum.includes(field)));
-                                if(!fields.length)return [];
-                                const bounded={...branch,properties:{...properties,
-                                    sourceFile:{...properties.sourceFile,enum:[sourceFile]},collection:{...properties.collection,enum:[collection]},
-                                    mode:{...properties.mode,enum:["query"]},fields:{...properties.fields,minItems:Math.max(1,properties.fields.minItems || 0),items:{...properties.fields.items,enum:fields}}},
-                                    required:[...new Set([...(branch.required || []),"sourceFile","collection","mode","fields"])]};
-                                // This scope has never been queried, so no continuation cursor
-                                // is grounded. Omit the optional argument from this first-page contract.
-                                delete bounded.properties.cursor;
-                                while(fields.length && JSON.stringify(bounded).length>recordRecoveryBudget)fields.pop();
-                                if(!fields.length)return [];
-                                recordRecoveryBudget-=JSON.stringify(bounded).length;
-                                return [bounded];
-                            }));
-                        });
-                        return branches.length ? [{...tool,inputSchema:branches.length===1?branches[0]:{anyOf:branches}}] : [];
-                    });
-                    if(pendingRecordCatalog.length){
-                        const recordStep=await ai.models.generateContent({model,contents:instruction,config:{
-                            semanticStage:"PENDING_RECORD_SCOPE_RECOVERY",temperature:0,maxOutputTokens:768,responseMimeType:"application/json",
-                            responseJsonSchema:{type:"object",properties:{toolCalls:{type:"array",minItems:1,maxItems:1,items:{anyOf:pendingRecordCatalog.map(tool=>({
-                                type:"object",properties:{name:{type:"string",enum:[tool.name]},args:tool.inputSchema},required:["name","args"],additionalProperties:false
-                            }))}}},required:["toolCalls"],additionalProperties:false},
-                            chatMessages:[...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
-                                {role:"system",content:"Los intentos anteriores repitieron evidencia ya consultada. Elige UNA consulta de registros para una fuente pendiente del esquema adjunto. Sus rutas y campos proceden de lecturas exitosas; no son datos actuales ni prueba de cierre. Selecciona los campos pertinentes para un objetivo pendiente y conserva los filtros y permisos autorizados. No inventes filtros, relaciones ni valores. La consulta es una inspección acotada: no demuestra por sí sola inventario global ni resuelve los demás objetivos. El código no sustituye sus registros."},
-                                {role:"system",content:"CATALOGO_PENDIENTE_DE_REGISTROS="+JSON.stringify(pendingRecordCatalog.map(tool=>({name:tool.name,scopes:(tool.inputSchema.anyOf || [tool.inputSchema]).map(branch=>({sourceFile:branch.properties.sourceFile.enum[0],collection:branch.properties.collection.enum[0],fields:branch.properties.fields.items.enum}))})))},
-                                {role:"system",content:"OBJETIVOS_PENDIENTES="+JSON.stringify(continuationObjectiveSummaries(evaluatedAudit.completionAssessment?.objectives?.filter(objective=>objective.satisfied!==true)))},
-                                {role:"user",content:instruction}]
-                        }});
-                        if(recordStep?.providerResponse?.finishReason!=="length"){
-                            let payload;try{payload=extractJsonObject(recordStep.text);}catch{payload=null;}
-                            const selected=validatePlan({...payload,missionComplete:false},pendingRecordCatalog,instruction);
-                            const calls=selected.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&
-                                hasRequiredToolArguments(pendingRecordCatalog.find(tool=>tool.name===call.name)||{},call.args||{}) &&
-                                !hasUnexpectedToolArguments(pendingRecordCatalog.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
-                            if(calls.length)return {...validatedAudit,toolCalls:calls,missionComplete:false,provider:String(ai.lastProvider||"jarvis-local"),
-                                model,catalogSize:pendingRecordCatalog.length,planKind:"PENDING_RECORD_SCOPE_RECOVERY"};
-                        }
-                    }
-                    // A duplicate data call does not exhaust discovered sources.
-                    // Give the same model one bounded choice among real unread
-                    // candidates before the runtime accepts a no-plan result.
-                    // Earlier recoveries may extend partial bodies. If they keep
-                    // returning rejected rereads, preserve a final same-model
-                    // choice among genuinely uninspected discovered sources.
-                    // This changes only the next read, never evidence coverage.
-                    const firstReadSources=candidateSources.filter(file=>!readSources.has(file));
-                    const sourceContinuationSources=firstReadSources.length ? firstReadSources : unreadSources;
-                    const unreadReaders = recoveryCatalog.filter(tool =>
-                        tool.evidenceKinds?.includes("repository_source") &&
-                        tool.inputSchema?.properties?.file?.enum?.length).flatMap(tool=>{
-                            const schema=structuredClone(tool.inputSchema);
-                            const eligible=schema.properties.file.enum.filter(file=>sourceContinuationSources.includes(file));
-                            if(!eligible.length)return [];
-                            schema.properties.file={...schema.properties.file,enum:eligible};
-                            return [{...tool,inputSchema:schema}];
-                        });
-                    if (unreadSources.length && unreadReaders.length) {
-                        const sourceChoice = await ai.models.generateContent({model,contents:instruction,config:{
-                            semanticStage:"UNREAD_SOURCE_CONTINUATION",temperature:0,maxOutputTokens:256,
-                            responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{
-                                toolCalls:{type:"array",minItems:1,maxItems:1,items:{anyOf:unreadReaders.map(tool=>({
-                                    type:"object",properties:{name:{type:"string",enum:[tool.name]},args:tool.inputSchema},
-                                    required:["name","args"],additionalProperties:false
-                                }))}}
-                            },required:["toolCalls"],additionalProperties:false},
-                            chatMessages:[
-                                ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
-                                {role:"system",content:"La investigación sigue pendiente y los intentos anteriores repitieron operaciones. La búsqueda real ya encontró estas fuentes AÚN NO LEÍDAS. Elige UNA pertinente al objetivo pendiente para obtener evidencia nueva. No inventes rutas, no repitas una fuente leída ni concluyas ausencia de registros desde el código. Esta lectura no concede permisos ni escribe datos."},
-                                {role:"system",content:"FUENTES_CANDIDATAS="+JSON.stringify(sourceContinuationSources)+"\nESQUEMAS_YA_LEIDOS="+JSON.stringify(observedWriteSchemas)},
-                                {role:"system",content:"LECTURAS_PARCIALES="+JSON.stringify(partialSources)+"\nPara ampliar una fuente parcial elige un rango nuevo con startLine/endLine desde estos límites o anclajes observados. No vuelvas a pedir el archivo entero con los mismos argumentos."},
-                                {role:"system",content:"OBJETIVOS_PENDIENTES="+JSON.stringify(continuationObjectiveSummaries(evaluatedAudit.completionAssessment?.objectives?.filter(o=>o.satisfied!==true)))},
-                                {role:"user",content:instruction}
-                            ]
-                        }});
-                        if (sourceChoice?.providerResponse?.finishReason !== "length") {
-                            let payload;try{payload=extractJsonObject(sourceChoice.text);}catch{payload=null;}
-                            const selected=validatePlan({...payload,missionComplete:false},unreadReaders,instruction);
-                            const calls=selected.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&
-                                unreadSources.includes(call.args?.file)&&!hasUnexpectedToolArguments(unreadReaders.find(t=>t.name===call.name)||{},call.args||{})).slice(0,1);
-                            if(calls.length)return {...validatedAudit,toolCalls:calls,missionComplete:false,
-                                provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:unreadReaders.length,planKind:"UNREAD_SOURCE_CONTINUATION"};
-                        }
-                    }
-                }
+                /* Recovery is handled by the single bounded continuation above. */
                 return {
                     ...validatedAudit,
                     provider: String(ai.lastProvider || "jarvis-local"),
@@ -3537,94 +3541,14 @@ async function runModelSemanticPlanner({
                 };
             } catch (error) {
                 const repairable = ["SEMANTIC_COMPLETION_AUDIT_INCOMPLETE", "SEMANTIC_COMPLETION_AUDIT_INVALID_JSON", "SEMANTIC_QUERY_SCOPE_UNVERIFIED", "SEMANTIC_TOOL_ARGUMENTS_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_REQUIRED", "SEMANTIC_COMPLETION_EVIDENCE_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH", "SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY"];
-                if (auditAttempt > 0 && error?.message === "SEMANTIC_QUERY_SCOPE_UNVERIFIED") {
-                    // Rejecting a query does not exhaust the sources already
-                    // discovered. Give this same model one bounded source choice
-                    // before propagating the failure; never execute that query.
-                    const successful = completedTasksForAudit.filter(task => task.observation?.ok === true &&
-                        task.observation.executionOk !== false && task.observation.blocked !== true);
-                    const readFiles = new Set(successful.map(task => task.observation.verifiedRead?.file).filter(Boolean));
-                    const unreadFiles = [...new Set(successful.flatMap(task => [
-                        ...(task.observation.repoCandidates || []), ...(task.observation.repositoryMatches || [])
-                    ]).map(item => item.file || item.path).filter(file => typeof file === "string" && file.trim() && !readFiles.has(file)))];
-                    const readers = selectableCatalog.filter(tool => tool.investigationReadOnly === true &&
-                        tool.mutates !== true && tool.requiresApproval !== true && tool.userArtifact !== true &&
-                        tool.evidenceKinds?.includes("repository_source") && buildNativeInputSchema(tool.inputSchema).properties?.file)
-                        .map(tool => {
-                            const schema = structuredClone(buildNativeInputSchema(tool.inputSchema));
-                            const allowed = schema.properties.file.enum;
-                            schema.properties.file = {...schema.properties.file, enum:unreadFiles.filter(file => !allowed || allowed.includes(file))};
-                            return {...tool,inputSchema:schema};
-                        }).filter(tool => tool.inputSchema.properties.file.enum.length);
-                    if (readers.length) {
-                        const recovery = await ai.models.generateContent({model,contents:instruction,config:{
-                            semanticStage:"QUERY_SCOPE_SOURCE_RECOVERY",temperature:0,maxOutputTokens:512,responseMimeType:"application/json",
-                            responseJsonSchema:{type:"object",properties:{toolCalls:{type:"array",minItems:0,maxItems:1,items:{anyOf:readers.map(tool=>({
-                                type:"object",properties:{name:{type:"string",enum:[tool.name]},args:tool.inputSchema},required:["name","args"],additionalProperties:false
-                            }))}}},required:["toolCalls"],additionalProperties:false},
-                            chatMessages:[
-                                ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
-                                {role:"system",content:"La consulta fue rechazada porque su alcance no acredita el pedido. Eso no demuestra ausencia de datos ni agota la investigación. Elige UNA fuente pertinente AÚN NO LEÍDA entre las rutas reales del esquema para descubrir registros, campos o relaciones que faltan. No repitas la consulta rechazada, no inventes rutas ni conclusiones. Si ninguna fuente es pertinente, devuelve toolCalls=[]. Esta recuperación sólo permite leer código y no amplía acceso ni concede aprobación."},
-                                {role:"system",content:"RECHAZO="+JSON.stringify({code:error.message,evidence:error.evidence})},
-                                ...auditTasks.map(task=>({role:"system",content:"EVIDENCIA_OBTENIDA="+JSON.stringify(task)})),
-                                {role:"system",content:"OBJETIVOS="+JSON.stringify(missionState.evidenceObjectives || auditPlan?.completionAssessment?.objectives || [])},
-                                {role:"user",content:instruction}
-                            ]
-                        }});
-                        if (recovery?.providerResponse?.finishReason !== "length") {
-                            let payload;try {payload=extractJsonObject(recovery.text);}catch {payload=null;}
-                            const plan=validatePlan({...payload,missionComplete:false,completionAssessment:null},readers,instruction);
-                            const calls=plan.toolCalls.filter(call=>unreadFiles.includes(call.args?.file) &&
-                                readers.find(tool=>tool.name===call.name)?.inputSchema.properties.file.enum.includes(call.args.file) &&
-                                hasRequiredToolArguments(readers.find(tool=>tool.name===call.name)||{},call.args||{}) &&
-                                !hasUnexpectedToolArguments(readers.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
-                            if (calls.length) return {...plan,toolCalls:calls,missionComplete:false,
-                                provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:readers.length,planKind:"QUERY_SCOPE_SOURCE_RECOVERY"};
-                        }
-                    }
+                /* Recovery is handled by the single bounded continuation above. */
+                if(error?.message==='SEMANTIC_QUERY_SCOPE_UNVERIFIED'){
+                    const pending={...(auditPlan||{}),missionComplete:false,toolCalls:[],completionAssessment:auditPlan?.completionAssessment||missionState.completionAssessment};
+                    const recovered=await recoverEvidenceAction(pending,pending,error);
+                    if(recovered)return recovered;
+                    throw error;
                 }
                 if (auditAttempt > 0 || !repairable.includes(error?.message)) throw error;
-                if (error.message === "SEMANTIC_QUERY_SCOPE_UNVERIFIED") {
-                    // Obtain literal source evidence before retrying a rejected
-                    // population. The same local model chooses one token from
-                    // the user's own wording; no intent dictionary maps roles.
-                    const grepTool=selectableCatalog.find(tool=>tool.name==="repo.grep"&&tool.investigationReadOnly===true&&tool.mutates!==true);
-                    const literalContext=[instruction,...recentConversationTurns.filter(turn=>turn.role==="user").map(turn=>turn.content)].join("\n");
-                    const rawTerms=literalContext.match(/[\p{L}\p{N}_-]{3,}/gu)||[];
-                    const literalTerms=[...new Set(rawTerms.map(term=>term.trim()))].slice(0,80);
-                    if(grepTool&&literalTerms.length){
-                        const termResponse=await ai.models.generateContent({model,contents:instruction,config:{
-                            semanticStage:"QUERY_POPULATION_LITERAL_RECOVERY",
-                            temperature:0,maxOutputTokens:64,responseMimeType:"application/json",
-                            responseJsonSchema:{type:"object",properties:{term:{type:"string",enum:literalTerms}},required:["term"],additionalProperties:false},
-                            chatMessages:[
-                                ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
-                                {role:"system",content:"El filtro propuesto no demostró la población solicitada. Elige UNA palabra literal de la solicitud del usuario que identifique mejor ese grupo en el código fuente. No traduzcas, no inventes un campo, no devuelvas SQL ni una frase. El runtime hará grep literal con esa palabra."},
-                                {role:"user",content:instruction}
-                            ]
-                        }});
-                        const selected=extractJsonObject(String(termResponse?.text||""))?.term;
-                        const groundedTerm=selected;
-                        const already=(missionState.completedTasks||[]).some(task=>task.name==="repo.grep"&&String(task.args?.term||"").toLowerCase()===String(groundedTerm||"").toLowerCase());
-                        if(termResponse?.providerResponse?.finishReason!=="length"&&literalTerms.includes(groundedTerm)&&!already){
-                            return {
-                                ...validatePlan({
-                                    toolCalls:[{name:"repo.grep",args:{term:groundedTerm},reason:"MODEL_LITERAL_SOURCE_RECOVERY"}],
-                                    explanation:"",
-                                    missionComplete:false,
-                                    completionAssessment:null
-                                },selectableCatalog,instruction),
-                                provider:String(ai.lastProvider||"jarvis-local"),
-                                model,
-                                catalogSize:selectableCatalog.length,
-                                planKind:"QUERY_POPULATION_LITERAL_RECOVERY"
-                            };
-                        }
-                    }
-                    // A rejected population/filter is not a capability failure.
-                    // Keep the reader available for a DIFFERENT grounded scope or
-                    // bounded inspection. Every repaired call is reviewed again.
-                }
                 lastAuditError = error;
                 lastRejectedAuditPlan = auditPlan;
             }
@@ -5510,6 +5434,7 @@ module.exports = {
     observedRecordFieldPaths,
     bindRejectedQueryOrderings,
     bindEvidencePrerequisites,
+    eligibleEvidenceActionCatalog,
     runModelSemanticPlanner,
     runGeminiSemanticPlanner: runModelSemanticPlanner,
     runJarvisSemanticPlanner,

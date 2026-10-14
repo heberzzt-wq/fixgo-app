@@ -2892,6 +2892,7 @@ export async function runJarvisMission({
             task.signature = callSignature({ name: task.name, args: task.args });
         }
         let result;
+        const toolStartedAt = Date.now();
         try {
             result = await execute({ name: task.name, args: task.args, approved: false,
                 reason: task.reason || "", obligationId: task.obligationId,
@@ -2949,6 +2950,7 @@ export async function runJarvisMission({
         }
 
         const observation = safeObservation(result);
+        task.executionDurationMs = Math.max(0, Date.now() - toolStartedAt);
         recordMissionAccounting(mission, observation);
         if (
             task.name === "marketing.plan" &&

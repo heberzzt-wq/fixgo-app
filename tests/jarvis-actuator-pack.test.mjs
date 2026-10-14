@@ -426,7 +426,7 @@ test("connector list reports verified bridge connectors", async () => {
 });
 
 
-test("image edit composes identity references once and reports the generated output hash", async () => {
+test("image edit refuses external generation without saving a fabricated output", async () => {
     const previousAuth =
         globalThis.auth;
 
@@ -718,8 +718,7 @@ test("image edit composes identity references once and reports the generated out
             runtime
         );
 
-        const result =
-            await runtime
+        const operation = runtime
                 .get(
                     "image.edit"
                 )
@@ -750,68 +749,8 @@ test("image edit composes identity references once and reports the generated out
                     }
                 );
 
-        assert.equal(
-            result.ok,
-            true
-        );
-
-        assert.equal(
-            result.persisted,
-            true
-        );
-
-        assert.equal(
-            result.referenceGrounded,
-            true
-        );
-
-        assert.equal(
-            result.referenceCount,
-            2
-        );
-
-        assert.equal(
-            result.identityReferenceComposite,
-            true
-        );
-
-        assert.equal(
-            result.sourceSha256,
-            primarySha256
-        );
-
-        assert.equal(
-            result.outputSha256,
-            expectedOutputSha256
-        );
-
-        assert.notEqual(
-            result.outputSha256,
-            result.sourceSha256
-        );
-
-        assert.equal(
-            imageSaveCalls,
-            1
-        );
-
-        assert.notEqual(
-            functionPayload
-                .sourceImageBase64,
-            primaryBase64
-        );
-
-        assert.match(
-            functionPayload
-                .prompt,
-            /panel grande contiene la referencia principal/
-        );
-
-        assert.match(
-            functionPayload
-                .prompt,
-            /sin agregar signos de mayor edad/
-        );
+        await assert.rejects(operation,/EXTERNAL_INFERENCE_DISABLED/);
+        assert.equal(imageSaveCalls,0);assert.equal(functionPayload,null);
     }
     finally {
         globalThis.auth =
