@@ -1,6 +1,23 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `5fe802ce0772c695b5e933038cc66efcb05dcc2d`, the explicitly reviewed configured-source and first-projection coverage release.
+Current baseline: `38b991d3edc5ca2405c38519e434ec590df25152`, the explicitly reviewed initial source-prerequisite release.
+The only additional Functions change applies declared evidence prerequisites
+before initial native tool selection, including small catalogs, using the full
+registry to identify the evidence provider. A successful source read binds one
+file/collection tuple; configuration alone cannot authorize an operational query.
+The bridge keeps actual configured source paths available without an intent
+dictionary or alternative model. Objective coverage and evidence kinds remain
+unchanged. The reproduced gap failed first, then 483 related checks and 16 clean
+functional-HEAD source checks passed. The full local suite reported 1,964 PASS,
+zero failures and two environment skips (physical bridge unavailable and Linux).
+Those environment checks, fresh CI and the complete Chrome mission remain
+required; this baseline does not claim mission certification. No external AI or
+operational mutation is introduced. The guard remains explicitly pinned,
+ancestor-checked and fail-closed against later Functions changes.
+
+## Previous configured-source and first-projection baseline
+
+Previous baseline: `5fe802ce0772c695b5e933038cc66efcb05dcc2d`, the explicitly reviewed configured-source and first-projection coverage release.
 The additional Functions change binds the first record projection to positive
 collection-scoped source schemas instead of waiting for an invented field to fail.
 Unscoped field mentions and failed source reads cannot grant field authority.
