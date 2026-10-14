@@ -1419,6 +1419,21 @@ test("semantic planner rejects calls missing schema-required arguments", () => {
     );
 });
 
+test("current-turn repairs each invalid source choice with the same model and canonical schema", async () => {
+    const reader={name:'source.inspect',mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['capture.js','owners.js']}},required:['file']}};
+    let repairs=0;
+    const plan=await runJarvisSemanticPlanner({input:'Inspect both current sources',catalog:[reader],missionState:{phase:'CURRENT_TURN'},ai:{models:{async generateContent(request){
+        if(request.config.semanticStage==='CURRENT_TURN_SCHEMA_ARGUMENT_REPAIR') {
+            assert.deepEqual(request.config.responseJsonSchema.properties.arguments.properties.file.enum,['capture.js','owners.js']);
+            return {text:JSON.stringify({arguments:{file:repairs++===0?'capture.js':'owners.js'}})};
+        }
+        return {text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'entries'}},{name:reader.name,args:{file:'owners'}}],missionComplete:false})};
+    }}}});
+    assert.equal(repairs,2);
+    assert.deepEqual(plan.toolCalls.map(call=>call.args.file),['capture.js','owners.js']);
+    assert.equal(plan.missionComplete,false);
+});
+
 test("semantic planner unwraps schema descriptor envelopes only when they match the runtime schema", () => {
     const searchTool = {
         name: "repo.search",

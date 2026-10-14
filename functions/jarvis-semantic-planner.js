@@ -4392,10 +4392,10 @@ async function runModelSemanticPlanner({
 
     // A schema description is not an argument value. Give the same model one
     // constrained correction for its selected tool; never reinterpret prose as data.
-    if (currentTurn && plan.toolCalls?.length === 1) {
-        const call = plan.toolCalls[0];
+    for (let callIndex = 0; currentTurn && callIndex < (plan.toolCalls?.length || 0); callIndex += 1) {
+        const call = plan.toolCalls[callIndex];
         const tool = safeCatalog.find(item => item.name === call.name);
-        const canonicalCall = validatePlan(plan, safeCatalog, planningInstruction).toolCalls.find(item => item.name === call.name);
+        const canonicalCall = validatePlan({...plan,toolCalls:[call]}, safeCatalog, planningInstruction).toolCalls[0];
         if (tool && !canonicalCall && !hasRequiredToolArguments(tool, normalizeSchemaBoundArguments(tool, call.args))) {
             const repair = await ai.models.generateContent({
                 model,
@@ -4431,7 +4431,8 @@ async function runModelSemanticPlanner({
                 error.evidence = { tool: tool.name, providerResponse: repair?.providerResponse || null };
                 throw error;
             }
-            plan = { ...plan, toolCalls: [{ ...call, args, reason: "MODEL_SCHEMA_ARGUMENT_CORRECTION" }] };
+            plan = { ...plan, toolCalls: plan.toolCalls.map((selected,index) => index === callIndex
+                ? {...call,args,reason:"MODEL_SCHEMA_ARGUMENT_CORRECTION"} : selected) };
         }
     }
 
