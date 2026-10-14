@@ -1929,7 +1929,13 @@ export function createSelfHostedSemanticEngine({
             ]);
             const initialRecordSource = missionState?.phase === 'CURRENT_TURN' && catalog.some(tool =>
                 tool.evidenceKinds?.includes('platform_records') && tool.requiresEvidence?.some(requirement => requirement.kind === 'repository_source'));
-            if (recordFlow || initialRecordSource) catalog=bindConfiguredSourceArguments(catalog,getConfiguredSources(),{recordFlow:true});
+            const discoveredFiles = (missionState?.completedTasks || []).filter(task=>task.observation?.ok===true &&
+                task.observation.executionOk!==false && task.observation.blocked!==true && task.observation.requiresInput!==true)
+                .flatMap(task=>[task.observation.verifiedRead?.file,
+                    ...(task.observation.repoCandidates || []).map(candidate=>candidate.file),
+                    ...(task.observation.repositoryMatches || []).map(candidate=>candidate.file)]).filter(Boolean);
+            if (recordFlow || initialRecordSource) catalog=bindConfiguredSourceArguments(catalog,getConfiguredSources(),{
+                recordFlow:true,...(recordFlow ? {discoveredFiles} : {})});
             const sourceDirectory = recordFlow ? getConfiguredSources() : null;
             const planningState = missionState ? {...missionState,configuredSourceDiscovery:sourceDirectory ? {
                 source:sourceDirectory.source,revision:sourceDirectory.revision,digest:sourceDirectory.digest,

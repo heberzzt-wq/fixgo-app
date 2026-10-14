@@ -80,7 +80,7 @@ export function configuredSourcesMessage(catalog, budget = 18000) {
     return {role:'system',content:prefix+JSON.stringify(payload)+guidance};
 }
 
-export function bindConfiguredSourceArguments(catalog, sources, {recordFlow=false,initialDiscovery=false}={}) {
+export function bindConfiguredSourceArguments(catalog, sources, {recordFlow=false,initialDiscovery=false,discoveredFiles=null}={}) {
     if (!sources) return catalog;
     const boundProperty=(property,known)=>{
         const values=known.filter(value=>(!property.enum || property.enum.includes(value))&&
@@ -91,7 +91,10 @@ export function bindConfiguredSourceArguments(catalog, sources, {recordFlow=fals
         if (!tool.inputSchema?.properties) return [tool];
         const properties={...tool.inputSchema.properties};
         if (recordFlow && tool.name==='repo.read' && tool.investigationReadOnly===true && properties.file) {
-            properties.file=boundProperty(properties.file,sources.inspectionFiles || sources.files);
+            const known = sources.inspectionFiles || sources.files;
+            const paths = Array.isArray(discoveredFiles)
+                ? [...new Set([...sources.files,...discoveredFiles].filter(file=>known.includes(file)))] : known;
+            properties.file=boundProperty(properties.file,paths);
         } else if (initialDiscovery && tool.evidenceKinds?.includes('platform_records') && properties.sourceFile && properties.collection) {
             properties.sourceFile=boundProperty(properties.sourceFile,sources.files);
             properties.collection=boundProperty(properties.collection,sources.collections);

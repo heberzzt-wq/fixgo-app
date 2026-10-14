@@ -21,6 +21,7 @@ function configuredSourceFixture() {
     run(['init','--quiet']);
     fs.writeFileSync(path.join(root,'capture.js'),`import {collection,doc,setDoc} from 'sdk'; export function capture(db,id,value){ return setDoc(doc(db,'groups','scope-A','entries',id),{label:value,details:{category:value},owner:value}); } export function inspect(db){return collection(db,'groups','scope-A','entries');}`);
     fs.writeFileSync(path.join(root,'legacy.js'),`export const examples={count:999,secret:'NOT_OPERATIONAL_DATA'};`);
+    fs.writeFileSync(path.join(root,'utility.js'),`export const ready=()=>true;`);
     fs.writeFileSync(path.join(root,'sample.test.js'),`collection(db,'test_only_records');`);
     const commit=()=>{run(['add','.']);run(['-c','user.name=Schema Test','-c','user.email=schema@example.invalid','commit','--quiet','-m','fixture']);};
     commit();
@@ -85,6 +86,15 @@ test('source argument choices contain actual files and paths without widening ex
         assert.deepEqual(bindConfiguredSourceArguments([absent],sources,{recordFlow:true}),[]);
         assert.equal(JSON.stringify([reader,records]),before);
     } finally {f.cleanup();}
+});
+
+test('record reader schemas retain configured sources and observed dependencies without the entire helper inventory',()=>{
+    const reader={name:'repo.read',investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
+    const sources={files:['capture.js'],inspectionFiles:['capture.js',...Array.from({length:1000},(_,i)=>'helpers/helper-'+i+'.js')]};
+    const bound=bindConfiguredSourceArguments([reader],sources,{recordFlow:true,discoveredFiles:['helpers/helper-2.js','missing.js']});
+    assert.deepEqual(bound[0].inputSchema.properties.file.enum,['capture.js','helpers/helper-2.js']);
+    assert.ok(JSON.stringify(bound).length<1000,'undiscovered helper paths must not inflate the native schema');
+    assert.equal(reader.inputSchema.properties.file.enum,undefined);
 });
 
 test('record mission source readers cannot emit collection-derived nonexistent paths',async()=>{
@@ -188,6 +198,8 @@ test('record continuation can read a configured source that has not been searche
         const query={name:'platform.query',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}},required:['sourceFile']}};
         const engine=createSelfHostedSemanticEngine({root:f.root,env:{JARVIS_LOCAL_LLM_MODEL:'qwen3.5:9b'},fetchImpl:async(_url,options)=>{
             const body=JSON.parse(options.body);
+            const readerChoice=body.format?.properties?.toolCalls?.items?.anyOf?.find(branch=>branch.properties.name.enum.includes(reader.name));
+            if(readerChoice)assert.ok(!readerChoice.properties.args.properties.file.enum.includes('utility.js'),'record schema must not repeat undiscovered helper inventory');
             const recovery=body.messages.some(message=>message.content?.startsWith('RUTAS_LOCALIZADAS='));
             if(recovery){
                 const choice=body.format.properties.toolCalls.items.anyOf.find(branch=>branch.properties.name.enum.includes(reader.name));
