@@ -4,7 +4,7 @@ import { buildResponsiveRepairOptions, buildResponsiveRepairPatch } from "./gest
 import express from "express";
 import cors from "cors";
 import fs from "fs";
-import {configuredRepositorySources,configuredSourcesMessage} from './jarvis-configured-sources.js';
+import {configuredRepositorySources,configuredSourcesMessage,bindConfiguredSourceArguments} from './jarvis-configured-sources.js';
 import { materialLibrary, officialMaterialPolicy, assertOfficialMaterial, resolveMaterialReference, availableMaterialToolCatalog } from "./jarvis-material-library.js";
 import os from "os";
 import path from "path";
@@ -1911,6 +1911,9 @@ export function createSelfHostedSemanticEngine({
             const recordPlanning = objectives.length
                 ? objectives.some(objective=>objective.requiredEvidenceKind==='platform_records')
                 : catalog.some(tool=>tool.evidenceKinds?.includes('platform_records'));
+            const initialCalls=Array.isArray(missionState?.existingInitialToolCalls)?missionState.existingInitialToolCalls:[];
+            const recordFlow=objectives.some(objective=>objective.requiredEvidenceKind==='platform_records') ||
+                initialCalls.some(call=>catalog.find(tool=>tool.name===call.name)?.evidenceKinds?.includes('platform_records'));
             const getConfiguredSources = () => {
                 if (configuredSources === undefined) configuredSources = configuredRepositorySources(root);
                 return configuredSources;
@@ -1923,6 +1926,7 @@ export function createSelfHostedSemanticEngine({
                 'READ_ONLY_NEXT_STEP_RECOVERY','PENDING_RECORD_SCOPE_RECOVERY',
                 'UNREAD_SOURCE_CONTINUATION','QUERY_SCOPE_SOURCE_RECOVERY'
             ]);
+            if (recordFlow) catalog=bindConfiguredSourceArguments(catalog,getConfiguredSources(),{recordFlow:true});
             const result = await runJarvisSemanticPlanner({
                 ai: { ...ai, models: { generateContent(request = {}) {
                     if (noDeadline !== true && (Date.now() >= deadlineAt || deadlineSignal.aborted)) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
@@ -1966,6 +1970,7 @@ export function createSelfHostedSemanticEngine({
                     // ranks a broad search above the direct source reader.
                     const reader = catalog.find(tool=>tool.name==='repo.read'&&tool.investigationReadOnly===true&&tool.mutates!==true);
                     if (recordPlanning && getConfiguredSources() && reader && !shortlist.catalog.some(tool=>tool.name===reader.name)) shortlist.catalog=[...shortlist.catalog,reader];
+                    if (recordPlanning) shortlist.catalog=bindConfiguredSourceArguments(shortlist.catalog,getConfiguredSources(),{initialDiscovery:true});
                     semanticPreselection = { ...shortlist.evidence, querySource: "qwen_requested_operation", requestedOperation };
                     onProgress("inference");
                     return shortlist.catalog;

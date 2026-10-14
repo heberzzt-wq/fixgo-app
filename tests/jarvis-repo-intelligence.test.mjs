@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {execFileSync} from 'node:child_process';
-import {configuredRepositorySources,configuredSourcesMessage} from '../jarvis-configured-sources.js';
+import {configuredRepositorySources,configuredSourcesMessage,bindConfiguredSourceArguments} from '../jarvis-configured-sources.js';
 import {
     buildRepoEmbeddingDocuments,
     scoreRepoSemanticPreselection,
@@ -55,16 +55,56 @@ test('configured source hints respect the prompt budget without dropping file an
     const f=configuredSourceFixture();
     try {
         const catalog=configuredRepositorySources(f.root);
-        const expanded={...catalog,fields:Array.from({length:100},(_,i)=>'field_'+i+'x'.repeat(100))};
+        const expanded={...catalog,fields:Array.from({length:100},(_,i)=>'field_'+i+'x'.repeat(1000))};
         const message=configuredSourcesMessage(expanded,2000);
         assert.ok(message);
         assert.ok(message.content.length<=2000,'the entire message must fit, including guidance');
         const payload=JSON.parse(message.content.split('\n')[0].split('CONFIGURACION_DE_FUENTES_VERIFICADA=')[1]);
         assert.equal(payload.fieldHintsOmitted,true);
-        assert.deepEqual(payload.files,catalog.files);
-        assert.deepEqual(payload.collections,catalog.collections);
-        assert.deepEqual(payload.references.map(([file,col])=>[file,col]),catalog.references.map(([file,col])=>[file,col]));
+        assert.deepEqual(payload.routes.map(([collection])=>collection),catalog.collections);
+        assert.deepEqual(payload.routes.flatMap(([collection,files])=>files.map(file=>[file,collection])).sort(),catalog.references.map(([file,col])=>[catalog.files[file],catalog.collections[col]]).sort());
         assert.equal(configuredSourcesMessage(expanded,10),null);
+    } finally {f.cleanup();}
+});
+
+test('source argument choices contain actual files and paths without widening existing restrictions',()=>{
+    const f=configuredSourceFixture();
+    try {
+        const sources=configuredRepositorySources(f.root);
+        const reader={name:'repo.read',investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
+        const records={name:'fixture.records',evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},fields:{type:'array',items:{type:'string'}}},required:['sourceFile','collection','fields']}};
+        const before=JSON.stringify([reader,records]);
+        const bound=bindConfiguredSourceArguments([reader,records],sources,{recordFlow:true,initialDiscovery:true});
+        assert.ok(bound[0].inputSchema.properties.file.enum.includes('capture.js'));
+        assert.ok(!bound[0].inputSchema.properties.file.enum.includes('groups/scope-A/entries.js'),'a collection cannot be turned into an invented filename');
+        assert.ok(bound[1].inputSchema.properties.collection.enum.includes('groups/scope-A/entries'));
+        assert.deepEqual(bound[1].inputSchema.properties.fields,records.inputSchema.properties.fields,'discovery cannot grant field/value authority');
+        const restricted={...reader,inputSchema:{...reader.inputSchema,properties:{file:{type:'string',enum:['capture.js']}}}};
+        assert.deepEqual(bindConfiguredSourceArguments([restricted],sources,{recordFlow:true})[0].inputSchema.properties.file.enum,['capture.js']);
+        const absent={...reader,inputSchema:{...reader.inputSchema,properties:{file:{type:'string',const:'missing.js'}}}};
+        assert.deepEqual(bindConfiguredSourceArguments([absent],sources,{recordFlow:true}),[]);
+        assert.equal(JSON.stringify([reader,records]),before);
+    } finally {f.cleanup();}
+});
+
+test('record mission source readers cannot emit collection-derived nonexistent paths',async()=>{
+    const f=configuredSourceFixture();
+    try {
+        const {createSelfHostedSemanticEngine}=await import('../jarvis-fs-bridge.js');
+        const objective={objective:'Report current entries',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['entries']};
+        let inspected=false;
+        const engine=createSelfHostedSemanticEngine({root:f.root,env:{JARVIS_LOCAL_LLM_MODEL:'qwen3.5:9b'},fetchImpl:async(_url,options)=>{
+            const body=JSON.parse(options.body);
+            const schema=JSON.stringify(body.format);
+            assert.match(schema,/capture[.]js/,'native choices must be bound to the actual source inventory');
+            assert.doesNotMatch(schema,/groups\/scope-A\/entries[.]js/);
+            inspected=true;
+            const content=JSON.stringify({explanation:'Read source',completionAssessment:{objectives:[{objective:objective.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Records are pending'}]},toolCalls:[{name:'repo.read',args:{file:'capture.js'}}]});
+            return {ok:true,status:200,text:async()=>JSON.stringify({message:{content},done_reason:'stop'})};
+        }});
+        const plan=await engine.plan({input:objective.objective,catalog:[{name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}},{name:'fixture.records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}},required:['sourceFile']}}],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[objective],completedTasks:[]}});
+        assert.equal(inspected,true);
+        assert.equal(plan.missionComplete,false);
     } finally {f.cleanup();}
 });
 

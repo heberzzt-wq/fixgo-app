@@ -4500,6 +4500,31 @@ test('an ordering-only rejection restricts recovery to credited fields and prese
  assert.deepEqual(output[0].properties.collection.enum,['entries']);
 });
 
+test('positive source schemas constrain record fields before a rejected projection',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='bindRejectedRecordFields');
+ const bind=runInNewContext('('+source.slice(node.start,node.end)+')',{buildNativeInputSchema:x=>x,observedRecordFieldPaths:createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').observedRecordFieldPaths});
+ const query={name:'platform.query',inputSchema:{type:'object',properties:{sourceFile:{type:'string',enum:['schema.js']},collection:{type:'string',enum:['entries','owners','unknown']},fields:{type:'array',items:{type:'string'}},orderBy:{type:'array',items:{type:'object',properties:{field:{type:'string'}}}}}}};
+ const tasks=[{name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file:'schema.js',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['entries','owners','unknown'],fieldPaths:['foreignDate'],writeShapes:[{collection:'entries',fields:['label','assignedTo']},{collection:'owners',fields:['deadline']}],queryShapes:[]}}}}}];
+ const before=JSON.stringify({query,tasks});
+ const schema=JSON.parse(JSON.stringify(bind([query],tasks,[])[0].inputSchema));
+ assert.ok(schema.anyOf,'the first query must already preserve each observed collection');
+ const fields=collection=>schema.anyOf.find(branch=>branch.properties.collection.enum[0]===collection).properties.fields.items.enum;
+ assert.deepEqual(fields('entries'),['__name__','label','assignedTo']);
+ assert.deepEqual(fields('owners'),['__name__','deadline']);
+ assert.deepEqual(fields('unknown'),['__name__'],'an untyped source supports names-only discovery, not invented columns');
+ assert.ok(!fields('entries').includes('deadline'));
+ assert.ok(!fields('entries').includes('foreignDate'),'global file field mentions cannot grant collection field authority');
+ const restricted={...query,inputSchema:{...query.inputSchema,properties:{...query.inputSchema.properties,fields:{type:'array',items:{type:'string',enum:['label']}}}}};
+ const narrowed=JSON.parse(JSON.stringify(bind([restricted],tasks,[])[0].inputSchema));
+ assert.deepEqual(narrowed.anyOf.find(branch=>branch.properties.collection.enum[0]==='entries').properties.fields.items.enum,['label'],'schema discovery must retain an existing field restriction');
+ assert.equal(narrowed.anyOf.find(branch=>branch.properties.collection.enum[0]==='unknown').properties.fields.maxItems,0,'an empty permitted intersection uses a valid zero-length projection, never an empty JSON Schema enum');
+ tasks[0].observation.executionOk=false;
+ assert.equal(bind([query],tasks,[])[0],query,'a failed source cannot constrain or accredit discovery');
+ tasks[0].observation.executionOk=true;
+ assert.equal(JSON.stringify({query,tasks}),before);
+});
+
 test('field recovery accepts authenticated observed names without granting values, foreign routes or failed observations',()=>{
  const {observedRecordFieldPaths,qualifyRecordObjectiveCoverage:qualify}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
