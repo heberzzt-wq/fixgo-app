@@ -115,3 +115,46 @@ test('fresh independent source exclusions reach the single recovery decision imm
  }}}});
  assert.equal(recoveries,1);assert.equal(result.missionComplete,false);assert.equal(result.toolCalls[0].args.file,'next.js');
 });
+
+test('query relevance receives only the proposed collection source and its own fields',async()=>{
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string'},fields:{type:'array',items:{type:'string'}}},required:['sourceFile','collection','mode']}};
+ const tasks=[{name:reader.name,args:{file:'registry.js'},observation:{ok:true,verifiedRead:{file:'registry.js',content:'Shared module containing independent sources',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['entries','accounts'],fieldPaths:['label','billingStatus'],references:[
+  {collection:'entries',startLine:1,content:'collection(db, "entries")',declarations:[{startLine:2,content:'entry.label'}]},
+  {collection:'accounts',startLine:10,content:'collection(db, "accounts")',declarations:[{startLine:11,content:'account.billingStatus = "paid"'}]}
+ ],writeShapes:[{collection:'entries',fields:['label'],content:'{ label }'},{collection:'accounts',fields:['billingStatus'],content:'{ billingStatus: "paid" }'}]}}}}}];
+ let checked=false;
+ const result=await runJarvisSemanticPlanner({input:'Inspect current entries',catalog:[reader,query],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[{objective:'Inspect current entries',requiredEvidenceKind:'platform_records'}],completedTasks:tasks},ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:[{objective:'Inspect current entries',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Read current entries'}]},toolCalls:[{name:query.name,args:{sourceFile:'registry.js',collection:'entries',mode:'query',fields:['label']}}]})};
+  assert.equal(request.config.semanticStage,'QUERY_POPULATION_VERIFICATION');
+  const payload=JSON.parse(request.config.chatMessages.at(-1).content);
+  assert.ok(JSON.stringify(payload.observedSource).includes('entry.label'));
+  assert.ok(!JSON.stringify(payload.observedSource).includes('billingStatus'),'an unrelated collection must not ground this query');
+  assert.deepEqual(payload.observedFieldSchemas[0].collections,['entries']);
+  assert.deepEqual(payload.observedFieldSchemas[0].fieldPaths,['label']);
+  checked=true;return{text:'{"matchesRequest":true}'};
+ }}}});
+ assert.equal(checked,true);assert.equal(result.ok,true);assert.equal(result.missionComplete,false);
+});
+
+test('coverage citations are constrained to the exact queried route including authenticated template resolution',async()=>{
+ const f=fixture();f.tasks[0].observation.verifiedRead.sourceStructure.dataBindings.collections.push('other');
+ f.tasks.push({name:'platform.query',args:{sourceFile:'registry.js',collection:'other'},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{sourceFile:'registry.js',collection:'other',mode:'query',filters:[]},rows:[],totalCount:0,returnedCount:0,hasMore:false,completeForQuery:true,queryExhausted:true}}});
+ const tool={name:'platform.query',evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{}}};let checked=false;
+ await runJarvisSemanticPlanner({input:f.contract.objective,catalog:[tool],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[{...f.contract,requiredEvidenceKind:'platform_records'}],completedTasks:f.tasks},ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:[{objective:f.contract.objective,requiredEvidenceKind:'platform_records',satisfied:true,evidenceTaskIndexes:[1],limitation:''}]},toolCalls:[]})};
+  if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE'){
+   const sources=request.config.responseJsonSchema.properties.sources.properties;
+   assert.deepEqual(sources[f.template].properties.taskIndexes.items.enum,[1]);
+   assert.deepEqual(sources[f.resolved].properties.taskIndexes.items.enum,[1]);
+   assert.deepEqual(sources.other.properties.taskIndexes.items.enum,[2]);
+   const payload=JSON.parse(request.config.chatMessages.at(-1).content);
+   assert.equal(payload.queryScopeFacts[0].requestedCollection,f.template);
+   assert.equal(payload.queryScopeFacts[0].collection,f.resolved);
+   checked=true;return{text:JSON.stringify(f.objective.coverageProof)};
+  }
+  if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE_CONSISTENCY')return{text:JSON.stringify(f.objective.coverageProof)};
+  if(request.config.semanticStage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries([f.template,f.resolved,'other'].map(collection=>[collection,{relevantToObjective:collection!=='other',reason:'Observed source scope'}]))})};
+  throw Error('Unexpected stage '+request.config.semanticStage);
+ }}}});assert.equal(checked,true);
+});

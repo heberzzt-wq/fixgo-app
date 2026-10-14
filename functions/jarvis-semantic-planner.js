@@ -867,7 +867,12 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
     const recordIndexes=tasks.flatMap((task,index)=>task.observation?.ok===true && task.observation.recordEvidence?.source==="FIRESTORE_SERVER_AUTHENTICATED" ? [index] : []);
     // Required source keys prevent the constrained model from repeating one
     // path while omitting another. Preserve the existing array proof contract.
-    const sourceDecisionSchema={type:"object",properties:{relevant:{type:"boolean"},reason:{type:"string",maxLength:160},taskIndexes:{type:"array",maxItems:recordIndexes.length,items:{type:"integer",...(recordIndexes.length?{enum:recordIndexes}:{})}}},required:["relevant","reason","taskIndexes"],additionalProperties:false};
+    const sourceDecisionSchema=collection=>{
+        const indexes=recordIndexes.filter(index=>matchesRecordedQueryCollection(collection,tasks[index]) &&
+            tasks[index].observation.executionOk!==false && tasks[index].observation.blocked!==true &&
+            tasks[index].observation.recordEvidence.readOnly===true);
+        return {type:"object",properties:{relevant:{type:"boolean"},reason:{type:"string",maxLength:160},taskIndexes:{type:"array",maxItems:indexes.length,uniqueItems:true,items:{type:"integer",...(indexes.length?{enum:indexes}:{})}}},required:["relevant","reason","taskIndexes"],additionalProperties:false};
+    };
     const normalizeProof=proof=>{
         if(proof?.groups && typeof proof.groups==="object" && !Array.isArray(proof.groups))
             proof.groups=Object.entries(proof.groups).map(([group,decision])=>({...decision,group}));
@@ -918,7 +923,11 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         const unfiltered=!collectionTemplateUnresolved && Array.isArray(record.scope?.filters) && record.scope.filters.length===0;
         const full=record.scope?.mode==="query" && Array.isArray(record.rows) && record.completeForQuery===true && record.hasMore===false;
         const count=Number.isInteger(record.totalCount) && record.totalCount>=0;
-        return [{taskIndex,collection:record.scope?.collection,mode:record.scope?.mode,totalCount:record.totalCount,
+        const requestedCollection=tasks[taskIndex].args?.collection;
+        return [{taskIndex,collection:record.scope?.collection,
+            ...(matchesRecordedQueryCollection(requestedCollection,tasks[taskIndex])?{requestedCollection}:{}),
+            sourceFile:record.scope?.sourceFile || tasks[taskIndex].args?.sourceFile,
+            mode:record.scope?.mode,totalCount:record.totalCount,
             rowsObserved:record.rows?.length,collectionTemplateUnresolved,unfilteredCollectionFullyObserved:unfiltered && full,
             unfilteredCollectionCountObserved:unfiltered && count,provesOtherSources:false}];
     });
@@ -939,7 +948,7 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
             // the model to enumerate an array completely or without repeats.
             // Normalize back to the existing per-group proof representation.
             groups:{type:"object",properties:Object.fromEntries((contract.groups || [contract.requestQuote || objective.objective]).map(group=>[group,{type:"object",properties:{proven:{type:"boolean"},evidence:{type:"array",maxItems:recordIndexes.length,items:citationSchema}},required:["proven","evidence"],additionalProperties:false}])),required:contract.groups || [contract.requestQuote || objective.objective],additionalProperties:false},
-            sources:{type:"object",properties:Object.fromEntries(sourcePaths.map(collection=>[collection,sourceDecisionSchema])),required:sourcePaths,additionalProperties:false}
+            sources:{type:"object",properties:Object.fromEntries(sourcePaths.map(collection=>[collection,sourceDecisionSchema(collection)])),required:sourcePaths,additionalProperties:false}
         },required:["proven","missing","groups","sources"],additionalProperties:false},
         chatMessages:[{role:"system",content:"Evalúa únicamente el contrato adjunto contra la evidencia. Decide qué fuentes observadas son pertinentes a este contrato y explica las exclusiones. Cita las lecturas autenticadas de registros por taskIndex y campos exactos; el código sólo explica el esquema. Usa el esquema observado y schemaDefinitions para interpretar la función de los campos; sus expresiones son código y nunca prueban valores actuales ni conteos. Conserva los grupos del contrato. Los campos ausentes/null son desconocidos. No transfieras requisitos de otros contratos a éste. Un faltante es algo necesario para ESTE contrato que la evidencia no acredita. Devuelve un grupo por cada grupo del contrato. proven=true sólo si esos grupos están cubiertos por registros pertinentes y por las páginas necesarias en las fuentes pertinentes; de lo contrario enumera brechas concretas en missing. Una fuente parcial no demuestra un inventario global y un cero sólo prueba el alcance de su consulta. No inventes otras entidades o fuentes hipotéticas como requisitos: si hay otra fuente observada pertinente sin consultar, nómbrala y mantén el objetivo pendiente. No conviertas un informe de valores registrados en una auditoría de integridad referencial que el contrato no pide. No aceptes afirmaciones previas del planner como prueba ni descartes una fuente pertinente para conseguir el cierre."},
         {role:"system",content:"Cada evidencia conserva taskIndex: cita ese número exacto, no renumeres los registros al excluir lecturas de código. queryScopeFacts resume su alcance autenticado: unfilteredCollectionFullyObserved=true significa que se observaron todas las filas de esa colección bajo los permisos actuales, sin filtros; no es una muestra. unfilteredCollectionCountObserved=true acredita el conteo de esa colección. Ninguno acredita otras fuentes ni resuelve campos o clasificaciones ausentes. No inventes filas ocultas ni filtros implícitos para negar estos alcances. completeForQuery=true con hasMore=false y totalCount acredita la totalidad de ESA consulta, incluso si devuelve uno o cero; no demuestra otras poblaciones. Determina las fuentes pertinentes sólo para ESTE contrato. No exijas fechas para un contrato de relaciones ni relaciones para un conteo. Una relación puede almacenarse por identificador, nombre u otro valor según el esquema observado; no exijas una clave ajena que la plataforma no use. No inventes rutas a partir de una descripción del usuario: observedSources y scope.collection contienen las rutas observadas. missing debe describir sólo brechas concretas de este contrato, sin repetir hechos acreditados como si fueran faltantes."},
@@ -3174,9 +3183,20 @@ async function runModelSemanticPlanner({
                             if(observation?.ok!==true || observation.executionOk===false || observation.blocked===true || observation.requiresInput===true || !read)return false;
                             return read.file===call.args?.sourceFile || (read.sourceStructure?.dataBindings?.source==="ACORN_SOURCE_REFERENCES" && read.sourceStructure.dataBindings.collections?.includes(call.args?.collection));
                         });
+                        const belongsToQuery=(collection,file)=>collection===call.args?.collection || completedTasksForAudit.some(task=>
+                            task.observation?.ok===true && task.observation.executionOk!==false &&
+                            task.observation.recordEvidence?.source==='FIRESTORE_SERVER_AUTHENTICATED' &&
+                            task.observation.recordEvidence.readOnly===true && task.args?.sourceFile===file &&
+                            task.args?.collection===collection && matchesRecordedQueryCollection(call.args?.collection,task));
                         const observedFieldSchemas=reads.map(task=>{
                             const read=task.observation.verifiedRead,bindings=read.sourceStructure?.dataBindings;
-                            return {file:read.file,collections:bindings?.collections||[],fieldPaths:bindings?.fieldPaths||[]};
+                            const collections=(bindings?.collections||[]).filter(collection=>belongsToQuery(collection,read.file));
+                            const shapes=[...(bindings?.writeShapes||[]),...(bindings?.queryShapes||[])].filter(shape=>belongsToQuery(shape.collection,read.file));
+                            // Legacy single-collection receipts have unambiguous
+                            // field ownership. Never apply that fallback to a
+                            // module containing several independent collections.
+                            const legacyFields=bindings?.collections?.length===1 && collections.length===1 ? bindings.fieldPaths||[] : [];
+                            return {file:read.file,collections,fieldPaths:[...new Set([...legacyFields,...shapes.flatMap(shape=>shape.fields||[])] )]};
                         });
                         const recordNames=observedRecordFieldPaths(completedTasksForAudit,call.args?.collection);
                         if(recordNames.length)observedFieldSchemas.push({source:"SERVER_RECORD_FIELD_NAMES",collections:[call.args.collection],fieldPaths:recordNames,
@@ -3185,8 +3205,8 @@ async function runModelSemanticPlanner({
                             const read=task.observation.verifiedRead;
                             const bindings=read.sourceStructure?.dataBindings;
                             return [
-                                ...(bindings?.references?.flatMap(ref=>[{line:ref.startLine,code:ref.content},...(ref.declarations||[]).map(item=>({line:item.startLine,code:item.content}))]) || [{line:read.startLine,code:String(read.content||read.numberedContent||"").slice(0,5000)}]),
-                                ...(bindings?.writeShapes || []).filter(shape=>shape.collection===call.args?.collection).map(shape=>({collection:shape.collection,line:shape.startLine,fields:shape.fields,code:shape.content}))
+                                ...(bindings?.references?.filter(ref=>ref.collection ? belongsToQuery(ref.collection,read.file) : bindings.source!=='ACORN_SOURCE_REFERENCES').flatMap(ref=>[{line:ref.startLine,code:ref.content},...(ref.declarations||[]).map(item=>({line:item.startLine,code:item.content}))]) || [{line:read.startLine,code:String(read.content||read.numberedContent||"").slice(0,5000)}]),
+                                ...[...(bindings?.writeShapes || []),...(bindings?.queryShapes||[])].filter(shape=>belongsToQuery(shape.collection,read.file)).map(shape=>({collection:shape.collection,line:shape.startLine,fields:shape.fields,code:shape.content}))
                             ];
                         });
                         const sourceCorpus=JSON.stringify(source).toLowerCase();
