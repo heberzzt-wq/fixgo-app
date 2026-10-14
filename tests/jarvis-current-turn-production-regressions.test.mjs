@@ -4316,6 +4316,19 @@ test('an exhausted empty cursor page reuses its exact scope without crediting th
  const counted=structuredClone(task);counted.observation.recordEvidence.totalCount=0;assert.equal(covered({...call,args:{...call.args,includeCount:true}},[counted]),true);counted.observation.recordEvidence.consistentCountAndList=false;assert.equal(covered(call,[counted]),false);
 });
 
+test('complete empty first pages reuse equivalent default ID order without inventing a count or field values',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');const covered=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const args={sourceFile:'reader.js',collection:'organizations/{scope}/entries',mode:'query',fields:['__name__'],filters:[]};
+ const orderBy=[{field:'__name__',direction:'asc'}];
+ const task={name:'records.read',args,observation:{ok:true,executionOk:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...args,collection:'organizations/approved/entries',orderBy,cursor:null},rows:[],returnedCount:0,completeForQuery:true,queryExhausted:true,hasMore:false}}};
+ const call={name:task.name,args:{...args,fields:['newField','anotherField'],orderBy,pageSize:100}};
+ const before=JSON.stringify({task,call});assert.equal(covered(call,[task]),true);assert.equal(JSON.stringify({task,call}),before);
+ assert.equal(covered({...call,args:{...call.args,includeCount:true}},[task]),false);
+ const counted=structuredClone(task);counted.observation.recordEvidence.totalCount=0;assert.equal(covered({...call,args:{...call.args,includeCount:true}},[counted]),true);
+ for(const change of [{sourceFile:'other.js'},{collection:'organizations/{scope}/other'},{filters:[{field:'group',op:'==',value:'other'}]},{orderBy:[{field:'__name__',direction:'desc'}]},{orderBy:[{field:'updatedAt',direction:'asc'}]},{cursor:'last'}])assert.equal(covered({...call,args:{...call.args,...change}},[task]),false);
+ for(const mutate of [t=>{t.observation.recordEvidence.source='REPOSITORY_SOURCE';},t=>{t.observation.recordEvidence.readOnly=false;},t=>{t.observation.blocked=true;},t=>{t.observation.recordEvidence.hasMore=true;},t=>{t.observation.recordEvidence.queryExhausted=false;},t=>{t.observation.recordEvidence.completeForQuery=false;},t=>{t.observation.recordEvidence.consistentCountAndList=false;},t=>{t.observation.recordEvidence.totalCount=1;},t=>{t.observation.recordEvidence.returnedCount=2;},t=>{t.observation.recordEvidence.scope.collection='other/approved/entries';},t=>{t.observation.recordEvidence.scope.sourceFile='other.js';},t=>{t.observation.recordEvidence.scope.filters=[{field:'group',op:'==',value:'other'}];},t=>{t.observation.recordEvidence.scope.orderBy=[{field:'updatedAt',direction:'asc'}];},t=>{t.observation.recordEvidence.scope.cursor='last';},t=>{t.observation.recordEvidence.scope.mode='count';}]){const invalid=structuredClone(task);mutate(invalid);assert.equal(covered(call,[invalid]),false);}
+});
+
 test('projection reuse preserves new fields counts pages scopes and inconsistent snapshots as unread work',()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');
