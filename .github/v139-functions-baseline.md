@@ -1,6 +1,21 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `38b991d3edc5ca2405c38519e434ec590df25152`, the explicitly reviewed initial source-prerequisite release.
+Current baseline: `6eeb0db0435c4989b995fa971ea95bf670b44069`, the explicitly reviewed multi-call source-argument recovery release.
+The only additional Functions change repairs each invalid initial call with the
+same model and canonical schema, instead of recovering only a one-call plan.
+Each call is validated independently; a valid sibling with the same tool name
+cannot hide an invalid call. No source path is mechanically guessed, no approval
+is granted, and operational evidence/closure requirements are unchanged.
+The regression reproduced SEMANTIC_PLAN_EMPTY before the fix. After integration,
+82 related tests passed including on the clean functional HEAD; the full local
+suite passed 1,966 checks with zero failures and one Linux-only skip. Fresh CI
+and the complete clean Chrome mission remain required, and this reviewed
+baseline does not claim mission certification. The guard remains explicitly
+pinned, ancestor-checked and fail-closed; no external AI is authorized.
+
+## Previous initial source-prerequisite baseline
+
+Previous baseline: `38b991d3edc5ca2405c38519e434ec590df25152`, the explicitly reviewed initial source-prerequisite release.
 The only additional Functions change applies declared evidence prerequisites
 before initial native tool selection, including small catalogs, using the full
 registry to identify the evidence provider. A successful source read binds one
