@@ -583,7 +583,7 @@ test('missing schema definitions cannot support a negative source exclusion',asy
  }
 });
 
-test('unreviewed observed sources refresh pending record coverage without promoting code to records',async()=>{
+test('new schema keeps coverage pending while a valid investigation advances without another negative review',async()=>{
  for(const variant of ['new','known','failed','no_records']){
   const records={name:'fixture.records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}]};
   const reader={name:'fixture.source',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string'},startLine:{type:'integer'}},required:['file']}};
@@ -604,13 +604,13 @@ test('unreviewed observed sources refresh pending record coverage without promot
    if(request.config.semanticStage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:{primary:{relevantToObjective:true,reason:'Primary entries'},related:{relevantToObjective:true,reason:'Related entries remain pending'}}})};
    return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'source.js',startLine:10}}]})};
   }}}});
-  assert.equal(reviews,variant==='new'?1:0,variant);
+  assert.equal(reviews,0,variant);
   assert.equal(result.missionComplete,false,variant);
   assert.equal(result.completionAssessment.objectives[0].satisfied,false,variant);
   if(variant==='new'){
    assert.deepEqual(result.completionAssessment.objectives[0].coverage.pendingSources,['related']);
    assert.deepEqual(result.completionAssessment.objectives[0].coverageProof.groups[0].evidence,[{taskIndex:0,fields:[]}]);
-   assert.match(result.completionAssessment.objectives[0].limitation,/Related records have not been consulted/);
+   assert.match(result.completionAssessment.objectives[0].limitation,/related/);
   }
   assert.equal(JSON.stringify(previous),original,'the earlier operational review remains immutable');
  }

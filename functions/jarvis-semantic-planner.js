@@ -3231,6 +3231,7 @@ async function runModelSemanticPlanner({
         const recoverEvidenceAction=async(evaluatedAudit,validatedAudit,error=null)=>{
             if(evidenceRecoveryUsed)return null;
             evidenceRecoveryUsed=true;
+                refreshReviewedActionFrontier();
                 const generalReaders = selectableCatalog.filter(tool => tool.investigationReadOnly === true &&
                     tool.mutates !== true && tool.requiresApproval !== true && tool.userArtifact !== true);
                 const latestPlatformSchemaFailure = [...(missionState.blockedTasks || [])].reverse().find(task => {
@@ -3331,23 +3332,28 @@ async function runModelSemanticPlanner({
         const coverageCache=ai.objectiveCoverageCache || new Map();
         const freshlyReviewedCoverage=new Set();
         const coverageBeforeDecision=[];
-        const priorTaskCount=missionState.completionAssessment?.evaluatedTaskCount || 0;
+        const rememberReviewedCoverage=(contract,proof)=>{
+            const item={objective:contract.objective,requiredEvidenceKind:contract.requiredEvidenceKind,coverageProof:proof};
+            const index=coverageBeforeDecision.findIndex(previous=>previous.objective===contract.objective);
+            if(index<0)coverageBeforeDecision.push(item);else coverageBeforeDecision[index]=item;
+        };
+        const refreshReviewedActionFrontier=()=>{
+            if(recordOnlyAudit && coverageBeforeDecision.length===missionState.evidenceObjectives.length){
+                selectableCatalog=eligibleEvidenceActionCatalog(selectableCatalog,completedTasksForAudit,configuredSourceFiles,safeCatalog,
+                    coverageBeforeDecision.map(objective=>objective.coverageProof));
+                auditCatalog=compactActionCatalog(selectableCatalog);
+            }
+        };
         for(const contract of missionState.evidenceObjectives || []){
             if(contract.requiredEvidenceKind!=='platform_records' || !contract.coverageMode)continue;
             const previous=missionState.completionAssessment?.objectives?.find(item=>item.objective===contract.objective);
             const clarifications=recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content);
             const dependencyKey='dependency:'+recordObjectiveRevision(contract,[],clarifications,model,missionState,evaluatedAt);
             const revision=recordObjectiveRevision(contract,completedTasksForAudit,clarifications,model,missionState,evaluatedAt,coverageCache.get(dependencyKey));
-            const newRecords=completedTasksForAudit.some((task,index)=>index>=priorTaskCount && task.observation?.ok===true &&
-                task.observation.executionOk!==false && task.observation.blocked!==true &&
-                task.observation.recordEvidence?.source==='FIRESTORE_SERVER_AUTHENTICATED');
-            const hasRecords=completedTasksForAudit.some(task=>task.observation?.ok===true && task.observation.executionOk!==false &&
-                task.observation.blocked!==true && task.observation.recordEvidence?.source==='FIRESTORE_SERVER_AUTHENTICATED');
-            const newSource=hasRecords && previous?.coverageProof && contract.scope==='all_sources' && observedRecordSources(completedTasksForAudit)
-                .some(collection=>!previous.coverageProof.sources?.some(source=>source.collection===collection));
-            // Pending goals without an accredited proof need no independent
-            // negative review before the model chooses its next investigation.
-            if(!coverageCache.has(revision) && ((newRecords && previous?.coverageProof) || newSource || previous?.satisfied===true)){
+            // Reopen accredited positive coverage when its dependencies change.
+            // A still-pending goal first needs an investigation decision, not
+            // another independent inference that it is still pending.
+            if(!coverageCache.has(revision) && (previous?.satisfied===true || previous?.coverageProof?.proven===true)){
                 const objective={objective:contract.objective,requiredEvidenceKind:contract.requiredEvidenceKind};
                 const proof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,
                     advisoryContext,scopeClarifications:clarifications,evaluatedAt,instruction});
@@ -3357,17 +3363,12 @@ async function runModelSemanticPlanner({
                 coverageCache.set(proofRevision,structuredClone(proof));freshlyReviewedCoverage.add(proofRevision);
                 while(coverageCache.size>96)coverageCache.delete(coverageCache.keys().next().value);
             }
-            if(coverageCache.has(revision))coverageBeforeDecision.push({objective:contract.objective,
-                requiredEvidenceKind:contract.requiredEvidenceKind,coverageProof:coverageCache.get(revision)});
+            if(coverageCache.has(revision))rememberReviewedCoverage(contract,coverageCache.get(revision));
         }
         // Only the current engine-owned independent reviews may prune routes.
         // Client-supplied previous assessments never become authority here.
         // Unknown or relevant for even one objective keeps the query available.
-        if(recordOnlyAudit && coverageBeforeDecision.length===missionState.evidenceObjectives.length){
-            selectableCatalog=eligibleEvidenceActionCatalog(selectableCatalog,completedTasksForAudit,configuredSourceFiles,safeCatalog,
-                coverageBeforeDecision.map(objective=>objective.coverageProof));
-            auditCatalog=compactActionCatalog(selectableCatalog);
-        }
+        refreshReviewedActionFrontier();
         for (let auditAttempt = 0; auditAttempt < 2; auditAttempt++) {
             let auditPlan = null;
             try {
@@ -3456,16 +3457,14 @@ async function runModelSemanticPlanner({
                 const validatedAudit = validatePlan(evaluatedAudit, selectableCatalog, instruction);
                 let coverageReused = false;
                 let coverageChanged = false;
+                let coverageDeferred = false;
                 if (missionState.evidenceObjectives?.length) validateCompletionEvidence(evaluatedAudit, normalizedCatalog, missionState);
                 if (missionState.evidenceObjectives?.length) {
                     const authenticatedRecordAt=index=>{
                         const task=completedTasksForAudit[index],observation=task?.observation,record=observation?.recordEvidence;
                         return Number.isInteger(index) && normalizedCatalog.find(tool=>tool.name===task?.name)?.evidenceKinds?.includes("platform_records") && observation?.ok===true && observation.executionOk!==false && observation.blocked!==true && record?.source==="FIRESTORE_SERVER_AUTHENTICATED" && record.readOnly===true;
                     };
-                    const assessedCount=Number.isInteger(missionState.completionAssessment?.evaluatedTaskCount)?missionState.completionAssessment.evaluatedTaskCount:0;
-                    const hasNewRecords=completedTasksForAudit.some((task,index)=>index>=assessedCount && authenticatedRecordAt(index));
                     const hasAuthenticatedRecords=completedTasksForAudit.some((task,index)=>authenticatedRecordAt(index));
-                    const observedCoverageSources=observedRecordSources(completedTasksForAudit);
                     for(const objective of evaluatedAudit.completionAssessment?.objectives||[]) {
                         const contract=missionState.evidenceObjectives.find(item=>item.objective===objective.objective);
                         const previousObjective=missionState.completionAssessment?.objectives?.find(item=>item.objective===objective.objective);
@@ -3486,26 +3485,28 @@ async function runModelSemanticPlanner({
                         // the operational facts. Let this same model review a
                         // newly observed scope against the existing records;
                         // code alone still cannot supply a record citation.
-                        const hasUnreviewedSources=hasAuthenticatedRecords && previousObjective?.coverageProof && contract?.scope==="all_sources" &&
-                            observedCoverageSources.some(collection=>!(previousObjective?.coverageProof?.sources || []).some(source=>source.collection===collection));
-                        if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode && (objective.satisfied || (hasNewRecords && (!evaluatedAudit.toolCalls?.length || previousObjective?.coverageProof)) || previouslySatisfied || hasUnreviewedSources)) {
+                        if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode &&
+                            (objective.satisfied || previouslySatisfied || (!evaluatedAudit.toolCalls?.length && hasAuthenticatedRecords))) {
                             objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,advisoryContext,scopeClarifications:recentConversationTurns.filter(turn=>turn.role==="user").map(turn=>turn.content),evaluatedAt,instruction});
                             coverageCache.set(revision,structuredClone(objective.coverageProof));
                             coverageCache.delete(dependencyKey);coverageCache.set(dependencyKey,structuredClone(objective.coverageProof));
                             coverageCache.set(recordObjectiveRevision(contract,completedTasksForAudit,clarifications,model,missionState,evaluatedAt,objective.coverageProof),structuredClone(objective.coverageProof));
+                            rememberReviewedCoverage(contract,objective.coverageProof);
                             while(coverageCache.size>96)coverageCache.delete(coverageCache.keys().next().value);
                             coverageChanged ||= JSON.stringify(objective.coverageProof)!==JSON.stringify(previousObjective?.coverageProof);
                             const reviewedReferences=recordCoverageTaskIndexes(objective).filter(authenticatedRecordAt);
                             objective.evidenceTaskIndexes=[...new Set([...(objective.evidenceTaskIndexes||[]),...reviewedReferences])];
                             continue;
                         }
-                        if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode && !hasNewRecords &&
-                            previousObjective?.requiredEvidenceKind===objective.requiredEvidenceKind && previousObjective.coverageProof) {
-                            // A source read does not replace the operational review.
-                            // Preserve its credited fields and pending scopes; the
-                            // qualification below still checks all current evidence.
+                        if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode && !objective.satisfied && evaluatedAudit.toolCalls?.length &&
+                            previousObjective?.requiredEvidenceKind===objective.requiredEvidenceKind && previousObjective.coverageProof?.proven===false) {
+                            // Retain partial references and missing scopes while
+                            // executing a valid novel investigation. This negative
+                            // proof cannot certify completion or prune sources;
+                            // any positive claim or attempted stop is reviewed above.
                             objective.coverageProof=structuredClone(previousObjective.coverageProof);
                             coverageReused=true;
+                            coverageDeferred=true;
                             const retainedReferences=recordCoverageTaskIndexes(objective).filter(authenticatedRecordAt);
                             objective.evidenceTaskIndexes=[...new Set([...(objective.evidenceTaskIndexes||[]),...retainedReferences])];
                             continue;
@@ -3555,7 +3556,7 @@ async function runModelSemanticPlanner({
                     // Keep its validated schema, prerequisites and novelty checks;
                     // a proof update alone must never create another planning turn.
                 }
-                validatedAudit.coverageEvaluation={reused:coverageReused,changed:coverageChanged};
+                validatedAudit.coverageEvaluation={reused:coverageReused,changed:coverageChanged,...(coverageDeferred?{deferred:true}:{})};
                 const pendingEvidenceKinds = new Set(
                     (evaluatedAudit?.completionAssessment?.objectives || [])
                         .filter(objective => objective?.satisfied !== true)
