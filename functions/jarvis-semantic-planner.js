@@ -436,6 +436,34 @@ function evidenceRequirementSuccessors(kind, catalog = []) {
 function recordProjectionAlreadyObserved(call, tasks) {
     const canonical=value=>Array.isArray(value)?value.map(canonical):value && typeof value==="object"
         ?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;
+    const sameCollection=(requested,resolved)=>{
+        if(requested===resolved)return true;
+        if(typeof requested!=="string"||typeof resolved!=="string")return false;
+        const parts=requested.split('/'),actual=resolved.split('/');
+        return parts.length===actual.length && parts.every((part,index)=>
+            /^\{[A-Za-z][A-Za-z0-9_]*\}$/.test(part)?Boolean(actual[index]):part===actual[index]);
+    };
+    if(call.args?.mode==='count' && !call.args.cursor){
+        // An authenticated, unpaged empty query already proves zero in that
+        // exact scope. Resolve only its own recorded template, never another
+        // tenant, filter, ordering or source, and never global absence.
+        const countScope=(args,collection)=>JSON.stringify(canonical({sourceFile:args?.sourceFile,collection,
+            filters:args?.filters||[],cursor:args?.cursor||null,
+            orderBy:args?.orderBy?.length?args.orderBy:[{field:'__name__',direction:'asc'}]}));
+        if(tasks.some(task=>{const record=task.observation?.recordEvidence,collection=record?.scope?.collection;
+            return task.name===call.name && task.observation?.ok===true && task.observation.executionOk!==false &&
+                task.observation.blocked!==true && task.observation.requiresInput!==true &&
+                task.args?.mode==='query' && record?.scope?.mode==='query' &&
+                record.source==='FIRESTORE_SERVER_AUTHENTICATED' && record.readOnly===true &&
+                record.completeForQuery===true && record.hasMore===false && record.queryExhausted!==false &&
+                record.consistentCountAndList!==false && Array.isArray(record.rows) && record.rows.length===0 &&
+                (record.returnedCount===undefined||record.returnedCount===0) && (record.totalCount==null||record.totalCount===0) &&
+                !task.args.cursor && !record.scope.cursor && sameCollection(task.args.collection,collection) &&
+                (call.args.collection===collection||call.args.collection===task.args.collection) &&
+                countScope(task.args,collection)===countScope(call.args,collection) &&
+                countScope(record.scope,collection)===countScope(call.args,collection);
+        }))return true;
+    }
     if(call.args?.mode==='query' && call.args.cursor){
         // A fully exhausted first page has no continuation after its last row.
         // Suppress this non-advancing action, never promote it to goal coverage.
@@ -486,13 +514,6 @@ function recordProjectionAlreadyObserved(call, tasks) {
     const emptyScope=args=>JSON.stringify(canonical({sourceFile:args?.sourceFile,collection:args?.collection,
         mode:args?.mode||"query",filters:args?.filters||[],cursor:args?.cursor||null,
         orderBy:args?.orderBy?.length?args.orderBy:[{field:"__name__",direction:"asc"}]}));
-    const sameCollection=(requested,resolved)=>{
-        if(requested===resolved)return true;
-        if(typeof requested!=="string"||typeof resolved!=="string")return false;
-        const parts=requested.split('/'),actual=resolved.split('/');
-        return parts.length===actual.length && parts.every((part,index)=>
-            /^\{[A-Za-z][A-Za-z0-9_]*\}$/.test(part)?Boolean(actual[index]):part===actual[index]);
-    };
     if(tasks.some(task=>{const record=task.observation?.recordEvidence;
         return task.name===call.name && task.observation?.ok===true && task.observation.executionOk!==false &&
             task.observation.blocked!==true && task.observation.requiresInput!==true &&
