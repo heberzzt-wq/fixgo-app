@@ -1,6 +1,27 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `44ab32a96bfa7ea7f4b7afc93d6aa7ed68ad4f98`, the reviewed complete-empty-route frontier release.
+Current baseline: `68741ec37cd01c2eb51d54ce02208dfc52535c37`, the reviewed recovery response-contract release.
+Only `jarvis-semantic-planner.js` changes inside Functions. Scoped recovery now
+returns the canonical validatePlan envelope, including ok/status/version, so the
+real client executes its valid next action instead of treating it as unavailable.
+The scope-error path carries immutable pending contracts or previously accredited
+coverage, not the rejected proposal's unreviewed success/kind claims. Engine-owned
+refreshed proof still receives authenticated record-kind and scope qualification.
+Mission completion remains false while recovery investigates pending objectives.
+
+The exact catch-path regression failed before the change (ok undefined) and now
+passes for fresh, forged-kind and prior-coverage cases. The real Chrome response
+replay preserves the action and becomes client-acceptable without marking the
+mission complete. All 274 focal checks pass; the clean-HEAD full suite has 1,988
+PASS, zero failures and two explicit environment skips: Linux transport and
+physical search while the service is stopped. Physical search, fresh CI, aligned
+deployment and the complete isolated Chrome mission remain required. No model,
+paid-provider trigger, operational record or permission changes. The reviewed
+Functions baseline stays explicit, ancestor-checked and fail-closed.
+
+## Previous complete-empty-route frontier baseline
+
+Previous baseline: `44ab32a96bfa7ea7f4b7afc93d6aa7ed68ad4f98`, the reviewed complete-empty-route frontier release.
 Only `jarvis-semantic-planner.js` changes inside Functions. A consistent complete
 unfiltered zero exhausts its exact authenticated source/route, including subsets
 of that empty scope, rather than inviting an invented filter. Filtered zeros,
