@@ -47,6 +47,13 @@ import {
 } from "../gestia-core/jarvis/jarvis.multifunction.planner.js";
 
 // Match the bridge's Windows Git authority; the bundled Git can fail object writes.
+function readWorkstationScript(name){
+ const pkg=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8'));
+ const match=pkg.scripts[name].match(/^node (scripts\/jarvis-workstation-(?:start|supervisor)\.cjs)$/);
+ assert.ok(match,'workstation commands must use bounded canonical file entry points');
+ return fs.readFileSync(new URL('../'+match[1],import.meta.url),'utf8');
+}
+
 const gitExecutable = process.platform === "win32" && fs.existsSync("C:/Program Files/Git/cmd/git.exe")
     ? "C:/Program Files/Git/cmd/git.exe" : "git";
 
@@ -262,7 +269,7 @@ test("bridge singleton guard requires exact version head and clean worktree", ()
         );
     const bridgeScript =
         String(
-            pkg?.scripts?.bridge ||
+            readWorkstationScript("bridge") ||
             ""
         );
 
@@ -3339,24 +3346,24 @@ test("SIA7 worker targets the bridge IPv4 loopback authority", () => {
     const packageJson = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
     assert.equal(workerSource.includes('const BRIDGE_URL = process.env.JARVIS_FS_BRIDGE_URL || "http://127.0.0.1:3344";'), true);
     assert.equal(workerSource.includes('http://localhost:3344'), false);
-    assert.equal(packageJson.scripts.bridge.includes("bridge=http://127.0.0.1:3344"), true);
-    assert.equal(packageJson.scripts.bridge.includes("bridge=http://localhost:3344"), false);
+    assert.equal(readWorkstationScript("bridge").includes("bridge=http://127.0.0.1:3344"), true);
+    assert.equal(readWorkstationScript("bridge").includes("bridge=http://localhost:3344"), false);
 });
 
 
 
 test("npm bridge syncs the checkout before importing long-lived bridge modules", () => {
     const packageJson = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-    const bridgeScript = String(packageJson.scripts.bridge || "");
+    const bridgeScript = String(readWorkstationScript("bridge") || "");
     const fetchIndex = bridgeScript.indexOf("spawnSync(git,['fetch','--quiet','origin'");
     const rebaseIndex = bridgeScript.indexOf("spawnSync(git,['rebase','origin/v94-media-v4n-negative-claims']");
-    const uploadImportIndex = bridgeScript.indexOf("import('./jarvis-upload-bridge.js')");
-    const workerImportIndex = bridgeScript.indexOf("import('./jarvis-github-worker.js')");
+    const uploadImportIndex = bridgeScript.indexOf("import('../jarvis-upload-bridge.js')");
+    const workerImportIndex = bridgeScript.indexOf("import('../jarvis-github-worker.js')");
     assert.ok(fetchIndex >= 0, "bridge launcher must fetch the exact remote branch");
     assert.ok(rebaseIndex > fetchIndex, "bridge launcher must rebase onto exactly one remote ref");
     assert.ok(uploadImportIndex > rebaseIndex, "upload bridge import must happen after Git sync");
     assert.ok(workerImportIndex > rebaseIndex, "worker import must happen after Git sync");
-    assert.match(bridgeScript, /C:\\\\Program Files\\\\Git\\\\cmd\\\\git\.exe/);
+    assert.ok(bridgeScript.includes("C:\\Program Files\\Git\\cmd\\git.exe"));
 });
 
 test("SIA7 worker fetches exact remote ref and never hot-rebases a live runtime", () => {
@@ -3416,7 +3423,7 @@ test("npm bridge clears stale rebase metadata before one exact startup sync and 
     const packageJson = JSON.parse(
         fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")
     );
-    const bridgeScript = String(packageJson.scripts.bridge || "");
+    const bridgeScript = String(readWorkstationScript("bridge") || "");
     assert.match(bridgeScript, /rebase','--quit/);
     assert.match(bridgeScript, /JARVIS_GIT_REBASE_STATE_CLEARED/);
     assert.match(bridgeScript, /WORKER_RESTART_REQUIRED/);

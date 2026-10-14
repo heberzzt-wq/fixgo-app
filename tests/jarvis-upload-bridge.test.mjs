@@ -19,10 +19,18 @@ import {
     runResilientLocalWebResearch
 } from "../jarvis-upload-bridge.js";
 
+
+function readWorkstationScript(name){
+ const pkg=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8'));
+ const match=pkg.scripts[name].match(/^node (scripts\/jarvis-workstation-(?:start|supervisor)\.cjs)$/);
+ assert.ok(match,'workstation commands must use bounded canonical file entry points');
+ return fs.readFileSync(new URL('../'+match[1],import.meta.url),'utf8');
+}
+
 // Match the bridge's Windows Git authority; the bundled Git can fail object writes.
 test("supervisor tolerates a slow health response after startup and only recycles sustained failure", async () => {
     const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-    const source = pkg.scripts["bridge:supervise"].match(/^node -e "([\s\S]*)"$/)[1];
+    const source = readWorkstationScript("bridge:supervise");
     let now = 1000;
     let state = null;
     let listening = false;
@@ -88,7 +96,7 @@ test("supervisor tolerates a slow health response after startup and only recycle
 
 test("bridge startup preserves dirty edits before any Git synchronization", () => {
     const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-    const source = pkg.scripts.bridge.match(/^node -e "([\s\S]*)"$/)[1];
+    const source = readWorkstationScript("bridge");
     const commands = [];
     assert.throws(() => runInNewContext(source, {
         require(name) {
@@ -99,24 +107,33 @@ test("bridge startup preserves dirty edits before any Git synchronization", () =
         }, process: { platform: "win32",env:{} }
     }), /DIRTY_BEFORE_BRIDGE_SYNC/);
     assert.deepEqual(commands.map(args => Array.from(args)), [["status", "--porcelain"]]);
-    assert.doesNotMatch(pkg.scripts.bridge, /--autostash/);
+    assert.doesNotMatch(readWorkstationScript("bridge"), /--autostash/);
 });
 const gitExecutable = process.platform === "win32" && fs.existsSync("C:/Program Files/Git/cmd/git.exe")
     ? "C:/Program Files/Git/cmd/git.exe" : "git";
 
 test('startup rejects a model override before synchronizing Git or contacting inference',()=>{
  const pkg=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8'));
- const source=pkg.scripts.bridge.match(/^node -e "([\s\S]*)"$/)[1].split('const git=')[0];
+ const source=readWorkstationScript("bridge").split('const git=')[0];
  for(const override of [{JARVIS_LOCAL_LLM_MODEL:'other-model'},{JARVIS_CONVERSATION_MODEL:'other-model'},{}]){
   const runtime={env:{...override}};let sideEffects=0;
-  const run=()=>runInNewContext(source,{process:runtime,require(name){
+  const run=()=>runInNewContext(source+'\nEXPECTED_BRIDGE_VERSION',{process:runtime,require(name){
    if(name==='fs')return{readFileSync(file){return file==='jarvis-runtime-contract.json'
     ? JSON.stringify({semanticModel:'qwen3.5:9b',inferencePolicy:'LOCAL_ONLY'}) : 'JARVIS_FS_BRIDGE_VERSION = "1.0.0-fixture-v142";';}};
    return{spawnSync(){sideEffects++;throw Error('NO_SIDE_EFFECT_ALLOWED');}};
   }});
   if(Object.keys(override).length)assert.throws(run,/JARVIS_LOCAL_MODEL_CONTRACT_MISMATCH/);
-  else{run();assert.equal(runtime.env.JARVIS_LOCAL_LLM_MODEL,'qwen3.5:9b');assert.equal(runtime.env.JARVIS_CONVERSATION_MODEL,'qwen3.5:9b');}
+  else{assert.equal(run(),'1.0.0-fixture-v142');assert.equal(runtime.env.JARVIS_LOCAL_LLM_MODEL,'qwen3.5:9b');assert.equal(runtime.env.JARVIS_CONVERSATION_MODEL,'qwen3.5:9b');}
   assert.equal(sideEffects,0);
+ }
+});
+
+test('Windows workstation npm commands stay below the shell limit and execute file entry points',()=>{
+ const pkg=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8'));
+ for(const name of ['bridge','bridge:supervise']){
+  assert.ok(Buffer.byteLength(pkg.scripts[name])<1024,'command must retain headroom below the Windows 8191-character limit');
+  assert.match(pkg.scripts[name],/^node scripts\/jarvis-workstation-(start|supervisor)\.cjs$/);
+  assert.ok(readWorkstationScript(name).includes('2.0.0-singleton-exact-sync'));
  }
 });
 
@@ -182,54 +199,54 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     assert.match(pkg.scripts["bridge:ensure"], /workerStarted/);
     assert.match(pkg.scripts["bridge:ensure"], /2\.0\.0-singleton-exact-sync/);
     assert.match(pkg.scripts["bridge:ensure"], /bridge:supervise/);
-    assert.match(pkg.scripts["bridge:supervise"], /workstation offline -> starting contract/);
-    assert.match(pkg.scripts["bridge:supervise"], /setTimeout\(loop,ms\)/);
-    assert.match(pkg.scripts.bridge, /workerLastPollAt/);
-    assert.match(pkg.scripts.bridge, /workerLastPollOkAt/);
-    assert.match(pkg.scripts.bridge, /workerLastPollError/);
-    assert.match(pkg.scripts.bridge, /loadedHead:localHead/);
-    assert.match(pkg.scripts.bridge, /existing\.loadedHead===localHead/);
+    assert.match(readWorkstationScript("bridge:supervise"), /workstation offline -> starting contract/);
+    assert.match(readWorkstationScript("bridge:supervise"), /setTimeout\(loop,ms\)/);
+    assert.match(readWorkstationScript("bridge"), /workerLastPollAt/);
+    assert.match(readWorkstationScript("bridge"), /workerLastPollOkAt/);
+    assert.match(readWorkstationScript("bridge"), /workerLastPollError/);
+    assert.match(readWorkstationScript("bridge"), /loadedHead:localHead/);
+    assert.match(readWorkstationScript("bridge"), /existing\.loadedHead===localHead/);
     assert.ok(
-        pkg.scripts.bridge.indexOf(
+        readWorkstationScript("bridge").indexOf(
             "bridge.markJarvisWorkstationRuntime({bridgeStarted:true,workerStarted:true,workerPollMs:5000,loadedHead:localHead})"
         ) <
-        pkg.scripts.bridge.indexOf(
+        readWorkstationScript("bridge").indexOf(
             "server=bridge.startJarvisUploadBridge()"
         ),
         "bridge runtime identity must be marked current before port 3344 becomes visible"
     );
-    assert.match(pkg.scripts.bridge, /JARVIS_GIT_SYNC_DEGRADED/);
-    assert.match(pkg.scripts.bridge, /JARVIS_GIT_SYNC_REBASE_STATE_ACTIVE/);
-    assert.match(pkg.scripts.bridge, /rebase-merge/);
-    assert.match(pkg.scripts.bridge, /rebase-apply/);
-    assert.match(pkg.scripts.bridge, /singleton already current/);
-    assert.match(pkg.scripts.bridge, /2\.0\.0-singleton-exact-sync/);
-    assert.match(pkg.scripts.bridge, /JARVIS_BRIDGE_PORT_3344_OCCUPIED_UNHEALTHY/);
-    assert.match(pkg.scripts.bridge, /recycled stale verified Jarvis/);
-    assert.match(pkg.scripts["bridge:supervise"], /recycled stale verified Jarvis/);
-    assert.match(pkg.scripts["bridge:supervise"], /refusing duplicate bind/);
-    assert.match(pkg.scripts["bridge:supervise"], /workstation\/health/);
-    assert.match(pkg.scripts["bridge:supervise"], /workerStarted/);
-    assert.match(pkg.scripts["bridge:supervise"], /loadedHead/);
-    assert.match(pkg.scripts["bridge:supervise"], /currentHead\(\)/);
-    assert.match(pkg.scripts["bridge:supervise"], /lastKnownHead/);
-    assert.match(pkg.scripts["bridge:supervise"], /runtimeAligned&&\(!head\|\|state\.loadedHead===head\)/);
-    assert.doesNotMatch(pkg.scripts["bridge:supervise"], /current HEAD temporarily unavailable/);
-    assert.match(pkg.scripts["bridge:supervise"], /rev-parse/);
-    assert.match(pkg.scripts["bridge:supervise"], /taskkill/);
-    assert.match(pkg.scripts["bridge:supervise"], /processId/);
-    assert.match(pkg.scripts["bridge:supervise"], /occupied\(\)/);
-    assert.match(pkg.scripts["bridge:supervise"], /SUPERVISOR_LOCK_PORT=3345/);
-    assert.match(pkg.scripts.bridge, /JARVIS_LOCAL_LLM_WARMUP_TIMEOUT_MS\)\|\|240000/);
-    assert.match(pkg.scripts["bridge:supervise"], /STARTUP_GRACE_MS/);
-    assert.match(pkg.scripts["bridge:supervise"], /STALE_SETTLE_MS=10000/);
-    assert.match(pkg.scripts["bridge:supervise"], /transient startup mismatch; waiting/);
-    assert.match(pkg.scripts["bridge:supervise"], /childStartedAt=Date\.now\(\)/);
-    assert.match(pkg.scripts["bridge:supervise"], /child failed to become healthy; clearing stale child/);
-    assert.match(pkg.scripts["bridge:supervise"], /launch\(\);return later\(2000\)/);
-    assert.doesNotMatch(pkg.scripts["bridge:supervise"], /if\(stopping\|\|child\)return/);
-    assert.match(pkg.scripts["bridge:supervise"], /singleton lock already held/);
-    assert.match(pkg.scripts["bridge:supervise"], /lockServer=net\.createServer\(\)/);
+    assert.match(readWorkstationScript("bridge"), /JARVIS_GIT_SYNC_DEGRADED/);
+    assert.match(readWorkstationScript("bridge"), /JARVIS_GIT_SYNC_REBASE_STATE_ACTIVE/);
+    assert.match(readWorkstationScript("bridge"), /rebase-merge/);
+    assert.match(readWorkstationScript("bridge"), /rebase-apply/);
+    assert.match(readWorkstationScript("bridge"), /singleton already current/);
+    assert.match(readWorkstationScript("bridge"), /2\.0\.0-singleton-exact-sync/);
+    assert.match(readWorkstationScript("bridge"), /JARVIS_BRIDGE_PORT_3344_OCCUPIED_UNHEALTHY/);
+    assert.match(readWorkstationScript("bridge"), /recycled stale verified Jarvis/);
+    assert.match(readWorkstationScript("bridge:supervise"), /recycled stale verified Jarvis/);
+    assert.match(readWorkstationScript("bridge:supervise"), /refusing duplicate bind/);
+    assert.match(readWorkstationScript("bridge:supervise"), /workstation\/health/);
+    assert.match(readWorkstationScript("bridge:supervise"), /workerStarted/);
+    assert.match(readWorkstationScript("bridge:supervise"), /loadedHead/);
+    assert.match(readWorkstationScript("bridge:supervise"), /currentHead\(\)/);
+    assert.match(readWorkstationScript("bridge:supervise"), /lastKnownHead/);
+    assert.match(readWorkstationScript("bridge:supervise"), /runtimeAligned&&\(!head\|\|state\.loadedHead===head\)/);
+    assert.doesNotMatch(readWorkstationScript("bridge:supervise"), /current HEAD temporarily unavailable/);
+    assert.match(readWorkstationScript("bridge:supervise"), /rev-parse/);
+    assert.match(readWorkstationScript("bridge:supervise"), /taskkill/);
+    assert.match(readWorkstationScript("bridge:supervise"), /processId/);
+    assert.match(readWorkstationScript("bridge:supervise"), /occupied\(\)/);
+    assert.match(readWorkstationScript("bridge:supervise"), /SUPERVISOR_LOCK_PORT=3345/);
+    assert.match(readWorkstationScript("bridge"), /JARVIS_LOCAL_LLM_WARMUP_TIMEOUT_MS\)\|\|240000/);
+    assert.match(readWorkstationScript("bridge:supervise"), /STARTUP_GRACE_MS/);
+    assert.match(readWorkstationScript("bridge:supervise"), /STALE_SETTLE_MS=10000/);
+    assert.match(readWorkstationScript("bridge:supervise"), /transient startup mismatch; waiting/);
+    assert.match(readWorkstationScript("bridge:supervise"), /childStartedAt=Date\.now\(\)/);
+    assert.match(readWorkstationScript("bridge:supervise"), /child failed to become healthy; clearing stale child/);
+    assert.match(readWorkstationScript("bridge:supervise"), /launch\(\);\s*return later\(2000\)/);
+    assert.doesNotMatch(readWorkstationScript("bridge:supervise"), /if\(stopping\|\|child\)return/);
+    assert.match(readWorkstationScript("bridge:supervise"), /singleton lock already held/);
+    assert.match(readWorkstationScript("bridge:supervise"), /lockServer=net\.createServer\(\)/);
     assert.equal(pkg.scripts["test:mcp"], "npm --prefix tools/fixgo-mcp run check");
     assert.equal(pkg.scripts["nexo:bridge"], "npm run bridge");
 });
