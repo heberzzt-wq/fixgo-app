@@ -1,6 +1,22 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `6d476ca3553f8bbce1d769bab4d1f5c7843a09a2`, the explicitly reviewed exhausted-cursor release.
+Current baseline: `ba936dffae57592f18e85215376c9e5b05634fb1`, the explicitly reviewed scoped-zero reuse release.
+The only additional Functions change reuses an authenticated complete empty first
+page as zero for its own exact count scope. Its recorded template may match its
+authenticated resolved collection; a different literal tenant cannot. Source,
+filters, ID ordering, pagination, success and consistency remain checked. This
+suppresses redundant actions without accrediting global inventory or completion.
+The general regression failed before the fix, then 263 related tests passed on
+the working tree and clean functional HEAD. The full local suite passed 1,971
+tests with zero failures and one Linux-only skip. The actual stopped Chrome
+trace reproduces the suppressed redundant count; all five receipts roundtrip
+exactly in 21,494 characters. Fresh CI and complete Chrome certification remain
+required. No model, operational data, permissions or provider triggers change.
+The guard remains explicitly pinned, ancestor-checked and fail-closed.
+
+## Previous exhausted-cursor baseline
+
+Previous baseline: `6d476ca3553f8bbce1d769bab4d1f5c7843a09a2`, the explicitly reviewed exhausted-cursor release.
 The sole additional Functions change suppresses a query continuation after the
 last authenticated row of a complete, exhausted first page in the same source,
 collection, filter and ordering scope. It does not accredit goal coverage or
