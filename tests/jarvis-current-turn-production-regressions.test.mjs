@@ -4402,6 +4402,24 @@ test('one evidence decision cannot cascade through serial recovery planners',asy
  assert.equal(recoveries,1);assert.equal(result.missionComplete,false);assert.equal(result.toolCalls.length,0);assert.equal(result.completionAssessment.objectives[0].satisfied,false);
 });
 
+test('grounded record arguments use the same observed fields and rejected ordering constraints as auditing',async()=>{
+ const {runJarvisSemanticPlanner}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const f=platformQueryTestFixture();
+ const tool={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,inputSchema:{type:'object',properties:{
+  sourceFile:{type:'string',enum:[f.args.sourceFile]},collection:{type:'string',enum:[f.args.collection]},mode:{type:'string',enum:['query']},
+  fields:{type:'array',items:{type:'string'},minItems:1},filters:{type:'array'},orderBy:{type:'array',items:{type:'object',properties:{field:{type:'string'}},required:['field']}}
+ },required:['sourceFile','collection','mode','fields','filters']}};
+ const blockedTasks=[{name:tool.name,args:{...f.args,orderBy:[{field:'uncredited_field'}]},observation:{ok:false,errorCode:'failed-precondition',error:'The query requires an index. https://console.firebase.google.com/v1/r/project/fixture/firestore/indexes?create_composite=observed'}}];
+ let requests=0;
+ const result=await runJarvisSemanticPlanner({input:'Inspect current records without changing anything',catalog:[tool],missionState:{phase:'GROUNDED_ARGUMENT_COMPLETION',completedTasks:f.context.completedTasks,blockedTasks},ai:{models:{generateContent:async request=>{
+  requests++;const schema=request.config.responseJsonSchema.properties.toolCalls.items.properties.args;
+  assert.deepEqual(schema.properties.fields.items.enum,['__name__'],'no collection-scoped field was accredited yet');
+  assert.equal(schema.properties.orderBy.maxItems,0,'the same rejected optional ordering must not be offered again');
+  return{text:JSON.stringify({toolCalls:[{name:tool.name,args:{sourceFile:f.args.sourceFile,collection:f.args.collection,mode:'query',fields:['__name__'],filters:[]}}],missionComplete:false})};
+ }}}});
+ assert.equal(requests,1);assert.deepEqual(result.toolCalls[0].args.fields,['__name__']);
+});
+
 test('runtime field discovery follows only its own recorded template and resolved scope',async()=>{
  const {observedRecordFieldPaths}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const f=platformQueryTestFixture({recordData:[{holder:'Observed holder',deadline:'2026-02-01'}]});
@@ -4459,8 +4477,10 @@ test('argument completion transports structured receipts and immutable objective
  const {completeJarvisPlanningArguments}=await import('../gestia-core/jarvis/jarvis.multifunction.planner.js');
  const objectives=[{objective:'Inspect entries',requiredEvidenceKind:'platform_records'}];
  const tasks=[{name:'fixture.read',args:{file:'observed.js'},observation:{ok:true,verifiedRead:{file:'observed.js',content:'Observed schema',startLine:1,endLine:1,totalLines:1}}}];
- await completeJarvisPlanningArguments({toolName:'fixture.read',toolContract:{evidenceKinds:['repository_source'],investigationReadOnly:true},completedTasks:tasks,evidenceObjectives:objectives,instruction:'Inspect entries',inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']},semanticPlanner:async request=>{
+ const blockedTasks=[{name:'fixture.read',args:{file:'unavailable.js'},observation:{ok:false,error:'Observed denial'}}];
+ await completeJarvisPlanningArguments({toolName:'fixture.read',toolContract:{evidenceKinds:['repository_source'],investigationReadOnly:true},completedTasks:tasks,blockedTasks,evidenceObjectives:objectives,instruction:'Inspect entries',inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']},semanticPlanner:async request=>{
   assert.deepEqual(request.missionState.evidenceObjectives,objectives);assert.equal(request.missionState.completedTasks[0].observation.verifiedRead.file,'observed.js');
+  assert.deepEqual(request.missionState.blockedTasks,blockedTasks);
   assert.deepEqual(request.catalog[0].evidenceKinds,['repository_source']);
   return{toolCalls:[{name:'fixture.read',args:{file:'related.js'}}]};
  }});

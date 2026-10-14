@@ -3586,7 +3586,9 @@ async function runModelSemanticPlanner({
     ) {
         const phaseCatalog =
             phase === "GROUNDED_ARGUMENT_COMPLETION"
-                ? eligibleEvidenceActionCatalog(safeCatalog.slice(0, 1), missionState.completedTasks || [])
+                ? eligibleEvidenceActionCatalog(bindRejectedQueryOrderings(
+                    bindRejectedRecordFields(safeCatalog.slice(0, 1), missionState.completedTasks || [], missionState.blockedTasks || []),
+                    missionState.blockedTasks || []), missionState.completedTasks || [])
                 : safeCatalog;
         if (
             phase === "GROUNDED_ARGUMENT_COMPLETION" &&

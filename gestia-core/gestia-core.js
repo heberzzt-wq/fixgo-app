@@ -6150,6 +6150,7 @@ if (
                                     toolName: call.name,
                                     toolContract: toolDefinition || {},
                                     completedTasks: missionContext.completedTasks || [],
+                                    blockedTasks: missionContext.blockedTasks || [],
                                     evidenceObjectives: missionContext.evidenceObjectives || [],
                                     description: toolDefinition?.description || "",
                                     inputSchema:

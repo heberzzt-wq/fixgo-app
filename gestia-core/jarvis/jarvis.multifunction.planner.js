@@ -2431,6 +2431,7 @@ export async function completeJarvisPlanningArguments({
     missionEvidence = [],
     toolContract = {},
     completedTasks = [],
+    blockedTasks = [],
     evidenceObjectives = [],
     semanticPlanner = null
 } = {}) {
@@ -2518,6 +2519,7 @@ export async function completeJarvisPlanningArguments({
             // Clipping bodies here would turn a complete read into a partial
             // read and incorrectly authorize the same full-file request.
             completedTasks,
+            blockedTasks,
             evidenceObjectives,
             creativeCopyRepair: messageRepair,
             currentOperation:messageRepair ? "Redacta un titular y un cuerpo NUEVOS para el anuncio solicitado, con otro enfoque que los mensajes ya entregados. Devuelve solamente composition.headline y composition.body." : String(operation||"").trim(),
