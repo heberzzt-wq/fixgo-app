@@ -989,14 +989,17 @@ function jsonTypeForSchemaHint(hint) {
     return { type: "string" };
 }
 
-function buildNativeInputSchema(inputSchema = null) {
+function buildNativeInputSchema(inputSchema = null, expandAlternatives = true) {
     if (!inputSchema || typeof inputSchema !== "object" || Array.isArray(inputSchema)) {
         return { type: "object", properties: {}, additionalProperties: true };
     }
 
     if (Array.isArray(inputSchema.anyOf) && !inputSchema.properties) return inputSchema;
     if (inputSchema.type === "object" && inputSchema.properties) {
-        if (!Array.isArray(inputSchema.anyOf)) return inputSchema;
+        // The prompt can retain the common base and conditional constraints.
+        // Only the native grammar needs their fully expanded alternatives;
+        // duplicating that grammar in prose can exhaust the model context.
+        if (!Array.isArray(inputSchema.anyOf) || !expandAlternatives) return inputSchema;
         // Ollama's grammar selects the object rule before sibling anyOf rules.
         // Compile conditional object constraints into complete alternatives.
         const {anyOf,...base}=inputSchema;
@@ -3578,7 +3581,7 @@ async function runModelSemanticPlanner({
                                     "Los hechos vienen de la solicitud y las fuentes; las recomendaciones pueden ser propuestas explícitas. Nunca presentes una propuesta como hecho verificado.",
                                     "Omite campos opcionales innecesarios. No inventes precios, gratuidad, direcciones, URLs, testimonios ni resultados. Conserva la identidad y todos los mercados solicitados.",
                                     `TAREA ${phaseCatalog[0].name}: ${phaseCatalog[0].description}`,
-                                    `CAMPOS=${JSON.stringify(buildNativeInputSchema(phaseCatalog[0].inputSchema))}`,
+                                    `CAMPOS=${JSON.stringify(buildNativeInputSchema(phaseCatalog[0].inputSchema, false))}`,
                                     ...(missionState?.currentOperation ? [`CONTEXTO_Y_EVIDENCIA_INMUTABLES:\n${instruction}`] : [])
                                 ].join("\n")},
                                 {role:"user",content:[missionState?.creativeCopyRepair ? instruction : missionState?.currentOperation || instruction,

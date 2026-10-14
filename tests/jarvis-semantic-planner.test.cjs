@@ -3102,6 +3102,42 @@ test("authenticated grounded argument completion retries JSON and never needs th
     assert.equal(result.toolCalls[0].args.durationSeconds, 30);
 });
 
+test("grounded argument prompts retain correlated schema without duplicating the native grammar alternatives", async () => {
+    const names = Array.from({length:100}, (_,index) => `observed_field_${index}_${"x".repeat(65)}`);
+    const inputSchema = {type:"object", additionalProperties:false,
+        required:["sourceFile","collection","fields"],
+        properties:{sourceFile:{type:"string"},collection:{type:"string"},
+            fields:{type:"array",minItems:1,items:{type:"string",enum:names}}},
+        anyOf:Array.from({length:8}, (_,index) => ({properties:{
+            sourceFile:{const:`source-${index}.js`},collection:{const:`records-${index}`}}}))};
+    const original = JSON.stringify(inputSchema);
+    const tool={name:"records.read",description:"Read only records in the selected observed source.",mutates:false,inputSchema};
+    let calls=0;
+    const result=await runJarvisSemanticPlanner({input:"Read the requested current records.",catalog:[tool],
+        missionState:{phase:"GROUNDED_ARGUMENT_COMPLETION",currentOperation:"Read source 6.",toolName:tool.name},
+        ai:{lastProvider:"ollama-openai-compatible-local",models:{generateContent:async request=>{
+            calls++;
+            const messages=request.config.chatMessages;
+            if (messages.some(message=>message.content.length>60000)) throw new Error("LOCAL_SEMANTIC_MESSAGE_TOO_LARGE");
+            const promptSchema=JSON.parse(messages[0].content.split("CAMPOS=")[1].split("\n")[0]);
+            assert.deepEqual(promptSchema,inputSchema);
+            const native=request.config.responseJsonSchema.properties.toolCalls.items.properties.args;
+            assert.ok(JSON.stringify(native).length>60000);
+            assert.equal(native.anyOf.length,8);
+            native.anyOf.forEach((branch,index)=>{
+                assert.deepEqual(branch.properties.sourceFile.enum,[`source-${index}.js`]);
+                assert.deepEqual(branch.properties.collection.enum,[`records-${index}`]);
+                assert.deepEqual(branch.properties.fields.items.enum,names);
+                assert.equal(branch.additionalProperties,false);
+            });
+            return {text:JSON.stringify({toolCalls:[{name:tool.name,args:{sourceFile:"source-6.js",collection:"records-6",fields:[names[3]]}}],missionComplete:false})};
+        }}}});
+    assert.equal(calls,1);
+    assert.equal(result.toolCalls[0].args.collection,"records-6");
+    assert.equal(JSON.stringify(inputSchema),original);
+    assert.equal(hasRequiredToolArguments(tool,{sourceFile:"source-6.js",collection:"records-1",fields:[names[3]]}),false);
+});
+
 test("mission contract reuses complete calls only after Qwen verifies all objectives", async () => {
     const read = { name: "repo.read", description: "Read the specified repository file", mutates: false, inputSchema: { type: "object", properties: { file: { type: "string" } }, required: ["file"] } };
     const instruction = "Lee jarvis-runtime-contract.json sin cambiarlo y resume lo comprobado.";
