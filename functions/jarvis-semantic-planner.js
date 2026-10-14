@@ -3589,8 +3589,9 @@ async function runModelSemanticPlanner({
                         if(proof&&contract.requiredEvidenceKind==='platform_records'&&contract.coverageMode){
                             retained.coverageProof=structuredClone(proof);
                             retained.evidenceTaskIndexes=recordCoverageTaskIndexes(retained).filter(index=>{
-                                const observation=completedTasksForAudit[index]?.observation;
-                                return observation?.ok===true&&observation.executionOk!==false&&observation.blocked!==true&&
+                                const task=completedTasksForAudit[index],observation=task?.observation;
+                                return normalizedCatalog.find(tool=>tool.name===task?.name)?.evidenceKinds?.includes('platform_records')&&
+                                    observation?.ok===true&&observation.executionOk!==false&&observation.blocked!==true&&
                                     observation.recordEvidence?.source==='FIRESTORE_SERVER_AUTHENTICATED'&&observation.recordEvidence.readOnly===true;
                             });
                             retained.coverage=qualifyRecordObjectiveCoverage(retained,contract,completedTasksForAudit);
