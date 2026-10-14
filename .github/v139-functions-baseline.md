@@ -1,6 +1,26 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `c2c6e7fc69507ec986d36f061b810cb4a810185b`, the reviewed empty-count template release.
+Current baseline: `111f500505674a78bb1b845c38414506d4ee8e35`, the reviewed grounded-record constraints release.
+Only `jarvis-semantic-planner.js` changes inside Functions. Argument completion
+now receives blocked-task receipts and applies the same collection-scoped field
+name binding and rejected-ordering constraints as completion auditing, before
+inference. The existing eligible-action filter then removes exhausted choices.
+Its zero-scope branches explain why the old receipt should be retained and why
+other observed routes remain pending; the scope never represents global data.
+
+Replay of the real grounded request confirms that the previous revision offered
+unobserved projection names while this revision offers only accredited names.
+All 273 focused regressions pass on clean functional HEAD. The fresh full suite
+has 1,987 PASS, zero failures and two explicit skips: Linux-only transport and
+physical search while the workstation is stopped. Physical search must run on
+the published service. Syntax, static local-only policy and whitespace pass.
+Fresh CI, deployment alignment and the complete new Chrome conversation remain
+required. No model, paid-provider trigger, operational record or permission
+changes. The explicit ancestor-checked Functions guard remains fail-closed.
+
+## Previous empty-count template baseline
+
+Previous baseline: `c2c6e7fc69507ec986d36f061b810cb4a810185b`, the reviewed empty-count template release.
 Only `jarvis-semantic-planner.js` changes inside Functions. The exact recorded
 query-template identity predicate is shared by authenticated field-name reuse
 and the eligible-action frontier. A successful zero count now suppresses an
