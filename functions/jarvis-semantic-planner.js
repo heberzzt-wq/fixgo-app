@@ -1940,7 +1940,7 @@ function bindRejectedQueryOrderings(catalog, failedTasks = []) {
     });
 }
 
-function bindEvidencePrerequisites(catalog, tasks = []) {
+function bindEvidencePrerequisites(catalog, tasks = [], evidenceCatalog = catalog) {
     return catalog.flatMap(tool => {
         if (!tool.requiresEvidence?.length) return [tool];
         const schema = structuredClone(buildNativeInputSchema(tool.inputSchema));
@@ -1956,7 +1956,7 @@ function bindEvidencePrerequisites(catalog, tasks = []) {
         // closure/continuation must preserve the same relational contract.
         for (const [kind, requirements] of groups) {
             const witnesses = tasks.filter(task => task.observation?.ok === true && task.observation.executionOk !== false && task.observation.blocked !== true &&
-                task.observation.requiresInput !== true && catalog.find(definition => definition.name === task.name)?.evidenceKinds?.includes(kind));
+                task.observation.requiresInput !== true && evidenceCatalog.find(definition => definition.name === task.name)?.evidenceKinds?.includes(kind));
             alternatives = alternatives.flatMap(branch => witnesses.flatMap(task => {
                 const bound = structuredClone(branch);
                 for (const requirement of requirements) {
@@ -4232,6 +4232,7 @@ async function runModelSemanticPlanner({
     // A self-contained request may still rely on previously supplied exclusions;
     // retain bounded user turns for the same model to judge their relevance,
     // without promoting old tasks, assistant assertions or approvals.
+    if (currentTurn) safeCatalog = bindEvidencePrerequisites(safeCatalog, missionState?.completedTasks || [], normalizedCatalog);
     const scopeOnlyUserTurns = recentConversationTurns.filter(turn => turn.role === "user");
     const operativeAdvisoryContext = currentTurnRequiresConversationContext
         ? advisoryContext
@@ -5450,6 +5451,7 @@ module.exports = {
     qualifyRecordObjectiveCoverage,
     observedRecordFieldPaths,
     bindRejectedQueryOrderings,
+    bindEvidencePrerequisites,
     runModelSemanticPlanner,
     runGeminiSemanticPlanner: runModelSemanticPlanner,
     runJarvisSemanticPlanner,

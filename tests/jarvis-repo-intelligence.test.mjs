@@ -135,6 +135,49 @@ test('the local planner receives configured paths as discovery, never completion
     } finally {f.cleanup();}
 });
 
+test('current-turn record selection offers the source prerequisite before the unread query',async()=>{
+    const f=configuredSourceFixture();
+    try {
+        const {createSelfHostedSemanticEngine}=await import('../jarvis-fs-bridge.js');
+        let selected=false;
+        const engine=createSelfHostedSemanticEngine({root:f.root,env:{JARVIS_LOCAL_LLM_MODEL:'qwen3.5:9b'},fetchImpl:async(url,options)=>{
+            const body=JSON.parse(options.body);
+            if(String(url).endsWith('/api/embed')) return {ok:true,status:200,text:async()=>JSON.stringify({embeddings:(Array.isArray(body.input)?body.input:[body.input]).map(()=>[1,0,0])})};
+            let content;
+            if(body.format?.properties?.actionDescription) content=JSON.stringify({actionDescription:'leer esquema y consultar los registros actuales'});
+            else {
+                const tools=body.tools || [];
+                assert.ok(!tools.some(tool=>tool.function?.name==='platform.query'),'a query lacking its declared source evidence cannot be an initial native choice');
+                const reader=tools.find(tool=>tool.function?.name==='repo.read');
+                assert.ok(reader,'keep the declared read prerequisite available');
+                assert.ok(reader.function.parameters.properties.file.enum.includes('capture.js'),'the prerequisite also uses real source paths');
+                selected=true;
+                return {ok:true,status:200,text:async()=>JSON.stringify({message:{role:'assistant',content:'',tool_calls:[{function:{name:'repo.read',arguments:{file:'capture.js'}}}]},done_reason:'stop'})};
+            }
+            return {ok:true,status:200,text:async()=>JSON.stringify({message:{role:'assistant',content},done_reason:'stop'})};
+        }});
+        const plan=await engine.plan({input:'Report current entries and their owners',missionState:{phase:'CURRENT_TURN'},catalog:[{name:'repo.read',description:'Read source before querying current records',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}},{name:'platform.query',description:'Query current records after source inspection',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'}},required:['sourceFile','collection']}}]});
+        assert.equal(selected,true);
+        assert.equal(plan.toolCalls[0].name,'repo.read');
+        assert.equal(plan.missionComplete,false);
+    } finally {f.cleanup();}
+});
+
+test('declared source prerequisites bind witnessed tuples even when the reader was not shortlisted',async()=>{
+    const {bindEvidencePrerequisites}=await import('../functions/jarvis-semantic-planner.js');
+    const reader={name:'source.inspect',evidenceKinds:['repository_source']};
+    const query={name:'records.inspect',requiresEvidence:[
+        {kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},
+        {kind:'repository_source',argument:'collection',observationPath:['verifiedRead','collections']}
+    ],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'}},required:['sourceFile','collection']}};
+    const tasks=[{name:reader.name,observation:{ok:true,verifiedRead:{file:'capture.js',collections:['entries']}}}];
+    const bound=bindEvidencePrerequisites([query],tasks,[reader,query]);
+    assert.deepEqual(bound[0].inputSchema.properties.sourceFile.enum,['capture.js']);
+    assert.deepEqual(bound[0].inputSchema.properties.collection.enum,['entries']);
+    assert.deepEqual(bindEvidencePrerequisites([query],[{...tasks[0],observation:{...tasks[0].observation,ok:false}}],[reader,query]),[]);
+    assert.equal(query.inputSchema.properties.collection.enum,undefined);
+});
+
 test('configured sources do not alter grounded operation transport or non-record objectives',async()=>{
     const f=configuredSourceFixture();
     try {

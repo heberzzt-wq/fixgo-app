@@ -92,7 +92,8 @@ import {
 const require = createRequire(import.meta.url);
 const {
     runJarvisSemanticPlanner,
-    runJarvisSemanticResponse
+    runJarvisSemanticResponse,
+    bindEvidencePrerequisites
 } = require("./functions/jarvis-semantic-planner.js");
 
 export const JARVIS_FS_BRIDGE_VERSION =
@@ -1926,7 +1927,9 @@ export function createSelfHostedSemanticEngine({
                 'READ_ONLY_NEXT_STEP_RECOVERY','PENDING_RECORD_SCOPE_RECOVERY',
                 'UNREAD_SOURCE_CONTINUATION','QUERY_SCOPE_SOURCE_RECOVERY'
             ]);
-            if (recordFlow) catalog=bindConfiguredSourceArguments(catalog,getConfiguredSources(),{recordFlow:true});
+            const initialRecordSource = missionState?.phase === 'CURRENT_TURN' && catalog.some(tool =>
+                tool.evidenceKinds?.includes('platform_records') && tool.requiresEvidence?.some(requirement => requirement.kind === 'repository_source'));
+            if (recordFlow || initialRecordSource) catalog=bindConfiguredSourceArguments(catalog,getConfiguredSources(),{recordFlow:true});
             const result = await runJarvisSemanticPlanner({
                 ai: { ...ai, models: { generateContent(request = {}) {
                     if (noDeadline !== true && (Date.now() >= deadlineAt || deadlineSignal.aborted)) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
@@ -1970,7 +1973,12 @@ export function createSelfHostedSemanticEngine({
                     // ranks a broad search above the direct source reader.
                     const reader = catalog.find(tool=>tool.name==='repo.read'&&tool.investigationReadOnly===true&&tool.mutates!==true);
                     if (recordPlanning && getConfiguredSources() && reader && !shortlist.catalog.some(tool=>tool.name===reader.name)) shortlist.catalog=[...shortlist.catalog,reader];
-                    if (recordPlanning) shortlist.catalog=bindConfiguredSourceArguments(shortlist.catalog,getConfiguredSources(),{initialDiscovery:true});
+                    const needsRecordSource = shortlist.catalog.some(tool => tool.evidenceKinds?.includes('platform_records') &&
+                        tool.requiresEvidence?.some(requirement => requirement.kind === 'repository_source'));
+                    if (recordPlanning) shortlist.catalog=bindConfiguredSourceArguments(shortlist.catalog,getConfiguredSources(),{recordFlow:needsRecordSource,initialDiscovery:true});
+                    // Configuration discovers sources; only a successful read
+                    // fulfills the declared evidence prerequisite for a query.
+                    shortlist.catalog=bindEvidencePrerequisites(shortlist.catalog,missionState?.completedTasks || [],catalog);
                     semanticPreselection = { ...shortlist.evidence, querySource: "qwen_requested_operation", requestedOperation };
                     onProgress("inference");
                     return shortlist.catalog;
