@@ -28,6 +28,16 @@ function recordObjectiveRevision(contract,tasks,clarifications,model,missionStat
         evaluationInstant:contract?.coverageMode==='temporal'?String(evaluatedAt):null})).digest('hex');
 }
 
+function matchesRecordedQueryCollection(collection,task) {
+    const resolved=task.observation?.recordEvidence?.scope?.collection;
+    if(typeof collection!=='string'||!collection||typeof resolved!=='string')return false;
+    if(collection===resolved)return true;
+    if(task.args?.collection!==collection)return false;
+    const requestedParts=collection.split('/'),resolvedParts=resolved.split('/');
+    return requestedParts.length===resolvedParts.length && requestedParts.every((part,index)=>
+        /^\{[A-Za-z][A-Za-z0-9_]*\}$/.test(part)?Boolean(resolvedParts[index]):part===resolvedParts[index]);
+}
+
 function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependencyCatalog=catalog) {
     const sourceKinds=new Set(['repository_source',...dependencyCatalog.flatMap(tool=>(tool.requiresEvidence||[])
         .filter(requirement=>requirement.observationPath?.[0]==='verifiedRead').map(requirement=>requirement.kind))]);
@@ -50,9 +60,7 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
         const collections=[scope.collection];
         // Only the template used by this successful query may alias its
         // authenticated resolved path. This does not expand global coverage.
-        if(task.args?.collection && recordProjectionAlreadyObserved({name:task.name,args:{
-            sourceFile:scope.sourceFile,collection:task.args.collection,mode:'count',filters:scope.filters||[],orderBy:scope.orderBy
-        }},[task]))collections.push(task.args.collection);
+        if(matchesRecordedQueryCollection(task.args?.collection,task))collections.push(task.args.collection);
         return [...new Set(collections)].map(collection=>({name:task.name,sourceFile:scope.sourceFile,collection}));
     });
     const firstPageChoices=(tool,schema)=>{
@@ -1998,12 +2006,8 @@ function observedRecordFieldPaths(tasks, collection) {
     const paths=[];
     for(const task of [...(tasks || [])].reverse()) {
         const observation=task.observation,record=observation?.recordEvidence,schema=record?.fieldSchema;
-        const requestedParts=typeof collection==='string'?collection.split('/'):[];
-        const resolvedParts=typeof record?.scope?.collection==='string'?record.scope.collection.split('/'):[];
-        const ownRecordedTemplate=task.args?.collection===collection && requestedParts.length===resolvedParts.length &&
-            requestedParts.every((part,index)=>/^\{[A-Za-z][A-Za-z0-9_]*\}$/.test(part)?Boolean(resolvedParts[index]):part===resolvedParts[index]);
         if(observation?.ok!==true || observation.executionOk===false || observation.blocked===true || observation.requiresInput===true ||
-            record?.source!=="FIRESTORE_SERVER_AUTHENTICATED" || record.readOnly!==true || (record.scope?.collection!==collection&&!ownRecordedTemplate) || record.scope.mode!=="query" ||
+            record?.source!=="FIRESTORE_SERVER_AUTHENTICATED" || record.readOnly!==true || !matchesRecordedQueryCollection(collection,task) || record.scope.mode!=="query" ||
             !Array.isArray(record.rows) || !record.rows.length || schema?.source!=="SERVER_RECORD_FIELD_NAMES" || schema.collection!==record.scope.collection ||
             schema.scope!=="returned_rows_only" || schema.sampledRows!==record.rows.length || !Array.isArray(schema.paths) ||
             schema.paths.length>128 || JSON.stringify(schema.paths).length>3000)continue;

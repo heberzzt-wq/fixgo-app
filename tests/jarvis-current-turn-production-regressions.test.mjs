@@ -4497,6 +4497,12 @@ test('pre-inference zero suppression preserves other sources and different filte
  const templateBranches=eligibleEvidenceActionCatalog([templateTool],[{name,args:templateArgs,observation:templateReceipt}])[0].inputSchema.anyOf;
  assert.equal(templateBranches.find(branch=>branch.properties.collection.enum[0]===template&&branch.properties.sourceFile.enum[0]===templateArgs.sourceFile).properties.filters.minItems,1);
  assert.equal(templateBranches.find(branch=>branch.properties.collection.enum[0]==='registry/another-scope/entries').properties.filters.minItems,undefined,'template reuse cannot constrain another literal scope');
+ const countArgs={...templateArgs,mode:'count',fields:[]};
+ const countReceipt=await templated.execute(countArgs,templated.dependencies,templated.context);
+ assert.equal(countReceipt.recordEvidence.totalCount,0);
+ const countBranches=eligibleEvidenceActionCatalog([templateTool],[{name,args:countArgs,observation:countReceipt}])[0].inputSchema.anyOf;
+ assert.equal(countBranches.find(branch=>branch.properties.collection.enum[0]===template&&branch.properties.sourceFile.enum[0]===countArgs.sourceFile).properties.filters.minItems,1,'a zero count also suppresses the identical unfiltered template query');
+ assert.equal(countBranches.find(branch=>branch.properties.collection.enum[0]==='registry/another-scope/entries').properties.filters.minItems,undefined);
 });
 
 test('pre-inference frontier removes an exhausted runtime cursor while preserving another query scope',async()=>{
