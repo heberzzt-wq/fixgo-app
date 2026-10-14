@@ -1,6 +1,21 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `eb3543ac1d57f7fb7d67f34fd29cbcdb0ebca9d3`, the explicitly reviewed empty-first-page reuse release.
+Current baseline: `2d98268bcb155723be4f4ba3a94a520722f778b1`, the explicitly reviewed complete-projection ID-order reuse release.
+The only additional Functions change normalizes the SDK default ascending
+record-ID ordering in complete-query projection reuse. Explicit non-ID ordering,
+descending ID ordering, filters, source and collection stay distinct. New fields,
+unobserved counts and cursor pages stay unread work. No source, value, timestamp,
+objective requirement, permission, model or context ceiling is changed.
+A general regression first failed on the intended gap, then passed with 378
+related checks and 1,955 full local checks, all with zero failures. The actual
+redundant Chrome call is recognized against its earlier authenticated receipt.
+This reviewed baseline does not certify the full mission; fresh Linux/emulator
+CI and the complete clean Chrome mission remain required. The guard stays pinned,
+ancestor-checked and fail-closed; no external AI is authorized.
+
+## Previous empty-first-page reuse baseline
+
+Previous baseline: `eb3543ac1d57f7fb7d67f34fd29cbcdb0ebca9d3`, the explicitly reviewed empty-first-page reuse release.
 The only additional Functions change reuses authenticated complete empty first
 pages with equivalent ID ordering, even without an unrequested aggregate. Original
 arguments and returned source, collection, filters, mode, ordering and cursor must
