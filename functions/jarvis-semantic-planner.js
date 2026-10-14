@@ -3299,7 +3299,7 @@ async function runModelSemanticPlanner({
                         const checked=validatePlan({...next,missionComplete:false},nextReaders,instruction);
                         checked.toolCalls=checked.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&!(error?.evidence?.tool===call.name && sameCall({name:call.name,args:error.evidence.proposed},call))&&!hasUnexpectedToolArguments(nextReaders.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
                         await verifyOperationalCalls(checked.toolCalls,nextReaders);
-                        if(checked.toolCalls.length)return {...validatedAudit,toolCalls:checked.toolCalls,missionComplete:false,
+                        if(checked.toolCalls.length)return {...validatePlan({...validatedAudit,toolCalls:checked.toolCalls,missionComplete:false},nextReaders,instruction),
                             provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:nextReaders.length,planKind:"READ_ONLY_EVIDENCE_CONTINUATION"};
                     }
 
@@ -3575,7 +3575,31 @@ async function runModelSemanticPlanner({
                 const repairable = ["SEMANTIC_COMPLETION_AUDIT_INCOMPLETE", "SEMANTIC_COMPLETION_AUDIT_INVALID_JSON", "SEMANTIC_QUERY_SCOPE_UNVERIFIED", "SEMANTIC_TOOL_ARGUMENTS_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_REQUIRED", "SEMANTIC_COMPLETION_EVIDENCE_INVALID", "SEMANTIC_COMPLETION_EVIDENCE_KIND_MISMATCH", "SEMANTIC_COMPLETION_AUDIT_CONTRADICTORY"];
                 /* Recovery is handled by the single bounded continuation above. */
                 if(error?.message==='SEMANTIC_QUERY_SCOPE_UNVERIFIED'){
-                    const pending={...(auditPlan||{}),missionComplete:false,toolCalls:[],completionAssessment:auditPlan?.completionAssessment||missionState.completionAssessment};
+                    // This plan failed before its objective claims were checked.
+                    // Carry verified prior coverage or immutable pending contracts,
+                    // never the rejected plan's unreviewed success/kind assertions.
+                    const previous=missionState.completionAssessment;
+                    const contracts=missionState.evidenceObjectives?.length ? missionState.evidenceObjectives :
+                        (previous?.objectives || auditPlan?.completionAssessment?.objectives || []);
+                    const completionAssessment={...(previous||{}),objectives:contracts.map(contract=>{
+                        const prior=previous?.objectives?.find(item=>item.objective===contract.objective&&item.requiredEvidenceKind===contract.requiredEvidenceKind);
+                        const retained=prior?structuredClone(prior):{objective:contract.objective,requiredEvidenceKind:contract.requiredEvidenceKind,
+                            satisfied:false,evidenceTaskIndexes:[],limitation:'Este objetivo conserva su requisito de evidencia; la propuesta rechazada no lo acredita.'};
+                        const proof=coverageBeforeDecision.find(item=>item.objective===contract.objective)?.coverageProof;
+                        if(proof&&contract.requiredEvidenceKind==='platform_records'&&contract.coverageMode){
+                            retained.coverageProof=structuredClone(proof);
+                            retained.evidenceTaskIndexes=recordCoverageTaskIndexes(retained).filter(index=>{
+                                const observation=completedTasksForAudit[index]?.observation;
+                                return observation?.ok===true&&observation.executionOk!==false&&observation.blocked!==true&&
+                                    observation.recordEvidence?.source==='FIRESTORE_SERVER_AUTHENTICATED'&&observation.recordEvidence.readOnly===true;
+                            });
+                            retained.coverage=qualifyRecordObjectiveCoverage(retained,contract,completedTasksForAudit);
+                            retained.satisfied=proof.proven===true&&retained.coverage.status==='complete';
+                            retained.limitation=retained.satisfied?'':[...(proof.missing||[]),...retained.coverage.missing].join(' ');
+                        }
+                        return retained;
+                    })};
+                    const pending={...(auditPlan||{}),missionComplete:false,toolCalls:[],completionAssessment};
                     const recovered=await recoverEvidenceAction(pending,pending,error);
                     if(recovered)return recovered;
                     throw error;

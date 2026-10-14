@@ -4402,6 +4402,34 @@ test('one evidence decision cannot cascade through serial recovery planners',asy
  assert.equal(recoveries,1);assert.equal(result.missionComplete,false);assert.equal(result.toolCalls.length,0);assert.equal(result.completionAssessment.objectives[0].satisfied,false);
 });
 
+test('scope-rejected recovery retains the public planner envelope and its pending record contract',async()=>{
+ const {runJarvisSemanticPlanner}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
+ const records={name:'fixture.records',evidenceKinds:['platform_records'],investigationReadOnly:true,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string',enum:['observed.js']},collection:{type:'string',enum:['registry']},mode:{type:'string',enum:['query']},fields:{type:'array',items:{type:'string'}},filters:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}};
+ const objective={objective:'Identify each holder',requiredEvidenceKind:'platform_records',coverageMode:'relationship',scope:'all_sources',groups:['holders']};
+ const tasks=[{name:reader.name,args:{file:'observed.js'},observation:{ok:true,repoCandidates:[{file:'related.js'}],verifiedRead:{file:'observed.js',content:'Observed registry schema',startLine:1,endLine:1,totalLines:1,sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['registry'],writeShapes:[{collection:'registry',fields:['label']}]}}}}}];
+ for(const mode of ['fresh','forged','prior']){
+ const sourceObjective={objective:'Inspect the original schema',requiredEvidenceKind:'repository_source'};
+ const priorSource={...sourceObjective,satisfied:true,evidenceTaskIndexes:[0],limitation:'',coverage:{status:'complete',creditedFields:['label']}};
+ const prior=mode==='prior'?{evaluatedTaskCount:1,objectives:[{...objective,satisfied:false,evidenceTaskIndexes:[],limitation:'Holder records are missing'},priorSource]}:undefined;
+ const before=JSON.stringify(prior);
+ let rejected=0;
+ const result=await runJarvisSemanticPlanner({input:objective.objective,catalog:[reader,records],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:mode==='prior'?[objective,sourceObjective]:[objective],completionAssessment:prior,completedTasks:tasks},ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:[{objective:objective.objective,requiredEvidenceKind:mode==='fresh'?'platform_records':'repository_source',satisfied:mode!=='fresh',evidenceTaskIndexes:mode==='fresh'?[]:[0],limitation:mode==='fresh'?'Holder records are missing':''}]},toolCalls:[{name:records.name,args:{sourceFile:'observed.js',collection:'registry',mode:'query',fields:['label'],filters:[]}}]})};
+  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){rejected++;return{text:'{"matchesRequest":false}'};}
+  assert.equal(request.config.semanticStage,'READ_ONLY_EVIDENCE_CONTINUATION');
+  return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'related.js'}}]})};
+ }}}});
+ assert.equal(rejected,1);assert.equal(result.ok,true,'the real client rejects any response whose ok is not true');
+ assert.equal(result.status,'SEMANTIC_PLAN_READY');assert.equal(typeof result.version,'string');
+ assert.equal(result.planKind,'READ_ONLY_EVIDENCE_CONTINUATION');assert.equal(result.missionComplete,false);
+ assert.equal(result.completionAssessment.objectives[0].requiredEvidenceKind,'platform_records');
+ assert.equal(result.completionAssessment.objectives[0].satisfied,false);assert.deepEqual(result.toolCalls[0].args,{file:'related.js'});
+ if(mode==='prior')assert.deepEqual(result.completionAssessment.objectives[1],priorSource,'a rejected new proposal must not discard earlier accredited coverage');
+ assert.equal(JSON.stringify(prior),before);
+ }
+});
+
 test('grounded record arguments use the same observed fields and rejected ordering constraints as auditing',async()=>{
  const {runJarvisSemanticPlanner}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const f=platformQueryTestFixture();
