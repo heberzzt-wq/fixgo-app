@@ -1,6 +1,24 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `545b63e6e837a7005a5df1cb4517610f38367c45`, the explicitly reviewed grounded-schema prompt release.
+Current baseline: `eb3543ac1d57f7fb7d67f34fd29cbcdb0ebca9d3`, the explicitly reviewed empty-first-page reuse release.
+The only additional Functions change reuses authenticated complete empty first
+pages with equivalent ID ordering, even without an unrequested aggregate. Original
+arguments and returned source, collection, filters, mode, ordering and cursor must
+agree. A requested count must have been observed. Template matching applies only
+to an already executed identical request and its returned concrete route; it does
+not authorize a new collection or source. Empty rows never accredit field values,
+other populations or objective completion. Nonempty and incomplete pages, changed
+scope, inconsistent receipts and cross-source bindings remain pending work.
+The general regression first failed on the intended gap, then passed along with
+377 affected checks and 1,954 full local checks with zero failures. The actual
+repeated Chrome call is recognized without modifying its evidence. Linux CI and
+the full clean Chrome mission remain separately required. No model, permission,
+operational data or external provider is changed. The guard remains pinned,
+ancestor-checked and fail-closed for future Functions changes.
+
+## Previous grounded-schema prompt baseline
+
+Previous baseline: `545b63e6e837a7005a5df1cb4517610f38367c45`, the explicitly reviewed grounded-schema prompt release.
 The only additional Functions change retains the common object schema and its
 conditional alternatives in prompt prose instead of duplicating the expanded
 native grammar there. Native output constraints and runtime validation still use
