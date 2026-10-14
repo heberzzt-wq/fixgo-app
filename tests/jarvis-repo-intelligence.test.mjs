@@ -178,6 +178,30 @@ test('declared source prerequisites bind witnessed tuples even when the reader w
     assert.equal(query.inputSchema.properties.collection.enum,undefined);
 });
 
+test('record continuation can read a configured source that has not been searched or read',async()=>{
+    const f=configuredSourceFixture();
+    try {
+        const {createSelfHostedSemanticEngine}=await import('../jarvis-fs-bridge.js');
+        const objective='Inspect current entries and owners';
+        let checked=false;
+        const reader={name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
+        const query={name:'platform.query',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}},required:['sourceFile']}};
+        const engine=createSelfHostedSemanticEngine({root:f.root,env:{JARVIS_LOCAL_LLM_MODEL:'qwen3.5:9b'},fetchImpl:async(_url,options)=>{
+            const body=JSON.parse(options.body);
+            const recovery=body.messages.some(message=>message.content?.startsWith('RUTAS_LOCALIZADAS='));
+            if(recovery){
+                const choice=body.format.properties.toolCalls.items.anyOf.find(branch=>branch.properties.name.enum.includes(reader.name));
+                assert.ok(choice.properties.args.properties.file.enum.includes('capture.js'),'configured discovery must survive the recovery frontier');
+                checked=true;
+            }
+            const content=JSON.stringify({toolCalls:recovery?[{name:reader.name,args:{file:'capture.js'}}]:[],missionComplete:false,completionAssessment:{objectives:[{objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Current records have not been queried'}]}});
+            return {ok:true,status:200,text:async()=>JSON.stringify({message:{role:'assistant',content},done_reason:'stop'})};
+        }});
+        const result=await engine.plan({input:objective,catalog:[reader,query],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[{objective,requiredEvidenceKind:'platform_records'}],completedTasks:[{name:reader.name,observation:{ok:true,executionOk:true,verifiedRead:{file:'legacy.js',content:'observed legacy schema',startLine:1,endLine:2,totalLines:10,truncated:true}}}]}});
+        assert.equal(checked,true);assert.equal(result.toolCalls[0].args.file,'capture.js');assert.equal(result.missionComplete,false);
+    } finally {f.cleanup();}
+});
+
 test('configured sources do not alter grounded operation transport or non-record objectives',async()=>{
     const f=configuredSourceFixture();
     try {

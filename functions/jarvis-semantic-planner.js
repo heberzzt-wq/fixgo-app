@@ -921,14 +921,18 @@ function sourceRangeRepeatsTruncatedPrefix(call, tasks = []) {
     });
 }
 function sourceRangeStillVisible(call, tasks = []) {
-    // Only the latest source body is guaranteed to survive audit compaction.
-    // Older bodies may legitimately need a re-read even if once consulted.
-    const latest=boundedAuditTasks(tasks).findLast(task=>task.observation?.verifiedRead);
-    const read=latest?.observation?.verifiedRead;
-    return !!read?.content && latest.observation.ok===true && latest.observation.executionOk!==false &&
-        latest.name===call.name && read.file===call.args?.file &&
-        Number.isInteger(call.args.startLine) && Number.isInteger(call.args.endLine) &&
-        call.args.startLine>=(read.startLine || 1) && call.args.endLine>=call.args.startLine && call.args.endLine<=read.endLine;
+    if (!Number.isInteger(call.args?.startLine) || !Number.isInteger(call.args?.endLine) || call.args.endLine<call.args.startLine) return false;
+    // Reuse only bodies actually retained in the current bounded context.
+    // A previously consulted but evicted window remains available for reread.
+    const windows=boundedAuditTasks(tasks).flatMap((task,index)=>{
+        const original=tasks[index], read=task.observation?.verifiedRead;
+        return original?.name===call.name && original.observation?.ok===true && original.observation.executionOk!==false &&
+            original.observation.blocked!==true && read?.file===call.args.file && read.content && Number.isInteger(read.endLine)
+            ? [[read.startLine || 1,read.endLine]] : [];
+    }).sort((a,b)=>a[0]-b[0]);
+    let next=call.args.startLine;
+    for (const [start,end] of windows) { if(start>next)break; if(end>=next)next=end+1; if(next>call.args.endLine)return true; }
+    return false;
 }
 
 function continuationObjectiveSummaries(objectives = []) {
@@ -1397,8 +1401,21 @@ function boundedAuditTasks(tasks) {
         return JSON.stringify(dictionary).length<JSON.stringify(fields).length
             ? {fieldPathDictionary:dictionary,fieldPathEncoding:"Each exact field = prefix + member + suffix; integerRange expands inclusively when present."} : {fieldPaths:fields};
     };
-    // Preserve every task index and source association. Older bodies can be
-    // re-read; repeating all source bytes on every turn is not cumulative memory.
+    const retainBodies=(result,budget)=>{
+        for(let index=tasks.length-1;index>=0;index--){
+            const original=tasks[index].observation?.verifiedRead, current=result[index]?.observation?.verifiedRead;
+            if(!original?.content || !Number.isInteger(original.startLine) || !Number.isInteger(original.endLine) ||
+                !current || original.content.length<=String(current.content || "").length)continue;
+            const candidate={...result[index],observation:{...result[index].observation,verifiedRead:{...current,
+                content:original.content,endLine:original.endLine,contentTruncated:original.contentTruncated===true}}};
+            const previous=result[index];result[index]=candidate;
+            if(JSON.stringify(result).length>budget)result[index]=previous;
+        }
+        return result;
+    };
+    if(JSON.stringify(tasks).length<=16000)return tasks;
+    // Preserve every task index and source association; evict source bodies
+    // only under actual budget pressure, after retaining the latest window.
     const latestRead = tasks.findLast(task => task.observation?.verifiedRead);
     for (const [bodyLimit, referenceLimit, pathLimit] of [[2000,500,100],[700,180,60],[0,0,30]]) {
         const compact = tasks.map(task => {
@@ -1424,7 +1441,7 @@ function boundedAuditTasks(tasks) {
                 }}} : {})
             }}};
         });
-        if (JSON.stringify(compact).length <= 16000) return compact;
+        if (JSON.stringify(compact).length <= 16000) return retainBodies(compact,16000);
     }
     // Empty excerpts still carried every parser bookkeeping property. With many
     // reads that alone exceeded the context budget. Keep evidence identities and
@@ -1735,7 +1752,7 @@ function boundedAuditTasks(tasks) {
         }
     }
     if(JSON.stringify(minimal).length>28000) throw new Error("SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED");
-    return minimal;
+    return retainBodies(minimal,28000);
 }
 
 function extractGeminiToolCallPlan(response = {}, catalog = []) {
@@ -2732,6 +2749,9 @@ async function runModelSemanticPlanner({
         // A similarity shortlist is not a capability boundary. Closure needs
         // both executed tool contracts and every available evidence source.
         const recordOnlyAudit=missionState.evidenceObjectives?.length && missionState.evidenceObjectives.every(objective=>objective.requiredEvidenceKind==="platform_records");
+        const directory = missionState.configuredSourceDiscovery;
+        const configuredSourceFiles = directory?.source === "VERIFIED_LOCAL_REPOSITORY_SCHEMA" && directory.operationalEvidence === false
+            ? [...new Set((directory.files || []).filter(file => typeof file === "string" && file.trim()))] : [];
         const observedInventoryFiles=completedTasksForAudit.filter(task=>task.name==='repo.audit' &&
             task.observation?.ok===true && task.observation.executionOk!==false && task.observation.blocked!==true &&
             task.observation.requiresInput!==true && task.observation.inventoryEvidence?.source==='LIVE_REPOSITORY_INVENTORY')
@@ -2743,7 +2763,7 @@ async function runModelSemanticPlanner({
             // observed file, expand a partial read, or discover a new path first.
             // An executed repository inventory is also path discovery. Its
             // observed list permits inspection only; it is never record proof.
-            const groundedFiles=[...new Set([...observedCandidateFiles,...inspectedCandidateFiles,...observedInventoryFiles])];
+            const groundedFiles=[...new Set([...observedCandidateFiles,...inspectedCandidateFiles,...observedInventoryFiles,...configuredSourceFiles])];
             selectableCatalog=selectableCatalog.flatMap(tool=>{
                 const file=tool.inputSchema?.properties?.file;
                 if(tool.name!=="repo.read" || tool.investigationReadOnly!==true || tool.mutates===true || !file)return [tool];
@@ -3293,10 +3313,10 @@ async function runModelSemanticPlanner({
                         task.observation.executionOk !== false &&
                         task.observation.blocked !== true
                     );
-                    const candidateSources = [...new Set(successfulTasks.flatMap(task => [
+                    const candidateSources = [...new Set([...configuredSourceFiles,...successfulTasks.flatMap(task => [
                         ...(task.observation.repoCandidates || []).map(item => item.file),
                         ...(task.observation.repositoryMatches || []).map(item => item.file)
-                    ]).filter(value => typeof value === "string" && value.trim()))];
+                    ])].filter(value => typeof value === "string" && value.trim()))];
                     const readSources = new Set(successfulTasks
                         .map(task => task.observation.verifiedRead?.file)
                         .filter(value => typeof value === "string" && value.trim()));

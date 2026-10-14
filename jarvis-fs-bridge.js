@@ -1930,6 +1930,11 @@ export function createSelfHostedSemanticEngine({
             const initialRecordSource = missionState?.phase === 'CURRENT_TURN' && catalog.some(tool =>
                 tool.evidenceKinds?.includes('platform_records') && tool.requiresEvidence?.some(requirement => requirement.kind === 'repository_source'));
             if (recordFlow || initialRecordSource) catalog=bindConfiguredSourceArguments(catalog,getConfiguredSources(),{recordFlow:true});
+            const sourceDirectory = recordFlow ? getConfiguredSources() : null;
+            const planningState = missionState ? {...missionState,configuredSourceDiscovery:sourceDirectory ? {
+                source:sourceDirectory.source,revision:sourceDirectory.revision,digest:sourceDirectory.digest,
+                files:sourceDirectory.files,operationalEvidence:false
+            } : undefined} : missionState;
             const result = await runJarvisSemanticPlanner({
                 ai: { ...ai, models: { generateContent(request = {}) {
                     if (noDeadline !== true && (Date.now() >= deadlineAt || deadlineSignal.aborted)) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
@@ -1955,7 +1960,7 @@ export function createSelfHostedSemanticEngine({
                 } } },
                 input,
                 catalog,
-                missionState,
+                missionState:planningState,
                 buildResponsiveRepairOptions,
                 buildResponsiveRepairPatch,
                 retrieveToolCandidates: async (requestedOperation, requestedLimit = 6) => {

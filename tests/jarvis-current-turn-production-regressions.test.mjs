@@ -762,6 +762,23 @@ test('record coverage keeps source truncation separate from complete operational
   return{text:JSON.stringify({proven:false,missing:['Other observed scope remains pending'],groups:[],sources:[]})};
  }}}});
 });
+test('audit memory retains fitting source bodies and reuses their visible range union',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const ast=parse(source,{sourceType:'script',ecmaVersion:'latest'});
+ const extract=name=>{const n=ast.body.find(node=>node.type==='FunctionDeclaration'&&node.id.name===name);return source.slice(n.start,n.end);};
+ const functions=runInNewContext(extract('boundedAuditTasks')+'\n'+extract('sourceRangeStillVisible')+'\n({compact:boundedAuditTasks,visible:sourceRangeStillVisible})',{});
+ const body=Array.from({length:80},(_,i)=>'observed declaration '+i+' '+('x'.repeat(25))).join('\n');
+ const task=(start,end,file='capture.js')=>({name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file,startLine:start,endLine:end,totalLines:160,content:body,contentTruncated:false}}});
+ const tasks=[task(1,80),task(81,160),task(1,80,'other.js')];
+ const before=JSON.stringify(tasks),compact=functions.compact(tasks);
+ assert.equal(compact[0].observation.verifiedRead.content,body,'unused budget must not discard an observed source window');
+ assert.ok(JSON.stringify(compact).length<=16000);assert.equal(JSON.stringify(tasks),before);
+ const call=(start,end)=>({name:'repo.read',args:{file:'capture.js',startLine:start,endLine:end}});
+ assert.equal(functions.visible(call(70,100),tasks),true,'retained adjacent windows cover the requested range');
+ assert.equal(functions.visible(call(70,161),tasks),false);
+ assert.equal(functions.visible(call(70,100),[{...tasks[0],observation:{...tasks[0].observation,ok:false}},...tasks.slice(1)]),false);
+});
+
 test('truncated prefix repetitions require a new window without blocking bounded rereads',()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='sourceRangeRepeatsTruncatedPrefix');
