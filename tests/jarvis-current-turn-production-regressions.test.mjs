@@ -4496,6 +4496,7 @@ test('pre-inference zero suppression preserves other sources and different filte
  const result=eligibleEvidenceActionCatalog([tool],[{name,args,observation:receipt}]);
  const branches=result[0].inputSchema.anyOf;const empty=branches.find(branch=>branch.properties.sourceFile.enum[0]===args.sourceFile&&branch.properties.collection.enum[0]===args.collection);
  assert.equal(empty.properties.filters.minItems,1);assert.ok(empty.required.includes('filters'));
+ assert.match(empty.properties.filters.description,/cero registros sin filtros/);assert.match(empty.properties.filters.description,/nunca representa el inventario global/);
  for(const branch of branches.filter(branch=>branch!==empty))assert.equal(branch.properties.filters.minItems,undefined,'zero cannot constrain a different source or collection');
  assert.equal(receipt.recordEvidence.scope.collection,args.collection);
  const queryArgs={...f.args,mode:'query',includeCount:false};

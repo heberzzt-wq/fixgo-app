@@ -69,7 +69,8 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
             !emptyScopes.some(scope=>scope.name===tool.name))return [schema];
         return p.sourceFile.enum.flatMap(sourceFile=>p.collection.enum.flatMap(collection=>{
             const empty=emptyScopes.some(scope=>scope.name===tool.name&&scope.sourceFile===sourceFile&&scope.collection===collection);
-            const filters=empty?{...p.filters,minItems:Math.max(1,p.filters.minItems||0)}:p.filters;
+            const filters=empty?{...p.filters,minItems:Math.max(1,p.filters.minItems||0),
+                description:[p.filters.description,"Esta ruta ya tiene evidencia autenticada completa de cero registros sin filtros. Conserva ese recibo: repetir la lectura o cambiar proyección/página no aporta registros nuevos. Investiga otra ruta o dependencia observada para los objetivos pendientes; este cero nunca representa el inventario global."].filter(Boolean).join(' ')}:p.filters;
             if(empty&&Number.isInteger(filters.maxItems)&&filters.maxItems<filters.minItems)return [];
             return [{...schema,properties:{...p,sourceFile:{...p.sourceFile,enum:[sourceFile]},collection:{...p.collection,enum:[collection]},filters},
                 required:empty?[...new Set([...(schema.required||[]),'filters'])]:schema.required}];
