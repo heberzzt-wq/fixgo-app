@@ -1,6 +1,38 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `ba936dffae57592f18e85215376c9e5b05634fb1`, the explicitly reviewed scoped-zero reuse release.
+Current baseline: `42b8d627ecf76848e0a068018a110523fce1c75d`, the explicitly reviewed local evidence cycle release.
+The additional Functions changes are limited to `jarvis-semantic-planner.js`
+and `index.js`. The planner recognizes actual exhausted cursor receipts with
+`completeForQuery=false`, filters exhausted continuations and equivalent empty
+unfiltered reads before inference, and preserves other routes and filters.
+Independent objective contracts, authenticated scopes, source prerequisites,
+field credit and completion qualification remain mandatory. Code is never
+operational evidence and exhausting a query never completes an objective.
+
+Coverage is reviewed before selecting the next action. Engine-owned proof caches
+are scoped to mission, actor, model, clarifications, source schemas and operational
+dependencies; temporal contracts also depend on the evaluation instant. Only
+independently checked source exclusions can omit unrelated record values, while
+their query scope and observed field names still invalidate changed dependencies.
+Reusing coverage preserves a valid action. Recovery permits one same-model
+continuation, with the same schema, novelty and query relevance validation.
+
+The three historical cloud research/media/image callables now fail closed before
+provider invocation and no longer bind Gemini secrets. Their compatibility helper
+unit tests remain simulated; they do not authorize or execute external inference.
+Production startup pins Qwen3.5:9b, and model identity and per-stage timings are
+observable. No alternate semantic authority or paid-provider trigger is added.
+
+The full local suite passed 1,982 tests, zero failures and one Linux-only skip.
+All 268 focused evidence regressions passed again on the clean functional HEAD.
+The current static policy check explicitly does not claim physical certification.
+Fresh CI, aligned deployed bytes and the complete clean Chrome mission remain
+required. No operational records or permissions were modified. The guard remains
+explicitly pinned, ancestor-checked and fail-closed.
+
+## Previous scoped-zero reuse baseline
+
+Previous baseline: `ba936dffae57592f18e85215376c9e5b05634fb1`, the explicitly reviewed scoped-zero reuse release.
 The only additional Functions change reuses an authenticated complete empty first
 page as zero for its own exact count scope. Its recorded template may match its
 authenticated resolved collection; a different literal tenant cannot. Source,
