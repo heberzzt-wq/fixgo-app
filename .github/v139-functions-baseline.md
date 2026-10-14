@@ -1,6 +1,30 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `68741ec37cd01c2eb51d54ce02208dfc52535c37`, the reviewed recovery response-contract release.
+Current baseline: `ca90108a14a0f1e50b24a8b08239de4c25507750`, the reviewed source identity and query relevance release.
+Only `jarvis-semantic-planner.js` changes inside Functions. A cited authenticated
+receipt can account for the exact template submitted by that call, preserving
+the concrete route, source file and query scope. Other instances and sources
+remain pending; exhaustion never substitutes for an objective proof.
+
+Before choosing another action, the planner removes a record route only when
+current engine-owned independent coverage reviews exclude it for every objective.
+Client assessments cannot grant that authority. An unknown or relevant decision
+for any objective preserves the route, and other source readers remain available.
+The real Chrome receipt replay removes the repeated irrelevant root query while
+retaining repository discovery, and resolves its false template pending entries.
+
+The focused suite has 299 PASS including three new general regressions (both
+positive gaps failed before their fixes). The existing full root suite has 1,988
+PASS, zero failures and two explicit environment skips; the three new checks
+also pass separately. YAML and syntax validation pass. Fresh CI, physical search,
+alignment and the complete clean Chrome mission remain required. No model,
+provider, permission or operational data changes. The guard remains pinned,
+ancestor-checked and fail-closed. The existing multifunction test command includes
+the new regressions, so CI runs them without a workflow change or broader access.
+
+## Previous recovery response-contract baseline
+
+Previous baseline: `68741ec37cd01c2eb51d54ce02208dfc52535c37`, the reviewed recovery response-contract release.
 Only `jarvis-semantic-planner.js` changes inside Functions. Scoped recovery now
 returns the canonical validatePlan envelope, including ok/status/version, so the
 real client executes its valid next action instead of treating it as unavailable.
