@@ -47,7 +47,13 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
             !scope?.sourceFile||!scope.collection||(scope.filters||[]).length||(scope.implicitExistenceFields||[]).length||
             (scope.orderBy||[]).some(order=>order.field!=='__name__')||
             !(scope.mode==='count'||record.completeForQuery===true))return [];
-        return [{name:task.name,sourceFile:scope.sourceFile,collection:scope.collection}];
+        const collections=[scope.collection];
+        // Only the template used by this successful query may alias its
+        // authenticated resolved path. This does not expand global coverage.
+        if(task.args?.collection && recordProjectionAlreadyObserved({name:task.name,args:{
+            sourceFile:scope.sourceFile,collection:task.args.collection,mode:'count',filters:scope.filters||[],orderBy:scope.orderBy
+        }},[task]))collections.push(task.args.collection);
+        return [...new Set(collections)].map(collection=>({name:task.name,sourceFile:scope.sourceFile,collection}));
     });
     const firstPageChoices=(tool,schema)=>{
         const p=schema.properties;
@@ -1583,7 +1589,7 @@ function boundedAuditTasks(tasks) {
                 }}} : {})
             }}};
         });
-        if (JSON.stringify(compact).length <= 16000) return retainBodies(compact,16000);
+        if (JSON.stringify(compact).length <= 16000) return retainBodies(compact,28000);
     }
     // Empty excerpts still carried every parser bookkeeping property. With many
     // reads that alone exceeded the context budget. Keep evidence identities and

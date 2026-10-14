@@ -970,6 +970,18 @@ function safeObservation(result = {}) {
                             )
                     }
                     : null;
+    // Retain the newest source before planner-budget compaction. Cutting it at
+    // 16K here discarded bytes that fit in the server's bounded audit packet.
+    const originalReadContent = typeof payload?.content === "string" ? payload.content : null;
+    const readContentClipped = originalReadContent !== null && originalReadContent.length > 60000;
+    let retainedReadContent = originalReadContent?.slice(0, 60000);
+    if (readContentClipped) {
+        const lastNewline = retainedReadContent.lastIndexOf("\n");
+        retainedReadContent = lastNewline >= 0 ? retainedReadContent.slice(0, lastNewline + 1) : "";
+    }
+    const retainedReadEndLine = readContentClipped
+        ? (retainedReadContent ? (Number(payload?.startLine) || 1) + (retainedReadContent.match(/\n/g) || []).length - (retainedReadContent.endsWith("\n") ? 1 : 0) : null)
+        : Number(payload?.endLine) || null;
     const verifiedRead =
         typeof payload?.numberedContent === "string" &&
         payload.numberedContent.trim()
@@ -989,20 +1001,20 @@ function safeObservation(result = {}) {
                         500
                     ),
                 partial:
-                    payload?.partial === true,
+                    payload?.partial === true || readContentClipped,
                 startLine:
                     Number(payload?.startLine) ||
                     1,
                 endLine:
-                    Number(payload?.endLine) ||
-                    null,
+                    retainedReadEndLine,
+                readEndLine: Number(payload?.endLine) || null,
                 totalLines:
                     Number(payload?.totalLines) ||
                     null,
                 ...(typeof payload?.content === "string" ? {
-                    content: payload.content.slice(0, 16000),
+                    content: retainedReadContent,
                     contentLength: payload.content.length,
-                    contentTruncated: payload.content.length > 16000
+                    contentTruncated: readContentClipped
                 } : {}),
                 numberedContent:
                     String(

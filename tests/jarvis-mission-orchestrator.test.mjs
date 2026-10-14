@@ -730,8 +730,8 @@ test("planner source excerpt stays bounded and declares its included interval an
     const content = "\t.rule { width: 360px; }\r\n".repeat(1400);
     const observation = __test.safeObservation({ ok: true, tool: "repo.read", file: "gestia-terminal.html",
         content, numberedContent: "1: source index", partial: false, startLine: 1, endLine: 1401, totalLines: 1401 });
-    assert.ok(observation.verifiedRead.content.length <= 16000);
-    assert.equal(observation.verifiedRead.contentTruncated, true);
+    assert.equal(observation.verifiedRead.content, content);
+    assert.equal(observation.verifiedRead.contentTruncated, false);
     const compact = compactMissionPlannerObservation(observation);
     const read = compact.verifiedRead;
     assert.ok(read.content.length <= 8000);

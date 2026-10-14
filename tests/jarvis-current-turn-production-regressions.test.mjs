@@ -4402,6 +4402,21 @@ test('one evidence decision cannot cascade through serial recovery planners',asy
  assert.equal(recoveries,1);assert.equal(result.missionComplete,false);assert.equal(result.toolCalls.length,0);assert.equal(result.completionAssessment.objectives[0].satisfied,false);
 });
 
+test('actual observation retains a fitting source through the grounded eligibility boundary',async()=>{
+ const {__test}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
+ const {eligibleEvidenceActionCatalog}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const content=Array.from({length:400},(_,i)=>'const observed_'+i+' = "'+ 'x'.repeat(20)+'";').join('\n');
+ assert.ok(content.length>16000&&content.length<24000);
+ const observation=__test.safeObservation({ok:true,tool:'repo.read',file:'observed.js',content,numberedContent:'1: source index',startLine:1,endLine:400,totalLines:400});
+ assert.equal(observation.verifiedRead.content,content);assert.equal(observation.verifiedRead.contentTruncated,false);
+ const tool={name:'repo.read',evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string',enum:['observed.js']}},required:['file']}};
+ assert.deepEqual(eligibleEvidenceActionCatalog([tool],[{name:tool.name,args:{file:'observed.js'},observation}]),[]);
+ const long='observed complete line\r\n'.repeat(4000);
+ const clipped=__test.safeObservation({ok:true,tool:'repo.read',file:'long.js',content:long,numberedContent:'1: source index',startLine:11,endLine:4011,totalLines:5000}).verifiedRead;
+ assert.ok(clipped.content.length<=60000);assert.equal(clipped.contentTruncated,true);assert.equal(clipped.readEndLine,4011);
+ assert.equal(clipped.endLine,11+clipped.content.split('\n').length-2);assert.equal(clipped.partial,true);
+});
+
 test('grounded completion excludes a fully retained source before inference but retains new files',async()=>{
  const {runJarvisSemanticPlanner}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const tool={name:'fixture.read',evidenceKinds:['repository_source'],investigationReadOnly:true,inputSchema:{type:'object',properties:{file:{type:'string',enum:['observed.js','related.js']}},required:['file']}};
@@ -4450,6 +4465,17 @@ test('pre-inference zero suppression preserves other sources and different filte
  const queryBranches=eligibleEvidenceActionCatalog([tool],[{name,args:queryArgs,observation:queryReceipt}])[0].inputSchema.anyOf;
  const emptyQuery=queryBranches.find(branch=>branch.properties.sourceFile.enum[0]===queryArgs.sourceFile&&branch.properties.collection.enum[0]===queryArgs.collection);
  assert.equal(emptyQuery.properties.filters.minItems,1,'actual complete empty query does not require a count aggregate to suppress its identical first page');
+ const templated=platformQueryTestFixture({recordData:[]});
+ templated.context.tenantId='observed-scope';
+ const template='registry/{tenantId}/entries';
+ templated.context.completedTasks[0].observation.verifiedRead.sourceStructure.dataBindings.collections=[template];
+ const templateArgs={...templated.args,collection:template,mode:'query',fields:['__name__'],includeCount:false};
+ const templateReceipt=await templated.execute(templateArgs,templated.dependencies,templated.context);
+ assert.equal(templateReceipt.ok,true);assert.equal(templateReceipt.recordEvidence.scope.collection,'registry/observed-scope/entries');
+ const templateTool=structuredClone(tool);templateTool.inputSchema.properties.collection.enum=[template,'registry/another-scope/entries'];
+ const templateBranches=eligibleEvidenceActionCatalog([templateTool],[{name,args:templateArgs,observation:templateReceipt}])[0].inputSchema.anyOf;
+ assert.equal(templateBranches.find(branch=>branch.properties.collection.enum[0]===template&&branch.properties.sourceFile.enum[0]===templateArgs.sourceFile).properties.filters.minItems,1);
+ assert.equal(templateBranches.find(branch=>branch.properties.collection.enum[0]==='registry/another-scope/entries').properties.filters.minItems,undefined,'template reuse cannot constrain another literal scope');
 });
 
 test('pre-inference frontier removes an exhausted runtime cursor while preserving another query scope',async()=>{
