@@ -1,5 +1,30 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `493679be0cc182659eb89cd31dfe4ef56ea86596`.
+Only `jarvis-semantic-planner.js` changed in Functions since the prior baseline.
+The reviewed change preserves source/route provenance and per-objective evidence,
+reuses unchanged coverage, and restricts recovery to novel grounded actions.
+Deferred argument completion now applies the authenticated exhausted-query guard;
+changed fields or page size cannot repeat an empty completed filtered query.
+A record operation may report a missing relevant source without fabricating
+arguments or spending another deterministic repair attempt. Its nonretryable
+evidence survives the existing local HTTP client. Search expressions are no
+longer restricted to a tokenized first-80-word list. No model or provider added.
+Fresh focused verification: 580 PASS, 0 FAIL. Full root suite with existing local
+Firestore/Storage emulators, bundled Python and Java: 2141 PASS, 0 FAIL, 2 physical
+checks skipped. Generic regressions exercise the actual planner, argument
+completion, HTTP transport and mission loop with simulated model/storage edges.
+The last real Chrome attempt on the prior candidate remained PARTIAL (0/3 goals)
+and exposed the deferred duplicate; it is not certification of this baseline.
+The new local revision has not been published. The bridge's origin-HEAD identity
+guard blocks physical certification until authorized synchronization; no identity
+guard was relaxed and no operational records were changed.
+Configured source discovery still requires a clean checkout. Its 69 files and
+80 collection routes are structural discovery, never operational evidence.
+The guard continues rejecting any later unreviewed Functions change.
+
+## Previous reviewed baseline
+
 Current baseline: `61c012afbdf92789e6de58894408d48cf9b5db42`.
 Only `jarvis-semantic-planner.js` changed in Functions. Read-field provenance stays
 attached to its collection through compact evidence and independent coverage.
