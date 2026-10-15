@@ -141,6 +141,64 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
 }
 
 const VERSION = "1.24.0-local-only-single-jarvis";
+
+function excludeReviewedQueryProjections(catalog,rejections) {
+    return catalog.map(tool=>{
+        if(!tool.evidenceKinds?.includes('platform_records'))return tool;
+        let branches=(buildNativeInputSchema(tool.inputSchema).anyOf || [buildNativeInputSchema(tool.inputSchema)]);
+        for(const receipt of rejections){
+            const call=receipt.proposed,args=call?.args;
+            // Positive schema alternatives are supported by the local grammar;
+            // generic JSON Schema negation is not. Partition this first-page
+            // unfiltered scope; other filters/orderings remain independent.
+            if(call?.name!==tool.name || args?.mode!=='query' || args.cursor ||
+                args.filters?.length || args.orderBy?.length || !args.fields?.length)continue;
+            branches=branches.flatMap(branch=>{
+                const p=branch.properties,fields=p?.fields,names=fields?.items?.enum;
+                const admitsEmpty=schema=>(schema?.const===undefined || JSON.stringify(schema.const)==='[]') &&
+                    (!Array.isArray(schema?.enum) || schema.enum.some(value=>JSON.stringify(value)==='[]'));
+                if(p?.sourceFile?.enum?.length!==1 || p.sourceFile.enum[0]!==args.sourceFile ||
+                    p.collection?.enum?.length!==1 || p.collection.enum[0]!==args.collection ||
+                    p.mode?.enum?.length!==1 || p.mode.enum[0]!=='query' ||
+                    (branch.required||[]).includes('cursor') || !Array.isArray(names) || !names.length ||
+                    p.filters?.minItems>0 || p.orderBy?.minItems>0 || !admitsEmpty(p.filters) || !admitsEmpty(p.orderBy))return [branch];
+                const rejected=[...new Set(args.fields)],alternatives=[];
+                const maximum=Math.min(20,Number.isInteger(fields.maxItems)?fields.maxItems:20);
+                const key=projection=>JSON.stringify([...new Set(projection)].sort());
+                let finite=Array.isArray(fields.enum)&&fields.enum.every(Array.isArray)?fields.enum:null;
+                if(!finite && names.length<=8){
+                    finite=[];
+                    const ordered=[...new Set(names)].sort();
+                    for(let mask=1;mask<2**ordered.length;mask++){
+                        const projection=ordered.filter((_,index)=>mask&(2**index));
+                        if(projection.length>=(fields.minItems||1) && projection.length<=maximum)finite.push(projection);
+                    }
+                }
+                if(finite){
+                    const allowed=finite.filter(projection=>key(projection)!==key(rejected));
+                    if(allowed.length)alternatives.push({...fields,enum:allowed});
+                }else{
+                for(const field of rejected){const remaining=names.filter(name=>name!==field);
+                    if(remaining.length)alternatives.push({...fields,items:{...fields.items,enum:remaining}});}
+                const novel=names.filter(name=>!rejected.includes(name));
+                // Projection order carries no data meaning. For supersets of
+                // the rejected projection, put a novel field first rather than
+                // enumerating every permutation or dropping a valid field set.
+                if(novel.length)for(let size=rejected.length+1;size<=maximum;size++)alternatives.push({
+                    type:'array',minItems:size,maxItems:size,items:Array.from({length:size},(_,index)=>
+                        index===0?{type:'string',enum:novel}:fields.items),additionalItems:false});
+                }
+                const result=[];
+                if(p.filters && p.filters.maxItems!==0 && !p.filters.enum)result.push({...branch,required:[...new Set([...(branch.required||[]),'filters'])],properties:{...p,filters:{...p.filters,minItems:1}}});
+                if(p.orderBy && p.orderBy.maxItems!==0 && !p.orderBy.enum)result.push({...branch,required:[...new Set([...(branch.required||[]),'orderBy'])],properties:{...p,orderBy:{...p.orderBy,minItems:1}}});
+                if(alternatives.length)result.push({...branch,properties:{...p,fields:alternatives.length===1?alternatives[0]:{anyOf:alternatives},
+                    ...(p.filters?{filters:{...p.filters,maxItems:0}}:{}),...(p.orderBy?{orderBy:{...p.orderBy,maxItems:0}}:{})}});
+                return result;
+            });
+        }
+        return {...tool,inputSchema:branches.length===1?branches[0]:{anyOf:branches}};
+    }).filter(tool=>!Array.isArray(tool.inputSchema.anyOf)||tool.inputSchema.anyOf.length);
+}
 const DEFAULT_SEMANTIC_MODEL = "jarvis-local";
 const DEFAULT_GEMINI_MODEL = DEFAULT_SEMANTIC_MODEL; // compatibility alias only
 
@@ -1391,7 +1449,7 @@ function hasRequiredToolArguments(tool = {}, args = {}) {
     if (!args || typeof args !== "object" || Array.isArray(args)) return false;
     const schema = buildNativeInputSchema(tool?.inputSchema);
     if (Array.isArray(schema.anyOf)) return schema.anyOf.some(branch=>
-        Object.entries(branch.properties || {}).every(([name,field])=>!field.enum || !(name in args) || field.enum.includes(args[name])) &&
+        Object.entries(branch.properties || {}).every(([name,field])=>!field.enum || !(name in args) || field.enum.some(value=>JSON.stringify(value)===JSON.stringify(args[name]))) &&
         hasRequiredToolArguments({inputSchema:branch},args));
     // Explicit zero-argument contracts cannot absorb another tool's payload.
     // Legacy shorthand schemas still use their existing argument completion.
@@ -1415,6 +1473,10 @@ function schemaValueIsExecutable(
     value,
     schema = {}
 ) {
+    if(Array.isArray(schema.anyOf)){
+        const {anyOf,...base}=schema;
+        return anyOf.some(branch=>schemaValueIsExecutable(value,{...base,...branch}));
+    }
     if (Array.isArray(schema.enum) && !schema.enum.some(candidate => JSON.stringify(candidate) === JSON.stringify(value))) return false;
     if (Object.prototype.hasOwnProperty.call(schema, "const") && JSON.stringify(schema.const) !== JSON.stringify(value)) return false;
     if (Array.isArray(schema.type)) return schema.type.some(type =>
@@ -1467,6 +1529,9 @@ function schemaValueIsExecutable(
         ) {
             return false;
         }
+        if(Array.isArray(schema.items))return value.every((item,index)=>
+            schema.items[index] ? schemaValueIsExecutable(item,schema.items[index]) :
+                schema.additionalItems===false ? false : schemaValueIsExecutable(item,schema.additionalItems||{}));
         return value.every(item =>
             schemaValueIsExecutable(
                 item,
@@ -3011,17 +3076,29 @@ async function runModelSemanticPlanner({
         const compactActionCatalog = catalog => catalog.map(({ name, description, evidenceKinds, inputSchema, requiresEvidence, mutates, requiresApproval }) => {
             const schema = buildNativeInputSchema(inputSchema);
             const branches = schema.anyOf || [schema];
+            const binding=(key,property)=>{
+                if(key==='fields' && Array.isArray(property.enum) && property.enum.every(Array.isArray) && JSON.stringify(property.enum).length>1600){
+                    const examples=[];let bytes=2;
+                    for(const projection of [...property.enum.filter(fields=>fields.length===1),property.enum.at(-1),...property.enum]){
+                        const cost=JSON.stringify(projection).length+1;
+                        if(bytes+cost>1600 || examples.some(value=>JSON.stringify(value)===JSON.stringify(projection)))continue;
+                        examples.push(projection);bytes+=cost;
+                    }
+                    return {projectionExamples:examples,fullChoicesInNativeSchema:true,permittedProjectionCount:property.enum.length};
+                }
+                return property.enum || (Object.prototype.hasOwnProperty.call(property,'const')?[property.const]:{minItems:property.minItems,...(Number.isInteger(property.maxItems)?{maxItems:property.maxItems}:{})});
+            };
             return { name, description: description.slice(0, 60), evidenceKinds: evidenceKinds || ["tool_result"],
                 // Tool selection needs the callable arguments; the complete schema
                 // is supplied separately as responseJsonSchema and validated again.
-                requiredArguments: [...new Set(branches.flatMap(branch => branch.required || []))],
+                requiredArguments: (branches[0]?.required||[]).filter(key=>branches.every(branch=>(branch.required||[]).includes(key))),
                 // The full schema remains in responseJsonSchema and execution
                 // validation. In prose keep only correlated bound arguments;
                 // repeating a whole query schema per source exhausts context.
                 ...(requiresEvidence?.length ? {evidenceBindings: [...new Set(branches.map(branch => JSON.stringify(
                     Object.fromEntries(Object.entries(branch.properties || {})
-                        .filter(([, property]) => property.enum || Object.prototype.hasOwnProperty.call(property, "const"))
-                        .map(([key, property]) => [key, property.enum || [property.const]])))))].map(value=>JSON.parse(value))} : {}),
+                        .filter(([, property]) => property.enum || Object.prototype.hasOwnProperty.call(property, "const") || property.type==='array'&&property.minItems>0)
+                        .map(([key, property]) => [key,binding(key,property)])))))].map(value=>JSON.parse(value))} : {}),
                 mutates, requiresApproval };
         });
         let auditCatalog=compactActionCatalog(selectableCatalog);
@@ -3162,8 +3239,17 @@ async function runModelSemanticPlanner({
         // Rejections are decision history, never operational evidence. Reuse
         // only under the same instruction, identity, model and dependencies.
         const decisionCache=ai.objectiveCoverageCache || new Map();
-        const queryDecisionKey=call=>'query-rejection:'+recordObjectiveRevision(
-            {query:canonicalArgs({name:call.name,args:call.args||{}}),instruction},completedTasksForAudit,recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content),model,missionState,evaluatedAt);
+        const queryDecisionKey=call=>{
+            const {pageSize,...args}=call.args||{};
+            if(args.mode==='query'){
+                args.fields=[...new Set(args.fields||[])].sort();
+                args.filters=args.filters||[];
+                args.orderBy=args.orderBy?.length?args.orderBy:[{field:'__name__',direction:'asc'}];
+                args.cursor=args.cursor||null;
+            }
+            return 'query-rejection:'+recordObjectiveRevision(
+                {query:canonicalArgs({name:call.name,args}),instruction},completedTasksForAudit,recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content),model,missionState,evaluatedAt);
+        };
         const knownQueryRejection=call=>decisionCache.get(queryDecisionKey(call))?.queryRejection;
         const queryRejectionReceipt=error=>({code:error.message,proposed:{name:error.evidence?.tool,args:error.evidence?.proposed},
             limitation:error.evidence?.limitation || '',operationalEvidence:false,objectiveSatisfied:false});
@@ -3345,6 +3431,8 @@ async function runModelSemanticPlanner({
                     return tool;
                 });
                 if(!nextReaders.length)return null;
+                nextReaders=excludeReviewedQueryProjections(nextReaders,currentQueryRejections());
+                if(!nextReaders.length)return null;
 
                     const compactContinuation=JSON.stringify(auditTasks).length>16000;
                     const continuation = await ai.models.generateContent({model,contents:instruction,config:{
@@ -3360,7 +3448,7 @@ async function runModelSemanticPlanner({
                             {role:"system",content:"Eres Jarvis. El objetivo aún no está resuelto. Decide si existe UN siguiente paso de investigación ejecutable con las herramientas disponibles y llámalo. No repitas que falta evidencia cuando puedes obtenerla. Una búsqueda ya devuelve rutas candidatas: lee una ruta real pertinente para conocer la fuente; si necesitas otra fuente, busca. Conserva el objetivo del usuario, pero puedes reformular búsquedas con identificadores, campos, símbolos y vocabulario técnico que hayas aprendido de evidencia ya observada. No inventes esos identificadores: deben provenir de la solicitud o de una observación real. Si una búsqueda semántica ya fue insuficiente, usa repo.grep con un término literal observado o formula una nueva búsqueda usando la evidencia disponible. Para consultar registros actuales necesitas colección y campos acreditados. El discriminador es necesario para contar un subconjunto; si aún lo desconoces, puedes inspeccionar campos pertinentes con mode=query y filters=[] dentro del alcance autorizado, para conocer valores reales y resolver otros objetivos. La inspección no acredita por sí sola un conteo global ni la pertenencia a un subconjunto. No inventes filtros. El catálogo describe fuentes, no resultados ya obtenidos. No repitas la misma operación con los mismos argumentos. Una fuente irrelevante no cierra la investigación: continúa con otra fuente o búsqueda read-only distinta mientras exista un paso fundamentado. Si realmente no hay un paso autorizado, no llames nada. Un permiso denegado no autoriza cambiar identidad, quitar filtros ni ampliar acceso. Nunca escribas, publiques ni concedas aprobación."},
                             ...(pendingCapabilities.length ? [{role:"system",content:"CAPACIDADES_DISPONIBLES_DESPUES_DEL_REQUISITO="+JSON.stringify(pendingCapabilities)+"\nLa consulta de datos existe, pero falta leer la fuente. Elige primero una lectura o búsqueda pertinente. No sustituyas el requisito con una negativa ni con un esquema inventado."}] : []),
                             ...(latestPlatformSchemaFailure && !evidenceAfterSchemaFailure ? [{role:"system",content:"RECUPERACION_DE_CONSULTA: la última platform.query fue rechazada por evidencia de esquema insuficiente. No repitas la misma consulta ni adivines un alias. Usa las herramientas de repositorio disponibles para localizar el campo, colección o valor real y después formula una consulta nueva con esa evidencia. Si INTENTO_FALLIDO incluye errorDetails.discoveredCollections, esas colecciones SÍ fueron observadas por AST en el sourceFile indicado y la colección rechazada NO fue acreditada por ese archivo: conserva la relación sourceFile→discoveredCollections, vuelve al repo si ninguna observada sirve al objetivo y sólo después formula otra consulta. Si errorDetails incluye undiscoveredFields, undiscoveredFilterFields o ungroundedFilterValues, esos literales son argumentos RECHAZADOS: puedes usarlos como pistas para repo.grep/repo.search, pero no los trates como esquema válido hasta observar su definición real en una fuente."}] : []),
-                            {role:"system",content:"CATALOGO_EJECUTABLE="+JSON.stringify(auditCatalog.filter(tool=>nextReaders.some(reader=>reader.name===tool.name)))},
+                            {role:"system",content:"CATALOGO_EJECUTABLE="+JSON.stringify(compactActionCatalog(nextReaders))},
                             {role:"system",content:"RUTAS_LOCALIZADAS="+JSON.stringify([...new Set(nextReaders.flatMap(tool=>{
                                 const schema=buildNativeInputSchema(tool.inputSchema);return (schema.anyOf||[schema]).flatMap(branch=>branch.properties?.file?.enum||[]);
                             }))])},

@@ -280,3 +280,54 @@ test('a native proposal outside the filtered frontier triggers one explicit reco
  }}}});
  assert.deepEqual(stages,['EVIDENCE_NEXT_ACTION','READ_ONLY_EVIDENCE_CONTINUATION']);assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives[0].satisfied,false);assert.equal(result.toolCalls[0].args.file,'next.js');
 });
+
+test('recovery excludes a reviewed projection only for its exact unfiltered scope while retaining new fields and filters',async()=>{
+ const {hasRequiredToolArguments}=require('../functions/jarvis-semantic-planner');
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,inputSchema:{type:'object',properties:{file:{type:'string',enum:['next.js']}},required:['file']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string',enum:['entries','related']},mode:{type:'string',enum:['query']},fields:{type:'array',minItems:1,maxItems:4,items:{type:'string'}},filters:{type:'array'},orderBy:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}};
+ const args={sourceFile:'registry.js',collection:'entries',mode:'query',fields:['stamp'],filters:[]};
+ const source={name:reader.name,args:{file:'registry.js'},observation:{ok:true,verifiedRead:{file:'registry.js',content:'Observed independent entry registries',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['entries','related'],writeShapes:['entries','related'].map(collection=>({collection,fields:['stamp','label'],fieldsComplete:true,content:'{stamp, label}'}))}}}}};
+ const stages=[];
+ const result=await runJarvisSemanticPlanner({input:'Inspect active entries',catalog:[query,reader],missionState:{phase:'EVIDENCE_NEXT_ACTION',evidenceObjectives:[{objective:'Inspect active entries',requiredEvidenceKind:'platform_records'}],completedTasks:[source]},ai:{objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
+  const stage=request.config.semanticStage;stages.push(stage);
+  if(stage==='EVIDENCE_NEXT_ACTION')return{text:JSON.stringify({toolCalls:[{name:query.name,args}]})};
+  if(stage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:stages.filter(s=>s===stage).length>1})};
+  assert.equal(stage,'READ_ONLY_EVIDENCE_CONTINUATION');
+  const candidate=request.config.responseJsonSchema.properties.toolCalls.items.anyOf.find(c=>c.properties.name.enum.includes(query.name));
+  const scoped={inputSchema:candidate.properties.args};
+  const compact=JSON.parse(request.config.chatMessages.find(m=>m.content.startsWith('CATALOGO_EJECUTABLE=')).content.slice('CATALOGO_EJECUTABLE='.length)).find(t=>t.name===query.name);
+  assert.ok(!compact.requiredArguments.includes('orderBy'),'a requirement of one alternative is not mandatory in every scope');
+  const projections=compact.evidenceBindings.filter(binding=>binding.collection?.includes('entries')&&Array.isArray(binding.fields)).flatMap(binding=>binding.fields);
+  assert.ok(projections.some(fields=>JSON.stringify(fields)==='["label","stamp"]'));
+  assert.ok(!projections.some(fields=>JSON.stringify(fields)==='["stamp"]'),'the compact model catalog must agree with the filtered grammar');
+  assert.equal(hasRequiredToolArguments(scoped,args),false,'the rejected projection must be removed before the recovery model is called');
+  for(const change of [{fields:['label']},{fields:['label','stamp']},{filters:[{field:'label',op:'==',value:'active'}]},{collection:'related'}])
+   assert.equal(hasRequiredToolArguments(scoped,{...args,...change}),true,'a different projection, filter or source remains eligible');
+  return{text:JSON.stringify({toolCalls:[{name:query.name,args:{...args,fields:['__name__']}}]})};
+ }}}});
+ assert.deepEqual(stages,['EVIDENCE_NEXT_ACTION','QUERY_POPULATION_VERIFICATION','READ_ONLY_EVIDENCE_CONTINUATION','QUERY_POPULATION_VERIFICATION']);
+ assert.equal(result.missionComplete,false);assert.deepEqual(result.toolCalls[0].args.fields,['__name__']);
+});
+
+test('projection alternatives remain complete in the native grammar while their compact context stays bounded',async()=>{
+ const fields=Array.from({length:7},(_,i)=>'field_'+i+'_'+('x'.repeat(80)));
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,inputSchema:{type:'object',properties:{file:{type:'string',enum:['next.js']}},required:['file']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string',enum:['entries']},mode:{type:'string',enum:['query']},fields:{type:'array',minItems:1,maxItems:8,items:{type:'string'}},filters:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}};
+ const tasks=[{name:reader.name,args:{file:'registry.js'},observation:{ok:true,verifiedRead:{file:'registry.js',content:'Observed schema',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['entries'],writeShapes:[{collection:'entries',fields,content:'Observed write'}]}}}}}];
+ let checked=false;
+ const result=await runJarvisSemanticPlanner({input:'Inspect entries',catalog:[query,reader],missionState:{phase:'EVIDENCE_NEXT_ACTION',evidenceObjectives:[{objective:'Inspect entries',requiredEvidenceKind:'platform_records'}],completedTasks:tasks},ai:{objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
+  if(request.config.semanticStage==='EVIDENCE_NEXT_ACTION')return{text:JSON.stringify({toolCalls:[{name:query.name,args:{sourceFile:'registry.js',collection:'entries',mode:'query',fields:[fields[0]],filters:[]}}]})};
+  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":false}'};
+  assert.equal(request.config.semanticStage,'READ_ONLY_EVIDENCE_CONTINUATION');
+  const visible=request.config.chatMessages.find(m=>m.content.startsWith('CATALOGO_EJECUTABLE=')).content;
+  assert.ok(visible.length<5000,'projection combinations must not consume the evidence/context budget');
+  const compact=JSON.parse(visible.slice('CATALOGO_EJECUTABLE='.length)).find(t=>t.name===query.name);
+  const summary=compact.evidenceBindings.find(binding=>binding.fields?.fullChoicesInNativeSchema)?.fields;
+  assert.equal(summary.permittedProjectionCount,254);
+  assert.ok(JSON.stringify(summary.projectionExamples).length<=1600);
+  const candidate=request.config.responseJsonSchema.properties.toolCalls.items.anyOf.find(c=>c.properties.name.enum.includes(query.name));
+  const native=(candidate.properties.args.anyOf||[candidate.properties.args]).find(branch=>branch.properties.fields.enum)?.properties.fields.enum;
+  assert.equal(native.length,254,'the compact prompt does not remove native action choices');
+  checked=true;return{text:'{"toolCalls":[{"name":"repo.read","args":{"file":"next.js"}}]}'};
+ }}}});assert.equal(checked,true);assert.equal(result.missionComplete,false);
+});
