@@ -8,3 +8,67 @@ dialog{border:1px solid #ced9e6;border-radius:12px;padding:0;width:min(680px,cal
 [hidden]{display:none!important}
 
 .preview-strip button{display:inline-flex;align-items:center;gap:7px}.preview-strip button span{display:inline}.art-frame[data-state="1"] .main-emblem,.art-frame[data-state="2"] .main-emblem{object-fit:contain;opacity:1;margin:12px 0;border-radius:3px;filter:none}
+
+
+/* 2026-10-14 · Corporate refinement */
+body{background:#f8fafc}
+.header{box-shadow:0 12px 35px rgba(4,16,30,.06);border-bottom:1px solid rgba(9,66,119,.07)}
+.nav-wrap{height:84px}
+.nav-action{background:#0b73e0;color:#fff;border-radius:999px;padding:13px 20px;box-shadow:0 10px 28px rgba(8,124,255,.2)}
+.nav-action:hover{background:#075fb8}
+.hero{background:radial-gradient(circle at 76% 18%,rgba(0,117,255,.2),transparent 29%),linear-gradient(135deg,#03111f 0%,#061c35 54%,#02101f 100%)}
+.hero:after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,transparent,#19c7ff66,transparent)}
+.hero-layout{min-height:720px}
+.hero h1{font-weight:760;max-width:720px}
+.hero-desc{font-size:16px;max-width:590px}
+.hero-proof{display:flex;gap:8px;flex-wrap:wrap;margin-top:19px}
+.hero-proof span{font-size:9px;letter-spacing:.04em;color:#bcd3e8;border:1px solid #2a4660;background:#0c2034;padding:7px 10px;border-radius:999px}
+.art-frame{background:linear-gradient(180deg,#07182a,#020912);border:1px solid #1e4d70;border-radius:18px;padding:18px 21px 14px;box-shadow:0 35px 120px rgba(0,0,0,.42),0 0 0 1px rgba(0,216,255,.04) inset}
+.frame-corner{display:none}
+.main-emblem{max-height:500px;filter:none!important}
+.art-caption{letter-spacing:.08em;text-transform:uppercase}
+.value-bar{background:#fff;border-bottom:1px solid #e7edf4;box-shadow:0 8px 28px rgba(16,41,70,.035)}
+.value-bar .wrap{min-height:90px}
+.product-showcase{background:linear-gradient(180deg,#fff 0%,#f5f9fe 100%);position:relative;overflow:hidden}
+.product-showcase:before{content:"";position:absolute;width:520px;height:520px;border-radius:50%;right:-240px;top:-220px;background:radial-gradient(circle,rgba(8,124,255,.12),transparent 68%)}
+.product-layout{display:grid;grid-template-columns:.92fr 1.08fr;gap:90px;align-items:center;position:relative}
+.product-copy h2{font-size:clamp(38px,4vw,58px)}
+.product-actions{display:flex;align-items:center;gap:26px;margin-top:30px;flex-wrap:wrap}
+.product-console{background:#071321;color:white;border-radius:20px;border:1px solid #163652;box-shadow:0 30px 80px rgba(17,53,84,.2);overflow:hidden;min-height:410px}
+.console-top{height:54px;padding:0 19px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #18344d;color:#a8c5db;font-size:9px;letter-spacing:.11em}
+.console-top span{display:flex;align-items:center;gap:9px}
+.console-top i{width:7px;height:7px;border-radius:50%;background:#00d8ff;box-shadow:0 0 16px #00d8ff}
+.console-top small{font-size:8px;color:#56758f}
+.console-body{padding:42px}
+.console-kicker{font-size:9px;letter-spacing:.16em;color:#5fa9df}
+.console-body h3{font-size:34px;margin:10px 0 13px;letter-spacing:-.04em}
+.console-body>p:not(.console-kicker){font-size:13px;color:#9eb4c8;line-height:1.8;max-width:460px}
+.console-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:23px}
+.console-chips span{font-size:9px;color:#b7cee1;border:1px solid #27455e;background:#0d2236;padding:7px 10px;border-radius:999px}
+.console-command{margin-top:50px;border:1px solid #27455e;background:#0a1a2a;padding:15px 17px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;color:#728da5;font-size:11px}
+.console-command b{display:grid;place-items:center;width:28px;height:28px;background:#087cff;border-radius:7px;color:#fff}
+.services{background:#fff}
+.service-grid{gap:16px}
+.service-card{border-color:#e5ebf2;border-radius:14px;box-shadow:0 8px 28px rgba(20,52,84,.035);min-height:184px}
+.service-card:hover{border-color:#98c7f4;box-shadow:0 18px 42px rgba(20,72,120,.1);transform:translateY(-5px)}
+.service-icon{width:42px;height:42px;border-radius:12px;background:#edf6ff;display:grid;place-items:center}
+.service-icon svg{width:23px;height:23px}
+.how{background:#f3f7fb}
+.work{background:#fff}
+.work-card{border-radius:14px;box-shadow:0 16px 42px rgba(15,38,62,.08)}
+.work-card img{image-rendering:auto}
+.story{background:linear-gradient(180deg,#f5f8fb,#eef4f9)}
+.browser-card{border-radius:16px;box-shadow:0 26px 60px rgba(27,65,100,.12)}
+.professional{background:radial-gradient(circle at 15% 20%,#0b4d8038,transparent 35%),linear-gradient(135deg,#021223,#062746);padding:92px 0}
+.pro-art img{border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.25)}
+.blog{background:#fff}
+.blog-art{border-radius:14px}
+.blog-card h3{font-weight:680}
+.contact{background:radial-gradient(circle at 85% 10%,#13c7ff55,transparent 34%),linear-gradient(135deg,#064cae,#076fd9)}
+.contact-choices button{border:1px solid #b8dcff4d;border-radius:14px;padding:24px;background:#ffffff08}
+.contact-choices button:hover{background:#ffffff12;transform:translateY(-2px)}
+footer{padding-top:58px}
+.footer-main{align-items:start}
+.footer-main>div button{color:#c1d7ea}
+@media(max-width:930px){.product-layout{gap:48px}.console-body{padding:32px}.product-console{min-height:370px}}
+@media(max-width:760px){.product-layout{grid-template-columns:1fr;gap:35px}.product-console{min-height:340px;border-radius:16px}.console-body{padding:28px 22px}.console-body h3{font-size:29px}.console-command{margin-top:34px}.hero-proof{margin-top:16px}.hero-proof span{font-size:8px}.contact-choices button{padding:20px}.nav-wrap{height:72px}}

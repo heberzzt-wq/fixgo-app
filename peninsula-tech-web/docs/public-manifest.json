@@ -1,5 +1,5 @@
 {
-  "totalBytes": 2622990,
+  "totalBytes": 2629001,
   "files": [
     {
       "file": "404.html",
@@ -8,8 +8,8 @@
     },
     {
       "file": "app.js",
-      "bytes": 21320,
-      "sha256": "40898f54093b1a661354d52bb4da3dcabd8a75a97a6a17dd7ae4f21e745eb624"
+      "bytes": 21185,
+      "sha256": "7c04e3c283e950f7a9b49839e1cce29f12fbfb51de51283ae4c0844c686c980c"
     },
     {
       "file": "assets/adjunto-oficial.png",
@@ -78,8 +78,8 @@
     },
     {
       "file": "index.html",
-      "bytes": 14806,
-      "sha256": "fceb24555c700450c361fe79eb8bf266368bd1ac8964499460bfa8fd4c81a336"
+      "bytes": 15719,
+      "sha256": "db8471f121d6b0d6d60b1c32cb893baccb7541320ed3b4841ce5a7302a023652"
     },
     {
       "file": "robots.txt",
@@ -88,8 +88,8 @@
     },
     {
       "file": "styles.css",
-      "bytes": 28338,
-      "sha256": "67de838b8ec745901255fd74e2f184d4df78fca6f0e75291840461f34360f87b"
+      "bytes": 33571,
+      "sha256": "fdb26924abee58ca71b3ae8be3c5739625c56d653854c75ec3a29ce08b798dfb"
     },
     {
       "file": "version.json",
