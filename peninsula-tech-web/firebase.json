@@ -14,7 +14,7 @@
         "headers": [
           {
             "key": "X-Robots-Tag",
-            "value": "noindex, nofollow, noarchive"
+            "value": "index, follow"
           },
           {
             "key": "X-Content-Type-Options",
@@ -22,7 +22,7 @@
           },
           {
             "key": "Referrer-Policy",
-            "value": "no-referrer"
+            "value": "strict-origin-when-cross-origin"
           },
           {
             "key": "Content-Security-Policy",

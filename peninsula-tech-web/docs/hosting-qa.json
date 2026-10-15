@@ -1,5 +1,5 @@
 {
-  "url": "https://peninsula-tech-v01.web.app/",
+  "url": "https://peninsula-tech-v01.web.app/?qa=20261014-1920",
   "checks": [
     {
       "name": "Page loads and renders 12 services",
@@ -10,7 +10,7 @@
       "pass": true
     },
     {
-      "name": "Version marker",
+      "name": "Corporate identity marker",
       "pass": true
     },
     {
@@ -18,7 +18,7 @@
       "pass": true
     },
     {
-      "name": "Indexing disabled",
+      "name": "Indexing enabled",
       "pass": true
     },
     {
@@ -58,23 +58,11 @@
       "pass": true
     },
     {
-      "name": "Client modal and preselected service",
+      "name": "Client and professional CTAs are present",
       "pass": true
     },
     {
-      "name": "Empty submission invalid",
-      "pass": true
-    },
-    {
-      "name": "Client example is generated locally",
-      "pass": true
-    },
-    {
-      "name": "Input rendered as text, not HTML",
-      "pass": true
-    },
-    {
-      "name": "Professional flow distinct",
+      "name": "Operational CTAs route to ADJUNTO production",
       "pass": true
     },
     {
@@ -103,7 +91,7 @@
       "pass": true
     }
   ],
-  "passed": 25,
-  "total": 25,
+  "passed": 22,
+  "total": 22,
   "errors": []
 }

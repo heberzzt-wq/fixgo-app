@@ -18,11 +18,12 @@ scan(path.join(root,'public'));const manifest=[];
 for(const p of files){const rel=path.relative(path.join(root,'public'),p).replaceAll('\\','/');const b=fs.readFileSync(p);check('Allowed static file '+rel,/\.(?:html|js|css|json|txt|webp|png|jpe?g|svg|ico)$/.test(rel)&&!/(?:^|\/)[.]/.test(rel));
 if(/\.(html|js|css|json|txt)$/.test(rel)){const s=b.toString('utf8');check('No secret material '+rel,!/-----BEGIN [A-Z ]*PRIVATE KEY-----|\bya29\.[A-Za-z0-9_-]{20,}|\bEAA[A-Za-z0-9_-]{30,}|\bgh[pousr]_[A-Za-z0-9]{25,}/.test(s));}
 manifest.push({file:rel,bytes:b.length,sha256:crypto.createHash('sha256').update(b).digest('hex')});}
-const totalBytes=manifest.reduce((n,x)=>n+x.bytes,0);check('Static public bundle under 1 MB',totalBytes<1000000);
+const totalBytes=manifest.reduce((n,x)=>n+x.bytes,0);check('Static public bundle under 5 MB',totalBytes<5000000);
 const html=fs.readFileSync(path.join(root,'public/index.html'),'utf8'),js=fs.readFileSync(path.join(root,'public/app.js'),'utf8');
-check('Demo cannot send requests or persist data',!/\b(?:fetch|XMLHttpRequest|WebSocket|sendBeacon|localStorage|sessionStorage|indexedDB)\b/.test(js));
+check('Corporate site does not send form data or persist visitor data',!/\b(?:fetch|XMLHttpRequest|WebSocket|sendBeacon|localStorage|sessionStorage|indexedDB)\b/.test(js));
+check('Operational CTAs route to ADJUNTO production',js.includes("const PLATFORM_URL = 'https://fixgo-44e4d.web.app/'")&&js.includes("window.location.assign(PLATFORM_URL)"));
 check('No live external scripts',!/<script[^>]+src=["']https?:/i.test(html));
-check('Nonindexed demo',html.includes('noindex'));
+check('Public site is indexable',html.includes('index,follow')&&!html.includes('noindex,nofollow'));
 check('No external network allowed in CSP',config.hosting.headers.some(r=>r.headers.some(h=>h.key==='Content-Security-Policy'&&h.value.includes("connect-src 'none'")&&h.value.includes("form-action 'none'"))));
 execFileSync(process.execPath,['--check',path.join(root,'public/app.js')]);check('JavaScript syntax valid',true);
 fs.writeFileSync(path.join(root,'docs/public-manifest.json'),JSON.stringify({totalBytes,files:manifest},null,2)+'\n');

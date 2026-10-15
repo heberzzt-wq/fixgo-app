@@ -1,5 +1,5 @@
 {
-  "totalBytes": 708778,
+  "totalBytes": 2622990,
   "files": [
     {
       "file": "404.html",
@@ -8,8 +8,13 @@
     },
     {
       "file": "app.js",
-      "bytes": 21357,
-      "sha256": "a3ce1ff1d32fcc5ff9c8aabd2cf67c95a0b86c40207a89a7c1eeb80a09616937"
+      "bytes": 21320,
+      "sha256": "40898f54093b1a661354d52bb4da3dcabd8a75a97a6a17dd7ae4f21e745eb624"
+    },
+    {
+      "file": "assets/adjunto-oficial.png",
+      "bytes": 812021,
+      "sha256": "8a954ed672953124a1839ecc661ee2523e3acd21f359ac15ed82ffa107726bd2"
     },
     {
       "file": "assets/adjunto-oficial.webp",
@@ -27,9 +32,19 @@
       "sha256": "0362717731413bc79327bb6406124f1f633c6a82ebdf5321f09c1773ef1f4cdd"
     },
     {
+      "file": "assets/peninsula-emblema.png",
+      "bytes": 325473,
+      "sha256": "795a736a8f526355420d625c17b796d66015926f15fa95c05a4158d22070b881"
+    },
+    {
       "file": "assets/peninsula-emblema.webp",
       "bytes": 53428,
       "sha256": "6b77fd6a99ac9431e21e47b6735d72a1a242d437b215228ece1fec473c293e6e"
+    },
+    {
+      "file": "assets/peninsula-oficial.png",
+      "bytes": 776855,
+      "sha256": "055ba221249eb4278e28cd379715c8a2df4b650adf04ee660479a6e862879fe8"
     },
     {
       "file": "assets/peninsula-oficial.webp",
@@ -63,8 +78,8 @@
     },
     {
       "file": "index.html",
-      "bytes": 14896,
-      "sha256": "b301f290519c7207b9c79e3ba8b5856481d3325f1056a2ea676e6e4371b4067b"
+      "bytes": 14806,
+      "sha256": "fceb24555c700450c361fe79eb8bf266368bd1ac8964499460bfa8fd4c81a336"
     },
     {
       "file": "robots.txt",
@@ -73,13 +88,13 @@
     },
     {
       "file": "styles.css",
-      "bytes": 28431,
-      "sha256": "f399961020af097cdf0e3ce3b5603108c9718fc898c919b6e710a29b5aba1b9c"
+      "bytes": 28338,
+      "sha256": "67de838b8ec745901255fd74e2f184d4df78fca6f0e75291840461f34360f87b"
     },
     {
       "file": "version.json",
-      "bytes": 199,
-      "sha256": "de0344d094086cf041d0b61591b608b590504136603e8edf96da71ed9f8940bc"
+      "bytes": 282,
+      "sha256": "263f05a5a5e26e23a92a67f96e334cb3759a7042168e3cbeabf3e17e7445e9f9"
     }
   ]
 }

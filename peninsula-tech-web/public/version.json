@@ -1,9 +1,10 @@
 {
   "product": "Peninsula Tech / ADJUNTO",
-  "version": "0.1.0",
-  "stage": "development-preview",
-  "realRegistrations": false,
-  "realRequests": false,
-  "payments": false,
-  "externalAI": false
+  "version": "0.2.0",
+  "stage": "corporate-landing",
+  "platformUrl": "https://fixgo-44e4d.web.app/",
+  "corporateForms": false,
+  "ctaRedirectsToPlatform": true,
+  "paymentsOnCorporateSite": false,
+  "externalAIOnCorporateSite": false
 }
