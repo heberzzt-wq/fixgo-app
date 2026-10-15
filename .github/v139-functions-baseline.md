@@ -1,5 +1,22 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `4427f8fd8abe85e57b4d39ec3750852dfc61d65e`.
+Only the semantic planner changed in Functions since c4d03e2e. The published
+a3da3ca9 mission proved rejected-count pruning, but remained PARTIAL after a
+different recovery projection received an independent semantic veto. Recovery
+can now retain one novel repository-source alternative selected by Qwen in the
+same structured response. It executes only after an explicit semantic scope
+veto, never after a successful primary, and adds no recovery inference. Repeated,
+unobserved and operational alternatives fail closed. All goal coverage and
+identity/authorization checks remain unchanged; no model or provider added.
+Eight generic full-loop regression variants cover both primary outcomes and
+valid, repeated, unobserved or operational alternatives. Fresh focal: 589 PASS.
+Full root with local emulators: 2150 PASS, 0 FAIL, 2 environment skips. Physical
+certification of this new revision remains pending. No operating records changed.
+The guard still rejects subsequent unreviewed Functions changes.
+
+## Previous reviewed baseline
+
 Current baseline: `c4d03e2e16dd789fb228b57e69f0f8fa71aed8d6`.
 Only `functions/jarvis-semantic-planner.js` changed since the reviewed baseline
 493679be. The clean published 0f04846c Chrome mission ended PARTIAL after 20
