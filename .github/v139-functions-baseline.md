@@ -1,5 +1,40 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `29941432fc406f7c3b6fb2696d71c3a9d79c6fd6`, reviewed evidence-advancement phase release.
+Only `jarvis-semantic-planner.js` changes inside Functions. Pure operational-record
+missions now use explicit EVIDENCE_NEXT_ACTION in both production planner paths.
+The same local semantic model selects one grounded novel read before evaluating
+closure. A rejected proposal has one bounded recovery. No valid action means the
+existing independent per-objective coverage checks run, without another global
+replan. No action or query exhaustion can mark an objective satisfied.
+
+Immutable objective requirements and partial authenticated references are retained.
+Only current engine-owned independently qualified coverage can preserve success.
+Changed positive dependencies still reopen review. Mixed/non-record missions keep
+COMPLETION_AUDIT. The local provider supplies the same configured-source context to
+the new decision stage; no alternate provider, dictionary or domain router added.
+
+Regressions first reproduce the missing advancement phase, then prove a novel
+next action needs one selection, while an empty action requires independent
+operational coverage and can remain partial. Rejection/recovery is exercised in
+both old audit and new advancement phases. Both production callers and unaffected
+DOM repair flow are executed through their real phase helper. Four existing
+phase-name/VM harness checks were updated without removing their authority,
+transaction or scope assertions. All 309 focused checks and 111 wiring checks
+pass. Fresh full-root run: 2,001 PASS, zero failures, two environment skips.
+
+Previous deployed Chrome run f711d464 ended PARTIAL with all three goals pending:
+29 local calls and 339,646 ms from submission to native final. Completion audits
+used 101,285 ms; independent record/source reviews used 113,074 ms. Only a source
+read and one empty scoped count executed. The unchanged query rejections were not
+reviewed again, but that alone did not resolve the mission. New complete clean
+Chrome certification remains required; unit/CI green is not mission success.
+No model, external AI, permissions or operational-data changes.
+The explicit ancestor-checked fail-closed Functions guard remains intact.
+
+## Previous rejection-cycle baseline
+
+
 Current baseline: `6eb34420c0883bec08aba98206aa1df080e37755`, reviewed rejection-cycle and terminal-page identity release.
 Only `jarvis-semantic-planner.js` changes inside Functions. A rejected query now
 passes a typed decision receipt into recovery and the next decision. It remains
