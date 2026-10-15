@@ -1,5 +1,43 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `e6cbcdeeed59165a41752aac61ead43daa7b0120`, reviewed recovery-projection frontier release.
+Only `jarvis-semantic-planner.js` changes inside Functions. The last physical local
+replay captured proposal -> independent scope rejection -> identical recovery
+proposal. The recovery grammar now excludes that reviewed projection for its
+same unfiltered first-page source/collection scope, while retaining other fields,
+filters, orderings, routes and actors. This is schema-based action eligibility,
+not a domain dictionary or a new semantic authority. Changed evidence invalidates
+rejection history. Rejection signatures normalize field sets, default ID ordering
+and irrelevant page size without broadening successful-query coverage.
+
+The compact catalog is rebuilt from the actual filtered choices. Common required
+arguments use the intersection of alternatives, not their union. Small credited
+field sets retain all permitted projection combinations in the native schema;
+large sets use positive tuple alternatives. Compact examples are explicitly
+non-exhaustive and bounded without dropping native choices, records or scopes.
+Local physical schema probes showed generic not/prefixItems were ignored by this
+Ollama build; tuple items and array-valued enum constraints were enforced. Those
+unsupported negative constraints are not used. Runtime schema validation now
+checks nested alternatives, tuples and structural enum values consistently.
+Independent per-goal success qualification and actor isolation remain enforced.
+
+The regression first fails because the rejected projection is still in recovery's
+schema. It now verifies exclusion before the model call, distinct fields/filters/
+sources remain possible, and compact/native catalogs agree. A dense test keeps
+all 254 permitted native projections while bounding the prompt examples. All 312
+focused checks and fresh full-root 2,004 PASS, zero failures, two environment skips.
+No model, provider, permission or operational-data changes.
+
+Previous81504fff Chrome run remained PARTIAL: 29 local calls, 274,991 ms wall clock,
+only one source read and one empty scoped query. It did not repeat an operational
+query or claim completion. Its recovery repeated a rejected proposal and stopped;
+that is an internal failure, not a certified mission or external blocker.
+Fresh aligned release, physical search and the complete clean Chrome mission are
+still required. The explicit ancestor-checked fail-closed guard remains intact.
+
+## Previous filtered-selection baseline
+
+
 Current baseline: `f38dedb17da79ae18c9035b852f4c1ba6a7288c7`, reviewed filtered-selection boundary release.
 Only `jarvis-semantic-planner.js` changes inside Functions. Normal evidence action
 selection now always uses the filtered JSON schema, including compact contexts.
