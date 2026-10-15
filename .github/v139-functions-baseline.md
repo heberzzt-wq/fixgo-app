@@ -1,5 +1,20 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `c4d03e2e16dd789fb228b57e69f0f8fa71aed8d6`.
+Only `functions/jarvis-semantic-planner.js` changed since the reviewed baseline
+493679be. The clean published 0f04846c Chrome mission ended PARTIAL after 20
+local Qwen calls and one scoped count, with all three goals pending. Its recovery
+offered the same semantically rejected count again, then discarded it after
+inference. The generic full-loop regression reproduced that failure before the
+fix. Recovery now removes this exact unfiltered source/route/count alternative
+before inference, retaining grounded query projections and different scopes.
+No coverage requirement, identity check, model, provider or permission changed.
+Fresh verification: 581 focal PASS; root suite with local Firestore/Storage
+emulators: 2142 PASS, 0 FAIL, 2 environment skips. Final physical search and
+Chrome certification remain pending after publication. No operational data writes.
+The guard still rejects subsequent unreviewed Functions changes.
+
+## Previous reviewed baseline
 Current baseline: `493679be0cc182659eb89cd31dfe4ef56ea86596`.
 Only `jarvis-semantic-planner.js` changed in Functions since the prior baseline.
 The reviewed change preserves source/route provenance and per-objective evidence,
