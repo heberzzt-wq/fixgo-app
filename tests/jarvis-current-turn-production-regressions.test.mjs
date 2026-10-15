@@ -5127,6 +5127,116 @@ test('scope reviews distinguish justified exclusions from violations and bound t
  }
 });
 
+test('trace replay carries proposal rejection and invalid recovery into the next decision without losing runtime exhaustion or pending goals',async()=>{
+ // Reduced from replay-c4da9866-four-decisions.json, itself replaying the
+ // 81504fff Chrome request. Only model responses and storage are simulated;
+ // both planner decisions and the terminal-page receipt use production code.
+ // Names are generic so this regression does not encode the business case.
+ const f=platformQueryTestFixture({recordData:[]});
+ const template='registry/{tenantId}/entries',resolved='registry/approved/entries';
+ const source=f.context.completedTasks[0];
+ source.observation.verifiedRead.content='Observed independent registries';
+ source.observation.verifiedRead.sourceStructure.dataBindings={source:'ACORN_SOURCE_REFERENCES',collections:[template,'profiles'],writeShapes:[
+  {collection:template,fields:['title','rank'],content:'{title, rank}'},
+  {collection:'profiles',fields:['stamp','label'],content:'{stamp, label}'}]};
+ f.context.tenantId='approved';
+ const exhaustedArgs={...f.args,collection:template,mode:'query',fields:['__name__'],cursor:'0',includeCount:false};
+ const receipt=await f.execute(exhaustedArgs,f.dependencies,f.context);
+ assert.equal(receipt.ok,true,JSON.stringify(receipt));
+ assert.equal(receipt.recordEvidence.scope.collection,resolved);
+ assert.equal(receipt.recordEvidence.queryExhausted,true);
+ assert.equal(receipt.recordEvidence.completeForQuery,false,'use the actual terminal-page contract, not a fabricated complete page');
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,inputSchema:{type:'object',properties:{file:{type:'string',enum:['next.js']}},required:['file']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string'},fields:{type:'array',items:{type:'string'}},filters:{type:'array'},orderBy:{type:'array'},cursor:{type:'string'},pageSize:{type:'integer'},includeCount:{type:'boolean'}},required:['sourceFile','collection','mode','fields','filters']}};
+ const tasks=[source,{name:query.name,args:exhaustedArgs,observation:receipt}];
+ const contracts=['Count entries','Identify holders','Inspect deadlines'].map(objective=>({objective,requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['entries']}));
+ const rejected={name:query.name,args:{sourceFile:f.args.sourceFile,collection:'profiles',mode:'query',fields:['stamp'],filters:[]}};
+ const invalidRecovery={...rejected,args:{...rejected.args,filters:[{field:'stamp',op:'>=',value:null}],orderBy:[{field:'__name__',direction:'asc'}]}};
+ const stages=[],cache=new Map();let turn=0;
+ const ai={objectiveCoverageCache:cache,models:{generateContent:async request=>{
+  const stage=request.config.semanticStage;stages.push(stage);
+  if(stage==='EVIDENCE_NEXT_ACTION'){
+   const cursors=node=>node&&typeof node==='object'?(Array.isArray(node)?node.flatMap(cursors):[...(node.properties?.cursor?.enum||[]),...Object.values(node).flatMap(cursors)]):[];
+   assert.ok(!cursors(request.config.responseJsonSchema).includes('0'),'the next decision must not reopen the exhausted page');
+   return{text:JSON.stringify({toolCalls:[turn===0?rejected:{...rejected,args:{...rejected.args,fields:['stamp','stamp'],pageSize:100}}]})};
+  }
+  if(stage==='QUERY_POPULATION_VERIFICATION'){
+   assert.equal(turn,0,'an unchanged rejection must survive into the next decision');
+   return{text:'{"matchesRequest":false}'};
+  }
+  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){
+   const message=request.config.chatMessages.find(m=>m.content.startsWith('RECHAZO_DE_ALCANCE='));
+   const rejection=JSON.parse(message.content.slice('RECHAZO_DE_ALCANCE='.length));
+   assert.deepEqual(rejection.proposed,turn===0?rejected:{...rejected,args:{...rejected.args,fields:['stamp','stamp'],pageSize:100}});
+   assert.equal(rejection.operationalEvidence,false);assert.equal(rejection.objectiveSatisfied,false);
+   return{text:JSON.stringify({toolCalls:turn===0?[invalidRecovery]:[{name:reader.name,args:{file:'next.js'}}]})};
+  }
+  assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY','OBJECTIVE_SOURCE_SCOPE_VERIFICATION'].includes(stage),'no extra recovery chain: '+stage);
+  if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries([template,resolved,'profiles'].map(collection=>[collection,{relevantToObjective:true,reason:'Coverage remains pending'}]))})};
+  return{text:JSON.stringify({proven:false,missing:['No operational values establish this objective'],groups:[],sources:[template,resolved,'profiles'].map(collection=>({collection,relevant:true,reason:'Still pending',taskIndexes:[]}))})};
+ }}};
+ const state={phase:'EVIDENCE_NEXT_ACTION',missionId:'trace-regression',tenantId:'approved',evidenceObjectives:contracts,completedTasks:tasks};
+ const first=await runJarvisSemanticPlanner({input:'Count entries, identify holders and inspect deadlines',catalog:[query,reader],missionState:state,ai});
+ assert.deepEqual(stages.slice(0,3),['EVIDENCE_NEXT_ACTION','QUERY_POPULATION_VERIFICATION','READ_ONLY_EVIDENCE_CONTINUATION']);
+ assert.equal(stages.filter(s=>s==='READ_ONLY_EVIDENCE_CONTINUATION').length,1);
+ assert.equal(stages.filter(s=>s==='QUERY_POPULATION_VERIFICATION').length,1,'the ungrounded null filter must be rejected before another model review');
+ assert.equal(first.toolCalls.length,0,'neither rejected proposal may reach execution');
+ assert.equal(first.missionComplete,false);
+ assert.deepEqual(first.completionAssessment.objectives.map(o=>[o.objective,o.requiredEvidenceKind,o.satisfied]),contracts.map(o=>[o.objective,'platform_records',false]));
+ assert.ok([...cache.values()].some(value=>value.queryRejection),'the rejection must be retained across decisions');
+ const before=JSON.stringify(tasks);turn=1;stages.length=0;
+ const next=await runJarvisSemanticPlanner({input:'Count entries, identify holders and inspect deadlines',catalog:[query,reader],missionState:{...state,completionAssessment:first.completionAssessment},ai});
+ assert.deepEqual(stages,['EVIDENCE_NEXT_ACTION','READ_ONLY_EVIDENCE_CONTINUATION'],'the next decision must reuse its rejection without another scope review or coverage chain');
+ assert.deepEqual(next.toolCalls.map(call=>({name:call.name,args:call.args})),[{name:reader.name,args:{file:'next.js'}}]);
+ assert.equal(next.missionComplete,false);assert.ok(next.completionAssessment.objectives.every(o=>o.satisfied===false&&o.requiredEvidenceKind==='platform_records'));
+ assert.equal(JSON.stringify(tasks),before,'receipts and their authenticated organization binding must survive the entire cycle');
+});
+
+test('a semantic discovery probe advances newly runtime-accredited fields only through its authenticated route and leaves every goal pending',async()=>{
+ const f=platformQueryTestFixture({recordData:[{title:'Observed',rank:7}]});
+ const template='registry/{tenantId}/entries',resolved='registry/approved/entries';
+ const source=f.context.completedTasks[0];f.context.tenantId='approved';
+ source.observation.verifiedRead.content='Observed entry registry';
+ source.observation.verifiedRead.sourceStructure.dataBindings={source:'ACORN_SOURCE_REFERENCES',collections:[template],writeShapes:[{collection:template,fields:['stamp'],content:'{stamp}'}]};
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,inputSchema:{type:'object',properties:{file:{type:'string',enum:['next.js']}},required:['file']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string'},fields:{type:'array',items:{type:'string'}},filters:{type:'array'},pageSize:{type:'integer'},includeCount:{type:'boolean'}},required:['sourceFile','collection','mode','fields','filters']}};
+ const contracts=['Count entries','Identify holders','Inspect deadlines'].map(objective=>({objective,requiredEvidenceKind:'platform_records'}));
+ const args={...f.args,collection:template,mode:'query',fields:['stamp'],filters:[],includeCount:false};
+ const tasks=[source],cache=new Map(),reviews=[];let turn=0;
+ const ai={objectiveCoverageCache:cache,models:{generateContent:async request=>{
+  const stage=request.config.semanticStage;
+  if(stage==='EVIDENCE_NEXT_ACTION')return{text:JSON.stringify({toolCalls:[{name:query.name,args:{...args,fields:turn===0?['stamp']:['rank']}}]})};
+  assert.equal(stage,'QUERY_POPULATION_VERIFICATION','valid discovery and newly credited values do not require another planning chain');
+  const payload=JSON.parse(request.config.chatMessages.at(-1).content);reviews.push(payload);
+  if(turn===1){
+   const schema=payload.observedFieldSchemas.find(s=>s.source==='SERVER_RECORD_FIELD_NAMES');
+   assert.ok(schema.fieldPaths.includes('rank'));assert.deepEqual(schema.collections,[template]);
+   assert.equal(schema.valuesOrObjectiveCoverageProven,false);
+  }
+  return{text:JSON.stringify({matchesRequest:turn===1,schemaDiscoveryRelevant:turn===0})};
+ }}};
+ const state={phase:'EVIDENCE_NEXT_ACTION',missionId:'discovery-regression',tenantId:'approved',evidenceObjectives:contracts,completedTasks:tasks};
+ const plan=()=>runJarvisSemanticPlanner({input:'Count entries, identify holders and inspect deadlines',catalog:[query,reader],missionState:state,ai});
+ const first=await plan();assert.deepEqual(first.toolCalls[0].args,{...args,fields:['__name__']});
+ const receipt=await f.execute(first.toolCalls[0].args,f.dependencies,f.context);
+ assert.equal(receipt.ok,true,JSON.stringify(receipt));assert.equal(receipt.recordEvidence.scope.collection,resolved);
+ assert.ok(receipt.recordEvidence.fieldSchema.paths.includes('rank'));
+ assert.equal(receipt.recordEvidence.rows[0].values.rank,undefined,'ID-only discovery must not claim the value it has not read');
+ tasks.push({name:query.name,args:first.toolCalls[0].args,observation:receipt});turn=1;
+ const second=await plan();assert.deepEqual(second.toolCalls[0].args.fields,['rank']);
+ const values=await f.execute(second.toolCalls[0].args,f.dependencies,{...f.context,completedTasks:tasks});
+ assert.equal(values.ok,true,JSON.stringify(values));assert.equal(values.recordEvidence.rows[0].values.rank,7);
+ assert.equal(reviews.length,2);
+ for(const result of [first,second]){
+  assert.equal(result.missionComplete,false);
+  assert.deepEqual(result.completionAssessment.objectives.map(o=>[o.objective,o.requiredEvidenceKind,o.satisfied]),contracts.map(o=>[o.objective,'platform_records',false]));
+ }
+ const {observedRecordFieldPaths}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ assert.ok(observedRecordFieldPaths(tasks,template).includes('rank'));
+ assert.ok(observedRecordFieldPaths(tasks,resolved).includes('rank'));
+ assert.deepEqual(observedRecordFieldPaths(tasks,'registry/another-organization/entries'),[]);
+});
+
 test('runtime resolved terminal pages are removed before planning and cannot escape deduplication through their recorded template',async()=>{
  const f=platformQueryTestFixture({recordData:[]});
  const template='registry/{tenantId}/entries',resolved='registry/approved/entries';

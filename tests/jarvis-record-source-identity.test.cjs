@@ -331,3 +331,28 @@ test('projection alternatives remain complete in the native grammar while their 
   checked=true;return{text:'{"toolCalls":[{"name":"repo.read","args":{"file":"next.js"}}]}'};
  }}}});assert.equal(checked,true);assert.equal(result.missionComplete,false);
 });
+
+test('the same semantic scope reviewer can authorize novel schema discovery without crediting values or repeating known schema',async()=>{
+ for(const schemaAlreadyObserved of [false,true]){
+  const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,inputSchema:{type:'object',properties:{file:{type:'string',enum:['next.js']}},required:['file']}};
+  const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string',enum:['entries']},mode:{type:'string',enum:['query']},fields:{type:'array',minItems:1,maxItems:4,items:{type:'string'}},filters:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}};
+  const args={sourceFile:'registry.js',collection:'entries',mode:'query',fields:['label'],filters:[]};
+  const tasks=[{name:reader.name,args:{file:'registry.js'},observation:{ok:true,verifiedRead:{file:'registry.js',content:'Observed entry source',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['entries'],writeShapes:[{collection:'entries',fields:['stamp','label'],content:'{stamp, label}'}]}}}}}];
+  if(schemaAlreadyObserved)tasks.push({name:query.name,args:{...args,fields:['stamp']},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...args,fields:['stamp'],orderBy:[{field:'__name__',direction:'asc'}]},rows:[{id:'one',values:{stamp:'Observed'}}],returnedCount:1,totalCount:1,completeForQuery:true,hasMore:false,fieldSchema:{source:'SERVER_RECORD_FIELD_NAMES',collection:'entries',scope:'returned_rows_only',sampledRows:1,paths:['stamp','label']}}}});
+  const stages=[];
+  const result=await runJarvisSemanticPlanner({input:'Identify current entry holders',catalog:[query,reader],missionState:{phase:'EVIDENCE_NEXT_ACTION',evidenceObjectives:[{objective:'Identify current entry holders',requiredEvidenceKind:'platform_records'}],completedTasks:tasks},ai:{models:{generateContent:async request=>{
+   const stage=request.config.semanticStage;stages.push(stage);
+   if(stage==='EVIDENCE_NEXT_ACTION')return{text:JSON.stringify({toolCalls:[{name:query.name,args}]})};
+   if(stage==='QUERY_POPULATION_VERIFICATION'){
+    assert.ok(request.config.responseJsonSchema.properties.schemaDiscoveryRelevant,'the reviewer must see both value relevance and the actual discovery capability');
+    return{text:'{"matchesRequest":false,"schemaDiscoveryRelevant":true}'};
+   }
+   assert.equal(schemaAlreadyObserved,true,'a novel explicitly authorized discovery should not need another replan');
+   assert.equal(stage,'READ_ONLY_EVIDENCE_CONTINUATION');return{text:'{"toolCalls":[{"name":"repo.read","args":{"file":"next.js"}}]}'};
+  }}}});
+  assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives[0].satisfied,false);
+  assert.equal(stages.filter(s=>s==='QUERY_POPULATION_VERIFICATION').length,1);
+  if(schemaAlreadyObserved)assert.equal(result.toolCalls[0].name,reader.name);
+  else{assert.equal(result.toolCalls[0].name,query.name);assert.deepEqual(result.toolCalls[0].args,{...args,fields:['__name__']});}
+ }
+});
