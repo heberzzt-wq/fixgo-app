@@ -1,6 +1,29 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `dac7f662b0406982073801e319d295cd9302d274`.
+Current baseline: `61c012afbdf92789e6de58894408d48cf9b5db42`.
+Only `jarvis-semantic-planner.js` changed in Functions. Read-field provenance stays
+attached to its collection through compact evidence and independent coverage.
+The existing query review can return a bounded rejection reason; its explicit
+value and ID-discovery rejections survive unchanged evidence without authorizing
+queries. Invalid recovery arguments permit one return to the existing evidence
+loop per execution state; empty decisions and final semantic vetoes do not.
+The extractor rejects lexical shadowing, direct mutations through aliases,
+destructuring reassignment and unrelated imports. Source fields remain structural
+names, not current values, official assignments or complete schemas.
+Seven new tests cover provenance, transport, actual planner-orchestrator control
+flow, rejection reasons, deterministic contract retries and runtime projections.
+Final applicable local suite: 2016 tests, 2015 PASS, 0 FAIL, 1 Chrome physical skip.
+The formerly skipped physical repository search passed against the available
+local bridge and asserts ollama-local with externalApiUsed=false. Six product/test
+file hashes were unchanged during the final suite. Syntax and diff checks passed.
+No new module, dependency, model or external inference provider was introduced.
+The original business mission and its latency remain unverified after this change;
+Chrome control is currently blocked by the execution-environment launcher.
+The existing guard still rejects later unreviewed Functions changes.
+
+## Previous reviewed baseline
+
+Previous baseline: `dac7f662b0406982073801e319d295cd9302d274`.
 Only `jarvis-semantic-planner.js` changed in Functions. The same local Qwen scope
 review now distinguishes pertinent values from a novel ID-only structural probe.
 The probe preserves source, collection, filters, ordering and authorization;
