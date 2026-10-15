@@ -230,6 +230,35 @@ function excludeReviewedQueryProjections(catalog,rejections) {
         let branches=(buildNativeInputSchema(tool.inputSchema).anyOf || [buildNativeInputSchema(tool.inputSchema)]);
         for(const receipt of rejections){
             const call=receipt.proposed,args=call?.args;
+            // A count has no field projection. Keep an explicitly rejected
+            // unfiltered count out of the recovery grammar too, rather than
+            // offering it again and rejecting it after another model call.
+            // Only this witnessed source/route/mode is removed. Querying newly
+            // grounded fields, other filters and other routes remain choices.
+            if(call?.name===tool.name && args?.mode==='count' && !args.cursor &&
+                !args.filters?.length && !args.orderBy?.length){
+                branches=branches.flatMap(branch=>{
+                    const p=branch.properties;
+                    const admitsEmpty=schema=>(schema?.const===undefined || JSON.stringify(schema.const)==='[]') &&
+                        (!Array.isArray(schema?.enum) || schema.enum.some(value=>JSON.stringify(value)==='[]'));
+                    if(p?.sourceFile?.enum?.length!==1 || p.sourceFile.enum[0]!==args.sourceFile ||
+                        p.collection?.enum?.length!==1 || p.collection.enum[0]!==args.collection ||
+                        !p.mode?.enum?.includes('count') || (branch.required||[]).includes('cursor') ||
+                        p.filters?.minItems>0 || p.orderBy?.minItems>0 || !admitsEmpty(p.filters) || !admitsEmpty(p.orderBy))return [branch];
+                    const alternatives=[];
+                    const modes=p.mode.enum.filter(mode=>mode!=='count');
+                    if(modes.length)alternatives.push({...branch,properties:{...p,mode:{...p.mode,enum:modes}}});
+                    for(const key of ['filters','orderBy']){
+                        const property=p[key];
+                        if(!property || property.maxItems===0 || property.const!==undefined)continue;
+                        const values=property.enum?.filter(value=>Array.isArray(value)&&value.length);
+                        if(values && !values.length)continue;
+                        alternatives.push({...branch,required:[...new Set([...(branch.required||[]),key])],properties:{...p,
+                            mode:{...p.mode,enum:['count']},[key]:{...property,minItems:Math.max(1,property.minItems||0),...(values?{enum:values}:{})}}});
+                    }
+                    return alternatives;
+                });
+            }
             // Positive schema alternatives are supported by the local grammar;
             // generic JSON Schema negation is not. Partition this first-page
             // unfiltered scope; other filters/orderings remain independent.
