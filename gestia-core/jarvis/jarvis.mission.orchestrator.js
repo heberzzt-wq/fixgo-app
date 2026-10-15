@@ -2485,6 +2485,9 @@ export async function runJarvisMission({
     const requiresEvidenceAudit = () => Boolean(mission.evidenceObjectives?.length) || mission.requiredToolNames.some(name =>
         toolCatalog.some(tool => tool.name === name && (tool.evidenceKinds?.length > 0 || tool.investigationReadOnly === true)));
 
+    const evidenceContinuations=new Set();
+    if(mission.completionAssessment?.evidenceDecision?.continuationUsed===true)
+        evidenceContinuations.add(mission.completedTasks.length+':'+mission.blockedTasks.length);
     while (mission.iterations < maximumSteps) {
         if (signal?.aborted) {
             mission.reason = "CANCELLED";
@@ -2615,6 +2618,19 @@ export async function runJarvisMission({
             refreshDurableMissionAuthority(mission);
             saveMission(persistence, mission);
             if (additions.length === 0) {
+                const decision=mission.completionAssessment?.evidenceDecision;
+                const evidenceStep=mission.completedTasks.length+':'+mission.blockedTasks.length;
+                // One return to the existing evidence loop after invalid arguments,
+                // never after a semantic veto or merely because readers exist.
+                if(decision?.status==='INVALID_RECOVERY' && /^[a-f0-9]{64}$/.test(decision.revision||'') &&
+                    plan?.missionComplete!==true && mission.evidenceObjectives?.length &&
+                    mission.completionAssessment.objectives?.some(item=>item.satisfied===false) &&
+                    !evidenceContinuations.has(evidenceStep)){
+                    evidenceContinuations.add(evidenceStep);decision.continuationUsed=true;
+                    saveMission(persistence,mission);
+                    continue;
+                }
+                if(decision?.status==='INVALID_RECOVERY')decision.status='RECOVERY_EXHAUSTED';
                 const completedNames = new Set(mission.completedTasks.map(item => item.name));
                 const blockedNames = new Set(mission.blockedTasks.map(item => item.name));
                 mission.contractMissingTools = mission.requiredToolNames.filter(
@@ -2657,7 +2673,8 @@ export async function runJarvisMission({
                         ? "PARTIAL_CAPABILITY_BLOCKED"
                         : "ALL_EXECUTABLE_TASKS_COMPLETED"
                     : contractSatisfied
-                        ? "PLANNER_NO_EXECUTABLE_PLAN"
+                        ? ['NO_GROUNDED_ACTION','RECOVERY_EXHAUSTED','SEMANTIC_RECOVERY_REJECTED'].includes(decision?.status)
+                            ? 'PLANNER_'+decision.status : "PLANNER_NO_EXECUTABLE_PLAN"
                         : "MISSION_CONTRACT_INCOMPLETE";
                 break;
             }

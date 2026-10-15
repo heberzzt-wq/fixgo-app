@@ -5286,3 +5286,104 @@ test('runtime resolved terminal pages are removed before planning and cannot esc
   assert.equal(covered({...repeated,args:{...repeated.args,...change}},tasks),false,'another organization or query scope cannot inherit exhaustion');
  assert.equal(exhausted.recordEvidence.completeForQuery,false);
 });
+
+
+test('read provenance survives minimal evidence packets and independent coverage schemas',async()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const ast=parse(source,{sourceType:'script',ecmaVersion:'latest'});
+ const node=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='boundedAuditTasks');
+ const compact=runInNewContext('('+source.slice(node.start,node.end)+')',{});
+ const tasks=Array.from({length:24},(_,i)=>({name:'repo.read',observation:{ok:true,verifiedRead:{file:'source'+i+'.js',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['registry'+i],fieldPaths:[],writeShapes:[],queryShapes:[{collection:'registry'+i,fields:['stamp'],operation:'getDocs',startLine:3,endLine:6,fieldsComplete:false}],references:Array.from({length:20},()=>({collection:'registry'+i,content:'',metadata:'x'.repeat(100)}))}}}}}));
+ const before=JSON.stringify(tasks),packed=compact(tasks);
+ for(let i=0;i<tasks.length;i++)assert.deepEqual(JSON.parse(JSON.stringify(packed[i].observation.verifiedRead.sourceStructure.dataBindings.queryShapes)),tasks[i].observation.verifiedRead.sourceStructure.dataBindings.queryShapes);
+ assert.equal(JSON.stringify(tasks),before);
+ const reviewNode=ast.body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
+ const review=reviewInContext(source,reviewNode,{observedRecordSources:()=>['registry0'],boundedAuditTasks:t=>t,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:()=>({status:'partial'})});
+ await assert.rejects(review({ai:{models:{generateContent:async req=>{const payload=JSON.parse(req.config.chatMessages.at(-1).content);assert.deepEqual(JSON.parse(JSON.stringify(payload.evidence[0].observation.schemaReference.dataBindings.queryShapes)),tasks[0].observation.verifiedRead.sourceStructure.dataBindings.queryShapes);throw Error('CAPTURED_SCHEMA');}}},model:'fixture',objective:{objective:'Read stamps',requiredEvidenceKind:'platform_records'},contract:{requestQuote:'Read stamps',coverageMode:'temporal',scope:'all_sources',groups:['entries']},tasks:[tasks[0]],evaluatedAt:'2026-01-01'}),/CAPTURED_SCHEMA/);
+});
+
+
+test('planner and orchestrator continue an invalid recovery once and stop explicitly without a grounded alternative',async()=>{
+ const {runJarvisSemanticPlanner}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ for(const mode of ['advance','empty','repeat','semantic']){
+  const f=platformQueryTestFixture({recordData:[]});
+  const source=f.context.completedTasks[0];source.args={file:'source.js'};Object.assign(source.observation.verifiedRead,{tool:'repo.read',startLine:1,endLine:1,totalLines:1});
+  source.observation.verifiedRead.content='Independent entries and profiles. No date filter was observed.';
+  source.observation.verifiedRead.sourceStructure.dataBindings={source:'ACORN_SOURCE_REFERENCES',collections:['entries','profiles'],queryShapes:[{collection:'entries',fields:['stamp']},{collection:'profiles',fields:['stamp']}],writeShapes:[]};
+  const reader={name:'repo.read',mutates:false,evidenceKinds:['repository_source'],investigationReadOnly:true,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js','next.js']}},required:['file']}};
+  const query={name:'platform.query',mutates:false,evidenceKinds:['platform_records'],investigationReadOnly:true,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string'},fields:{type:'array',items:{type:'string'}},filters:{type:'array'},orderBy:{type:'array'},cursor:{type:'string'},pageSize:{type:'integer'}},required:['sourceFile','collection','mode','fields','filters']}};
+  const initial={name:query.name,args:{sourceFile:'source.js',collection:'entries',mode:'query',fields:['stamp'],filters:[]}};
+  const rejected={name:query.name,args:{...initial.args,collection:'profiles'}};
+  const invalid={name:query.name,args:{...rejected.args,filters:[{field:'stamp',op:'>=',value:'2099-03-04'}]}};
+  const goals=['Count entries','Identify official holders','Inspect deadlines'].map((objective,i)=>({objective,requestQuote:objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][i],scope:'all_sources',groups:['entries']}));
+  const executed=[],stages=[];let decisions=0,recoveries=0,reviews=0,plans=0;
+  const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
+   const stage=request.config.semanticStage;stages.push(stage);
+   if(stage==='EVIDENCE_NEXT_ACTION'){
+    decisions++;
+    const wire=JSON.stringify(request.config.responseJsonSchema);
+    assert.ok(!wire.includes('"enum":["entries"]'),'the exhausted empty route must stay excluded');
+    if(decisions===1)return{text:JSON.stringify({toolCalls:[rejected]})};
+    if(mode==='advance'&&decisions===2)return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'next.js'}}]})};
+    if(mode==='repeat')return{text:JSON.stringify({toolCalls:[rejected]})};
+    return{text:'{"toolCalls":[]}'};
+   }
+   if(stage==='QUERY_POPULATION_VERIFICATION'){reviews++;return{text:JSON.stringify({matchesRequest:false,schemaDiscoveryRelevant:false,rejectionReason:'The stamp does not establish a requested value.'})};}
+   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){
+    recoveries++;if(recoveries===1){const receipt=JSON.parse(request.config.chatMessages.find(m=>m.content.startsWith('RECHAZO_DE_ALCANCE=')).content.slice('RECHAZO_DE_ALCANCE='.length));assert.equal(receipt.limitation,'The stamp does not establish a requested value.');}return{text:JSON.stringify({toolCalls:[mode==='semantic'?{...rejected,args:{...rejected.args,fields:['__name__']}}:invalid]})};
+   }
+   assert.ok(['RECORD_OBJECTIVE_COVERAGE','OBJECTIVE_SOURCE_SCOPE_VERIFICATION','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);
+   if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:{entries:{relevantToObjective:true,reason:'Requested registry'},profiles:{relevantToObjective:true,reason:'Unresolved relationship'}}})};
+   return{text:JSON.stringify({proven:false,missing:['Other requested evidence remains unavailable'],groups:[],sources:['entries','profiles'].map(collection=>({collection,relevant:true,reason:'Pending coverage',taskIndexes:collection==='entries'?[1]:[]}))})};
+  }}};
+  const result=await runJarvisMission({instruction:goals.map(g=>g.objective).join('; '),initialEvidenceObjectives:goals,
+   initialToolCalls:[{name:reader.name,args:{file:'source.js'}},initial],toolCatalog:[reader,query],
+   execute:async call=>{executed.push(call);if(call.name===reader.name)return{ok:true,data:call.args.file==='source.js'?{...source.observation.verifiedRead,numberedContent:'1: '+source.observation.verifiedRead.content}:{file:'next.js',content:'No further source definitions',numberedContent:'1: No further source definitions',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:[],writeShapes:[],queryShapes:[]}}}};const receipt=await f.execute(call.args,f.dependencies,f.context);assert.equal(receipt.ok,true);return{ok:true,data:receipt};},
+   planner:async({mission})=>{assert.ok(++plans<=4,'continuation cannot become a replanning loop');return runJarvisSemanticPlanner({input:goals.map(g=>g.objective).join('; '),catalog:[reader,query],missionState:{...mission,phase:'EVIDENCE_NEXT_ACTION'},ai});},
+   storage:{getItem(){return null;},setItem(){},removeItem(){}}
+  });
+  assert.equal(result.status,'PARTIAL');assert.equal(result.completedTasks.filter(t=>t.name===query.name).length,1,JSON.stringify({reason:result.reason,errors:result.errors,blocked:result.blockedTasks}));
+  assert.equal(executed.some(c=>c.name===reader.name&&c.args.file==='next.js'),mode==='advance');
+  assert.equal(decisions,mode==='advance'?3:mode==='semantic'?1:2);
+  assert.equal(reviews,1,'neither the rejected projection nor explicitly rejected ID discovery may be reviewed again without evidence changes');
+  assert.ok(result.completionAssessment.objectives.every(o=>!o.satisfied&&o.requiredEvidenceKind==='platform_records'));
+  assert.match(result.completionAssessment.evidenceDecision.status,/NO_GROUNDED_ACTION|RECOVERY_EXHAUSTED|SEMANTIC_RECOVERY_REJECTED/);
+  assert.match(result.reason,/NO_GROUNDED_ACTION|RECOVERY_EXHAUSTED|SEMANTIC_RECOVERY_REJECTED/);
+ }
+});
+
+test('query rejection schema can deliver its reason without authorizing a replacement query',async()=>{
+ const {runJarvisSemanticPlanner}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const tool={name:'records.read',evidenceKinds:['platform_records'],investigationReadOnly:true,inputSchema:{type:'object',properties:{collection:{type:'string'},fields:{type:'array'},mode:{type:'string'}},required:['collection','fields','mode']}};
+ await assert.rejects(runJarvisSemanticPlanner({input:'Inspect entries',catalog:[tool],missionState:{phase:'EVIDENCE_NEXT_ACTION',evidenceObjectives:[{objective:'Inspect entries',requestQuote:'Inspect entries',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['entries']}],completedTasks:[]},ai:{models:{generateContent:async req=>{
+  if(req.config.semanticStage==='EVIDENCE_NEXT_ACTION')return{text:JSON.stringify({toolCalls:[{name:tool.name,args:{collection:'entries',fields:['stamp'],mode:'query'}}]})};
+  if(req.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){assert.equal(req.config.responseJsonSchema.properties.rejectionReason.type,'string');assert.equal(req.config.responseJsonSchema.additionalProperties,false);throw Error('REASON_SCHEMA_CHECKED');}
+  throw Error('UNEXPECTED_STAGE:'+req.config.semanticStage);
+ }}}}),/REASON_SCHEMA_CHECKED/);
+});
+
+test('deterministic mission contract selection failures are not retried as transient transport errors',async()=>{
+ const source=readFileSync(new URL('../gestia-core/gestia-core.js',import.meta.url),'utf8');
+ const start=source.indexOf('let missionContractToolCalls ='),end=source.indexOf('if (lastMissionContractError)',start);
+ const body=source.slice(start,end);let calls=0;
+ const run=runInNewContext('(async()=>{'+body+'return {calls:readCalls(),error:lastMissionContractError?.message};})',{
+  boundedCurrentTurnMission:false,observationFirstCurrentTurnMission:false,operationalInitialToolCalls:[],effectiveMissionInstruction:'Read entries',context:{},missionToolCatalog:[],semanticMemoryContext:null,
+  compactJarvisSemanticMemoryForPlanner:()=>null,isSemanticTimeout:()=>false,console:{warn(){}},setTimeout:fn=>fn(),readCalls:()=>calls,
+  buildJarvisMultifunctionToolCalls:async()=>{calls++;throw Error('SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_CONTRACT_SELECTION_INVALID');}
+ });
+ const result=await run();assert.equal(result.calls,1);assert.match(result.error,/CONTRACT_SELECTION_INVALID/);
+});
+
+
+test('runtime projections use snapshot field provenance without borrowing fields from another collection',async()=>{
+ const f=platformQueryTestFixture({recordData:[{due:'2027-01-01',owner:'Observed'}]});
+ const source='async function scan(db) { const rows=await getDocs(collection(db,"entries")); rows.forEach(doc=>{const record=doc.data(); consume(record.due);}); const people=await getDocs(collection(db,"profiles")); people.forEach(doc=>consume(doc.data().owner)); }';
+ f.context.completedTasks[0].observation.verifiedRead.content=source;
+ f.context.completedTasks[0].observation.verifiedRead.sourceStructure=analyzeRepoSourceStructure(source);
+ const receipt=await f.execute({...f.args,collection:'entries',fields:['due'],mode:'query'},f.dependencies,f.context);
+ assert.equal(receipt.ok,true,JSON.stringify(receipt));assert.equal(receipt.recordEvidence.rows[0].values.due,'2027-01-01');
+ assert.equal(Object.hasOwn(receipt.recordEvidence.rows[0].values,'owner'),false);
+ const denied=await f.execute({...f.args,collection:'entries',fields:['owner'],mode:'query'},f.dependencies,f.context);
+ assert.equal(denied.error?.code,'PLATFORM_QUERY_FIELD_NOT_DISCOVERED');
+ assert.equal(f.calls.filter(call=>call.kind==='query').length,1);
+});

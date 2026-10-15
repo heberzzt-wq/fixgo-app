@@ -4855,7 +4855,8 @@ if (
         }
         catch(error) {
             lastMissionContractError = error;
-            if (missionContractAttempt >= 3 || isSemanticTimeout(error)) break;
+            if (missionContractAttempt >= 3 || isSemanticTimeout(error) ||
+                /SEMANTIC_CONTRACT_(?:SELECTION_INVALID|OPERATIONS_INVALID|OPERATIONS_REQUIRED)/.test(String(error?.message || error))) break;
             const retryDelayMs = missionContractAttempt === 1 ? 500 : 1500;
             console.warn(
                 "[MISSION_CONTRACT_SEMANTIC_PLANNER_TRANSIENT_RETRY]",

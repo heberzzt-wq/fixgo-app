@@ -282,3 +282,46 @@ test("unresolved schema-required repo files receive discovery preflights from th
         }]
     );
 });
+
+
+test('snapshot reads retain collection ownership through lexical aliases without crediting alert fallbacks', () => {
+ const source = [
+  'import {collection as col, query as select, getDocs as rows, getDoc as one, doc as ref} from "firebase/firestore";',
+  'async function first(db) {',
+  ' const registry = col(db,"entries"); const q = select(registry);',
+  ' const snapshot = await rows(q); const alias = snapshot;',
+  ' alias.forEach(item => { const record = item.data(); const copy = record;',
+  '   consume(copy.owner.id, record["due"], {metadata:{holder:record.holder || "fallback"}}); });',
+  '}',
+  'async function second(db) {',
+  ' const registry = col(db,"profiles"); const snapshot = await rows(registry);',
+  ' snapshot.forEach(item => { const record = item.data(); consume(record.label); });',
+  ' const summary = await one(ref(db,"totals", "current")); consume(summary.data().count);',
+  '}'
+ ].join('\n');
+ const bindings=analyzeRepoSourceStructure(source).dataBindings;
+ const fields=collection=>[...new Set(bindings.queryShapes.filter(s=>s.collection===collection).flatMap(s=>s.fields))].sort();
+ assert.deepEqual(fields('entries'),['due','holder','owner','owner.id']);
+ assert.deepEqual(fields('profiles'),['label']);assert.deepEqual(fields('totals'),['count']);
+ assert.ok(bindings.queryShapes.every(s=>Number.isInteger(s.startLine)&&s.endLine>=s.startLine));
+ assert.ok(!fields('entries').includes('metadata.holder'));assert.ok(!JSON.stringify(bindings.queryShapes).includes('fallback'));
+});
+
+test('snapshot provenance rejects unrelated callbacks, shadowed imports and reassigned aliases', () => {
+ const source=[
+  'import {collection,getDocs} from "firebase/firestore";',
+  'async function scan(db,unrelated) {const snap=await getDocs(collection(db,"entries"));',
+  ' unrelated.forEach(doc=>consume(doc.data().fake));',
+  ' snap.forEach(doc=>{ doc=unrelated; consume(doc.data().reassigned); });',
+  ' snap.forEach(doc=>{const data=doc.data(); data.injected=true; consume(data.injected);});',
+  ' snap.forEach(doc=>{const data=doc.data(); const alias=data; alias.aliasInjected=true; consume(data.aliasInjected);});',
+  ' snap.forEach(doc=>{({doc}=unrelated); consume(doc.data().destructured);});',
+  ' snap.forEach(doc=>{const data=doc.data(); {const data=unrelated; consume(data.shadow);} consume(data.valid);});}',
+  'async function other(db,getDocs){const snap=await getDocs(collection(db,"profiles"));snap.forEach(doc=>consume(doc.data().fake));}'
+ ].join('\n');
+ const shapes=analyzeRepoSourceStructure(source).dataBindings.queryShapes;
+ assert.deepEqual([...new Set(shapes.flatMap(s=>s.fields))],['valid']);
+ assert.ok(shapes.every(s=>s.collection==='entries'));
+ const foreign=analyzeRepoSourceStructure('import {collection,getDocs} from "unrelated-store"; async function scan(db){const rows=await getDocs(collection(db,"foreign"));rows.forEach(doc=>consume(doc.data().fake));}').dataBindings.queryShapes;
+ assert.deepEqual(foreign,[]);
+});

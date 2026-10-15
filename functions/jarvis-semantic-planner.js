@@ -957,6 +957,7 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         const schemaKeys=["collections","fieldPaths","fieldPathDictionary","fieldPathEncoding","fieldIds","sharedSourceSchemaTaskIndex"];
         const schema=Object.fromEntries(schemaKeys.filter(key=>bindings[key]!==undefined).map(key=>[key,bindings[key]]));
         schema.writeShapes=(bindings.writeShapes || []).map(({collection,fields,fieldIds,fieldsComplete})=>({collection,fields,fieldIds,fieldsComplete}));
+        schema.queryShapes=(bindings.queryShapes || []).map(({collection,fields,fieldIds,fieldsComplete,operation,startLine,endLine})=>({collection,fields,fieldIds,fieldsComplete,operation,startLine,endLine}));
         const {observation,...metadata}=task;
         return {...metadata,args:{file:read.file},taskIndex,evidenceRole:"schema_reference",observation:{
             ok:observation.ok,executionOk:observation.executionOk,
@@ -1063,7 +1064,7 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         const record=task.observation?.recordEvidence;
         const names=record?.fieldSchema ? observedRecordFieldPaths([task],record.scope?.collection) : [];
         return [...(names.length ? [{file:record.scope.sourceFile,collection:record.scope.collection,fields:names,fieldsComplete:false,recordNamesOnly:true}] : []),
-            ...(read ? [...(read.sourceStructure?.dataBindings?.writeShapes || []),...[...(read.sourceStructure?.dataBindings?.references || []),...(read.sourceStructure?.dataBindings?.collectionAnchors || [])].filter(reference=>reference.collection && reference.content).map(reference=>({...reference,fields:[],fieldsComplete:false,referenceOnly:true}))].map(shape=>({file:read.file,collection:shape.collection,fields:shape.fields,fieldsComplete:shape.fieldsComplete,...(shape.referenceOnly ? {referenceOnly:true} : {}),...(shape.content ? {definition:shape.content.slice(0,600),definitionTruncated:shape.truncated===true || shape.content.length>600} : {})})) : [])];
+            ...(read ? [...(read.sourceStructure?.dataBindings?.writeShapes || []),...(read.sourceStructure?.dataBindings?.queryShapes || []),...[...(read.sourceStructure?.dataBindings?.references || []),...(read.sourceStructure?.dataBindings?.collectionAnchors || [])].filter(reference=>reference.collection && reference.content).map(reference=>({...reference,fields:[],fieldsComplete:false,referenceOnly:true}))].map(shape=>({file:read.file,collection:shape.collection,fields:shape.fields,fieldsComplete:shape.fieldsComplete,operation:shape.operation,startLine:shape.startLine,endLine:shape.endLine,...(shape.referenceOnly ? {referenceOnly:true} : {}),...(shape.content ? {definition:shape.content.slice(0,600),definitionTruncated:shape.truncated===true || shape.content.length>600} : {})})) : [])];
     }).map(shape=>[JSON.stringify(shape),shape])).values()];
     const sourceDefinitions=[],representedCollections=new Set();
     // Keep current record-name observations first, then substantive schema
@@ -1146,7 +1147,7 @@ function partialSourceProgress(tasks = []) {
         const progress = files.get(read.file) || {file:read.file,observedRanges:[],totalLines:0,schemaAnchors:[]};
         progress.totalLines = Math.max(progress.totalLines,read.totalLines);
         progress.observedRanges.push([read.startLine || 1,read.endLine]);
-        progress.schemaAnchors.push(...(read.sourceStructure?.dataBindings?.writeShapes || [])
+        progress.schemaAnchors.push(...[...(read.sourceStructure?.dataBindings?.writeShapes || []),...(read.sourceStructure?.dataBindings?.queryShapes || [])]
             .filter(shape=>Number.isInteger(shape.startLine)).map(({collection,startLine,fields})=>({collection,startLine,fields})));
         progress.schemaAnchors.push(...(read.sourceStructure?.dataBindings?.collectionAnchors || [])
             .filter(anchor=>Number.isInteger(anchor.startLine)).map(({collection,startLine})=>({collection,startLine,fields:[]})));
@@ -1728,9 +1729,11 @@ function boundedAuditTasks(tasks) {
             partial:true, truncated:true, contentTruncated:true,
             sourceStructure:{dataBindings:{
                 collections:bindings?.collections || [],
+                ...(bindings?.source ? {source:bindings.source} : {}),
                 ...(bindings?.structuralRead ? {structuralRead:bindings.structuralRead} : {}),
                 ...fieldsSummary(bindings?.fieldPaths || []),
                 writeShapes:(bindings?.writeShapes || []).map(({collection,fields,fieldsComplete})=>({collection,fields,fieldsComplete})),
+                ...(bindings?.queryShapes?.length ? {queryShapes:bindings.queryShapes.map(({collection,fields,fieldsComplete,operation,startLine,endLine})=>({collection,fields,fieldsComplete,operation,startLine,endLine}))} : {}),
                 fieldPathsComplete:bindings?.fieldPathsComplete===true,
                 schemaFieldsInSharedSummary:true,
                 referencesComplete:false, complete:false
@@ -3117,7 +3120,7 @@ async function runModelSemanticPlanner({
         const schemaBySourceCollection = new Map();
         for (const task of completedTasksForAudit) {
             const read = task.observation?.ok === true && task.observation.executionOk !== false && task.observation.blocked !== true && task.observation.requiresInput !== true ? task.observation.verifiedRead : null;
-            for (const shape of read?.sourceStructure?.dataBindings?.writeShapes || []) {
+            for (const shape of [...(read?.sourceStructure?.dataBindings?.writeShapes || []),...(read?.sourceStructure?.dataBindings?.queryShapes || [])]) {
                 const key = JSON.stringify([read.file,shape.collection]);
                 const entry = schemaBySourceCollection.get(key) || {sourceFile:read.file,collection:shape.collection,fields:[],startLines:[]};
                 entry.fields = [...new Set([...entry.fields,...(shape.fields || [])])];
@@ -3251,8 +3254,8 @@ async function runModelSemanticPlanner({
                 {query:canonicalArgs({name:call.name,args}),instruction},completedTasksForAudit,recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content),model,missionState,evaluatedAt);
         };
         const knownQueryRejection=call=>decisionCache.get(queryDecisionKey(call))?.queryRejection;
-        const queryRejectionReceipt=error=>({code:error.message,proposed:{name:error.evidence?.tool,args:error.evidence?.proposed},
-            limitation:error.evidence?.limitation || '',operationalEvidence:false,objectiveSatisfied:false});
+        const queryRejectionReceipt=error=>({code:error.message,proposed:{name:error.evidence?.tool,args:error.evidence?.proposed||error.evidence?.args},
+            limitation:error.evidence?.limitation || '',rejectionKind:error.evidence?.rejectionKind || 'semantic',operationalEvidence:false,objectiveSatisfied:false});
         const currentQueryRejections=()=>{
             const receipts=[];let bytes=2;
             for(const [key,value] of [...decisionCache.entries()].reverse()){
@@ -3284,12 +3287,29 @@ async function runModelSemanticPlanner({
                     task?.observation?.retryable !== true
                 );
 
+        const decisionRevision=recordObjectiveRevision({instruction,objectives:missionState.evidenceObjectives},completedTasksForAudit,
+            recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content),model,missionState,evaluatedAt);
+        const previousDecision=missionState.completionAssessment?.evidenceDecision;
+        const continuationUsed=previousDecision?.revision===decisionRevision && previousDecision.continuationUsed===true;
+        // Persist only rejected decisions under their exact dependencies. These
+        // receipts can prevent an operation; they never authorize one or prove data.
+        if(previousDecision?.revision===decisionRevision)for(const receipt of previousDecision.rejections||[]){
+            if(receipt?.operationalEvidence===false && receipt.objectiveSatisfied===false && receipt.proposed?.name && receipt.proposed?.args)
+                decisionCache.set(queryDecisionKey(receipt.proposed),{queryRejection:receipt});
+        }
+        const rememberRejection=error=>{
+            if(error.evidence?.rejectionKind==='truncated')return;
+            const receipt=queryRejectionReceipt(error);
+            if(receipt.proposed.name && receipt.proposed.args && !knownQueryRejection(receipt.proposed))
+                decisionCache.set(queryDecisionKey(receipt.proposed),{queryRejection:receipt});
+            while(decisionCache.size>96)decisionCache.delete(decisionCache.keys().next().value);
+        };
         const verifyOperationalCalls=async(calls,callCatalog=selectableCatalog)=>{
                 for (const call of calls) {
                     const tool = callCatalog.find(item => item.name === call.name);
                     if (!tool || !hasRequiredToolArguments(tool, normalizeSchemaBoundArguments(tool, call.args || {})) || hasUnexpectedToolArguments(tool, call.args || {})) {
                         const error = new Error("SEMANTIC_TOOL_ARGUMENTS_INVALID");
-                        error.evidence = { tool: call.name, args: call.args, requiredSchema: tool?.inputSchema || null };
+                        error.evidence = { tool: call.name, args: call.args, rejectionKind:"arguments", requiredSchema: tool?.inputSchema || null };
                         throw error;
                     }
                     if (tool.evidenceKinds?.includes("platform_records")) {
@@ -3348,16 +3368,16 @@ async function runModelSemanticPlanner({
                         });
                         if(ungroundedFilters.length){
                             const error=new Error("SEMANTIC_QUERY_SCOPE_UNVERIFIED");
-                            error.evidence={tool:call.name,proposed:call.args,limitation:"La consulta propone campos o valores de filtro que no aparecen en la fuente leída ni en la solicitud original.",nextEvidenceQuery:"",requiredNextStep:"Search or read source evidence for the requested population before querying records."};
+                            error.evidence={tool:call.name,proposed:call.args,rejectionKind:"arguments",limitation:"La consulta propone campos o valores de filtro que no aparecen en la fuente leída ni en la solicitud original.",nextEvidenceQuery:"",requiredNextStep:"Search or read source evidence for the requested population before querying records."};
                             throw error;
                         }
                         const review=await ai.models.generateContent({model,contents:instruction,config:{semanticStage:"QUERY_POPULATION_VERIFICATION",temperature:0,maxOutputTokens:384,
-                            chatMessages:[{role:"system",content:call.args?.mode === "query" ? "Evalúa si esta inspección paginada puede aportar evidencia pertinente a ALGUNO de los objetivos pendientes. La inspección es un paso de investigación, no una respuesta ni un conteo final. Acepta matchesRequest=true si la fuente acredita la colección y campos pertinentes que se propone leer, aunque falten la clasificación de otros subconjuntos o relaciones que se investigarán después. No exijas que una sola lectura resuelva todos los objetivos. Rechaza campos, filtros o relaciones inventados y respeta el tenant y los permisos. Los objetos de escritura AST describen campos observados, no registros actuales. Si rechazas, explica la evidencia concreta faltante sin inventar nombres. Devuelve matchesRequest y schemaDiscoveryRelevant. matchesRequest decide si la proyección propuesta es pertinente. schemaDiscoveryRelevant sólo puede autorizar una alternativa de IDs en la misma ruta y filtros para descubrir nombres de campos útiles, sin acreditar valores ni cumplimiento; la evaluación de cumplimiento ocurre después de ejecutarlo. Esta revisión no concede acceso ni acredita resultados." : "Evalúa si este conteo del alcance propuesto aporta evidencia pertinente a ALGUNA parte del pedido. Es un paso de investigación, no la respuesta final. No combines objetivos distintos: contar registros no necesita resolver también asignaciones ni vencimientos. Acepta matchesRequest=true cuando la fuente acredite la colección y los filtros propuestos y contar ese alcance sea pertinente. filters=[] cuenta exclusivamente la colección observada; ese resultado no prueba automáticamente un subconjunto ni un total global y debe conservar esa limitación al responder. Si se propone un filtro para identificar un grupo, exige que su campo, valor y relación estén acreditados: Un estado KYC, validación, pantalla, flujo o función usada por ese grupo NO es por sí mismo el discriminador de pertenencia; tampoco lo prueba una condición de campo no vacío. Rechaza fuentes, filtros o relaciones inventados y cualquier intento de eludir tenant o permisos. No exijas que un solo conteo resuelva otros objetivos que necesitarán consultas posteriores. No inventes un filtro de documentos para una operación que sólo cuenta unidades. Devuelve matchesRequest y schemaDiscoveryRelevant. matchesRequest decide si la proyección propuesta es pertinente. schemaDiscoveryRelevant sólo puede autorizar una alternativa de IDs en la misma ruta y filtros para descubrir nombres de campos útiles, sin acreditar valores ni cumplimiento; la evaluación de cumplimiento ocurre después de ejecutarlo. Esta revisión no acredita resultados ni cumplimiento."},{role:"system",content:"Distingue conteo de población de inspección paginada. Para mode=query, una lectura de campos pertinentes en una colección acreditada puede servir para observar valores y relaciones sin afirmar pertenencia ni conteos de un subconjunto. No exijas inventar un discriminador para esa inspección; exige que la colección y los campos sean pertinentes al pedido, conserva filtros de tenant y permisos, y rechaza filtros sin evidencia. Para mode=count valida el alcance exacto de ese conteo como evidencia parcial pertinente; no lo confundas con el cumplimiento de todo el pedido."},...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),{role:"system",content:"observedFieldSchemas conserva campos acreditados por lecturas exitosas de la misma fuente o colección. Son evidencia de estructura para elegir una consulta, no valores operativos ni prueba de cumplimiento. Evalúa la pertinencia para al menos uno de los objetivos independientes."},{role:"user",content:JSON.stringify({request:instruction,objectives:missionState.evidenceObjectives||[],proposed:call.args,observedSource:source,observedFieldSchemas})}],
-                            responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{matchesRequest:{type:"boolean"},schemaDiscoveryRelevant:{type:"boolean",description:"Aunque la proyección propuesta no aporte valores pertinentes, una lectura sólo de IDs en esta MISMA fuente, colección y filtros puede descubrir nombres de campos que permitan avanzar un objetivo pendiente. El runtime devuelve IDs y nombres acotados de campos de las filas autenticadas. No acredita valores, relaciones, fechas, clasificaciones ni cobertura global. No autorices una fuente ajena sólo por existir."}},required:["matchesRequest","schemaDiscoveryRelevant"],additionalProperties:false}
+                            chatMessages:[{role:"system",content:call.args?.mode === "query" ? "Evalúa si esta inspección paginada puede aportar evidencia pertinente a ALGUNO de los objetivos pendientes. La inspección es un paso de investigación, no una respuesta ni un conteo final. Acepta matchesRequest=true si la fuente acredita la colección y campos pertinentes que se propone leer, aunque falten la clasificación de otros subconjuntos o relaciones que se investigarán después. No exijas que una sola lectura resuelva todos los objetivos. Rechaza campos, filtros o relaciones inventados y respeta el tenant y los permisos. Los objetos de escritura AST describen campos observados, no registros actuales. Si rechazas, explica la evidencia concreta faltante sin inventar nombres. Devuelve matchesRequest, schemaDiscoveryRelevant y rejectionReason (vacío si aceptas). matchesRequest decide si la proyección propuesta es pertinente. schemaDiscoveryRelevant sólo puede autorizar una alternativa de IDs en la misma ruta y filtros para descubrir nombres de campos útiles, sin acreditar valores ni cumplimiento; la evaluación de cumplimiento ocurre después de ejecutarlo. Esta revisión no concede acceso ni acredita resultados." : "Evalúa si este conteo del alcance propuesto aporta evidencia pertinente a ALGUNA parte del pedido. Es un paso de investigación, no la respuesta final. No combines objetivos distintos: contar registros no necesita resolver también asignaciones ni vencimientos. Acepta matchesRequest=true cuando la fuente acredite la colección y los filtros propuestos y contar ese alcance sea pertinente. filters=[] cuenta exclusivamente la colección observada; ese resultado no prueba automáticamente un subconjunto ni un total global y debe conservar esa limitación al responder. Si se propone un filtro para identificar un grupo, exige que su campo, valor y relación estén acreditados: Un estado KYC, validación, pantalla, flujo o función usada por ese grupo NO es por sí mismo el discriminador de pertenencia; tampoco lo prueba una condición de campo no vacío. Rechaza fuentes, filtros o relaciones inventados y cualquier intento de eludir tenant o permisos. No exijas que un solo conteo resuelva otros objetivos que necesitarán consultas posteriores. No inventes un filtro de documentos para una operación que sólo cuenta unidades. Devuelve matchesRequest, schemaDiscoveryRelevant y rejectionReason (vacío si aceptas). matchesRequest decide si la proyección propuesta es pertinente. schemaDiscoveryRelevant sólo puede autorizar una alternativa de IDs en la misma ruta y filtros para descubrir nombres de campos útiles, sin acreditar valores ni cumplimiento; la evaluación de cumplimiento ocurre después de ejecutarlo. Esta revisión no acredita resultados ni cumplimiento."},{role:"system",content:"Distingue conteo de población de inspección paginada. Para mode=query, una lectura de campos pertinentes en una colección acreditada puede servir para observar valores y relaciones sin afirmar pertenencia ni conteos de un subconjunto. No exijas inventar un discriminador para esa inspección; exige que la colección y los campos sean pertinentes al pedido, conserva filtros de tenant y permisos, y rechaza filtros sin evidencia. Para mode=count valida el alcance exacto de ese conteo como evidencia parcial pertinente; no lo confundas con el cumplimiento de todo el pedido."},...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),{role:"system",content:"observedFieldSchemas conserva campos acreditados por lecturas exitosas de la misma fuente o colección. Son evidencia de estructura para elegir una consulta, no valores operativos ni prueba de cumplimiento. Evalúa la pertinencia para al menos uno de los objetivos independientes."},{role:"user",content:JSON.stringify({request:instruction,objectives:missionState.evidenceObjectives||[],proposed:call.args,observedSource:source,observedFieldSchemas})}],
+                            responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{matchesRequest:{type:"boolean"},rejectionReason:{type:"string",maxLength:240,description:"Si rechazas, identifica la evidencia concreta faltante. No inventes campos, valores ni otra consulta."},schemaDiscoveryRelevant:{type:"boolean",description:"Aunque la proyección propuesta no aporte valores pertinentes, una lectura sólo de IDs en esta MISMA fuente, colección y filtros puede descubrir nombres de campos que permitan avanzar un objetivo pendiente. El runtime devuelve IDs y nombres acotados de campos de las filas autenticadas. No acredita valores, relaciones, fechas, clasificaciones ni cobertura global. No autorices una fuente ajena sólo por existir."}},required:["matchesRequest","schemaDiscoveryRelevant","rejectionReason"],additionalProperties:false}
                         }});
                         const verdict=extractJsonObject(String(review?.text||""));
                         if(review?.providerResponse?.finishReason==="length" || verdict?.matchesRequest!==true){
-                            const error=new Error("SEMANTIC_QUERY_SCOPE_UNVERIFIED");error.evidence={tool:call.name,proposed:call.args,limitation:String(verdict?.rejectionReason||verdict?.limitation||"Qwen no acreditó la pertinencia del alcance propuesto; esta decisión no demuestra ausencia de registros."),nextEvidenceQuery:String(verdict?.nextEvidenceQuery||""),requiredNextStep:"Read or search the actual source definition before querying; do not repeat this unverified query or infer missing records."};
+                            const error=new Error("SEMANTIC_QUERY_SCOPE_UNVERIFIED");error.evidence={tool:call.name,proposed:call.args,rejectionKind:review?.providerResponse?.finishReason==="length"?"truncated":"semantic",limitation:String(verdict?.rejectionReason||"Qwen no acreditó la pertinencia del alcance propuesto; esta decisión no demuestra ausencia de registros."),requiredNextStep:"Read or search the actual source definition before querying; do not repeat this unverified query or infer missing records."};
                             // A truncated inference is retryable; only an
                             // explicit semantic rejection can be remembered.
                             if(review?.providerResponse?.finishReason!=="length" && verdict?.matchesRequest===false){
@@ -3367,6 +3387,8 @@ async function runModelSemanticPlanner({
                                 // probe, never a different population or invented
                                 // field. Keep the original value rejection cached.
                                 const probe={...call,args:{...call.args,fields:['__name__']}};
+                                if(verdict.schemaDiscoveryRelevant===false && call.args.mode==='query')
+                                    decisionCache.set(queryDecisionKey(probe),{queryRejection:{...queryRejectionReceipt(error),proposed:probe}});
                                 const scopeKey=args=>JSON.stringify(canonicalArgs({sourceFile:args?.sourceFile,
                                     filters:args?.filters||[],orderBy:args?.orderBy?.length?args.orderBy:[{field:'__name__',direction:'asc'}],cursor:args?.cursor||null}));
                                 const schemaAlreadyObserved=completedTasksForAudit.some(task=>{
@@ -3490,10 +3512,10 @@ async function runModelSemanticPlanner({
                     if (continuation?.providerResponse?.finishReason !== "length" && next?.toolCalls?.length) {
                         const checked=validatePlan({...next,missionComplete:false},nextReaders,instruction);
                         checked.toolCalls=checked.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&!(error?.evidence?.tool===call.name && sameCall({name:call.name,args:error.evidence.proposed},call))&&!hasUnexpectedToolArguments(nextReaders.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
-                        if(initialDecision && !checked.toolCalls.length){
+                        if(!checked.toolCalls.length){
                             const rejected=next.toolCalls[0];
                             const invalid=new Error('SEMANTIC_TOOL_ARGUMENTS_INVALID');
-                            invalid.evidence={tool:rejected.name,proposed:rejected.args,
+                            invalid.evidence={tool:rejected.name,proposed:rejected.args,rejectionKind:knownQueryRejection(rejected)?.rejectionKind || "arguments",
                                 limitation:'La propuesta fue descartada por el catálogo filtrado o por repetir trabajo ya observado; no fue una decisión válida de detener la investigación.'};
                             throw invalid;
                         }
@@ -3567,6 +3589,8 @@ async function runModelSemanticPlanner({
                 }else if(prior?.coverageProof?.proven===false)objective.coverageProof=structuredClone(prior.coverageProof);
                 return objective;
             })};
+            completionAssessment.evidenceDecision={status:'NO_GROUNDED_ACTION',revision:decisionRevision,continuationUsed,
+                reason:'No se seleccionó una acción nueva con argumentos fundamentados.',rejections:currentQueryRejections()};
             evidenceDecisionAudit={completionAssessment,toolCalls:[]};
             if(!completionAssessment.objectives.every(objective=>objective.satisfied)){
                 try{
@@ -3574,17 +3598,25 @@ async function runModelSemanticPlanner({
                     if(next)return next;
                 }catch(error){
                     if(!['SEMANTIC_QUERY_SCOPE_UNVERIFIED','SEMANTIC_TOOL_ARGUMENTS_INVALID'].includes(error.message))throw error;
+                    rememberRejection(error);
                     try{
                         const recovered=await recoverEvidenceAction(evidenceDecisionAudit,evidenceDecisionAudit,error);
                         if(recovered)return recovered;
                     }catch(recoveryError){
                         if(!['SEMANTIC_QUERY_SCOPE_UNVERIFIED','SEMANTIC_TOOL_ARGUMENTS_INVALID'].includes(recoveryError.message))throw recoveryError;
+                        rememberRejection(recoveryError);
+                        const invalidArguments=recoveryError.evidence?.rejectionKind==='arguments';
+                        completionAssessment.evidenceDecision={status:invalidArguments?(continuationUsed?'RECOVERY_EXHAUSTED':'INVALID_RECOVERY'):'SEMANTIC_RECOVERY_REJECTED',
+                            revision:decisionRevision,continuationUsed,reason:recoveryError.evidence?.limitation || recoveryError.message,rejections:currentQueryRejections()};
+                        if(invalidArguments && !continuationUsed)return {...validatePlan({...evidenceDecisionAudit,missionComplete:false},selectableCatalog,instruction),
+                            provider:String(ai.lastProvider||'jarvis-local'),model,catalogSize:selectableCatalog.length,planKind:'EVIDENCE_NEXT_ACTION'};
                     }
                 }
             }
             // No new action survived the one bounded decision/recovery cycle.
             // Audit the immutable goals independently below, without asking for
             // another global replan or manufacturing successful objectives.
+            completionAssessment.evidenceDecision.rejections=currentQueryRejections();
             evidenceRecoveryUsed=true;
         }
         for (let auditAttempt = 0; auditAttempt < 2; auditAttempt++) {

@@ -785,7 +785,7 @@ export function inspectSourceDataBindings(source = "") {
         try { program = parseSourceAst(unit, {ecmaVersion:"latest",sourceType:"module",allowHashBang:true}); }
         catch { try { program = parseSourceAst(unit, {ecmaVersion:"latest",sourceType:"script",allowHashBang:true}); } catch { continue; } }
         parsedUnits++;
-        const operations = ["collection", "doc", "addDoc", "setDoc", "updateDoc"];
+        const operations = ["collection", "doc", "addDoc", "setDoc", "updateDoc", "query", "getDocs", "getDoc"];
         const functions = new Map(operations.map(name => [name,name]));
         for (const statement of program.body) {
             if (statement.type !== "ImportDeclaration" || !String(statement.source?.value || "").includes("firebase")) continue;
@@ -814,10 +814,11 @@ export function inspectSourceDataBindings(source = "") {
             const opensScope = functionScope || ["Program","BlockStatement","CatchClause","ForStatement","ForOfStatement","ForInStatement","SwitchStatement"].includes(node.type);
             const scope = opensScope ? {parent:parentScope,bindings:new Map(),functionScope:functionScope || node.type === "Program"} : parentScope;
             scopeByNode.set(node,scope);
+            if (node.type === "ImportDeclaration") for (const specifier of node.specifiers) bind(scope,specifier.local.name,{kind:"import",source:node.source.value,imported:specifier.imported?.name});
             if (node.type === "FunctionDeclaration" && node.id && parentScope) bind(parentScope,node.id.name,{kind:"function"});
             if (node.type === "FunctionExpression" && node.id) bind(scope,node.id.name,{kind:"function"});
             if (node.type === "ClassDeclaration" && node.id) bind(scope,node.id.name,{kind:"class"});
-            if (functionScope) for (const param of node.params || []) for (const name of patternNames(param)) bind(scope,name,{kind:"parameter"});
+            if (functionScope) for (const param of node.params || []) for (const name of patternNames(param)) bind(scope,name,{kind:"parameter",node:param});
             if (node.type === "CatchClause") for (const name of patternNames(node.param)) bind(scope,name,{kind:"parameter"});
             if (node.type === "VariableDeclaration") for (const declaration of node.declarations) {
                 let owner = scope;
@@ -827,6 +828,34 @@ export function inspectSourceDataBindings(source = "") {
             for (const value of Object.values(node)) {if(Array.isArray(value)) value.forEach(item=>{if(item?.type)indexScopes(item,scope);}); else if(value && typeof value === "object" && value.type) indexScopes(value,scope);}
         };
         indexScopes(program);
+        const bindingEntry = node => {
+            if (node?.type !== "Identifier") return null;
+            for (let scope=scopeByNode.get(node); scope; scope=scope.parent) {
+                if (!scope.bindings.has(node.name)) continue;
+                const entries=scope.bindings.get(node.name);
+                return entries.length===1 ? entries[0] : null;
+            }
+            return null;
+        };
+        const mutatedBindings = new WeakSet();
+        const markMutation = (target, followAliases=false, seen=new Set()) => {
+            if(!target || seen.has(target))return;
+            seen.add(target);
+            if(target.type==='ChainExpression')return markMutation(target.expression,followAliases,seen);
+            if(target.type==='MemberExpression')return markMutation(target.object,true,seen);
+            if(target.type==='ArrayPattern')return target.elements.forEach(item=>markMutation(item,followAliases,seen));
+            if(target.type==='ObjectPattern')return target.properties.forEach(item=>markMutation(item.type==='RestElement'?item.argument:item.value,followAliases,seen));
+            if(target.type==='RestElement'||target.type==='AssignmentPattern')return markMutation(target.argument||target.left,followAliases,seen);
+            const entry=bindingEntry(target);
+            if(entry){mutatedBindings.add(entry);if(followAliases)markMutation(entry.declaration?.init,true,seen);}
+        };
+        const indexMutations = node => {
+            if (!node || typeof node!=="object") return;
+            const target=node.type==='AssignmentExpression'?node.left:node.type==='UpdateExpression'||node.type==='UnaryExpression'&&node.operator==='delete'?node.argument:null;
+            markMutation(target);
+            for(const value of Object.values(node)){if(Array.isArray(value))value.forEach(indexMutations);else if(value?.type)indexMutations(value);}
+        };
+        indexMutations(program);
         const initializer = (node, before) => {
             if (node?.type !== "Identifier") return null;
             for (let scope=scopeByNode.get(node); scope; scope=scope.parent) {
@@ -900,10 +929,73 @@ export function inspectSourceDataBindings(source = "") {
                 objectPaths(property.value, parts);
             }
         };
+        // Reuse queryShapes for read names. A snapshot access proves only field
+        // ownership in source, never stored values or a complete database schema.
+        const snapshotParameters=new WeakMap(),readShapes=new Map();
+        const readOperation = node => {
+            if(node?.callee?.type!=='Identifier')return null;
+            for(let scope=scopeByNode.get(node.callee);scope;scope=scope.parent)if(scope.bindings.has(node.callee.name)){
+                const entries=scope.bindings.get(node.callee.name),entry=entries.length===1?entries[0]:null;
+                return entry?.kind==='import' && String(entry.source).includes('firebase') && entry.imported===functions.get(node.callee.name)?entry.imported:null;
+            }
+            return functions.get(node.callee.name);
+        };
+        const readReference = (node, depth=0) => {
+            if(!node || depth>12)return null;
+            if(node.type==='Identifier'){
+                const entry=bindingEntry(node);
+                return entry && !mutatedBindings.has(entry) ? readReference(initializer(node,node.start),depth+1) : null;
+            }
+            if(readOperation(node)==='query')return readReference(node.arguments[0],depth+1);
+            if(['collection','doc'].includes(readOperation(node)))return referencePath(node);
+            return null;
+        };
+        const readOrigin = (node, depth=0) => {
+            if(!node || depth>16)return null;
+            if(node.type==='AwaitExpression'||node.type==='ChainExpression')return readOrigin(node.argument||node.expression,depth+1);
+            if(node.type==='Identifier'){
+                const entry=bindingEntry(node);
+                if(!entry || mutatedBindings.has(entry))return null;
+                return snapshotParameters.get(entry.node) || readOrigin(initializer(node,node.start),depth+1);
+            }
+            const operation=readOperation(node);
+            if(operation==='getDocs'||operation==='getDoc'){
+                const reference=readReference(node.arguments[0]);
+                if(!reference || reference.split('/').length%2!==(operation==='getDocs'?1:0))return null;
+                const collection=operation==='getDocs'?reference:reference.split('/').slice(0,-1).join('/');
+                return {kind:operation==='getDocs'?'snapshot':'document',collection,operation,start:node.start,end:node.end};
+            }
+            if(node.type==='CallExpression' && node.arguments.length===0 && node.callee.type==='MemberExpression' &&
+                !node.callee.computed && node.callee.property.name==='data'){
+                const document=readOrigin(node.callee.object,depth+1);
+                return document?.kind==='document'?{...document,kind:'data',path:[]}:null;
+            }
+            if(node.type==='MemberExpression'){
+                const receiver=readOrigin(node.object,depth+1),key=node.computed?string(node.property):staticKey(node.property);
+                if(receiver?.kind==='data' && typeof key==='string' && /^[\w$]+$/.test(key))return {...receiver,path:[...receiver.path,key]};
+            }
+            return null;
+        };
         const visit = (node, parent = null) => {
             if (!node || typeof node !== "object") return;
             if (node.type === "ObjectExpression") objectPaths(node);
+            if (node.type === "CallExpression" && node.callee?.type==='MemberExpression' && !node.callee.computed && node.callee.property.name==='forEach') {
+                const snapshot=readOrigin(node.callee.object),callback=node.arguments[0],parameter=callback?.params?.[0];
+                if(snapshot?.kind==='snapshot' && ['ArrowFunctionExpression','FunctionExpression'].includes(callback?.type) && parameter?.type==='Identifier')
+                    snapshotParameters.set(parameter,{...snapshot,kind:'document'});
+            }
             if (node.type === "MemberExpression") {
+                const readInvoked=parent?.type==='CallExpression' && parent.callee===node;
+                const origin=readInvoked?null:readOrigin(node);
+                if(origin?.kind==='data' && origin.path.length){
+                    const key=origin.collection+':'+origin.start;
+                    const shape=readShapes.get(key)||{collection:origin.collection,operation:origin.operation,
+                        startLine:content.slice(0,sourceUnit.offset+origin.start).split("\n").length,
+                        endLine:content.slice(0,sourceUnit.offset+origin.end).split("\n").length,fields:[],fieldsComplete:false};
+                    const field=origin.path.join('.');
+                    if(!shape.fields.includes(field) && shape.fields.length<200)shape.fields.push(field);
+                    readShapes.set(key,shape);
+                }
                 // A call's property is an operation, not a stored nested field.
                 // Retain the receiver's data path without inventing method fields.
                 const invoked = parent?.type === "CallExpression" && parent.callee === node;
@@ -1001,6 +1093,7 @@ export function inspectSourceDataBindings(source = "") {
             }
         };
         visit(program);
+        for(const shape of readShapes.values())if(queryShapes.length<8)queryShapes.push(shape);
     }
     const groups = [...referenceGroups.values()];
     const references = [...groups.map(group=>group[0]),...groups.flatMap(group=>group.slice(1))];
