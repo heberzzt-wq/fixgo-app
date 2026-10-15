@@ -1,5 +1,22 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `c144bece6ebac653662d85c76d4c65cd8d17751a`.
+The only Functions delta since 4427f8fd is the semantic planner's rejected-query
+dependency key: unrelated reads no longer invalidate a witnessed rejection.
+Relevant source/collection evidence still reopens the decision, and authenticated
+receipts are required to associate collection templates with resolved routes.
+Three full-loop generic regressions cover unrelated, related and other-organization
+reads; all three operational objectives remain pending without records coverage.
+The integrated single-model retrieval change is outside Functions: only the
+existing Qwen3.5:9b can rank observed candidates or be automatically installed.
+Full root suite with local emulators: 2157 PASS, 0 FAIL, 2 environment skips.
+Real local ranking: one 9B inference, correct observed contract selected, repeated
+identical input cached, no embeddings or external inference. Physical repo.search
+and Chrome certification remain separate gates, not claims made by this baseline.
+No permission or coverage checks relaxed. Later Functions changes still fail closed.
+
+## Previous reviewed baseline
+
 Current baseline: `4427f8fd8abe85e57b4d39ec3750852dfc61d65e`.
 Only the semantic planner changed in Functions since c4d03e2e. The published
 a3da3ca9 mission proved rejected-count pruning, but remained PARTIAL after a
