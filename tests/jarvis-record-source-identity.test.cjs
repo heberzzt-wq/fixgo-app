@@ -256,3 +256,27 @@ test('an empty next-action decision closes only after independent operational co
   assert.equal(result.toolCalls.length,0);
  }
 });
+
+test('a native proposal outside the filtered frontier triggers one explicit recovery instead of becoming an empty decision',async()=>{
+ const f=fixture();f.tasks[0].observation.verifiedRead.sourceStructure.dataBindings.collections.push('related');
+ Object.assign(f.tasks[1].observation.recordEvidence,{rows:[],returnedCount:0,totalCount:0});
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,inputSchema:{type:'object',properties:{file:{type:'string',enum:['next.js']}},required:['file']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string'},fields:{type:'array',items:{type:'string'}},filters:{type:'array'},pageSize:{type:'integer'},includeCount:{type:'boolean'}},required:['sourceFile','collection','mode','fields','filters']}};
+ const rejected={name:query.name,args:{sourceFile:'registry.js',collection:f.resolved,mode:'query',fields:['kind'],filters:[],pageSize:100,includeCount:true}};
+ const stages=[];
+ const result=await runJarvisSemanticPlanner({input:f.contract.objective,catalog:[reader,query],missionState:{phase:'EVIDENCE_NEXT_ACTION',evidenceObjectives:[{...f.contract,requiredEvidenceKind:'platform_records'}],completedTasks:f.tasks},ai:{models:{generateContent:async request=>{
+  stages.push(request.config.semanticStage);
+  if(request.config.semanticStage==='EVIDENCE_NEXT_ACTION'){
+   assert.ok(request.config.responseJsonSchema,'filtered action choices require a JSON grammar even for compact contexts');
+   assert.equal(request.config.nativeToolChat,undefined);
+   // The real local replay emitted this concrete alias despite its enum being
+   // absent. Keep the post-selection boundary safe even for that response.
+   return{functionCalls:[rejected]};
+  }
+  assert.equal(request.config.semanticStage,'READ_ONLY_EVIDENCE_CONTINUATION','dropping an invalid native proposal must not be interpreted as the model choosing to stop');
+  const receipt=JSON.parse(request.config.chatMessages.find(m=>m.content.startsWith('RECHAZO_DE_ALCANCE=')).content.split('=').slice(1).join('='));
+  assert.deepEqual(receipt.proposed,rejected);assert.equal(receipt.operationalEvidence,false);
+  return{text:'{"toolCalls":[{"name":"repo.read","args":{"file":"next.js"}}]}'};
+ }}}});
+ assert.deepEqual(stages,['EVIDENCE_NEXT_ACTION','READ_ONLY_EVIDENCE_CONTINUATION']);assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives[0].satisfied,false);assert.equal(result.toolCalls[0].args.file,'next.js');
+});

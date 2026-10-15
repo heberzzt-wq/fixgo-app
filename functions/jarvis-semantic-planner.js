@@ -670,8 +670,8 @@ function recordProjectionAlreadyObserved(call, tasks) {
             record.queryExhausted!==false && record.hasMore===false && record.consistentCountAndList!==false &&
             Array.isArray(record.rows) && record.rows.length===0 && (record.returnedCount===undefined||record.returnedCount===0) &&
             (record.totalCount==null||record.totalCount===0) && !task.args?.cursor &&
-            emptyScope(task.args)===emptyScope(call.args) && sameCollection(task.args?.collection,record.scope?.collection) &&
-            emptyScope({...record.scope,collection:task.args.collection})===emptyScope(call.args) &&
+            emptyScope(receiptScope(task.args,task))===emptyScope(receiptScope(call.args,task)) && sameCollection(task.args?.collection,record.scope?.collection) &&
+            emptyScope(record.scope)===emptyScope(receiptScope(call.args,task)) &&
             (call.args.includeCount!==true||record.totalCount===0);
     }))return true;
     // The SDK always supplies ascending ID order when none was requested.
@@ -3349,7 +3349,7 @@ async function runModelSemanticPlanner({
                     const compactContinuation=JSON.stringify(auditTasks).length>16000;
                     const continuation = await ai.models.generateContent({model,contents:instruction,config:{
                         semanticStage:initialDecision?"EVIDENCE_NEXT_ACTION":"READ_ONLY_EVIDENCE_CONTINUATION",maxOutputTokens:768,temperature:0,
-                        ...(compactContinuation || error ? {responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{
+                        ...(initialDecision || compactContinuation || error ? {responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{
                             toolCalls:{type:"array",minItems:0,maxItems:1,items:{anyOf:nextReaders.map(tool=>({
                                 type:"object",properties:{name:{type:"string",enum:[tool.name]},args:buildNativeInputSchema(tool.inputSchema)},
                                 required:["name","args"],additionalProperties:false
@@ -3380,6 +3380,13 @@ async function runModelSemanticPlanner({
                     if (continuation?.providerResponse?.finishReason !== "length" && next?.toolCalls?.length) {
                         const checked=validatePlan({...next,missionComplete:false},nextReaders,instruction);
                         checked.toolCalls=checked.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&!(error?.evidence?.tool===call.name && sameCall({name:call.name,args:error.evidence.proposed},call))&&!hasUnexpectedToolArguments(nextReaders.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
+                        if(initialDecision && !checked.toolCalls.length){
+                            const rejected=next.toolCalls[0];
+                            const invalid=new Error('SEMANTIC_TOOL_ARGUMENTS_INVALID');
+                            invalid.evidence={tool:rejected.name,proposed:rejected.args,
+                                limitation:'La propuesta fue descartada por el catálogo filtrado o por repetir trabajo ya observado; no fue una decisión válida de detener la investigación.'};
+                            throw invalid;
+                        }
                         await verifyOperationalCalls(checked.toolCalls,nextReaders);
                         if(checked.toolCalls.length)return {...validatePlan({...validatedAudit,toolCalls:checked.toolCalls,missionComplete:false},nextReaders,instruction),
                             provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:nextReaders.length,planKind:initialDecision?"EVIDENCE_NEXT_ACTION":"READ_ONLY_EVIDENCE_CONTINUATION"};

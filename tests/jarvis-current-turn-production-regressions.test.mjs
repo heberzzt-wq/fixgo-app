@@ -5164,6 +5164,12 @@ test('runtime resolved terminal pages are removed before planning and cannot esc
  const plannerSource=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(plannerSource,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');
  const covered=runInNewContext('('+plannerSource.slice(node.start,node.end)+')');
+ const firstEmptyArgs={...args,cursor:undefined};
+ const firstEmpty=await f.execute(firstEmptyArgs,f.dependencies,f.context);assert.equal(firstEmpty.ok,true);
+ assert.equal(firstEmpty.recordEvidence.completeForQuery,true);
+ const emptyTask={name:query.name,args:firstEmptyArgs,observation:firstEmpty};
+ assert.equal(covered({name:query.name,args:{...firstEmptyArgs,collection:resolved,fields:['rank'],pageSize:100}},[emptyTask]),true,'a concrete alias of the empty first page must remain exhausted');
+ assert.equal(covered({name:query.name,args:{...firstEmptyArgs,collection:'registry/different-organization/entries',fields:['rank'],pageSize:100}},[emptyTask]),false);
  const repeated={name:query.name,args:{...args,fields:['rank'],pageSize:100}};
  assert.equal(covered(repeated,tasks),true);
  for(const change of [{collection:'registry/different-organization/entries'},{sourceFile:'another.js'},{cursor:'other-cursor'},{filters:[{field:'rank',op:'==',value:2}]}])
