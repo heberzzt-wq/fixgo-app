@@ -21,8 +21,10 @@ function fixture(t, { action = "read repository file", invalidTool = false } = {
   const body = JSON.parse(options.body);
   requests.push({ url, body });
   let response;
-  if (url.endsWith("/api/embed")) {
-   response = { embeddings: body.input.map(text => /repo\.read|tool\.test63|(?:^|\n)Query:read repository/.test(text) ? [1, 0] : [0, 1]) };
+  if(body.format?.properties?.ids){
+   const items=JSON.parse(body.messages.at(-1).content).candidates;
+   const preferred=items.filter(item=>/repo\.read|tool\.test63/.test(item.id));
+   response={message:{content:JSON.stringify({ids:[...preferred,...items.filter(item=>!preferred.includes(item))].slice(0,body.format.properties.ids.maxItems).map(item=>item.id)})}};
   } else {
    assert.equal(url, "http://127.0.0.1:11434/api/chat");
    assert.equal(body.model, "qwen3.5:9b");
@@ -40,17 +42,18 @@ function fixture(t, { action = "read repository file", invalidTool = false } = {
  return { requests, fetchImpl, env, engine: () => createSelfHostedSemanticEngine({ fetchImpl, env }) };
 }
 
-test("retrieval embeds Qwen's operation while native arguments retain the full original request", async t => {
+test("retrieval ranks Qwen's operation while native arguments retain the full original request", async t => {
  const f = fixture(t);
  const result = await f.engine().plan(request(catalog));
  const chats = f.requests.filter(r => r.url.endsWith("/api/chat"));
  const nativeChat = chats.find(r => Array.isArray(r.body.tools));
  assert.ok(nativeChat);
- assert.ok(chats.every(r => r.body.messages.at(-1).content === request(catalog).input || r.body.format?.properties?.stillMissing));
+ assert.ok(chats.every(r => r.body.messages.at(-1).content === request(catalog).input || r.body.format?.properties?.stillMissing || r.body.format?.properties?.ids));
  assert.ok(nativeChat.body.tools.length >= 2);
  assert.ok(nativeChat.body.tools.some(tool => /repo.read/.test(tool.function.description)));
- const embeds = f.requests.filter(r => r.url.endsWith("/api/embed"));
- assert.match(embeds.at(-1).body.input[0], /Query:read repository file$/);
+ const ranking=f.requests.find(r=>r.body.format?.properties?.ids);
+ assert.equal(JSON.parse(ranking.body.messages.at(-1).content).query,'read repository file');
+ assert.equal(f.requests.filter(r=>r.url.endsWith('/api/embed')).length,0);
  assert.equal(result.toolCalls[0].name, "repo.read");
  assert.equal(result.toolCalls[0].args.file, "jarvis-runtime-contract.json");
  assert.equal(result.toolCalls[0].approved, false);
@@ -60,19 +63,19 @@ test("retrieval embeds Qwen's operation while native arguments retain the full o
  assert.equal(result.inferenceReceipt.counters.paidExternalCalls, 0);
 });
 
-test("cold catalog warms once within the request and subsequent retrieval reuses its vectors", async t => {
+test("identical catalog and operation reuse a bounded local model ranking", async t => {
  const f = fixture(t), engine = f.engine();
  const large = Array.from({ length: 64 }, (_, i) => ({ name: "tool.test" + i, description: "Tool " + i }));
  for (let i = 0; i < 2; i++) {
   const result = await engine.plan(request(large));
   assert.equal(result.toolCalls[0].name, "tool.test63");
-  assert.equal(result.semanticPreselection.cacheMisses, i === 0 ? 64 : 0);
+  assert.equal(result.semanticPreselection.cacheHit, i === 1);
  }
  const embeds = f.requests.filter(r => r.url.endsWith("/api/embed"));
- assert.deepEqual(embeds.map(r => r.body.input.length), [64, 1, 1]);
+ assert.equal(embeds.length,0);assert.equal(f.requests.filter(r=>r.body.format?.properties?.ids).length,1);
 });
 
-test("concurrent catalog warming never leaks candidates across requests", async t => {
+test("concurrent catalog ranking never leaks candidates across requests", async t => {
  const f = fixture(t), engine = f.engine();
  const other = catalog.map(tool => ({ ...tool, name: tool.name + "Other" }));
  const results = await Promise.all([engine.plan(request(catalog)), engine.plan(request(other))]);
@@ -97,5 +100,5 @@ test("an invalid action stops before retrieval and an invented native tool is ne
  assert.equal(badAction.requests.length, 1);
  const badTool = fixture(t, { invalidTool: true });
  await assert.rejects(badTool.engine().plan(request(catalog)), /SEMANTIC_PLAN_EMPTY/);
- assert.equal(badTool.requests.filter(r => r.url.endsWith("/api/chat")).length, 3, "only the existing bounded JSON correction may follow an invalid native call");
+ assert.equal(badTool.requests.filter(r => r.url.endsWith("/api/chat")).length, 4, "only the local ranking and existing bounded JSON correction may follow an invalid native call");
 });

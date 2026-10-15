@@ -486,6 +486,7 @@ export function rankRepoHybridCandidates({
     plannedFiles = [],
     exactFiles = [],
     semanticScores = {},
+    semanticMethod = "local_embedding",
     limit = 8
 } = {}) {
     if (!graph?.ok || !graph.nodes) throw new Error("REPO_GRAPH_REQUIRED");
@@ -516,7 +517,7 @@ export function rankRepoHybridCandidates({
             const breakdown = {
                 exactStructuralMatch: exactStructuralMatch ? 500 : 0,
                 plannedFile: plannedFile ? 120 : 0,
-                localEmbeddingSimilarity: Math.round(Math.max(0, semanticSimilarity) * 10000) / 100,
+                [semanticMethod === "local_model_candidate_ranking" ? "localModelRelevance" : "localEmbeddingSimilarity"]: Math.round(Math.max(0, semanticSimilarity) * 10000) / 100,
                 moduleRelation: relationCount > 0 ? Math.min(30, relationCount * 3) : 0,
                 incomingCalls: Math.min(25, node.dependents.length * 5),
                 outgoingCalls: Math.min(20, node.calls.length),
@@ -565,9 +566,9 @@ export function rankRepoHybridCandidates({
     return {
         ok: true,
         status: "HYBRID_CANDIDATE_RANKING_READY",
-        source: "local_embedding_plus_live_repo_graph",
+        source: semanticMethod === "local_model_candidate_ranking" ? "local_model_plus_live_repo_graph" : "local_embedding_plus_live_repo_graph",
         graphGeneratedAt: graph.generatedAt,
-        scoring: "local_embedding_and_structural_evidence",
+        scoring: semanticMethod === "local_model_candidate_ranking" ? "local_model_and_structural_evidence" : "local_embedding_and_structural_evidence",
         semanticSelection: planned,
         semanticRetrieval: hasSemanticScores,
         candidates: ranked,

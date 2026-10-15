@@ -1,4 +1,5 @@
 import { semanticPlanHandler, semanticResponseHandler, fetchLocalSemanticResponse } from "./jarvis-semantic-http.js";
+import {createLocalCandidateRanker} from './gestia-core/jarvis/jarvis.local.retrieval.js';
 import { JARVIS_LOCAL_MODEL } from './gestia-core/jarvis/jarvis.local.policy.js';
 import { SEMANTIC_MAX_BUDGET_MS } from "./gestia-core/jarvis/jarvis.semantic.transport.js";
 import { buildResponsiveRepairOptions, buildResponsiveRepairPatch } from "./gestia-core/jarvis/jarvis.autopatch.engine.js";
@@ -18,7 +19,6 @@ import {
     buildRepoEmbeddingDocuments,
     scoreRepoSemanticPreselection,
     buildRepoIntelligence,
-    cosineSimilarity,
     rankRepoCandidates,
     rankRepoHybridCandidates
 } from "./jarvis-repo-intelligence.js";
@@ -143,9 +143,6 @@ const JARVIS_PRIVATE_MEMORY_MAX_RECORD_BYTES =
     512 * 1024;
 const jarvisPrivateMemoryArchiveIds =
     new Map();
-const jarvisPrivateMemorySemanticEmbeddingCache =
-    new Map();
-
 function normalizePrivateMemoryIdentity(identity = {}) {
     return {
         userId: String(identity?.userId || "anonymous").trim().slice(0, 180),
@@ -406,33 +403,6 @@ function jarvisPrivateMemorySemanticText(record = {}) {
         )
         .join("\n")
         .slice(0, 700);
-}
-
-function jarvisPrivateMemorySemanticCacheKey({
-    scopeHash = "",
-    model = "",
-    record = {}
-} = {}) {
-    return [
-        String(scopeHash || ""),
-        String(model || ""),
-        String(record?.id || "")
-    ].join("::");
-}
-
-function pruneJarvisPrivateMemorySemanticCache(maximum = 10000) {
-    while (
-        jarvisPrivateMemorySemanticEmbeddingCache.size >
-        maximum
-    ) {
-        const oldest =
-            jarvisPrivateMemorySemanticEmbeddingCache
-                .keys()
-                .next()
-                .value;
-        if (!oldest) break;
-        jarvisPrivateMemorySemanticEmbeddingCache.delete(oldest);
-    }
 }
 
 export function resolveRunpodCredentialEnvironment({
@@ -1026,9 +996,6 @@ export function createSelfHostedSemanticEngine({
         env.JARVIS_LOCAL_LLM_MODEL || JARVIS_LOCAL_MODEL
     ).trim();
     const conversationModel = model;
-    const embeddingModel = String(
-        env.JARVIS_LOCAL_EMBEDDING_MODEL || "qwen3-embedding:0.6b"
-    ).trim();
     const rawBaseUrl = String(
         env.JARVIS_LOCAL_LLM_BASE_URL || "http://127.0.0.1:11434/v1"
     ).trim();
@@ -1060,6 +1027,11 @@ export function createSelfHostedSemanticEngine({
         baseUrl = normalizeSelfHostedSemanticUrl(rawBaseUrl);
     } catch (error) {
         configurationError = error?.message || String(error);
+    }
+
+    if (model !== JARVIS_LOCAL_MODEL ||
+        (env.JARVIS_CONVERSATION_MODEL && env.JARVIS_CONVERSATION_MODEL !== JARVIS_LOCAL_MODEL)) {
+        configurationError ||= 'JARVIS_LOCAL_MODEL_CONTRACT_MISMATCH';
     }
 
     const warmKeepAlive =
@@ -1224,7 +1196,9 @@ export function createSelfHostedSemanticEngine({
                 conversation:
                     conversationModel || null
             },
-            embeddingModel: embeddingModel || null,
+            embeddingModel: null,
+            retrievalModel: JARVIS_LOCAL_MODEL,
+            retrievalMethod: "local_model_candidate_ranking",
             lastInferenceModel:
                 lastInferenceModel || null,
             lastModelProfile:
@@ -1243,76 +1217,13 @@ export function createSelfHostedSemanticEngine({
         };
     }
 
-    function validToolVector(vector) {
-        return Array.isArray(vector) && vector.length > 0 &&
-            vector.every(value => typeof value === "number" && Number.isFinite(value)) &&
-            vector.some(value => value !== 0);
-    }
-
-    async function embed(input = [], { timeoutMs: embeddingTimeoutMs = timeoutMs, signal, noDeadline = true } = {}) {
-        const health = describe();
-        if (health.ok !== true) throw new Error(health.status);
-        const values = (Array.isArray(input) ? input : [input])
-            .map(value => String(value || "").trim())
-            .filter(Boolean);
-        if (values.length === 0) throw new Error("LOCAL_EMBEDDING_INPUT_REQUIRED");
-        if (values.length > 128) throw new Error("LOCAL_EMBEDDING_BATCH_TOO_LARGE");
-
-        const controller = new AbortController();
-        const timer = noDeadline === true
-            ? null
-            : setTimeout(() => controller.abort(), embeddingTimeoutMs);
-        counters.localEmbeddingCalls += 1;
-        counters.localEmbeddedTexts += values.length;
-        try {
-            const origin = new URL(baseUrl).origin;
-            const response = await fetchImpl(`${origin}/api/embed`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    model: embeddingModel,
-                    input: values,
-                    keep_alive: warmKeepAlive || "30m",
-                    options: { num_batch: 64 },
-                    truncate: false
-                }),
-                signal: signal ? AbortSignal.any([controller.signal, signal]) : controller.signal
-            });
-            const raw = await response.text();
-            let data = null;
-            try { data = JSON.parse(raw); } catch {}
-            const embeddings = Array.isArray(data?.embeddings)
-                ? data.embeddings
-                : [];
-            if (
-                !response.ok ||
-                embeddings.length !== values.length ||
-                embeddings.some(vector => !validToolVector(vector) || vector.length !== embeddings[0].length)
-            ) {
-                throw new Error(
-                    String(data?.error || `LOCAL_EMBEDDING_HTTP_${response.status}`)
-                );
-            }
-            return {
-                ok: true,
-                status: "LOCAL_EMBEDDING_READY",
-                provider: "ollama-local",
-                model: embeddingModel,
-                embeddings
-            };
-        } catch (error) {
-            counters.failedLocalEmbeddingCalls += 1;
-            if (noDeadline !== true && controller.signal.aborted) throw new Error("LOCAL_EMBEDDING_TIMEOUT");
-            if (signal?.aborted) throw new Error("LOCAL_EMBEDDING_REQUEST_ABORTED");
-            throw error;
-        } finally {
-            if (timer) clearTimeout(timer);
-        }
+    async function embed() {
+        throw new Error('LOCAL_EMBEDDINGS_DISABLED_SINGLE_MODEL');
     }
 
     function normalizeLocalChatMessages(messages = [], fullResponseInput = false) {
         const allowedRoles =
-            new Set(["system", "user", "assistant"]);
+            new Set(["system", "user", "assistant", "tool"]);
         const normalized = [];
         let totalCharacters = 0;
         const maximumContextCharacters =
@@ -1328,29 +1239,30 @@ export function createSelfHostedSemanticEngine({
             const content =
                 String(item?.content || "")
                     .trim();
-            if (
-                !allowedRoles.has(role) ||
-                !content
-            ) {
+            const toolCalls = role === 'assistant' && Array.isArray(item?.tool_calls) ? item.tool_calls : [];
+            if (!allowedRoles.has(role) || (!content && !toolCalls.length)) {
                 continue;
             }
             // Do not impose a stricter per-message ceiling than the model
             // context itself. A large system/tool evidence packet is valid as
             // long as the complete request still fits the local context budget.
-            if (content.length > maximumContextCharacters) {
+            const message = {role, content,
+                ...(toolCalls.length ? {tool_calls:toolCalls} : {}),
+                ...(role === 'tool' && item.tool_name ? {tool_name:String(item.tool_name)} : {}),
+                ...(role === 'tool' && item.tool_call_id ? {tool_call_id:String(item.tool_call_id)} : {})};
+            const messageCharacters = content.length + (toolCalls.length ? JSON.stringify(toolCalls).length : 0) +
+                String(message.tool_name || '').length + String(message.tool_call_id || '').length;
+            if (messageCharacters > maximumContextCharacters) {
                 throw new Error("LOCAL_SEMANTIC_MESSAGE_TOO_LARGE");
             }
             if (
-                totalCharacters + content.length >
+                totalCharacters + messageCharacters >
                 maximumContextCharacters
             ) {
                 throw new Error("LOCAL_SEMANTIC_CONTEXT_TOO_LARGE");
             }
-            totalCharacters += content.length;
-            normalized.push({
-                role,
-                content
-            });
+            totalCharacters += messageCharacters;
+            normalized.push(message);
         }
 
         // A model must receive its permission boundary and the actual user turn.
@@ -1421,7 +1333,7 @@ export function createSelfHostedSemanticEngine({
                 modelProfile === "conversation"
                     ? conversationModel
                     : model;
-            const qwenNative = selectedModel.startsWith("qwen3:") || selectedModel.startsWith("qwen3.5:");
+            const qwenNative = selectedModel === JARVIS_LOCAL_MODEL;
             lastInferenceModel =
                 selectedModel;
             lastModelProfile =
@@ -1430,14 +1342,6 @@ export function createSelfHostedSemanticEngine({
                 explicitChatMessages.length > 0
                     ? explicitChatMessages
                     : fallbackMessages;
-            // Some installed Qwen3 templates still prefill <think> with the API
-            // flag disabled. Use the vendor's soft switch as well, while keeping
-            // the original user turn intact and avoiding leaked reasoning.
-            if (selectedModel.startsWith("qwen3:")) {
-                const systemIndex = messages.findIndex(message => message.role === "system");
-                if (systemIndex >= 0) messages[systemIndex] = {...messages[systemIndex],content:messages[systemIndex].content + "\n/no_think"};
-                else messages.unshift({role:"system",content:"/no_think"});
-            }
             const maxOutputTokens =
                 Math.max(
                     1,
@@ -1760,170 +1664,20 @@ export function createSelfHostedSemanticEngine({
         }
     }
 
-    const toolEmbeddingCachePath = String(
-        env.JARVIS_TOOL_EMBEDDING_CACHE_PATH ||
-        path.join(
-            env.LOCALAPPDATA || os.tmpdir(),
-            "Fixgo",
-            "jarvis-tool-embedding-cache-v1.json"
-        )
-    ).trim();
-    let toolEmbeddingCacheLoaded = false;
-    let toolEmbeddingCache = new Map();
-    let toolEmbeddingWarmPromise = null;
-
-    function toolEmbeddingText(tool = {}) {
-        return `${String(tool?.name || "").trim()}: ${String(tool?.description || "").trim()}`;
-    }
-
-    function toolEmbeddingKey(tool = {}) {
-        return createHash("sha256")
-            .update(`${embeddingModel}\n${toolEmbeddingText(tool)}`)
-            .digest("hex");
-    }
-
-    function loadToolEmbeddingCache() {
-        if (toolEmbeddingCacheLoaded) return;
-        toolEmbeddingCacheLoaded = true;
-        try {
-            const parsed = JSON.parse(fs.readFileSync(toolEmbeddingCachePath, "utf8"));
-            if (parsed?.version !== 1 || parsed?.model !== embeddingModel || !parsed?.entries) return;
-            toolEmbeddingCache = new Map(
-                Object.entries(parsed.entries).filter(([, vector]) => validToolVector(vector))
-            );
-        } catch {}
-    }
-
-    function persistToolEmbeddingCache() {
-        fs.mkdirSync(path.dirname(toolEmbeddingCachePath), {
-            recursive: true
-        });
-        const payload = JSON.stringify({
-            version: 1,
-            model: embeddingModel,
-            entries: Object.fromEntries(toolEmbeddingCache)
-        });
-        const tempPath = `${toolEmbeddingCachePath}.tmp-${process.pid}`;
-        try {
-            fs.writeFileSync(tempPath, payload);
-            fs.renameSync(tempPath, toolEmbeddingCachePath);
-        } finally {
-            fs.rmSync(tempPath, { force: true });
-        }
-    }
-
-    async function warmToolEmbeddingCache(catalog = [], options = {}) {
-        loadToolEmbeddingCache();
-        const missing = catalog
-            .map(tool => ({
-                tool,
-                key: toolEmbeddingKey(tool),
-                text: toolEmbeddingText(tool)
-            }))
-            .filter(entry => !toolEmbeddingCache.has(entry.key));
-        if (missing.length === 0) return;
-        const embedded = await embed(missing.map(entry => entry.text), options);
-        missing.forEach((entry, index) => {
-            toolEmbeddingCache.set(entry.key, embedded.embeddings[index]);
-        });
-        persistToolEmbeddingCache();
-    }
+    const rankCandidates = createLocalCandidateRanker(generateContent);
 
     async function shortlistCurrentTurnCatalog(input = "", catalog = [], limit = 2, deadlineAt = null, signal, noDeadline = true) {
-        const startedAt = Date.now();
-        const remainingMs = () => {
-            signal?.throwIfAborted();
-            if (noDeadline === true) return null;
-            const remaining = deadlineAt - Date.now();
-            if (remaining <= 0) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
-            return remaining;
-        };
-        const safeCatalog = Array.isArray(catalog)
-            ? catalog.filter(tool => tool && tool.name).slice(0, 80)
-            : [];
-        loadToolEmbeddingCache();
-        const missingCount = safeCatalog.filter(
-            tool => !toolEmbeddingCache.has(toolEmbeddingKey(tool))
-        ).length;
-        while (safeCatalog.some(tool => !toolEmbeddingCache.has(toolEmbeddingKey(tool)))) {
-            remainingMs();
-            if (!toolEmbeddingWarmPromise) {
-                toolEmbeddingWarmPromise = warmToolEmbeddingCache(
-                    safeCatalog,
-                    noDeadline === true
-                        ? { signal, noDeadline: true }
-                        : { signal, timeoutMs: remainingMs() }
-                )
-                    // A cold catalog is warmed in the background. Its rejection must
-                    // never become an unhandled rejection that kills the bridge.
-                    .then(() => null, error => error)
-                    .finally(() => {
-                        toolEmbeddingWarmPromise = null;
-                    });
-            }
-            let timer;
-            try {
-                const error = noDeadline === true
-                    ? await toolEmbeddingWarmPromise
-                    : await Promise.race([
-                        toolEmbeddingWarmPromise,
-                        new Promise((_, reject) => {
-                            timer = setTimeout(() => reject(new Error("LOCAL_SEMANTIC_TIMEOUT")), remainingMs());
-                        })
-                    ]);
-                if (error) throw error;
-            } finally {
-                if (timer) clearTimeout(timer);
-            }
-        }
-        const remaining = remainingMs();
-        // Qwen embedding queries use its documented instruction format. Catalog
-        // documents remain raw; this describes retrieval, never selects a tool.
-        const retrievalQuery = embeddingModel.startsWith("qwen3-embedding:")
-            ? `Instruct: Given a software assistant operation, retrieve tool descriptions whose capabilities can perform that operation.\nQuery:${String(input || "")}`
-            : String(input || "");
-        const queryEmbedding = await embed(
-            [retrievalQuery],
-            noDeadline === true
-                ? { signal, noDeadline: true }
-                : { timeoutMs: remaining, signal }
-        );
-        const queryVector = queryEmbedding.embeddings[0];
-        if (safeCatalog.some(tool => toolEmbeddingCache.get(toolEmbeddingKey(tool)).length !== queryVector.length)) {
-            throw new Error("LOCAL_TOOL_EMBEDDING_DIMENSION_MISMATCH");
-        }
-        const ranked = safeCatalog
-            .map((tool, index) => ({
-                tool,
-                index,
-                score: cosineSimilarity(
-                    queryVector,
-                    toolEmbeddingCache.get(toolEmbeddingKey(tool))
-                )
-            }))
-            .sort((left, right) =>
-                right.score - left.score || left.index - right.index
-            );
-        const selected = ranked
-            .slice(0, Math.max(1, Math.min(12, Number(limit) || 2)));
-        return {
-            catalog: selected.map(entry => entry.tool),
-            evidence: {
-                provider: "ollama-local",
-                model: embeddingModel,
-                catalogCount: safeCatalog.length,
-                selected: selected.map(entry => ({
-                    name: entry.tool.name,
-                    score: entry.score
-                })),
-                cacheHits: safeCatalog.length - missingCount,
-                cacheMisses: missingCount,
-                durationMs: Date.now() - startedAt,
-                decisionAuthority: model,
-                retrievalOnly: true,
-                externalApiUsed: false
-            }
-        };
+        signal?.throwIfAborted();
+        if (!noDeadline && Date.now() >= deadlineAt) throw new Error('LOCAL_SEMANTIC_TIMEOUT');
+        const safeCatalog = (Array.isArray(catalog) ? catalog : []).filter(tool=>tool?.name).slice(0,80);
+        const ranked = await rankCandidates({query:input, candidates:safeCatalog.map(tool=>({
+            id:tool.name, text:`${tool.name}: ${tool.description || ''}`
+        })), limit, scope:'tool-catalog', signal, noDeadline});
+        if (!noDeadline && Date.now() >= deadlineAt) throw new Error('LOCAL_SEMANTIC_TIMEOUT');
+        return {catalog:ranked.selected.map(item=>safeCatalog.find(tool=>tool.name===item.id)), evidence:{
+            ...ranked.evidence, catalogCount:safeCatalog.length, selected:ranked.selected.map(item=>({name:item.id,score:item.score})),
+            decisionAuthority:model
+        }};
     }
 
     const ai = {
@@ -1936,6 +1690,7 @@ export function createSelfHostedSemanticEngine({
         mode,
         describe,
         embed,
+        rankCandidates,
         async plan({ input, catalog, missionState = null, timeoutMs: requestTimeoutMs, noDeadline = true, signal, onProgress = () => {} } = {}) {
             catalog = availableMaterialToolCatalog({ root, catalog });
             const effectiveTimeoutMs = noDeadline === true
@@ -7434,9 +7189,7 @@ export function createJarvisFsBridgeApp({
                     cacheKey,
                     maxFiles,
                     maxFileSizeBytes,
-                    graph: buildGraphForResolvedTarget(resolved, { root, maxFiles, maxFileSizeBytes }),
-                    semanticEmbeddingCache: new Map(),
-                    semanticEmbeddingModel: null
+                    graph: buildGraphForResolvedTarget(resolved, { root, maxFiles, maxFileSizeBytes })
                 };
             }
 
@@ -7444,32 +7197,8 @@ export function createJarvisFsBridgeApp({
             let semanticEvidence = null;
 
             if (semanticQuery) {
-                if (typeof semanticEngine?.embed !== "function") {
-                    return res.status(503).json({
-                        ok: false,
-                        status: "LOCAL_EMBEDDING_ENGINE_REQUIRED",
-                        error: "LOCAL_EMBEDDING_ENGINE_REQUIRED",
-                        version: JARVIS_FS_BRIDGE_VERSION
-                    });
-                }
-
-                const health = semanticEngine.describe();
-                const embeddingModel = String(health?.embeddingModel || "").trim();
-                if (!embeddingModel) {
-                    return res.status(503).json({
-                        ok: false,
-                        status: "LOCAL_EMBEDDING_MODEL_REQUIRED",
-                        error: "LOCAL_EMBEDDING_MODEL_REQUIRED",
-                        version: JARVIS_FS_BRIDGE_VERSION
-                    });
-                }
-
-                if (
-                    !(repoGraphCache.semanticEmbeddingCache instanceof Map) ||
-                    repoGraphCache.semanticEmbeddingModel !== embeddingModel
-                ) {
-                    repoGraphCache.semanticEmbeddingCache = new Map();
-                    repoGraphCache.semanticEmbeddingModel = embeddingModel;
+                if (typeof semanticEngine?.rankCandidates !== "function" || semanticEngine.describe?.().model !== JARVIS_LOCAL_MODEL) {
+                    return res.status(503).json({ok:false,status:'LOCAL_CANDIDATE_ENGINE_REQUIRED',version:JARVIS_FS_BRIDGE_VERSION});
                 }
 
                 const queryTokens = [
@@ -7559,61 +7288,22 @@ export function createJarvisFsBridgeApp({
                         left.file.localeCompare(right.file)
                     )
                     .slice(0, semanticPoolLimit);
-                const missing = documents.filter(
-                    document => !repoGraphCache.semanticEmbeddingCache.has(document.file)
-                );
-                const batchSize = 12;
-                for (let offset = 0; offset < missing.length; offset += batchSize) {
-                    const batch = missing.slice(offset, offset + batchSize);
-                    const embedded = await semanticEngine.embed(
-                        batch.map(document => document.text),
-                        noDeadline === true
-                            ? { noDeadline: true }
-                            : {}
-                    );
-                    batch.forEach((document, index) => {
-                        repoGraphCache.semanticEmbeddingCache.set(
-                            document.file,
-                            embedded.embeddings[index]
-                        );
-                    });
-                }
-
-                const queryEmbedding = await semanticEngine.embed(
-                    [semanticQuery],
-                    noDeadline === true
-                        ? { noDeadline: true }
-                        : {}
-                );
-                const queryVector = queryEmbedding.embeddings[0];
-                const semanticScores = {};
-                for (const document of documents) {
-                    const vector = repoGraphCache.semanticEmbeddingCache.get(document.file);
-                    if (!vector) continue;
-                    semanticScores[document.file] = cosineSimilarity(queryVector, vector);
-                }
+                const ranked = await semanticEngine.rankCandidates({query:semanticQuery,
+                    candidates:documents.map(document=>({id:document.file,text:document.text})),
+                    limit:documents.length, scope:repoGraphCache.cacheKey, noDeadline});
+                const semanticScores = Object.fromEntries(ranked.selected.map(item=>[item.id,item.score]));
 
                 result = rankRepoHybridCandidates({
                     graph: repoGraphCache.graph,
                     plannedFiles,
                     exactFiles: exactStructuralFiles,
                     semanticScores,
+                    semanticMethod: "local_model_candidate_ranking",
                     limit: req.body?.limit || 8
                 });
-                semanticEvidence = {
-                    provider: "ollama-local",
-                    model: embeddingModel,
-                    queryEmbedded: true,
-                    documentsConsidered: allDocuments.length,
-                    documentsEmbedded: documents.length,
-                    semanticPoolLimit,
-                    preselection: "query_structural_overlap_then_local_embedding",
-                    exactStructuralMatches: exactStructuralFiles,
-                    cacheHits: documents.length - missing.length,
-                    cacheMisses: missing.length,
-                    externalApiUsed: false,
-                    estimatedExternalCostUsd: 0
-                };
+                semanticEvidence = {...ranked.evidence,
+                    documentsConsidered:allDocuments.length, documentsRanked:documents.length, semanticPoolLimit,
+                    preselection:'query_structural_overlap_then_local_model',exactStructuralMatches:exactStructuralFiles};
             } else {
                 result = rankRepoCandidates({
                     graph: repoGraphCache.graph,
@@ -10095,38 +9785,8 @@ export function createJarvisFsBridgeApp({
                 });
             }
 
-            if (
-                typeof semanticEngine?.embed !==
-                "function"
-            ) {
-                return res.status(503).json({
-                    ok: false,
-                    status:
-                        "PRIVATE_MEMORY_SEMANTIC_ENGINE_REQUIRED",
-                    error:
-                        "PRIVATE_MEMORY_SEMANTIC_ENGINE_REQUIRED",
-                    bridgeVersion:
-                        JARVIS_FS_BRIDGE_VERSION
-                });
-            }
-
-            const semanticHealth =
-                semanticEngine.describe?.() || {};
-            const embeddingModel =
-                String(
-                    semanticHealth?.embeddingModel ||
-                    ""
-                ).trim();
-            if (!embeddingModel) {
-                return res.status(503).json({
-                    ok: false,
-                    status:
-                        "PRIVATE_MEMORY_EMBEDDING_MODEL_REQUIRED",
-                    error:
-                        "PRIVATE_MEMORY_EMBEDDING_MODEL_REQUIRED",
-                    bridgeVersion:
-                        JARVIS_FS_BRIDGE_VERSION
-                });
+            if (typeof semanticEngine?.rankCandidates !== 'function' || semanticEngine.describe?.().model !== JARVIS_LOCAL_MODEL) {
+                return res.status(503).json({ok:false,status:'PRIVATE_MEMORY_SEMANTIC_ENGINE_REQUIRED',bridgeVersion:JARVIS_FS_BRIDGE_VERSION});
             }
 
             const normalizeSemanticText =
@@ -10178,15 +9838,7 @@ export function createJarvisFsBridgeApp({
                         return {
                             record,
                             text,
-                            structuralOverlap,
-                            cacheKey:
-                                jarvisPrivateMemorySemanticCacheKey({
-                                    scopeHash:
-                                        result.scopeHash,
-                                    model:
-                                        embeddingModel,
-                                    record
-                                })
+                            structuralOverlap
                         };
                     })
                     .filter(candidate =>
@@ -10214,90 +9866,11 @@ export function createJarvisFsBridgeApp({
                         0,
                         semanticPoolLimit
                     );
-            const missing =
-                selectedCandidates.filter(
-                    candidate =>
-                        !jarvisPrivateMemorySemanticEmbeddingCache
-                            .has(
-                                candidate.cacheKey
-                            )
-                );
-
-            const combinedEmbedding =
-                await semanticEngine.embed([
-                    semanticQuery,
-                    ...missing.map(candidate =>
-                        candidate.text
-                    )
-                ]);
-            const queryVector =
-                combinedEmbedding?.embeddings?.[0];
-
-            missing.forEach(
-                (candidate, index) => {
-                    const vector =
-                        combinedEmbedding
-                            ?.embeddings
-                            ?.[index + 1];
-                    if (
-                        Array.isArray(vector) &&
-                        vector.length > 0
-                    ) {
-                        jarvisPrivateMemorySemanticEmbeddingCache
-                            .set(
-                                candidate.cacheKey,
-                                vector
-                            );
-                    }
-                }
-            );
-            pruneJarvisPrivateMemorySemanticCache();
-            if (
-                !Array.isArray(queryVector) ||
-                queryVector.length === 0
-            ) {
-                throw new Error(
-                    "PRIVATE_MEMORY_QUERY_EMBEDDING_REQUIRED"
-                );
-            }
-
-            const ranked =
-                selectedCandidates
-                    .map(candidate => {
-                        const vector =
-                            jarvisPrivateMemorySemanticEmbeddingCache
-                                .get(
-                                    candidate.cacheKey
-                                );
-                        return {
-                            record:
-                                candidate.record,
-                            score:
-                                Array.isArray(vector)
-                                    ? cosineSimilarity(
-                                        queryVector,
-                                        vector
-                                    )
-                                    : -1
-                        };
-                    })
-                    .filter(item =>
-                        Number.isFinite(item.score)
-                    )
-                    .sort((left, right) =>
-                        right.score - left.score ||
-                        String(
-                            right.record?.createdAt ||
-                            ""
-                        ).localeCompare(
-                            String(
-                                left.record
-                                    ?.createdAt ||
-                                ""
-                            )
-                        )
-                    )
-                    .slice(0, requestedLimit);
+            const selection = await semanticEngine.rankCandidates({query:semanticQuery,
+                candidates:selectedCandidates.map(candidate=>({id:candidate.record.id,text:candidate.text})),
+                limit:requestedLimit,scope:result.scopeHash});
+            const ranked = selection.selected.map(item=>({record:selectedCandidates.find(candidate=>candidate.record.id===item.id)?.record,score:item.score}));
+            if (ranked.some(item=>!item.record)) throw new Error('LOCAL_CANDIDATE_SELECTION_INVALID');
 
             return res.json({
                 ...result,
@@ -10319,25 +9892,11 @@ export function createJarvisFsBridgeApp({
                             item.score
                     })),
                 semanticEvidence: {
-                    provider:
-                        "ollama-local",
-                    model:
-                        embeddingModel,
-                    queryEmbedded:
-                        true,
-                    candidatesConsidered:
-                        candidates.length,
-                    candidatesEmbedded:
-                        selectedCandidates.length,
-                    semanticPoolLimit:
-                        semanticPoolLimit,
-                    preselection:
-                        "structural_overlap_then_local_embedding",
-                    cacheHits:
-                        selectedCandidates.length -
-                        missing.length,
-                    cacheMisses:
-                        missing.length,
+                    ...selection.evidence,
+                    candidatesConsidered:candidates.length,
+                    candidatesRanked:selectedCandidates.length,
+                    semanticPoolLimit,
+                    preselection:'structural_overlap_then_local_model',
                     archiveAppendOnly:
                         true,
                     externalApiUsed:

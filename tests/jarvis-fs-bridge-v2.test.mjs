@@ -522,19 +522,18 @@ test("emulator exercises Jarvis local-only planner through the real bridge and r
         env: {
             JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
             JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
-            JARVIS_LOCAL_LLM_MODEL: "qwen2.5-coder:1.5b",
+            JARVIS_LOCAL_LLM_MODEL: "qwen3.5:9b",
             JARVIS_LOCAL_EMBEDDING_MODEL: "qwen3-embedding:0.6b"
         },
         fetchImpl: async (url, options) => {
             const body = JSON.parse(options.body);
             semanticRequests.push({ url, body });
-            assert.equal(url, "http://127.0.0.1:11434/v1/chat/completions");
+            assert.equal(url, "http://127.0.0.1:11434/api/chat");
             return {
                 ok: true,
                 status: 200,
                 text: async () => JSON.stringify({
-                    choices: [{
-                        message: {
+                    message: {
                             content: "",
                             tool_calls: [{
                                 function: {
@@ -545,7 +544,6 @@ test("emulator exercises Jarvis local-only planner through the real bridge and r
                                 }
                             }]
                         }
-                    }]
                 })
             };
         }
@@ -610,7 +608,7 @@ test("emulator exercises Jarvis local-only planner through the real bridge and r
         assert.equal(calls[0].name, "repo.search");
         assert.equal(calls[0].args.query, "LOCAL_AI_EMULATOR_MARKER");
         assert.equal(semanticRequests.length, 1);
-        assert.equal(semanticRequests[0].body.model, "qwen2.5-coder:1.5b");
+        assert.equal(semanticRequests[0].body.model, "qwen3.5:9b");
 
         const grepResponse = await globalThis.JarvisLocalBridge.requestJson("/grep", {
             query: calls[0].args.query,
@@ -629,7 +627,7 @@ test("emulator exercises Jarvis local-only planner through the real bridge and r
         assert.equal(healthResponse.ok, true);
         assert.equal(healthResponse.mode, "LOCAL_ONLY");
         assert.equal(healthResponse.provider, "ollama-openai-compatible-local");
-        assert.equal(healthResponse.model, "qwen2.5-coder:1.5b");
+        assert.equal(healthResponse.model, "qwen3.5:9b");
         assert.equal(healthResponse.counters.localSemanticInferenceCalls, 1);
         assert.equal(healthResponse.counters.semanticExternalCalls, 0);
         assert.equal(healthResponse.counters.paidExternalCalls, 0);
@@ -652,60 +650,22 @@ test("self-hosted semantic backend defaults to local-only Ollama Qwen with zero 
     assert.equal(health.mode, "LOCAL_ONLY");
     assert.equal(health.provider, "ollama-openai-compatible-local");
     assert.equal(health.model, "qwen3.5:9b");
-    assert.equal(health.embeddingModel, "qwen3-embedding:0.6b");
+    assert.equal(health.embeddingModel, null);
     assert.equal(health.endpointOrigin, "http://127.0.0.1:11434");
     assert.equal(health.fallbackAllowed, false);
     assert.equal(health.externalApiUsed, false);
     assert.equal(health.paidModelApiUsed, false);
 });
 
-test("self-hosted semantic engine uses local Ollama embeddings with zero external fallback", async () => {
-    const requests = [];
-    const engine = createSelfHostedSemanticEngine({
-        env: {
-            JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
-            JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
-            JARVIS_LOCAL_LLM_MODEL: "qwen-local",
-            JARVIS_LOCAL_EMBEDDING_MODEL: "qwen3-embedding:0.6b"
-        },
-        fetchImpl: async (url, options) => {
-            requests.push({ url, body: JSON.parse(options.body) });
-            return {
-                ok: true,
-                status: 200,
-                text: async () => JSON.stringify({
-                    embeddings: [
-                        [1, 0, 0],
-                        [0, 1, 0]
-                    ]
-                })
-            };
-        }
-    });
-
-    const result = await engine.embed([
-        "autenticacion de tecnicos",
-        "pagos y retiros"
-    ]);
-    assert.equal(result.ok, true);
-    assert.equal(result.provider, "ollama-local");
-    assert.equal(result.model, "qwen3-embedding:0.6b");
-    assert.deepEqual(result.embeddings[0], [1, 0, 0]);
-    assert.equal(requests.length, 1);
-    assert.equal(requests[0].url, "http://127.0.0.1:11434/api/embed");
-    assert.equal(requests[0].body.model, "qwen3-embedding:0.6b");
-    assert.deepEqual(requests[0].body.input, [
-        "autenticacion de tecnicos",
-        "pagos y retiros"
-    ]);
-    const health = engine.describe();
-    assert.equal(health.counters.localEmbeddingCalls, 1);
-    assert.equal(health.counters.localEmbeddedTexts, 2);
-    assert.equal(health.counters.semanticExternalCalls, 0);
-    assert.equal(health.counters.paidExternalCalls, 0);
+test("local embeddings stay disabled even with an obsolete environment selector", async()=>{
+ let calls=0;
+ const engine=createSelfHostedSemanticEngine({env:{JARVIS_LOCAL_EMBEDDING_MODEL:'qwen3-embedding:0.6b'},fetchImpl:async()=>{calls++;throw Error('unexpected');}});
+ await assert.rejects(engine.embed(['one','two']),/LOCAL_EMBEDDINGS_DISABLED_SINGLE_MODEL/);
+ assert.equal(calls,0);assert.equal(engine.describe().embeddingModel,null);
+ assert.equal(engine.describe().counters.localEmbeddingCalls,0);
 });
 
-test("repo candidates propagates noDeadline to every local embedding call", async () => {
+test("repo candidates propagates noDeadline to the local model ranking", async () => {
     const fixture = createBridgeIdentityFixture();
     const root = fixture.root;
     fs.writeFileSync(
@@ -725,27 +685,16 @@ test("repo candidates propagates noDeadline to every local embedding call", asyn
                 status: "LOCAL_SEMANTIC_BACKEND_CONFIGURED",
                 mode: "LOCAL_ONLY",
                 provider: "ollama-openai-compatible-local",
-                model: "qwen-test",
+                model: "qwen3.5:9b",
                 embeddingModel: "qwen3-embedding:0.6b",
                 fallbackAllowed: false,
                 externalApiUsed: false,
                 paidModelApiUsed: false
             };
         },
-        async embed(input, options = {}) {
-            embedOptions.push({ ...options });
-            const values = Array.isArray(input) ? input : [input];
-            return {
-                ok: true,
-                status: "LOCAL_EMBEDDING_READY",
-                provider: "ollama-local",
-                model: "qwen3-embedding:0.6b",
-                embeddings: values.map(value =>
-                    String(value || "").includes("NO_DEADLINE_MARKER")
-                        ? [1, 0, 0]
-                        : [0, 1, 0]
-                )
-            };
+        async rankCandidates(options = {}) {
+            embedOptions.push({...options});
+            return {selected:options.candidates.map(item=>({id:item.id,score:1})),evidence:{model:'qwen3.5:9b',externalApiUsed:false}};
         }
     };
 
@@ -774,7 +723,7 @@ test("repo candidates propagates noDeadline to every local embedding call", asyn
         assert.equal(response.status, 200, JSON.stringify(body));
         assert.equal(body.ok, true);
         assert.equal(body.semanticRetrieval, true);
-        assert.ok(embedOptions.length >= 2, JSON.stringify(embedOptions));
+        assert.equal(embedOptions.length, 1, JSON.stringify(embedOptions));
         assert.ok(
             embedOptions.every(options => options.noDeadline === true),
             JSON.stringify(embedOptions)
@@ -797,28 +746,14 @@ test("CURRENT_TURN uses Qwen's action for retrieval before selecting a canonical
         env: {
             JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
             JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
-            JARVIS_LOCAL_LLM_MODEL: "qwen2.5-coder:3b",
+            JARVIS_LOCAL_LLM_MODEL: "qwen3.5:9b",
             JARVIS_LOCAL_EMBEDDING_MODEL: "qwen3-embedding:0.6b",
             JARVIS_TOOL_EMBEDDING_CACHE_PATH: cachePath
         },
         fetchImpl: async (url, options) => {
             const body = JSON.parse(options.body);
             requests.push({ url, body });
-            if (url.endsWith("/api/embed")) {
-                const values = Array.isArray(body.input) ? body.input : [body.input];
-                const embeddings = values.map(value => {
-                    const text = String(value);
-                    if (text.includes("repo.audit")) return [1, 0, 0];
-                    if (text.includes("system.health")) return [0.9, 0.1, 0];
-                    if (text.includes("marketing.plan")) return [0, 1, 0];
-                    return [1, 0, 0];
-                });
-                return {
-                    ok: true,
-                    status: 200,
-                    text: async () => JSON.stringify({ embeddings })
-                };
-            }
+            if (body.format?.properties?.ids) return {ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({ids:['repo.audit','system.health','marketing.plan']})}})};
             assert.equal(url, "http://127.0.0.1:11434/api/chat");
             if (body.tools) assert.match(body.tools[0].function.description, /repo.audit/);
             assert.equal(body.stream, false);
@@ -849,11 +784,11 @@ test("CURRENT_TURN uses Qwen's action for retrieval before selecting a canonical
             missionState: { phase: "CURRENT_TURN", writeAllowed: false }
         });
         assert.equal(requests[0].body.messages.at(-1).content, "Audita el runtime real y confirma bridge y repo");
-        const embeddings = requests.filter(item => item.url.endsWith("/api/embed"));
-        assert.match(embeddings.at(-1).body.input[0], /Query:audit repository runtime$/);
-        assert.equal(plan.toolCalls[0].name, "repo.audit");
-        assert.equal(embeddings.length, 2);
-        assert.equal(requests.filter(item => item.url.endsWith("/api/chat")).length, 2);
+        const rankings=requests.filter(item=>item.body.format?.properties?.ids);
+        assert.equal(JSON.parse(rankings[0].body.messages.at(-1).content).query,'audit repository runtime');
+        assert.equal(plan.toolCalls[0].name,'repo.audit');
+        assert.equal(requests.filter(item=>item.url.endsWith('/api/embed')).length,0);
+        assert.equal(requests.filter(item=>item.url.endsWith('/api/chat')).length,3);
     } finally {
         fs.rmSync(cachePath, { force: true });
     }
@@ -865,7 +800,7 @@ test("self-hosted semantic requests ignore artificial local timeout budgets", as
         env: {
             JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
             JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
-            JARVIS_LOCAL_LLM_MODEL: "qwen-local"
+            JARVIS_LOCAL_LLM_MODEL: "qwen3.5:9b"
         },
         fetchImpl: async (_url, options) => {
             signal = options.signal;
@@ -875,11 +810,9 @@ test("self-hosted semantic requests ignore artificial local timeout budgets", as
                 ok: true,
                 status: 200,
                 text: async () => JSON.stringify({
-                    choices: [{
-                        message: {
+                    message: {
                             content: "Respuesta local completa."
                         }
-                    }]
                 })
             };
         }
@@ -919,7 +852,7 @@ test("self-hosted semantic response retries one empty local result with the same
         env: {
             JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
             JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
-            JARVIS_LOCAL_LLM_MODEL: "qwen3:4b-instruct-2507-q4_K_M"
+            JARVIS_LOCAL_LLM_MODEL: "qwen3.5:9b"
         },
         fetchImpl: async (_url, options) => {
             const body = JSON.parse(options.body);
@@ -951,8 +884,8 @@ test("self-hosted semantic response retries one empty local result with the same
     });
 
     assert.equal(requests.length, 2);
-    assert.equal(requests[0].model, "qwen3:4b-instruct-2507-q4_K_M");
-    assert.equal(requests[1].model, "qwen3:4b-instruct-2507-q4_K_M");
+    assert.equal(requests[0].model, "qwen3.5:9b");
+    assert.equal(requests[1].model, "qwen3.5:9b");
     assert.ok(requests[1].options.num_predict >= 256);
     assert.match(
         requests[1].messages.at(-1).content,
@@ -974,7 +907,7 @@ test("self-hosted semantic backend feeds the canonical planner without paid API 
         env: {
             JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
             JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
-            JARVIS_LOCAL_LLM_MODEL: "qwen-local",
+            JARVIS_LOCAL_LLM_MODEL: "qwen3.5:9b",
             JARVIS_LOCAL_LLM_TOKEN: "test-token"
         },
         fetchImpl: async (url, options) => {
@@ -983,8 +916,7 @@ test("self-hosted semantic backend feeds the canonical planner without paid API 
                 ok: true,
                 status: 200,
                 text: async () => JSON.stringify({
-                    choices: [{
-                        message: {
+                    message: {
                             content: "",
                             tool_calls: [{
                                 function: {
@@ -993,7 +925,6 @@ test("self-hosted semantic backend feeds the canonical planner without paid API 
                                 }
                             }]
                         }
-                    }]
                 })
             };
         }
@@ -1016,14 +947,15 @@ test("self-hosted semantic backend feeds the canonical planner without paid API 
 
     assert.equal(plan.ok, true);
     assert.equal(plan.provider, "ollama-openai-compatible-local");
-    assert.equal(plan.model, "qwen-local");
+    assert.equal(plan.model, "qwen3.5:9b");
     assert.equal(plan.toolCalls[0].name, "repo.search");
     assert.equal(plan.toolCalls[0].args.query, "estado del repositorio");
     assert.equal(requests.length, 1);
-    assert.equal(requests[0].url, "http://127.0.0.1:11434/v1/chat/completions");
+    assert.equal(requests[0].url, "http://127.0.0.1:11434/api/chat");
     assert.equal(requests[0].options.headers.Authorization, "Bearer test-token");
     assert.equal(requests[0].body.tools[0].function.name, "repo.search");
-    assert.equal(requests[0].body.tool_choice, "required");
+    assert.ok(requests[0].body.tools.length > 0);
+    assert.equal(requests[0].body.think, false);
     assert.equal(plan.inferenceReceipt.counters.localSemanticInferenceCalls, 1);
     assert.equal(plan.inferenceReceipt.counters.semanticExternalCalls, 0);
     assert.equal(plan.inferenceReceipt.counters.paidExternalCalls, 0);
@@ -1036,7 +968,7 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
         env: {
             JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
             JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
-            JARVIS_LOCAL_LLM_MODEL: "qwen-code"
+            JARVIS_LOCAL_LLM_MODEL: "qwen3.5:9b"
         },
         fetchImpl: async (_url, options) => {
             const requestBody = JSON.parse(options.body);
@@ -1054,11 +986,9 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
                 ok: true,
                 status: 200,
                 text: async () => JSON.stringify({
-                    choices: [{
-                        message: {
+                    message: {
                             content
                         }
-                    }]
                 })
             };
         }
@@ -1094,7 +1024,7 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
     const responseRequest = requestBodies[1];
     assert.equal(
         gateRequest.model,
-        "qwen-code"
+        "qwen3.5:9b"
     );
     assert.equal(gateRequest.messages[0].role, "system");
     assert.equal(gateRequest.messages.at(-1).role, "user");
@@ -1110,7 +1040,7 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
     );
     assert.equal(
         responseRequest.model,
-        "qwen-code"
+        "qwen3.5:9b"
     );
     assert.equal(
         responseRequest.messages.at(-1).content,
@@ -1131,7 +1061,7 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
     );
     assert.equal(
         result.model,
-        "qwen-code"
+        "qwen3.5:9b"
     );
     assert.equal(
         result.modelProfile,
@@ -1139,11 +1069,11 @@ test("self-hosted conversational gate preserves real chat roles for Ollama", asy
     );
     assert.equal(
         result.inferenceReceipt.conversationModel,
-        "qwen-code"
+        "qwen3.5:9b"
     );
     assert.equal(
         result.inferenceReceipt.lastInferenceModel,
-        "qwen-code"
+        "qwen3.5:9b"
     );
     assert.equal(
         result.inferenceReceipt.lastModelProfile,
@@ -1161,7 +1091,7 @@ test("self-hosted semantic adapter accepts Ollama object tool arguments and pres
         env: {
             JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
             JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
-            JARVIS_LOCAL_LLM_MODEL: "qwen-local"
+            JARVIS_LOCAL_LLM_MODEL: "qwen3.5:9b"
         },
         fetchImpl: async (_url, options) => {
             requestBody = JSON.parse(options.body);
@@ -1169,8 +1099,7 @@ test("self-hosted semantic adapter accepts Ollama object tool arguments and pres
                 ok: true,
                 status: 200,
                 text: async () => JSON.stringify({
-                    choices: [{
-                        message: {
+                    message: {
                             content: "",
                             tool_calls: [{
                                 function: {
@@ -1181,7 +1110,6 @@ test("self-hosted semantic adapter accepts Ollama object tool arguments and pres
                                 }
                             }]
                         }
-                    }]
                 })
             };
         }
@@ -1206,7 +1134,8 @@ test("self-hosted semantic adapter accepts Ollama object tool arguments and pres
         }]
     });
 
-    assert.equal(requestBody.tool_choice, "required");
+    assert.ok(requestBody.tools.length > 0);
+    assert.equal(requestBody.think, false);
     assert.equal(plan.ok, true);
     assert.equal(plan.toolCalls[0].name, "repo.search");
     assert.equal(
@@ -1220,13 +1149,13 @@ test("self-hosted semantic response uses one local inference and reports zero ex
         env: {
             JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
             JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
-            JARVIS_LOCAL_LLM_MODEL: "local-reasoner"
+            JARVIS_LOCAL_LLM_MODEL: "qwen3.5:9b"
         },
         fetchImpl: async () => ({
             ok: true,
             status: 200,
             text: async () => JSON.stringify({
-                choices: [{ message: { content: "Respuesta local verificable." } }]
+                message: { content: "Respuesta local verificable." }
             })
         })
     });
@@ -1271,23 +1200,14 @@ test("emulador local recorre Jarvis completo: plan LLM -> repo real -> respuesta
         env: {
             JARVIS_SEMANTIC_PROVIDER_MODE: "LOCAL_ONLY",
             JARVIS_LOCAL_LLM_BASE_URL: "http://127.0.0.1:11434/v1",
-            JARVIS_LOCAL_LLM_MODEL: "qwen-emulator"
+            JARVIS_LOCAL_LLM_MODEL: "qwen3.5:9b"
         },
         fetchImpl: async (url, options) => {
             const body = JSON.parse(options.body);
-            if (String(url).endsWith("/api/embed")) {
-                const inputs = Array.isArray(body.input) ? body.input : [body.input];
-                return {
-                    ok: true,
-                    status: 200,
-                    text: async () => JSON.stringify({
-                        embeddings: inputs.map(value =>
-                            String(value || "").includes("JARVIS_LOCAL_LLM_BASE_URL")
-                                ? [1, 0, 0]
-                                : [0, 1, 0]
-                        )
-                    })
-                };
+            if(body.format?.properties?.ids){
+                const candidates=JSON.parse(body.messages.at(-1).content).candidates;
+                const ids=candidates.sort((a,b)=>Number(b.id==='local-ai-target.js')-Number(a.id==='local-ai-target.js')).map(item=>item.id);
+                return {ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({ids})}})};
             }
             llmRequests.push(body);
             const isPlanning = Array.isArray(body.tools) && body.tools.length > 0;
@@ -1295,8 +1215,7 @@ test("emulador local recorre Jarvis completo: plan LLM -> repo real -> respuesta
                 ok: true,
                 status: 200,
                 text: async () => JSON.stringify({
-                    choices: [{
-                        message: isPlanning
+                    message: isPlanning
                             ? {
                                 content: "",
                                 tool_calls: [{
@@ -1311,7 +1230,6 @@ test("emulador local recorre Jarvis completo: plan LLM -> repo real -> respuesta
                             : {
                                 content: "La evidencia local confirma que Jarvis usa la autoridad semántica local configurada."
                             }
-                    }]
                 })
             };
         }
@@ -1360,7 +1278,7 @@ test("emulador local recorre Jarvis completo: plan LLM -> repo real -> respuesta
         assert.equal(plan.status, 200, JSON.stringify(plan.body));
         assert.equal(plan.body.ok, true);
         assert.equal(plan.body.provider, "ollama-openai-compatible-local");
-        assert.equal(plan.body.model, "qwen-emulator");
+        assert.equal(plan.body.model, "qwen3.5:9b");
         assert.equal(plan.body.localSemanticInferenceUsed, true);
         assert.equal(plan.body.cloudSemanticInferenceUsed, false);
         assert.equal(plan.body.fallbackAllowed, false);
@@ -1380,7 +1298,7 @@ test("emulador local recorre Jarvis completo: plan LLM -> repo real -> respuesta
         assert.equal(semanticRanking.body.ok, true);
         assert.equal(semanticRanking.body.semanticRetrieval, true);
         assert.equal(semanticRanking.body.semanticEvidence.provider, "ollama-local");
-        assert.equal(semanticRanking.body.semanticEvidence.model, "qwen3-embedding:0.6b");
+        assert.equal(semanticRanking.body.semanticEvidence.model, "qwen3.5:9b");
         assert.equal(semanticRanking.body.semanticEvidence.externalApiUsed, false);
         assert.equal(semanticRanking.body.candidates[0].file, "local-ai-target.js");
         assert.ok(semanticRanking.body.candidates[0].semanticSimilarity > 0.9);
@@ -1432,9 +1350,9 @@ test("emulador local recorre Jarvis completo: plan LLM -> repo real -> respuesta
         assert.equal(response.body.fallbackAllowed, false);
 
         const health = engine.describe();
-        assert.equal(health.counters.localSemanticInferenceCalls, 2);
-        assert.ok(health.counters.localEmbeddingCalls >= 2);
-        assert.ok(health.counters.localEmbeddedTexts >= 2);
+        assert.equal(health.counters.localSemanticInferenceCalls, 4);
+        assert.equal(health.counters.localEmbeddingCalls, 0);
+        assert.equal(health.counters.localEmbeddedTexts, 0);
         assert.equal(health.counters.semanticExternalCalls, 0);
         assert.equal(health.counters.paidExternalCalls, 0);
         assert.equal(llmRequests.length, 2);
@@ -3065,7 +2983,7 @@ test("write bridge requires fingerprinted one-time approval, snapshot and post-v
 });
 
 
-test("private memory semantic query recovers an older relevant lesson and caches embeddings", async () => {
+test("private memory model ranking recovers an older relevant lesson within authenticated scope", async () => {
     const fixture =
         createBridgeIdentityFixture({
             branch: "v5.9-polish"
@@ -3082,27 +3000,13 @@ test("private memory semantic query recovers an older relevant lesson and caches
         describe() {
             return {
                 ok: true,
-                embeddingModel:
-                    "test-embedding"
+                model:'qwen3.5:9b'
             };
         },
-        async embed(values = []) {
-            embeddingCalls += 1;
-            return {
-                ok: true,
-                embeddings:
-                    values.map(value => {
-                        const text =
-                            String(value || "")
-                                .toLowerCase();
-                        return (
-                            text.includes("rollback") ||
-                            text.includes("snapshot")
-                        )
-                            ? [1, 0]
-                            : [0, 1];
-                    })
-            };
+        async rankCandidates({candidates}) {
+            embeddingCalls++;
+            assert.ok(candidates.every(item=>item.id.startsWith('lesson-')));
+            return {selected:[{id:'lesson-old-rollback',score:1}],evidence:{model:'qwen3.5:9b',externalApiUsed:false,method:'local_model_candidate_ranking'}};
         }
     };
     const server =
@@ -3209,7 +3113,7 @@ test("private memory semantic query recovers an older relevant lesson and caches
             "lesson-old-rollback"
         );
         assert.equal(
-            first.body.semanticEvidence.cacheMisses,
+            first.body.semanticEvidence.candidatesRanked,
             3
         );
         assert.equal(
@@ -3234,8 +3138,8 @@ test("private memory semantic query recovers an older relevant lesson and caches
             "lesson-old-rollback"
         );
         assert.equal(
-            second.body.semanticEvidence.cacheMisses,
-            0
+            second.body.semanticEvidence.method,
+            'local_model_candidate_ranking'
         );
         assert.equal(
             embeddingCalls,
@@ -4083,7 +3987,7 @@ test('local prompt normalization preserves the original system and final request
 });
 
 test('native local requests forbid silent prompt truncation and context shifting', async () => {
-    const engine=createSelfHostedSemanticEngine({env:{JARVIS_LOCAL_LLM_MODEL:'qwen3:4b-instruct-2507-q4_K_M'},fetchImpl:async(_url,options)=>{
+    const engine=createSelfHostedSemanticEngine({env:{JARVIS_LOCAL_LLM_MODEL:'qwen3.5:9b'},fetchImpl:async(_url,options)=>{
         const request=JSON.parse(options.body);
         assert.equal(request.truncate,false);
         assert.equal(request.shift,false);

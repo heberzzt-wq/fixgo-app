@@ -441,15 +441,7 @@ test("mission decomposition retains the full instruction; selection is scoped to
     const contractCatalog = [...catalog, ...Array.from({ length: 9 }, (_, i) => ({ name: `repo.inspect${i}`, description: "Inspeccion read-only", mutates: false }))];
     const engine = createSelfHostedSemanticEngine({ env: {...process.env,JARVIS_TOOL_EMBEDDING_CACHE_PATH:path.join(fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-contract-')),'cache.json')}, fetchImpl: async (_url, options) => {
         const body = JSON.parse(options.body);
-        if (body.input) {
-            if (body.input.length === 1 && body.input[0].includes("audit repository")) {
-                assert.match(body.input[0], /^Instruct: Given a software assistant operation,/);
-                assert.ok(body.input[0].endsWith("\nQuery:audit repository"));
-            } else {
-                assert.ok(body.input.every(text=>!text.startsWith("Instruct:")), "catalog documents stay raw");
-            }
-            return {ok:true,text:async()=>JSON.stringify({embeddings:body.input.map(()=>[1,0])})};
-        }
+        if(body.format?.properties?.ids){const ids=body.format.properties.ids.items.enum.slice(0,body.format.properties.ids.maxItems);return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify({ids})}})};}
         assert.equal(body.messages[0].role, "system");
         if (body.messages.at(-1).content === instruction) {
             assert.equal(body.messages.at(-1).content, instruction);
@@ -478,7 +470,7 @@ test("compact contract accepts one exact name and rejects multiple or invented n
     for (const names of [["repo.audit"],["repo.audit","repo.read"],["invented.tool"]]) {
         const engine=createSelfHostedSemanticEngine({env:{...process.env,JARVIS_TOOL_EMBEDDING_CACHE_PATH:path.join(fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-native-select-')),'cache.json')},fetchImpl:async(_url,options)=>{
             const body=JSON.parse(options.body);
-            if(body.input)return{ok:true,text:async()=>JSON.stringify({embeddings:body.input.map(()=>[1,0])})};
+            if(body.format?.properties?.ids){const ids=body.format.properties.ids.items.enum.slice(0,body.format.properties.ids.maxItems);return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify({ids})}})};}
             if(body.format?.properties.work)return{ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({sourceReview:'auditar repositorio',work:[],delivery:''})},done_reason:'stop'})};
             assert.ok(body.tools.some(tool=>tool.function.name==='repo.audit'));
             return{ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({name:names.length===1?names[0]:names})},done_reason:'stop'})};
@@ -492,7 +484,7 @@ test("compact contract accepts one exact name and rejects multiple or invented n
 test("verification retains Qwen's contract stage and selects a name without execution arguments", async () => {
     const engine=createSelfHostedSemanticEngine({env:{...process.env,JARVIS_TOOL_EMBEDDING_CACHE_PATH:path.join(fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-verification-')),'cache.json')},fetchImpl:async(_url,options)=>{
         const body=JSON.parse(options.body);
-        if(body.input)return{ok:true,text:async()=>JSON.stringify({embeddings:body.input.map(()=>[1,0])})};
+        if(body.format?.properties?.ids){const ids=body.format.properties.ids.items.enum.slice(0,body.format.properties.ids.maxItems);return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify({ids})}})};}
         if(body.format?.properties.work)return{ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({sourceReview:'',work:'',verification:'ejecutar las pruebas solicitadas',delivery:''})},done_reason:'stop'})};
         const current=JSON.parse(body.messages.at(-1).content);
         assert.equal(current.stage,'verification');
@@ -512,7 +504,7 @@ test("empty contract selection recovers the same operation with a name-only sche
     let nativeAttempts=0,recovered=0;
     const engine=createSelfHostedSemanticEngine({env:{...process.env,JARVIS_TOOL_EMBEDDING_CACHE_PATH:path.join(fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-contract-recovery-')),'cache.json')},fetchImpl:async(_url,options)=>{
         const body=JSON.parse(options.body);
-        if(body.input)return{ok:true,text:async()=>JSON.stringify({embeddings:body.input.map(()=>[1,0])})};
+        if(body.format?.properties?.ids){const ids=body.format.properties.ids.items.enum.slice(0,body.format.properties.ids.maxItems);return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify({ids})}})};}
         if(body.format?.properties.work)return{ok:true,text:async()=>JSON.stringify({message:{content:JSON.stringify({sourceReview:'',work:'crear un archivo HTML descargable',verification:'',delivery:''})},done_reason:'stop'})};
         if(body.tools){nativeAttempts++;return{ok:true,text:async()=>JSON.stringify({message:{content:''},done_reason:'stop'})};}
         recovered++;

@@ -169,7 +169,7 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     );
     assert.equal(
         settings["terminal.integrated.env.windows"].JARVIS_LOCAL_EMBEDDING_MODEL,
-        "qwen3-embedding:0.6b"
+        undefined
     );
     assert.equal(
         settings["terminal.integrated.env.windows"].JARVIS_VIDEO_ENGINE_POLICY,
@@ -293,7 +293,7 @@ test("workstation warmup loads only the local Qwen model and pins keep-alive", a
     const result =
         await warmJarvisLocalModel({
             model:
-                "qwen3:4b-instruct-2507-q4_K_M",
+                "qwen3.5:9b",
             keepAlive:
                 "30m",
             timeoutMs:
@@ -331,7 +331,7 @@ test("workstation warmup loads only the local Qwen model and pins keep-alive", a
     );
     assert.equal(
         observedBody.model,
-        "qwen3:4b-instruct-2507-q4_K_M"
+        "qwen3.5:9b"
     );
     assert.equal(
         observedBody.keep_alive,
@@ -403,7 +403,7 @@ test("workstation self-heal pulls only missing free local models and never selec
         root: process.cwd(),
         platform: "win32",
         env: {
-            JARVIS_LOCAL_LLM_MODEL: "qwen3:4b-instruct-2507-q4_K_M",
+            JARVIS_LOCAL_LLM_MODEL: "qwen3.5:9b",
             JARVIS_LOCAL_EMBEDDING_MODEL: "qwen3-embedding:0.6b"
         },
         installIfMissing: true,
@@ -420,7 +420,7 @@ test("workstation self-heal pulls only missing free local models and never selec
                 return {
                     ok: true,
                     reachable: true,
-                    body: { models: [{ name: "qwen3:4b-instruct-2507-q4_K_M" }] }
+                    body: { models: [{ name: "qwen3.5:9b" }] }
                 };
             }
             return {
@@ -428,7 +428,7 @@ test("workstation self-heal pulls only missing free local models and never selec
                 reachable: true,
                 body: {
                     models: [
-                        { name: "qwen3:4b-instruct-2507-q4_K_M" },
+                        { name: "qwen3.5:9b" },
                         { name: "qwen3-embedding:0.6b" }
                     ]
                 }
@@ -442,9 +442,9 @@ test("workstation self-heal pulls only missing free local models and never selec
 
     assert.equal(result.ok, true);
     assert.equal(result.status, "JARVIS_LOCAL_AI_RUNTIME_READY");
-    assert.deepEqual(result.pulledModels, ["qwen3-embedding:0.6b"]);
+    assert.deepEqual(result.pulledModels, []);
     assert.equal(result.mainModelReady, true);
-    assert.equal(result.embeddingModelReady, true);
+    assert.equal(result.embeddingModelReady, false);
     assert.equal(result.externalApiUsed, false);
     assert.equal(result.paidApiUsed, false);
     assert.equal(
@@ -463,7 +463,7 @@ test("workstation self-heal retries transient free local model pulls and preserv
         root: process.cwd(),
         platform: "win32",
         env: {
-            JARVIS_LOCAL_LLM_MODEL: "qwen3:4b-instruct-2507-q4_K_M",
+            JARVIS_LOCAL_LLM_MODEL: "qwen3.5:9b",
             JARVIS_LOCAL_EMBEDDING_MODEL: "qwen3-embedding:0.6b"
         },
         installIfMissing: true,
@@ -496,7 +496,7 @@ test("workstation self-heal retries transient free local model pulls and preserv
                 return {
                     ok: true,
                     reachable: true,
-                    body: { models: [{ name: "qwen3:4b-instruct-2507-q4_K_M" }] }
+                    body: { models: [{ name: "qwen3.5:9b" }] }
                 };
             }
             return {
@@ -504,7 +504,7 @@ test("workstation self-heal retries transient free local model pulls and preserv
                 reachable: true,
                 body: {
                     models: [
-                        { name: "qwen3:4b-instruct-2507-q4_K_M" },
+                        { name: "qwen3.5:9b" },
                         { name: "qwen3-embedding:0.6b" }
                     ]
                 }
@@ -518,8 +518,8 @@ test("workstation self-heal retries transient free local model pulls and preserv
 
     assert.equal(result.ok, true);
     assert.equal(result.status, "JARVIS_LOCAL_AI_RUNTIME_READY");
-    assert.deepEqual(result.pulledModels, ["qwen3:4b-instruct-2507-q4_K_M", "qwen3-embedding:0.6b"]);
-    assert.equal(pullCalls, 3);
+    assert.deepEqual(result.pulledModels, ["qwen3.5:9b"]);
+    assert.equal(pullCalls, 2);
     assert.equal(waits, 1);
     assert.equal(result.externalApiUsed, false);
     assert.equal(result.paidApiUsed, false);
@@ -533,7 +533,7 @@ test("workstation self-heal flushes Windows DNS once after an Ollama no-such-hos
         root: process.cwd(),
         platform: "win32",
         env: {
-            JARVIS_LOCAL_LLM_MODEL: "qwen3:4b-instruct-2507-q4_K_M",
+            JARVIS_LOCAL_LLM_MODEL: "qwen3.5:9b",
             JARVIS_LOCAL_EMBEDDING_MODEL: "qwen3-embedding:0.6b"
         },
         installIfMissing: true,
@@ -570,7 +570,7 @@ test("workstation self-heal flushes Windows DNS once after an Ollama no-such-hos
                 return {
                     ok: true,
                     reachable: true,
-                    body: { models: [{ name: "qwen3:4b-instruct-2507-q4_K_M" }] }
+                    body: { models: [{ name: "qwen3.5:9b" }] }
                 };
             }
             return {
@@ -578,7 +578,7 @@ test("workstation self-heal flushes Windows DNS once after an Ollama no-such-hos
                 reachable: true,
                 body: {
                     models: [
-                        { name: "qwen3:4b-instruct-2507-q4_K_M" },
+                        { name: "qwen3.5:9b" },
                         { name: "qwen3-embedding:0.6b" }
                     ]
                 }
@@ -592,8 +592,8 @@ test("workstation self-heal flushes Windows DNS once after an Ollama no-such-hos
 
     assert.equal(result.ok, true);
     assert.equal(dnsFlushCalls, 1);
-    assert.equal(pullCalls, 3);
-    assert.deepEqual(result.pulledModels, ["qwen3:4b-instruct-2507-q4_K_M", "qwen3-embedding:0.6b"]);
+    assert.equal(pullCalls, 2);
+    assert.deepEqual(result.pulledModels, ["qwen3.5:9b"]);
     assert.equal(result.externalApiUsed, false);
     assert.equal(result.paidApiUsed, false);
 });
@@ -606,7 +606,7 @@ test("workstation self-heal falls back to Ollama loopback pull after bounded CLI
         root: process.cwd(),
         platform: "win32",
         env: {
-            JARVIS_LOCAL_LLM_MODEL: "qwen3:4b-instruct-2507-q4_K_M",
+            JARVIS_LOCAL_LLM_MODEL: "qwen3.5:9b",
             JARVIS_LOCAL_EMBEDDING_MODEL: "qwen3-embedding:0.6b"
         },
         installIfMissing: true,
@@ -617,7 +617,7 @@ test("workstation self-heal falls back to Ollama loopback pull after bounded CLI
             }
             if (args[0] === "pull") {
                 cliPullCalls += 1;
-                if (args[1] === "qwen3:4b-instruct-2507-q4_K_M") {
+                if (args[1] === "qwen3.5:9b") {
                     return {
                         ok: false,
                         status: 1,
@@ -645,7 +645,7 @@ test("workstation self-heal falls back to Ollama loopback pull after bounded CLI
                 return {
                     ok: true,
                     reachable: true,
-                    body: { models: [{ name: "qwen3:4b-instruct-2507-q4_K_M" }] }
+                    body: { models: [{ name: "qwen3.5:9b" }] }
                 };
             }
             return {
@@ -653,7 +653,7 @@ test("workstation self-heal falls back to Ollama loopback pull after bounded CLI
                 reachable: true,
                 body: {
                     models: [
-                        { name: "qwen3:4b-instruct-2507-q4_K_M" },
+                        { name: "qwen3.5:9b" },
                         { name: "qwen3-embedding:0.6b" }
                     ]
                 }
@@ -661,7 +661,7 @@ test("workstation self-heal falls back to Ollama loopback pull after bounded CLI
         },
         pullHttpImpl: async (model) => {
             httpPullCalls += 1;
-            assert.equal(model, "qwen3:4b-instruct-2507-q4_K_M");
+            assert.equal(model, "qwen3.5:9b");
             return {
                 ok: true,
                 status: 200,
@@ -677,9 +677,9 @@ test("workstation self-heal falls back to Ollama loopback pull after bounded CLI
 
     assert.equal(result.ok, true);
     assert.equal(result.status, "JARVIS_LOCAL_AI_RUNTIME_READY");
-    assert.equal(cliPullCalls, 4);
+    assert.equal(cliPullCalls, 3);
     assert.equal(httpPullCalls, 1);
-    assert.deepEqual(result.pulledModels, ["qwen3:4b-instruct-2507-q4_K_M", "qwen3-embedding:0.6b"]);
+    assert.deepEqual(result.pulledModels, ["qwen3.5:9b"]);
     assert.equal(result.externalApiUsed, false);
     assert.equal(result.paidApiUsed, false);
 });
@@ -730,13 +730,13 @@ test("workstation doctor reports governed local capabilities without requiring t
         assert.equal(result.runtime.node.ok, true);
         assert.equal(result.localAi.provider, "ollama-openai-compatible-local");
         assert.equal(result.localAi.expectedModel, "qwen3.5:9b");
-        assert.equal(result.localAi.expectedEmbeddingModel, "qwen3-embedding:0.6b");
+        assert.equal(result.localAi.expectedEmbeddingModel, null);
         assert.equal(result.localAi.externalFallback, false);
         assert.equal(result.localVideo.runpodPaidFallbackAuthorized, false);
         assert.equal(result.firebase.mutationPolicy, "DEPLOY_ONLY_THROUGH_GOVERNED_RELEASE_GATE");
         assert.ok(result.governedCapabilities.includes("git.push.authorized"));
         assert.ok(result.governedCapabilities.includes("firebase.firestore.emulator"));
-        assert.ok(result.governedCapabilities.includes("ollama.local.embedding"));
+        assert.ok(result.governedCapabilities.includes("ollama.local.candidateRanking"));
         assert.ok(result.governedCapabilities.includes("video.generate.local"));
     }
     finally {
@@ -1399,7 +1399,7 @@ test("existing bridge exposes research route and rejects an empty research reque
 test("warmup refuses a thinking-only model before inference and never falls back", async () => {
     for (const modes of [[true], [false, true]]) {
         const calls=[];
-        const result=await warmJarvisLocalModel({model:"qwen-mode-fixture",fetchImpl:async(url)=>{
+        const result=await warmJarvisLocalModel({model:"qwen3.5:9b",fetchImpl:async(url)=>{
             calls.push(String(url));
             return {ok:true,status:200,text:async()=>JSON.stringify(String(url).endsWith("/api/show") ? {thinking:{values:modes}} : {done:true,response:"OK"})};
         }});

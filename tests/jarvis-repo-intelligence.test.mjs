@@ -152,7 +152,7 @@ test('current-turn record selection offers the source prerequisite before the un
         let selected=false;
         const engine=createSelfHostedSemanticEngine({root:f.root,env:{JARVIS_LOCAL_LLM_MODEL:'qwen3.5:9b'},fetchImpl:async(url,options)=>{
             const body=JSON.parse(options.body);
-            if(String(url).endsWith('/api/embed')) return {ok:true,status:200,text:async()=>JSON.stringify({embeddings:(Array.isArray(body.input)?body.input:[body.input]).map(()=>[1,0,0])})};
+            if(body.format?.properties?.ids){const ids=body.format.properties.ids.items.enum.slice(0,body.format.properties.ids.maxItems);return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify({ids})}})};}
             let content;
             if(body.format?.properties?.actionDescription) content=JSON.stringify({actionDescription:'leer esquema y consultar los registros actuales'});
             else {

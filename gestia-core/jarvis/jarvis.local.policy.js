@@ -1,5 +1,5 @@
-// One semantic authority for the active local workstation. Embeddings and
-// deterministic tools do not grant permission to invoke another AI provider.
+// One model for planning, conversation and retrieval on the local workstation.
+// Deterministic tools never grant permission to invoke another AI provider.
 export const JARVIS_LOCAL_MODEL = 'qwen3.5:9b';
 export function hasExactLocalModel(names, expected = JARVIS_LOCAL_MODEL) {
     return Array.isArray(names) && names.includes(expected);

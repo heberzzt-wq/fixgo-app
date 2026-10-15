@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { JARVIS_LOCAL_MODEL, hasExactLocalModel } from './gestia-core/jarvis/jarvis.local.policy.js';
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import * as tls from "node:tls";
@@ -1274,6 +1274,8 @@ export async function warmJarvisLocalModel({
     const cleanModel =
         String(model || "").trim();
 
+    if (cleanModel !== JARVIS_LOCAL_MODEL) return {ok:false,status:"JARVIS_LOCAL_MODEL_CONTRACT_MISMATCH",model:cleanModel,externalApiUsed:false,paidApiUsed:false};
+
     if (
         !cleanModel ||
         typeof fetchImpl !== "function"
@@ -1545,16 +1547,12 @@ export async function ensureJarvisLocalAiRuntime({
         env.JARVIS_LOCAL_LLM_MODEL ||
         JARVIS_LOCAL_MODEL
     ).trim();
-    const expectedEmbeddingModel = String(
-        env.JARVIS_LOCAL_EMBEDDING_MODEL ||
-        "qwen3-embedding:0.6b"
-    ).trim();
-    const requiredModels = [
-        ...new Set([
-            expectedModel,
-            expectedEmbeddingModel
-        ].filter(Boolean))
-    ];
+    if (expectedModel !== JARVIS_LOCAL_MODEL ||
+        (env.JARVIS_CONVERSATION_MODEL && env.JARVIS_CONVERSATION_MODEL !== JARVIS_LOCAL_MODEL)) {
+        return {ok:false,status:'JARVIS_LOCAL_MODEL_CONTRACT_MISMATCH',externalApiUsed:false,paidApiUsed:false};
+    }
+    const expectedEmbeddingModel = null;
+    const requiredModels = [JARVIS_LOCAL_MODEL];
     const checkCli = () =>
         resolveJarvisOllamaCli({
             env,
@@ -1801,16 +1799,9 @@ export async function ensureJarvisLocalAiRuntime({
 
     const mainModelReady =
         hasModel(installedModels, expectedModel);
-    const embeddingModelReady =
-        hasModel(
-            installedModels,
-            expectedEmbeddingModel
-        );
+    const embeddingModelReady = false;
 
-    if (
-        !mainModelReady ||
-        !embeddingModelReady
-    ) {
+    if (!mainModelReady) {
         return {
             ok: false,
             status: "OLLAMA_REQUIRED_MODELS_MISSING",
@@ -1896,7 +1887,7 @@ export async function ensureJarvisLocalAiRuntime({
         provider: "ollama-openai-compatible-local",
         endpoint: "http://127.0.0.1:11434/v1",
         embeddingEndpoint:
-            "http://127.0.0.1:11434/api/embed",
+            null,
         cliAvailable: true,
         serverRunning: true,
         serverStarted,
@@ -1983,11 +1974,7 @@ export async function inspectJarvisWorkstation({
             process.env.JARVIS_LOCAL_LLM_MODEL ||
             JARVIS_LOCAL_MODEL
         ).trim();
-    const expectedEmbeddingModel =
-        String(
-            process.env.JARVIS_LOCAL_EMBEDDING_MODEL ||
-            "qwen3-embedding:0.6b"
-        ).trim();
+    const expectedEmbeddingModel = null;
 
     const ollama =
         await probeLocalJson(
@@ -2007,67 +1994,8 @@ export async function inspectJarvisWorkstation({
                 .filter(Boolean)
             : [];
     const expectedModelPresent = hasExactLocalModel(ollamaModels, expectedModel);
-    const expectedEmbeddingModelPresent = hasExactLocalModel(ollamaModels, expectedEmbeddingModel);
-
-    let embeddingProbe = {
-        ok: false,
-        status: "LOCAL_EMBEDDING_NOT_PROBED"
-    };
-    if (
-        ollama.reachable === true &&
-        expectedEmbeddingModelPresent
-    ) {
-        const controller = new AbortController();
-        const timer = setTimeout(
-            () => controller.abort(),
-            5000
-        );
-        try {
-            const response = await fetch(
-                "http://127.0.0.1:11434/api/embed",
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        model: expectedEmbeddingModel,
-                        input: ["jarvis local embedding health"]
-                    }),
-                    signal: controller.signal
-                }
-            );
-            const payload = await response.json().catch(() => null);
-            embeddingProbe = {
-                ok:
-                    response.ok === true &&
-                    Array.isArray(payload?.embeddings) &&
-                    Array.isArray(payload.embeddings[0]) &&
-                    payload.embeddings[0].length > 0,
-                status:
-                    response.ok === true
-                        ? "LOCAL_EMBEDDING_PROBED"
-                        : `LOCAL_EMBEDDING_HTTP_${response.status}`,
-                dimensions:
-                    Array.isArray(payload?.embeddings?.[0])
-                        ? payload.embeddings[0].length
-                        : 0
-            };
-        }
-        catch(error) {
-            embeddingProbe = {
-                ok: false,
-                status:
-                    error?.name === "AbortError"
-                        ? "LOCAL_EMBEDDING_PROBE_TIMEOUT"
-                        : "LOCAL_EMBEDDING_PROBE_FAILED",
-                error: error?.message || String(error)
-            };
-        }
-        finally {
-            clearTimeout(timer);
-        }
-    }
+    const expectedEmbeddingModelPresent = false;
+    const embeddingProbe = {ok:false,status:'LOCAL_EMBEDDINGS_DISABLED_SINGLE_MODEL'};
 
     const firestoreEmulator =
         firebaseConfig?.emulators?.firestore
@@ -2176,7 +2104,7 @@ export async function inspectJarvisWorkstation({
             endpoint:
                 "http://127.0.0.1:11434/v1",
             embeddingEndpoint:
-                "http://127.0.0.1:11434/api/embed",
+                null,
             cliAvailable: ollamaCli.ok,
             executable:
                 ollamaCliResolution.executable || null,
@@ -2189,9 +2117,7 @@ export async function inspectJarvisWorkstation({
             embeddingProbe,
             ready:
                 ollama.reachable === true &&
-                expectedModelPresent &&
-                expectedEmbeddingModelPresent &&
-                embeddingProbe.ok === true,
+                expectedModelPresent && expectedModel === JARVIS_LOCAL_MODEL,
             externalFallback: false
         },
         localVideo: {
@@ -2217,7 +2143,7 @@ export async function inspectJarvisWorkstation({
             "firebase.hosting.inspect",
             "firebase.deploy.governed",
             "ollama.local.llm",
-            "ollama.local.embedding",
+            "ollama.local.candidateRanking",
             "video.generate.local",
             "vscode.workspace"
         ]

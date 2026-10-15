@@ -6803,7 +6803,7 @@ JarvisToolRuntime.register({
                             null,
                         scoring:
                             semanticResult.scoring ||
-                            "local_embedding_and_structural_evidence",
+                            "local_model_and_structural_evidence",
                         source:
                             semanticResult.source ||
                             "live_repo_ast_graph",

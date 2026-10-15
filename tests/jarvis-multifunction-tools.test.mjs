@@ -218,7 +218,7 @@ async function planWithModel(input, toolCalls, { approved = false } = {}) {
     });
 }
 
-test("physical repo.search uses live local embedding AST retrieval when workstation bridge is available", {
+test("physical repo.search uses the sole local Qwen and live AST retrieval when workstation bridge is available", {
     timeout: 180000
 }, async t => {
     let health = null;
@@ -389,12 +389,14 @@ test("physical repo.search uses live local embedding AST retrieval when workstat
         );
         assert.equal(
             result?.scoring,
-            "local_embedding_and_structural_evidence"
+            "local_model_and_structural_evidence"
         );
         assert.equal(
             result?.semanticEvidence?.provider,
             "ollama-local"
         );
+        assert.equal(result?.semanticEvidence?.model, "qwen3.5:9b");
+        assert.equal(result?.semanticEvidence?.method, "local_model_candidate_ranking");
         assert.equal(
             result?.semanticEvidence?.externalApiUsed,
             false

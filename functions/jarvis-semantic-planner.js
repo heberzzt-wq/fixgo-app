@@ -3438,6 +3438,24 @@ async function runModelSemanticPlanner({
         const decisionCache=ai.objectiveCoverageCache || new Map();
         const queryDecisionKey=call=>{
             const {pageSize,...args}=call.args||{};
+            const collections=new Set([args.collection]);
+            for(const task of completedTasksForAudit){
+                const observation=task.observation,record=observation?.recordEvidence;
+                if(observation?.ok===true && observation.executionOk!==false && observation.blocked!==true && observation.requiresInput!==true &&
+                    record?.source==='FIRESTORE_SERVER_AUTHENTICATED' && record.readOnly===true && matchesRecordedQueryCollection(args.collection,task))
+                    collections.add(record.scope.collection);
+            }
+            // A source read is not a change to every rejected query. Retain the
+            // witnessed veto until its own source/collection evidence changes.
+            // Only authenticated receipts may connect a template to a resolved
+            // route; another organization's literal path never shares that key.
+            const queryDependencies=normalizedCatalog.find(tool=>tool.name===call.name)?.evidenceKinds?.includes('platform_records')?completedTasksForAudit.filter(task=>{
+                const observation=task.observation,read=observation?.verifiedRead,record=observation?.recordEvidence;
+                if(observation?.ok!==true || observation.executionOk===false || observation.blocked===true || observation.requiresInput===true)return false;
+                if(read && (read.file===args.sourceFile || (read.sourceStructure?.dataBindings?.collections||[]).some(collection=>collections.has(collection))))return true;
+                return record?.source==='FIRESTORE_SERVER_AUTHENTICATED' && record.readOnly===true &&
+                    [...collections].some(collection=>matchesRecordedQueryCollection(collection,task));
+            }):completedTasksForAudit;
             if(args.mode==='query'){
                 args.fields=[...new Set(args.fields||[])].sort();
                 args.filters=args.filters||[];
@@ -3445,7 +3463,7 @@ async function runModelSemanticPlanner({
                 args.cursor=args.cursor||null;
             }
             return 'query-rejection:'+recordObjectiveRevision(
-                {query:canonicalArgs({name:call.name,args}),instruction},completedTasksForAudit,recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content),model,missionState,evaluatedAt);
+                {query:canonicalArgs({name:call.name,args}),instruction,objectives:missionState.evidenceObjectives},queryDependencies,recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content),model,missionState,evaluatedAt);
         };
         const knownQueryRejection=call=>decisionCache.get(queryDecisionKey(call))?.queryRejection;
         const queryRejectionReceipt=error=>({code:error.message,proposed:{name:error.evidence?.tool,args:error.evidence?.proposed||error.evidence?.args},
