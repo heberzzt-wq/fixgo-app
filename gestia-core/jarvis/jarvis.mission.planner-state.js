@@ -6,6 +6,11 @@ const MAX_PLANNER_MEDIA_ASSETS = 8;
 const MAX_PLANNER_PERSISTED_ARTIFACTS = 8;
 const MAX_PLANNER_CODE = 8000;
 
+export function missionEvidenceDecisionPhase(objectives = []) {
+    return objectives.length && objectives.every(objective=>objective.requiredEvidenceKind==='platform_records')
+        ? 'EVIDENCE_NEXT_ACTION' : 'COMPLETION_AUDIT';
+}
+
 export function compactRepositoryMatches(matches = [], maximum = 16) {
     const normalized = matches.map(item => ({file: text(item.file || item.path, 500),
         line: Number.isInteger(item.line) && item.line > 0 ? item.line : null,

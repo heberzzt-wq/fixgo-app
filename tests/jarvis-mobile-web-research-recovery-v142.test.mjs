@@ -238,7 +238,7 @@ test("v142 read-only current-turn tools still pass through the full mission cont
     );
     assert.match(
         core,
-        /phase:\s*"COMPLETION_AUDIT"/
+        /phase:\s*missionEvidenceDecisionPhase\(mission\.evidenceObjectives \|\| \[\]\)/
     );
 });
 

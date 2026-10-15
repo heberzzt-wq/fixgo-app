@@ -67,7 +67,8 @@ import {
     ensureExecutableArtifactDependencies
 } from '/gestia-core/jarvis/jarvis.mission.dependencies.js?v=v142-adjunto-flow-alignment-20261001';
 import {
-    compactMissionPlannerObservation
+    compactMissionPlannerObservation,
+    missionEvidenceDecisionPhase
 } from '/gestia-core/jarvis/jarvis.mission.planner-state.js?v=v142-adjunto-flow-alignment-20261001';
 import {
     addRepositoryDiscoveryPreflights,
@@ -5153,8 +5154,7 @@ if (
                                         toolCatalog:
                                             completionAuditCatalog,
                                         missionState: {
-                                            phase:
-                                                "COMPLETION_AUDIT",
+                                            phase: missionEvidenceDecisionPhase(mission.evidenceObjectives || []),
                                             currentPage: context.currentPage || null,
                                             missionId:
                                                 mission.missionId,
@@ -5320,7 +5320,7 @@ if (
                                 toolCatalog:
                                     dependencyAwarePlannerCatalog,
                                 missionState: {
-                                    phase: "COMPLETION_AUDIT",
+                                    phase: missionEvidenceDecisionPhase(mission.evidenceObjectives || []),
                                     currentPage: context.currentPage || null,
                                     missionId: mission.missionId,
                                     caseId: mission.caseId,

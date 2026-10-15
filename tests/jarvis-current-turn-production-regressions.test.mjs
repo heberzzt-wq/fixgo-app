@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import test from "node:test";
 import { parse } from "acorn";
+import { missionEvidenceDecisionPhase } from '../gestia-core/jarvis/jarvis.mission.planner-state.js';
 
 // Execute the real collection-identity helper with the extracted review;
 // keep test isolation without substituting its route-matching contract.
@@ -1617,6 +1618,7 @@ test("a bounded DOM inspection still audits visual evidence and cannot expand to
         satisfied: false, evidenceTaskIndexes: [], limitation: "Falta inspeccion visual de una captura; solo se obtuvo estructura DOM."
     }] };
     const planner = runInNewContext(`({${coreSource.slice(start, end)}}).planner`, {
+        missionEvidenceDecisionPhase,
         boundedCurrentTurnMission: true, missionIsIsolated: false,
         missionToolCatalog: [tools.get("browser.inspect")], registeredMissionTools: tools.list(),
         context: {}, semanticMemoryContext: {turns:[{role:'user',content:'Evaluate the customer view, not the administration view.'}]},
@@ -4331,12 +4333,15 @@ test('repeated record snapshots compact losslessly without conflating filters va
 });
 
 
-test('both production audit paths forward the per-objective assessment to the next planner request',()=>{
+test('both production audit paths forward the per-objective assessment to the next planner request',async()=>{
+ const {missionEvidenceDecisionPhase}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
+ assert.equal(missionEvidenceDecisionPhase([]),'COMPLETION_AUDIT');
+ assert.equal(missionEvidenceDecisionPhase([{requiredEvidenceKind:'platform_records'},{requiredEvidenceKind:'repository_source'}]),'COMPLETION_AUDIT');
  const ast=parse(coreSource,{sourceType:'module',ecmaVersion:'latest'}),states=[];
- const walk=node=>{if(!node||typeof node!=='object')return;if(node.type==='ObjectExpression'&&node.properties.some(p=>p.key?.name==='phase'&&p.value?.value==='COMPLETION_AUDIT'))states.push(node);for(const value of Object.values(node))if(Array.isArray(value))value.forEach(walk);else if(value&&typeof value==='object')walk(value);};walk(ast);
+ const walk=node=>{if(!node||typeof node!=='object')return;if(node.type==='ObjectExpression'&&node.properties.some(p=>p.key?.name==='phase'&&p.value?.callee?.name==='missionEvidenceDecisionPhase'))states.push(node);for(const value of Object.values(node))if(Array.isArray(value))value.forEach(walk);else if(value&&typeof value==='object')walk(value);};walk(ast);
  assert.equal(states.length,2);const assessment={objectives:[{objective:'Verify requested relationships',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0],limitation:'Observed references do not establish assignment'}]};
  const mission={completionAssessment:assessment,evidenceObjectives:assessment.objectives,completedTasks:[],pendingTasks:[],blockedTasks:[],requiredToolNames:[]};
- for(const node of states){const state=runInNewContext('('+coreSource.slice(node.start,node.end)+')',{mission,context:{},boundedCurrentTurnMission:false,observationFirstCurrentTurnMission:false,semanticMemoryContext:null,missingRequiredToolNames:[],compactJarvisSemanticMemoryForPlanner:()=>null,compactMissionPlannerObservation:x=>x});assert.equal(state.completionAssessment,assessment);}
+ for(const node of states){const state=runInNewContext('('+coreSource.slice(node.start,node.end)+')',{mission,missionEvidenceDecisionPhase,context:{},boundedCurrentTurnMission:false,observationFirstCurrentTurnMission:false,semanticMemoryContext:null,missingRequiredToolNames:[],compactJarvisSemanticMemoryForPlanner:()=>null,compactMissionPlannerObservation:x=>x});assert.equal(state.completionAssessment,assessment);assert.equal(state.phase,'EVIDENCE_NEXT_ACTION');}
 });
 
 

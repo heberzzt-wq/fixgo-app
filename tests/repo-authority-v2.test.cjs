@@ -1833,7 +1833,7 @@ test("verified read-only missions stay outside retrying Firestore transactions",
     );
     assert.match(
         core,
-        /phase:\s*"COMPLETION_AUDIT"/
+        /phase:\s*missionEvidenceDecisionPhase\(mission\.evidenceObjectives \|\| \[\]\)/
     );
     assert.match(
         core,

@@ -149,7 +149,7 @@ test("technical recovery and observed repo follow-up never invoke a parallel sem
     const missionPlanner = core.match(/planner:\s*async \(\{ originalInstruction, mission \}\) => \{([\s\S]*?)\n\s*execute:/)?.[1];
     assert.ok(missionPlanner, "locate the active mission planner before checking its authority");
     assert.doesNotMatch(core, /toolCalls:\s*\[nextObservedFollowUp\]/);
-    assert.match(core, /phase:\s*"COMPLETION_AUDIT"/);
+    assert.match(core, /phase:\s*missionEvidenceDecisionPhase\(mission\.evidenceObjectives \|\| \[\]\)/);
     assert.doesNotMatch(missionPlanner, /buildObservationDrivenFollowUpToolCalls/);
 });
 

@@ -2862,7 +2862,7 @@ async function runModelSemanticPlanner({
         });
     }
 
-    if (missionState?.phase === "COMPLETION_AUDIT") {
+    if (["COMPLETION_AUDIT","EVIDENCE_NEXT_ACTION"].includes(missionState?.phase)) {
         const evaluatedAt = new Date().toISOString();
         const measuredRepair = (missionState.completedTasks || []).some(task => task.name === "browser.inspect" &&
             task.args?.followUp === "prepare_repair" && task.observation?.ok === true);
@@ -3284,9 +3284,11 @@ async function runModelSemanticPlanner({
                 }
         };
         let evidenceRecoveryUsed=false;
-        const recoverEvidenceAction=async(evaluatedAudit,validatedAudit,error=null)=>{
-            if(evidenceRecoveryUsed)return null;
-            evidenceRecoveryUsed=true;
+        const recoverEvidenceAction=async(evaluatedAudit,validatedAudit,error=null,initialDecision=false)=>{
+            if(!initialDecision){
+                if(evidenceRecoveryUsed)return null;
+                evidenceRecoveryUsed=true;
+            }
                 refreshReviewedActionFrontier();
                 const generalReaders = selectableCatalog.filter(tool => tool.investigationReadOnly === true &&
                     tool.mutates !== true && tool.requiresApproval !== true && tool.userArtifact !== true);
@@ -3346,7 +3348,7 @@ async function runModelSemanticPlanner({
 
                     const compactContinuation=JSON.stringify(auditTasks).length>16000;
                     const continuation = await ai.models.generateContent({model,contents:instruction,config:{
-                        semanticStage:"READ_ONLY_EVIDENCE_CONTINUATION",maxOutputTokens:768,temperature:0,
+                        semanticStage:initialDecision?"EVIDENCE_NEXT_ACTION":"READ_ONLY_EVIDENCE_CONTINUATION",maxOutputTokens:768,temperature:0,
                         ...(compactContinuation || error ? {responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{
                             toolCalls:{type:"array",minItems:0,maxItems:1,items:{anyOf:nextReaders.map(tool=>({
                                 type:"object",properties:{name:{type:"string",enum:[tool.name]},args:buildNativeInputSchema(tool.inputSchema)},
@@ -3380,7 +3382,7 @@ async function runModelSemanticPlanner({
                         checked.toolCalls=checked.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&!(error?.evidence?.tool===call.name && sameCall({name:call.name,args:error.evidence.proposed},call))&&!hasUnexpectedToolArguments(nextReaders.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
                         await verifyOperationalCalls(checked.toolCalls,nextReaders);
                         if(checked.toolCalls.length)return {...validatePlan({...validatedAudit,toolCalls:checked.toolCalls,missionComplete:false},nextReaders,instruction),
-                            provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:nextReaders.length,planKind:"READ_ONLY_EVIDENCE_CONTINUATION"};
+                            provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:nextReaders.length,planKind:initialDecision?"EVIDENCE_NEXT_ACTION":"READ_ONLY_EVIDENCE_CONTINUATION"};
                     }
 
             return null;
@@ -3427,10 +3429,51 @@ async function runModelSemanticPlanner({
         // Client-supplied previous assessments never become authority here.
         // Unknown or relevant for even one objective keeps the query available.
         refreshReviewedActionFrontier();
+        let evidenceDecisionAudit=null;
+        if(missionState.phase==='EVIDENCE_NEXT_ACTION' && recordOnlyAudit){
+            const authenticated=index=>{const task=completedTasksForAudit[index],observation=task?.observation,record=observation?.recordEvidence;
+                return Number.isInteger(index) && normalizedCatalog.find(tool=>tool.name===task?.name)?.evidenceKinds?.includes('platform_records') &&
+                    observation?.ok===true && observation.executionOk!==false && observation.blocked!==true &&
+                    record?.source==='FIRESTORE_SERVER_AUTHENTICATED' && record.readOnly===true;};
+            const completionAssessment={evaluatedTaskCount:completedTasksForAudit.length,objectives:missionState.evidenceObjectives.map(contract=>{
+                const prior=missionState.completionAssessment?.objectives?.find(item=>item.objective===contract.objective);
+                const objective={objective:contract.objective,requiredEvidenceKind:contract.requiredEvidenceKind,satisfied:false,
+                    evidenceTaskIndexes:(prior?.evidenceTaskIndexes||[]).filter(authenticated),
+                    limitation:prior?.limitation || 'La cobertura de este objetivo aún no está acreditada.'};
+                const proof=coverageBeforeDecision.find(item=>item.objective===contract.objective)?.coverageProof;
+                if(proof){
+                    objective.coverageProof=structuredClone(proof);
+                    objective.evidenceTaskIndexes=[...new Set([...objective.evidenceTaskIndexes,...recordCoverageTaskIndexes(objective).filter(authenticated)])];
+                    objective.coverage=qualifyRecordObjectiveCoverage(objective,contract,completedTasksForAudit);
+                    objective.satisfied=proof.proven===true && objective.coverage.status==='complete';
+                    objective.limitation=objective.satisfied?'':[...(proof.missing||[]),...objective.coverage.missing].join(' ');
+                }else if(prior?.coverageProof?.proven===false)objective.coverageProof=structuredClone(prior.coverageProof);
+                return objective;
+            })};
+            evidenceDecisionAudit={completionAssessment,toolCalls:[]};
+            if(!completionAssessment.objectives.every(objective=>objective.satisfied)){
+                try{
+                    const next=await recoverEvidenceAction(evidenceDecisionAudit,evidenceDecisionAudit,null,true);
+                    if(next)return next;
+                }catch(error){
+                    if(!['SEMANTIC_QUERY_SCOPE_UNVERIFIED','SEMANTIC_TOOL_ARGUMENTS_INVALID'].includes(error.message))throw error;
+                    try{
+                        const recovered=await recoverEvidenceAction(evidenceDecisionAudit,evidenceDecisionAudit,error);
+                        if(recovered)return recovered;
+                    }catch(recoveryError){
+                        if(!['SEMANTIC_QUERY_SCOPE_UNVERIFIED','SEMANTIC_TOOL_ARGUMENTS_INVALID'].includes(recoveryError.message))throw recoveryError;
+                    }
+                }
+            }
+            // No new action survived the one bounded decision/recovery cycle.
+            // Audit the immutable goals independently below, without asking for
+            // another global replan or manufacturing successful objectives.
+            evidenceRecoveryUsed=true;
+        }
         for (let auditAttempt = 0; auditAttempt < 2; auditAttempt++) {
             let auditPlan = null;
             try {
-                const auditResponse = await ai.models.generateContent({
+                const auditResponse = evidenceDecisionAudit ? {text:JSON.stringify(evidenceDecisionAudit)} : await ai.models.generateContent({
                     model,
                     contents: [
                         buildSemanticSystemInstruction(safeCatalog, missionState),
