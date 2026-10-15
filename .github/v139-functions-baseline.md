@@ -1,5 +1,38 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `f38dedb17da79ae18c9035b852f4c1ba6a7288c7`, reviewed filtered-selection boundary release.
+Only `jarvis-semantic-planner.js` changes inside Functions. Normal evidence action
+selection now always uses the filtered JSON schema, including compact contexts.
+A native model proposal discarded by argument/novelty validation triggers the
+single explicit bounded recovery rather than being mistaken for a valid decision
+to stop. Independent per-objective closure remains unchanged.
+
+Empty first-page deduplication now normalizes only the exact requested template
+and concrete route associated by its authenticated receipt, as terminal cursor
+pages already do. Different organizations, files, filters and cursors stay distinct.
+Changing fields or page size cannot recreate an exhausted empty page. No receipt
+or objective is promoted to complete by this deduplication.
+
+A physical local-model replay of the last real Chrome request captured Qwen
+proposing an excluded concrete alias of an already empty route despite the native
+tool catalog's enum. The replay executed one local inference and no operational
+tools. Its next inference was deliberately stopped for diagnostic capture.
+The regression first fails on absent constrained selection, then exercises the
+discarded-proposal/recovery boundary. Real-runtime simulated-Firestore tests cover
+both empty first-page and terminal-cursor aliases and cross-organization negatives.
+All 310 focused checks and 2,002 full-root checks pass, zero failures, two explicit
+environment skips. No model, provider, permission or operational-data changes.
+
+Previous 92aebb9d Chrome run ended PARTIAL: 24 local calls, 231,073 ms total wall
+clock, one source read and one scoped zero query. It used the new advancement
+phase and no global completion-audit calls, but still did not finish investigation.
+It is not certification or an external blocker. Fresh aligned deployment, physical
+search and the complete clean Chrome mission are still required.
+The explicit ancestor-checked fail-closed Functions guard remains intact.
+
+## Previous evidence-advancement baseline
+
+
 Current baseline: `29941432fc406f7c3b6fb2696d71c3a9d79c6fd6`, reviewed evidence-advancement phase release.
 Only `jarvis-semantic-planner.js` changes inside Functions. Pure operational-record
 missions now use explicit EVIDENCE_NEXT_ACTION in both production planner paths.
