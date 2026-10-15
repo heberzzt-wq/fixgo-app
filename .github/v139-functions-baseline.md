@@ -1,6 +1,23 @@
 # V139 reviewed Functions baseline
 
-Current baseline: `e6cbcdeeed59165a41752aac61ead43daa7b0120`, reviewed recovery-projection frontier release.
+Current baseline: `dac7f662b0406982073801e319d295cd9302d274`.
+Only `jarvis-semantic-planner.js` changed in Functions. The same local Qwen scope
+review now distinguishes pertinent values from a novel ID-only structural probe.
+The probe preserves source, collection, filters, ordering and authorization;
+returned field names cannot satisfy operational goals. Existing schema in that
+exact authenticated scope, exhausted queries and cached rejections block repeats.
+New authenticated field names reopen valid projections through only the recorded
+collection/template association. No alternate model or external provider added.
+The full-cycle replay includes rejection, invented-null-filter recovery and the
+next decision. Runtime-produced field-name receipts permit a new valid projection
+while three independent goals remain pending. Local root: 2007 PASS, 0 FAIL,
+2 environment skips; focused 315 PASS. Physical Chrome mission is still pending;
+these tests do not certify its business result. The explicit reviewed baseline
+still rejects any subsequent unreviewed Functions change.
+
+## Previous reviewed baseline
+
+Previous baseline: `e6cbcdeeed59165a41752aac61ead43daa7b0120`, reviewed recovery-projection frontier release.
 Only `jarvis-semantic-planner.js` changes inside Functions. The last physical local
 replay captured proposal -> independent scope rejection -> identical recovery
 proposal. The recovery grammar now excludes that reviewed projection for its
