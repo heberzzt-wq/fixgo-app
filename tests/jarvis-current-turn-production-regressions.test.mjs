@@ -2984,7 +2984,7 @@ test('repo grep matches survive mission compaction as grounded source locations'
 test('population verification rejects workflow state as membership evidence and keeps user vocabulary for recovery', () => {
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  assert.match(source,/Un estado KYC, validación, pantalla, flujo o función usada por ese grupo NO es por sí mismo el discriminador de pertenencia/);
- assert.match(source,/Elige UNA palabra literal de la solicitud del usuario/);
+ assert.match(source,/Para repo.grep puedes usar identificadores completos, rutas de campos o fragmentos literales observados/);
 });
 
 
@@ -2997,8 +2997,8 @@ test('population mismatch recovers through a literal user term and repo.grep, no
    stages.push(request.config.semanticStage);
    if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:false,limitation:'KYC no demuestra pertenencia al grupo cliente',nextEvidenceQuery:'cliente rol'}),providerResponse:{finishReason:'stop'}};
    if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){
-     const allowed=recoverySchemas(request).find(v=>v.properties.name.enum[0]==='repo.grep').properties.args.properties.term.enum;
-     assert.ok(allowed.includes('clientes'));assert.ok(!allowed.includes('cliente'));
+     const term=recoverySchemas(request).find(v=>v.properties.name.enum[0]==='repo.grep').properties.args.properties.term;
+     assert.equal(term.type,'string');assert.equal(term.enum,undefined,'source discovery must not be restricted to a tokenized word list');
      return{text:JSON.stringify({toolCalls:[{name:'repo.grep',args:{term:'clientes'}}]}),providerResponse:{finishReason:'stop'}};
    }
    return{text:JSON.stringify({explanation:'Falta acreditar la población',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta el discriminador observado'}]},toolCalls:[{name:'platform.query',args:{collection:'users',sourceFile:'source.js',filters:[{field:'kyc',op:'==',value:true}]}}]}),providerResponse:{finishReason:'stop'}};
@@ -3062,9 +3062,8 @@ test('literal population recovery preserves the exact plural token selected by Q
  const result=await runJarvisSemanticPlanner({input,catalog:[query,grep],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'const kyc=true;'}}}]},ai:{models:{generateContent:async request=>{
    if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:false,limitation:'No demuestra grupo',nextEvidenceQuery:'cliente'}),providerResponse:{finishReason:'stop'}};
    if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION') {
-    const allowed=recoverySchemas(request).find(v=>v.properties.name.enum[0]==='repo.grep').properties.args.properties.term.enum;
-    assert.ok(allowed.includes(selected));
-    assert.ok(!allowed.includes(selected.slice(0,-1)),'the runtime must not invent a stem for an exact user token');
+    const term=recoverySchemas(request).find(v=>v.properties.name.enum[0]==='repo.grep').properties.args.properties.term;
+    assert.equal(term.type,'string');assert.equal(term.enum,undefined,'the exact model-selected expression is preserved by the final result assertion');
     return{text:JSON.stringify({toolCalls:[{name:'repo.grep',args:{term:selected}}]}),providerResponse:{finishReason:'stop'}};
    }
    return{text:JSON.stringify({explanation:'Falta evidencia',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Falta población'}]},toolCalls:[{name:'platform.query',args:{collection:'users',sourceFile:'source.js',filters:[]}}]}),providerResponse:{finishReason:'stop'}};
@@ -3928,7 +3927,7 @@ test('literal evidence recovery retains explicit source identifiers from user sc
  const result=await runJarvisSemanticPlanner({input,catalog:[query,grep],missionState:{phase:'COMPLETION_AUDIT',advisorySemanticContext:{turns:[{role:'user',content:clarification},{role:'assistant',content:'untrusted_assistant_registry'}]},completedTasks:[{name:'repo.read',observation:{ok:true,verifiedRead:{file:'source.js',content:'Observed state field'}}}]},ai:{models:{generateContent:async request=>{
   if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:false,limitation:'A workflow state does not define the requested population.'})};
   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION') {
-   const allowed=recoverySchemas(request).find(v=>v.properties.name.enum[0]==='repo.grep').properties.args.properties.term.enum;assert.ok(allowed.includes('declared_registry'));assert.ok(!allowed.includes('untrusted_assistant_registry'));assert.ok(allowed.length<=80);assert.ok(request.config.chatMessages.some(message=>message.content.startsWith('CONVERSATION_CONTEXT_FOR_REFERENCE_ONLY=')&&message.content.includes(clarification)));recovered=true;return{text:JSON.stringify({toolCalls:[{name:'repo.grep',args:{term:'declared_registry'}}]})};
+   const term=recoverySchemas(request).find(v=>v.properties.name.enum[0]==='repo.grep').properties.args.properties.term;assert.equal(term.type,'string');assert.equal(term.enum,undefined);assert.ok(request.config.chatMessages.some(message=>message.content.startsWith('CONVERSATION_CONTEXT_FOR_REFERENCE_ONLY=')&&message.content.includes(clarification)));recovered=true;return{text:JSON.stringify({toolCalls:[{name:'repo.grep',args:{term:'declared_registry'}}]})};
   }
   return{text:JSON.stringify({toolCalls:[{name:query.name,args:{collection:'registry',sourceFile:'source.js',filters:[{field:'state',op:'==',value:true}]}}],completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Population remains unverified'}]}})};
  }}}});
@@ -4756,7 +4755,11 @@ test('authenticated field constraints survive successful recovery without granti
  const tasks=[receipt,read],before=JSON.stringify({query,tasks});const result=bind([query],tasks,[])[0].inputSchema;const schemas=JSON.parse(JSON.stringify(result.anyOf||[result]));const active=schemas.find(schema=>schema.properties.collection.enum[0]==='registry');
  assert.deepEqual(active.properties.fields.items.enum,['__name__','label','owner','expiresAt','declared_next','query_value']);assert.deepEqual(active.properties.orderBy.items.properties.field.enum,active.properties.fields.items.enum);assert.equal(schemas.find(schema=>schema.properties.collection.enum[0]==='unread').properties.fields.items.enum,undefined);assert.equal(JSON.stringify({query,tasks}),before);assert.equal(receipt.observation.recordEvidence.rows[0].values.owner,undefined,'name authority is not value evidence');
  for(const mutate of [r=>{r.observation.ok=false;},r=>{r.observation.recordEvidence.readOnly=false;},r=>{r.observation.recordEvidence.source='REPOSITORY_SOURCE';},r=>{r.observation.recordEvidence.scope.collection='foreign';},r=>{r.observation.recordEvidence.scope.mode='count';},r=>{r.observation.recordEvidence.fieldSchema.sampledRows=2;}]){const invalid=structuredClone(receipt);mutate(invalid);assert.deepEqual(bind([query],[invalid,read],[]),[query]);}
- const count={...query,inputSchema:{...query.inputSchema,properties:{...query.inputSchema.properties,fields:{type:'array',maxItems:0}}}};assert.deepEqual(JSON.parse(JSON.stringify(bind([count],tasks,[]))),[count]);
+ const count={...query,inputSchema:{...query.inputSchema,properties:{...query.inputSchema.properties,fields:{type:'array',maxItems:0}}}};
+ const counts=JSON.parse(JSON.stringify(bind([count],tasks,[])[0].inputSchema.anyOf));
+ assert.ok(counts.every(schema=>schema.properties.fields.maxItems===0),'binding count filters or ordering must never enable projection');
+ assert.deepEqual(counts.find(schema=>schema.properties.collection.enum[0]==='registry').properties.orderBy.items.properties.field.enum,active.properties.fields.items.enum);
+ assert.equal(counts.find(schema=>schema.properties.collection.enum[0]==='unread').properties.orderBy.items.properties.field.enum,undefined,'unread scopes cannot inherit another collection field credit');
 });
 
 test('field rejection constrains recovery to observed fields without changing other collection or count scopes',()=>{
@@ -5177,7 +5180,9 @@ test('trace replay carries proposal rejection and invalid recovery into the next
  }}};
  const state={phase:'EVIDENCE_NEXT_ACTION',missionId:'trace-regression',tenantId:'approved',evidenceObjectives:contracts,completedTasks:tasks};
  const first=await runJarvisSemanticPlanner({input:'Count entries, identify holders and inspect deadlines',catalog:[query,reader],missionState:state,ai});
- assert.deepEqual(stages.slice(0,3),['EVIDENCE_NEXT_ACTION','QUERY_POPULATION_VERIFICATION','READ_ONLY_EVIDENCE_CONTINUATION']);
+ assert.deepEqual(stages.slice(0,2),['EVIDENCE_NEXT_ACTION','QUERY_POPULATION_VERIFICATION']);
+ assert.equal(stages.filter(s=>s==='RECORD_OBJECTIVE_COVERAGE').length,3,'each objective is reviewed independently before spending recovery');
+ assert.ok(stages.lastIndexOf('OBJECTIVE_SOURCE_SCOPE_VERIFICATION')<stages.indexOf('READ_ONLY_EVIDENCE_CONTINUATION'));
  assert.equal(stages.filter(s=>s==='READ_ONLY_EVIDENCE_CONTINUATION').length,1);
  assert.equal(stages.filter(s=>s==='QUERY_POPULATION_VERIFICATION').length,1,'the ungrounded null filter must be rejected before another model review');
  assert.equal(first.toolCalls.length,0,'neither rejected proposal may reach execution');

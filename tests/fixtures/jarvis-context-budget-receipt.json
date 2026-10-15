@@ -1,0 +1,1942 @@
+{
+  "provenance": {
+    "receipt": "jarvis-v142-real-attempt-1.json",
+    "missionId": "MISSION-bc68ce5f-e23e-4769-885e-53cf05314830",
+    "receiptSha256": "ba46b43cc3cb2a2e7be091d77a52596592bc960d13deba8cfced8a7f92db7a42",
+    "sourceSha256": "4c5dbffe934589a1129e9c41e196733191900707248706ec1a3cc86576ad9658",
+    "limitations": "Exported verifiedRead has no source body; integration rehydrates the unchanged repository source. Search rankings are recorded, model answers are simulated."
+  },
+  "instruction": "Jarvis, revisa cuántos vehículos y motos tenemos registrados, quién tiene asignada cada unidad y qué documentos están vencidos o próximos a vencer. Consulta los datos actuales sin modificar nada.",
+  "objectives": [
+    {
+      "objective": "cuántos vehículos y motos tenemos registrados",
+      "requiredEvidenceKind": "platform_records",
+      "requestQuote": "cuántos vehículos y motos tenemos registrados",
+      "coverageMode": "population",
+      "scope": "all_sources",
+      "groups": [
+        "vehículos",
+        "motos"
+      ]
+    },
+    {
+      "objective": "quién tiene asignada cada unidad",
+      "requiredEvidenceKind": "platform_records",
+      "requestQuote": "quién tiene asignada cada unidad",
+      "coverageMode": "relationship",
+      "scope": "all_sources",
+      "groups": [
+        "unidad",
+        "asignada"
+      ]
+    },
+    {
+      "objective": "qué documentos están vencidos o próximos a vencer",
+      "requiredEvidenceKind": "platform_records",
+      "requestQuote": "qué documentos están vencidos o próximos a vencer",
+      "coverageMode": "temporal",
+      "scope": "all_sources",
+      "groups": [
+        "documentos"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "name": "repo.search",
+      "args": {
+        "query": "vehículos motos registros asignación documentos vencidos"
+      },
+      "observation": {
+        "ok": true,
+        "executionOk": true,
+        "objectiveSatisfied": true,
+        "status": "REPO_SEMANTIC_SEARCH_READY",
+        "requiresInput": false,
+        "requiresApproval": false,
+        "blocked": false,
+        "degraded": false,
+        "retryable": false,
+        "fullRestartAllowed": null,
+        "operationName": null,
+        "stage": null,
+        "providerCode": null,
+        "providerMessage": null,
+        "provider": null,
+        "backend": null,
+        "fallbackReason": null,
+        "reasonForPaidExternalUse": null,
+        "localSemanticInferenceCalls": 0,
+        "semanticExternalCalls": 0,
+        "paidExternalCalls": 0,
+        "externalEstimatedCostUsd": 0,
+        "externalActualCostUsd": 0,
+        "gpuRentalSeconds": 0,
+        "gpuRentalEstimatedCost": 0,
+        "gpuRentalActualCost": 0,
+        "raiMediaFilteredCount": 0,
+        "raiMediaFilteredReasons": [],
+        "mimeType": null,
+        "physicallyWritten": false,
+        "bytes": 0,
+        "sha256": null,
+        "width": 0,
+        "height": 0,
+        "videoCodec": "",
+        "audioCodec": "",
+        "audioTracksAdded": 0,
+        "durationSeconds": 0,
+        "logoOverlayApplied": false,
+        "logoSourceSha256": "",
+        "deliveryMode": "",
+        "sourceCount": 0,
+        "validSources": [],
+        "discardedSources": [],
+        "summary": "",
+        "userVisible": "",
+        "planReady": false,
+        "readyForProduction": false,
+        "productionRequested": false,
+        "requiredArtifacts": [],
+        "deliverable": null,
+        "error": null,
+        "validationFailures": [],
+        "wordCount": 0,
+        "sectionCount": 0,
+        "tableBlueprintCount": 0,
+        "templateCount": 0,
+        "questionCount": 0,
+        "answerKeyCount": 0,
+        "vehicleCount": 0,
+        "partCount": 0,
+        "kpiCount": 0,
+        "implementationDayCoverage": 0,
+        "continuationCount": 0,
+        "segmentedComposition": false,
+        "artifact": null,
+        "preparedArtifact": null,
+        "verifiedRead": null,
+        "repoCandidates": [
+          {
+            "file": "panel-tecnico.js",
+            "score": 143.27,
+            "controls": [
+              "bindIncompletePayoutInputs",
+              "refreshPayout",
+              "renderNotificationRuntimeState",
+              "setNotificationRuntimeState",
+              "iniciarPanelTecnico",
+              "subirConfirmado",
+              "actualizarUIWallet",
+              "escucharBolsa"
+            ],
+            "reasons": [
+              "localEmbeddingSimilarity: +51.27",
+              "moduleRelation: +27",
+              "incomingCalls: +5",
+              "outgoingCalls: +20",
+              "imports: +20",
+              "executionEvidence: +20"
+            ]
+          },
+          {
+            "file": "app-tecnico-b2b.js",
+            "score": 155.23,
+            "controls": [
+              "cerrarOrdenB2b",
+              "cachePendientes",
+              "confirmarPendiente",
+              "initLocalDB",
+              "cacheGuardar",
+              "cacheLeerTodos",
+              "cacheLimpiar",
+              "agregarSyncPendiente"
+            ],
+            "reasons": [
+              "localEmbeddingSimilarity: +49.23",
+              "moduleRelation: +15",
+              "incomingCalls: +5",
+              "outgoingCalls: +20",
+              "imports: +16",
+              "executionEvidence: +20",
+              "existingTests: +30"
+            ]
+          },
+          {
+            "file": "panel-b2b-admin.js",
+            "score": 133.22,
+            "controls": [
+              "showToast",
+              "enviarPushEmergenciaB2B",
+              "actualizarInterfazRed",
+              "initLocalDB",
+              "cacheGuardar",
+              "cacheLeerTodos",
+              "cacheLimpiar",
+              "escucharPlantillaRealTime"
+            ],
+            "reasons": [
+              "localEmbeddingSimilarity: +49.22",
+              "moduleRelation: +18",
+              "incomingCalls: +10",
+              "outgoingCalls: +20",
+              "imports: +16",
+              "executionEvidence: +20"
+            ]
+          },
+          {
+            "file": "gestia-core/contracts/b2c-platform-contract.js",
+            "score": 151.87,
+            "controls": [
+              "normalizeMexicanClabe",
+              "calculateMexicanClabeCheckDigit",
+              "inspectMexicanClabe",
+              "normalizeMexicanPayoutDestination",
+              "validLuhn",
+              "payoutDestinationType",
+              "inspectMexicanPayoutDestination",
+              "text"
+            ],
+            "reasons": [
+              "localEmbeddingSimilarity: +48.87",
+              "moduleRelation: +18",
+              "incomingCalls: +25",
+              "outgoingCalls: +20",
+              "existingTests: +30",
+              "authoritySensitivity: +10"
+            ]
+          },
+          {
+            "file": "functions/b2c-technician-approval.js",
+            "score": 150.32999999999998,
+            "controls": [
+              "validateTechnicianKyc",
+              "isAuthorizedAdmin",
+              "verifyTechnicianStorage",
+              "invalid",
+              "createApproveTechnicianHandler",
+              "createReturnTechnicianHandler"
+            ],
+            "reasons": [
+              "localEmbeddingSimilarity: +47.33",
+              "moduleRelation: +24",
+              "incomingCalls: +25",
+              "outgoingCalls: +20",
+              "imports: +4",
+              "existingTests: +30"
+            ]
+          },
+          {
+            "file": "panel-admin.js",
+            "score": 133.31,
+            "controls": [
+              "adminListenerError",
+              "documentReferenceUrl",
+              "safeHttpsDocumentUrl",
+              "iniciarPanelAdmin",
+              "cargarPerfilesCoberturaCatalogo",
+              "renderCatalog",
+              "generarSwitchGranular"
+            ],
+            "reasons": [
+              "localEmbeddingSimilarity: +47.31",
+              "moduleRelation: +21",
+              "incomingCalls: +5",
+              "outgoingCalls: +20",
+              "imports: +20",
+              "executionEvidence: +20"
+            ]
+          },
+          {
+            "file": "functions/index.js",
+            "score": 172.19,
+            "controls": [
+              "requireB2bTenant",
+              "completeB2bRegistration",
+              "provisionB2bPersonnel",
+              "completeB2bService",
+              "applyArchitectCorsHeaders",
+              "initCore",
+              "getGroundedGenAI",
+              "getVertexGenAI"
+            ],
+            "reasons": [
+              "localEmbeddingSimilarity: +47.19",
+              "moduleRelation: +30",
+              "incomingCalls: +15",
+              "outgoingCalls: +20",
+              "imports: +20",
+              "executionEvidence: +20",
+              "existingTests: +10",
+              "authoritySensitivity: +10"
+            ]
+          },
+          {
+            "file": "panel-cliente.js",
+            "score": 148.64,
+            "controls": [
+              "iniciarPanelCliente",
+              "identityStepKeysFromReasons",
+              "describeIdentityReview",
+              "stopCustomerIdentityCamera",
+              "closeCustomerIdentityModal",
+              "renderCustomerIdentityRecoveryProgress",
+              "customerIdentityAttemptError",
+              "customerIdentityExistingUrl"
+            ],
+            "reasons": [
+              "localEmbeddingSimilarity: +46.64",
+              "moduleRelation: +27",
+              "incomingCalls: +5",
+              "outgoingCalls: +20",
+              "imports: +20",
+              "executionEvidence: +20",
+              "existingTests: +10"
+            ]
+          }
+        ],
+        "evidence": {
+          "ok": true,
+          "success": true,
+          "status": "REPO_SEMANTIC_SEARCH_READY",
+          "query": "vehículos motos registros asignación documentos vencidos",
+          "term": "vehículos motos registros asignación documentos vencidos",
+          "results": [
+            {
+              "file": "panel-tecnico.js",
+              "score": 143.27,
+              "semanticSimilarity": 0.5127485521926304,
+              "exactStructuralMatch": false,
+              "breakdown": {
+                "exactStructuralMatch": 0,
+                "plannedFile": 0,
+                "localEmbeddingSimilarity": 51.27,
+                "moduleRelation": 27,
+                "incomingCalls": 5,
+                "outgoingCalls": 20,
+                "imports": 20,
+                "uiContext": 0,
+                "executionEvidence": 20,
+                "existingTests": 0,
+                "authoritySensitivity": 0,
+                "decorativePenalty": 0,
+                "generatedFilePenalty": 0
+              },
+              "reasons": [
+                "localEmbeddingSimilarity: +51.27",
+                "moduleRelation: +27",
+                "incomingCalls: +5",
+                "outgoingCalls: +20",
+                "imports: +20",
+                "executionEvidence: +20"
+              ],
+              "controls": [
+                "bindIncompletePayoutInputs",
+                "refreshPayout",
+                "renderNotificationRuntimeState",
+                "setNotificationRuntimeState",
+                "iniciarPanelTecnico",
+                "subirConfirmado",
+                "actualizarUIWallet",
+                "escucharBolsa",
+                "renderizarBolsa",
+                "escucharFuente",
+                "calcularMultiplicadorTarifa",
+                "mostrarModalCotizacionDetallada",
+                "renderItems",
+                "mostrarModalEvidencia",
+                "obtenerPos"
+              ],
+              "dependsOn": [
+                "firebase.js",
+                "gps-motor.js",
+                "app-utils.js",
+                "platform-release.js",
+                "b2c-technician-profile.js",
+                "b2c-destination.js",
+                "b2c-commission-display.js",
+                "b2c-provider-crew-ui.js"
+              ],
+              "dependedOnBy": [
+                "app-panel.js"
+              ],
+              "coveredByTests": [],
+              "risks": []
+            },
+            {
+              "file": "app-tecnico-b2b.js",
+              "score": 155.23,
+              "semanticSimilarity": 0.4923002093256501,
+              "exactStructuralMatch": false,
+              "breakdown": {
+                "exactStructuralMatch": 0,
+                "plannedFile": 0,
+                "localEmbeddingSimilarity": 49.23,
+                "moduleRelation": 15,
+                "incomingCalls": 5,
+                "outgoingCalls": 20,
+                "imports": 16,
+                "uiContext": 0,
+                "executionEvidence": 20,
+                "existingTests": 30,
+                "authoritySensitivity": 0,
+                "decorativePenalty": 0,
+                "generatedFilePenalty": 0
+              },
+              "reasons": [
+                "localEmbeddingSimilarity: +49.23",
+                "moduleRelation: +15",
+                "incomingCalls: +5",
+                "outgoingCalls: +20",
+                "imports: +16",
+                "executionEvidence: +20",
+                "existingTests: +30"
+              ],
+              "controls": [
+                "cerrarOrdenB2b",
+                "cachePendientes",
+                "confirmarPendiente",
+                "initLocalDB",
+                "cacheGuardar",
+                "cacheLeerTodos",
+                "cacheLimpiar",
+                "agregarSyncPendiente",
+                "guardarFotoOffline",
+                "procesarSyncPendiente",
+                "procesarFotosPendientes",
+                "showToast",
+                "setButtonLoading",
+                "inicializarBottomSheet",
+                "validarPaseCaseta"
+              ],
+              "dependsOn": [
+                "b2b-offline-authority.js",
+                "gestia-core/auth/role-authority.js",
+                "firebase.js",
+                "platform-release.js"
+              ],
+              "dependedOnBy": [
+                "tecnico-b2b.html"
+              ],
+              "coveredByTests": [
+                "tests/b2b-supervisor-session.test.mjs",
+                "tests/jarvis-semantic-transport.test.mjs",
+                "tests/nexo-terminal-bootstrap.test.mjs"
+              ],
+              "risks": []
+            },
+            {
+              "file": "panel-b2b-admin.js",
+              "score": 133.22,
+              "semanticSimilarity": 0.49217814601992743,
+              "exactStructuralMatch": false,
+              "breakdown": {
+                "exactStructuralMatch": 0,
+                "plannedFile": 0,
+                "localEmbeddingSimilarity": 49.22,
+                "moduleRelation": 18,
+                "incomingCalls": 10,
+                "outgoingCalls": 20,
+                "imports": 16,
+                "uiContext": 0,
+                "executionEvidence": 20,
+                "existingTests": 0,
+                "authoritySensitivity": 0,
+                "decorativePenalty": 0,
+                "generatedFilePenalty": 0
+              },
+              "reasons": [
+                "localEmbeddingSimilarity: +49.22",
+                "moduleRelation: +18",
+                "incomingCalls: +10",
+                "outgoingCalls: +20",
+                "imports: +16",
+                "executionEvidence: +20"
+              ],
+              "controls": [
+                "showToast",
+                "enviarPushEmergenciaB2B",
+                "actualizarInterfazRed",
+                "initLocalDB",
+                "cacheGuardar",
+                "cacheLeerTodos",
+                "cacheLimpiar",
+                "escucharPlantillaRealTime",
+                "conectarContadorTickets",
+                "conectarContadorMantenimientosHoy",
+                "sincronizarHistorialConFirestore",
+                "renderizarHistorialDesdeCache",
+                "escucharAvanceRutina",
+                "esperarAuthLista",
+                "activarOidoJessica"
+              ],
+              "dependsOn": [
+                "b2b-offline-authority.js",
+                "gestia-core/auth/role-authority.js",
+                "firebase.js",
+                "platform-release.js"
+              ],
+              "dependedOnBy": [
+                "b2b.html",
+                "panel-b2b-admin.html"
+              ],
+              "coveredByTests": [],
+              "risks": []
+            },
+            {
+              "file": "gestia-core/contracts/b2c-platform-contract.js",
+              "score": 151.87,
+              "semanticSimilarity": 0.4887299849327958,
+              "exactStructuralMatch": false,
+              "breakdown": {
+                "exactStructuralMatch": 0,
+                "plannedFile": 0,
+                "localEmbeddingSimilarity": 48.87,
+                "moduleRelation": 18,
+                "incomingCalls": 25,
+                "outgoingCalls": 20,
+                "imports": 0,
+                "uiContext": 0,
+                "executionEvidence": 0,
+                "existingTests": 30,
+                "authoritySensitivity": 10,
+                "decorativePenalty": 0,
+                "generatedFilePenalty": 0
+              },
+              "reasons": [
+                "localEmbeddingSimilarity: +48.87",
+                "moduleRelation: +18",
+                "incomingCalls: +25",
+                "outgoingCalls: +20",
+                "existingTests: +30",
+                "authoritySensitivity: +10"
+              ],
+              "controls": [
+                "normalizeMexicanClabe",
+                "calculateMexicanClabeCheckDigit",
+                "inspectMexicanClabe",
+                "normalizeMexicanPayoutDestination",
+                "validLuhn",
+                "payoutDestinationType",
+                "inspectMexicanPayoutDestination",
+                "text",
+                "normalizeToken",
+                "finite",
+                "normalizeCoordinates",
+                "normalizeDestination",
+                "isDocumentReference",
+                "normalizeVehicleType",
+                "normalizeState"
+              ],
+              "dependsOn": [],
+              "dependedOnBy": [
+                "b2c-technician-profile.js",
+                "ceo-daily-operations.js",
+                "expediente-b2b.js",
+                "panel-admin.js",
+                "panel-cliente.js",
+                "tests/b2c-registration-recovery.test.mjs"
+              ],
+              "coveredByTests": [
+                "functions/test-b2c-service-marketplace.js",
+                "tests/b2c-client-technician-contract.test.mjs",
+                "tests/b2c-migration-safety.test.cjs",
+                "tests/b2c-platform-authority.test.mjs",
+                "tests/b2c-registration-recovery.test.mjs",
+                "tests/jarvis-document-flow.test.mjs",
+                "tests/jarvis-multifunction-tools.test.mjs",
+                "tests/jarvis-semantic-transport.test.mjs"
+              ],
+              "risks": [
+                "AUTHORITY_SENSITIVE"
+              ]
+            },
+            {
+              "file": "functions/b2c-technician-approval.js",
+              "score": 150.32999999999998,
+              "semanticSimilarity": 0.4732962169483463,
+              "exactStructuralMatch": false,
+              "breakdown": {
+                "exactStructuralMatch": 0,
+                "plannedFile": 0,
+                "localEmbeddingSimilarity": 47.33,
+                "moduleRelation": 24,
+                "incomingCalls": 25,
+                "outgoingCalls": 20,
+                "imports": 4,
+                "uiContext": 0,
+                "executionEvidence": 0,
+                "existingTests": 30,
+                "authoritySensitivity": 0,
+                "decorativePenalty": 0,
+                "generatedFilePenalty": 0
+              },
+              "reasons": [
+                "localEmbeddingSimilarity: +47.33",
+                "moduleRelation: +24",
+                "incomingCalls: +25",
+                "outgoingCalls: +20",
+                "imports: +4",
+                "existingTests: +30"
+              ],
+              "controls": [
+                "validateTechnicianKyc",
+                "isAuthorizedAdmin",
+                "verifyTechnicianStorage",
+                "invalid",
+                "createApproveTechnicianHandler",
+                "createReturnTechnicianHandler"
+              ],
+              "dependsOn": [
+                "functions/b2c-platform-contract.js"
+              ],
+              "dependedOnBy": [
+                "functions/b2c-provider-crew.js",
+                "functions/index.js",
+                "functions/secure-entry.js",
+                "functions/test-b2c-technician-approval.js",
+                "tests/b2b-personnel-kyc.test.cjs",
+                "tests/b2c-kyc-emulator.test.mjs",
+                "tests/b2c-kyc-physical.test.cjs"
+              ],
+              "coveredByTests": [
+                "functions/test-b2c-technician-approval.js",
+                "tests/b2b-personnel-kyc.test.cjs",
+                "tests/b2c-kyc-emulator.test.mjs",
+                "tests/b2c-kyc-physical.test.cjs"
+              ],
+              "risks": []
+            },
+            {
+              "file": "panel-admin.js",
+              "score": 133.31,
+              "semanticSimilarity": 0.47313611392208693,
+              "exactStructuralMatch": false,
+              "breakdown": {
+                "exactStructuralMatch": 0,
+                "plannedFile": 0,
+                "localEmbeddingSimilarity": 47.31,
+                "moduleRelation": 21,
+                "incomingCalls": 5,
+                "outgoingCalls": 20,
+                "imports": 20,
+                "uiContext": 0,
+                "executionEvidence": 20,
+                "existingTests": 0,
+                "authoritySensitivity": 0,
+                "decorativePenalty": 0,
+                "generatedFilePenalty": 0
+              },
+              "reasons": [
+                "localEmbeddingSimilarity: +47.31",
+                "moduleRelation: +21",
+                "incomingCalls: +5",
+                "outgoingCalls: +20",
+                "imports: +20",
+                "executionEvidence: +20"
+              ],
+              "controls": [
+                "adminListenerError",
+                "documentReferenceUrl",
+                "safeHttpsDocumentUrl",
+                "iniciarPanelAdmin",
+                "cargarPerfilesCoberturaCatalogo",
+                "renderCatalog",
+                "generarSwitchGranular"
+              ],
+              "dependsOn": [
+                "firebase.js",
+                "b2c-technician-profile.js",
+                "app-utils.js",
+                "gestia-core/contracts/b2c-platform-contract.js",
+                "ceo-admin-case.js",
+                "b2c-provider-crew-admin.js"
+              ],
+              "dependedOnBy": [
+                "app-panel.js"
+              ],
+              "coveredByTests": [],
+              "risks": []
+            },
+            {
+              "file": "functions/index.js",
+              "score": 172.19,
+              "semanticSimilarity": 0.471941686546001,
+              "exactStructuralMatch": false,
+              "breakdown": {
+                "exactStructuralMatch": 0,
+                "plannedFile": 0,
+                "localEmbeddingSimilarity": 47.19,
+                "moduleRelation": 30,
+                "incomingCalls": 15,
+                "outgoingCalls": 20,
+                "imports": 20,
+                "uiContext": 0,
+                "executionEvidence": 20,
+                "existingTests": 10,
+                "authoritySensitivity": 10,
+                "decorativePenalty": 0,
+                "generatedFilePenalty": 0
+              },
+              "reasons": [
+                "localEmbeddingSimilarity: +47.19",
+                "moduleRelation: +30",
+                "incomingCalls: +15",
+                "outgoingCalls: +20",
+                "imports: +20",
+                "executionEvidence: +20",
+                "existingTests: +10",
+                "authoritySensitivity: +10"
+              ],
+              "controls": [
+                "requireB2bTenant",
+                "completeB2bRegistration",
+                "provisionB2bPersonnel",
+                "completeB2bService",
+                "applyArchitectCorsHeaders",
+                "initCore",
+                "getGroundedGenAI",
+                "getVertexGenAI",
+                "getPlannerGenAI",
+                "isValidId",
+                "reportSentinelMetric",
+                "internalCreateModule",
+                "generateOperationId",
+                "assertJarvisAdminContext",
+                "initRepoCommitEngine"
+              ],
+              "dependsOn": [
+                "functions/repo-syntax-validator.js",
+                "functions/repo-semantic-tool-planner.js",
+                "functions/jarvis-intent-runtime-v7.cjs",
+                "functions/jarvis-daily-supervisor.js",
+                "functions/jarvis-web-research.js",
+                "functions/jarvis-image-generation.js",
+                "functions/jarvis-media-analysis.js",
+                "functions/jarvis-semantic-planner.js",
+                "functions/jarvis-genai-provider-chain.js",
+                "functions/b2b-personnel-kyc.js",
+                "functions/firewall/firewall.v5.js",
+                "functions/repo-write-auth.js",
+                "functions/repo-write-idempotency.js",
+                "functions/b2c-technician-approval.js",
+                "functions/b2c-provider-crew.js",
+                "functions/b2c-service-marketplace.js",
+                "functions/b2c-platform-authority.js",
+                "functions/b2c-service-workflow.js",
+                "functions/release-identity.js"
+              ],
+              "dependedOnBy": [
+                "functions/find_traitor.js",
+                "functions/secure-entry.js",
+                "tests/secure-financial-entry.test.mjs"
+              ],
+              "coveredByTests": [
+                "tests/secure-financial-entry.test.mjs"
+              ],
+              "risks": [
+                "AUTHORITY_SENSITIVE",
+                "META_FILE"
+              ]
+            },
+            {
+              "file": "panel-cliente.js",
+              "score": 148.64,
+              "semanticSimilarity": 0.4664163249931341,
+              "exactStructuralMatch": false,
+              "breakdown": {
+                "exactStructuralMatch": 0,
+                "plannedFile": 0,
+                "localEmbeddingSimilarity": 46.64,
+                "moduleRelation": 27,
+                "incomingCalls": 5,
+                "outgoingCalls": 20,
+                "imports": 20,
+                "uiContext": 0,
+                "executionEvidence": 20,
+                "existingTests": 10,
+                "authoritySensitivity": 0,
+                "decorativePenalty": 0,
+                "generatedFilePenalty": 0
+              },
+              "reasons": [
+                "localEmbeddingSimilarity: +46.64",
+                "moduleRelation: +27",
+                "incomingCalls: +5",
+                "outgoingCalls: +20",
+                "imports: +20",
+                "executionEvidence: +20",
+                "existingTests: +10"
+              ],
+              "controls": [
+                "iniciarPanelCliente",
+                "identityStepKeysFromReasons",
+                "describeIdentityReview",
+                "stopCustomerIdentityCamera",
+                "closeCustomerIdentityModal",
+                "renderCustomerIdentityRecoveryProgress",
+                "customerIdentityAttemptError",
+                "customerIdentityExistingUrl",
+                "customerIdentityStepLabel",
+                "customerIdentityPreviewUrl",
+                "clearCustomerIdentityPreview",
+                "showCustomerIdentityCaptureView",
+                "renderCustomerIdentityReview",
+                "showCustomerIdentityReview",
+                "openCustomerIdentityCameraStep"
+              ],
+              "dependsOn": [
+                "firebase.js",
+                "app-utils.js",
+                "b2c-provider-crew-public.js",
+                "modulo-b2b.js",
+                "b2c-destination.js",
+                "gestia-core/contracts/b2c-platform-contract.js",
+                "b2c-request-recovery.js",
+                "b2c-technician-profile.js"
+              ],
+              "dependedOnBy": [
+                "app-panel.js"
+              ],
+              "coveredByTests": [
+                "tests/jarvis-semantic-transport.test.mjs"
+              ],
+              "risks": []
+            }
+          ],
+          "candidates": [
+            {
+              "file": "panel-tecnico.js",
+              "score": 143.27,
+              "semanticSimilarity": 0.5127485521926304,
+              "exactStructuralMatch": false,
+              "breakdown": {
+                "exactStructuralMatch": 0,
+                "plannedFile": 0,
+                "localEmbeddingSimilarity": 51.27,
+                "moduleRelation": 27,
+                "incomingCalls": 5,
+                "outgoingCalls": 20,
+                "imports": 20,
+                "uiContext": 0,
+                "executionEvidence": 20,
+                "existingTests": 0,
+                "authoritySensitivity": 0,
+                "decorativePenalty": 0,
+                "generatedFilePenalty": 0
+              },
+              "reasons": [
+                "localEmbeddingSimilarity: +51.27",
+                "moduleRelation: +27",
+                "incomingCalls: +5",
+                "outgoingCalls: +20",
+                "imports: +20",
+                "executionEvidence: +20"
+              ],
+              "controls": [
+                "bindIncompletePayoutInputs",
+                "refreshPayout",
+                "renderNotificationRuntimeState",
+                "setNotificationRuntimeState",
+                "iniciarPanelTecnico",
+                "subirConfirmado",
+                "actualizarUIWallet",
+                "escucharBolsa",
+                "renderizarBolsa",
+                "escucharFuente",
+                "calcularMultiplicadorTarifa",
+                "mostrarModalCotizacionDetallada",
+                "renderItems",
+                "mostrarModalEvidencia",
+                "obtenerPos"
+              ],
+              "dependsOn": [
+                "firebase.js",
+                "gps-motor.js",
+                "app-utils.js",
+                "platform-release.js",
+                "b2c-technician-profile.js",
+                "b2c-destination.js",
+                "b2c-commission-display.js",
+                "b2c-provider-crew-ui.js"
+              ],
+              "dependedOnBy": [
+                "app-panel.js"
+              ],
+              "coveredByTests": [],
+              "risks": []
+            },
+            {
+              "file": "app-tecnico-b2b.js",
+              "score": 155.23,
+              "semanticSimilarity": 0.4923002093256501,
+              "exactStructuralMatch": false,
+              "breakdown": {
+                "exactStructuralMatch": 0,
+                "plannedFile": 0,
+                "localEmbeddingSimilarity": 49.23,
+                "moduleRelation": 15,
+                "incomingCalls": 5,
+                "outgoingCalls": 20,
+                "imports": 16,
+                "uiContext": 0,
+                "executionEvidence": 20,
+                "existingTests": 30,
+                "authoritySensitivity": 0,
+                "decorativePenalty": 0,
+                "generatedFilePenalty": 0
+              },
+              "reasons": [
+                "localEmbeddingSimilarity: +49.23",
+                "moduleRelation: +15",
+                "incomingCalls: +5",
+                "outgoingCalls: +20",
+                "imports: +16",
+                "executionEvidence: +20",
+                "existingTests: +30"
+              ],
+              "controls": [
+                "cerrarOrdenB2b",
+                "cachePendientes",
+                "confirmarPendiente",
+                "initLocalDB",
+                "cacheGuardar",
+                "cacheLeerTodos",
+                "cacheLimpiar",
+                "agregarSyncPendiente",
+                "guardarFotoOffline",
+                "procesarSyncPendiente",
+                "procesarFotosPendientes",
+                "showToast",
+                "setButtonLoading",
+                "inicializarBottomSheet",
+                "validarPaseCaseta"
+              ],
+              "dependsOn": [
+                "b2b-offline-authority.js",
+                "gestia-core/auth/role-authority.js",
+                "firebase.js",
+                "platform-release.js"
+              ],
+              "dependedOnBy": [
+                "tecnico-b2b.html"
+              ],
+              "coveredByTests": [
+                "tests/b2b-supervisor-session.test.mjs",
+                "tests/jarvis-semantic-transport.test.mjs",
+                "tests/nexo-terminal-bootstrap.test.mjs"
+              ],
+              "risks": []
+            },
+            {
+              "file": "panel-b2b-admin.js",
+              "score": 133.22,
+              "semanticSimilarity": 0.49217814601992743,
+              "exactStructuralMatch": false,
+              "breakdown": {
+                "exactStructuralMatch": 0,
+                "plannedFile": 0,
+                "localEmbeddingSimilarity": 49.22,
+                "moduleRelation": 18,
+                "incomingCalls": 10,
+                "outgoingCalls": 20,
+                "imports": 16,
+                "uiContext": 0,
+                "executionEvidence": 20,
+                "existingTests": 0,
+                "authoritySensitivity": 0,
+                "decorativePenalty": 0,
+                "generatedFilePenalty": 0
+              },
+              "reasons": [
+                "localEmbeddingSimilarity: +49.22",
+                "moduleRelation: +18",
+                "incomingCalls: +10",
+                "outgoingCalls: +20",
+                "imports: +16",
+                "executionEvidence: +20"
+              ],
+              "controls": [
+                "showToast",
+                "enviarPushEmergenciaB2B",
+                "actualizarInterfazRed",
+                "initLocalDB",
+                "cacheGuardar",
+                "cacheLeerTodos",
+                "cacheLimpiar",
+                "escucharPlantillaRealTime",
+                "conectarContadorTickets",
+                "conectarContadorMantenimientosHoy",
+                "sincronizarHistorialConFirestore",
+                "renderizarHistorialDesdeCache",
+                "escucharAvanceRutina",
+                "esperarAuthLista",
+                "activarOidoJessica"
+              ],
+              "dependsOn": [
+                "b2b-offline-authority.js",
+                "gestia-core/auth/role-authority.js",
+                "firebase.js",
+                "platform-release.js"
+              ],
+              "dependedOnBy": [
+                "b2b.html",
+                "panel-b2b-admin.html"
+              ],
+              "coveredByTests": [],
+              "risks": []
+            },
+            {
+              "file": "gestia-core/contracts/b2c-platform-contract.js",
+              "score": 151.87,
+              "semanticSimilarity": 0.4887299849327958,
+              "exactStructuralMatch": false,
+              "breakdown": {
+                "exactStructuralMatch": 0,
+                "plannedFile": 0,
+                "localEmbeddingSimilarity": 48.87,
+                "moduleRelation": 18,
+                "incomingCalls": 25,
+                "outgoingCalls": 20,
+                "imports": 0,
+                "uiContext": 0,
+                "executionEvidence": 0,
+                "existingTests": 30,
+                "authoritySensitivity": 10,
+                "decorativePenalty": 0,
+                "generatedFilePenalty": 0
+              },
+              "reasons": [
+                "localEmbeddingSimilarity: +48.87",
+                "moduleRelation: +18",
+                "incomingCalls: +25",
+                "outgoingCalls: +20",
+                "existingTests: +30",
+                "authoritySensitivity: +10"
+              ],
+              "controls": [
+                "normalizeMexicanClabe",
+                "calculateMexicanClabeCheckDigit",
+                "inspectMexicanClabe",
+                "normalizeMexicanPayoutDestination",
+                "validLuhn",
+                "payoutDestinationType",
+                "inspectMexicanPayoutDestination",
+                "text",
+                "normalizeToken",
+                "finite",
+                "normalizeCoordinates",
+                "normalizeDestination",
+                "isDocumentReference",
+                "normalizeVehicleType",
+                "normalizeState"
+              ],
+              "dependsOn": [],
+              "dependedOnBy": [
+                "b2c-technician-profile.js",
+                "ceo-daily-operations.js",
+                "expediente-b2b.js",
+                "panel-admin.js",
+                "panel-cliente.js",
+                "tests/b2c-registration-recovery.test.mjs"
+              ],
+              "coveredByTests": [
+                "functions/test-b2c-service-marketplace.js",
+                "tests/b2c-client-technician-contract.test.mjs",
+                "tests/b2c-migration-safety.test.cjs",
+                "tests/b2c-platform-authority.test.mjs",
+                "tests/b2c-registration-recovery.test.mjs",
+                "tests/jarvis-document-flow.test.mjs",
+                "tests/jarvis-multifunction-tools.test.mjs",
+                "tests/jarvis-semantic-transport.test.mjs"
+              ],
+              "risks": [
+                "AUTHORITY_SENSITIVE"
+              ]
+            },
+            {
+              "file": "functions/b2c-technician-approval.js",
+              "score": 150.32999999999998,
+              "semanticSimilarity": 0.4732962169483463,
+              "exactStructuralMatch": false,
+              "breakdown": {
+                "exactStructuralMatch": 0,
+                "plannedFile": 0,
+                "localEmbeddingSimilarity": 47.33,
+                "moduleRelation": 24,
+                "incomingCalls": 25,
+                "outgoingCalls": 20,
+                "imports": 4,
+                "uiContext": 0,
+                "executionEvidence": 0,
+                "existingTests": 30,
+                "authoritySensitivity": 0,
+                "decorativePenalty": 0,
+                "generatedFilePenalty": 0
+              },
+              "reasons": [
+                "localEmbeddingSimilarity: +47.33",
+                "moduleRelation: +24",
+                "incomingCalls: +25",
+                "outgoingCalls: +20",
+                "imports: +4",
+                "existingTests: +30"
+              ],
+              "controls": [
+                "validateTechnicianKyc",
+                "isAuthorizedAdmin",
+                "verifyTechnicianStorage",
+                "invalid",
+                "createApproveTechnicianHandler",
+                "createReturnTechnicianHandler"
+              ],
+              "dependsOn": [
+                "functions/b2c-platform-contract.js"
+              ],
+              "dependedOnBy": [
+                "functions/b2c-provider-crew.js",
+                "functions/index.js",
+                "functions/secure-entry.js",
+                "functions/test-b2c-technician-approval.js",
+                "tests/b2b-personnel-kyc.test.cjs",
+                "tests/b2c-kyc-emulator.test.mjs",
+                "tests/b2c-kyc-physical.test.cjs"
+              ],
+              "coveredByTests": [
+                "functions/test-b2c-technician-approval.js",
+                "tests/b2b-personnel-kyc.test.cjs",
+                "tests/b2c-kyc-emulator.test.mjs",
+                "tests/b2c-kyc-physical.test.cjs"
+              ],
+              "risks": []
+            },
+            {
+              "file": "panel-admin.js",
+              "score": 133.31,
+              "semanticSimilarity": 0.47313611392208693,
+              "exactStructuralMatch": false,
+              "breakdown": {
+                "exactStructuralMatch": 0,
+                "plannedFile": 0,
+                "localEmbeddingSimilarity": 47.31,
+                "moduleRelation": 21,
+                "incomingCalls": 5,
+                "outgoingCalls": 20,
+                "imports": 20,
+                "uiContext": 0,
+                "executionEvidence": 20,
+                "existingTests": 0,
+                "authoritySensitivity": 0,
+                "decorativePenalty": 0,
+                "generatedFilePenalty": 0
+              },
+              "reasons": [
+                "localEmbeddingSimilarity: +47.31",
+                "moduleRelation: +21",
+                "incomingCalls: +5",
+                "outgoingCalls: +20",
+                "imports: +20",
+                "executionEvidence: +20"
+              ],
+              "controls": [
+                "adminListenerError",
+                "documentReferenceUrl",
+                "safeHttpsDocumentUrl",
+                "iniciarPanelAdmin",
+                "cargarPerfilesCoberturaCatalogo",
+                "renderCatalog",
+                "generarSwitchGranular"
+              ],
+              "dependsOn": [
+                "firebase.js",
+                "b2c-technician-profile.js",
+                "app-utils.js",
+                "gestia-core/contracts/b2c-platform-contract.js",
+                "ceo-admin-case.js",
+                "b2c-provider-crew-admin.js"
+              ],
+              "dependedOnBy": [
+                "app-panel.js"
+              ],
+              "coveredByTests": [],
+              "risks": []
+            },
+            {
+              "file": "functions/index.js",
+              "score": 172.19,
+              "semanticSimilarity": 0.471941686546001,
+              "exactStructuralMatch": false,
+              "breakdown": {
+                "exactStructuralMatch": 0,
+                "plannedFile": 0,
+                "localEmbeddingSimilarity": 47.19,
+                "moduleRelation": 30,
+                "incomingCalls": 15,
+                "outgoingCalls": 20,
+                "imports": 20,
+                "uiContext": 0,
+                "executionEvidence": 20,
+                "existingTests": 10,
+                "authoritySensitivity": 10,
+                "decorativePenalty": 0,
+                "generatedFilePenalty": 0
+              },
+              "reasons": [
+                "localEmbeddingSimilarity: +47.19",
+                "moduleRelation: +30",
+                "incomingCalls: +15",
+                "outgoingCalls: +20",
+                "imports: +20",
+                "executionEvidence: +20",
+                "existingTests: +10",
+                "authoritySensitivity: +10"
+              ],
+              "controls": [
+                "requireB2bTenant",
+                "completeB2bRegistration",
+                "provisionB2bPersonnel",
+                "completeB2bService",
+                "applyArchitectCorsHeaders",
+                "initCore",
+                "getGroundedGenAI",
+                "getVertexGenAI",
+                "getPlannerGenAI",
+                "isValidId",
+                "reportSentinelMetric",
+                "internalCreateModule",
+                "generateOperationId",
+                "assertJarvisAdminContext",
+                "initRepoCommitEngine"
+              ],
+              "dependsOn": [
+                "functions/repo-syntax-validator.js",
+                "functions/repo-semantic-tool-planner.js",
+                "functions/jarvis-intent-runtime-v7.cjs",
+                "functions/jarvis-daily-supervisor.js",
+                "functions/jarvis-web-research.js",
+                "functions/jarvis-image-generation.js",
+                "functions/jarvis-media-analysis.js",
+                "functions/jarvis-semantic-planner.js",
+                "functions/jarvis-genai-provider-chain.js",
+                "functions/b2b-personnel-kyc.js",
+                "functions/firewall/firewall.v5.js",
+                "functions/repo-write-auth.js",
+                "functions/repo-write-idempotency.js",
+                "functions/b2c-technician-approval.js",
+                "functions/b2c-provider-crew.js",
+                "functions/b2c-service-marketplace.js",
+                "functions/b2c-platform-authority.js",
+                "functions/b2c-service-workflow.js",
+                "functions/release-identity.js"
+              ],
+              "dependedOnBy": [
+                "functions/find_traitor.js",
+                "functions/secure-entry.js",
+                "tests/secure-financial-entry.test.mjs"
+              ],
+              "coveredByTests": [
+                "tests/secure-financial-entry.test.mjs"
+              ],
+              "risks": [
+                "AUTHORITY_SENSITIVE",
+                "META_FILE"
+              ]
+            },
+            {
+              "file": "panel-cliente.js",
+              "score": 148.64,
+              "semanticSimilarity": 0.4664163249931341,
+              "exactStructuralMatch": false,
+              "breakdown": {
+                "exactStructuralMatch": 0,
+                "plannedFile": 0,
+                "localEmbeddingSimilarity": 46.64,
+                "moduleRelation": 27,
+                "incomingCalls": 5,
+                "outgoingCalls": 20,
+                "imports": 20,
+                "uiContext": 0,
+                "executionEvidence": 20,
+                "existingTests": 10,
+                "authoritySensitivity": 0,
+                "decorativePenalty": 0,
+                "generatedFilePenalty": 0
+              },
+              "reasons": [
+                "localEmbeddingSimilarity: +46.64",
+                "moduleRelation: +27",
+                "incomingCalls: +5",
+                "outgoingCalls: +20",
+                "imports: +20",
+                "executionEvidence: +20",
+                "existingTests: +10"
+              ],
+              "controls": [
+                "iniciarPanelCliente",
+                "identityStepKeysFromReasons",
+                "describeIdentityReview",
+                "stopCustomerIdentityCamera",
+                "closeCustomerIdentityModal",
+                "renderCustomerIdentityRecoveryProgress",
+                "customerIdentityAttemptError",
+                "customerIdentityExistingUrl",
+                "customerIdentityStepLabel",
+                "customerIdentityPreviewUrl",
+                "clearCustomerIdentityPreview",
+                "showCustomerIdentityCaptureView",
+                "renderCustomerIdentityReview",
+                "showCustomerIdentityReview",
+                "openCustomerIdentityCameraStep"
+              ],
+              "dependsOn": [
+                "firebase.js",
+                "app-utils.js",
+                "b2c-provider-crew-public.js",
+                "modulo-b2b.js",
+                "b2c-destination.js",
+                "gestia-core/contracts/b2c-platform-contract.js",
+                "b2c-request-recovery.js",
+                "b2c-technician-profile.js"
+              ],
+              "dependedOnBy": [
+                "app-panel.js"
+              ],
+              "coveredByTests": [
+                "tests/jarvis-semantic-transport.test.mjs"
+              ],
+              "risks": []
+            }
+          ],
+          "totalResults": 8,
+          "totalMatches": 8,
+          "totalFilesScanned": 12,
+          "semanticEvidence": {
+            "provider": "ollama-local",
+            "model": "qwen3-embedding:0.6b",
+            "queryEmbedded": true,
+            "documentsConsidered": 475,
+            "documentsEmbedded": 12,
+            "semanticPoolLimit": 12,
+            "preselection": "query_structural_overlap_then_local_embedding",
+            "exactStructuralMatches": [],
+            "cacheHits": 0,
+            "cacheMisses": 12,
+            "externalApiUsed": false,
+            "estimatedExternalCostUsd": 0
+          },
+          "repositoryTarget": {
+            "kind": "local_repository",
+            "provider": "local",
+            "ref": "v94-media-v4n-negative-claims",
+            "commit": "9dcbd99e268ab75e86f2bd49eea1c175c8e5e61c",
+            "path": "",
+            "objectType": "tree"
+          },
+          "scoring": "local_embedding_and_structural_evidence",
+          "source": "local_embedding_plus_live_repo_graph",
+          "tool": "repo.search",
+          "envelope": {
+            "status": "SUCCESS",
+            "executionOk": true,
+            "objectiveSatisfied": true,
+            "requiresInput": false,
+            "requiresApproval": false,
+            "blocked": false,
+            "degraded": false,
+            "retryable": false
+          },
+          "missingInputs": []
+        }
+      }
+    },
+    {
+      "name": "repo.read",
+      "args": {
+        "file": "panel-tecnico.js"
+      },
+      "observation": {
+        "ok": true,
+        "executionOk": true,
+        "objectiveSatisfied": true,
+        "status": "SUCCESS",
+        "requiresInput": false,
+        "requiresApproval": false,
+        "blocked": false,
+        "degraded": false,
+        "retryable": false,
+        "fullRestartAllowed": null,
+        "operationName": null,
+        "stage": null,
+        "providerCode": null,
+        "providerMessage": null,
+        "provider": null,
+        "backend": null,
+        "fallbackReason": null,
+        "reasonForPaidExternalUse": null,
+        "localSemanticInferenceCalls": 0,
+        "semanticExternalCalls": 0,
+        "paidExternalCalls": 0,
+        "externalEstimatedCostUsd": 0,
+        "externalActualCostUsd": 0,
+        "gpuRentalSeconds": 0,
+        "gpuRentalEstimatedCost": 0,
+        "gpuRentalActualCost": 0,
+        "raiMediaFilteredCount": 0,
+        "raiMediaFilteredReasons": [],
+        "mimeType": null,
+        "physicallyWritten": false,
+        "bytes": 0,
+        "sha256": null,
+        "width": 0,
+        "height": 0,
+        "videoCodec": "",
+        "audioCodec": "",
+        "audioTracksAdded": 0,
+        "durationSeconds": 0,
+        "logoOverlayApplied": false,
+        "logoSourceSha256": "",
+        "deliveryMode": "",
+        "sourceCount": 0,
+        "validSources": [],
+        "discardedSources": [],
+        "summary": "",
+        "userVisible": "",
+        "planReady": false,
+        "readyForProduction": false,
+        "productionRequested": false,
+        "requiredArtifacts": [],
+        "deliverable": null,
+        "error": null,
+        "validationFailures": [],
+        "wordCount": 0,
+        "sectionCount": 0,
+        "tableBlueprintCount": 0,
+        "templateCount": 0,
+        "questionCount": 0,
+        "answerKeyCount": 0,
+        "vehicleCount": 0,
+        "partCount": 0,
+        "kpiCount": 0,
+        "implementationDayCoverage": 0,
+        "continuationCount": 0,
+        "segmentedComposition": false,
+        "artifact": null,
+        "preparedArtifact": null,
+        "verifiedRead": {
+          "tool": "repo.read",
+          "file": "panel-tecnico.js",
+          "path": "panel-tecnico.js",
+          "partial": true,
+          "startLine": 1,
+          "endLine": 998,
+          "readEndLine": 2219,
+          "totalLines": 2219,
+          "contentLength": 127087,
+          "contentPersisted": false,
+          "contentTruncated": true,
+          "numberedContentLength": 60000,
+          "numberedContentPersisted": false,
+          "sourceStructure": {
+            "kind": "source_file",
+            "dataBindings": {
+              "source": "ACORN_SOURCE_REFERENCES",
+              "collections": [
+                "users",
+                "transacciones",
+                "retiros",
+                "services",
+                "service_marketplace"
+              ],
+              "fieldPaths": [
+                "type",
+                "workerRelease",
+                "seccionBolsa.parentElement",
+                "parentElement",
+                "skills.length",
+                "skills",
+                "vehiculo.tipo",
+                "vehiculo.placas",
+                "kyc.aprobado",
+                "reputacion",
+                "badgeNivel.className",
+                "badgeNivel.innerText",
+                "contenedorEstrellas.innerHTML",
+                "txtServicios.classList",
+                "classList",
+                "txtServicios.innerText",
+                "fotoPerfil.src",
+                "fotoPerfil.classList",
+                "fotoIcono.classList",
+                "badgeNivel.style.display",
+                "style.display",
+                "badgeNivel.style",
+                "innerText",
+                "style",
+                "seccionBolsa.parentNode",
+                "parentNode",
+                "statusLabel.innerText",
+                "statusLabel.className",
+                "toggleONOFF.disabled",
+                "toggleONOFF.checked",
+                "radarSection.classList",
+                "seccionBolsa.classList",
+                "seccionBolsa.innerHTML",
+                "kyc.identity_duplicate_suspected",
+                "kyc.identity_machine_status",
+                "kyc.faltantes",
+                "faltantes",
+                "documentos.ine",
+                "documentos.csf",
+                "datos_bancarios.banco",
+                "datos_bancarios.destino",
+                "datos_bancarios.clabe",
+                "datos_bancarios.destino_tipo",
+                "required.banco",
+                "required.destino_retiro",
+                "documentos.licencia",
+                "documentos.certificados",
+                "kyc.observaciones",
+                "value",
+                "kyc.estado",
+                "kyc.upload_actual",
+                "disponible",
+                "kyc.ultimo_error",
+                "kyc.ultimo_error.documento",
+                "kyc.ultimo_error.codigo",
+                "fecha.toDate",
+                "fecha",
+                "walletLabel.innerHTML",
+                "walletLabel.classList",
+                "btnRetiro.disabled",
+                "btnRetiro.onclick",
+                "listaMisRetiros.innerHTML",
+                "contenedorHistorialRetiros.classList",
+                "fecha_aprobacion.seconds",
+                "monto",
+                "listaMisRetiros",
+                "listaMisTickets.innerHTML",
+                "finalizado_at.seconds",
+                "costo_final",
+                "listaMisTickets",
+                "toggleONOFF",
+                "target.checked",
+                "rejected_by",
+                "categoria",
+                "doc",
+                "doc.id",
+                "estado",
+                "tecnico_id",
+                "tecnico_nombre",
+                "tecnico_nombre_fiscal",
+                "tecnico_rfc",
+                "tecnico_logo_factura",
+                "tecnico_vehiculo",
+                "tecnico_placas",
+                "metodo_pago",
+                "cliente_id",
+                "tipo",
+                "fecha_inicio",
+                "actualizado_at",
+                "coords.lat",
+                "coords.lng",
+                "oculto_para_tecnico",
+                "geolocation",
+                "coords.latitude",
+                "coords.longitude",
+                "body",
+                "precio_final",
+                "target.dataset.idx",
+                "dataset.idx",
+                "target.dataset",
+                "location.origin",
+                "id",
+                "target.files",
+                "foto_perfil",
+                "kyc.uploads.foto_perfil",
+                "kyc.uploads.foto_perfil.estado",
+                "kyc.uploads.foto_perfil.storage_path",
+                "kyc.uploads.foto_perfil.url",
+                "kyc.uploads.foto_perfil.actualizado_at",
+                "logo_factura",
+                "target.result",
+                "notification.title",
+                "notification.body",
+                "searchParams",
+                "active.scriptURL",
+                "GESTIA_RELEASE.git_sha",
+                "pushManager",
+                "fcmToken",
+                "ultimaSincronizacionPush",
+                "push_runtime",
+                "push_runtime.version",
+                "push_runtime.permission",
+                "push_runtime.worker_release_sha",
+                "push_runtime.worker_scope",
+                "push_runtime.subscription_present",
+                "push_runtime.token_refreshed_at"
+              ],
+              "fieldPathsComplete": true,
+              "writeShapes": [
+                {
+                  "collection": "users",
+                  "operation": "updateDoc",
+                  "startLine": 636,
+                  "fields": [
+                    "kyc.estado",
+                    "kyc.upload_actual",
+                    "disponible"
+                  ],
+                  "fieldsComplete": true,
+                  "content": "{\r\n                    \"kyc.estado\": TECHNICIAN_KYC_STATES.DOCUMENTS_PENDING,\r\n                    \"kyc.upload_actual\": kind,\r\n                    [`${prefix}.estado`]: \"subiendo\",\r\n                    [`${prefix}.storage_path`]: path,\r\n                    [`${prefix}.actualizado_at`]: serverTimestamp(),\r\n                    disponible: false\r\n                }",
+                  "truncated": false
+                },
+                {
+                  "collection": "users",
+                  "operation": "updateDoc",
+                  "startLine": 648,
+                  "fields": [
+                    "kyc.faltantes",
+                    "kyc.upload_actual"
+                  ],
+                  "fieldsComplete": true,
+                  "content": "{\r\n                        [field]: multiple ? arrayUnion(url) : url,\r\n                        \"kyc.faltantes\": (perfilTecnicoActual.kyc?.faltantes || []).filter(item => item !== kind),\r\n                        \"kyc.upload_actual\": null,\r\n                        [`${prefix}.estado`]: \"confirmado\",\r\n                        [`${prefix}.url`]: url,\r\n                        [`${prefix}.actualizado_at`]: serverTimestamp()\r\n                    }",
+                  "truncated": false
+                },
+                {
+                  "collection": "users",
+                  "operation": "updateDoc",
+                  "startLine": 657,
+                  "fields": [
+                    "kyc.upload_actual",
+                    "kyc.ultimo_error",
+                    "kyc.ultimo_error.documento",
+                    "kyc.ultimo_error.codigo"
+                  ],
+                  "fieldsComplete": true,
+                  "content": "{\r\n                        \"kyc.upload_actual\": null,\r\n                        \"kyc.ultimo_error\": { documento: kind, codigo: String(error.code || \"UPLOAD_FAILED\").slice(0, 120) },\r\n                        [`${prefix}.estado`]: \"upload_failed\"\r\n                    }",
+                  "truncated": false
+                },
+                {
+                  "collection": "users",
+                  "operation": "updateDoc",
+                  "startLine": 629,
+                  "fields": [],
+                  "fieldsComplete": true,
+                  "content": "{}",
+                  "truncated": false
+                },
+                {
+                  "collection": "users",
+                  "operation": "updateDoc",
+                  "startLine": 697,
+                  "fields": [
+                    "kyc.ultimo_error"
+                  ],
+                  "fieldsComplete": false,
+                  "content": "{ ...reviewPatch, \"kyc.ultimo_error\": null }",
+                  "truncated": false
+                },
+                {
+                  "collection": "services",
+                  "operation": "updateDoc",
+                  "startLine": 1213,
+                  "fields": [
+                    "estado",
+                    "tecnico_id",
+                    "tecnico_nombre",
+                    "tecnico_nombre_fiscal",
+                    "tecnico_rfc",
+                    "tecnico_logo_factura",
+                    "tecnico_vehiculo",
+                    "tecnico_placas",
+                    "metodo_pago",
+                    "cliente_id",
+                    "tipo",
+                    "fecha_inicio",
+                    "actualizado_at"
+                  ],
+                  "fieldsComplete": true,
+                  "content": "{\r\n                estado: \"trabajando\",\r\n                tecnico_id: user.uid, \r\n                tecnico_nombre: user.nombre || \"Técnico Residencial\",\r\n                tecnico_nombre_fiscal: nombreFiscal, // 👈 INYECCIÓN PARA PDF CLIENTE\r\n                tecnico_rfc: rfcTech,                // 👈 INYECCIÓN PARA PDF CLIENTE\r\n                tecnico_logo_factura: logoFactura,   // 👈 INYECCIÓN PARA PDF CLIENTE\r\n                tecnico_vehiculo: vehiculoTech,      // 🔥 INYECCIÓN PARA PASE QR\r\n                tecnico_placas: placasTech,          // 🔥 INYECCIÓN PARA PASE QR\r\n                metodo_pago: \"b2b\", // 👈 LA LLAVE MAESTRA para el Split Billing\r\n                cliente_id: \"admin_residencial\", // 👈 Relleno de seguridad para el servidor\r\n                tipo: \"mantenimiento\",\r\n                fecha_inicio: serverTimestamp(),\r\n                actualizado_at: serverTimestamp()\r\n            }",
+                  "truncated": false
+                },
+                {
+                  "collection": "services",
+                  "operation": "updateDoc",
+                  "startLine": 1472,
+                  "fields": [
+                    "oculto_para_tecnico"
+                  ],
+                  "fieldsComplete": true,
+                  "content": "{ oculto_para_tecnico: true }",
+                  "truncated": false
+                },
+                {
+                  "collection": "services",
+                  "operation": "updateDoc",
+                  "startLine": 1503,
+                  "fields": [
+                    "estado"
+                  ],
+                  "fieldsComplete": false,
+                  "content": "{ estado: estado, ...extras }",
+                  "truncated": false
+                }
+              ],
+              "queryShapes": [
+                {
+                  "collection": "transacciones",
+                  "fields": [
+                    "tecnico_id"
+                  ]
+                },
+                {
+                  "collection": "retiros",
+                  "fields": [
+                    "tecnico_id",
+                    "estado"
+                  ]
+                },
+                {
+                  "collection": "retiros",
+                  "fields": [
+                    "tecnico_id",
+                    "estado",
+                    "fecha_aprobacion"
+                  ]
+                },
+                {
+                  "collection": "services",
+                  "fields": [
+                    "tecnico_id",
+                    "estado",
+                    "finalizado_at"
+                  ]
+                },
+                {
+                  "collection": "services",
+                  "fields": [
+                    "tipo"
+                  ]
+                },
+                {
+                  "collection": "service_marketplace",
+                  "fields": [
+                    "estado"
+                  ]
+                },
+                {
+                  "collection": "services",
+                  "fields": [
+                    "tecnico_id"
+                  ]
+                },
+                {
+                  "collection": "users",
+                  "operation": "getDoc",
+                  "startLine": 1872,
+                  "endLine": 1872,
+                  "fields": [
+                    "comision_asignada"
+                  ],
+                  "fieldsComplete": false
+                }
+              ],
+              "references": [
+                {
+                  "collection": "users",
+                  "rootCollection": "users",
+                  "pathTemplate": "users",
+                  "startLine": 623,
+                  "endLine": 633,
+                  "content": "        btn.innerHTML = '<i class=\"fas fa-spinner fa-spin\"></i> SUBIENDO A LA NUBE...';\r\n        btn.disabled = true;\r\n\r\n        try {\r\n            if (uid !== user.uid) throw new Error(\"TECHNICIAN_OWNER_MISMATCH\");\r\n            const userRef = doc(db, \"users\", uid);\r\n            const updates = {};\r\n            updates['documentos.fecha_actualizacion'] = serverTimestamp();\r\n            // Confirm each file before starting the next upload. Reload only asks for missing files.\r\n            const subirConfirmado = async (kind, file, field, multiple = false) => {\r\n                if (!file) return;\r\n",
+                  "declarations": []
+                },
+                {
+                  "collection": "transacciones",
+                  "rootCollection": "transacciones",
+                  "pathTemplate": "transacciones",
+                  "startLine": 706,
+                  "endLine": 723,
+                  "content": "            btn.innerHTML = '<i class=\"fas fa-cloud-upload-alt text-lg\"></i> REINTENTAR SUBIDA';\r\n            btn.disabled = false;\r\n        } finally {\r\n            expedienteUploadBusy = false;\r\n        }\r\n    };\r\n\r\n\r\n    const qWallet = query(collection(db, \"transacciones\"), where(\"tecnico_id\", \"==\", user.uid));\r\n    const qRetirosPendientes = query(collection(db, \"retiros\"), where(\"tecnico_id\", \"==\", user.uid), where(\"estado\", \"==\", \"pendiente\"));\r\n    \r\n    let saldoBrutoDisponible = 0;\r\n    let saldoRetenido = 0;\r\n    let retirosEnProceso = 0;\r\n\r\n    onSnapshot(qWallet, (snap) => {\r\n        saldoBrutoDisponible = 0;\r\n        saldoRetenido = 0;\r\n",
+                  "declarations": []
+                },
+                {
+                  "collection": "retiros",
+                  "rootCollection": "retiros",
+                  "pathTemplate": "retiros",
+                  "startLine": 709,
+                  "endLine": 727,
+                  "content": "            expedienteUploadBusy = false;\r\n        }\r\n    };\r\n\r\n\r\n    const qWallet = query(collection(db, \"transacciones\"), where(\"tecnico_id\", \"==\", user.uid));\r\n    const qRetirosPendientes = query(collection(db, \"retiros\"), where(\"tecnico_id\", \"==\", user.uid), where(\"estado\", \"==\", \"pendiente\"));\r\n    \r\n    let saldoBrutoDisponible = 0;\r\n    let saldoRetenido = 0;\r\n    let retirosEnProceso = 0;\r\n\r\n    onSnapshot(qWallet, (snap) => {\r\n        saldoBrutoDisponible = 0;\r\n        saldoRetenido = 0;\r\n        const ahora = new Date();\r\n\r\n        snap.forEach(docSnap => {\r\n            const tx = docSnap.data();\r\n",
+                  "declarations": []
+                },
+                {
+                  "collection": "services",
+                  "rootCollection": "services",
+                  "pathTemplate": "services",
+                  "startLine": 851,
+                  "endLine": 866,
+                  "content": "2 border border-red-500/30 rounded-xl bg-red-900/10\">Construyendo índice en Firebase... (Recarga en 3 min)</p>';\r\n            elementos.contenedorHistorialRetiros.classList.remove(\"hidden\");\r\n        });\r\n    }\r\n\r\n    if (elementos.listaMisTickets) {\r\n        const qMisTickets = query(\r\n            collection(db, \"services\"),\r\n            where(\"tecnico_id\", \"==\", user.uid),\r\n            where(\"estado\", \"==\", \"finalizado\"),\r\n            orderBy(\"finalizado_at\", \"desc\")\r\n        );\r\n\r\n        onSnapshot(qMisTickets, (snap) => {\r\n            elementos.listaMisTickets.innerHTML = \"\";\r\n            if(snap.empty) {\r\n",
+                  "declarations": []
+                }
+              ],
+              "referencesComplete": false,
+              "collectionAnchors": [
+                {
+                  "collection": "users",
+                  "startLine": 628,
+                  "endLine": 630,
+                  "content": "            const userRef = doc(db, \"users\", uid);\r\n            const updates = {};\r\n            updates['documentos.fecha_actualizacion'] = serverTi",
+                  "truncated": true
+                },
+                {
+                  "collection": "transacciones",
+                  "startLine": 714,
+                  "endLine": 715,
+                  "content": "    const qWallet = query(collection(db, \"transacciones\"), where(\"tecnico_id\", \"==\", user.uid));\r\n    const qRetirosPendientes = query(collection(db, \"retiro",
+                  "truncated": true
+                },
+                {
+                  "collection": "retiros",
+                  "startLine": 715,
+                  "endLine": 717,
+                  "content": "    const qRetirosPendientes = query(collection(db, \"retiros\"), where(\"tecnico_id\", \"==\", user.uid), where(\"estado\", \"==\", \"pendiente\"));\r\n    \r\n    let saldoBrut",
+                  "truncated": true
+                },
+                {
+                  "collection": "services",
+                  "startLine": 858,
+                  "endLine": 860,
+                  "content": "            collection(db, \"services\"),\r\n            where(\"tecnico_id\", \"==\", user.uid),\r\n            where(\"estado\", \"==\", \"finalizado\")",
+                  "truncated": true
+                },
+                {
+                  "collection": "service_marketplace",
+                  "startLine": 949,
+                  "endLine": 953,
+                  "content": "            collection(db, \"service_marketplace\"),\r\n            where(\"estado\", \"==\", \"disponible\"),\r\n            limit(50)\r\n        );\r\n        let ",
+                  "truncated": true
+                }
+              ],
+              "complete": true,
+              "scope": "Static code references and bounded source excerpts, not a database inventory or query result."
+            },
+            "registrationCount": 0,
+            "registrations": []
+          }
+        },
+        "repoCandidates": [],
+        "evidence": {
+          "ok": true,
+          "file": "panel-tecnico.js",
+          "path": "panel-tecnico.js",
+          "size": 127563,
+          "totalSize": 127563,
+          "content": "/**\r\n * ======================================================================================\r\n * GESTIAPREMIUM 2026 - MÓDULO DE TÉCNICO (SOCIO OPERADOR)\r\n * ======================================================================================\r\n * Archivo: panel-tecnico.js\r\n * Versión: 5.18.10 (Inyección de Datos de Vehículo para Pase QR Caseta)\r\n * Descripción: Motor de radar, GPS, colisiones, cotizador y evidencia Cloud.\r\n * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.\r\n * ======================================================================================\r\n */\r\n\r\nimport {\r\n    db,\r\n    storage,\r\n    doc,\r\n    updateDoc,\r\n    collection,\r\n    query,\r\n    where,",
+          "partial": false,
+          "startLine": 1,
+          "endLine": 2219,
+          "totalLines": 2219,
+          "lineRange": {
+            "startLine": 1,
+            "endLine": 2219,
+            "totalLines": 2219
+          },
+          "source": "jarvis_fs_bridge_read_v1",
+          "version": "2.64.0-semantic-progress-deadline-v142",
+          "sourceStructure": {
+            "kind": "source_file",
+            "dataBindings": {
+              "source": "ACORN_SOURCE_REFERENCES",
+              "collections": [
+                "users",
+                "transacciones",
+                "retiros",
+                "services",
+                "service_marketplace"
+              ],
+              "fieldPaths": [
+                "type",
+                "workerRelease",
+                "seccionBolsa.parentElement",
+                "parentElement",
+                "skills.length",
+                "skills",
+                "vehiculo.tipo",
+                "vehiculo.placas",
+                "kyc.aprobado",
+                "reputacion",
+                "badgeNivel.className",
+                "badgeNivel.innerText",
+                "contenedorEstrellas.innerHTML",
+                "txtServicios.classList",
+                "classList",
+                "txtServicios.innerText",
+                "fotoPerfil.src",
+                "fotoPerfil.classList",
+                "fotoIcono.classList",
+                "badgeNivel.style.display",
+                "style.display",
+                "badgeNivel.style",
+                "innerText",
+                "style"
+              ],
+              "fieldPathsComplete": true,
+              "writeShapes": [
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {}
+              ],
+              "queryShapes": [
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {},
+                {}
+              ],
+              "references": [
+                {},
+                {},
+                {},
+                {}
+              ],
+              "referencesComplete": false,
+              "collectionAnchors": [
+                {},
+                {},
+                {},
+                {},
+                {}
+              ],
+              "complete": true,
+              "scope": "Static code references and bounded source excerpts, not a database inventory or query result."
+            },
+            "registrationCount": 0,
+            "registrations": []
+          },
+          "numberedContent": "1: /**\n2:  * ======================================================================================\n3:  * GESTIAPREMIUM 2026 - MÓDULO DE TÉCNICO (SOCIO OPERADOR)\n4:  * ======================================================================================\n5:  * Archivo: panel-tecnico.js\n6:  * Versión: 5.18.10 (Inyección de Datos de Vehículo para Pase QR Caseta)\n7:  * Descripción: Motor de radar, GPS, colisiones, cotizador y evidencia Cloud.\n8:  * REGLAS DE ARQUITECTURA: NO COMPACTAR. NO FRAGMENTAR. MANTENER LOGICA.\n9:  * ======================================================================================\n10:  */\n11: \n12: import {\n13:     db,\n14:     storage,\n15:     doc,\n16:     updateDoc,\n",
+          "note": "CONTENT_AVAILABLE_FROM_LOCAL_BRIDGE",
+          "tool": "repo.read",
+          "envelope": {
+            "status": "SUCCESS",
+            "executionOk": true,
+            "objectiveSatisfied": true,
+            "requiresInput": false,
+            "requiresApproval": false,
+            "blocked": false,
+            "degraded": false,
+            "retryable": false
+          },
+          "missingInputs": []
+        }
+      }
+    }
+  ]
+}

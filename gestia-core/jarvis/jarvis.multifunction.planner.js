@@ -2071,6 +2071,10 @@ async function callSemanticPlanner(input = "", catalog = [], missionState = null
         );
         failure.code = "LOCAL_SEMANTIC_PLAN_REQUIRED";
         if (localResult?.evidence) failure.evidence = localResult.evidence;
+        // The local validator can prove a deterministic evidence deficit.
+        // Preserve it across HTTP; a generic transport error must not turn
+        // an exhausted query into another automatic execution attempt.
+        if (localResult?.evidence?.retryable === false) failure.retryable = false;
         throw failure;
     }
 

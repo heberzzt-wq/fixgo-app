@@ -22,10 +22,24 @@ function recordObjectiveRevision(contract,tasks,clarifications,model,missionStat
         const read=observation.verifiedRead;
         if(read?.sourceStructure?.dataBindings){const item={file:read.file,bindings:read.sourceStructure.dataBindings};schemas.set(JSON.stringify(item),item);}
     });
+    // An independently pending temporal goal with no values and no exclusions
+    // cannot become proven as the clock advances within the day. Anything that
+    // could classify a value, exclude a source or depend on a query horizon
+    // keeps the exact clock. Never infer temporal units from business words.
+    const emptyTemporalDeficit=trustedProof?.proven===false &&
+        !(trustedProof.groups||[]).some(group=>group.proven===true) &&
+        !(trustedProof.sources||[]).some(source=>source.relevant===false) &&
+        tasks.every(task=>{
+            const observation=task.observation,record=observation?.recordEvidence;
+            if(observation?.ok!==true || observation.executionOk===false || observation.blocked===true || observation.requiresInput===true || !record)return true;
+            return Array.isArray(record.rows) && record.rows.length===0 && !(record.scope?.filters||[]).length &&
+                !(record.scope?.implicitExistenceFields||[]).length && (record.scope?.orderBy||[]).every(order=>order.field==='__name__');
+        });
     return createHash('sha256').update(JSON.stringify({contract,records,schemas:[...schemas.values()],excludedSchemas:[...excludedSchemas.values()],clarifications,model,
         identity:[missionState.userId,missionState.workspaceId,missionState.tenantId,missionState.projectId,missionState.missionId],
         sourceRevision:missionState.configuredSourceDiscovery?.revision,
-        evaluationInstant:contract?.coverageMode==='temporal'?String(evaluatedAt):null})).digest('hex');
+        evaluationInstant:contract?.coverageMode==='temporal'?
+            (emptyTemporalDeficit?String(evaluatedAt).slice(0,10):String(evaluatedAt)):null})).digest('hex');
 }
 
 function matchesRecordedQueryCollection(collection,task) {
@@ -70,17 +84,85 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
         if(matchesRecordedQueryCollection(task.args?.collection,task))collections.push(task.args.collection);
         return [...new Set(collections)].map(collection=>({name:task.name,sourceFile:scope.sourceFile,collection}));
     });
+    const canonicalScope=value=>Array.isArray(value)?value.map(canonicalScope):value&&typeof value==='object'
+        ?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonicalScope(value[key])])):value;
+    const queryScope=args=>JSON.stringify(canonicalScope({sourceFile:args?.sourceFile,filters:args?.filters||[],
+        orderBy:args?.orderBy?.length?args.orderBy:[{field:'__name__',direction:'asc'}],cursor:args?.cursor||null}));
+    const frontierTasks=successful.filter(task=>{const record=task.observation.recordEvidence;
+        return record?.source==='FIRESTORE_SERVER_AUTHENTICATED'&&record.readOnly===true&&
+            matchesRecordedQueryCollection(task.args?.collection,task)&&queryScope(task.args)===queryScope(record.scope)&&
+            !(record.scope?.implicitExistenceFields||[]).length;
+    });
     const firstPageChoices=(tool,schema)=>{
         const p=schema.properties;
         if(!p?.sourceFile?.enum?.length||!p.collection?.enum?.length||
-            !emptyScopes.some(scope=>scope.name===tool.name))return [schema];
+            (!Array.isArray(p.mode?.enum)&&!emptyScopes.some(scope=>scope.name===tool.name)) ||
+            !successful.some(task=>task.name===tool.name&&task.observation.recordEvidence?.source==='FIRESTORE_SERVER_AUTHENTICATED'&&task.observation.recordEvidence.readOnly===true))return [schema];
         return p.sourceFile.enum.flatMap(sourceFile=>p.collection.enum.flatMap(collection=>{
             const empty=emptyScopes.some(scope=>scope.name===tool.name&&scope.sourceFile===sourceFile&&scope.collection===collection);
             // A complete, unfiltered zero contains every subset of this exact
             // source/route. Do not invite a fabricated filter merely to rerun it.
             // Filtered zeros never enter emptyScopes; other routes stay eligible.
             if(empty)return [];
-            return [{...schema,properties:{...p,sourceFile:{...p.sourceFile,enum:[sourceFile]},collection:{...p.collection,enum:[collection]}}}];
+            const base={...schema,properties:{...p,sourceFile:{...p.sourceFile,enum:[sourceFile]},collection:{...p.collection,enum:[collection]}}};
+            // Offer executable progress rather than a completed first-page
+            // projection. Each removed alternative is checked by the same
+            // authenticated scope predicate used after model selection.
+            if(!Array.isArray(p.mode?.enum))return [base];
+            return p.mode.enum.flatMap(mode=>{
+                const branch={...base,properties:{...base.properties,mode:{...p.mode,enum:[mode]}}};
+                const finiteFilters=Array.isArray(p.filters?.enum)?p.filters.enum:
+                    p.filters?.const!==undefined?[p.filters.const]:null;
+                // An explicit filter alternative is its own scope. A completed
+                // filtered projection must not remain offered merely because
+                // the default unfiltered scope has not been queried.
+                if(finiteFilters){
+                    const orders=Array.isArray(p.orderBy?.enum)?p.orderBy.enum:
+                        p.orderBy?.const!==undefined?[p.orderBy.const]:[[]];
+                    const variants=[];
+                    if(p.orderBy && !p.orderBy.enum && p.orderBy.const===undefined && p.orderBy.maxItems!==0)
+                        variants.push({...branch,properties:{...branch.properties,orderBy:{...p.orderBy,minItems:Math.max(1,p.orderBy.minItems||0)}},
+                            required:[...new Set([...(branch.required||[]),'orderBy'])]});
+                    if(p.orderBy?.minItems>0 && !p.orderBy.enum && p.orderBy.const===undefined)return variants;
+                    for(const filters of finiteFilters)for(const orderBy of orders){
+                        const scoped={...branch,properties:{...branch.properties,filters:{...p.filters,enum:[filters]},
+                            ...(p.orderBy?{orderBy:{...p.orderBy,enum:[orderBy]}}:{})}};
+                        const args={sourceFile,collection,mode,filters,orderBy};
+                        if(mode==='count'){
+                            if(!recordProjectionAlreadyObserved({name:tool.name,args},frontierTasks))variants.push(scoped);
+                            continue;
+                        }
+                        const fields=p.fields,names=fields?.items?.enum;
+                        if(mode!=='query'||!Array.isArray(names)||fields.enum){variants.push(scoped);continue;}
+                        const observed=names.filter(field=>recordProjectionAlreadyObserved({name:tool.name,args:{...args,fields:[field]}},frontierTasks));
+                        if(!observed.length || !recordProjectionAlreadyObserved({name:tool.name,args:{...args,fields:observed}},frontierTasks)){variants.push(scoped);continue;}
+                        const novel=names.filter(field=>!observed.includes(field));
+                        if(novel.length)variants.push({...scoped,properties:{...scoped.properties,fields:{...fields,minItems:Math.max(1,fields.minItems||0),
+                            items:[{...fields.items,enum:novel}],additionalItems:fields.items}}});
+                    }
+                    return variants;
+                }
+                const args={sourceFile,collection,mode,filters:[]};
+                const preserveOtherScopes=remaining=>{
+                    const variants=[];
+                    if(p.filters && p.filters.maxItems!==0 && !p.filters.enum)variants.push({...branch,properties:{...branch.properties,filters:{...p.filters,minItems:1}},required:[...new Set([...(branch.required||[]),'filters'])]});
+                    if(p.orderBy && p.orderBy.maxItems!==0 && !p.orderBy.enum)variants.push({...branch,properties:{...branch.properties,filters:{...p.filters,maxItems:0},orderBy:{...p.orderBy,minItems:1}},required:[...new Set([...(branch.required||[]),'orderBy'])]});
+                    return [...variants,...remaining.map(item=>({...item,properties:{...item.properties,
+                        ...(p.filters?{filters:{...p.filters,maxItems:0}}:{}),...(p.orderBy?{orderBy:{...p.orderBy,maxItems:0}}:{})}}))];
+                };
+                if(p.filters?.minItems>0 || p.orderBy?.minItems>0 || p.filters?.enum && !p.filters.enum.some(v=>Array.isArray(v)&&!v.length) || p.orderBy?.enum && !p.orderBy.enum.some(v=>Array.isArray(v)&&!v.length))return [branch];
+                if(mode==='count')return recordProjectionAlreadyObserved({name:tool.name,args},frontierTasks)?preserveOtherScopes([]):[branch];
+                const fields=p.fields,names=fields?.items?.enum;
+                if(mode!=='query'||!Array.isArray(names)||fields.enum)return [branch];
+                const observed=names.filter(field=>recordProjectionAlreadyObserved({name:tool.name,args:{...args,fields:[field]}},frontierTasks));
+                if(!observed.length || !recordProjectionAlreadyObserved({name:tool.name,args:{...args,fields:observed}},frontierTasks))return [branch];
+                const novel=names.filter(field=>!observed.includes(field));
+                if(!novel.length)return preserveOtherScopes([]);
+                // Projection order has no data meaning. Put one new field first
+                // while retaining any other grounded fields under the same limit.
+                return preserveOtherScopes([{...branch,properties:{...branch.properties,fields:{...fields,minItems:Math.max(1,fields.minItems||0),
+                    items:[{...fields.items,enum:novel}],additionalItems:fields.items}}}]);
+            });
         }));
     };
     return catalog.flatMap(tool=>{
@@ -708,8 +790,11 @@ function recordProjectionAlreadyObserved(call, tasks) {
             // A server aggregate has no row-pagination flags. Its count proves
             // this exact scope without certifying rows or any other population.
             Number.isInteger(record.totalCount) && record.totalCount>=0 &&
+            !(record.scope?.mode!=="count" && Array.isArray(record.rows) && record.rows.length===0 && record.totalCount>0) &&
             (record.scope?.mode==="count" || record.completeForQuery===true) && record.hasMore!==true &&
-            record.scope?.collection===call.args.collection &&
+            receiptScope(call.args,task).collection===record.scope?.collection &&
+            record.scope?.sourceFile===call.args.sourceFile && record.consistentCountAndList!==false &&
+            task.observation.blocked!==true && task.observation.requiresInput!==true &&
             !task.args?.cursor && !call.args?.cursor &&
             JSON.stringify(canonical(task.args?.orderBy||[]))===JSON.stringify(canonical(call.args.orderBy||[])) &&
             JSON.stringify(canonical(record.scope?.filters||[]))===JSON.stringify(canonical(call.args.filters||[]));
@@ -930,7 +1015,7 @@ function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
     return {status:missing.length?"partial":"complete",consultedScopes,groups,pendingSources,missing:[...new Set(missing)]};
 }
 
-async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,advisoryContext="",scopeClarifications=[],evaluatedAt,instruction=contract.requestQuote}) {
+async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,advisoryContext="",scopeClarifications=[],evaluatedAt,instruction=contract.requestQuote,scopeReviewCacheKey=null}) {
     const sourcePaths=[...new Set([...observedRecordSources(tasks),...tasks.flatMap(task=>task.observation?.recordEvidence?.scope?.collection ? [task.observation.recordEvidence.scope.collection] : [])])];
     const recordIndexes=tasks.flatMap((task,index)=>task.observation?.ok===true && task.observation.recordEvidence?.source==="FIRESTORE_SERVER_AUTHENTICATED" ? [index] : []);
     // Required source keys prevent the constrained model from repeating one
@@ -1063,7 +1148,13 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         if(task.observation?.ok!==true || task.observation.executionOk===false || task.observation.blocked===true || task.observation.requiresInput===true)return [];
         const record=task.observation?.recordEvidence;
         const names=record?.fieldSchema ? observedRecordFieldPaths([task],record.scope?.collection) : [];
-        return [...(names.length ? [{file:record.scope.sourceFile,collection:record.scope.collection,fields:names,fieldsComplete:false,recordNamesOnly:true}] : []),
+        // Only this executed request binds its template to its authenticated route.
+        // Give both observed identities the same field-name provenance; do not
+        // wildcard another tenant or turn field names into operational values.
+        const identities=names.length ? [...new Set([record.scope.collection,
+            ...(matchesRecordedQueryCollection(task.args?.collection,task)?[task.args.collection]:[])])] : [];
+        return [...identities.map(collection=>({file:record.scope.sourceFile,collection,fields:names,fieldsComplete:false,recordNamesOnly:true,
+            ...(collection!==record.scope.collection?{resolvedCollection:record.scope.collection}: {})})),
             ...(read ? [...(read.sourceStructure?.dataBindings?.writeShapes || []),...(read.sourceStructure?.dataBindings?.queryShapes || []),...[...(read.sourceStructure?.dataBindings?.references || []),...(read.sourceStructure?.dataBindings?.collectionAnchors || [])].filter(reference=>reference.collection && reference.content).map(reference=>({...reference,fields:[],fieldsComplete:false,referenceOnly:true}))].map(shape=>({file:read.file,collection:shape.collection,fields:shape.fields,fieldsComplete:shape.fieldsComplete,operation:shape.operation,startLine:shape.startLine,endLine:shape.endLine,...(shape.referenceOnly ? {referenceOnly:true} : {}),...(shape.content ? {definition:shape.content.slice(0,600),definitionTruncated:shape.truncated===true || shape.content.length>600} : {})})) : [])];
     }).map(shape=>[JSON.stringify(shape),shape])).values()];
     const sourceDefinitions=[],representedCollections=new Set();
@@ -1090,7 +1181,7 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         sourceDefinitions.push(definition);definitionBudget-=cost;
     }
     const definedSources=new Set(sourceDefinitions.map(definition=>definition.collection));
-    const scopeReview=await ai.models.generateContent({model,contents:contract.requestQuote,config:{
+    const scopeReviewRequest={model,contents:contract.requestQuote,config:{
         semanticStage:"OBJECTIVE_SOURCE_SCOPE_VERIFICATION",temperature:0,maxOutputTokens:Math.min(4096,Math.max(768,scopeSources.length*128)),
         // Review inclusions and exclusions without the earlier verdict or assistant
         // recap. Repeating a proposed verdict would anchor this independent check.
@@ -1099,7 +1190,25 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
             {role:"system",content:"missionRequest conserva la misión original para resolver los referentes y el contexto de ESTE objetivo. No es evidencia operativa ni cambia su contrato. Usa ese contexto para interpretar qué registros y relaciones se piden; no impongas a este objetivo los requisitos o faltantes de los demás ni transfieras su cobertura."},
             {role:"user",content:JSON.stringify({request:contract.requestQuote,missionRequest:instruction,contract,userClarifications:scopeClarifications,sources:scopeSources,sourceDefinitions,sourceDefinitionsMayBeIncomplete:sourceDefinitions.length<observedDefinitions.length || sourceDefinitions.some(source=>source.fieldsComplete!==true)})}],
         responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{sourceRelevance:{type:"object",properties:Object.fromEntries(scopeSources.map(collection=>[collection,{type:"object",properties:{relevantToObjective:{type:["boolean","null"],enum:definedSources.has(collection)?[true,false,null]:[true,null]},reason:{type:"string",maxLength:160}},required:["relevantToObjective","reason"],additionalProperties:false}])),required:scopeSources,additionalProperties:false}},required:["sourceRelevance"],additionalProperties:false}
-    }});
+    }};
+    // Cache source relevance by the same complete request, normalizing only
+    // the order of its source-name set. Preserve the original prompt/schema
+    // order while keeping previous coverage exclusions out of this dependency.
+    let scopeCacheRequest=scopeReviewRequest;
+    if(scopeReviewCacheKey){
+        const sourceNames=[...scopeSources].sort();
+        const messages=scopeReviewRequest.config.chatMessages;
+        const last=messages.at(-1),payload=JSON.parse(last.content);
+        const schema=scopeReviewRequest.config.responseJsonSchema;
+        const relevance=schema.properties.sourceRelevance;
+        scopeCacheRequest={...scopeReviewRequest,config:{...scopeReviewRequest.config,
+            chatMessages:[...messages.slice(0,-1),{...last,content:JSON.stringify({...payload,sources:sourceNames})}],
+            responseJsonSchema:{...schema,properties:{...schema.properties,sourceRelevance:{...relevance,
+                properties:Object.fromEntries(sourceNames.map(name=>[name,relevance.properties[name]])),required:sourceNames}}}}};
+    }
+    const cacheKey=scopeReviewCacheKey && 'source-scope:'+scopeReviewCacheKey+':'+JSON.stringify(scopeCacheRequest);
+    const cachedScope=cacheKey && ai.objectiveCoverageCache?.get(cacheKey);
+    const scopeReview=cachedScope || await ai.models.generateContent(scopeReviewRequest);
     const verdict=extractJsonObject(String(scopeReview?.text || ""));
     if(verdict?.sourceRelevance && typeof verdict.sourceRelevance==="object" && !Array.isArray(verdict.sourceRelevance))
         verdict.exclusionReviews=Object.entries(verdict.sourceRelevance).map(([collection,decision])=>({collection,contradictsObjective:decision.relevantToObjective,reason:decision.reason}));
@@ -1113,6 +1222,12 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         proof.missing=[...(proof.missing || []),"No se pudo comprobar la pertinencia de todas las fuentes contra este objetivo."];
         for(const source of proof.sources || []){source.relevant=null;source.reason="Revisión de pertinencia incompleta para este objetivo";source.taskIndexes=[];}
         return proof;
+    }
+    // Only complete engine-owned verdicts are reused. This review receives no
+    // evaluation instant; value/date coverage still runs at its exact clock.
+    if(cacheKey && !cachedScope && ai.objectiveCoverageCache){
+        ai.objectiveCoverageCache.set(cacheKey,structuredClone(scopeReview));
+        while(ai.objectiveCoverageCache.size>96)ai.objectiveCoverageCache.delete(ai.objectiveCoverageCache.keys().next().value);
     }
     for(const item of verdict.exclusionReviews) {
         const decisions=(proof.sources || []).filter(source=>source.collection===item.collection);
@@ -1640,7 +1755,55 @@ function compactCatalogSchema(schema) {
                 : ["enum", "const", "default"].includes(key) ? value : compactCatalogSchema(value)]));
 }
 
+function compactActionCatalog(catalog) { return catalog.map(({ name, description, evidenceKinds, inputSchema, requiresEvidence, mutates, requiresApproval }) => {
+    const schema = buildNativeInputSchema(inputSchema);
+    const branches = schema.anyOf || [schema];
+    const binding=(key,property)=>{
+        if(key==='fields' && Array.isArray(property.enum) && property.enum.every(Array.isArray) && JSON.stringify(property.enum).length>1600){
+            const examples=[];let bytes=2;
+            for(const projection of [...property.enum.filter(fields=>fields.length===1),property.enum.at(-1),...property.enum]){
+                const cost=JSON.stringify(projection).length+1;
+                if(bytes+cost>1600 || examples.some(value=>JSON.stringify(value)===JSON.stringify(projection)))continue;
+                examples.push(projection);bytes+=cost;
+            }
+            return {projectionExamples:examples,fullChoicesInNativeSchema:true,permittedProjectionCount:property.enum.length};
+        }
+        return property.enum || (Object.prototype.hasOwnProperty.call(property,'const')?[property.const]:{minItems:property.minItems,...(Number.isInteger(property.maxItems)?{maxItems:property.maxItems}:{})});
+    };
+    return { name, description: description.slice(0, 60), evidenceKinds: evidenceKinds || ["tool_result"],
+        // Tool selection needs the callable arguments; the complete schema
+        // is supplied separately as responseJsonSchema and validated again.
+        requiredArguments: (branches[0]?.required||[]).filter(key=>branches.every(branch=>(branch.required||[]).includes(key))),
+        // The full schema remains in responseJsonSchema and execution
+        // validation. In prose keep only correlated bound arguments;
+        // repeating a whole query schema per source exhausts context.
+        ...(requiresEvidence?.length ? {evidenceBindings: [...new Set(branches.map(branch => JSON.stringify(
+            Object.fromEntries(Object.entries(branch.properties || {})
+                .filter(([, property]) => property.enum || Object.prototype.hasOwnProperty.call(property, "const") || property.type==='array'&&property.minItems>0)
+                .map(([key, property]) => [key,binding(key,property)])))))].map(value=>JSON.parse(value))} : {}),
+        mutates, requiresApproval };
+});
+}
+
 function boundedAuditTasks(tasks) {
+    // The runtime search envelope exposes the same candidates as both results
+    // and candidates. Deferred argument completion receives that raw envelope,
+    // unlike the selection phase's compact observation. Share only exact copies
+    // under budget pressure; retain every candidate's discovery metadata once.
+    if (JSON.stringify(tasks).length > 16000) {
+        tasks = tasks.map(task => {
+            const evidence = task.observation?.evidence;
+            if (!Array.isArray(evidence?.results) || !Array.isArray(evidence.candidates) ||
+                Object.hasOwn(evidence, 'resultsSameAsCandidates') || Object.hasOwn(evidence, 'resultsEncoding')) return task;
+            const results = JSON.stringify(evidence.results);
+            const resultsEncoding = 'results is identical to candidates in this same observation; resolve there. This is discovery evidence, not source schema or operational records.';
+            if (results.length <= resultsEncoding.length + 100 || results !== JSON.stringify(evidence.candidates)) return task;
+            const {results: duplicate, ...retained} = evidence;
+            return {...task, observation: {...task.observation, evidence: {
+                ...retained, resultsSameAsCandidates: true, resultsEncoding
+            }}};
+        });
+    }
     const nameOwners=new Map();
     const nameKeys=tasks.map((task,index)=>{
         const record=task.observation?.recordEvidence,schema=record?.fieldSchema;
@@ -2007,6 +2170,31 @@ function boundedAuditTasks(tasks) {
             if(JSON.stringify(shared).length<JSON.stringify(minimal).length)minimal.splice(0,minimal.length,...shared);
         }
     }
+    // Search ranking repeats identical object keys for every candidate. Encode
+    // those observed keys once, without discarding a candidate, score or hint.
+    // This is transport only; validation continues to use the raw observations.
+    if (JSON.stringify(minimal).length > 28000) {
+        for (const task of minimal) {
+            const evidence = task.observation?.evidence, candidates = evidence?.candidates;
+            const sameKeys = values => Array.isArray(values) && values.length > 1 && values.every(value =>
+                value && typeof value === 'object' && !Array.isArray(value) &&
+                JSON.stringify(Object.keys(value)) === JSON.stringify(Object.keys(values[0])));
+            if (task.name !== 'repo.search' || !sameKeys(candidates) ||
+                ['candidateColumns','candidateObjectColumns','candidateEncoding'].some(key => Object.hasOwn(evidence, key))) continue;
+            const columns = Object.keys(candidates[0]), objectColumns = Object.create(null);
+            for (const key of columns) {
+                const values = candidates.map(candidate => candidate[key]);
+                if (sameKeys(values)) objectColumns[key] = Object.keys(values[0]);
+            }
+            const packed = {...evidence,
+                candidates: candidates.map(candidate => columns.map(key => objectColumns[key]
+                    ? objectColumns[key].map(field => candidate[key][field]) : candidate[key])),
+                candidateColumns: columns, candidateObjectColumns: objectColumns,
+                candidateEncoding: 'Each candidates row maps candidateColumns in order. A column listed in candidateObjectColumns maps its cell array to those object keys. Reconstruct exact candidates before resolving resultsSameAsCandidates. Discovery metadata only; no schema, permissions or operational records.'};
+            if (JSON.stringify(packed).length < JSON.stringify(evidence).length)
+                task.observation = {...task.observation, evidence: packed};
+        }
+    }
     const freshRead = minimal[tasks.indexOf(latestRead)]?.observation?.verifiedRead;
     if (freshRead) {
         const overflow = JSON.stringify(minimal).length - 27900;
@@ -2167,7 +2355,12 @@ function bindRejectedRecordFields(catalog, tasks, failedTasks) {
         const branches=Array.isArray(schema.anyOf)?schema.anyOf:[schema];
         const bound=branches.flatMap(branch=>{
             const files=branch.properties?.sourceFile?.enum,collections=branch.properties?.collection?.enum;
-            if(!files?.length||!collections?.length||!branch.properties?.fields||branch.properties.fields.maxItems===0)return [branch];
+            // Counts have no projection, but their filters and ordering still need
+            // the same collection-scoped field authority as record reads.
+            if(!files?.length||!collections?.length ||
+                ((!branch.properties.fields || branch.properties.fields.maxItems===0) &&
+                 (!branch.properties.filters?.items?.properties?.field || branch.properties.filters.maxItems===0) &&
+                 (!branch.properties.orderBy?.items?.properties?.field || branch.properties.orderBy.maxItems===0)))return [branch];
             return files.flatMap(file=>collections.map(collection=>{
                 const failuresForScope=failures.filter(task=>task.args?.sourceFile===file && task.args?.collection===collection);
                 const observedFields=observedScopes.get(collection)||[];
@@ -2191,13 +2384,13 @@ function bindRejectedRecordFields(catalog, tasks, failedTasks) {
                 const filters=branch.properties.filters;
                 const retainRestriction=(items,values)=>values.filter(value=>(!Array.isArray(items?.enum)||items.enum.includes(value))&&
                     (items?.const===undefined||items.const===value));
-                const projected=retainRestriction(property.items,available);
+                const projected=property && property.maxItems!==0 ? retainRestriction(property.items,available) : [];
                 const ordered=retainRestriction(order?.items?.properties?.field,available);
                 const filtered=retainRestriction(filters?.items?.properties?.field,available);
                 const scopedOrder=order?.items?.properties?.field ? {orderBy:ordered.length ? {...order,items:{...order.items,properties:{...order.items.properties,field:{...order.items.properties.field,enum:ordered}}}} : {...order,maxItems:0}} : {};
                 const scopedFilters=filters?.items?.properties?.field ? {filters:filtered.length ? {...filters,items:{...filters.items,properties:{...filters.items.properties,field:{...filters.items.properties.field,enum:filtered}}}} : {...filters,maxItems:0}} : {};
-                const scopedFields=projected.length ? {...property,items:{...property.items,enum:projected}} : {...property,maxItems:0};
-                return {...branch,properties:{...branch.properties,sourceFile:{...branch.properties.sourceFile,enum:[file]},collection:{...branch.properties.collection,enum:[collection]},fields:scopedFields,...scopedOrder,...scopedFilters}};
+                const scopedProjection=property ? {fields:projected.length ? {...property,items:{...property.items,enum:projected}} : {...property,maxItems:0}} : {};
+                return {...branch,properties:{...branch.properties,sourceFile:{...branch.properties.sourceFile,enum:[file]},collection:{...branch.properties.collection,enum:[collection]},...scopedProjection,...scopedOrder,...scopedFilters}};
             }));
         });
         return {...tool,inputSchema:bound.length===1?bound[0]:{anyOf:bound}};
@@ -3076,34 +3269,6 @@ async function runModelSemanticPlanner({
         selectableCatalog = bindRejectedRecordFields(selectableCatalog, completedTasksForAudit, missionState.blockedTasks);
         selectableCatalog = bindRejectedQueryOrderings(selectableCatalog, missionState.blockedTasks);
         selectableCatalog = eligibleEvidenceActionCatalog(selectableCatalog,completedTasksForAudit,configuredSourceFiles,safeCatalog);
-        const compactActionCatalog = catalog => catalog.map(({ name, description, evidenceKinds, inputSchema, requiresEvidence, mutates, requiresApproval }) => {
-            const schema = buildNativeInputSchema(inputSchema);
-            const branches = schema.anyOf || [schema];
-            const binding=(key,property)=>{
-                if(key==='fields' && Array.isArray(property.enum) && property.enum.every(Array.isArray) && JSON.stringify(property.enum).length>1600){
-                    const examples=[];let bytes=2;
-                    for(const projection of [...property.enum.filter(fields=>fields.length===1),property.enum.at(-1),...property.enum]){
-                        const cost=JSON.stringify(projection).length+1;
-                        if(bytes+cost>1600 || examples.some(value=>JSON.stringify(value)===JSON.stringify(projection)))continue;
-                        examples.push(projection);bytes+=cost;
-                    }
-                    return {projectionExamples:examples,fullChoicesInNativeSchema:true,permittedProjectionCount:property.enum.length};
-                }
-                return property.enum || (Object.prototype.hasOwnProperty.call(property,'const')?[property.const]:{minItems:property.minItems,...(Number.isInteger(property.maxItems)?{maxItems:property.maxItems}:{})});
-            };
-            return { name, description: description.slice(0, 60), evidenceKinds: evidenceKinds || ["tool_result"],
-                // Tool selection needs the callable arguments; the complete schema
-                // is supplied separately as responseJsonSchema and validated again.
-                requiredArguments: (branches[0]?.required||[]).filter(key=>branches.every(branch=>(branch.required||[]).includes(key))),
-                // The full schema remains in responseJsonSchema and execution
-                // validation. In prose keep only correlated bound arguments;
-                // repeating a whole query schema per source exhausts context.
-                ...(requiresEvidence?.length ? {evidenceBindings: [...new Set(branches.map(branch => JSON.stringify(
-                    Object.fromEntries(Object.entries(branch.properties || {})
-                        .filter(([, property]) => property.enum || Object.prototype.hasOwnProperty.call(property, "const") || property.type==='array'&&property.minItems>0)
-                        .map(([key, property]) => [key,binding(key,property)])))))].map(value=>JSON.parse(value))} : {}),
-                mutates, requiresApproval };
-        });
         let auditCatalog=compactActionCatalog(selectableCatalog);
         const pendingCapabilities = objectiveScopedCatalog.filter(tool => !selectableCatalog.some(available => available.name === tool.name))
             .map(tool => ({name:tool.name,description:tool.description.slice(0,120),requiresEvidence:tool.requiresEvidence}));
@@ -3255,7 +3420,7 @@ async function runModelSemanticPlanner({
         };
         const knownQueryRejection=call=>decisionCache.get(queryDecisionKey(call))?.queryRejection;
         const queryRejectionReceipt=error=>({code:error.message,proposed:{name:error.evidence?.tool,args:error.evidence?.proposed||error.evidence?.args},
-            limitation:error.evidence?.limitation || '',rejectionKind:error.evidence?.rejectionKind || 'semantic',operationalEvidence:false,objectiveSatisfied:false});
+            limitation:error.evidence?.limitation || '',schemaDiscoveryRelevant:error.evidence?.schemaDiscoveryRelevant,requiresSourceEvidence:error.evidence?.requiresSourceEvidence,rejectionKind:error.evidence?.rejectionKind || 'semantic',operationalEvidence:false,objectiveSatisfied:false});
         const currentQueryRejections=()=>{
             const receipts=[];let bytes=2;
             for(const [key,value] of [...decisionCache.entries()].reverse()){
@@ -3368,7 +3533,7 @@ async function runModelSemanticPlanner({
                         });
                         if(ungroundedFilters.length){
                             const error=new Error("SEMANTIC_QUERY_SCOPE_UNVERIFIED");
-                            error.evidence={tool:call.name,proposed:call.args,rejectionKind:"arguments",limitation:"La consulta propone campos o valores de filtro que no aparecen en la fuente leída ni en la solicitud original.",nextEvidenceQuery:"",requiredNextStep:"Search or read source evidence for the requested population before querying records."};
+                            error.evidence={tool:call.name,proposed:call.args,rejectionKind:"arguments",requiresSourceEvidence:true,limitation:"La consulta propone campos o valores de filtro que no aparecen en la fuente leída ni en la solicitud original.",nextEvidenceQuery:"",requiredNextStep:"Search or read source evidence for the requested population before querying records."};
                             throw error;
                         }
                         const review=await ai.models.generateContent({model,contents:instruction,config:{semanticStage:"QUERY_POPULATION_VERIFICATION",temperature:0,maxOutputTokens:384,
@@ -3377,7 +3542,7 @@ async function runModelSemanticPlanner({
                         }});
                         const verdict=extractJsonObject(String(review?.text||""));
                         if(review?.providerResponse?.finishReason==="length" || verdict?.matchesRequest!==true){
-                            const error=new Error("SEMANTIC_QUERY_SCOPE_UNVERIFIED");error.evidence={tool:call.name,proposed:call.args,rejectionKind:review?.providerResponse?.finishReason==="length"?"truncated":"semantic",limitation:String(verdict?.rejectionReason||"Qwen no acreditó la pertinencia del alcance propuesto; esta decisión no demuestra ausencia de registros."),requiredNextStep:"Read or search the actual source definition before querying; do not repeat this unverified query or infer missing records."};
+                            const error=new Error("SEMANTIC_QUERY_SCOPE_UNVERIFIED");error.evidence={tool:call.name,proposed:call.args,schemaDiscoveryRelevant:verdict?.schemaDiscoveryRelevant,rejectionKind:review?.providerResponse?.finishReason==="length"?"truncated":"semantic",limitation:String(verdict?.rejectionReason||"Qwen no acreditó la pertinencia del alcance propuesto; esta decisión no demuestra ausencia de registros."),requiredNextStep:"Read or search the actual source definition before querying; do not repeat this unverified query or infer missing records."};
                             // A truncated inference is retryable; only an
                             // explicit semantic rejection can be remembered.
                             if(review?.providerResponse?.finishReason!=="length" && verdict?.matchesRequest===false){
@@ -3419,6 +3584,24 @@ async function runModelSemanticPlanner({
                 if(evidenceRecoveryUsed)return null;
                 evidenceRecoveryUsed=true;
             }
+                // Use the existing independent objective reviews BEFORE spending
+                // the one recovery decision. Reviewing only after exhaustion
+                // leaves Qwen choosing again from the same unqualified frontier.
+                if(error && recordOnlyAudit && completedTasksForAudit.some((_,index)=>authenticatedRecordAt(index))){
+                    for(const objective of evaluatedAudit.completionAssessment?.objectives || []){
+                        const contract=missionState.evidenceObjectives.find(item=>item.objective===objective.objective);
+                        if(!contract?.coverageMode)continue;
+                        const proof=await reviewedRecordCoverage(contract);
+                        objective.coverageProof=structuredClone(proof);
+                        objective.evidenceTaskIndexes=[...new Set([...(objective.evidenceTaskIndexes||[]),...recordCoverageTaskIndexes(objective)])].filter(authenticatedRecordAt);
+                        objective.coverage=qualifyRecordObjectiveCoverage(objective,contract,completedTasksForAudit);
+                        objective.satisfied=proof.proven===true && objective.coverage.status==='complete';
+                        objective.limitation=objective.satisfied?'':[...(proof.missing||[]),...objective.coverage.missing].join(' ');
+                    }
+                    if(evaluatedAudit.completionAssessment?.evidenceDecision)
+                        evaluatedAudit.completionAssessment.evidenceDecision.rejections=currentQueryRejections();
+                    if(evaluatedAudit.completionAssessment?.objectives?.every(objective=>objective.satisfied))return null;
+                }
                 refreshReviewedActionFrontier();
                 const generalReaders = selectableCatalog.filter(tool => tool.investigationReadOnly === true &&
                     tool.mutates !== true && tool.requiresApproval !== true && tool.userArtifact !== true);
@@ -3446,27 +3629,66 @@ async function runModelSemanticPlanner({
                 const evidenceAfterSchemaFailure = latestPlatformSchemaFailure?.completedAt && completedTasksForAudit.some(task =>
                     task.name === "repo.read" && task.observation?.ok === true && task.observation.executionOk !== false &&
                     task.completedAt && Date.parse(task.completedAt) > Date.parse(latestPlatformSchemaFailure.completedAt));
-                const repositoryRecoveryReaders = latestPlatformSchemaFailure && !evidenceAfterSchemaFailure
+                // A rejected query is not a new grounded action merely because
+                // another record tool/projection remains syntactically available.
+                // Spend the existing recovery decision on an eligible source
+                // reader when the semantic/argument rejection requires evidence.
+                // A truncated inference is not an authoritative source rejection.
+                const sourceEvidenceRequired = (error?.message === 'SEMANTIC_QUERY_SCOPE_UNVERIFIED' &&
+                    error.evidence?.rejectionKind === 'semantic' && error.evidence?.schemaDiscoveryRelevant === false) ||
+                    (['SEMANTIC_QUERY_SCOPE_UNVERIFIED','SEMANTIC_TOOL_ARGUMENTS_INVALID'].includes(error?.message) &&
+                     error.evidence?.rejectionKind === 'arguments' && error.evidence?.requiresSourceEvidence === true) ||
+                    (latestPlatformSchemaFailure && !evidenceAfterSchemaFailure);
+                const repositoryRecoveryReaders = sourceEvidenceRequired
                     ? generalReaders.filter(tool =>
                         tool.name !== "platform.query" &&
-                        (tool.evidenceKinds || []).some(kind =>
+                        ((tool.evidenceKinds || []).some(kind =>
                             ["repository_search", "repository_source", "repository_inventory"].includes(kind)
-                        )
+                        ) || (!tool.evidenceKinds?.length && ['repo.read','repo.search','repo.grep'].includes(tool.name)))
                     )
                     : [];
-                let nextReaders = repositoryRecoveryReaders.length
-                    ? repositoryRecoveryReaders
+                // A required source read does not exclude another operational
+                // source already accredited as pertinent by engine-owned reviews.
+                // Availability, unknown relevance and client assessments alone
+                // cannot grant this alternative. Final argument/scope validation
+                // still applies to whichever action the model selects.
+                const groundedRecordRecoveryReaders = sourceEvidenceRequired
+                    ? generalReaders.filter(tool => tool.evidenceKinds?.includes('platform_records')).flatMap(tool => {
+                        const schema=buildNativeInputSchema(tool.inputSchema);
+                        const branches=(schema.anyOf || [schema]).filter(branch => {
+                            const property=branch.properties?.collection;
+                            const collections=property?.enum || (typeof property?.const==='string'?[property.const]:[]);
+                            return collections.length && collections.every(collection => coverageBeforeDecision.some(objective =>
+                                (objective.coverageProof?.sources || []).some(source => source.collection===collection &&
+                                    source.relevant===true && Boolean(source.reason?.trim()))));
+                        });
+                        // When a discriminator/field was not grounded, an
+                        // arbitrary new filter is not a recovery action. Keep
+                        // exact native alternatives, or an already-authorized
+                        // unfiltered inspection; never remove mandatory scope.
+                        const groundedScopes=branches.flatMap(branch=>{
+                            const properties={...branch.properties};
+                            for(const key of ['filters','orderBy']){
+                                const property=properties[key];
+                                if(!property || property.const!==undefined || Array.isArray(property.enum))continue;
+                                if(property.minItems>0)return [];
+                                properties[key]={...property,minItems:0,maxItems:0};
+                            }
+                            return [{...branch,properties}];
+                        });
+                        if(!groundedScopes.length)return [];
+                        return eligibleEvidenceActionCatalog([{...tool,inputSchema:groundedScopes.length===1?groundedScopes[0]:{anyOf:groundedScopes}}],
+                            completedTasksForAudit,configuredSourceFiles,safeCatalog,coverageBeforeDecision.map(objective=>objective.coverageProof));
+                    }) : [];
+                let nextReaders = sourceEvidenceRequired
+                    ? [...repositoryRecoveryReaders,...groundedRecordRecoveryReaders]
                     : generalReaders;
                 const seenFiles=new Set(completedTasksForAudit.filter(task=>task.observation?.ok===true &&
                     task.observation.executionOk!==false && task.observation.blocked!==true).map(task=>task.observation.verifiedRead?.file).filter(Boolean));
                 const partialReads=partialSourceProgress(completedTasksForAudit);
-                const literalContext=[instruction,...recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content)].join('\n');
-                const literalTerms=[...new Set(literalContext.match(/[\p{L}\p{N}_-]{3,}/gu)||[])].slice(0,80);
                 nextReaders=nextReaders.map(tool=>{
                     const schema=tool.inputSchema,properties=schema?.properties;
                     if(!properties)return tool;
-                    if(error?.message==='SEMANTIC_QUERY_SCOPE_UNVERIFIED' && tool.name==='repo.grep' && properties.term && literalTerms.length)
-                        return {...tool,inputSchema:{...schema,properties:{...properties,term:{...properties.term,enum:literalTerms}}}};
                     const files=properties.file?.enum;
                     if(properties.file && files){
                         const unread=files.filter(file=>!seenFiles.has(file));
@@ -3499,7 +3721,7 @@ async function runModelSemanticPlanner({
                             {role:"system",content:"LECTURAS_PARCIALES="+JSON.stringify(partialReads.map(read=>({...read,schemaAnchors:read.schemaAnchors.map(({fields,...anchor})=>anchor)})))},
                             ...(error ? [{role:"system",content:"RECHAZO_DE_ALCANCE="+JSON.stringify(queryRejectionReceipt(error))}] : []),
                             {role:"system",content:"DECISIONES_RECHAZADAS="+JSON.stringify(currentQueryRejections())},
-                            {role:"system",content:"No repitas esas propuestas con las mismas dependencias. Son rechazos de decisiones, no consultas ejecutadas, ausencia de datos ni objetivos satisfechos. Otras proyecciones o consultas pertinentes de la misma colección siguen disponibles. Elige UNA palabra literal de la solicitud del usuario o de su aclaración cuando uses repo.grep para recuperar el esquema."},
+                            {role:"system",content:"No repitas esas propuestas con las mismas dependencias. Son rechazos de decisiones, no consultas ejecutadas, ausencia de datos ni objetivos satisfechos. Otras proyecciones o consultas pertinentes de la misma colección siguen disponibles. Para repo.grep puedes usar identificadores completos, rutas de campos o fragmentos literales observados; no los reduzcas a palabras sueltas. Buscar una pista no acredita su existencia, su esquema ni valores operativos. La revisión independiente de cada objetivo indica las brechas que debe investigar la siguiente acción; no convierte esas brechas en campos ni resultados observados."},
                             ...auditTasks.map(task=>({role:"system",content:"EVIDENCIA_OBTENIDA="+JSON.stringify(task)})),
                             {role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedSchemaHints)},
                             ...(missionState.blockedTasks||[]).slice(-8).map(task=>({role:"system",content:"INTENTO_FALLIDO="+JSON.stringify({name:task.name,args:task.args,observation:task.observation})})),
@@ -3516,6 +3738,7 @@ async function runModelSemanticPlanner({
                             const rejected=next.toolCalls[0];
                             const invalid=new Error('SEMANTIC_TOOL_ARGUMENTS_INVALID');
                             invalid.evidence={tool:rejected.name,proposed:rejected.args,rejectionKind:knownQueryRejection(rejected)?.rejectionKind || "arguments",
+                                requiresSourceEvidence:knownQueryRejection(rejected)?.requiresSourceEvidence,
                                 limitation:'La propuesta fue descartada por el catálogo filtrado o por repetir trabajo ya observado; no fue una decisión válida de detener la investigación.'};
                             throw invalid;
                         }
@@ -3528,7 +3751,7 @@ async function runModelSemanticPlanner({
         };
         let lastAuditError = null;
         let lastRejectedAuditPlan = null;
-        const coverageCache=ai.objectiveCoverageCache || new Map();
+        const coverageCache=decisionCache;
         const freshlyReviewedCoverage=new Set();
         const coverageBeforeDecision=[];
         const rememberReviewedCoverage=(contract,proof)=>{
@@ -3543,24 +3766,43 @@ async function runModelSemanticPlanner({
                 auditCatalog=compactActionCatalog(selectableCatalog);
             }
         };
-        for(const contract of missionState.evidenceObjectives || []){
-            if(contract.requiredEvidenceKind!=='platform_records' || !contract.coverageMode)continue;
-            const previous=missionState.completionAssessment?.objectives?.find(item=>item.objective===contract.objective);
+        const authenticatedRecordAt=index=>{
+            const task=completedTasksForAudit[index],observation=task?.observation,record=observation?.recordEvidence;
+            return Number.isInteger(index) && normalizedCatalog.find(tool=>tool.name===task?.name)?.evidenceKinds?.includes('platform_records') &&
+                observation?.ok===true && observation.executionOk!==false && observation.blocked!==true && observation.requiresInput!==true &&
+                record?.source==='FIRESTORE_SERVER_AUTHENTICATED' && record.readOnly===true;
+        };
+        const reviewedRecordCoverage=async contract=>{
             const clarifications=recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content);
-            const dependencyKey='dependency:'+recordObjectiveRevision(contract,[],clarifications,model,missionState,evaluatedAt);
+            // A dependency entry locates an engine-owned proof, never certifies
+            // it. The full revision below checks current evidence AND time.
+            const dependencyKey='dependency:'+recordObjectiveRevision(contract,[],clarifications,model,missionState,null);
             const revision=recordObjectiveRevision(contract,completedTasksForAudit,clarifications,model,missionState,evaluatedAt,coverageCache.get(dependencyKey));
-            // Reopen accredited positive coverage when its dependencies change.
-            // A still-pending goal first needs an investigation decision, not
-            // another independent inference that it is still pending.
-            if(!coverageCache.has(revision) && (previous?.satisfied===true || previous?.coverageProof?.proven===true)){
-                const objective={objective:contract.objective,requiredEvidenceKind:contract.requiredEvidenceKind};
-                const proof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,
-                    advisoryContext,scopeClarifications:clarifications,evaluatedAt,instruction});
+            let proof=coverageCache.get(revision);
+            if(!proof){
+                proof=await reviewRecordObjectiveCoverage({ai,model,objective:{objective:contract.objective,requiredEvidenceKind:contract.requiredEvidenceKind},
+                    contract,tasks:completedTasksForAudit,advisoryContext,scopeClarifications:clarifications,evaluatedAt,instruction,
+                    scopeReviewCacheKey:recordObjectiveRevision({...contract,coverageMode:'source_scope'},completedTasksForAudit,clarifications,model,missionState,null)});
                 coverageCache.set(revision,structuredClone(proof));
                 coverageCache.delete(dependencyKey);coverageCache.set(dependencyKey,structuredClone(proof));
                 const proofRevision=recordObjectiveRevision(contract,completedTasksForAudit,clarifications,model,missionState,evaluatedAt,proof);
                 coverageCache.set(proofRevision,structuredClone(proof));freshlyReviewedCoverage.add(proofRevision);
                 while(coverageCache.size>96)coverageCache.delete(coverageCache.keys().next().value);
+            }
+            rememberReviewedCoverage(contract,proof);
+            return proof;
+        };
+        for(const contract of missionState.evidenceObjectives || []){
+            if(contract.requiredEvidenceKind!=='platform_records' || !contract.coverageMode)continue;
+            const previous=missionState.completionAssessment?.objectives?.find(item=>item.objective===contract.objective);
+            const clarifications=recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content);
+            const dependencyKey='dependency:'+recordObjectiveRevision(contract,[],clarifications,model,missionState,null);
+            const revision=recordObjectiveRevision(contract,completedTasksForAudit,clarifications,model,missionState,evaluatedAt,coverageCache.get(dependencyKey));
+            // Reopen accredited positive coverage when its dependencies change.
+            // A still-pending goal first needs an investigation decision, not
+            // another independent inference that it is still pending.
+            if(!coverageCache.has(revision) && (previous?.satisfied===true || previous?.coverageProof?.proven===true)){
+                await reviewedRecordCoverage(contract);
             }
             if(coverageCache.has(revision))rememberReviewedCoverage(contract,coverageCache.get(revision));
         }
@@ -3722,7 +3964,7 @@ async function runModelSemanticPlanner({
                         const previousObjective=missionState.completionAssessment?.objectives?.find(item=>item.objective===objective.objective);
                         const previouslySatisfied=previousObjective?.satisfied===true;
                         const clarifications=recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content);
-                        const dependencyKey='dependency:'+recordObjectiveRevision(contract,[],clarifications,model,missionState,evaluatedAt);
+                        const dependencyKey='dependency:'+recordObjectiveRevision(contract,[],clarifications,model,missionState,null);
                         const revision=recordObjectiveRevision(contract,completedTasksForAudit,clarifications,model,missionState,evaluatedAt,coverageCache.get(dependencyKey));
                         // Engine-owned proof, never a client assertion of success.
                         const cached=coverageCache.get(revision);
@@ -3739,7 +3981,8 @@ async function runModelSemanticPlanner({
                         // code alone still cannot supply a record citation.
                         if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode &&
                             (objective.satisfied || previouslySatisfied || (!evaluatedAudit.toolCalls?.length && hasAuthenticatedRecords))) {
-                            objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,advisoryContext,scopeClarifications:recentConversationTurns.filter(turn=>turn.role==="user").map(turn=>turn.content),evaluatedAt,instruction});
+                            objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,advisoryContext,scopeClarifications:clarifications,evaluatedAt,instruction,
+                                scopeReviewCacheKey:recordObjectiveRevision({...contract,coverageMode:'source_scope'},completedTasksForAudit,clarifications,model,missionState,null)});
                             coverageCache.set(revision,structuredClone(objective.coverageProof));
                             coverageCache.delete(dependencyKey);coverageCache.set(dependencyKey,structuredClone(objective.coverageProof));
                             coverageCache.set(recordObjectiveRevision(contract,completedTasksForAudit,clarifications,model,missionState,evaluatedAt,objective.coverageProof),structuredClone(objective.coverageProof));
@@ -3916,6 +4159,25 @@ async function runModelSemanticPlanner({
             throw new Error("SEMANTIC_GROUNDED_TOOL_REQUIRED");
         }
 
+        const argumentSchema = phase === "GROUNDED_ARGUMENT_COMPLETION"
+            ? buildNativeInputSchema(phaseCatalog[0].inputSchema, false) : null;
+        const recordArgumentPhase = phase === "GROUNDED_ARGUMENT_COMPLETION" &&
+            phaseCatalog[0].evidenceKinds?.includes("platform_records");
+        // Reuse the evidence-action view already used for selection. Native
+        // response grammar and runtime validation retain the complete correlated
+        // schema; repeating its expanded alternatives in prose can exceed the
+        // local message limit even when the evidence block is within budget.
+        const compactRecordArguments = argumentSchema && JSON.stringify(argumentSchema).length > 16000 &&
+            phaseCatalog[0].evidenceKinds?.includes("platform_records") && phaseCatalog[0].requiresEvidence?.length;
+        const argumentPrompt = compactRecordArguments ? {
+            ...compactActionCatalog(phaseCatalog)[0],
+            argumentTypes: Object.fromEntries((argumentSchema.anyOf || [argumentSchema]).flatMap(branch =>
+                Object.entries(branch.properties || {}).map(([name, schema]) => [name, {
+                    type: schema.type, ...(schema.items?.type ? {items: {type: schema.items.type}} : {})
+                }]))),
+            schemaAuthority: "This is the same evidence-bound action view used for selection. The full correlated choices and constraints remain in responseJsonSchema and independent runtime validation. Read source schemas and field provenance in TAREAS_YA_OBSERVADAS and CONTEXTO_Y_EVIDENCIA_INMUTABLES; examples are not new permissions."
+        } : argumentSchema;
+
         let lastPhaseError = null;
         for (let attempt = 1; attempt <= 2; attempt += 1) {
             try {
@@ -3947,9 +4209,10 @@ async function runModelSemanticPlanner({
                                     "Ejecuta solamente OPERACION_ACTUAL_DEL_PLAN. INSTRUCCION_ORIGINAL aporta restricciones; las operaciones anteriores ya tienen evidencia. Elige el valor de cada campo según la operación actual, nunca por ser el primer valor del enum.",
                                     "Comprende el papel de cada campo, no copies la instrucción completa como valor. Usa el idioma del usuario.",
                                     "Los hechos vienen de la solicitud y las fuentes; las recomendaciones pueden ser propuestas explícitas. Nunca presentes una propuesta como hecho verificado.",
+                                    ...(recordArgumentPhase ? ["Una consulta debe aportar evidencia pertinente a por lo menos uno de OBJETIVOS_INMUTABLES. Que un campo o filtro exista no basta: no sustituyas el inventario o relaciones solicitados con estados de un flujo de trabajo. No repitas alcances ya agotados. Si las fuentes leídas no acreditan campos pertinentes para esta operación, devuelve toolCalls=[] y missionComplete=false; el ciclo continuará investigando otras fuentes. No inventes argumentos para satisfacer el formato."] : []),
                                     "Omite campos opcionales innecesarios. No inventes precios, gratuidad, direcciones, URLs, testimonios ni resultados. Conserva la identidad y todos los mercados solicitados.",
                                     `TAREA ${phaseCatalog[0].name}: ${phaseCatalog[0].description}`,
-                                    `CAMPOS=${JSON.stringify(buildNativeInputSchema(phaseCatalog[0].inputSchema, false))}`,
+                                    `CAMPOS=${JSON.stringify(argumentPrompt)}`,
                                     `TAREAS_YA_OBSERVADAS=${JSON.stringify(boundedAuditTasks(missionState.completedTasks || []))}`,
                                     `OBJETIVOS_INMUTABLES=${JSON.stringify(missionState.evidenceObjectives || [])}`,
                                     ...(missionState?.currentOperation ? [`CONTEXTO_Y_EVIDENCIA_INMUTABLES:\n${instruction}`] : [])
@@ -3968,7 +4231,7 @@ async function runModelSemanticPlanner({
                                     type: "object",
                                     properties: {
                                         toolCalls: {
-                                            type: "array", minItems: 1, maxItems: 1,
+                                            type: "array", minItems: recordArgumentPhase ? 0 : 1, maxItems: 1,
                                             items: {
                                                 type: "object",
                                                 properties: {
@@ -3999,6 +4262,14 @@ async function runModelSemanticPlanner({
                         phaseCatalog
                     )
                     : payload;
+                if (recordArgumentPhase && Array.isArray(payload?.toolCalls) && payload.toolCalls.length === 0) {
+                    const error = new Error("SEMANTIC_GROUNDED_SOURCE_EVIDENCE_REQUIRED");
+                    error.retryable = false;
+                    error.evidence = {tool:phaseCatalog[0].name,proposed:{},rejectionKind:"arguments",
+                        requiresSourceEvidence:true,retryable:false,operationalEvidence:false,objectiveSatisfied:false,
+                        limitation:"La operación seleccionada todavía no tiene una consulta pertinente fundamentada. Busca o lee otra fuente observada; los objetivos conservan sus requisitos de registros operativos."};
+                    throw error;
+                }
                 const validated =
                     validatePlan(
                         {
@@ -4025,6 +4296,18 @@ async function runModelSemanticPlanner({
                     ) {
                         throw new Error("SEMANTIC_GROUNDED_ARGUMENTS_REQUIRED");
                     }
+                    // Deferred operations use this phase before execution, not
+                    // EVIDENCE_NEXT_ACTION. Apply the same authenticated scope
+                    // predicate here: a second obligation, projection or page
+                    // size cannot make an exhausted query produce new evidence.
+                    if (recordProjectionAlreadyObserved(selected, missionState.completedTasks || [])) {
+                        const error = new Error("SEMANTIC_QUERY_ALREADY_OBSERVED");
+                        error.retryable = false;
+                        error.evidence = {tool:selected.name,proposed:selected.args,rejectionKind:"query_exhausted",
+                            retryable:false,operationalEvidence:false,objectiveSatisfied:false,
+                            limitation:"El recibo autenticado ya cubre esta consulta. Cambiar su proyección o tamaño no aporta evidencia nueva; otros alcances y objetivos siguen pendientes."};
+                        throw error;
+                    }
                 }
 
                 return requireExecutablePlan({
@@ -4037,6 +4320,7 @@ async function runModelSemanticPlanner({
             }
             catch(error) {
                 lastPhaseError = error;
+                if (["SEMANTIC_QUERY_ALREADY_OBSERVED","SEMANTIC_GROUNDED_SOURCE_EVIDENCE_REQUIRED"].includes(error?.message)) throw error;
             }
         }
 
@@ -5000,6 +5284,7 @@ async function runJarvisSemanticPlanner({
         if (message.startsWith("SEMANTIC_AUTHENTICATED_PROVIDER_")) throw error;
         const wrapped = new Error(`SEMANTIC_AUTHENTICATED_PROVIDER_${message}`);
         if (error?.evidence) wrapped.evidence = error.evidence;
+        if (typeof error?.retryable === "boolean") wrapped.retryable = error.retryable;
         throw wrapped;
     } finally {
         if (timer) clearTimeout(timer);
@@ -5704,18 +5989,34 @@ async function runJarvisSemanticResponse({
                     };
                     const cell=value=>value==null ? "Sin dato acreditado" : (typeof value==="object" ? JSON.stringify(value) : String(value)+dateNote(value)).replaceAll("|","／").replace(/[\r\n]+/g," ");
                     const paragraphs=[groundedFactSelection.missionStatus==="COMPLETED" ? "La revisión cubre los objetivos solicitados con los registros consultados." : "La revisión sigue parcial. Estos son los datos que pude comprobar; no representan automáticamente el total de todas las fuentes."];
-                    const displayedScopes=new Set();
+                    const displayedScopes=new Set(),displayedRows=new Set();
+                    const canonical=value=>Array.isArray(value)?value.map(canonical):value && typeof value==="object"?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;
                     for(const [queryIndex,record] of (groundedFactSelection.records || []).entries()) {
                         const scope=record.scope || {};
                         const filters=(scope.filters || []).map(filter=>label(filter.field)+" "+filter.op+" "+cell(filter.value)).join("; ");
                         const scopeSummary="En la fuente «"+scope.collection+"»"+(filters?", con "+filters:", sin filtros adicionales")+", "+
                             (Number.isInteger(record.totalCount)?"el conteo consultado es "+record.totalCount+".":"la consulta devolvió "+(record.returnedCount ?? record.rows?.length ?? 0)+" registros.")+
                             (record.hasMore?" Quedan páginas por consultar.":"")+" Esta cifra corresponde únicamente a ese alcance.";
-                        if(!displayedScopes.has(scopeSummary)){paragraphs.push(scopeSummary);displayedScopes.add(scopeSummary);}
+                        const complete=scope.mode==='count'||record.completeForQuery===true&&record.hasMore===false&&record.queryExhausted!==false;
+                        // This is presentation identity only, never a proof of coverage.
+                        // Equal counts from partial pages, other routes, filters or
+                        // implicit existence restrictions remain separate observations.
+                        const scopeKey=JSON.stringify(canonical({source:record.source,collection:scope.collection,sourceFile:scope.sourceFile,
+                            filters:scope.filters||[],orderBy:(scope.orderBy||[]).filter(order=>order.field!=='__name__'),
+                            implicitExistenceFields:scope.implicitExistenceFields||[],cursor:scope.cursor||null,
+                            complete,count:record.totalCount??record.returnedCount??record.rows?.length??0,
+                            ...(!complete?{queryIndex}:{}),...(record.consistentCountAndList===false?{conflict:queryIndex}:{})}));
+                        if(!displayedScopes.has(scopeKey)){paragraphs.push(scopeSummary);displayedScopes.add(scopeKey);}
                         const rows=record.rows || [];
                         const fields=[...new Set(rows.flatMap((row,rowIndex)=>Object.keys(row.values || {}).filter((field,fieldIndex)=>selectedIds.has("platform."+queryIndex+".row."+rowIndex+".field."+fieldIndex))))];
-                        const described=rows.map(row=>fields.filter(field=>row.values?.[field]!=null).map(field=>label(field)+": "+cell(row.values[field])).filter(Boolean).join("; ")).filter(Boolean);
-                        if(described.length) paragraphs.push([...new Set(described)].map(row=>"• "+row).join("\n"));
+                        const described=rows.map(row=>{
+                            const selected=fields.filter(field=>row.values?.[field]!=null);
+                            const rowKey=JSON.stringify(canonical({scope:scopeKey,id:row.id,values:Object.fromEntries(selected.map(field=>[field,row.values[field]]))}));
+                            if(row.id && displayedRows.has(rowKey))return '';
+                            if(row.id)displayedRows.add(rowKey);
+                            return selected.map(field=>label(field)+": "+cell(row.values[field])).join("; ");
+                        }).filter(Boolean);
+                        if(described.length) paragraphs.push(described.map(row=>"• "+row).join("\n"));
                         const unknown=rows.filter(row=>fields.length && fields.every(field=>row.values?.[field]==null)).length;
                         if(unknown) paragraphs.push("En "+unknown+" de los registros consultados faltan valores para los campos seleccionados; no puedo completar esos datos por suposición.");
                     }

@@ -273,12 +273,14 @@ test('a native proposal outside the filtered frontier triggers one explicit reco
    // absent. Keep the post-selection boundary safe even for that response.
    return{functionCalls:[rejected]};
   }
+  if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE')return{text:JSON.stringify({proven:false,missing:['Other sources remain unqueried'],groups:[],sources:[f.template,f.resolved,'related'].map(collection=>({collection,relevant:true,reason:'Unresolved scope',taskIndexes:[]}))})};
+  if(request.config.semanticStage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries([f.template,f.resolved,'related'].map(collection=>[collection,{relevantToObjective:true,reason:'Unresolved scope'}]))})};
   assert.equal(request.config.semanticStage,'READ_ONLY_EVIDENCE_CONTINUATION','dropping an invalid native proposal must not be interpreted as the model choosing to stop');
   const receipt=JSON.parse(request.config.chatMessages.find(m=>m.content.startsWith('RECHAZO_DE_ALCANCE=')).content.split('=').slice(1).join('='));
   assert.deepEqual(receipt.proposed,rejected);assert.equal(receipt.operationalEvidence,false);
   return{text:'{"toolCalls":[{"name":"repo.read","args":{"file":"next.js"}}]}'};
  }}}});
- assert.deepEqual(stages,['EVIDENCE_NEXT_ACTION','READ_ONLY_EVIDENCE_CONTINUATION']);assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives[0].satisfied,false);assert.equal(result.toolCalls[0].args.file,'next.js');
+ assert.deepEqual(stages,['EVIDENCE_NEXT_ACTION','RECORD_OBJECTIVE_COVERAGE','OBJECTIVE_SOURCE_SCOPE_VERIFICATION','READ_ONLY_EVIDENCE_CONTINUATION']);assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives[0].satisfied,false);assert.equal(result.toolCalls[0].args.file,'next.js');
 });
 
 test('recovery excludes a reviewed projection only for its exact unfiltered scope while retaining new fields and filters',async()=>{

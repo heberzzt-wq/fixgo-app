@@ -1,0 +1,1013 @@
+{
+  "input": "Jarvis, revisa cuántos vehículos y motos tenemos registrados, quién tiene asignada cada unidad y qué documentos están vencidos o próximos a vencer. Consulta los datos actuales sin modificar nada.",
+  "catalog": [
+    {
+      "name": "platform.query",
+      "description": "Lee registros actuales de Firestore con la sesión y permisos existentes, sin escribir. Primero acredita colección y campos mediante repo.read. mode=query inspecciona sólo campos pertinentes y devuelve cursor: sirve para descubrir valores reales o resolver parte del pedido, incluso si falta clasificar un subconjunto. mode=count cuenta exactamente el alcance acreditado por los filtros; no representa automáticamente otro subconjunto ni un total global. No inventes campos ni filtros. Conserva siempr",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "platform_records"
+      ],
+      "investigationReadOnly": true,
+      "requiresEvidence": [
+        {
+          "kind": "repository_source",
+          "argument": "sourceFile",
+          "observationPath": [
+            "verifiedRead",
+            "file"
+          ]
+        },
+        {
+          "kind": "repository_source",
+          "argument": "collection",
+          "observationPath": [
+            "verifiedRead",
+            "sourceStructure",
+            "dataBindings",
+            "collections"
+          ]
+        }
+      ],
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sourceFile": {
+            "type": "string",
+            "description": "Archivo de la aplicación ya leído con repo.read en esta misión que demuestra el esquema utilizado. Antes de la primera consulta debes localizarlo y leerlo."
+          },
+          "orderBy": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "asc",
+                    "desc"
+                  ]
+                }
+              },
+              "required": [
+                "field"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "collection": {
+            "type": "string",
+            "description": "Ruta de colección real descubierta en la aplicación, no un nombre deducido del pedido."
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "query",
+              "count"
+            ]
+          },
+          "fields": {
+            "type": "array",
+            "minItems": 0,
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "description": "Campos acreditados de esta colección, obligatorios para query. Si faltan nombres de campos, ['__name__'] proyecta sólo IDs y devuelve fieldSchema de la página autorizada para una consulta posterior de la misma ruta. Ese descubrimiento no prueba valores ni cobertura global. Incluye sólo campos pertinentes; no todo el perfil."
+          },
+          "filters": {
+            "type": "array",
+            "minItems": 0,
+            "maxItems": 10,
+            "description": "Sólo filtros acreditados. En mode=query, [] permite inspeccionar campos pertinentes dentro de una colección autorizada para descubrir sus valores; no afirma pertenencia a un subconjunto. En mode=count, [] cuenta toda esa colección y no un grupo particular. Nunca retires restricciones de tenant o permisos ni eludas una denegación.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "==",
+                    "!=",
+                    "<",
+                    "<=",
+                    ">",
+                    ">=",
+                    "in",
+                    "not-in",
+                    "array-contains",
+                    "array-contains-any"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean",
+                    "null",
+                    "array"
+                  ]
+                }
+              },
+              "required": [
+                "field",
+                "op",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "cursor": {
+            "type": "string",
+            "description": "nextCursor devuelto por la misma consulta; omitir para primera página."
+          },
+          "includeCount": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "collection",
+          "sourceFile",
+          "filters"
+        ],
+        "anyOf": [
+          {
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "count"
+                ]
+              },
+              "fields": {
+                "type": "array",
+                "maxItems": 0
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          {
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "query"
+                ]
+              },
+              "fields": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "mode",
+              "fields"
+            ]
+          }
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.read",
+      "description": "Devuelve el CONTENIDO y LÍNEAS de UN ARCHIVO de código fuente del repositorio por su ruta real ya localizada. También lee configuración, HTML y package.json. Requiere file exacto. No inventaría el proyecto, no lista rutas, no ejecuta pruebas ni modifica código.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "repository_source"
+      ],
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "Ruta real verificada del archivo que se debe leer."
+          },
+          "startLine": {
+            "type": "integer",
+            "description": "Primera línea de un rango solicitado o necesario para investigar una coincidencia/referencia observada o ampliar una lectura truncada. Omitir para leer desde el inicio. La longitud pedida para la respuesta no determina este rango."
+          },
+          "endLine": {
+            "type": "integer",
+            "description": "Última línea del rango de fuente solicitado o necesario para investigar. Un resumen o respuesta de N líneas NO limita la lectura: no derives endLine de la extensión de la respuesta."
+          },
+          "maxBytes": {
+            "type": "integer",
+            "description": "Limite opcional de bytes."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.search",
+      "description": "LOCALIZA rutas existentes y fragmentos de código por símbolo, texto o descripción. Úsala cuando todavía no conoces la fuente. Conserva el vocabulario del pedido original. Si ya devolvió candidatos para el mismo objetivo, no encadenes otra búsqueda semántica antes de inspeccionar una fuente: usa repo.read sobre un candidato o repo.grep para localizar un término literal. Sólo vuelve a buscar después de comprobar una fuente y necesitar evidencia distinta. No adivines rutas.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "repository_search"
+      ],
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Consulta de búsqueda de código que conserva el vocabulario y los identificadores del pedido original. No traduzcas los términos de negocio a un idioma distinto ni uses la descripción genérica de una acción. Si aún no conoces nombres de campos, busca palabras del usuario, sin inventar un campo."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.grep",
+      "description": "Busca un término literal o símbolo en los archivos reales del checkout y devuelve rutas y líneas coincidentes. Sirve para localizar una definición antes de leer su archivo. No es una búsqueda de negocios en internet.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "repository_search"
+      ],
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "term": {
+            "type": "string",
+            "description": "Término literal o identificador a localizar."
+          }
+        },
+        "required": [
+          "term"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "objectives": [
+    {
+      "objective": "cuántos vehículos y motos tenemos registrados",
+      "requiredEvidenceKind": "platform_records",
+      "requestQuote": "cuántos vehículos y motos tenemos registrados",
+      "coverageMode": "population",
+      "scope": "all_sources",
+      "groups": [
+        "vehículos",
+        "motos"
+      ]
+    },
+    {
+      "objective": "quién tiene asignada cada unidad",
+      "requiredEvidenceKind": "platform_records",
+      "requestQuote": "quién tiene asignada cada unidad",
+      "coverageMode": "relationship",
+      "scope": "all_sources",
+      "groups": [
+        "unidad",
+        "asignada"
+      ]
+    },
+    {
+      "objective": "qué documentos están vencidos o próximos a vencer",
+      "requiredEvidenceKind": "platform_records",
+      "requestQuote": "qué documentos están vencidos o próximos a vencer",
+      "coverageMode": "temporal",
+      "scope": "all_sources",
+      "groups": [
+        "documentos"
+      ]
+    }
+  ],
+  "readTask": {
+    "completedAt": "2026-10-15T04:12:57.147Z",
+    "name": "repo.read",
+    "args": {
+      "file": "gestia-core/data-analyzer.engine.js"
+    },
+    "observation": {
+      "status": "SUCCESS",
+      "ok": true,
+      "executionOk": true,
+      "objectiveSatisfied": true,
+      "blocked": false,
+      "requiresInput": false,
+      "retryable": false,
+      "sourceCount": 0,
+      "verifiedRead": {
+        "tool": "repo.read",
+        "file": "gestia-core/data-analyzer.engine.js",
+        "sourceStructure": {
+          "dataBindings": {
+            "source": "ACORN_SOURCE_REFERENCES",
+            "collections": [
+              "tenants/{tenantId}/technicians",
+              "tenants/{tenantId}/vehicles",
+              "tenants"
+            ],
+            "fieldPaths": [
+              "detail.step",
+              "detail.details",
+              "detail.opId",
+              "detail.severity",
+              "detail.modulo",
+              "nombre",
+              "tecnico",
+              "placa",
+              "placas",
+              "metadata.asignado_a",
+              "stats.total_tecnicos",
+              "stats.total_technicians",
+              "stats.total_vehiculos",
+              "stats.total_vehicles",
+              "status",
+              "config.mensual_budget",
+              "stats.total_spend",
+              "reason.message",
+              "warnings",
+              "alerts",
+              "alerts.length",
+              "metrics.tecnicos_activos",
+              "metrics.flota_operativa",
+              "metrics.vencimientos_criticos"
+            ],
+            "fieldPathsComplete": true,
+            "writeShapes": [],
+            "queryShapes": [
+              {
+                "collection": "tenants/{tenantId}/technicians",
+                "fields": [
+                  "updated_at"
+                ]
+              },
+              {
+                "collection": "tenants/{tenantId}/vehicles",
+                "fields": [
+                  "updated_at"
+                ]
+              },
+              {
+                "collection": "tenants/{tenantId}/technicians",
+                "operation": "getDocs",
+                "startLine": 143,
+                "endLine": 143,
+                "fields": [
+                  "seguro_vencimiento",
+                  "nombre",
+                  "status",
+                  "lock_reason"
+                ],
+                "fieldsComplete": false
+              },
+              {
+                "collection": "tenants/{tenantId}/vehicles",
+                "operation": "getDocs",
+                "startLine": 205,
+                "endLine": 205,
+                "fields": [
+                  "km_actual",
+                  "ultimo_servicio_km",
+                  "proximo_servicio_km",
+                  "status_mantenimiento",
+                  "badge",
+                  "placas",
+                  "modelo",
+                  "asignado_a"
+                ],
+                "fieldsComplete": false
+              },
+              {
+                "collection": "tenants",
+                "operation": "getDoc",
+                "startLine": 256,
+                "endLine": 256,
+                "fields": [
+                  "stats.total_tecnicos",
+                  "stats",
+                  "stats.total_technicians",
+                  "stats.total_vehiculos",
+                  "stats.total_vehicles",
+                  "status",
+                  "config.mensual_budget",
+                  "config",
+                  "stats.total_spend"
+                ],
+                "fieldsComplete": false
+              }
+            ],
+            "references": [
+              {
+                "collection": "tenants/{tenantId}/technicians",
+                "rootCollection": "tenants",
+                "pathTemplate": "tenants/{tenantId}/technicians",
+                "startLine": 138,
+                "endLine": 151,
+                "content": "    emitSia7(\"SCAN_HUMAN\", \"Auditando normativa legal de personal...\", \"INFO\");\r\n\r\n    // Muestreo inteligente: Extraemos los 25 más recientes para detectar problemas frescos\r\n    const tecnicosRef = collection(db, \"tenants\", tenantId, \"technicians\");\r\n    const q = query(tecnicosRef, orderBy(\"updated_at\", \"desc\"), limit(25));\r\n    const snapTecnicos = await getDocs(q);\r\n\r\n    snapTecnicos.forEach(doc => {\r\n        const data = doc.data();\r\n        const tecnicoId = doc.id;\r\n\r\n        // Validación Legal: Seguro Vencido\r\n        if (data.seguro_vencimiento) {\r\n            const fechaVencimiento = new Date(data.seguro_vencimiento);\r\n",
+                "declarations": []
+              },
+              {
+                "collection": "tenants/{tenantId}/vehicles",
+                "rootCollection": "tenants",
+                "pathTemplate": "tenants/{tenantId}/vehicles",
+                "startLine": 197,
+                "endLine": 212,
+                "content": " * ✅ NASA FIX: Eliminación de defaults peligrosos que inflaban riesgos.\r\n */\r\nasync function scanVehicleFleet(tenantId, manualContext, alertsMap, metrics) {\r\n    emitSia7(\"SCAN_FLEET\", \"Auditando telemetría de flota...\", \"INFO\");\r\n\r\n    const flotaRef = collection(db, \"tenants\", tenantId, \"vehicles\");\r\n    // Muestreo: Traemos los vehículos que más se han actualizado recientemente\r\n    const q = query(flotaRef, orderBy(\"updated_at\", \"desc\"), limit(25));\r\n    const snapFlota = await getDocs(q);\r\n\r\n    snapFlota.forEach(doc => {\r\n        const data = doc.data();\r\n        const vehiculoId = doc.id;\r\n\r\n        // ✅ Validación de existencia real de KM\r\n        const kmActual = data.km_actual;\r\n",
+                "declarations": []
+              },
+              {
+                "collection": "tenants",
+                "rootCollection": "tenants",
+                "pathTemplate": "tenants",
+                "startLine": 250,
+                "endLine": 264,
+                "content": " * Extrae contadores atómicos globales, no el tamaño del muestreo.\r\n */\r\nasync function scanFinancialAndMetrics(tenantId, metrics, alertsMap) {\r\n    emitSia7(\"SCAN_FINANCE\", \"Extrayendo source of truth de infraestructura...\", \"INFO\");\r\n\r\n    const tenantRef = doc(db, \"tenants\", tenantId);\r\n    const snapTenant = await getDoc(tenantRef);\r\n\r\n    if (snapTenant.exists()) {\r\n        const data = snapTenant.data();\r\n        \r\n        // ✅ EXTRACCIÓN DE MÉTRICAS VERDADERAS\r\n        metrics.tecnicos_activos = data.stats?.total_tecnicos || data.stats?.total_technicians || 0;\r\n        metrics.flota_operativa = data.stats?.total_vehiculos || data.stats?.total_vehicles || 0;\r\n\r\n",
+                "declarations": []
+              }
+            ],
+            "referencesComplete": true,
+            "collectionAnchors": [
+              {
+                "collection": "tenants/{tenantId}/technicians",
+                "startLine": 141,
+                "endLine": 143,
+                "content": "    const tecnicosRef = collection(db, \"tenants\", tenantId, \"technicians\");\r\n    const q = query(tecnicosRef, orderBy(\"updated_at\", \"desc\"), limit(25));\r\n    const snapTecnic",
+                "truncated": true
+              },
+              {
+                "collection": "tenants/{tenantId}/vehicles",
+                "startLine": 202,
+                "endLine": 204,
+                "content": "    const flotaRef = collection(db, \"tenants\", tenantId, \"vehicles\");\r\n    // Muestreo: Traemos los vehículos que más se han actualizado recientemente\r\n    const q = qu",
+                "truncated": true
+              },
+              {
+                "collection": "tenants",
+                "startLine": 255,
+                "endLine": 259,
+                "content": "    const tenantRef = doc(db, \"tenants\", tenantId);\r\n    const snapTenant = await getDoc(tenantRef);\r\n\r\n    if (snapTenant.exists()) {\r\n        const ",
+                "truncated": true
+              }
+            ],
+            "complete": true,
+            "scope": "Static code references and bounded source excerpts, not a database inventory or query result."
+          }
+        },
+        "path": "gestia-core/data-analyzer.engine.js",
+        "startLine": 1,
+        "endLine": 71,
+        "readEndLine": 444,
+        "totalLines": 444,
+        "partial": true,
+        "truncated": true,
+        "evidenceTextTruncated": true,
+        "exactContent": true,
+        "rereadRequiredForPatch": false,
+        "content": "/**\r\n * ======================================================================================\r\n * GESTIAPREMIUM 2026 - DATA ANALYZER ENGINE V8.1 (THE OMNISCIENT EYE - PERFECT SIGHT)\r\n * ======================================================================================\r\n * Identidad: Escáner Forense Híbrido, Analizador de Riesgos y \"Fuente de Verdad\".\r\n * Función: Extrae, consolida y evalúa la salud del código y la infraestructura \r\n * del cliente sin inflar métricas ni emitir falsos positivos.\r\n * REGLA 1: CÓDIGO COMPLETO. SIN COMPACTAR. NO PLACEHOLDERS.\r\n * --------------------------------------------------------------------------------------\r\n * INGENIERÍA DE GRADO EMPRESARIAL (V8.1):\r\n * 1. PERSISTENT CACHE LAYER: Sustitución del retorno 'null' por una caché en memoria.\r\n * Si el Cooldown está activo, el sistema siempre devuelve un contexto válido.\r\n * 2. DEAD-MAN SWITCH (CONCURRENCIA SEGURA): Implementación de un setTimeout de \r\n * seguridad que garantiza la liberación de IS_SCANNING incluso en fallos de red catastróficos.\r\n * 3. METRICS SOURCE OF TRUTH: Las métricas de volumen (total técnicos, total flota) \r\n * ya no se basan en el tamaño del muestreo (limit), sino en los contadores atómicos del Tenant.\r\n * 4. ALERT DEDUPLICATION: Sistema de consolidación por ID. Si un recurso genera\r\n * múltiples alertas, solo prevalece la de mayor severidad para evitar score inflado.\r\n * 5. STRICT DATA GATING: El escáner de flota ahora verifica la existencia real de \r\n * valores numéricos (KM) antes de lanzar advertencias de desgaste.\r\n * 6. NORMALIZED HEALTH SCORE: Cálculo matemático limpio sin penalizaciones dobles.\r\n * ======================================================================================\r\n */\r\n\r\nimport { db } from '/firebase.js';\r\nimport { \r\n    collection, \r\n    getDocs, \r\n    query, \r\n    where, \r\n    limit,\r\n    doc,\r\n    getDoc,\r\n    orderBy\r\n} from \"https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js\";\r\n\r\n/**\r\n * --- 🧠 MEMORIA DE AUDITORÍA (SISTEMA NERVIOSO CENTRAL) ---\r\n * ANALYSIS_CACHE: Map<tenantId, { data: Object, timestamp: number }>\r\n * IS_SCANNING: Lock booleano para prevenir colisiones de hilo.\r\n */\r\nconst ANALYSIS_CACHE = new Map();\r\nlet IS_SCANNING = false;\r\nconst SCAN_COOLDOWN_MS = 15000; // 15 segundos de gracia (Caché táctica)\r\n\r\n// Severidades para resolución de conflictos en Deduplicación\r\nconst SEVERITY_WEIGHTS = {\r\n    \"FATAL\": 100,\r\n    \"CRITICAL\": 80,\r\n    \"HIGH\": 60,\r\n    \"WARN\": 40,\r\n    \"INFO\": 20\r\n};\r\n\r\n/**\r\n * emitSia7: Telemetría táctica para el Jarvis HUD V10.\r\n * Notifica al Arquitecto los eventos de escaneo en tiempo real.\r\n */\r\nconst emitSia7 = (step, details, severity = \"INFO\") => {\r\n    window.dispatchEvent(new CustomEvent('gestia-terminal-state', {\r\n        detail: {\r\n            step: `ANALYZER:${step}`,\r\n            details: details,\r\n            opId: \"SYS_AUDIT\",\r\n            severity: severity,\r\n            modulo: \"DATA_ANALYZER\"\r\n        }\r\n    }));\r\n};\r\n\r\n/**\r\n",
+        "contentLength": 18139,
+        "contentTruncated": true
+      },
+      "repoCandidates": []
+    }
+  },
+  "emptyQueryTask": {
+    "completedAt": "2026-10-15T04:13:12.503Z",
+    "name": "platform.query",
+    "args": {
+      "sourceFile": "gestia-core/data-analyzer.engine.js",
+      "collection": "tenants/{tenantId}/vehicles",
+      "mode": "query",
+      "fields": [
+        "updated_at",
+        "placas",
+        "modelo",
+        "asignado_a"
+      ],
+      "filters": []
+    },
+    "observation": {
+      "status": "PLATFORM_QUERY_READY",
+      "ok": true,
+      "executionOk": true,
+      "objectiveSatisfied": true,
+      "blocked": false,
+      "requiresInput": false,
+      "retryable": false,
+      "sourceCount": 0,
+      "repoCandidates": [],
+      "recordEvidence": {
+        "source": "FIRESTORE_SERVER_AUTHENTICATED",
+        "scope": {
+          "collection": "tenants/uxmal39/vehicles",
+          "filters": [],
+          "fields": [
+            "updated_at",
+            "placas",
+            "modelo",
+            "asignado_a"
+          ],
+          "mode": "query",
+          "sourceFile": "gestia-core/data-analyzer.engine.js",
+          "orderBy": [
+            {
+              "field": "__name__",
+              "direction": "asc"
+            }
+          ],
+          "implicitExistenceFields": [],
+          "pageSize": 50,
+          "cursor": null
+        },
+        "readOnly": true,
+        "rows": [],
+        "returnedCount": 0,
+        "hasMore": false,
+        "nextCursor": null,
+        "previousCursor": null,
+        "rowsObservedAt": "2026-10-15T04:13:12.496Z",
+        "queryExhausted": true,
+        "completeForQuery": true,
+        "truncatedFields": [],
+        "consistentCountAndList": null
+      }
+    }
+  },
+  "rejections": [
+    {
+      "code": "SEMANTIC_QUERY_SCOPE_UNVERIFIED",
+      "proposed": {
+        "name": "platform.query",
+        "args": {
+          "sourceFile": "gestia-core/data-analyzer.engine.js",
+          "collection": "tenants/{tenantId}/technicians",
+          "mode": "query",
+          "fields": [
+            "updated_at",
+            "nombre",
+            "status",
+            "lock_reason"
+          ],
+          "filters": []
+        }
+      },
+      "limitation": "La colección propuesta ('tenants/{tenantId}/technicians') no es pertinente para los objetivos solicitados. Los objetivos requieren información sobre 'vehículos', 'motos' y sus documentos asociados, pero la fuente identificada contiene datos",
+      "rejectionKind": "semantic",
+      "operationalEvidence": false,
+      "objectiveSatisfied": false
+    },
+    {
+      "code": "SEMANTIC_QUERY_SCOPE_UNVERIFIED",
+      "proposed": {
+        "name": "platform.query",
+        "args": {
+          "sourceFile": "gestia-core/data-analyzer.engine.js",
+          "collection": "tenants/{tenantId}/technicians",
+          "mode": "query",
+          "fields": [
+            "__name__"
+          ],
+          "filters": []
+        },
+        "reason": "MODEL_SEMANTIC_TOOL_SELECTION",
+        "mutates": false,
+        "approved": false
+      },
+      "limitation": "La colección propuesta ('tenants/{tenantId}/technicians') no es pertinente para los objetivos solicitados. Los objetivos requieren información sobre 'vehículos', 'motos' y sus documentos asociados, pero la fuente identificada contiene datos",
+      "rejectionKind": "semantic",
+      "operationalEvidence": false,
+      "objectiveSatisfied": false
+    },
+    {
+      "code": "SEMANTIC_QUERY_SCOPE_UNVERIFIED",
+      "proposed": {
+        "name": "platform.query",
+        "args": {
+          "sourceFile": "gestia-core/data-analyzer.engine.js",
+          "collection": "tenants/{tenantId}/technicians",
+          "mode": "query",
+          "fields": [
+            "__name__",
+            "nombre",
+            "seguro_vencimiento",
+            "status",
+            "lock_reason"
+          ],
+          "filters": [
+            {
+              "field": "seguro_vencimiento",
+              "op": "<=",
+              "value": "2026-10-31"
+            }
+          ],
+          "orderBy": [
+            {
+              "field": "__name__",
+              "direction": "asc"
+            }
+          ]
+        }
+      },
+      "limitation": "La consulta propone campos o valores de filtro que no aparecen en la fuente leída ni en la solicitud original.",
+      "rejectionKind": "arguments",
+      "operationalEvidence": false,
+      "objectiveSatisfied": false
+    }
+  ],
+  "coverageProofs": [
+    {
+      "objective": "cuántos vehículos y motos tenemos registrados",
+      "requiredEvidenceKind": "platform_records",
+      "satisfied": false,
+      "evidenceTaskIndexes": [
+        1
+      ],
+      "coverageProof": {
+        "proven": false,
+        "missing": [
+          "El contrato requiere el conteo total de vehículos y motos para la población completa. La evidencia en taskIndex=1 (tenants/uxmal39/vehicles) devuelve un inventario vacío (returnedCount:0, rowsObserved:0). Aunque completeForQuery=true indica",
+          "La fuente 'tenants/{tenantId}/vehicles' es pertinente pero no se ha consultado con el ID de inquilino específico ni se ha verificado si existen otros inquilinos en la colección 'tenants'. La evidencia actual solo cubre una consulta vacía en",
+          "El objetivo pide contar vehículos y motos. El esquema en taskIndex=0 define los campos relevantes (placas, modelo), pero la consulta operativa en taskIndex=1 no ha devuelto ningún registro para acreditar el conteo total. Un cero acreditado",
+          "La evidencia solo cubre la colección 'tenants/uxmal39/vehicles'. No se ha consultado ni verificado si existen otras colecciones de vehículos bajo otros inquilinos (por ejemplo, en la colección 'tenants' o con otros IDs). El contrato exige",
+          "El campo 'modelo' es necesario para distinguir motos de vehículos. Aunque el esquema lo define, no hay registros observados que permitan clasificar ni contar las unidades por tipo. Sin datos, no se puede cumplir el objetivo de separar",
+          "La evidencia en taskIndex=1 tiene unfilteredCollectionFullyObserved=true y completeForQuery=true, pero con returnedCount=0. Esto acredita que la colección está vacía bajo los permisos actuales, pero no prueba que no existan otras coleções o"
+        ],
+        "groups": [
+          {
+            "proven": false,
+            "evidence": [
+              {
+                "taskIndex": 1,
+                "fields": [],
+                "rowIndexes": []
+              }
+            ],
+            "group": "vehículos"
+          },
+          {
+            "proven": false,
+            "evidence": [
+              {
+                "taskIndex": 1,
+                "fields": [],
+                "rowIndexes": []
+              }
+            ],
+            "group": "motos"
+          }
+        ],
+        "sources": [
+          {
+            "relevant": true,
+            "reason": "La colección 'tenants' incluye en su esquema campos de estadísticas globales ('stats.total_vehiculos', 'stats.total_technicians'). Estos contadores permiten cuó",
+            "taskIndexes": [],
+            "collection": "tenants"
+          },
+          {
+            "relevant": false,
+            "reason": "El objetivo es contar vehículos y motos. La colección 'technicians' contiene registros de personal técnico (campos como 'nombre', 'seguro_vencimiento'), no de车辆",
+            "taskIndexes": [],
+            "collection": "tenants/{tenantId}/technicians"
+          },
+          {
+            "relevant": true,
+            "reason": "La colección 'vehicles' contiene los registros operativos de la flota (campos como 'placas', 'modelo', 'asignado_a'). Es la fuente principal para contar y asign",
+            "taskIndexes": [
+              1
+            ],
+            "collection": "tenants/{tenantId}/vehicles"
+          },
+          {
+            "relevant": true,
+            "reason": "Esta es una ruta específica de la colección 'vehicles' (con un tenantId concreto). Contiene los mismos registros operativos que la ruta genérica y aporta datos",
+            "taskIndexes": [
+              1
+            ],
+            "collection": "tenants/uxmal39/vehicles"
+          }
+        ]
+      },
+      "coverage": {
+        "status": "partial",
+        "consultedScopes": [
+          {
+            "taskIndex": 1,
+            "collection": "tenants/uxmal39/vehicles",
+            "filters": [],
+            "fields": [
+              "updated_at",
+              "placas",
+              "modelo",
+              "asignado_a"
+            ],
+            "mode": "query",
+            "sourceFile": "gestia-core/data-analyzer.engine.js",
+            "orderBy": [
+              {
+                "field": "__name__",
+                "direction": "asc"
+              }
+            ],
+            "implicitExistenceFields": [],
+            "pageSize": 50,
+            "cursor": null,
+            "returnedCount": 0,
+            "hasMore": false,
+            "completeForQuery": true
+          }
+        ],
+        "groups": [
+          "vehículos",
+          "motos"
+        ],
+        "pendingSources": [
+          "tenants"
+        ],
+        "missing": [
+          "Falta acreditar el grupo solicitado: vehículos.",
+          "Falta acreditar el grupo solicitado: motos.",
+          "La evidencia sólo cubre las rutas y filtros consultados; quedan fuentes observadas sin acreditar o sin descartar para este objetivo. Un cero no demuestra ausencia en otras fuentes.",
+          "Fuente observada pendiente para este objetivo: tenants. Su revisión de cobertura debe justificar que no pertenece al objetivo o citar una consulta completa de esa misma ruta; las referencias a otra ruta no la acreditan.",
+          "El contrato requiere el conteo total de vehículos y motos para la población completa. La evidencia en taskIndex=1 (tenants/uxmal39/vehicles) devuelve un inventario vacío (returnedCount:0, rowsObserved:0). Aunque completeForQuery=true indica",
+          "La fuente 'tenants/{tenantId}/vehicles' es pertinente pero no se ha consultado con el ID de inquilino específico ni se ha verificado si existen otros inquilinos en la colección 'tenants'. La evidencia actual solo cubre una consulta vacía en",
+          "El objetivo pide contar vehículos y motos. El esquema en taskIndex=0 define los campos relevantes (placas, modelo), pero la consulta operativa en taskIndex=1 no ha devuelto ningún registro para acreditar el conteo total. Un cero acreditado",
+          "La evidencia solo cubre la colección 'tenants/uxmal39/vehicles'. No se ha consultado ni verificado si existen otras colecciones de vehículos bajo otros inquilinos (por ejemplo, en la colección 'tenants' o con otros IDs). El contrato exige",
+          "El campo 'modelo' es necesario para distinguir motos de vehículos. Aunque el esquema lo define, no hay registros observados que permitan clasificar ni contar las unidades por tipo. Sin datos, no se puede cumplir el objetivo de separar",
+          "La evidencia en taskIndex=1 tiene unfilteredCollectionFullyObserved=true y completeForQuery=true, pero con returnedCount=0. Esto acredita que la colección está vacía bajo los permisos actuales, pero no prueba que no existan otras coleções o"
+        ]
+      }
+    },
+    {
+      "objective": "quién tiene asignada cada unidad",
+      "requiredEvidenceKind": "platform_records",
+      "satisfied": false,
+      "evidenceTaskIndexes": [
+        1
+      ],
+      "coverageProof": {
+        "proven": false,
+        "missing": [
+          "La evidencia en taskIndex 1 (tenants/uxmal39/vehicles) devuelve un conteo de 0 y no acredita la totalidad de las unidades del contrato, por lo que no se puede determinar quién tiene asignada cada unidad. La fuente pertinente 'tenants/{tenan",
+          "Fuente pendiente por alcance: tenants/{tenantId}/technicians. El objetivo es identificar 'quién tiene asignada cada unidad'. La colección `tenants/{tenantId}/technicians` contiene registros de técnicos. Aunque el esquema `",
+          "Las revisiones discrepan sobre una fuente aún no consultada: tenants. Inclusión: Necesaria para obtener la relación entre unidades y asignaciones, aunque no se haya consultado directamente en esta evidencia.. Exclusión: La colección `tenants` parece contener datos globales o de configuración del inquilino (como métricas totales y presupuesto), no los registros detallados de la关"
+        ],
+        "groups": [
+          {
+            "proven": false,
+            "evidence": [
+              {
+                "taskIndex": 1,
+                "fields": [],
+                "rowIndexes": []
+              }
+            ],
+            "group": "unidad"
+          },
+          {
+            "proven": false,
+            "evidence": [
+              {
+                "taskIndex": 1,
+                "fields": [],
+                "rowIndexes": []
+              }
+            ],
+            "group": "asignada"
+          }
+        ],
+        "sources": [
+          {
+            "relevant": null,
+            "reason": "Las revisiones discrepan sobre una fuente aún no consultada: tenants. Inclusión: Necesaria para obtener la relación entre unidades y asignaciones, aunque no se haya consultado directamente en esta evidencia.. Exclusión: La colección `tenants` parece contener datos globales o de configuración del inquilino (como métricas totales y presupuesto), no los registros detallados de la关",
+            "taskIndexes": [],
+            "collection": "tenants"
+          },
+          {
+            "relevant": null,
+            "reason": "El objetivo es identificar 'quién tiene asignada cada unidad'. La colección `tenants/{tenantId}/technicians` contiene registros de técnicos. Aunque el esquema `",
+            "taskIndexes": [],
+            "collection": "tenants/{tenantId}/technicians"
+          },
+          {
+            "relevant": true,
+            "reason": "El objetivo requiere saber 'quién tiene asignada cada unidad'. La colección `tenants/{tenantId}/vehicles` contiene el campo `",
+            "taskIndexes": [
+              1
+            ],
+            "collection": "tenants/{tenantId}/vehicles"
+          },
+          {
+            "relevant": true,
+            "reason": "Esta es una instancia específica de la ruta `tenants/{tenantId}/vehicles`. Contiene los mismos campos relevantes (como `asignado_a`) para determinar la asignaci",
+            "taskIndexes": [
+              1
+            ],
+            "collection": "tenants/uxmal39/vehicles"
+          }
+        ]
+      },
+      "coverage": {
+        "status": "partial",
+        "consultedScopes": [
+          {
+            "taskIndex": 1,
+            "collection": "tenants/uxmal39/vehicles",
+            "filters": [],
+            "fields": [
+              "updated_at",
+              "placas",
+              "modelo",
+              "asignado_a"
+            ],
+            "mode": "query",
+            "sourceFile": "gestia-core/data-analyzer.engine.js",
+            "orderBy": [
+              {
+                "field": "__name__",
+                "direction": "asc"
+              }
+            ],
+            "implicitExistenceFields": [],
+            "pageSize": 50,
+            "cursor": null,
+            "returnedCount": 0,
+            "hasMore": false,
+            "completeForQuery": true
+          }
+        ],
+        "groups": [
+          "unidad",
+          "asignada"
+        ],
+        "pendingSources": [
+          "tenants",
+          "tenants/{tenantId}/technicians"
+        ],
+        "missing": [
+          "Falta acreditar el grupo solicitado: unidad.",
+          "Falta acreditar el grupo solicitado: asignada.",
+          "La evidencia sólo cubre las rutas y filtros consultados; quedan fuentes observadas sin acreditar o sin descartar para este objetivo. Un cero no demuestra ausencia en otras fuentes.",
+          "Fuente observada pendiente para este objetivo: tenants. Su revisión de cobertura debe justificar que no pertenece al objetivo o citar una consulta completa de esa misma ruta; las referencias a otra ruta no la acreditan.",
+          "Fuente observada pendiente para este objetivo: tenants/{tenantId}/technicians. Su revisión de cobertura debe justificar que no pertenece al objetivo o citar una consulta completa de esa misma ruta; las referencias a otra ruta no la acreditan.",
+          "La evidencia en taskIndex 1 (tenants/uxmal39/vehicles) devuelve un conteo de 0 y no acredita la totalidad de las unidades del contrato, por lo que no se puede determinar quién tiene asignada cada unidad. La fuente pertinente 'tenants/{tenan",
+          "Fuente pendiente por alcance: tenants/{tenantId}/technicians. El objetivo es identificar 'quién tiene asignada cada unidad'. La colección `tenants/{tenantId}/technicians` contiene registros de técnicos. Aunque el esquema `",
+          "Las revisiones discrepan sobre una fuente aún no consultada: tenants. Inclusión: Necesaria para obtener la relación entre unidades y asignaciones, aunque no se haya consultado directamente en esta evidencia.. Exclusión: La colección `tenants` parece contener datos globales o de configuración del inquilino (como métricas totales y presupuesto), no los registros detallados de la关"
+        ]
+      }
+    },
+    {
+      "objective": "qué documentos están vencidos o próximos a vencer",
+      "requiredEvidenceKind": "platform_records",
+      "satisfied": false,
+      "evidenceTaskIndexes": [
+        1
+      ],
+      "coverageProof": {
+        "proven": false,
+        "missing": [
+          "Falta evidencia de documentos con fechas de vencimiento (seguro_vencimiento, proximo_servicio_km) para determinar cuáles están vencidos o próximos a vencer.",
+          "La consulta en 'tenants/uxmal39/vehicles' devolvió 0 filas y no incluye campos relacionados con vencimientos (ej. seguro_vencimiento, proximo_servicio_km), por lo que no se puede evaluar el estado temporal de los documentos.",
+          "Fuente pendiente por alcance: tenants/{tenantId}/technicians. El esquema muestra explícitamente el campo `seguro_vencimiento` en la colección de técnicos. Dado que los documentos de un técnico suelen estar vinculados a su辆",
+          "Las revisiones discrepan sobre una fuente aún no consultada: tenants. Inclusión: Fuente observada en observedSources; contiene estadísticas globales pero no datos de vencimientos específicos.. Exclusión: Esta colección solo devuelve métricas globales (`stats`, `config`) y no contiene registros detallados de documentos específicos ni fechas de vencimiento para el"
+        ],
+        "groups": [
+          {
+            "proven": false,
+            "evidence": [
+              {
+                "taskIndex": 1,
+                "fields": [],
+                "rowIndexes": []
+              }
+            ],
+            "group": "documentos"
+          }
+        ],
+        "sources": [
+          {
+            "relevant": null,
+            "reason": "Las revisiones discrepan sobre una fuente aún no consultada: tenants. Inclusión: Fuente observada en observedSources; contiene estadísticas globales pero no datos de vencimientos específicos.. Exclusión: Esta colección solo devuelve métricas globales (`stats`, `config`) y no contiene registros detallados de documentos específicos ni fechas de vencimiento para el",
+            "taskIndexes": [],
+            "collection": "tenants"
+          },
+          {
+            "relevant": null,
+            "reason": "El esquema muestra explícitamente el campo `seguro_vencimiento` en la colección de técnicos. Dado que los documentos de un técnico suelen estar vinculados a su辆",
+            "taskIndexes": [],
+            "collection": "tenants/{tenantId}/technicians"
+          },
+          {
+            "relevant": true,
+            "reason": "El esquema incluye campos como `placas`, `modelo` y `asignado_a`. Aunque no se ve una fecha explícita en la lista corta de campos, el contexto del objetivo (veh",
+            "taskIndexes": [
+              1
+            ],
+            "collection": "tenants/{tenantId}/vehicles"
+          },
+          {
+            "relevant": true,
+            "reason": "Es una instancia específica de la colección `vehicles`. Al igual que la ruta genérica, contiene los registros de vehículos donde se pueden encontrar datos sobre",
+            "taskIndexes": [
+              1
+            ],
+            "collection": "tenants/uxmal39/vehicles"
+          }
+        ]
+      },
+      "coverage": {
+        "status": "partial",
+        "consultedScopes": [
+          {
+            "taskIndex": 1,
+            "collection": "tenants/uxmal39/vehicles",
+            "filters": [],
+            "fields": [
+              "updated_at",
+              "placas",
+              "modelo",
+              "asignado_a"
+            ],
+            "mode": "query",
+            "sourceFile": "gestia-core/data-analyzer.engine.js",
+            "orderBy": [
+              {
+                "field": "__name__",
+                "direction": "asc"
+              }
+            ],
+            "implicitExistenceFields": [],
+            "pageSize": 50,
+            "cursor": null,
+            "returnedCount": 0,
+            "hasMore": false,
+            "completeForQuery": true
+          }
+        ],
+        "groups": [
+          "documentos"
+        ],
+        "pendingSources": [
+          "tenants",
+          "tenants/{tenantId}/technicians"
+        ],
+        "missing": [
+          "Falta acreditar el grupo solicitado: documentos.",
+          "La evidencia sólo cubre las rutas y filtros consultados; quedan fuentes observadas sin acreditar o sin descartar para este objetivo. Un cero no demuestra ausencia en otras fuentes.",
+          "Fuente observada pendiente para este objetivo: tenants. Su revisión de cobertura debe justificar que no pertenece al objetivo o citar una consulta completa de esa misma ruta; las referencias a otra ruta no la acreditan.",
+          "Fuente observada pendiente para este objetivo: tenants/{tenantId}/technicians. Su revisión de cobertura debe justificar que no pertenece al objetivo o citar una consulta completa de esa misma ruta; las referencias a otra ruta no la acreditan.",
+          "Falta evidencia de documentos con fechas de vencimiento (seguro_vencimiento, proximo_servicio_km) para determinar cuáles están vencidos o próximos a vencer.",
+          "La consulta en 'tenants/uxmal39/vehicles' devolvió 0 filas y no incluye campos relacionados con vencimientos (ej. seguro_vencimiento, proximo_servicio_km), por lo que no se puede evaluar el estado temporal de los documentos.",
+          "Fuente pendiente por alcance: tenants/{tenantId}/technicians. El esquema muestra explícitamente el campo `seguro_vencimiento` en la colección de técnicos. Dado que los documentos de un técnico suelen estar vinculados a su辆",
+          "Las revisiones discrepan sobre una fuente aún no consultada: tenants. Inclusión: Fuente observada en observedSources; contiene estadísticas globales pero no datos de vencimientos específicos.. Exclusión: Esta colección solo devuelve métricas globales (`stats`, `config`) y no contiene registros detallados de documentos específicos ni fechas de vencimiento para el"
+        ]
+      }
+    }
+  ]
+}
