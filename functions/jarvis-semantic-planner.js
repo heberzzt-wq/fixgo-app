@@ -3728,6 +3728,12 @@ async function runModelSemanticPlanner({
                 if(!nextReaders.length)return null;
                 nextReaders=excludeReviewedQueryProjections(nextReaders,currentQueryRejections());
                 if(!nextReaders.length)return null;
+                const sourceFallbackReaders=initialDecision?[]:nextReaders.filter(tool=>(tool.evidenceKinds||[]).some(kind=>
+                    ['repository_source','repository_search','repository_inventory'].includes(kind)));
+                const sourceFallbackSchema=sourceFallbackReaders.length?{sourceFallback:{type:'array',minItems:0,maxItems:1,items:{anyOf:sourceFallbackReaders.map(tool=>({
+                    type:'object',properties:{name:{type:'string',enum:[tool.name]},args:buildNativeInputSchema(tool.inputSchema)},
+                    required:['name','args'],additionalProperties:false
+                }))}}}:{};
 
                     const compactContinuation=JSON.stringify(auditTasks).length>16000;
                     const continuation = await ai.models.generateContent({model,contents:instruction,config:{
@@ -3736,8 +3742,8 @@ async function runModelSemanticPlanner({
                             toolCalls:{type:"array",minItems:0,maxItems:1,items:{anyOf:nextReaders.map(tool=>({
                                 type:"object",properties:{name:{type:"string",enum:[tool.name]},args:buildNativeInputSchema(tool.inputSchema)},
                                 required:["name","args"],additionalProperties:false
-                            }))}}
-                        },required:["toolCalls"],additionalProperties:false}} : {nativeToolChat:true,tools:[{functionDeclarations:buildGeminiModelTools(nextReaders)}]}),
+                            }))}},...sourceFallbackSchema
+                        },required:["toolCalls",...Object.keys(sourceFallbackSchema)],additionalProperties:false}} : {nativeToolChat:true,tools:[{functionDeclarations:buildGeminiModelTools(nextReaders)}]}),
                         chatMessages:[
                             ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
                             {role:"system",content:"Eres Jarvis. El objetivo aún no está resuelto. Decide si existe UN siguiente paso de investigación ejecutable con las herramientas disponibles y llámalo. No repitas que falta evidencia cuando puedes obtenerla. Una búsqueda ya devuelve rutas candidatas: lee una ruta real pertinente para conocer la fuente; si necesitas otra fuente, busca. Conserva el objetivo del usuario, pero puedes reformular búsquedas con identificadores, campos, símbolos y vocabulario técnico que hayas aprendido de evidencia ya observada. No inventes esos identificadores: deben provenir de la solicitud o de una observación real. Si una búsqueda semántica ya fue insuficiente, usa repo.grep con un término literal observado o formula una nueva búsqueda usando la evidencia disponible. Para consultar registros actuales necesitas colección y campos acreditados. El discriminador es necesario para contar un subconjunto; si aún lo desconoces, puedes inspeccionar campos pertinentes con mode=query y filters=[] dentro del alcance autorizado, para conocer valores reales y resolver otros objetivos. La inspección no acredita por sí sola un conteo global ni la pertenencia a un subconjunto. No inventes filtros. El catálogo describe fuentes, no resultados ya obtenidos. No repitas la misma operación con los mismos argumentos. Una fuente irrelevante no cierra la investigación: continúa con otra fuente o búsqueda read-only distinta mientras exista un paso fundamentado. Si realmente no hay un paso autorizado, no llames nada. Un permiso denegado no autoriza cambiar identidad, quitar filtros ni ampliar acceso. Nunca escribas, publiques ni concedas aprobación."},
@@ -3749,6 +3755,7 @@ async function runModelSemanticPlanner({
                             }))])},
                             {role:"system",content:"LECTURAS_PARCIALES="+JSON.stringify(partialReads.map(read=>({...read,schemaAnchors:read.schemaAnchors.map(({fields,...anchor})=>anchor)})))},
                             ...(error ? [{role:"system",content:"RECHAZO_DE_ALCANCE="+JSON.stringify(queryRejectionReceipt(error))}] : []),
+                            ...(sourceFallbackReaders.length?[{role:'system',content:'En esta única decisión de recuperación, si eliges otra consulta operativa conserva también UNA lectura o búsqueda NUEVA pertinente en sourceFallback por si su validación independiente la rechaza. Elige esa alternativa del catálogo de lectores de repositorio, con argumentos acreditados; nunca otra consulta operativa ni una acción repetida. Si la consulta es válida, la alternativa no se ejecuta. Si no existe una alternativa fundamentada, usa sourceFallback=[]. No concede permisos ni demuestra cumplimiento.'}]:[]),
                             {role:"system",content:"DECISIONES_RECHAZADAS="+JSON.stringify(currentQueryRejections())},
                             {role:"system",content:"No repitas esas propuestas con las mismas dependencias. Son rechazos de decisiones, no consultas ejecutadas, ausencia de datos ni objetivos satisfechos. Otras proyecciones o consultas pertinentes de la misma colección siguen disponibles. Para repo.grep puedes usar identificadores completos, rutas de campos o fragmentos literales observados; no los reduzcas a palabras sueltas. Buscar una pista no acredita su existencia, su esquema ni valores operativos. La revisión independiente de cada objetivo indica las brechas que debe investigar la siguiente acción; no convierte esas brechas en campos ni resultados observados."},
                             ...auditTasks.map(task=>({role:"system",content:"EVIDENCIA_OBTENIDA="+JSON.stringify(task)})),
@@ -3759,7 +3766,9 @@ async function runModelSemanticPlanner({
                         ]
                     }});
                     let next = extractGeminiToolCallPlan(continuation,nextReaders);
-                    if (!next && continuation.text) {try {next=normalizeTextToolPlan(extractJsonObject(continuation.text),nextReaders);}catch{}}
+                    let continuationPayload=null;
+                    if(continuation.text){try{continuationPayload=extractJsonObject(continuation.text);}catch{}}
+                    if (!next && continuationPayload) next=normalizeTextToolPlan(continuationPayload,nextReaders);
                     if (continuation?.providerResponse?.finishReason !== "length" && next?.toolCalls?.length) {
                         const checked=validatePlan({...next,missionComplete:false},nextReaders,instruction);
                         checked.toolCalls=checked.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&!(error?.evidence?.tool===call.name && sameCall({name:call.name,args:error.evidence.proposed},call))&&!hasUnexpectedToolArguments(nextReaders.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
@@ -3771,7 +3780,19 @@ async function runModelSemanticPlanner({
                                 limitation:'La propuesta fue descartada por el catálogo filtrado o por repetir trabajo ya observado; no fue una decisión válida de detener la investigación.'};
                             throw invalid;
                         }
-                        await verifyOperationalCalls(checked.toolCalls,nextReaders);
+                        try{await verifyOperationalCalls(checked.toolCalls,nextReaders);}
+                        catch(scopeError){
+                            // Keep the independent veto. A source alternative
+                            // selected by this SAME model response may gather
+                            // new evidence without another recovery inference.
+                            const fallback=continuationPayload?.sourceFallback?.length===1?continuationPayload.sourceFallback[0]:null;
+                            const reader=sourceFallbackReaders.find(tool=>tool.name===fallback?.name);
+                            if(scopeError.message!=='SEMANTIC_QUERY_SCOPE_UNVERIFIED' || scopeError.evidence?.rejectionKind!=='semantic' ||
+                                !reader || !hasRequiredToolArguments(reader,fallback.args||{}) || hasUnexpectedToolArguments(reader,fallback.args||{}) ||
+                                wasExecuted(fallback) || wasRejected(fallback))throw scopeError;
+                            rememberRejection(scopeError);
+                            checked.toolCalls=validatePlan({toolCalls:[fallback],missionComplete:false},sourceFallbackReaders,instruction).toolCalls;
+                        }
                         if(checked.toolCalls.length)return {...validatePlan({...validatedAudit,toolCalls:checked.toolCalls,missionComplete:false},nextReaders,instruction),
                             provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:nextReaders.length,planKind:initialDecision?"EVIDENCE_NEXT_ACTION":"READ_ONLY_EVIDENCE_CONTINUATION"};
                     }
