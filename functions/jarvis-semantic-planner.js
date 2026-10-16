@@ -32,7 +32,8 @@ function recordObjectiveRevision(contract,tasks,clarifications,model,missionStat
         tasks.every(task=>{
             const observation=task.observation,record=observation?.recordEvidence;
             if(observation?.ok!==true || observation.executionOk===false || observation.blocked===true || observation.requiresInput===true || !record)return true;
-            return Array.isArray(record.rows) && record.rows.length===0 && !(record.scope?.filters||[]).length &&
+            const empty=record.scope?.mode==='count' ? record.totalCount===0 : Array.isArray(record.rows)&&record.rows.length===0;
+            return empty && !(record.scope?.filters||[]).length &&
                 !(record.scope?.implicitExistenceFields||[]).length && (record.scope?.orderBy||[]).every(order=>order.field==='__name__');
         });
     return createHash('sha256').update(JSON.stringify({contract,records,schemas:[...schemas.values()],excludedSchemas:[...excludedSchemas.values()],clarifications,model,
@@ -1291,7 +1292,7 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         const task=tasks[taskIndex],observation=task.observation,record=observation?.recordEvidence;
         const requestedCollection=task.args?.collection,resolvedCollection=record?.scope?.collection,sourceFile=task.args?.sourceFile;
         if(observation?.ok!==true || observation.executionOk===false || observation.blocked===true || observation.requiresInput===true ||
-            record?.source!=='FIRESTORE_SERVER_AUTHENTICATED' || record.readOnly!==true || record.scope?.mode!=='query' ||
+            record?.source!=='FIRESTORE_SERVER_AUTHENTICATED' || record.readOnly!==true || !['query','count'].includes(record.scope?.mode) ||
             !sourceFile || record.scope.sourceFile!==sourceFile || requestedCollection===resolvedCollection ||
             !matchesRecordedQueryCollection(requestedCollection,task) ||
             !observedDefinitions.some(definition=>definition.file===sourceFile&&definition.collection===requestedCollection) ||

@@ -25,12 +25,48 @@ function parsedScopeBudgetFixture(){
  return {file:'generic-source.js',content,numberedContent:content,startLine:1,endLine:8,totalLines:8,sourceStructure};
 }
 
-for(const boundary of ['valid','untrusted','failed','source-mismatch','unobserved-template'])test(`scope context preserves parser fields and bounded authenticated aliases: ${boundary}`,async()=>{
+for(const boundary of ['unrestricted','temporal-filter','nonzero','exclusion','new-day'])test(`a real count receipt preserves temporal cache boundaries without page flags: ${boundary}`,async t=>{
+ t.mock.timers.enable({apis:['Date'],now:new Date('2026-10-16T10:00:00.000Z')});
+ const planner=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').runJarvisSemanticPlanner;
+ const read=parsedScopeBudgetFixture(),collection=read.sourceStructure.dataBindings.collections[0];
+ const producer=platformQueryTestFixture({recordData:boundary==='nonzero'?[{holder:'Observed holder'}]:[]});producer.context.tenantId='approved';producer.context.completedTasks[0].observation.verifiedRead=read;
+ const filters=boundary==='temporal-filter'?[{field:'deadline',op:'<=',value:'2026-10-16T10:30:00Z'}]:[];
+ producer.context.rootInstruction='Inspect deadline records before 2026-10-16T10:30:00Z';
+ const args={sourceFile:read.file,collection,mode:'count',filters};
+ const receipt=await producer.execute(args,producer.dependencies,producer.context);assert.equal(receipt.ok,true);assert.equal(receipt.recordEvidence.rows,undefined);assert.equal(receipt.recordEvidence.completeForQuery,undefined);
+ const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,index)=>({objective,requestQuote:objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][index],scope:'all_sources',groups:['entries']}));
+ const state={phase:'COMPLETION_AUDIT',missionId:'count-cache-mission',userId:'actor',tenantId:'approved',evidenceObjectives:goals,completedTasks:[{name:'repo.read',observation:{ok:true,verifiedRead:read}},{name:'platform.query',args,observation:receipt}]};
+ const tool={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string'},filters:{type:'array'}},required:['collection','mode','filters']}};
+ let reviews=0;
+ const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
+  const stage=request.config.semanticStage;
+  if(stage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:goals.map(goal=>({objective:goal.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[1],limitation:'Other observed sources remain unqueried.'}))},toolCalls:[]})};
+  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION')return{text:'{"toolCalls":[]}'};
+  const packet=JSON.parse(request.config.chatMessages.at(-1).content);
+  if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(packet.sources.map(collection=>[collection,{relevantToObjective:!(boundary==='exclusion'&&collection.endsWith('/store7')),reason:'Independent source relevance.'}]))})};
+  assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);reviews++;
+  return{text:JSON.stringify({proven:false,missing:['No operational deadline values; related sources remain.'],groups:[],sources:packet.observedSources.map(collection=>({collection,relevant:!(boundary==='exclusion'&&collection.endsWith('/store7')),reason:'Independent source relevance.',taskIndexes:[]}))})};
+ }}};
+ const first=await planner({input:goals.map(g=>g.objective).join('; '),catalog:[tool],missionState:state,ai});assert.ok(reviews>0);const reviewed=reviews;
+ state.completionAssessment=first.completionAssessment;
+ t.mock.timers.setTime(new Date(boundary==='new-day'?'2026-10-17T10:00:00.000Z':'2026-10-16T10:00:00.001Z').getTime());
+ const again=await planner({input:goals.map(g=>g.objective).join('; '),catalog:[tool],missionState:state,ai});
+ if(boundary==='unrestricted')assert.equal(reviews,reviewed,'an unchanged zero aggregate cannot gain missing temporal values from one clock tick');
+ else assert.ok(reviews>reviewed,'changed time must reopen counts with restrictions, exclusions, a positive population or a new date');
+ assert.equal(again.missionComplete,false);assert.equal(again.completionAssessment.objectives.length,3);assert.ok(again.completionAssessment.objectives.every(goal=>goal.satisfied===false));
+ assert.equal(receipt.recordEvidence.rows,undefined);assert.equal(receipt.recordEvidence.completeForQuery,undefined);
+});
+
+for(const mode of ['query','count'])for(const boundary of ['valid','untrusted','failed','source-mismatch','unobserved-template'])test(`scope context preserves parser fields and bounded authenticated aliases: ${mode}/${boundary}`,async()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
  const planner=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const read=parsedScopeBudgetFixture(),requested=read.sourceStructure.dataBindings.collections[0],resolved='organizations/approved/store0';
- const tasks=[{name:'repo.read',observation:{ok:true,verifiedRead:read}},{name:'platform.query',args:{sourceFile:read.file,collection:requested},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{sourceFile:read.file,collection:resolved,mode:'query',filters:[],fields:['holder']},rows:[],returnedCount:0,completeForQuery:true,hasMore:false,queryExhausted:true}}}];
+ const producer=platformQueryTestFixture({recordData:[]});producer.context.tenantId='approved';producer.context.completedTasks[0].observation.verifiedRead=read;
+ const args={sourceFile:read.file,collection:requested,mode,fields:['holder'],filters:[]};
+ const receipt=await producer.execute(args,producer.dependencies,producer.context);assert.equal(receipt.ok,true,JSON.stringify(receipt));assert.equal(receipt.recordEvidence.scope.collection,resolved);
+ if(mode==='count'){assert.equal(receipt.recordEvidence.totalCount,0);assert.equal(receipt.recordEvidence.rows,undefined);assert.equal(receipt.recordEvidence.completeForQuery,undefined,'the count runtime never emits page flags');}
+ const tasks=[{name:'repo.read',observation:{ok:true,verifiedRead:read}},{name:'platform.query',args,observation:receipt}];
  const sources=[...read.sourceStructure.dataBindings.collections,resolved];
  if(boundary==='untrusted')tasks[1].observation.recordEvidence.source='LOCAL_FIXTURE';
  if(boundary==='failed')tasks[1].observation.ok=false;
@@ -56,15 +92,15 @@ for(const boundary of ['valid','untrusted','failed','source-mismatch','unobserve
  assert.equal(inspected,true);
 });
 
-test('scope field and alias transport survives proposal rejection, recovery and the next mission decision',async()=>{
+for(const mode of ['query','count'])test(`scope field and alias transport survives ${mode} proposal rejection, recovery and the next mission decision`,async()=>{
  const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
  const {runJarvisSemanticPlanner}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const read=parsedScopeBudgetFixture(),[first,next]=read.sourceStructure.dataBindings.collections;
  const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:[read.file]}},required:['file']}};
- const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query']},fields:{type:'array',items:{type:'string'}},filters:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}};
- const seed={name:query.name,args:{sourceFile:read.file,collection:first,mode:'query',fields:['holder'],filters:[]}};
- const rejected={name:query.name,args:{...seed.args,fields:['__name__']}};
- const valid={name:query.name,args:{...seed.args,collection:next,fields:['holder','deadline']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query','count']},fields:{type:'array',items:{type:'string'}},filters:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}};
+ const seed={name:query.name,args:{sourceFile:read.file,collection:first,mode,fields:['holder'],filters:[]}};
+ const rejected={name:query.name,args:{...seed.args,mode:'query',fields:['__name__']}};
+ const valid={name:query.name,args:{...seed.args,collection:next,mode:'query',fields:['holder','deadline']}};
  const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,index)=>({objective,requestQuote:objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][index],scope:'all_sources',groups:['entries']}));
  let contextReady=false,progressed=false,recoveries=0;const stages=[],executed=[];
  const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
@@ -81,10 +117,11 @@ test('scope field and alias transport survives proposal rejection, recovery and 
   assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);
   return{text:JSON.stringify({proven:false,missing:['Unqueried operational sources remain.'],groups:[],sources:packet.observedSources.map(collection=>({collection,relevant:true,reason:'Only its own schema is observed.',taskIndexes:[]}))})};
  }}};
+ const producer=platformQueryTestFixture({recordData:[]});producer.context.tenantId='approved';producer.context.completedTasks[0].observation.verifiedRead=read;
  const mission=await runJarvisMission({instruction:goals.map(goal=>goal.objective).join('; '),initialEvidenceObjectives:goals,initialToolCalls:[{name:reader.name,args:{file:read.file}},seed],toolCatalog:[reader,query],storage:{getItem(){return null;},setItem(){},removeItem(){}},execute:async call=>{
   executed.push(call);if(call.name===reader.name)return{ok:true,data:read};
   if(executed.length>2){assert.deepEqual(call.args,valid.args,'exhausted IDs must not execute');progressed=true;}
-  return{ok:true,data:{recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...call.args,collection:call.args.collection.replace('{tenantId}','approved'),orderBy:[],implicitExistenceFields:[]},rows:[],returnedCount:0,hasMore:false,completeForQuery:true,queryExhausted:true}}};
+  const receipt=await producer.execute(call.args,producer.dependencies,producer.context);assert.equal(receipt.ok,true,JSON.stringify(receipt));return{ok:true,data:receipt};
  },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION'},ai})});
  assert.equal(progressed,true,'correct parser facts and authenticated aliases must reach recovery before its next decision');assert.equal(recoveries,1);assert.ok(stages.filter(stage=>stage==='EVIDENCE_NEXT_ACTION').length>=2);
  assert.equal(mission.status,'PARTIAL');assert.equal(mission.completionAssessment.objectives.length,3);assert.ok(mission.completionAssessment.objectives.every(goal=>goal.satisfied===false));
