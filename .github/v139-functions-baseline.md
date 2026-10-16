@@ -1,5 +1,33 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `d41d989cce618d51a83f2bbc91d670bb1bb5f970`.
+Only the semantic planner changed in Functions since 7e68be30.
+The 2fd645f4 Chrome diagnostic reached the real vehicle/insurance records but
+was stopped after 64 started local calls and 1256887 ms wall time, with all
+three objectives still pending. It is not a successful business certification.
+Source-scope context spent its budget on excerpts before retaining all positive
+field names, and an authenticated empty query did not transport its exact
+requested-template/resolved-route association. Scope review consequently treated
+known fields and an already-read route as unknown. A later ID-only read repeated
+identities already supplied by the authenticated rows.
+Schema field names now merge only within the same file, collection and provenance;
+excerpts shorten first. Exact own-source authenticated alias receipts (including
+empty pages) share the original combined 6000-byte context budget. They supply
+schema identity only, no operational values, permissions or global coverage.
+Projection reuse recognizes implicit server row IDs and only receipt-owned route
+aliases. Untrusted, partial, missing-ID and other-organization cases stay open,
+as do genuinely new fields. Generic real-parser and full-loop regressions cover
+rejection, recovery, next decision, bounded context and all three pending goals.
+Two old projection fixtures omitted real-runtime authentication metadata; those
+fixtures now include it. Their count assertion now recognizes the server aggregate
+already present, with missing-count, untrusted and foreign-scope negatives retained.
+Focused: 344 PASS. Frozen root suite with local emulators: 2209 PASS, 0 FAIL,
+2 environment skips. Fresh physical search and Chrome certification are separate
+gates. No model/provider/permission change or operational write. Later Functions
+changes still fail closed.
+
+## Previous reviewed baseline
+
 Current baseline: `7e68be3026edad671657293a75ca76aa4a891c80`.
 Only the semantic planner changed in Functions since b5fac2c2.
 The clean Chrome mission on 7a520334 ended PARTIAL after 383490 ms of engine
