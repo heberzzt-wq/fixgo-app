@@ -933,8 +933,11 @@ function recordProjectionAlreadyObserved(call, tasks) {
     for(const task of tasks) {
         const record=task.observation?.recordEvidence;
         if(task.name!==call.name || task.observation?.ok!==true || task.observation.executionOk===false ||
+            task.observation.blocked===true || task.observation.requiresInput===true ||
+            record?.source!=='FIRESTORE_SERVER_AUTHENTICATED' || record.readOnly!==true ||
             record?.completeForQuery!==true || record.hasMore===true || task.args?.cursor || !Array.isArray(record.rows) ||
-            scope(task.args)!==scope(call.args))continue;
+            !sameCollection(task.args?.collection,record.scope?.collection) ||
+            scope(receiptScope(task.args,task))!==scope(receiptScope(call.args,task)))continue;
         // Empty snapshots were checked with their returned query scope above.
         // They cannot accredit projected field values through the row union.
         if(record.rows.length===0)continue;
@@ -946,6 +949,9 @@ function recordProjectionAlreadyObserved(call, tasks) {
         if(!snapshot){snapshot={ids,rows:new Map(),fields:new Set(),count:false};snapshots.push(snapshot);}
         for(const row of record.rows)snapshot.rows.set(row.id,{...(snapshot.rows.get(row.id)||{}),...(row.values||{})});
         for(const field of record.scope?.fields||[])snapshot.fields.add(field);
+        // Server rows always carry their own document identity, even when it
+        // was not requested as a projected value. It proves this scope only.
+        if(record.rows.every(row=>typeof row.id==='string'&&row.id.length>0))snapshot.fields.add('__name__');
         snapshot.count ||= Number.isFinite(record.totalCount);
     }
     return snapshots.some(snapshot=>(call.args.includeCount!==true||snapshot.count) && call.args.fields.every(field=>snapshot.fields.has(field)));
@@ -1265,38 +1271,74 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
             ...(collection!==record.scope.collection?{resolvedCollection:record.scope.collection}: {})})),
             ...(read ? [...(read.sourceStructure?.dataBindings?.writeShapes || []),...(read.sourceStructure?.dataBindings?.queryShapes || []),...[...(read.sourceStructure?.dataBindings?.references || []),...(read.sourceStructure?.dataBindings?.collectionAnchors || [])].filter(reference=>reference.collection && reference.content).map(reference=>({...reference,fields:[],fieldsComplete:false,referenceOnly:true}))].map(shape=>({file:read.file,collection:shape.collection,fields:shape.fields,fieldsComplete:shape.fieldsComplete,operation:shape.operation,startLine:shape.startLine,endLine:shape.endLine,...(shape.referenceOnly ? {referenceOnly:true} : {}),...(shape.content ? {definition:shape.content.slice(0,600),definitionTruncated:shape.truncated===true || shape.content.length>600} : {})})) : [])];
     }).map(shape=>[JSON.stringify(shape),shape])).values()];
-    const sourceDefinitions=[],representedCollections=new Set();
-    // Keep current record-name observations first, then substantive schema
-    // definitions. A newer bare query reference must not displace a complete
-    // observed definition when balancing the fixed budget across sources.
+    // Preserve positive field-name evidence before spending bytes on code
+    // excerpts. Several AST shapes may describe the same owned collection.
     const definitionQuality=definition=>definition.recordNamesOnly?4:definition.referenceOnly?0:
         definition.definition ? (definition.fieldsComplete===true?3:2) : 1;
-    const preferredDefinitions=[...observedDefinitions].sort((left,right)=>definitionQuality(right)-definitionQuality(left));
+    const fieldGroups=new Map();
+    for(const observed of observedDefinitions){
+        const key=JSON.stringify([observed.file,observed.collection,observed.recordNamesOnly===true]);
+        const prior=fieldGroups.get(key);
+        const best=!prior || definitionQuality(observed)>definitionQuality(prior)?observed:prior;
+        const fields=[...new Set([...(prior?.fields||[]),...(observed.fields||[])])];
+        const merged={...best,fields,fieldsComplete:observed.fieldsComplete===true&&(!prior||prior.fieldsComplete===true)};
+        if(fields.length)delete merged.referenceOnly;
+        fieldGroups.set(key,merged);
+    }
+    const authenticatedSourceAliases=[];
+    let aliasBudget=1800;
+    for(let taskIndex=tasks.length-1;taskIndex>=0;taskIndex--){
+        const task=tasks[taskIndex],observation=task.observation,record=observation?.recordEvidence;
+        const requestedCollection=task.args?.collection,resolvedCollection=record?.scope?.collection,sourceFile=task.args?.sourceFile;
+        if(observation?.ok!==true || observation.executionOk===false || observation.blocked===true || observation.requiresInput===true ||
+            record?.source!=='FIRESTORE_SERVER_AUTHENTICATED' || record.readOnly!==true || record.scope?.mode!=='query' ||
+            !sourceFile || record.scope.sourceFile!==sourceFile || requestedCollection===resolvedCollection ||
+            !matchesRecordedQueryCollection(requestedCollection,task) ||
+            !observedDefinitions.some(definition=>definition.file===sourceFile&&definition.collection===requestedCollection) ||
+            !scopeSources.includes(requestedCollection) || !scopeSources.includes(resolvedCollection) ||
+            authenticatedSourceAliases.some(alias=>alias.sourceFile===sourceFile&&alias.requestedCollection===requestedCollection&&alias.resolvedCollection===resolvedCollection))continue;
+        const alias={taskIndex,sourceFile,requestedCollection,resolvedCollection};
+        const cost=JSON.stringify(alias).length+1;
+        if(cost>aliasBudget)continue;
+        authenticatedSourceAliases.push(alias);aliasBudget-=cost;
+    }
+    const sourceDefinitions=[],representedCollections=new Set();
+    const summaries=[...fieldGroups.values()];
+    const priority=definition=>definition.recordNamesOnly?4:definition.fields.length?3:definition.referenceOnly?0:1;
+    const preferredDefinitions=[...summaries].sort((left,right)=>priority(right)-priority(left)||right.fields.length-left.fields.length);
     const distinctDefinitions=preferredDefinitions.filter(definition=>{if(representedCollections.has(definition.collection))return false;representedCollections.add(definition.collection);return true;});
-    const balancedDefinitions=[...distinctDefinitions,...observedDefinitions.filter(definition=>!distinctDefinitions.includes(definition))];
-    const perSourceBudget=Math.max(256,Math.floor(6000/Math.max(1,Math.min(24,distinctDefinitions.length))));
-    let definitionBudget=6000;
-    for(const observed of balancedDefinitions) {
+    const balancedDefinitions=[...distinctDefinitions,...summaries.filter(definition=>!distinctDefinitions.includes(definition))];
+    // Alias metadata shares the original context budget; it is structural
+    // provenance even for an empty page, never operational field values.
+    let definitionBudget=5996-JSON.stringify(authenticatedSourceAliases).length;
+    const perSourceBudget=Math.max(256,Math.floor(definitionBudget/Math.max(1,Math.min(24,distinctDefinitions.length))));
+    for(const observed of balancedDefinitions){
         if(sourceDefinitions.length>=24 || definitionBudget<256)break;
-        const definition={...observed,fields:[...(observed.fields || [])]};
+        const definition={...observed,fields:[...observed.fields]};
         const entryBudget=Math.min(definitionBudget,perSourceBudget);
-        if(definition.definition && definition.definition.length>Math.max(0,entryBudget-240)){definition.definition=definition.definition.slice(0,Math.max(0,entryBudget-240));definition.definitionTruncated=true;}
-        while(definition.fields.length && JSON.stringify(definition).length>entryBudget) {
-            definition.fields.pop();definition.fieldsComplete=false;
+        while(definition.definition && JSON.stringify(definition).length+1>entryBudget){
+            definition.definition=definition.definition.slice(0,Math.max(0,definition.definition.length-64));definition.definitionTruncated=true;
         }
-        const cost=JSON.stringify(definition).length;
+        if(!definition.definition)delete definition.definition;
+        while(definition.fields.length && JSON.stringify(definition).length+1>entryBudget){
+            definition.fields.pop();definition.fieldsComplete=false;definition.fieldsTruncated=true;
+        }
+        const cost=JSON.stringify(definition).length+1;
         if(cost>entryBudget)continue;
         sourceDefinitions.push(definition);definitionBudget-=cost;
     }
     const definedSources=new Set(sourceDefinitions.map(definition=>definition.collection));
+    for(const alias of authenticatedSourceAliases)if(sourceDefinitions.some(definition=>definition.file===alias.sourceFile&&definition.collection===alias.requestedCollection))
+        definedSources.add(alias.resolvedCollection);
     const scopeReviewRequest={model,contents:contract.requestQuote,config:{
         semanticStage:"OBJECTIVE_SOURCE_SCOPE_VERIFICATION",temperature:0,maxOutputTokens:Math.min(4096,Math.max(768,scopeSources.length*128)),
         // Review inclusions and exclusions without the earlier verdict or assistant
         // recap. Repeating a proposed verdict would anchor this independent check.
         chatMessages:[{role:"system",content:"Decide la pertinencia de cada fuente para ESTE objetivo, usando su esquema observado y las aclaraciones del usuario. relevantToObjective=true si puede aportar registros pedidos por ese objetivo; false si el esquema acredita que queda fuera. Devuelve null si la pertinencia queda indeterminada. La ausencia de una definición en sourceDefinitions no acredita irrelevancia: considera las aclaraciones literales y las referencias observadas; si no bastan, conserva null. referenceOnly es una expresión de consulta observada, no una escritura ni datos operativos. El alcance all_sources incluye las distintas clases de registros solicitadas: una distinción obliga a mantenerlas separadas, no a borrar una clase del inventario. No sustituyas un pedido general por el dominio de la primera fuente. La entidad principal de una colección no excluye los registros o atributos anidados que guarda. Si el usuario incluyó esos registros, no exijas una colección independiente ni pertenencia a otra clase para contarlos. Una fuente no consultada puede ser pertinente: no confundas falta de lectura con irrelevancia. Comprueba tanto inclusiones como exclusiones. Una fuente que autentica, registra eventos o describe herramientas no representa por ello los registros pedidos: interpreta sus campos con el esquema, no sólo el nombre de la ruta. Una aclaración que distingue clases no limita un objetivo general a una sola de ellas. No evalúes cumplimiento ni pruebes datos con código. No transfieras requisitos de otros objetivos. Emite una decisión para cada ruta adjunta sin inventar otras."},
+            {role:"system",content:"authenticatedSourceAliases conserva asociaciones exactas entre la plantilla solicitada y la ruta realmente autenticada, acreditadas por el recibo de ESA consulta incluso si devolvio cero filas. El esquema de esa plantilla y archivo puede interpretar su ruta resuelta. No extiendas la asociacion a otras organizaciones ni conviertas el alias o el esquema en valores operativos o cobertura global."},
             {role:"system",content:"recordNamesOnly indica nombres presentes en páginas de registros ya consultadas de esa ruta. Sirven para evaluar pertinencia y elegir otra lectura; no contienen valores no proyectados ni prueban conteos, ausencia en otras filas o cumplimiento."},
             {role:"system",content:"missionRequest conserva la misión original para resolver los referentes y el contexto de ESTE objetivo. No es evidencia operativa ni cambia su contrato. Usa ese contexto para interpretar qué registros y relaciones se piden; no impongas a este objetivo los requisitos o faltantes de los demás ni transfieras su cobertura."},
-            {role:"user",content:JSON.stringify({request:contract.requestQuote,missionRequest:instruction,contract,userClarifications:scopeClarifications,sources:scopeSources,sourceDefinitions,sourceDefinitionsMayBeIncomplete:sourceDefinitions.length<observedDefinitions.length || sourceDefinitions.some(source=>source.fieldsComplete!==true)})}],
+            {role:"user",content:JSON.stringify({request:contract.requestQuote,missionRequest:instruction,contract,userClarifications:scopeClarifications,sources:scopeSources,sourceDefinitions,authenticatedSourceAliases,sourceDefinitionsMayBeIncomplete:sourceDefinitions.length<observedDefinitions.length || sourceDefinitions.some(source=>source.fieldsComplete!==true)})}],
         responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{sourceRelevance:{type:"object",properties:Object.fromEntries(scopeSources.map(collection=>[collection,{type:"object",properties:{relevantToObjective:{type:["boolean","null"],enum:definedSources.has(collection)?[true,false,null]:[true,null]},reason:{type:"string",maxLength:160}},required:["relevantToObjective","reason"],additionalProperties:false}])),required:scopeSources,additionalProperties:false}},required:["sourceRelevance"],additionalProperties:false}
     }};
     // Cache source relevance by the same complete request, normalizing only

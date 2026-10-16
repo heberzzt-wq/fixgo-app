@@ -16,6 +16,80 @@ function recoverySchemas(request){
  return request.config.responseJsonSchema?.properties.toolCalls?.items?.anyOf || (request.config.tools?.[0]?.functionDeclarations || []).map(tool=>({properties:{name:{enum:[tool.name]},args:tool.parametersJsonSchema}}));
 }
 
+function parsedScopeBudgetFixture(){
+ const content=Array.from({length:8},(_,index)=>{
+  const fields=[...Array.from({length:14},(_,field)=>'field'+field),'holder','deadline',...(index===7?['exclusiveOnlyHere']:[])];
+  return `const ref${index}=collection(db,"organizations",tenantId,"store${index}");await addDoc(ref${index},{${fields.map(field=>`${field}:normalizeFormValue(document.getElementById("input_${index}_${field}").value)`).join(',')}});const snap${index}=await getDocs(query(ref${index},orderBy("updated_at","desc")));snap${index}.forEach(doc${index}=>{const row${index}=doc${index}.data();consume(row${index}.state);});`;
+ }).join('\n');
+ const sourceStructure=analyzeRepoSourceStructure(content);
+ return {file:'generic-source.js',content,numberedContent:content,startLine:1,endLine:8,totalLines:8,sourceStructure};
+}
+
+for(const boundary of ['valid','untrusted','failed','source-mismatch','unobserved-template'])test(`scope context preserves parser fields and bounded authenticated aliases: ${boundary}`,async()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='reviewRecordObjectiveCoverage');
+ const planner=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const read=parsedScopeBudgetFixture(),requested=read.sourceStructure.dataBindings.collections[0],resolved='organizations/approved/store0';
+ const tasks=[{name:'repo.read',observation:{ok:true,verifiedRead:read}},{name:'platform.query',args:{sourceFile:read.file,collection:requested},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{sourceFile:read.file,collection:resolved,mode:'query',filters:[],fields:['holder']},rows:[],returnedCount:0,completeForQuery:true,hasMore:false,queryExhausted:true}}}];
+ const sources=[...read.sourceStructure.dataBindings.collections,resolved];
+ if(boundary==='untrusted')tasks[1].observation.recordEvidence.source='LOCAL_FIXTURE';
+ if(boundary==='failed')tasks[1].observation.ok=false;
+ if(boundary==='source-mismatch')tasks[1].observation.recordEvidence.scope.sourceFile='another-source.js';
+ if(boundary==='unobserved-template'){tasks[1].args.collection='organizations/{otherId}/store0';sources.push(tasks[1].args.collection);}
+ const review=reviewInContext(source,node,{observedRecordSources:()=>sources,boundedAuditTasks:tasks=>tasks,extractJsonObject:JSON.parse,qualifyRecordObjectiveCoverage:planner.qualifyRecordObjectiveCoverage,observedRecordFieldPaths:planner.observedRecordFieldPaths});
+ let inspected=false;
+ await review({model:'sole-local-model',objective:{objective:'Inspect deadlines'},contract:{requestQuote:'Inspect deadlines',scope:'all_sources',groups:['entries'],coverageMode:'temporal'},tasks,ai:{models:{generateContent:async request=>{
+  if(request.config.semanticStage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION'){
+   const packet=JSON.parse(request.config.chatMessages.at(-1).content);inspected=true;
+   assert.ok(JSON.stringify(packet.sourceDefinitions).length+JSON.stringify(packet.authenticatedSourceAliases).length<=6000,'aliases share the existing budget');
+   for(const collection of read.sourceStructure.dataBindings.collections){
+    const names=new Set(packet.sourceDefinitions.filter(definition=>definition.collection===collection).flatMap(definition=>definition.fields||[]));
+    assert.ok(names.has('holder')&&names.has('deadline'),`positive fields must survive for ${collection}`);
+    assert.equal(names.has('exclusiveOnlyHere'),collection.endsWith('/store7'),'field ownership must not leak across collections');
+   }
+   assert.deepEqual(packet.authenticatedSourceAliases,boundary==='valid'?[{taskIndex:1,sourceFile:read.file,requestedCollection:requested,resolvedCollection:resolved}]:[]);
+   assert.equal(request.config.responseJsonSchema.properties.sourceRelevance.properties[resolved].properties.relevantToObjective.enum.includes(false),boundary==='valid','only the authenticated own alias can share observed schema without requiring rows');
+   return{text:JSON.stringify({sourceRelevance:Object.fromEntries(sources.map(collection=>[collection,{relevantToObjective:true,reason:'Observed own fields, operational evidence still incomplete.'}]))})};
+  }
+  return{text:JSON.stringify({proven:false,missing:['No operational deadline values.'],groups:[],sources:sources.map(collection=>({collection,relevant:true,reason:'Observed own fields.',taskIndexes:[]}))})};
+ }}}});
+ assert.equal(inspected,true);
+});
+
+test('scope field and alias transport survives proposal rejection, recovery and the next mission decision',async()=>{
+ const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
+ const {runJarvisSemanticPlanner}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const read=parsedScopeBudgetFixture(),[first,next]=read.sourceStructure.dataBindings.collections;
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:[read.file]}},required:['file']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query']},fields:{type:'array',items:{type:'string'}},filters:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}};
+ const seed={name:query.name,args:{sourceFile:read.file,collection:first,mode:'query',fields:['holder'],filters:[]}};
+ const rejected={name:query.name,args:{...seed.args,fields:['__name__']}};
+ const valid={name:query.name,args:{...seed.args,collection:next,fields:['holder','deadline']}};
+ const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,index)=>({objective,requestQuote:objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][index],scope:'all_sources',groups:['entries']}));
+ let contextReady=false,progressed=false,recoveries=0;const stages=[],executed=[];
+ const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
+  const stage=request.config.semanticStage;stages.push(stage);
+  if(stage==='EVIDENCE_NEXT_ACTION')return{text:JSON.stringify({toolCalls:progressed?[]:[rejected]})};
+  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){recoveries++;return{text:JSON.stringify({toolCalls:contextReady?[valid]:[rejected],sourceFallback:[]})};}
+  if(stage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":true,"populationRelevance":"relevant","schemaDiscoveryRelevant":false,"rejectionReason":""}'};
+  const packet=JSON.parse(request.config.chatMessages.at(-1).content);
+  if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION'){
+   const names=new Set(packet.sourceDefinitions.filter(item=>item.collection===first).flatMap(item=>item.fields||[]));
+   contextReady=names.has('holder')&&names.has('deadline')&&packet.authenticatedSourceAliases?.some(alias=>alias.requestedCollection===first&&alias.resolvedCollection==='organizations/approved/store0');
+   return{text:JSON.stringify({sourceRelevance:Object.fromEntries(packet.sources.map(collection=>[collection,{relevantToObjective:true,reason:'Keep this independently pending source.'}]))})};
+  }
+  assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);
+  return{text:JSON.stringify({proven:false,missing:['Unqueried operational sources remain.'],groups:[],sources:packet.observedSources.map(collection=>({collection,relevant:true,reason:'Only its own schema is observed.',taskIndexes:[]}))})};
+ }}};
+ const mission=await runJarvisMission({instruction:goals.map(goal=>goal.objective).join('; '),initialEvidenceObjectives:goals,initialToolCalls:[{name:reader.name,args:{file:read.file}},seed],toolCatalog:[reader,query],storage:{getItem(){return null;},setItem(){},removeItem(){}},execute:async call=>{
+  executed.push(call);if(call.name===reader.name)return{ok:true,data:read};
+  if(executed.length>2){assert.deepEqual(call.args,valid.args,'exhausted IDs must not execute');progressed=true;}
+  return{ok:true,data:{recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...call.args,collection:call.args.collection.replace('{tenantId}','approved'),orderBy:[],implicitExistenceFields:[]},rows:[],returnedCount:0,hasMore:false,completeForQuery:true,queryExhausted:true}}};
+ },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION'},ai})});
+ assert.equal(progressed,true,'correct parser facts and authenticated aliases must reach recovery before its next decision');assert.equal(recoveries,1);assert.ok(stages.filter(stage=>stage==='EVIDENCE_NEXT_ACTION').length>=2);
+ assert.equal(mission.status,'PARTIAL');assert.equal(mission.completionAssessment.objectives.length,3);assert.ok(mission.completionAssessment.objectives.every(goal=>goal.satisfied===false));
+});
+
 test('trusted coverage is reused for unchanged evidence and reopened when a credited value changes',async()=>{
  const planner=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').runJarvisSemanticPlanner;
  const contract={objective:'Identify each holder',requestQuote:'Identify each holder',requiredEvidenceKind:'platform_records',coverageMode:'relationship',scope:'all_sources',groups:['holders']};
@@ -4383,7 +4457,7 @@ test('invalid objective contracts exhaust bounded LLM repairs without inventing 
 test('combining previously read projections cannot replace investigation of missing evidence',async()=>{
  const query={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'},mode:{type:'string'},fields:{type:'array',items:{type:'string'}},pageSize:{type:'integer'},includeCount:{type:'boolean'}},required:['collection','mode','fields']}};
  const args={collection:'registry',mode:'query',pageSize:20,includeCount:true};let recovered=false;
- const tasks=[['category','owner'],['owner','label']].map(fields=>({name:query.name,args:{...args,fields},observation:{ok:true,recordEvidence:{scope:{collection:'registry',fields},rows:[{id:'one',values:Object.fromEntries(fields.map(field=>[field,field==='owner'?null:'observed']))}],totalCount:1,completeForQuery:true,hasMore:false}}}));
+ const tasks=[['category','owner'],['owner','label']].map(fields=>({name:query.name,args:{...args,fields},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',fields},rows:[{id:'one',values:Object.fromEntries(fields.map(field=>[field,field==='owner'?null:'observed']))}],totalCount:1,completeForQuery:true,hasMore:false}}}));
  const result=await runJarvisSemanticPlanner({input:'Inspect current records and expiration evidence',catalog:[query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:tasks},ai:{models:{generateContent:async request=>{
  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return{text:'{"matchesRequest":true}'};}
 
@@ -4656,10 +4730,11 @@ test('projection reuse preserves new fields counts pages scopes and inconsistent
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');
  const covered=runInNewContext('('+source.slice(node.start,node.end)+')');
  const args={collection:'registry',mode:'query',fields:['label','owner'],filters:[],includeCount:true};const call={name:'records.read',args};
- const tasks=[['label'],['owner']].map(fields=>({name:call.name,args:{...args,fields},observation:{ok:true,recordEvidence:{scope:{collection:'registry',fields},rows:[{id:'one',values:Object.fromEntries(fields.map(field=>[field,'observed']))}],totalCount:1,completeForQuery:true}}}));
+ const tasks=[['label'],['owner']].map(fields=>({name:call.name,args:{...args,fields},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',fields},rows:[{id:'one',values:Object.fromEntries(fields.map(field=>[field,'observed']))}],totalCount:1,completeForQuery:true}}}));
  assert.equal(covered(call,tasks),true);
- for(const changed of [{fields:['expiresAt']},{collection:'another'},{filters:[{field:'category',op:'==',value:'other'}]},{cursor:'next'},{mode:'count'}])assert.equal(covered({...call,args:{...args,...changed}},tasks),false);
- for(const change of [t=>{delete t.observation.recordEvidence.totalCount;},t=>{t.observation.recordEvidence.completeForQuery=false;},t=>{t.observation.recordEvidence.hasMore=true;},t=>{t.observation.ok=false;}]){const altered=structuredClone(tasks);altered.forEach(change);assert.equal(covered(call,altered),false);}
+ for(const changed of [{fields:['expiresAt']},{collection:'another'},{filters:[{field:'category',op:'==',value:'other'}]},{cursor:'next'}])assert.equal(covered({...call,args:{...args,...changed}},tasks),false);
+ assert.equal(covered({...call,args:{...args,mode:'count'}},tasks),true,'the authenticated fixture already returned the same server aggregate; it is not a new count');
+ for(const change of [t=>{delete t.observation.recordEvidence.totalCount;},t=>{t.observation.recordEvidence.completeForQuery=false;},t=>{t.observation.recordEvidence.hasMore=true;},t=>{t.observation.ok=false;},t=>{t.observation.recordEvidence.source='LOCAL_FIXTURE';},t=>{t.observation.recordEvidence.readOnly=false;},t=>{t.observation.recordEvidence.scope.collection='another';}]){const altered=structuredClone(tasks);altered.forEach(change);assert.equal(covered(call,altered),false);}
  const changedRows=structuredClone(tasks);changedRows[1].observation.recordEvidence.rows[0].id='different';assert.equal(covered(call,changedRows),false);
  const conflicting=structuredClone(tasks);conflicting[1].observation.recordEvidence.rows[0].values.label='changed';assert.equal(covered(call,conflicting),false);
  assert.equal(covered({...call,args:{...args,includeCount:false}},tasks.map(t=>({...t,observation:{...t.observation,recordEvidence:{...t.observation.recordEvidence,totalCount:undefined}}}))),true);

@@ -2,6 +2,23 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const {runJarvisSemanticPlanner,hasRequiredToolArguments}=require('../functions/jarvis-semantic-planner.js');
 const {eligibleEvidenceActionCatalog}=require('../functions/jarvis-semantic-planner.js');
 
+for(const scenario of ['same-route','receipt-alias','other-organization','partial','untrusted','missing-id'])test(`implicit authenticated document IDs retain ${scenario} query scope`,()=>{
+ const resolved='organizations/approved/entries',requested=scenario==='receipt-alias'?'organizations/{tenantId}/entries':resolved;
+ const args={sourceFile:'source.js',collection:requested,mode:'query',fields:['holder'],filters:[],orderBy:[]};
+ const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...args,collection:resolved,implicitExistenceFields:[]},rows:[{id:'entry',values:{holder:'Known holder'}}],returnedCount:1,totalCount:1,hasMore:false,completeForQuery:true,queryExhausted:true,truncatedFields:[]};
+ if(scenario==='partial'){record.hasMore=true;record.completeForQuery=false;}
+ if(scenario==='untrusted')record.source='LOCAL_FIXTURE';
+ if(scenario==='missing-id')delete record.rows[0].id;
+ const collection=scenario==='other-organization'?'organizations/other/entries':resolved;
+ const tool={name:'platform.query',evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{sourceFile:{type:'string',enum:['source.js']},collection:{type:'string',enum:[collection]},mode:{type:'string',enum:['query']},fields:{type:'array',minItems:1,items:{type:'string',enum:['holder','deadline','__name__']}},filters:{type:'array',maxItems:0},orderBy:{type:'array',maxItems:0}},required:['sourceFile','collection','mode','fields','filters']}};
+ const tasks=[{name:tool.name,args,observation:{ok:true,recordEvidence:record}}];
+ const catalog=eligibleEvidenceActionCatalog([tool],tasks),candidate={...args,collection,fields:['__name__'],pageSize:100,includeCount:true};
+ delete candidate.pageSize;delete candidate.includeCount;
+ const allows=fields=>catalog.some(tool=>hasRequiredToolArguments(tool,{...candidate,fields}));
+ assert.equal(allows(['__name__']),!['same-route','receipt-alias'].includes(scenario),'a full authenticated row already supplies its document ID');
+ assert.equal(allows(['deadline']),true,'new projected values must remain queryable');
+});
+
 for(const scenario of ['partial-page','filtered','other-organization','truncated','missing-value','observed-null','ambiguous-null','unauthenticated','newer-row','newer-value'])test(`equality frontier preserves ${scenario} boundaries`,()=>{
  const args={sourceFile:'source.js',collection:'organizations/approved/entries',mode:'query',fields:['marker'],filters:[],orderBy:[]};
  const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...args,implicitExistenceFields:[]},rows:[{id:'entry',values:{marker:'observed'}}],returnedCount:1,hasMore:false,completeForQuery:true,queryExhausted:true,truncatedFields:[]};
@@ -20,14 +37,15 @@ for(const scenario of ['partial-page','filtered','other-organization','truncated
  assert.equal(eligibleEvidenceActionCatalog([tool],tasks).some(tool=>hasRequiredToolArguments(tool,requested)),true,'incomplete, unrelated, changed or genuinely null values cannot justify exclusion');
 });
 
-for(const useWitnessedFilter of [false,true])test(`complete authenticated values reject an empty equality and recover with witnessed filter=${useWitnessedFilter}`,async()=>{
+for(const scenario of ['new-fields','witnessed-filter','implicit-ids'])test(`authenticated projection rejection and recovery preserves ${scenario}`,async()=>{
+ const useWitnessedFilter=scenario==='witnessed-filter';
  const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
  const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js']}},required:['file']}};
  const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query']},fields:{type:'array',items:{type:'string'},minItems:1},filters:{type:'array',items:{type:'object',properties:{field:{type:'string'},op:{type:'string',enum:['==','!=']},value:{type:['string','null']}},required:['field','op','value']}},orderBy:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}};
  const goals=['Count entries','Find holders','Check deadlines'].map((objective,i)=>({objective,requestQuote:objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][i],scope:'all_sources',groups:['entries']}));
  const seed={name:query.name,args:{sourceFile:'source.js',collection:'organizations/{organizationId}/entries',mode:'query',fields:['marker'],filters:[],orderBy:[]}};
- const invalid={name:query.name,args:{...seed.args,fields:['holder','deadline'],filters:[{field:'marker',op:'==',value:null}]}};
- const valid={name:query.name,args:{...invalid.args,filters:useWitnessedFilter?[{field:'marker',op:'==',value:'ZETA-7319'}]:[]}};
+ const invalid={name:query.name,args:{...seed.args,fields:scenario==='implicit-ids'?['__name__']:['holder','deadline'],filters:scenario==='implicit-ids'?[]:[{field:'marker',op:'==',value:null}]}};
+ const valid={name:query.name,args:{...invalid.args,fields:['holder','deadline'],filters:useWitnessedFilter?[{field:'marker',op:'==',value:'ZETA-7319'}]:[]}};
  let progressed=false,recoveries=0,frontierFacts;const executed=[];
  const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
   const stage=request.config.semanticStage;
@@ -61,7 +79,7 @@ for(const useWitnessedFilter of [false,true])test(`complete authenticated values
   const values=Object.fromEntries(call.args.fields.map(field=>[field,field==='marker'?'ZETA-7319':field==='holder'?'known-holder':'2027-11-01']));
   return{ok:true,data:{recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...call.args,collection:'organizations/approved/entries',implicitExistenceFields:[]},rows:[{id:'entry',values}],returnedCount:1,hasMore:false,queryExhausted:true,completeForQuery:true,truncatedFields:[],fieldSchema:{source:'SERVER_RECORD_FIELD_NAMES',paths:['marker','holder','deadline'],scope:'returned_rows_only'}}}};
  },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION'},ai})});
- assert.equal(frontierFacts?.invalid,false,'a full non-null population cannot invite the manufactured empty equality');
+ assert.equal(frontierFacts?.invalid,false,'an exhausted equality or already returned document identity cannot invite another read');
  assert.equal(frontierFacts.valid,true,'newly accredited fields remain available in the original scope');
  assert.equal(frontierFacts.matching,true,'a witnessed matching value remains selectable');
  assert.equal(frontierFacts.otherOperator,true,'other operators keep independent verification');
