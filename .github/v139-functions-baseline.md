@@ -1,5 +1,22 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `908740796fb9574f9b93bde9e9a5637b220c013a`.
+Only the semantic planner changed in Functions since860e1242.
+Actual Chrome remained PARTIAL with three pending goals. Its configured-source
+recovery request exceeded the existing60000-character budget. Recovery now lists
+only observed pending search candidates as localized paths, retaining all native
+reader authorization. Exact late-request replay:60684 to58900chars,26messages.
+Complete retained authenticated unfiltered rows expose their own scoped count,
+not a fabricated server total. Missing rows, duplicate IDs, implicit filters,
+unresolved routes, unfinished queries and inconsistent totals cannot use it.
+Independent objective validation remains. No model,provider,permission changes.
+Focused473PASS; frozen full local emulator suite2292PASS,0FAIL,2physical skips
+(2294tests,279982.4793ms), exit0. Real search and clean Chrome remain gates.
+Future unreviewed Functions changes still fail closed. No operational writes.
+
+## Previous review
+
+
 Current baseline: `6ef3c8abb8a7908ae5a750e1e7df252f08d32c68`.
 Only the semantic planner changed in Functions since 300d4110.
 The clean 75c9825d Chrome mission ended PARTIAL after 42 local calls
