@@ -1,5 +1,25 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `61a8844f57d87ed5ab9f1339b6f9e21393a7c400`.
+Only the semantic planner changed in Functions since b42d1d57.
+The clean 6ad630e6 Chrome mission ended PARTIAL after 25 local calls
+(297553 ms wall), with only a positive route count and a filtered zero.
+A runtime count has totalCount but no rows. The fresh evidence pre-decision
+review incorrectly recognized only rows, leaving independent deficits until
+closure. Positive finite authenticated counts now trigger that same review.
+Zero remains scoped and cannot certify global absence; count does not prove
+relationships or dates. No added recovery chain, inference provider or tool.
+The full runtime-produced count cycle reproduced 0 vs 3 independent reviews
+before the next action, then passes while advancing to unread values exactly
+once. Both query/count cycles preserve code-only reuse and all pending goals.
+Focused: 430 PASS. Frozen full local emulator suite: 2259 PASS, 0 FAIL,
+2 physical/environment skips (2261 tests, 278199.8019 ms), exit receipt0.
+Physical repo search and the original clean Chrome mission remain separate gates.
+No model, external AI, paid-provider, permission or operational data changes.
+Future unreviewed Functions changes still fail closed.
+
+## Previous reviewed baseline
+
 Current baseline: `b42d1d5798e90838b6c9ed20ab5a4f1ccc0a5509`.
 Only the semantic planner changed in Functions since 9f512a48.
 The clean b4c57825 Chrome mission searched the real repository, read the
