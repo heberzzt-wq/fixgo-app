@@ -5540,6 +5540,23 @@ function completeScalarPopulationFixture(){
  return f;
 }
 
+for(const scope of ['whole-population','subset','other-organization'])test('runtime filtered projection keeps '+scope+' evidence inside the authenticated ID population',async()=>{
+ const f=platformQueryTestFixture({recordData:[{marker:'Class-A',holder:'Holder-A',deadline:'2027-01-01'},{marker:'Class-B',holder:'Holder-B',deadline:'2027-01-02'}]});
+ const configured=completeScalarPopulationFixture();f.context=configured.context;f.args=configured.args;
+ const getDocs=f.dependencies.sdk.getDocsFromServer;
+ f.dependencies.sdk.getDocsFromServer=async request=>{const result=await getDocs(request),constraints=[];for(let current=request;current;current=current.base)constraints.push(...(current.constraints||[]));return{...result,docs:result.docs.filter(doc=>constraints.filter(c=>c.where).every(({where:[field,op,value]})=>op==='in'?value.includes(doc.get(field)):Object.is(doc.get(field),value)))};};
+ const first=await f.execute(f.args,f.dependencies,f.context);assert.equal(first.recordEvidence.returnedCount,2);assert.equal(first.recordEvidence.completeForQuery,true);
+ const anchor={name:'platform.query',args:f.args,observation:JSON.parse(JSON.stringify(first))};f.context.completedTasks.push(anchor);
+ if(scope==='other-organization'){f.context.tenantId='other';f.context.rootInstruction='Read entries with marker "Class-A" and "Class-B" in the current scope.';}
+ const args={...f.args,fields:['holder'],filters:[{field:'marker',op:scope==='subset'?'==':'in',value:scope==='subset'?'Class-A':['Class-A','Class-B']}]};
+ const second=await f.execute(args,f.dependencies,f.context);assert.equal(second.ok,true,JSON.stringify(second));assert.equal(second.recordEvidence.completeForQuery,true);
+ assert.equal(second.recordEvidence.returnedCount,scope==='subset'?1:2);
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(item=>item.type==='FunctionDeclaration'&&item.id.name==='recordProjectionAlreadyObserved');
+ const call={name:anchor.name,args:{sourceFile:f.args.sourceFile,collection:'registry/approved/entries',mode:'count',filters:[{field:'holder',op:'==',value:null}]}};
+ assert.equal(projectionInContext(source,node)(call,[anchor,{name:anchor.name,args,observation:JSON.parse(JSON.stringify(second))}]),scope==='whole-population','a complete filtered page is a full field witness only when every ID and exact authenticated route match the independent full-population anchor');
+});
+
 for(const change of ['removed','object'])test('runtime raw field '+change+' reopens an earlier scalar witness without borrowing unprojected values',async()=>{
  const f=completeScalarPopulationFixture(),first=await f.execute(f.args,f.dependencies,f.context);
  const getDocs=f.dependencies.sdk.getDocsFromServer;
@@ -5556,7 +5573,7 @@ for(const change of ['removed','object'])test('runtime raw field '+change+' reop
  assert.equal(projectionInContext(source,node)(count,tasks),false,'authenticated current field names contradict the old scalar shape; fresh investigation stays possible');
 });
 
-for(const scenario of ['complete','partial','cursor','truncated','untrusted','not-readonly','blocked','mismatched-receipt','other-organization','other-source','unprojected-field','null','object','changed-value','new-row','changed-count','mixed-filter','later-projection','later-null-field','later-truncated-field','ambiguous-organization'])test('runtime scalar count frontier preserves '+scenario+' scope',async()=>{
+for(const scenario of ['complete','partial','cursor','truncated','untrusted','not-readonly','blocked','mismatched-receipt','other-organization','other-source','unprojected-field','null','object','changed-value','changed-partial-value','new-row','changed-count','mixed-filter','later-projection','later-null-field','later-truncated-field','ambiguous-organization'])test('runtime scalar count frontier preserves '+scenario+' scope',async()=>{
  const f=completeScalarPopulationFixture(),receipt=await f.execute(f.args,f.dependencies,f.context);
  assert.equal(receipt.ok,true);assert.equal(receipt.recordEvidence.completeForQuery,true);
  const task={name:'platform.query',args:structuredClone(f.args),observation:JSON.parse(JSON.stringify(receipt))};
@@ -5575,9 +5592,10 @@ for(const scenario of ['complete','partial','cursor','truncated','untrusted','no
  if(scenario==='null')record.rows[0].values.marker=null;
  if(scenario==='object')record.rows[0].values.marker={nested:'Observed-class'};
  if(scenario==='mixed-filter')call.args.filters.push({field:'holder',op:'==',value:'Registered holder'});
- if(['changed-value','new-row','changed-count'].includes(scenario)){
+ if(['changed-value','changed-partial-value','new-row','changed-count'].includes(scenario)){
   const later=structuredClone(task);later.args.filters=[{field:'marker',op:'!=',value:'Absent'}];later.observation.recordEvidence.scope.filters=later.args.filters;
-  if(scenario==='changed-value')later.observation.recordEvidence.rows[0].values.marker='Updated-class';
+  if(['changed-value','changed-partial-value'].includes(scenario))later.observation.recordEvidence.rows[0].values.marker='Updated-class';
+  if(scenario==='changed-partial-value'){later.args.pageSize=1;Object.assign(later.observation.recordEvidence.scope,{pageSize:1});Object.assign(later.observation.recordEvidence,{completeForQuery:false,hasMore:true,queryExhausted:false,nextCursor:later.observation.recordEvidence.rows[0].id});}
   if(scenario==='new-row')later.observation.recordEvidence.rows[0].id='new-record';
   if(scenario==='changed-count'){later.args.filters=[];later.observation.recordEvidence.scope.filters=[];later.observation.recordEvidence.totalCount=2;}
   tasks.push(later);
@@ -5593,7 +5611,7 @@ for(const scenario of ['complete','partial','cursor','truncated','untrusted','no
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(item=>item.type==='FunctionDeclaration'&&item.id.name==='recordProjectionAlreadyObserved');
  const observed=projectionInContext(source,node);
- const complete=['complete','later-projection'].includes(scenario);
+ const complete=['complete','later-projection','changed-value'].includes(scenario);
  assert.equal(observed(call,tasks),complete,'only a complete unchanged authenticated population with every predicate field projected can suppress the count');
  const {eligibleEvidenceActionCatalog,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const fields=['marker','holder','deadline'];
@@ -5603,10 +5621,15 @@ for(const scenario of ['complete','partial','cursor','truncated','untrusted','no
  const frontier=eligibleEvidenceActionCatalog([tool],tasks);
  const allowed=frontier.some(choice=>hasRequiredToolArguments(choice,call.args));
  if(scenario!=='mixed-filter')assert.equal(allowed,!complete);
- else assert.ok(frontier.some(choice=>hasRequiredToolArguments(choice,{...call.args,filters:[...call.args.filters].reverse()})),'a new predicate field may advance without transferring values to another route');
+ if(scenario==='changed-value'){
+  const projection={...call.args,mode:'query',fields:['deadline']};
+  assert.equal(frontier.some(choice=>hasRequiredToolArguments(choice,projection)),false,'the old scalar value cannot remain offered after a newer complete witness changes it');
+  assert.ok(frontier.some(choice=>hasRequiredToolArguments(choice,{...projection,filters:[{field:'marker',op:'==',value:'Updated-class'}]})),'the latest actual value remains usable to read new fields; a fully witnessed change does not require another recount');
+ }
+ if(scenario==='mixed-filter')assert.ok(frontier.some(choice=>hasRequiredToolArguments(choice,{...call.args,filters:[...call.args.filters].reverse()})),'a new predicate field may advance without transferring values to another route');
 });
 
-for(const variant of ['single-projection','later-projection','later-null-query','schema-growth','field-order-only'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
+for(const variant of ['single-projection','later-projection','later-null-query','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
  const f=completeScalarPopulationFixture();
  const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
  const {runJarvisSemanticPlanner,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
@@ -5615,8 +5638,10 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,i)=>({objective,requestQuote:objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][i],scope:'all_sources',groups:['entries']}));
  const rejected={name:query.name,args:{sourceFile:f.args.sourceFile,collection:f.args.collection,mode:'count',filters:[{field:'marker',op:'==',value:'Observed-class'}]}};
  if(variant==='later-null-query')Object.assign(rejected.args,{mode:'query',fields:['deadline'],filters:[{field:'marker',op:'==',value:null}]});
+ if(variant==='filtered-full-projection')rejected.args.filters=[{field:'holder',op:'==',value:null}];
  const valid={name:query.name,args:{...f.args,fields:variant==='single-projection'?['holder','deadline']:['deadline']}};
  const seedCalls=[{name:query.name,args:f.args},...(variant==='single-projection'?[]:[{name:query.name,args:{...f.args,fields:['holder']}}])];
+ if(variant==='filtered-full-projection')seedCalls[1].args.filters=[{field:'marker',op:'==',value:'Observed-class'}];
  const initialCount=1+seedCalls.length;
  const executed=[],stages=[];let progressed=false,offeredInvalid,offeredValid,recoveries=0;
  const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
@@ -5649,6 +5674,7 @@ for(const variant of ['single-projection','later-projection','later-null-query',
   if(executed.length>initialCount)progressed=true;
   const receipt=await f.execute(call.args,f.dependencies,f.context);
   assert.equal(receipt.ok,true,JSON.stringify(receipt));
+  f.context.completedTasks.push({name:query.name,args:structuredClone(call.args),observation:JSON.parse(JSON.stringify(receipt))});
   if(executed.length===2){assert.equal(receipt.recordEvidence.completeForQuery,true);assert.equal(receipt.recordEvidence.queryExhausted,true);assert.equal(receipt.recordEvidence.rows.length,1);}
   return{ok:true,data:receipt};
  },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION'},ai})});

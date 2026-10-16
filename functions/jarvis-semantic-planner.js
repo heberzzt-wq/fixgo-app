@@ -63,22 +63,22 @@ function observedScalarPopulation(tasks,sourceFile,collection,toolName,fields) {
         orderBy:args?.orderBy?.length?args.orderBy:[{field:'__name__',direction:'asc'}],cursor:args?.cursor||null}));
     const successful=tasks.filter(task=>task.observation?.ok===true&&task.observation.executionOk!==false&&
         task.observation.blocked!==true&&task.observation.requiresInput!==true);
-    const candidates=successful.filter(task=>{const record=task.observation.recordEvidence,scope=record?.scope;
+    const projections=successful.filter(task=>{const record=task.observation.recordEvidence,scope=record?.scope;
         return task.name===toolName&&record?.source==='FIRESTORE_SERVER_AUTHENTICATED'&&record.readOnly===true&&
             matchesRecordedQueryCollection(task.args?.collection,task)&&matchesRecordedQueryCollection(collection,task)&&
             scopeKey(task.args)===scopeKey(scope)&&scope.sourceFile===sourceFile&&task.args?.mode==='query'&&scope.mode==='query'&&
-            !scope.cursor&&!(scope.filters||[]).length&&!(scope.implicitExistenceFields||[]).length&&
+            !scope.cursor&&!(scope.implicitExistenceFields||[]).length&&
             (scope.orderBy||[]).every(order=>order.field==='__name__')&&record.completeForQuery===true&&
             record.queryExhausted===true&&record.hasMore===false&&record.consistentCountAndList!==false&&
             !record.truncatedFields?.length&&Array.isArray(record.rows)&&record.rows.length>0&&record.rows.length===record.returnedCount&&
             (record.totalCount==null||record.totalCount===record.rows.length)&&
             record.rows.every(row=>typeof row.id==='string'&&row.id)&&new Set(record.rows.map(row=>row.id)).size===record.rows.length;
     });
-    const latest=candidates.at(-1);
+    const latest=projections.filter(task=>!(task.observation.recordEvidence.scope.filters||[]).length).at(-1);
     if(!latest)return null;
     // The same template may not transfer a projection between authenticated
     // organizations, even if their document IDs happen to be identical.
-    if(new Set(candidates.map(task=>task.observation.recordEvidence.scope.collection)).size!==1)return null;
+    if(new Set(projections.map(task=>task.observation.recordEvidence.scope.collection)).size!==1)return null;
     const latestIds=new Set(latest.observation.recordEvidence.rows.map(row=>row.id));
     const projected=(record,field)=>(record.scope.fields||[]).some(parent=>field===parent||field.startsWith(parent+'.'));
     const scalarAt=(row,field)=>{
@@ -124,10 +124,15 @@ function observedScalarPopulation(tasks,sourceFile,collection,toolName,fields) {
     for(const field of fields){
         // A new projection does not erase earlier fields. Each field keeps its
         // own latest complete witness over the SAME authenticated row IDs.
-        const task=candidates.filter(task=>projected(task.observation.recordEvidence,field)).at(-1);
+        // A filtered projection may cover this entire anchored population, but
+        // only an exact match of authenticated route and every document ID can
+        // witness its fields. A subset never extends its scope automatically.
+        const task=projections.filter(task=>{const record=task.observation.recordEvidence;
+            return record.scope.collection===latest.observation.recordEvidence.scope.collection&&projected(record,field)&&
+                record.rows.length===latestIds.size&&record.rows.every(row=>latestIds.has(row.id));
+        }).at(-1);
         if(!task)continue;
         const record=task.observation.recordEvidence;
-        if(record.rows.length!==latestIds.size||record.rows.some(row=>!latestIds.has(row.id)))continue;
         const values=[];
         for(const row of record.rows){
             const scalar=scalarAt(row,field);

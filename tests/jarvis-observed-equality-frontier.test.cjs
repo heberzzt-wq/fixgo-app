@@ -34,7 +34,12 @@ for(const scenario of ['partial-page','filtered','other-organization','truncated
  const tool={name:'platform.query',evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{sourceFile:{type:'string',enum:['source.js']},collection:{type:'string',enum:['organizations/approved/entries']},mode:{type:'string',enum:['query']},fields:{type:'array',minItems:1,items:{type:'string',enum:['marker','deadline']}},filters:{type:'array',items:{type:'object',properties:{field:{type:'string',enum:['marker','deadline']},op:{type:'string',enum:['==','!=']},value:{type:['string','null']}},required:['field','op','value']}},orderBy:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}};
  const requested={...args,collection:'organizations/approved/entries',fields:['deadline'],filters:[{field:'marker',op:'==',value:null}]};
  if(scenario==='ambiguous-null')requested.filters[0].value='not-excluded-by-missing-projection';
- assert.equal(eligibleEvidenceActionCatalog([tool],tasks).some(tool=>hasRequiredToolArguments(tool,requested)),true,'incomplete, unrelated, changed or genuinely null values cannot justify exclusion');
+ const frontier=eligibleEvidenceActionCatalog([tool],tasks);
+ assert.equal(frontier.some(tool=>hasRequiredToolArguments(tool,requested)),scenario!=='newer-value','incomplete or unrelated evidence cannot exclude values; a newer complete projection of every anchored ID replaces its old value');
+ if(scenario==='newer-value'){
+  assert.equal(frontier.some(tool=>hasRequiredToolArguments(tool,{...requested,filters:[{field:'marker',op:'==',value:'observed'}]})),false,'the superseded value must not remain usable');
+  assert.equal(frontier.some(tool=>hasRequiredToolArguments(tool,{...requested,filters:[{field:'marker',op:'==',value:'new-value'}]})),true,'the new authenticated value must still advance a query for unread fields');
+ }
 });
 
 for(const scenario of ['new-fields','witnessed-filter','implicit-ids'])test(`authenticated projection rejection and recovery preserves ${scenario}`,async()=>{
