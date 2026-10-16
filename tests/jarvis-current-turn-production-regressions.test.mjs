@@ -5423,7 +5423,7 @@ test('runtime resolved terminal pages are removed before planning and cannot esc
  }
  const plannerSource=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(plannerSource,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');
- const covered=runInNewContext('('+plannerSource.slice(node.start,node.end)+')');
+ const covered=projectionInContext(plannerSource,node);
  const firstEmptyArgs={...args,cursor:undefined};
  const firstEmpty=await f.execute(firstEmptyArgs,f.dependencies,f.context);assert.equal(firstEmpty.ok,true);
  assert.equal(firstEmpty.recordEvidence.completeForQuery,true);
@@ -5682,7 +5682,7 @@ for(const seedMode of ['query','count'])test('fresh runtime '+seedMode+' evidenc
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
 
-for(const variant of ['single-projection','later-projection','later-null-query','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
+for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
  const f=completeScalarPopulationFixture();
  const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
  const {runJarvisSemanticPlanner,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
@@ -5691,8 +5691,10 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,i)=>({objective,requestQuote:objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][i],scope:'all_sources',groups:['entries']}));
  const rejected={name:query.name,args:{sourceFile:f.args.sourceFile,collection:f.args.collection,mode:'count',filters:[{field:'marker',op:'==',value:'Observed-class'}]}};
  if(variant==='later-null-query')Object.assign(rejected.args,{mode:'query',fields:['deadline'],filters:[{field:'marker',op:'==',value:null}]});
+ if(variant==='later-equality-query')Object.assign(rejected.args,{mode:'query',fields:['holder']});
  if(variant==='filtered-full-projection')rejected.args.filters=[{field:'holder',op:'==',value:null}];
  const valid={name:query.name,args:{...f.args,fields:variant==='single-projection'?['holder','deadline']:['deadline']}};
+ if(variant==='later-equality-query')valid.args.filters=[{field:'marker',op:'==',value:'Observed-class'}];
  const seedCalls=[{name:query.name,args:f.args},...(variant==='single-projection'?[]:[{name:query.name,args:{...f.args,fields:['holder']}}])];
  if(variant==='filtered-full-projection')seedCalls[1].args.filters=[{field:'marker',op:'==',value:'Observed-class'}];
  const initialCount=1+seedCalls.length;

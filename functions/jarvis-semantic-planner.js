@@ -265,9 +265,31 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
                     return variants;
                 }
                 const args={sourceFile,collection,mode,filters:[]};
+                const novelFilteredChoices=filtered=>{
+                    const fields=p.fields,names=fields?.items?.enum,item=p.filters?.items,fp=item?.properties;
+                    if(mode!=='query'||!Array.isArray(names)||fields.enum||!Array.isArray(fp?.field?.enum)||!Array.isArray(fp?.op?.enum))return [filtered];
+                    const known=observedScalarPopulation(frontierTasks,sourceFile,collection,tool.name,[...new Set([...names,...fp.field.enum])]);
+                    if(!known||!names.some(field=>known.has(field)))return [filtered];
+                    const variants=[],novel=names.filter(field=>!known.has(field));
+                    if(p.orderBy&&!p.orderBy.enum&&p.orderBy.maxItems!==0)variants.push({...filtered,properties:{...filtered.properties,
+                        orderBy:{...p.orderBy,minItems:Math.max(1,p.orderBy.minItems||0)}},required:[...new Set([...(filtered.required||[]),'orderBy'])]});
+                    if(novel.length)variants.push({...filtered,properties:{...filtered.properties,fields:{...fields,minItems:Math.max(1,fields.minItems||0),
+                        items:[{...fields.items,enum:novel}],additionalItems:fields.items}}});
+                    // A new predicate can reveal membership; a predicate and
+                    // projection already known over the full population cannot.
+                    // Put one new dependency first, preserving all other ANDs.
+                    const unknown=fp.field.enum.filter(field=>!known.has(field));
+                    const otherOps=fp.op.enum.filter(op=>!['==','!=','<','<=','>','>=','in','not-in'].includes(op));
+                    const additionalItems=filtered.properties.filters.items;
+                    const withFirst=first=>({...filtered,properties:{...filtered.properties,filters:{...filtered.properties.filters,
+                        items:[first],additionalItems}}});
+                    if(unknown.length)variants.push(withFirst({...item,properties:{...fp,field:{...fp.field,enum:unknown}}}));
+                    if(otherOps.length)variants.push(withFirst({...item,properties:{...fp,op:{...fp.op,enum:otherOps}}}));
+                    return variants;
+                };
                 const preserveOtherScopes=remaining=>{
                     const variants=[];
-                    if(p.filters && branch.properties.filters.maxItems!==0 && !p.filters.enum)variants.push({...branch,properties:{...branch.properties,filters:{...branch.properties.filters,minItems:1}},required:[...new Set([...(branch.required||[]),'filters'])]});
+                    if(p.filters && branch.properties.filters.maxItems!==0 && !p.filters.enum)variants.push(...novelFilteredChoices({...branch,properties:{...branch.properties,filters:{...branch.properties.filters,minItems:1}},required:[...new Set([...(branch.required||[]),'filters'])]}));
                     if(p.orderBy && p.orderBy.maxItems!==0 && !p.orderBy.enum)variants.push({...branch,properties:{...branch.properties,filters:{...p.filters,maxItems:0},orderBy:{...p.orderBy,minItems:1}},required:[...new Set([...(branch.required||[]),'orderBy'])]});
                     return [...variants,...remaining.map(item=>({...item,properties:{...item.properties,
                         ...(p.filters?{filters:{...p.filters,maxItems:0}}:{}),...(p.orderBy?{orderBy:{...p.orderBy,maxItems:0}}:{})}}))];
@@ -872,10 +894,10 @@ function evidenceRequirementSuccessors(kind, catalog = []) {
 }
 
 function recordProjectionAlreadyObserved(call, tasks) {
-    if(call.args?.mode==='count'&&!call.args.cursor&&
+    if((call.args?.mode==='count'||call.args?.mode==='query'&&call.args.fields?.length)&&!call.args.cursor&&
         (call.args.orderBy||[]).every(order=>order.field==='__name__')&&
         (call.args.filters||[]).every(filter=>typeof filter.field==='string'&&['==','!=','<','<=','>','>=','in','not-in'].includes(filter.op))){
-        const fields=[...new Set((call.args.filters||[]).map(filter=>filter.field))];
+        const fields=[...new Set([...(call.args.filters||[]).map(filter=>filter.field),...(call.args.mode==='query'?call.args.fields:[])])];
         const known=observedScalarPopulation(tasks,call.args.sourceFile,call.args.collection,call.name,fields);
         if(known&&fields.every(field=>known.has(field)))return true;
     }

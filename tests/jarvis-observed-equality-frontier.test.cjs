@@ -93,3 +93,20 @@ for(const scenario of ['new-fields','witnessed-filter','implicit-ids'])test(`aut
  assert.equal(result.status,'PARTIAL');assert.equal(result.completionAssessment.objectives.length,3);
  assert.ok(result.completionAssessment.objectives.every(objective=>objective.satisfied===false));
 });
+
+for(const scenario of ['complete','receipt-alias','other-organization','other-file','partial','null-value','changed-value','refreshed-complete','unread-projection','unread-predicate','new-ordering'])test('known filtered projection preserves '+scenario+' dependencies',()=>{
+ const route='organizations/approved/entries';
+ const args={sourceFile:'source.js',collection:scenario==='receipt-alias'?'organizations/{tenantId}/entries':route,mode:'query',fields:['marker','holder'],filters:[],orderBy:[]};
+ const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...structuredClone(args),collection:route,implicitExistenceFields:[]},rows:[{id:'entry',values:{marker:'Observed class',holder:'Observed holder'}}],returnedCount:1,totalCount:1,hasMore:false,queryExhausted:true,completeForQuery:true};
+ const tasks=[{name:'platform.query',args,observation:{ok:true,recordEvidence:record}}];
+ if(scenario==='partial'){record.hasMore=true;record.completeForQuery=false;}
+ if(scenario==='null-value')record.rows[0].values.holder=null;
+ if(['changed-value','refreshed-complete'].includes(scenario)){const newer=structuredClone(tasks[0]);newer.args.filters=[{field:'marker',op:'==',value:'Observed class'}];newer.observation.recordEvidence.scope.filters=newer.args.filters;newer.observation.recordEvidence.rows[0].values.holder='Changed holder';if(scenario==='changed-value'){newer.observation.recordEvidence.completeForQuery=false;newer.observation.recordEvidence.hasMore=true;}tasks.push(newer);}
+ const candidate={sourceFile:scenario==='other-file'?'other.js':'source.js',collection:scenario==='other-organization'?'organizations/other/entries':route,mode:'query',fields:[scenario==='unread-projection'?'deadline':'holder'],filters:[{field:scenario==='unread-predicate'?'deadline':'marker',op:'==',value:'Observed class'}]};
+ if(scenario==='new-ordering')candidate.orderBy=[{field:'deadline',direction:'asc'}];
+ const item={type:'object',properties:{field:{type:'string',enum:['marker','holder','deadline']},op:{type:'string',enum:['==','!=']},value:{type:'string'}},required:['field','op','value']};
+ const tool={name:'platform.query',evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{sourceFile:{type:'string',enum:[candidate.sourceFile]},collection:{type:'string',enum:[candidate.collection]},mode:{type:'string',enum:['query']},fields:{type:'array',minItems:1,items:{type:'string',enum:['marker','holder','deadline']}},filters:{type:'array',items:item,maxItems:4},orderBy:{type:'array',maxItems:scenario==='new-ordering'?3:0,items:{type:'object',properties:{field:{type:'string'},direction:{type:'string'}}}}},required:['sourceFile','collection','mode','fields','filters']}};
+ const frontier=eligibleEvidenceActionCatalog([tool],tasks);
+ assert.equal(frontier.some(t=>hasRequiredToolArguments(t,candidate)),!['complete','receipt-alias','refreshed-complete'].includes(scenario),'only fully witnessed predicates and projected scalars in the same authenticated complete population can be removed');
+ if(scenario==='unread-predicate')assert.ok(frontier.some(t=>hasRequiredToolArguments(t,{...candidate,filters:[...candidate.filters,{field:'marker',op:'==',value:'Observed class'}]})),'a new predicate retains the other grounded AND constraints');
+});
