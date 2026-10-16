@@ -1,5 +1,38 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `584035eb4f2343ab7aeafa160f4500dadd0266aa`.
+Only the semantic planner changed in Functions since a8b0802d.
+The e9f1a597 Chrome attempts remain uncertified: the first lost its browser tab;
+the reconnected diagnostic stopped after 48 started local calls when a later
+projection erased a prior exhaustive scalar witness and permitted a useless
+null equality. Both attempts retained all three independent objectives pending.
+Scalar frontier fields now retain their own latest complete authenticated
+witness over the same exact source, resolved route and document IDs. Newer
+contradictions, ambiguous aliases across organizations, null/truncated values,
+removed fields and changed scalar shapes reopen investigation instead of borrowing
+stale projections. The frontier changes actions, never operational goal coverage.
+Independent source-scope review consumes schema, not operational values. Its
+cache now binds identity/model/revision plus the complete normalized schema
+request; source/field set order and duplicate receipt positions add no evidence.
+Every file/path association and authenticated resolved route remains separate.
+New field names, source definitions, identity, discovery revision and clarification
+still invalidate the schema decision. New values always reopen operational
+coverage independently; full runtime-producer cycles verify both sides.
+Three variants reproduced six redundant scope calls for unchanged schema; they
+now require three, while actual schema growth still requires six. A prior cache
+fixture with only paths and no authentic field-name provenance now carries the
+real producer metadata and a nonempty observed row. A new value-only row keeps
+its fresh operational review without demanding another identical schema review.
+The full rejection/recovery/next-decision regressions also retain each prior
+projection, block invented null queries and allow genuinely new fields.
+Focused checks: 375 PASS. Frozen full root suite with local Firestore/Storage
+emulators: 2248 PASS, 0 FAIL, 2 environment skips (2250 tests).
+Physical search and the clean complete Chrome mission remain separate gates.
+No model/provider/access change, external AI call or operational data write.
+Subsequent unreviewed Functions deltas still fail closed.
+
+## Previous reviewed baseline
+
 Current baseline: `a8b0802dfbe59256dcb72019383cb028570f25ed`.
 Only the semantic planner changed in Functions since 5f7e0a59.
 The 3dcbf4d8 Chrome diagnostic made 58 local calls without closing any of the
