@@ -4379,12 +4379,14 @@ async function runModelSemanticPlanner({
             coverageCache.set(pendingValueReviewKey(contract),true);
             while(coverageCache.size>96)coverageCache.delete(coverageCache.keys().next().value);
         };
-        const hasObservedValues=completedTasksForAudit.some((task,index)=>{
+        const hasObservedValues=contract=>completedTasksForAudit.some((task,index)=>{
             if(!authenticatedRecordAt(index))return false;
             const record=task.observation.recordEvidence;
-            // A positive count is operational evidence even without row values.
-            // Its independent deficits must guide the next read, not another count.
-            return record.rows?.length>0 || record.scope?.mode==='count'&&Number.isFinite(record.totalCount)&&record.totalCount>0;
+            // A positive count informs population coverage, but supplies no
+            // relationship or date values. Keep those pending until rows arrive
+            // or closure independently audits them; never infer missing values.
+            return record.rows?.length>0 || contract.coverageMode==='population' &&
+                record.scope?.mode==='count'&&Number.isFinite(record.totalCount)&&record.totalCount>0;
         });
         for(const contract of missionState.evidenceObjectives || []){
             if(contract.requiredEvidenceKind!=='platform_records' || !contract.coverageMode)continue;
@@ -4396,7 +4398,7 @@ async function runModelSemanticPlanner({
             // New authenticated values inform the next investigation decision.
             // Unchanged pending values and code-only reads do not repeat it.
             if(!coverageCache.has(revision) && (previous?.satisfied===true || previous?.coverageProof?.proven===true ||
-                missionState.phase==='EVIDENCE_NEXT_ACTION'&&hasObservedValues&&!coverageCache.has(pendingValueReviewKey(contract)))){
+                missionState.phase==='EVIDENCE_NEXT_ACTION'&&hasObservedValues(contract)&&!coverageCache.has(pendingValueReviewKey(contract)))){
                 await reviewedRecordCoverage(contract);
             }
             if(coverageCache.has(revision)){

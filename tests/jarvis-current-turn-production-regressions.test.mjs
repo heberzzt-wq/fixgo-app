@@ -5667,9 +5667,9 @@ for(const seedMode of ['query','count'])test('fresh runtime '+seedMode+' evidenc
   const stage=request.config.semanticStage;stages.push(stage);
   if(stage==='EVIDENCE_NEXT_ACTION'){
    const reviews=stages.filter(s=>s==='RECORD_OBJECTIVE_COVERAGE').length;
-   assert.equal(reviews,valuesRead?6:3,'new operational values must be reviewed before choosing an action; a later code-only read cannot trigger another pending value review');
+   assert.equal(reviews,seedMode==='count'?(valuesRead?4:1):(valuesRead?6:3),'a count-only receipt updates population review, not missing relationship or date values; new rows independently inform all goals and code-only reads do not repeat it');
    const pending=request.config.chatMessages.find(m=>m.content.startsWith('OBJETIVOS_PENDIENTES='));
-   for(const gap of gaps)assert.ok(pending?.content.includes(gap),'each independent observed deficit must guide the next action');
+   for(const gap of (seedMode==='count'&&!valuesRead?gaps.slice(0,1):gaps))assert.ok(pending?.content.includes(gap),'each independently reviewed deficit must guide the next action');for(const goal of goals)assert.ok(pending?.content.includes(goal.objective),'all original goals stay pending even when a count cannot inform their missing values');
    return{text:JSON.stringify({toolCalls:!valuesRead?[{name:query.name,args:{...f.args,fields:['deadline']}}]:!dependencyRead?[{name:reader.name,args:{file:'dependency.js'}}]:[]})};
   }
   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION')return{text:'{"toolCalls":[],"sourceFallback":[]}'};
@@ -5677,6 +5677,7 @@ for(const seedMode of ['query','count'])test('fresh runtime '+seedMode+' evidenc
   const payload=JSON.parse(request.config.chatMessages.at(-1).content);
   if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(payload.sources.map(collection=>[collection,{relevantToObjective:true,reason:'Separate observed operational scopes remain pending.'}]))})};
   assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);
+  if(seedMode==='count'&&!valuesRead)assert.equal(payload.contract.coverageMode,'population','count-only data cannot reopen pending relationship or temporal value reviews before a useful read');
   if(valuesRead)assert.ok(payload.evidence.some(task=>task.observation?.recordEvidence?.rows?.some(row=>row.values?.deadline==='2027-01-01')),'the independent review must contain the newest actual runtime values');
   return{text:JSON.stringify({proven:false,missing:[gaps[goals.findIndex(g=>g.objective===payload.contract.objective)]],groups:[],sources:payload.observedSources.map(collection=>({collection,relevant:true,reason:'Other operational scopes have not been queried.',taskIndexes:[]}))})};
  }}};
@@ -5695,6 +5696,45 @@ for(const seedMode of ['query','count'])test('fresh runtime '+seedMode+' evidenc
  assert.equal(valuesRead,true,JSON.stringify({stages,errors:result.errors}));assert.equal(dependencyRead,true);
  assert.equal(executed.length,4);assert.equal(f.calls.filter(call=>call.kind==='query').length,seedMode==='count'?1:2,'no already observed query may execute again');
  assert.equal(f.calls.filter(call=>call.kind==='count').length,seedMode==='count'?1:0,'a positive count must advance to values rather than execute another count');
+ assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
+});
+
+for(const seedMode of ['count'])test('count-only stopping still independently audits all three immutable objectives',async t=>{
+ t.mock.timers.enable({apis:['Date'],now:Date.parse('2026-10-16T12:00:00Z')});
+ const f=completeScalarPopulationFixture();
+ const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
+ const {runJarvisSemanticPlanner}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js','dependency.js']}},required:['file']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query','count']},fields:{type:'array',items:{type:'string'}},filters:{type:'array'},orderBy:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}};
+ const seedArgs=seedMode==='count'?{...f.args,mode:'count',fields:[]}:f.args;
+ const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,i)=>({objective,requestQuote:objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][i],scope:'all_sources',groups:['entries']}));
+ const gaps=['Inspect the related inventory source','Inspect the related holder source','Read the unread deadline values'];
+ const stages=[],executed=[],reviewKinds=[];let valuesRead=false,dependencyRead=false;
+ const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
+  const stage=request.config.semanticStage;stages.push(stage);
+  if(stage==='EVIDENCE_NEXT_ACTION'){assert.equal(stages.filter(s=>s==='RECORD_OBJECTIVE_COVERAGE').length,1,'only population data informed the initial decision');return{text:'{"toolCalls":[]}'};}
+  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION')return{text:'{"toolCalls":[],"sourceFallback":[]}'};
+  if(stage==='QUERY_POPULATION_VERIFICATION')return queryReviewFixture(request,{"matchesRequest":true,"schemaDiscoveryRelevant":false,"rejectionReason":""});
+  const payload=JSON.parse(request.config.chatMessages.at(-1).content);
+  if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(payload.sources.map(collection=>[collection,{relevantToObjective:true,reason:'Separate observed operational scopes remain pending.'}]))})};
+  assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);
+  reviewKinds.push(payload.contract.coverageMode);
+  if(valuesRead)assert.ok(payload.evidence.some(task=>task.observation?.recordEvidence?.rows?.some(row=>row.values?.deadline==='2027-01-01')),'the independent review must contain the newest actual runtime values');
+  return{text:JSON.stringify({proven:false,missing:[gaps[goals.findIndex(g=>g.objective===payload.contract.objective)]],groups:[],sources:payload.observedSources.map(collection=>({collection,relevant:true,reason:'Other operational scopes have not been queried.',taskIndexes:[]}))})};
+ }}};
+ const result=await runJarvisMission({instruction:goals.map(g=>g.objective).join('; '),initialEvidenceObjectives:goals,initialToolCalls:[{name:reader.name,args:{file:'source.js'}},{name:query.name,args:seedArgs}],toolCatalog:[reader,query],storage:{getItem(){return null;},setItem(){},removeItem(){}},execute:async call=>{
+  executed.push(call);
+  if(call.name===reader.name){
+   if(call.args.file==='dependency.js'){dependencyRead=true;const content='const ref=collection(db,"separate_records");';return{ok:true,data:{file:'dependency.js',content,numberedContent:'1: '+content,startLine:1,endLine:1,totalLines:1,sourceStructure:analyzeRepoSourceStructure(content)}};}
+   const read=f.context.completedTasks[0].observation.verifiedRead;return{ok:true,data:{...read,numberedContent:'1: '+read.content,startLine:1,endLine:1,totalLines:1}};
+  }
+  const receipt=await f.execute(call.args,f.dependencies,f.context);assert.equal(receipt.ok,true,JSON.stringify(receipt));
+  if(call.args.mode==='count'){assert.equal(receipt.recordEvidence.totalCount,1);assert.equal(receipt.recordEvidence.rows,undefined,'the actual count receipt has no projected rows');}
+  if(call.args.fields.includes('deadline'))valuesRead=true;
+  f.context.completedTasks.push({name:query.name,args:structuredClone(call.args),observation:JSON.parse(JSON.stringify(receipt))});
+  return{ok:true,data:receipt};
+ },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION'},ai})});
+ assert.equal(valuesRead,false);assert.equal(executed.length,2);assert.equal(f.calls.filter(call=>call.kind==='count').length,1);assert.equal(f.calls.filter(call=>call.kind==='query').length,0);assert.deepEqual([...new Set(reviewKinds)].sort(),['population','relationship','temporal'],'stopping must still trigger an independent audit for each original objective');
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
 
