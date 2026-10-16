@@ -1,5 +1,30 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `300d4110b06a41fab6af609110f40489dc474e38`.
+Only the semantic planner changed in Functions since 61a8844f.
+The 5c736b45 clean Chrome diagnostic proved count-to-row advancement, then
+was stopped after 37 local calls (590285 ms observation interval) when a
+filtered read repeated the same fully witnessed projection and predicate.
+All three objectives stayed pending. This was not mission certification.
+Native filtered query choices now require an unread projection or predicate
+dependency when a complete authenticated scalar population already witnesses
+the old fields. Nondefault ordering retains its independent scope. The same
+exact-route predicate also rejects an out-of-schema repeated model proposal.
+Only the receipt submitted template and its authenticated resolved route may
+share witnesses; partial, changed, null, foreign-source/organization evidence
+stays open. An independently complete fresh witness can supersede old values.
+A full runtime-produced proposal/rejection/recovery/next-decision regression
+reproduces the native false offer and now advances a filtered unread field,
+with all goals pending. Eleven scope/value/frontier boundaries also pass.
+Replaying the actual Chrome authenticated receipts changes redundant=false
+to redundant=true without inference or data access.
+Focused: 442 PASS. Frozen full emulator suite: 2271 PASS, 0 FAIL, 2 skips
+(2273 tests, 298877.423 ms), exit receipt0. Physical search and the clean
+original Chrome mission remain separate gates. No provider, permission,
+model or operational data changes. Future Functions deltas fail closed.
+
+## Previous reviewed baseline
+
 Current baseline: `61a8844f57d87ed5ab9f1339b6f9e21393a7c400`.
 Only the semantic planner changed in Functions since b42d1d57.
 The clean 6ad630e6 Chrome mission ended PARTIAL after 25 local calls
