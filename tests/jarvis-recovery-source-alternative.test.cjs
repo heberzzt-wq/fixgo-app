@@ -1,3 +1,4 @@
+const queryReviewFixture=require('./helpers/query-review-fixture.cjs');
 const test=require('node:test'),assert=require('node:assert/strict');
 const {runJarvisSemanticPlanner}=require('../functions/jarvis-semantic-planner.js');
 
@@ -20,7 +21,7 @@ for(const failure of ['semantic','repeated','arguments'])for(const alternative o
   }
   if(stage==='QUERY_POPULATION_VERIFICATION'){
    const args=JSON.parse(request.config.chatMessages.at(-1).content).proposed;
-   return{text:JSON.stringify({matchesRequest:accepted&&args.collection==='groups',schemaDiscoveryRelevant:false,rejectionReason:'This projection has not established pertinent operational evidence.'})};
+   return queryReviewFixture(request,{matchesRequest:accepted&&args.collection==='groups',schemaDiscoveryRelevant:false,rejectionReason:'This projection has not established pertinent operational evidence.'});
   }
   const payload=JSON.parse(request.config.chatMessages.at(-1).content);
   if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(payload.sources.map(collection=>[collection,{relevantToObjective:true,reason:'Source may contribute to an unresolved objective.'}]))})};

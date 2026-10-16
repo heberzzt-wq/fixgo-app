@@ -1,3 +1,4 @@
+const queryReviewFixture=require('./helpers/query-review-fixture.cjs');
 const test=require('node:test'),assert=require('node:assert/strict');
 const {runJarvisSemanticPlanner,hasRequiredToolArguments}=require('../functions/jarvis-semantic-planner.js');
 
@@ -24,7 +25,7 @@ for(const scenario of ['irrelevant','relevant','unknown','new-fields','scope-con
   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){recoveryCalls++;return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'dependency.js'}}],sourceFallback:[]})};}
   if(stage==='QUERY_POPULATION_VERIFICATION'){
    reviews++;const args=JSON.parse(request.config.chatMessages.at(-1).content).proposed;
-   return{text:JSON.stringify({matchesRequest:readDependency&&args.collection===valid.args.collection,populationRelevance:scenario.startsWith('scope-')?'irrelevant':scenario==='new-fields'?(readDependency?'relevant':'irrelevant'):scenario,schemaDiscoveryRelevant:false,rejectionReason:'Evaluate the observed population separately from its requested projection.'})};
+   return queryReviewFixture(request,{matchesRequest:readDependency&&args.collection===valid.args.collection,populationRelevance:scenario.startsWith('scope-')?'irrelevant':scenario==='new-fields'?(readDependency?'relevant':'irrelevant'):scenario,schemaDiscoveryRelevant:false,rejectionReason:'Evaluate the observed population separately from its requested projection.'});
   }
   const payload=JSON.parse(request.config.chatMessages.at(-1).content);
   if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(payload.sources.map(collection=>[collection,{relevantToObjective:collection===rejected.args.collection&&(scenario==='irrelevant'||scenario==='new-fields'&&!readDependency)?false:scenario==='scope-unknown'?null:true,reason:'Independently observed source relation for this objective.'}]))})};

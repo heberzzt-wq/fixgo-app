@@ -1,3 +1,4 @@
+import queryReviewFixture from './helpers/query-review-fixture.cjs';
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
@@ -123,7 +124,7 @@ for(const mode of ['query','count'])test(`scope field and alias transport surviv
    assert.equal(contextReady,true,'the evidence-bound recovery catalog and own authenticated receipt must retain the new fields and exact collection association without requiring a closure review');
    recoveries++;return{text:JSON.stringify({toolCalls:[valid],sourceFallback:[]})};
   }
-  if(stage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":true,"populationRelevance":"relevant","schemaDiscoveryRelevant":false,"rejectionReason":""}'};
+  if(stage==='QUERY_POPULATION_VERIFICATION')return queryReviewFixture(request,{"matchesRequest":true,"populationRelevance":"relevant","schemaDiscoveryRelevant":false,"rejectionReason":""});
   const packet=JSON.parse(request.config.chatMessages.at(-1).content);
   if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION'){
    const names=new Set(packet.sourceDefinitions.filter(item=>item.collection===first).flatMap(item=>item.fields||[]));
@@ -536,7 +537,7 @@ test('duplicate recovery consults an unqueried observed pending record scope bef
   const duplicate={name:records.name,args:{sourceFile:'source.js',collection:'primary',mode:'count',filters:[]}};
   let recovered=false;
   const result=await runJarvisSemanticPlanner({input:contract.objective,catalog:[records,reader],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[contract],completionAssessment:previous,completedTasks:tasks,blockedTasks:variant==='blocked'?[{name:records.name,args:{collection:'related'},observation:{blocked:true,retryable:false,errorCode:'PERMISSION_DENIED'}}]:[]},ai:{models:{generateContent:async request=>{
-   if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":true}'};
+   if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return queryReviewFixture(request,{"matchesRequest":true});
    if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:[{objective:contract.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0],limitation:'Pending'}]},toolCalls:[duplicate]})};
    if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){
     if(!['new','already_read_new_names'].includes(variant))return{text:JSON.stringify({toolCalls:[duplicate]})};
@@ -3782,7 +3783,7 @@ test('new source evidence reopens record inspection after an earlier schema fail
   {name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}}
  ];
  const result=await runJarvisSemanticPlanner({input,catalog,missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',completedAt:'2026-01-01T00:02:00Z',observation:{ok:true,executionOk:true,verifiedRead:{file:'source.js',content:'const ref=collection(db,"records");',sourceStructure:{dataBindings:{writeShapes:[{collection:'records',fields:['assignedTo'],startLine:5}]}}}}}],blockedTasks:[{name:'platform.query',completedAt:'2026-01-01T00:01:00Z',args:{collection:'records',sourceFile:'source.js',mode:'count'},observation:{ok:false,errorCode:'PLATFORM_QUERY_FILTER_VALUE_NOT_DISCOVERED'}}]},ai:{models:{generateContent:async request=>{
- if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return{text:'{"matchesRequest":true}'};}
+ if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return queryReviewFixture(request,{"matchesRequest":true});}
 
   if(request.config.semanticStage==='COMPLETION_AUDIT') {
    const context=JSON.stringify(request.config.chatMessages);assert.match(context,/ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST/);assert.match(context,/assignedTo/);
@@ -3866,7 +3867,7 @@ test('record inspection review receives collection-specific AST write evidence w
    assert.ok(packet.observedSource.some(item=>item.collection==='records'&&item.fields.includes('expiresAt')));
    assert.ok(!packet.observedSource.some(item=>item.collection==='unrelated'));
    assert.match(request.config.chatMessages[0].content,/ALGUNO/);
-   return{text:JSON.stringify({matchesRequest:true,limitation:'',nextEvidenceQuery:''})};
+   return queryReviewFixture(request,{matchesRequest:true,limitation:'',nextEvidenceQuery:''});
   }
   return{text:JSON.stringify({explanation:'Inspect current evidence',completionAssessment:{objectives:[{objective:'Count and inspect records',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Current records still required'}]},toolCalls:[{name:query.name,args}]})};
  }}}});
@@ -3945,7 +3946,7 @@ test('rejected population count preserves the same reader for a separately revie
  const result=await runJarvisSemanticPlanner({input:'Count a subgroup and inspect assignment dates',catalog:[query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',observation:{ok:true,verifiedRead:{file:'source.js',content:'collection(db,"records")',sourceStructure:{dataBindings:{writeShapes:[{collection:'records',fields:['assignedTo','expiresAt'],content:'{assignedTo,expiresAt}'}]}}}}}]},ai:{models:{generateContent:async request=>{
   if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){
    reviews++;const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;
-   return{text:JSON.stringify({matchesRequest:proposed.mode==='query',limitation:proposed.mode==='count'?'Subgroup is not identified':'',nextEvidenceQuery:''})};
+   return queryReviewFixture(request,{matchesRequest:proposed.mode==='query',limitation:proposed.mode==='count'?'Subgroup is not identified':'',nextEvidenceQuery:''});
   }
   audits++;assert.ok(['COMPLETION_AUDIT','READ_ONLY_EVIDENCE_CONTINUATION'].includes(request.config.semanticStage));
   assert.ok(recoverySchemas(request).some(v=>v.properties.name.enum[0]===query.name));
@@ -3991,7 +3992,7 @@ test('a repeated rejected query enters continuation before semantic scope verifi
  const bad={sourceFile:'source.js',collection:'records',mode:'count',filters:[{field:'invented',op:'==',value:'subset'}]};
  let continuation=false;
  const result=await runJarvisSemanticPlanner({input:'Inspect assignments and dates',catalog:[query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',observation:{ok:true,verifiedRead:{file:'source.js',content:'collection(db,"records")',sourceStructure:{dataBindings:{writeShapes:[{collection:'records',fields:['owner','expiresAt']}]}}}}}],blockedTasks:[{name:query.name,args:bad,observation:{ok:false,retryable:false,error:'UNVERIFIED_FILTER'}}]},ai:{models:{generateContent:async request=>{
- if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return{text:'{"matchesRequest":true}'};}
+ if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return queryReviewFixture(request,{"matchesRequest":true});}
 
   if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({explanation:'Read current evidence',completionAssessment:{objectives:[{objective:'Inspect assignments and dates',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Current records needed'}]},toolCalls:[{name:query.name,args:bad}]})};
   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){continuation=true;return{functionCalls:[{name:query.name,args:{sourceFile:'source.js',collection:'records',mode:'query',filters:[],fields:['owner','expiresAt']}}]};}
@@ -4019,7 +4020,7 @@ test('unread source candidates do not hide an already grounded record reader dur
  const query={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'}},required:['collection']}};
  let recovered=false;
  const result=await runJarvisSemanticPlanner({input:'Inspect current records',catalog:[read,query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.search',observation:{ok:true,repoCandidates:[{file:'read.js'},{file:'unread.js'}]}},{name:read.name,args:{file:'read.js'},observation:{ok:true,verifiedRead:{file:'read.js',content:'source'}}}]},ai:{models:{generateContent:async request=>{
- if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return{text:'{"matchesRequest":true}'};}
+ if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return queryReviewFixture(request,{"matchesRequest":true});}
 
  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({explanation:'Current records pending',completionAssessment:{objectives:[{objective:'Inspect current records',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Need records'}]},toolCalls:[]})};
 
@@ -4098,7 +4099,7 @@ test('completion review uses observed records without the tool success assessmen
  const input='Inspect all requested groups';
  const query={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'}},required:['collection']}};
  const result=await runJarvisSemanticPlanner({input,catalog:[query],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[{objective:input,requiredEvidenceKind:'platform_records'}],completedTasks:[{name:query.name,args:{collection:'first'},observation:{ok:true,objectiveSatisfied:true,recordEvidence:{scope:{collection:'first'},totalCount:1}}}]},ai:{models:{generateContent:async request=>{
- if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return{text:'{"matchesRequest":true}'};}
+ if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return queryReviewFixture(request,{"matchesRequest":true});}
 
   if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({explanation:'Done',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:true,evidenceTaskIndexes:[0],limitation:''}]},toolCalls:[]})};
   if(request.config.semanticStage==='CLOSURE_OBJECTIVE_VERIFICATION'){
@@ -4125,7 +4126,7 @@ test('typed evidence recovery cannot execute an unrelated media capability',asyn
    assert.deepEqual(recoverySchemas(request).map(branch=>branch.properties.name.enum[0]),[records.name]);
    return{text:JSON.stringify({explanation:'Need records',completionAssessment:{objectives:[{objective:input,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'No records yet'}]},toolCalls:[attempts===1?{name:media.name,args:{file:'source.js'}}:{name:records.name,args:{collection:'observed'}}]})};
   }
-  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:true})};
+  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return queryReviewFixture(request,{matchesRequest:true});
   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION')return{functionCalls:[{name:records.name,args:{collection:'observed'}}]};
   throw Error('Unexpected stage '+request.config.semanticStage);
  }}}});
@@ -4140,7 +4141,7 @@ test('source evidence requirements can advance to dependent read-only records wi
  const media={name:'fixture.media',investigationReadOnly:true,mutates:false,evidenceKinds:['media_analysis']};
  const writer={name:'fixture.write',mutates:true,evidenceKinds:['written_records'],requiresEvidence:[{kind:'repository_source'}]};
  const result=await runJarvisSemanticPlanner({input,catalog:[read,records,media,writer],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[{objective:input,requiredEvidenceKind:'repository_source'}],completedTasks:[{name:read.name,args:{file:'records.js'},observation:{ok:true,verifiedRead:{file:'records.js'}}}]},ai:{models:{generateContent:async request=>{
-  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:true})};
+  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return queryReviewFixture(request,{matchesRequest:true});
   assert.equal(request.config.semanticStage,'COMPLETION_AUDIT');
   const schema=request.config.responseJsonSchema;
   assert.deepEqual(schema.properties.toolCalls.items.anyOf.map(x=>x.properties.name.enum[0]),[read.name,records.name]);
@@ -4388,7 +4389,7 @@ test('a larger page size cannot repeat a fully read scope instead of resolving u
  const query={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{collection:{type:'string'},fields:{type:'array',items:{type:'string'}},orderBy:{type:'array',items:{type:'object'}},pageSize:{type:'integer'}},required:['collection','fields','pageSize']}};
  const args={collection:'registry',fields:['details'],orderBy:[],pageSize:10};let recovered=false;
  const result=await runJarvisSemanticPlanner({input:'Inspect current owners',catalog:[query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:[{name:'repo.read',args:{file:'registry.js'},observation:{ok:true,verifiedRead:{file:'registry.js',content:'observed registry',sourceStructure:{dataBindings:{collections:['registry'],fieldPaths:['details','details.owner']}}}}},{name:query.name,args,observation:{ok:true,recordEvidence:{scope:{collection:'registry',fields:['details']},completeForQuery:true,hasMore:false,totalCount:1,rows:[{id:'one',values:{details:{notExpanded:true}}}],truncatedFields:[{id:'one',field:'details'}]}}}]},ai:{models:{generateContent:async request=>{
- if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return{text:'{"matchesRequest":true}'};}
+ if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return queryReviewFixture(request,{"matchesRequest":true});}
 
  if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({explanation:'Owner details remain unread',completionAssessment:{objectives:[{objective:'Inspect current owners',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[1],limitation:'Need nested fields'}]},toolCalls:[{name:query.name,args:{collection:args.collection,fields:args.fields,pageSize:100}}]})};
  if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){recovered=true;return{functionCalls:[{name:query.name,args:{...args,fields:['details.owner']}}]};}
@@ -4448,7 +4449,7 @@ test('objective state and references survive without anchoring a fresh audit to 
  const records={name:'fixture.records',investigationReadOnly:true,mutates:false,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{page:{type:'integer'},sourceFile:{type:'string'}},required:['page']}};
  let messages=[];
  const result=await runJarvisSemanticPlanner({input:'Count registered entities',catalog:[reader,records],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[contract],completionAssessment:prior,completedTasks:[{name:records.name,args:{},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'events',filters:[],fields:['entity']},rows:[],totalCount:0,completeForQuery:true}}},{name:'repo.read',args:{file:'observed-source.js'},observation:{ok:true,verifiedRead:{file:'observed-source.js',content:'observed event source',sourceStructure:{dataBindings:{collections:['events'],fieldPaths:['entity']}}}}}]},ai:{models:{generateContent:async request=>{
- if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:true})};
+ if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return queryReviewFixture(request,{matchesRequest:true});
  assert.equal(request.config.semanticStage,'COMPLETION_AUDIT');messages=request.config.chatMessages;
  return{text:JSON.stringify({explanation:'Continue investigating the missing scope',completionAssessment:prior,toolCalls:[{name:records.name,args:{page:2,sourceFile:'observed-source.js'}}]})};
  }}}});
@@ -4523,7 +4524,7 @@ test('combining previously read projections cannot replace investigation of miss
  const args={collection:'registry',mode:'query',pageSize:20,includeCount:true};let recovered=false;
  const tasks=[['category','owner'],['owner','label']].map(fields=>({name:query.name,args:{...args,fields},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',fields},rows:[{id:'one',values:Object.fromEntries(fields.map(field=>[field,field==='owner'?null:'observed']))}],totalCount:1,completeForQuery:true,hasMore:false}}}));
  const result=await runJarvisSemanticPlanner({input:'Inspect current records and expiration evidence',catalog:[query],missionState:{phase:'COMPLETION_AUDIT',completedTasks:tasks},ai:{models:{generateContent:async request=>{
- if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return{text:'{"matchesRequest":true}'};}
+ if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION'){const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;assert.ok(proposed);return queryReviewFixture(request,{"matchesRequest":true});}
 
   if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:[{objective:'Inspect current records and expiration evidence',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0,1],limitation:'Expiration evidence remains missing'}]},toolCalls:[{name:query.name,args:{...args,pageSize:100,fields:['category','owner','label']}}]})};
   if(request.config.semanticStage==='READ_ONLY_EVIDENCE_CONTINUATION'){recovered=true;return{functionCalls:[{name:query.name,args:{...args,fields:['expiresAt']}}]};}
@@ -5134,7 +5135,7 @@ test('pending goals without accredited coverage advance before independent negat
    assert.equal(reviewed,undefined);freshPlan=true;
    return{text:JSON.stringify({completionAssessment:{objectives:contracts.map(c=>({objective:c.objective,requiredEvidenceKind:c.requiredEvidenceKind,satisfied:false,evidenceTaskIndexes:[0],limitation:'Pending verified scope'}))},toolCalls:[{name:tool.name,args:{collection:'deadline_registry',fields:['expiresAt']}}]})};
   }
-  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":true}'};
+  if(request.config.semanticStage==='QUERY_POPULATION_VERIFICATION')return queryReviewFixture(request,{"matchesRequest":true});
   if(request.config.semanticStage==='RECORD_OBJECTIVE_COVERAGE'){
    assert.fail('Pending investigation must not trigger independent negative coverage reviews');
    const covered=request.contents==='Identify owners';return{text:JSON.stringify({proven:covered,missing:covered?[]:['Read the observed deadline source'],groups:[{group:covered?'owners':'deadlines',proven:covered,evidence:covered?[{taskIndex:0,fields:['owner']}]:[]}],sources:[]})};
@@ -5374,7 +5375,7 @@ test('a semantic discovery probe advances newly runtime-accredited fields only t
    assert.ok(schema.fieldPaths.includes('rank'));assert.deepEqual(schema.collections,[template]);
    assert.equal(schema.valuesOrObjectiveCoverageProven,false);
   }
-  return{text:JSON.stringify({matchesRequest:turn===1,schemaDiscoveryRelevant:turn===0})};
+  return queryReviewFixture(request,{matchesRequest:turn===1,schemaDiscoveryRelevant:turn===0});
  }}};
  const state={phase:'EVIDENCE_NEXT_ACTION',missionId:'discovery-regression',tenantId:'approved',evidenceObjectives:contracts,completedTasks:tasks};
  const plan=()=>runJarvisSemanticPlanner({input:'Count entries, identify holders and inspect deadlines',catalog:[query,reader],missionState:state,ai});
@@ -5672,7 +5673,7 @@ for(const seedMode of ['query','count'])test('fresh runtime '+seedMode+' evidenc
    return{text:JSON.stringify({toolCalls:!valuesRead?[{name:query.name,args:{...f.args,fields:['deadline']}}]:!dependencyRead?[{name:reader.name,args:{file:'dependency.js'}}]:[]})};
   }
   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION')return{text:'{"toolCalls":[],"sourceFallback":[]}'};
-  if(stage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":true,"schemaDiscoveryRelevant":false,"rejectionReason":""}'};
+  if(stage==='QUERY_POPULATION_VERIFICATION')return queryReviewFixture(request,{"matchesRequest":true,"schemaDiscoveryRelevant":false,"rejectionReason":""});
   const payload=JSON.parse(request.config.chatMessages.at(-1).content);
   if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(payload.sources.map(collection=>[collection,{relevantToObjective:true,reason:'Separate observed operational scopes remain pending.'}]))})};
   assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);
@@ -5697,8 +5698,15 @@ for(const seedMode of ['query','count'])test('fresh runtime '+seedMode+' evidenc
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
 
-for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','bounded-localized-catalog','complete-query-count-facts','credited-source-alias','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
+for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','bounded-localized-catalog','complete-query-count-facts','credited-source-alias','projection-contribution','projection-known-padding','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
+ const projectionCase=['projection-contribution','projection-known-padding'].includes(variant);
  const f=completeScalarPopulationFixture();
+ if(projectionCase){
+  const read=f.context.completedTasks[0].observation.verifiedRead;
+  read.content=read.content.replace('deadline:input.deadline','deadline:input.deadline,auditStamp:input.auditStamp').replace('collection(db,"registry",tenantId,"entries")','collection(db,"registry","approved","entries")');
+  read.sourceStructure=analyzeRepoSourceStructure(read.content);
+  f.args.collection='registry/approved/entries';
+ }
  const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
  const {runJarvisSemanticPlanner,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js']}},required:['file']}};
@@ -5713,6 +5721,7 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  if(variant==='known-scalar-array-query'){query.inputSchema.properties.filters.items.properties.op.enum.push('array-contains-any');Object.assign(rejected.args,{mode:'query',fields:['deadline'],filters:[{field:'marker',op:'array-contains-any',value:['Observed-class']}]});query.inputSchema.properties.filters.items.properties.value.type.push('array');}
  if(variant==='known-ordering-query'){Object.assign(rejected.args,{mode:'query',fields:['holder'],filters:[],orderBy:[{field:'marker',direction:'asc'}]});query.inputSchema.properties.orderBy={type:'array',items:{type:'object',properties:{field:{type:'string',enum:['marker','holder','deadline']},direction:{type:'string',enum:['asc','desc']}},required:['field','direction']}};}
  if(variant==='filtered-full-projection')rejected.args.filters=[{field:'holder',op:'==',value:null}];
+ if(projectionCase)Object.assign(rejected.args,{mode:'query',fields:variant==='projection-known-padding'?['auditStamp','holder']:['auditStamp'],filters:[]});
  const valid={name:query.name,args:{...f.args,fields:variant==='single-projection'?['holder','deadline']:['deadline']}};
  const aliasContent='async function read(db){const ref=collection(db,"registry","approved","entries");await addDoc(ref,{marker:input.marker,holder:input.holder,deadline:input.deadline});await getDocs(ref);}';
  if(variant==='credited-source-alias'){
@@ -5730,7 +5739,10 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
   const stage=request.config.semanticStage;stages.push(stage);
   if(stage==='EVIDENCE_NEXT_ACTION'){
-   if(progressed)return{text:'{"toolCalls":[]}'};
+   if(progressed){
+    if(projectionCase)assert.equal(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(query.name)&&hasRequiredToolArguments({inputSchema:choice.properties.args},rejected.args)),false,'the same semantically rejected projection must remain filtered before the next inference');
+    return{text:'{"toolCalls":[]}'};
+   }
    assert.equal(stages.filter(item=>item==='RECORD_OBJECTIVE_COVERAGE').length,3,'fresh initial values inform every pending goal before selecting an action');
    if(variant==='bounded-localized-catalog'){
     assert.ok(request.config.chatMessages.reduce((n,message)=>n+message.content.length,0)<=60000,'the complete next decision must fit the unchanged context budget after rejection/recovery');
@@ -5761,7 +5773,18 @@ for(const variant of ['single-projection','later-projection','later-null-query',
    return{text:JSON.stringify({toolCalls:[rejected]})};
   }
   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){assert.equal(stages.filter(item=>item==='RECORD_OBJECTIVE_COVERAGE').length,3,'rejection alone cannot repeat the initial value reviews');assert.equal(stages.filter(item=>item==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,3,'rejection alone cannot repeat the initial source reviews');recoveries++;return{text:JSON.stringify({toolCalls:[valid],sourceFallback:[]})};}
-  if(stage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":true,"schemaDiscoveryRelevant":false,"rejectionReason":""}'};
+  if(stage==='QUERY_POPULATION_VERIFICATION'){
+   if(projectionCase){
+    const packet=JSON.parse(request.config.chatMessages.at(-1).content),useful=packet.proposed.fields.includes('deadline');
+    assert.ok(packet.sameRouteObservations.some(fact=>fact.fieldsRead.includes('holder')&&fact.scalarValuesObserved.holder===1&&fact.completeForQuery===true),'projection review needs scoped already-read field coverage, not just a related collection');
+    assert.ok(packet.observedScalarValues.some(fact=>fact.collection===f.args.collection&&fact.sourceFile===f.args.sourceFile&&fact.distinctValuesByField.holder?.values.includes('Registered holder')),'already observed values must survive in their own authenticated route rather than being reduced to field names');
+    assert.ok(packet.observedScalarValues.every(fact=>fact.joinedRows===false&&fact.grantsFieldAuthorization===false&&fact.objectiveSatisfied===false));
+    assert.ok(JSON.stringify([packet.sameRouteObservations,packet.observedScalarValues]).length<=3200,'existing observation context stays inside its shared fixed budget');
+    assert.ok(request.config.responseJsonSchema.required.includes('objectiveFields'));
+    return{text:JSON.stringify({matchesRequest:true,objectiveMatches:{'0':false,'1':!useful,'2':useful},objectiveFields:{'0':[],'1':useful?[]:['holder'],'2':useful?['deadline']:[]},populationRelevance:'relevant',schemaDiscoveryRelevant:false,rejectionReason:useful?'':'No projected field supplies a missing goal.'})};
+   }
+   return queryReviewFixture(request,{"matchesRequest":true,"schemaDiscoveryRelevant":false,"rejectionReason":""});
+  }
   const payload=JSON.parse(request.config.chatMessages.at(-1).content);
   if(stage==='RECORD_OBJECTIVE_COVERAGE'){
    assert.ok(payload.evidence.some(task=>task.observation?.recordEvidence?.rows?.some(row=>progressed?row.values?.deadline==='2027-01-01':row.values?.marker==='Observed-class')),'each independent review must retain the authenticated values available at that decision');
@@ -5778,6 +5801,7 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  const getDocs=f.dependencies.sdk.getDocsFromServer;
  f.dependencies.sdk.getDocsFromServer=async request=>{
   const response=await getDocs(request);
+  if(projectionCase)response.docs=response.docs.map(doc=>({...doc,data:()=>({...doc.data(),auditStamp:'Observed metadata'})}));
   if(progressed&&['schema-growth','field-order-only'].includes(variant))response.docs=response.docs.map(doc=>({...doc,data:()=>{
    const data=doc.data();return variant==='schema-growth'?{...data,accreditedLater:'Observed new field'}:Object.fromEntries(Object.entries(data).reverse());
   }}));
@@ -5793,7 +5817,7 @@ for(const variant of ['single-projection','later-projection','later-null-query',
   if(executed.length===2){assert.equal(receipt.recordEvidence.completeForQuery,true);assert.equal(receipt.recordEvidence.queryExhausted,true);assert.equal(receipt.recordEvidence.rows.length,1);}
   return{ok:true,data:receipt};
  },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION'},ai})});
- assert.equal(offeredInvalid,false,'earlier authenticated projected values must survive a later projection before inference: '+JSON.stringify(result.errors));
+ assert.equal(offeredInvalid,projectionCase,'a novel projection needs semantic review; previously observed work must be filtered before inference: '+JSON.stringify(result.errors));
  assert.equal(offeredValid,true,'newly credited fields of the same collection must remain executable');
  assert.equal(recoveries,1);assert.equal(executed.length,initialCount+1);assert.equal(executed.at(-1).name,valid.name);assert.deepEqual(executed.at(-1).args,valid.args);
  assert.equal(f.calls.filter(call=>call.kind==='count').length,0,'ignoring the native frontier cannot reach the count SDK');

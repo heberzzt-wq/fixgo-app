@@ -1,3 +1,4 @@
+const queryReviewFixture=require('./helpers/query-review-fixture.cjs');
 "use strict";
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
@@ -132,7 +133,7 @@ test('query relevance receives only the proposed collection source and its own f
   assert.ok(!JSON.stringify(payload.observedSource).includes('billingStatus'),'an unrelated collection must not ground this query');
   assert.deepEqual(payload.observedFieldSchemas[0].collections,['entries']);
   assert.deepEqual(payload.observedFieldSchemas[0].fieldPaths,['label']);
-  checked=true;return{text:'{"matchesRequest":true}'};
+  checked=true;return queryReviewFixture(request,{"matchesRequest":true});
  }}}});
  assert.equal(checked,true);assert.equal(result.ok,true);assert.equal(result.missionComplete,false);
 });
@@ -296,7 +297,7 @@ test('recovery excludes a reviewed projection only for its exact unfiltered scop
  const result=await runJarvisSemanticPlanner({input:'Inspect active entries',catalog:[query,reader],missionState:{phase:'EVIDENCE_NEXT_ACTION',evidenceObjectives:[{objective:'Inspect active entries',requiredEvidenceKind:'platform_records'}],completedTasks:[source]},ai:{objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
   const stage=request.config.semanticStage;stages.push(stage);
   if(stage==='EVIDENCE_NEXT_ACTION')return{text:JSON.stringify({toolCalls:[{name:query.name,args}]})};
-  if(stage==='QUERY_POPULATION_VERIFICATION')return{text:JSON.stringify({matchesRequest:stages.filter(s=>s===stage).length>1})};
+  if(stage==='QUERY_POPULATION_VERIFICATION')return queryReviewFixture(request,{matchesRequest:stages.filter(s=>s===stage).length>1});
   assert.equal(stage,'READ_ONLY_EVIDENCE_CONTINUATION');
   const candidate=request.config.responseJsonSchema.properties.toolCalls.items.anyOf.find(c=>c.properties.name.enum.includes(query.name));
   const scoped={inputSchema:candidate.properties.args};

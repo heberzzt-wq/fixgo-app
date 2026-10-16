@@ -1,0 +1,13 @@
+// Positive fake-model decisions must obey the current per-objective contract.
+// Tests of relevance rejection construct their own verdicts instead of using
+// this helper. It supplies no operational values or completion evidence.
+module.exports=function queryReviewFixture(request,verdict={matchesRequest:true}){
+ const packet=JSON.parse(request.config.chatMessages.at(-1).content);
+ const indexes=Object.keys(request.config.responseJsonSchema.properties.objectiveMatches?.properties||{});
+ if(verdict.matchesRequest!==true||!indexes.length)return{text:JSON.stringify(verdict)};
+ const fields=packet.proposed.fields||[];
+ if(packet.proposed.mode==='query'&&!fields.length)throw Error('Positive query fixture requires its explicit projection');
+ return{text:JSON.stringify({...verdict,
+  objectiveMatches:Object.fromEntries(indexes.map((index,i)=>[index,i===0])),
+  ...(packet.proposed.mode==='query'?{objectiveFields:Object.fromEntries(indexes.map((index,i)=>[index,i===0?[fields[0]]:[]]))}:{})})};
+};

@@ -1,3 +1,4 @@
+const queryReviewFixture=require('./helpers/query-review-fixture.cjs');
 const test=require('node:test'),assert=require('node:assert/strict');
 const {runJarvisSemanticPlanner,hasRequiredToolArguments}=require('../functions/jarvis-semantic-planner.js');
 const {eligibleEvidenceActionCatalog}=require('../functions/jarvis-semantic-planner.js');
@@ -70,7 +71,7 @@ for(const scenario of ['new-fields','witnessed-filter','implicit-ids'])test(`aut
     assert.deepEqual(payload.observedFilterValueWitnesses,[{filterIndex:0,valueIndexes:[0],source:'FIRESTORE_SERVER_AUTHENTICATED',scope:'same_route_and_projected_field',objectiveCoverageProven:false}]);
     assert.ok(JSON.stringify(payload.observedFilterValueWitnesses).length<256,'value witnesses refer to proposed arguments without duplicating record values');
    }
-   return{text:'{"matchesRequest":true,"populationRelevance":"relevant","schemaDiscoveryRelevant":false,"rejectionReason":""}'};
+   return queryReviewFixture(request,{"matchesRequest":true,"populationRelevance":"relevant","schemaDiscoveryRelevant":false,"rejectionReason":""});
   }
   const payload=JSON.parse(request.config.chatMessages.at(-1).content);
   if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(payload.sources.map(collection=>[collection,{relevantToObjective:true,reason:'Other observed sources still require operational evidence.'}]))})};

@@ -1,3 +1,4 @@
+const queryReviewFixture=require('./helpers/query-review-fixture.cjs');
 "use strict";
 
 const assert = require("node:assert/strict");
@@ -155,7 +156,7 @@ test("query scope review retains accredited fields and successful sources for th
                 assert.deepEqual(payload.objectives,[contract]);
                 assert.ok(request.config.chatMessages.some(message=>message.content.includes("Declared and official states are distinct.")));
                 reviewed=true;
-                return{text:'{"matchesRequest":true}'};
+                return queryReviewFixture(request,{"matchesRequest":true});
             }
             assert.equal(request.config.semanticStage,"COMPLETION_AUDIT");
             return{text:JSON.stringify({completionAssessment:{objectives:[{...contract,satisfied:false,evidenceTaskIndexes:[],limitation:"Operational values remain unread."}]},toolCalls:[{name:query.name,args:{sourceFile:"primary.js",collection:"alpha",mode:"query",fields:["state.expiresAt"],filters:[]}}]})};

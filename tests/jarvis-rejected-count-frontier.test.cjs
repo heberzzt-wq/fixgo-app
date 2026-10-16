@@ -1,3 +1,4 @@
+const queryReviewFixture=require('./helpers/query-review-fixture.cjs');
 const test=require('node:test'),assert=require('node:assert/strict');
 const {runJarvisSemanticPlanner,hasRequiredToolArguments}=require('../functions/jarvis-semantic-planner.js');
 
@@ -15,7 +16,7 @@ test('a rejected count is removed before recovery while a grounded projection ad
   if(stage==='EVIDENCE_NEXT_ACTION')return{text:JSON.stringify({toolCalls:advanced?[]:[rejected]})};
   if(stage==='QUERY_POPULATION_VERIFICATION'){
    const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;
-   return{text:JSON.stringify({matchesRequest:proposed.mode==='query',schemaDiscoveryRelevant:proposed.mode==='query',rejectionReason:proposed.mode==='count'?'Counting people does not answer the requested entries; inspect the credited relationship fields.':''})};
+   return queryReviewFixture(request,{matchesRequest:proposed.mode==='query',schemaDiscoveryRelevant:proposed.mode==='query',rejectionReason:proposed.mode==='count'?'Counting people does not answer the requested entries; inspect the credited relationship fields.':''});
   }
   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){
    recoverySeen=true;

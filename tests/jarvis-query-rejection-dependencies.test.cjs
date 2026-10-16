@@ -1,3 +1,4 @@
+const queryReviewFixture=require('./helpers/query-review-fixture.cjs');
 const test=require('node:test'),assert=require('node:assert/strict');
 const {runJarvisSemanticPlanner,hasRequiredToolArguments}=require('../functions/jarvis-semantic-planner.js');
 
@@ -23,7 +24,7 @@ for(const dependency of ['unrelated','other-organization','related'])test(`rejec
   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){recoveryCalls++;return{text:JSON.stringify({toolCalls:[discovered],sourceFallback:[]})};}
   if(stage==='QUERY_POPULATION_VERIFICATION'){
    reviews++;const args=JSON.parse(request.config.chatMessages.at(-1).content).proposed;
-   return{text:JSON.stringify({matchesRequest:args.mode==='query'||(readDependency&&dependency==='related'),schemaDiscoveryRelevant:false,rejectionReason:'This count does not establish the requested population from its current source.'})};
+   return queryReviewFixture(request,{matchesRequest:args.mode==='query'||(readDependency&&dependency==='related'),schemaDiscoveryRelevant:false,rejectionReason:'This count does not establish the requested population from its current source.'});
   }
   const payload=JSON.parse(request.config.chatMessages.at(-1).content);
   if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(payload.sources.map(collection=>[collection,{relevantToObjective:true,reason:'Observed source requiring further records.'}]))})};

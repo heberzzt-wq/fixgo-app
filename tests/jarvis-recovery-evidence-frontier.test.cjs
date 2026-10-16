@@ -1,3 +1,4 @@
+const queryReviewFixture=require('./helpers/query-review-fixture.cjs');
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
 const {pathToFileURL}=require('node:url');
 const root=process.env.JARVIS_TEST_REPO||path.resolve(__dirname,'..');
@@ -31,7 +32,7 @@ for(const missing of ['field','value'])for(const alternative of ['operational','
   if(stage==='QUERY_POPULATION_VERIFICATION'){
    const payload=JSON.parse(request.config.chatMessages.at(-1).content);
    assert.equal(payload.proposed.collection,'units','only the selected grounded operation reaches its independent validator');
-   return{text:'{"matchesRequest":true,"schemaDiscoveryRelevant":true,"rejectionReason":""}'};
+   return queryReviewFixture(request,{"matchesRequest":true,"schemaDiscoveryRelevant":true,"rejectionReason":""});
   }
   const payload=JSON.parse(request.config.chatMessages.at(-1).content);
   if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(payload.sources.map(collection=>[collection,{relevantToObjective:collection==='units',reason:collection==='units'?'Observed assignment and deadline source.':'Not independently pertinent to requested units.'}]))})};

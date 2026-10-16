@@ -1,3 +1,4 @@
+const queryReviewFixture=require('./helpers/query-review-fixture.cjs');
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path');
 const {pathToFileURL}=require('node:url');
 const root=process.env.JARVIS_TEST_REPO||path.resolve(__dirname,'..');
@@ -26,7 +27,7 @@ for(const projection of ['forbidden','absent'])test('count filter fields stay so
    assert.ok(schemas.some(inputSchema=>hasRequiredToolArguments({inputSchema},{...invalid.args,collection:'separate'})),'the other collection retains its own field');
    return{text:JSON.stringify({toolCalls:[offeredInvalid?invalid:valid]})};
   }
-  if(stage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":true,"schemaDiscoveryRelevant":true,"rejectionReason":""}'};
+  if(stage==='QUERY_POPULATION_VERIFICATION')return queryReviewFixture(request,{"matchesRequest":true,"schemaDiscoveryRelevant":true,"rejectionReason":""});
   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION')return{text:'{"toolCalls":[]}'};
   const payload=JSON.parse(request.config.chatMessages.at(-1).content);
   if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(payload.sources.map(collection=>[collection,{relevantToObjective:true,reason:'Unresolved independent source.'}]))})};
