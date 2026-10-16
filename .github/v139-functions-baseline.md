@@ -1,5 +1,33 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `059a91f60fb21bca907fa69cd4a0aaba81ffff24`.
+Only the semantic planner changed in Functions since212eb931.
+The stopped real diagnostic used79local calls in1632458ms and still admitted
+new metadata/contact projections merely because the population was related.
+The same local model now selects a minimal useful credited field per goal from
+that source/route schema. A proposed read must supply that witness in a scope
+not already observed; a known field cannot pad an unrelated new projection.
+Positive paged-query verdicts require complete independent field contracts.
+Already-read scoped field coverage and unchanged scalar values share a fixed
+3000-character observation budget, never joined rows or field authorization.
+Same-source operational dependencies invalidate rejection reuse when those
+values change. Only validated field requirements enter recovery receipts;
+sibling-route fields and malformed maps cannot become credited requirements.
+Generic runtime full cycles prove rejection, valid newly credited projection,
+next-decision filtering, known-field padding and all3objectives still pending.
+Affirmative fake-model fixtures now emit the current explicit contract through
+a test-only helper; no production acceptance fallback was added.
+Focused491PASS; final frozen full local emulator suite2305PASS,0FAIL,2physical
+skips (2307tests,187036.4088ms), exit0. Three isolated same9B historical-request
+checks reject metadata/contact projections and admit the useful license read.
+Those isolated checks are not whole-mission certification. The bounded same9B
+thinking probe truncated; thinking remains disabled. Model and providers stay
+unchanged, external/paid AI0, operational writes0. Real clean Chrome is pending.
+Future unreviewed Functions deltas still fail closed.
+
+## Previous review
+
+
 Current baseline: `687fec9be859532409c3af0950ad2fec476f549b`.
 Only the semantic planner changed in Functions since8faa86a2.
 The stopped Chrome diagnostic recorded74local calls and a repeated count of
