@@ -1,5 +1,33 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `9f512a4800c30d4c1f2a59e8eeffa460df48768c`.
+Only the semantic planner changed in Functions since dcd93b0b.
+The 85123008 Chrome diagnostic was stopped after 41 local mission calls
+(655468 ms). Only one operational count0 and repository discovery existed;
+all three independent objectives remained pending. It was not certified.
+Rejected proposals were triggering full operational coverage reviews before
+the bounded recovery decision despite no new operational records. Recovery
+now invokes only the existing independent source-scope classifier when needed.
+Its scope-only result is always proven=false and cannot certify an objective.
+Observed file/collection/field bindings, unknown-source exclusions, explicit
+population vetoes and per-call semantic/authenticated-route checks remain.
+Positive goals and attempted closure still require independent operational
+proof per original objective; current values and exact temporal clock remain
+separate from cached schema relevance. No added model or recovery retries.
+Six real-runtime producer cycles reproduced the redundant reviews before the
+fix and now preserve rejected work, valid new fields and pending objectives.
+A broader run caught actual recovery-scope regressions; production fixed them
+without relaxing unknown sources or population vetoes. Timing checks now also
+replay the fresh temporal review after closure rather than require redundant
+negative reviews before recovery.
+Focused checks: 428 PASS. Frozen full local emulator suite: 2253 PASS, 0 FAIL,
+2 physical/environment skips (2255 tests, 277055.0535 ms), exit receipt0.
+Physical repo search and the clean original Chrome mission remain separate gates.
+No external AI, paid-provider, model, permission or operational data changes.
+Future unreviewed Functions deltas still fail closed.
+
+## Previous reviewed baseline
+
 Current baseline: `dcd93b0b5966f9cca4702cc53e1f405ab30a6b9d`.
 Only the semantic planner changed in Functions since 584035eb.
 The 90d6e69d Chrome diagnostic retained all three goals pending and was
