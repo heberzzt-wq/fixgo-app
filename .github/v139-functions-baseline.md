@@ -1,5 +1,30 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `290c8f0863e19e9734c4af342a940aa76e764dcd`.
+Only the semantic planner changed in Functions since20829110.
+Reviewed76a189ac and290c8f08: a new field cannot authorize another count of
+already fully retained rows in that authenticated route. The sole local model
+must identify a classification purpose; relationships and temporal goals keep
+their own field witnesses. A different credited population remains investigable.
+Projection review now chooses objective requirements without seeing the proposed
+field subset. Candidate fields remain engine metadata outside model messages;
+the engine checks credited fields, intersection, scope and novelty afterward.
+No scope, permission, source association or independent closing check is waived.
+Generic full-cycle regressions cover count/none/missing-purpose rejection,
+classification and other-objective progress, new scopes, unrelated discovery,
+and proposal bias. Existing assertions remain; fake-model fixtures use engine
+candidate metadata to preserve their explicit simulated relevance decisions.
+Focused530PASS; frozen full safe emulator suite2328PASS,0FAIL,2physical skips,
+2330tests,254101.9396ms,exit0. The interrupted earlier suite is not certification.
+Saved real-trace sole9B replays choose existing required fields and production
+validation selects a fresh grounded source window with all three goals pending.
+These isolated replays are not the Chrome mission. Physical search and the
+complete clean Chrome mission remain required. No external AI, paid provider,
+Functions deploy, permission changes or business data writes are introduced.
+Future unreviewed Functions changes still fail closed.
+
+Previous review:
+
 Current baseline: `208291100e02978e483baf8f0d1d106e58c21a98`.
 Only the semantic planner changed in Functions since a18bdfa2.
 Reviewed queued source-window grounding, preference for already credited pending
