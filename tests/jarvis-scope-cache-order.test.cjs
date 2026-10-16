@@ -45,11 +45,11 @@ test('changing coverage exclusions cannot reorder the independent schema cache d
   },storage:{getItem(){return null;},setItem(){},removeItem(){}}});
  assert.equal(result.status,'PARTIAL');assert.equal(result.reason,'PLANNER_RECOVERY_EXHAUSTED',JSON.stringify({errors:result.errors,stages,blocked:result.blockedTasks}));
  assert.deepEqual(executed,['repo.read','platform.query']);assert.equal(rounds,2);
- assert.equal(stages.filter(s=>s==='RECORD_OBJECTIVE_COVERAGE').length,3,'pending recovery is not a closure review; the exhausted cycle independently reviews each goal');
+ assert.equal(stages.filter(s=>s==='RECORD_OBJECTIVE_COVERAGE').length,4,'fresh values review all goals and closure refreshes the exact temporal clock');
  rounds=3;t.mock.timers.setTime(Date.parse('2026-10-15T10:00:03Z'));
  const replay=await runJarvisSemanticPlanner({input:goals.map(g=>g.objective).join('; '),catalog:[reader,query],missionState:{...lastState,completionAssessment:result.completionAssessment},ai});
  assert.equal(replay.missionComplete,false);assert.ok(replay.completionAssessment.objectives.every(o=>o.satisfied===false));
- assert.equal(stages.filter(s=>s==='RECORD_OBJECTIVE_COVERAGE').length,4,'a later exact-clock temporal review remains mandatory after independent closure coverage');
+ assert.equal(stages.filter(s=>s==='RECORD_OBJECTIVE_COVERAGE').length,5,'a later exact-clock temporal review remains mandatory after independent closure coverage');
  assert.equal(requests.length,3,'one independently keyed source review per objective');
  assert.ok(result.completionAssessment.objectives.every(o=>o.satisfied===false));
 });

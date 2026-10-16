@@ -222,16 +222,19 @@ test('the next decision reuses an unchanged query rejection but new evidence reo
  }
 });
 
-test('normal evidence advancement selects one novel action before attempting any closure verdict',async()=>{
+test('fresh pending evidence informs coverage before selecting one novel action',async()=>{
  const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,inputSchema:{type:'object',properties:{file:{type:'string',enum:['related.js']}},required:['file']}};
  const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'}}}};
  const contracts=['Count entries','Identify holders','Inspect deadlines'].map(objective=>({objective,requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['entries']}));
  const stages=[];
  const result=await runJarvisSemanticPlanner({input:'Inspect current entries',catalog:[reader,query],missionState:{phase:'EVIDENCE_NEXT_ACTION',evidenceObjectives:contracts,completedTasks:fixture().tasks},ai:{models:{generateContent:async request=>{
-  stages.push(request.config.semanticStage);assert.equal(request.config.semanticStage,'EVIDENCE_NEXT_ACTION','a pending investigation needs an action selection, not three fresh closure verdicts');
+  const stage=request.config.semanticStage;stages.push(stage);
+  if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(['workspaces/{workspaceId}/entries','workspaces/alpha/entries'].map(collection=>[collection,{relevantToObjective:true,reason:'Observed registry still requires independent evidence'}]))})};
+  if(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage))return{text:JSON.stringify({proven:false,missing:['Related source remains unread'],groups:[],sources:[]})};
+  assert.equal(stage,'EVIDENCE_NEXT_ACTION');
   return{text:'{"toolCalls":[{"name":"repo.read","args":{"file":"related.js"}}]}'};
  }}}});
- assert.deepEqual(stages,['EVIDENCE_NEXT_ACTION']);assert.equal(result.ok,true);assert.equal(result.missionComplete,false);
+ assert.equal(stages.filter(stage=>stage==='RECORD_OBJECTIVE_COVERAGE').length,3);assert.equal(stages.filter(stage=>stage==='EVIDENCE_NEXT_ACTION').length,1);assert.equal(stages.at(-1),'EVIDENCE_NEXT_ACTION');assert.equal(result.ok,true);assert.equal(result.missionComplete,false);
  assert.equal(result.toolCalls[0].args.file,'related.js');assert.equal(result.completionAssessment.objectives.length,3);
  assert.ok(result.completionAssessment.objectives.every(o=>o.satisfied===false&&o.requiredEvidenceKind==='platform_records'));
 });
@@ -251,7 +254,7 @@ test('an empty next-action decision closes only after independent operational co
    if(request.config.semanticStage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries([f.template,f.resolved].map(collection=>[collection,{relevantToObjective:true,reason:'Observed entry registry'}]))})};
    throw Error('An empty action must not start another planning chain: '+request.config.semanticStage);
   }}}});
-  assert.ok(stages.includes('RECORD_OBJECTIVE_COVERAGE'));assert.equal(stages.filter(s=>s==='EVIDENCE_NEXT_ACTION').length,1);
+  assert.ok(stages.includes('RECORD_OBJECTIVE_COVERAGE'));assert.equal(stages.filter(s=>s==='EVIDENCE_NEXT_ACTION').length,proven?0:1,'fully proved evidence needs no extra action selection; pending evidence still does');
   assert.equal(result.missionComplete,proven);assert.equal(result.completionAssessment.objectives[0].satisfied,proven);
   assert.equal(result.toolCalls.length,0);
  }

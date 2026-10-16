@@ -4120,9 +4120,23 @@ async function runModelSemanticPlanner({
                 coverageCache.set(proofRevision,structuredClone(proof));freshlyReviewedCoverage.add(proofRevision);
                 while(coverageCache.size>96)coverageCache.delete(coverageCache.keys().next().value);
             }
+            if(proof?.proven===false)rememberPendingValues(contract);
             rememberReviewedCoverage(contract,proof);
             return proof;
         };
+        // This marker records that pending values have already been reviewed;
+        // it is never a proof and cannot certify completion. Code-only discovery
+        // cannot turn a pending goal into success. Positive claims and closure
+        // still use the full dependency revision and exact temporal clock.
+        const pendingValueReviewKey=contract=>'pending-values:'+recordObjectiveRevision(
+            {...contract,recordCoverageMode:contract.coverageMode,coverageMode:'pending_values'},
+            completedTasksForAudit.map(task=>({...task,observation:task.observation?.recordEvidence?{...task.observation,verifiedRead:undefined}:undefined})),
+            recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content),model,missionState,null);
+        const rememberPendingValues=contract=>{
+            coverageCache.set(pendingValueReviewKey(contract),true);
+            while(coverageCache.size>96)coverageCache.delete(coverageCache.keys().next().value);
+        };
+        const hasObservedValues=completedTasksForAudit.some((task,index)=>authenticatedRecordAt(index)&&task.observation.recordEvidence.rows?.length>0);
         for(const contract of missionState.evidenceObjectives || []){
             if(contract.requiredEvidenceKind!=='platform_records' || !contract.coverageMode)continue;
             const previous=missionState.completionAssessment?.objectives?.find(item=>item.objective===contract.objective);
@@ -4130,12 +4144,17 @@ async function runModelSemanticPlanner({
             const dependencyKey='dependency:'+recordObjectiveRevision(contract,[],clarifications,model,missionState,null);
             const revision=recordObjectiveRevision(contract,completedTasksForAudit,clarifications,model,missionState,evaluatedAt,coverageCache.get(dependencyKey));
             // Reopen accredited positive coverage when its dependencies change.
-            // A still-pending goal first needs an investigation decision, not
-            // another independent inference that it is still pending.
-            if(!coverageCache.has(revision) && (previous?.satisfied===true || previous?.coverageProof?.proven===true)){
+            // New authenticated values inform the next investigation decision.
+            // Unchanged pending values and code-only reads do not repeat it.
+            if(!coverageCache.has(revision) && (previous?.satisfied===true || previous?.coverageProof?.proven===true ||
+                missionState.phase==='EVIDENCE_NEXT_ACTION'&&hasObservedValues&&!coverageCache.has(pendingValueReviewKey(contract)))){
                 await reviewedRecordCoverage(contract);
             }
-            if(coverageCache.has(revision))rememberReviewedCoverage(contract,coverageCache.get(revision));
+            if(coverageCache.has(revision)){
+                const proof=coverageCache.get(revision);
+                if(proof.proven===false)rememberPendingValues(contract);
+                rememberReviewedCoverage(contract,proof);
+            }
         }
         // Only the current engine-owned independent reviews may prune routes.
         // Client-supplied previous assessments never become authority here.
@@ -4300,6 +4319,7 @@ async function runModelSemanticPlanner({
                         // Engine-owned proof, never a client assertion of success.
                         const cached=coverageCache.get(revision);
                         if(objective.requiredEvidenceKind==='platform_records' && cached){
+                            if(cached.proven===false)rememberPendingValues(contract);
                             objective.coverageProof=structuredClone(cached);
                             if(freshlyReviewedCoverage.has(revision))coverageChanged ||= JSON.stringify(cached)!==JSON.stringify(previousObjective?.coverageProof);
                             else coverageReused=true;
@@ -4318,6 +4338,7 @@ async function runModelSemanticPlanner({
                             coverageCache.delete(dependencyKey);coverageCache.set(dependencyKey,structuredClone(objective.coverageProof));
                             coverageCache.set(recordObjectiveRevision(contract,completedTasksForAudit,clarifications,model,missionState,evaluatedAt,objective.coverageProof),structuredClone(objective.coverageProof));
                             rememberReviewedCoverage(contract,objective.coverageProof);
+                            if(objective.coverageProof.proven===false)rememberPendingValues(contract);
                             while(coverageCache.size>96)coverageCache.delete(coverageCache.keys().next().value);
                             coverageChanged ||= JSON.stringify(objective.coverageProof)!==JSON.stringify(previousObjective?.coverageProof);
                             const reviewedReferences=recordCoverageTaskIndexes(objective).filter(authenticatedRecordAt);

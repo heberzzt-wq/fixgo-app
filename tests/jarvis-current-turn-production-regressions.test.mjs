@@ -5636,6 +5636,49 @@ for(const scenario of ['complete','partial','cursor','truncated','untrusted','no
  if(scenario==='mixed-filter')assert.ok(frontier.some(choice=>hasRequiredToolArguments(choice,{...call.args,filters:[...call.args.filters].reverse()})),'a new predicate field may advance without transferring values to another route');
 });
 
+test('fresh runtime values inform the next decision while code-only discovery does not repeat pending value reviews',async t=>{
+ t.mock.timers.enable({apis:['Date'],now:Date.parse('2026-10-16T12:00:00Z')});
+ const f=completeScalarPopulationFixture();
+ const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
+ const {runJarvisSemanticPlanner}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js','dependency.js']}},required:['file']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query']},fields:{type:'array',items:{type:'string'}},filters:{type:'array'},orderBy:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}};
+ const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,i)=>({objective,requestQuote:objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][i],scope:'all_sources',groups:['entries']}));
+ const gaps=['Inspect the related inventory source','Inspect the related holder source','Read the unread deadline values'];
+ const stages=[],executed=[];let valuesRead=false,dependencyRead=false;
+ const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
+  const stage=request.config.semanticStage;stages.push(stage);
+  if(stage==='EVIDENCE_NEXT_ACTION'){
+   const reviews=stages.filter(s=>s==='RECORD_OBJECTIVE_COVERAGE').length;
+   assert.equal(reviews,valuesRead?6:3,'new operational values must be reviewed before choosing an action; a later code-only read cannot trigger another pending value review');
+   const pending=request.config.chatMessages.find(m=>m.content.startsWith('OBJETIVOS_PENDIENTES='));
+   for(const gap of gaps)assert.ok(pending?.content.includes(gap),'each independent observed deficit must guide the next action');
+   return{text:JSON.stringify({toolCalls:!valuesRead?[{name:query.name,args:{...f.args,fields:['deadline']}}]:!dependencyRead?[{name:reader.name,args:{file:'dependency.js'}}]:[]})};
+  }
+  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION')return{text:'{"toolCalls":[],"sourceFallback":[]}'};
+  if(stage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":true,"schemaDiscoveryRelevant":false,"rejectionReason":""}'};
+  const payload=JSON.parse(request.config.chatMessages.at(-1).content);
+  if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(payload.sources.map(collection=>[collection,{relevantToObjective:true,reason:'Separate observed operational scopes remain pending.'}]))})};
+  assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);
+  if(valuesRead)assert.ok(payload.evidence.some(task=>task.observation?.recordEvidence?.rows?.some(row=>row.values?.deadline==='2027-01-01')),'the independent review must contain the newest actual runtime values');
+  return{text:JSON.stringify({proven:false,missing:[gaps[goals.findIndex(g=>g.objective===payload.contract.objective)]],groups:[],sources:payload.observedSources.map(collection=>({collection,relevant:true,reason:'Other operational scopes have not been queried.',taskIndexes:[]}))})};
+ }}};
+ const result=await runJarvisMission({instruction:goals.map(g=>g.objective).join('; '),initialEvidenceObjectives:goals,initialToolCalls:[{name:reader.name,args:{file:'source.js'}},{name:query.name,args:f.args}],toolCatalog:[reader,query],storage:{getItem(){return null;},setItem(){},removeItem(){}},execute:async call=>{
+  executed.push(call);
+  if(call.name===reader.name){
+   if(call.args.file==='dependency.js'){dependencyRead=true;const content='const ref=collection(db,"separate_records");';return{ok:true,data:{file:'dependency.js',content,numberedContent:'1: '+content,startLine:1,endLine:1,totalLines:1,sourceStructure:analyzeRepoSourceStructure(content)}};}
+   const read=f.context.completedTasks[0].observation.verifiedRead;return{ok:true,data:{...read,numberedContent:'1: '+read.content,startLine:1,endLine:1,totalLines:1}};
+  }
+  const receipt=await f.execute(call.args,f.dependencies,f.context);assert.equal(receipt.ok,true,JSON.stringify(receipt));
+  if(call.args.fields.includes('deadline'))valuesRead=true;
+  f.context.completedTasks.push({name:query.name,args:structuredClone(call.args),observation:JSON.parse(JSON.stringify(receipt))});
+  return{ok:true,data:receipt};
+ },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION'},ai})});
+ assert.equal(valuesRead,true,JSON.stringify({stages,errors:result.errors}));assert.equal(dependencyRead,true);
+ assert.equal(executed.length,4);assert.equal(f.calls.filter(call=>call.kind==='query').length,2,'no already observed query may execute again');
+ assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
+});
+
 for(const variant of ['single-projection','later-projection','later-null-query','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
  const f=completeScalarPopulationFixture();
  const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
@@ -5655,15 +5698,16 @@ for(const variant of ['single-projection','later-projection','later-null-query',
   const stage=request.config.semanticStage;stages.push(stage);
   if(stage==='EVIDENCE_NEXT_ACTION'){
    if(progressed)return{text:'{"toolCalls":[]}'};
+   assert.equal(stages.filter(item=>item==='RECORD_OBJECTIVE_COVERAGE').length,3,'fresh initial values inform every pending goal before selecting an action');
    const choices=recoverySchemas(request).filter(choice=>choice.properties.name.enum.includes(query.name));
    offeredInvalid=choices.some(choice=>hasRequiredToolArguments({inputSchema:choice.properties.args},rejected.args));
    offeredValid=choices.some(choice=>hasRequiredToolArguments({inputSchema:choice.properties.args},valid.args));
    return{text:JSON.stringify({toolCalls:[rejected]})};
   }
-  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){assert.equal(stages.filter(item=>item==='RECORD_OBJECTIVE_COVERAGE'||item==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,0,'a rejected proposal cannot spend fresh goal reviews before recovering still-pending investigation');recoveries++;return{text:JSON.stringify({toolCalls:[valid],sourceFallback:[]})};}
+  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){assert.equal(stages.filter(item=>item==='RECORD_OBJECTIVE_COVERAGE').length,3,'rejection alone cannot repeat the initial value reviews');assert.equal(stages.filter(item=>item==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,3,'rejection alone cannot repeat the initial source reviews');recoveries++;return{text:JSON.stringify({toolCalls:[valid],sourceFallback:[]})};}
   if(stage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":true,"schemaDiscoveryRelevant":false,"rejectionReason":""}'};
   const payload=JSON.parse(request.config.chatMessages.at(-1).content);
-  if(stage==='RECORD_OBJECTIVE_COVERAGE'){assert.equal(progressed,true,'pending recovery must run before independent closure review');assert.ok(payload.evidence.some(task=>task.observation?.recordEvidence?.rows?.some(row=>row.values?.deadline==='2027-01-01')),'the later independent review must see fresh operational deadline values, not the earlier projection');}
+  if(stage==='RECORD_OBJECTIVE_COVERAGE'){assert.ok(payload.evidence.some(task=>task.observation?.recordEvidence?.rows?.some(row=>progressed?row.values?.deadline==='2027-01-01':row.values?.marker==='Observed-class')),'each independent review must retain the authenticated values available at that decision');}
   if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(payload.sources.map(collection=>[collection,{relevantToObjective:true,reason:'Other scopes remain unqueried.'}]))})};
   assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);
   return{text:JSON.stringify({proven:false,missing:['Other observed sources remain pending.'],groups:[],sources:payload.observedSources.map(collection=>({collection,relevant:true,reason:'Independent operational evidence remains necessary.',taskIndexes:[]}))})};
@@ -5691,7 +5735,7 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  assert.equal(recoveries,1);assert.equal(executed.length,initialCount+1);assert.equal(executed.at(-1).name,valid.name);assert.deepEqual(executed.at(-1).args,valid.args);
  assert.equal(f.calls.filter(call=>call.kind==='count').length,0,'ignoring the native frontier cannot reach the count SDK');
  assert.equal(f.calls.filter(call=>call.kind==='query').length,seedCalls.length+1,'the rejected equality must not reach the query SDK either');
- assert.equal(stages.filter(stage=>stage==='RECORD_OBJECTIVE_COVERAGE').length,3,'after recovery, an attempted stop independently reviews each original goal against fresh operational values');
- assert.equal(stages.filter(stage=>stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,3,'closure reviews each goal against the latest schema, including newly observed fields, without an earlier redundant negative review before recovery');
+ assert.equal(stages.filter(stage=>stage==='RECORD_OBJECTIVE_COVERAGE').length,6,'initial and newly read operational values independently inform each original goal');
+ assert.equal(stages.filter(stage=>stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,variant==='schema-growth'?6:3,'only newly observed field names invalidate the independent source schema review');
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
