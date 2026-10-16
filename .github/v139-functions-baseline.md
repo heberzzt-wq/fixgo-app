@@ -1,5 +1,25 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `dcd93b0b5966f9cca4702cc53e1f405ab30a6b9d`.
+Only the semantic planner changed in Functions since 584035eb.
+The 90d6e69d Chrome diagnostic retained all three goals pending and was
+stopped after a complete filtered projection over all independently anchored
+IDs still permitted a derived null count. It is not business certification.
+Each field may now use a complete filtered projection only when its exact
+authenticated resolved route and every document ID match the separate complete
+unfiltered population anchor. Subsets, foreign organizations, missing IDs,
+partial pages and later contradictory data cannot extend that population.
+New complete values replace superseded values; unread fields remain queryable.
+No change to independent operational goal validation or source authority.
+Regression evidence uses actual runtime-produced receipts and the full
+proposal/rejection/recovery/next-decision cycle with all three goals pending.
+Focused: 380 PASS. Frozen full emulator suite: 2253 PASS, 0 FAIL, 2 skips
+(2255 tests). Physical search and actual Chrome mission remain separate gates.
+No model/provider/access change, external AI call or business data write.
+Future unreviewed Functions changes still fail closed.
+
+## Previous reviewed baseline
+
 Current baseline: `584035eb4f2343ab7aeafa160f4500dadd0266aa`.
 Only the semantic planner changed in Functions since a8b0802d.
 The e9f1a597 Chrome attempts remain uncertified: the first lost its browser tab;
