@@ -1,5 +1,27 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `a18bdfa2807a444c6bc4ea2f46bab524876197dc`.
+Only the semantic planner changed in Functions since2c5ed2c8.
+The e73 real run spent403427ms in independent coverage/source checks out of
+561055ms engine time. Count-only positive evidence informs population review,
+not absent relationship/date values. Defer only those pending value reviews
+until rows arrive or stopping independently audits all immutable objectives.
+Previously satisfied goals still revalidate changed dependencies, and closure
+checks remain independent and fail closed. No values or goal success invented.
+Generic runtime regression fails on the old early relationship audit; row
+evidence still informs all goals and code-only reads do not repeat it. A new
+count-only stopping cycle requires all three independent audits, remains
+PARTIAL and performs no invented row query.
+Focused515PASS; frozen full local emulator suite2313PASS,0FAIL,2physical skips
+(2315tests,314316.0171ms), exit0. Sole9B/provider settings unchanged.
+Prior real9B recovery replay plus production validation selected a fresh source
+alternative with all three goals pending; this remains no mission certificate.
+Fresh clean Chrome timing and complete operational evidence are still required.
+Future unreviewed Functions changes fail closed.
+
+Previous review:
+
+
 Current baseline: `11366f68356e861f409d7eca23a1110f5965233b`.
 Only the semantic planner changed in Functions sincee73b8553.
 The real clean Chrome run remained PARTIAL after40local calls,561055ms engine
