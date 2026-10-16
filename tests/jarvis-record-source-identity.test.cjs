@@ -280,7 +280,7 @@ test('a native proposal outside the filtered frontier triggers one explicit reco
   assert.deepEqual(receipt.proposed,rejected);assert.equal(receipt.operationalEvidence,false);
   return{text:'{"toolCalls":[{"name":"repo.read","args":{"file":"next.js"}}]}'};
  }}}});
- assert.deepEqual(stages,['EVIDENCE_NEXT_ACTION','RECORD_OBJECTIVE_COVERAGE','OBJECTIVE_SOURCE_SCOPE_VERIFICATION','READ_ONLY_EVIDENCE_CONTINUATION']);assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives[0].satisfied,false);assert.equal(result.toolCalls[0].args.file,'next.js');
+ assert.deepEqual(stages,['EVIDENCE_NEXT_ACTION','READ_ONLY_EVIDENCE_CONTINUATION'],'a mechanically exhausted native proposal recovers once without redundant closure reviews');assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives[0].satisfied,false);assert.equal(result.toolCalls[0].args.file,'next.js');
 });
 
 test('recovery excludes a reviewed projection only for its exact unfiltered scope while retaining new fields and filters',async()=>{

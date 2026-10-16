@@ -16,7 +16,7 @@ test('changing coverage exclusions cannot reorder the independent schema cache d
  const args={sourceFile:'source.js',collection:'fleet/{tenantId}/units',mode:'query',fields:['owner','stamp'],filters:[]};
  const observed=record();observed.scope.fields=args.fields;observed.rows[0].values.stamp='2026-10-15T10:00:00.500Z';
  observed.fieldSchema={source:'SERVER_RECORD_FIELD_NAMES',collection:observed.scope.collection,scope:'returned_rows_only',sampledRows:1,paths:['owner','stamp'],completeForObservedRows:true};
- const stages=[],requests=[],executed=[];let rounds=0;
+ const stages=[],requests=[],executed=[];let rounds=0,lastState;
  const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
   const stage=request.config.semanticStage;stages.push(stage);
   assert.ok(request.config.chatMessages.reduce((n,m)=>n+m.content.length,0)<=60000,'the final assembled request must fit the local limit');
@@ -41,11 +41,15 @@ test('changing coverage exclusions cannot reorder the independent schema cache d
   },planner:async({mission})=>{
    t.mock.timers.setTime(Date.parse('2026-10-15T10:00:00Z')+(++rounds)*1000);
    assert.ok(rounds<=2,'the original continuation budget must remain bounded');
-   return runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION'},ai});
+   return runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:(lastState={...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION'}),ai});
   },storage:{getItem(){return null;},setItem(){},removeItem(){}}});
  assert.equal(result.status,'PARTIAL');assert.equal(result.reason,'PLANNER_RECOVERY_EXHAUSTED',JSON.stringify({errors:result.errors,stages,blocked:result.blockedTasks}));
  assert.deepEqual(executed,['repo.read','platform.query']);assert.equal(rounds,2);
- assert.equal(stages.filter(s=>s==='RECORD_OBJECTIVE_COVERAGE').length,4,'three initial reviews and the exact-clock temporal review');
+ assert.equal(stages.filter(s=>s==='RECORD_OBJECTIVE_COVERAGE').length,3,'pending recovery is not a closure review; the exhausted cycle independently reviews each goal');
+ rounds=3;t.mock.timers.setTime(Date.parse('2026-10-15T10:00:03Z'));
+ const replay=await runJarvisSemanticPlanner({input:goals.map(g=>g.objective).join('; '),catalog:[reader,query],missionState:{...lastState,completionAssessment:result.completionAssessment},ai});
+ assert.equal(replay.missionComplete,false);assert.ok(replay.completionAssessment.objectives.every(o=>o.satisfied===false));
+ assert.equal(stages.filter(s=>s==='RECORD_OBJECTIVE_COVERAGE').length,4,'a later exact-clock temporal review remains mandatory after independent closure coverage');
  assert.equal(requests.length,3,'one independently keyed source review per objective');
  assert.ok(result.completionAssessment.objectives.every(o=>o.satisfied===false));
 });

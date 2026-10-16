@@ -57,6 +57,7 @@ for (const discover of [true, false]) test(discover
         }
         assert.ok(['RECORD_OBJECTIVE_COVERAGE', 'RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage), stage);
         const payload = JSON.parse(request.config.chatMessages.at(-1).content);
+        if(discover)assert.equal(discoveredRead,true,'independent operational closure must see the completed discovery, not an earlier pending state');
         assert.equal(payload.request, payload.contract.requestQuote);
         assert.ok(goals.some(g => g.objective === payload.request));
         return { text: JSON.stringify({ proven: false, missing: ['Falta localizar la fuente de este objetivo; el cero sólo acredita vehicles.'],
@@ -108,7 +109,8 @@ for (const discover of [true, false]) test(discover
     assert.equal(sourceQueries, 1, JSON.stringify({ reason: result.reason, errors: result.errors, stages }));
     assert.equal(discoveredRead, true, 'the discovered fleet source must be read before closure');
     assert.equal(stages.filter(s => s === 'READ_ONLY_EVIDENCE_CONTINUATION').length, 1);
-    assert.ok(stages.indexOf('RECORD_OBJECTIVE_COVERAGE') < stages.indexOf('READ_ONLY_EVIDENCE_CONTINUATION'));
+    assert.ok(stages.indexOf('OBJECTIVE_SOURCE_SCOPE_VERIFICATION') < stages.indexOf('READ_ONLY_EVIDENCE_CONTINUATION'),'recovery retains independent source pertinence');
+    assert.ok(stages.indexOf('RECORD_OBJECTIVE_COVERAGE') > stages.indexOf('READ_ONLY_EVIDENCE_CONTINUATION'),'operational closure review follows discovery instead of delaying recovery');
     assert.equal(result.status, 'PARTIAL', 'discovery is not operational completion');
     assert.equal(result.reason, 'PLANNER_NO_GROUNDED_ACTION');
     assert.deepEqual(result.completionAssessment.objectives.map(o => [o.objective, o.satisfied]), goals.map(o => [o.objective, false]));

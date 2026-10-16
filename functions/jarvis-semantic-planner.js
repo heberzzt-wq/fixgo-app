@@ -1188,7 +1188,7 @@ function qualifyRecordObjectiveCoverage(objective, contract, tasks) {
     return {status:missing.length?"partial":"complete",consultedScopes,groups,pendingSources,missing:[...new Set(missing)]};
 }
 
-async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,advisoryContext="",scopeClarifications=[],evaluatedAt,instruction=contract.requestQuote,scopeReviewCacheKey=null}) {
+async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,advisoryContext="",scopeClarifications=[],evaluatedAt,instruction=contract.requestQuote,scopeReviewCacheKey=null,scopeOnly=false}) {
     const sourcePaths=[...new Set([...observedRecordSources(tasks),...tasks.flatMap(task=>task.observation?.recordEvidence?.scope?.collection ? [task.observation.recordEvidence.scope.collection] : [])])];
     const recordIndexes=tasks.flatMap((task,index)=>task.observation?.ok===true && task.observation.recordEvidence?.source==="FIRESTORE_SERVER_AUTHENTICATED" ? [index] : []);
     // Required source keys prevent the constrained model from repeating one
@@ -1284,9 +1284,9 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         {role:"system",content:"evidenceRole distingue las fuentes: schema_reference sólo acredita colecciones y campos del código; operational_records contiene los datos autenticados y su propio alcance. La lectura parcial o el esquema incompleto del código nunca convierte una consulta operativa completa en una muestra. Evalúa la totalidad de cada consulta con su propio recordEvidence, no con propiedades de otro taskIndex."},
         {role:"user",content:JSON.stringify({request:contract.requestQuote,evaluatedAt,contract,userClarifications:scopeClarifications,schemaDefinitions,schemaDefinitionsAreOperationalEvidence:false,queryScopeFacts,objective:{objective:objective.objective,requiredEvidenceKind:objective.requiredEvidenceKind},observedSources:sourcePaths,evidence:coverageEvidence})}]
     };
-    const response=await ai.models.generateContent({model,contents:contract.requestQuote,config:reviewConfig});
+    const response=scopeOnly?null:await ai.models.generateContent({model,contents:contract.requestQuote,config:reviewConfig});
     if(response?.providerResponse?.finishReason==='length') return {proven:false,missing:["La revisión de cobertura no terminó dentro del presupuesto."]};
-    let proof=normalizeProof(extractJsonObject(String(response?.text||""))) || {proven:false,missing:["No se obtuvo una revisión de cobertura válida."]};
+    let proof=scopeOnly?{proven:false,missing:["La pertinencia del esquema no acredita cobertura operativa."],groups:[],sources:sourcePaths.map(collection=>({collection,relevant:null,reason:"Pertinencia pendiente de revisión",taskIndexes:[]}))}:normalizeProof(extractJsonObject(String(response?.text||""))) || {proven:false,missing:["No se obtuvo una revisión de cobertura válida."]};
     const aggregateContradiction=qualifyRecordObjectiveCoverage({
         evidenceTaskIndexes:recordIndexes,coverageProof:{...proof,proven:true,missing:[]}
     },contract,tasks).status==="complete";
@@ -1297,7 +1297,7 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         (proof.groups || []).some(group=>group.proven!==true) && qualifyRecordObjectiveCoverage({
         evidenceTaskIndexes:recordIndexes,coverageProof:{...proof,groups:[],proven:true,missing:[]}
     },{...contract,groups:[]},tasks).status==="complete";
-    if((proof.proven!==true || proof.missing?.length) && (aggregateContradiction || completeConsultedScopes)) {
+    if(!scopeOnly && (proof.proven!==true || proof.missing?.length) && (aggregateContradiction || completeConsultedScopes)) {
         // Structural consistency is not semantic approval. Ask this same model
         // to reconcile its aggregate verdict with its own cited group/source
         // decisions; an invalid or still-negative answer remains pending.
@@ -1315,7 +1315,7 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
     }
     const exclusions=(proof.sources || []).filter(source=>source.relevant===false);
     const scopeSources=[...new Set([...exclusions.map(source=>source.collection),...sourcePaths])];
-    if(contract.scope!=="all_sources" || !scopeSources.length || ((proof.sources || []).length<2 && !exclusions.length))return proof;
+    if(!scopeSources.length || !scopeOnly && (contract.scope!=="all_sources" || ((proof.sources || []).length<2 && !exclusions.length)))return proof;
     const observedDefinitions=[...new Map([...tasks].reverse().flatMap(task=>{
         const read=task.observation?.verifiedRead;
         if(task.observation?.ok!==true || task.observation.executionOk===false || task.observation.blocked===true || task.observation.requiresInput===true)return [];
@@ -1447,6 +1447,7 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         const decisions=(proof.sources || []).filter(source=>source.collection===item.collection);
         if(decisions.length!==1)continue;
         const source=decisions[0];
+        if(scopeOnly){source.relevant=item.contradictsObjective===true?true:item.contradictsObjective===false&&definedSources.has(item.collection)?false:null;source.reason=item.reason;source.taskIndexes=[];continue;}
         // An independently proposed exclusion cannot silently erase a source
         // that the same model identified as needed but has not consulted. Keep
         // that disagreement available to continuation; neither verdict is data.
@@ -3887,24 +3888,6 @@ async function runModelSemanticPlanner({
                 if(evidenceRecoveryUsed)return null;
                 evidenceRecoveryUsed=true;
             }
-                // Use the existing independent objective reviews BEFORE spending
-                // the one recovery decision. Reviewing only after exhaustion
-                // leaves Qwen choosing again from the same unqualified frontier.
-                if(error && recordOnlyAudit && completedTasksForAudit.some((_,index)=>authenticatedRecordAt(index))){
-                    for(const objective of evaluatedAudit.completionAssessment?.objectives || []){
-                        const contract=missionState.evidenceObjectives.find(item=>item.objective===objective.objective);
-                        if(!contract?.coverageMode)continue;
-                        const proof=await reviewedRecordCoverage(contract);
-                        objective.coverageProof=structuredClone(proof);
-                        objective.evidenceTaskIndexes=[...new Set([...(objective.evidenceTaskIndexes||[]),...recordCoverageTaskIndexes(objective)])].filter(authenticatedRecordAt);
-                        objective.coverage=qualifyRecordObjectiveCoverage(objective,contract,completedTasksForAudit);
-                        objective.satisfied=proof.proven===true && objective.coverage.status==='complete';
-                        objective.limitation=objective.satisfied?'':[...(proof.missing||[]),...objective.coverage.missing].join(' ');
-                    }
-                    if(evaluatedAudit.completionAssessment?.evidenceDecision)
-                        evaluatedAudit.completionAssessment.evidenceDecision.rejections=currentQueryRejections();
-                    if(evaluatedAudit.completionAssessment?.objectives?.every(objective=>objective.satisfied))return null;
-                }
                 refreshReviewedActionFrontier();
                 const generalReaders = selectableCatalog.filter(tool => tool.investigationReadOnly === true &&
                     tool.mutates !== true && tool.requiresApproval !== true && tool.userArtifact !== true);
@@ -3942,6 +3925,27 @@ async function runModelSemanticPlanner({
                     (['SEMANTIC_QUERY_SCOPE_UNVERIFIED','SEMANTIC_TOOL_ARGUMENTS_INVALID'].includes(error?.message) &&
                      error.evidence?.rejectionKind === 'arguments' && error.evidence?.requiresSourceEvidence === true) ||
                     (latestPlatformSchemaFailure && !evidenceAfterSchemaFailure);
+                // Recovery needs source pertinence, not a second operational
+                // verdict for every pending goal. Reuse the same independent
+                // schema classifier; its result can never certify a goal.
+                if(error && recordOnlyAudit && sourceEvidenceRequired && completedTasksForAudit.some((_,index)=>authenticatedRecordAt(index))){
+                    for(const objective of evaluatedAudit.completionAssessment?.objectives || []){
+                        const contract=missionState.evidenceObjectives.find(item=>item.objective===objective.objective);
+                        if(!contract?.coverageMode)continue;
+                        const previous=missionState.completionAssessment?.objectives?.find(item=>item.objective===objective.objective);
+                        const positive=objective.satisfied===true || objective.coverageProof?.proven===true || previous?.satisfied===true;
+                        const proof=positive?await reviewedRecordCoverage(contract):await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,advisoryContext,
+                            scopeClarifications:recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content),evaluatedAt,instruction,scopeOnly:true,
+                            scopeReviewCacheKey:recordObjectiveRevision({...contract,coverageMode:'source_scope'},[],recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content),model,missionState,null)});
+                        rememberReviewedCoverage(contract,proof);
+                        if(!positive){const partial=objective.coverageProof;objective.coverageProof={...proof,groups:partial?.groups||[],missing:[...new Set([...(partial?.missing||[]),...proof.missing])]};objective.satisfied=false;}
+                        else {objective.coverageProof=structuredClone(proof);objective.coverage=qualifyRecordObjectiveCoverage(objective,contract,completedTasksForAudit);objective.satisfied=proof.proven===true&&objective.coverage.status==='complete';}
+                        objective.coverage=qualifyRecordObjectiveCoverage(objective,contract,completedTasksForAudit);
+                        objective.limitation=objective.satisfied?'':(objective.coverageProof.missing||[]).join(' ');
+                    }
+                    refreshReviewedActionFrontier();
+                    if(evaluatedAudit.completionAssessment?.evidenceDecision)evaluatedAudit.completionAssessment.evidenceDecision.rejections=currentQueryRejections();
+                }
                 const repositoryRecoveryReaders = sourceEvidenceRequired
                     ? generalReaders.filter(tool =>
                         tool.name !== "platform.query" &&
@@ -3950,11 +3954,10 @@ async function runModelSemanticPlanner({
                         ) || (!tool.evidenceKinds?.length && ['repo.read','repo.search','repo.grep'].includes(tool.name)))
                     )
                     : [];
-                // A required source read does not exclude another operational
-                // source already accredited as pertinent by engine-owned reviews.
-                // Availability, unknown relevance and client assessments alone
-                // cannot grant this alternative. Final argument/scope validation
-                // still applies to whichever action the model selects.
+                // A rejected query does not remove other evidence-bound scopes.
+                // Source/field bindings permit an investigation proposal, never
+                // a claim of objective coverage. The selected call still faces
+                // independent argument, population and authenticated-route checks.
                 const groundedRecordRecoveryReaders = sourceEvidenceRequired
                     ? generalReaders.filter(tool => tool.evidenceKinds?.includes('platform_records')).flatMap(tool => {
                         const schema=buildNativeInputSchema(tool.inputSchema);
