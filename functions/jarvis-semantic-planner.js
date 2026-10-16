@@ -230,12 +230,12 @@ function excludeReviewedQueryProjections(catalog,rejections) {
         let branches=(buildNativeInputSchema(tool.inputSchema).anyOf || [buildNativeInputSchema(tool.inputSchema)]);
         for(const receipt of rejections){
             const call=receipt.proposed,args=call?.args;
-            // A count has no field projection. Keep an explicitly rejected
-            // unfiltered count out of the recovery grammar too, rather than
-            // offering it again and rejecting it after another model call.
-            // Only this witnessed source/route/mode is removed. Querying newly
-            // grounded fields, other filters and other routes remain choices.
-            if(call?.name===tool.name && args?.mode==='count' && !args.cursor &&
+            // Counts have no projection. For queries, only an engine-owned
+            // verdict rejecting the population independently of projection can
+            // remove its field variants. New field evidence invalidates that
+            // verdict; other filters, routes, modes and cursors remain scoped.
+            const rejectedMode=args?.mode==='count'?'count':receipt.populationRejected===true&&args?.mode==='query'?'query':null;
+            if(call?.name===tool.name && rejectedMode && !args.cursor &&
                 !args.filters?.length && !args.orderBy?.length){
                 branches=branches.flatMap(branch=>{
                     const p=branch.properties;
@@ -243,10 +243,10 @@ function excludeReviewedQueryProjections(catalog,rejections) {
                         (!Array.isArray(schema?.enum) || schema.enum.some(value=>JSON.stringify(value)==='[]'));
                     if(p?.sourceFile?.enum?.length!==1 || p.sourceFile.enum[0]!==args.sourceFile ||
                         p.collection?.enum?.length!==1 || p.collection.enum[0]!==args.collection ||
-                        !p.mode?.enum?.includes('count') || (branch.required||[]).includes('cursor') ||
+                        !p.mode?.enum?.includes(rejectedMode) || (branch.required||[]).includes('cursor') ||
                         p.filters?.minItems>0 || p.orderBy?.minItems>0 || !admitsEmpty(p.filters) || !admitsEmpty(p.orderBy))return [branch];
                     const alternatives=[];
-                    const modes=p.mode.enum.filter(mode=>mode!=='count');
+                    const modes=p.mode.enum.filter(mode=>mode!==rejectedMode);
                     if(modes.length)alternatives.push({...branch,properties:{...p,mode:{...p.mode,enum:modes}}});
                     for(const key of ['filters','orderBy']){
                         const property=p[key];
@@ -254,7 +254,16 @@ function excludeReviewedQueryProjections(catalog,rejections) {
                         const values=property.enum?.filter(value=>Array.isArray(value)&&value.length);
                         if(values && !values.length)continue;
                         alternatives.push({...branch,required:[...new Set([...(branch.required||[]),key])],properties:{...p,
-                            mode:{...p.mode,enum:['count']},[key]:{...property,minItems:Math.max(1,property.minItems||0),...(values?{enum:values}:{})}}});
+                            mode:{...p.mode,enum:[rejectedMode]},[key]:{...property,minItems:Math.max(1,property.minItems||0),...(values?{enum:values}:{})}}});
+                    }
+                    // A first-page veto cannot remove an independently scoped
+                    // continuation. Keep grounded nonempty cursor alternatives.
+                    if(rejectedMode==='query' && p.cursor){
+                        const property=p.cursor,types=Array.isArray(property.type)?property.type:[property.type];
+                        const cursors=property.enum?.filter(value=>typeof value==='string'&&value.length);
+                        if(types.includes('string') && property.const===undefined && (!cursors||cursors.length))
+                            alternatives.push({...branch,required:[...new Set([...(branch.required||[]),'cursor'])],properties:{...p,
+                                mode:{...p.mode,enum:['query']},cursor:{...property,type:'string',minLength:1,...(cursors?{enum:cursors}:{})}}});
                     }
                     return alternatives;
                 });
@@ -3436,7 +3445,7 @@ async function runModelSemanticPlanner({
         // Rejections are decision history, never operational evidence. Reuse
         // only under the same instruction, identity, model and dependencies.
         const decisionCache=ai.objectiveCoverageCache || new Map();
-        const queryDecisionKey=call=>{
+        const queryDecisionKey=(call,populationOnly=false)=>{
             const {pageSize,...args}=call.args||{};
             const collections=new Set([args.collection]);
             for(const task of completedTasksForAudit){
@@ -3462,20 +3471,27 @@ async function runModelSemanticPlanner({
                 args.orderBy=args.orderBy?.length?args.orderBy:[{field:'__name__',direction:'asc'}];
                 args.cursor=args.cursor||null;
             }
-            return 'query-rejection:'+recordObjectiveRevision(
+            if(populationOnly)delete args.fields;
+            return (populationOnly?'query-population-rejection:':'query-rejection:')+recordObjectiveRevision(
                 {query:canonicalArgs({name:call.name,args}),instruction,objectives:missionState.evidenceObjectives},queryDependencies,recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content),model,missionState,evaluatedAt);
         };
-        const knownQueryRejection=call=>decisionCache.get(queryDecisionKey(call))?.queryRejection;
+        const knownQueryRejection=call=>decisionCache.get(queryDecisionKey(call))?.queryRejection ||
+            decisionCache.get(queryDecisionKey(call,true))?.queryRejection;
         const queryRejectionReceipt=error=>({code:error.message,proposed:{name:error.evidence?.tool,args:error.evidence?.proposed||error.evidence?.args},
-            limitation:error.evidence?.limitation || '',schemaDiscoveryRelevant:error.evidence?.schemaDiscoveryRelevant,requiresSourceEvidence:error.evidence?.requiresSourceEvidence,rejectionKind:error.evidence?.rejectionKind || 'semantic',operationalEvidence:false,objectiveSatisfied:false});
+            limitation:error.evidence?.limitation || '',schemaDiscoveryRelevant:error.evidence?.schemaDiscoveryRelevant,populationRelevance:error.evidence?.populationRelevance,requiresSourceEvidence:error.evidence?.requiresSourceEvidence,rejectionKind:error.evidence?.rejectionKind || 'semantic',operationalEvidence:false,objectiveSatisfied:false});
         const currentQueryRejections=()=>{
             const receipts=[];let bytes=2;
             for(const [key,value] of [...decisionCache.entries()].reverse()){
                 const receipt=value?.queryRejection;
-                if(!receipt || key!==queryDecisionKey(receipt.proposed))continue;
-                const cost=JSON.stringify(receipt).length+1;
+                const populationOnly=key.startsWith('query-population-rejection:');
+                if(!receipt || key!==queryDecisionKey(receipt.proposed,populationOnly))continue;
+                // The stronger engine-owned veto already represents this exact
+                // projection. Preserve budget for distinct rejected scopes.
+                if(!populationOnly && decisionCache.has(queryDecisionKey(receipt.proposed,true)))continue;
+                const boundedReceipt={...receipt,populationRejected:populationOnly};
+                const cost=JSON.stringify(boundedReceipt).length+1;
                 if(bytes+cost>2000)continue;
-                receipts.unshift(receipt);bytes+=cost;if(receipts.length===6)break;
+                receipts.unshift(boundedReceipt);bytes+=cost;if(receipts.length===6)break;
             }
             return receipts;
         };
@@ -3584,16 +3600,21 @@ async function runModelSemanticPlanner({
                             throw error;
                         }
                         const review=await ai.models.generateContent({model,contents:instruction,config:{semanticStage:"QUERY_POPULATION_VERIFICATION",temperature:0,maxOutputTokens:384,
-                            chatMessages:[{role:"system",content:call.args?.mode === "query" ? "Evalúa si esta inspección paginada puede aportar evidencia pertinente a ALGUNO de los objetivos pendientes. La inspección es un paso de investigación, no una respuesta ni un conteo final. Acepta matchesRequest=true si la fuente acredita la colección y campos pertinentes que se propone leer, aunque falten la clasificación de otros subconjuntos o relaciones que se investigarán después. No exijas que una sola lectura resuelva todos los objetivos. Rechaza campos, filtros o relaciones inventados y respeta el tenant y los permisos. Los objetos de escritura AST describen campos observados, no registros actuales. Si rechazas, explica la evidencia concreta faltante sin inventar nombres. Devuelve matchesRequest, schemaDiscoveryRelevant y rejectionReason (vacío si aceptas). matchesRequest decide si la proyección propuesta es pertinente. schemaDiscoveryRelevant sólo puede autorizar una alternativa de IDs en la misma ruta y filtros para descubrir nombres de campos útiles, sin acreditar valores ni cumplimiento; la evaluación de cumplimiento ocurre después de ejecutarlo. Esta revisión no concede acceso ni acredita resultados." : "Evalúa si este conteo del alcance propuesto aporta evidencia pertinente a ALGUNA parte del pedido. Es un paso de investigación, no la respuesta final. No combines objetivos distintos: contar registros no necesita resolver también asignaciones ni vencimientos. Acepta matchesRequest=true cuando la fuente acredite la colección y los filtros propuestos y contar ese alcance sea pertinente. filters=[] cuenta exclusivamente la colección observada; ese resultado no prueba automáticamente un subconjunto ni un total global y debe conservar esa limitación al responder. Si se propone un filtro para identificar un grupo, exige que su campo, valor y relación estén acreditados: Un estado KYC, validación, pantalla, flujo o función usada por ese grupo NO es por sí mismo el discriminador de pertenencia; tampoco lo prueba una condición de campo no vacío. Rechaza fuentes, filtros o relaciones inventados y cualquier intento de eludir tenant o permisos. No exijas que un solo conteo resuelva otros objetivos que necesitarán consultas posteriores. No inventes un filtro de documentos para una operación que sólo cuenta unidades. Devuelve matchesRequest, schemaDiscoveryRelevant y rejectionReason (vacío si aceptas). matchesRequest decide si la proyección propuesta es pertinente. schemaDiscoveryRelevant sólo puede autorizar una alternativa de IDs en la misma ruta y filtros para descubrir nombres de campos útiles, sin acreditar valores ni cumplimiento; la evaluación de cumplimiento ocurre después de ejecutarlo. Esta revisión no acredita resultados ni cumplimiento."},{role:"system",content:"Distingue conteo de población de inspección paginada. Para mode=query, una lectura de campos pertinentes en una colección acreditada puede servir para observar valores y relaciones sin afirmar pertenencia ni conteos de un subconjunto. No exijas inventar un discriminador para esa inspección; exige que la colección y los campos sean pertinentes al pedido, conserva filtros de tenant y permisos, y rechaza filtros sin evidencia. Para mode=count valida el alcance exacto de ese conteo como evidencia parcial pertinente; no lo confundas con el cumplimiento de todo el pedido."},...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),{role:"system",content:"observedFieldSchemas conserva campos acreditados por lecturas exitosas de la misma fuente o colección. Son evidencia de estructura para elegir una consulta, no valores operativos ni prueba de cumplimiento. Evalúa la pertinencia para al menos uno de los objetivos independientes."},{role:"user",content:JSON.stringify({request:instruction,objectives:missionState.evidenceObjectives||[],proposed:call.args,observedSource:source,observedFieldSchemas})}],
-                            responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{matchesRequest:{type:"boolean"},rejectionReason:{type:"string",maxLength:240,description:"Si rechazas, identifica la evidencia concreta faltante. No inventes campos, valores ni otra consulta."},schemaDiscoveryRelevant:{type:"boolean",description:"Aunque la proyección propuesta no aporte valores pertinentes, una lectura sólo de IDs en esta MISMA fuente, colección y filtros puede descubrir nombres de campos que permitan avanzar un objetivo pendiente. El runtime devuelve IDs y nombres acotados de campos de las filas autenticadas. No acredita valores, relaciones, fechas, clasificaciones ni cobertura global. No autorices una fuente ajena sólo por existir."}},required:["matchesRequest","schemaDiscoveryRelevant","rejectionReason"],additionalProperties:false}
+                            chatMessages:[{role:"system",content:call.args?.mode === "query" ? "Evalúa si esta inspección paginada puede aportar evidencia pertinente a ALGUNO de los objetivos pendientes. La inspección es un paso de investigación, no una respuesta ni un conteo final. Acepta matchesRequest=true si la fuente acredita la colección y campos pertinentes que se propone leer, aunque falten la clasificación de otros subconjuntos o relaciones que se investigarán después. No exijas que una sola lectura resuelva todos los objetivos. Rechaza campos, filtros o relaciones inventados y respeta el tenant y los permisos. Los objetos de escritura AST describen campos observados, no registros actuales. Si rechazas, explica la evidencia concreta faltante sin inventar nombres. Devuelve matchesRequest, schemaDiscoveryRelevant y rejectionReason (vacío si aceptas). matchesRequest decide si la proyección propuesta es pertinente. schemaDiscoveryRelevant sólo puede autorizar una alternativa de IDs en la misma ruta y filtros para descubrir nombres de campos útiles, sin acreditar valores ni cumplimiento; la evaluación de cumplimiento ocurre después de ejecutarlo. Esta revisión no concede acceso ni acredita resultados." : "Evalúa si este conteo del alcance propuesto aporta evidencia pertinente a ALGUNA parte del pedido. Es un paso de investigación, no la respuesta final. No combines objetivos distintos: contar registros no necesita resolver también asignaciones ni vencimientos. Acepta matchesRequest=true cuando la fuente acredite la colección y los filtros propuestos y contar ese alcance sea pertinente. filters=[] cuenta exclusivamente la colección observada; ese resultado no prueba automáticamente un subconjunto ni un total global y debe conservar esa limitación al responder. Si se propone un filtro para identificar un grupo, exige que su campo, valor y relación estén acreditados: Un estado KYC, validación, pantalla, flujo o función usada por ese grupo NO es por sí mismo el discriminador de pertenencia; tampoco lo prueba una condición de campo no vacío. Rechaza fuentes, filtros o relaciones inventados y cualquier intento de eludir tenant o permisos. No exijas que un solo conteo resuelva otros objetivos que necesitarán consultas posteriores. No inventes un filtro de documentos para una operación que sólo cuenta unidades. Devuelve matchesRequest, schemaDiscoveryRelevant y rejectionReason (vacío si aceptas). matchesRequest decide si la proyección propuesta es pertinente. schemaDiscoveryRelevant sólo puede autorizar una alternativa de IDs en la misma ruta y filtros para descubrir nombres de campos útiles, sin acreditar valores ni cumplimiento; la evaluación de cumplimiento ocurre después de ejecutarlo. Esta revisión no acredita resultados ni cumplimiento."},{role:"system",content:"Distingue conteo de población de inspección paginada. Para mode=query, una lectura de campos pertinentes en una colección acreditada puede servir para observar valores y relaciones sin afirmar pertenencia ni conteos de un subconjunto. No exijas inventar un discriminador para esa inspección; exige que la colección y los campos sean pertinentes al pedido, conserva filtros de tenant y permisos, y rechaza filtros sin evidencia. Para mode=count valida el alcance exacto de ese conteo como evidencia parcial pertinente; no lo confundas con el cumplimiento de todo el pedido."},...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),{role:"system",content:"observedFieldSchemas conserva campos acreditados por lecturas exitosas de la misma fuente o colección. Son evidencia de estructura para elegir una consulta, no valores operativos ni prueba de cumplimiento. Evalúa la pertinencia para al menos uno de los objetivos independientes."},{role:"system",content:"Separa la pertinencia de la población de la proyección: populationRelevance es relevant, irrelevant o unknown. Usa irrelevant sólo si la fuente, ruta y filtros acreditados describen una población ajena a TODOS los objetivos, independientemente de qué campos se lean. La falta de campos o un esquema incompleto no demuestra una población ajena: usa unknown; una proyección diferente con campos acreditados aún puede ser útil. Esta clasificación sólo restringe decisiones; nunca acredita datos ni cumplimiento."},{role:"user",content:JSON.stringify({request:instruction,objectives:missionState.evidenceObjectives||[],proposed:call.args,observedSource:source,observedFieldSchemas})}],
+                            responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{matchesRequest:{type:"boolean"},populationRelevance:{type:"string",enum:["relevant","irrelevant","unknown"]},rejectionReason:{type:"string",maxLength:240,description:"Si rechazas, identifica la evidencia concreta faltante. No inventes campos, valores ni otra consulta."},schemaDiscoveryRelevant:{type:"boolean",description:"Aunque la proyección propuesta no aporte valores pertinentes, una lectura sólo de IDs en esta MISMA fuente, colección y filtros puede descubrir nombres de campos que permitan avanzar un objetivo pendiente. El runtime devuelve IDs y nombres acotados de campos de las filas autenticadas. No acredita valores, relaciones, fechas, clasificaciones ni cobertura global. No autorices una fuente ajena sólo por existir."}},required:["matchesRequest","schemaDiscoveryRelevant","populationRelevance","rejectionReason"],additionalProperties:false}
                         }});
                         const verdict=extractJsonObject(String(review?.text||""));
                         if(review?.providerResponse?.finishReason==="length" || verdict?.matchesRequest!==true){
-                            const error=new Error("SEMANTIC_QUERY_SCOPE_UNVERIFIED");error.evidence={tool:call.name,proposed:call.args,schemaDiscoveryRelevant:verdict?.schemaDiscoveryRelevant,rejectionKind:review?.providerResponse?.finishReason==="length"?"truncated":"semantic",limitation:String(verdict?.rejectionReason||"Qwen no acreditó la pertinencia del alcance propuesto; esta decisión no demuestra ausencia de registros."),requiredNextStep:"Read or search the actual source definition before querying; do not repeat this unverified query or infer missing records."};
+                            const error=new Error("SEMANTIC_QUERY_SCOPE_UNVERIFIED");error.evidence={tool:call.name,proposed:call.args,schemaDiscoveryRelevant:verdict?.schemaDiscoveryRelevant,populationRelevance:verdict?.populationRelevance,rejectionKind:review?.providerResponse?.finishReason==="length"?"truncated":"semantic",limitation:String(verdict?.rejectionReason||"Qwen no acreditó la pertinencia del alcance propuesto; esta decisión no demuestra ausencia de registros."),requiredNextStep:"Read or search the actual source definition before querying; do not repeat this unverified query or infer missing records."};
                             // A truncated inference is retryable; only an
                             // explicit semantic rejection can be remembered.
                             if(review?.providerResponse?.finishReason!=="length" && verdict?.matchesRequest===false){
                                 decisionCache.set(queryDecisionKey(call),{queryRejection:queryRejectionReceipt(error)});
+                                // Only this engine-owned, explicit population verdict can
+                                // exclude different projections. Argument failures and
+                                // unknown/merely insufficient projections remain exact.
+                                if(call.args.mode==='query' && verdict.populationRelevance==='irrelevant' && verdict.schemaDiscoveryRelevant===false)
+                                    decisionCache.set(queryDecisionKey(call,true),{queryRejection:queryRejectionReceipt(error)});
                                 while(decisionCache.size>96)decisionCache.delete(decisionCache.keys().next().value);
                                 // The same semantic review may select a structural
                                 // probe, never a different population or invented
@@ -3775,7 +3796,7 @@ async function runModelSemanticPlanner({
                             ...(error ? [{role:"system",content:"RECHAZO_DE_ALCANCE="+JSON.stringify(queryRejectionReceipt(error))}] : []),
                             ...(sourceFallbackReaders.length?[{role:'system',content:'En esta única decisión de recuperación, si eliges otra consulta operativa conserva también UNA lectura o búsqueda NUEVA pertinente en sourceFallback por si su validación independiente la rechaza. Elige esa alternativa del catálogo de lectores de repositorio, con argumentos acreditados; nunca otra consulta operativa ni una acción repetida. Si la consulta es válida, la alternativa no se ejecuta. Si no existe una alternativa fundamentada, usa sourceFallback=[]. No concede permisos ni demuestra cumplimiento.'}]:[]),
                             {role:"system",content:"DECISIONES_RECHAZADAS="+JSON.stringify(currentQueryRejections())},
-                            {role:"system",content:"No repitas esas propuestas con las mismas dependencias. Son rechazos de decisiones, no consultas ejecutadas, ausencia de datos ni objetivos satisfechos. Otras proyecciones o consultas pertinentes de la misma colección siguen disponibles. Para repo.grep puedes usar identificadores completos, rutas de campos o fragmentos literales observados; no los reduzcas a palabras sueltas. Buscar una pista no acredita su existencia, su esquema ni valores operativos. La revisión independiente de cada objetivo indica las brechas que debe investigar la siguiente acción; no convierte esas brechas en campos ni resultados observados."},
+                            {role:"system",content:"No repitas esas propuestas con las mismas dependencias. Son rechazos de decisiones, no consultas ejecutadas, ausencia de datos ni objetivos satisfechos. populationRejected=true excluye esa población y modo con sus mismas dependencias aunque cambies proyección o tamaño de página. Un rechazo sólo de proyección conserva otras proyecciones acreditadas. Otros filtros, cursores y rutas conservan su validación independiente. Para repo.grep puedes usar identificadores completos, rutas de campos o fragmentos literales observados; no los reduzcas a palabras sueltas. Buscar una pista no acredita su existencia, su esquema ni valores operativos. La revisión independiente de cada objetivo indica las brechas que debe investigar la siguiente acción; no convierte esas brechas en campos ni resultados observados."},
                             ...auditTasks.map(task=>({role:"system",content:"EVIDENCIA_OBTENIDA="+JSON.stringify(task)})),
                             {role:"system",content:"ESQUEMAS_DE_ESCRITURA_OBSERVADOS_POR_AST="+JSON.stringify(observedSchemaHints)},
                             ...(missionState.blockedTasks||[]).slice(-8).map(task=>({role:"system",content:"INTENTO_FALLIDO="+JSON.stringify({name:task.name,args:task.args,observation:task.observation})})),
