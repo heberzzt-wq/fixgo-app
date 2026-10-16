@@ -1,5 +1,26 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `208291100e02978e483baf8f0d1d106e58c21a98`.
+Only the semantic planner changed in Functions since a18bdfa2.
+Reviewed queued source-window grounding, preference for already credited pending
+record sources, and user-only advisory history for typed record investigations.
+Query review now receives bounded per-objective source-role decisions from the
+engine-owned coverage cache/current independent audit. Exact collection matching
+preserves route separation. These roles grant no fields, joins, operational values
+or objective completion. Caller coverage cannot supply them. Existing field,
+projection, authorization, repeated-query and independent closing guards remain.
+Generic full-loop regressions cover related, unrelated and sibling routes,
+retained source windows and immutable pending platform-record objectives.
+Frozen full local emulator suite: 2320 PASS, 0 FAIL, 2 physical skips,
+2322 tests, 294892.6693ms, exit 0. Focused recovery checks: 367 PASS.
+A saved-trace isolated sole-Qwen3.5:9b replay accepted the related source;
+it is not a physical mission certificate. Physical repository search and the
+clean Chrome mission remain separate gates. No external AI/provider fallback,
+Functions deploy, permission changes or operational data writes are introduced.
+Future unreviewed Functions changes still fail closed.
+
+Previous review:
+
 Current baseline: `a18bdfa2807a444c6bc4ea2f46bab524876197dc`.
 Only the semantic planner changed in Functions since2c5ed2c8.
 The e73 real run spent403427ms in independent coverage/source checks out of
