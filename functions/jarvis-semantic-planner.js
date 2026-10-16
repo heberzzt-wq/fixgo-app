@@ -4211,6 +4211,33 @@ async function runModelSemanticPlanner({
                 });
                 if(!nextReaders.length)return null;
                 nextReaders=excludeReviewedQueryProjections(nextReaders,currentQueryRejections());
+                const requiredProjection=error?.evidence?.objectiveFieldRequirements;
+                const rejectedQuery={name:error?.evidence?.tool,args:error?.evidence?.proposed};
+                const recordGoals=(missionState.evidenceObjectives||[]).flatMap((goal,index)=>goal.requiredEvidenceKind==='platform_records'?[String(index)]:[]);
+                const requiredFieldsAlreadyRead=!initialDecision && rejectedQuery.args?.mode==='query' &&
+                    !rejectedQuery.args.cursor && !rejectedQuery.args.filters?.length &&
+                    JSON.stringify(recordQueryOrder(rejectedQuery.args.orderBy||[]))===JSON.stringify([{field:'__name__',direction:'asc'}]) &&
+                    error?.evidence?.rejectionKind==='semantic' && recordGoals.length>0 && recordGoals.every(index=>
+                        requiredProjection?.[index]?.length>0 && requiredProjection[index].every(field=>
+                            recordProjectionAlreadyObserved({...rejectedQuery,args:{...rejectedQuery.args,fields:[field]}},completedTasksForAudit)));
+                if(requiredFieldsAlreadyRead){
+                    // This recovery decision must investigate the remaining
+                    // source gap, not pad optional columns onto a vetoed read.
+                    // Never persist this as population exhaustion or coverage.
+                    nextReaders=nextReaders.flatMap(tool=>{
+                        if(tool.name!==rejectedQuery.name)return [tool];
+                        const schema=buildNativeInputSchema(tool.inputSchema);
+                        const emptyOnly=property=>!property || property.maxItems===0 ||
+                            JSON.stringify(property.const)==='[]' || Array.isArray(property.enum)&&property.enum.every(value=>JSON.stringify(value)==='[]');
+                        const branches=(schema.anyOf||[schema]).filter(branch=>{
+                            const p=branch.properties;
+                            return p?.sourceFile?.enum?.length!==1 || p.sourceFile.enum[0]!==rejectedQuery.args.sourceFile ||
+                                p.collection?.enum?.length!==1 || p.collection.enum[0]!==rejectedQuery.args.collection ||
+                                (branch.required||[]).includes('cursor') || !emptyOnly(p.filters) || !emptyOnly(p.orderBy);
+                        });
+                        return branches.length?[{...tool,inputSchema:branches.length===1?branches[0]:{anyOf:branches}}]:[];
+                    });
+                }
                 if(!nextReaders.length)return null;
                 const sourceFallbackReaders=initialDecision?[]:nextReaders.filter(tool=>(tool.evidenceKinds||[]).some(kind=>
                     ['repository_source','repository_search','repository_inventory'].includes(kind)));
@@ -4239,6 +4266,7 @@ async function runModelSemanticPlanner({
                             }).filter(file=>pendingCandidateFiles.includes(file)))])},
                             {role:"system",content:"LECTURAS_PARCIALES="+JSON.stringify(partialReads.map(read=>({...read,schemaAnchors:read.schemaAnchors.map(({fields,...anchor})=>anchor)})))},
                             ...(error ? [{role:"system",content:"RECHAZO_DE_ALCANCE="+JSON.stringify(queryRejectionReceipt(error))}] : []),
+                            ...(requiredFieldsAlreadyRead?[{role:'system',content:'RECUPERACION_DE_FUENTE: todos los campos que la revisión independiente identificó para cada objetivo ya se leyeron en la ruta rechazada. Esa ruta no se ofrece otra vez en esta decisión: elige otra fuente acreditada o una lectura/búsqueda pertinente para cubrir la brecha. Esto no agota la colección, no acredita otras fuentes y no completa ningún objetivo.'}]:[]),
                             ...(sourceFallbackReaders.length?[{role:'system',content:'En esta única decisión de recuperación, si eliges otra consulta operativa conserva también UNA lectura o búsqueda NUEVA pertinente en sourceFallback por si su validación independiente la rechaza. Elige esa alternativa del catálogo de lectores de repositorio, con argumentos acreditados; nunca otra consulta operativa ni una acción repetida. Si la consulta es válida, la alternativa no se ejecuta. Si no existe una alternativa fundamentada, usa sourceFallback=[]. No concede permisos ni demuestra cumplimiento.'}]:[]),
                             {role:"system",content:"DECISIONES_RECHAZADAS="+JSON.stringify(currentQueryRejections())},
                             {role:"system",content:"No repitas esas propuestas con las mismas dependencias. Son rechazos de decisiones, no consultas ejecutadas, ausencia de datos ni objetivos satisfechos. populationRejected=true excluye esa población y modo con sus mismas dependencias aunque cambies proyección o tamaño de página. Un rechazo sólo de proyección conserva otras proyecciones acreditadas. Otros filtros, cursores y rutas conservan su validación independiente. Para repo.grep puedes usar identificadores completos, rutas de campos o fragmentos literales observados; no los reduzcas a palabras sueltas. Buscar una pista no acredita su existencia, su esquema ni valores operativos. La revisión independiente de cada objetivo indica las brechas que debe investigar la siguiente acción; no convierte esas brechas en campos ni resultados observados."},

@@ -5698,12 +5698,13 @@ for(const seedMode of ['query','count'])test('fresh runtime '+seedMode+' evidenc
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
 
-for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','bounded-localized-catalog','complete-query-count-facts','credited-source-alias','projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
- const projectionCase=['projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction'].includes(variant);
+for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','bounded-localized-catalog','complete-query-count-facts','credited-source-alias','projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction','projection-known-requirements','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
+ const projectionCase=['projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction','projection-known-requirements'].includes(variant);
  const f=completeScalarPopulationFixture();
  if(projectionCase){
   const read=f.context.completedTasks[0].observation.verifiedRead;
   read.content=read.content.replace('deadline:input.deadline','deadline:input.deadline,auditStamp:input.auditStamp').replace('collection(db,"registry",tenantId,"entries")','collection(db,"registry","approved","entries")');
+  if(variant==='projection-known-requirements')read.content+=';async function related(db){const ref=collection(db,"registry","approved","people");await addDoc(ref,{holder:input.holder,deadline:input.deadline});}';
   read.sourceStructure=analyzeRepoSourceStructure(read.content);
   f.args.collection='registry/approved/entries';
  }
@@ -5725,6 +5726,7 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  if(variant==='projection-default-id-order')rejected.args.orderBy=[{field:'__name__',direction:'asc'}];
  if(variant==='projection-implicit-id-direction')rejected.args.orderBy=[{field:'__name__'}];
  const valid={name:query.name,args:{...f.args,fields:variant==='single-projection'?['holder','deadline']:['deadline']}};
+ if(variant==='projection-known-requirements')valid.args.collection='registry/approved/people';
  const aliasContent='async function read(db){const ref=collection(db,"registry","approved","entries");await addDoc(ref,{marker:input.marker,holder:input.holder,deadline:input.deadline});await getDocs(ref);}';
  if(variant==='credited-source-alias'){
   reader.inputSchema.properties.file.enum.push('alternate.js');
@@ -5734,6 +5736,7 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  }
  if(variant==='later-equality-query')valid.args.filters=[{field:'marker',op:'==',value:'Observed-class'}];
  const seedCalls=[{name:query.name,args:f.args},...(variant==='single-projection'?[]:[{name:query.name,args:{...f.args,fields:['holder']}}])];
+ if(variant==='projection-known-requirements')seedCalls[1].args.fields=['holder','deadline'];
  if(variant==='filtered-full-projection')seedCalls[1].args.filters=[{field:'marker',op:'==',value:'Observed-class'}];
  const initialReads=[{name:reader.name,args:{file:'source.js'}},...(variant==='credited-source-alias'?[{name:reader.name,args:{file:'alternate.js'}}]:[])];
  const initialCount=initialReads.length+seedCalls.length;
@@ -5774,16 +5777,16 @@ for(const variant of ['single-projection','later-projection','later-null-query',
    offeredValid=choices.some(choice=>hasRequiredToolArguments({inputSchema:choice.properties.args},valid.args));
    return{text:JSON.stringify({toolCalls:[rejected]})};
   }
-  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){assert.equal(stages.filter(item=>item==='RECORD_OBJECTIVE_COVERAGE').length,3,'rejection alone cannot repeat the initial value reviews');assert.equal(stages.filter(item=>item==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,3,'rejection alone cannot repeat the initial source reviews');recoveries++;if(variant.startsWith('projection-')&&variant.includes('id-')){const repeated={...rejected,args:{...rejected.args,orderBy:[]}};assert.equal(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(query.name)&&hasRequiredToolArguments({inputSchema:choice.properties.args},repeated.args)),false,'explicit automatic document ordering cannot reoffer a rejected projection after removing orderBy');}return{text:JSON.stringify({toolCalls:[valid],sourceFallback:[]})};}
+  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){assert.equal(stages.filter(item=>item==='RECORD_OBJECTIVE_COVERAGE').length,3,'rejection alone cannot repeat the initial value reviews');assert.equal(stages.filter(item=>item==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,3,'rejection alone cannot repeat the initial source reviews');recoveries++;if(variant==='projection-known-requirements'){const padded={...rejected.args,fields:['auditStamp','holder']};assert.equal(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(query.name)&&hasRequiredToolArguments({inputSchema:choice.properties.args},padded)),false,'when every independently required field is already observed, recovery must seek a different credited source rather than pad the rejected projection');}if(variant.startsWith('projection-')&&(variant.includes('id-')||variant==='projection-known-requirements')){const repeated={...rejected,args:{...rejected.args,orderBy:[]}};assert.equal(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(query.name)&&hasRequiredToolArguments({inputSchema:choice.properties.args},repeated.args)),false,'explicit automatic document ordering cannot reoffer a rejected projection after removing orderBy');}return{text:JSON.stringify({toolCalls:[valid],sourceFallback:[]})};}
   if(stage==='QUERY_POPULATION_VERIFICATION'){
    if(projectionCase){
     const packet=JSON.parse(request.config.chatMessages.at(-1).content),useful=packet.proposed.fields.includes('deadline');
-    assert.ok(packet.sameRouteObservations.some(fact=>fact.fieldsRead.includes('holder')&&fact.scalarValuesObserved.holder===1&&fact.completeForQuery===true),'projection review needs scoped already-read field coverage, not just a related collection');
+    if(!(variant==='projection-known-requirements'&&useful))assert.ok(packet.sameRouteObservations.some(fact=>fact.fieldsRead.includes('holder')&&fact.scalarValuesObserved.holder===1&&fact.completeForQuery===true),'projection review needs scoped already-read field coverage, not just a related collection');
     assert.ok(packet.observedScalarValues.some(fact=>fact.collection===f.args.collection&&fact.sourceFile===f.args.sourceFile&&fact.distinctValuesByField.holder?.values.includes('Registered holder')),'already observed values must survive in their own authenticated route rather than being reduced to field names');
     assert.ok(packet.observedScalarValues.every(fact=>fact.joinedRows===false&&fact.grantsFieldAuthorization===false&&fact.objectiveSatisfied===false));
     assert.ok(JSON.stringify([packet.sameRouteObservations,packet.observedScalarValues]).length<=3200,'existing observation context stays inside its shared fixed budget');
     assert.ok(request.config.responseJsonSchema.required.includes('objectiveFields'));
-    return{text:JSON.stringify({matchesRequest:true,objectiveMatches:{'0':false,'1':!useful,'2':useful},objectiveFields:{'0':[],'1':useful?[]:['holder'],'2':useful?['deadline']:[]},populationRelevance:'relevant',schemaDiscoveryRelevant:false,rejectionReason:useful?'':'No projected field supplies a missing goal.'})};
+    return{text:JSON.stringify({matchesRequest:true,objectiveMatches:{'0':false,'1':!useful,'2':useful},objectiveFields:variant==='projection-known-requirements'&&!useful?{'0':['marker'],'1':['holder'],'2':['deadline']}:{'0':[],'1':useful?[]:['holder'],'2':useful?['deadline']:[]},populationRelevance:'relevant',schemaDiscoveryRelevant:false,rejectionReason:useful?'':'No projected field supplies a missing goal.'})};
    }
    return queryReviewFixture(request,{"matchesRequest":true,"schemaDiscoveryRelevant":false,"rejectionReason":""});
   }
@@ -5825,6 +5828,6 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  assert.equal(f.calls.filter(call=>call.kind==='count').length,0,'ignoring the native frontier cannot reach the count SDK');
  assert.equal(f.calls.filter(call=>call.kind==='query').length,seedCalls.length+1,'the rejected equality must not reach the query SDK either');
  assert.equal(stages.filter(stage=>stage==='RECORD_OBJECTIVE_COVERAGE').length,6,'initial and newly read operational values independently inform each original goal');
- assert.equal(stages.filter(stage=>stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,['schema-growth','credited-source-alias'].includes(variant)?6:3,'new field names or the first authenticated field receipt for a separately credited module invalidate its own source review');
+ assert.equal(stages.filter(stage=>stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,['schema-growth','credited-source-alias','projection-known-requirements'].includes(variant)?6:3,'new field names or the first authenticated field receipt for a separately credited module invalidate its own source review');
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
