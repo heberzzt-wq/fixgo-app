@@ -1,5 +1,36 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `6ef3c8abb8a7908ae5a750e1e7df252f08d32c68`.
+Only the semantic planner changed in Functions since 300d4110.
+The clean 75c9825d Chrome mission ended PARTIAL after 42 local calls
+(596804 ms wall), with all three goals pending. Repeated reads were blocked,
+but selection still returned exhausted aggregates instead of unread values.
+The text catalog discarded array item/tuple/field/operator choices retained
+in native grammar. It now shows those same correlated constraints, sharing
+only byte-identical profitable descriptions in local same-tool definitions.
+SourceFile and collection remain explicit per binding; native grammar is full.
+For a complete unchanged authenticated population, prefer a never-attempted
+authorized unfiltered projection when it supplies the missing dependency.
+Count-only access, mandatory scope, partial/foreign/changed populations and
+inconclusive prior projections remain open. A dominated query must project
+a new field before varying unread predicates or ordering; a scalar witness
+cannot justify array membership. This is an action frontier, never goal proof.
+Full runtime proposal/rejection/recovery/next-decision tests cover text field
+visibility, own-source association, unread count alternatives, array types
+and redundant ordering. Fifteen added access/type boundaries preserve scope.
+The first full suite caught two real 60000-character context regressions.
+Production compact sharing/type-description fixes resolved them with those
+captured Chrome tests unchanged, including terminal permission denial and
+exact native grammar. Focused including context: 471 PASS. Final frozen full
+local emulator suite: 2290 PASS, 0 FAIL, 2 skips (2292 tests, 283814.6061 ms),
+exit receipt0. Same9B historical-deficit replay now chooses an unread field
+in14696ms at48064chars; that isolated replay is not mission certification.
+Fresh physical repo search and the original clean Chrome mission remain gates.
+No model/provider/permission changes, external AI calls or operational writes.
+Future unreviewed Functions deltas still fail closed.
+
+## Previous reviewed baseline
+
 Current baseline: `300d4110b06a41fab6af609110f40489dc474e38`.
 Only the semantic planner changed in Functions since 61a8844f.
 The 5c736b45 clean Chrome diagnostic proved count-to-row advancement, then
