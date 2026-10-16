@@ -1,5 +1,30 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `5f7e0a59bcdee1e2aede9fc33fb3e686e996cf28`.
+Only two narrow planner rules changed in Functions since d41d989c.
+The 98f11107 real Chrome diagnostic selected a server count, revealing that its
+exact authenticated source/template/route association was omitted by query-only
+alias transport. That diagnostic stopped after 21 local calls and 250125 ms;
+no operational objective or business certification was declared complete.
+Scope identity transport now accepts either real runtime count or query receipts,
+with the same authentication, own-source, exact-route and budget checks.
+An unrestricted zero aggregate also has no operational date values: unchanged
+engine-owned negative coverage can reuse the existing within-day empty-evidence
+cache without manufacturing row/page flags. Nonzero counts, temporal filters,
+source exclusions, UTC date changes and observed dates retain fresh review.
+Real executePlatformQuery producer receipts exercise both modes through schema
+transport and full proposal/rejection/recovery/next-decision loops. A red cache
+regression reproduced a fourth review after a clock tick with only three unchanged
+objectives; it now reuses the pending proof. Safety-boundary cases remain pending.
+Focused checks: 371 PASS before the four additional count cache boundary cases;
+all five cache variants passed separately. Final frozen root suite with local
+Firestore/Storage emulators: 2220 PASS, 0 FAIL, 2 environment skips.
+Physical search and clean Chrome mission remain separate acceptance gates.
+No model/provider/access change, external AI call or operational data write.
+Subsequent unreviewed Functions deltas still fail closed.
+
+## Previous reviewed baseline
+
 Current baseline: `d41d989cce618d51a83f2bbc91d670bb1bb5f970`.
 Only the semantic planner changed in Functions since 7e68be30.
 The 2fd645f4 Chrome diagnostic reached the real vehicle/insurance records but
