@@ -1,5 +1,24 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `3722cd657a707bbe6571a78eae2d7a7108158068`.
+Only the semantic planner changed in Functions since53b0249e.
+The real clean Chrome mission ended PARTIAL after36local calls (464675ms engine,
+528362ms wall): recovery reoffered the rejected projection under automatic ID
+ordering. The raw isolated same9B replay reproduced that repeat and empty fallback.
+Match runtime ordering in rejection identity and native exclusion: omitted order
+and document ID ascending are equivalent; real order/filter/cursor/route scopes
+remain independent. Preserve the novel-field tuple when removing a rejected
+single-field projection; keep other credited fields and larger projections.
+Two generic full runtime cycles fail before the fix and pass after it, including
+implicit ascending direction. They prove valid unread fields can advance and all
+three objectives remain pending without operational coverage.
+Focused493PASS; frozen full local emulator suite2307PASS,0FAIL,2physical skips
+(2309tests,192550.3907ms), exit0. No provider/model changes or paid/external AI.
+This is not real-mission certification. Future unreviewed Functions fail closed.
+
+Previous review:
+
+
 Current baseline: `059a91f60fb21bca907fa69cd4a0aaba81ffff24`.
 Only the semantic planner changed in Functions since212eb931.
 The stopped real diagnostic used79local calls in1632458ms and still admitted
