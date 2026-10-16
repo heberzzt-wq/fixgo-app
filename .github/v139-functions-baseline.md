@@ -1,5 +1,22 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `98bb40b42c2bf2c18290f7bf01d33252188396bc`.
+The only Functions delta since 8b5977ed is the semantic planner recovery boundary.
+A new full mission-loop regression reproduced a repeated primary discarding its
+valid same-response repository alternative and spending another recovery call.
+The same bounded alternative now survives semantic, repeated and argument-invalid
+primaries, subject to the original read-only, schema, source and deduplication
+checks. Unknown, repeated and operational alternatives never execute; a successful
+primary never executes its alternative. No additional model call is introduced
+when that alternative is usable. All three operational goals remain pending.
+Focused integration: 31 PASS. Full root suite with local Firestore/Storage emulators:
+2170 PASS, 0 FAIL, 2 environment skips. Physical repo.search and the clean Chrome
+mission remain separate acceptance gates; this baseline does not certify them.
+No model/provider/access change, no operational data writes. Subsequent unreviewed
+Functions changes still fail closed.
+
+## Previous reviewed baseline
+
 Current baseline: `8b5977ed61929b05690ddba4d0543212e3105e59`.
 Only the semantic planner changed in Functions since c144bece. The real Chrome
 attempt on 6ccdb0e7 exposed repeated scope verification of changed projections;
