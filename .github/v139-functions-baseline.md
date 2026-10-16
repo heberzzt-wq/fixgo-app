@@ -1,5 +1,31 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `a8b0802dfbe59256dcb72019383cb028570f25ed`.
+Only the semantic planner changed in Functions since 5f7e0a59.
+The 3dcbf4d8 Chrome diagnostic made 58 local calls without closing any of the
+three objectives. It counted a scalar subset after the authenticated complete
+population and its scalar values had already been read. It was stopped with
+receipts retained and is not a successful business certification.
+The existing observed-equality frontier is shared with count deduplication:
+a complete unfiltered, unpaged, consistent authenticated population can suppress
+another count over already projected non-null scalar fields of its own route.
+This changes available investigation actions, never objective coverage or values.
+Missing fields, partial pages, cursors, truncated/ambiguous values, changed data,
+foreign sources and other organizations retain their independent read paths.
+A mixed predicate can advance with its unprojected field first; AND order does
+not change its scope. New projections remain available after rejection/recovery.
+A regression using real executePlatformQuery receipts reproduces the full
+proposal/rejection/recovery/next-decision cycle; the prior revision fails it.
+Seventeen producer-boundary cases retain the trust, route and snapshot checks.
+Extracted-function tests load the real new dependencies without replacing them.
+Focused checks: 365 PASS. Frozen full root suite with local Firestore/Storage
+emulators: 2238 PASS, 0 FAIL, 2 environment skips (2240 tests).
+Physical search and the clean complete Chrome mission remain separate gates.
+No model/provider/access change, external AI call or operational data write.
+Subsequent unreviewed Functions deltas still fail closed.
+
+## Previous reviewed baseline
+
 Current baseline: `5f7e0a59bcdee1e2aede9fc33fb3e686e996cf28`.
 Only two narrow planner rules changed in Functions since d41d989c.
 The 98f11107 real Chrome diagnostic selected a server count, revealing that its
