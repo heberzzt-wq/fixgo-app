@@ -63,7 +63,7 @@ function observedScalarPopulation(tasks,sourceFile,collection,toolName,fields) {
         orderBy:args?.orderBy?.length?args.orderBy:[{field:'__name__',direction:'asc'}],cursor:args?.cursor||null}));
     const successful=tasks.filter(task=>task.observation?.ok===true&&task.observation.executionOk!==false&&
         task.observation.blocked!==true&&task.observation.requiresInput!==true);
-    const task=successful.filter(task=>{const record=task.observation.recordEvidence,scope=record?.scope;
+    const candidates=successful.filter(task=>{const record=task.observation.recordEvidence,scope=record?.scope;
         return task.name===toolName&&record?.source==='FIRESTORE_SERVER_AUTHENTICATED'&&record.readOnly===true&&
             matchesRecordedQueryCollection(task.args?.collection,task)&&matchesRecordedQueryCollection(collection,task)&&
             scopeKey(task.args)===scopeKey(scope)&&scope.sourceFile===sourceFile&&task.args?.mode==='query'&&scope.mode==='query'&&
@@ -73,9 +73,14 @@ function observedScalarPopulation(tasks,sourceFile,collection,toolName,fields) {
             !record.truncatedFields?.length&&Array.isArray(record.rows)&&record.rows.length>0&&record.rows.length===record.returnedCount&&
             (record.totalCount==null||record.totalCount===record.rows.length)&&
             record.rows.every(row=>typeof row.id==='string'&&row.id)&&new Set(record.rows.map(row=>row.id)).size===record.rows.length;
-    }).at(-1);
-    if(!task)return null;
-    const record=task.observation.recordEvidence,projected=record.scope.fields||[];
+    });
+    const latest=candidates.at(-1);
+    if(!latest)return null;
+    // The same template may not transfer a projection between authenticated
+    // organizations, even if their document IDs happen to be identical.
+    if(new Set(candidates.map(task=>task.observation.recordEvidence.scope.collection)).size!==1)return null;
+    const latestIds=new Set(latest.observation.recordEvidence.rows.map(row=>row.id));
+    const projected=(record,field)=>(record.scope.fields||[]).some(parent=>field===parent||field.startsWith(parent+'.'));
     const scalarAt=(row,field)=>{
         let value=row.values;
         if(Object.prototype.hasOwnProperty.call(value||{},field))value=value[field];
@@ -86,33 +91,50 @@ function observedScalarPopulation(tasks,sourceFile,collection,toolName,fields) {
         return {observed:typeof value==='boolean'||typeof value==='string'&&value.length<=512||
             typeof value==='number'&&Number.isFinite(value),value};
     };
+    const unchangedAfter=(task,field=null)=>{
+        const record=task.observation.recordEvidence,previousRows=new Map(record.rows.map(row=>[row.id,row]));
+        for(const later of successful.slice(successful.indexOf(task)+1)){
+            const next=later.observation.recordEvidence,scope=next?.scope;
+            if(next?.source!=='FIRESTORE_SERVER_AUTHENTICATED'||next.readOnly!==true||scope?.collection!==record.scope.collection)continue;
+            const names=next.fieldSchema;
+            if(field&&names?.source==='SERVER_RECORD_FIELD_NAMES'&&names.collection===scope.collection&&
+                names.completeForObservedRows===true&&next.rows?.length>0&&names.sampledRows===next.rows.length&&Array.isArray(names.paths)&&
+                (!names.paths.includes(field)||names.paths.some(path=>path.startsWith(field+'.'))))return false;
+            if(field&&projected(next,field)&&(next.truncatedFields||[]).some(item=>(typeof item==='string'?item:item?.field)===field))return false;
+            if(next.consistentCountAndList===false||Number.isInteger(next.totalCount)&&next.totalCount>record.rows.length)return false;
+            if(!(scope.filters||[]).length&&!scope.cursor&&(scope.orderBy||[]).every(order=>order.field==='__name__')&&
+                (next.hasMore===true||Number.isInteger(next.totalCount)&&next.totalCount!==record.rows.length||
+                    next.completeForQuery===true&&Array.isArray(next.rows)&&next.rows.length!==record.rows.length))return false;
+            for(const row of next.rows||[]){
+                const prior=previousRows.get(row.id);
+                if(!prior)return false;
+                if(field){
+                    const observed=scalarAt(row,field);
+                    // Null/missing/truncated later projections are uncertainty,
+                    // not permission to keep an older exhaustive scalar set.
+                    if(projected(next,field)&&!observed.observed)return false;
+                    if(observed.observed&&!Object.is(observed.value,scalarAt(prior,field).value))return false;
+                }
+            }
+        }
+        return true;
+    };
+    if(!unchangedAfter(latest))return null;
     const known=new Map();
     for(const field of fields){
-        if(!projected.some(parent=>field===parent||field.startsWith(parent+'.')))continue;
+        // A new projection does not erase earlier fields. Each field keeps its
+        // own latest complete witness over the SAME authenticated row IDs.
+        const task=candidates.filter(task=>projected(task.observation.recordEvidence,field)).at(-1);
+        if(!task)continue;
+        const record=task.observation.recordEvidence;
+        if(record.rows.length!==latestIds.size||record.rows.some(row=>!latestIds.has(row.id)))continue;
         const values=[];
         for(const row of record.rows){
             const scalar=scalarAt(row,field);
             if(!scalar.observed){values.length=0;break;}
             if(!values.some(value=>Object.is(value,scalar.value)))values.push(scalar.value);
         }
-        if(values.length)known.set(field,values);
-    }
-    const previousRows=new Map(record.rows.map(row=>[row.id,row]));
-    for(const later of successful.slice(successful.indexOf(task)+1)){
-        const next=later.observation.recordEvidence,scope=next?.scope;
-        if(next?.source!=='FIRESTORE_SERVER_AUTHENTICATED'||next.readOnly!==true||scope?.collection!==record.scope.collection)continue;
-        if(Number.isInteger(next.totalCount)&&next.totalCount>record.rows.length)return null;
-        if(!(scope.filters||[]).length&&!scope.cursor&&(scope.orderBy||[]).every(order=>order.field==='__name__')&&
-            (next.hasMore===true||Number.isInteger(next.totalCount)&&next.totalCount!==record.rows.length||
-                next.completeForQuery===true&&Array.isArray(next.rows)&&next.rows.length!==record.rows.length))return null;
-        for(const row of next.rows||[]){
-            const prior=previousRows.get(row.id);
-            if(!prior)return null;
-            for(const field of known.keys()){
-                const latest=scalarAt(row,field);
-                if(latest.observed&&!Object.is(latest.value,scalarAt(prior,field).value))return null;
-            }
-        }
+        if(values.length&&unchangedAfter(task,field))known.set(field,values);
     }
     return known;
 }
@@ -1381,10 +1403,15 @@ async function reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks,
         const sourceNames=[...scopeSources].sort();
         const messages=scopeReviewRequest.config.chatMessages;
         const last=messages.at(-1),payload=JSON.parse(last.content);
+        // Scope relevance consumes schema, not operational values or receipt
+        // positions. Normalize sets without merging files, routes or actors.
+        const ordered=items=>items.sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
+        const definitions=ordered(payload.sourceDefinitions.map(definition=>({...definition,fields:[...definition.fields].sort()})));
+        const aliases=ordered([...new Map(payload.authenticatedSourceAliases.map(({taskIndex,...alias})=>[JSON.stringify(alias),alias])).values()]);
         const schema=scopeReviewRequest.config.responseJsonSchema;
         const relevance=schema.properties.sourceRelevance;
         scopeCacheRequest={...scopeReviewRequest,config:{...scopeReviewRequest.config,
-            chatMessages:[...messages.slice(0,-1),{...last,content:JSON.stringify({...payload,sources:sourceNames})}],
+            chatMessages:[...messages.slice(0,-1),{...last,content:JSON.stringify({...payload,sources:sourceNames,sourceDefinitions:definitions,authenticatedSourceAliases:aliases})}],
             responseJsonSchema:{...schema,properties:{...schema.properties,sourceRelevance:{...relevance,
                 properties:Object.fromEntries(sourceNames.map(name=>[name,relevance.properties[name]])),required:sourceNames}}}}};
     }
@@ -4078,7 +4105,7 @@ async function runModelSemanticPlanner({
             if(!proof){
                 proof=await reviewRecordObjectiveCoverage({ai,model,objective:{objective:contract.objective,requiredEvidenceKind:contract.requiredEvidenceKind},
                     contract,tasks:completedTasksForAudit,advisoryContext,scopeClarifications:clarifications,evaluatedAt,instruction,
-                    scopeReviewCacheKey:recordObjectiveRevision({...contract,coverageMode:'source_scope'},completedTasksForAudit,clarifications,model,missionState,null)});
+                    scopeReviewCacheKey:recordObjectiveRevision({...contract,coverageMode:'source_scope'},[],clarifications,model,missionState,null)});
                 coverageCache.set(revision,structuredClone(proof));
                 coverageCache.delete(dependencyKey);coverageCache.set(dependencyKey,structuredClone(proof));
                 const proofRevision=recordObjectiveRevision(contract,completedTasksForAudit,clarifications,model,missionState,evaluatedAt,proof);
@@ -4278,7 +4305,7 @@ async function runModelSemanticPlanner({
                         if(objective.requiredEvidenceKind==="platform_records" && contract?.coverageMode &&
                             (objective.satisfied || previouslySatisfied || (!evaluatedAudit.toolCalls?.length && hasAuthenticatedRecords))) {
                             objective.coverageProof=await reviewRecordObjectiveCoverage({ai,model,objective,contract,tasks:completedTasksForAudit,advisoryContext,scopeClarifications:clarifications,evaluatedAt,instruction,
-                                scopeReviewCacheKey:recordObjectiveRevision({...contract,coverageMode:'source_scope'},completedTasksForAudit,clarifications,model,missionState,null)});
+                                scopeReviewCacheKey:recordObjectiveRevision({...contract,coverageMode:'source_scope'},[],clarifications,model,missionState,null)});
                             coverageCache.set(revision,structuredClone(objective.coverageProof));
                             coverageCache.delete(dependencyKey);coverageCache.set(dependencyKey,structuredClone(objective.coverageProof));
                             coverageCache.set(recordObjectiveRevision(contract,completedTasksForAudit,clarifications,model,missionState,evaluatedAt,objective.coverageProof),structuredClone(objective.coverageProof));

@@ -9,7 +9,7 @@ function fixture(){
  const contract={objective:'Inspect registered deadlines',requestQuote:'Inspect registered deadlines',requiredEvidenceKind:'platform_records',coverageMode:'temporal',scope:'all_sources',groups:['entries']};
  const tool={name:'fixture.records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{collection:{type:'string'}},required:['collection']}};
  const tasks=[{name:'repo.read',observation:{ok:true,verifiedRead:{file:'source.js',content:'Observed deadline schema',sourceStructure:{dataBindings:{collections:['registry','pending'],writeShapes:[{collection:'registry',fields:['stamp']},{collection:'pending',fields:['stamp']}]}}}}},
-  {name:tool.name,args:{collection:'registry'},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',mode:'query',fields:['stamp'],filters:[],orderBy:[]},rows:[],totalCount:0,returnedCount:0,hasMore:false,queryExhausted:true,completeForQuery:true}}}];
+  {name:tool.name,args:{collection:'registry',sourceFile:'source.js'},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{sourceFile:'source.js',collection:'registry',mode:'query',fields:['stamp'],filters:[],orderBy:[]},rows:[],totalCount:0,returnedCount:0,hasMore:false,queryExhausted:true,completeForQuery:true}}}];
  const state={phase:'COMPLETION_AUDIT',missionId:'temporal-cache-mission',userId:'actor',workspaceId:'workspace',tenantId:'approved',projectId:'project',evidenceObjectives:[contract],completedTasks:tasks,configuredSourceDiscovery:{revision:'source-v1'}};
  const reviews=[],scopeReviews=[],stages=[];
  const pendingProof=payload=>({proven:false,missing:['No operational values establish the requested deadlines'],groups:[{group:'entries',proven:false,evidence:[]}],sources:payload.observedSources.map(collection=>({collection,relevant:true,reason:'Observed deadline source',taskIndexes:collection==='registry'?[1]:[]}))});
@@ -52,10 +52,10 @@ test('unchanged empty temporal evidence reuses engine coverage and relevance wit
  assert.equal(JSON.stringify(f.tasks),before,'cache reuse cannot mutate authenticated observations');
 });
 
-for(const [name,change] of [
- ['a new observed row',f=>{const r=f.tasks[1].observation.recordEvidence;r.rows=[{id:'new',values:{stamp:'2026-10-31T00:00:00Z'}}];r.totalCount=r.returnedCount=1;}],
+for(const [name,change,schemaChanged=true] of [
+ ['a new observed row',f=>{const r=f.tasks[1].observation.recordEvidence;r.rows=[{id:'new',values:{stamp:'2026-10-31T00:00:00Z'}}];r.totalCount=r.returnedCount=1;},false],
  ['a changed source schema',f=>{f.tasks[0].observation.verifiedRead.sourceStructure.dataBindings.writeShapes[0].fields.push('newObservedField');}],
- ['new authenticated field names',f=>{f.tasks[1].observation.recordEvidence.fieldSchema={paths:['stamp','newObservedField']};}],
+ ['new authenticated field names',f=>{const r=f.tasks[1].observation.recordEvidence;r.rows=[{id:'new',values:{stamp:'2026-10-31T00:00:00Z'}}];r.totalCount=r.returnedCount=1;r.fieldSchema={source:'SERVER_RECORD_FIELD_NAMES',collection:'registry',scope:'returned_rows_only',sampledRows:1,paths:['stamp','newObservedField'],completeForObservedRows:true};}],
  ['a changed configured discovery revision',f=>{f.state.configuredSourceDiscovery.revision='source-v2';}],
  ['a user clarification',f=>{f.state.advisorySemanticContext={turns:[{role:'user',content:'Include pending entries as a separate group.'}]};}],
  ...['userId','workspaceId','tenantId','projectId','missionId'].map(key=>['a changed '+key,f=>{f.state[key]+='-other';}])
@@ -65,7 +65,8 @@ for(const [name,change] of [
  change(f);
  const result=await f.run();
  assert.ok(f.reviews.length>reviewed,'changed dependencies must receive a fresh independent review');
- assert.ok(f.scopeReviews.length>scopeReviewed,'changed evidence, scope, actor, model context or discovery must invalidate the independent relevance cache');
+ if(schemaChanged)assert.ok(f.scopeReviews.length>scopeReviewed,'changed schema, actor, model context or discovery must invalidate independent relevance');
+ else assert.equal(f.scopeReviews.length,scopeReviewed,'new values reopen operational coverage above; identical schema does not require another source classification');
  assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives[0].satisfied,false);
 });
 

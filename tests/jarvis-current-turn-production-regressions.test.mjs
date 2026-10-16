@@ -5533,14 +5533,30 @@ test('runtime projections use snapshot field provenance without borrowing fields
 
 function completeScalarPopulationFixture(){
  const f=platformQueryTestFixture({recordData:[{marker:'Observed-class',holder:'Registered holder',deadline:'2027-01-01'}]});
- const content='async function read(db,tenantId){const ref=collection(db,"registry",tenantId,"entries");await addDoc(ref,{marker:input.marker,holder:input.holder,deadline:input.deadline});await getDocs(ref);await getDocs(collection(db,"profiles"));}';
+ const content='async function read(db,tenantId){const ref=collection(db,"registry",tenantId,"entries");await addDoc(ref,{marker:input.marker??null,holder:input.holder,deadline:input.deadline});await getDocs(ref);await getDocs(collection(db,"profiles"));}';
  Object.assign(f.context.completedTasks[0].observation.verifiedRead,{content,sourceStructure:analyzeRepoSourceStructure(content)});
  f.context.tenantId='approved';
  f.args={sourceFile:'source.js',collection:'registry/{tenantId}/entries',mode:'query',fields:['marker'],filters:[],includeCount:false};
  return f;
 }
 
-for(const scenario of ['complete','partial','cursor','truncated','untrusted','not-readonly','blocked','mismatched-receipt','other-organization','other-source','unprojected-field','null','object','changed-value','new-row','changed-count','mixed-filter'])test('runtime scalar count frontier preserves '+scenario+' scope',async()=>{
+for(const change of ['removed','object'])test('runtime raw field '+change+' reopens an earlier scalar witness without borrowing unprojected values',async()=>{
+ const f=completeScalarPopulationFixture(),first=await f.execute(f.args,f.dependencies,f.context);
+ const getDocs=f.dependencies.sdk.getDocsFromServer;
+ f.dependencies.sdk.getDocsFromServer=async request=>{const result=await getDocs(request);result.docs=result.docs.map(doc=>({...doc,data:()=>{
+  const {marker,...rest}=doc.data();return change==='removed'?rest:{...rest,marker:{nested:'Changed structure'}};
+ }}));return result;};
+ const args={...f.args,fields:['holder']},second=await f.execute(args,f.dependencies,f.context);
+ assert.equal(second.ok,true);assert.equal(second.recordEvidence.fieldSchema.completeForObservedRows,true);
+ assert.equal(Object.hasOwn(second.recordEvidence.rows[0].values,'marker'),false);
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(item=>item.type==='FunctionDeclaration'&&item.id.name==='recordProjectionAlreadyObserved');
+ const count={name:'platform.query',args:{sourceFile:f.args.sourceFile,collection:f.args.collection,mode:'count',filters:[{field:'marker',op:'==',value:'Observed-class'}]}};
+ const tasks=[{name:count.name,args:f.args,observation:JSON.parse(JSON.stringify(first))},{name:count.name,args,observation:JSON.parse(JSON.stringify(second))}];
+ assert.equal(projectionInContext(source,node)(count,tasks),false,'authenticated current field names contradict the old scalar shape; fresh investigation stays possible');
+});
+
+for(const scenario of ['complete','partial','cursor','truncated','untrusted','not-readonly','blocked','mismatched-receipt','other-organization','other-source','unprojected-field','null','object','changed-value','new-row','changed-count','mixed-filter','later-projection','later-null-field','later-truncated-field','ambiguous-organization'])test('runtime scalar count frontier preserves '+scenario+' scope',async()=>{
  const f=completeScalarPopulationFixture(),receipt=await f.execute(f.args,f.dependencies,f.context);
  assert.equal(receipt.ok,true);assert.equal(receipt.recordEvidence.completeForQuery,true);
  const task={name:'platform.query',args:structuredClone(f.args),observation:JSON.parse(JSON.stringify(receipt))};
@@ -5566,10 +5582,19 @@ for(const scenario of ['complete','partial','cursor','truncated','untrusted','no
   if(scenario==='changed-count'){later.args.filters=[];later.observation.recordEvidence.scope.filters=[];later.observation.recordEvidence.totalCount=2;}
   tasks.push(later);
  }
+ if(['later-projection','later-null-field','later-truncated-field','ambiguous-organization'].includes(scenario)){
+  const later=structuredClone(task),next=later.observation.recordEvidence;
+  if(scenario==='later-projection'){later.args.fields=['holder'];next.scope.fields=['holder'];next.rows[0].values={holder:'Registered holder'};}
+  if(scenario==='later-null-field')next.rows[0].values.marker=null;
+  if(scenario==='later-truncated-field')next.truncatedFields=[{id:next.rows[0].id,field:'marker'}];
+  if(scenario==='ambiguous-organization')next.scope.collection='registry/another-organization/entries';
+  tasks.push(later);
+ }
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(item=>item.type==='FunctionDeclaration'&&item.id.name==='recordProjectionAlreadyObserved');
  const observed=projectionInContext(source,node);
- assert.equal(observed(call,tasks),scenario==='complete','only a complete unchanged authenticated population with every predicate field projected can suppress the count');
+ const complete=['complete','later-projection'].includes(scenario);
+ assert.equal(observed(call,tasks),complete,'only a complete unchanged authenticated population with every predicate field projected can suppress the count');
  const {eligibleEvidenceActionCatalog,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const fields=['marker','holder','deadline'];
  const tool={name:task.name,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{sourceFile:{type:'string',enum:[call.args.sourceFile]},collection:{type:'string',enum:[call.args.collection]},mode:{type:'string',enum:['count','query']},fields:{type:'array',minItems:1,items:{type:'string',enum:fields}},filters:{type:'array',maxItems:4,items:{type:'object',properties:{field:{type:'string',enum:fields},op:{type:'string',enum:['==','!=']},value:{type:['string','null']}},required:['field','op','value']}}},required:['sourceFile','collection','mode','filters']}};
@@ -5577,11 +5602,11 @@ for(const scenario of ['complete','partial','cursor','truncated','untrusted','no
  tool.inputSchema.properties.fields.minItems=0;
  const frontier=eligibleEvidenceActionCatalog([tool],tasks);
  const allowed=frontier.some(choice=>hasRequiredToolArguments(choice,call.args));
- if(scenario!=='mixed-filter')assert.equal(allowed,scenario!=='complete');
+ if(scenario!=='mixed-filter')assert.equal(allowed,!complete);
  else assert.ok(frontier.some(choice=>hasRequiredToolArguments(choice,{...call.args,filters:[...call.args.filters].reverse()})),'a new predicate field may advance without transferring values to another route');
 });
 
-test('runtime complete population rejects a derived count before recovery and preserves a new projection through the full cycle',async()=>{
+for(const variant of ['single-projection','later-projection','later-null-query','schema-growth','field-order-only'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
  const f=completeScalarPopulationFixture();
  const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
  const {runJarvisSemanticPlanner,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
@@ -5589,7 +5614,10 @@ test('runtime complete population rejects a derived count before recovery and pr
  const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query','count']},fields:{type:'array',items:{type:'string'}},filters:{type:'array',items:{type:'object',properties:{field:{type:'string'},op:{type:'string',enum:['==','!=']},value:{type:['string','null']}},required:['field','op','value']}},orderBy:{type:'array'},includeCount:{type:'boolean'}},required:['sourceFile','collection','mode','filters']}};
  const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,i)=>({objective,requestQuote:objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][i],scope:'all_sources',groups:['entries']}));
  const rejected={name:query.name,args:{sourceFile:f.args.sourceFile,collection:f.args.collection,mode:'count',filters:[{field:'marker',op:'==',value:'Observed-class'}]}};
- const valid={name:query.name,args:{...f.args,fields:['holder','deadline']}};
+ if(variant==='later-null-query')Object.assign(rejected.args,{mode:'query',fields:['deadline'],filters:[{field:'marker',op:'==',value:null}]});
+ const valid={name:query.name,args:{...f.args,fields:variant==='single-projection'?['holder','deadline']:['deadline']}};
+ const seedCalls=[{name:query.name,args:f.args},...(variant==='single-projection'?[]:[{name:query.name,args:{...f.args,fields:['holder']}}])];
+ const initialCount=1+seedCalls.length;
  const executed=[],stages=[];let progressed=false,offeredInvalid,offeredValid,recoveries=0;
  const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
   const stage=request.config.semanticStage;stages.push(stage);
@@ -5607,18 +5635,29 @@ test('runtime complete population rejects a derived count before recovery and pr
   assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);
   return{text:JSON.stringify({proven:false,missing:['Other observed sources remain pending.'],groups:[],sources:payload.observedSources.map(collection=>({collection,relevant:true,reason:'Independent operational evidence remains necessary.',taskIndexes:[]}))})};
  }}};
- const result=await runJarvisMission({instruction:goals.map(goal=>goal.objective).join('; '),initialEvidenceObjectives:goals,initialToolCalls:[{name:reader.name,args:{file:'source.js'}},{name:query.name,args:f.args}],toolCatalog:[reader,query],storage:{getItem(){return null;},setItem(){},removeItem(){}},execute:async call=>{
+ const getDocs=f.dependencies.sdk.getDocsFromServer;
+ f.dependencies.sdk.getDocsFromServer=async request=>{
+  const response=await getDocs(request);
+  if(progressed&&['schema-growth','field-order-only'].includes(variant))response.docs=response.docs.map(doc=>({...doc,data:()=>{
+   const data=doc.data();return variant==='schema-growth'?{...data,accreditedLater:'Observed new field'}:Object.fromEntries(Object.entries(data).reverse());
+  }}));
+  return response;
+ };
+ const result=await runJarvisMission({instruction:goals.map(goal=>goal.objective).join('; '),initialEvidenceObjectives:goals,initialToolCalls:[{name:reader.name,args:{file:'source.js'}},...seedCalls],toolCatalog:[reader,query],storage:{getItem(){return null;},setItem(){},removeItem(){}},execute:async call=>{
   executed.push(call);
   if(call.name===reader.name){const read=f.context.completedTasks[0].observation.verifiedRead;return{ok:true,data:{...read,numberedContent:'1: '+read.content,startLine:1,endLine:1,totalLines:1}};}
-  if(executed.length>2)progressed=true;
+  if(executed.length>initialCount)progressed=true;
   const receipt=await f.execute(call.args,f.dependencies,f.context);
   assert.equal(receipt.ok,true,JSON.stringify(receipt));
   if(executed.length===2){assert.equal(receipt.recordEvidence.completeForQuery,true);assert.equal(receipt.recordEvidence.queryExhausted,true);assert.equal(receipt.recordEvidence.rows.length,1);}
   return{ok:true,data:receipt};
  },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION'},ai})});
- assert.equal(offeredInvalid,false,'a subset count whose complete scalar population is already observed must be removed before inference');
+ assert.equal(offeredInvalid,false,'earlier authenticated projected values must survive a later projection before inference');
  assert.equal(offeredValid,true,'newly credited fields of the same collection must remain executable');
- assert.equal(recoveries,1);assert.equal(executed.length,3);assert.equal(executed[2].name,valid.name);assert.deepEqual(executed[2].args,valid.args);
+ assert.equal(recoveries,1);assert.equal(executed.length,initialCount+1);assert.equal(executed.at(-1).name,valid.name);assert.deepEqual(executed.at(-1).args,valid.args);
  assert.equal(f.calls.filter(call=>call.kind==='count').length,0,'ignoring the native frontier cannot reach the count SDK');
+ assert.equal(f.calls.filter(call=>call.kind==='query').length,seedCalls.length+1,'the rejected equality must not reach the query SDK either');
+ assert.ok(stages.filter(stage=>stage==='RECORD_OBJECTIVE_COVERAGE').length>=6,'new operational values still require fresh independent coverage for each goal');
+ assert.equal(stages.filter(stage=>stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,variant==='schema-growth'?6:3,'new field names reopen schema relevance; unchanged schema and authenticated route identity need one independent source review per goal, not another review for each projection');
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
