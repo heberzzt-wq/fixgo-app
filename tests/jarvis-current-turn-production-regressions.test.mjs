@@ -850,6 +850,17 @@ test('coverage scope facts distinguish complete unfiltered routes from counts, s
   }}}});
   assert.equal(result.proven,false,'scope facts never replace the LLM objective decision');
  }
+ for(const variant of ['complete','empty','omitted-rows','duplicate-ids','implicit-filter','inconsistent-count','unfinished','filtered','unresolved']){
+  const rows=variant==='empty'?[]:[{id:'entry',values:{holder:'Recorded holder'}}];
+  if(variant==='duplicate-ids')rows.push({...rows[0]});
+  const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:variant==='unresolved'?'parents/{entryKey}/related':'registry',mode:'query',filters:variant==='filtered'?[{field:'holder',op:'==',value:'Recorded holder'}]:[],implicitExistenceFields:variant==='implicit-filter'?['holder']:[]},rows,returnedCount:variant==='omitted-rows'?rows.length+1:rows.length,completeForQuery:true,queryExhausted:variant!=='unfinished',hasMore:false,...(variant==='inconsistent-count'?{totalCount:rows.length+1,consistentCountAndList:false}:{})};
+  await review({model:'same-local-model',objective:{objective:'Inspect recorded relationships'},contract:{requestQuote:'Inspect recorded relationships',scope:'explicit_scope',groups:['relationships'],coverageMode:'relationship'},tasks:[{name:'fixture.records',observation:{ok:true,recordEvidence:record}}],ai:{models:{generateContent:async request=>{
+   const fact=JSON.parse(request.config.chatMessages.at(-1).content).queryScopeFacts[0];
+   assert.equal(fact.unfilteredCollectionCountFromRows,['complete','empty'].includes(variant)?rows.length:undefined,variant+' must keep retained-row counts bound to complete unfiltered scope');
+   assert.equal(fact.provesOtherSources,false);
+   return{text:JSON.stringify({proven:false,missing:['Other sources remain pending'],groups:[],sources:[]})};
+  }}}});
+ }
 });
 
 test('objective coverage retains bounded observed binding definitions as schema-only context',async()=>{
@@ -5686,11 +5697,13 @@ for(const seedMode of ['query','count'])test('fresh runtime '+seedMode+' evidenc
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
 
-for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
+for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','bounded-localized-catalog','complete-query-count-facts','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
  const f=completeScalarPopulationFixture();
  const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
  const {runJarvisSemanticPlanner,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js']}},required:['file']}};
+ const unlocalizedFiles=Array.from({length:160},(_,index)=>'available-source-'+index+'-'+('segment'.repeat(18))+'.js');
+ if(variant==='bounded-localized-catalog')reader.inputSchema.properties.file.enum.push(...unlocalizedFiles);
  const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query','count']},fields:{type:'array',items:{type:'string'}},filters:{type:'array',items:{type:'object',properties:{field:{type:'string'},op:{type:'string',enum:['==','!=']},value:{type:['string','null']}},required:['field','op','value']}},orderBy:{type:'array'},includeCount:{type:'boolean'}},required:['sourceFile','collection','mode','filters']}};
  const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,i)=>({objective,requestQuote:objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][i],scope:'all_sources',groups:['entries']}));
  const rejected={name:query.name,args:{sourceFile:f.args.sourceFile,collection:f.args.collection,mode:'count',filters:[{field:'marker',op:'==',value:'Observed-class'}]}};
@@ -5711,6 +5724,12 @@ for(const variant of ['single-projection','later-projection','later-null-query',
   if(stage==='EVIDENCE_NEXT_ACTION'){
    if(progressed)return{text:'{"toolCalls":[]}'};
    assert.equal(stages.filter(item=>item==='RECORD_OBJECTIVE_COVERAGE').length,3,'fresh initial values inform every pending goal before selecting an action');
+   if(variant==='bounded-localized-catalog'){
+    assert.ok(request.config.chatMessages.reduce((n,message)=>n+message.content.length,0)<=60000,'the complete next decision must fit the unchanged context budget after rejection/recovery');
+    const paths=JSON.parse(request.config.chatMessages.find(m=>m.content.startsWith('RUTAS_LOCALIZADAS=')).content.slice('RUTAS_LOCALIZADAS='.length));
+    assert.deepEqual(paths,[],'existing authorized filenames are not localized candidates for the pending question');
+    assert.ok(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(reader.name)&&hasRequiredToolArguments({inputSchema:choice.properties.args},{file:unlocalizedFiles.at(-1)})),'compact context must not remove otherwise authorized reader arguments');
+   }
    if(variant==='visible-action-constraints'){
     const message=request.config.chatMessages.find(m=>m.content.startsWith('CATALOGO_EJECUTABLE='));
     const action=JSON.parse(message.content.slice('CATALOGO_EJECUTABLE='.length)).find(tool=>tool.name===query.name);
@@ -5736,10 +5755,17 @@ for(const variant of ['single-projection','later-projection','later-null-query',
   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){assert.equal(stages.filter(item=>item==='RECORD_OBJECTIVE_COVERAGE').length,3,'rejection alone cannot repeat the initial value reviews');assert.equal(stages.filter(item=>item==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,3,'rejection alone cannot repeat the initial source reviews');recoveries++;return{text:JSON.stringify({toolCalls:[valid],sourceFallback:[]})};}
   if(stage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":true,"schemaDiscoveryRelevant":false,"rejectionReason":""}'};
   const payload=JSON.parse(request.config.chatMessages.at(-1).content);
-  if(stage==='RECORD_OBJECTIVE_COVERAGE'){assert.ok(payload.evidence.some(task=>task.observation?.recordEvidence?.rows?.some(row=>progressed?row.values?.deadline==='2027-01-01':row.values?.marker==='Observed-class')),'each independent review must retain the authenticated values available at that decision');}
+  if(stage==='RECORD_OBJECTIVE_COVERAGE'){
+   assert.ok(payload.evidence.some(task=>task.observation?.recordEvidence?.rows?.some(row=>progressed?row.values?.deadline==='2027-01-01':row.values?.marker==='Observed-class')),'each independent review must retain the authenticated values available at that decision');
+   if(variant==='complete-query-count-facts'){
+    const fact=payload.queryScopeFacts.find(fact=>fact.requestedCollection===f.args.collection&&fact.unfilteredCollectionFullyObserved);
+    assert.equal(fact.unfilteredCollectionCountFromRows,1,'a retained complete runtime query proves its own row count without a separately requested aggregate');
+    assert.equal(fact.provesOtherSources,false);assert.equal(fact.totalCount,undefined,'do not fabricate a server aggregate');
+   }
+  }
   if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(payload.sources.map(collection=>[collection,{relevantToObjective:true,reason:'Other scopes remain unqueried.'}]))})};
   assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);
-  return{text:JSON.stringify({proven:false,missing:['Other observed sources remain pending.'],groups:[],sources:payload.observedSources.map(collection=>({collection,relevant:true,reason:'Independent operational evidence remains necessary.',taskIndexes:[]}))})};
+  return{text:JSON.stringify({proven:false,missing:variant==='bounded-localized-catalog'?Array.from({length:32},(_,i)=>('Independent requirement '+i+' remains pending for this objective; preserve source boundaries and observed values. ').padEnd(180,' pending')):['Other observed sources remain pending.'],groups:[],sources:payload.observedSources.map(collection=>({collection,relevant:true,reason:'Independent operational evidence remains necessary.',taskIndexes:[]}))})};
  }}};
  const getDocs=f.dependencies.sdk.getDocsFromServer;
  f.dependencies.sdk.getDocsFromServer=async request=>{
