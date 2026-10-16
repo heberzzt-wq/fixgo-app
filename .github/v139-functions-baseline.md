@@ -1,5 +1,27 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `687fec9be859532409c3af0950ad2fec476f549b`.
+Only the semantic planner changed in Functions since8faa86a2.
+The stopped Chrome diagnostic recorded74local calls and a repeated count of
+the same authenticated route through another separately credited module.
+Population reuse now requires that module to have its own AST-credited literal
+route exactly equal to the authenticated receipt. A new template cannot borrow
+another module tenant resolution. Native field and permission bindings remain
+separate; changed/incomplete/foreign population boundaries remain unchanged.
+Pre-inference frontier keeps verified source reads alongside validated record
+receipts so this alias proof is available. Full runtime proposal/rejection/
+recovery/next-decision regression blocks repeated SDK work, permits new credited
+fields and leaves all3goals pending. Four additional trust/route boundaries.
+Exact stopped-trace replay: prior published code offered duplicate count; this
+revision excludes it without inference or operational requests.
+Focused478PASS. Frozen local emulator suite2297PASS,0FAIL,2physical skips
+(2299tests,307993.1853ms), exit0. Clean Chrome remains the certification gate.
+No model,provider,permissions,external inference or operational data changes.
+Future unreviewed Functions deltas fail closed.
+
+## Previous review
+
+
 Current baseline: `908740796fb9574f9b93bde9e9a5637b220c013a`.
 Only the semantic planner changed in Functions since860e1242.
 Actual Chrome remained PARTIAL with three pending goals. Its configured-source
