@@ -1,0 +1,16 @@
+const test=require('node:test'),assert=require('node:assert/strict');
+const {runJarvisSemanticPlanner}=require('../functions/jarvis-semantic-planner.js');
+test('record investigation retains user scope and current receipts without old assistant guesses',async()=>{
+ const canary='UNVERIFIED_PRIOR_ASSISTANT_GLOBAL_ZERO',clarification='Keep declared registrations separate from official allocations.',fresh='Observed fresh source structure';
+ const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,index)=>({objective,requestQuote:objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][index],scope:'all_sources',groups:['entries']}));
+ const reader={name:'repo.read',description:'Read a credited source',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['next.js']}},required:['file']}};
+ const query={name:'platform.query',description:'Read current records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query']},fields:{type:'array',items:{type:'string'}},filters:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}};
+ let selected=false;const seen=[];
+ const result=await runJarvisSemanticPlanner({input:goals.map(g=>g.objective).join('; '),catalog:[reader,query],missionState:{phase:'EVIDENCE_NEXT_ACTION',evidenceObjectives:goals,advisorySemanticContext:{turns:[{role:'user',content:clarification},{role:'assistant',content:canary}]},completedTasks:[{name:'repo.search',args:{query:'entries'},observation:{ok:true,repoCandidates:[{file:'next.js'}]}},{name:'repo.read',args:{file:'prior.js'},observation:{ok:true,verifiedRead:{file:'prior.js',content:fresh,startLine:1,endLine:1,totalLines:1}}}]},ai:{models:{generateContent:async request=>{
+  seen.push({stage:request.config.semanticStage,text:JSON.stringify(request.config.chatMessages)});assert.equal(request.config.semanticStage,'EVIDENCE_NEXT_ACTION');const text=JSON.stringify(request.config.chatMessages);
+  assert.equal(text.includes(canary),false,'old assistant narratives cannot consume record-planning context or stand in for fresh evidence');
+  assert.ok(text.includes(clarification),'user scope clarifications stay available');assert.ok(text.includes(fresh),'current credited source receipts remain available');
+  selected=true;return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'next.js'}}]})};
+ }}}});
+ assert.ok(selected,JSON.stringify({status:result.status,error:result.error,explanation:result.explanation,stages:seen.map(x=>({stage:x.stage,canary:x.text?.includes(canary),clarification:x.text?.includes(clarification),fresh:x.text?.includes(fresh)}))}));assert.equal(result.toolCalls[0].name,reader.name);assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives.length,3);assert.ok(result.completionAssessment.objectives.every(g=>g.satisfied===false&&g.requiredEvidenceKind==='platform_records'));
+});

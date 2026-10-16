@@ -252,9 +252,9 @@ test('record research retains grounded reader paths after the first discovered f
  await assert.rejects(planner({input:'Inspect current entries',catalog:[reader,records],missionState:{phase:'COMPLETION_AUDIT',completedTasks:tasks,evidenceObjectives:[{objective:'Inspect current entries',requestQuote:'Inspect current entries',requiredEvidenceKind:'platform_records',scope:'all_sources',coverageMode:'population',groups:['entries']}]},ai:{models:{generateContent:async request=>{
   const alternatives=recoverySchemas(request);
   const schema=alternatives.find(branch=>branch.properties.name.enum.includes(reader.name)).properties.args;
-  assert.ok(Array.isArray(schema.properties.file.enum),'discovered file paths must remain bound after the first inspection');
-  assert.deepEqual([...schema.properties.file.enum].sort(),files,'both new candidates and partial inspected files stay available, while invented paths stay outside the executable contract');
-  assert.ok(schema.properties.startLine&&schema.properties.endLine,'grounding must not prevent range expansion');
+  const branches=schema.anyOf||[schema];const allows=args=>branches.some(branch=>createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js').hasRequiredToolArguments({inputSchema:branch},args));
+  assert.deepEqual([...new Set(branches.flatMap(branch=>branch.properties.file.enum))].sort(),files,'new candidates and partial ranges stay grounded to the same observed files');
+  assert.ok(allows({file:files[1]}),'an uninspected source stays readable');assert.ok(allows({file:files[0],startLine:6,endLine:20}),'a new window of the partial source stays available');assert.equal(allows({file:files[0]}),false,'the same default prefix must not reappear');assert.equal(allows({file:'invented.js'}),false,'schema alternatives never authorize another file');
   checked=true;throw Error('GROUNDING_CAPTURE_COMPLETE');
  }}}}),/GROUNDING_CAPTURE_COMPLETE/);
  assert.equal(checked,true);
@@ -765,7 +765,7 @@ test('recovery preserves the first new-source inspection frontier before reopeni
 
    assert.equal(request.config.semanticStage,'READ_ONLY_EVIDENCE_CONTINUATION');
    const branch=recoverySchemas(request).find(x=>x.properties.name.enum.includes(reader.name));
-   assert.ok(branch.properties.args.properties.file.enum.includes(inspected?'prior-source.js':'new-source.js'));if(!inspected)assert.deepEqual(Array.from(branch.properties.args.properties.file.enum),['new-source.js']);
+   const schemas=branch.properties.args.anyOf||[branch.properties.args],paths=[...new Set(schemas.flatMap(schema=>schema.properties.file.enum))];assert.ok(paths.includes(inspected?'prior-source.js':'new-source.js'));if(!inspected)assert.deepEqual(paths,['new-source.js']);
    recovered=true;
    return{text:JSON.stringify({toolCalls:[{name:reader.name,args:inspected?{file:'prior-source.js',startLine:6,endLine:20}:{file:'new-source.js'}}]})};
   }}}});
@@ -5162,7 +5162,7 @@ test('source discovery preserves the last operational coverage and its pending s
  const proof={proven:false,missing:['Related registry remains unqueried'],groups:[{group:'owners',proven:true,evidence:[{taskIndex:0,fields:['owner']}]}],sources:[{collection:'primary',relevant:true,reason:'Observed owners',taskIndexes:[0]},{collection:'related',relevant:true,reason:'Related registry remains unqueried',taskIndexes:[]}]};
  const previous={evaluatedTaskCount:1,objectives:[{objective:contract.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0],coverageProof:proof}]};
  const before=JSON.stringify(previous);
- const tasks=[{name:records.name,observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'primary',fields:['owner']},rows:[{id:'one',values:{owner:'Observed owner'}}],totalCount:1,completeForQuery:true,hasMore:false}}},{name:reader.name,args:{file:'source.js'},observation:{ok:true,verifiedRead:{file:'source.js',startLine:1,endLine:9,totalLines:20,content:'Related schema',sourceStructure:{dataBindings:{collections:['primary','related'],fieldPaths:['owner']}}}}}];
+ const tasks=[{name:records.name,observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'primary',fields:['owner']},rows:[{id:'one',values:{owner:'Observed owner'}}],totalCount:1,completeForQuery:true,hasMore:false}}},{name:reader.name,args:{file:'source.js'},observation:{ok:true,verifiedRead:{file:'source.js',startLine:1,endLine:9,totalLines:20,content:'Related schema',sourceStructure:{dataBindings:{collections:['primary','related'],fieldPaths:['owner'],references:[{collection:'related',startLine:3,content:'Observed related-source definition'}]}}}}}];
  let replanned=false;
  const result=await runJarvisSemanticPlanner({input:'Identify owners',catalog:[records,reader],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[contract],completionAssessment:previous,completedTasks:tasks},ai:{models:{generateContent:async request=>{
   if(request.config.semanticStage!=='COMPLETION_AUDIT'){replanned=true;assert.ok(request.config.chatMessages.some(message=>message.content.includes('related')),'the retained pending source must reach the next-step choice');return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'source.js',startLine:10}}]})};}return{text:JSON.stringify({completionAssessment:{objectives:[{objective:contract.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[0],limitation:'Unconfirmed pagination'}]},toolCalls:[{name:reader.name,args:{file:'source.js',startLine:3}}]})};
@@ -5738,19 +5738,20 @@ for(const seedMode of ['count'])test('count-only stopping still independently au
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
 
-for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','bounded-localized-catalog','complete-query-count-facts','credited-source-alias','projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction','projection-known-requirements','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
- const projectionCase=['projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction','projection-known-requirements'].includes(variant);
+for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','bounded-localized-catalog','complete-query-count-facts','credited-source-alias','projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction','projection-known-requirements','projection-empty-goal-requirements','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
+ const projectionCase=['projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction','projection-known-requirements','projection-empty-goal-requirements'].includes(variant);
  const f=completeScalarPopulationFixture();
  if(projectionCase){
   const read=f.context.completedTasks[0].observation.verifiedRead;
   read.content=read.content.replace('deadline:input.deadline','deadline:input.deadline,auditStamp:input.auditStamp').replace('collection(db,"registry",tenantId,"entries")','collection(db,"registry","approved","entries")');
-  if(variant==='projection-known-requirements')read.content+=';async function related(db){const ref=collection(db,"registry","approved","people");await addDoc(ref,{holder:input.holder,deadline:input.deadline});}';
+  if(['projection-known-requirements','projection-empty-goal-requirements'].includes(variant))read.content+=';async function related(db){const ref=collection(db,"registry","approved","people");await addDoc(ref,{holder:input.holder,deadline:input.deadline});}';
   read.sourceStructure=analyzeRepoSourceStructure(read.content);
   f.args.collection='registry/approved/entries';
  }
  const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
  const {runJarvisSemanticPlanner,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js']}},required:['file']}};
+ if(variant==='projection-empty-goal-requirements')reader.inputSchema.properties.file.enum.push('unrelated.js');
  const unlocalizedFiles=Array.from({length:160},(_,index)=>'available-source-'+index+'-'+('segment'.repeat(18))+'.js');
  if(variant==='bounded-localized-catalog')reader.inputSchema.properties.file.enum.push(...unlocalizedFiles);
  const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query','count']},fields:{type:'array',items:{type:'string'}},filters:{type:'array',items:{type:'object',properties:{field:{type:'string'},op:{type:'string',enum:['==','!=']},value:{type:['string','null']}},required:['field','op','value']}},orderBy:{type:'array'},includeCount:{type:'boolean'}},required:['sourceFile','collection','mode','filters']}};
@@ -5766,7 +5767,7 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  if(variant==='projection-default-id-order')rejected.args.orderBy=[{field:'__name__',direction:'asc'}];
  if(variant==='projection-implicit-id-direction')rejected.args.orderBy=[{field:'__name__'}];
  const valid={name:query.name,args:{...f.args,fields:variant==='single-projection'?['holder','deadline']:['deadline']}};
- if(variant==='projection-known-requirements')valid.args.collection='registry/approved/people';
+ if(['projection-known-requirements','projection-empty-goal-requirements'].includes(variant))valid.args.collection='registry/approved/people';
  const aliasContent='async function read(db){const ref=collection(db,"registry","approved","entries");await addDoc(ref,{marker:input.marker,holder:input.holder,deadline:input.deadline});await getDocs(ref);}';
  if(variant==='credited-source-alias'){
   reader.inputSchema.properties.file.enum.push('alternate.js');
@@ -5776,7 +5777,7 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  }
  if(variant==='later-equality-query')valid.args.filters=[{field:'marker',op:'==',value:'Observed-class'}];
  const seedCalls=[{name:query.name,args:f.args},...(variant==='single-projection'?[]:[{name:query.name,args:{...f.args,fields:['holder']}}])];
- if(variant==='projection-known-requirements')seedCalls[1].args.fields=['holder','deadline'];
+ if(['projection-known-requirements','projection-empty-goal-requirements'].includes(variant))seedCalls[1].args.fields=['holder','deadline'];
  if(variant==='filtered-full-projection')seedCalls[1].args.filters=[{field:'marker',op:'==',value:'Observed-class'}];
  const initialReads=[{name:reader.name,args:{file:'source.js'}},...(variant==='credited-source-alias'?[{name:reader.name,args:{file:'alternate.js'}}]:[])];
  const initialCount=initialReads.length+seedCalls.length;
@@ -5817,16 +5818,16 @@ for(const variant of ['single-projection','later-projection','later-null-query',
    offeredValid=choices.some(choice=>hasRequiredToolArguments({inputSchema:choice.properties.args},valid.args));
    return{text:JSON.stringify({toolCalls:[rejected]})};
   }
-  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){assert.equal(stages.filter(item=>item==='RECORD_OBJECTIVE_COVERAGE').length,3,'rejection alone cannot repeat the initial value reviews');assert.equal(stages.filter(item=>item==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,3,'rejection alone cannot repeat the initial source reviews');recoveries++;if(variant==='projection-known-requirements'){const padded={...rejected.args,fields:['auditStamp','holder']};assert.equal(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(query.name)&&hasRequiredToolArguments({inputSchema:choice.properties.args},padded)),false,'when every independently required field is already observed, recovery must seek a different credited source rather than pad the rejected projection');}if(variant.startsWith('projection-')&&(variant.includes('id-')||variant==='projection-known-requirements')){const repeated={...rejected,args:{...rejected.args,orderBy:[]}};assert.equal(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(query.name)&&hasRequiredToolArguments({inputSchema:choice.properties.args},repeated.args)),false,'explicit automatic document ordering cannot reoffer a rejected projection after removing orderBy');}return{text:JSON.stringify({toolCalls:[valid],sourceFallback:[]})};}
+  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){assert.equal(stages.filter(item=>item==='RECORD_OBJECTIVE_COVERAGE').length,3,'rejection alone cannot repeat the initial value reviews');assert.equal(stages.filter(item=>item==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,3,'rejection alone cannot repeat the initial source reviews');recoveries++;if(variant==='projection-empty-goal-requirements'){assert.ok(recoverySchemas(request).every(choice=>choice.properties.name.enum.includes(query.name)),'an already credited pending record scope takes precedence over another source exploration');assert.equal(request.config.responseJsonSchema.properties.sourceFallback.minItems,1,'retain a same-response fresh source alternative if operational validation fails');}if(['projection-known-requirements','projection-empty-goal-requirements'].includes(variant)){const padded={...rejected.args,fields:['auditStamp','holder']};assert.equal(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(query.name)&&hasRequiredToolArguments({inputSchema:choice.properties.args},padded)),false,'when every independently required field is already observed, recovery must seek a different credited source rather than pad the rejected projection');}if(variant.startsWith('projection-')&&(variant.includes('id-')||['projection-known-requirements','projection-empty-goal-requirements'].includes(variant))){const repeated={...rejected,args:{...rejected.args,orderBy:[]}};assert.equal(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(query.name)&&hasRequiredToolArguments({inputSchema:choice.properties.args},repeated.args)),false,'explicit automatic document ordering cannot reoffer a rejected projection after removing orderBy');}return{text:JSON.stringify({toolCalls:[valid],sourceFallback:[]})};}
   if(stage==='QUERY_POPULATION_VERIFICATION'){
    if(projectionCase){
     const packet=JSON.parse(request.config.chatMessages.at(-1).content),useful=packet.proposed.fields.includes('deadline');
-    if(!(variant==='projection-known-requirements'&&useful))assert.ok(packet.sameRouteObservations.some(fact=>fact.fieldsRead.includes('holder')&&fact.scalarValuesObserved.holder===1&&fact.completeForQuery===true),'projection review needs scoped already-read field coverage, not just a related collection');
+    if(!(['projection-known-requirements','projection-empty-goal-requirements'].includes(variant)&&useful))assert.ok(packet.sameRouteObservations.some(fact=>fact.fieldsRead.includes('holder')&&fact.scalarValuesObserved.holder===1&&fact.completeForQuery===true),'projection review needs scoped already-read field coverage, not just a related collection');
     assert.ok(packet.observedScalarValues.some(fact=>fact.collection===f.args.collection&&fact.sourceFile===f.args.sourceFile&&fact.distinctValuesByField.holder?.values.includes('Registered holder')),'already observed values must survive in their own authenticated route rather than being reduced to field names');
     assert.ok(packet.observedScalarValues.every(fact=>fact.joinedRows===false&&fact.grantsFieldAuthorization===false&&fact.objectiveSatisfied===false));
     assert.ok(JSON.stringify([packet.sameRouteObservations,packet.observedScalarValues]).length<=3200,'existing observation context stays inside its shared fixed budget');
     assert.ok(request.config.responseJsonSchema.required.includes('objectiveFields'));
-    return{text:JSON.stringify({matchesRequest:true,objectiveMatches:{'0':false,'1':!useful,'2':useful},objectiveFields:variant==='projection-known-requirements'&&!useful?{'0':['marker'],'1':['holder'],'2':['deadline']}:{'0':[],'1':useful?[]:['holder'],'2':useful?['deadline']:[]},populationRelevance:'relevant',schemaDiscoveryRelevant:false,rejectionReason:useful?'':'No projected field supplies a missing goal.'})};
+    return{text:JSON.stringify({matchesRequest:true,objectiveMatches:{'0':false,'1':!useful,'2':useful},objectiveFields:variant==='projection-empty-goal-requirements'&&!useful?{'0':['marker'],'1':[],'2':[]}:variant==='projection-known-requirements'&&!useful?{'0':['marker'],'1':['holder'],'2':['deadline']}:{'0':[],'1':useful?[]:['holder'],'2':['deadline']},populationRelevance:'relevant',schemaDiscoveryRelevant:false,rejectionReason:useful?'':'No projected field supplies a missing goal.'})};
    }
    return queryReviewFixture(request,{"matchesRequest":true,"schemaDiscoveryRelevant":false,"rejectionReason":""});
   }
@@ -5868,6 +5869,6 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  assert.equal(f.calls.filter(call=>call.kind==='count').length,0,'ignoring the native frontier cannot reach the count SDK');
  assert.equal(f.calls.filter(call=>call.kind==='query').length,seedCalls.length+1,'the rejected equality must not reach the query SDK either');
  assert.equal(stages.filter(stage=>stage==='RECORD_OBJECTIVE_COVERAGE').length,6,'initial and newly read operational values independently inform each original goal');
- assert.equal(stages.filter(stage=>stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,['schema-growth','credited-source-alias','projection-known-requirements'].includes(variant)?6:3,'new field names or the first authenticated field receipt for a separately credited module invalidate its own source review');
+ assert.equal(stages.filter(stage=>stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,['schema-growth','credited-source-alias','projection-known-requirements','projection-empty-goal-requirements'].includes(variant)?6:3,'new field names or the first authenticated field receipt for a separately credited module invalidate its own source review');
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
