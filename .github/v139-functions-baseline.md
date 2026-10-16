@@ -1,5 +1,24 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `fab65feb233b2352b24843fccaf8dae639880f4e`.
+Only the semantic planner changed in Functions since7b00ae46.
+The default-order fix alone still yielded an invalid same9B isolated recovery.
+If the validated independent per-goal field requirements are all nonempty and
+already read in that exact authenticated unfiltered default-order query, omit
+that same source/collection branch from this single recovery decision. Other
+credited sources, readers, filters, orders and cursors remain independent.
+This is never persisted as exhaustion, population rejection or goal coverage.
+One generic complete-runtime regression fails before this fix, then advances
+through another credited source with all three objectives still pending.
+Valid unread fields on the same route remain executable under other cases.
+Focused494PASS; frozen full local emulator suite2308PASS,0FAIL,2physical skips
+(2310tests,187448.6049ms), exit0. Sole local9B and provider settings unchanged.
+Real Chrome remains the final certification gate; these are local test results.
+Future unreviewed Functions changes still fail closed.
+
+Previous review:
+
+
 Current baseline: `3722cd657a707bbe6571a78eae2d7a7108158068`.
 Only the semantic planner changed in Functions since53b0249e.
 The real clean Chrome mission ended PARTIAL after36local calls (464675ms engine,
