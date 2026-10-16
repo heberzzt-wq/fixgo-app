@@ -2,7 +2,7 @@ const queryReviewFixture=require('./helpers/query-review-fixture.cjs');
 const test=require('node:test'),assert=require('node:assert/strict');
 const {runJarvisSemanticPlanner}=require('../functions/jarvis-semantic-planner.js');
 
-for(const failure of ['semantic','repeated','arguments'])for(const alternative of ['new-source','repeated-source','unobserved-source','operational'])for(const accepted of (failure==='semantic'?[false,true]:[false]))test(`one recovery decision retains ${alternative}; primary accepted=${accepted}; failure=${failure}`,async()=>{
+for(const failure of ['semantic','repeated','arguments','empty'])for(const alternative of ['new-source','repeated-source','unobserved-source','operational'])for(const accepted of (failure==='semantic'?[false,true]:[false]))test(`one recovery decision retains ${alternative}; primary accepted=${accepted}; failure=${failure}`,async()=>{
  const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
  const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['observed.js','related.js']}},required:['file']}};
  const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query','count']},fields:{type:'array',items:{type:'string'}},filters:{type:'array'}},required:['sourceFile','collection','mode','filters']}};
@@ -16,8 +16,8 @@ for(const failure of ['semantic','repeated','arguments'])for(const alternative o
   const stage=request.config.semanticStage;
   if(stage==='EVIDENCE_NEXT_ACTION')return{text:JSON.stringify({toolCalls:progressed?[]:[first]})};
   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){
-   recoveryCalls++;offeredSourceAlternative=Boolean(request.config.responseJsonSchema?.properties.sourceFallback);
-   return{text:JSON.stringify({toolCalls:[recovery],sourceFallback:[fallback]})};
+   recoveryCalls++;offeredSourceAlternative=Boolean(request.config.responseJsonSchema?.properties.sourceFallback);assert.equal(request.config.responseJsonSchema?.properties.sourceFallback?.minItems,1,'a single recovery must retain a concrete new source alternative while authorized readers remain');
+   return{text:JSON.stringify({toolCalls:failure==='empty'?[]:[recovery],sourceFallback:[fallback]})};
   }
   if(stage==='QUERY_POPULATION_VERIFICATION'){
    const args=JSON.parse(request.config.chatMessages.at(-1).content).proposed;

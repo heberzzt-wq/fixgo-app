@@ -4239,9 +4239,11 @@ async function runModelSemanticPlanner({
                     });
                 }
                 if(!nextReaders.length)return null;
-                const sourceFallbackReaders=initialDecision?[]:nextReaders.filter(tool=>(tool.evidenceKinds||[]).some(kind=>
+                const repositoryFallbackReaders=initialDecision?[]:nextReaders.filter(tool=>(tool.evidenceKinds||[]).some(kind=>
                     ['repository_source','repository_search','repository_inventory'].includes(kind)));
-                const sourceFallbackSchema=sourceFallbackReaders.length?{sourceFallback:{type:'array',minItems:0,maxItems:1,items:{anyOf:sourceFallbackReaders.map(tool=>({
+                const newSourceReaders=repositoryFallbackReaders.filter(tool=>tool.name==='repo.read');
+                const sourceFallbackReaders=newSourceReaders.length?newSourceReaders:repositoryFallbackReaders;
+                const sourceFallbackSchema=sourceFallbackReaders.length?{sourceFallback:{type:'array',minItems:1,maxItems:1,items:{anyOf:sourceFallbackReaders.map(tool=>({
                     type:'object',properties:{name:{type:'string',enum:[tool.name]},args:buildNativeInputSchema(tool.inputSchema)},
                     required:['name','args'],additionalProperties:false
                 }))}}}:{};
@@ -4267,7 +4269,7 @@ async function runModelSemanticPlanner({
                             {role:"system",content:"LECTURAS_PARCIALES="+JSON.stringify(partialReads.map(read=>({...read,schemaAnchors:read.schemaAnchors.map(({fields,...anchor})=>anchor)})))},
                             ...(error ? [{role:"system",content:"RECHAZO_DE_ALCANCE="+JSON.stringify(queryRejectionReceipt(error))}] : []),
                             ...(requiredFieldsAlreadyRead?[{role:'system',content:'RECUPERACION_DE_FUENTE: todos los campos que la revisión independiente identificó para cada objetivo ya se leyeron en la ruta rechazada. Esa ruta no se ofrece otra vez en esta decisión: elige otra fuente acreditada o una lectura/búsqueda pertinente para cubrir la brecha. Esto no agota la colección, no acredita otras fuentes y no completa ningún objetivo.'}]:[]),
-                            ...(sourceFallbackReaders.length?[{role:'system',content:'En esta única decisión de recuperación, si eliges otra consulta operativa conserva también UNA lectura o búsqueda NUEVA pertinente en sourceFallback por si su validación independiente la rechaza. Elige esa alternativa del catálogo de lectores de repositorio, con argumentos acreditados; nunca otra consulta operativa ni una acción repetida. Si la consulta es válida, la alternativa no se ejecuta. Si no existe una alternativa fundamentada, usa sourceFallback=[]. No concede permisos ni demuestra cumplimiento.'}]:[]),
+                            ...(sourceFallbackReaders.length?[{role:'system',content:'En esta única decisión de recuperación conserva UNA lectura NUEVA pertinente en sourceFallback: quedan lectores de fuentes acreditadas en el catálogo. Elige esa alternativa de los lectores ofrecidos, con argumentos acreditados; nunca otra consulta operativa ni una acción repetida. Si eliges una consulta válida, la alternativa no se ejecuta. Si no seleccionas una acción principal o se rechaza, la alternativa permite seguir investigando sin otro replanteamiento. No concede permisos ni demuestra cumplimiento.'}]:[]),
                             {role:"system",content:"DECISIONES_RECHAZADAS="+JSON.stringify(currentQueryRejections())},
                             {role:"system",content:"No repitas esas propuestas con las mismas dependencias. Son rechazos de decisiones, no consultas ejecutadas, ausencia de datos ni objetivos satisfechos. populationRejected=true excluye esa población y modo con sus mismas dependencias aunque cambies proyección o tamaño de página. Un rechazo sólo de proyección conserva otras proyecciones acreditadas. Otros filtros, cursores y rutas conservan su validación independiente. Para repo.grep puedes usar identificadores completos, rutas de campos o fragmentos literales observados; no los reduzcas a palabras sueltas. Buscar una pista no acredita su existencia, su esquema ni valores operativos. La revisión independiente de cada objetivo indica las brechas que debe investigar la siguiente acción; no convierte esas brechas en campos ni resultados observados."},
                             ...auditTasks.map(task=>({role:"system",content:"EVIDENCIA_OBTENIDA="+JSON.stringify(task)})),
@@ -4281,6 +4283,12 @@ async function runModelSemanticPlanner({
                     let continuationPayload=null;
                     if(continuation.text){try{continuationPayload=extractJsonObject(continuation.text);}catch{}}
                     if (!next && continuationPayload) next=normalizeTextToolPlan(continuationPayload,nextReaders);
+                    if(!next?.toolCalls?.length && continuationPayload?.sourceFallback?.length===1){
+                        const fallback=continuationPayload.sourceFallback[0];
+                        const reader=sourceFallbackReaders.find(tool=>tool.name===fallback?.name);
+                        if(reader && hasRequiredToolArguments(reader,fallback.args||{}) && !hasUnexpectedToolArguments(reader,fallback.args||{}) &&
+                            !wasExecuted(fallback) && !wasRejected(fallback))next=normalizeTextToolPlan({toolCalls:[fallback]},nextReaders);
+                    }
                     if (continuation?.providerResponse?.finishReason !== "length" && next?.toolCalls?.length) {
                         let checked;
                         try{
