@@ -1,5 +1,28 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `b42d1d5798e90838b6c9ed20ab5a4f1ccc0a5509`.
+Only the semantic planner changed in Functions since 9f512a48.
+The clean b4c57825 Chrome mission searched the real repository, read the
+scoped complete unit record, then ended PARTIAL after 27 local calls
+(331757 ms wall). Independent coverage identified unread related deadline
+values only after the action budget was spent. All three goals stayed pending.
+Fresh authenticated nonempty values now receive independent per-goal review
+before selecting the next action. A bounded engine-owned pending-values marker
+prevents rejection alone or code-only discovery from repeating those negative
+value reviews. It is never proof. New operational values invalidate it; positive
+claims and closure retain full source dependencies and the exact temporal clock.
+The full runtime-produced proposal/rejection/recovery/next-decision regression
+checks fresh values, retained earlier projections, new fields, scope bindings,
+unchanged schema caching and all pending goals. Temporal closure/replay tests
+still require fresh exact-clock reviews. No source, provider or authority bypass.
+Focused checks: 429 PASS. Frozen full local emulator suite: 2258 PASS, 0 FAIL,
+2 physical/environment skips (2260 tests, 291487.3953 ms), exit receipt0.
+Physical repo search and the clean original Chrome mission remain separate gates.
+No external AI, paid-provider, model, permission or operational data changes.
+Future unreviewed Functions deltas still fail closed.
+
+## Previous reviewed baseline
+
 Current baseline: `9f512a4800c30d4c1f2a59e8eeffa460df48768c`.
 Only the semantic planner changed in Functions since dcd93b0b.
 The 85123008 Chrome diagnostic was stopped after 41 local mission calls
