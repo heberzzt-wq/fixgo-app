@@ -1,5 +1,27 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `b5fac2c2ffee58c1cebbd211445cc9ca4ae5de2d`.
+Only the semantic planner changed in Functions since 98bb40b4.
+Real Chrome evidence exposed a fabricated empty equality after a complete positive
+read, and a population veto that contradicted independent objective source reviews.
+The decision frontier now excludes disproved equalities only for the same complete,
+unfiltered, authenticated population and projected fields. Missing/null placeholders,
+partial pages, changed observations and other organizations cannot narrow it.
+A broad population exclusion requires independent per-objective confirmation;
+exact rejected queries remain excluded under their existing dependency keys.
+Newly projected filter values are grounded to the same field and authenticated
+route, including only receipt-accredited template aliases. The runtime enforces
+that boundary too; truncated, unprojected, foreign and untrusted values do not
+qualify. Compact indexed witnesses inform Qwen without duplicating record values.
+Generic full-loop regressions retain all three operational goals as pending.
+Final frozen-source root suite with local Firestore/Storage emulators:
+2191 PASS, 0 FAIL, 2 environment skips. Physical repo.search and a clean Chrome
+mission are still separate acceptance gates; this baseline does not certify them.
+No model/provider/permission change and no operational data writes.
+Subsequent unreviewed Functions changes still fail closed.
+
+## Previous reviewed baseline
+
 Current baseline: `98bb40b42c2bf2c18290f7bf01d33252188396bc`.
 The only Functions delta since 8b5977ed is the semantic planner recovery boundary.
 A new full mission-loop regression reproduced a repeated primary discarding its
