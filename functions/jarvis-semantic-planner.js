@@ -185,6 +185,11 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
             matchesRecordedQueryCollection(task.args?.collection,task)&&queryScope(task.args)===queryScope(record.scope)&&
             !(record.scope?.implicitExistenceFields||[]).length;
     });
+    const unreadFieldProjectionAvailable=(tool,sourceFile,collection,field)=>
+        !frontierTasks.some(task=>task.name===tool.name&&matchesRecordedQueryCollection(collection,task)&&
+            task.observation.recordEvidence.scope.sourceFile===sourceFile&&task.observation.recordEvidence.scope.mode==='query'&&
+            (task.observation.recordEvidence.scope.fields||[]).some(parent=>field===parent||field.startsWith(parent+'.')))&&
+        hasRequiredToolArguments(tool,{sourceFile,collection,mode:'query',fields:[field],filters:[]});
     const constrainObservedEqualities=(filters,sourceFile,collection,toolName,mode='query')=>{
         const item=filters?.items,properties=item?.properties;
         const fields=properties?.field?.enum,operators=properties?.op?.enum;
@@ -205,7 +210,10 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
             {...properties.op,enum:['==']},{...properties.value,enum:values}));
         const unknown=fields.filter(field=>!known.has(field)),otherOperators=operators.filter(op=>op!=='==');
         if(unknown.length)alternatives.push(choice({...properties.field,enum:unknown},{...properties.op,enum:['==']},properties.value));
-        if(otherOperators.length)alternatives.push(choice(properties.field,{...properties.op,enum:otherOperators},properties.value));
+        const scalarOperators=otherOperators.filter(op=>!['array-contains','array-contains-any'].includes(op));
+        if(scalarOperators.length)alternatives.push(choice(properties.field,{...properties.op,enum:scalarOperators},properties.value));
+        const arrayOperators=otherOperators.filter(op=>['array-contains','array-contains-any'].includes(op));
+        if(unknown.length&&arrayOperators.length)alternatives.push(choice({...properties.field,enum:unknown},{...properties.op,enum:arrayOperators},properties.value));
         // These are observed scalar values for an already complete population,
         // not a dictionary, new query result or goal proof. Keep the original
         // contract if encoding this negative frontier would exceed its budget.
@@ -230,8 +238,46 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
             // authenticated scope predicate used after model selection.
             if(!Array.isArray(p.mode?.enum))return [base];
             return p.mode.enum.flatMap(mode=>{
+                if(mode==='count'){
+                    const predicates=p.filters?.items?.properties?.field?.enum;
+                    const population=Array.isArray(predicates)&&observedScalarPopulation(frontierTasks,sourceFile,collection,tool.name,predicates);
+                    // With the whole population already anchored, read an
+                    // unread predicate's values before another aggregate when
+                    // that exact read is authorized. Preserve aggregate-only
+                    // access and fields whose prior projection was inconclusive.
+                    if(population&&predicates.length&&predicates.every(field=>population.has(field)||
+                        unreadFieldProjectionAvailable(tool,sourceFile,collection,field)))return [];
+                }
                 const branch={...base,properties:{...base.properties,mode:{...p.mode,enum:[mode]},
                     ...(mode==='count'&&p.filters?{filters:constrainObservedEqualities(p.filters,sourceFile,collection,tool.name,mode)}:{})}};
+                if(mode==='query'){
+                    const names=p.fields?.items?.enum;
+                    const predicates=!p.filters||p.filters.maxItems===0?[]:p.filters.items?.properties?.field?.enum;
+                    const ordering=!p.orderBy||p.orderBy.maxItems===0?[]:p.orderBy.items?.properties?.field?.enum;
+                    if(Array.isArray(names)&&Array.isArray(predicates)&&Array.isArray(ordering)&&!p.fields.enum&&!p.filters?.enum&&
+                        p.filters?.const===undefined&&!p.orderBy?.enum&&p.orderBy?.const===undefined){
+                        const dependencies=[...new Set([...names,...predicates,...ordering])];
+                        const population=observedScalarPopulation(frontierTasks,sourceFile,collection,tool.name,dependencies);
+                        const known=field=>field==='__name__'||population?.has(field);
+                        if(population&&dependencies.every(field=>known(field)||unreadFieldProjectionAvailable(tool,sourceFile,collection,field))){
+                            const novel=names.filter(field=>!known(field));
+                            if(!novel.length)return [];
+                            // Prefer a richer authorized read over changing a
+                            // predicate/order on still-unread data. Once those
+                            // values exist, their scopes can be assessed normally.
+                            const onKnownFields=property=>{
+                                if(!property||property.maxItems===0)return property;
+                                const fields=property.items.properties.field.enum.filter(known);
+                                return fields.length?{...property,items:{...property.items,properties:{...property.items.properties,
+                                    field:{...property.items.properties.field,enum:fields}}}}:{...property,maxItems:0};
+                            };
+                            return [{...branch,properties:{...branch.properties,fields:{...p.fields,minItems:Math.max(1,p.fields.minItems||0),
+                                items:[{...p.fields.items,enum:novel}],additionalItems:p.fields.items},
+                                ...(p.filters?{filters:constrainObservedEqualities(onKnownFields(p.filters),sourceFile,collection,tool.name)}:{}),
+                                ...(p.orderBy?{orderBy:onKnownFields(p.orderBy)}:{})}}];
+                        }
+                    }
+                }
                 if((branch.properties.filters?.maxItems??Infinity)<(branch.properties.filters?.minItems||0))return [];
                 const finiteFilters=Array.isArray(p.filters?.enum)?p.filters.enum:
                     p.filters?.const!==undefined?[p.filters.const]:null;
@@ -279,7 +325,7 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
                     // projection already known over the full population cannot.
                     // Put one new dependency first, preserving all other ANDs.
                     const unknown=fp.field.enum.filter(field=>!known.has(field));
-                    const otherOps=fp.op.enum.filter(op=>!['==','!=','<','<=','>','>=','in','not-in'].includes(op));
+                    const otherOps=fp.op.enum.filter(op=>!['==','!=','<','<=','>','>=','in','not-in','array-contains','array-contains-any'].includes(op));
                     const additionalItems=filtered.properties.filters.items;
                     const withFirst=first=>({...filtered,properties:{...filtered.properties,filters:{...filtered.properties.filters,
                         items:[first],additionalItems}}});
@@ -894,6 +940,12 @@ function evidenceRequirementSuccessors(kind, catalog = []) {
 }
 
 function recordProjectionAlreadyObserved(call, tasks) {
+    // An array membership predicate cannot match any row when the complete
+    // authenticated population witnesses only scalar values for that field.
+    // This retires a no-progress query, never an objective or another route.
+    if(!call.args?.cursor&&['query','count'].includes(call.args?.mode)&&(call.args.filters||[]).some(filter=>
+        ['array-contains','array-contains-any'].includes(filter.op)&&
+        observedScalarPopulation(tasks,call.args.sourceFile,call.args.collection,call.name,[filter.field])?.has(filter.field)))return true;
     if((call.args?.mode==='count'||call.args?.mode==='query'&&call.args.fields?.length)&&!call.args.cursor&&
         (call.args.orderBy||[]).every(order=>order.field==='__name__')&&
         (call.args.filters||[]).every(filter=>typeof filter.field==='string'&&['==','!=','<','<=','>','>=','in','not-in'].includes(filter.op))){
@@ -1995,6 +2047,19 @@ function compactCatalogSchema(schema) {
 function compactActionCatalog(catalog) { return catalog.map(({ name, description, evidenceKinds, inputSchema, requiresEvidence, mutates, requiresApproval }) => {
     const schema = buildNativeInputSchema(inputSchema);
     const branches = schema.anyOf || [schema];
+    const itemBinding=property=>{
+        if(typeof property!=='object'||property===null)return property;
+        if(property.enum)return property.enum;
+        if(Object.hasOwn(property,'const'))return [property.const];
+        if(property.maxItems===0)return {maxItems:0,...(property.minItems>0?{minItems:property.minItems}:{})};
+        const result=Object.fromEntries(['minItems','maxItems'].filter(key=>Object.hasOwn(property,key)&&(key!=='minItems'||property[key]>0)).map(key=>[key,property[key]]));
+        if(property.properties)result.properties=Object.fromEntries(Object.entries(property.properties).map(([key,value])=>[key,itemBinding(value)]));
+        if(property.anyOf)result.anyOf=property.anyOf.map(itemBinding);
+        if(property.items)result.items=Array.isArray(property.items)?property.items.map(itemBinding):itemBinding(property.items);
+        if(Object.hasOwn(property,'additionalItems'))result.additionalItems=itemBinding(property.additionalItems);
+        if(!Object.keys(result).length&&property.type)result.type=property.type;
+        return result;
+    };
     const binding=(key,property)=>{
         if(key==='fields' && Array.isArray(property.enum) && property.enum.every(Array.isArray) && JSON.stringify(property.enum).length>1600){
             const examples=[];let bytes=2;
@@ -2005,9 +2070,9 @@ function compactActionCatalog(catalog) { return catalog.map(({ name, description
             }
             return {projectionExamples:examples,fullChoicesInNativeSchema:true,permittedProjectionCount:property.enum.length};
         }
-        return property.enum || (Object.prototype.hasOwnProperty.call(property,'const')?[property.const]:{minItems:property.minItems,...(Number.isInteger(property.maxItems)?{maxItems:property.maxItems}:{})});
+        return property.enum || (Object.prototype.hasOwnProperty.call(property,'const')?[property.const]:itemBinding(property));
     };
-    return { name, description: description.slice(0, 60), evidenceKinds: evidenceKinds || ["tool_result"],
+    const action={ name, description: description.slice(0, 60), evidenceKinds: evidenceKinds || ["tool_result"],
         // Tool selection needs the callable arguments; the complete schema
         // is supplied separately as responseJsonSchema and validated again.
         requiredArguments: (branches[0]?.required||[]).filter(key=>branches.every(branch=>(branch.required||[]).includes(key))),
@@ -2016,9 +2081,25 @@ function compactActionCatalog(catalog) { return catalog.map(({ name, description
         // repeating a whole query schema per source exhausts context.
         ...(requiresEvidence?.length ? {evidenceBindings: [...new Set(branches.map(branch => JSON.stringify(
             Object.fromEntries(Object.entries(branch.properties || {})
-                .filter(([, property]) => property.enum || Object.prototype.hasOwnProperty.call(property, "const") || property.type==='array'&&property.minItems>0)
+                .filter(([, property]) => property.enum || Object.prototype.hasOwnProperty.call(property, "const") || property.type==='array')
                 .map(([key, property]) => [key,binding(key,property)])))))].map(value=>JSON.parse(value))} : {}),
         mutates, requiresApproval };
+    // Share only byte-identical large constraint descriptions. References stay
+    // inside this same tool and each source/collection keeps its own binding.
+    // The executable native schema is never replaced with this textual view.
+    const repetitions=new Map(),definitions={},references=new Map();
+    for(const binding of action.evidenceBindings||[])for(const key of ['fields','filters','orderBy'])if(binding[key]){
+        const encoded=JSON.stringify(binding[key]);
+        repetitions.set(encoded,(repetitions.get(encoded)||0)+1);
+    }
+    for(const binding of action.evidenceBindings||[])for(const key of ['fields','filters','orderBy'])if(binding[key]){
+        const value=binding[key],encoded=JSON.stringify(value),copies=repetitions.get(encoded);
+        if((copies-1)*encoded.length-copies*32<=24)continue;
+        if(!references.has(encoded)){const id='constraint'+(references.size+1);references.set(encoded,id);definitions[id]=value;}
+        binding[key]={$ref:'#/$defs/'+references.get(encoded)};
+    }
+    if(references.size){action.$defs=definitions;action.bindingEncoding='Resolve each local $ref only inside this same tool $defs; its sourceFile and collection binding remains unchanged.';}
+    return action;
 });
 }
 
@@ -4549,13 +4630,14 @@ async function runModelSemanticPlanner({
         // local message limit even when the evidence block is within budget.
         const compactRecordArguments = argumentSchema && JSON.stringify(argumentSchema).length > 16000 &&
             phaseCatalog[0].evidenceKinds?.includes("platform_records") && phaseCatalog[0].requiresEvidence?.length;
+        const compactArgumentAction=compactRecordArguments?compactActionCatalog(phaseCatalog)[0]:null;
         const argumentPrompt = compactRecordArguments ? {
-            ...compactActionCatalog(phaseCatalog)[0],
+            ...compactArgumentAction,
             argumentTypes: Object.fromEntries((argumentSchema.anyOf || [argumentSchema]).flatMap(branch =>
-                Object.entries(branch.properties || {}).map(([name, schema]) => [name, {
+                Object.entries(branch.properties || {}).filter(([name])=>!compactArgumentAction.evidenceBindings?.some(binding=>Object.hasOwn(binding,name))).map(([name, schema]) => [name, {
                     type: schema.type, ...(schema.items?.type ? {items: {type: schema.items.type}} : {})
                 }]))),
-            schemaAuthority: "This is the same evidence-bound action view used for selection. The full correlated choices and constraints remain in responseJsonSchema and independent runtime validation. Read source schemas and field provenance in TAREAS_YA_OBSERVADAS and CONTEXTO_Y_EVIDENCIA_INMUTABLES; examples are not new permissions."
+            schemaAuthority: "Native schema and runtime retain full constraints. Bindings and local refs stay source/collection-specific; evidence grants no new permissions."
         } : argumentSchema;
 
         let lastPhaseError = null;

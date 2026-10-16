@@ -5627,13 +5627,17 @@ for(const scenario of ['complete','partial','cursor','truncated','untrusted','no
  tool.inputSchema.properties.fields.minItems=0;
  const frontier=eligibleEvidenceActionCatalog([tool],tasks);
  const allowed=frontier.some(choice=>hasRequiredToolArguments(choice,call.args));
- if(scenario!=='mixed-filter')assert.equal(allowed,!complete);
+ if(!['mixed-filter','unprojected-field'].includes(scenario))assert.equal(allowed,!complete);
+ if(['mixed-filter','unprojected-field'].includes(scenario)){
+  assert.equal(allowed,false,'defer an unread predicate aggregate only while the richer same-route field read is authorized');
+  assert.ok(frontier.some(choice=>hasRequiredToolArguments(choice,{...call.args,mode:'query',fields:['holder'],filters:[]})),'the source remains available through its unread values, without promoting the objective');
+ }
  if(scenario==='changed-value'){
   const projection={...call.args,mode:'query',fields:['deadline']};
   assert.equal(frontier.some(choice=>hasRequiredToolArguments(choice,projection)),false,'the old scalar value cannot remain offered after a newer complete witness changes it');
   assert.ok(frontier.some(choice=>hasRequiredToolArguments(choice,{...projection,filters:[{field:'marker',op:'==',value:'Updated-class'}]})),'the latest actual value remains usable to read new fields; a fully witnessed change does not require another recount');
  }
- if(scenario==='mixed-filter')assert.ok(frontier.some(choice=>hasRequiredToolArguments(choice,{...call.args,filters:[...call.args.filters].reverse()})),'a new predicate field may advance without transferring values to another route');
+ if(scenario==='mixed-filter')assert.equal(frontier.some(choice=>hasRequiredToolArguments(choice,{...call.args,filters:[...call.args.filters].reverse()})),false,'AND order cannot bypass the richer authorized read');
 });
 
 for(const seedMode of ['query','count'])test('fresh runtime '+seedMode+' evidence informs the next decision while code-only discovery does not repeat pending value reviews',async t=>{
@@ -5682,7 +5686,7 @@ for(const seedMode of ['query','count'])test('fresh runtime '+seedMode+' evidenc
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
 
-for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
+for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
  const f=completeScalarPopulationFixture();
  const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
  const {runJarvisSemanticPlanner,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
@@ -5692,6 +5696,9 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  const rejected={name:query.name,args:{sourceFile:f.args.sourceFile,collection:f.args.collection,mode:'count',filters:[{field:'marker',op:'==',value:'Observed-class'}]}};
  if(variant==='later-null-query')Object.assign(rejected.args,{mode:'query',fields:['deadline'],filters:[{field:'marker',op:'==',value:null}]});
  if(variant==='later-equality-query')Object.assign(rejected.args,{mode:'query',fields:['holder']});
+ if(variant==='unread-predicate-read-first')rejected.args.filters=[{field:'deadline',op:'==',value:null}];
+ if(variant==='known-scalar-array-query'){query.inputSchema.properties.filters.items.properties.op.enum.push('array-contains-any');Object.assign(rejected.args,{mode:'query',fields:['deadline'],filters:[{field:'marker',op:'array-contains-any',value:['Observed-class']}]});query.inputSchema.properties.filters.items.properties.value.type.push('array');}
+ if(variant==='known-ordering-query'){Object.assign(rejected.args,{mode:'query',fields:['holder'],filters:[],orderBy:[{field:'marker',direction:'asc'}]});query.inputSchema.properties.orderBy={type:'array',items:{type:'object',properties:{field:{type:'string',enum:['marker','holder','deadline']},direction:{type:'string',enum:['asc','desc']}},required:['field','direction']}};}
  if(variant==='filtered-full-projection')rejected.args.filters=[{field:'holder',op:'==',value:null}];
  const valid={name:query.name,args:{...f.args,fields:variant==='single-projection'?['holder','deadline']:['deadline']}};
  if(variant==='later-equality-query')valid.args.filters=[{field:'marker',op:'==',value:'Observed-class'}];
@@ -5704,6 +5711,23 @@ for(const variant of ['single-projection','later-projection','later-null-query',
   if(stage==='EVIDENCE_NEXT_ACTION'){
    if(progressed)return{text:'{"toolCalls":[]}'};
    assert.equal(stages.filter(item=>item==='RECORD_OBJECTIVE_COVERAGE').length,3,'fresh initial values inform every pending goal before selecting an action');
+   if(variant==='visible-action-constraints'){
+    const message=request.config.chatMessages.find(m=>m.content.startsWith('CATALOGO_EJECUTABLE='));
+    const action=JSON.parse(message.content.slice('CATALOGO_EJECUTABLE='.length)).find(tool=>tool.name===query.name);
+    const resolve=value=>{
+     if(!value||typeof value!=='object')return value;
+     if(value.$ref){assert.match(value.$ref,/^#\/\$defs\/constraint\d+$/);const id=value.$ref.split('/').at(-1);assert.ok(Object.hasOwn(action.$defs,id),'every reference must resolve inside this same tool');return resolve(action.$defs[id]);}
+     return Array.isArray(value)?value.map(resolve):Object.fromEntries(Object.entries(value).map(([key,item])=>[key,resolve(item)]));
+    };
+    assert.ok(action.evidenceBindings.every(binding=>Array.isArray(binding.sourceFile)&&Array.isArray(binding.collection)),'each source/collection association must remain explicit beside its own constraint references');
+    const allBindings=action.evidenceBindings.map(resolve);
+    const bindings=allBindings.filter(binding=>binding.sourceFile?.includes(f.args.sourceFile)&&binding.collection?.includes(f.args.collection)&&binding.mode?.includes('query'));
+    assert.ok(bindings.some(binding=>JSON.stringify(binding.fields||{}).includes('"deadline"')),'the text received by Qwen must expose the unread allowed projection in its own source/collection, not only array sizes');
+    assert.ok(bindings.some(binding=>JSON.stringify(binding.filters||{}).includes('"Observed-class"')),'the same scoped text must retain the witnessed predicate alternatives instead of leaving constraints only in the output grammar');
+    const siblings=allBindings.filter(binding=>binding.mode?.includes('query')&&binding.collection?.every(collection=>collection!==f.args.collection));
+    assert.ok(siblings.length&&siblings.every(binding=>!JSON.stringify(binding.fields||{}).includes('"deadline"')),'the compact text cannot lend a field to a separate collection');
+    assert.ok(request.config.chatMessages.reduce((n,message)=>n+message.content.length,0)<=60000,'visible constraints must remain inside the complete local context budget');
+   }
    const choices=recoverySchemas(request).filter(choice=>choice.properties.name.enum.includes(query.name));
    offeredInvalid=choices.some(choice=>hasRequiredToolArguments({inputSchema:choice.properties.args},rejected.args));
    offeredValid=choices.some(choice=>hasRequiredToolArguments({inputSchema:choice.properties.args},valid.args));
@@ -5735,7 +5759,7 @@ for(const variant of ['single-projection','later-projection','later-null-query',
   if(executed.length===2){assert.equal(receipt.recordEvidence.completeForQuery,true);assert.equal(receipt.recordEvidence.queryExhausted,true);assert.equal(receipt.recordEvidence.rows.length,1);}
   return{ok:true,data:receipt};
  },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION'},ai})});
- assert.equal(offeredInvalid,false,'earlier authenticated projected values must survive a later projection before inference');
+ assert.equal(offeredInvalid,false,'earlier authenticated projected values must survive a later projection before inference: '+JSON.stringify(result.errors));
  assert.equal(offeredValid,true,'newly credited fields of the same collection must remain executable');
  assert.equal(recoveries,1);assert.equal(executed.length,initialCount+1);assert.equal(executed.at(-1).name,valid.name);assert.deepEqual(executed.at(-1).args,valid.args);
  assert.equal(f.calls.filter(call=>call.kind==='count').length,0,'ignoring the native frontier cannot reach the count SDK');

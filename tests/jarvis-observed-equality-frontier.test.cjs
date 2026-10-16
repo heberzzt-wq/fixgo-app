@@ -107,6 +107,36 @@ for(const scenario of ['complete','receipt-alias','other-organization','other-fi
  const item={type:'object',properties:{field:{type:'string',enum:['marker','holder','deadline']},op:{type:'string',enum:['==','!=']},value:{type:'string'}},required:['field','op','value']};
  const tool={name:'platform.query',evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{sourceFile:{type:'string',enum:[candidate.sourceFile]},collection:{type:'string',enum:[candidate.collection]},mode:{type:'string',enum:['query']},fields:{type:'array',minItems:1,items:{type:'string',enum:['marker','holder','deadline']}},filters:{type:'array',items:item,maxItems:4},orderBy:{type:'array',maxItems:scenario==='new-ordering'?3:0,items:{type:'object',properties:{field:{type:'string'},direction:{type:'string'}}}}},required:['sourceFile','collection','mode','fields','filters']}};
  const frontier=eligibleEvidenceActionCatalog([tool],tasks);
- assert.equal(frontier.some(t=>hasRequiredToolArguments(t,candidate)),!['complete','receipt-alias','refreshed-complete'].includes(scenario),'only fully witnessed predicates and projected scalars in the same authenticated complete population can be removed');
- if(scenario==='unread-predicate')assert.ok(frontier.some(t=>hasRequiredToolArguments(t,{...candidate,filters:[...candidate.filters,{field:'marker',op:'==',value:'Observed class'}]})),'a new predicate retains the other grounded AND constraints');
+ assert.equal(frontier.some(t=>hasRequiredToolArguments(t,candidate)),!['complete','receipt-alias','refreshed-complete','unread-predicate'].includes(scenario),'fully witnessed scopes retire; unread predicates defer only to a richer authorized field read');
+ if(scenario==='unread-predicate')assert.ok(frontier.some(t=>hasRequiredToolArguments(t,{...candidate,fields:['deadline'],filters:[{field:'marker',op:'==',value:'Observed class'}]})),'the new projected predicate retains the other grounded AND constraints');
+});
+
+for(const scenario of ['read-first','aggregate-only','unprojectable','null-projection','truncated-projection','partial-population','other-organization','other-source'])test('aggregate frontier preserves '+scenario+' access and dependencies',()=>{
+ const args={sourceFile:'source.js',collection:'organizations/approved/entries',mode:'query',fields:['marker'],filters:[],orderBy:[]};
+ const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...structuredClone(args),implicitExistenceFields:[]},rows:[{id:'entry',values:{marker:'Observed class'}}],returnedCount:1,totalCount:1,hasMore:false,queryExhausted:true,completeForQuery:true};
+ const tasks=[{name:'platform.query',args,observation:{ok:true,recordEvidence:record}}];
+ if(scenario==='partial-population'){record.hasMore=true;record.completeForQuery=false;}
+ if(['null-projection','truncated-projection'].includes(scenario)){const later=structuredClone(tasks[0]);later.args.fields=later.observation.recordEvidence.scope.fields=['deadline'];later.observation.recordEvidence.rows[0].values={deadline:scenario==='null-projection'?null:'Visible prefix'};if(scenario==='truncated-projection')later.observation.recordEvidence.truncatedFields=['deadline'];tasks.push(later);}
+ const route=scenario==='other-organization'?'organizations/other/entries':args.collection,file=scenario==='other-source'?'other.js':args.sourceFile;
+ const tool={name:'platform.query',evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{sourceFile:{type:'string',enum:[file]},collection:{type:'string',enum:[route]},mode:{type:'string',enum:scenario==='aggregate-only'?['count']:['query','count']},fields:{type:'array',items:{type:'string',enum:scenario==='unprojectable'?['marker']:['marker','deadline']}},filters:{type:'array',maxItems:4,items:{type:'object',properties:{field:{type:'string',enum:['marker','deadline']},op:{type:'string',enum:['==']},value:{type:['string','null']}},required:['field','op','value']}},orderBy:{type:'array',maxItems:0}},required:['sourceFile','collection','mode','filters']}};
+ const count={sourceFile:file,collection:route,mode:'count',filters:[{field:'deadline',op:'==',value:null}]},read={...count,mode:'query',fields:['deadline'],filters:[]};
+ const frontier=eligibleEvidenceActionCatalog([tool],tasks),allows=call=>frontier.some(t=>hasRequiredToolArguments(t,call));
+ assert.equal(allows(count),scenario!=='read-first','only a new richer authorized projection over the same fully known population may defer the aggregate');
+ assert.equal(allows(read),!['aggregate-only','unprojectable','truncated-projection','null-projection'].includes(scenario),'deferred counts must retain the authorized unread field action; already attempted fields keep aggregate access');
+});
+
+for(const scenario of ['complete-scalar','actual-array','partial-scalar','other-organization','untrusted','missing-value','new-row'])test('array membership preserves '+scenario+' scope and value types',()=>{
+ const args={sourceFile:'source.js',collection:'organizations/approved/entries',mode:'query',fields:['marker'],filters:[],orderBy:[]};
+ const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...structuredClone(args),implicitExistenceFields:[]},rows:[{id:'entry',values:{marker:'Observed class'}}],returnedCount:1,totalCount:1,hasMore:false,queryExhausted:true,completeForQuery:true};
+ const tasks=[{name:'platform.query',args,observation:{ok:true,recordEvidence:record}}];
+ if(scenario==='actual-array')record.rows[0].values.marker=['Observed class'];
+ if(scenario==='partial-scalar'){record.hasMore=true;record.completeForQuery=false;}
+ if(scenario==='untrusted')record.source='REPOSITORY_SOURCE';
+ if(scenario==='missing-value')delete record.rows[0].values.marker;
+ if(scenario==='new-row'){const newer=structuredClone(tasks[0]);newer.args.filters=[{field:'marker',op:'!=',value:'Absent'}];newer.observation.recordEvidence.scope.filters=newer.args.filters;newer.observation.recordEvidence.rows[0].id='new-entry';tasks.push(newer);}
+ const route=scenario==='other-organization'?'organizations/other/entries':args.collection;
+ const tool={name:'platform.query',evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{sourceFile:{type:'string',enum:[args.sourceFile]},collection:{type:'string',enum:[route]},mode:{type:'string',enum:['query']},fields:{type:'array',items:{type:'string',enum:['marker','deadline']}},filters:{type:'array',maxItems:4,items:{type:'object',properties:{field:{type:'string',enum:['marker','deadline']},op:{type:'string',enum:['==','array-contains','array-contains-any']},value:{type:['string','array']}},required:['field','op','value']}},orderBy:{type:'array',maxItems:0}},required:['sourceFile','collection','mode','fields','filters']}};
+ const candidate={sourceFile:args.sourceFile,collection:route,mode:'query',fields:['deadline'],filters:[{field:'marker',op:'array-contains-any',value:['Observed class']}]};
+ const frontier=eligibleEvidenceActionCatalog([tool],tasks);
+ assert.equal(frontier.some(t=>hasRequiredToolArguments(t,candidate)),scenario!=='complete-scalar','only an authenticated complete scalar population can rule out array membership; an actual array or uncertain scope remains available');
 });
