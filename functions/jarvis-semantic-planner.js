@@ -63,10 +63,20 @@ function observedScalarPopulation(tasks,sourceFile,collection,toolName,fields) {
         orderBy:args?.orderBy?.length?args.orderBy:[{field:'__name__',direction:'asc'}],cursor:args?.cursor||null}));
     const successful=tasks.filter(task=>task.observation?.ok===true&&task.observation.executionOk!==false&&
         task.observation.blocked!==true&&task.observation.requiresInput!==true);
+    // Distinct credited modules can address the same authenticated population.
+    // A literal route observed in THIS module is required; never resolve a new
+    // template using another module's receipt or lend it field authorization.
+    const targetRoutes=new Set(successful.flatMap(task=>{
+        const read=task.observation.verifiedRead,bindings=read?.sourceStructure?.dataBindings;
+        return read?.file===sourceFile && bindings?.source==='ACORN_SOURCE_REFERENCES'
+            ? (bindings.collections||[]).filter(route=>typeof route==='string'&&!/[{}]/.test(route)) : [];
+    }));
     const projections=successful.filter(task=>{const record=task.observation.recordEvidence,scope=record?.scope;
         return task.name===toolName&&record?.source==='FIRESTORE_SERVER_AUTHENTICATED'&&record.readOnly===true&&
             matchesRecordedQueryCollection(task.args?.collection,task)&&matchesRecordedQueryCollection(collection,task)&&
-            scopeKey(task.args)===scopeKey(scope)&&scope.sourceFile===sourceFile&&task.args?.mode==='query'&&scope.mode==='query'&&
+            scopeKey(task.args)===scopeKey(scope)&&
+            (scope.sourceFile===sourceFile || collection===scope.collection&&targetRoutes.has(collection))&&
+            task.args?.mode==='query'&&scope.mode==='query'&&
             !scope.cursor&&!(scope.implicitExistenceFields||[]).length&&
             (scope.orderBy||[]).every(order=>order.field==='__name__')&&record.completeForQuery===true&&
             record.queryExhausted===true&&record.hasMore===false&&record.consistentCountAndList!==false&&
@@ -185,6 +195,7 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
             matchesRecordedQueryCollection(task.args?.collection,task)&&queryScope(task.args)===queryScope(record.scope)&&
             !(record.scope?.implicitExistenceFields||[]).length;
     });
+    const frontierEvidence=[...frontierTasks,...successful.filter(task=>task.observation.verifiedRead)];
     const unreadFieldProjectionAvailable=(tool,sourceFile,collection,field)=>
         !frontierTasks.some(task=>task.name===tool.name&&matchesRecordedQueryCollection(collection,task)&&
             task.observation.recordEvidence.scope.sourceFile===sourceFile&&task.observation.recordEvidence.scope.mode==='query'&&
@@ -240,7 +251,7 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
             return p.mode.enum.flatMap(mode=>{
                 if(mode==='count'){
                     const predicates=p.filters?.items?.properties?.field?.enum;
-                    const population=Array.isArray(predicates)&&observedScalarPopulation(frontierTasks,sourceFile,collection,tool.name,predicates);
+                    const population=Array.isArray(predicates)&&observedScalarPopulation(successful,sourceFile,collection,tool.name,predicates);
                     // With the whole population already anchored, read an
                     // unread predicate's values before another aggregate when
                     // that exact read is authorized. Preserve aggregate-only
@@ -257,7 +268,7 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
                     if(Array.isArray(names)&&Array.isArray(predicates)&&Array.isArray(ordering)&&!p.fields.enum&&!p.filters?.enum&&
                         p.filters?.const===undefined&&!p.orderBy?.enum&&p.orderBy?.const===undefined){
                         const dependencies=[...new Set([...names,...predicates,...ordering])];
-                        const population=observedScalarPopulation(frontierTasks,sourceFile,collection,tool.name,dependencies);
+                        const population=observedScalarPopulation(successful,sourceFile,collection,tool.name,dependencies);
                         const known=field=>field==='__name__'||population?.has(field);
                         if(population&&dependencies.every(field=>known(field)||unreadFieldProjectionAvailable(tool,sourceFile,collection,field))){
                             const novel=names.filter(field=>!known(field));
@@ -297,13 +308,13 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
                             ...(p.orderBy?{orderBy:{...p.orderBy,enum:[orderBy]}}:{})}};
                         const args={sourceFile,collection,mode,filters,orderBy};
                         if(mode==='count'){
-                            if(!recordProjectionAlreadyObserved({name:tool.name,args},frontierTasks))variants.push(scoped);
+                            if(!recordProjectionAlreadyObserved({name:tool.name,args},frontierEvidence))variants.push(scoped);
                             continue;
                         }
                         const fields=p.fields,names=fields?.items?.enum;
                         if(mode!=='query'||!Array.isArray(names)||fields.enum){variants.push(scoped);continue;}
-                        const observed=names.filter(field=>recordProjectionAlreadyObserved({name:tool.name,args:{...args,fields:[field]}},frontierTasks));
-                        if(!observed.length || !recordProjectionAlreadyObserved({name:tool.name,args:{...args,fields:observed}},frontierTasks)){variants.push(scoped);continue;}
+                        const observed=names.filter(field=>recordProjectionAlreadyObserved({name:tool.name,args:{...args,fields:[field]}},frontierEvidence));
+                        if(!observed.length || !recordProjectionAlreadyObserved({name:tool.name,args:{...args,fields:observed}},frontierEvidence)){variants.push(scoped);continue;}
                         const novel=names.filter(field=>!observed.includes(field));
                         if(novel.length)variants.push({...scoped,properties:{...scoped.properties,fields:{...fields,minItems:Math.max(1,fields.minItems||0),
                             items:[{...fields.items,enum:novel}],additionalItems:fields.items}}});
@@ -314,7 +325,7 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
                 const novelFilteredChoices=filtered=>{
                     const fields=p.fields,names=fields?.items?.enum,item=p.filters?.items,fp=item?.properties;
                     if(mode!=='query'||!Array.isArray(names)||fields.enum||!Array.isArray(fp?.field?.enum)||!Array.isArray(fp?.op?.enum))return [filtered];
-                    const known=observedScalarPopulation(frontierTasks,sourceFile,collection,tool.name,[...new Set([...names,...fp.field.enum])]);
+                    const known=observedScalarPopulation(frontierEvidence,sourceFile,collection,tool.name,[...new Set([...names,...fp.field.enum])]);
                     if(!known||!names.some(field=>known.has(field)))return [filtered];
                     const variants=[],novel=names.filter(field=>!known.has(field));
                     if(p.orderBy&&!p.orderBy.enum&&p.orderBy.maxItems!==0)variants.push({...filtered,properties:{...filtered.properties,
@@ -341,11 +352,11 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
                         ...(p.filters?{filters:{...p.filters,maxItems:0}}:{}),...(p.orderBy?{orderBy:{...p.orderBy,maxItems:0}}:{})}}))];
                 };
                 if(p.filters?.minItems>0 || p.orderBy?.minItems>0 || p.filters?.enum && !p.filters.enum.some(v=>Array.isArray(v)&&!v.length) || p.orderBy?.enum && !p.orderBy.enum.some(v=>Array.isArray(v)&&!v.length))return [branch];
-                if(mode==='count')return recordProjectionAlreadyObserved({name:tool.name,args},frontierTasks)?preserveOtherScopes([]):[branch];
+                if(mode==='count')return recordProjectionAlreadyObserved({name:tool.name,args},frontierEvidence)?preserveOtherScopes([]):[branch];
                 const fields=p.fields,names=fields?.items?.enum;
                 if(mode!=='query'||!Array.isArray(names)||fields.enum)return [branch];
-                const observed=names.filter(field=>recordProjectionAlreadyObserved({name:tool.name,args:{...args,fields:[field]}},frontierTasks));
-                if(!observed.length || !recordProjectionAlreadyObserved({name:tool.name,args:{...args,fields:observed}},frontierTasks))return [branch];
+                const observed=names.filter(field=>recordProjectionAlreadyObserved({name:tool.name,args:{...args,fields:[field]}},frontierEvidence));
+                if(!observed.length || !recordProjectionAlreadyObserved({name:tool.name,args:{...args,fields:observed}},frontierEvidence))return [branch];
                 const novel=names.filter(field=>!observed.includes(field));
                 if(!novel.length)return preserveOtherScopes([]);
                 // Projection order has no data meaning. Put one new field first

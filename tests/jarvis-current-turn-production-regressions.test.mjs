@@ -5697,7 +5697,7 @@ for(const seedMode of ['query','count'])test('fresh runtime '+seedMode+' evidenc
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
 
-for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','bounded-localized-catalog','complete-query-count-facts','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
+for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','bounded-localized-catalog','complete-query-count-facts','credited-source-alias','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
  const f=completeScalarPopulationFixture();
  const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
  const {runJarvisSemanticPlanner,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
@@ -5714,10 +5714,18 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  if(variant==='known-ordering-query'){Object.assign(rejected.args,{mode:'query',fields:['holder'],filters:[],orderBy:[{field:'marker',direction:'asc'}]});query.inputSchema.properties.orderBy={type:'array',items:{type:'object',properties:{field:{type:'string',enum:['marker','holder','deadline']},direction:{type:'string',enum:['asc','desc']}},required:['field','direction']}};}
  if(variant==='filtered-full-projection')rejected.args.filters=[{field:'holder',op:'==',value:null}];
  const valid={name:query.name,args:{...f.args,fields:variant==='single-projection'?['holder','deadline']:['deadline']}};
+ const aliasContent='async function read(db){const ref=collection(db,"registry","approved","entries");await addDoc(ref,{marker:input.marker,holder:input.holder,deadline:input.deadline});await getDocs(ref);}';
+ if(variant==='credited-source-alias'){
+  reader.inputSchema.properties.file.enum.push('alternate.js');
+  f.context.completedTasks.push({name:reader.name,args:{file:'alternate.js'},observation:{ok:true,verifiedRead:{file:'alternate.js',content:aliasContent,sourceStructure:analyzeRepoSourceStructure(aliasContent)}}});
+  Object.assign(rejected.args,{sourceFile:'alternate.js',collection:'registry/approved/entries',filters:[]});
+  Object.assign(valid.args,{sourceFile:'alternate.js',collection:'registry/approved/entries'});
+ }
  if(variant==='later-equality-query')valid.args.filters=[{field:'marker',op:'==',value:'Observed-class'}];
  const seedCalls=[{name:query.name,args:f.args},...(variant==='single-projection'?[]:[{name:query.name,args:{...f.args,fields:['holder']}}])];
  if(variant==='filtered-full-projection')seedCalls[1].args.filters=[{field:'marker',op:'==',value:'Observed-class'}];
- const initialCount=1+seedCalls.length;
+ const initialReads=[{name:reader.name,args:{file:'source.js'}},...(variant==='credited-source-alias'?[{name:reader.name,args:{file:'alternate.js'}}]:[])];
+ const initialCount=initialReads.length+seedCalls.length;
  const executed=[],stages=[];let progressed=false,offeredInvalid,offeredValid,recoveries=0;
  const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
   const stage=request.config.semanticStage;stages.push(stage);
@@ -5775,9 +5783,9 @@ for(const variant of ['single-projection','later-projection','later-null-query',
   }}));
   return response;
  };
- const result=await runJarvisMission({instruction:goals.map(goal=>goal.objective).join('; '),initialEvidenceObjectives:goals,initialToolCalls:[{name:reader.name,args:{file:'source.js'}},...seedCalls],toolCatalog:[reader,query],storage:{getItem(){return null;},setItem(){},removeItem(){}},execute:async call=>{
+ const result=await runJarvisMission({instruction:goals.map(goal=>goal.objective).join('; '),initialEvidenceObjectives:goals,initialToolCalls:[...initialReads,...seedCalls],toolCatalog:[reader,query],storage:{getItem(){return null;},setItem(){},removeItem(){}},execute:async call=>{
   executed.push(call);
-  if(call.name===reader.name){const read=f.context.completedTasks[0].observation.verifiedRead;return{ok:true,data:{...read,numberedContent:'1: '+read.content,startLine:1,endLine:1,totalLines:1}};}
+  if(call.name===reader.name){const read=f.context.completedTasks.find(task=>task.observation?.verifiedRead?.file===call.args.file).observation.verifiedRead;return{ok:true,data:{...read,numberedContent:'1: '+read.content,startLine:1,endLine:1,totalLines:1}};}
   if(executed.length>initialCount)progressed=true;
   const receipt=await f.execute(call.args,f.dependencies,f.context);
   assert.equal(receipt.ok,true,JSON.stringify(receipt));
@@ -5791,6 +5799,6 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  assert.equal(f.calls.filter(call=>call.kind==='count').length,0,'ignoring the native frontier cannot reach the count SDK');
  assert.equal(f.calls.filter(call=>call.kind==='query').length,seedCalls.length+1,'the rejected equality must not reach the query SDK either');
  assert.equal(stages.filter(stage=>stage==='RECORD_OBJECTIVE_COVERAGE').length,6,'initial and newly read operational values independently inform each original goal');
- assert.equal(stages.filter(stage=>stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,variant==='schema-growth'?6:3,'only newly observed field names invalidate the independent source schema review');
+ assert.equal(stages.filter(stage=>stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,['schema-growth','credited-source-alias'].includes(variant)?6:3,'new field names or the first authenticated field receipt for a separately credited module invalidate its own source review');
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
