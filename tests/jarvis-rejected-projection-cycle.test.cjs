@@ -24,7 +24,7 @@ for(const scenario of ['irrelevant','relevant','unknown','new-fields','scope-con
   }
   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){recoveryCalls++;return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'dependency.js'}}],sourceFallback:[]})};}
   if(stage==='QUERY_POPULATION_VERIFICATION'){
-   reviews++;const args=JSON.parse(request.config.chatMessages.at(-1).content).proposed;
+   reviews++;const args=queryReviewFixture.packet(request).proposed;
    return queryReviewFixture(request,{matchesRequest:readDependency&&args.collection===valid.args.collection,populationRelevance:scenario.startsWith('scope-')?'irrelevant':scenario==='new-fields'?(readDependency?'relevant':'irrelevant'):scenario,schemaDiscoveryRelevant:false,rejectionReason:'Evaluate the observed population separately from its requested projection.'});
   }
   const payload=JSON.parse(request.config.chatMessages.at(-1).content);

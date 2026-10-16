@@ -67,7 +67,7 @@ for(const scenario of ['new-fields','witnessed-filter','implicit-ids'])test(`aut
   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){recoveries++;return{text:JSON.stringify({toolCalls:[valid],sourceFallback:[]})};}
   if(stage==='QUERY_POPULATION_VERIFICATION'){
    if(useWitnessedFilter){
-    const payload=JSON.parse(request.config.chatMessages.at(-1).content);
+    const payload=queryReviewFixture.packet(request);
     assert.deepEqual(payload.observedFilterValueWitnesses,[{filterIndex:0,valueIndexes:[0],source:'FIRESTORE_SERVER_AUTHENTICATED',scope:'same_route_and_projected_field',objectiveCoverageProven:false}]);
     assert.ok(JSON.stringify(payload.observedFilterValueWitnesses).length<256,'value witnesses refer to proposed arguments without duplicating record values');
    }

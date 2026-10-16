@@ -1,3 +1,4 @@
+const queryReviewFixture=require('./helpers/query-review-fixture.cjs');
 const test=require('node:test'),assert=require('node:assert/strict');
 const {runJarvisSemanticPlanner}=require('../functions/jarvis-semantic-planner.js');
 
@@ -22,7 +23,7 @@ for(const scenario of ['first-objective','third-objective','none','aggregate-wit
   }
   if(stage==='QUERY_POPULATION_VERIFICATION'){
    reviews++;reviewSchema=request.config.responseJsonSchema;
-   const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;
+   const proposed=queryReviewFixture.packet(request).proposed;
    const isRecovery=proposed.fields.includes('deadline');
    const projectionCase=['population-only-fields','unprojected-field','foreign-field','incomplete-projection','aggregate-only-query','missing-projection-verdict'].includes(scenario);
    const objectiveMatches={'0':isRecovery&&scenario==='first-objective','1':!isRecovery&&projectionCase,'2':isRecovery&&(scenario==='third-objective'||projectionCase)};

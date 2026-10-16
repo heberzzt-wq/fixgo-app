@@ -15,7 +15,7 @@ test('a rejected count is removed before recovery while a grounded projection ad
   const stage=request.config.semanticStage;
   if(stage==='EVIDENCE_NEXT_ACTION')return{text:JSON.stringify({toolCalls:advanced?[]:[rejected]})};
   if(stage==='QUERY_POPULATION_VERIFICATION'){
-   const proposed=JSON.parse(request.config.chatMessages.at(-1).content).proposed;
+   const proposed=queryReviewFixture.packet(request).proposed;
    return queryReviewFixture(request,{matchesRequest:proposed.mode==='query',schemaDiscoveryRelevant:proposed.mode==='query',rejectionReason:proposed.mode==='count'?'Counting people does not answer the requested entries; inspect the credited relationship fields.':''});
   }
   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){

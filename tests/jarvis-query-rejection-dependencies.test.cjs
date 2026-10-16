@@ -23,7 +23,7 @@ for(const dependency of ['unrelated','other-organization','related'])test(`rejec
   }
   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){recoveryCalls++;return{text:JSON.stringify({toolCalls:[discovered],sourceFallback:[]})};}
   if(stage==='QUERY_POPULATION_VERIFICATION'){
-   reviews++;const args=JSON.parse(request.config.chatMessages.at(-1).content).proposed;
+   reviews++;const args=queryReviewFixture.packet(request).proposed;
    return queryReviewFixture(request,{matchesRequest:args.mode==='query'||(readDependency&&dependency==='related'),schemaDiscoveryRelevant:false,rejectionReason:'This count does not establish the requested population from its current source.'});
   }
   const payload=JSON.parse(request.config.chatMessages.at(-1).content);

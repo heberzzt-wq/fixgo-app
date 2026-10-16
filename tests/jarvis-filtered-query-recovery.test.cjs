@@ -17,7 +17,7 @@ for(const variant of ['open','finite','finite_mandatory','unknown_mandatory'])te
   const stage=request.config.semanticStage;stages.push(stage);
   assert.ok(request.config.chatMessages.reduce((n,m)=>n+m.content.length,0)<=60000);
   if(stage==='EVIDENCE_NEXT_ACTION')return{text:JSON.stringify({toolCalls:advanced?[]:[irrelevant]})};
-  if(stage==='QUERY_POPULATION_VERIFICATION'){const p=JSON.parse(request.config.chatMessages.at(-1).content).proposed;return queryReviewFixture(request,{matchesRequest:p.collection==='units',schemaDiscoveryRelevant:p.collection==='units',rejectionReason:p.collection==='units'?'':'Observed profile schema is unrelated.'});}
+  if(stage==='QUERY_POPULATION_VERIFICATION'){const p=queryReviewFixture.packet(request).proposed;return queryReviewFixture(request,{matchesRequest:p.collection==='units',schemaDiscoveryRelevant:p.collection==='units',rejectionReason:p.collection==='units'?'':'Observed profile schema is unrelated.'});}
   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){
    const schemas=request.config.responseJsonSchema.properties.toolCalls.items.anyOf.filter(v=>v.properties.name.enum.includes(query.name)).map(v=>v.properties.args);
    offeredRepeat=schemas.some(inputSchema=>hasRequiredToolArguments({inputSchema},seed.args));

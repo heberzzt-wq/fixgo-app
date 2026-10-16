@@ -150,7 +150,7 @@ test("query scope review retains accredited fields and successful sources for th
         missionState:{phase:"COMPLETION_AUDIT",evidenceObjectives:[contract],advisorySemanticContext:{turns:[{role:"user",content:"Declared and official states are distinct."}]},completedTasks:[source("primary.js","alpha","state"),source("supplement.js","alpha","state.expiresAt"),source("unrelated.js","beta","foreign"),source("failed.js","alpha","untrusted",{executionOk:false})]},
         ai:{models:{generateContent:async request=>{
             if(request.config.semanticStage==="QUERY_POPULATION_VERIFICATION"){
-                const payload=JSON.parse(request.config.chatMessages.at(-1).content);
+                const payload=queryReviewFixture.packet(request);
                 assert.deepEqual(payload.observedFieldSchemas.map(item=>item.file),["primary.js","supplement.js"]);
                 assert.ok(payload.observedFieldSchemas.some(item=>item.fieldPaths.includes("state.expiresAt")));
                 assert.deepEqual(payload.objectives,[contract]);

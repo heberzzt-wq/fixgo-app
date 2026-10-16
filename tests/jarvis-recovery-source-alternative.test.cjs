@@ -20,7 +20,7 @@ for(const failure of ['semantic','repeated','arguments','empty'])for(const alter
    return{text:JSON.stringify({toolCalls:failure==='empty'?[]:[recovery],sourceFallback:[fallback]})};
   }
   if(stage==='QUERY_POPULATION_VERIFICATION'){
-   const args=JSON.parse(request.config.chatMessages.at(-1).content).proposed;
+   const args=queryReviewFixture.packet(request).proposed;
    return queryReviewFixture(request,{matchesRequest:accepted&&args.collection==='groups',schemaDiscoveryRelevant:false,rejectionReason:'This projection has not established pertinent operational evidence.'});
   }
   const payload=JSON.parse(request.config.chatMessages.at(-1).content);

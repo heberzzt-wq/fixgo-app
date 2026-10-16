@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {runJarvisSemanticPlanner,hasRequiredToolArguments}=require('../functions/jarvis-semantic-planner.js');
-for(const purpose of ['count','none','membership','missing','fresh-scope','relationship-only','temporal-only'])test(`population projection preserves count versus membership purpose through recovery: ${purpose}`,async()=>{
+for(const purpose of ['count','none','membership','missing','fresh-scope','relationship-only','temporal-only','proposal-bias'])test(`population projection preserves count versus membership purpose through recovery: ${purpose}`,async()=>{
  const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
  const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js','unrelated.js']}},required:['file']}};
  const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query']},fields:{type:'array',items:{type:'string'}},filters:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}};
@@ -20,11 +20,11 @@ for(const purpose of ['count','none','membership','missing','fresh-scope','relat
   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){recoveries++;return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'unrelated.js'}}],sourceFallback:[]})};}
   const packet=JSON.parse(request.config.chatMessages.at(-1).content);
   if(stage==='QUERY_POPULATION_VERIFICATION'){
-   reviews++;const isClassification=packet.proposed.fields.includes('classification');
-   const verdict={matchesRequest:true,populationRelevance:'relevant',schemaDiscoveryRelevant:false,rejectionReason:'',objectiveMatches:{0:true,1:false,2:false},objectiveFields:{0:[packet.proposed.fields[0]],1:[],2:[]}};
+   reviews++;const candidateFields=request.config.semanticCandidateFields||packet.proposed.fields;const isClassification=candidateFields.includes('classification');
+   const verdict={matchesRequest:true,populationRelevance:'relevant',schemaDiscoveryRelevant:false,rejectionReason:'',objectiveMatches:{0:true,1:false,2:false},objectiveFields:{0:[candidateFields[0]],1:[],2:[]}};
    if(!isClassification&&['relationship-only','temporal-only'].includes(purpose)){const index=purpose==='relationship-only'?'1':'2';verdict.objectiveMatches={'0':false,'1':false,'2':false};verdict.objectiveMatches[index]=true;verdict.objectiveFields={'0':[],'1':[],'2':[]};verdict.objectiveFields[index]=['annotation'];}
    if(purpose!=='missing'||isClassification)verdict.populationFieldPurposes={0:isClassification?'membership':purpose==='membership'?'membership':purpose==='none'?'none':'count'};
-   return{text:JSON.stringify(verdict)};
+   if(purpose==='proposal-bias'){verdict.objectiveFields[0]=packet.proposed.fields?['annotation']:['classification'];verdict.populationFieldPurposes={0:'membership'};}return{text:JSON.stringify(verdict)};
   }
   if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(packet.sources.map(c=>[c,{relevantToObjective:true,reason:'Related scoped evidence, not global coverage.'}]))})};
   assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);

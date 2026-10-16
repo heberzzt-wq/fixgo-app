@@ -30,7 +30,7 @@ for(const missing of ['field','value'])for(const alternative of ['operational','
    return{text:JSON.stringify({toolCalls:offeredOperational?[valid]:[]})};
   }
   if(stage==='QUERY_POPULATION_VERIFICATION'){
-   const payload=JSON.parse(request.config.chatMessages.at(-1).content);
+   const payload=queryReviewFixture.packet(request);
    assert.equal(payload.proposed.collection,'units','only the selected grounded operation reaches its independent validator');
    return queryReviewFixture(request,{"matchesRequest":true,"schemaDiscoveryRelevant":true,"rejectionReason":""});
   }

@@ -29,7 +29,7 @@ for(const projection of ['forbidden','absent'])test('count filter fields stay so
   }
   if(stage==='QUERY_POPULATION_VERIFICATION')return queryReviewFixture(request,{"matchesRequest":true,"schemaDiscoveryRelevant":true,"rejectionReason":""});
   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION')return{text:'{"toolCalls":[]}'};
-  const payload=JSON.parse(request.config.chatMessages.at(-1).content);
+  const payload=queryReviewFixture.packet(request);
   if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(payload.sources.map(collection=>[collection,{relevantToObjective:true,reason:'Unresolved independent source.'}]))})};
   assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);
   return{text:JSON.stringify({proven:false,missing:['Independent evidence remains unavailable.'],groups:[],sources:payload.observedSources.map(collection=>({collection,relevant:true,reason:'Pending independent coverage.',taskIndexes:collection==='primary'&&counted?[1]:[]}))})};

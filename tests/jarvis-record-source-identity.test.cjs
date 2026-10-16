@@ -128,7 +128,7 @@ test('query relevance receives only the proposed collection source and its own f
  const result=await runJarvisSemanticPlanner({input:'Inspect current entries',catalog:[reader,query],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[{objective:'Inspect current entries',requiredEvidenceKind:'platform_records'}],completedTasks:tasks},ai:{models:{generateContent:async request=>{
   if(request.config.semanticStage==='COMPLETION_AUDIT')return{text:JSON.stringify({completionAssessment:{objectives:[{objective:'Inspect current entries',requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Read current entries'}]},toolCalls:[{name:query.name,args:{sourceFile:'registry.js',collection:'entries',mode:'query',fields:['label']}}]})};
   assert.equal(request.config.semanticStage,'QUERY_POPULATION_VERIFICATION');
-  const payload=JSON.parse(request.config.chatMessages.at(-1).content);
+  const payload=queryReviewFixture.packet(request);
   assert.ok(JSON.stringify(payload.observedSource).includes('entry.label'));
   assert.ok(!JSON.stringify(payload.observedSource).includes('billingStatus'),'an unrelated collection must not ground this query');
   assert.deepEqual(payload.observedFieldSchemas[0].collections,['entries']);
