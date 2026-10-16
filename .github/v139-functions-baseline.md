@@ -1,5 +1,26 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `7e68be3026edad671657293a75ca76aa4a891c80`.
+Only the semantic planner changed in Functions since b5fac2c2.
+The clean Chrome mission on 7a520334 ended PARTIAL after 383490 ms of engine
+execution and 40 local calls. It queried the legacy route and null statistics;
+all three operational objectives remained pending. The query verifier's aggregate
+rejection ignored independent relevance to the later document objective.
+The same Qwen now evaluates query relevance by original operational-objective
+index in its native schema. Investigation may advance when any of its complete
+independent decisions matches; no match or an incomplete decision is rejected.
+This does not satisfy any objective or waive its separate coverage validation.
+Five generic full-cycle tests cover first/later objective relevance, no match,
+a contradictory aggregate positive and incomplete decisions. Legacy aggregate-only
+receipts retain their existing compatibility; the current native contract requires
+all objective indices. No domain/source/tenant dictionary was introduced.
+Focused checks: 316 PASS. Frozen root suite with local emulators:
+2196 PASS, 0 FAIL, 2 environment skips. Physical repo.search and fresh Chrome
+certification remain separate acceptance gates. No model/provider/access change,
+external AI call or operational data write. Later Functions deltas still fail closed.
+
+## Previous reviewed baseline
+
 Current baseline: `b5fac2c2ffee58c1cebbd211445cc9ca4ae5de2d`.
 Only the semantic planner changed in Functions since 98bb40b4.
 Real Chrome evidence exposed a fabricated empty equality after a complete positive
