@@ -1,5 +1,24 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `8b5977ed61929b05690ddba4d0543212e3105e59`.
+Only the semantic planner changed in Functions since c144bece. The real Chrome
+attempt on 6ccdb0e7 exposed repeated scope verification of changed projections;
+it was diagnostically stopped after 735148 ms, 41 started local calls and four
+executed read-only tools. All three objectives remained pending. This is not a
+successful business certification, even though CI and physical repo.search passed.
+The verifier now distinguishes population relevance from projection sufficiency.
+Only an explicit engine-owned irrelevant-population verdict with unchanged
+dependencies can exclude other projections of that same source, route and mode.
+Unknown/relevant populations and newly accredited fields remain eligible. Filters
+and cursors keep their own scopes. The bounded rejection context deduplicates the
+stronger population receipt so distinct vetoes are retained without raising budget.
+Four full-loop cases and one budget regression cover these boundaries. Existing
+focal: 592 PASS. Final integrated root: 2162 PASS, 0 FAIL, 2 environment skips.
+No model/provider/permission change and no operating writes. Fresh Chrome
+certification remains required. Subsequent unreviewed Functions changes still fail.
+
+## Previous reviewed baseline
+
 Current baseline: `c144bece6ebac653662d85c76d4c65cd8d17751a`.
 The only Functions delta since 4427f8fd is the semantic planner's rejected-query
 dependency key: unrelated reads no longer invalidate a witnessed rejection.
