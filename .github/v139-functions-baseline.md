@@ -1,5 +1,26 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `11366f68356e861f409d7eca23a1110f5965233b`.
+Only the semantic planner changed in Functions sincee73b8553.
+The real clean Chrome run remained PARTIAL after40local calls,561055ms engine
+and625478ms wall, with0repeated operational queries. No paid/external AI.
+It still abandoned authorized readers after a rejected recovery proposal and
+an empty sourceFallback; the requirements map legitimately contained empty goals.
+Require one same-response repository alternative while readers remain. Prefer
+novel source readers already filtered by the evidence frontier. A valid primary
+executes alone; otherwise independently validate the model-selected alternative,
+including when no primary was selected. No new inference chain, permissions,
+operational values, population exhaustion or objective satisfaction is invented.
+Generic complete mission cycles cover vetoed, repeated, malformed and empty
+primaries, valid fresh sources, repeated/foreign sources and operational
+alternatives; all three goals remain pending without operational coverage.
+Focused514PASS; full local emulator suite2312PASS,0FAIL,2physical skips
+(2314tests,260167.1436ms), exit0. Sole9B and provider settings unchanged.
+This is not Chrome mission certification; future Functions deltas fail closed.
+
+Previous review:
+
+
 Current baseline: `fab65feb233b2352b24843fccaf8dae639880f4e`.
 Only the semantic planner changed in Functions since7b00ae46.
 The default-order fix alone still yielded an invalid same9B isolated recovery.
