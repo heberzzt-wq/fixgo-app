@@ -3809,28 +3809,32 @@ async function runModelSemanticPlanner({
                     if(continuation.text){try{continuationPayload=extractJsonObject(continuation.text);}catch{}}
                     if (!next && continuationPayload) next=normalizeTextToolPlan(continuationPayload,nextReaders);
                     if (continuation?.providerResponse?.finishReason !== "length" && next?.toolCalls?.length) {
-                        const checked=validatePlan({...next,missionComplete:false},nextReaders,instruction);
-                        checked.toolCalls=checked.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&!(error?.evidence?.tool===call.name && sameCall({name:call.name,args:error.evidence.proposed},call))&&!hasUnexpectedToolArguments(nextReaders.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
-                        if(!checked.toolCalls.length){
-                            const rejected=next.toolCalls[0];
-                            const invalid=new Error('SEMANTIC_TOOL_ARGUMENTS_INVALID');
-                            invalid.evidence={tool:rejected.name,proposed:rejected.args,rejectionKind:knownQueryRejection(rejected)?.rejectionKind || "arguments",
-                                requiresSourceEvidence:knownQueryRejection(rejected)?.requiresSourceEvidence,
-                                limitation:'La propuesta fue descartada por el catálogo filtrado o por repetir trabajo ya observado; no fue una decisión válida de detener la investigación.'};
-                            throw invalid;
+                        let checked;
+                        try{
+                            checked=validatePlan({...next,missionComplete:false},nextReaders,instruction);
+                            checked.toolCalls=checked.toolCalls.filter(call=>!wasExecuted(call)&&!wasRejected(call)&&!(error?.evidence?.tool===call.name && sameCall({name:call.name,args:error.evidence.proposed},call))&&!hasUnexpectedToolArguments(nextReaders.find(tool=>tool.name===call.name)||{},call.args||{})).slice(0,1);
+                            if(!checked.toolCalls.length){
+                                const rejected=next.toolCalls[0];
+                                const invalid=new Error('SEMANTIC_TOOL_ARGUMENTS_INVALID');
+                                invalid.evidence={tool:rejected.name,proposed:rejected.args,rejectionKind:knownQueryRejection(rejected)?.rejectionKind || "arguments",
+                                    requiresSourceEvidence:knownQueryRejection(rejected)?.requiresSourceEvidence,
+                                    limitation:'La propuesta fue descartada por el catálogo filtrado o por repetir trabajo ya observado; no fue una decisión válida de detener la investigación.'};
+                                throw invalid;
+                            }
+                            await verifyOperationalCalls(checked.toolCalls,nextReaders);
                         }
-                        try{await verifyOperationalCalls(checked.toolCalls,nextReaders);}
                         catch(scopeError){
                             // Keep the independent veto. A source alternative
                             // selected by this SAME model response may gather
                             // new evidence without another recovery inference.
                             const fallback=continuationPayload?.sourceFallback?.length===1?continuationPayload.sourceFallback[0]:null;
                             const reader=sourceFallbackReaders.find(tool=>tool.name===fallback?.name);
-                            if(scopeError.message!=='SEMANTIC_QUERY_SCOPE_UNVERIFIED' || scopeError.evidence?.rejectionKind!=='semantic' ||
+                            if(!['SEMANTIC_QUERY_SCOPE_UNVERIFIED','SEMANTIC_TOOL_ARGUMENTS_INVALID'].includes(scopeError.message) ||
+                                scopeError.evidence?.rejectionKind==='truncated' ||
                                 !reader || !hasRequiredToolArguments(reader,fallback.args||{}) || hasUnexpectedToolArguments(reader,fallback.args||{}) ||
                                 wasExecuted(fallback) || wasRejected(fallback))throw scopeError;
                             rememberRejection(scopeError);
-                            checked.toolCalls=validatePlan({toolCalls:[fallback],missionComplete:false},sourceFallbackReaders,instruction).toolCalls;
+                            checked=validatePlan({toolCalls:[fallback],missionComplete:false},sourceFallbackReaders,instruction);
                         }
                         if(checked.toolCalls.length)return {...validatePlan({...validatedAudit,toolCalls:checked.toolCalls,missionComplete:false},nextReaders,instruction),
                             provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:nextReaders.length,planKind:initialDecision?"EVIDENCE_NEXT_ACTION":"READ_ONLY_EVIDENCE_CONTINUATION"};
