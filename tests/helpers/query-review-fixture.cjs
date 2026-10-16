@@ -8,6 +8,10 @@ module.exports=function queryReviewFixture(request,verdict={matchesRequest:true}
  const fields=packet.proposed.fields||[];
  if(packet.proposed.mode==='query'&&!fields.length)throw Error('Positive query fixture requires its explicit projection');
  return{text:JSON.stringify({...verdict,
+  // This positive fake explicitly models a useful classification requirement.
+  // Count-only/irrelevant purposes are tested with separate negative verdicts.
+  ...(request.config.responseJsonSchema.properties.populationFieldPurposes?{
+   populationFieldPurposes:Object.fromEntries(Object.keys(request.config.responseJsonSchema.properties.populationFieldPurposes.properties).map(index=>[index,index===indexes[0]?'membership':'none']))}:{}),
   objectiveMatches:Object.fromEntries(indexes.map((index,i)=>[index,i===0])),
   ...(packet.proposed.mode==='query'?{objectiveFields:Object.fromEntries(indexes.map((index,i)=>[index,i===0?[fields[0]]:[]]))}:{})})};
 };
