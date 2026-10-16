@@ -1732,8 +1732,16 @@ export function createSelfHostedSemanticEngine({
                 .flatMap(task=>[task.observation.verifiedRead?.file,
                     ...(task.observation.repoCandidates || []).map(candidate=>candidate.file),
                     ...(task.observation.repositoryMatches || []).map(candidate=>candidate.file)]).filter(Boolean);
+            // Knowing a filename exists is not evidence that it answers this
+            // mission. With multiple sources, let the existing local semantic
+            // search locate candidates before an unqualified first read.
+            const initialSearch = initialRecordSource && catalog.some(tool=>tool.name==='repo.search' &&
+                tool.investigationReadOnly===true && tool.mutates!==true && tool.requiresApproval!==true) &&
+                getConfiguredSources()?.files.length>1;
+            const namedFiles=initialSearch ? (getConfiguredSources().inspectionFiles||getConfiguredSources().files)
+                .filter(file=>String(input||'').replace(/\\/g,'/').includes(file)) : [];
             if (recordFlow || initialRecordSource) catalog=bindConfiguredSourceArguments(catalog,getConfiguredSources(),{
-                recordFlow:true,...(recordFlow ? {discoveredFiles} : {})});
+                recordFlow:true,...(initialSearch ? {locatedFilesOnly:true,discoveredFiles:[...discoveredFiles,...namedFiles]} : recordFlow ? {discoveredFiles} : {})});
             const sourceDirectory = recordFlow ? getConfiguredSources() : null;
             const planningState = missionState ? {...missionState,configuredSourceDiscovery:sourceDirectory ? {
                 source:sourceDirectory.source,revision:sourceDirectory.revision,digest:sourceDirectory.digest,

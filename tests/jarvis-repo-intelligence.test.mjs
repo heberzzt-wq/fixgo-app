@@ -97,6 +97,17 @@ test('record reader schemas retain configured sources and observed dependencies 
     assert.equal(reader.inputSchema.properties.file.enum,undefined);
 });
 
+test('an initial source inventory cannot replace mission-related source discovery',()=>{
+    const reader={name:'repo.read',investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}};
+    const search={name:'repo.search',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query']}};
+    const sources={files:['capture.js','read-helper.js'],inspectionFiles:['capture.js','read-helper.js','dependency.js']};
+    const catalog=[reader,search],before=JSON.stringify(catalog);
+    assert.deepEqual(bindConfiguredSourceArguments(catalog,sources,{recordFlow:true,locatedFilesOnly:true,discoveredFiles:[]}).map(tool=>tool.name),['repo.search'],'inventory existence is not semantic source relevance; the existing search must locate a candidate first');
+    const located=bindConfiguredSourceArguments(catalog,sources,{recordFlow:true,locatedFilesOnly:true,discoveredFiles:['capture.js','invented.js']});
+    assert.deepEqual(located[0].inputSchema.properties.file.enum,['capture.js'],'a real observed candidate remains readable without admitting another inventory file or an invented path');
+    assert.equal(JSON.stringify(catalog),before);
+});
+
 test('record mission source readers cannot emit collection-derived nonexistent paths',async()=>{
     const f=configuredSourceFixture();
     try {
@@ -170,6 +181,59 @@ test('current-turn record selection offers the source prerequisite before the un
         assert.equal(selected,true);
         assert.equal(plan.toolCalls[0].name,'repo.read');
         assert.equal(plan.missionComplete,false);
+    } finally {f.cleanup();}
+});
+
+for(const named of [false,true])test(`ambiguous current-turn source selection preserves ${named?'an explicit file':'the existing semantic search'}`,async()=>{
+    const f=configuredSourceFixture();
+    try {
+        fs.writeFileSync(path.join(f.root,'secondary.js'),`import {collection,addDoc} from 'sdk'; export function store(db,value){return addDoc(collection(db,'other_records'),{owner:value});}`);
+        f.commit();
+        const {createSelfHostedSemanticEngine}=await import('../jarvis-fs-bridge.js');
+        let selected=false;
+        const engine=createSelfHostedSemanticEngine({root:f.root,env:{JARVIS_LOCAL_LLM_MODEL:'qwen3.5:9b'},fetchImpl:async(_url,options)=>{
+            const body=JSON.parse(options.body);
+            assert.equal(body.model,'qwen3.5:9b');
+            if(body.format?.properties?.ids){const ids=body.format.properties.ids.items.enum.slice(0,body.format.properties.ids.maxItems);return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify({ids})}})};}
+            if(body.format?.properties?.action)return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify({action:'Leer capture.js y consultar sus registros actuales'})}})};
+            if(body.format?.properties?.actionDescription)return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify({actionDescription:'Localizar la fuente y consultar los registros actuales'})}})};
+            const tools=body.tools||[],reader=tools.find(tool=>tool.function?.name==='repo.read');
+            assert.ok(!tools.some(tool=>tool.function?.name==='platform.query'),'the initial choice cannot bypass its unread source prerequisite');
+            if(!named)assert.ok(tools.some(tool=>tool.function?.name==='repo.search'),'preserve the already authorized local search capability');
+            if(named)assert.deepEqual(reader?.function.parameters.properties.file.enum,['capture.js'],'an explicit real path needs no redundant discovery');
+            else assert.equal(reader,undefined,'a global filename inventory is not a mission-related candidate');
+            selected=true;
+            const call=named?{name:'repo.read',arguments:{file:'capture.js'}}:{name:'repo.search',arguments:{query:'registros actuales y sus responsables'}};
+            return {ok:true,status:200,text:async()=>JSON.stringify({message:{role:'assistant',content:'',tool_calls:[{function:call}]},done_reason:'stop'})};
+        }});
+        const plan=await engine.plan({input:named?'Inspecciona capture.js y consulta sus registros actuales':'Consulta los registros actuales y sus responsables',missionState:{phase:'CURRENT_TURN'},catalog:[
+            {name:'repo.read',description:'Read source before querying current records',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}},
+            {name:'repo.search',description:'Locate relevant source candidates with the sole local model',evidenceKinds:['repository_search'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query']}},
+            {name:'platform.query',description:'Query current records after source inspection',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'}},required:['sourceFile','collection']}}
+        ]});
+        assert.equal(selected,true);assert.equal(plan.toolCalls[0].name,named?'repo.read':'repo.search');assert.equal(plan.missionComplete,false);
+    } finally {f.cleanup();}
+});
+
+test('the first source read after search stays inside its observed candidates',async()=>{
+    const f=configuredSourceFixture();
+    try {
+        fs.writeFileSync(path.join(f.root,'secondary.js'),`import {collection,addDoc} from 'sdk';export function store(db,value){return addDoc(collection(db,'other_records'),{owner:value});}`);f.commit();
+        const {createSelfHostedSemanticEngine}=await import('../jarvis-fs-bridge.js');
+        const objective={objective:'Report current entries',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['entries']};
+        let selected=false;
+        const engine=createSelfHostedSemanticEngine({root:f.root,env:{JARVIS_LOCAL_LLM_MODEL:'qwen3.5:9b'},fetchImpl:async(_url,options)=>{
+            const body=JSON.parse(options.body),schema=JSON.stringify(body.format);
+            assert.match(schema,/capture[.]js/,'the observed search candidate remains readable');
+            assert.doesNotMatch(schema,/secondary[.]js/,'a configured inventory file is not another search candidate');
+            selected=true;
+            return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify({completionAssessment:{objectives:[{objective:objective.objective,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[],limitation:'Operational records have not been queried'}]},toolCalls:[{name:'repo.read',args:{file:'capture.js'}}]})},done_reason:'stop'})};
+        }});
+        const plan=await engine.plan({input:objective.objective,catalog:[
+            {name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}},
+            {name:'fixture.records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}},required:['sourceFile']}}
+        ],missionState:{phase:'COMPLETION_AUDIT',evidenceObjectives:[objective],completedTasks:[{name:'repo.search',args:{query:'current entries'},observation:{ok:true,repoCandidates:[{file:'capture.js'}]}}]}});
+        assert.equal(selected,true);assert.equal(plan.toolCalls[0].args.file,'capture.js');assert.equal(plan.missionComplete,false);assert.equal(plan.completionAssessment.objectives[0].satisfied,false);
     } finally {f.cleanup();}
 });
 
