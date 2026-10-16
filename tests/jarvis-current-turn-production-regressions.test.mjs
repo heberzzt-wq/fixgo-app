@@ -12,6 +12,15 @@ function reviewInContext(source,node,context){
  return runInNewContext(source.slice(dependency.start,dependency.end)+'\n('+source.slice(node.start,node.end)+')',context);
 }
 
+function projectionInContext(source,node){
+ const declarations=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body;
+ const dependencies=['matchesRecordedQueryCollection','observedScalarPopulation'].map(name=>{
+  const declaration=declarations.find(item=>item.type==='FunctionDeclaration'&&item.id.name===name);
+  return source.slice(declaration.start,declaration.end);
+ }).join('\n');
+ return runInNewContext(dependencies+'\n('+source.slice(node.start,node.end)+')');
+}
+
 function recoverySchemas(request){
  return request.config.responseJsonSchema?.properties.toolCalls?.items?.anyOf || (request.config.tools?.[0]?.functionDeclarations || []).map(tool=>({properties:{name:{enum:[tool.name]},args:tool.parametersJsonSchema}}));
 }
@@ -759,7 +768,7 @@ test('recovery preserves the first new-source inspection frontier before reopeni
 test('authenticated count-only evidence prevents equivalent recounts without requiring row pagination flags',()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');
- const observed=runInNewContext('('+source.slice(node.start,node.end)+')',{});
+ const observed=projectionInContext(source,node);
  const call={name:'fixture.records',args:{collection:'registry',mode:'count',filters:[]}};
  for(const totalCount of [0,3]) {
   const record={source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',mode:'count',filters:[],fields:[]},totalCount};
@@ -4507,7 +4516,7 @@ test('combining previously read projections cannot replace investigation of miss
 test('verified counts already returned by complete queries are reused only for their exact scope',()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');
- const covered=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const covered=projectionInContext(source,node);
  const call={name:'records.read',args:{collection:'entries',mode:'count',filters:[]}};
  for(const count of [0,1,20]){
   const task={name:call.name,args:{collection:'entries',mode:'query',includeCount:true},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'entries',filters:[]},totalCount:count,completeForQuery:true,hasMore:false}}};
@@ -4522,7 +4531,7 @@ test('verified counts already returned by complete queries are reused only for t
 test('changing a projection of a verified empty scope cannot masquerade as new evidence',()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');
- const covered=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const covered=projectionInContext(source,node);
  const args={collection:'groups/{scope}/entries',mode:'query',filters:[],fields:['label'],pageSize:20,includeCount:true};
  const task={name:'records.read',args,observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'groups/authorized/entries',filters:[],fields:['label']},totalCount:0,rows:[],completeForQuery:true,hasMore:false}}};
  const call={name:task.name,args:{...args,fields:['owner','expiresAt'],pageSize:100}};
@@ -4733,7 +4742,7 @@ test('runtime terminal cursor receipts suppress empty-page rereads without provi
  const args={...f.args,mode:'query',cursor:'observed-cursor',includeCount:false};
  const result=await f.execute(args,f.dependencies,f.context);assert.equal(result.ok,true);
  assert.equal(result.recordEvidence.queryExhausted,true);assert.equal(result.recordEvidence.completeForQuery,false);
- const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');const covered=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');const covered=projectionInContext(source,node);
  const task={name:'records.read',args,observation:result},call={name:task.name,args:{...args,fields:['rank'],pageSize:100}};
  assert.equal(covered(call,[task]),true);
  assert.equal(result.recordEvidence.completeForQuery,false,'deduplication never upgrades a receipt');
@@ -4741,7 +4750,7 @@ test('runtime terminal cursor receipts suppress empty-page rereads without provi
 });
 
 test('an exhausted empty cursor page reuses its exact scope without crediting the whole population',()=>{
- const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');const covered=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');const covered=projectionInContext(source,node);
  const args={sourceFile:'registry.js',collection:'registry',mode:'query',fields:['details'],filters:[{field:'category',op:'==',value:'selected'}],orderBy:[{field:'__name__',direction:'asc'}],cursor:'last-key',pageSize:25};const task={name:'records.read',args,observation:{ok:true,executionOk:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...args},rows:[],returnedCount:0,hasMore:false,queryExhausted:true,completeForQuery:false}}};const call={name:task.name,args:{...args,fields:['details.owner'],pageSize:50}};const before=JSON.stringify({call,task});
  assert.equal(covered(call,[task]),true);assert.equal(JSON.stringify({call,task}),before);assert.equal(task.observation.recordEvidence.scope.cursor,'last-key');assert.equal(task.observation.recordEvidence.totalCount,undefined);
  for(const changed of [{sourceFile:'another.js'},{collection:'another'},{cursor:'different-key'},{cursor:null},{filters:[]},{orderBy:[{field:'__name__',direction:'desc'}]},{mode:'count'},{includeCount:true}])assert.equal(covered({...call,args:{...call.args,...changed}},[task]),false);
@@ -4750,7 +4759,7 @@ test('an exhausted empty cursor page reuses its exact scope without crediting th
 });
 
 test('complete empty first pages reuse equivalent default ID order without inventing a count or field values',()=>{
- const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');const covered=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');const covered=projectionInContext(source,node);
  const args={sourceFile:'reader.js',collection:'organizations/{scope}/entries',mode:'query',fields:['__name__'],filters:[]};
  const orderBy=[{field:'__name__',direction:'asc'}];
  const task={name:'records.read',args,observation:{ok:true,executionOk:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...args,collection:'organizations/approved/entries',orderBy,cursor:null},rows:[],returnedCount:0,completeForQuery:true,queryExhausted:true,hasMore:false}}};
@@ -4765,7 +4774,7 @@ test('complete empty first pages reuse equivalent default ID order without inven
 test('projection reuse preserves new fields counts pages scopes and inconsistent snapshots as unread work',()=>{
  const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
  const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');
- const covered=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const covered=projectionInContext(source,node);
  const args={collection:'registry',mode:'query',fields:['label','owner'],filters:[],includeCount:true};const call={name:'records.read',args};
  const tasks=[['label'],['owner']].map(fields=>({name:call.name,args:{...args,fields},observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:'registry',fields},rows:[{id:'one',values:Object.fromEntries(fields.map(field=>[field,'observed']))}],totalCount:1,completeForQuery:true}}}));
  assert.equal(covered(call,tasks),true);
@@ -4778,7 +4787,7 @@ test('projection reuse preserves new fields counts pages scopes and inconsistent
 });
 
 test('complete observed projections reuse SDK default ID ordering without covering new fields or scopes',()=>{
- const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');const covered=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');const covered=projectionInContext(source,node);
  const args={sourceFile:'reader.js',collection:'entries',mode:'query',fields:['label','owner'],filters:[],includeCount:true};
  const orderBy=[{field:'__name__',direction:'asc'}];
  const task={name:'records.read',args,observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...args,orderBy},rows:[{id:'one',values:{label:'Observed entry',owner:'Recorded owner'}}],totalCount:1,completeForQuery:true,hasMore:false}}};
@@ -4789,7 +4798,7 @@ test('complete observed projections reuse SDK default ID ordering without coveri
 });
 
 test('an exhausted first page cannot advance past its final authenticated row',()=>{
- const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');const covered=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');const covered=projectionInContext(source,node);
  const args={sourceFile:'reader.js',collection:'organizations/approved/entries',mode:'query',fields:['label'],filters:[]};
  const task={name:'records.read',args,observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...args,orderBy:[{field:'__name__',direction:'asc'}],cursor:null},rows:[{id:'last',values:{label:'Observed'}}],completeForQuery:true,hasMore:false,nextCursor:null}}};
  const call={name:task.name,args:{...args,cursor:'last',fields:['newField']}};const before=JSON.stringify({call,task});
@@ -4800,7 +4809,7 @@ test('an exhausted first page cannot advance past its final authenticated row',(
 });
 
 test('a complete authenticated empty first page already proves its own scoped zero count',()=>{
- const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');const covered=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='recordProjectionAlreadyObserved');const covered=projectionInContext(source,node);
  const args={sourceFile:'reader.js',collection:'organizations/{scope}/entries',mode:'query',fields:['label'],filters:[]};
  const task={name:'records.read',args,observation:{ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{...args,collection:'organizations/approved/entries',cursor:null,orderBy:[{field:'__name__',direction:'asc'}]},rows:[],returnedCount:0,completeForQuery:true,hasMore:false,nextCursor:null}}};
  const call={name:task.name,args:{sourceFile:args.sourceFile,collection:args.collection,mode:'count',filters:[]}};const before=JSON.stringify({call,task});
@@ -5520,4 +5529,96 @@ test('runtime projections use snapshot field provenance without borrowing fields
  const denied=await f.execute({...f.args,collection:'entries',fields:['owner'],mode:'query'},f.dependencies,f.context);
  assert.equal(denied.error?.code,'PLATFORM_QUERY_FIELD_NOT_DISCOVERED');
  assert.equal(f.calls.filter(call=>call.kind==='query').length,1);
+});
+
+function completeScalarPopulationFixture(){
+ const f=platformQueryTestFixture({recordData:[{marker:'Observed-class',holder:'Registered holder',deadline:'2027-01-01'}]});
+ const content='async function read(db,tenantId){const ref=collection(db,"registry",tenantId,"entries");await addDoc(ref,{marker:input.marker,holder:input.holder,deadline:input.deadline});await getDocs(ref);await getDocs(collection(db,"profiles"));}';
+ Object.assign(f.context.completedTasks[0].observation.verifiedRead,{content,sourceStructure:analyzeRepoSourceStructure(content)});
+ f.context.tenantId='approved';
+ f.args={sourceFile:'source.js',collection:'registry/{tenantId}/entries',mode:'query',fields:['marker'],filters:[],includeCount:false};
+ return f;
+}
+
+for(const scenario of ['complete','partial','cursor','truncated','untrusted','not-readonly','blocked','mismatched-receipt','other-organization','other-source','unprojected-field','null','object','changed-value','new-row','changed-count','mixed-filter'])test('runtime scalar count frontier preserves '+scenario+' scope',async()=>{
+ const f=completeScalarPopulationFixture(),receipt=await f.execute(f.args,f.dependencies,f.context);
+ assert.equal(receipt.ok,true);assert.equal(receipt.recordEvidence.completeForQuery,true);
+ const task={name:'platform.query',args:structuredClone(f.args),observation:JSON.parse(JSON.stringify(receipt))};
+ const call={name:task.name,args:{sourceFile:f.args.sourceFile,collection:f.args.collection,mode:'count',filters:[{field:'marker',op:'==',value:'Observed-class'}]}};
+ const tasks=[task],record=task.observation.recordEvidence;
+ if(scenario==='partial'){record.completeForQuery=false;record.hasMore=true;record.queryExhausted=false;}
+ if(scenario==='cursor'){task.args.cursor='previous';record.scope.cursor='previous';}
+ if(scenario==='truncated')record.truncatedFields=[{id:'0',field:'marker'}];
+ if(scenario==='untrusted')record.source='REPOSITORY_SOURCE';
+ if(scenario==='not-readonly')record.readOnly=false;
+ if(scenario==='blocked')task.observation.blocked=true;
+ if(scenario==='mismatched-receipt')task.args.filters=[{field:'marker',op:'==',value:'Observed-class'}];
+ if(scenario==='other-organization')call.args.collection='registry/other/entries';
+ if(scenario==='other-source')call.args.sourceFile='other.js';
+ if(scenario==='unprojected-field')call.args.filters[0].field='holder';
+ if(scenario==='null')record.rows[0].values.marker=null;
+ if(scenario==='object')record.rows[0].values.marker={nested:'Observed-class'};
+ if(scenario==='mixed-filter')call.args.filters.push({field:'holder',op:'==',value:'Registered holder'});
+ if(['changed-value','new-row','changed-count'].includes(scenario)){
+  const later=structuredClone(task);later.args.filters=[{field:'marker',op:'!=',value:'Absent'}];later.observation.recordEvidence.scope.filters=later.args.filters;
+  if(scenario==='changed-value')later.observation.recordEvidence.rows[0].values.marker='Updated-class';
+  if(scenario==='new-row')later.observation.recordEvidence.rows[0].id='new-record';
+  if(scenario==='changed-count'){later.args.filters=[];later.observation.recordEvidence.scope.filters=[];later.observation.recordEvidence.totalCount=2;}
+  tasks.push(later);
+ }
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(item=>item.type==='FunctionDeclaration'&&item.id.name==='recordProjectionAlreadyObserved');
+ const observed=projectionInContext(source,node);
+ assert.equal(observed(call,tasks),scenario==='complete','only a complete unchanged authenticated population with every predicate field projected can suppress the count');
+ const {eligibleEvidenceActionCatalog,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const fields=['marker','holder','deadline'];
+ const tool={name:task.name,evidenceKinds:['platform_records'],inputSchema:{type:'object',properties:{sourceFile:{type:'string',enum:[call.args.sourceFile]},collection:{type:'string',enum:[call.args.collection]},mode:{type:'string',enum:['count','query']},fields:{type:'array',minItems:1,items:{type:'string',enum:fields}},filters:{type:'array',maxItems:4,items:{type:'object',properties:{field:{type:'string',enum:fields},op:{type:'string',enum:['==','!=']},value:{type:['string','null']}},required:['field','op','value']}}},required:['sourceFile','collection','mode','filters']}};
+ // Counts do not request a projection. Query fields have their own requirement.
+ tool.inputSchema.properties.fields.minItems=0;
+ const frontier=eligibleEvidenceActionCatalog([tool],tasks);
+ const allowed=frontier.some(choice=>hasRequiredToolArguments(choice,call.args));
+ if(scenario!=='mixed-filter')assert.equal(allowed,scenario!=='complete');
+ else assert.ok(frontier.some(choice=>hasRequiredToolArguments(choice,{...call.args,filters:[...call.args.filters].reverse()})),'a new predicate field may advance without transferring values to another route');
+});
+
+test('runtime complete population rejects a derived count before recovery and preserves a new projection through the full cycle',async()=>{
+ const f=completeScalarPopulationFixture();
+ const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
+ const {runJarvisSemanticPlanner,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js']}},required:['file']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query','count']},fields:{type:'array',items:{type:'string'}},filters:{type:'array',items:{type:'object',properties:{field:{type:'string'},op:{type:'string',enum:['==','!=']},value:{type:['string','null']}},required:['field','op','value']}},orderBy:{type:'array'},includeCount:{type:'boolean'}},required:['sourceFile','collection','mode','filters']}};
+ const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,i)=>({objective,requestQuote:objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][i],scope:'all_sources',groups:['entries']}));
+ const rejected={name:query.name,args:{sourceFile:f.args.sourceFile,collection:f.args.collection,mode:'count',filters:[{field:'marker',op:'==',value:'Observed-class'}]}};
+ const valid={name:query.name,args:{...f.args,fields:['holder','deadline']}};
+ const executed=[],stages=[];let progressed=false,offeredInvalid,offeredValid,recoveries=0;
+ const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
+  const stage=request.config.semanticStage;stages.push(stage);
+  if(stage==='EVIDENCE_NEXT_ACTION'){
+   if(progressed)return{text:'{"toolCalls":[]}'};
+   const choices=recoverySchemas(request).filter(choice=>choice.properties.name.enum.includes(query.name));
+   offeredInvalid=choices.some(choice=>hasRequiredToolArguments({inputSchema:choice.properties.args},rejected.args));
+   offeredValid=choices.some(choice=>hasRequiredToolArguments({inputSchema:choice.properties.args},valid.args));
+   return{text:JSON.stringify({toolCalls:[rejected]})};
+  }
+  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){recoveries++;return{text:JSON.stringify({toolCalls:[valid],sourceFallback:[]})};}
+  if(stage==='QUERY_POPULATION_VERIFICATION')return{text:'{"matchesRequest":true,"schemaDiscoveryRelevant":false,"rejectionReason":""}'};
+  const payload=JSON.parse(request.config.chatMessages.at(-1).content);
+  if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(payload.sources.map(collection=>[collection,{relevantToObjective:true,reason:'Other scopes remain unqueried.'}]))})};
+  assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);
+  return{text:JSON.stringify({proven:false,missing:['Other observed sources remain pending.'],groups:[],sources:payload.observedSources.map(collection=>({collection,relevant:true,reason:'Independent operational evidence remains necessary.',taskIndexes:[]}))})};
+ }}};
+ const result=await runJarvisMission({instruction:goals.map(goal=>goal.objective).join('; '),initialEvidenceObjectives:goals,initialToolCalls:[{name:reader.name,args:{file:'source.js'}},{name:query.name,args:f.args}],toolCatalog:[reader,query],storage:{getItem(){return null;},setItem(){},removeItem(){}},execute:async call=>{
+  executed.push(call);
+  if(call.name===reader.name){const read=f.context.completedTasks[0].observation.verifiedRead;return{ok:true,data:{...read,numberedContent:'1: '+read.content,startLine:1,endLine:1,totalLines:1}};}
+  if(executed.length>2)progressed=true;
+  const receipt=await f.execute(call.args,f.dependencies,f.context);
+  assert.equal(receipt.ok,true,JSON.stringify(receipt));
+  if(executed.length===2){assert.equal(receipt.recordEvidence.completeForQuery,true);assert.equal(receipt.recordEvidence.queryExhausted,true);assert.equal(receipt.recordEvidence.rows.length,1);}
+  return{ok:true,data:receipt};
+ },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION'},ai})});
+ assert.equal(offeredInvalid,false,'a subset count whose complete scalar population is already observed must be removed before inference');
+ assert.equal(offeredValid,true,'newly credited fields of the same collection must remain executable');
+ assert.equal(recoveries,1);assert.equal(executed.length,3);assert.equal(executed[2].name,valid.name);assert.deepEqual(executed[2].args,valid.args);
+ assert.equal(f.calls.filter(call=>call.kind==='count').length,0,'ignoring the native frontier cannot reach the count SDK');
+ assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });

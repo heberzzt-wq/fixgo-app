@@ -53,6 +53,70 @@ function matchesRecordedQueryCollection(collection,task) {
         /^\{[A-Za-z][A-Za-z0-9_]*\}$/.test(part)?Boolean(resolvedParts[index]):part===resolvedParts[index]);
 }
 
+// This frontier describes data already available, never objective completion.
+// A complete authenticated population can answer subsets over projected scalar
+// fields without another server count. Keep its own route and snapshot bounds.
+function observedScalarPopulation(tasks,sourceFile,collection,toolName,fields) {
+    const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'
+        ?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;
+    const scopeKey=args=>JSON.stringify(canonical({sourceFile:args?.sourceFile,filters:args?.filters||[],
+        orderBy:args?.orderBy?.length?args.orderBy:[{field:'__name__',direction:'asc'}],cursor:args?.cursor||null}));
+    const successful=tasks.filter(task=>task.observation?.ok===true&&task.observation.executionOk!==false&&
+        task.observation.blocked!==true&&task.observation.requiresInput!==true);
+    const task=successful.filter(task=>{const record=task.observation.recordEvidence,scope=record?.scope;
+        return task.name===toolName&&record?.source==='FIRESTORE_SERVER_AUTHENTICATED'&&record.readOnly===true&&
+            matchesRecordedQueryCollection(task.args?.collection,task)&&matchesRecordedQueryCollection(collection,task)&&
+            scopeKey(task.args)===scopeKey(scope)&&scope.sourceFile===sourceFile&&task.args?.mode==='query'&&scope.mode==='query'&&
+            !scope.cursor&&!(scope.filters||[]).length&&!(scope.implicitExistenceFields||[]).length&&
+            (scope.orderBy||[]).every(order=>order.field==='__name__')&&record.completeForQuery===true&&
+            record.queryExhausted===true&&record.hasMore===false&&record.consistentCountAndList!==false&&
+            !record.truncatedFields?.length&&Array.isArray(record.rows)&&record.rows.length>0&&record.rows.length===record.returnedCount&&
+            (record.totalCount==null||record.totalCount===record.rows.length)&&
+            record.rows.every(row=>typeof row.id==='string'&&row.id)&&new Set(record.rows.map(row=>row.id)).size===record.rows.length;
+    }).at(-1);
+    if(!task)return null;
+    const record=task.observation.recordEvidence,projected=record.scope.fields||[];
+    const scalarAt=(row,field)=>{
+        let value=row.values;
+        if(Object.prototype.hasOwnProperty.call(value||{},field))value=value[field];
+        else for(const part of field.split('.')){
+            if(!value||!Object.prototype.hasOwnProperty.call(value,part))return {observed:false};
+            value=value[part];
+        }
+        return {observed:typeof value==='boolean'||typeof value==='string'&&value.length<=512||
+            typeof value==='number'&&Number.isFinite(value),value};
+    };
+    const known=new Map();
+    for(const field of fields){
+        if(!projected.some(parent=>field===parent||field.startsWith(parent+'.')))continue;
+        const values=[];
+        for(const row of record.rows){
+            const scalar=scalarAt(row,field);
+            if(!scalar.observed){values.length=0;break;}
+            if(!values.some(value=>Object.is(value,scalar.value)))values.push(scalar.value);
+        }
+        if(values.length)known.set(field,values);
+    }
+    const previousRows=new Map(record.rows.map(row=>[row.id,row]));
+    for(const later of successful.slice(successful.indexOf(task)+1)){
+        const next=later.observation.recordEvidence,scope=next?.scope;
+        if(next?.source!=='FIRESTORE_SERVER_AUTHENTICATED'||next.readOnly!==true||scope?.collection!==record.scope.collection)continue;
+        if(Number.isInteger(next.totalCount)&&next.totalCount>record.rows.length)return null;
+        if(!(scope.filters||[]).length&&!scope.cursor&&(scope.orderBy||[]).every(order=>order.field==='__name__')&&
+            (next.hasMore===true||Number.isInteger(next.totalCount)&&next.totalCount!==record.rows.length||
+                next.completeForQuery===true&&Array.isArray(next.rows)&&next.rows.length!==record.rows.length))return null;
+        for(const row of next.rows||[]){
+            const prior=previousRows.get(row.id);
+            if(!prior)return null;
+            for(const field of known.keys()){
+                const latest=scalarAt(row,field);
+                if(latest.observed&&!Object.is(latest.value,scalarAt(prior,field).value))return null;
+            }
+        }
+    }
+    return known;
+}
+
 function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependencyCatalog=catalog,trustedCoverage=[]) {
     const sourceKinds=new Set(['repository_source',...dependencyCatalog.flatMap(tool=>(tool.requiresEvidence||[])
         .filter(requirement=>requirement.observationPath?.[0]==='verifiedRead').map(requirement=>requirement.kind))]);
@@ -94,62 +158,20 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
             matchesRecordedQueryCollection(task.args?.collection,task)&&queryScope(task.args)===queryScope(record.scope)&&
             !(record.scope?.implicitExistenceFields||[]).length;
     });
-    const constrainObservedEqualities=(filters,sourceFile,collection,toolName)=>{
+    const constrainObservedEqualities=(filters,sourceFile,collection,toolName,mode='query')=>{
         const item=filters?.items,properties=item?.properties;
         const fields=properties?.field?.enum,operators=properties?.op?.enum;
         if(filters?.enum || filters?.const!==undefined || !Array.isArray(fields) ||
             !Array.isArray(operators) || !operators.includes('=='))return filters;
-        const task=frontierTasks.filter(task=>{const record=task.observation.recordEvidence,scope=record.scope;
-            return task.name===toolName && scope.sourceFile===sourceFile && matchesRecordedQueryCollection(collection,task) &&
-                scope.mode==='query' && !scope.cursor && !(scope.filters||[]).length &&
-                (scope.orderBy||[]).every(order=>order.field==='__name__') &&
-                record.completeForQuery===true && record.queryExhausted===true && record.hasMore===false &&
-                record.consistentCountAndList!==false && !record.truncatedFields?.length &&
-                Array.isArray(record.rows) && record.rows.length>0 && record.rows.length===record.returnedCount;
-        }).at(-1);
-        if(!task)return filters;
-        const record=task.observation.recordEvidence,projected=record.scope.fields||[];
-        const scalarAt=(row,field)=>{
-            let value=row.values;
-            if(Object.prototype.hasOwnProperty.call(value||{},field))value=value[field];
-            else for(const part of field.split('.')){
-                if(!value || !Object.prototype.hasOwnProperty.call(value,part))return {observed:false};
-                value=value[part];
-            }
-            // The current runtime represents an absent projection as null.
-            // Do not turn that ambiguous placeholder into an exhaustive value.
-            return {observed:typeof value==='boolean' ||
-                typeof value==='string'&&value.length<=512 || typeof value==='number'&&Number.isFinite(value),value};
-        };
-        const valuesFor=field=>{
-            if(!projected.some(parent=>field===parent || field.startsWith(parent+'.')))return null;
-            const values=[];
-            for(const row of record.rows){
-                const {observed,value}=scalarAt(row,field);
-                if(!observed)return null;
-                if(!values.some(prior=>Object.is(prior,value)))values.push(value);
-            }
-            return values;
-        };
-        const known=new Map(fields.map(field=>[field,valuesFor(field)]).filter(([,values])=>values?.length));
-        if(!known.size)return filters;
-        // A later authenticated observation may contradict the old population
-        // or its projected values. Never constrain a newer snapshot with it.
-        const previousRows=new Map(record.rows.map(row=>[row.id,row]));
-        for(const later of successful.slice(successful.indexOf(task)+1)){
-            const next=later.observation.recordEvidence,scope=next?.scope;
-            if(next?.source!=='FIRESTORE_SERVER_AUTHENTICATED'||next.readOnly!==true||scope?.collection!==record.scope.collection)continue;
-            if(!(scope.filters||[]).length && !scope.cursor && (scope.orderBy||[]).every(order=>order.field==='__name__') &&
-                (next.hasMore===true || Number.isInteger(next.totalCount)&&next.totalCount!==record.rows.length ||
-                    next.completeForQuery===true&&Array.isArray(next.rows)&&next.rows.length!==record.rows.length))return filters;
-            for(const row of next.rows||[]){
-                const prior=previousRows.get(row.id);
-                if(!prior)return filters;
-                for(const field of known.keys()){
-                    const latest=scalarAt(row,field);
-                    if(latest.observed && !Object.is(latest.value,scalarAt(prior,field).value))return filters;
-                }
-            }
+        const known=observedScalarPopulation(successful,sourceFile,collection,toolName,fields);
+        if(!known?.size)return filters;
+        if(mode==='count'){
+            const unknown=fields.filter(field=>!known.has(field));
+            if(!unknown.length)return {...filters,maxItems:0};
+            // A mixed predicate still advances when at least one field has not
+            // been projected. Put that field first; AND order has no data meaning.
+            return {...filters,minItems:Math.max(1,filters.minItems||0),
+                items:[{...item,properties:{...properties,field:{...properties.field,enum:unknown}}}],additionalItems:item};
         }
         const choice=(field,op,value)=>({...item,properties:{...properties,field,op,value}});
         const alternatives=[...known].map(([field,values])=>choice({...properties.field,enum:[field]},
@@ -181,7 +203,9 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
             // authenticated scope predicate used after model selection.
             if(!Array.isArray(p.mode?.enum))return [base];
             return p.mode.enum.flatMap(mode=>{
-                const branch={...base,properties:{...base.properties,mode:{...p.mode,enum:[mode]}}};
+                const branch={...base,properties:{...base.properties,mode:{...p.mode,enum:[mode]},
+                    ...(mode==='count'&&p.filters?{filters:constrainObservedEqualities(p.filters,sourceFile,collection,tool.name,mode)}:{})}};
+                if((branch.properties.filters?.maxItems??Infinity)<(branch.properties.filters?.minItems||0))return [];
                 const finiteFilters=Array.isArray(p.filters?.enum)?p.filters.enum:
                     p.filters?.const!==undefined?[p.filters.const]:null;
                 // An explicit filter alternative is its own scope. A completed
@@ -216,7 +240,7 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
                 const args={sourceFile,collection,mode,filters:[]};
                 const preserveOtherScopes=remaining=>{
                     const variants=[];
-                    if(p.filters && p.filters.maxItems!==0 && !p.filters.enum)variants.push({...branch,properties:{...branch.properties,filters:{...branch.properties.filters,minItems:1}},required:[...new Set([...(branch.required||[]),'filters'])]});
+                    if(p.filters && branch.properties.filters.maxItems!==0 && !p.filters.enum)variants.push({...branch,properties:{...branch.properties,filters:{...branch.properties.filters,minItems:1}},required:[...new Set([...(branch.required||[]),'filters'])]});
                     if(p.orderBy && p.orderBy.maxItems!==0 && !p.orderBy.enum)variants.push({...branch,properties:{...branch.properties,filters:{...p.filters,maxItems:0},orderBy:{...p.orderBy,minItems:1}},required:[...new Set([...(branch.required||[]),'orderBy'])]});
                     return [...variants,...remaining.map(item=>({...item,properties:{...item.properties,
                         ...(p.filters?{filters:{...p.filters,maxItems:0}}:{}),...(p.orderBy?{orderBy:{...p.orderBy,maxItems:0}}:{})}}))];
@@ -821,6 +845,13 @@ function evidenceRequirementSuccessors(kind, catalog = []) {
 }
 
 function recordProjectionAlreadyObserved(call, tasks) {
+    if(call.args?.mode==='count'&&!call.args.cursor&&
+        (call.args.orderBy||[]).every(order=>order.field==='__name__')&&
+        (call.args.filters||[]).every(filter=>typeof filter.field==='string'&&['==','!=','<','<=','>','>=','in','not-in'].includes(filter.op))){
+        const fields=[...new Set((call.args.filters||[]).map(filter=>filter.field))];
+        const known=observedScalarPopulation(tasks,call.args.sourceFile,call.args.collection,call.name,fields);
+        if(known&&fields.every(field=>known.has(field)))return true;
+    }
     const canonical=value=>Array.isArray(value)?value.map(canonical):value && typeof value==="object"
         ?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;
     const sameCollection=(requested,resolved)=>{
