@@ -5698,8 +5698,8 @@ for(const seedMode of ['query','count'])test('fresh runtime '+seedMode+' evidenc
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
 
-for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','bounded-localized-catalog','complete-query-count-facts','credited-source-alias','projection-contribution','projection-known-padding','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
- const projectionCase=['projection-contribution','projection-known-padding'].includes(variant);
+for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','bounded-localized-catalog','complete-query-count-facts','credited-source-alias','projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
+ const projectionCase=['projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction'].includes(variant);
  const f=completeScalarPopulationFixture();
  if(projectionCase){
   const read=f.context.completedTasks[0].observation.verifiedRead;
@@ -5722,6 +5722,8 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  if(variant==='known-ordering-query'){Object.assign(rejected.args,{mode:'query',fields:['holder'],filters:[],orderBy:[{field:'marker',direction:'asc'}]});query.inputSchema.properties.orderBy={type:'array',items:{type:'object',properties:{field:{type:'string',enum:['marker','holder','deadline']},direction:{type:'string',enum:['asc','desc']}},required:['field','direction']}};}
  if(variant==='filtered-full-projection')rejected.args.filters=[{field:'holder',op:'==',value:null}];
  if(projectionCase)Object.assign(rejected.args,{mode:'query',fields:variant==='projection-known-padding'?['auditStamp','holder']:['auditStamp'],filters:[]});
+ if(variant==='projection-default-id-order')rejected.args.orderBy=[{field:'__name__',direction:'asc'}];
+ if(variant==='projection-implicit-id-direction')rejected.args.orderBy=[{field:'__name__'}];
  const valid={name:query.name,args:{...f.args,fields:variant==='single-projection'?['holder','deadline']:['deadline']}};
  const aliasContent='async function read(db){const ref=collection(db,"registry","approved","entries");await addDoc(ref,{marker:input.marker,holder:input.holder,deadline:input.deadline});await getDocs(ref);}';
  if(variant==='credited-source-alias'){
@@ -5772,7 +5774,7 @@ for(const variant of ['single-projection','later-projection','later-null-query',
    offeredValid=choices.some(choice=>hasRequiredToolArguments({inputSchema:choice.properties.args},valid.args));
    return{text:JSON.stringify({toolCalls:[rejected]})};
   }
-  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){assert.equal(stages.filter(item=>item==='RECORD_OBJECTIVE_COVERAGE').length,3,'rejection alone cannot repeat the initial value reviews');assert.equal(stages.filter(item=>item==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,3,'rejection alone cannot repeat the initial source reviews');recoveries++;return{text:JSON.stringify({toolCalls:[valid],sourceFallback:[]})};}
+  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){assert.equal(stages.filter(item=>item==='RECORD_OBJECTIVE_COVERAGE').length,3,'rejection alone cannot repeat the initial value reviews');assert.equal(stages.filter(item=>item==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,3,'rejection alone cannot repeat the initial source reviews');recoveries++;if(variant.startsWith('projection-')&&variant.includes('id-')){const repeated={...rejected,args:{...rejected.args,orderBy:[]}};assert.equal(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(query.name)&&hasRequiredToolArguments({inputSchema:choice.properties.args},repeated.args)),false,'explicit automatic document ordering cannot reoffer a rejected projection after removing orderBy');}return{text:JSON.stringify({toolCalls:[valid],sourceFallback:[]})};}
   if(stage==='QUERY_POPULATION_VERIFICATION'){
    if(projectionCase){
     const packet=JSON.parse(request.config.chatMessages.at(-1).content),useful=packet.proposed.fields.includes('deadline');
@@ -5819,7 +5821,7 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION'},ai})});
  assert.equal(offeredInvalid,projectionCase,'a novel projection needs semantic review; previously observed work must be filtered before inference: '+JSON.stringify(result.errors));
  assert.equal(offeredValid,true,'newly credited fields of the same collection must remain executable');
- assert.equal(recoveries,1);assert.equal(executed.length,initialCount+1);assert.equal(executed.at(-1).name,valid.name);assert.deepEqual(executed.at(-1).args,valid.args);
+ assert.equal(recoveries,1);assert.equal(executed.length,initialCount+1,JSON.stringify(result.errors));assert.equal(executed.at(-1).name,valid.name);assert.deepEqual(executed.at(-1).args,valid.args);
  assert.equal(f.calls.filter(call=>call.kind==='count').length,0,'ignoring the native frontier cannot reach the count SDK');
  assert.equal(f.calls.filter(call=>call.kind==='query').length,seedCalls.length+1,'the rejected equality must not reach the query SDK either');
  assert.equal(stages.filter(stage=>stage==='RECORD_OBJECTIVE_COVERAGE').length,6,'initial and newly read operational values independently inform each original goal');

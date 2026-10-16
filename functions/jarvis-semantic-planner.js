@@ -425,12 +425,23 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
 
 const VERSION = "1.24.0-local-only-single-jarvis";
 
+// Match the authenticated runtime: omitted order uses document ID ascending;
+// an explicit identical order changes neither membership nor the page boundary.
+function recordQueryOrder(orderBy=[]) {
+    if(!Array.isArray(orderBy))return orderBy;
+    const orders=orderBy.map(item=>({...item,direction:item.direction||'asc'}));
+    return orders.some(item=>item.field==='__name__')?orders:[...orders,{field:'__name__',direction:'asc'}];
+}
+
 function excludeReviewedQueryProjections(catalog,rejections) {
     return catalog.map(tool=>{
         if(!tool.evidenceKinds?.includes('platform_records'))return tool;
         let branches=(buildNativeInputSchema(tool.inputSchema).anyOf || [buildNativeInputSchema(tool.inputSchema)]);
         for(const receipt of rejections){
-            const call=receipt.proposed,args=call?.args;
+            const call=receipt.proposed,originalArgs=call?.args;
+            const order=recordQueryOrder(originalArgs?.orderBy||[]);
+            const args=originalArgs && order.length===1 && order[0].field==='__name__' && order[0].direction==='asc'
+                ? {...originalArgs,orderBy:[]} : originalArgs;
             // Counts have no projection. For queries, only an engine-owned
             // verdict rejecting the population independently of projection can
             // remove its field variants. New field evidence invalidates that
@@ -475,7 +486,9 @@ function excludeReviewedQueryProjections(catalog,rejections) {
             if(call?.name!==tool.name || args?.mode!=='query' || args.cursor ||
                 args.filters?.length || args.orderBy?.length || !args.fields?.length)continue;
             branches=branches.flatMap(branch=>{
-                const p=branch.properties,fields=p?.fields,names=fields?.items?.enum;
+                const p=branch.properties,fields=p?.fields;
+                const tuple=Array.isArray(fields?.items)?fields.items:null;
+                const names=tuple?.[0]?.enum || fields?.items?.enum;
                 const admitsEmpty=schema=>(schema?.const===undefined || JSON.stringify(schema.const)==='[]') &&
                     (!Array.isArray(schema?.enum) || schema.enum.some(value=>JSON.stringify(value)==='[]'));
                 if(p?.sourceFile?.enum?.length!==1 || p.sourceFile.enum[0]!==args.sourceFile ||
@@ -485,6 +498,16 @@ function excludeReviewedQueryProjections(catalog,rejections) {
                     p.filters?.minItems>0 || p.orderBy?.minItems>0 || !admitsEmpty(p.filters) || !admitsEmpty(p.orderBy))return [branch];
                 const rejected=[...new Set(args.fields)],alternatives=[];
                 const maximum=Math.min(20,Number.isInteger(fields.maxItems)?fields.maxItems:20);
+                // The novel-field frontier uses a tuple to require one unread
+                // field first. Do not lose that constraint, or skip its veto,
+                // when this single-field projection has just been rejected.
+                if(tuple){
+                    if(rejected.length!==1 || !names.includes(rejected[0]) || fields.minItems>1)return [branch];
+                    const remaining=names.filter(name=>name!==rejected[0]);
+                    if(remaining.length)alternatives.push({...fields,items:[{...tuple[0],enum:remaining},...tuple.slice(1)]});
+                    if(maximum>=2)alternatives.push({...fields,minItems:Math.max(2,fields.minItems||0)});
+                    return alternatives.map(projection=>({...branch,properties:{...p,fields:projection}}));
+                }
                 const key=projection=>JSON.stringify([...new Set(projection)].sort());
                 let finite=Array.isArray(fields.enum)&&fields.enum.every(Array.isArray)?fields.enum:null;
                 if(!finite && names.length<=8){
@@ -3766,7 +3789,7 @@ async function runModelSemanticPlanner({
             if(args.mode==='query'){
                 args.fields=[...new Set(args.fields||[])].sort();
                 args.filters=args.filters||[];
-                args.orderBy=args.orderBy?.length?args.orderBy:[{field:'__name__',direction:'asc'}];
+                args.orderBy=recordQueryOrder(args.orderBy||[]);
                 args.cursor=args.cursor||null;
             }
             if(populationOnly)delete args.fields;
