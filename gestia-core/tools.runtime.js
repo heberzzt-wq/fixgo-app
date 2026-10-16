@@ -803,7 +803,25 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
             return schema.paths.filter(validField);
         }));
         const sourceHasField = field => field === "__name__" || recordFieldPaths.has(field) || collectionWriteFields.has(field);
-        const literalGrounded = value => {
+        const recordValueObserved = (field,value) => value!==null && (context.completedTasks || []).some(task => {
+            const observation=task.observation,record=observation?.recordEvidence;
+            if(observation?.ok!==true || observation.executionOk===false || observation.blocked===true || observation.requiresInput===true ||
+                record?.source!=="FIRESTORE_SERVER_AUTHENTICATED" || record.readOnly!==true || record.scope?.mode!=="query" ||
+                record.scope.collection!==collectionPath ||
+                !record.scope.fields?.some(projected=>field===projected || field.startsWith(projected+'.')) ||
+                record.truncatedFields?.some(item=>{const path=typeof item==='string'?item:item?.field;return typeof path==='string'&&(field===path || field.startsWith(path+'.') || path.startsWith(field+'.'));}))return false;
+            return (record.rows||[]).some(row=>{
+                let current=row.values;
+                if(current && Object.hasOwn(current,field))return Object.is(current[field],value);
+                for(const part of field.split('.')){
+                    if(!current || typeof current!=='object' || !Object.hasOwn(current,part))return false;
+                    current=current[part];
+                }
+                return Object.is(current,value);
+            });
+        });
+        const literalGrounded = (value,field) => {
+            if(recordValueObserved(field,value))return true;
             if (typeof value !== "string") return true;
             const normalized = normalizeGroundingText(value).trim();
             const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -842,8 +860,8 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
         }
         const ungroundedFilterValues = filters.filter(filter =>
             Array.isArray(filter.value)
-                ? filter.value.some(value => !literalGrounded(value))
-                : !literalGrounded(filter.value)
+                ? filter.value.some(value => !literalGrounded(value,filter.field))
+                : !literalGrounded(filter.value,filter.field)
         );
         if (ungroundedFilterValues.length) {
             failQuery("PLATFORM_QUERY_FILTER_VALUE_NOT_DISCOVERED", {

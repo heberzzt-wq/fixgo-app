@@ -93,6 +93,75 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
             matchesRecordedQueryCollection(task.args?.collection,task)&&queryScope(task.args)===queryScope(record.scope)&&
             !(record.scope?.implicitExistenceFields||[]).length;
     });
+    const constrainObservedEqualities=(filters,sourceFile,collection,toolName)=>{
+        const item=filters?.items,properties=item?.properties;
+        const fields=properties?.field?.enum,operators=properties?.op?.enum;
+        if(filters?.enum || filters?.const!==undefined || !Array.isArray(fields) ||
+            !Array.isArray(operators) || !operators.includes('=='))return filters;
+        const task=frontierTasks.filter(task=>{const record=task.observation.recordEvidence,scope=record.scope;
+            return task.name===toolName && scope.sourceFile===sourceFile && matchesRecordedQueryCollection(collection,task) &&
+                scope.mode==='query' && !scope.cursor && !(scope.filters||[]).length &&
+                (scope.orderBy||[]).every(order=>order.field==='__name__') &&
+                record.completeForQuery===true && record.queryExhausted===true && record.hasMore===false &&
+                record.consistentCountAndList!==false && !record.truncatedFields?.length &&
+                Array.isArray(record.rows) && record.rows.length>0 && record.rows.length===record.returnedCount;
+        }).at(-1);
+        if(!task)return filters;
+        const record=task.observation.recordEvidence,projected=record.scope.fields||[];
+        const scalarAt=(row,field)=>{
+            let value=row.values;
+            if(Object.prototype.hasOwnProperty.call(value||{},field))value=value[field];
+            else for(const part of field.split('.')){
+                if(!value || !Object.prototype.hasOwnProperty.call(value,part))return {observed:false};
+                value=value[part];
+            }
+            // The current runtime represents an absent projection as null.
+            // Do not turn that ambiguous placeholder into an exhaustive value.
+            return {observed:typeof value==='boolean' ||
+                typeof value==='string'&&value.length<=512 || typeof value==='number'&&Number.isFinite(value),value};
+        };
+        const valuesFor=field=>{
+            if(!projected.some(parent=>field===parent || field.startsWith(parent+'.')))return null;
+            const values=[];
+            for(const row of record.rows){
+                const {observed,value}=scalarAt(row,field);
+                if(!observed)return null;
+                if(!values.some(prior=>Object.is(prior,value)))values.push(value);
+            }
+            return values;
+        };
+        const known=new Map(fields.map(field=>[field,valuesFor(field)]).filter(([,values])=>values?.length));
+        if(!known.size)return filters;
+        // A later authenticated observation may contradict the old population
+        // or its projected values. Never constrain a newer snapshot with it.
+        const previousRows=new Map(record.rows.map(row=>[row.id,row]));
+        for(const later of successful.slice(successful.indexOf(task)+1)){
+            const next=later.observation.recordEvidence,scope=next?.scope;
+            if(next?.source!=='FIRESTORE_SERVER_AUTHENTICATED'||next.readOnly!==true||scope?.collection!==record.scope.collection)continue;
+            if(!(scope.filters||[]).length && !scope.cursor && (scope.orderBy||[]).every(order=>order.field==='__name__') &&
+                (next.hasMore===true || Number.isInteger(next.totalCount)&&next.totalCount!==record.rows.length ||
+                    next.completeForQuery===true&&Array.isArray(next.rows)&&next.rows.length!==record.rows.length))return filters;
+            for(const row of next.rows||[]){
+                const prior=previousRows.get(row.id);
+                if(!prior)return filters;
+                for(const field of known.keys()){
+                    const latest=scalarAt(row,field);
+                    if(latest.observed && !Object.is(latest.value,scalarAt(prior,field).value))return filters;
+                }
+            }
+        }
+        const choice=(field,op,value)=>({...item,properties:{...properties,field,op,value}});
+        const alternatives=[...known].map(([field,values])=>choice({...properties.field,enum:[field]},
+            {...properties.op,enum:['==']},{...properties.value,enum:values}));
+        const unknown=fields.filter(field=>!known.has(field)),otherOperators=operators.filter(op=>op!=='==');
+        if(unknown.length)alternatives.push(choice({...properties.field,enum:unknown},{...properties.op,enum:['==']},properties.value));
+        if(otherOperators.length)alternatives.push(choice(properties.field,{...properties.op,enum:otherOperators},properties.value));
+        // These are observed scalar values for an already complete population,
+        // not a dictionary, new query result or goal proof. Keep the original
+        // contract if encoding this negative frontier would exceed its budget.
+        if(JSON.stringify(alternatives).length>4000)return filters;
+        return {...filters,items:{anyOf:alternatives}};
+    };
     const firstPageChoices=(tool,schema)=>{
         const p=schema.properties;
         if(!p?.sourceFile?.enum?.length||!p.collection?.enum?.length||
@@ -104,7 +173,8 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
             // source/route. Do not invite a fabricated filter merely to rerun it.
             // Filtered zeros never enter emptyScopes; other routes stay eligible.
             if(empty)return [];
-            const base={...schema,properties:{...p,sourceFile:{...p.sourceFile,enum:[sourceFile]},collection:{...p.collection,enum:[collection]}}};
+            const base={...schema,properties:{...p,sourceFile:{...p.sourceFile,enum:[sourceFile]},collection:{...p.collection,enum:[collection]},
+                ...(p.filters?{filters:constrainObservedEqualities(p.filters,sourceFile,collection,tool.name)}:{})}};
             // Offer executable progress rather than a completed first-page
             // projection. Each removed alternative is checked by the same
             // authenticated scope predicate used after model selection.
@@ -145,7 +215,7 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
                 const args={sourceFile,collection,mode,filters:[]};
                 const preserveOtherScopes=remaining=>{
                     const variants=[];
-                    if(p.filters && p.filters.maxItems!==0 && !p.filters.enum)variants.push({...branch,properties:{...branch.properties,filters:{...p.filters,minItems:1}},required:[...new Set([...(branch.required||[]),'filters'])]});
+                    if(p.filters && p.filters.maxItems!==0 && !p.filters.enum)variants.push({...branch,properties:{...branch.properties,filters:{...branch.properties.filters,minItems:1}},required:[...new Set([...(branch.required||[]),'filters'])]});
                     if(p.orderBy && p.orderBy.maxItems!==0 && !p.orderBy.enum)variants.push({...branch,properties:{...branch.properties,filters:{...p.filters,maxItems:0},orderBy:{...p.orderBy,minItems:1}},required:[...new Set([...(branch.required||[]),'orderBy'])]});
                     return [...variants,...remaining.map(item=>({...item,properties:{...item.properties,
                         ...(p.filters?{filters:{...p.filters,maxItems:0}}:{}),...(p.orderBy?{orderBy:{...p.orderBy,maxItems:0}}:{})}}))];
@@ -3475,8 +3545,31 @@ async function runModelSemanticPlanner({
             return (populationOnly?'query-population-rejection:':'query-rejection:')+recordObjectiveRevision(
                 {query:canonicalArgs({name:call.name,args}),instruction,objectives:missionState.evidenceObjectives},queryDependencies,recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content),model,missionState,evaluatedAt);
         };
+        const populationExclusionConfirmed=call=>{
+            const cached=decisionCache.get(queryDecisionKey(call,true));
+            if(!cached?.queryRejection)return false;
+            const identities=new Set([call.args?.collection]);
+            for(const task of completedTasksForAudit)if(authenticatedRecordAt(completedTasksForAudit.indexOf(task)) &&
+                matchesRecordedQueryCollection(call.args?.collection,task))identities.add(task.observation.recordEvidence.scope.collection);
+            const contracts=(missionState.evidenceObjectives||[]).filter(contract=>contract.requiredEvidenceKind==='platform_records');
+            let complete=contracts.length>0;
+            for(const contract of contracts){
+                const proof=coverageBeforeDecision.find(item=>item.objective===contract.objective)?.coverageProof;
+                const sources=(proof?.sources||[]).filter(source=>identities.has(source.collection));
+                if(sources.some(source=>source.relevant!==false || !source.reason?.trim())){
+                    cached.populationExclusionConfirmed=false;
+                    return false;
+                }
+                if(!sources.length)complete=false;
+            }
+            // Preserve only an engine-owned confirmation under this same
+            // query/source/identity dependency key. An unrelated source read
+            // cannot erase it; a current contrary or unknown review defeats it.
+            if(complete)cached.populationExclusionConfirmed=true;
+            return complete || cached.populationExclusionConfirmed===true;
+        };
         const knownQueryRejection=call=>decisionCache.get(queryDecisionKey(call))?.queryRejection ||
-            decisionCache.get(queryDecisionKey(call,true))?.queryRejection;
+            (populationExclusionConfirmed(call)?decisionCache.get(queryDecisionKey(call,true))?.queryRejection:undefined);
         const queryRejectionReceipt=error=>({code:error.message,proposed:{name:error.evidence?.tool,args:error.evidence?.proposed||error.evidence?.args},
             limitation:error.evidence?.limitation || '',schemaDiscoveryRelevant:error.evidence?.schemaDiscoveryRelevant,populationRelevance:error.evidence?.populationRelevance,requiresSourceEvidence:error.evidence?.requiresSourceEvidence,rejectionKind:error.evidence?.rejectionKind || 'semantic',operationalEvidence:false,objectiveSatisfied:false});
         const currentQueryRejections=()=>{
@@ -3485,9 +3578,10 @@ async function runModelSemanticPlanner({
                 const receipt=value?.queryRejection;
                 const populationOnly=key.startsWith('query-population-rejection:');
                 if(!receipt || key!==queryDecisionKey(receipt.proposed,populationOnly))continue;
+                if(populationOnly && !populationExclusionConfirmed(receipt.proposed))continue;
                 // The stronger engine-owned veto already represents this exact
                 // projection. Preserve budget for distinct rejected scopes.
-                if(!populationOnly && decisionCache.has(queryDecisionKey(receipt.proposed,true)))continue;
+                if(!populationOnly && populationExclusionConfirmed(receipt.proposed) && decisionCache.has(queryDecisionKey(receipt.proposed,true)))continue;
                 const boundedReceipt={...receipt,populationRejected:populationOnly};
                 const cost=JSON.stringify(boundedReceipt).length+1;
                 if(bytes+cost>2000)continue;
@@ -3574,7 +3668,28 @@ async function runModelSemanticPlanner({
                         });
                         const sourceCorpus=JSON.stringify(source).toLowerCase();
                         const requestCorpus=String(instruction||"").toLowerCase();
-                        const scalarObserved=value=>{
+                        // A projected value is a witness only for its own field
+                        // and authenticated route, never a literal for another
+                        // collection or a missing field inferred as null.
+                        const recordValueObserved=(field,value)=>value!==null && completedTasksForAudit.some(task=>{
+                            const observation=task.observation,record=observation?.recordEvidence;
+                            if(observation?.ok!==true || observation.executionOk===false || observation.blocked===true || observation.requiresInput===true ||
+                                record?.source!=='FIRESTORE_SERVER_AUTHENTICATED' || record.readOnly!==true || record.scope?.mode!=='query' ||
+                                !matchesRecordedQueryCollection(call.args.collection,task) ||
+                                !record.scope.fields?.some(projected=>field===projected || field.startsWith(projected+'.')) ||
+                                record.truncatedFields?.some(item=>{const path=typeof item==='string'?item:item?.field;return typeof path==='string'&&(field===path || field.startsWith(path+'.') || path.startsWith(field+'.'));}))return false;
+                            return (record.rows||[]).some(row=>{
+                                let current=row.values;
+                                if(current && Object.hasOwn(current,field))return Object.is(current[field],value);
+                                for(const part of field.split('.')){
+                                    if(!current || typeof current!=='object' || !Object.hasOwn(current,part))return false;
+                                    current=current[part];
+                                }
+                                return Object.is(current,value);
+                            });
+                        });
+                        const scalarObserved=(value,field)=>{
+                            if(recordValueObserved(field,value))return true;
                             if(value===null)return sourceCorpus.includes("null")||requestCorpus.includes("null");
                             if(typeof value==="string"){
                                 const token=value.trim().toLowerCase();
@@ -3587,11 +3702,11 @@ async function runModelSemanticPlanner({
                             return false;
                         };
                         const ungroundedFilters=(call.args?.filters||[]).filter(filter=>{
-                            const field=String(filter?.field||"").trim().toLowerCase();
-                            const fieldObserved=field&&sourceCorpus.includes(field);
+                            const field=String(filter?.field||"").trim();
+                            const fieldObserved=field&&(observedFieldSchemas.some(schema=>schema.fieldPaths.includes(field)) || sourceCorpus.includes(field.toLowerCase()));
                             const valueObserved=Array.isArray(filter?.value)
-                                ? filter.value.length>0&&filter.value.every(scalarObserved)
-                                : scalarObserved(filter?.value);
+                                ? filter.value.length>0&&filter.value.every(value=>scalarObserved(value,field))
+                                : scalarObserved(filter?.value,field);
                             return !fieldObserved||!valueObserved;
                         });
                         if(ungroundedFilters.length){
@@ -3600,7 +3715,7 @@ async function runModelSemanticPlanner({
                             throw error;
                         }
                         const review=await ai.models.generateContent({model,contents:instruction,config:{semanticStage:"QUERY_POPULATION_VERIFICATION",temperature:0,maxOutputTokens:384,
-                            chatMessages:[{role:"system",content:call.args?.mode === "query" ? "Evalúa si esta inspección paginada puede aportar evidencia pertinente a ALGUNO de los objetivos pendientes. La inspección es un paso de investigación, no una respuesta ni un conteo final. Acepta matchesRequest=true si la fuente acredita la colección y campos pertinentes que se propone leer, aunque falten la clasificación de otros subconjuntos o relaciones que se investigarán después. No exijas que una sola lectura resuelva todos los objetivos. Rechaza campos, filtros o relaciones inventados y respeta el tenant y los permisos. Los objetos de escritura AST describen campos observados, no registros actuales. Si rechazas, explica la evidencia concreta faltante sin inventar nombres. Devuelve matchesRequest, schemaDiscoveryRelevant y rejectionReason (vacío si aceptas). matchesRequest decide si la proyección propuesta es pertinente. schemaDiscoveryRelevant sólo puede autorizar una alternativa de IDs en la misma ruta y filtros para descubrir nombres de campos útiles, sin acreditar valores ni cumplimiento; la evaluación de cumplimiento ocurre después de ejecutarlo. Esta revisión no concede acceso ni acredita resultados." : "Evalúa si este conteo del alcance propuesto aporta evidencia pertinente a ALGUNA parte del pedido. Es un paso de investigación, no la respuesta final. No combines objetivos distintos: contar registros no necesita resolver también asignaciones ni vencimientos. Acepta matchesRequest=true cuando la fuente acredite la colección y los filtros propuestos y contar ese alcance sea pertinente. filters=[] cuenta exclusivamente la colección observada; ese resultado no prueba automáticamente un subconjunto ni un total global y debe conservar esa limitación al responder. Si se propone un filtro para identificar un grupo, exige que su campo, valor y relación estén acreditados: Un estado KYC, validación, pantalla, flujo o función usada por ese grupo NO es por sí mismo el discriminador de pertenencia; tampoco lo prueba una condición de campo no vacío. Rechaza fuentes, filtros o relaciones inventados y cualquier intento de eludir tenant o permisos. No exijas que un solo conteo resuelva otros objetivos que necesitarán consultas posteriores. No inventes un filtro de documentos para una operación que sólo cuenta unidades. Devuelve matchesRequest, schemaDiscoveryRelevant y rejectionReason (vacío si aceptas). matchesRequest decide si la proyección propuesta es pertinente. schemaDiscoveryRelevant sólo puede autorizar una alternativa de IDs en la misma ruta y filtros para descubrir nombres de campos útiles, sin acreditar valores ni cumplimiento; la evaluación de cumplimiento ocurre después de ejecutarlo. Esta revisión no acredita resultados ni cumplimiento."},{role:"system",content:"Distingue conteo de población de inspección paginada. Para mode=query, una lectura de campos pertinentes en una colección acreditada puede servir para observar valores y relaciones sin afirmar pertenencia ni conteos de un subconjunto. No exijas inventar un discriminador para esa inspección; exige que la colección y los campos sean pertinentes al pedido, conserva filtros de tenant y permisos, y rechaza filtros sin evidencia. Para mode=count valida el alcance exacto de ese conteo como evidencia parcial pertinente; no lo confundas con el cumplimiento de todo el pedido."},...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),{role:"system",content:"observedFieldSchemas conserva campos acreditados por lecturas exitosas de la misma fuente o colección. Son evidencia de estructura para elegir una consulta, no valores operativos ni prueba de cumplimiento. Evalúa la pertinencia para al menos uno de los objetivos independientes."},{role:"system",content:"Separa la pertinencia de la población de la proyección: populationRelevance es relevant, irrelevant o unknown. Usa irrelevant sólo si la fuente, ruta y filtros acreditados describen una población ajena a TODOS los objetivos, independientemente de qué campos se lean. La falta de campos o un esquema incompleto no demuestra una población ajena: usa unknown; una proyección diferente con campos acreditados aún puede ser útil. Esta clasificación sólo restringe decisiones; nunca acredita datos ni cumplimiento."},{role:"user",content:JSON.stringify({request:instruction,objectives:missionState.evidenceObjectives||[],proposed:call.args,observedSource:source,observedFieldSchemas})}],
+                            chatMessages:[{role:"system",content:call.args?.mode === "query" ? "Evalúa si esta inspección paginada puede aportar evidencia pertinente a ALGUNO de los objetivos pendientes. La inspección es un paso de investigación, no una respuesta ni un conteo final. Acepta matchesRequest=true si la fuente acredita la colección y campos pertinentes que se propone leer, aunque falten la clasificación de otros subconjuntos o relaciones que se investigarán después. No exijas que una sola lectura resuelva todos los objetivos. Rechaza campos, filtros o relaciones inventados y respeta el tenant y los permisos. Los objetos de escritura AST describen campos observados, no registros actuales. Si rechazas, explica la evidencia concreta faltante sin inventar nombres. Devuelve matchesRequest, schemaDiscoveryRelevant y rejectionReason (vacío si aceptas). matchesRequest decide si la proyección propuesta es pertinente. schemaDiscoveryRelevant sólo puede autorizar una alternativa de IDs en la misma ruta y filtros para descubrir nombres de campos útiles, sin acreditar valores ni cumplimiento; la evaluación de cumplimiento ocurre después de ejecutarlo. Esta revisión no concede acceso ni acredita resultados." : "Evalúa si este conteo del alcance propuesto aporta evidencia pertinente a ALGUNA parte del pedido. Es un paso de investigación, no la respuesta final. No combines objetivos distintos: contar registros no necesita resolver también asignaciones ni vencimientos. Acepta matchesRequest=true cuando la fuente acredite la colección y los filtros propuestos y contar ese alcance sea pertinente. filters=[] cuenta exclusivamente la colección observada; ese resultado no prueba automáticamente un subconjunto ni un total global y debe conservar esa limitación al responder. Si se propone un filtro para identificar un grupo, exige que su campo, valor y relación estén acreditados: Un estado KYC, validación, pantalla, flujo o función usada por ese grupo NO es por sí mismo el discriminador de pertenencia; tampoco lo prueba una condición de campo no vacío. Rechaza fuentes, filtros o relaciones inventados y cualquier intento de eludir tenant o permisos. No exijas que un solo conteo resuelva otros objetivos que necesitarán consultas posteriores. No inventes un filtro de documentos para una operación que sólo cuenta unidades. Devuelve matchesRequest, schemaDiscoveryRelevant y rejectionReason (vacío si aceptas). matchesRequest decide si la proyección propuesta es pertinente. schemaDiscoveryRelevant sólo puede autorizar una alternativa de IDs en la misma ruta y filtros para descubrir nombres de campos útiles, sin acreditar valores ni cumplimiento; la evaluación de cumplimiento ocurre después de ejecutarlo. Esta revisión no acredita resultados ni cumplimiento."},{role:"system",content:"Distingue conteo de población de inspección paginada. Para mode=query, una lectura de campos pertinentes en una colección acreditada puede servir para observar valores y relaciones sin afirmar pertenencia ni conteos de un subconjunto. No exijas inventar un discriminador para esa inspección; exige que la colección y los campos sean pertinentes al pedido, conserva filtros de tenant y permisos, y rechaza filtros sin evidencia. Para mode=count valida el alcance exacto de ese conteo como evidencia parcial pertinente; no lo confundas con el cumplimiento de todo el pedido."},...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),{role:"system",content:"observedFieldSchemas conserva campos acreditados por lecturas exitosas de la misma fuente o colección. Son evidencia de estructura para elegir una consulta, no valores operativos ni prueba de cumplimiento. Evalúa la pertinencia para al menos uno de los objetivos independientes."},{role:"system",content:"Separa la pertinencia de la población de la proyección: populationRelevance es relevant, irrelevant o unknown. Usa irrelevant sólo si la fuente, ruta y filtros acreditados describen una población ajena a TODOS los objetivos, independientemente de qué campos se lean. La falta de campos o un esquema incompleto no demuestra una población ajena: usa unknown; una proyección diferente con campos acreditados aún puede ser útil. Esta clasificación sólo restringe decisiones; nunca acredita datos ni cumplimiento."},{role:"user",content:JSON.stringify({request:instruction,objectives:missionState.evidenceObjectives||[],proposed:call.args,observedSource:source,observedFieldSchemas,observedFilterValueWitnesses:(call.args.filters||[]).flatMap((filter,filterIndex)=>{const valueIndexes=(Array.isArray(filter.value)?filter.value:[filter.value]).flatMap((value,index)=>recordValueObserved(filter.field,value)?[index]:[]);return valueIndexes.length?[{filterIndex,valueIndexes,source:'FIRESTORE_SERVER_AUTHENTICATED',scope:'same_route_and_projected_field',objectiveCoverageProven:false}]:[];})})}],
                             responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{matchesRequest:{type:"boolean"},populationRelevance:{type:"string",enum:["relevant","irrelevant","unknown"]},rejectionReason:{type:"string",maxLength:240,description:"Si rechazas, identifica la evidencia concreta faltante. No inventes campos, valores ni otra consulta."},schemaDiscoveryRelevant:{type:"boolean",description:"Aunque la proyección propuesta no aporte valores pertinentes, una lectura sólo de IDs en esta MISMA fuente, colección y filtros puede descubrir nombres de campos que permitan avanzar un objetivo pendiente. El runtime devuelve IDs y nombres acotados de campos de las filas autenticadas. No acredita valores, relaciones, fechas, clasificaciones ni cobertura global. No autorices una fuente ajena sólo por existir."}},required:["matchesRequest","schemaDiscoveryRelevant","populationRelevance","rejectionReason"],additionalProperties:false}
                         }});
                         const verdict=extractJsonObject(String(review?.text||""));

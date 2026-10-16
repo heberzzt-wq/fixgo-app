@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {runJarvisSemanticPlanner,hasRequiredToolArguments}=require('../functions/jarvis-semantic-planner.js');
 
-for(const scenario of ['irrelevant','relevant','unknown','new-fields'])test(`projection recovery preserves the ${scenario} population verdict and its evidence dependencies`,async()=>{
+for(const scenario of ['irrelevant','relevant','unknown','new-fields','scope-contradiction','scope-unknown'])test(`projection recovery preserves the ${scenario} population verdict and its evidence dependencies`,async()=>{
  const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
  const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js','dependency.js']}},required:['file']}};
  const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query','count']},fields:{type:'array',items:{type:'string'}},filters:{type:'array'},pageSize:{type:'integer'}},required:['sourceFile','collection','mode','filters']}};
@@ -24,12 +24,12 @@ for(const scenario of ['irrelevant','relevant','unknown','new-fields'])test(`pro
   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){recoveryCalls++;return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'dependency.js'}}],sourceFallback:[]})};}
   if(stage==='QUERY_POPULATION_VERIFICATION'){
    reviews++;const args=JSON.parse(request.config.chatMessages.at(-1).content).proposed;
-   return{text:JSON.stringify({matchesRequest:readDependency&&args.collection===valid.args.collection,populationRelevance:scenario==='new-fields'?(readDependency?'relevant':'irrelevant'):scenario,schemaDiscoveryRelevant:false,rejectionReason:'Evaluate the observed population separately from its requested projection.'})};
+   return{text:JSON.stringify({matchesRequest:readDependency&&args.collection===valid.args.collection,populationRelevance:scenario.startsWith('scope-')?'irrelevant':scenario==='new-fields'?(readDependency?'relevant':'irrelevant'):scenario,schemaDiscoveryRelevant:false,rejectionReason:'Evaluate the observed population separately from its requested projection.'})};
   }
   const payload=JSON.parse(request.config.chatMessages.at(-1).content);
-  if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(payload.sources.map(collection=>[collection,{relevantToObjective:true,reason:'Observed source requiring further records.'}]))})};
+  if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(payload.sources.map(collection=>[collection,{relevantToObjective:collection===rejected.args.collection&&(scenario==='irrelevant'||scenario==='new-fields'&&!readDependency)?false:scenario==='scope-unknown'?null:true,reason:'Independently observed source relation for this objective.'}]))})};
   assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);
-  return{text:JSON.stringify({proven:false,missing:['Operational evidence remains partial'],groups:[],sources:payload.observedSources.map(collection=>({collection,relevant:true,reason:'Only scoped partial evidence.',taskIndexes:[]}))})};
+  return{text:JSON.stringify({proven:false,missing:['Operational evidence remains partial'],groups:[],sources:payload.observedSources.map(collection=>({collection,relevant:collection===rejected.args.collection&&(scenario==='irrelevant'||scenario==='new-fields'&&!readDependency)?false:true,reason:'Only scoped partial evidence.',taskIndexes:[]}))})};
  }}};
  const result=await runJarvisMission({instruction:goals.map(g=>g.objective).join('; '),initialEvidenceObjectives:goals,initialToolCalls:[{name:reader.name,args:{file:'source.js'}},seed],toolCatalog:[reader,query],storage:{getItem(){return null;},setItem(){},removeItem(){}},execute:async call=>{
   executed.push(call);

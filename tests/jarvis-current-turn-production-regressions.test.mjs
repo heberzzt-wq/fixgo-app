@@ -2464,6 +2464,23 @@ test('an ID-only discovery page exposes field names without inventing a schema o
  assert.equal(next.recordEvidence.rows[0].values['allocation.holder'],'PRIVATE_VALUE');
 });
 
+for(const variant of ['same-field','other-field','other-route','unprojected','truncated','unauthenticated','blocked'])test(`runtime grounds a filter from authenticated projected values only: ${variant}`,async()=>{
+ const f=platformQueryTestFixture({recordData:[{title:variant==='truncated'?'ZETA-7319'.padEnd(2010,'x'):'ZETA-7319',rank:'OTHER-8821'}]});
+ const first=await f.execute({...f.args,fields:['title','rank']},f.dependencies,f.context);
+ assert.equal(first.ok,true);
+ if(variant==='other-route')first.recordEvidence.scope.collection='organizations/other/entries';
+ if(variant==='unprojected')first.recordEvidence.scope.fields=['rank'];
+ if(variant==='truncated')assert.equal(first.recordEvidence.truncatedFields[0].field,'title','exercise the real runtime truncation receipt');
+ if(variant==='unauthenticated')first.recordEvidence.source='FIRESTORE_CACHE';
+ if(variant==='blocked')first.blocked=true;
+ f.context.completedTasks.push({name:'platform.query',observation:first});
+ const before=f.calls.length;
+ const result=await f.execute({...f.args,filters:[{field:'title',op:'==',value:variant==='other-field'?'OTHER-8821':first.recordEvidence.rows[0].values.title}]},f.dependencies,f.context);
+ assert.equal(result.ok,variant==='same-field',JSON.stringify(result));
+ if(variant==='same-field')assert.ok(f.calls.length>before);
+ else {assert.equal(result.error.code,'PLATFORM_QUERY_FILTER_VALUE_NOT_DISCOVERED');assert.equal(f.calls.length,before);}
+});
+
 test('server record field names stay bounded to returned rows and unlock only a same-route follow-up projection',async()=>{
  const f=platformQueryTestFixture({recordData:[{title:'First',classification:'observed',allocation:{holder:'PRIVATE_VALUE'},documents:{renewal:{end:'2026-11-01'}}},{title:'Second',classification:null},{title:'Third',unseenField:'NOT_RETURNED'}]});
  const first=await f.execute(f.args,f.dependencies,f.context);

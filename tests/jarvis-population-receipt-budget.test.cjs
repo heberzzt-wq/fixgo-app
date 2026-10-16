@@ -9,7 +9,7 @@ test('bounded rejection context retains a distinct veto instead of duplicating i
  const other={name:'records.read',args:{...common,collection:'organizations/{organizationId}/archive',mode:'count'}};
  const receipt=proposed=>({code:'SEMANTIC_QUERY_SCOPE_UNVERIFIED',proposed,limitation:'The observed scope does not contribute the requested evidence. '.repeat(3),schemaDiscoveryRelevant:false,populationRelevance:'irrelevant',rejectionKind:'semantic',operationalEvidence:false,objectiveSatisfied:false});
  const decisionCache=new Map([[key(other),{queryRejection:receipt(other)}],[key(query),{queryRejection:receipt(query)}],[key(query,true),{queryRejection:receipt(query)}]]);
- const result=vm.runInNewContext('(()=>{'+source.slice(start,end)+';return currentQueryRejections()})()',{decisionCache,queryDecisionKey:key});
+ const result=vm.runInNewContext('(()=>{'+source.slice(start,end)+';return currentQueryRejections()})()',{decisionCache,queryDecisionKey:key,populationExclusionConfirmed:()=>true});
  assert.equal(result.filter(item=>item.proposed.args.collection===query.args.collection).length,1,'retain only the stronger witnessed population veto for the same query');
  assert.ok(result.some(item=>item.proposed.args.collection===other.args.collection),'the independent older veto must remain visible before inference');
  assert.ok(JSON.stringify(result).length<=2000);
