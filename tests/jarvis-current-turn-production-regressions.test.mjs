@@ -5636,13 +5636,14 @@ for(const scenario of ['complete','partial','cursor','truncated','untrusted','no
  if(scenario==='mixed-filter')assert.ok(frontier.some(choice=>hasRequiredToolArguments(choice,{...call.args,filters:[...call.args.filters].reverse()})),'a new predicate field may advance without transferring values to another route');
 });
 
-test('fresh runtime values inform the next decision while code-only discovery does not repeat pending value reviews',async t=>{
+for(const seedMode of ['query','count'])test('fresh runtime '+seedMode+' evidence informs the next decision while code-only discovery does not repeat pending value reviews',async t=>{
  t.mock.timers.enable({apis:['Date'],now:Date.parse('2026-10-16T12:00:00Z')});
  const f=completeScalarPopulationFixture();
  const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
  const {runJarvisSemanticPlanner}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js','dependency.js']}},required:['file']}};
- const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query']},fields:{type:'array',items:{type:'string'}},filters:{type:'array'},orderBy:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query','count']},fields:{type:'array',items:{type:'string'}},filters:{type:'array'},orderBy:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}};
+ const seedArgs=seedMode==='count'?{...f.args,mode:'count',fields:[]}:f.args;
  const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,i)=>({objective,requestQuote:objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][i],scope:'all_sources',groups:['entries']}));
  const gaps=['Inspect the related inventory source','Inspect the related holder source','Read the unread deadline values'];
  const stages=[],executed=[];let valuesRead=false,dependencyRead=false;
@@ -5663,19 +5664,21 @@ test('fresh runtime values inform the next decision while code-only discovery do
   if(valuesRead)assert.ok(payload.evidence.some(task=>task.observation?.recordEvidence?.rows?.some(row=>row.values?.deadline==='2027-01-01')),'the independent review must contain the newest actual runtime values');
   return{text:JSON.stringify({proven:false,missing:[gaps[goals.findIndex(g=>g.objective===payload.contract.objective)]],groups:[],sources:payload.observedSources.map(collection=>({collection,relevant:true,reason:'Other operational scopes have not been queried.',taskIndexes:[]}))})};
  }}};
- const result=await runJarvisMission({instruction:goals.map(g=>g.objective).join('; '),initialEvidenceObjectives:goals,initialToolCalls:[{name:reader.name,args:{file:'source.js'}},{name:query.name,args:f.args}],toolCatalog:[reader,query],storage:{getItem(){return null;},setItem(){},removeItem(){}},execute:async call=>{
+ const result=await runJarvisMission({instruction:goals.map(g=>g.objective).join('; '),initialEvidenceObjectives:goals,initialToolCalls:[{name:reader.name,args:{file:'source.js'}},{name:query.name,args:seedArgs}],toolCatalog:[reader,query],storage:{getItem(){return null;},setItem(){},removeItem(){}},execute:async call=>{
   executed.push(call);
   if(call.name===reader.name){
    if(call.args.file==='dependency.js'){dependencyRead=true;const content='const ref=collection(db,"separate_records");';return{ok:true,data:{file:'dependency.js',content,numberedContent:'1: '+content,startLine:1,endLine:1,totalLines:1,sourceStructure:analyzeRepoSourceStructure(content)}};}
    const read=f.context.completedTasks[0].observation.verifiedRead;return{ok:true,data:{...read,numberedContent:'1: '+read.content,startLine:1,endLine:1,totalLines:1}};
   }
   const receipt=await f.execute(call.args,f.dependencies,f.context);assert.equal(receipt.ok,true,JSON.stringify(receipt));
+  if(call.args.mode==='count'){assert.equal(receipt.recordEvidence.totalCount,1);assert.equal(receipt.recordEvidence.rows,undefined,'the actual count receipt has no projected rows');}
   if(call.args.fields.includes('deadline'))valuesRead=true;
   f.context.completedTasks.push({name:query.name,args:structuredClone(call.args),observation:JSON.parse(JSON.stringify(receipt))});
   return{ok:true,data:receipt};
  },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION'},ai})});
  assert.equal(valuesRead,true,JSON.stringify({stages,errors:result.errors}));assert.equal(dependencyRead,true);
- assert.equal(executed.length,4);assert.equal(f.calls.filter(call=>call.kind==='query').length,2,'no already observed query may execute again');
+ assert.equal(executed.length,4);assert.equal(f.calls.filter(call=>call.kind==='query').length,seedMode==='count'?1:2,'no already observed query may execute again');
+ assert.equal(f.calls.filter(call=>call.kind==='count').length,seedMode==='count'?1:0,'a positive count must advance to values rather than execute another count');
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
 

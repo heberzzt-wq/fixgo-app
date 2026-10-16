@@ -4136,7 +4136,13 @@ async function runModelSemanticPlanner({
             coverageCache.set(pendingValueReviewKey(contract),true);
             while(coverageCache.size>96)coverageCache.delete(coverageCache.keys().next().value);
         };
-        const hasObservedValues=completedTasksForAudit.some((task,index)=>authenticatedRecordAt(index)&&task.observation.recordEvidence.rows?.length>0);
+        const hasObservedValues=completedTasksForAudit.some((task,index)=>{
+            if(!authenticatedRecordAt(index))return false;
+            const record=task.observation.recordEvidence;
+            // A positive count is operational evidence even without row values.
+            // Its independent deficits must guide the next read, not another count.
+            return record.rows?.length>0 || record.scope?.mode==='count'&&Number.isFinite(record.totalCount)&&record.totalCount>0;
+        });
         for(const contract of missionState.evidenceObjectives || []){
             if(contract.requiredEvidenceKind!=='platform_records' || !contract.coverageMode)continue;
             const previous=missionState.completionAssessment?.objectives?.find(item=>item.objective===contract.objective);
