@@ -75,6 +75,25 @@ function decodedFields(packet,bindings){
  return Array.from(bindings.fieldIds||bindings.pathIds).flatMap(id=>Array.isArray(id)?Array.from({length:id[1]-id[0]+1},(_,i)=>dictionary[id[0]+i]):[dictionary[id]]);
 }
 
+test('adaptive receipt budgets retain latest source, every scoped record and credited field',()=>{
+ const tasks=observations(ranking.candidates.slice(0,2));
+ for(const organization of ['approved','separate'])tasks.splice(tasks.length-1,0,{name:'platform.query',args:{collection:`organizations/${organization}/entries`},observation:{ok:true,executionOk:true,recordEvidence:{
+  source:'FIRESTORE_SERVER_AUTHENTICATED',readOnly:true,scope:{collection:`organizations/${organization}/entries`,sourceFile:file,mode:'query',fields:['holder','deadline'],filters:[],orderBy:[],cursor:null},
+  rows:[{id:'same-local-id',values:{holder:organization,deadline:organization==='approved'?null:'2027-01-01'}}],returnedCount:1,totalCount:1,hasMore:false,queryExhausted:true,completeForQuery:true,
+  observedAt:'2026-10-17T00:00:00Z'
+ }}});
+ const before=JSON.stringify(tasks);
+ for(const budget of [18000,22000]){
+  const packet=compact(tasks,budget);
+  assert.ok(JSON.stringify(packet).length<=budget,'the caller must budget the entire request before assigning receipt capacity');
+  for(const index of [1,2])assert.deepEqual(plain(packet[index].observation.recordEvidence),tasks[index].observation.recordEvidence,'organization, exact query, timestamps, rows, null and completeness remain local');
+  const read=packet.at(-1).observation.verifiedRead;
+  assert.equal(read.file,file);assert.ok(read.content.length>=700);assert.ok(content.startsWith(read.content),'retain the latest actual source window');
+  assert.deepEqual(decodedFields(packet,read.sourceStructure.dataBindings),sourceStructure.dataBindings.fieldPaths);
+ }
+ assert.equal(JSON.stringify(tasks),before,'compaction must leave durable receipts intact');
+});
+
 test('real source read and search metadata fit the existing evidence budget without losing provenance',()=>{
  const tasks=observations(),before=JSON.stringify(tasks);
  const result=compact(tasks);

@@ -2212,12 +2212,12 @@ function compactActionCatalog(catalog) { return catalog.map(({ name, description
 });
 }
 
-function boundedAuditTasks(tasks) {
+function boundedAuditTasks(tasks, maximumCharacters = 28000) {
     // The runtime search envelope exposes the same candidates as both results
     // and candidates. Deferred argument completion receives that raw envelope,
     // unlike the selection phase's compact observation. Share only exact copies
     // under budget pressure; retain every candidate's discovery metadata once.
-    if (JSON.stringify(tasks).length > 16000) {
+    if (JSON.stringify(tasks).length > Math.min(16000,maximumCharacters)) {
         tasks = tasks.map(task => {
             const evidence = task.observation?.evidence;
             if (!Array.isArray(evidence?.results) || !Array.isArray(evidence.candidates) ||
@@ -2273,7 +2273,7 @@ function boundedAuditTasks(tasks) {
         }
         return result;
     };
-    if(JSON.stringify(tasks).length<=16000)return tasks;
+    if(JSON.stringify(tasks).length<=Math.min(16000,maximumCharacters))return tasks;
     // Preserve every task index and source association; evict source bodies
     // only under actual budget pressure, after retaining the latest window.
     const latestRead = tasks.findLast(task => task.observation?.verifiedRead);
@@ -2301,7 +2301,7 @@ function boundedAuditTasks(tasks) {
                 }}} : {})
             }}};
         });
-        if (JSON.stringify(compact).length <= 16000) return retainBodies(compact,28000);
+        if (JSON.stringify(compact).length <= Math.min(16000,maximumCharacters)) return retainBodies(compact,maximumCharacters);
     }
     // Empty excerpts still carried every parser bookkeeping property. With many
     // reads that alone exceeded the context budget. Keep evidence identities and
@@ -2354,7 +2354,7 @@ function boundedAuditTasks(tasks) {
     if(sharedSchemas)minimal[0]={...minimal[0],sharedSourceSchemaEncoding:"sharedSourceSchemaTaskIndex references identical schema metadata at that original task index. structuralRead, file and range remain local. Records retain their own scope and timestamps. Resolve before reading fields or write shapes."};
     // Share repeated field spellings across source schemas without dropping any
     // field or changing its source/collection association. Ranges are lossless.
-    if (JSON.stringify(minimal).length > 27000) {
+    if (JSON.stringify(minimal).length > Math.max(0,maximumCharacters-1000)) {
         const dictionary = [];
         const fieldIds = fields => {
             const ids = fields.map(field => {
@@ -2404,7 +2404,7 @@ function boundedAuditTasks(tasks) {
     }
     // Lossless transport compression: repeated snapshots retain their timestamps,
     // query scopes and changed values. References never imply new coverage.
-    if (JSON.stringify(minimal).length > 27000) {
+    if (JSON.stringify(minimal).length > Math.max(0,maximumCharacters-1000)) {
         const originals=minimal.map(task=>task.observation?.recordEvidence);
         let reused=false;
         for(let index=0;index<minimal.length;index++) {
@@ -2433,7 +2433,7 @@ function boundedAuditTasks(tasks) {
         }
         if(reused)minimal[0]={...minimal[0],recordSnapshotEncoding:"recordBaseTaskIndex copies earlier recordEvidence recursively; override keys here, remove recordRemovedKeys. recordRowPatches=[id,changedValues,absentFields] patches inherited rows. Keep unchanged values, scope and time; no added coverage."};
     }
-    if (JSON.stringify(minimal).length > 27000) {
+    if (JSON.stringify(minimal).length > Math.max(0,maximumCharacters-1000)) {
         for (const task of minimal) {
             const original=task.observation;
             if (!original || original.verifiedRead) continue;
@@ -2468,7 +2468,7 @@ function boundedAuditTasks(tasks) {
     }
     // Share identical transport metadata before taking bytes from the latest
     // source window. Operational rows, field names and query scopes stay intact.
-    if (JSON.stringify(minimal).length > 27000) {
+    if (JSON.stringify(minimal).length > Math.max(0,maximumCharacters-1000)) {
         const defaults={verifiedRead:{partial:true,truncated:true,contentTruncated:true},dataBindings:{fieldPathsComplete:false,schemaFieldsInSharedSummary:true,referencesComplete:false,complete:false}};
         const kinds={};
         for(const [index,task] of minimal.entries()) {
@@ -2494,7 +2494,7 @@ function boundedAuditTasks(tasks) {
     }
     // Dense rows repeat column indexes and values. Encode the same JSON values
     // once per snapshot; retain every row ID, null, absent key and query scope.
-    if (JSON.stringify(minimal).length > 27000) {
+    if (JSON.stringify(minimal).length > Math.max(0,maximumCharacters-1000)) {
         for (const [index,task] of minimal.entries()) {
             const current=task.observation?.recordEvidence;
             const original=tasks[index].observation?.recordEvidence;
@@ -2554,7 +2554,7 @@ function boundedAuditTasks(tasks) {
             }
         }
     }
-    if(JSON.stringify(minimal).length>28000) {
+    if(JSON.stringify(minimal).length>maximumCharacters) {
         // Identical JSON literals can share transport bytes across snapshots.
         // Each snapshot still owns its rows, column indexes, scope and time.
         const values=[],ids=new Map();
@@ -2575,7 +2575,7 @@ function boundedAuditTasks(tasks) {
             if(JSON.stringify(shared).length<JSON.stringify(minimal).length)minimal.splice(0,minimal.length,...shared);
         }
     }
-    if (JSON.stringify(minimal).length > 27000) {
+    if (JSON.stringify(minimal).length > Math.max(0,maximumCharacters-1000)) {
         // Repeated record identities share spelling only. Each snapshot retains
         // its own values, source, scope, timestamps and completeness.
         const ids=[],positions=new Map();
@@ -2600,7 +2600,7 @@ function boundedAuditTasks(tasks) {
     // Search ranking repeats identical object keys for every candidate. Encode
     // those observed keys once, without discarding a candidate, score or hint.
     // This is transport only; validation continues to use the raw observations.
-    if (JSON.stringify(minimal).length > 28000) {
+    if (JSON.stringify(minimal).length > maximumCharacters) {
         for (const task of minimal) {
             const evidence = task.observation?.evidence, candidates = evidence?.candidates;
             const sameKeys = values => Array.isArray(values) && values.length > 1 && values.every(value =>
@@ -2624,7 +2624,7 @@ function boundedAuditTasks(tasks) {
     }
     const freshRead = minimal[tasks.indexOf(latestRead)]?.observation?.verifiedRead;
     if (freshRead) {
-        const overflow = JSON.stringify(minimal).length - 27900;
+        const overflow = JSON.stringify(minimal).length - (maximumCharacters-100);
         if (overflow > 0) {
             freshRead.content = freshRead.content.slice(0,Math.max(Math.min(700,freshRead.content.length),freshRead.content.length-overflow));
             freshRead.endLine = freshRead.content ? (freshRead.startLine || 1) + freshRead.content.split("\n").length - 1 : null;
@@ -2635,11 +2635,11 @@ function boundedAuditTasks(tasks) {
         for (const reference of references.slice(0,6)) {
             kept.push({collection:reference.collection,startLine:reference.startLine,endLine:reference.endLine,
                 content:String(reference.content||"").slice(0,700),partial:true});
-            if (JSON.stringify(minimal).length >= 28000) { kept.pop(); break; }
+            if (JSON.stringify(minimal).length >= maximumCharacters) { kept.pop(); break; }
         }
     }
-    if(JSON.stringify(minimal).length>28000) throw new Error("SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED");
-    return retainBodies(minimal,28000);
+    if(JSON.stringify(minimal).length>maximumCharacters) throw new Error("SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED");
+    return retainBodies(minimal,maximumCharacters);
 }
 
 function extractGeminiToolCallPlan(response = {}, catalog = []) {
@@ -4380,7 +4380,7 @@ async function runModelSemanticPlanner({
                 const recoveryCatalog=[...new Map([...nextReaders,...sourceFallbackReaders].map(tool=>[tool.name,tool])).values()];
 
                     const compactContinuation=JSON.stringify(auditTasks).length>16000;
-                    const continuation = await ai.models.generateContent({model,contents:instruction,config:{
+                    const continuationRequest = {model,contents:instruction,config:{
                         semanticStage:initialDecision?"EVIDENCE_NEXT_ACTION":"READ_ONLY_EVIDENCE_CONTINUATION",maxOutputTokens:768,temperature:0,
                         ...(initialDecision || compactContinuation || error ? {responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{
                             toolCalls:{type:"array",minItems:0,maxItems:1,items:{anyOf:nextReaders.map(tool=>({
@@ -4410,7 +4410,29 @@ async function runModelSemanticPlanner({
                             {role:"system",content:"OBJETIVOS_PENDIENTES="+JSON.stringify(continuationObjectiveSummaries(evaluatedAudit.completionAssessment?.objectives))},
                             {role:"user",content:instruction}
                         ]
-                    }});
+                    }};
+                    const continuationMessages=continuationRequest.config.chatMessages;
+                    // Keep configured choices visible when the larger runtime
+                    // source map cannot fit. Existence never proves relevance.
+                    const availableSourceFiles=[...new Set([...nextReaders,...sourceFallbackReaders].flatMap(tool=>{
+                        if(tool.name!=='repo.read')return [];
+                        const schema=buildNativeInputSchema(tool.inputSchema);
+                        return (schema.anyOf||[schema]).flatMap(branch=>branch.properties?.file?.enum||[]);
+                    }).filter(file=>configuredSourceFiles.includes(file)))];
+                    if(availableSourceFiles.length)continuationMessages.splice(1,0,{role:'system',content:'RUTAS_DE_FUENTES_CONFIGURADAS='+JSON.stringify(availableSourceFiles)+'\nSon rutas observadas del checkout, no fuentes pertinentes ni evidencia operativa por existir. Elige con el modelo una fuente ligada a una brecha pendiente; si ninguna tiene una relación clara, usa repo.search o repo.grep con evidencia observada. No recorras archivos por el orden de la lista o del esquema. Una lectura todavía debe acreditar su colección y campos antes de consultar.'});
+                    // Fixed prose, source choices, rejections and goals share
+                    // one budget with receipts. Only excerpts/transport repack;
+                    // live rows, fields, scopes and latest read remain intact.
+                    const evidencePrefix='EVIDENCIA_OBTENIDA=';
+                    const fixedCharacters=continuationMessages.filter(message=>!message.content.startsWith(evidencePrefix)).reduce((sum,message)=>sum+message.content.length,0);
+                    const receiptBudget=Math.min(28000,59000-fixedCharacters-auditTasks.length*evidencePrefix.length-200);
+                    if(continuationMessages.reduce((sum,message)=>sum+message.content.length,0)>59000){
+                        if(receiptBudget<=0)throw new Error('SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED');
+                        const decisionTasks=boundedAuditTasks(fullAuditTasks,receiptBudget);
+                        let taskIndex=0;
+                        for(const message of continuationMessages)if(message.content.startsWith(evidencePrefix))message.content=evidencePrefix+JSON.stringify(decisionTasks[taskIndex++]);
+                    }
+                    const continuation = await ai.models.generateContent(continuationRequest);
                     let selectionCatalog=nextReaders;
                     let next = extractGeminiToolCallPlan(continuation,nextReaders);
                     let continuationPayload=null;

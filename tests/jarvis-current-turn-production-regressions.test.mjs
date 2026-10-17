@@ -5738,10 +5738,10 @@ for(const seedMode of ['count'])test('count-only stopping still independently au
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
 
-for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','nested-constraint-budget','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','bounded-localized-catalog','complete-query-count-facts','credited-source-alias','projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction','projection-known-requirements','projection-empty-goal-requirements','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
+for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','nested-constraint-budget','whole-request-budget','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','bounded-localized-catalog','complete-query-count-facts','credited-source-alias','projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction','projection-known-requirements','projection-empty-goal-requirements','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
  const projectionCase=['projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction','projection-known-requirements','projection-empty-goal-requirements'].includes(variant);
  const f=completeScalarPopulationFixture();
- if(variant==='nested-constraint-budget'){
+ if(['nested-constraint-budget','whole-request-budget'].includes(variant)){
   const read=f.context.completedTasks[0].observation.verifiedRead;
   read.content+=Array.from({length:24},(_,i)=>`\nasync function source${i}(db){const ref=collection(db,"observed_scope_${i}");await addDoc(ref,{${Array.from({length:18},(_,j)=>`attribute_${i}_${j}_observed_in_this_source:input.value`).join(',')}});}`).join('');
   read.sourceStructure=analyzeRepoSourceStructure(read.content);
@@ -5757,6 +5757,7 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  const {runJarvisSemanticPlanner,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js']}},required:['file']}};
  if(variant==='projection-empty-goal-requirements')reader.inputSchema.properties.file.enum.push('unrelated.js');
+ if(variant==='whole-request-budget')reader.inputSchema.properties.file.enum.push('related-record-panel.js');
  const unlocalizedFiles=Array.from({length:160},(_,index)=>'available-source-'+index+'-'+('segment'.repeat(18))+'.js');
  if(variant==='bounded-localized-catalog')reader.inputSchema.properties.file.enum.push(...unlocalizedFiles);
  const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query','count']},fields:{type:'array',items:{type:'string'}},filters:{type:'array',items:{type:'object',properties:{field:{type:'string'},op:{type:'string',enum:['==','!=']},value:{type:['string','null']}},required:['field','op','value']}},orderBy:{type:'array'},includeCount:{type:'boolean'}},required:['sourceFile','collection','mode','filters']}};
@@ -5801,7 +5802,10 @@ for(const variant of ['single-projection','later-projection','later-null-query',
     assert.deepEqual(paths,[],'existing authorized filenames are not localized candidates for the pending question');
     assert.ok(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(reader.name)&&hasRequiredToolArguments({inputSchema:choice.properties.args},{file:unlocalizedFiles.at(-1)})),'compact context must not remove otherwise authorized reader arguments');
    }
-   if(['visible-action-constraints','nested-constraint-budget'].includes(variant)){
+   if(variant==='whole-request-budget'){
+    assert.ok(request.config.chatMessages.some(message=>message.content.includes('related-record-panel.js')),'available configured source names must be visible to the model, not only forced by its output grammar');
+   }
+   if(['visible-action-constraints','nested-constraint-budget','whole-request-budget'].includes(variant)){
     const message=request.config.chatMessages.find(m=>m.content.startsWith('CATALOGO_EJECUTABLE='));
     const action=JSON.parse(message.content.slice('CATALOGO_EJECUTABLE='.length)).find(tool=>tool.name===query.name);
     const resolve=value=>{
@@ -5867,7 +5871,7 @@ for(const variant of ['single-projection','later-projection','later-null-query',
   f.context.completedTasks.push({name:query.name,args:structuredClone(call.args),observation:JSON.parse(JSON.stringify(receipt))});
   if(executed.length===2){assert.equal(receipt.recordEvidence.completeForQuery,true);assert.equal(receipt.recordEvidence.queryExhausted,true);assert.equal(receipt.recordEvidence.rows.length,1);}
   return{ok:true,data:receipt};
- },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION'},ai})});
+ },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION',...(variant==='whole-request-budget'?{configuredSourceDiscovery:{source:'VERIFIED_LOCAL_REPOSITORY_SCHEMA',files:['source.js','related-record-panel.js'],operationalEvidence:false},advisorySemanticContext:{turns:Array.from({length:3},(_,i)=>({role:'user',content:('Scope clarification '+i+': preserve organization, records and pending questions. ').padEnd(1800,' observed scope details')}) )}}:{})},ai})});
  assert.equal(offeredInvalid,projectionCase,'a novel projection needs semantic review; previously observed work must be filtered before inference: '+JSON.stringify(result.errors));
  assert.equal(offeredValid,true,'newly credited fields of the same collection must remain executable');
  assert.equal(recoveries,1);assert.equal(executed.length,initialCount+1,JSON.stringify(result.errors));assert.equal(executed.at(-1).name,valid.name);assert.deepEqual(executed.at(-1).args,valid.args);
