@@ -1,5 +1,23 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `3d512caf2fed9a1ec6d49d3dab5cac3e691f2758`.
+Only functions/jarvis-semantic-planner.js changed since290c8f08.
+Reviewed exact nested constraint sharing inside each tool textual action catalog.
+Source/collection bindings remain explicit. Native executable schemas, all other
+messages, authenticated receipts, independent goal checks and permission gates
+remain identical. Definitions resolve recursively without cycles and preserve
+arrays, values and correlations; no evidence or authority is added.
+The saved eight-task Chrome rejection/recovery sequence exceeded60000 characters
+at60230; this transport-only change yields59243 with the same native schema.
+A generic full mission-cycle budget regression fails against the previous HEAD
+and passes now; separate lossless checks cover item and enumerated projections.
+Focused533PASS; frozen full safe emulator suite2331PASS,0FAIL,2physical skips,
+2333tests,278872.5746ms,exit0. The interrupted earlier suite is not certification.
+No external AI, paid provider, Functions deploy, rules or business writes.
+Physical repository search and clean Chrome certification remain required.
+Future unreviewed Functions changes continue to fail closed.
+
+Previous review:
 Current baseline: `290c8f0863e19e9734c4af342a940aa76e764dcd`.
 Only the semantic planner changed in Functions since20829110.
 Reviewed76a189ac and290c8f08: a new field cannot authorize another count of
