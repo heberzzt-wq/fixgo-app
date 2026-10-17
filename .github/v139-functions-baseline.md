@@ -1,5 +1,24 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `ce050a10a614cd6f7cc5c6fe520ec68016ef9910`.
+Only functions/jarvis-semantic-planner.js changed since3d512caf.
+Reviewed whole-message budgeting for evidence decisions and source recovery.
+Fixed prose, source options, rejection receipts and every pending objective now
+reserve their space before compacting source excerpts/transport. The59000 target
+stays below the unchanged60000 bridge limit; irreducible evidence fails closed.
+Every scoped row, field, query and latest relevant source window is preserved.
+Configured available source names stay visible in model input when the larger
+runtime map cannot fit. These names imply neither relevance nor query authority.
+The native executable grammar, field/collection associations, per-goal independent
+reviews and permission gates remain unchanged. No provider or model is added.
+Generic mission-cycle and adaptive-budget regressions retain all three pending
+goals, prevent repeated rejected queries and preserve newly useful valid reads.
+Focused535PASS; frozen full safe emulator suite2333PASS,0FAIL,2physical skips,
+2335tests,188435.5094ms,exit0. Physical repository and clean Chrome checks remain.
+No external AI, paid services, Functions/rules deployment or business writes.
+Future unreviewed Functions changes continue to fail closed.
+
+Previous review:
 Current baseline: `3d512caf2fed9a1ec6d49d3dab5cac3e691f2758`.
 Only functions/jarvis-semantic-planner.js changed since290c8f08.
 Reviewed exact nested constraint sharing inside each tool textual action catalog.
