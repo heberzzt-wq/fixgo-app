@@ -1,5 +1,28 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `5d0580e2ea9d26061aab63b8eafa6138f5ab39d0`.
+Only functions/jarvis-semantic-planner.js changed since 8df277d7.
+Reviewed same-model repository navigation: the bridge preserves exact indexed
+file/collection associations of its clean checkout for the existing Qwen tool
+decision. A bounded navigation map replaces opaque filename choices and the
+transport avoids duplicating a second configuration outside the message budget.
+Navigation supplies no field authority, identity resolution, permissions or live
+data. Already-read source/route bindings can propose independently checked reads;
+mandatory filters, rejected/exhausted query frontiers and runtime checks remain.
+With that map, pending goals stay pending while Qwen chooses valid actions.
+Independent per-goal closure remains mandatory, and positive dependencies reopen.
+No additional model, provider, agent framework, embedding or business dictionary.
+Generic regressions cover direct/recovery navigation, unread field rejection,
+actual whole-cycle query rejection and newly credited field progress, independent
+closing checks, and69files/80routes/217links inside the whole-message budget.
+A saved real14-task frame fits58743characters including its6307-character map;
+it is a contract replay without inference/tools, not physical certification.
+Focused573PASS. Frozen full safe emulator suite2349PASS,0FAIL,2physical skips,
+2351tests,276925.7465ms,exit0. Physical search and Chrome remain required.
+No external AI, paid services, Functions/rules deployment or business writes.
+Future unreviewed Functions changes continue to fail closed.
+
+Previous review:
 Current baseline: `8df277d78bdd12b5c73efd0b4392b55a7e8f275e`.
 Only functions/jarvis-semantic-planner.js changed since 1adfd69b.
 Reviewed pending-value cache parity: use the same authenticated value predicate
