@@ -6049,3 +6049,43 @@ for(const phase of ['decision','recovery'])test('Qwen navigates the live reposit
  assert.equal(result.missionComplete,false);assert.ok(result.completionAssessment.objectives.every(g=>g.requiredEvidenceKind==='platform_records'&&!g.satisfied));
  assert.equal(JSON.stringify(state),before);assert.deepEqual(stages,phase==='decision'?['EVIDENCE_NEXT_ACTION']:['EVIDENCE_NEXT_ACTION','READ_ONLY_EVIDENCE_CONTINUATION']);
 });
+for(const relevant of [true,false])test('a newly audited '+(relevant?'pending':'irrelevant')+' scope changes only the bounded continuation frontier',async()=>{
+ const f=completeScalarPopulationFixture(),read=f.context.completedTasks[0].observation.verifiedRead,target='registry/{tenantId}/holders';
+ read.content+='async function related(db,tenantId){const ref=collection(db,"registry",tenantId,"holders");await addDoc(ref,{holder:input.holder,deadline:input.deadline});await getDocs(ref);}';read.sourceStructure=analyzeRepoSourceStructure(read.content);
+ const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
+ const {runJarvisSemanticPlanner,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js']}},required:['file']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query']},fields:{type:'array',items:{type:'string'}},filters:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}};
+ const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,i)=>({objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][i],scope:'all_sources',groups:['entries']}));
+ const initial={name:query.name,args:{sourceFile:'source.js',collection:f.args.collection,mode:'query',fields:['marker','holder','deadline'],filters:[]}};
+ const next={name:query.name,args:{sourceFile:'source.js',collection:target,mode:'query',fields:['holder','deadline'],filters:[]}};
+ const directory={source:'VERIFIED_LOCAL_REPOSITORY_SCHEMA',revision:'fixture',files:['source.js'],collections:[f.args.collection,target],references:[[0,0],[0,1]],operationalEvidence:false};
+ const stages=[],executed=[];let advanced=false,recoveries=0;
+ const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
+  const stage=request.config.semanticStage;stages.push(stage);
+  if(stage==='EVIDENCE_NEXT_ACTION')return{text:'{"toolCalls":[]}'};
+  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){
+   recoveries++;assert.equal(relevant,true,'an irrelevant review cannot manufacture another inference');
+   assert.ok(stages.filter(s=>s==='RECORD_OBJECTIVE_COVERAGE').length>=3,'the new action frontier must come from independent reviews of all original goals');
+   assert.ok(request.config.chatMessages.find(m=>m.content.startsWith('OBJETIVOS_PENDIENTES=')).content.includes('Inspect deadlines'));
+   if(advanced)return{text:'{"toolCalls":[]}'};
+   assert.ok(recoverySchemas(request).some(c=>c.properties.name.enum.includes(query.name)&&hasRequiredToolArguments({inputSchema:c.properties.args},next.args)),'a genuinely unqueried route identified during closing must remain actionable');
+   return{text:JSON.stringify({toolCalls:[next]})};
+  }
+  if(stage==='QUERY_POPULATION_VERIFICATION')return queryReviewFixture(request,{matchesRequest:true,schemaDiscoveryRelevant:false,rejectionReason:''});
+  const p=queryReviewFixture.packet(request);
+  if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(p.sources.map(collection=>[collection,{relevantToObjective:relevant&&collection.endsWith('/holders'),reason:'Scope role is independently checked from its observed definition.'}]))})};
+  assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);
+  return{text:JSON.stringify({proven:false,missing:['Other sources and classifications remain unproven.'],groups:[],sources:p.observedSources.map(collection=>({collection,relevant:relevant&&collection.endsWith('/holders'),reason:'Observed holder/deadline source remains to be consulted.',taskIndexes:[]}))})};
+ }}};
+ const result=await runJarvisMission({instruction:goals.map(g=>g.objective).join('; '),initialEvidenceObjectives:goals,initialToolCalls:[{name:reader.name,args:{file:'source.js'}},initial],toolCatalog:[reader,query],storage:{getItem(){return null;},setItem(){},removeItem(){}},execute:async call=>{
+  executed.push(call);
+  if(call.name===reader.name)return{ok:true,data:{...read,startLine:1,endLine:1,totalLines:1,numberedContent:'1: '+read.content}};
+  if(call.args.collection===target)advanced=true;
+  const receipt=await f.execute(call.args,f.dependencies,f.context);assert.equal(receipt.ok,true,JSON.stringify(receipt));
+  f.context.completedTasks.push({name:call.name,args:call.args,observation:JSON.parse(JSON.stringify(receipt))});return{ok:true,data:receipt};
+ },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION',configuredSourceDiscovery:directory},ai})});
+ assert.equal(advanced,relevant,JSON.stringify(result.errors));assert.equal(executed.filter(c=>c.name===query.name).length,relevant?2:1);
+ assert.ok(recoveries<=(relevant?2:0),'each newly reviewed evidence version allows at most one continuation, not another recovery chain');
+ assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(g=>!g.satisfied&&g.requiredEvidenceKind==='platform_records'));
+});

@@ -4226,9 +4226,9 @@ async function runModelSemanticPlanner({
                 }
         };
         let evidenceRecoveryUsed=false;
-        const recoverEvidenceAction=async(evaluatedAudit,validatedAudit,error=null,initialDecision=false)=>{
+        const recoverEvidenceAction=async(evaluatedAudit,validatedAudit,error=null,initialDecision=false,reviewedContinuation=false)=>{
             if(!initialDecision){
-                if(evidenceRecoveryUsed)return null;
+                if(evidenceRecoveryUsed && !reviewedContinuation)return null;
                 evidenceRecoveryUsed=true;
             }
                 refreshReviewedActionFrontier();
@@ -4402,18 +4402,9 @@ async function runModelSemanticPlanner({
                     required:['name','args'],additionalProperties:false
                 }))}}}:{};
                 const optionalPredicateReaders=error?.evidence?.ungroundedFilters?.length?groundedRecordRecoveryReaders:[];
-                const pendingRecordReaders=optionalPredicateReaders.length?optionalPredicateReaders:requiredFieldsAlreadyRead?nextReaders.filter(tool=>tool.evidenceKinds?.includes('platform_records')).flatMap(tool=>{
-                    const schema=buildNativeInputSchema(tool.inputSchema);
-                    const branches=(schema.anyOf||[schema]).filter(branch=>(branch.properties?.collection?.enum||[]).some(collection=>
-                        coverageBeforeDecision.some(goal=>{
-                            const contract=missionState.evidenceObjectives.find(item=>item.objective===goal.objective);
-                            if(goal.coverageProof?.proven===true && qualifyRecordObjectiveCoverage(
-                                {...goal,evidenceTaskIndexes:recordCoverageTaskIndexes(goal)},contract,completedTasksForAudit).status==='complete')return false;
-                            return (goal.coverageProof?.sources||[]).some(source=>
-                                source.collection===collection && source.relevant===true && Boolean(source.reason?.trim()));
-                        })));
-                    return branches.length?[{...tool,inputSchema:branches.length===1?branches[0]:{anyOf:branches}}]:[];
-                }):[];
+                const pendingRecordReaders=optionalPredicateReaders.length?optionalPredicateReaders:
+                    requiredFieldsAlreadyRead||reviewedContinuation?reviewedPendingRecordReaders(nextReaders):[];
+                if(reviewedContinuation && !pendingRecordReaders.length)return null;
                 // Follow the model's existing per-objective source assessment
                 // before exploring more code. Keep the independently checked
                 // same-response source alternative; never infer goal coverage.
@@ -4529,6 +4520,21 @@ async function runModelSemanticPlanner({
         const coverageCache=decisionCache;
         const freshlyReviewedCoverage=new Set();
         const coverageBeforeDecision=[];
+        let reviewedContinuationUsed=false;
+        const reviewedPendingRecordReaders=readers=>readers.filter(tool=>tool.investigationReadOnly===true &&
+            tool.mutates!==true && tool.requiresApproval!==true && tool.userArtifact!==true &&
+            tool.evidenceKinds?.includes('platform_records')).flatMap(tool=>{
+            const schema=buildNativeInputSchema(tool.inputSchema);
+            const branches=(schema.anyOf||[schema]).filter(branch=>(branch.properties?.collection?.enum||[]).some(collection=>
+                coverageBeforeDecision.some(goal=>{
+                    const contract=missionState.evidenceObjectives.find(item=>item.objective===goal.objective);
+                    if(goal.coverageProof?.proven===true && qualifyRecordObjectiveCoverage(
+                        {...goal,evidenceTaskIndexes:recordCoverageTaskIndexes(goal)},contract,completedTasksForAudit).status==='complete')return false;
+                    return (goal.coverageProof?.sources||[]).some(source=>
+                        source.collection===collection && source.relevant===true && Boolean(source.reason?.trim()));
+                })));
+            return branches.length?[{...tool,inputSchema:branches.length===1?branches[0]:{anyOf:branches}}]:[];
+        });
         const rememberReviewedCoverage=(contract,proof)=>{
             rememberSourceRoles(contract,proof);
             const item={objective:contract.objective,requiredEvidenceKind:contract.requiredEvidenceKind,coverageProof:proof};
@@ -4900,6 +4906,22 @@ async function runModelSemanticPlanner({
                 // Only existing pure-reader metadata is eligible; no intent table,
                 // guessed collection, permission escalation or alternate brain.
                 if(evaluatedAudit.missionComplete!==true && !validatedAudit.toolCalls.length){
+                    // A closing review can identify an actionable pending scope
+                    // that the earlier decision did not yet know. Offer that
+                    // changed, independently reviewed frontier once. Never reset
+                    // the generic recovery chain or infer completion from it.
+                    if(repositoryNavigation && coverageChanged && !reviewedContinuationUsed){
+                        refreshReviewedActionFrontier();
+                        if(reviewedPendingRecordReaders(selectableCatalog).length){
+                            reviewedContinuationUsed=true;
+                            const next=await recoverEvidenceAction(evaluatedAudit,validatedAudit,null,false,true);
+                            if(next){
+                                next.completionAssessment.evidenceDecision={...next.completionAssessment.evidenceDecision,
+                                    status:'AUDITED_PENDING_SCOPE_CONTINUATION',continuationUsed:true};
+                                return next;
+                            }
+                        }
+                    }
                     const recovered=await recoverEvidenceAction(evaluatedAudit,validatedAudit);
                     if(recovered)return recovered;
                 }
