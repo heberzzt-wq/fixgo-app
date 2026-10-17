@@ -2172,7 +2172,42 @@ function compactActionCatalog(catalog) { return catalog.map(({ name, description
         if(!references.has(encoded)){const id='constraint'+(references.size+1);references.set(encoded,id);definitions[id]=value;}
         binding[key]={$ref:'#/$defs/'+references.get(encoded)};
     }
-    if(references.size){action.$defs=definitions;action.bindingEncoding='Resolve each local $ref only inside this same tool $defs; its sourceFile and collection binding remains unchanged.';}
+    // Fields recur inside projection, predicate and ordering constraints even
+    // when their outer constraints differ. Share exact nested JSON values,
+    // never source/collection identities or native executable schemas.
+    const nestedCounts=new Map();
+    const countNested=value=>{
+        if(!value || typeof value!=='object' || value.$ref)return;
+        const encoded=JSON.stringify(value);
+        if(encoded.length>100)nestedCounts.set(encoded,(nestedCounts.get(encoded)||0)+1);
+        for(const child of Object.values(value))countNested(child);
+    };
+    for(const binding of action.evidenceBindings||[])for(const key of ['fields','filters','orderBy'])countNested(binding[key]);
+    for(const value of Object.values(definitions))for(const child of Object.values(value))countNested(child);
+    const nestedReferences=new Map();
+    const shareNested=value=>{
+        if(!value || typeof value!=='object' || value.$ref)return value;
+        const encoded=JSON.stringify(value),copies=nestedCounts.get(encoded)||0;
+        if((copies-1)*encoded.length-copies*32>24){
+            if(!nestedReferences.has(encoded)){
+                const id='constraint'+(Object.keys(definitions).length+1);
+                nestedReferences.set(encoded,id);
+                // Reserve first, then encode children: each definition only
+                // references smaller descendants, so cycles cannot arise.
+                definitions[id]=null;
+                definitions[id]=Array.isArray(value)?value.map(shareNested):Object.fromEntries(Object.entries(value).map(([key,child])=>[key,shareNested(child)]));
+            }
+            return {$ref:'#/$defs/'+nestedReferences.get(encoded)};
+        }
+        return Array.isArray(value)?value.map(shareNested):Object.fromEntries(Object.entries(value).map(([key,child])=>[key,shareNested(child)]));
+    };
+    const outerDefinitions=Object.keys(definitions);
+    for(const binding of action.evidenceBindings||[])for(const key of ['fields','filters','orderBy'])if(binding[key])binding[key]=shareNested(binding[key]);
+    for(const id of outerDefinitions){
+        const value=definitions[id];
+        definitions[id]=Array.isArray(value)?value.map(shareNested):Object.fromEntries(Object.entries(value).map(([key,child])=>[key,shareNested(child)]));
+    }
+    if(Object.keys(definitions).length){action.$defs=definitions;action.bindingEncoding='Resolve each local $ref recursively only inside this same tool $defs; its sourceFile and collection binding remains unchanged.';}
     return action;
 });
 }

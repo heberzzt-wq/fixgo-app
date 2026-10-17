@@ -5738,9 +5738,14 @@ for(const seedMode of ['count'])test('count-only stopping still independently au
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
 
-for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','bounded-localized-catalog','complete-query-count-facts','credited-source-alias','projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction','projection-known-requirements','projection-empty-goal-requirements','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
+for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','nested-constraint-budget','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','bounded-localized-catalog','complete-query-count-facts','credited-source-alias','projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction','projection-known-requirements','projection-empty-goal-requirements','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
  const projectionCase=['projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction','projection-known-requirements','projection-empty-goal-requirements'].includes(variant);
  const f=completeScalarPopulationFixture();
+ if(variant==='nested-constraint-budget'){
+  const read=f.context.completedTasks[0].observation.verifiedRead;
+  read.content+=Array.from({length:24},(_,i)=>`\nasync function source${i}(db){const ref=collection(db,"observed_scope_${i}");await addDoc(ref,{${Array.from({length:18},(_,j)=>`attribute_${i}_${j}_observed_in_this_source:input.value`).join(',')}});}`).join('');
+  read.sourceStructure=analyzeRepoSourceStructure(read.content);
+ }
  if(projectionCase){
   const read=f.context.completedTasks[0].observation.verifiedRead;
   read.content=read.content.replace('deadline:input.deadline','deadline:input.deadline,auditStamp:input.auditStamp').replace('collection(db,"registry",tenantId,"entries")','collection(db,"registry","approved","entries")');
@@ -5796,7 +5801,7 @@ for(const variant of ['single-projection','later-projection','later-null-query',
     assert.deepEqual(paths,[],'existing authorized filenames are not localized candidates for the pending question');
     assert.ok(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(reader.name)&&hasRequiredToolArguments({inputSchema:choice.properties.args},{file:unlocalizedFiles.at(-1)})),'compact context must not remove otherwise authorized reader arguments');
    }
-   if(variant==='visible-action-constraints'){
+   if(['visible-action-constraints','nested-constraint-budget'].includes(variant)){
     const message=request.config.chatMessages.find(m=>m.content.startsWith('CATALOGO_EJECUTABLE='));
     const action=JSON.parse(message.content.slice('CATALOGO_EJECUTABLE='.length)).find(tool=>tool.name===query.name);
     const resolve=value=>{
