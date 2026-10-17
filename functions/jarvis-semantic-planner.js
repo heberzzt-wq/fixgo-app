@@ -488,7 +488,7 @@ function recordQueryOrder(orderBy=[]) {
     return orders.some(item=>item.field==='__name__')?orders:[...orders,{field:'__name__',direction:'asc'}];
 }
 
-function excludeReviewedQueryProjections(catalog,rejections) {
+function excludeReviewedQueryProjections(catalog,rejections,tasks=[],recordGoalIndexes=[]) {
     return catalog.map(tool=>{
         if(!tool.evidenceKinds?.includes('platform_records'))return tool;
         let branches=(buildNativeInputSchema(tool.inputSchema).anyOf || [buildNativeInputSchema(tool.inputSchema)]);
@@ -501,7 +501,15 @@ function excludeReviewedQueryProjections(catalog,rejections) {
             // verdict rejecting the population independently of projection can
             // remove its field variants. New field evidence invalidates that
             // verdict; other filters, routes, modes and cursors remain scoped.
-            const rejectedMode=args?.mode==='count'?'count':receipt.populationRejected===true&&args?.mode==='query'?'query':null;
+            const required=receipt.objectiveFieldRequirements;
+            const needed=recordGoalIndexes.flatMap(index=>Array.isArray(required?.[index])?required[index]:[]);
+            const requirementsAlreadyObserved=receipt.rejectionKind==='semantic' && args?.mode==='query' &&
+                recordGoalIndexes.length>0 && needed.length>0 && recordGoalIndexes.every(index=>Array.isArray(required?.[index])) &&
+                needed.every(field=>recordProjectionAlreadyObserved({...call,args:{...args,fields:[field]}},tasks));
+            // Every required field of this exact scope is already available.
+            // Optional metadata cannot revive its rejected first-page read;
+            // this is an action frontier, never global population exhaustion.
+            const rejectedMode=args?.mode==='count'?'count':(receipt.populationRejected===true||requirementsAlreadyObserved)&&args?.mode==='query'?'query':null;
             if(call?.name===tool.name && rejectedMode && !args.cursor &&
                 !args.filters?.length && !args.orderBy?.length){
                 branches=branches.flatMap(branch=>{
@@ -3862,6 +3870,15 @@ async function runModelSemanticPlanner({
         // Rejections are decision history, never operational evidence. Reuse
         // only under the same instruction, identity, model and dependencies.
         const decisionCache=ai.objectiveCoverageCache || new Map();
+        // Keep vetoes stable during this decision even if coverage cache
+        // maintenance evicts an older entry. Receipts carry their own exact
+        // dependency key into the next decision; they never grant evidence.
+        const retainedQueryRejections=new Map([...decisionCache].filter(([,value])=>value?.queryRejection));
+        const queryCacheValue=key=>retainedQueryRejections.get(key)||decisionCache.get(key);
+        const retainQueryRejection=(key,value)=>{
+            decisionCache.set(key,value);retainedQueryRejections.set(key,value);
+            while(retainedQueryRejections.size>96)retainedQueryRejections.delete(retainedQueryRejections.keys().next().value);
+        };
         // Carry the engine's scoped investigation decisions into query review.
         // These roles authorize no fields, joins, values or objective closure.
         const reviewedSourceRoles=new Map();
@@ -3912,7 +3929,7 @@ async function runModelSemanticPlanner({
                 {query:canonicalArgs({name:call.name,args}),instruction,objectives:missionState.evidenceObjectives},queryDependencies,recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content),model,missionState,evaluatedAt);
         };
         const populationExclusionConfirmed=call=>{
-            const cached=decisionCache.get(queryDecisionKey(call,true));
+            const cached=queryCacheValue(queryDecisionKey(call,true));
             if(!cached?.queryRejection)return false;
             const identities=new Set([call.args?.collection]);
             for(const task of completedTasksForAudit)if(authenticatedRecordAt(completedTasksForAudit.indexOf(task)) &&
@@ -3934,20 +3951,23 @@ async function runModelSemanticPlanner({
             if(complete)cached.populationExclusionConfirmed=true;
             return complete || cached.populationExclusionConfirmed===true;
         };
-        const knownQueryRejection=call=>decisionCache.get(queryDecisionKey(call))?.queryRejection ||
-            (populationExclusionConfirmed(call)?decisionCache.get(queryDecisionKey(call,true))?.queryRejection:undefined);
-        const queryRejectionReceipt=error=>({code:error.message,proposed:{name:error.evidence?.tool,args:error.evidence?.proposed||error.evidence?.args},
-            limitation:error.evidence?.limitation || '',schemaDiscoveryRelevant:error.evidence?.schemaDiscoveryRelevant,populationRelevance:error.evidence?.populationRelevance,objectiveFieldRequirements:error.evidence?.objectiveFieldRequirements,ungroundedFilters:error.evidence?.ungroundedFilters,requiresSourceEvidence:error.evidence?.requiresSourceEvidence,rejectionKind:error.evidence?.rejectionKind || 'semantic',operationalEvidence:false,objectiveSatisfied:false});
+        const knownQueryRejection=call=>queryCacheValue(queryDecisionKey(call))?.queryRejection ||
+            (populationExclusionConfirmed(call)?queryCacheValue(queryDecisionKey(call,true))?.queryRejection:undefined);
+        const queryRejectionReceipt=error=>{
+            const proposed={name:error.evidence?.tool,args:error.evidence?.proposed||error.evidence?.args};
+            return {code:error.message,proposed,...(proposed.name&&proposed.args?{dependencyRevision:queryDecisionKey(proposed)}:{}),
+                limitation:error.evidence?.limitation || '',schemaDiscoveryRelevant:error.evidence?.schemaDiscoveryRelevant,populationRelevance:error.evidence?.populationRelevance,objectiveFieldRequirements:error.evidence?.objectiveFieldRequirements,ungroundedFilters:error.evidence?.ungroundedFilters,requiresSourceEvidence:error.evidence?.requiresSourceEvidence,rejectionKind:error.evidence?.rejectionKind || 'semantic',operationalEvidence:false,objectiveSatisfied:false};
+        };
         const currentQueryRejections=()=>{
             const receipts=[];let bytes=2;
-            for(const [key,value] of [...decisionCache.entries()].reverse()){
+            for(const [key,value] of [...new Map([...decisionCache,...retainedQueryRejections]).entries()].reverse()){
                 const receipt=value?.queryRejection;
                 const populationOnly=key.startsWith('query-population-rejection:');
                 if(!receipt || key!==queryDecisionKey(receipt.proposed,populationOnly))continue;
                 if(populationOnly && !populationExclusionConfirmed(receipt.proposed))continue;
                 // The stronger engine-owned veto already represents this exact
                 // projection. Preserve budget for distinct rejected scopes.
-                if(!populationOnly && populationExclusionConfirmed(receipt.proposed) && decisionCache.has(queryDecisionKey(receipt.proposed,true)))continue;
+                if(!populationOnly && populationExclusionConfirmed(receipt.proposed) && queryCacheValue(queryDecisionKey(receipt.proposed,true)))continue;
                 const boundedReceipt={...receipt,populationRejected:populationOnly};
                 const cost=JSON.stringify(boundedReceipt).length+1;
                 if(bytes+cost>2000)continue;
@@ -3981,15 +4001,17 @@ async function runModelSemanticPlanner({
         const continuationUsed=previousDecision?.revision===decisionRevision && previousDecision.continuationUsed===true;
         // Persist only rejected decisions under their exact dependencies. These
         // receipts can prevent an operation; they never authorize one or prove data.
-        if(previousDecision?.revision===decisionRevision)for(const receipt of previousDecision.rejections||[]){
-            if(receipt?.operationalEvidence===false && receipt.objectiveSatisfied===false && receipt.proposed?.name && receipt.proposed?.args)
-                decisionCache.set(queryDecisionKey(receipt.proposed),{queryRejection:receipt});
+        for(const receipt of previousDecision?.rejections||[]){
+            if(receipt?.operationalEvidence!==false || receipt.objectiveSatisfied!==false || !receipt.proposed?.name || !receipt.proposed?.args)continue;
+            const key=queryDecisionKey(receipt.proposed);
+            if(receipt.dependencyRevision===key || !receipt.dependencyRevision&&previousDecision.revision===decisionRevision)
+                retainQueryRejection(key,{queryRejection:{...receipt,populationRejected:false}});
         }
         const rememberRejection=error=>{
             if(error.evidence?.rejectionKind==='truncated')return;
             const receipt=queryRejectionReceipt(error);
             if(receipt.proposed.name && receipt.proposed.args && !knownQueryRejection(receipt.proposed))
-                decisionCache.set(queryDecisionKey(receipt.proposed),{queryRejection:receipt});
+                retainQueryRejection(queryDecisionKey(receipt.proposed),{queryRejection:receipt});
             while(decisionCache.size>96)decisionCache.delete(decisionCache.keys().next().value);
         };
         const verifyOperationalCalls=async(calls,callCatalog=selectableCatalog)=>{
@@ -4188,19 +4210,19 @@ async function runModelSemanticPlanner({
                             // A truncated inference is retryable; only an
                             // explicit semantic rejection can be remembered.
                             if(review?.providerResponse?.finishReason!=="length" && verdict?.matchesRequest===false){
-                                decisionCache.set(queryDecisionKey(call),{queryRejection:queryRejectionReceipt(error)});
+                                retainQueryRejection(queryDecisionKey(call),{queryRejection:queryRejectionReceipt(error)});
                                 // Only this engine-owned, explicit population verdict can
                                 // exclude different projections. Argument failures and
                                 // unknown/merely insufficient projections remain exact.
                                 if(call.args.mode==='query' && verdict.populationRelevance==='irrelevant' && verdict.schemaDiscoveryRelevant===false)
-                                    decisionCache.set(queryDecisionKey(call,true),{queryRejection:queryRejectionReceipt(error)});
+                                    retainQueryRejection(queryDecisionKey(call,true),{queryRejection:queryRejectionReceipt(error)});
                                 while(decisionCache.size>96)decisionCache.delete(decisionCache.keys().next().value);
                                 // The same semantic review may select a structural
                                 // probe, never a different population or invented
                                 // field. Keep the original value rejection cached.
                                 const probe={...call,args:{...call.args,fields:['__name__']}};
                                 if(verdict.schemaDiscoveryRelevant===false && call.args.mode==='query')
-                                    decisionCache.set(queryDecisionKey(probe),{queryRejection:{...queryRejectionReceipt(error),proposed:probe}});
+                                    retainQueryRejection(queryDecisionKey(probe),{queryRejection:{...queryRejectionReceipt(error),proposed:probe,dependencyRevision:queryDecisionKey(probe)}});
                                 const scopeKey=args=>JSON.stringify(canonicalArgs({sourceFile:args?.sourceFile,
                                     filters:args?.filters||[],orderBy:args?.orderBy?.length?args.orderBy:[{field:'__name__',direction:'asc'}],cursor:args?.cursor||null}));
                                 const schemaAlreadyObserved=completedTasksForAudit.some(task=>{
@@ -4363,7 +4385,8 @@ async function runModelSemanticPlanner({
                     return unread.length?{...tool,inputSchema:unread.length===1?unread[0]:{anyOf:unread}}:tool;
                 });
                 if(!nextReaders.length)return null;
-                nextReaders=excludeReviewedQueryProjections(nextReaders,currentQueryRejections());
+                nextReaders=excludeReviewedQueryProjections(nextReaders,currentQueryRejections(),completedTasksForAudit,
+                    (missionState.evidenceObjectives||[]).flatMap((goal,index)=>goal.requiredEvidenceKind==='platform_records'?[String(index)]:[]));
                 const requiredProjection=error?.evidence?.objectiveFieldRequirements;
                 const rejectedQuery={name:error?.evidence?.tool,args:error?.evidence?.proposed};
                 const recordGoals=(missionState.evidenceObjectives||[]).flatMap((goal,index)=>goal.requiredEvidenceKind==='platform_records'?[String(index)]:[]);
@@ -4509,8 +4532,15 @@ async function runModelSemanticPlanner({
                             rememberRejection(scopeError);
                             checked=validatePlan({toolCalls:[fallback],missionComplete:false},sourceFallbackReaders,instruction);
                         }
-                        if(checked.toolCalls.length)return {...validatePlan({...validatedAudit,toolCalls:checked.toolCalls,missionComplete:false},recoveryCatalog,instruction),
-                            provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:recoveryCatalog.length,planKind:initialDecision?"EVIDENCE_NEXT_ACTION":"READ_ONLY_EVIDENCE_CONTINUATION"};
+                        if(checked.toolCalls.length){
+                            // Persist vetoes learned in this very decision even
+                            // when direct navigation skips scope-only reviews.
+                            // A successful source fallback must not erase them.
+                            if(validatedAudit.completionAssessment?.evidenceDecision)
+                                validatedAudit.completionAssessment.evidenceDecision.rejections=currentQueryRejections();
+                            return {...validatePlan({...validatedAudit,toolCalls:checked.toolCalls,missionComplete:false},recoveryCatalog,instruction),
+                                provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:recoveryCatalog.length,planKind:initialDecision?"EVIDENCE_NEXT_ACTION":"READ_ONLY_EVIDENCE_CONTINUATION"};
+                        }
                     }
 
             return null;

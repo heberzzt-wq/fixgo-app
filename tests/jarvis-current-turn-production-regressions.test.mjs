@@ -5287,7 +5287,7 @@ test('scope reviews distinguish justified exclusions from violations and bound t
  }
 });
 
-test('trace replay carries proposal rejection and invalid recovery into the next decision without losing runtime exhaustion or pending goals',async()=>{
+for(const cacheCase of ['retained','evicted-unrelated','evicted-related','evicted-identity'])test('trace replay carries proposal rejection and invalid recovery into the next decision without losing runtime exhaustion or pending goals '+cacheCase,async()=>{
  // Reduced from replay-c4da9866-four-decisions.json, itself replaying the
  // 81504fff Chrome request. Only model responses and storage are simulated;
  // both planner decisions and the terminal-page receipt use production code.
@@ -5321,7 +5321,7 @@ test('trace replay carries proposal rejection and invalid recovery into the next
    return{text:JSON.stringify({toolCalls:[turn===0?rejected:{...rejected,args:{...rejected.args,fields:['stamp','stamp'],pageSize:100}}]})};
   }
   if(stage==='QUERY_POPULATION_VERIFICATION'){
-   assert.equal(turn,0,'an unchanged rejection must survive into the next decision');
+   assert.ok(turn===0||['evicted-related','evicted-identity'].includes(cacheCase),'an unchanged rejection must survive into the next decision; relevant source/identity changes may be reviewed again');
    return{text:'{"matchesRequest":false}'};
   }
   if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){
@@ -5346,9 +5346,11 @@ test('trace replay carries proposal rejection and invalid recovery into the next
  assert.equal(first.missionComplete,false);
  assert.deepEqual(first.completionAssessment.objectives.map(o=>[o.objective,o.requiredEvidenceKind,o.satisfied]),contracts.map(o=>[o.objective,'platform_records',false]));
  assert.ok([...cache.values()].some(value=>value.queryRejection),'the rejection must be retained across decisions');
+ if(cacheCase==='evicted-identity'){cache.clear();state.tenantId='other';}
+ if(['evicted-unrelated','evicted-related'].includes(cacheCase)){cache.clear();reader.inputSchema.properties.file.enum.push('unrelated.js');tasks.push({name:reader.name,args:{file:'unrelated.js'},observation:{ok:true,verifiedRead:{file:'unrelated.js',content:'Observed other registry',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:[cacheCase==='evicted-related'?'profiles':'other_scope'],writeShapes:[{collection:cacheCase==='evicted-related'?'profiles':'other_scope',fields:['stamp','newly_credited']}]}}}}});}
  const before=JSON.stringify(tasks);turn=1;stages.length=0;
  const next=await runJarvisSemanticPlanner({input:'Count entries, identify holders and inspect deadlines',catalog:[query,reader],missionState:{...state,completionAssessment:first.completionAssessment},ai});
- assert.deepEqual(stages,['EVIDENCE_NEXT_ACTION','READ_ONLY_EVIDENCE_CONTINUATION'],'the next decision must reuse its rejection without another scope review or coverage chain');
+ assert.deepEqual(stages,['EVIDENCE_NEXT_ACTION',...(['evicted-related','evicted-identity'].includes(cacheCase)?['QUERY_POPULATION_VERIFICATION']:[]),'READ_ONLY_EVIDENCE_CONTINUATION'],'the next decision must reuse its rejection without another scope review or coverage chain');
  assert.deepEqual(next.toolCalls.map(call=>({name:call.name,args:call.args})),[{name:reader.name,args:{file:'next.js'}}]);
  assert.equal(next.missionComplete,false);assert.ok(next.completionAssessment.objectives.every(o=>o.satisfied===false&&o.requiredEvidenceKind==='platform_records'));
  assert.equal(JSON.stringify(tasks),before,'receipts and their authenticated organization binding must survive the entire cycle');
@@ -6088,4 +6090,39 @@ for(const relevant of [true,false])test('a newly audited '+(relevant?'pending':'
  assert.equal(advanced,relevant,JSON.stringify(result.errors));assert.equal(executed.filter(c=>c.name===query.name).length,relevant?2:1);
  assert.ok(recoveries<=(relevant?2:0),'each newly reviewed evidence version allows at most one continuation, not another recovery chain');
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(g=>!g.satisfied&&g.requiredEvidenceKind==='platform_records'));
+});
+test('restored per-goal field requirements exclude metadata padding before the next Qwen call while another route can advance',async()=>{
+ const f=completeScalarPopulationFixture(),read=f.context.completedTasks[0].observation.verifiedRead,target='registry/{tenantId}/holders';
+ read.content=read.content.replace('deadline:input.deadline','deadline:input.deadline,auditStamp:input.auditStamp');
+ read.content+='async function related(db,tenantId){const ref=collection(db,"registry",tenantId,"holders");await addDoc(ref,{holder:input.holder,deadline:input.deadline});}';read.sourceStructure=analyzeRepoSourceStructure(read.content);
+ const getDocs=f.dependencies.sdk.getDocsFromServer;f.dependencies.sdk.getDocsFromServer=async q=>{const result=await getDocs(q);result.docs=result.docs.map(doc=>({...doc,data:()=>({...doc.data(),auditStamp:'Observed metadata'})}));return result;};
+ const {runJarvisSemanticPlanner,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js','unrelated.js']}},required:['file']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query']},fields:{type:'array',items:{type:'string'}},filters:{type:'array'},orderBy:{type:'array'},pageSize:{type:'integer',minimum:1,maximum:100}},required:['sourceFile','collection','mode','fields','filters']}};
+ const initialArgs={sourceFile:'source.js',collection:f.args.collection,mode:'query',fields:['marker','holder','deadline'],filters:[]};
+ const receipt=await f.execute(initialArgs,f.dependencies,f.context);assert.equal(receipt.ok,true);
+ const tasks=[...f.context.completedTasks,{name:query.name,args:initialArgs,observation:JSON.parse(JSON.stringify(receipt))}];
+ const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,i)=>({objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][i],scope:'all_sources',groups:['entries']}));
+ const bad={name:query.name,args:{...initialArgs,fields:['auditStamp']}},next={name:query.name,args:{...initialArgs,collection:target,fields:['holder','deadline']}};
+ const cache=new Map(),stages=[];let turn=0;
+ const ai={objectiveCoverageCache:cache,models:{generateContent:async request=>{
+  const stage=request.config.semanticStage;stages.push(stage);
+  if(stage==='EVIDENCE_NEXT_ACTION'){
+   if(turn===0)return{text:JSON.stringify({toolCalls:[bad]})};
+   for(const fields of [['auditStamp'],['auditStamp','holder'],['holder','auditStamp','__name__']])assert.ok(recoverySchemas(request).filter(c=>c.properties.name.enum.includes(query.name)).every(c=>!hasRequiredToolArguments({inputSchema:c.properties.args},{...bad.args,fields,pageSize:81,orderBy:[]})),'new ordering, page size or already-read fields cannot pad a rejected query whose per-goal required fields are all observed');
+   return{text:JSON.stringify({toolCalls:[next]})};
+  }
+  if(stage==='QUERY_POPULATION_VERIFICATION'){
+   if(turn===1)return queryReviewFixture(request,{matchesRequest:true,schemaDiscoveryRelevant:false,rejectionReason:''});
+   return{text:JSON.stringify({matchesRequest:true,schemaDiscoveryRelevant:false,populationRelevance:'relevant',objectiveMatches:{0:false,1:false,2:false},objectiveFields:{0:['marker'],1:['holder'],2:['deadline']},populationFieldPurposes:{0:'none'},rejectionReason:'Only optional metadata was proposed; required values are already read.'})};
+  }
+  assert.equal(stage,'READ_ONLY_EVIDENCE_CONTINUATION');return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'unrelated.js'}}]})};
+ }}};
+ const directory={source:'VERIFIED_LOCAL_REPOSITORY_SCHEMA',files:['source.js','unrelated.js'],collections:[f.args.collection,target,'other_scope'],references:[[0,0],[0,1],[1,2]],operationalEvidence:false};
+ const state={phase:'EVIDENCE_NEXT_ACTION',tenantId:'approved',evidenceObjectives:goals,completedTasks:tasks,configuredSourceDiscovery:directory};
+ const first=await runJarvisSemanticPlanner({input:goals.map(g=>g.objective).join('; '),catalog:[reader,query],missionState:state,ai});assert.equal(first.toolCalls[0].name,reader.name);
+ cache.clear();tasks.push({name:reader.name,args:{file:'unrelated.js'},observation:{ok:true,verifiedRead:{file:'unrelated.js',content:'Other source',sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['other_scope'],writeShapes:[{collection:'other_scope',fields:['stamp']}]}}}}});turn=1;stages.length=0;
+ const second=await runJarvisSemanticPlanner({input:goals.map(g=>g.objective).join('; '),catalog:[reader,query],missionState:{...state,completionAssessment:first.completionAssessment},ai});
+ assert.deepEqual(second.toolCalls[0].args,next.args);const observed=await f.execute(next.args,f.dependencies,{...f.context,completedTasks:tasks});assert.equal(observed.ok,true,JSON.stringify(observed));assert.equal(observed.recordEvidence.scope.collection,'registry/approved/holders');
+ assert.deepEqual(stages,['EVIDENCE_NEXT_ACTION','QUERY_POPULATION_VERIFICATION']);assert.ok(second.completionAssessment.objectives.every(g=>!g.satisfied&&g.requiredEvidenceKind==='platform_records'));
 });
