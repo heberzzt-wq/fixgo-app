@@ -3914,7 +3914,7 @@ async function runModelSemanticPlanner({
         const knownQueryRejection=call=>decisionCache.get(queryDecisionKey(call))?.queryRejection ||
             (populationExclusionConfirmed(call)?decisionCache.get(queryDecisionKey(call,true))?.queryRejection:undefined);
         const queryRejectionReceipt=error=>({code:error.message,proposed:{name:error.evidence?.tool,args:error.evidence?.proposed||error.evidence?.args},
-            limitation:error.evidence?.limitation || '',schemaDiscoveryRelevant:error.evidence?.schemaDiscoveryRelevant,populationRelevance:error.evidence?.populationRelevance,objectiveFieldRequirements:error.evidence?.objectiveFieldRequirements,requiresSourceEvidence:error.evidence?.requiresSourceEvidence,rejectionKind:error.evidence?.rejectionKind || 'semantic',operationalEvidence:false,objectiveSatisfied:false});
+            limitation:error.evidence?.limitation || '',schemaDiscoveryRelevant:error.evidence?.schemaDiscoveryRelevant,populationRelevance:error.evidence?.populationRelevance,objectiveFieldRequirements:error.evidence?.objectiveFieldRequirements,ungroundedFilters:error.evidence?.ungroundedFilters,requiresSourceEvidence:error.evidence?.requiresSourceEvidence,rejectionKind:error.evidence?.rejectionKind || 'semantic',operationalEvidence:false,objectiveSatisfied:false});
         const currentQueryRejections=()=>{
             const receipts=[];let bytes=2;
             for(const [key,value] of [...decisionCache.entries()].reverse()){
@@ -4054,7 +4054,7 @@ async function runModelSemanticPlanner({
                         });
                         if(ungroundedFilters.length){
                             const error=new Error("SEMANTIC_QUERY_SCOPE_UNVERIFIED");
-                            error.evidence={tool:call.name,proposed:call.args,rejectionKind:"arguments",requiresSourceEvidence:true,limitation:"La consulta propone campos o valores de filtro que no aparecen en la fuente leída ni en la solicitud original.",nextEvidenceQuery:"",requiredNextStep:"Search or read source evidence for the requested population before querying records."};
+                            error.evidence={tool:call.name,proposed:call.args,ungroundedFilters:structuredClone(ungroundedFilters),rejectionKind:"arguments",requiresSourceEvidence:true,limitation:"La consulta propone campos o valores de filtro que no aparecen en la fuente leída ni en la solicitud original.",nextEvidenceQuery:"",requiredNextStep:"Search or read source evidence for the requested population before querying records."};
                             throw error;
                         }
                         const objectiveIndexes=(missionState.evidenceObjectives||[]).flatMap((objective,index)=>objective.requiredEvidenceKind==='platform_records'?[String(index)]:[]);
@@ -4284,7 +4284,14 @@ async function runModelSemanticPlanner({
                         const branches=(schema.anyOf || [schema]).filter(branch => {
                             const property=branch.properties?.collection;
                             const collections=property?.enum || (typeof property?.const==='string'?[property.const]:[]);
-                            return collections.length && collections.every(collection => coverageBeforeDecision.some(objective =>
+                            const rejected=error?.evidence?.proposed;
+                            const optionalPredicateRecovery=error?.evidence?.rejectionKind==='arguments' && error.evidence.ungroundedFilters?.length &&
+                                branch.properties?.sourceFile?.enum?.length===1 && branch.properties.sourceFile.enum[0]===rejected?.sourceFile &&
+                                collections.length===1 && collections[0]===rejected?.collection && completedTasksForAudit.some(task=>
+                                    task.observation?.ok===true && task.observation.executionOk!==false && task.observation.blocked!==true &&
+                                    task.observation.verifiedRead?.file===rejected.sourceFile &&
+                                    task.observation.verifiedRead.sourceStructure?.dataBindings?.collections?.includes(rejected.collection));
+                            return optionalPredicateRecovery || collections.length && collections.every(collection => coverageBeforeDecision.some(objective =>
                                 (objective.coverageProof?.sources || []).some(source => source.collection===collection &&
                                     source.relevant===true && Boolean(source.reason?.trim()))));
                         });
@@ -4361,7 +4368,8 @@ async function runModelSemanticPlanner({
                     type:'object',properties:{name:{type:'string',enum:[tool.name]},args:buildNativeInputSchema(tool.inputSchema)},
                     required:['name','args'],additionalProperties:false
                 }))}}}:{};
-                const pendingRecordReaders=requiredFieldsAlreadyRead?nextReaders.filter(tool=>tool.evidenceKinds?.includes('platform_records')).flatMap(tool=>{
+                const optionalPredicateReaders=error?.evidence?.ungroundedFilters?.length?groundedRecordRecoveryReaders:[];
+                const pendingRecordReaders=optionalPredicateReaders.length?optionalPredicateReaders:requiredFieldsAlreadyRead?nextReaders.filter(tool=>tool.evidenceKinds?.includes('platform_records')).flatMap(tool=>{
                     const schema=buildNativeInputSchema(tool.inputSchema);
                     const branches=(schema.anyOf||[schema]).filter(branch=>(branch.properties?.collection?.enum||[]).some(collection=>
                         coverageBeforeDecision.some(goal=>{
@@ -4394,7 +4402,7 @@ async function runModelSemanticPlanner({
                             ...(pendingCapabilities.length ? [{role:"system",content:"CAPACIDADES_DISPONIBLES_DESPUES_DEL_REQUISITO="+JSON.stringify(pendingCapabilities)+"\nLa consulta de datos existe, pero falta leer la fuente. Elige primero una lectura o búsqueda pertinente. No sustituyas el requisito con una negativa ni con un esquema inventado."}] : []),
                             ...(latestPlatformSchemaFailure && !evidenceAfterSchemaFailure ? [{role:"system",content:"RECUPERACION_DE_CONSULTA: la última platform.query fue rechazada por evidencia de esquema insuficiente. No repitas la misma consulta ni adivines un alias. Usa las herramientas de repositorio disponibles para localizar el campo, colección o valor real y después formula una consulta nueva con esa evidencia. Si INTENTO_FALLIDO incluye errorDetails.discoveredCollections, esas colecciones SÍ fueron observadas por AST en el sourceFile indicado y la colección rechazada NO fue acreditada por ese archivo: conserva la relación sourceFile→discoveredCollections, vuelve al repo si ninguna observada sirve al objetivo y sólo después formula otra consulta. Si errorDetails incluye undiscoveredFields, undiscoveredFilterFields o ungroundedFilterValues, esos literales son argumentos RECHAZADOS: puedes usarlos como pistas para repo.grep/repo.search, pero no los trates como esquema válido hasta observar su definición real en una fuente."}] : []),
                             {role:"system",content:"CATALOGO_EJECUTABLE="+JSON.stringify(compactActionCatalog(nextReaders))},
-                            ...(pendingRecordReaders.length?[{role:'system',content:'Hay fuentes operativas ya acreditadas que la revisión por objetivo mantiene pertinentes y pendientes. Elige una de esas consultas antes de explorar más código. La alternativa de fuente sólo se ejecutará si la acción principal no es válida. CATALOGO_ALTERNATIVAS_DE_FUENTE='+JSON.stringify(compactActionCatalog(sourceFallbackReaders))}]:[]),
+                            ...(pendingRecordReaders.length?[{role:'system',content:(optionalPredicateReaders.length?'El valor de un filtro optativo fue rechazado, pero la fuente y los campos de esa misma ruta ya fueron leídos. Elige una inspección permitida sin ese filtro, si aporta a un objetivo pendiente, antes de leer código ajeno. No retires filtros obligatorios ni restricciones de acceso. La propuesta todavía debe pasar la revisión semántica independiente. ':'Hay fuentes operativas ya acreditadas que la revisión por objetivo mantiene pertinentes y pendientes. Elige una de esas consultas antes de explorar más código. ')+'La alternativa de fuente sólo se ejecutará si la acción principal no es válida. CATALOGO_ALTERNATIVAS_DE_FUENTE='+JSON.stringify(compactActionCatalog(sourceFallbackReaders))}]:[]),
                             {role:"system",content:"RUTAS_LOCALIZADAS="+JSON.stringify([...new Set(nextReaders.flatMap(tool=>{
                                 const schema=buildNativeInputSchema(tool.inputSchema);return (schema.anyOf||[schema]).flatMap(branch=>branch.properties?.file?.enum||[]);
                             }).filter(file=>pendingCandidateFiles.includes(file)))])},

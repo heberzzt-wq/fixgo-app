@@ -5559,6 +5559,64 @@ function completeScalarPopulationFixture(){
  return f;
 }
 
+test('first rejected optional predicate recovers a grounded inspection before any record coverage exists',async()=>{
+ const f=completeScalarPopulationFixture(),read=f.context.completedTasks[0].observation.verifiedRead;
+ read.content=read.content.replace('??null','');read.sourceStructure=analyzeRepoSourceStructure(read.content);
+ const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
+ const {runJarvisSemanticPlanner,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js','dependency.js']}},required:['file']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query','count']},fields:{type:'array',items:{type:'string'}},filters:{type:'array',minItems:0,items:{type:'object',properties:{field:{type:'string'},op:{type:'string',enum:['==']},value:{type:['string','null']}},required:['field','op','value']}}},required:['sourceFile','collection','mode','fields','filters']}};
+ const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,i)=>({objective,requestQuote:objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][i],scope:'all_sources',groups:['entries']}));
+ const valid={name:query.name,args:{...f.args,fields:['marker','holder','deadline']}};delete valid.args.includeCount;
+ const rejected={name:query.name,args:{...valid.args,filters:[{field:'holder',op:'==',value:null}]}};
+ const executed=[],stages=[];let queried=false,recoveries=0;
+ const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
+  const stage=request.config.semanticStage;stages.push(stage);
+  if(stage==='EVIDENCE_NEXT_ACTION')return{text:JSON.stringify({toolCalls:queried?[]:[rejected]})};
+  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){
+   recoveries++;assert.equal(executed.filter(call=>call.name===query.name).length,0,'the rejected predicate must never reach the runtime');
+   const choices=recoverySchemas(request).filter(choice=>choice.properties.name.enum.includes(query.name));
+   assert.ok(choices.some(choice=>hasRequiredToolArguments({inputSchema:choice.properties.args},valid.args)),'source and fields already read permit a separately validated optional-filter-free inspection before record coverage exists');
+   assert.ok(choices.every(choice=>!hasRequiredToolArguments({inputSchema:choice.properties.args},{...rejected.args,fields:['holder'],pageSize:37})),'changing projection or page size cannot revive the rejected predicate in recovery');
+   return{text:JSON.stringify({toolCalls:[valid],sourceFallback:[{name:reader.name,args:{file:'dependency.js'}}]})};
+  }
+  if(stage==='QUERY_POPULATION_VERIFICATION')return queryReviewFixture(request,{matchesRequest:true,schemaDiscoveryRelevant:false,rejectionReason:''});
+  const payload=queryReviewFixture.packet(request);
+  if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(payload.sources.map(collection=>[collection,{relevantToObjective:true,reason:'Separate scopes remain pending.'}]))})};
+  assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);
+  return{text:JSON.stringify({proven:false,missing:['Other observed sources remain unqueried.'],groups:[],sources:payload.observedSources.map(collection=>({collection,relevant:true,reason:'Scope remains partial.',taskIndexes:[]}))})};
+ }}};
+ const result=await runJarvisMission({instruction:goals.map(g=>g.objective).join('; '),initialEvidenceObjectives:goals,initialToolCalls:[{name:reader.name,args:{file:'source.js'}}],toolCatalog:[reader,query],storage:{getItem(){return null;},setItem(){},removeItem(){}},execute:async call=>{
+  executed.push(call);
+  if(call.name===reader.name){assert.equal(call.args.file,'source.js','a rejected optional value must not force unrelated code exploration');return{ok:true,data:{...read,startLine:1,endLine:1,totalLines:1,numberedContent:'1: '+read.content}};}
+  assert.deepEqual(call.args,valid.args);queried=true;const receipt=await f.execute(call.args,f.dependencies,f.context);assert.equal(receipt.ok,true,JSON.stringify(receipt));f.context.completedTasks.push({name:call.name,args:call.args,observation:JSON.parse(JSON.stringify(receipt))});return{ok:true,data:receipt};
+ },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION'},ai})});
+ assert.equal(recoveries,1,JSON.stringify(result.errors));assert.deepEqual(executed.map(call=>call.name),[reader.name,query.name]);
+ assert.equal(stages.filter(stage=>stage==='QUERY_POPULATION_VERIFICATION').length,1,'the recovered query still requires independent semantic verification');
+ assert.equal(result.status,'PARTIAL');assert.equal(result.completionAssessment.objectives.length,3);assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
+});
+
+for(const restriction of ['minimum','constant','enum'])test('optional predicate recovery cannot remove mandatory '+restriction+' scope',async()=>{
+ const f=completeScalarPopulationFixture(),read=f.context.completedTasks[0].observation.verifiedRead;
+ read.content=read.content.replace('??null','');read.sourceStructure=analyzeRepoSourceStructure(read.content);
+ const {runJarvisSemanticPlanner,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const filter=[{field:'holder',op:'==',value:null}];
+ const filters={type:'array',...(restriction==='minimum'?{minItems:1}:restriction==='constant'?{const:filter}:{enum:[filter]}),items:{type:'object',properties:{field:{type:'string'},op:{type:'string',enum:['==']},value:{type:['string','null']}},required:['field','op','value']}};
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js','dependency.js']}},required:['file']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query']},fields:{type:'array',items:{type:'string'}},filters},required:['sourceFile','collection','mode','fields','filters']}};
+ const args={...f.args,filters:filter};delete args.includeCount;
+ const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,i)=>({objective,requestQuote:objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][i],scope:'all_sources',groups:['entries']}));
+ let checked=false;
+ await assert.rejects(runJarvisSemanticPlanner({input:goals.map(g=>g.objective).join('; '),catalog:[reader,query],missionState:{phase:'EVIDENCE_NEXT_ACTION',tenantId:'approved',evidenceObjectives:goals,completedTasks:[{name:reader.name,args:{file:'source.js'},observation:{ok:true,verifiedRead:read}}]},ai:{objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
+  if(request.config.semanticStage==='EVIDENCE_NEXT_ACTION')return{text:JSON.stringify({toolCalls:[{name:query.name,args}]})};
+  assert.equal(request.config.semanticStage,'READ_ONLY_EVIDENCE_CONTINUATION');
+  const choices=recoverySchemas(request).filter(choice=>choice.properties.name.enum.includes(query.name));
+  assert.ok(choices.every(choice=>!hasRequiredToolArguments({inputSchema:choice.properties.args},{...args,filters:[]})),'mandatory filters survive every recovery alternative');
+  checked=true;throw Error('MANDATORY_FILTER_BOUNDARY_CHECKED');
+ }}}}),/MANDATORY_FILTER_BOUNDARY_CHECKED/);
+ assert.equal(checked,true);
+});
+
 for(const scope of ['whole-population','subset','other-organization'])test('runtime filtered projection keeps '+scope+' evidence inside the authenticated ID population',async()=>{
  const f=platformQueryTestFixture({recordData:[{marker:'Class-A',holder:'Holder-A',deadline:'2027-01-01'},{marker:'Class-B',holder:'Holder-B',deadline:'2027-01-02'}]});
  const configured=completeScalarPopulationFixture();f.context=configured.context;f.args=configured.args;
