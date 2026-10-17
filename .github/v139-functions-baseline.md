@@ -1,5 +1,26 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `f1e09664d631a7bb53fe59417281f4b5dc6d9e48`.
+Only functions/jarvis-semantic-planner.js changed since150ab98e.
+Reviewed scoped negative-decision persistence through direct recovery and cache
+rotation. Every rejection retains its own dependency fingerprint; unrelated
+source reads cannot erase it, while identity or relevant evidence changes reopen
+review. Restored vetoes never grant population exclusion or positive evidence.
+Successful fallback actions now return vetoes learned during the same decision.
+When every independently required field of an exact scope was already read,
+optional metadata and page-size changes cannot revive its rejected first page.
+Other authenticated routes, filters, modes and cursors remain independently valid.
+Generic full-cycle runtime receipts verify both rejected repetition and valid
+new-route progress, with all three operational goals still pending. Cache-present
+and evicted budget tests preserve six receipts/2000 characters without duplicates.
+Frozen full safe emulator suite2356PASS,0FAIL,2physical skips,2358tests,
+294128.8977ms,exit0. Focus579PASS plus2budget cases. Physical search and Chrome
+remain required. No external AI, paid services, Functions/rules deployment or
+business writes. Future unreviewed Functions changes continue to fail closed.
+
+Previous review:
+# V139 reviewed Functions baseline
+
 Current baseline: `150ab98e1940d47fe17c3510ffc0150aff282fa0`.
 Only functions/jarvis-semantic-planner.js changed since5d0580e2.
 Reviewed bounded continuation from a newly independently audited pending scope.
