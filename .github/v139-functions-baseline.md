@@ -1,5 +1,25 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `8df277d78bdd12b5c73efd0b4392b55a7e8f275e`.
+Only functions/jarvis-semantic-planner.js changed since 1adfd69b.
+Reviewed pending-value cache parity: use the same authenticated value predicate
+for deciding whether values exist and for their per-goal reuse key. Empty
+unrelated scopes remain in receipts, action frontier and full closing review,
+without repeating all unchanged pending-value reviews. Positive counts update
+population values only. Empty first-page/count receipts for the exact previously
+nonempty authenticated route conservatively reopen all affected value reviews;
+empty cursor pages and other organizations cannot erase those earlier values.
+No marker grants completion; positive proofs and independent closing reviews
+retain the full revision, source dependencies and temporal evaluation instant.
+Generic whole-cycle and real-runtime-receipt regressions cover count/query zero,
+positive counts, contradictory same-route empties, organization separation and
+queryExhausted=true with completeForQuery=false at an empty cursor page.
+Focused 547 PASS. Frozen full safe emulator suite 2345 PASS, 0 FAIL, 2 physical
+skips, 2347 tests, 299006.5712ms, exit 0. Physical search and Chrome still required.
+No external AI, paid services, Functions/rules deployment or business writes.
+Future unreviewed Functions changes continue to fail closed.
+
+Previous review:
 Current baseline: `1adfd69b55519fb6b058f4183b0da75095f41046`.
 Only functions/jarvis-semantic-planner.js changed sincec6e3559e.
 Reviewed retained source-window frontier for queued argument completion and
