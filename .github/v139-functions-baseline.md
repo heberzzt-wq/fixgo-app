@@ -1,5 +1,24 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `1adfd69b55519fb6b058f4183b0da75095f41046`.
+Only functions/jarvis-semantic-planner.js changed sincec6e3559e.
+Reviewed retained source-window frontier for queued argument completion and
+normal evidence decisions. A physically complete read may have only its prefix
+retained in context; re-reading the entire file would reproduce the same prefix.
+Use the retained window gaps and existing grounded anchors for ranged readers.
+Minimal source compaction now preserves original totalLines and readEndLine;
+raw observations, fields, operational rows and per-goal checks are unchanged.
+Shorter candidate-decoding prose retains its exact lossless transport contract
+and makes room for those source extents inside the unchanged evidence budget.
+A generic full-cycle regression with large parser metadata reproduces the old
+queued replay. The saved real runtime input now blocks its default whole-file
+read and admits a grounded source window without executing any tool in replay.
+Focused540PASS; frozen full safe emulator suite2338PASS,0FAIL,2physical skips,
+2340tests,301417.2783ms,exit0. Physical search and clean Chrome remain required.
+No external AI, paid services, Functions/rules deployment or business writes.
+Future unreviewed Functions changes continue to fail closed.
+
+Previous review:
 Current baseline: `c6e3559e68f7aaae0e0b0c2a5adfae0da68cd14d`.
 Only functions/jarvis-semantic-planner.js changed sincece050a10.
 Reviewed first-query recovery after a specifically ungrounded optional predicate.
