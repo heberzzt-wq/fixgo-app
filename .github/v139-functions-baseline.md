@@ -1,5 +1,24 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `c6e3559e68f7aaae0e0b0c2a5adfae0da68cd14d`.
+Only functions/jarvis-semantic-planner.js changed sincece050a10.
+Reviewed first-query recovery after a specifically ungrounded optional predicate.
+The rejection retains its exact unsupported predicates. A source/collection pair
+already witnessed by successful source reading may offer its existing optional
+unfiltered inspection before operational coverage exists. Source identity must
+match; mandatory minimum, constant and enumerated filters cannot be removed.
+The model still chooses the action and its fields, and independent semantic
+verification plus the authenticated runtime remain required before execution.
+No source reading or failed predicate counts as operational coverage or closure.
+Generic full-cycle regression reproduces the old deadlock, advances to the real
+query runtime once, and keeps all three immutable goals pending. Three negative
+regressions preserve mandatory filter contracts. No business cases are hardcoded.
+Focused539PASS; frozen full safe emulator suite2337PASS,0FAIL,2physical skips,
+2339tests,200623.1521ms,exit0. Physical search and clean Chrome remain required.
+No external AI, paid services, Functions/rules deployment or business writes.
+Future unreviewed Functions changes continue to fail closed.
+
+Previous review:
 Current baseline: `ce050a10a614cd6f7cc5c6fe520ec68016ef9910`.
 Only functions/jarvis-semantic-planner.js changed since3d512caf.
 Reviewed whole-message budgeting for evidence decisions and source recovery.
