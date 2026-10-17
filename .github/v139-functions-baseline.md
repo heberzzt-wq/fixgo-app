@@ -1,5 +1,26 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `150ab98e1940d47fe17c3510ffc0150aff282fa0`.
+Only functions/jarvis-semantic-planner.js changed since5d0580e2.
+Reviewed bounded continuation from a newly independently audited pending scope.
+A local-Qwen mission could choose no action, audit all goals, discover an
+executable unqueried relevant route, then stop because generic recovery was used.
+A fresh changed coverage review may now offer that exact pending read frontier
+once. The shared selector retains actual tool/source/collection bindings;
+irrelevant, complete or exhausted scopes do not create another inference.
+The generic recovery chain is never reset. This additional decision is limited
+to existing pure readers and still passes independent query QA and runtime
+permissions. Pending goals stay pending; no completion comes from a new action.
+Generic whole-cycle relevant/irrelevant regressions reproduce the old premature
+stop with runtime receipts and verify forward progress with every goal pending.
+The saved real stop input now reaches a53791-character continuation exposing
+its operator and tenant routes; replay made no inference or tool execution.
+Focused575PASS. Frozen full safe emulator suite2351PASS,0FAIL,2physical skips,
+2353tests,298999.8908ms,exit0. Physical search and Chrome remain required.
+No external AI, paid services, Functions/rules deployment or business writes.
+Future unreviewed Functions changes continue to fail closed.
+
+Previous review:
 Current baseline: `5d0580e2ea9d26061aab63b8eafa6138f5ab39d0`.
 Only functions/jarvis-semantic-planner.js changed since 8df277d7.
 Reviewed same-model repository navigation: the bridge preserves exact indexed
