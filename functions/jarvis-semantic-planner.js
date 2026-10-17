@@ -164,7 +164,10 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
     const known=[...new Set([...configuredFiles,...readFiles,...successful.flatMap(task=>[
         ...(task.observation.repoCandidates||[]).map(item=>item.file),...(task.observation.repositoryMatches||[]).map(item=>item.file)
     ])].filter(Boolean))];
-    const partial=partialSourceProgress(successful);
+    // A full physical read can lose its body during context compaction. Use
+    // retained windows for readable gaps: replaying that whole file would only
+    // retain the same prefix. Durable consultation/schema evidence stays intact.
+    let retainedSourceTasks;
     const emptyScopes=successful.flatMap((task,index)=>{
         const record=task.observation.recordEvidence,scope=record?.scope;
         const empty=(scope?.mode==='count' && record?.totalCount===0) || (scope?.mode==='query' && !scope.cursor && record?.returnedCount===0 &&
@@ -388,7 +391,8 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
                 if(allowed){
                     // A file is not a query. Partial reads, missing range metadata
                     // and bodies evicted by compaction must remain readable.
-                    const retained=boundedAuditTasks(successful);
+                    const retained=retainedSourceTasks ||= boundedAuditTasks(successful);
+                    const partial=partialSourceProgress(retained);
                     const available=allowed.filter(file=>{
                         if(!readFiles.has(file)||partial.some(read=>read.file===file))return true;
                         const total=Math.max(0,...retained.filter(task=>task.observation?.verifiedRead?.file===file)
@@ -413,7 +417,7 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
                         const byGap=new Map(progress.unreadRanges.map(([start,end])=>[start,{start,end,starts:new Set([start])}]));
                         for(const anchor of anchors){
                             const gap=progress.unreadRanges.find(([start,end])=>anchor<=end&&anchor+99>=start);
-                            if(!gap || sourceRangeRepeatsTruncatedPrefix({name:tool.name,args:{file,startLine:anchor,endLine:Math.min(progress.totalLines,anchor+99)}},successful))continue;
+                            if(!gap || sourceRangeRepeatsTruncatedPrefix({name:tool.name,args:{file,startLine:anchor,endLine:Math.min(progress.totalLines,anchor+99)}},retainedSourceTasks))continue;
                             byGap.get(gap[0]).starts.add(anchor);
                         }
                         for(const gap of byGap.values()){
@@ -2313,7 +2317,7 @@ function boundedAuditTasks(tasks, maximumCharacters = 28000) {
         const fresh = task === latestRead;
         const content = fresh ? String(read.content || "").slice(0,4000) : "";
         return {...task, observation:{ok:task.observation.ok, executionOk:task.observation.executionOk, verifiedRead:{
-            file:read.file, startLine:read.startLine,
+            file:read.file, startLine:read.startLine, totalLines:read.totalLines, readEndLine:read.readEndLine,
             endLine:content ? (read.startLine || 1) + content.split("\n").length - 1 : null,
             ...(fresh ? {content} : {}),
             partial:true, truncated:true, contentTruncated:true,
@@ -2617,7 +2621,7 @@ function boundedAuditTasks(tasks, maximumCharacters = 28000) {
                 candidates: candidates.map(candidate => columns.map(key => objectColumns[key]
                     ? objectColumns[key].map(field => candidate[key][field]) : candidate[key])),
                 candidateColumns: columns, candidateObjectColumns: objectColumns,
-                candidateEncoding: 'Each candidates row maps candidateColumns in order. A column listed in candidateObjectColumns maps its cell array to those object keys. Reconstruct exact candidates before resolving resultsSameAsCandidates. Discovery metadata only; no schema, permissions or operational records.'};
+                candidateEncoding: 'candidates rows follow candidateColumns; object-column cells follow candidateObjectColumns[key]. Decode before resultsSameAsCandidates. Discovery only; no schema, permissions or records.'};
             if (JSON.stringify(packed).length < JSON.stringify(evidence).length)
                 task.observation = {...task.observation, evidence: packed};
         }

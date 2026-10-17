@@ -89,6 +89,8 @@ test('adaptive receipt budgets retain latest source, every scoped record and cre
   for(const index of [1,2])assert.deepEqual(plain(packet[index].observation.recordEvidence),tasks[index].observation.recordEvidence,'organization, exact query, timestamps, rows, null and completeness remain local');
   const read=packet.at(-1).observation.verifiedRead;
   assert.equal(read.file,file);assert.ok(read.content.length>=700);assert.ok(content.startsWith(read.content),'retain the latest actual source window');
+  assert.equal(read.totalLines,tasks.at(-1).observation.verifiedRead.totalLines,'retain the physical source extent when its body is evicted');
+  assert.equal(read.readEndLine,tasks.at(-1).observation.verifiedRead.readEndLine,'retain the original requested read extent separately from the compact window');
   assert.deepEqual(decodedFields(packet,read.sourceStructure.dataBindings),sourceStructure.dataBindings.fieldPaths);
  }
  assert.equal(JSON.stringify(tasks),before,'compaction must leave durable receipts intact');
