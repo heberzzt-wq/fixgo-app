@@ -5559,6 +5559,54 @@ function completeScalarPopulationFixture(){
  return f;
 }
 
+for(const mode of ['count','query','positive-count'])test('new '+mode+' scope reuses only unchanged per-goal values and still audits closure',async()=>{
+ const f=completeScalarPopulationFixture(),read=f.context.completedTasks[0].observation.verifiedRead;
+ read.content+='async function archive(db,tenantId){const ref=collection(db,"registry",tenantId,"archive");await addDoc(ref,{marker:input.marker});await getDocs(ref);}';read.sourceStructure=analyzeRepoSourceStructure(read.content);
+ const count=mode==='positive-count'?3:0;
+ f.dependencies.sdk.getCountFromServer=async()=>({data:()=>({count})});
+ const {runJarvisMission}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
+ const {runJarvisSemanticPlanner}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js','dependency.js']}},required:['file']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query','count']},fields:{type:'array',items:{type:'string'}},filters:{type:'array'},includeCount:{type:'boolean'}},required:['sourceFile','collection','mode','filters']}};
+ const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,i)=>({objective,requestQuote:objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][i],scope:'all_sources',groups:['entries']}));
+ const values={name:query.name,args:{...f.args,fields:['marker','holder','deadline']}};
+ const empty={name:query.name,args:{sourceFile:'source.js',collection:'registry/{tenantId}/archive',mode:mode==='query'?'query':'count',fields:mode==='query'?['marker']:[],filters:[],includeCount:false}};
+ const stages=[],executed=[];let emptyRead=false,dependencyRead=false,checked=false;
+ const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
+  const stage=request.config.semanticStage;stages.push(stage);
+  if(stage==='EVIDENCE_NEXT_ACTION'){
+   if(!emptyRead)return{text:JSON.stringify({toolCalls:[empty]})};
+   if(!dependencyRead){
+    assert.equal(stages.filter(s=>s==='RECORD_OBJECTIVE_COVERAGE').length,mode==='positive-count'?4:3,'only positive counts add population values; no new relationship/date values arrived');
+    const pending=request.config.chatMessages.find(m=>m.content.startsWith('OBJETIVOS_PENDIENTES='));for(const goal of goals)assert.ok(pending.content.includes(goal.objective));
+    const packet=request.config.chatMessages.map(message=>message.content).join('\n');assert.ok(packet.includes(mode==='query'?'"returnedCount":0':'"totalCount":'+count),'the exact scoped receipt remains visible to the next decision');
+    checked=true;return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'dependency.js'}}]})};
+   }
+   return{text:'{"toolCalls":[]}'};
+  }
+  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION')return{text:'{"toolCalls":[],"sourceFallback":[]}'};
+  if(stage==='QUERY_POPULATION_VERIFICATION')return queryReviewFixture(request,{matchesRequest:true,schemaDiscoveryRelevant:false,rejectionReason:''});
+  const p=queryReviewFixture.packet(request);
+  if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(p.sources.map(collection=>[collection,{relevantToObjective:true,reason:'Independent source coverage remains pending.'}]))})};
+  assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);
+  return{text:JSON.stringify({proven:false,missing:['Unqueried profiles scope remains pending.'],groups:[],sources:p.observedSources.map(collection=>({collection,relevant:true,reason:'Only scoped partial records.',taskIndexes:[]}))})};
+ }}};
+ const result=await runJarvisMission({instruction:goals.map(g=>g.objective).join('; '),initialEvidenceObjectives:goals,initialToolCalls:[{name:reader.name,args:{file:'source.js'}},values],toolCatalog:[reader,query],storage:{getItem(){return null;},setItem(){},removeItem(){}},execute:async call=>{
+  executed.push(call);
+  if(call.name===reader.name){
+   if(call.args.file==='dependency.js'){dependencyRead=true;const content='async function profiles(db){await getDocs(collection(db,"profiles"));}';return{ok:true,data:{file:call.args.file,content,numberedContent:'1: '+content,startLine:1,endLine:1,totalLines:1,sourceStructure:analyzeRepoSourceStructure(content)}};}
+   return{ok:true,data:{...read,startLine:1,endLine:1,totalLines:1,numberedContent:'1: '+read.content}};
+  }
+  if(call.args.collection===empty.args.collection&&mode==='query')f.dependencies.sdk.getDocsFromServer=async()=>({docs:[]});
+  const receipt=await f.execute(call.args,f.dependencies,f.context);assert.equal(receipt.ok,true,JSON.stringify(receipt));
+  if(call.args.collection===empty.args.collection){emptyRead=true;if(mode==='query'){assert.equal(receipt.recordEvidence.returnedCount,0);assert.deepEqual(receipt.recordEvidence.rows,[]);}else{assert.equal(receipt.recordEvidence.totalCount,count);assert.equal(receipt.recordEvidence.rows,undefined);}}
+  f.context.completedTasks.push({name:call.name,args:call.args,observation:JSON.parse(JSON.stringify(receipt))});return{ok:true,data:receipt};
+ },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION'},ai})});
+ assert.ok(checked,JSON.stringify(result.errors));assert.deepEqual(executed.map(c=>c.name),[reader.name,query.name,query.name,reader.name]);
+ assert.equal(stages.filter(s=>s==='RECORD_OBJECTIVE_COVERAGE').length,mode==='positive-count'?7:6,'closure still independently audits each original goal against all current evidence');
+ assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(g=>!g.satisfied&&g.requiredEvidenceKind==='platform_records'));
+});
+
 test('first rejected optional predicate recovers a grounded inspection before any record coverage exists',async()=>{
  const f=completeScalarPopulationFixture(),read=f.context.completedTasks[0].observation.verifiedRead;
  read.content=read.content.replace('??null','');read.sourceStructure=analyzeRepoSourceStructure(read.content);
@@ -5938,4 +5986,34 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  assert.equal(stages.filter(stage=>stage==='RECORD_OBJECTIVE_COVERAGE').length,6,'initial and newly read operational values independently inform each original goal');
  assert.equal(stages.filter(stage=>stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,['schema-growth','credited-source-alias','projection-known-requirements','projection-empty-goal-requirements'].includes(variant)?6:3,'new field names or the first authenticated field receipt for a separately credited module invalidate its own source review');
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
+});
+
+for(const route of ['same-route','same-query','other-organization','cursor-page'])test('pending values react to a real empty receipt in '+route,async()=>{
+ const f=completeScalarPopulationFixture();
+ const {runJarvisSemanticPlanner}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string'},fields:{type:'array'},filters:{type:'array'}}}};
+ const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,i)=>({objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][i],scope:'all_sources',groups:['entries']}));
+ const first=await f.execute({...f.args,fields:['marker','holder','deadline']},f.dependencies,f.context);assert.equal(first.ok,true);
+ const tasks=[...f.context.completedTasks,{name:query.name,args:{...f.args,fields:['marker','holder','deadline']},observation:JSON.parse(JSON.stringify(first))}];
+ let reviews=0;
+ const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
+  const stage=request.config.semanticStage;
+  if(stage==='EVIDENCE_NEXT_ACTION')throw Error('NEXT_DECISION_REACHED');
+  const p=queryReviewFixture.packet(request);
+  if(stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION')return{text:JSON.stringify({sourceRelevance:Object.fromEntries(p.sources.map(collection=>[collection,{relevantToObjective:true,reason:'Current scope remains partial.'}]))})};
+  assert.ok(['RECORD_OBJECTIVE_COVERAGE','RECORD_OBJECTIVE_COVERAGE_CONSISTENCY'].includes(stage),stage);
+  if(stage==='RECORD_OBJECTIVE_COVERAGE')reviews++;
+  return{text:JSON.stringify({proven:false,missing:['Independent sources remain pending.'],groups:[],sources:p.observedSources.map(collection=>({collection,relevant:true,reason:'Scoped evidence only.',taskIndexes:[]}))})};
+ }}};
+ const decide=()=>runJarvisSemanticPlanner({input:goals.map(g=>g.objective).join('; '),catalog:[query],missionState:{phase:'EVIDENCE_NEXT_ACTION',tenantId:'approved',evidenceObjectives:goals,completedTasks:tasks},ai});
+ await assert.rejects(decide(),/NEXT_DECISION_REACHED/);assert.equal(reviews,3);
+ f.dependencies.sdk.getCountFromServer=async()=>({data:()=>({count:0})});
+ if(route==='other-organization')f.context.tenantId='other';
+ const args={...f.args,mode:['cursor-page','same-query'].includes(route)?'query':'count',fields:['cursor-page','same-query'].includes(route)?['marker']:[],includeCount:false,...(route==='cursor-page'?{cursor:'0'}:{})};
+ if(['cursor-page','same-query'].includes(route))f.dependencies.sdk.getDocsFromServer=async()=>({docs:[]});
+ const empty=await f.execute(args,f.dependencies,f.context);assert.equal(empty.ok,true,JSON.stringify(empty));
+ if(route==='cursor-page'){assert.equal(empty.recordEvidence.queryExhausted,true);assert.equal(empty.recordEvidence.completeForQuery,false);}else if(route==='same-query'){assert.equal(empty.recordEvidence.returnedCount,0);assert.equal(empty.recordEvidence.completeForQuery,true);}else assert.equal(empty.recordEvidence.totalCount,0);
+ tasks.push({name:query.name,args,observation:JSON.parse(JSON.stringify(empty))});
+ await assert.rejects(decide(),/NEXT_DECISION_REACHED/);
+ assert.equal(reviews,['same-route','same-query'].includes(route)?6:3,'a contradictory first-page empty scope reopens values only for its exact authenticated route; an exhausted cursor page cannot erase earlier rows');
 });

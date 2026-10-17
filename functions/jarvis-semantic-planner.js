@@ -4542,23 +4542,35 @@ async function runModelSemanticPlanner({
         // it is never a proof and cannot certify completion. Code-only discovery
         // cannot turn a pending goal into success. Positive claims and closure
         // still use the full dependency revision and exact temporal clock.
+        const recordHasReviewableValues=(contract,task,index)=>{
+            if(!authenticatedRecordAt(index))return false;
+            const record=task.observation.recordEvidence;
+            if(record.rows?.length>0 || contract.coverageMode==='population' &&
+                record.scope?.mode==='count'&&Number.isFinite(record.totalCount)&&record.totalCount>0)return true;
+            // A fresh empty first page/count can contradict earlier values of
+            // this exact authenticated route. Invalidate conservatively even
+            // across filters; this requests a review, never grants coverage.
+            // An empty cursor page only ends pagination, not the population.
+            const scope=record.scope;
+            const freshEmpty=scope?.mode==='count'&&record.totalCount===0 ||
+                scope?.mode==='query'&&record.rows?.length===0&&record.completeForQuery===true;
+            return Boolean(freshEmpty && scope.collection && !scope.cursor && !record.previousCursor &&
+                completedTasksForAudit.slice(0,index).some((previous,previousIndex)=>authenticatedRecordAt(previousIndex)&&
+                    previous.observation.recordEvidence.scope?.collection===scope.collection&&
+                    previous.observation.recordEvidence.rows?.length>0));
+        };
         const pendingValueReviewKey=contract=>'pending-values:'+recordObjectiveRevision(
             {...contract,recordCoverageMode:contract.coverageMode,coverageMode:'pending_values'},
-            completedTasksForAudit.map(task=>({...task,observation:task.observation?.recordEvidence?{...task.observation,verifiedRead:undefined}:undefined})),
+            completedTasksForAudit.map((task,index)=>({...task,observation:recordHasReviewableValues(contract,task,index)?{...task.observation,verifiedRead:undefined}:undefined})),
             recentConversationTurns.filter(turn=>turn.role==='user').map(turn=>turn.content),model,missionState,null);
         const rememberPendingValues=contract=>{
             coverageCache.set(pendingValueReviewKey(contract),true);
             while(coverageCache.size>96)coverageCache.delete(coverageCache.keys().next().value);
         };
-        const hasObservedValues=contract=>completedTasksForAudit.some((task,index)=>{
-            if(!authenticatedRecordAt(index))return false;
-            const record=task.observation.recordEvidence;
-            // A positive count informs population coverage, but supplies no
-            // relationship or date values. Keep those pending until rows arrive
-            // or closure independently audits them; never infer missing values.
-            return record.rows?.length>0 || contract.coverageMode==='population' &&
-                record.scope?.mode==='count'&&Number.isFinite(record.totalCount)&&record.totalCount>0;
-        });
+        // The presence test and its reuse key must describe the same values.
+        // Unrelated empty scopes stay in the ledger/frontier and full closing
+        // revision without replaying values. No empty scope certifies a global zero.
+        const hasObservedValues=contract=>completedTasksForAudit.some((task,index)=>recordHasReviewableValues(contract,task,index));
         for(const contract of missionState.evidenceObjectives || []){
             if(contract.requiredEvidenceKind!=='platform_records' || !contract.coverageMode)continue;
             const previous=missionState.completionAssessment?.objectives?.find(item=>item.objective===contract.objective);
