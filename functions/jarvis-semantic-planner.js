@@ -3,6 +3,24 @@
 const {gunzipSync}=require('node:zlib');
 const {createHash}=require('node:crypto');
 
+// Navigation belongs to the same Qwen tool decision, not another planner.
+// These exact checkout associations locate code; they never grant query fields,
+// resolve an organization template, establish permissions or prove live records.
+function repositoryNavigationMessage(directory,maximumCharacters=7000) {
+    if(directory?.source!=='VERIFIED_LOCAL_REPOSITORY_SCHEMA'||directory.operationalEvidence!==false||
+        !Array.isArray(directory.files)||!Array.isArray(directory.collections)||!Array.isArray(directory.references))return null;
+    const files=directory.files,collections=directory.collections;
+    if(!files.every(file=>typeof file==='string')||!collections.every(route=>typeof route==='string'))return null;
+    const links=[...new Map(directory.references.filter(reference=>Array.isArray(reference)&&
+        Number.isInteger(reference[0])&&reference[0]>=0&&reference[0]<files.length&&
+        Number.isInteger(reference[1])&&reference[1]>=0&&reference[1]<collections.length)
+        .map(([file,collection])=>[file+':'+collection,[file,collection]])).values()];
+    const payload={revision:directory.revision,digest:directory.digest,files,collections,links,
+        linkEncoding:'[fileIndex,collectionIndex]',operationalEvidence:false,permissionsGranted:false};
+    const content='MAPA_NAVEGACION_REPOSITORIO='+JSON.stringify(payload)+'\nMapa del checkout actual para tu navegación directa: elige el módulo por su relación con el objetivo pendiente, no por su orden. Busca con repo.search/repo.grep si falta una relación; lee la fuente y sus dependencias. Una ruta o plantilla no acredita campos, identidad, datos, permisos ni cobertura. Las lecturas y consultas del catálogo conservan sus requisitos.';
+    return content.length<=maximumCharacters?{role:'system',content}:null;
+}
+
 function recordObjectiveRevision(contract,tasks,clarifications,model,missionState,evaluatedAt,trustedProof=null) {
     const schemas=new Map(),records=[],excludedSchemas=new Map();
     const excluded=new Set((trustedProof?.sources||[]).filter(source=>source.relevant===false).map(source=>source.collection));
@@ -3654,6 +3672,7 @@ async function runModelSemanticPlanner({
         // both executed tool contracts and every available evidence source.
         const recordOnlyAudit=missionState.evidenceObjectives?.length && missionState.evidenceObjectives.every(objective=>objective.requiredEvidenceKind==="platform_records");
         const directory = missionState.configuredSourceDiscovery;
+        const repositoryNavigation=repositoryNavigationMessage(directory);
         const configuredSourceFiles = directory?.source === "VERIFIED_LOCAL_REPOSITORY_SCHEMA" && directory.operationalEvidence === false
             ? [...new Set((directory.files || []).filter(file => typeof file === "string" && file.trim()))] : [];
         const observedInventoryFiles=completedTasksForAudit.filter(task=>task.name==='repo.audit' &&
@@ -4252,7 +4271,7 @@ async function runModelSemanticPlanner({
                 // Recovery needs source pertinence, not a second operational
                 // verdict for every pending goal. Reuse the same independent
                 // schema classifier; its result can never certify a goal.
-                if(error && recordOnlyAudit && sourceEvidenceRequired && completedTasksForAudit.some((_,index)=>authenticatedRecordAt(index))){
+                if(error && recordOnlyAudit && !repositoryNavigation && sourceEvidenceRequired && completedTasksForAudit.some((_,index)=>authenticatedRecordAt(index))){
                     for(const objective of evaluatedAudit.completionAssessment?.objectives || []){
                         const contract=missionState.evidenceObjectives.find(item=>item.objective===objective.objective);
                         if(!contract?.coverageMode)continue;
@@ -4295,7 +4314,17 @@ async function runModelSemanticPlanner({
                                     task.observation?.ok===true && task.observation.executionOk!==false && task.observation.blocked!==true &&
                                     task.observation.verifiedRead?.file===rejected.sourceFile &&
                                     task.observation.verifiedRead.sourceStructure?.dataBindings?.collections?.includes(rejected.collection));
-                            return optionalPredicateRecovery || collections.length && collections.every(collection => coverageBeforeDecision.some(objective =>
+                            const navigableObservedScope=repositoryNavigation && branch.properties?.sourceFile?.enum?.length===1 &&
+                                collections.length===1 && completedTasksForAudit.some(task=>task.observation?.ok===true &&
+                                    task.observation.executionOk!==false && task.observation.blocked!==true && task.observation.requiresInput!==true &&
+                                    task.observation.verifiedRead?.file===branch.properties.sourceFile.enum[0] &&
+                                    task.observation.verifiedRead.sourceStructure?.dataBindings?.source==='ACORN_SOURCE_REFERENCES' &&
+                                    task.observation.verifiedRead.sourceStructure.dataBindings.collections?.includes(collections[0]));
+                            // Already-read source/route bindings permit a model
+                            // proposal without first certifying every goal. The
+                            // selected call still requires independent semantic
+                            // verification and the authenticated runtime.
+                            return optionalPredicateRecovery || navigableObservedScope || collections.length && collections.every(collection => coverageBeforeDecision.some(objective =>
                                 (objective.coverageProof?.sources || []).some(source => source.collection===collection &&
                                     source.relevant===true && Boolean(source.reason?.trim()))));
                         });
@@ -4431,7 +4460,9 @@ async function runModelSemanticPlanner({
                         const schema=buildNativeInputSchema(tool.inputSchema);
                         return (schema.anyOf||[schema]).flatMap(branch=>branch.properties?.file?.enum||[]);
                     }).filter(file=>configuredSourceFiles.includes(file)))];
-                    if(availableSourceFiles.length)continuationMessages.splice(1,0,{role:'system',content:'RUTAS_DE_FUENTES_CONFIGURADAS='+JSON.stringify(availableSourceFiles)+'\nSon rutas observadas del checkout, no fuentes pertinentes ni evidencia operativa por existir. Elige con el modelo una fuente ligada a una brecha pendiente; si ninguna tiene una relación clara, usa repo.search o repo.grep con evidencia observada. No recorras archivos por el orden de la lista o del esquema. Una lectura todavía debe acreditar su colección y campos antes de consultar.'});
+                    const navigation=repositoryNavigation;
+                    if(navigation)continuationMessages.splice(1,0,navigation);
+                    else if(availableSourceFiles.length)continuationMessages.splice(1,0,{role:'system',content:'RUTAS_DE_FUENTES_CONFIGURADAS='+JSON.stringify(availableSourceFiles)+'\nSon rutas observadas del checkout, no fuentes pertinentes ni evidencia operativa por existir. Elige con el modelo una fuente ligada a una brecha pendiente; si ninguna tiene una relación clara, usa repo.search o repo.grep con evidencia observada. No recorras archivos por el orden de la lista o del esquema. Una lectura todavía debe acreditar su colección y campos antes de consultar.'});
                     // Fixed prose, source choices, rejections and goals share
                     // one budget with receipts. Only excerpts/transport repack;
                     // live rows, fields, scopes and latest read remain intact.
@@ -4578,10 +4609,11 @@ async function runModelSemanticPlanner({
             const dependencyKey='dependency:'+recordObjectiveRevision(contract,[],clarifications,model,missionState,null);
             const revision=recordObjectiveRevision(contract,completedTasksForAudit,clarifications,model,missionState,evaluatedAt,coverageCache.get(dependencyKey));
             // Reopen accredited positive coverage when its dependencies change.
-            // New authenticated values inform the next investigation decision.
-            // Unchanged pending values and code-only reads do not repeat it.
+            // Direct navigation keeps pending goals pending while Qwen chooses
+            // its next tool using current receipts. Independent audits remain
+            // mandatory before any completion; positive dependencies reopen now.
             if(!coverageCache.has(revision) && (previous?.satisfied===true || previous?.coverageProof?.proven===true ||
-                missionState.phase==='EVIDENCE_NEXT_ACTION'&&hasObservedValues(contract)&&!coverageCache.has(pendingValueReviewKey(contract)))){
+                !repositoryNavigation&&missionState.phase==='EVIDENCE_NEXT_ACTION'&&hasObservedValues(contract)&&!coverageCache.has(pendingValueReviewKey(contract)))){
                 await reviewedRecordCoverage(contract);
             }
             if(coverageCache.has(revision)){

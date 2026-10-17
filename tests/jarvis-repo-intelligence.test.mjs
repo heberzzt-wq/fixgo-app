@@ -477,3 +477,29 @@ test('semantic source relevance outranks unrelated structural popularity while e
  const exact=rankRepoHybridCandidates({graph,semanticScores,exactFiles:['auth.js']});assert.equal(exact.candidates[0].file,'auth.js');
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
+
+test('bridge carries checkout navigation to the same local Qwen decision without duplicate maps or unread query authority',async()=>{
+ const f=configuredSourceFixture();
+ try{
+  const {createSelfHostedSemanticEngine}=await import('../jarvis-fs-bridge.js');
+  const objective={objective:'Report current entries',requiredEvidenceKind:'platform_records',coverageMode:'population',scope:'all_sources',groups:['entries']};
+  let calls=0;
+  const engine=createSelfHostedSemanticEngine({root:f.root,env:{JARVIS_LOCAL_LLM_MODEL:'qwen3.5:9b'},fetchImpl:async(url,options)=>{
+   calls++;assert.ok(String(url).startsWith('http://127.0.0.1:11434/'));
+   const body=JSON.parse(options.body);assert.equal(body.model,'qwen3.5:9b');
+   const maps=body.messages.filter(m=>m.content?.startsWith('MAPA_NAVEGACION_REPOSITORIO='));assert.equal(maps.length,1);
+   assert.equal(body.messages.some(m=>m.content?.startsWith('CONFIGURACION_DE_FUENTES_VERIFICADA=')),false,'the transport must not append another large map after the planner budget');
+   const map=JSON.parse(maps[0].content.split('\n')[0].slice('MAPA_NAVEGACION_REPOSITORIO='.length));
+   assert.ok(map.links.some(([file,collection])=>map.files[file]==='capture.js'&&map.collections[collection]==='groups/scope-A/entries'));
+   assert.equal(map.operationalEvidence,false);assert.equal(map.permissionsGranted,false);assert.doesNotMatch(JSON.stringify(map),/NOT_OPERATIONAL_DATA/);
+   assert.ok(body.messages.reduce((sum,m)=>sum+m.content.length,0)<=60000);
+   assert.doesNotMatch(JSON.stringify(body.format),/fixture.records/,'unread operational tools are not navigation choices');
+   return{ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify({toolCalls:[{name:'repo.read',args:{file:'capture.js'}}]})},done_reason:'stop'})};
+  }});
+  const result=await engine.plan({input:objective.objective,catalog:[
+   {name:'repo.read',description:'Read source',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}},
+   {name:'fixture.records',description:'Read current records',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'}},required:['sourceFile']}}
+  ],missionState:{phase:'EVIDENCE_NEXT_ACTION',evidenceObjectives:[objective],completedTasks:[{name:'repo.search',args:{query:'entries'},observation:{ok:true,repoCandidates:[{file:'capture.js'}]}}]}});
+  assert.equal(calls,1);assert.equal(result.toolCalls[0].args.file,'capture.js');assert.equal(result.missionComplete,false);assert.equal(result.completionAssessment.objectives[0].satisfied,false);
+ }finally{f.cleanup();}
+});

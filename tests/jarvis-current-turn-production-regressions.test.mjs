@@ -5844,10 +5844,10 @@ for(const seedMode of ['count'])test('count-only stopping still independently au
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
 
-for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','nested-constraint-budget','whole-request-budget','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','bounded-localized-catalog','complete-query-count-facts','credited-source-alias','projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction','projection-known-requirements','projection-empty-goal-requirements','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
+for(const variant of ['single-projection','later-projection','later-null-query','later-equality-query','visible-action-constraints','nested-constraint-budget','whole-request-budget','navigation-map-budget','unread-predicate-read-first','known-scalar-array-query','known-ordering-query','bounded-localized-catalog','complete-query-count-facts','credited-source-alias','projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction','projection-known-requirements','projection-empty-goal-requirements','schema-growth','field-order-only','filtered-full-projection'])test('runtime complete population rejects derived or impossible work through the full cycle '+variant,async()=>{
  const projectionCase=['projection-contribution','projection-known-padding','projection-default-id-order','projection-implicit-id-direction','projection-known-requirements','projection-empty-goal-requirements'].includes(variant);
  const f=completeScalarPopulationFixture();
- if(['nested-constraint-budget','whole-request-budget'].includes(variant)){
+ if(['nested-constraint-budget','whole-request-budget','navigation-map-budget'].includes(variant)){
   const read=f.context.completedTasks[0].observation.verifiedRead;
   read.content+=Array.from({length:24},(_,i)=>`\nasync function source${i}(db){const ref=collection(db,"observed_scope_${i}");await addDoc(ref,{${Array.from({length:18},(_,j)=>`attribute_${i}_${j}_observed_in_this_source:input.value`).join(',')}});}`).join('');
   read.sourceStructure=analyzeRepoSourceStructure(read.content);
@@ -5863,7 +5863,7 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  const {runJarvisSemanticPlanner,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
  const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js']}},required:['file']}};
  if(variant==='projection-empty-goal-requirements')reader.inputSchema.properties.file.enum.push('unrelated.js');
- if(variant==='whole-request-budget')reader.inputSchema.properties.file.enum.push('related-record-panel.js');
+ if(['whole-request-budget','navigation-map-budget'].includes(variant))reader.inputSchema.properties.file.enum.push('related-record-panel.js');
  const unlocalizedFiles=Array.from({length:160},(_,index)=>'available-source-'+index+'-'+('segment'.repeat(18))+'.js');
  if(variant==='bounded-localized-catalog')reader.inputSchema.properties.file.enum.push(...unlocalizedFiles);
  const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query','count']},fields:{type:'array',items:{type:'string'}},filters:{type:'array',items:{type:'object',properties:{field:{type:'string'},op:{type:'string',enum:['==','!=']},value:{type:['string','null']}},required:['field','op','value']}},orderBy:{type:'array'},includeCount:{type:'boolean'}},required:['sourceFile','collection','mode','filters']}};
@@ -5897,21 +5897,27 @@ for(const variant of ['single-projection','later-projection','later-null-query',
  const ai={objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
   const stage=request.config.semanticStage;stages.push(stage);
   if(stage==='EVIDENCE_NEXT_ACTION'){
+   if(variant==='navigation-map-budget')assert.equal(stages.filter(s=>s==='RECORD_OBJECTIVE_COVERAGE').length,0,'direct repository navigation must choose actions before auditing still-pending values; closure remains independent');
    if(progressed){
     if(projectionCase)assert.equal(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(query.name)&&hasRequiredToolArguments({inputSchema:choice.properties.args},rejected.args)),false,'the same semantically rejected projection must remain filtered before the next inference');
     return{text:'{"toolCalls":[]}'};
    }
-   assert.equal(stages.filter(item=>item==='RECORD_OBJECTIVE_COVERAGE').length,3,'fresh initial values inform every pending goal before selecting an action');
+   assert.equal(stages.filter(item=>item==='RECORD_OBJECTIVE_COVERAGE').length,variant==='navigation-map-budget'?0:3,'direct navigation keeps goals pending before action; the existing non-navigation path retains value reviews');
    if(variant==='bounded-localized-catalog'){
     assert.ok(request.config.chatMessages.reduce((n,message)=>n+message.content.length,0)<=60000,'the complete next decision must fit the unchanged context budget after rejection/recovery');
     const paths=JSON.parse(request.config.chatMessages.find(m=>m.content.startsWith('RUTAS_LOCALIZADAS=')).content.slice('RUTAS_LOCALIZADAS='.length));
     assert.deepEqual(paths,[],'existing authorized filenames are not localized candidates for the pending question');
     assert.ok(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(reader.name)&&hasRequiredToolArguments({inputSchema:choice.properties.args},{file:unlocalizedFiles.at(-1)})),'compact context must not remove otherwise authorized reader arguments');
    }
-   if(variant==='whole-request-budget'){
+   if(variant==='navigation-map-budget'){
+    const message=request.config.chatMessages.find(m=>m.content.startsWith('MAPA_NAVEGACION_REPOSITORIO='));assert.ok(message,'the navigation map must survive the same whole-message budget as credited field constraints and actual records');
+    const map=JSON.parse(message.content.split('\n')[0].slice('MAPA_NAVEGACION_REPOSITORIO='.length));assert.equal(map.links.length,217);assert.equal(map.files.length,69);assert.equal(map.collections.length,80);
+    assert.equal(map.operationalEvidence,false);assert.equal(map.permissionsGranted,false);
+   }
+   if(['whole-request-budget','navigation-map-budget'].includes(variant)){
     assert.ok(request.config.chatMessages.some(message=>message.content.includes('related-record-panel.js')),'available configured source names must be visible to the model, not only forced by its output grammar');
    }
-   if(['visible-action-constraints','nested-constraint-budget','whole-request-budget'].includes(variant)){
+   if(['visible-action-constraints','nested-constraint-budget','whole-request-budget','navigation-map-budget'].includes(variant)){
     const message=request.config.chatMessages.find(m=>m.content.startsWith('CATALOGO_EJECUTABLE='));
     const action=JSON.parse(message.content.slice('CATALOGO_EJECUTABLE='.length)).find(tool=>tool.name===query.name);
     const resolve=value=>{
@@ -5933,7 +5939,7 @@ for(const variant of ['single-projection','later-projection','later-null-query',
    offeredValid=choices.some(choice=>hasRequiredToolArguments({inputSchema:choice.properties.args},valid.args));
    return{text:JSON.stringify({toolCalls:[rejected]})};
   }
-  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){assert.equal(stages.filter(item=>item==='RECORD_OBJECTIVE_COVERAGE').length,3,'rejection alone cannot repeat the initial value reviews');assert.equal(stages.filter(item=>item==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,3,'rejection alone cannot repeat the initial source reviews');recoveries++;if(variant==='projection-empty-goal-requirements'){assert.ok(recoverySchemas(request).every(choice=>choice.properties.name.enum.includes(query.name)),'an already credited pending record scope takes precedence over another source exploration');assert.equal(request.config.responseJsonSchema.properties.sourceFallback.minItems,1,'retain a same-response fresh source alternative if operational validation fails');}if(['projection-known-requirements','projection-empty-goal-requirements'].includes(variant)){const padded={...rejected.args,fields:['auditStamp','holder']};assert.equal(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(query.name)&&hasRequiredToolArguments({inputSchema:choice.properties.args},padded)),false,'when every independently required field is already observed, recovery must seek a different credited source rather than pad the rejected projection');}if(variant.startsWith('projection-')&&(variant.includes('id-')||['projection-known-requirements','projection-empty-goal-requirements'].includes(variant))){const repeated={...rejected,args:{...rejected.args,orderBy:[]}};assert.equal(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(query.name)&&hasRequiredToolArguments({inputSchema:choice.properties.args},repeated.args)),false,'explicit automatic document ordering cannot reoffer a rejected projection after removing orderBy');}return{text:JSON.stringify({toolCalls:[valid],sourceFallback:[]})};}
+  if(stage==='READ_ONLY_EVIDENCE_CONTINUATION'){assert.equal(stages.filter(item=>item==='RECORD_OBJECTIVE_COVERAGE').length,variant==='navigation-map-budget'?0:3,'rejection alone cannot add pending-value reviews');assert.equal(stages.filter(item=>item==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,variant==='navigation-map-budget'?0:3,'rejection alone cannot add per-goal source reviews in direct navigation');recoveries++;if(variant==='projection-empty-goal-requirements'){assert.ok(recoverySchemas(request).every(choice=>choice.properties.name.enum.includes(query.name)),'an already credited pending record scope takes precedence over another source exploration');assert.equal(request.config.responseJsonSchema.properties.sourceFallback.minItems,1,'retain a same-response fresh source alternative if operational validation fails');}if(['projection-known-requirements','projection-empty-goal-requirements'].includes(variant)){const padded={...rejected.args,fields:['auditStamp','holder']};assert.equal(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(query.name)&&hasRequiredToolArguments({inputSchema:choice.properties.args},padded)),false,'when every independently required field is already observed, recovery must seek a different credited source rather than pad the rejected projection');}if(variant.startsWith('projection-')&&(variant.includes('id-')||['projection-known-requirements','projection-empty-goal-requirements'].includes(variant))){const repeated={...rejected,args:{...rejected.args,orderBy:[]}};assert.equal(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(query.name)&&hasRequiredToolArguments({inputSchema:choice.properties.args},repeated.args)),false,'explicit automatic document ordering cannot reoffer a rejected projection after removing orderBy');}return{text:JSON.stringify({toolCalls:[valid],sourceFallback:[]})};}
   if(stage==='QUERY_POPULATION_VERIFICATION'){
    if(projectionCase){
     const packet=queryReviewFixture.packet(request),useful=packet.proposed.fields.includes('deadline');
@@ -5977,13 +5983,13 @@ for(const variant of ['single-projection','later-projection','later-null-query',
   f.context.completedTasks.push({name:query.name,args:structuredClone(call.args),observation:JSON.parse(JSON.stringify(receipt))});
   if(executed.length===2){assert.equal(receipt.recordEvidence.completeForQuery,true);assert.equal(receipt.recordEvidence.queryExhausted,true);assert.equal(receipt.recordEvidence.rows.length,1);}
   return{ok:true,data:receipt};
- },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION',...(variant==='whole-request-budget'?{configuredSourceDiscovery:{source:'VERIFIED_LOCAL_REPOSITORY_SCHEMA',files:['source.js','related-record-panel.js'],operationalEvidence:false},advisorySemanticContext:{turns:Array.from({length:3},(_,i)=>({role:'user',content:('Scope clarification '+i+': preserve organization, records and pending questions. ').padEnd(1800,' observed scope details')}) )}}:{})},ai})});
+ },planner:async({mission})=>runJarvisSemanticPlanner({input:mission.originalInstruction,catalog:[reader,query],missionState:{...mission,tenantId:'approved',phase:'EVIDENCE_NEXT_ACTION',...(['whole-request-budget','navigation-map-budget'].includes(variant)?{configuredSourceDiscovery:{source:'VERIFIED_LOCAL_REPOSITORY_SCHEMA',files:['source.js','related-record-panel.js',...(variant==='navigation-map-budget'?Array.from({length:67},(_,i)=>'observed-modules/opaque-module-'+i+'.js'):[])],...(variant==='navigation-map-budget'?{revision:'fixture-snapshot',collections:Array.from({length:80},(_,i)=>'observed_scope_'+i),references:Array.from({length:217},(_,i)=>[i%69,i%80])}:{}),operationalEvidence:false},advisorySemanticContext:{turns:Array.from({length:3},(_,i)=>({role:'user',content:('Scope clarification '+i+': preserve organization, records and pending questions. ').padEnd(1800,' observed scope details')}) )}}:{})},ai})});
  assert.equal(offeredInvalid,projectionCase,'a novel projection needs semantic review; previously observed work must be filtered before inference: '+JSON.stringify(result.errors));
  assert.equal(offeredValid,true,'newly credited fields of the same collection must remain executable');
  assert.equal(recoveries,1);assert.equal(executed.length,initialCount+1,JSON.stringify(result.errors));assert.equal(executed.at(-1).name,valid.name);assert.deepEqual(executed.at(-1).args,valid.args);
  assert.equal(f.calls.filter(call=>call.kind==='count').length,0,'ignoring the native frontier cannot reach the count SDK');
  assert.equal(f.calls.filter(call=>call.kind==='query').length,seedCalls.length+1,'the rejected equality must not reach the query SDK either');
- assert.equal(stages.filter(stage=>stage==='RECORD_OBJECTIVE_COVERAGE').length,6,'initial and newly read operational values independently inform each original goal');
+ assert.equal(stages.filter(stage=>stage==='RECORD_OBJECTIVE_COVERAGE').length,variant==='navigation-map-budget'?3:6,'direct navigation independently audits all three goals at closure; other flows retain initial and updated value reviews');
  assert.equal(stages.filter(stage=>stage==='OBJECTIVE_SOURCE_SCOPE_VERIFICATION').length,['schema-growth','credited-source-alias','projection-known-requirements','projection-empty-goal-requirements'].includes(variant)?6:3,'new field names or the first authenticated field receipt for a separately credited module invalidate its own source review');
  assert.equal(result.status,'PARTIAL');assert.ok(result.completionAssessment.objectives.every(goal=>goal.satisfied===false));
 });
@@ -6016,4 +6022,30 @@ for(const route of ['same-route','same-query','other-organization','cursor-page'
  tasks.push({name:query.name,args,observation:JSON.parse(JSON.stringify(empty))});
  await assert.rejects(decide(),/NEXT_DECISION_REACHED/);
  assert.equal(reviews,['same-route','same-query'].includes(route)?6:3,'a contradictory first-page empty scope reopens values only for its exact authenticated route; an exhausted cursor page cannot erase earlier rows');
+});
+for(const phase of ['decision','recovery'])test('Qwen navigates the live repository map during '+phase+' without borrowing field authority',async()=>{
+ const f=completeScalarPopulationFixture(),read=f.context.completedTasks[0].observation.verifiedRead;
+ const {runJarvisSemanticPlanner,hasRequiredToolArguments}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const reader={name:'repo.read',evidenceKinds:['repository_source'],investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{file:{type:'string',enum:['source.js','module-a.js','module-b.js']}},required:['file']}};
+ const query={name:'platform.query',evidenceKinds:['platform_records'],investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source',argument:'sourceFile',observationPath:['verifiedRead','file']},{kind:'repository_source',argument:'collection',observationPath:['verifiedRead','sourceStructure','dataBindings','collections']}],inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},mode:{type:'string',enum:['query','count']},fields:{type:'array',items:{type:'string'}},filters:{type:'array'}},required:['sourceFile','collection','mode','fields','filters']}};
+ const goals=['Count entries','Identify holders','Inspect deadlines'].map((objective,i)=>({objective,requiredEvidenceKind:'platform_records',coverageMode:['population','relationship','temporal'][i],scope:'all_sources',groups:['entries']}));
+ const directory={source:'VERIFIED_LOCAL_REPOSITORY_SCHEMA',revision:'fixture-revision',files:['source.js','module-a.js','module-b.js'],collections:[f.args.collection,'registry/other/entries','registry/approved/holders'],references:[[0,0],[1,1],[2,2]],operationalEvidence:false};
+ const state={phase:'EVIDENCE_NEXT_ACTION',tenantId:'approved',evidenceObjectives:goals,configuredSourceDiscovery:directory,completedTasks:[{name:reader.name,args:{file:'source.js'},observation:{ok:true,verifiedRead:read}}]};
+ const stages=[],before=JSON.stringify(state);let sawMap=false;
+ const result=await runJarvisSemanticPlanner({input:goals.map(g=>g.objective).join('; '),catalog:[reader,query],missionState:state,ai:{objectiveCoverageCache:new Map(),models:{generateContent:async request=>{
+  const stage=request.config.semanticStage;stages.push(stage);
+  if(stage==='EVIDENCE_NEXT_ACTION'&&phase==='recovery')return{text:JSON.stringify({toolCalls:[{name:query.name,args:{...f.args,fields:['not_credited'],includeCount:undefined}}]})};
+  assert.ok(['EVIDENCE_NEXT_ACTION','READ_ONLY_EVIDENCE_CONTINUATION'].includes(stage),'navigation cannot spawn another model stage');
+  const message=request.config.chatMessages.find(m=>m.content.startsWith('MAPA_NAVEGACION_REPOSITORIO='));assert.ok(message,'the same Qwen decision must see file-to-route associations, not just opaque filenames');
+  const map=JSON.parse(message.content.split('\n')[0].slice('MAPA_NAVEGACION_REPOSITORIO='.length));
+  assert.equal(map.revision,directory.revision);assert.equal(map.operationalEvidence,false);assert.equal(map.permissionsGranted,false);
+  assert.deepEqual(map.links.map(([file,collection])=>[map.files[file],map.collections[collection]]),directory.references.map(([file,collection])=>[directory.files[file],directory.collections[collection]]));
+  assert.ok(request.config.chatMessages.reduce((sum,m)=>sum+m.content.length,0)<=60000);
+  const choices=recoverySchemas(request).filter(c=>c.properties.name.enum.includes(query.name));
+  assert.ok(choices.every(c=>!hasRequiredToolArguments({inputSchema:c.properties.args},{...f.args,sourceFile:'module-b.js',collection:'registry/approved/holders',fields:['holder'],includeCount:undefined})),'a navigation hint cannot grant query or field authority before source reading');
+  sawMap=true;return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'module-b.js'}}],sourceFallback:[{name:reader.name,args:{file:'module-b.js'}}]})};
+ }}}});
+ assert.equal(sawMap,true);assert.deepEqual(result.toolCalls.map(c=>({name:c.name,args:c.args})),[{name:reader.name,args:{file:'module-b.js'}}]);
+ assert.equal(result.missionComplete,false);assert.ok(result.completionAssessment.objectives.every(g=>g.requiredEvidenceKind==='platform_records'&&!g.satisfied));
+ assert.equal(JSON.stringify(state),before);assert.deepEqual(stages,phase==='decision'?['EVIDENCE_NEXT_ACTION']:['EVIDENCE_NEXT_ACTION','READ_ONLY_EVIDENCE_CONTINUATION']);
 });

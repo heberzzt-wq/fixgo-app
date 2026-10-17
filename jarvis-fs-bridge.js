@@ -1745,17 +1745,25 @@ export function createSelfHostedSemanticEngine({
             const sourceDirectory = recordFlow ? getConfiguredSources() : null;
             const planningState = missionState ? {...missionState,configuredSourceDiscovery:sourceDirectory ? {
                 source:sourceDirectory.source,revision:sourceDirectory.revision,digest:sourceDirectory.digest,
-                files:sourceDirectory.files,operationalEvidence:false
+                files:sourceDirectory.files,collections:sourceDirectory.collections,
+                references:sourceDirectory.references.map(([file,collection])=>[file,collection]),operationalEvidence:false
             } : undefined} : missionState;
             const result = await runJarvisSemanticPlanner({
                 ai: { ...ai, models: { generateContent(request = {}) {
                     if (noDeadline !== true && (Date.now() >= deadlineAt || deadlineSignal.aborted)) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
                     planSignal?.throwIfAborted();
                     let config = {...request.config};
+                    const directNavigation=config.chatMessages?.some(message=>String(message.content||'').startsWith('MAPA_NAVEGACION_REPOSITORIO='));
+                    if(recordPlanning && configuredPlanningStages.has(config.semanticStage) && directNavigation && sourceDirectory){
+                        lastSourceConfiguration={revision:sourceDirectory.revision,digest:sourceDirectory.digest,files:sourceDirectory.files.length,
+                            collections:sourceDirectory.collections.length,operationalEvidence:false,navigation:'direct',
+                            usedByStage:config.semanticStage,usedAt:new Date().toISOString()};
+                    }
                     // Source configuration guides selection only. Independent
                     // operational coverage/closure still sees its immutable
                     // objective and actual receipts, never catalog record proof.
-                    if (recordPlanning && configuredPlanningStages.has(config.semanticStage)) {
+                    if (recordPlanning && configuredPlanningStages.has(config.semanticStage) &&
+                        !directNavigation) {
                         const sources = getConfiguredSources();
                         const messages = Array.isArray(config.chatMessages) ? [...config.chatMessages] : [{role:'user',content:String(request.contents || input)}];
                         const occupied = messages.reduce((sum,message)=>sum+String(message.content || '').length,0);
