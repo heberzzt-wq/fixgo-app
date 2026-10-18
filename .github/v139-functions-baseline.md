@@ -1,5 +1,33 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `f248e16b2908018959fea8570f1544cbc94b1310`.
+Reviewed Functions changes since `e1b0ed175754ca546210cf6068d84e7d47193d7d`. Only
+`functions/jarvis-semantic-planner.js` changed, with a matching production
+regression in `tests/jarvis-current-turn-production-regressions.test.mjs`.
+Qwen3.5:9b remains the LOCAL_ONLY sole decision authority. A rejected
+operational query with grounded unqueried sibling collections now places
+the corresponding exact native source and collection bindings first in the
+recovery catalogue and describes their provenance for Qwen. It never
+executes an automatic substitute query, guesses scope, grants access,
+certifies coverage or hides the repository read alternatives. The existing
+independent argument, tenant, permission, semantic population review and
+per-objective closure checks remain intact. No second planner, remote AI,
+new public endpoint, or business write is introduced.
+
+Verified: 431 PASS on focused regression suite; 407 PASS on historically
+failing recovery/projection/branch cases. Safe full Firebase emulator suite:
+2357 PASS, 0 FAIL, 1 SKIP (2358 counted by runner), exit 0, duration
+291904.5273 ms. The physical local Qwen repo search was excluded before
+synchronization because the dirty local checkout cannot pass branch identity.
+It must be re-run with aligned GitHub/bridge. A Chrome mission proving all
+three objectives is STILL REQUIRED; tests alone do not demonstrate mission
+completion. Historical paid providers and Functions/rules deployment remain
+out of scope; keep all future unreviewed Functions changes fail-closed.
+
+Previous review:
+
+# V139 reviewed Functions baseline
+
 Current baseline: `418a8735889dc19f140ddab1493236ba66207891`.
 Reviewed all Functions changes since `f1e09664d631a7bb53fe59417281f4b5dc6d9e48`.
 Only `functions/jarvis-semantic-planner.js` changed. The two functional
