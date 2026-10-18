@@ -4512,6 +4512,37 @@ async function runModelSemanticPlanner({
                     // one budget with receipts. Only excerpts/transport repack;
                     // live rows, fields, scopes and latest read remain intact.
                     const evidencePrefix='EVIDENCIA_OBTENIDA=';
+                    // Qwen selects the action. Under context pressure, do not
+                    // duplicate native schema constraints in prose. Runtime
+                    // authorization, evidence checks and native schema stay exact.
+                    if(continuationMessages.reduce((sum,m)=>sum+m.content.length,0)>54000 && (missionState.blockedTasks?.length||0)>0){
+                        const catalogMessage=continuationMessages.find(m=>m.content.startsWith('CATALOGO_EJECUTABLE='));
+                        if(catalogMessage){
+                            const brief=compactActionCatalog(nextReaders).map(({name,description,evidenceKinds,requiredArguments,mutates,requiresApproval,evidenceBindings})=>({
+                                name,description,evidenceKinds,requiredArguments,mutates,requiresApproval,
+                                ...(evidenceBindings?.length?{nativeConstraintBranches:evidenceBindings.length}:{})
+                            }));
+                            const summary='CATALOGO_EJECUTABLE='+JSON.stringify(brief);
+                            if(summary.length<catalogMessage.content.length)catalogMessage.content=summary;
+                        }
+                        // Full denied receipts remain unchanged in missionState
+                        // and the independent veto cache. Forward only the
+                        // rejected call, precise denial and relevant proof.
+                        for(const message of continuationMessages)if(message.content.startsWith('INTENTO_FALLIDO=')){
+                            try{
+                                const task=JSON.parse(message.content.slice('INTENTO_FALLIDO='.length));
+                                const observed=task.observation||{};
+                                const keys=['ok','executionOk','blocked','status','error','errorDetails','code','reason',
+                                    'rejectionKind','scope','sourceFile','collection','requiredEvidence','missingEvidence',
+                                    'recordEvidence','permission','requiresApproval','validationFailures'];
+                                const observation=Object.fromEntries(keys.filter(key=>Object.hasOwn(observed,key)).map(key=>[key,observed[key]]));
+                                const brief='INTENTO_FALLIDO='+JSON.stringify({name:task.name,args:task.args,observation});
+                                if(brief.length<message.content.length)message.content=brief;
+                            }catch{}
+                        }
+                        const duplicate=continuationMessages.find(m=>m.content.startsWith('No repitas esas propuestas con las mismas dependencias.'));
+                        if(duplicate)duplicate.content='No repitas acciones rechazadas con igual dependencia. Los vetos no son lecturas ni pruebas de cumplimiento; rechazos de poblacion impiden repetir ese alcance, pero otras rutas y filtros permitidos requieren validacion independiente. Las pistas de repo.grep no acreditan esquemas, registros ni autorizaciones.';
+                    }
                     const fixedCharacters=continuationMessages.filter(message=>!message.content.startsWith(evidencePrefix)).reduce((sum,message)=>sum+message.content.length,0);
                     // A 59k-character Spanish/code packet exceeded the fixed
                     // 16k-token Qwen context in a real decision. Keep headroom
