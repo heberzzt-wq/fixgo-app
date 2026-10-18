@@ -330,10 +330,29 @@ test('continuation retains every objective gap and source without repeating shar
  const verbose=objectives.map(item=>({...item,limitation:'Lengthy explanatory recap. '.repeat(80)}));
  const bounded=JSON.parse(JSON.stringify(summarize(verbose)));
  for(const [i,item] of bounded.entries()){
-  assert.equal(item.limitation.length,320);assert.equal(item.limitationTruncated,true);
-  assert.deepEqual(item.objectiveGaps||item.objectiveGapIds.map(id=>bounded[0].sharedObjectiveGapText[id]),verbose[i].coverageProof.missing);
+  assert.equal(item.limitation.length,160);assert.equal(item.limitationTruncated,true);
+  const decode=text=>Array.isArray(text)?text.map(part=>typeof part==='number'?bounded[0].sharedContinuationPhrases[part]:part).join(''):text;
+  assert.deepEqual(item.objectiveGaps||item.objectiveGapIds.map(id=>decode(bounded[0].sharedObjectiveGapText[id])),verbose[i].coverageProof.missing);
   assert.deepEqual(item.pendingSources,sources);assert.deepEqual(item.groups,['group_'+i]);
  }
+});
+
+test('distinct pending gaps share repeated prose losslessly without merging source or objective identity',()=>{
+ const source=readFileSync(new URL('../functions/jarvis-semantic-planner.js',import.meta.url),'utf8');
+ const node=parse(source,{sourceType:'script',ecmaVersion:'latest'}).body.find(n=>n.type==='FunctionDeclaration'&&n.id.name==='continuationObjectiveSummaries');
+ const summarize=runInNewContext('('+source.slice(node.start,node.end)+')');
+ const explanation='The independently reviewed source still requires current authenticated operational evidence before this specific objective can be closed. ';
+ const goals=Array.from({length:3},(_,i)=>({objective:'Question '+i,requiredEvidenceKind:'platform_records',satisfied:false,evidenceTaskIndexes:[i],coverage:{pendingSources:['org-'+i+'/entries'],groups:['group-'+i]},coverageProof:{missing:Array.from({length:18},(_,j)=>explanation+'Source: org-'+i+'/entries-'+j+'. '+explanation+'Independent gap '+i+'-'+j+'.')}}));
+ const before=JSON.stringify(goals),result=JSON.parse(JSON.stringify(summarize(goals)));
+ assert.ok(JSON.stringify(result).length<before.length*.55,'distinct gaps cannot repeatedly spend the local context on identical prose');
+ const decode=value=>Array.isArray(value)?value.map(part=>typeof part==='number'?result[0].sharedContinuationPhrases[part]:part).join(''):value;
+ for(const [i,item]of result.entries()){
+  const gaps=item.objectiveGaps||item.objectiveGapIds.map(id=>decode(result[0].sharedObjectiveGapText[id]));
+  assert.deepEqual(gaps,goals[i].coverageProof.missing);
+  assert.equal(item.objective,goals[i].objective);assert.equal(item.requiredEvidenceKind,'platform_records');assert.equal(item.satisfied,false);
+  assert.deepEqual(item.pendingSources,goals[i].coverage.pendingSources);assert.deepEqual(item.evidenceTaskIndexes,[i]);
+ }
+ assert.equal(JSON.stringify(goals),before,'transport compaction never rewrites engine-owned proofs');
 });
 
 test('failed or foreign coverage groups cannot impose expansion requirements on another objective',()=>{

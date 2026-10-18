@@ -1717,8 +1717,8 @@ function continuationObjectiveSummaries(objectives = []) {
     if(JSON.stringify(summaries).length<=6000)return summaries;
     // The explanatory paragraph is a recap, not the objective's contract or
     // gap list. Bound only this recap under pressure; retain every gap below.
-    for(const item of summaries)if(item.limitation.length>320){
-        item.limitation=item.limitation.slice(0,320);item.limitationTruncated=true;
+    for(const item of summaries)if(item.limitation.length>160){
+        item.limitation=item.limitation.slice(0,160);item.limitationTruncated=true;
     }
     // A dependency can remain pending for several independent objectives.
     // Share identical wording as transport bytes only: each objective retains
@@ -1729,7 +1729,38 @@ function continuationObjectiveSummaries(objectives = []) {
         return ids.get(gap);
     })}));
     if(shared.length)shared[0]={...shared[0],sharedObjectiveGapText:texts,
-        sharedObjectiveGapEncoding:"objectiveGapIds indexes sharedObjectiveGapText on the first objective. Expand every ID to recover that objective's exact gaps. Sharing identical text does not transfer evidence, sources, requirements or satisfaction between objectives."};
+        sharedObjectiveGapEncoding:"Resolve each objectiveGapIds entry in the first objective's sharedObjectiveGapText. Retain every gap; sharing text transfers no source, evidence or satisfaction."};
+    if(shared.length && JSON.stringify(shared).length>6000){
+        // Distinct gaps can still repeat entire explanatory clauses. Share
+        // literal transport fragments only; decoding restores every byte and
+        // never joins scopes, changes a proof or removes an independent gap.
+        const phrases=[],packed=texts.map(text=>[text]);
+        for(let round=0;round<32;round++){
+            const counts=new Map();
+            for(const parts of packed)for(const part of parts)if(typeof part==='string'){
+                const words=part.match(/\S+\s*/g)||[];
+                for(const size of [6,12,20])for(let i=0;i+size<=words.length;i++){
+                    const phrase=words.slice(i,i+size).join('');
+                    if(phrase.length>=32)counts.set(phrase,(counts.get(phrase)||0)+1);
+                }
+            }
+            let best='',saving=100;
+            for(const [phrase,n]of counts){const saved=(n-1)*phrase.length-n*6-16;if(saved>saving){best=phrase;saving=saved;}}
+            if(!best)break;
+            const id=phrases.length;phrases.push(best);
+            for(let i=0;i<packed.length;i++)packed[i]=packed[i].flatMap(part=>{
+                if(typeof part!=='string')return [part];
+                const pieces=part.split(best),result=[];
+                for(let j=0;j<pieces.length;j++){if(j)result.push(id);if(pieces[j])result.push(pieces[j]);}
+                return result;
+            });
+        }
+        if(phrases.length){
+            const first={...shared[0],sharedObjectiveGapText:packed.map((parts,index)=>JSON.stringify(parts).length<JSON.stringify(texts[index]).length?parts:texts[index]),sharedContinuationPhrases:phrases,
+                sharedContinuationPhraseEncoding:'Decode gap arrays by concatenating strings and sharedContinuationPhrases[number] in order. Keep each objective, gap, scope and evidence requirement independent; no satisfaction transfers.'};
+            if(JSON.stringify(first).length<JSON.stringify(shared[0]).length)shared[0]=first;
+        }
+    }
     return JSON.stringify(shared).length<JSON.stringify(summaries).length ? shared : summaries;
 }
 
@@ -2668,7 +2699,7 @@ function boundedAuditTasks(tasks, maximumCharacters = 28000) {
             if (JSON.stringify(minimal).length >= maximumCharacters) { kept.pop(); break; }
         }
     }
-    if(JSON.stringify(minimal).length>maximumCharacters) throw new Error("SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED");
+    if(JSON.stringify(minimal).length>maximumCharacters) throw Object.assign(new Error("SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED"),{contextBudget:{maximumCharacters,requiredCharacters:JSON.stringify(minimal).length}});
     return retainBodies(minimal,maximumCharacters);
 }
 
@@ -4445,7 +4476,7 @@ async function runModelSemanticPlanner({
                         },required:["toolCalls",...Object.keys(sourceFallbackSchema)],additionalProperties:false}} : {nativeToolChat:true,tools:[{functionDeclarations:buildGeminiModelTools(nextReaders)}]}),
                         chatMessages:[
                             ...(advisoryContext ? [{role:"system",content:advisoryContext}] : []),
-                            {role:"system",content:"Eres Jarvis. El objetivo aún no está resuelto. Decide si existe UN siguiente paso de investigación ejecutable con las herramientas disponibles y llámalo. No repitas que falta evidencia cuando puedes obtenerla. Una búsqueda ya devuelve rutas candidatas: lee una ruta real pertinente para conocer la fuente; si necesitas otra fuente, busca. Conserva el objetivo del usuario, pero puedes reformular búsquedas con identificadores, campos, símbolos y vocabulario técnico que hayas aprendido de evidencia ya observada. No inventes esos identificadores: deben provenir de la solicitud o de una observación real. Si una búsqueda semántica ya fue insuficiente, usa repo.grep con un término literal observado o formula una nueva búsqueda usando la evidencia disponible. Para consultar registros actuales necesitas colección y campos acreditados. El discriminador es necesario para contar un subconjunto; si aún lo desconoces, puedes inspeccionar campos pertinentes con mode=query y filters=[] dentro del alcance autorizado, para conocer valores reales y resolver otros objetivos. La inspección no acredita por sí sola un conteo global ni la pertenencia a un subconjunto. No inventes filtros. El catálogo describe fuentes, no resultados ya obtenidos. No repitas la misma operación con los mismos argumentos. Una fuente irrelevante no cierra la investigación: continúa con otra fuente o búsqueda read-only distinta mientras exista un paso fundamentado. Si realmente no hay un paso autorizado, no llames nada. Un permiso denegado no autoriza cambiar identidad, quitar filtros ni ampliar acceso. Nunca escribas, publiques ni concedas aprobación."},
+                            {role:"system",content:"Eres Jarvis. El objetivo sigue pendiente. Elige UN paso nuevo y ejecutable que obtenga evidencia. Usa identificadores sólo de la solicitud u observaciones. Lee una ruta candidata de búsqueda; si ésta no bastó, usa repo.grep literal o reformula con pistas observadas. Para datos actuales exige colección y campos acreditados. Sin discriminador no cuentes subconjuntos; puedes inspeccionar campos pertinentes con mode=query y filters=[] sólo dentro del alcance autorizado. No inventes filtros ni valores. Esa lectura no demuestra inventario global ni pertenencia a subconjuntos. El catálogo describe fuentes, no resultados. No repitas operaciones con iguales argumentos y dependencias. Si una fuente es irrelevante, busca otra mientras exista un paso fundamentado; si no existe, devuelve toolCalls=[]. Una denegación no autoriza cambiar identidad, quitar filtros obligatorios ni ampliar acceso. Nunca escribas, publiques ni concedas aprobación."},
                             ...(pendingCapabilities.length ? [{role:"system",content:"CAPACIDADES_DISPONIBLES_DESPUES_DEL_REQUISITO="+JSON.stringify(pendingCapabilities)+"\nLa consulta de datos existe, pero falta leer la fuente. Elige primero una lectura o búsqueda pertinente. No sustituyas el requisito con una negativa ni con un esquema inventado."}] : []),
                             ...(latestPlatformSchemaFailure && !evidenceAfterSchemaFailure ? [{role:"system",content:"RECUPERACION_DE_CONSULTA: la última platform.query fue rechazada por evidencia de esquema insuficiente. No repitas la misma consulta ni adivines un alias. Usa las herramientas de repositorio disponibles para localizar el campo, colección o valor real y después formula una consulta nueva con esa evidencia. Si INTENTO_FALLIDO incluye errorDetails.discoveredCollections, esas colecciones SÍ fueron observadas por AST en el sourceFile indicado y la colección rechazada NO fue acreditada por ese archivo: conserva la relación sourceFile→discoveredCollections, vuelve al repo si ninguna observada sirve al objetivo y sólo después formula otra consulta. Si errorDetails incluye undiscoveredFields, undiscoveredFilterFields o ungroundedFilterValues, esos literales son argumentos RECHAZADOS: puedes usarlos como pistas para repo.grep/repo.search, pero no los trates como esquema válido hasta observar su definición real en una fuente."}] : []),
                             {role:"system",content:"CATALOGO_EJECUTABLE="+JSON.stringify(compactActionCatalog(nextReaders))},
@@ -4482,8 +4513,13 @@ async function runModelSemanticPlanner({
                     // live rows, fields, scopes and latest read remain intact.
                     const evidencePrefix='EVIDENCIA_OBTENIDA=';
                     const fixedCharacters=continuationMessages.filter(message=>!message.content.startsWith(evidencePrefix)).reduce((sum,message)=>sum+message.content.length,0);
-                    const receiptBudget=Math.min(28000,59000-fixedCharacters-auditTasks.length*evidencePrefix.length-200);
-                    if(continuationMessages.reduce((sum,message)=>sum+message.content.length,0)>59000){
+                    // A 59k-character Spanish/code packet exceeded the fixed
+                    // 16k-token Qwen context in a real decision. Keep headroom
+                    // for tokenizer variation, message framing and generation;
+                    // never raise context or silently truncate live evidence.
+                    const decisionCharacterBudget=54000;
+                    const receiptBudget=Math.min(28000,decisionCharacterBudget-fixedCharacters-auditTasks.length*evidencePrefix.length-200);
+                    if(continuationMessages.reduce((sum,message)=>sum+message.content.length,0)>decisionCharacterBudget){
                         if(receiptBudget<=0)throw new Error('SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED');
                         const decisionTasks=boundedAuditTasks(fullAuditTasks,receiptBudget);
                         let taskIndex=0;
