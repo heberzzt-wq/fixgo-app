@@ -48,7 +48,21 @@ export function configuredRepositorySources(root) {
     if (execFileSync(git, ['-C', directory, 'rev-parse', 'HEAD'], options).trim() !== revision ||
         execFileSync(git, ['-C', directory, 'status', '--porcelain'], options).trim()) return null;
     const inspectionFiles=Object.values(graph.nodes || {}).filter(node=>!node.isTest).map(node=>node.file);
-    const payload = {source:'VERIFIED_LOCAL_REPOSITORY_SCHEMA',revision,files,inspectionFiles,collections,fields,references,
+    // A Git-bound structural navigation graph for the entire repository.
+    // Never put source literals, example data, file content or secrets in the
+    // catalog. Tests are indexed for coverage, but never proposed as live data.
+    const moduleIndex=Object.values(graph.nodes || {}).map(node=>({
+        file:node.file,
+        functions:(node.functions||[]).slice(0,20),
+        exports:(node.exports||[]).slice(0,12),
+        dependencies:(node.dependencies||[]).slice(0,12),
+        dependents:(node.dependents||[]).slice(0,12),
+        relatedTests:(node.relatedTests||[]).slice(0,8),
+        isTest:node.isTest===true,
+        isGenerated:node.isGenerated===true,
+        authoritySensitive:node.authoritySensitive===true
+    }));
+    const payload = {source:'VERIFIED_LOCAL_REPOSITORY_SCHEMA',revision,files,inspectionFiles,collections,fields,references,moduleIndex,
         referenceEncoding:'[fileIndex, collectionIndex, fieldIndexes]',
         operationalEvidence:false,permissionsGranted:false,
         fieldsAreDiscoveryOnly:true,exhaustiveOperationalCoverage:false};
@@ -98,6 +112,30 @@ export function configuredSourcesMessage(catalog, budget = 18000, {instruction =
                 (activeTerms.includes(clean(collection))?80:0)};
         }).sort((a,b)=>b.score-a.score||a.collection.localeCompare(b.collection));
         const prefix='CONFIGURACION_DE_FUENTES_VERIFICADA=';
+        const routeFileSet=new Set(ranked.slice(0,4).flatMap(route=>route.files.slice(0,5)));
+        const modules=(catalog.moduleIndex||[]).filter(module=>!module.isTest && !module.isGenerated)
+            .map(module=>{
+                const file=clean(module.file);
+                const names=clean([module.file,...module.exports,...module.functions].join(' '));
+                const neighbors=clean(module.dependencies.join(' '));
+                let score=activeTerms.reduce((sum,term)=>sum+
+                    (file.includes(term)?8:0)+(names.includes(term)?3:0)+
+                    (neighbors.includes(term)?1:0),0);
+                if(routeFileSet.has(module.file))score+=14;
+                // Ground the module's relevance in exact discovered field
+                // provenance, not merely the broad B2C/B2B directory name.
+                const sourceFields=(catalog.references||[])
+                    .filter(([file])=>catalog.files[file]===module.file)
+                    .flatMap(([, ,indices])=>indices.map(i=>catalog.fields[i]||''));
+                const sourceFieldText=clean(sourceFields.join(' '));
+                score+=activeTerms.reduce((sum,term)=>sum+
+                    (sourceFieldText.includes(term)?18:0),0);
+                const b2c=/(?:^|[\/_-])b2c(?:[\/_.-]|$)/.test(file);
+                const b2b=/(?:^|[\/_-])b2b(?:[\/_.-]|$)/.test(file);
+                if(requestedB2c){if(b2c)score+=12;if(b2b)score-=8;}
+                if(requestedB2b){if(b2b)score+=12;if(b2c)score-=8;}
+                return {...module,score};
+            }).sort((a,b)=>b.score-a.score||a.file.localeCompare(b.file));
         const note='\nMapa orientativo del codigo revisado, no datos reales, permisos ni evidencia de cobertura. Qwen elige que fuente examinar; las consultas requieren autorizacion, lectura del codigo pertinente y pruebas operativas actuales. B2C y B2B pueden compartir colecciones: verificar el alcance y los perfiles, no inferirlo por el nombre. Las rutas omitidas siguen disponibles mediante consulta del indice.';
         for(const count of [12,8,5,3,1]){
             const included=ranked.slice(0,count);
@@ -111,6 +149,24 @@ export function configuredSourcesMessage(catalog, budget = 18000, {instruction =
                     routes,partialMap:included.length<ranked.length,
                     operationalEvidence:false,permissionsGranted:false,
                     exhaustiveOperationalCoverage:false};
+                if(modules.length){
+                    // Only project the small module slice that fits Qwen's
+                    // actual budget; the full graph is still indexed locally.
+                    const maxModules=Math.min(10,modules.length);
+                    for(const moduleCount of [maxModules,6,4,2,0]){
+                        const selected=modules.slice(0,moduleCount).map(module=>[
+                            module.file,module.exports.slice(0,6),
+                            module.functions.slice(0,8),
+                            module.dependencies.slice(0,5),
+                            module.authoritySensitive
+                        ]);
+                        const candidate={...payload,moduleCount:catalog.moduleIndex.length,
+                            moduleEncoding:'[file, exports, functions, dependencies, authoritySensitive]',
+                            modules:selected,partialModuleMap:moduleCount<modules.length};
+                        const content=prefix+JSON.stringify(candidate)+note;
+                        if(content.length<=budget)return {role:'system',content};
+                    }
+                }
                 const content=prefix+JSON.stringify(payload)+note;
                 if(content.length<=budget)return {role:'system',content};
             }
