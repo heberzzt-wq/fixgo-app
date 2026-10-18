@@ -1767,7 +1767,7 @@ export function createSelfHostedSemanticEngine({
                         const sources = getConfiguredSources();
                         const messages = Array.isArray(config.chatMessages) ? [...config.chatMessages] : [{role:'user',content:String(request.contents || input)}];
                         const occupied = messages.reduce((sum,message)=>sum+String(message.content || '').length,0);
-                        const sourceMessage = configuredSourcesMessage(sources,Math.max(0,Math.min(18000,48000-occupied-1500)));
+                        const sourceMessage = configuredSourcesMessage(sources,Math.max(0,Math.min(18000,48000-occupied-1500)),{instruction:input});
                         if (sourceMessage) {
                             messages.splice(Math.max(0,messages.length-1),0,sourceMessage);
                             config.chatMessages=messages;
