@@ -6135,7 +6135,13 @@ test('restored per-goal field requirements exclude metadata padding before the n
    if(turn===1)return queryReviewFixture(request,{matchesRequest:true,schemaDiscoveryRelevant:false,rejectionReason:''});
    return{text:JSON.stringify({matchesRequest:true,schemaDiscoveryRelevant:false,populationRelevance:'relevant',objectiveMatches:{0:false,1:false,2:false},objectiveFields:{0:['marker'],1:['holder'],2:['deadline']},populationFieldPurposes:{0:'none'},rejectionReason:'Only optional metadata was proposed; required values are already read.'})};
   }
-  assert.equal(stage,'READ_ONLY_EVIDENCE_CONTINUATION');return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'unrelated.js'}}]})};
+  assert.equal(stage,'READ_ONLY_EVIDENCE_CONTINUATION');
+  const siblingMessage=request.config.chatMessages.find(m=>m.content.startsWith('RUTAS_OPERATIVAS_NO_CONSULTADAS='));
+  assert.ok(siblingMessage,'Qwen must see a grounded, unread sibling route before unrelated code recovery');
+  const siblingRoutes=JSON.parse(siblingMessage.content.slice('RUTAS_OPERATIVAS_NO_CONSULTADAS='.length));
+  assert.ok(siblingRoutes.some(route=>route.sourceFile==='source.js'&&route.collection.endsWith('/holders')),'keep the exact read source and distinct collection binding');
+  assert.ok(recoverySchemas(request).some(choice=>choice.properties.name.enum.includes(reader.name)),'Qwen can still choose source exploration rather than a forced query');
+  return{text:JSON.stringify({toolCalls:[{name:reader.name,args:{file:'unrelated.js'}}]})};
  }}};
  const directory={source:'VERIFIED_LOCAL_REPOSITORY_SCHEMA',files:['source.js','unrelated.js'],collections:[f.args.collection,target,'other_scope'],references:[[0,0],[0,1],[1,2]],operationalEvidence:false};
  const state={phase:'EVIDENCE_NEXT_ACTION',tenantId:'approved',evidenceObjectives:goals,completedTasks:tasks,configuredSourceDiscovery:directory};

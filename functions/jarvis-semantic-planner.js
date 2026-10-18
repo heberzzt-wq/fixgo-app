@@ -4399,8 +4399,30 @@ async function runModelSemanticPlanner({
                         return eligibleEvidenceActionCatalog([{...tool,inputSchema:groundedScopes.length===1?groundedScopes[0]:{anyOf:groundedScopes}}],
                             completedTasksForAudit,configuredSourceFiles,safeCatalog,coverageBeforeDecision.map(objective=>objective.coverageProof));
                     }) : [];
+                // Qwen can choose a native, source-grounded operational route
+                // that has never been queried before exploring unrelated code.
+                // This is a candidate frontier, not a relevance decision or
+                // an authorization. The same independent checks still apply.
+                const unqueriedBoundRecordReaders = sourceEvidenceRequired && repositoryNavigation
+                    ? groundedRecordRecoveryReaders.flatMap(tool=>{
+                        const schema=buildNativeInputSchema(tool.inputSchema);
+                        const branches=(schema.anyOf||[schema]).filter(branch=>{
+                            const file=branch.properties?.sourceFile?.enum;
+                            const collection=branch.properties?.collection?.enum;
+                            if(file?.length!==1 || collection?.length!==1)return false;
+                            return !completedTasksForAudit.some(task=>task.name===tool.name &&
+                                task.observation?.ok===true && task.observation.executionOk!==false &&
+                                task.observation.blocked!==true &&
+                                task.observation.recordEvidence?.source==='FIRESTORE_SERVER_AUTHENTICATED' &&
+                                task.observation.recordEvidence?.scope?.sourceFile===file[0] &&
+                                task.observation.recordEvidence?.scope?.collection===collection[0]);
+                        });
+                        return branches.length?[{...tool,inputSchema:branches.length===1?branches[0]:{anyOf:branches}}]:[];
+                    }):[];
                 let nextReaders = sourceEvidenceRequired
-                    ? [...repositoryRecoveryReaders,...groundedRecordRecoveryReaders]
+                    ? unqueriedBoundRecordReaders.length
+                        ? [...groundedRecordRecoveryReaders,...repositoryRecoveryReaders]
+                        : [...repositoryRecoveryReaders,...groundedRecordRecoveryReaders]
                     : generalReaders;
                 const seenFiles=new Set(completedTasksForAudit.filter(task=>task.observation?.ok===true &&
                     task.observation.executionOk!==false && task.observation.blocked!==true).map(task=>task.observation.verifiedRead?.file).filter(Boolean));
@@ -4463,6 +4485,7 @@ async function runModelSemanticPlanner({
                 // before exploring more code. Keep the independently checked
                 // same-response source alternative; never infer goal coverage.
                 if(pendingRecordReaders.length)nextReaders=pendingRecordReaders;
+
                 const recoveryCatalog=[...new Map([...nextReaders,...sourceFallbackReaders].map(tool=>[tool.name,tool])).values()];
 
                     const compactContinuation=JSON.stringify(auditTasks).length>16000;
@@ -4480,6 +4503,7 @@ async function runModelSemanticPlanner({
                             ...(pendingCapabilities.length ? [{role:"system",content:"CAPACIDADES_DISPONIBLES_DESPUES_DEL_REQUISITO="+JSON.stringify(pendingCapabilities)+"\nLa consulta de datos existe, pero falta leer la fuente. Elige primero una lectura o búsqueda pertinente. No sustituyas el requisito con una negativa ni con un esquema inventado."}] : []),
                             ...(latestPlatformSchemaFailure && !evidenceAfterSchemaFailure ? [{role:"system",content:"RECUPERACION_DE_CONSULTA: la última platform.query fue rechazada por evidencia de esquema insuficiente. No repitas la misma consulta ni adivines un alias. Usa las herramientas de repositorio disponibles para localizar el campo, colección o valor real y después formula una consulta nueva con esa evidencia. Si INTENTO_FALLIDO incluye errorDetails.discoveredCollections, esas colecciones SÍ fueron observadas por AST en el sourceFile indicado y la colección rechazada NO fue acreditada por ese archivo: conserva la relación sourceFile→discoveredCollections, vuelve al repo si ninguna observada sirve al objetivo y sólo después formula otra consulta. Si errorDetails incluye undiscoveredFields, undiscoveredFilterFields o ungroundedFilterValues, esos literales son argumentos RECHAZADOS: puedes usarlos como pistas para repo.grep/repo.search, pero no los trates como esquema válido hasta observar su definición real en una fuente."}] : []),
                             {role:"system",content:"CATALOGO_EJECUTABLE="+JSON.stringify(compactActionCatalog(nextReaders))},
+                            ...(unqueriedBoundRecordReaders.length?[{role:'system',content:'RUTAS_OPERATIVAS_NO_CONSULTADAS='+JSON.stringify(unqueriedBoundRecordReaders.flatMap(tool=>{const schema=buildNativeInputSchema(tool.inputSchema);return (schema.anyOf||[schema]).map(branch=>({sourceFile:branch.properties?.sourceFile?.enum?.[0],collection:branch.properties?.collection?.enum?.[0]})).filter(item=>item.sourceFile&&item.collection)}))},{role:'system',content:'Son rutas acreditadas en código ya leído y todavía no consultadas; Qwen debe decidir si alguna responde a una brecha pendiente antes de explorar código genérico. No son datos actuales, no demuestran cobertura y su ejecución requiere la validación independiente.'}]:[]),
                             ...(pendingRecordReaders.length?[{role:'system',content:(optionalPredicateReaders.length?'El valor de un filtro optativo fue rechazado, pero la fuente y los campos de esa misma ruta ya fueron leídos. Elige una inspección permitida sin ese filtro, si aporta a un objetivo pendiente, antes de leer código ajeno. No retires filtros obligatorios ni restricciones de acceso. La propuesta todavía debe pasar la revisión semántica independiente. ':'Hay fuentes operativas ya acreditadas que la revisión por objetivo mantiene pertinentes y pendientes. Elige una de esas consultas antes de explorar más código. ')+'La alternativa de fuente sólo se ejecutará si la acción principal no es válida. CATALOGO_ALTERNATIVAS_DE_FUENTE='+JSON.stringify(compactActionCatalog(sourceFallbackReaders))}]:[]),
                             {role:"system",content:"RUTAS_LOCALIZADAS="+JSON.stringify([...new Set(nextReaders.flatMap(tool=>{
                                 const schema=buildNativeInputSchema(tool.inputSchema);return (schema.anyOf||[schema]).flatMap(branch=>branch.properties?.file?.enum||[]);
