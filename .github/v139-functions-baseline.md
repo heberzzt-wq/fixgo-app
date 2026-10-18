@@ -1,5 +1,32 @@
 # V139 reviewed Functions baseline
 
+Current baseline: `418a8735889dc19f140ddab1493236ba66207891`.
+Reviewed all Functions changes since `f1e09664d631a7bb53fe59417281f4b5dc6d9e48`.
+Only `functions/jarvis-semantic-planner.js` changed. The two functional
+commits `0c14fc0d` and `418a8735` compact repeated continuation gaps and
+remove duplicated decision-stage transport only under evidence pressure.
+Qwen3.5:9b remains the sole LOCAL_ONLY model deciding executable work;
+catalog retrieval does not itself authorize source, collection or fields.
+The recovery-specific short textual catalogue is used only after a blocked
+attempt when the whole packet exceeds 54000 characters. The native correlated
+tool grammar, independent permission checks, complete durable receipts,
+query rejection fingerprints and per-objective coverage remain unchanged.
+The denial forwarded to Qwen still contains the rejected call and recorded
+error details; nothing turns a rejected query into population evidence.
+Regression: six recorded envelopes with terminal denial 1 PASS; combined
+planner focus 431 PASS, 0 FAIL; entire emulator suite 2357 PASS, 1 FAIL,
+1 SKIP (2359 tests). Its single failed physical bridge search was due to
+BRIDGE_IDENTITY_INVALID while local HEAD was ahead of origin; the 2357
+other tests passed and source SHA256 stayed frozen. This is NOT a full
+mission or full-suite certification. After safe branch synchronization
+re-run physical Qwen and full suite, then the exact clean Chrome mission.
+Do not publish Functions/rules or execute external paid AI, and do not
+treat a partial mission as success. All future Functions changes still fail
+the guard until independently reviewed.
+
+Previous review:
+# V139 reviewed Functions baseline
+
 Current baseline: `f1e09664d631a7bb53fe59417281f4b5dc6d9e48`.
 Only functions/jarvis-semantic-planner.js changed since150ab98e.
 Reviewed scoped negative-decision persistence through direct recovery and cache
