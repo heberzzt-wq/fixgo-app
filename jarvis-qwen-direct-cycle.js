@@ -110,11 +110,15 @@ export async function runQwenDirectReadCycle({
         if(signal?.aborted)return done('CANCELLED','SIGNAL_ABORTED');
         onProgress({phase:'QWEN_DECISION',iteration,completed:receipts.length});
         modelDecisionCount+=1;
+        const producedKinds=new Set(receipts.filter(receipt=>receipt.ok===true)
+            .flatMap(receipt=>selected.find(tool=>tool.name===receipt.name)?.evidenceKinds||[]));
+        const available=selected.filter(tool=>(tool.requiresEvidence||[])
+            .every(requirement=>producedKinds.has(requirement.kind)));
         let decision;
         try{
             decision=await selectNextAction({
                 instruction,repositoryMap,
-                tools:selected.map(tool=>({name:tool.name,description:tool.description,
+                tools:available.map(tool=>({name:tool.name,description:tool.description,
                     inputSchema:tool.inputSchema,evidenceKinds:tool.evidenceKinds,requiresEvidence:tool.requiresEvidence})),
                 observations:structuredClone(forModel),
                 evidenceSummary:typeof summarizeEvidence==='function'

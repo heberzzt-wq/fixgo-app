@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import {runQwenDirectReadCycle} from '../jarvis-qwen-direct-cycle.js';
 
 const catalog=[
-    {name:'repo.read',investigationReadOnly:true,mutates:false,
+    {name:'repo.read',investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],
         inputSchema:{type:'object',properties:{file:{type:'string',enum:['panel-admin.js']}},required:['file'],additionalProperties:false}},
-    {name:'platform.query',investigationReadOnly:true,mutates:false,
+    {name:'platform.query',investigationReadOnly:true,mutates:false,requiresEvidence:[{kind:'repository_source'}],
         inputSchema:{type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string',enum:['users','flotilla_b2b']},role:{type:'string'}},required:['sourceFile','collection'],additionalProperties:false}},
     {name:'platform.write',mutates:true,investigationReadOnly:false},
     {name:'payment.charge',investigationReadOnly:true,mutates:false,requiresApproval:true}
@@ -26,6 +26,8 @@ test('Qwen directly chooses read -> authenticated query -> finish without extra 
             assert.equal(repositoryMap,map);
             assert.ok(tools.every(t=>!['platform.write','payment.charge'].includes(t.name)));
             assert.equal(observations.length,executed.length);
+            assert.equal(tools.some(tool=>tool.name==='platform.query'),executed.length>0,
+                'model catalog exposes queries only after a successful source receipt');
             return actions.shift();
         },
         authorize:async({call,receipts})=>{

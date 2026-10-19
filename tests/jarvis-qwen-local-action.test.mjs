@@ -6,7 +6,7 @@ import {runQwenDirectReadCycle} from '../jarvis-qwen-direct-cycle.js';
 const tools=[{
     name:'repo.read',description:'Read source',
     investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],
-    requiresEvidence:[{kind:'fixture_prerequisite',argument:'file',observationPath:['file']}],
+    requiresEvidence:[],
     inputSchema:{type:'object',properties:{file:{type:'string',
         enum:['panel-admin.js']}},required:['file'],additionalProperties:false}
 }];
