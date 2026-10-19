@@ -10,7 +10,16 @@ export const QWEN_B2C_CENSUS_INSTRUCTION='Consulta los tecnicos B2C registrados 
 export async function runQwenB2cCensusPilot(options){
     const allowed=new Set(['repo.search','repo.read','platform.query']);
     const runtime=options.toolRuntime;
-    const toolRuntime={list:()=>runtime.list().filter(tool=>allowed.has(tool.name))};
+    const toolRuntime={list:()=>runtime.list().filter(tool=>allowed.has(tool.name)).map(tool=>{
+        if(tool.name!=='platform.query')return tool;
+        const inputSchema=structuredClone(tool.inputSchema),properties=inputSchema.properties;
+        properties.collection={...properties.collection,const:'users'};
+        properties.filters={...properties.filters,enum:[[],[{field:'rol',op:'==',value:'tecnico'}]]};
+        properties.fields={...properties.fields,items:{type:'string',enum:['__name__',...B2C_CENSUS_FIELDS]}};
+        properties.includeCount={...properties.includeCount,const:true};
+        inputSchema.required=[...new Set([...(inputSchema.required||[]),'includeCount'])];
+        return {...tool,inputSchema};
+    })};
     const instruction=QWEN_B2C_CENSUS_INSTRUCTION+
         '\nContrato de entrega del piloto: lee fuentes y esquema antes de consultar; app-registro.js, panel-admin.js y b2c-technician-profile.js son pistas, no prueba de registros. '+
         'La cobertura requiere users sin filtros adicionales a rol == tecnico (o users completo), includeCount=true, todas las paginas y estos campos acreditados: '+JSON.stringify(B2C_CENSUS_FIELDS)+'. '+

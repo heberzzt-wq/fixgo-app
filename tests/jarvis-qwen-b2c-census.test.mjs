@@ -60,3 +60,11 @@ test('complete server field metadata proves absent aliases without inventing pro
     e.fieldSchema.completeForObservedRows=true;e.fieldSchema.paths=[...e.scope.fields,'account_type'];
     assert.equal(inspectB2cCensusEvidence([r]).ok,false);
 });
+
+test('census feedback names the invalid population or missing projected fields',()=>{
+    const r=receipt();r.observation.recordEvidence.scope.filters.push({field:'tipo_cuenta',op:'==',value:'b2c'});
+    assert.equal(inspectB2cCensusEvidence([r]).reason,'CENSUS_SCOPE_EXCLUDES_LEGACY_ACCOUNTS');
+    r.observation.recordEvidence.scope.filters=[];r.observation.recordEvidence.scope.fields=['__name__'];
+    const result=inspectB2cCensusEvidence([r]);assert.equal(result.reason,'CENSUS_FIELD_PROJECTION_INCOMPLETE');
+    assert.deepEqual(result.evidenceNeeded.missingFields,[...B2C_CENSUS_FIELDS]);
+});

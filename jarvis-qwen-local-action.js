@@ -65,7 +65,10 @@ export function createLocalQwenActionSelector({
             if(query){
                 query.parameters=structuredClone(query.parameters);
                 const properties=query.parameters.properties;
-                if(properties?.fields?.items)properties.fields.items.enum=['__name__',...fieldNames];
+                if(properties?.fields?.items){
+                    const allowed=properties.fields.items.enum;
+                    properties.fields.items.enum=['__name__',...fieldNames].filter(field=>!allowed||allowed.includes(field));
+                }
                 if(properties?.filters?.items?.properties?.field)properties.filters.items.properties.field.enum=fieldNames;
                 if(properties?.orderBy?.items?.properties?.field)properties.orderBy.items.properties.field.enum=['__name__',...fieldNames];
             }

@@ -132,3 +132,13 @@ test('query grammar alternatives retain shared required arguments and field boun
     }});
     await selector({instruction:'Read',tools:[{name:'platform.query',inputSchema:schema}]});
 });
+
+test('discovered field names cannot widen a mission projection allowlist',async()=>{
+    const selector=createLocalQwenActionSelector({fetchImpl:async(_url,request)=>{
+        const payload=JSON.parse(request.body);
+        assert.deepEqual(payload.format.anyOf[0].properties.args.properties.fields.items.enum,['rol']);
+        return {ok:true,json:async()=>({message:{content:JSON.stringify({action:'CALL',name:'platform.query',args:{},report:''})}})};
+    }});
+    await selector({instruction:'Read roles only',tools:[{name:'platform.query',inputSchema:{type:'object',properties:{fields:{type:'array',items:{type:'string',enum:['rol']}}}}}],
+        observations:[{ok:true,observation:{recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',fieldSchema:{source:'SERVER_RECORD_FIELD_NAMES',paths:['rol','privateEmail']}}}}]});
+});

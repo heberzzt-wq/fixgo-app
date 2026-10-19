@@ -14,7 +14,7 @@ const same=(a,b)=>JSON.stringify(sorted(a))===JSON.stringify(sorted(b));
 
 export function inspectB2cCensusEvidence(receipts,{now=Date.now()}={}){
     const fail=reason=>({ok:false,reason,objectives:[{objective:'Censo B2C completo',satisfied:false}]});
-    const rows=new Map();let total=null,cursor=null,started=false,exhausted=false,lastTime=null,scope=null;
+    const rows=new Map();let total=null,cursor=null,started=false,exhausted=false,lastTime=null,scope=null,lastGap=null;
     for(const receipt of receipts){
         if(receipt.name!=='platform.query'||receipt.ok!==true)continue;
         const observation=receipt.observation,e=observation?.recordEvidence,s=e?.scope;
@@ -23,12 +23,16 @@ export function inspectB2cCensusEvidence(receipts,{now=Date.now()}={}){
         // Only the exact full technician population or the whole users
         // population can establish this census; a B2C equality filter can
         // silently omit legacy accounts whose account-type field is absent.
-        if(!same(s.filters,[])&&!same(s.filters,[{field:'rol',op:'==',value:'tecnico'}]))continue;
+        if(!same(s.filters,[])&&!same(s.filters,[{field:'rol',op:'==',value:'tecnico'}])){
+            lastGap={reason:'CENSUS_SCOPE_EXCLUDES_LEGACY_ACCOUNTS',acceptedFilters:[[],[{field:'rol',op:'==',value:'tecnico'}]]};continue;
+        }
         const schema=e.fieldSchema;
         const knownAbsent=field=>schema?.source==='SERVER_RECORD_FIELD_NAMES'&&schema.collection==='users'&&
             schema.completeForObservedRows===true&&schema.sampledRows===e.rows?.length&&
             Array.isArray(schema.paths)&&!schema.paths.includes(field);
-        if(!B2C_CENSUS_FIELDS.every(field=>s.fields?.includes(field)||knownAbsent(field)))continue;
+        const missingFields=B2C_CENSUS_FIELDS.filter(field=>!s.fields?.includes(field)&&!knownAbsent(field));
+        if(missingFields.length){lastGap={reason:'CENSUS_FIELD_PROJECTION_INCOMPLETE',missingFields,
+            observedFieldPaths:schema?.paths||[],schemaComplete:schema?.completeForObservedRows===true};continue;}
         if(!Array.isArray(s.implicitExistenceFields)||s.implicitExistenceFields.length||
             !Array.isArray(e.truncatedFields)||e.truncatedFields.length)return fail('CENSUS_FIELDS_INCOMPLETE');
         const time=Date.parse(e.rowsObservedAt);
@@ -49,7 +53,7 @@ export function inspectB2cCensusEvidence(receipts,{now=Date.now()}={}){
         if(!exhausted&&(!cursor||e.hasMore!==true))return fail('CENSUS_CURSOR_INVALID');
         lastTime=e.rowsObservedAt;
     }
-    if(!started||!exhausted||rows.size!==total)return fail('CENSUS_POPULATION_INCOMPLETE');
+    if(!started||!exhausted||rows.size!==total)return {...fail(lastGap?.reason||'CENSUS_POPULATION_INCOMPLETE'),...(lastGap?{evidenceNeeded:lastGap}:{})};
     const result={total:0,pendientesRevision:0,registroIncompleto:0,aprobadosActivos:0,
         disponiblesDeclarados:0,excluidosB2B:0,transportes:{auto:0,moto:0,camioneta:0,bicicleta:0,peaton:0,otroOSinDeclarar:0},tecnicos:[]};
     for(const [id,values] of rows){
