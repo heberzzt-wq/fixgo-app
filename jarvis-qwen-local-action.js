@@ -12,7 +12,8 @@ function jsonSchema(tools){
         const {anyOf,...base}=schema;
         return anyOf.map(choice=>({...base,...choice,
             properties:Object.fromEntries([...new Set([...Object.keys(base.properties||{}),...Object.keys(choice.properties||{})])]
-                .map(key=>[key,{...base.properties?.[key],...choice.properties?.[key]}])),
+                .map(key=>{const a=base.properties?.[key]||{},b=choice.properties?.[key]||{};
+                    return [key,{...a,...b,...(a.items||b.items?{items:{...a.items,...b.items}}:{})}];})),
             required:[...new Set([...(base.required||[]),...(choice.required||[])])]}));
     };
     return {anyOf:[...tools.flatMap(tool=>alternatives(tool.parameters).map(args=>branch('CALL',tool.name,args,{const:''}))),
@@ -54,6 +55,20 @@ export function createLocalQwenActionSelector({
             const read=toolsForModel.find(tool=>tool.name==='repo.read');
             if(read)read.parameters={...read.parameters,properties:{...read.parameters.properties,
                 file:{...read.parameters.properties?.file,enum:observedFiles}}};
+        }
+        const fieldNames=[...new Set(observations.filter(item=>item.ok===true &&
+            item.observation?.recordEvidence?.source==='FIRESTORE_SERVER_AUTHENTICATED' &&
+            item.observation?.recordEvidence?.fieldSchema?.source==='SERVER_RECORD_FIELD_NAMES')
+            .flatMap(item=>item.observation.recordEvidence.fieldSchema.paths||[]))];
+        if(fieldNames.length){
+            const query=toolsForModel.find(tool=>tool.name==='platform.query');
+            if(query){
+                query.parameters=structuredClone(query.parameters);
+                const properties=query.parameters.properties;
+                if(properties?.fields?.items)properties.fields.items.enum=['__name__',...fieldNames];
+                if(properties?.filters?.items?.properties?.field)properties.filters.items.properties.field.enum=fieldNames;
+                if(properties?.orderBy?.items?.properties?.field)properties.orderBy.items.properties.field.enum=['__name__',...fieldNames];
+            }
         }
         const latest=observations.slice(-6);
         const outputSchema=jsonSchema(toolsForModel);

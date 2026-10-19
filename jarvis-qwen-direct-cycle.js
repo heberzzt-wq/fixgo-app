@@ -3,7 +3,7 @@
 // certify success: those decisions are mandatory independent host callbacks.
 export const QWEN_DIRECT_READ_CYCLE_VERSION='v142-readonly-pilot-1';
 
-const MAX_RECEIPT_CHARS=3500;
+const MAX_RECEIPT_CHARS=4096;
 const MAX_STEPS=12;
 
 const safeJson=value=>{
@@ -42,7 +42,7 @@ function shortReceipt(observation){
     if(records?.fieldSchema){
         const excerpt={ok:source.ok===true,status:source.status,observationTruncated:true,
             recordEvidence:{source:records.source,scope:records.scope,
-                fieldSchema:{...records.fieldSchema,paths:records.fieldSchema.paths?.slice(0,32),
+                fieldSchema:{...records.fieldSchema,paths:records.fieldSchema.paths,
                     completeForObservedRows:false},hasMore:records.hasMore,nextCursor:records.nextCursor},
             warning:'Rows omitted from model context; field names are discovery only. Independent audit retains the full original page.'};
         if((safeJson(excerpt)||'').length<=MAX_RECEIPT_CHARS)return excerpt;
@@ -107,7 +107,7 @@ export async function runQwenDirectReadCycle({
     const selected=readonlyCatalog(catalog);
     if(!selected.length)throw new Error('QWEN_DIRECT_READ_ONLY_TOOLS_REQUIRED');
     const steps=Math.max(1,Math.min(MAX_STEPS,Number(maximumSteps)||8));
-    const receipts=[],forModel=[],seen=new Set();
+    const receipts=[],forModel=[],seen=new Map();
     let modelDecisionCount=0;
     const done=(status,reason,report='',certification=null)=>({
         status,reason,report,certification,receipts,
@@ -164,8 +164,11 @@ export async function runQwenDirectReadCycle({
         if(argumentError)return done('PARTIAL',argumentError);
         const signature=safeJson([tool.name,canonical(call.args)]);
         if(!signature)return done('PARTIAL','UNSERIALIZABLE_TOOL_CALL');
-        if(seen.has(signature))return done('PARTIAL','REPEATED_TOOL_CALL');
-        seen.add(signature);
+        const previous=seen.get(signature),evidenceCount=receipts.filter(receipt=>receipt.ok===true).length;
+        if(previous && !(previous.schemaFailure===true && previous.evidenceCount<evidenceCount && previous.retries<1))
+            return done('PARTIAL','REPEATED_TOOL_CALL');
+        const attempt={evidenceCount,retries:previous?previous.retries+1:0,schemaFailure:false};
+        seen.set(signature,attempt);
         const invocation={name:tool.name,args:structuredClone(call.args)};
         let authorization;
         try{
@@ -199,7 +202,7 @@ export async function runQwenDirectReadCycle({
             // Only pre-read schema validation may return to Qwen for a different
             // bounded action. Auth, permissions and execution failures still stop.
             if(['PLATFORM_QUERY_FIELD_NOT_DISCOVERED','PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED',
-                'PLATFORM_QUERY_ORDER_FIELD_NOT_DISCOVERED'].includes(code))continue;
+                'PLATFORM_QUERY_ORDER_FIELD_NOT_DISCOVERED'].includes(code)){attempt.schemaFailure=true;continue;}
             return done('PARTIAL','READ_TOOL_NOT_SUCCESSFUL');
         }
     }

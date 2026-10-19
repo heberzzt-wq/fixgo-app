@@ -185,3 +185,30 @@ test('schema discovery feedback permits a different bounded read but permission 
         assert.equal(result.reason,code==='permission-denied'?'READ_TOOL_NOT_SUCCESSFUL':'STEP_LIMIT_REACHED');
     }
 });
+
+test('schema retry needs new successful evidence and permits only one retry',async()=>{
+    const query={name:'platform.query',investigationReadOnly:true,inputSchema:{type:'object'}};
+    let index=0;
+    const actions=[['missing'],['__name__'],['missing'],['rol'],['missing']];
+    const result=await runQwenDirectReadCycle({instruction:'Read',catalog:[query],
+        selectNextAction:async()=>({toolCall:{name:'platform.query',args:{fields:actions[index++]}}}),
+        authorize:async()=>({ok:true}),execute:async call=>call.args.fields[0]==='missing'?
+            {ok:false,blocked:true,error:{code:'PLATFORM_QUERY_FIELD_NOT_DISCOVERED'}}:{ok:true},
+        verifyCompletion:async()=>({ok:false})});
+    assert.equal(result.reason,'REPEATED_TOOL_CALL');
+    assert.equal(result.receipts.length,4);
+    assert.equal(result.completedReadCalls,2);
+});
+test('bounded record context preserves every observed schema path',async()=>{
+    const paths=Array.from({length:122},(_,i)=>'field_'+i);
+    await runQwenDirectReadCycle({instruction:'Read',catalog:[{name:'platform.query',investigationReadOnly:true,inputSchema:{type:'object'}}],
+        selectNextAction:async({observations})=>{
+            if(!observations.length)return {toolCall:{name:'platform.query',args:{}}};
+            assert.deepEqual(observations[0].observation.recordEvidence.fieldSchema.paths,paths);
+            assert.ok(JSON.stringify(observations[0].observation).length<=4096);
+            assert.equal(observations[0].observation.recordEvidence.fieldSchema.completeForObservedRows,false);
+            return {finish:true,report:''};
+        },authorize:async()=>({ok:true}),execute:async()=>({ok:true,recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',scope:{collection:'users'},
+            fieldSchema:{source:'SERVER_RECORD_FIELD_NAMES',paths,completeForObservedRows:true},rows:[{values:{long:'x'.repeat(10000)}}]}}),
+        verifyCompletion:async()=>({ok:false})});
+});
