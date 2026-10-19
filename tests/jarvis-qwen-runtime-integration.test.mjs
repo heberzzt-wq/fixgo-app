@@ -28,7 +28,7 @@ test('real ToolsBridge and composer preserve source evidence and pass it to the 
         window.JarvisToolRuntime={list:()=>catalog,execute:async(name,args,context)=>{
             calls.push(name);
             if(name==='repo.read')return {ok:true,data:{ok:true,executionOk:true,
-                verifiedRead:{file:'panel-admin.js',content:'verified source'}}};
+                tool:'repo.read',file:'panel-admin.js',content:'verified source',numberedContent:'1: verified source'}};
             assert.equal(context.completedTasks?.[0]?.observation?.verifiedRead?.file,'panel-admin.js');
             assert.equal(context.completedTasks.length,1,'caller-provided stale evidence must not be included');
             return {ok:true,data:{ok:true,executionOk:true,
@@ -67,8 +67,8 @@ test('Terminal pilot reaches the actual platform.query implementation through re
     try {
         window.ResponseComposer=ResponseComposer;
         window.JarvisToolRuntime={list:()=>catalog,execute:async(name,args,context)=>({ok:true,data:
-            name==='repo.read'?{ok:true,executionOk:true,verifiedRead:{file:'panel-admin.js',content:source,
-                sourceStructure:analyzeRepoSourceStructure(source)}}:
+            name==='repo.read'?{ok:true,executionOk:true,tool:'repo.read',file:'panel-admin.js',content:source,numberedContent:'1: '+source,
+                sourceStructure:analyzeRepoSourceStructure(source)}:
                 await executeQuery(args,{auth,db:{},sdk},context)})};
         const actions=[{toolCall:{name:'repo.read',args:{file:'panel-admin.js'}}},
             {toolCall:{name:'platform.query',args:{sourceFile:'panel-admin.js',collection:'users',mode:'query',

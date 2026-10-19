@@ -1,4 +1,4 @@
-import {unmetMissionEvidenceRequirements} from './gestia-core/jarvis/jarvis.mission.orchestrator.js';
+import {unmetMissionEvidenceRequirements,normalizeJarvisMissionObservation} from './gestia-core/jarvis/jarvis.mission.orchestrator.js';
 
 // Adapter for an opt-in, read-only pilot. It deliberately reuses the existing
 // ToolsBridge executor and requires explicit trusted browser-session validation.
@@ -101,6 +101,16 @@ export function createQwenAuthenticatedToolBridge({
                 completedTasks:structuredClone(receipts),
                 evidenceReceipts:structuredClone(receipts)
             });
+            const normalizeRead=data=>{
+                const payload=structuredClone(data);
+                if(call.name==='repo.read'&&!payload.verifiedRead){
+                    const normalized=normalizeJarvisMissionObservation(payload);
+                    if(normalized.ok!==true||!normalized.verifiedRead||normalized.verifiedRead.file!==call.args.file)
+                        return {ok:false,executionOk:false,blocked:true,status:'READ_SOURCE_RECEIPT_INVALID'};
+                    payload.verifiedRead=normalized.verifiedRead;
+                }
+                return payload;
+            };
             const observation=Array.isArray(result)?result[0]:null;
             if(!observation || observation.ok!==true || observation.blocked===true ||
                 observation.executionOk===false || observation.requiresInput===true){
@@ -122,9 +132,9 @@ export function createQwenAuthenticatedToolBridge({
                     data.requiresInput===true){
                     return {ok:false,executionOk:false,blocked:true,status:'READ_TOOL_RECEIPT_INVALID'};
                 }
-                return structuredClone(data);
+                return normalizeRead(data);
             }
-            return structuredClone(observation);
+            return normalizeRead(observation);
         },
         async verifyCompletion({instruction,receipts,proposedReport,signal}){
             const identity=await getSession(signal);
