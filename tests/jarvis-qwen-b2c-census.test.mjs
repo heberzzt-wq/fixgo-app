@@ -97,3 +97,12 @@ test('census groups declared motorcycle and automobile aliases while preserving 
     r.observation.recordEvidence.rows[0].values['vehiculo.tipo']='automovil';
     e=inspectB2cCensusEvidence([r]);assert.equal(e.result.transportes.auto,1);
 });
+
+test('Terminal presentation requires certified success and exposes the universal text envelope',async()=>{
+    const {presentB2cCensusPilot}=await import('../modules/terminal/qwen-b2c-census-evidence.js');
+    const r=receipt(),e=inspectB2cCensusEvidence([r]);
+    const rendered=presentB2cCensusPilot({status:'SUCCESS',certification:e});
+    assert.match(rendered.text,/VERIFIED_COMPLETE/);assert.match(rendered.text,/2 técnicos B2C/);assert.match(rendered.text,/RAW-123/);
+    assert.doesNotMatch(presentB2cCensusPilot({status:'SUCCESS',certification:{ok:false},reason:'MISMATCH'}).text,/VERIFIED_COMPLETE/);
+    assert.doesNotMatch(presentB2cCensusPilot({status:'PARTIAL',certification:e,reason:'MISMATCH'}).text,/VERIFIED_COMPLETE/);
+});

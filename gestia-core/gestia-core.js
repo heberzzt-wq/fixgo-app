@@ -4108,7 +4108,9 @@ export const GestiaCore = {
                     onProgress:detail=>globalThis.dispatchEvent?.(new CustomEvent('jarvis:work-progress',{detail}))
                 });
                 traceJarvisMission('qwen-direct-pilot', result);
+                const {presentB2cCensusPilot}=await import('../modules/terminal/qwen-b2c-census-evidence.js');
                 return {...result,ok:result.status==='SUCCESS',
+                    finalResponse:presentB2cCensusPilot(result),
                     report:result.status==='SUCCESS'?result.report:
                         'Censo B2C no certificado: '+result.reason+'. No se afirman totales completos.'};
             } catch(error) {

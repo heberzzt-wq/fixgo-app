@@ -107,3 +107,16 @@ export function verifyB2cCensusReport({receipts,proposedReport}){
     return {...evidence,ok,reason:ok?'VERIFIED_COMPLETE':'CENSUS_REPORT_MISMATCH',
         objectives:[...evidence.objectives,{objective:'Respuesta verificada',satisfied:ok}]};
 }
+
+export function presentB2cCensusPilot(result){
+    if(result?.status!=='SUCCESS'||result.certification?.ok!==true)
+        return {title:'Censo B2C pendiente',text:'Censo B2C no certificado: '+String(result?.reason||'EVIDENCE_REQUIRED')+'. No se afirman totales completos.'};
+    const e=result.certification,r=e.result,t=r.transportes;
+    return {title:'Censo B2C verificado',text:[
+        'VERIFIED_COMPLETE — '+r.total+' técnicos B2C; '+r.excluidosB2B+' cuentas B2B excluidas.',
+        'Pendientes de revisión: '+r.pendientesRevision+'. Registro incompleto: '+r.registroIncompleto+'. Aprobados activos: '+r.aprobadosActivos+'. Disponibles declarados: '+r.disponiblesDeclarados+'.',
+        'Transporte: automóvil '+t.auto+', moto '+t.moto+', camioneta '+t.camioneta+', bicicleta '+t.bicicleta+', a pie '+t.peaton+', otro o sin declarar '+t.otroOSinDeclarar+'.',
+        ...r.tecnicos.map(tech=>tech.nombre+' ['+tech.id+']: '+(tech.transporte||'sin transporte declarado')+'; placas: '+(tech.placas||'sin placas registradas')+'.'),
+        'Lectura de servidor: '+e.observedAt+'.',...e.limits
+    ].join('\n')};
+}
