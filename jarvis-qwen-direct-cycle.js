@@ -134,7 +134,8 @@ export async function runQwenDirectReadCycle({
                 iteration,signal
             });
         }catch(error){
-            return done('PARTIAL','MODEL_UNAVAILABLE');
+            return {...done('PARTIAL','MODEL_UNAVAILABLE'),failureCode:
+                /^(?:LOCAL_QWEN|QWEN)_[A-Z0-9_]+$/.test(String(error?.message||''))?error.message:'MODEL_DECISION_FAILED'};
         }
         if(signal?.aborted)return done('CANCELLED','SIGNAL_ABORTED');
         if(decision?.finish===true){
@@ -193,7 +194,14 @@ export async function runQwenDirectReadCycle({
             observation:structuredClone(observation)});
         forModel.push({name:tool.name,args:invocation.args,ok:successful,
             observation:shortReceipt(observation)});
-        if(!successful)return done('PARTIAL','READ_TOOL_NOT_SUCCESSFUL');
+        if(!successful){
+            const code=observation?.error?.context?.runtimeResult?.error?.code || observation?.error?.code;
+            // Only pre-read schema validation may return to Qwen for a different
+            // bounded action. Auth, permissions and execution failures still stop.
+            if(['PLATFORM_QUERY_FIELD_NOT_DISCOVERED','PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED',
+                'PLATFORM_QUERY_ORDER_FIELD_NOT_DISCOVERED'].includes(code))continue;
+            return done('PARTIAL','READ_TOOL_NOT_SUCCESSFUL');
+        }
     }
     return done('PARTIAL','STEP_LIMIT_REACHED');
 }

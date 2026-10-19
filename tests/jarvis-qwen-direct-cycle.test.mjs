@@ -170,3 +170,18 @@ test('large search receipts preserve candidate file paths for the next Qwen deci
     });
     assert.equal(result.status,'PARTIAL');
 });
+
+test('schema discovery feedback permits a different bounded read but permission denial stops',async()=>{
+    for(const code of ['PLATFORM_QUERY_FIELD_NOT_DISCOVERED','permission-denied']){
+        let decisions=0,executions=0;
+        const result=await runQwenDirectReadCycle({instruction:'Read',catalog:[{name:'platform.query',investigationReadOnly:true,inputSchema:{type:'object'}}],
+            selectNextAction:async({observations})=>{decisions++;
+                if(observations.length){assert.equal(observations[0].ok,false);assert.equal(observations[0].observation.error.code,code);}
+                return {toolCall:{name:'platform.query',args:{fields:decisions===1?['unknown']:['__name__']}}};
+            },authorize:async()=>({ok:true}),execute:async()=>{executions++;return {ok:false,blocked:true,error:{code}};},
+            verifyCompletion:async()=>({ok:false}),maximumSteps:2});
+        assert.equal(result.status,'PARTIAL');
+        assert.equal(executions,code==='permission-denied'?1:2);
+        assert.equal(result.reason,code==='permission-denied'?'READ_TOOL_NOT_SUCCESSFUL':'STEP_LIMIT_REACHED');
+    }
+});

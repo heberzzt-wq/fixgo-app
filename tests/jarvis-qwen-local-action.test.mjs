@@ -119,3 +119,16 @@ test('Qwen output grammar binds tool arguments and observed repository paths',as
         observations:[{name:'repo.search',ok:true,observation:{results:[{file:'panel-admin.js'}]}}]});
     assert.equal(result.toolCall.args.file,'panel-admin.js');
 });
+
+test('query grammar alternatives retain shared required arguments and field bounds',async()=>{
+    const schema={type:'object',properties:{sourceFile:{type:'string'},collection:{type:'string'},fields:{type:'array',items:{type:'string'},maxItems:20}},required:['sourceFile','collection'],additionalProperties:false,
+        anyOf:[{properties:{mode:{type:'string',enum:['query']},fields:{type:'array',minItems:1}},required:['mode','fields']}]};
+    const selector=createLocalQwenActionSelector({fetchImpl:async(_url,request)=>{
+        const payload=JSON.parse(request.body),args=payload.format.anyOf[0].properties.args;
+        assert.equal(args.anyOf,undefined);assert.equal(args.properties.fields.maxItems,20);
+        assert.equal(args.properties.fields.minItems,1);assert.equal(args.additionalProperties,false);
+        assert.deepEqual(args.required,['sourceFile','collection','mode','fields']);
+        return {ok:true,json:async()=>({message:{content:JSON.stringify({action:'CALL',name:'platform.query',args:{},report:''})}})};
+    }});
+    await selector({instruction:'Read',tools:[{name:'platform.query',inputSchema:schema}]});
+});

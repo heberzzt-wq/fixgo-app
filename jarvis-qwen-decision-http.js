@@ -54,8 +54,10 @@ export function createQwenDecisionHandler({enabled=false,verifyIdToken=verifyBro
             const result={ok:true,decision,usage,principalId:identity.uid};
             if(streaming){send({type:'result',result});res.end();}
             else res.json(result);
-        } catch {
-            const result={ok:false,error:'QWEN_LOCAL_DECISION_FAILED'};
+        } catch(error) {
+            const reason=/^LOCAL_QWEN_[A-Z0-9_]+$/.test(String(error?.message||''))?error.message:
+                error?.name==='TimeoutError'?'LOCAL_QWEN_TIMEOUT':'LOCAL_QWEN_INTERNAL_ERROR';
+            const result={ok:false,error:'QWEN_LOCAL_DECISION_FAILED',reason};
             if(streaming){send({type:'result',result});res.end();}
             else if(!res.destroyed)res.status(503).json(result);
         } finally {clearInterval(timer);res.removeListener('close',close);busy=false;}

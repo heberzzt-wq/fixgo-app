@@ -16,7 +16,7 @@ export function createQwenBridgeActionSelector({bridge,auth,onInference=()=>{}}=
         signal?.throwIfAborted();
         if(auth.currentUser!==user)throw new Error('QWEN_BROWSER_SESSION_CHANGED');
         if(result?.ok!==true||result.principalId!==user.uid||!result.decision)
-            throw new Error(result?.error||'QWEN_DECISION_RECEIPT_INVALID');
+            throw new Error(result?.reason||result?.error||'QWEN_DECISION_RECEIPT_INVALID');
         if(result.usage)onInference(result.usage);
         return result.decision;
     };

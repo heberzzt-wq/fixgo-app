@@ -7,7 +7,15 @@ function jsonSchema(tools){
     const branch=(action,name,args,report)=>({type:'object',properties:{
         action:{const:action},name:{const:name},args,report
     },required:['action','name','args','report'],additionalProperties:false});
-    return {anyOf:[...tools.map(tool=>branch('CALL',tool.name,tool.parameters,{const:''})),
+    const alternatives=schema=>{
+        if(!Array.isArray(schema.anyOf))return [schema];
+        const {anyOf,...base}=schema;
+        return anyOf.map(choice=>({...base,...choice,
+            properties:Object.fromEntries([...new Set([...Object.keys(base.properties||{}),...Object.keys(choice.properties||{})])]
+                .map(key=>[key,{...base.properties?.[key],...choice.properties?.[key]}])),
+            required:[...new Set([...(base.required||[]),...(choice.required||[])])]}));
+    };
+    return {anyOf:[...tools.flatMap(tool=>alternatives(tool.parameters).map(args=>branch('CALL',tool.name,args,{const:''}))),
         branch('FINISH','',{type:'object',additionalProperties:false},{type:'string'})]};
 }
 
