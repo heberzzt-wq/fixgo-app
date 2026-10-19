@@ -38,7 +38,7 @@ export function createLocalQwenActionSelector({
         }
         const toolsForModel=tools.map(tool=>({
             name:tool.name,description:tool.description||'',
-            parameters:tool.inputSchema
+            parameters:tool.inputSchema,requiresEvidence:tool.requiresEvidence||[],evidenceKinds:tool.evidenceKinds||[]
         }));
         const latest=observations.slice(-6);
         const outputSchema=jsonSchema(toolsForModel);
@@ -49,6 +49,7 @@ export function createLocalQwenActionSelector({
             'sin inventar fuentes ni completar objetivos basados solo en el indice. '+
             'Responde exclusivamente JSON segun el formato provisto. '+
             'La autorizacion y la certificacion las comprueba el ejecutor externo, no tu. '+
+            'Respeta requiresEvidence: primero ejecuta una herramienta que produzca ese evidenceKind y verifica sus valores observados. El mapa no sustituye un recibo de lectura. '+
             'Para CALL usa name de una herramienta, args objeto y report vacio. '+
             'Para FINISH usa name vacio, args {} y report con los resultados observados.';
         const messages=[

@@ -115,7 +115,7 @@ export async function runQwenDirectReadCycle({
             decision=await selectNextAction({
                 instruction,repositoryMap,
                 tools:selected.map(tool=>({name:tool.name,description:tool.description,
-                    inputSchema:tool.inputSchema,evidenceKinds:tool.evidenceKinds})),
+                    inputSchema:tool.inputSchema,evidenceKinds:tool.evidenceKinds,requiresEvidence:tool.requiresEvidence})),
                 observations:structuredClone(forModel),
                 evidenceSummary:typeof summarizeEvidence==='function'
                     ? summarizeEvidence(structuredClone(receipts)):null,

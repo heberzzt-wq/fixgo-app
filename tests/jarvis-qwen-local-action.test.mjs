@@ -5,7 +5,8 @@ import {runQwenDirectReadCycle} from '../jarvis-qwen-direct-cycle.js';
 
 const tools=[{
     name:'repo.read',description:'Read source',
-    investigationReadOnly:true,mutates:false,
+    investigationReadOnly:true,mutates:false,evidenceKinds:['repository_source'],
+    requiresEvidence:[{kind:'fixture_prerequisite',argument:'file',observationPath:['file']}],
     inputSchema:{type:'object',properties:{file:{type:'string',
         enum:['panel-admin.js']}},required:['file'],additionalProperties:false}
 }];
@@ -42,7 +43,10 @@ test('Qwen local adapter receives repo map and compact receipts without asking a
             assert.equal(payload.options.num_ctx,16384);
             assert.equal(payload.format.properties.action.enum[0],'CALL');
             assert.ok(payload.messages.some(m=>m.content===map));
-            assert.ok(payload.messages.some(m=>m.content.includes('HERRAMIENTAS_DE_SOLO_LECTURA=')));
+            const catalogMessage=payload.messages.find(m=>m.content.startsWith('HERRAMIENTAS_DE_SOLO_LECTURA='));
+            const sentTools=JSON.parse(catalogMessage.content.split('HERRAMIENTAS_DE_SOLO_LECTURA=')[1]);
+            assert.deepEqual(sentTools[0].requiresEvidence,tools[0].requiresEvidence);
+            assert.deepEqual(sentTools[0].evidenceKinds,tools[0].evidenceKinds);
             assert.ok(!payload.messages.some(m=>m.content.includes('SECRET_RECORD')));
             const parsed=calls===1?
                 {action:'CALL',name:'repo.read',args:{file:'panel-admin.js'},report:''}:
