@@ -2022,6 +2022,31 @@ test("Jarvis FS bridge loads the release identity contract", async () => {
     }
 });
 
+test("linked worktree identity reads common loose and packed refs and rejects unpushed HEAD", async () => {
+    const fixture = createBridgeIdentityFixture();
+    const linked = path.join(fixture.fixtureRoot, "linked");
+    let server;
+    try {
+        fixture.runGit(["switch", "--detach"]);
+        fixture.runGit(["worktree", "add", linked, fixture.branch]);
+        server = createJarvisFsBridgeApp({root: linked}).listen(0, "127.0.0.1");
+        await new Promise(resolve => server.once("listening", resolve));
+        const health = async () => (await (await fetch(
+            `http://127.0.0.1:${server.address().port}/health`)).json()).identity;
+        assert.equal((await health()).ok, true, "common loose refs must resolve");
+        fixture.runGit(["pack-refs", "--all"]);
+        assert.equal((await health()).ok, true, "common packed refs must resolve");
+        execFileSync(gitExecutable, ["commit", "--allow-empty", "-m", "unpublished change"], {cwd: linked, stdio: "ignore"});
+        const changed = await health();
+        assert.equal(changed.ok, false);
+        assert.equal(changed.status, "BRIDGE_IDENTITY_INVALID");
+        assert.notEqual(changed.git.head, changed.contractHead);
+    } finally {
+        if (server) await new Promise(resolve => server.close(resolve));
+        fs.rmSync(fixture.fixtureRoot, {recursive: true, force: true});
+    }
+});
+
 test("loopback health and semantic requests reuse one startup identity snapshot with fast head revalidation", () => {
     const source = fs.readFileSync(
         new URL("../jarvis-fs-bridge.js", import.meta.url),

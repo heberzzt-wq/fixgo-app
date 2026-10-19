@@ -3401,7 +3401,7 @@ function readGitRefFast(
     gitDir = "",
     ref = ""
 ) {
-    const cleanGitDir =
+    let cleanGitDir =
         String(gitDir || "").trim();
     const cleanRef =
         String(ref || "").trim();
@@ -3414,6 +3414,17 @@ function readGitRefFast(
     ) {
         return "";
     }
+
+    // Linked worktrees keep shared branch/remote refs in Git's commondir.
+    // Resolve the real storage location; SHA equality remains mandatory.
+    try {
+        const commonFile = path.join(cleanGitDir, "commondir");
+        if (/^refs\/(?:heads|remotes)\//.test(cleanRef) && fs.existsSync(commonFile)) {
+            const common = fs.readFileSync(commonFile, "utf8").trim();
+            if (!common) return "";
+            cleanGitDir = path.resolve(cleanGitDir, common);
+        }
+    } catch { return ""; }
 
     try {
         const loose =
