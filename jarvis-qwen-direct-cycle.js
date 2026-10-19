@@ -84,7 +84,7 @@ function invalidArguments(tool,args){
         const rule=properties[name];
         if(schema.additionalProperties===false && !rule)return 'ARGUMENT_UNDECLARED:'+name;
         if(rule?.const!==undefined && value!==rule.const)return 'ARGUMENT_OUTSIDE_SCHEMA:'+name;
-        if(Array.isArray(rule?.enum) && !rule.enum.includes(value))return 'ARGUMENT_OUTSIDE_SCHEMA:'+name;
+        if(Array.isArray(rule?.enum) && !rule.enum.some(option=>safeJson(canonical(option))===safeJson(canonical(value))))return 'ARGUMENT_OUTSIDE_SCHEMA:'+name;
         if(rule?.type==='string' && typeof value!=='string')return 'ARGUMENT_TYPE_INVALID:'+name;
         if(rule?.type==='array' && !Array.isArray(value))return 'ARGUMENT_TYPE_INVALID:'+name;
     }

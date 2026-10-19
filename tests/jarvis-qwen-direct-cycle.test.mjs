@@ -212,3 +212,17 @@ test('bounded record context preserves every observed schema path',async()=>{
             fieldSchema:{source:'SERVER_RECORD_FIELD_NAMES',paths,completeForObservedRows:true},rows:[{values:{long:'x'.repeat(10000)}}]}}),
         verifyCompletion:async()=>({ok:false})});
 });
+
+test('structured filter enums compare JSON values while retaining scope denial',async()=>{
+    for(const [filters,allowed] of [[[],true],[[{value:'tecnico',op:'==',field:'rol'}],true],[[{field:'tipo_cuenta',op:'==',value:'b2c'}],false]]){
+        let executed=0,authorized=0;
+        const result=await runQwenDirectReadCycle({instruction:'Census',repositoryMap:map,
+            catalog:[{name:'platform.query',investigationReadOnly:true,mutates:false,inputSchema:{type:'object',properties:{filters:{type:'array',enum:[[],[{field:'rol',op:'==',value:'tecnico'}]]}},required:['filters']}}],
+            selectNextAction:async()=>executed?{finish:true,report:'verified'}:{toolCall:{name:'platform.query',args:{filters:structuredClone(filters)}}},
+            authorize:async()=>{authorized++;return {ok:true};},
+            execute:async()=>{executed++;return {ok:true};},verifyCompletion:async()=>({ok:true})});
+        assert.equal(executed,allowed?1:0);assert.equal(authorized,allowed?1:0);
+        assert.equal(result.status,allowed?'SUCCESS':'PARTIAL');
+        if(!allowed)assert.equal(result.reason,'ARGUMENT_OUTSIDE_SCHEMA:filters');
+    }
+});
