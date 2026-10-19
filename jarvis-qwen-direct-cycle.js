@@ -13,7 +13,10 @@ const canonical=value=>Array.isArray(value)?value.map(canonical):
     value&&typeof value==='object'?Object.fromEntries(
         Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;
 
-function shortReceipt(observation){
+function shortReceipt(observation,fieldAllowlist=null){
+    const failure=observation?.error?.context?.runtimeResult?.error||observation?.error;
+    if(observation?.ok!==true&&failure)return {ok:false,status:observation?.status,
+        error:{code:failure.code,details:failure.details}};
     const raw=safeJson(observation);
     if(raw!==null && raw.length<=MAX_RECEIPT_CHARS)return observation;
     const source=observation&&typeof observation==='object'?observation:{};
@@ -30,19 +33,20 @@ function shortReceipt(observation){
     const read=source.verifiedRead;
     if(read?.file&&read.sourceStructure?.dataBindings){
         const bindings=read.sourceStructure.dataBindings;
+        const shapes=[...(bindings.writeShapes||[]),...(bindings.queryShapes||[])];
+        const collections=[...new Set(shapes.map(s=>s.collection))];
         const excerpt={ok:source.ok===true,status:source.status,observationTruncated:true,
-            verifiedRead:{file:read.file,content:String(read.content||read.numberedContent||'').slice(0,900),
+            verifiedRead:{file:read.file,
                 partial:true,sourceStructure:{dataBindings:{source:bindings.source,
                     collections:(bindings.collections||[]).slice(0,15),
-                    fields:[...new Set([...(bindings.writeShapes||[]),...(bindings.queryShapes||[])]
-                        .flatMap(shape=>shape.fields||[]))].slice(0,35)}}}};
+                    writeShapes:collections.map(collection=>({collection,fields:[...new Set(shapes.filter(s=>s.collection===collection).flatMap(s=>s.fields||[]))].filter(f=>!fieldAllowlist||fieldAllowlist.includes(f))}))}}}};
         if((safeJson(excerpt)||'').length<=MAX_RECEIPT_CHARS)return excerpt;
     }
     const records=source.recordEvidence;
     if(records?.fieldSchema){
         const excerpt={ok:source.ok===true,status:source.status,observationTruncated:true,
             recordEvidence:{source:records.source,scope:records.scope,
-                fieldSchema:{...records.fieldSchema,paths:records.fieldSchema.paths,
+                fieldSchema:{source:records.fieldSchema.source,collection:records.fieldSchema.collection,paths:records.fieldSchema.paths.filter(f=>!fieldAllowlist||fieldAllowlist.includes(f)),
                     completeForObservedRows:false},hasMore:records.hasMore,nextCursor:records.nextCursor},
             warning:'Rows omitted from model context; field names are discovery only. Independent audit retains the full original page.'};
         if((safeJson(excerpt)||'').length<=MAX_RECEIPT_CHARS)return excerpt;
@@ -109,8 +113,20 @@ export async function runQwenDirectReadCycle({
     const steps=Math.max(1,Math.min(MAX_STEPS,Number(maximumSteps)||8));
     const receipts=[],forModel=[],seen=new Map();
     let modelDecisionCount=0;
+    const decisions=[];
+    const missionLedger=()=>({
+        completedQueries:receipts.filter(r=>r.ok&&r.name==='platform.query').map(r=>({args:r.args,
+            projection:r.observation.recordEvidence?.scope?.fields,
+            returnedCount:r.observation.recordEvidence?.returnedCount,
+            queryExhausted:r.observation.recordEvidence?.queryExhausted,
+            nextCursor:r.observation.recordEvidence?.nextCursor})),
+        errors:receipts.filter(r=>!r.ok).map(r=>({name:r.name,args:r.args,
+            error:shortReceipt(r.observation).error||r.observation.reason})),
+        completedSources:receipts.filter(r=>r.ok&&r.name==='repo.read').map(r=>r.args.file),
+        rule:'An exhausted query is not a completed mission. Never repeat a successful call. Correct grounding before retrying a failed call.'
+    });
     const done=(status,reason,report='',certification=null)=>({
-        status,reason,report,certification,receipts,
+        status,reason,report,certification,receipts,decisions,missionLedger:missionLedger(),
         modelDecisions:modelDecisionCount,
         completedReadCalls:receipts.filter(x=>x.ok).length
     });
@@ -131,13 +147,14 @@ export async function runQwenDirectReadCycle({
                 observations:structuredClone(forModel),
                 evidenceSummary:typeof summarizeEvidence==='function'
                     ? summarizeEvidence(structuredClone(receipts)):null,
-                iteration,signal
+                missionLedger:missionLedger(),iteration,signal
             });
         }catch(error){
             return {...done('PARTIAL','MODEL_UNAVAILABLE'),failureCode:
                 /^(?:LOCAL_QWEN|QWEN)_[A-Z0-9_]+$/.test(String(error?.message||''))?error.message:'MODEL_DECISION_FAILED'};
         }
         if(signal?.aborted)return done('CANCELLED','SIGNAL_ABORTED');
+        decisions.push(structuredClone(decision));
         if(decision?.finish===true){
             let certification;
             try{
@@ -196,7 +213,7 @@ export async function runQwenDirectReadCycle({
         receipts.push({name:tool.name,args:invocation.args,ok:successful,
             observation:structuredClone(observation)});
         forModel.push({name:tool.name,args:invocation.args,ok:successful,
-            observation:shortReceipt(observation)});
+            observation:shortReceipt(observation,selected.find(t=>t.name==='platform.query')?.inputSchema?.properties?.fields?.items?.enum)});
         if(!successful){
             const code=observation?.error?.context?.runtimeResult?.error?.code || observation?.error?.code;
             // Only pre-read schema validation may return to Qwen for a different

@@ -11,6 +11,9 @@ export async function runQwenB2cCensusPilot(options){
     const allowed=new Set(['repo.search','repo.read','platform.query']);
     const runtime=options.toolRuntime;
     const toolRuntime={list:()=>runtime.list().filter(tool=>allowed.has(tool.name)).map(tool=>{
+        if(tool.name==='repo.read')return {...tool,inputSchema:{...tool.inputSchema,
+            properties:{...tool.inputSchema.properties,file:{...tool.inputSchema.properties.file,
+                enum:['app-registro.js','panel-admin.js','b2c-technician-profile.js','gestia-core/contracts/b2c-platform-contract.js']}}}};
         if(tool.name!=='platform.query')return tool;
         const inputSchema=structuredClone(tool.inputSchema),properties=inputSchema.properties;
         properties.collection={...properties.collection,const:'users'};
@@ -22,6 +25,7 @@ export async function runQwenB2cCensusPilot(options){
     })};
     const instruction=QWEN_B2C_CENSUS_INSTRUCTION+
         '\nContrato de entrega del piloto: lee fuentes y esquema antes de consultar; app-registro.js, panel-admin.js y b2c-technician-profile.js son pistas, no prueba de registros. '+
+        'Lee directamente app-registro.js y panel-admin.js para fundamentar users y sus campos. b2c-technician-profile.js y gestia-core/contracts/b2c-platform-contract.js definen perfiles y estados. functions/index.js no es autoridad suficiente para este censo. '+
         'La cobertura requiere users sin filtros adicionales a rol == tecnico (o users completo), includeCount=true, todas las paginas y estos campos acreditados: '+JSON.stringify(B2C_CENSUS_FIELDS)+'. '+
         'Si faltan campos acreditados descubre nombres con fields=["__name__"] mediante platform.query. '+
         'Despues proyecta los campos pertinentes realmente presentes en fieldSchema.paths; no inventes campos ni proyectes alias ausentes. '+

@@ -36,7 +36,7 @@ export function createLocalQwenActionSelector({
     }
     if(model!=='qwen3.5:9b')throw new Error('LOCAL_QWEN_SINGLE_MODEL_REQUIRED');
     return async function selectNextAction({
-        instruction,repositoryMap,tools=[],observations=[],evidenceSummary=null,iteration=0,signal
+        instruction,repositoryMap,tools=[],observations=[],evidenceSummary=null,missionLedger=null,iteration=0,signal
     }={}){
         if(typeof instruction!=='string'||!instruction.trim())throw new Error('MISSION_INSTRUCTION_REQUIRED');
         if(!Array.isArray(tools)||!tools.length||tools.some(tool=>
@@ -53,13 +53,16 @@ export function createLocalQwenActionSelector({
             .filter(file=>typeof file==='string'&&file.length>0&&file.length<=500))].slice(0,64);
         if(observedFiles.length){
             const read=toolsForModel.find(tool=>tool.name==='repo.read');
-            if(read)read.parameters={...read.parameters,properties:{...read.parameters.properties,
+            if(read&&!read.parameters.properties?.file?.enum)read.parameters={...read.parameters,properties:{...read.parameters.properties,
                 file:{...read.parameters.properties?.file,enum:observedFiles}}};
         }
-        const fieldNames=[...new Set(observations.filter(item=>item.ok===true &&
+        const sourceFields=observations.filter(item=>item.ok===true&&item.name==='repo.read')
+            .flatMap(item=>{const b=item.observation?.verifiedRead?.sourceStructure?.dataBindings;
+                return [...(b?.writeShapes||[]),...(b?.queryShapes||[])].filter(s=>s.collection==='users').flatMap(s=>s.fields||[]);});
+        const fieldNames=[...new Set([...sourceFields,...observations.filter(item=>item.ok===true &&
             item.observation?.recordEvidence?.source==='FIRESTORE_SERVER_AUTHENTICATED' &&
             item.observation?.recordEvidence?.fieldSchema?.source==='SERVER_RECORD_FIELD_NAMES')
-            .flatMap(item=>item.observation.recordEvidence.fieldSchema.paths||[]))];
+            .flatMap(item=>item.observation.recordEvidence.fieldSchema.paths||[])])];
         if(fieldNames.length){
             const query=toolsForModel.find(tool=>tool.name==='platform.query');
             if(query){
@@ -87,11 +90,13 @@ export function createLocalQwenActionSelector({
             'Para FINISH usa name vacio, args {} y report con los resultados observados.';
         const messages=[
             {role:'system',content:policy},
-            ...(repositoryMap?[{role:'system',content:String(repositoryMap).slice(0,6000)}]:[]),
+            ...(repositoryMap&&!observations.length?[{role:'system',content:String(repositoryMap).slice(0,3000)}]:[]),
             {role:'user',content:instruction},
             {role:'user',content:'HERRAMIENTAS_DE_SOLO_LECTURA='+JSON.stringify(toolsForModel)},
             {role:'user',content:'RESULTADOS_VERIFICADOS='+JSON.stringify(latest)},
-            ...(evidenceSummary?[{role:'user',content:'COMPROBACION_INDEPENDIENTE='+JSON.stringify(evidenceSummary)}]:[])
+            ...(evidenceSummary?[{role:'user',content:'COMPROBACION_INDEPENDIENTE='+JSON.stringify(evidenceSummary)}]:[]),
+            ...(missionLedger?[{role:'user',content:'ESTADO_PERSISTENTE_DE_ESTA_MISION='+JSON.stringify(missionLedger)+
+                '\nElige una accion NUEVA que aporte la evidencia faltante. Los IDs no contienen valores de los campos. No repitas consultas completadas. Si el esquema ya acredita nombres, solicita sus valores pertinentes; si hay error de campo, lee fuentes especificas o descubre nombres antes de reintentar. FINISH requiere comprobacion independiente positiva.'}]:[])
         ];
         const timeout=AbortSignal.timeout(Math.max(1000,Math.min(240000,Number(requestTimeoutMs)||120000)));
         const controller=signal?AbortSignal.any([signal,timeout]):timeout;

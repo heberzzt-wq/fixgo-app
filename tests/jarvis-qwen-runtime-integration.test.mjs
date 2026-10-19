@@ -60,7 +60,7 @@ test('Terminal pilot reaches the actual platform.query implementation through re
         getCountFromServer:async()=>({data:()=>({count:1})}),getDocsFromServer:async query=>{
             queries++;assert.equal(query.base.base.collection,'users');
             assert.deepEqual(query.base.constraints,[{field:'rol',op:'==',value:'tecnico'}]);
-            return {docs:[{id:'tech-1',data:()=>({rol:'tecnico'}),get:()=> 'tecnico'}],metadata:{fromCache:false,hasPendingWrites:false}};
+            return {docs:[{id:'tech-1',data:()=>({rol:'tecnico',deep:Object.fromEntries(Array.from({length:150},(_,i)=>['field'+i,i])),lastRoot:true}),get:()=> 'tecnico'}],metadata:{fromCache:false,hasPendingWrites:false}};
         }};
     const source='const q = query(collection(db, "users"), where("rol", "==", "tecnico"));';
     const oldRuntime=window.JarvisToolRuntime,oldComposer=window.ResponseComposer;
@@ -80,6 +80,10 @@ test('Terminal pilot reaches the actual platform.query implementation through re
             verifyObjectives:async({receipts})=>({ok:receipts.at(-1)?.observation?.recordEvidence?.totalCount===1,
                 objectives:[{satisfied:true}]})});
         assert.equal(result.status,'SUCCESS',JSON.stringify(result));assert.equal(queries,1);
+        const schema=result.receipts.at(-1).observation.recordEvidence.fieldSchema;
+        assert.equal(schema.completeForObservedRows,false);
+        assert.equal(schema.completeRootPaths,true);
+        assert.deepEqual(Array.from(schema.rootPaths),['rol','deep','lastRoot']);
         assert.equal(result.metrics.inferences,3);assert.equal(result.metrics.promptTokens,30);
         assert.equal(result.metrics.objectivesCompletedPercent,100);
         assert.equal(typeof result.metrics.firstUsefulToolMs,'number');

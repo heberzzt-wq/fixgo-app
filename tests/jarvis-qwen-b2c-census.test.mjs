@@ -68,3 +68,16 @@ test('census feedback names the invalid population or missing projected fields',
     const result=inspectB2cCensusEvidence([r]);assert.equal(result.reason,'CENSUS_FIELD_PROJECTION_INCOMPLETE');
     assert.deepEqual(result.evidenceNeeded.missingFields,[...B2C_CENSUS_FIELDS]);
 });
+
+test('root-name completeness proves absent aliases even when deep unrelated maps truncate',()=>{
+    const r=receipt(),e=r.observation.recordEvidence;
+    const absent=['role','account_type','b2b_activo','subtype','vehiculo_tipo','placas','suspendido'];
+    e.scope.fields=e.scope.fields.filter(f=>!absent.includes(f));
+    for(const row of e.rows)for(const field of absent)delete row.values[field];
+    e.fieldSchema={source:'SERVER_RECORD_FIELD_NAMES',collection:'users',sampledRows:e.rows.length,
+        paths:e.scope.fields,completeForObservedRows:false,rootPaths:[...new Set(e.scope.fields.map(f=>f.split('.')[0]))],completeRootPaths:true};
+    assert.equal(inspectB2cCensusEvidence([r]).ok,true);
+    e.fieldSchema.completeRootPaths=false;assert.equal(inspectB2cCensusEvidence([r]).ok,false);
+    e.fieldSchema.completeRootPaths=true;e.fieldSchema.rootPaths.push('account_type');
+    assert.equal(inspectB2cCensusEvidence([r]).ok,false);
+});

@@ -50,7 +50,7 @@ export function createQwenDecisionHandler({enabled=false,verifyIdToken=verifyBro
             const selector=selectNextAction||createLocalQwenActionSelector({maxOutputTokens:1024,onInference:value=>{usage=value;}});
             const decision=await selector({instruction:body.instruction,repositoryMap:await getRepositoryMap(body.instruction),
                 tools:body.tools,observations:body.observations,evidenceSummary:body.evidenceSummary,
-                iteration:body.iteration,signal:controller.signal});
+                missionLedger:body.missionLedger,iteration:body.iteration,signal:controller.signal});
             const result={ok:true,decision,usage,principalId:identity.uid};
             if(streaming){send({type:'result',result});res.end();}
             else res.json(result);

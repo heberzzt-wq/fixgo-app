@@ -970,7 +970,8 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
             const selected = snapshot.docs.slice(0, pageSize), truncatedFields = [];
             // Names come from the already fetched, authorized server page. They
             // authorize a later projection of this route, never values or closure.
-            const observedNames=new Set();
+            const observedNames=new Set(),rootNames=new Set();
+            let rootsComplete=true;
             let namesBytes=2,namesComplete=true;
             const plainMap=value=>value && typeof value==="object" && !Array.isArray(value) && typeof value.toDate!=="function" &&
                 (Object.getPrototypeOf(value)===null || Object.getPrototypeOf(value)?.constructor?.name==="Object");
@@ -991,8 +992,14 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
                 }
             };
             for(const document of selected){
-                if(typeof document.data==="function")collectNames(document.data());
-                else namesComplete=false;
+                if(typeof document.data==="function"){
+                    const data=document.data();collectNames(data);
+                    if(!plainMap(data))rootsComplete=false;
+                    else for(const key of Object.keys(data)){
+                        if(!validField(key)||key.includes('.')||rootNames.size>=128){rootsComplete=false;continue;}
+                        rootNames.add(key);
+                    }
+                }else {namesComplete=false;rootsComplete=false;}
             }
             const rows = selected.map(document => ({ id: document.id, values: Object.fromEntries(fields.map(field => {
                 const value = field === "__name__" ? document.id : document.get(field);
@@ -1006,7 +1013,8 @@ export async function executePlatformQuery(args = {}, dependencies = null, conte
             Object.assign(recordEvidence, { rows, returnedCount: rows.length, hasMore, nextCursor: hasMore ? selected.at(-1)?.id : null,
                 previousCursor: args.cursor || null, rowsObservedAt: new Date().toISOString(),
                 ...(observedNames.size ? {fieldSchema:{source:"SERVER_RECORD_FIELD_NAMES",collection:collectionPath,scope:"returned_rows_only",
-                    sampledRows:selected.length,paths:[...observedNames],completeForObservedRows:namesComplete}} : {}),
+                    sampledRows:selected.length,paths:[...observedNames],completeForObservedRows:namesComplete,
+                    rootPaths:[...rootNames],completeRootPaths:rootsComplete}} : {}),
                 queryExhausted: !hasMore,
                 completeForQuery: !hasMore && !args.cursor && (totalCount === undefined ? scope.implicitExistenceFields.length===0 : totalCount === rows.length), truncatedFields,
                 consistentCountAndList: totalCount === undefined ? null : !args.cursor && !hasMore && totalCount === rows.length });

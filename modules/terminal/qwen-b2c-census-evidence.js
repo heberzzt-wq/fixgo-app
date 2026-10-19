@@ -28,11 +28,14 @@ export function inspectB2cCensusEvidence(receipts,{now=Date.now()}={}){
         }
         const schema=e.fieldSchema;
         const knownAbsent=field=>schema?.source==='SERVER_RECORD_FIELD_NAMES'&&schema.collection==='users'&&
-            schema.completeForObservedRows===true&&schema.sampledRows===e.rows?.length&&
-            Array.isArray(schema.paths)&&!schema.paths.includes(field);
+            schema.sampledRows===e.rows?.length&&
+            ((schema.completeForObservedRows===true&&Array.isArray(schema.paths)&&!schema.paths.includes(field))||
+            (schema.completeRootPaths===true&&Array.isArray(schema.rootPaths)&&!schema.rootPaths.includes(field.split('.')[0])));
         const missingFields=B2C_CENSUS_FIELDS.filter(field=>!s.fields?.includes(field)&&!knownAbsent(field));
         if(missingFields.length){lastGap={reason:'CENSUS_FIELD_PROJECTION_INCOMPLETE',missingFields,
-            observedFieldPaths:schema?.paths||[],schemaComplete:schema?.completeForObservedRows===true};continue;}
+            projectableFields:B2C_CENSUS_FIELDS.filter(field=>schema?.paths?.includes(field)),
+            unknownFields:missingFields.filter(field=>!schema?.paths?.includes(field)),
+            observedFieldPaths:(schema?.paths||[]).filter(field=>B2C_CENSUS_FIELDS.includes(field)),schemaComplete:schema?.completeForObservedRows===true};continue;}
         if(!Array.isArray(s.implicitExistenceFields)||s.implicitExistenceFields.length||
             !Array.isArray(e.truncatedFields)||e.truncatedFields.length)return fail('CENSUS_FIELDS_INCOMPLETE');
         const time=Date.parse(e.rowsObservedAt);

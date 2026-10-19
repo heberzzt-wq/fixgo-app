@@ -226,3 +226,16 @@ test('structured filter enums compare JSON values while retaining scope denial',
         if(!allowed)assert.equal(result.reason,'ARGUMENT_OUTSIDE_SCHEMA:filters');
     }
 });
+
+test('mission ledger preserves exhausted query and missing-field errors independently of completion',async()=>{
+    let step=0;
+    const result=await runQwenDirectReadCycle({instruction:'Census',repositoryMap:map,
+        catalog:[{name:'platform.query',investigationReadOnly:true,mutates:false,inputSchema:{properties:{fields:{type:'array'}}}}],
+        selectNextAction:async input=>{
+            if(step===2){assert.equal(input.missionLedger.completedQueries.length,1);assert.equal(input.missionLedger.errors.length,1);
+                assert.equal(input.missionLedger.completedQueries[0].queryExhausted,true);return {finish:true,report:'unsupported'};}
+            return {toolCall:{name:'platform.query',args:{fields:step?['__name__']:['unknown']}}};},
+        authorize:async()=>({ok:true}),execute:async()=>step++?{ok:true,recordEvidence:{scope:{fields:['__name__']},returnedCount:29,queryExhausted:true}}:
+            {ok:false,error:{code:'PLATFORM_QUERY_FIELD_NOT_DISCOVERED'}},verifyCompletion:async()=>({ok:false})});
+    assert.equal(result.status,'PARTIAL');assert.equal(result.decisions.length,3);assert.equal(result.receipts.length,2);
+});

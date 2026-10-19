@@ -42,7 +42,7 @@ test('Qwen local adapter receives repo map and compact receipts without asking a
             assert.equal(payload.stream,false);
             assert.equal(payload.options.num_ctx,16384);
             assert.equal(payload.format.anyOf[0].properties.action.const,'CALL');
-            assert.ok(payload.messages.some(m=>m.content===map));
+            assert.equal(payload.messages.some(m=>m.content===map),calls===1,'static map is sent once; mission evidence persists');
             const catalogMessage=payload.messages.find(m=>m.content.startsWith('HERRAMIENTAS_DE_SOLO_LECTURA='));
             const sentTools=JSON.parse(catalogMessage.content.split('HERRAMIENTAS_DE_SOLO_LECTURA=')[1]);
             assert.deepEqual(sentTools[0].requiresEvidence,tools[0].requiresEvidence);
