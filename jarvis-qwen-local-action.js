@@ -4,13 +4,11 @@
 export const LOCAL_QWEN_ACTION_ADAPTER_VERSION='v142-qwen-local-decision-1';
 
 function jsonSchema(tools){
-    const names=[...new Set(tools.map(tool=>tool.name))].sort();
-    return {type:'object',properties:{
-        action:{type:'string',enum:['CALL','FINISH']},
-        name:{type:'string',enum:['',...names]},
-        args:{type:'object'},
-        report:{type:'string'}
-    },required:['action','name','args','report'],additionalProperties:false};
+    const branch=(action,name,args,report)=>({type:'object',properties:{
+        action:{const:action},name:{const:name},args,report
+    },required:['action','name','args','report'],additionalProperties:false});
+    return {anyOf:[...tools.map(tool=>branch('CALL',tool.name,tool.parameters,{const:''})),
+        branch('FINISH','',{type:'object',additionalProperties:false},{type:'string'})]};
 }
 
 export function createLocalQwenActionSelector({
@@ -40,6 +38,15 @@ export function createLocalQwenActionSelector({
             name:tool.name,description:tool.description||'',
             parameters:tool.inputSchema,requiresEvidence:tool.requiresEvidence||[],evidenceKinds:tool.evidenceKinds||[]
         }));
+        const observedFiles=[...new Set(observations.filter(item=>item.ok===true)
+            .flatMap(item=>item.name==='repo.search'?(item.observation?.results||[]).map(result=>result.file):
+                item.name==='repo.read'?[item.observation?.verifiedRead?.file]:[])
+            .filter(file=>typeof file==='string'&&file.length>0&&file.length<=500))].slice(0,64);
+        if(observedFiles.length){
+            const read=toolsForModel.find(tool=>tool.name==='repo.read');
+            if(read)read.parameters={...read.parameters,properties:{...read.parameters.properties,
+                file:{...read.parameters.properties?.file,enum:observedFiles}}};
+        }
         const latest=observations.slice(-6);
         const outputSchema=jsonSchema(toolsForModel);
         const policy='Eres Qwen3.5:9b, unico modelo local que dirige esta mision. '+

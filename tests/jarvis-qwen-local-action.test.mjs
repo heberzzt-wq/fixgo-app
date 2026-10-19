@@ -41,7 +41,7 @@ test('Qwen local adapter receives repo map and compact receipts without asking a
             assert.equal(payload.think,false);
             assert.equal(payload.stream,false);
             assert.equal(payload.options.num_ctx,16384);
-            assert.equal(payload.format.properties.action.enum[0],'CALL');
+            assert.equal(payload.format.anyOf[0].properties.action.const,'CALL');
             assert.ok(payload.messages.some(m=>m.content===map));
             const catalogMessage=payload.messages.find(m=>m.content.startsWith('HERRAMIENTAS_DE_SOLO_LECTURA='));
             const sentTools=JSON.parse(catalogMessage.content.split('HERRAMIENTAS_DE_SOLO_LECTURA=')[1]);
@@ -105,4 +105,17 @@ test('abort and JSON length result never produce successful actions',async()=>{
             message:{content:'{"action":"CALL"}'}})})
     });
     await assert.rejects(()=>selector({instruction:'Read',tools}),/ACTION_INCOMPLETE/);
+});
+
+test('Qwen output grammar binds tool arguments and observed repository paths',async()=>{
+    const selector=createLocalQwenActionSelector({fetchImpl:async(_url,request)=>{
+        const payload=JSON.parse(request.body);
+        const call=payload.format.anyOf.find(item=>item.properties.name.const==='repo.read');
+        assert.deepEqual(call.properties.args.properties.file.enum,['panel-admin.js']);
+        assert.deepEqual(call.properties.args.required,['file']);
+        return {ok:true,json:async()=>({message:{content:JSON.stringify({action:'CALL',name:'repo.read',args:{file:'panel-admin.js'},report:''})}})};
+    }});
+    const result=await selector({instruction:'Read real source',tools,
+        observations:[{name:'repo.search',ok:true,observation:{results:[{file:'panel-admin.js'}]}}]});
+    assert.equal(result.toolCall.args.file,'panel-admin.js');
 });
