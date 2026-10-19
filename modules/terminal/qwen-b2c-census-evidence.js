@@ -77,7 +77,10 @@ export function inspectB2cCensusEvidence(receipts,{now=Date.now()}={}){
         if(profile.estado===states.ACTIVE&&profile.status===states.ACTIVE&&profile.kyc.aprobado===true)result.aprobadosActivos++;
         if(profile.disponible)result.disponiblesDeclarados++;
         const tipo=profile.vehiculo.tipo;
-        const key=Object.hasOwn(result.transportes,tipo)?tipo:'otroOSinDeclarar';result.transportes[key]++;
+        // Reporting categories group spelling aliases, without changing the
+        // canonical profile, original declared transport or registered plates.
+        const category=({motocicleta:'moto',automovil:'auto',automóvil:'auto',coche:'auto'})[tipo]||tipo;
+        const key=Object.hasOwn(result.transportes,category)?category:'otroOSinDeclarar';result.transportes[key]++;
         result.tecnicos.push({id,nombre:typeof raw.nombre==='string'?raw.nombre:'',
             transporte:tipo,placas:raw.vehiculo?.placas??raw.placas??raw.logistica?.placas??''});
     }
@@ -94,7 +97,13 @@ export function verifyB2cCensusReport({receipts,proposedReport}){
     let proposed;
     try {proposed=JSON.parse(proposedReport);}catch{return {...evidence,ok:false,reason:'CENSUS_REPORT_JSON_REQUIRED',
         objectives:[...evidence.objectives,{objective:'Respuesta verificada',satisfied:false}]};}
-    const ok=same(proposed,evidence.result);
+    const metadata=['observedAt','limits','objectives'];
+    const metadataVerified=proposed&&typeof proposed==='object'&&!Array.isArray(proposed)&&
+        (!Object.hasOwn(proposed,'observedAt')||proposed.observedAt===evidence.observedAt)&&
+        (!Object.hasOwn(proposed,'limits')||(Array.isArray(proposed.limits)&&proposed.limits.every(limit=>evidence.limits.includes(limit))))&&
+        (!Object.hasOwn(proposed,'objectives')||same(proposed.objectives,evidence.objectives));
+    const facts=metadataVerified?Object.fromEntries(Object.entries(proposed).filter(([key])=>!metadata.includes(key))):null;
+    const ok=metadataVerified&&same(facts,evidence.result);
     return {...evidence,ok,reason:ok?'VERIFIED_COMPLETE':'CENSUS_REPORT_MISMATCH',
         objectives:[...evidence.objectives,{objective:'Respuesta verificada',satisfied:ok}]};
 }

@@ -81,3 +81,19 @@ test('root-name completeness proves absent aliases even when deep unrelated maps
     e.fieldSchema.completeRootPaths=true;e.fieldSchema.rootPaths.push('account_type');
     assert.equal(inspectB2cCensusEvidence([r]).ok,false);
 });
+
+test('verified report metadata is allowed but unsupported facts and metadata still fail',()=>{
+    const r=receipt(),e=inspectB2cCensusEvidence([r]);
+    const report={...e.result,observedAt:e.observedAt,limits:[e.limits[0]],objectives:e.objectives};
+    assert.equal(verifyB2cCensusReport({receipts:[r],proposedReport:JSON.stringify(report)}).ok,true);
+    for(const bad of [{...report,total:99},{...report,observedAt:'2020-01-01'},{...report,limits:['fully operational']},{...report,unknownClaim:true},{...report,objectives:[{satisfied:true,objective:'Payment approved'}]}])
+        assert.equal(verifyB2cCensusReport({receipts:[r],proposedReport:JSON.stringify(bad)}).ok,false);
+});
+
+test('census groups declared motorcycle and automobile aliases while preserving original detail',()=>{
+    const r=receipt();r.observation.recordEvidence.rows[0].values['vehiculo.tipo']='motocicleta';
+    let e=inspectB2cCensusEvidence([r]);assert.equal(e.result.transportes.moto,1);assert.equal(e.result.tecnicos[0].transporte,'motocicleta');
+    assert.equal(e.result.tecnicos[0].placas,'RAW-123');
+    r.observation.recordEvidence.rows[0].values['vehiculo.tipo']='automovil';
+    e=inspectB2cCensusEvidence([r]);assert.equal(e.result.transportes.auto,1);
+});
