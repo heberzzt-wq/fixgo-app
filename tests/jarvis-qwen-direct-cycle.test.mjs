@@ -154,3 +154,19 @@ test('large tool receipts are bounded in Qwen context but retained intact for th
     assert.match(verified.sensitiveLargeBody,/SECRET_SOURCE_DATA_/);
     assert.doesNotMatch(JSON.stringify(seen),/SECRET_SOURCE_DATA_/);
 });
+
+test('large search receipts preserve candidate file paths for the next Qwen decision',async()=>{
+    const files=['panel-tecnico.js','app-registro.js','b2c-technician-profile.js'];
+    const original={ok:true,tool:'repo.search',results:files.map(file=>({file,score:1,controls:['detail'.repeat(4000)]})),totalResults:3};
+    const result=await runQwenDirectReadCycle({instruction:'Discover source',
+        catalog:[{name:'repo.search',investigationReadOnly:true,inputSchema:{type:'object'}}],
+        selectNextAction:async({observations})=>{
+            if(!observations.length)return {toolCall:{name:'repo.search',args:{}}};
+            assert.deepEqual(observations[0].observation.results.map(x=>x.file),files);
+            assert.ok(JSON.stringify(observations[0].observation).length<3500);
+            return {finish:true,report:'Source candidates only'};
+        },authorize:async()=>({ok:true}),execute:async()=>original,
+        verifyCompletion:async({receipts})=>{assert.deepEqual(receipts[0].observation,original);return {ok:false};}
+    });
+    assert.equal(result.status,'PARTIAL');
+});

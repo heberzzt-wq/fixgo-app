@@ -19,6 +19,14 @@ function shortReceipt(observation){
     const source=observation&&typeof observation==='object'?observation:{};
     // Keep actionable provenance when a source or record page exceeds the
     // model budget. Full originals remain in receipts for authorization/audit.
+    if(source.tool==='repo.search' && Array.isArray(source.results)){
+        const results=source.results.slice(0,12).map(item=>({file:item.file,score:item.score}));
+        const excerpt={ok:source.ok===true,status:source.status,tool:source.tool,
+            query:source.query,results,totalResults:source.totalResults,
+            repositoryTarget:source.repositoryTarget,observationTruncated:true,
+            warning:'Navigation candidates only; read the actual file before querying records.'};
+        if((safeJson(excerpt)||'').length<=MAX_RECEIPT_CHARS)return excerpt;
+    }
     const read=source.verifiedRead;
     if(read?.file&&read.sourceStructure?.dataBindings){
         const bindings=read.sourceStructure.dataBindings;
