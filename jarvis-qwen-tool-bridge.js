@@ -21,6 +21,7 @@ export function createQwenAuthenticatedToolBridge({
         tool.userArtifact!==true);
     if(!catalog.length)throw new Error('QWEN_DIRECT_READ_ONLY_CATALOG_EMPTY');
     const byName=new Map(catalog.map(tool=>[tool.name,tool]));
+    let missionIdentity=null;
     const getSession=async(signal)=>{
         signal?.throwIfAborted?.();
         const result=await validateAuthenticatedContext(sessionContext,{signal});
@@ -28,6 +29,9 @@ export function createQwenAuthenticatedToolBridge({
             !result.tenantId || !result.role){
             throw new Error('QWEN_DIRECT_AUTHENTICATED_SESSION_REQUIRED');
         }
+        const key=JSON.stringify([result.principalId,result.tenantId,result.role]);
+        if(missionIdentity!==null&&missionIdentity!==key)throw new Error('QWEN_DIRECT_MISSION_SESSION_CHANGED');
+        missionIdentity=key;
         return result;
     };
     const authorizeRead=async ({call,receipts=[],signal})=>{
@@ -73,7 +77,9 @@ export function createQwenAuthenticatedToolBridge({
                 !authorization.tenantId || !authorization.role){
                 return {ok:false,executionOk:false,blocked:true,status:'UNAUTHORIZED'};
             }
-            const fresh=await getSession(signal);
+            let fresh;
+            try {fresh=await getSession(signal);}
+            catch {return {ok:false,executionOk:false,blocked:true,status:'SESSION_CHANGED'};}
             if(fresh.principalId!==authorization.principalId ||
                 fresh.tenantId!==authorization.tenantId ||
                 fresh.role!==authorization.role){
@@ -89,7 +95,10 @@ export function createQwenAuthenticatedToolBridge({
             ],{
                 ...sessionContext,
                 rawInput:instruction,tenantId:fresh.tenantId,
+                userId:fresh.principalId,rootInstruction:instruction,
+                writeAllowed:false,writeAuthorization:false,
                 rol:fresh.role,approved:false,readOnlyPilot:true,
+                completedTasks:structuredClone(receipts),
                 evidenceReceipts:structuredClone(receipts)
             });
             const observation=Array.isArray(result)?result[0]:null;
@@ -98,6 +107,22 @@ export function createQwenAuthenticatedToolBridge({
                 return {ok:false,executionOk:false,blocked:true,
                     status:String(observation?.status||'READ_TOOL_REJECTED'),
                     error:observation?.error||null};
+            }
+            // ToolsBridge returns an AGENT_TOOL_RESULT envelope; prerequisites
+            // and platform.query consume the original runtime payload, not the
+            // presentation wrapper. Never unwrap a failed/mismatched result.
+            if(observation.type==='AGENT_TOOL_RESULT'){
+                const items=observation.observations;
+                const item=Array.isArray(items)&&items.length===1?items[0]:null;
+                const data=item?.data;
+                if(item?.tool!==call.name || item.ok!==true ||
+                    item.executionOk===false || item.blocked===true ||
+                    item.requiresInput===true || data?.ok!==true ||
+                    data.executionOk===false || data.blocked===true ||
+                    data.requiresInput===true){
+                    return {ok:false,executionOk:false,blocked:true,status:'READ_TOOL_RECEIPT_INVALID'};
+                }
+                return structuredClone(data);
             }
             return structuredClone(observation);
         },

@@ -17,6 +17,28 @@ function shortReceipt(observation){
     const raw=safeJson(observation);
     if(raw!==null && raw.length<=MAX_RECEIPT_CHARS)return observation;
     const source=observation&&typeof observation==='object'?observation:{};
+    // Keep actionable provenance when a source or record page exceeds the
+    // model budget. Full originals remain in receipts for authorization/audit.
+    const read=source.verifiedRead;
+    if(read?.file&&read.sourceStructure?.dataBindings){
+        const bindings=read.sourceStructure.dataBindings;
+        const excerpt={ok:source.ok===true,status:source.status,observationTruncated:true,
+            verifiedRead:{file:read.file,content:String(read.content||read.numberedContent||'').slice(0,900),
+                partial:true,sourceStructure:{dataBindings:{source:bindings.source,
+                    collections:(bindings.collections||[]).slice(0,15),
+                    fields:[...new Set([...(bindings.writeShapes||[]),...(bindings.queryShapes||[])]
+                        .flatMap(shape=>shape.fields||[]))].slice(0,35)}}}};
+        if((safeJson(excerpt)||'').length<=MAX_RECEIPT_CHARS)return excerpt;
+    }
+    const records=source.recordEvidence;
+    if(records?.fieldSchema){
+        const excerpt={ok:source.ok===true,status:source.status,observationTruncated:true,
+            recordEvidence:{source:records.source,scope:records.scope,
+                fieldSchema:{...records.fieldSchema,paths:records.fieldSchema.paths?.slice(0,32),
+                    completeForObservedRows:false},hasMore:records.hasMore,nextCursor:records.nextCursor},
+            warning:'Rows omitted from model context; field names are discovery only. Independent audit retains the full original page.'};
+        if((safeJson(excerpt)||'').length<=MAX_RECEIPT_CHARS)return excerpt;
+    }
     const important=['ok','status','executionOk','blocked','error','reason',
         'count','total','hasMore','queryExhausted','verifiedRead',
         'recordEvidence','scope','sourceFile','collection','query',
@@ -67,7 +89,7 @@ function invalidArguments(tool,args){
 export async function runQwenDirectReadCycle({
     instruction='', catalog=[], repositoryMap=null,
     selectNextAction, authorize, execute, verifyCompletion,
-    maximumSteps=8, signal, onProgress=()=>{}
+    maximumSteps=8, signal, onProgress=()=>{},summarizeEvidence=null
 }={}){
     if(typeof selectNextAction!=='function' || typeof authorize!=='function' ||
         typeof execute!=='function' || typeof verifyCompletion!=='function'){
@@ -95,6 +117,8 @@ export async function runQwenDirectReadCycle({
                 tools:selected.map(tool=>({name:tool.name,description:tool.description,
                     inputSchema:tool.inputSchema,evidenceKinds:tool.evidenceKinds})),
                 observations:structuredClone(forModel),
+                evidenceSummary:typeof summarizeEvidence==='function'
+                    ? summarizeEvidence(structuredClone(receipts)):null,
                 iteration,signal
             });
         }catch(error){

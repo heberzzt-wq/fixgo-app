@@ -21,6 +21,7 @@ export function createLocalQwenActionSelector({
     maxOutputTokens=256,
     onInference=()=>{}
 }={}){
+    if(typeof window!=='undefined')throw new Error('LOCAL_QWEN_SERVER_ONLY');
     const target=new URL(endpoint);
     if(!['127.0.0.1','localhost','::1'].includes(target.hostname)||
         target.protocol!=='http:'||target.pathname!=='/api/chat'){
@@ -28,7 +29,7 @@ export function createLocalQwenActionSelector({
     }
     if(model!=='qwen3.5:9b')throw new Error('LOCAL_QWEN_SINGLE_MODEL_REQUIRED');
     return async function selectNextAction({
-        instruction,repositoryMap,tools=[],observations=[],iteration=0,signal
+        instruction,repositoryMap,tools=[],observations=[],evidenceSummary=null,iteration=0,signal
     }={}){
         if(typeof instruction!=='string'||!instruction.trim())throw new Error('MISSION_INSTRUCTION_REQUIRED');
         if(!Array.isArray(tools)||!tools.length||tools.some(tool=>
@@ -55,13 +56,14 @@ export function createLocalQwenActionSelector({
             ...(repositoryMap?[{role:'system',content:String(repositoryMap).slice(0,6000)}]:[]),
             {role:'user',content:instruction},
             {role:'user',content:'HERRAMIENTAS_DE_SOLO_LECTURA='+JSON.stringify(toolsForModel)},
-            {role:'user',content:'RESULTADOS_VERIFICADOS='+JSON.stringify(latest)}
+            {role:'user',content:'RESULTADOS_VERIFICADOS='+JSON.stringify(latest)},
+            ...(evidenceSummary?[{role:'user',content:'COMPROBACION_INDEPENDIENTE='+JSON.stringify(evidenceSummary)}]:[])
         ];
         const timeout=AbortSignal.timeout(Math.max(1000,Math.min(240000,Number(requestTimeoutMs)||120000)));
         const controller=signal?AbortSignal.any([signal,timeout]):timeout;
         const startedAt=Date.now();
         const response=await fetchImpl(endpoint,{
-            method:'POST',headers:{'Content-Type':'application/json'},
+            method:'POST',headers:{'Content-Type':'application/json'},redirect:'error',
             body:JSON.stringify({
                 model,stream:false,think:false,
                 format:outputSchema,

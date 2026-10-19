@@ -1949,7 +1949,7 @@ test("Jarvis FS bridge loads the release identity contract", async () => {
     assert.equal(contract.ok, true);
     assert.equal(contract.projectId, "fixgo-app");
     assert.equal(contract.repository, "heberzzt-wq/fixgo-app");
-    assert.equal(contract.branch, "v94-media-v4n-negative-claims");
+    assert.equal(contract.branch, "codex/v142-qwen-auth-pilot");
     assert.match(
         contract.releaseId,
         /^v94-source-grounded-research-v124-20260810$/

@@ -1,4 +1,5 @@
 import { semanticPlanHandler, semanticResponseHandler, fetchLocalSemanticResponse } from "./jarvis-semantic-http.js";
+import { createQwenDecisionHandler } from "./jarvis-qwen-decision-http.js";
 import {createLocalCandidateRanker} from './gestia-core/jarvis/jarvis.local.retrieval.js';
 import { JARVIS_LOCAL_MODEL } from './gestia-core/jarvis/jarvis.local.policy.js';
 import { SEMANTIC_MAX_BUDGET_MS } from "./gestia-core/jarvis/jarvis.semantic.transport.js";
@@ -6902,7 +6903,7 @@ export function createJarvisFsBridgeApp({
             return callback(new Error("BRIDGE_ORIGIN_NOT_ALLOWED"));
         },
         methods: ["GET", "POST", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "X-Jarvis-Release-Id"]
+        allowedHeaders: ["Content-Type", "X-Jarvis-Release-Id", "Authorization"]
     }));
 
     app.use(express.json({
@@ -7031,7 +7032,18 @@ export function createJarvisFsBridgeApp({
         return res.status(health.ok === true ? 200 : 503).json({ ...health, bridgeVersion: JARVIS_FS_BRIDGE_VERSION, identity: requestIdentity(), root: path.resolve(root) });
     });
 
-    app.post("/semantic/plan", semanticPlanHandler(semanticEngine));
+    const legacySemanticPlan = semanticPlanHandler(semanticEngine);
+    const qwenDecision = createQwenDecisionHandler({
+        enabled: process.env.JARVIS_QWEN_DIRECT_PILOT === "1",
+        getRepositoryMap: instruction => {
+            const sources = configuredRepositorySources(root);
+            return sources ? configuredSourcesMessage(sources, 6000, {instruction})?.content || null : null;
+        }
+    });
+    app.post("/semantic/plan", (req, res) =>
+        req.body?.missionState?.phase === "DIRECT_READ_ONLY_ACTION"
+            ? qwenDecision(req, res)
+            : legacySemanticPlan(req, res));
 
     app.post("/semantic/respond", semanticResponseHandler(semanticEngine));
 

@@ -208,7 +208,7 @@ test("release source no longer sends raw mission observations back into semantic
     const contract = JSON.parse(fs.readFileSync(path.resolve("jarvis-runtime-contract.json"), "utf8"));
     assert.doesNotMatch(core, /observation:\s*item\.observation/);
     assert.ok((core.match(/compactMissionPlannerObservation\(item\.observation\)/g) || []).length >= 2);
-    assert.equal(contract.branch, "v94-media-v4n-negative-claims");
+    assert.equal(contract.branch, "codex/v142-qwen-auth-pilot");
     assert.match(contract.releaseId, /^v\d+-[a-z0-9-]+-\d{8}$/);
 });
 

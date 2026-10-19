@@ -157,3 +157,34 @@ test('executor rechecks the exact authenticated identity before every call',asyn
     assert.equal(result.reason,'READ_TOOL_NOT_SUCCESSFUL');
     assert.equal(invocations,0);
 });
+
+test('mission identity cannot change between tool calls even when each new authorization is valid',async()=>{
+    let principalId='first',invocations=0;
+    const adapter=createQwenAuthenticatedToolBridge({toolRuntime:{list:()=>[reader]},
+        toolsBridge:{executeMany:async()=>{invocations++;return [{ok:true}];}},sessionContext:{},
+        validateAuthenticatedContext:async()=>({ok:true,principalId,tenantId:'B2C',role:'admin'}),
+        verifyObjectives:async()=>({ok:true})});
+    const call={name:'repo.read',args:{file:'panel-admin.js'}};
+    const authorized=await adapter.authorize({call});assert.equal(authorized.ok,true);
+    principalId='second';
+    assert.equal((await adapter.authorize({call})).ok,false);
+    await assert.rejects(()=>adapter.verifyCompletion({receipts:[]}),/MISSION_SESSION_CHANGED/);
+    assert.equal(invocations,0);
+});
+
+test('a successful presentation cannot mask failed, mismatched or multiple runtime observations',async()=>{
+    for(const observations of [
+        [{tool:'repo.read',ok:true,data:{ok:false,blocked:true}}],
+        [{tool:'different.tool',ok:true,data:{ok:true}}],
+        [{tool:'repo.read',ok:true,data:{ok:true}},{tool:'repo.read',ok:true,data:{ok:true}}]
+    ]){
+        const adapter=createQwenAuthenticatedToolBridge({toolRuntime:{list:()=>[reader]},sessionContext:{},
+            toolsBridge:{executeMany:async()=>[{ok:true,type:'AGENT_TOOL_RESULT',observations}]},
+            validateAuthenticatedContext:async()=>({ok:true,principalId:'owner',tenantId:'B2C',role:'admin'}),
+            verifyObjectives:async()=>({ok:true})});
+        const call={name:'repo.read',args:{file:'panel-admin.js'}};
+        const authorization=await adapter.authorize({call});
+        const result=await adapter.execute(call,{authorization});
+        assert.equal(result.ok,false);assert.equal(result.status,'READ_TOOL_RECEIPT_INVALID');
+    }
+});

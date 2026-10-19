@@ -21,6 +21,12 @@ test('adapter only accepts local model and loopback endpoint',()=>{
         /SINGLE_MODEL_REQUIRED/);
 });
 
+test('browser cannot instantiate the direct Ollama selector',()=>{
+    globalThis.window={};
+    try {assert.throws(()=>createLocalQwenActionSelector(),/SERVER_ONLY/);}
+    finally {delete globalThis.window;}
+});
+
 test('Qwen local adapter receives repo map and compact receipts without asking another planner',async()=>{
     let calls=0;
     const seen=[];

@@ -16,7 +16,9 @@ export const NEXO_TERMINAL_BOOTSTRAP_VERSION =
     JARVIS_TERMINAL_BOOTSTRAP_VERSION; // compatibility export only
 
 const INSTALL_KEY = "__JARVIS_TERMINAL_BOOTSTRAP__";
-const LOCAL_BRIDGE_BASE_URL = "http://localhost:3344";
+const isolatedQwenPilot = ["localhost", "127.0.0.1"].includes(globalThis.location?.hostname) &&
+    new URLSearchParams(globalThis.location?.search || "").get("qwenPilot") === "b2c-census-v1";
+const LOCAL_BRIDGE_BASE_URL = isolatedQwenPilot ? "http://localhost:3347" : "http://localhost:3344";
 let runtimeContractPromise = null;
 
 function runtimeContractUrl() {
@@ -497,6 +499,11 @@ function configureJarvisPrivateRelay(bridge) {
         if (!useRelay) {
             return direct(route, payload, options);
         }
+        // The pilot is local-session-only. Never persist browser tokens in a
+        // Firestore relay request or replay a direct decision through a peer.
+        if (payload?.missionState?.phase === "DIRECT_READ_ONLY_ACTION") {
+            throw new Error("QWEN_DIRECT_LOCAL_SESSION_REQUIRED");
+        }
         if (!client) client = createJarvisPrivateRelayClient({ ...await privateRelayDependencies(), onProgress: progress });
         let result;
         try {
@@ -593,6 +600,9 @@ export function installJarvisLocalBridgeTransport() {
                 attempt += 1
             ) {
                 const controller = new AbortController();
+                const cancelRequest = () => controller.abort();
+                options.signal?.throwIfAborted();
+                options.signal?.addEventListener("abort", cancelRequest, { once: true });
                 const startedAt = Date.now();
                 let deadlineExceeded = false;
                 const timeout = semanticRequest
@@ -623,7 +633,10 @@ export function installJarvisLocalBridgeTransport() {
                             method: "POST",
                             headers: {
                                 "Content-Type": "application/json",
-                                "X-Jarvis-Release-Id": contract.releaseId
+                                "X-Jarvis-Release-Id": contract.releaseId,
+                                ...(path === "/semantic/plan" &&
+                                    payload?.missionState?.phase === "DIRECT_READ_ONLY_ACTION" &&
+                                    options.idToken ? { Authorization: `Bearer ${options.idToken}` } : {})
                             },
                             body: JSON.stringify(
                                 requestPayload && typeof requestPayload === "object"
@@ -730,6 +743,7 @@ export function installJarvisLocalBridgeTransport() {
                     );
                 }
                 finally {
+                    options.signal?.removeEventListener("abort", cancelRequest);
                     silenceWatchdog?.clear();
                     if (timeout) clearTimeout(timeout);
                 }
