@@ -56,6 +56,15 @@ export function createLocalQwenActionSelector({
             if(read&&!read.parameters.properties?.file?.enum)read.parameters={...read.parameters,properties:{...read.parameters.properties,
                 file:{...read.parameters.properties?.file,enum:observedFiles}}};
         }
+        const readTool=toolsForModel.find(tool=>tool.name==='repo.read');
+        const readEnum=readTool?.parameters?.properties?.file?.enum;
+        if(readEnum){
+            const completed=new Set(missionLedger?.completedSources||[]);
+            const unread=readEnum.filter(file=>!completed.has(file));
+            if(unread.length)readTool.parameters={...readTool.parameters,properties:{...readTool.parameters.properties,
+                file:{...readTool.parameters.properties.file,enum:unread}}};
+            else toolsForModel.splice(toolsForModel.indexOf(readTool),1);
+        }
         const sourceFields=observations.filter(item=>item.ok===true&&item.name==='repo.read')
             .flatMap(item=>{const b=item.observation?.verifiedRead?.sourceStructure?.dataBindings;
                 return [...(b?.writeShapes||[]),...(b?.queryShapes||[])].filter(s=>s.collection==='users').flatMap(s=>s.fields||[]);});
@@ -73,6 +82,8 @@ export function createLocalQwenActionSelector({
                     properties.fields.items.enum=['__name__',...fieldNames].filter(field=>!allowed||allowed.includes(field));
                 }
                 if(properties?.filters?.items?.properties?.field)properties.filters.items.properties.field.enum=fieldNames;
+                if(properties?.filters?.enum)properties.filters.enum=properties.filters.enum.filter(filters=>
+                    filters.every(filter=>fieldNames.includes(filter.field)));
                 if(properties?.orderBy?.items?.properties?.field)properties.orderBy.items.properties.field.enum=['__name__',...fieldNames];
             }
         }

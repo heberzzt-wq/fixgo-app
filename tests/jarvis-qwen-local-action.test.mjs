@@ -142,3 +142,15 @@ test('discovered field names cannot widen a mission projection allowlist',async(
     await selector({instruction:'Read roles only',tools:[{name:'platform.query',inputSchema:{type:'object',properties:{fields:{type:'array',items:{type:'string',enum:['rol']}}}}}],
         observations:[{ok:true,observation:{recordEvidence:{source:'FIRESTORE_SERVER_AUTHENTICATED',fieldSchema:{source:'SERVER_RECORD_FIELD_NAMES',paths:['rol','privateEmail']}}}}]});
 });
+
+test('grammar excludes completed source reads and filters lacking field evidence',async()=>{
+    const selector=createLocalQwenActionSelector({fetchImpl:async(_url,request)=>{
+        const branches=JSON.parse(request.body).format.anyOf;
+        assert.deepEqual(branches.find(b=>b.properties.name.const==='repo.read').properties.args.properties.file.enum,['panel-admin.js']);
+        assert.deepEqual(branches.find(b=>b.properties.name.const==='platform.query').properties.args.properties.filters.enum,[[]]);
+        return {ok:true,json:async()=>({message:{content:JSON.stringify({action:'CALL',name:'repo.read',args:{file:'panel-admin.js'},report:''})}})};
+    }});
+    await selector({instruction:'Census',tools:[{name:'repo.read',inputSchema:{properties:{file:{type:'string',enum:['app-registro.js','panel-admin.js']}}}},
+        {name:'platform.query',inputSchema:{properties:{filters:{type:'array',enum:[[],[{field:'rol',op:'==',value:'tecnico'}]]}}}}],
+        missionLedger:{completedSources:['app-registro.js']},observations:[{name:'repo.read',ok:true,observation:{verifiedRead:{file:'app-registro.js',sourceStructure:{dataBindings:{writeShapes:[{collection:'users',fields:['estado']}]}}}}}]});
+});
