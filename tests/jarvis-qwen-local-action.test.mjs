@@ -41,12 +41,13 @@ test('Qwen local adapter receives repo map and compact receipts without asking a
             assert.equal(payload.think,false);
             assert.equal(payload.stream,false);
             assert.equal(payload.options.num_ctx,16384);
-            assert.equal(payload.format.anyOf[0].properties.action.const,'CALL');
+            assert.equal(payload.format.anyOf[0].properties.action.const,calls===1?'CALL':'FINISH');
             assert.equal(payload.messages.some(m=>m.content===map),calls===1,'static map is sent once; mission evidence persists');
             const catalogMessage=payload.messages.find(m=>m.content.startsWith('HERRAMIENTAS_DE_SOLO_LECTURA='));
             const sentTools=JSON.parse(catalogMessage.content.split('HERRAMIENTAS_DE_SOLO_LECTURA=')[1]);
-            assert.deepEqual(sentTools[0].requiresEvidence,tools[0].requiresEvidence);
-            assert.deepEqual(sentTools[0].evidenceKinds,tools[0].evidenceKinds);
+            if(calls===1){assert.deepEqual(sentTools[0].requiresEvidence,tools[0].requiresEvidence);
+                assert.deepEqual(sentTools[0].evidenceKinds,tools[0].evidenceKinds);}
+            else assert.deepEqual(sentTools,[],'completed read is excluded without changing certification');
             assert.ok(!payload.messages.some(m=>m.content.includes('SECRET_RECORD')));
             const parsed=calls===1?
                 {action:'CALL',name:'repo.read',args:{file:'panel-admin.js'},report:''}:
