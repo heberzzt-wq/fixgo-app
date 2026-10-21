@@ -119,6 +119,20 @@ export function researchSourceProofs(receipts,instruction=''){
         return {url:r.observation.url,title,quotes,dates};
     }).filter(p=>p.title&&p.quotes.length);
 }
+export function verifiedEngineeringAssignmentWitness(receipts=[]){
+ return good(receipts).filter(r=>r.name==='repo.read'&&r.args?.file===r.observation?.verifiedRead?.file&&
+   /^functions\/(?:index|secure-entry)\.[cm]?js$/i.test(r.args.file)&&
+   typeof r.observation.verifiedRead.content==='string').map(r=>{
+   const lines=r.observation.verifiedRead.content.split(/\r?\n/),assignments=[];
+   lines.forEach((source,i)=>{
+     if(/^\s*exports\.(?:solicitarRetiro|requestPayout)\s*=/.test(source))
+       assignments.push({line:i+1,source:source.trim().slice(0,180),
+         nextLine:lines[i+1]?.trim().slice(0,180)||''});
+   });
+   return {file:r.args.file,assignments,duplicateAssignment:assignments.length>1,
+     interpretation:assignments.length>1?'Last top-level assignment replaces the earlier export; do not attribute old handler checks to the effective one.':'Do not infer overwritten handlers.'};
+ }).filter(w=>w.assignments.length>0);
+}
 export function summarizeGeneralEvidence(receipts,objectives,instruction=''){
     const rows=good(receipts),sources=rows.filter(r=>r.name==='web.research').flatMap(r=>r.observation.sources||[]);
     const proofs=researchSourceProofs(receipts);
@@ -145,7 +159,7 @@ export function summarizeGeneralEvidence(receipts,objectives,instruction=''){
         if(!validation.ok)gaps.push({goal:'production document bound to receipts',requiredTool:'document.create',reason:validation.reason});
         if(!rows.some(r=>r.name==='media.library'&&r.args?.action==='export'&&r.args.output===doc.observation.output&&r.observation.sha256===doc.observation.sha256&&r.observation.experimental===true))gaps.push({goal:'registered production document export',requiredTool:'media.library',action:'export',output:doc.observation.output});
     }
-    return {objectives,records,deliveryGaps:gaps,finishEligible:gaps.length===0&&(!objectives.unsupported||objectives.advertising||has('system.capabilities')),
+    return {objectives,records,...(objectives.code?{sourceAssignmentWitness:verifiedEngineeringAssignmentWitness(receipts)}:{}),deliveryGaps:gaps,finishEligible:gaps.length===0&&(!objectives.unsupported||objectives.advertising||has('system.capabilities')),
 
         pendingVisualReviews:objectives.page?rows.filter(r=>r.name==='browser.screenshot'&&!rows.some(v=>v.name==='media.analyze'&&v.observation.output===r.observation.output)).map(r=>({requiredTool:'media.analyze',output:r.observation.output,reason:'Screenshot alone is not visual review. Execute media.analyze on these pixels before FINISH.'})):[],
         openedSources:rows.filter(r=>r.name==='browser.inspect').map(r=>({url:r.observation.url,title:String(r.observation.dom||'').match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim(),hasDom:!!r.observation.dom})),
@@ -156,6 +170,30 @@ export function summarizeGeneralEvidence(receipts,objectives,instruction=''){
 }
 // A successful tool loop is not a finished engineering deliverable. Ground the
 // written diagnosis in source paths actually read and a passing test receipt.
+export function engineeringReportIssues(report,receipts=[]){
+ const text=String(report||'').trim(),rows=good(receipts),issues=[];
+ const reads=rows.filter(r=>r.name==='repo.read'&&r.observation?.verifiedRead?.file===r.args?.file);
+ const canonical=reads.find(r=>/^functions\/(?:index|secure-entry)\.[cm]?js$/i.test(r.args?.file)&&typeof r.observation?.verifiedRead?.content==='string'&&/solicitarRetiro|Number\.isFinite/iu.test(r.observation.verifiedRead.content));
+ const tested=rows.find(r=>r.name==='tests.run'&&r.observation?.testsPassed===true&&r.observation?.objectiveSatisfied===true&&r.observation?.status==='PASSED'&&r.observation?.exitCode===0);
+ if(text.length<180||text.length>10000)issues.push('DICTAMEN_TECNICO_180_A_10000_CARACTERES');
+ if(!canonical)issues.push('LECTURA_CANONICA_VERIFICADA_FALTANTE');
+ else {
+   if(!text.includes(canonical.args.file))issues.push('CITAR_RUTA_CANONICA_LEIDA');
+   const assignments=[...canonical.observation.verifiedRead.content.matchAll(/\bexports\.(?:solicitarRetiro|requestPayout)\s*=/gu)];
+   if(assignments.length>1&&!/sobrescri|redefin|reemplaz|segunda\s+asignaci|[uú]ltima\s+asignaci|definici[oó]n\s+final|asignaci[oó]n\s+final/iu.test(text))
+     issues.push('DIFERENCIAR_EXPORT_DUPLICADO_Y_ULTIMA_ASIGNACION');
+ }
+ if(!tested)issues.push('RECIBO_DE_TESTS_PASADOS_FALTANTE');
+ if(tested&&!text.includes(tested.args?.command||'pilot:security'))issues.push('NOMBRAR_COMANDO_TESTS_EJECUTADO');
+ if(!/requestPayout|solicitarRetiro/iu.test(text))issues.push('IDENTIFICAR_FUNCION');
+ if(!/\b(?:pruebas?|tests?|suite|regresiones?)\b/iu.test(text))issues.push('EXPLICAR_ALCANCE_DE_PRUEBAS');
+ if(!/\b(?:importe|monto|cantidad|negativ|finito|nan|cero|validaci[oó]n)\b/iu.test(text))issues.push('EXPLICAR_VALIDACION_MONETARIA');
+ const emulator=rows.some(r=>r.name==='tests.run'&&r.args?.command==='v142:security-emulator'&&r.observation?.status==='PASSED'&&r.observation?.exitCode===0&&r.observation?.testsPassed===true);
+ if(!emulator&&/hotfix-legacy-emulator\.test\.mjs/iu.test(text)&&!/no\s+se\s+ejecut|sin\s+ejecutar|pendiente\s+de\s+ejecutar|solo\s+le[ií]d|no\s+ejecutad/iu.test(text))
+   issues.push('EMULADOR_SOLO_LEIDO_NO_EJECUTADO');
+ if(/sourceTextOmitted|sin\s+evidencia\s+directa\s+del?\s+c[oó]digo/iu.test(text))issues.push('NO_CERTIFICAR_FUENTE_OMITIDA');
+ return issues;
+}
 export function engineeringReportVerified(report,receipts=[]){
  const text=String(report||'').trim();
  if(text.length<180||text.length>10000)return false;
@@ -186,7 +224,7 @@ export function engineeringReportVerified(report,receipts=[]){
 }
 export async function verifyGeneralMission({instruction,receipts,proposedReport,objectives=generalObjectives(instruction)}){
     const rows=good(receipts),checks=[];
-    const check=(objective,satisfied,reason)=>checks.push({objective,satisfied,reason});
+    const check=(objective,satisfied,reason,details=null)=>checks.push({objective,satisfied,reason,...(details?{details}:{})});
     const outputReads=new Map();
     for(const r of rows.filter(r=>r.name==='artifact.read')){
         const o=r.observation;
@@ -200,7 +238,9 @@ export async function verifyGeneralMission({instruction,receipts,proposedReport,
         const sourceReads=rows.filter(r=>r.name==='repo.read'&&r.observation?.verifiedRead?.file===r.args?.file);
         check('real repository grep and source reads',!!grep&&grep.observation.matches.length>0&&sourceReads.length>0,
             'CODE_SOURCE_EVIDENCE_REQUIRED');
-        check('source-anchored engineering diagnosis',engineeringReportVerified(proposedReport,receipts),'ENGINEERING_SOURCE_BOUND_REPORT_REQUIRED');
+        const reportAccepted=engineeringReportVerified(proposedReport,receipts);
+        check('source-anchored engineering diagnosis',reportAccepted,'ENGINEERING_SOURCE_BOUND_REPORT_REQUIRED',
+            reportAccepted?null:{missingClauses:engineeringReportIssues(proposedReport,receipts)});
         const tested=rows.find(r=>r.name==='tests.run'&&r.observation?.testsPassed===true&&
             r.observation?.objectiveSatisfied===true&&r.observation?.status==='PASSED');
         check('real repository tests pass',!!tested,'CODE_TESTS_PASSING_REQUIRED');

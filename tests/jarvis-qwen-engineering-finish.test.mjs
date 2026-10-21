@@ -36,6 +36,37 @@ test('the exhausted code tool catalog obtains a Qwen report before certifying th
  assert.equal(engineeringReportVerified(report,receipts),true);
 });
 
+test('exhausted engineering catalog can revise a rejected report using independent verifier feedback',async()=>{
+ let calls=0;
+ const result=await runQwenAuthorizedCycle({...options,selectNextAction:async ctx=>{
+   calls++;
+   assert.equal(ctx.tools.length,0);
+   if(calls===1)return {finish:true,report:'La suite paso, se termino la auditoria.'};
+   assert.equal(ctx.evidenceSummary.reportRevisionAttempt,1);
+   assert.ok(ctx.missionLedger.certificationFailures.some(f=>f.objectives.some(o=>o.reason==='ENGINEERING_SOURCE_BOUND_REPORT_REQUIRED')));
+   return {finish:true,report};
+ }});
+ assert.equal(result.status,'SUCCESS');
+ assert.equal(result.report,report);
+ assert.equal(result.modelDecisions,2);
+ assert.equal(calls,2);
+ assert.equal(result.receipts.length,3,'correction never re-executes tools');
+});
+
+test('live canonical payout source gives Qwen exact earlier and effective export witnesses',async()=>{
+ const fs=await import('node:fs');
+ const {verifiedEngineeringAssignmentWitness,summarizeGeneralEvidence}=await import('../modules/terminal/qwen-general-evidence.js');
+ const source=fs.readFileSync(new URL('../functions/index.js',import.meta.url),'utf8');
+ const receipt={name:'repo.read',ok:true,args:{file:'functions/index.js'},observation:{ok:true,verifiedRead:{file:'functions/index.js',content:source}}};
+ const witness=verifiedEngineeringAssignmentWitness([receipt]);
+ assert.equal(witness.length,1);
+ assert.equal(witness[0].duplicateAssignment,true);
+ assert.equal(witness[0].assignments.length,2);
+ assert.ok(witness[0].assignments[0].line<witness[0].assignments[1].line);
+ assert.match(witness[0].assignments[1].nextLine,/createRequestB2cWithdrawalHandler/);
+ assert.equal(summarizeGeneralEvidence([receipt],{code:true},'Audita requestPayout').sourceAssignmentWitness[0].assignments.length,2);
+});
+
 test('empty or generic answer never certifies engineering success despite valid tool receipts',async()=>{
  for(const answer of ['', 'La misión terminó correctamente.', 'Se ejecutaron las pruebas satisfactoriamente.']){
   const result=await runQwenAuthorizedCycle({...options,selectNextAction:async()=>({finish:true,report:answer})});
@@ -99,7 +130,7 @@ test('official V142 HTML-to-runner imports use a fresh version and expose the re
  const core=readFileSync(new URL('gestia-core/gestia-core.js',root),'utf8');
  const general=readFileSync(new URL('modules/terminal/qwen-general-pilot.js',root),'utf8');
  const direct=readFileSync(new URL('modules/terminal/qwen-direct-pilot.js',root),'utf8');
- const version='v142-engineering-report-20261021-v17';
+ const version='v142-engineering-report-20261021-v18';
  assert.ok(core.includes('qwen-general-pilot.js?release='+version));
  assert.ok(general.includes('qwen-direct-pilot.js?release='+version));
  assert.ok(general.includes('qwen-general-evidence.js?release='+version));

@@ -145,6 +145,7 @@ export async function runQwenAuthorizedCycle({
             // Engineering deliverables must contain a source-anchored written
             // report from Qwen. Physical tool receipts alone are insufficient.
             if(requireFinalReport){
+                for(let reportAttempt=0;reportAttempt<3;reportAttempt++){
                 let summaryDecision;
                 try{
                     modelDecisionCount++;
@@ -154,6 +155,8 @@ export async function runQwenAuthorizedCycle({
                         // objectives remain missing. The verifier (not Qwen)
                         // still decides success, and keeps missing gaps.
                         evidenceSummary:{...evidenceSummary,finishEligible:true,reportOnly:true,
+                            reportRevisionAttempt:reportAttempt,
+                            reportRevisionInstruction:reportAttempt>0?'Previous final report failed independent source-bound verification. Correct only the rejected claims using verified source excerpts and the exact tests.run receipt; do not invent tests or files.':undefined,
                             unverifiedObjectives:evidenceSummary?.deliveryGaps||[]},
                         missionLedger:missionLedger(),iteration,signal
                     });
@@ -169,9 +172,17 @@ export async function runQwenAuthorizedCycle({
                     });
                 }catch{return done('PARTIAL','INDEPENDENT_CERTIFICATION_FAILED');}
                 const independentlyVerified=certification?.ok===true&&receipts.some(r=>r.ok===true);
+                const failed=certification?.objectives?.filter(x=>x.satisfied!==true)||[];
+                const reportOnlyFailure=failed.length>0&&failed.every(x=>x.reason==='ENGINEERING_SOURCE_BOUND_REPORT_REQUIRED');
+                if(!independentlyVerified&&repairIncomplete&&reportAttempt<2&&reportOnlyFailure){
+                    certificationFailures.push({reason:'ENGINEERING_SOURCE_BOUND_REPORT_REQUIRED',objectives:failed});
+                    continue;
+                }
                 return done(independentlyVerified?'SUCCESS':'PARTIAL',
                     independentlyVerified?'VERIFIED_COMPLETE':certification?.reason||'ENGINEERING_REPORT_NOT_CERTIFIED',
                     independentlyVerified?summaryDecision.report:'',certification||null);
+                }
+                return done('PARTIAL','ENGINEERING_SOURCE_BOUND_REPORT_REQUIRED');
             }
             // An exhausted catalog is a request to the independent verifier,
             // never proof that the mission succeeded or permission to make up a receipt.
