@@ -58,3 +58,24 @@ test('a changed media exporter forces pilot restart, even with an otherwise vali
   assert.equal(gate.inspect(client).reason,'QWEN_PILOT_BRIDGE_RESTART_REQUIRED');
  } finally {rmSync(dir,{recursive:true,force:true});}
 });
+
+test('V142 official activates Qwen only with matching clean Git, release contract and local Ollama',async()=>{
+ const {qwenRuntimeEnabled}=await import('../jarvis-qwen-pilot-version.js');
+ const head='a'.repeat(40);
+ const identity={ok:true,contract:{projectId:'fixgo-app',repository:'heberzzt-wq/fixgo-app',branch:'v142-official'},
+  git:{head,branch:'v142-official',clean:true},contractHead:head};
+ const semantic={mode:'LOCAL_ONLY',model:'qwen3.5:9b',selfHosted:true,fallbackAllowed:false};
+ const env={JARVIS_QWEN_DIRECT_PILOT:'0'};
+ assert.equal(qwenRuntimeEnabled(identity,{env,semantic}),true);
+ for(const wrong of [
+  {...identity,contract:{...identity.contract,branch:'v94-media-v4n-negative-claims'}},
+  {...identity,git:{...identity.git,branch:'codex/v142-qwen-auth-pilot'}},
+  {...identity,git:{...identity.git,clean:false}},
+  {...identity,contractHead:'b'.repeat(40)},
+  {...identity,ok:false}
+ ])assert.equal(qwenRuntimeEnabled(wrong,{env,semantic}),false);
+ for(const wrong of [
+  {...semantic,mode:'EXTERNAL'}, {...semantic,model:'another-model'},
+  {...semantic,fallbackAllowed:true}, {...semantic,selfHosted:false}
+ ])assert.equal(qwenRuntimeEnabled(identity,{env,semantic:wrong}),false);
+});

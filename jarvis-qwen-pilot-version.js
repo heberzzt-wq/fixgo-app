@@ -34,6 +34,20 @@ export const WATCHED=Object.freeze([
  'modules/terminal/qwen-production-document.js',
  'modules/terminal/qwen-poster-proof.js'
 ]);
+// The same authenticated local Qwen runtime is promoted to the official V142
+// bridge only when its Git identity and release contract both match.
+// An arbitrary env flag cannot turn an unrelated official branch into V142.
+export function qwenRuntimeEnabled(identity,{env=process.env,semantic=null}={}){
+ if(env.JARVIS_QWEN_DIRECT_PILOT==='1')return true;
+ return identity?.ok===true&&identity?.contract?.projectId==='fixgo-app'&&
+   identity?.contract?.repository==='heberzzt-wq/fixgo-app'&&
+   identity?.contract?.branch==='v142-official'&&
+   identity?.git?.branch==='v142-official'&&identity?.git?.clean===true&&
+   typeof identity?.git?.head==='string'&&/^[a-f0-9]{40}$/.test(identity.git.head)&&
+   identity?.contractHead===identity.git.head&&
+   semantic?.mode==='LOCAL_ONLY'&&semantic?.model==='qwen3.5:9b'&&
+   semantic?.selfHosted===true&&semantic?.fallbackAllowed===false;
+}
 const digest=s=>createHash('sha256').update(s).digest('hex');
 export const expectedPilotFingerprint=()=>digest(generalPilotSourceSignature());
 export function createPilotVersionGate(root){

@@ -1,5 +1,5 @@
 import {qwenArtifactWriteGuard} from './jarvis-qwen-artifact-write-guard.js';
-import {createPilotVersionGate} from './jarvis-qwen-pilot-version.js';
+import {createPilotVersionGate,qwenRuntimeEnabled} from './jarvis-qwen-pilot-version.js';
 import {registerWorkstationHealth,createWorkstationAuthorization} from './jarvis-workstation-health.js';
 import {verifyBrowserIdToken} from './jarvis-qwen-decision-http.js';
 import {JARVIS_PRIVATE_RELAY as workstationRelay} from './gestia-core/jarvis/jarvis.semantic.transport.js';
@@ -6742,6 +6742,9 @@ export function createJarvisFsBridgeApp({
             requestIdentitySnapshot,
             root
         );
+    // Host-owned runtime promotion: require the live official V142 identity
+    // and the local Ollama profile. Keep owner-token and evidence checks intact.
+    const qwenEnabled=qwenRuntimeEnabled(requestIdentity(),{semantic:semanticEngine.describe()});
 
     let repoGraphCache = null;
     const preparedWrites = new Map();
@@ -6956,7 +6959,7 @@ export function createJarvisFsBridgeApp({
     });
 
     app.get('/qwen-artifact', createQwenArtifactPreview({
-        enabled:process.env.JARVIS_QWEN_DIRECT_PILOT === '1',identity:requestIdentity,
+        enabled:qwenEnabled,identity:requestIdentity,
         readArtifact:output=>readArtifactPayload({output,root}),
         findArtifact:output=>findArtifact({output,root})
     }));
@@ -7064,12 +7067,12 @@ export function createJarvisFsBridgeApp({
         return res.status(health.ok === true ? 200 : 503).json({ ...health, bridgeVersion: JARVIS_FS_BRIDGE_VERSION, identity: requestIdentity(), root: path.resolve(root) });
     });
 
-    if(process.env.JARVIS_QWEN_DIRECT_PILOT === '1') registerWorkstationHealth(app, {
-        bridgeVersion:JARVIS_FS_BRIDGE_VERSION, experimental:true, identity:requestIdentity,
+    if(qwenEnabled) registerWorkstationHealth(app, {
+        bridgeVersion:JARVIS_FS_BRIDGE_VERSION, experimental:process.env.JARVIS_QWEN_DIRECT_PILOT === '1', identity:requestIdentity,
         authorize:createWorkstationAuthorization({identity:requestIdentity,verifyIdToken:verifyBrowserIdToken,ownerUid:workstationRelay.ownerUid}),
         capabilities:()=>localAsrHealth({root})
     });
-    const pilotVersionGate=process.env.JARVIS_QWEN_DIRECT_PILOT === '1'?createPilotVersionGate(root):null;
+    const pilotVersionGate=qwenEnabled?createPilotVersionGate(root):null;
     if(pilotVersionGate)app.post('/qwen-pilot/preflight',(req,res)=>{
         const result=pilotVersionGate.inspect(req.body||{});
         return res.status(result.ok?200:409).json(result);
@@ -7077,7 +7080,7 @@ export function createJarvisFsBridgeApp({
     const legacySemanticPlan = semanticPlanHandler(semanticEngine);
     const qwenDecision = createQwenDecisionHandler({
         checkPilotVersion:pilotVersionGate?.inspect,
-        enabled: process.env.JARVIS_QWEN_DIRECT_PILOT === "1",
+        enabled: qwenEnabled,
         visualArtifacts: {root,inspectVideo:file=>inspectReelVideoFile({file}),validateVideo:(inspection,opts)=>validateReelMp4Master(inspection,opts),readArtifact: output => readArtifactPayload({output,root}), findArtifact: output => findArtifact({output,root})},
         getRepositoryMap: instruction => {
             const sources = configuredRepositorySources(root);
