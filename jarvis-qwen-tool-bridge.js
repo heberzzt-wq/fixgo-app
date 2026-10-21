@@ -47,6 +47,29 @@ export function mergeAdvertisingCreativeEvidence(review,prior){
 }
 
 
+// Distinguish a successfully prepared, non-mutating patch from authority to
+// apply it. The ordinary composer deliberately marks approval-required
+// operations blocked; this bounded pilot only consumes the physical preview.
+export function verifiedNonMutatingPreviewEnvelope(envelope,call,sessionContext={}){
+ if(call?.name!=='repo.prepareWrite'||envelope?.type!=='AGENT_TOOL_RESULT')return null;
+ const item=Array.isArray(envelope.observations)&&envelope.observations.length===1?envelope.observations[0]:null;
+ const data=item?.data,hash=s=>/^[a-f0-9]{64}$/iu.test(String(s||''));
+ if(item?.tool!=='repo.prepareWrite'||item.ok!==true||item.executionOk!==true||
+    data?.ok!==true||data?.status!=='WRITE_PREPARED'||data?.executionOk!==true||
+    data?.requiresApproval!==true||data?.objectiveSatisfied!==false||
+    data?.written!==false||data?.verified!==false||
+    data?.file!==call.args?.file||call.args.matchCount!==1||
+    data?.objectiveId!==sessionContext.objectiveId||
+    data?.caseId!==sessionContext.caseId||
+    !String(data.caseId||'').startsWith('general-')||
+    !String(data.objectiveId||'').startsWith('QWEN_PREVIEW_general-')||
+    !hash(data.fingerprint)||!hash(data.snapshotSha256)||!hash(data.expectedSha256)||
+    data.snapshotSha256===data.expectedSha256||
+    !String(data.approvalCommand||'').endsWith(data.fingerprint))return null;
+ return {...data,ok:true,executionOk:true,blocked:false,
+    objectiveSatisfied:false,requiresApproval:true,requiresHumanApproval:true,
+    written:false,verified:false,preparedPreviewOnly:true};
+}
 // Adapter for an opt-in, read-only pilot. It deliberately reuses the existing
 // ToolsBridge executor and requires explicit trusted browser-session validation.
 // No standalone Firebase, admin SDK, anonymous account, service key or
@@ -193,6 +216,12 @@ export function createQwenAuthenticatedToolBridge({
                 return payload;
             };
             const observation=Array.isArray(result)?result[0]:null;
+            // WRITE_PREPARED is a completed preview receipt, not a completed
+            // repair and never permission to execute repo.write.
+            if(hostToolPolicy&&call.name==='repo.prepareWrite'){
+                const prepared=verifiedNonMutatingPreviewEnvelope(observation,call,sessionContext);
+                if(prepared)return prepared;
+            }
             if(!observation || observation.ok!==true || observation.blocked===true ||
                 observation.executionOk===false || observation.requiresInput===true){
                 return {ok:false,executionOk:false,blocked:true,

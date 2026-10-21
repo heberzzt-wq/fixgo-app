@@ -246,3 +246,49 @@ test('only the host mission stamps write-preparation provenance, never the model
  assert.deepEqual(trustedCodePreviewContext(mission,'Corrige el codigo y ejecuta pruebas antes y despues.'),{});
  assert.ok(!Object.hasOwn(expected,'writeAllowed')&&!Object.hasOwn(expected,'approved'));
 });
+
+test('an approval-pending patch can complete a preview-only receipt without granting write authority',async()=>{
+ const {verifiedNonMutatingPreviewEnvelope,createQwenAuthenticatedToolBridge}=await import('../jarvis-qwen-tool-bridge.js');
+ const file='tests/fixtures/v142-rebate-preview.js';
+ const fingerprint='a'.repeat(64),sessionContext={tenantId:'test-tenant',
+    objectiveId:'QWEN_PREVIEW_'+mission,caseId:mission};
+ const call={name:'repo.prepareWrite',args:{file,search:'amount-rebate',
+    replace:'Math.max(0,amount-rebate)',operation:'replace',matchCount:1}};
+ const data={ok:true,executionOk:true,objectiveSatisfied:false,requiresApproval:true,
+    written:false,verified:false,status:'WRITE_PREPARED',file,matchCount:1,
+    fingerprint,snapshotSha256:'b'.repeat(64),expectedSha256:'c'.repeat(64),
+    objectiveId:sessionContext.objectiveId,caseId:mission,approvalCommand:'AUTORIZO '+fingerprint};
+ const make=d=>({type:'AGENT_TOOL_RESULT',ok:true,blocked:true,requiresApproval:true,
+    observations:[{tool:'repo.prepareWrite',ok:true,executionOk:true,data:d}]});
+ const physical=make(data);
+ assert.equal(verifiedNonMutatingPreviewEnvelope(physical,call,sessionContext)?.preparedPreviewOnly,true);
+ assert.equal(verifiedNonMutatingPreviewEnvelope(physical,call,sessionContext)?.requiresHumanApproval,true);
+ for(const change of [{written:true},{verified:true},{requiresApproval:false},
+     {status:'WRITE_APPLIED'},{objectiveId:'MODEL_SUPPLIED'},{caseId:'wrong'},
+     {expectedSha256:'b'.repeat(64)},{fingerprint:'bogus'}]){
+  assert.equal(verifiedNonMutatingPreviewEnvelope(make({...data,...change}),call,sessionContext),null,JSON.stringify(change));
+ }
+ const readSource=(await import('node:fs')).readFileSync(new URL('../'+file,import.meta.url),'utf8');
+ const source={name:'repo.read',ok:true,args:{file},observation:{ok:true,verifiedRead:{file,content:readSource}}};
+ const tool={name:'repo.prepareWrite',mutates:false,requiresApproval:false,
+   inputSchema:{type:'object',properties:{file:{type:'string'},search:{type:'string'},replace:{type:'string'},matchCount:{type:'integer'}}}};
+ const adapter=createQwenAuthenticatedToolBridge({
+  toolRuntime:{list:()=>[tool]},
+  toolsBridge:{executeMany:async()=>[physical]},
+  sessionContext,
+  validateAuthenticatedContext:async()=>({ok:true,principalId:'local-owner',tenantId:'test-tenant',role:'owner'}),
+  verifyObjectives:async()=>({ok:false}),
+  hostToolPolicy:fixturePolicyForTest()
+ });
+ const authority=await adapter.authorize({call,receipts:[source]});
+ assert.equal(authority.ok,true);
+ const receipt=await adapter.execute(call,{instruction:'preview only',authorization:authority,receipts:[source]});
+ assert.equal(receipt.ok,true);
+ assert.equal(receipt.written,false);
+ assert.equal(receipt.requiresApproval,true);
+ assert.equal(receipt.preparedPreviewOnly,true);
+ function fixturePolicyForTest(){
+  const instruction='Prepara un parche exacto para el codigo de la prueba, solo revision sin aplicar ni modificar';
+  return createGeneralToolPolicy({location,missionId:mission,objectives:{code:true},instruction});
+ }
+});

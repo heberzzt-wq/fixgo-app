@@ -2,9 +2,9 @@ import {planImageAdaptation} from '../../gestia-core/jarvis/jarvis.image.adapter
 import {compactVerifiedEngineeringSource} from './qwen-engineering-source-excerpt.js';
 import {LOCAL_VIDEO_EVIDENCE_CAPABILITIES,MEDIA_TOOLS,mediaEntries,producedMedia,deliveredImageHistory,producedImageHistory} from './qwen-general-media.js';
 import {createQwenBridgeActionSelector} from './qwen-direct-transport.js';
-import {runQwenTerminalReadPilot} from './qwen-direct-pilot.js?release=v142-code-preview-20261021-v30';
+import {runQwenTerminalReadPilot} from './qwen-direct-pilot.js?release=v142-code-preview-20261021-v31';
 import {createGeneralToolPolicy,normalizeGeneralSchema} from '../../jarvis-qwen-general-policy.js?pilot=engineering-read-20261021-v10';
-import {advertisingSourceText,generalObjectives,GENERAL_COUNT_FIELDS,summarizeGeneralEvidence,verifyGeneralMission,independentResearchProofs,researchOfficeContent,researchSourceProofs,researchQuoteRelevant,researchTopic,codeConcurrencyRequested,codePreviewOnlyRequested,verifiedPreparedCodePreview,requiredEngineeringSourceFiles} from './qwen-general-evidence.js?release=v142-code-preview-20261021-v30';
+import {advertisingSourceText,generalObjectives,GENERAL_COUNT_FIELDS,summarizeGeneralEvidence,verifyGeneralMission,independentResearchProofs,researchOfficeContent,researchSourceProofs,researchQuoteRelevant,researchTopic,codeConcurrencyRequested,codePreviewOnlyRequested,verifiedPreparedCodePreview,requiredEngineeringSourceFiles} from './qwen-general-evidence.js?release=v142-code-preview-20261021-v31';
 import {receiptBoundProductionContent,prioritizeReceiptBoundProduction} from './qwen-production-document.js';
 import {resumedMissionId,originalResumedMissionId,readSavedMission,verifiedResumeReceipts,verifiedResearchResumeReceipts} from './qwen-general-resume.js?pilot=research-resume-20261021-v4';
 import {classifyEmptyGeneralCatalog,requestQwenGeneralConversation} from './qwen-empty-catalog.js?pilot=concise-20261021-v8';
