@@ -1,0 +1,144 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {generalObjectives} from '../modules/terminal/qwen-general-evidence.js';
+import {generalToolCatalog,prioritizeGeneralCodeCatalog} from '../modules/terminal/qwen-general-pilot.js';
+import {createGeneralToolPolicy} from '../jarvis-qwen-general-policy.js';
+const mission='general-a1111111-2222-4333-8444-555555555555';
+const instruction='Audita y corrige el código del repositorio requestPayout, demuestra bug y corre pruebas; sin aplicar cambios reales.';
+const objectives=generalObjectives(instruction);
+const location={protocol:'http:',hostname:'127.0.0.1',port:'5000',search:'?qwenPilot=general-v1'};
+const policy=createGeneralToolPolicy({location,missionId:mission,objectives,instruction});
+const tools=['repo.grep','repo.search','repo.read','repo.diagnose','repo.prepareWrite','tests.run','repo.write','repo.authorizeWrite'].map(name=>({
+ name,mutates:name==='repo.write'||name==='repo.authorizeWrite',requiresApproval:name==='repo.write'||name==='repo.authorizeWrite',
+ userArtifact:false,inputSchema:{type:'object',properties:{term:{type:'string'},file:{type:'string'},search:{type:'string'},replace:{type:'string'},matchCount:{type:'integer'},command:{type:'string'}},required:[]}
+}));
+test('engineering is recognized and allowed only for read, analyze, test and prepare',()=>{
+ assert.equal(objectives.code,true);
+ assert.equal(policy.accept(tools.find(t=>t.name==='repo.grep')),true);
+ assert.equal(policy.accept(tools.find(t=>t.name==='repo.read')),true);
+ assert.equal(policy.accept(tools.find(t=>t.name==='tests.run')),true);
+ assert.equal(policy.accept(tools.find(t=>t.name==='repo.prepareWrite')),true);
+ assert.equal(policy.accept(tools.find(t=>t.name==='repo.write')),false);
+ assert.equal(policy.accept(tools.find(t=>t.name==='repo.authorizeWrite')),false);
+});
+test('engineering routes to real grep then observed file then tests',()=>{
+ const cat=generalToolCatalog({list:()=>tools},policy,objectives,instruction);
+ assert.equal(prioritizeGeneralCodeCatalog(cat,[],instruction)[0].inputSchema.properties.term.const,'requestPayout');
+ const repo='functions/index.js',grep={name:'repo.grep',ok:true,args:{term:'requestPayout'},observation:{ok:true,matches:[{file:repo,line:1030},{file:'tests/hotfix-legacy.test.mjs',line:9}]}};
+ const first=prioritizeGeneralCodeCatalog(cat,[grep],instruction);
+ assert.equal(first[0].name,'repo.read');
+ assert.ok(first[0].inputSchema.properties.file.enum.includes(repo));
+ const read=[repo,'tests/hotfix-legacy.test.mjs'].map(file=>({name:'repo.read',ok:true,args:{file},observation:{ok:true,verifiedRead:{file,content:'source'}}}));
+ const run=prioritizeGeneralCodeCatalog(cat,[grep,...read],instruction);
+ assert.equal(run[0].name,'tests.run');
+ assert.equal(run[0].inputSchema.properties.command.const,'pilot:security');
+ const tested={name:'tests.run',ok:true,args:{command:'test'},observation:{ok:true,status:'TESTS_GREEN'}};
+ assert.deepEqual(prioritizeGeneralCodeCatalog(cat,[grep,...read,tested],instruction),[]);
+});
+test('prepare patch requires exact read content and cannot self-authorize',()=>{
+ const file='functions/index.js',search='if (amount < 0)',source={name:'repo.read',ok:true,args:{file},observation:{ok:true,verifiedRead:{file,content:search+';'}}};
+ const call={name:'repo.prepareWrite',args:{file,search,replace:'if (amount <= 0)',matchCount:1,operation:'replace'}};
+ assert.equal(policy.authorize(call,[source]).ok,true);
+ assert.equal(policy.authorize({...call,args:{...call.args,matchCount:0}},[source]).ok,false);
+ assert.equal(policy.authorize({...call,args:{...call.args,approved:true}},[source]).ok,false);
+ assert.equal(policy.authorize({...call,args:{...call.args,file:'../outside.js'}},[source]).ok,false);
+ assert.equal(policy.authorize({...call,args:{...call.args,operation:'create'}},[source]).ok,false);
+});
+
+test('the actual payout code mission never becomes an unrelated medical/web or Firestore census task',()=>{
+ const request='MISIÓN CRÍTICA DE INGENIERÍA DE SOFTWARE. Investiga la causa raíz de requestPayout en FixGo B2C. Prepara un parche y ejecuta tests; no modificar producción ni pagar usuarios.';
+ const got=generalObjectives(request);
+ assert.equal(got.code,true);
+ assert.equal(got.research,false,'repository investigation is not web research');
+ assert.equal(got.records,false,'FixGo B2C mentioned in a code request is not a Firestore census');
+ assert.equal(got.prohibited,false);
+ const research=generalObjectives('Investiga mantenimiento preventivo del aire acondicionado y entrega DOCX y PDF; no modificar código');
+ assert.equal(research.code,false,'negative constraints never become a coding task');
+ assert.equal(research.research,true);
+});
+test('independent code auditor never certifies only grep, reads and a failing suite as complete',async()=>{
+ const {verifyGeneralMission,summarizeGeneralEvidence}=await import('../modules/terminal/qwen-general-evidence.js');
+ const instruction='Corrige el bug de requestPayout en el repositorio B2C, prepara un parche y ejecuta pruebas.';
+ const objectives=generalObjectives(instruction);
+ const records=[
+  {name:'repo.grep',ok:true,args:{term:'requestPayout'},observation:{ok:true,matches:[{file:'functions/index.js'}]}},
+  {name:'repo.read',ok:true,args:{file:'functions/index.js'},observation:{ok:true,verifiedRead:{file:'functions/index.js',content:'export function requestPayout(){}'}}},
+  {name:'tests.run',ok:true,args:{command:'test'},observation:{ok:true,status:'TESTS_NOT_PASSING',testsPassed:false,objectiveSatisfied:false,exitCode:1}}
+ ];
+ const report=await verifyGeneralMission({instruction,receipts:records,proposedReport:'done',objectives});
+ assert.equal(report.ok,false);
+ assert.ok(report.objectives.some(x=>x.reason==='CODE_TESTS_PASSING_REQUIRED'));
+ assert.ok(report.objectives.some(x=>x.reason==='ISOLATED_CODE_REPAIR_NOT_IMPLEMENTED'));
+ assert.equal(report.objectives.some(x=>x.reason==='THREE_OPENED_CITED_URLS_REQUIRED'),false);
+ assert.equal(report.objectives.some(x=>x.reason==='CURRENT_COMPLETE_AUTHORIZED_TECHNICIAN_COUNT_REQUIRED'),false);
+ const missing=summarizeGeneralEvidence(records,objectives,instruction).deliveryGaps;
+ assert.ok(missing.some(x=>x.reason==='CODE_TESTS_PASSING_REQUIRED'));
+});
+test('a completed tests.run process with failing assertions is never a successful tool result',async()=>{
+ const {runQwenAuthorizedCycle}=await import('../jarvis-qwen-direct-cycle.js');
+ const tool={name:'tests.run',inputSchema:{type:'object',properties:{command:{type:'string',const:'test'}},required:['command']}};
+ const actual=await runQwenAuthorizedCycle({
+  instruction:'Run tests on a safe sample',catalog:[tool],maximumSteps:6,stepLimit:6,
+  selectNextAction:async()=>({toolCall:{name:'tests.run',args:{command:'test'}}}),
+  authorize:async()=>({ok:true}),
+  execute:async()=>({ok:true,status:'TESTS_NOT_PASSING',testsPassed:false,objectiveSatisfied:false,exitCode:1}),
+  verifyCompletion:async()=>({ok:true})
+ });
+ assert.equal(actual.status,'PARTIAL');
+ assert.equal(actual.reason,'CODE_TESTS_NOT_PASSING');
+ assert.equal(actual.receipts.length,1);
+ assert.equal(actual.receipts[0].ok,false);
+});
+
+
+test('pilot security test runner passes through the browser and exact bridge allowlists',async()=>{
+ const fs=await import('node:fs');
+ const vm=await import('node:vm');
+ const command='node --test tests/hotfix-legacy.test.mjs tests/secure-financial-entry.test.mjs';
+ const client=fs.readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
+ const server=fs.readFileSync(new URL('../jarvis-fs-bridge.js',import.meta.url),'utf8');
+ const start=client.indexOf('window.JarvisLocalBridge.runCommand ||= async function');
+ const end=client.indexOf('\n};',start)+3;
+ assert.ok(start>0&&end>start);
+ const calls=[];
+ const window={JarvisLocalBridge:{requestJson:async(url,body)=>{
+  calls.push({url,body});return {ok:true,exitCode:0,status:'PASSED'};
+ }}};
+ vm.runInNewContext(client.slice(start,end),{window,Set,Number});
+ const good=await window.JarvisLocalBridge.runCommand({command});
+ assert.equal(good.ok,true);
+ assert.equal(calls.length,1);
+ assert.equal(calls[0].url,'/run');
+ assert.equal(calls[0].body.command,command);
+ for(const bad of [command+' && echo unsafe','npm run foo','node -e "process.exit(0)"']){
+  const fail=await window.JarvisLocalBridge.runCommand({command:bad});
+  assert.equal(fail.ok,false);
+  assert.equal(fail.status,'COMMAND_NOT_ALLOWED');
+ }
+ assert.equal(calls.length,1,'no unlisted or composite command gets through browser');
+ const serverStart=server.indexOf('app.post("/run"');
+ const serverEnd=server.indexOf('const safeCwd',serverStart);
+ assert.ok(serverStart>0&&serverEnd>serverStart);
+ const gate=server.slice(serverStart,serverEnd);
+ assert.ok(gate.includes('"'+command+'"'),'backend allows only this literal command');
+ assert.match(gate,/allowedCommands\.has\(command\)/);
+});
+test('tests.run maps pilot:security to that fixed command and never claims failed assertions passed',async()=>{
+ const fs=await import('node:fs');
+ const vm=await import('node:vm');
+ const s=fs.readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
+ const idx=s.indexOf('name: "tests.run"');
+ const start=s.lastIndexOf('JarvisToolRuntime.register({',idx);
+ const end=s.indexOf('\n});',idx)+4;
+ let tool,command;
+ vm.runInNewContext(s.slice(start,end),{
+  JarvisToolRuntime:{register:def=>{tool=def}},
+  window:{JarvisLocalBridge:{runCommand:async body=>{
+   command=body.command;return {ok:true,exitCode:0,status:'PASSED',stdout:'12 tests passed'};
+  }}},Set,Number
+ });
+ const success=await tool.execute({command:'pilot:security'});
+ assert.equal(command,'node --test tests/hotfix-legacy.test.mjs tests/secure-financial-entry.test.mjs');
+ assert.equal(success.testsPassed,true);
+ assert.equal(success.objectiveSatisfied,true);
+});

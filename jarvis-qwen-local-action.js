@@ -3,7 +3,7 @@
 // executes every tool and independently certifies mission completion.
 export const LOCAL_QWEN_ACTION_ADAPTER_VERSION='v142-qwen-local-decision-1';
 
-function jsonSchema(tools){
+function jsonSchema(tools,allowFinish=true,reportSchema={type:'string'}){
     const branch=(action,name,args,report)=>({type:'object',properties:{
         action:{const:action},name:{const:name},args,report
     },required:['action','name','args','report'],additionalProperties:false});
@@ -17,7 +17,7 @@ function jsonSchema(tools){
             required:[...new Set([...(base.required||[]),...(choice.required||[])])]}));
     };
     return {anyOf:[...tools.flatMap(tool=>alternatives(tool.parameters).map(args=>branch('CALL',tool.name,args,{const:''}))),
-        branch('FINISH','',{type:'object',additionalProperties:false},{type:'string'})]};
+        ...(allowFinish?[branch('FINISH','',{type:'object',additionalProperties:false},reportSchema)]:[])]};
 }
 
 export function createLocalQwenActionSelector({
@@ -26,6 +26,7 @@ export function createLocalQwenActionSelector({
     endpoint='http://127.0.0.1:11434/api/chat',
     requestTimeoutMs=120000,
     maxOutputTokens=256,
+    retryIncompleteOnce=false,
     onInference=()=>{}
 }={}){
     if(typeof window!=='undefined')throw new Error('LOCAL_QWEN_SERVER_ONLY');
@@ -39,7 +40,7 @@ export function createLocalQwenActionSelector({
         instruction,repositoryMap,tools=[],observations=[],evidenceSummary=null,missionLedger=null,iteration=0,signal
     }={}){
         if(typeof instruction!=='string'||!instruction.trim())throw new Error('MISSION_INSTRUCTION_REQUIRED');
-        if(!Array.isArray(tools)||!tools.length||tools.some(tool=>
+        if(!Array.isArray(tools)||(!tools.length&&!(observations.length&&evidenceSummary?.finishEligible===true))||tools.some(tool=>
             !tool?.name||!tool?.inputSchema)){
             throw new Error('QWEN_TOOL_CATALOG_REQUIRED');
         }
@@ -87,10 +88,19 @@ export function createLocalQwenActionSelector({
                 if(properties?.orderBy?.items?.properties?.field)properties.orderBy.items.properties.field.enum=['__name__',...fieldNames];
             }
         }
+        for(const tool of toolsForModel){
+            if(tool.name.startsWith('browser.')&&tool.parameters.required?.includes('url')){
+                const urls=[...new Set(observations.filter(r=>r.ok).flatMap(r=>[...(r.name==='page.create'&&r.observation?.url?[r.observation.url]:[]),...(tool.name==='browser.inspect'?(r.observation?.sources||[]).map(s=>s.url):[])]))];
+                const narrowed=tool.parameters.properties?.url?.enum;
+                const permitted=Array.isArray(narrowed)?urls.filter(url=>narrowed.includes(url)):urls;
+                if(urls.length||Array.isArray(narrowed))tool.parameters={...tool.parameters,properties:{...tool.parameters.properties,url:{type:'string',enum:permitted}}};
+            }
+        }
+        for(let i=toolsForModel.length-1;i>=0;i--)if(toolsForModel[i].name.startsWith('browser.')&&toolsForModel[i].parameters.properties?.url?.enum?.length===0)toolsForModel.splice(i,1);
         const latest=observations.slice(-6);
-        const outputSchema=jsonSchema(toolsForModel);
+        const outputSchema=jsonSchema(toolsForModel,evidenceSummary?.finishEligible!==false,evidenceSummary?.reportSchema);
         const policy='Eres Qwen3.5:9b, unico modelo local que dirige esta mision. '+
-            'Decide UNA siguiente herramienta de la lista y sus argumentos. '+
+            'Decide UNA siguiente herramienta de la lista y sus argumentos. Algunas son creativas, nunca asumas que todas son solo lectura o estan bloqueadas; el ejecutor comprueba autorizacion. '+
             'Si falta evidencia, elige CALL: nunca FINISH antes de contar con lecturas verificadas. '+
             'Si ya tienes evidencia necesaria, elige FINISH y redacta un reporte conciso, '+
             'sin inventar fuentes ni completar objetivos basados solo en el indice. '+
@@ -103,7 +113,7 @@ export function createLocalQwenActionSelector({
             {role:'system',content:policy},
             ...(repositoryMap&&!observations.length?[{role:'system',content:String(repositoryMap).slice(0,3000)}]:[]),
             {role:'user',content:instruction},
-            {role:'user',content:'HERRAMIENTAS_DE_SOLO_LECTURA='+JSON.stringify(toolsForModel)},
+            {role:'user',content:'HERRAMIENTAS_AUTORIZADAS_DEL_PASO='+JSON.stringify(toolsForModel)},
             {role:'user',content:'RESULTADOS_VERIFICADOS='+JSON.stringify(latest)},
             ...(evidenceSummary?[{role:'user',content:'COMPROBACION_INDEPENDIENTE='+JSON.stringify(evidenceSummary)}]:[]),
             ...(missionLedger?[{role:'user',content:'ESTADO_PERSISTENTE_DE_ESTA_MISION='+JSON.stringify(missionLedger)+
@@ -112,19 +122,31 @@ export function createLocalQwenActionSelector({
         const timeout=AbortSignal.timeout(Math.max(1000,Math.min(240000,Number(requestTimeoutMs)||120000)));
         const controller=signal?AbortSignal.any([signal,timeout]):timeout;
         const startedAt=Date.now();
-        const response=await fetchImpl(endpoint,{
-            method:'POST',headers:{'Content-Type':'application/json'},redirect:'error',
-            body:JSON.stringify({
-                model,stream:false,think:false,
-                format:outputSchema,
-                options:{temperature:0,num_ctx:16384,num_predict:
-                    Math.max(64,Math.min(1024,Number(maxOutputTokens)||256))},
-                messages
-            }),
-            signal:controller
-        });
-        if(!response.ok)throw new Error('LOCAL_QWEN_HTTP_'+response.status);
-        const result=await response.json();
+        const numPredict=Math.max(64,Math.min(2400,Number(maxOutputTokens)||256));
+        const request=async(predictionLimit,priorTruncated=false)=>{
+            const response=await fetchImpl(endpoint,{
+                method:'POST',headers:{'Content-Type':'application/json'},redirect:'error',
+                body:JSON.stringify({
+                    model,stream:false,think:false,
+                    format:outputSchema,
+                    options:{temperature:0,num_ctx:16384,num_predict:predictionLimit},
+                    messages:priorTruncated?[...messages,{role:'user',content:
+                        'La respuesta anterior se truncó. Devuelve SOLO la siguiente llamada JSON completa, con cadenas breves y sin razonamiento ni informe adicional.'}]:messages
+                }),
+                signal:controller
+            });
+            if(!response.ok)throw new Error('LOCAL_QWEN_HTTP_'+response.status);
+            return response.json();
+        };
+        let result=await request(numPredict);
+        let retries=0,usedPromptTokens=Number(result.prompt_eval_count)||0,
+            usedOutputTokens=Number(result.eval_count)||0;
+        if(result.done_reason==='length'&&retryIncompleteOnce){
+            retries=1;
+            result=await request(Math.min(4096,Math.max(3072,numPredict+512)),true);
+            usedPromptTokens+=Number(result.prompt_eval_count)||0;
+            usedOutputTokens+=Number(result.eval_count)||0;
+        }
         if(result.done_reason==='length')throw new Error('LOCAL_QWEN_ACTION_INCOMPLETE');
         let parsed;
         try{parsed=JSON.parse(String(result.message?.content||''));}
@@ -134,15 +156,16 @@ export function createLocalQwenActionSelector({
         const usage={
             stage:'DIRECT_READ_ONLY_ACTION',iteration,
             durationMs:Date.now()-startedAt,
-            promptTokens:Number(result.prompt_eval_count)||0,
-            outputTokens:Number(result.eval_count)||0,
+            promptTokens:usedPromptTokens,
+            outputTokens:usedOutputTokens,
+            incompleteRetries:retries,
             toolCount:tools.length
         };
         onInference(usage);
         if(parsed.action==='FINISH'){
             if(!observations.some(ob=>ob.ok===true))
                 throw new Error('LOCAL_QWEN_PREMATURE_FINISH');
-            return {finish:true,report:String(parsed.report||'')};
+            return {finish:true,report:parsed.report&&typeof parsed.report==='object'?JSON.stringify(parsed.report):String(parsed.report||'')};
         }
         if(typeof parsed.name!=='string'||!tools.some(tool=>tool.name===parsed.name))
             throw new Error('LOCAL_QWEN_UNKNOWN_TOOL');

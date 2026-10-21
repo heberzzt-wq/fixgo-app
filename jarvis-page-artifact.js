@@ -115,11 +115,11 @@ function buildInsufficientEvidencePageHtml(input = {}) {
     const requiredSections = requiredPageSections(input);
     const sectionMarkup = requiredSections.map(section => `
 <section id="contenido-${escapeHtml(section.key)}" data-requested-section="${escapeHtml(section.key)}">
-  <div class="wrap"><p class="eyebrow">Pendiente de verificación</p><h2>${escapeHtml(section.title)}</h2>
+  <div class="wrap"><p class="eyebrow">Pendiente de verificación</p><h2>${escapeHtml(section.label)}</h2>
   <p>Esta sección queda pendiente de verificación. No se publica información específica hasta contar con evidencia suficiente y atribuible a la entidad correcta.</p></div>
 </section>`).join("");
     const sectionLinks = requiredSections.map(section =>
-        `<a href="#contenido-${escapeHtml(section.key)}">${escapeHtml(section.title)}</a>`
+        `<a href="#contenido-${escapeHtml(section.key)}">${escapeHtml(section.label)}</a>`
     ).join("");
     const structuredData = JSON.stringify({
         "@context": "https://schema.org",
@@ -219,11 +219,13 @@ export function describePageArtifact(input = {}, html = "") {
     if (text(input?.evidenceMode).toLowerCase() === "insufficient") {
         const requiredSections = requiredPageSections(input);
         const renderedSections = requiredSections.map(section => ({
-            title: section.title,
+            title: section.label,
             key: section.key
         }));
         const requestedSectionsSatisfied = requiredSections.every(section =>
-            html.includes(`data-requested-section="${section.key}"`)
+            html.includes(`data-requested-section="${section.key}"`) &&
+            html.includes(`<h2>${escapeHtml(section.label)}</h2>`) &&
+            html.includes(`<a href="#contenido-${escapeHtml(section.key)}">${escapeHtml(section.label)}</a>`)
         );
         const checks = {
             responsive: html.includes("@media(max-width:780px)"),

@@ -256,14 +256,11 @@ test("workstation liveness is lightweight and doctor stays explicit", () => {
         new URL("../jarvis-upload-bridge.js", import.meta.url),
         "utf8"
     );
-    const healthStart =
-        source.indexOf("const workstationHealthHandler");
-    const doctorStart =
-        source.indexOf("const workstationDoctorHandler");
-    assert.ok(healthStart >= 0);
-    assert.ok(doctorStart > healthStart);
-    const healthBlock =
-        source.slice(healthStart, doctorStart);
+    const healthBlock = fs.readFileSync(
+        new URL("../jarvis-workstation-health.js", import.meta.url), "utf8"
+    );
+    assert.match(source, /registerWorkstationHealth\(app,/);
+    assert.ok(source.includes("const workstationDoctorHandler"));
     assert.match(
         healthBlock,
         /JARVIS_WORKSTATION_LIVE/
@@ -281,8 +278,8 @@ test("workstation liveness is lightweight and doctor stays explicit", () => {
         /app\.get\("\/workstation\/doctor", workstationDoctorHandler\)/
     );
     assert.match(
-        source,
-        /app\.get\("\/workstation\/health", workstationHealthHandler\)/
+        healthBlock,
+        /app\.get\('\/workstation\/health',handler\)/
     );
 });
 

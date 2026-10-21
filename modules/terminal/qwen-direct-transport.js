@@ -1,6 +1,6 @@
 // Browser-side decisions go exclusively through JarvisLocalBridge. ID tokens
 // live in the Authorization header, never in prompts, receipts or relay jobs.
-export function createQwenBridgeActionSelector({bridge,auth,onInference=()=>{}}={}){
+export function createQwenBridgeActionSelector({bridge,auth,onInference=()=>{},pilotVersion=null}={}){
     if(typeof bridge?.requestJson!=='function'||!auth)
         throw new Error('QWEN_AUTHENTICATED_BRIDGE_REQUIRED');
     return async({signal,...input})=>{
@@ -11,7 +11,7 @@ export function createQwenBridgeActionSelector({bridge,auth,onInference=()=>{}}=
         const idToken=await user.getIdToken();
         if(auth.currentUser!==user)throw new Error('QWEN_BROWSER_SESSION_CHANGED');
         const result=await bridge.requestJson('/semantic/plan',{
-            ...input,missionState:{phase:'DIRECT_READ_ONLY_ACTION'}
+            ...input,missionState:{phase:'DIRECT_READ_ONLY_ACTION',...(pilotVersion?{...pilotVersion,pilotKind:'general-v1'}:{})}
         },{idToken,signal});
         signal?.throwIfAborted();
         if(auth.currentUser!==user)throw new Error('QWEN_BROWSER_SESSION_CHANGED');

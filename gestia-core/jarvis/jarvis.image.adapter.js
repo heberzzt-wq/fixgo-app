@@ -8,8 +8,8 @@ export const IMAGE_COMPOSITION_SCHEMA = {
         headline: { type: "string", maxLength: 140 },
         body: { type: "string", maxLength: 240 },
         brandName: { type: "string", maxLength: 100 },
-        cta: { type: "string", maxLength: 90 },
-        contact: { type: "string", maxLength: 120 },
+        cta: { type: "string", maxLength: 90, description: "Opcional: vacío si el cuerpo contiene la única URL autorizada." },
+        contact: { type: "string", maxLength: 120, description: "Opcional: vacío si la URL ya aparece en otro texto autorizado." },
         inkColor: { type: "string", description: "Color hexadecimal #RRGGBB, opcional." },
         accentColor: { type: "string", description: "Color hexadecimal #RRGGBB, opcional." },
         photoCrop: { type: "object", description: "Coordenadas en píxeles del original; usar la photoRegion verificada del inventario cuando exista. No inventar coordenadas.",
@@ -373,7 +373,7 @@ function compositionSpec(input, bitmap) {
     const copy = {};
     for (const [key, maximum] of Object.entries({ headline: 140, body: 240, brandName: 100, cta: 90, contact: 120 })) {
         copy[key] = String(spec[key] || "").replace(/\s+/g, " ").trim();
-        if (!copy[key] || copy[key].length > maximum) throw new Error(`IMAGE_COMPOSITION_TEXT_INVALID:${key}`);
+        if ((key !== "cta" && key !== "contact" && !copy[key]) || copy[key].length > maximum) throw new Error(`IMAGE_COMPOSITION_TEXT_INVALID:${key}`);
     }
     const crop = spec.photoCrop;
     if (!crop || ![crop.x, crop.y, crop.width, crop.height].every(Number.isFinite) || crop.x < 0 || crop.y < 0 ||
@@ -449,9 +449,14 @@ function renderComposition(context, bitmap, logo, logoBounds, variant, spec) {
         brandName: box(0.34, 0.05, 0.60, 0.105), cta: box(0.073, 0.858, 0.854, 0.05),
         contact: box(0.055, 0.945, 0.89, 0.033)
     };
-    context.fillStyle = spec.accentColor;
-    context.fillRect(m, h * (split ? 0.807 : 0.843), w * (split ? 0.445 : 0.89), h * (split ? 0.098 : 0.07));
+    // If the copy already includes the web address, omit the redundant CTA
+    // and its colored button instead of rendering an empty rectangle.
+    if (spec.cta) {
+        context.fillStyle = spec.accentColor;
+        context.fillRect(m, h * (split ? 0.807 : 0.843), w * (split ? 0.445 : 0.89), h * (split ? 0.098 : 0.07));
+    }
     for (const key of ["headline", "body", "brandName", "cta", "contact"]) {
+        if (!spec[key]) continue;
         drawCopy(context, spec[key], areas[key], {
             size: typeScale * (key === "headline" ? 0.063 : key === "body" ? 0.033 : 0.031),
             minimum: typeScale * (key === "headline" ? 0.035 : 0.021),

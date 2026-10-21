@@ -657,7 +657,7 @@ function inspectWebResearchCapability(
     };
 }
 
-async function buildCapabilityForensics(runtime) {
+async function buildCapabilityForensics(runtime, context = {}) {
     const tools = toolNames(runtime);
     const bridge =
         typeof globalThis?.JarvisLocalBridge?.verifyIdentity === "function"
@@ -668,6 +668,7 @@ async function buildCapabilityForensics(runtime) {
             };
 
     const workstation =
+        typeof context.qwenWorkstationHealth === "function" ? await context.qwenWorkstationHealth() :
         bridge.ok === true &&
         typeof globalThis?.JarvisLocalBridge?.requestJson === "function"
             ? await globalThis.JarvisLocalBridge.requestJson(
@@ -5279,7 +5280,7 @@ export function registerJarvisMultifunctionTools(runtime) {
             inputSchema: {type: "object", properties: {}, additionalProperties: false},
             description: "Describe las herramientas activas de SIA7 agrupadas por dominio y su politica de aprobacion.",
             output: "SIA7_CAPABILITY_REPORT",
-            execute: async () => {
+            execute: async (_args = {}, context = {}) => {
                 const tools =
                     typeof runtime.list === "function"
                         ? runtime.list()
@@ -5298,13 +5299,14 @@ export function registerJarvisMultifunctionTools(runtime) {
                     }, {});
 
                 const forensics =
-                    await buildCapabilityForensics(runtime);
+                    await buildCapabilityForensics(runtime, context);
 
                 return {
                     ok: true,
                     engine: "jarvis_multifunction_tools",
                     version: VERSION,
                     totalTools: tools.length,
+                    inventory: typeof context.qwenCapabilityPolicy === "function" ? context.qwenCapabilityPolicy(tools) : undefined,
                     groups,
                     tools,
                     readiness: {
@@ -5626,9 +5628,9 @@ export function registerJarvisMultifunctionTools(runtime) {
                 const bridge=globalThis.JarvisLocalBridge || globalThis.window?.JarvisLocalBridge;
                 if(typeof bridge?.requestJson!=="function") throw new Error("LOCAL_RESEARCH_BRIDGE_REQUIRED");
                 const library=await bridge.requestJson("/media/library",{action:"list"},{timeoutMs:30000});
-                if(library?.ok!==true) throw new Error(library?.error || "OFFICIAL_LIBRARY_REQUIRED");
+                if(library?.ok!==true) throw new Error(library?.error || library?.status || "OFFICIAL_LIBRARY_REQUIRED");
                 let query=String(args.query || "").trim();
-                if (typeof context.rawInput === "string" && context.rawInput.trim()) {
+                if (context.qwenDirectDecision !== true && typeof context.rawInput === "string" && context.rawInput.trim()) {
                     const grounded=await completeJarvisPlanningArguments({
                         toolName:"advertising.research",
                         description:"Formula una consulta de referencias publicitarias por el sector y localidad observados en los originales oficiales. No busques la orden de crear publicidad literalmente ni conviertas una marca en un evento homónimo. Las referencias externas orientan el diseño y no aportan identidad ni contactos del cliente.",
@@ -6255,6 +6257,9 @@ export function registerJarvisMultifunctionTools(runtime) {
                 questions: "array"
             },
             execute: async (args = {}, context = {}) => {
+                if (typeof context.qwenArtifactVisualReview === "function" && typeof args.output === "string") {
+                    return context.qwenArtifactVisualReview(args.output);
+                }
                 const instruction =
                     args.instruction ||
                     args.query ||

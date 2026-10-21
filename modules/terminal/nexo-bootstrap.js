@@ -17,7 +17,7 @@ export const NEXO_TERMINAL_BOOTSTRAP_VERSION =
 
 const INSTALL_KEY = "__JARVIS_TERMINAL_BOOTSTRAP__";
 const isolatedQwenPilot = ["localhost", "127.0.0.1"].includes(globalThis.location?.hostname) &&
-    new URLSearchParams(globalThis.location?.search || "").get("qwenPilot") === "b2c-census-v1";
+    ["b2c-census-v1", "general-v1"].includes(new URLSearchParams(globalThis.location?.search || "").get("qwenPilot"));
 const LOCAL_BRIDGE_BASE_URL = isolatedQwenPilot ? "http://localhost:3347" : "http://localhost:3344";
 let runtimeContractPromise = null;
 
@@ -634,8 +634,9 @@ export function installJarvisLocalBridgeTransport() {
                             headers: {
                                 "Content-Type": "application/json",
                                 "X-Jarvis-Release-Id": contract.releaseId,
-                                ...(path === "/semantic/plan" &&
-                                    payload?.missionState?.phase === "DIRECT_READ_ONLY_ACTION" &&
+                                ...(((path === "/semantic/plan" &&
+                                    payload?.missionState?.phase === "DIRECT_READ_ONLY_ACTION") ||
+                                    path === "/workstation/health") &&
                                     options.idToken ? { Authorization: `Bearer ${options.idToken}` } : {})
                             },
                             body: JSON.stringify(

@@ -1,3 +1,4 @@
+import {workstationRuntimeState, registerWorkstationHealth} from './jarvis-workstation-health.js';
 import fs from "node:fs";
 import { JARVIS_LOCAL_MODEL, hasExactLocalModel } from './gestia-core/jarvis/jarvis.local.policy.js';
 import path from "node:path";
@@ -1028,18 +1029,7 @@ export function removeLegacyUploadRoutes(app) {
     };
 }
 
-const workstationRuntimeState = {
-    workstationContractVersion: "2.0.0-singleton-exact-sync",
-    loadedHead: null,
-    startedAt: null,
-    bridgeStarted: false,
-    workerStarted: false,
-    workerPollMs: 5000,
-    workerLastPollAt: null,
-    workerLastPollOkAt: null,
-    workerLastPollError: null,
-    lastDoctorAt: null
-};
+
 
 function workstationCommand(command, args = [], {
     cwd = process.cwd(),
@@ -2283,28 +2273,7 @@ export function registerJarvisUploadRoutes(
         }
     });
 
-    const workstationHealthHandler = (_req, res) => {
-        return res.json({
-            ok: true,
-            status: "JARVIS_WORKSTATION_LIVE",
-            checkedAt: new Date().toISOString(),
-            runtime: {
-                ...workstationRuntimeState,
-                processId: process.pid,
-                node: {
-                    ok: true,
-                    version: process.version,
-                    executable: process.execPath
-                }
-            },
-            bridgeVersion:
-                JARVIS_FS_BRIDGE_VERSION,
-            uploadTransportVersion:
-                JARVIS_UPLOAD_BRIDGE_VERSION,
-            doctorRoute:
-                "/workstation/doctor"
-        });
-    };
+
 
     const workstationDoctorHandler = async (_req, res) => {
         try {
@@ -2333,8 +2302,7 @@ export function registerJarvisUploadRoutes(
         }
     };
 
-    app.get("/workstation/health", workstationHealthHandler);
-    app.post("/workstation/health", workstationHealthHandler);
+    registerWorkstationHealth(app, {bridgeVersion:JARVIS_FS_BRIDGE_VERSION, uploadTransportVersion:JARVIS_UPLOAD_BRIDGE_VERSION});
     app.get("/workstation/doctor", workstationDoctorHandler);
     app.post("/workstation/doctor", workstationDoctorHandler);
 

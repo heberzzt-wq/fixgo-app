@@ -12,6 +12,16 @@ const tools=[{
 }];
 const map='CONFIGURACION_DE_FUENTES_VERIFICADA={"revision":"fixture","operationalEvidence":false}';
 
+test('adapter cannot reintroduce completed or unsupported URLs excluded by grounded catalog',async()=>{
+ const fresh='https://example.test/new',old='https://example.test/completed',pdf='https://example.test/file.pdf';
+ const selector=createLocalQwenActionSelector({fetchImpl:async(_,request)=>{
+  const payload=JSON.parse(request.body),call=payload.format.anyOf.find(b=>b.properties.name.const==='browser.inspect');
+  assert.deepEqual(call.properties.args.properties.url.enum,[fresh]);
+  return {ok:true,json:async()=>({done:true,done_reason:'stop',message:{content:JSON.stringify({action:'CALL',name:'browser.inspect',args:{url:fresh},report:''})},prompt_eval_count:20,eval_count:10})};
+ }});
+ await selector({instruction:'Inspect next grounded page',tools:[{name:'browser.inspect',inputSchema:{type:'object',properties:{url:{type:'string',enum:[fresh]}},required:['url']}}],observations:[{ok:true,name:'advertising.research',observation:{sources:[{url:old},{url:pdf},{url:fresh}]}}]});
+});
+
 test('adapter only accepts local model and loopback endpoint',()=>{
     for(const endpoint of ['https://127.0.0.1:11434/api/chat',
         'http://evil.example/api/chat','http://127.0.0.1:11434/api/generate']){
@@ -43,8 +53,8 @@ test('Qwen local adapter receives repo map and compact receipts without asking a
             assert.equal(payload.options.num_ctx,16384);
             assert.equal(payload.format.anyOf[0].properties.action.const,calls===1?'CALL':'FINISH');
             assert.equal(payload.messages.some(m=>m.content===map),calls===1,'static map is sent once; mission evidence persists');
-            const catalogMessage=payload.messages.find(m=>m.content.startsWith('HERRAMIENTAS_DE_SOLO_LECTURA='));
-            const sentTools=JSON.parse(catalogMessage.content.split('HERRAMIENTAS_DE_SOLO_LECTURA=')[1]);
+            const catalogMessage=payload.messages.find(m=>m.content.startsWith('HERRAMIENTAS_AUTORIZADAS_DEL_PASO='));
+            const sentTools=JSON.parse(catalogMessage.content.split('HERRAMIENTAS_AUTORIZADAS_DEL_PASO=')[1]);
             if(calls===1){assert.deepEqual(sentTools[0].requiresEvidence,tools[0].requiresEvidence);
                 assert.deepEqual(sentTools[0].evidenceKinds,tools[0].evidenceKinds);}
             else assert.deepEqual(sentTools,[],'completed read is excluded without changing certification');

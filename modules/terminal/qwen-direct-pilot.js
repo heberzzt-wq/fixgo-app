@@ -1,5 +1,5 @@
 import {createQwenAuthenticatedToolBridge} from '../../jarvis-qwen-tool-bridge.js';
-import {runQwenDirectReadCycle} from '../../jarvis-qwen-direct-cycle.js';
+import {runQwenDirectReadCycle,runQwenAuthorizedCycle} from '../../jarvis-qwen-direct-cycle.js';
 import {createQwenBridgeActionSelector} from './qwen-direct-transport.js';
 import {resolveGestiaRole} from '../../gestia-core/auth/role-authority.js';
 import {JARVIS_PRIVATE_RELAY} from '../../gestia-core/jarvis/jarvis.semantic.transport.js';
@@ -9,7 +9,7 @@ const activeSessions=new WeakSet();
 // Opt-in host integration. The authenticated Terminal supplies its existing
 // runtime and objective verifier; neither can be chosen by model output.
 export async function runQwenTerminalReadPilot({instruction,auth,bridge,toolRuntime,toolsBridge,
-    sessionContext,verifyObjectives,repositoryMap,signal,onProgress=()=>{},maximumSteps=8,summarizeEvidence=null}={}){
+    sessionContext,verifyObjectives,repositoryMap,signal,onProgress=()=>{},maximumSteps=8,summarizeEvidence=null,hostToolPolicy=null,compactObservation=null,repairIncomplete=false,catalogForEvidence=null,pilotVersion=null,initialReceipts=[]}={}){
     if(!auth||typeof verifyObjectives!=='function'||!sessionContext?.tenantId)
         throw new Error('QWEN_TERMINAL_AUTHORITY_REQUIRED');
     if(activeSessions.has(auth))throw new Error('QWEN_TERMINAL_MISSION_BUSY');
@@ -30,14 +30,14 @@ export async function runQwenTerminalReadPilot({instruction,auth,bridge,toolRunt
         };
         if((await validateAuthenticatedContext()).ok!==true)throw new Error('QWEN_TERMINAL_SESSION_REQUIRED');
         const adapter=createQwenAuthenticatedToolBridge({toolRuntime,toolsBridge,
-            sessionContext,validateAuthenticatedContext,verifyObjectives});
-        const selector=createQwenBridgeActionSelector({bridge,auth,onInference:usage=>{
+            sessionContext,validateAuthenticatedContext,verifyObjectives,hostToolPolicy});
+        const selector=createQwenBridgeActionSelector({bridge,auth,pilotVersion,onInference:usage=>{
             metrics.inferences++;
             metrics.promptTokens+=Number(usage.promptTokens)||0;
             metrics.outputTokens+=Number(usage.outputTokens)||0;
             metrics.inferenceMs+=Number(usage.durationMs)||0;
         }});
-        const result=await runQwenDirectReadCycle({instruction,repositoryMap,maximumSteps,signal,summarizeEvidence,
+        const result=await (hostToolPolicy?runQwenAuthorizedCycle:runQwenDirectReadCycle)({instruction,repositoryMap,maximumSteps,stepLimit:hostToolPolicy?96:12,signal,summarizeEvidence,compactObservation,repairIncomplete,catalogForEvidence,initialReceipts,
             ...adapter,selectNextAction:selector,onProgress,
             execute:async(call,context)=>{
                 const receipt=await adapter.execute(call,context);

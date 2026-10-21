@@ -1,9 +1,11 @@
+import {reviewQwenArtifact} from './jarvis-qwen-visual-review.js';
+import {reviewAdvertisingEvidence} from './jarvis-qwen-advertising-review.js';
 import {createLocalQwenActionSelector} from './jarvis-qwen-local-action.js';
 import {JARVIS_PRIVATE_RELAY} from './gestia-core/jarvis/jarvis.semantic.transport.js';
 
 // Verify only the existing browser ID token. This module never reads Firestore
 // with Admin credentials and never executes a model-selected tool.
-async function verifyBrowserIdToken(token){
+export async function verifyBrowserIdToken(token){
     if(process.env.FIREBASE_AUTH_EMULATOR_HOST)throw new Error('QWEN_PILOT_REAL_AUTH_REQUIRED');
     const [{initializeApp,getApps},{getAuth}]=await Promise.all([
         import('firebase-admin/app'),import('firebase-admin/auth')]);
@@ -13,7 +15,7 @@ async function verifyBrowserIdToken(token){
 }
 
 export function createQwenDecisionHandler({enabled=false,verifyIdToken=verifyBrowserIdToken,
-    selectNextAction=null,getRepositoryMap=()=>null,heartbeatMs=5000}={}){
+    selectNextAction=null,getRepositoryMap=()=>null,heartbeatMs=5000,visualArtifacts=null,checkPilotVersion=null}={}){
     let busy=false;
     return async(req,res)=>{
         if(!enabled)return res.status(403).json({ok:false,error:'QWEN_DIRECT_PILOT_DISABLED'});
@@ -27,10 +29,18 @@ export function createQwenDecisionHandler({enabled=false,verifyIdToken=verifyBro
             return res.status(403).json({ok:false,error:'QWEN_PILOT_OWNER_REQUIRED'});
         if(res.destroyed)return;
         const body=req.body||{};
-        if(typeof body.instruction!=='string'||!body.instruction.trim()||body.instruction.length>24000||
-            !Array.isArray(body.tools)||!body.tools.length||body.tools.length>80||
+        const visual=typeof body.visualOutput==='string'&&visualArtifacts;
+        const advertising=body.advertisingEvidence&&typeof body.advertisingEvidence==='object'&&JSON.stringify(body.advertisingEvidence).length<=100000;
+        const general=visual||advertising||body.missionState?.pilotKind==='general-v1'||
+            body.tools?.some?.(t=>['advertising.research','image.adapt','reel.create','speech.synthesize','page.create','document.create'].includes(t.name));
+        if(general&&checkPilotVersion){
+            const version=checkPilotVersion(body.missionState||{});
+            if(!version.ok)return res.status(409).json({ok:false,error:'QWEN_PILOT_VERSION_MISMATCH',reason:version.reason});
+        }
+        if(!visual&&!advertising&&(typeof body.instruction!=='string'||!body.instruction.trim()||body.instruction.length>24000||
+            !Array.isArray(body.tools)||(!body.tools.length&&!(body.observations?.length&&body.evidenceSummary?.finishEligible===true))||body.tools.length>80||
             !Array.isArray(body.observations)||body.observations.length>12||
-            JSON.stringify(body).length>120000)
+            JSON.stringify(body).length>120000))
             return res.status(400).json({ok:false,error:'QWEN_DECISION_REQUEST_INVALID'});
         if(busy)return res.status(409).json({ok:false,error:'QWEN_DECISION_BUSY'});
         busy=true;
@@ -47,7 +57,19 @@ export function createQwenDecisionHandler({enabled=false,verifyIdToken=verifyBro
             progress();timer=setInterval(progress,heartbeatMs);
         }
         try {
-            const selector=selectNextAction||createLocalQwenActionSelector({maxOutputTokens:1024,onInference:value=>{usage=value;}});
+            if(advertising){
+                const review=await reviewAdvertisingEvidence({...body.advertisingEvidence,signal:controller.signal});
+                const result={ok:true,decision:{advertisingReview:review},usage:review.usage,principalId:identity.uid};
+                if(streaming){send({type:'result',result});res.end();}else res.json(result);
+                return;
+            }
+            if(visual){
+                const review=await reviewQwenArtifact({output:body.visualOutput,...visualArtifacts,signal:controller.signal});
+                const result={ok:true,decision:{visualReview:review},usage:review.usage,principalId:identity.uid};
+                if(streaming){send({type:'result',result});res.end();}else res.json(result);
+                return;
+            }
+            const selector=selectNextAction||createLocalQwenActionSelector({maxOutputTokens:body.tools?.some(t=>['image.adapt','reel.create'].includes(t.name))?2400:1024,retryIncompleteOnce:body.tools?.some(t=>['image.adapt','reel.create'].includes(t.name))===true,onInference:value=>{usage=value;}});
             const decision=await selector({instruction:body.instruction,repositoryMap:await getRepositoryMap(body.instruction),
                 tools:body.tools,observations:body.observations,evidenceSummary:body.evidenceSummary,
                 missionLedger:body.missionLedger,iteration:body.iteration,signal:controller.signal});
@@ -55,7 +77,7 @@ export function createQwenDecisionHandler({enabled=false,verifyIdToken=verifyBro
             if(streaming){send({type:'result',result});res.end();}
             else res.json(result);
         } catch(error) {
-            const reason=/^LOCAL_QWEN_[A-Z0-9_]+$/.test(String(error?.message||''))?error.message:
+            const reason=/^(?:LOCAL_QWEN|ADVERTISING_SEMANTIC)_[A-Z0-9_]+$/.test(String(error?.message||''))?error.message:
                 error?.name==='TimeoutError'?'LOCAL_QWEN_TIMEOUT':'LOCAL_QWEN_INTERNAL_ERROR';
             const result={ok:false,error:'QWEN_LOCAL_DECISION_FAILED',reason};
             if(streaming){send({type:'result',result});res.end();}

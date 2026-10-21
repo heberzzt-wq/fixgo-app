@@ -834,7 +834,7 @@ export async function validateDocxArtifactFile({
     if (actual.implementationDayCoverage < required.implementationDays) failures.push(`DOCX_IMPLEMENTATION_DAY_COVERAGE_BELOW_MINIMUM:${actual.implementationDayCoverage}:${required.implementationDays}`);
     if (actual.missingSections.length > 0) failures.push(`DOCX_REQUIRED_SECTIONS_MISSING:${actual.missingSections.join("|")}`);
     if (actual.placeholderDetected) failures.push("DOCX_PLACEHOLDER_DETECTED");
-    if (expectedValidation?.validationPassed !== true) failures.push("DOCX_SOURCE_BLUEPRINT_NOT_VALIDATED");
+    if (expectedValidation?.validationPassed !== true && contract?.documentKind !== 'original_draft') failures.push("DOCX_SOURCE_BLUEPRINT_NOT_VALIDATED");
 
     return {
         ok: failures.length === 0,

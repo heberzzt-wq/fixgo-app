@@ -9012,7 +9012,8 @@ window.JarvisLocalBridge.runCommand ||= async function(payload = {}) {
         new Set([
             "npm run check:syntax",
             "npm test",
-            "npm run ci:test"
+            "npm run ci:test",
+            "node --test tests/hotfix-legacy.test.mjs tests/secure-financial-entry.test.mjs"
         ]);
 
     if (!allowedCommands.has(command)) {
@@ -9219,7 +9220,7 @@ JarvisToolRuntime.register({
     inputSchema: {
         type: "object",
         properties: {
-            command: { type: "string", enum: ["check:syntax", "test", "ci:test", "responsive"] },
+            command: { type: "string", enum: ["check:syntax", "test", "ci:test", "responsive", "pilot:security"] },
             fingerprints: { type: "array", minItems: 1, items: { type: "string" }, description: "Fingerprints devueltos por repo.write para verificar y revertir exclusivamente esas escrituras." },
             verificationFailure: { type: "string", maxLength: 1000, description: "Fallo observado al comprobar el navegador; solo puede rechazar la reparacion y revertir los receipts, nunca acreditar exito." },
             cwd: { type: "string" },
@@ -9237,7 +9238,8 @@ JarvisToolRuntime.register({
                 "check:syntax",
                 "test",
                 "ci:test",
-                "responsive"
+                "responsive",
+                "pilot:security"
             ]);
 
         if (!allowedCommands.has(command)) {
@@ -9258,7 +9260,9 @@ JarvisToolRuntime.register({
         }
 
         const npmCommand =
-            command === "responsive"
+            command === "pilot:security"
+                ? "node --test tests/hotfix-legacy.test.mjs tests/secure-financial-entry.test.mjs"
+                : command === "responsive"
                 ? "node --test tests/jarvis-current-turn-production-regressions.test.mjs tests/jarvis-actuator-pack.test.mjs tests/jarvis-repair-engines-v2.test.mjs"
                 : command === "test"
                 ? "npm test"

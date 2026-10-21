@@ -4092,6 +4092,21 @@ export const GestiaCore = {
             workspaceId: tenantId,
             projectId: "adjunto"
         };
+        if (globalThis.location?.search && new URLSearchParams(globalThis.location.search).get('qwenPilot') === 'general-v1') {
+            try {
+                const {runQwenGeneralPilot}=await import('../modules/terminal/qwen-general-pilot.js?pilot=engineering-audit-20261021-v10');
+                const result=await runQwenGeneralPilot({instruction:inputRaw,
+                    auth,bridge:window.JarvisLocalBridge,toolRuntime:window.JarvisToolRuntime,
+                    toolsBridge:window.ToolsBridge,sessionContext:{...context,tenantId,analysisId},
+                    onProgress:detail=>globalThis.dispatchEvent?.(new CustomEvent('jarvis:work-progress',{detail}))});
+                traceJarvisMission('qwen-general-pilot',{status:result.status,reason:result.reason,missionId:result.missionId,metrics:result.metrics,evidence:result.evidence});
+                return result;
+            } catch(error) {
+                const reason=String(error?.message||'QWEN_GENERAL_UNAVAILABLE');
+                return {ok:false,blocked:true,status:'QWEN_GENERAL_BLOCKED',reason,
+                    finalResponse:{ok:false,title:'Piloto general bloqueado',text:reason}};
+            }
+        }
         // Explicit isolated pilot; no keyword routing or fallback to a second
         // planner. The existing authenticated runtime still executes all reads.
         if (globalThis.location?.search && new URLSearchParams(globalThis.location.search).get("qwenPilot") === "b2c-census-v1") {
