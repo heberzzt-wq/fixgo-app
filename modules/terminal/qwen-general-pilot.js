@@ -1,9 +1,10 @@
 import {planImageAdaptation} from '../../gestia-core/jarvis/jarvis.image.adapter.js';
+import {compactVerifiedEngineeringSource} from './qwen-engineering-source-excerpt.js';
 import {LOCAL_VIDEO_EVIDENCE_CAPABILITIES,MEDIA_TOOLS,mediaEntries,producedMedia,deliveredImageHistory,producedImageHistory} from './qwen-general-media.js';
 import {createQwenBridgeActionSelector} from './qwen-direct-transport.js';
-import {runQwenTerminalReadPilot} from './qwen-direct-pilot.js?release=v142-engineering-report-20261021-v15';
+import {runQwenTerminalReadPilot} from './qwen-direct-pilot.js?release=v142-engineering-report-20261021-v16';
 import {createGeneralToolPolicy,normalizeGeneralSchema} from '../../jarvis-qwen-general-policy.js?pilot=engineering-read-20261021-v9';
-import {advertisingSourceText,generalObjectives,GENERAL_COUNT_FIELDS,summarizeGeneralEvidence,verifyGeneralMission,independentResearchProofs,researchOfficeContent,researchSourceProofs,researchQuoteRelevant,researchTopic,codeConcurrencyRequested} from './qwen-general-evidence.js?release=v142-engineering-report-20261021-v15';
+import {advertisingSourceText,generalObjectives,GENERAL_COUNT_FIELDS,summarizeGeneralEvidence,verifyGeneralMission,independentResearchProofs,researchOfficeContent,researchSourceProofs,researchQuoteRelevant,researchTopic,codeConcurrencyRequested} from './qwen-general-evidence.js?release=v142-engineering-report-20261021-v16';
 import {receiptBoundProductionContent,prioritizeReceiptBoundProduction} from './qwen-production-document.js';
 import {resumedMissionId,originalResumedMissionId,readSavedMission,verifiedResumeReceipts,verifiedResearchResumeReceipts} from './qwen-general-resume.js?pilot=research-resume-20261021-v4';
 import {classifyEmptyGeneralCatalog,requestQwenGeneralConversation} from './qwen-empty-catalog.js?pilot=concise-20261021-v8';
@@ -389,7 +390,7 @@ export function advertisingReviewInput(receipts,instruction,creative){
     const entries=(research?.entries||[]).filter(e=>e.photoRegion||e.role==='official_logo_source').map(e=>({ref:e.ref,role:e.role,description:e.description,verifiedContacts:e.verifiedContacts,sha256:e.sha256}));
     return {instruction,query:research?.query||'',sources,entries,openedSources,...(creative?{creative}:{})};
 }
-export function compactGeneralObservation(o){
+export function compactGeneralObservation(o,includeEngineeringSource=false){
     const compactReview=r=>({hostClaimConstraint:r.hostClaimConstraint,hostCopyConstraint:r.hostCopyConstraint,verified:r.verified,status:r.status,reason:r.reason?.slice(0,220),inputSha256:r.inputSha256,acceptedSourceURLs:r.acceptedSourceURLs,issues:r.review?.issues?.slice(0,4).map(s=>s.slice(0,220)),unsupportedClaims:r.review?.creative?.unsupportedClaims,sources:r.review?.sources?.map(s=>({url:s.url,relevant:s.topicRelevant&&s.sectorRelevant&&s.identityCompatible&&s.objectiveRelevant,reason:s.reason.slice(0,180)}))});
     const base={ok:o?.ok===true,status:o?.status,error:o?.error,output:o?.output,url:o?.url,bytes:o?.bytes,sha256:o?.sha256,mimeType:o?.mimeType,...(o?.advertisingSemanticReview?{advertisingSemanticReview:compactReview(o.advertisingSemanticReview)}:{})};
     if(o?.status==='LOCAL_VIDEO_REVIEW_FAILED')return {...base,sourceSha256:o.sourceSha256,frames:o.frames?.map(f=>({timestampSeconds:f.timestampSeconds,review:f.review,visualPassed:f.visualPassed})),audioEvidence:o.audioEvidence,repairLimit:1};
@@ -400,7 +401,7 @@ export function compactGeneralObservation(o){
     if(o?.recordEvidence){const e=o.recordEvidence;return {...base,recordEvidence:{source:e.source,scope:e.scope,
         fieldSchema:e.fieldSchema,returnedCount:e.returnedCount,totalCount:e.totalCount,hasMore:e.hasMore,nextCursor:e.nextCursor},
         rowsOmitted:true,warning:'Use independently computed aggregate evidence; row IDs and values omitted.'};}
-    if(o?.verifiedRead){const r=o.verifiedRead,b=r.sourceStructure?.dataBindings;const shapes=items=>(items||[]).map(x=>({collection:x.collection,fields:x.fields}));return {...base,verifiedRead:{file:r.file,sourceStructure:{dataBindings:{source:b?.source,collections:b?.collections,writeShapes:shapes(b?.writeShapes),queryShapes:shapes(b?.queryShapes)}}},sourceTextOmitted:true};}
+    if(o?.verifiedRead){const r=o.verifiedRead,b=r.sourceStructure?.dataBindings;const shapes=items=>(items||[]).map(x=>({collection:x.collection,fields:x.fields}));return {...base,verifiedRead:{...(includeEngineeringSource?compactVerifiedEngineeringSource(r):{file:r.file,sourceTextOmitted:true}),sourceStructure:{dataBindings:{source:b?.source,collections:b?.collections,writeShapes:shapes(b?.writeShapes),queryShapes:shapes(b?.queryShapes)}}}};}
     if(o?.entries)return {...base,reviewPending:o.advertisingSemanticReview?.verified!==true,sources:o.sources?.slice(0,8),entries:o.entries.map(e=>({ref:e.ref,relativePath:e.relativePath,role:e.role,mimeType:e.mimeType,sha256:e.sha256,width:e.width,height:e.height,description:e.description,photoRegion:e.photoRegion,verifiedContacts:e.verifiedContacts})),usedSourceAndLayouts:(o.deliveredCombinations||o.advertisingHistory)?.filter(h=>h.visual).map(h=>({...h.visual,format:h.format})),historicalCopyOmitted:true,historyCount:o.advertisingHistory?.length,answer:String(o.answer||'').slice(0,800)};
     if(o?.outputs)return {...base,outputs:o.outputs.map(p=>({output:p.output,mimeType:p.mimeType,sha256:p.sha256,bytes:p.bytes,width:p.width,height:p.height}))};
     if(o?.status==='LOCAL_VIDEO_REVIEW_VERIFIED'||o?.status==='LOCAL_VIDEO_REVIEW_FAILED')return {...base,sourceSha256:o.sourceSha256,video:o.video,audio:o.audio,durationSeconds:o.durationSeconds,frames:o.frames.map(f=>({timestampSeconds:f.timestampSeconds,sha256:f.sha256,review:f.review,visualPassed:f.visualPassed})),audioEvidence:o.audioEvidence};
@@ -517,7 +518,7 @@ export async function runQwenGeneralPilot(options){
     }
     const instruction=options.instruction+'\nFecha de ejecución UTC: '+new Date().toISOString()+'. Contrato V142 oficial: solo herramientas autorizadas. No escribir registros ni publicar. '+
         'Cada archivo debe usar un nombre nuevo dentro de '+policy.artifactRoot+'. '+
-        (objectives.code?'AUDITORÍA DE INGENIERÍA: tras leer archivos y ejecutar las pruebas disponibles, finaliza con FINISH y un dictamen técnico propio de al menos 180 caracteres. Debe incluir el nombre requestPayout o solicitarRetiro, una ruta literal y exacta de los archivos realmente leídos, el resultado y alcance de tests.run, la validación de montos y lo que NO está demostrado. No repitas un mensaje genérico de éxito; no atribuyas cobertura de concurrencia a pruebas unitarias. Si no puedes fundamentar esas afirmaciones, termina PARCIAL. ': '')+
+        (objectives.code?'AUDITORÍA DE INGENIERÍA: lee el contenido verificable sourceExcerpt con números de línea de repo.read (un fragmento parcial no prueba todo el archivo); cita la implementación canónica de functions/index.js o functions/secure-entry.js, nunca solamente archivos de test, y no digas que examinaste una validación si la línea no aparece en la evidencia. Tras leer archivos y ejecutar las pruebas disponibles, finaliza con FINISH y un dictamen técnico propio de al menos 180 caracteres. Debe incluir el nombre requestPayout o solicitarRetiro, una ruta literal y exacta de los archivos realmente leídos, el resultado y alcance de tests.run, la validación de montos y lo que NO está demostrado. No repitas un mensaje genérico de éxito; no atribuyas cobertura de concurrencia a pruebas unitarias. Si no puedes fundamentar esas afirmaciones, termina PARCIAL. ': '')+
         (objectives.advertising?'Publicidad: investiga prácticas de composición publicitaria con advertising.research usando una consulta GENERICA sin nombre de marca o dominio del cliente; evita empresas homónimas, abre dos fuentes independientes realmente útiles y exige advertisingSemanticReview.verified antes de renderizar. Accesibilidad no acredita pertinencia. Si la revisión rechaza las fuentes, investiga de nuevo con una consulta distinta y pertinente al tema, sector, identidad y objetivo. No inventes descuentos, evaluaciones gratuitas, promociones ni ventajas comerciales. Usa la biblioteca compartida observada. usedSourceAndLayouts contiene combinaciones entregadas: no repitas fotografía, layout y dimensiones. Los formatos sin dimensiones conocidas bloquean ese par fotografía/layout. Si el usuario fijó texto comercial exacto, no escribas titulares, correos, CTA, especialidades o promesas distintos: utiliza solo los fragmentos autorizados del esquema. Si NO existe texto exacto, redacta contenido original sustentado. Elige una combinación de foto/layout no utilizada. El historial no es un ejemplo para copiar. Si el historial indica format, otras dimensiones sociales del mismo original pueden ser válidas; no repitas las dimensiones entregadas con el mismo diseño. Selecciona material por contenido y procedencia, conserva la identidad solicitada. No inventes logos ni contactos. Evita duplicar una misma URL entre body, cta y contact: incluyela visualmente una sola vez y deja cta vacio cuando uses contact; puedes colocar en body solo la frase autorizada sin repetir la URL. El logotipo oficial cuenta como identidad visual independiente. Importa el original seleccionado con media.library e inspecciona sus pixeles con media.analyze antes de componer. Usa photoRegion EXACTA para photoCrop, gráficos nuevos con image.adapt y logo observado. image.adapt outputPrefix debe comenzar '+policy.imagePrefix+'. Para reel sintetiza narración original española con speech.synthesize; reel.create requiere al menos tres escenas y 30 segundos. audioOutput debe usar el WAV real, escenas deben usar imágenes producidas; define creativeDirection con dos URLs exactas de advertising.research. Exporta cada pieza con media.library; export es local experimental, no publicación. Revisa pixeles PNG y MP4 con media.analyze y lee archivos con artifact.read; nunca uses modelos de imagen/video externos. FINISH solo al comprobar entregables. ': '')+
         (objectives.research&&!objectives.advertising?'Para investigación busca tres ORGANIZACIONES realmente distintas y pertinentes al tema, y verifica con browser.inspect sus textos antes de crear archivos. Dos sitios de la misma marca o sus filiales cuentan como una sola fuente; ayuda del sitio, publicidad de contacto y textos de navegación NO son evidencia temática. Si una página no tiene un párrafo pertinente con cita literal, busca otra URL y otra organización en web.research, sin reciclar llamadas. No inventes clasificación primaria/oficial. Entrega FINISH como JSON {sources:[{url,title,date,quote}]} con al menos tres fuentes: título y cita literal de 8 a 20 palabras (al menos 32 caracteres) presentes en DOM, fecha exacta observada o null si no se puede comprobar. Nunca inventes fecha; una fuente sin fecha solo aporta contexto. Esta tabla compara evidencia textual; no agregues afirmaciones sin soporte. ':'')+
         (objectives.page?'Para una página crea HTML con page.create y abre su url recibida con browser.open; inspecciona DOM, captura con browser.screenshot, revisa esa captura con media.analyze(output) y lee el archivo con artifact.read. ':'')+
@@ -551,7 +552,7 @@ export async function runQwenGeneralPilot(options){
         signal:options.signal,onProgress:options.onProgress,
         executePhase:(carried,phase,stepsPerPhase)=>runQwenTerminalReadPilot({...options,pilotVersion,initialReceipts:carried,sessionContext,instruction,toolRuntime,hostToolPolicy:policy,
             maximumSteps:stepsPerPhase,repairIncomplete:!objectives.unsupported||objectives.advertising,requireFinalReport:objectives.code===true,
-            compactObservation:compactGeneralObservation,catalogForEvidence:(catalog,receipts)=>prioritizeGeneralAdvertisingCatalog(catalog,receipts,objectives,options.instruction),
+            compactObservation:o=>compactGeneralObservation(o,objectives.code===true),catalogForEvidence:(catalog,receipts)=>prioritizeGeneralAdvertisingCatalog(catalog,receipts,objectives,options.instruction),
             summarizeEvidence:receipts=>{const preflight=generalMissionPreflight(toolRuntime.list(),receipts,objectives,audioReadiness);return {...summarizeGeneralEvidence(receipts,objectives,options.instruction),preflight,...(!preflight.ok&&!preflight.pending?{blockedReason:preflight.reason}:{})};},
             verifyObjectives:args=>verifyGeneralMission({...args,instruction:options.instruction,objectives})})
     });
@@ -601,6 +602,7 @@ export function generalPilotSourceSignature(){
         researchQuoteRelevant,
         researchTopic,
         researchOfficeContent,
+        compactVerifiedEngineeringSource,
         requiredDeliveryFormats,
         missingMissionInputs,
         unavailableMissionOperations,
@@ -733,15 +735,33 @@ export function prioritizeGeneralCodeCatalog(catalog,receipts,instruction=''){
         return [{...tool,inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties,
             term:{type:'string',const:term}}}}];
     }
-    const found=[...new Set((grep.observation?.matches||[]).map(m=>m.file||m.path||m.relativePath).filter(f=>typeof f==='string'&&
+    const grepReceipts=completed.filter(r=>r.name==='repo.grep');
+    const found=[...new Set(grepReceipts.flatMap(r=>r.observation?.matches||[])
+        .map(m=>m.file||m.path||m.relativePath).filter(f=>typeof f==='string'&&
         /^(?:functions|modules|tests|gestia-core)\/[-\w./]+\.(?:js|mjs|ts)$/i.test(f)))];
     const already=new Set(completed.filter(r=>r.name==='repo.read').map(r=>r.args?.file));
-    const unread=found.filter(f=>!already.has(f));
-    if(unread.length&&already.size<4){
+    const payout=/requestpayout/i.test(instruction);
+    const rank=f=>/^functions\/(?:index|secure-entry)\.[cm]?js$/i.test(f)?0:
+        /^functions\/legacy-security-hotfix\.[cm]?js$/i.test(f)?1:
+        /^tests\/(?:secure-financial-entry|hotfix-legacy)\.test\.mjs$/i.test(f)?2:
+        /^functions\//.test(f)?3:/^tests\//.test(f)?4:6;
+    const unread=found.filter(f=>!already.has(f)&&(!payout||rank(f)<5))
+        .sort((a,b)=>rank(a)-rank(b)||a.localeCompare(b));
+    const hasCanonical=[...already].some(f=>/^functions\/(?:index|secure-entry)\.[cm]?js$/i.test(f));
+    // Alias requestPayout points to the real solicitarRetiro implementation.
+    // Discover it from the actual checkout before claiming payout validity.
+    if(payout&&!hasCanonical&&already.size>=1&&
+        !grepReceipts.some(r=>r.args?.term==='solicitarRetiro')){
+        const tool=catalog.find(t=>t.name==='repo.grep');
+        if(!tool)return [];
+        return [{...tool,inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties,
+            term:{type:'string',const:'solicitarRetiro'}}}}];
+    }
+    if(unread.length&&already.size<6){
         const tool=catalog.find(t=>t.name==='repo.read');
         if(!tool)return [];
         return [{...tool,inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties,
-            file:{type:'string',enum:unread.slice(0,6)}}}}];
+            file:{type:'string',enum:unread.slice(0,5)}}}}];
     }
     const test=completed.find(r=>r.name==='tests.run'&&
         r.args?.command===(/requestpayout/i.test(instruction)?'pilot:security':'check:syntax'));

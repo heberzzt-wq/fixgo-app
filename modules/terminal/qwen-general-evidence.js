@@ -161,9 +161,13 @@ export function engineeringReportVerified(report,receipts=[]){
  if(text.length<180||text.length>10000)return false;
  const reads=good(receipts).filter(r=>r.name==='repo.read'&&
    typeof r.args?.file==='string'&&r.observation?.verifiedRead?.file===r.args.file);
+ const canonical=reads.find(r=>/^functions\/(?:index|secure-entry)\.[cm]?js$/i.test(r.args.file)&&
+    typeof r.observation.verifiedRead.content==='string'&&
+    /solicitarRetiro|Number\.isFinite/iu.test(r.observation.verifiedRead.content));
  const tested=good(receipts).some(r=>r.name==='tests.run'&&r.observation?.testsPassed===true&&
    r.observation?.objectiveSatisfied===true&&r.observation?.status==='PASSED'&&r.observation?.exitCode===0);
- return tested&&reads.some(r=>text.includes(r.args.file))&&
+ const confessedMissingSource=/sourceTextOmitted|source\s*text\s*omitted|no\s+(?:se\s+)?(?:expone|dispone|recuper[oó]|ley[oó])\s+(?:del?\s+)?contenido\s+(?:textual|del?\s+c[oó]digo)|sin\s+evidencia\s+directa\s+del?\s+c[oó]digo/iu.test(text);
+ return tested&&!!canonical&&text.includes(canonical.args.file)&&!confessedMissingSource&&
    /requestPayout|solicitarRetiro/iu.test(text)&&
    /\b(?:pruebas?|tests?|suite|regresiones?)\b/iu.test(text)&&
    /\b(?:importe|monto|cantidad|negativ|finito|nan|cero|validaci[oó]n)\b/iu.test(text);

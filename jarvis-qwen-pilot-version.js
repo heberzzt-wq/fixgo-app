@@ -27,6 +27,7 @@ export const WATCHED=Object.freeze([
  'modules/terminal/qwen-direct-transport.js',
  'modules/terminal/qwen-general-pilot.js',
  'modules/terminal/qwen-general-evidence.js',
+ 'modules/terminal/qwen-engineering-source-excerpt.js',
  'modules/terminal/qwen-general-resume.js',
  'modules/terminal/qwen-empty-catalog.js',
  'modules/terminal/qwen-general-contract.js',

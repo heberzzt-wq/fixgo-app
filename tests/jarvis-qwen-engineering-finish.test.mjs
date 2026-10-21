@@ -99,11 +99,68 @@ test('official V142 HTML-to-runner imports use a fresh version and expose the re
  const core=readFileSync(new URL('gestia-core/gestia-core.js',root),'utf8');
  const general=readFileSync(new URL('modules/terminal/qwen-general-pilot.js',root),'utf8');
  const direct=readFileSync(new URL('modules/terminal/qwen-direct-pilot.js',root),'utf8');
- const version='v142-engineering-report-20261021-v15';
+ const version='v142-engineering-report-20261021-v16';
  assert.ok(core.includes('qwen-general-pilot.js?release='+version));
  assert.ok(general.includes('qwen-direct-pilot.js?release='+version));
  assert.ok(general.includes('qwen-general-evidence.js?release='+version));
  assert.ok(direct.includes('jarvis-qwen-direct-cycle.js?release='+version));
  assert.match(direct,/metrics\.finalReportFromQwen=/);
  assert.match(general,/Informe Qwen generado:/);
+});
+
+test('Qwen must see actual line-numbered source excerpts; text omitted is not a verified code analysis',async()=>{
+ const {compactVerifiedEngineeringSource}=await import('../modules/terminal/qwen-engineering-source-excerpt.js');
+ const raw={
+  file:'functions/index.js',startLine:1024,
+  content:'exports.solicitarRetiro = functions.https.onCall(async (data, context) => {\n' +
+  '  const amount = Number(data.monto);\n' +
+  '  if (!Number.isFinite(amount) || amount <= 0) throw new Error("INVALID_AMOUNT");\n' +
+  '  return amount;\n' +
+  '});'
+ };
+ const compact=compactVerifiedEngineeringSource(raw);
+ assert.equal(compact.file,'functions/index.js');
+ assert.equal(compact.sourceTextOmitted,false);
+ assert.match(compact.sourceExcerpt,/1024: exports\.solicitarRetiro/);
+ assert.match(compact.sourceExcerpt,/1026:.*Number\.isFinite/);
+ assert.doesNotMatch(JSON.stringify(compact),/dataBase64|privateKey/);
+ assert.ok(compact.sourceExcerpt.length<=3200);
+ assert.equal(compactVerifiedEngineeringSource({file:'functions/index.js'}).sourceTextOmitted,true);
+});
+
+test('auditor refuses a claimed finished payout report when the canonical source was not inspected',async()=>{
+ const withoutCanonical=receipts.map(r=>r.name==='repo.read'?{...r,args:{file:'tests/jarvis-qwen-engineering-pilot.test.mjs'},
+  observation:{verifiedRead:{file:'tests/jarvis-qwen-engineering-pilot.test.mjs',content:'test("requestPayout",()=>{})'}}}:r);
+ assert.equal(engineeringReportVerified(report,withoutCanonical),false);
+ const vague='Informe requestPayout: leí functions/secure-entry.js pero sourceTextOmitted y no se dispone del contenido textual del código fuente para validar montos; tests.run pasó. No hay evidencia directa del código.';
+ assert.equal(engineeringReportVerified(vague,receipts),false);
+});
+
+test('payout source discovery first reads the canonical function, not generic tool implementations',async()=>{
+ const {prioritizeGeneralCodeCatalog}=await import('../modules/terminal/qwen-general-pilot.js');
+ const toolNames=['repo.grep','repo.read','tests.run'];
+ const offered=toolNames.map(name=>({name,inputSchema:{type:'object',properties:{term:{type:'string'},file:{type:'string'},command:{type:'string'}},required:[]}}));
+ const query='Audita requestPayout y demuestra validación de montos con pruebas.';
+ const initial=prioritizeGeneralCodeCatalog(offered,[],query);
+ assert.equal(initial[0].inputSchema.properties.term.const,'requestPayout');
+ const alias={name:'repo.grep',ok:true,args:{term:'requestPayout'},observation:{ok:true,matches:[
+  {file:'modules/terminal/qwen-general-pilot.js'},
+  {file:'tests/jarvis-qwen-engineering-pilot.test.mjs'},
+  {file:'functions/legacy-security-hotfix.js'}
+ ]}};
+ const first=prioritizeGeneralCodeCatalog(offered,[alias],query);
+ assert.equal(first[0].name,'repo.read');
+ assert.deepEqual(first[0].inputSchema.properties.file.enum,['functions/legacy-security-hotfix.js',
+   'tests/jarvis-qwen-engineering-pilot.test.mjs']);
+ const read={name:'repo.read',ok:true,args:{file:'functions/legacy-security-hotfix.js'},
+  observation:{ok:true,verifiedRead:{file:'functions/legacy-security-hotfix.js',content:'const requestPayout=canonicalExports.solicitarRetiro;'}}};
+ const next=prioritizeGeneralCodeCatalog(offered,[alias,read],query);
+ assert.equal(next[0].name,'repo.grep');
+ assert.equal(next[0].inputSchema.properties.term.const,'solicitarRetiro');
+ const canonical={name:'repo.grep',ok:true,args:{term:'solicitarRetiro'},observation:{ok:true,matches:[
+  {file:'functions/index.js'},{file:'tests/hotfix-legacy.test.mjs'}
+ ]}};
+ const after=prioritizeGeneralCodeCatalog(offered,[alias,read,canonical],query);
+ assert.equal(after[0].name,'repo.read');
+ assert.equal(after[0].inputSchema.properties.file.enum[0],'functions/index.js');
 });
