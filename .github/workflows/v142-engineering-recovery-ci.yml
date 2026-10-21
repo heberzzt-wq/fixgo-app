@@ -30,3 +30,18 @@ jobs:
         run: node --test tests/jarvis-v142-engineering-acceptance.test.mjs
       - name: Whitespace checks
         run: git diff --check HEAD^
+
+  payout-regression-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked dependencies without lifecycle scripts
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ci --prefix functions --ignore-scripts --no-audit --no-fund
+      - name: Run canonical payout security tests against checked-out source
+        run: node --test tests/hotfix-legacy.test.mjs tests/secure-financial-entry.test.mjs
