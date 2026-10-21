@@ -1,8 +1,12 @@
-// Local HTTP preview of registered experimental HTML only; never source files.
+// Loopback-only preview of registered Qwen HTML (official V142 or isolated pilot); never repository source files.
 export function createQwenArtifactPreview({enabled=false,identity,readArtifact,findArtifact}={}){
     return (req,res)=>{
         const current=identity?.();
-        if(!enabled||current?.ok!==true||current.contract?.branch!=='codex/v142-qwen-auth-pilot'||
+        const official=current?.contract?.branch==='v142-official'&&
+            current?.git?.branch==='v142-official'&&current?.git?.clean===true&&
+            typeof current?.git?.head==='string'&&current.git.head===current.contractHead;
+        const isolated=current?.contract?.branch==='codex/v142-qwen-auth-pilot';
+        if(!enabled||current?.ok!==true||!(official||isolated)||
             !['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket?.remoteAddress))return res.status(403).send('QWEN_PREVIEW_FORBIDDEN');
         const output=req.query?.output;
         if(typeof output!=='string'||!/^\.jarvis-artifacts\/qwen-general\/general-[a-zA-Z0-9-]{8,80}\/[a-zA-Z0-9._-]+\.html$/.test(output))

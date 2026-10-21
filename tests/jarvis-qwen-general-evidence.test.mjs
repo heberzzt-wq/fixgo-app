@@ -65,3 +65,31 @@ test('research excludes footer boilerplate even when it is a literal source quot
  const receipts=[{name:'web.research',ok:true,observation:{ok:true,sources:[{url}]}},{name:'browser.inspect',ok:true,observation:{ok:true,url,dom}}];
  const proof=researchSourceProofs(receipts)[0];assert.ok(proof.quotes.length);assert.ok(proof.quotes.every(q=>q.includes('WebGPU')&&!q.includes('institution')));
 });
+
+test('official clean V142 can preview only registered local HTML without exposing arbitrary paths',()=>{
+ const output='.jarvis-artifacts/qwen-general/general-12345678/dashboard.html';
+ const html='<!doctype html><html><body><h1>Local test</h1></body></html>';
+ const official={ok:true,contract:{branch:'v142-official'},contractHead:'b'.repeat(40),git:{branch:'v142-official',clean:true,head:'b'.repeat(40)}};
+ const run=(identity,remote='127.0.0.1',name=output,registered=true,mimeType='text/html')=>{
+  const result={status:200,headers:{},body:null};
+  const res={status(n){result.status=n;return this;},set(x){Object.assign(result.headers,x);return this;},send(v){result.body=v;return this;}};
+  createQwenArtifactPreview({enabled:true,identity:()=>identity,findArtifact:()=>registered,
+    readArtifact:()=>({mimeType,dataBase64:Buffer.from(html).toString('base64')})})(
+      {socket:{remoteAddress:remote},query:{output:name}},res);
+  return result;
+ };
+ const good=run(official);
+ assert.equal(good.status,200);
+ assert.equal(Buffer.from(good.body).toString('utf8'),html);
+ assert.equal(good.headers['Cache-Control'],'no-store');
+ assert.match(good.headers['Content-Security-Policy'],/default-src 'none'/);
+ for(const bad of [
+  {...official,git:{...official.git,clean:false}},
+  {...official,contractHead:'c'.repeat(40)},
+  {...official,contract:{branch:'v94-media-v4n-negative-claims'}}
+ ])assert.equal(run(bad).status,403);
+ assert.equal(run(official,'192.168.1.2').status,403);
+ assert.equal(run(official,'127.0.0.1','../functions/index.js').status,400);
+ assert.equal(run(official,'127.0.0.1',output,false).status,404);
+ assert.equal(run(official,'127.0.0.1',output,true,'application/javascript').status,415);
+});
