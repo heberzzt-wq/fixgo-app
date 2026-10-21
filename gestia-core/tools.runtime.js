@@ -9013,7 +9013,8 @@ window.JarvisLocalBridge.runCommand ||= async function(payload = {}) {
             "npm run check:syntax",
             "npm test",
             "npm run ci:test",
-            "node --test tests/hotfix-legacy.test.mjs tests/secure-financial-entry.test.mjs"
+            "node --test tests/hotfix-legacy.test.mjs tests/secure-financial-entry.test.mjs",
+            "npm run test:v142:payout-emulator"
         ]);
 
     if (!allowedCommands.has(command)) {
@@ -9220,7 +9221,7 @@ JarvisToolRuntime.register({
     inputSchema: {
         type: "object",
         properties: {
-            command: { type: "string", enum: ["check:syntax", "test", "ci:test", "responsive", "pilot:security"] },
+            command: { type: "string", enum: ["check:syntax", "test", "ci:test", "responsive", "pilot:security", "v142:security-emulator"] },
             fingerprints: { type: "array", minItems: 1, items: { type: "string" }, description: "Fingerprints devueltos por repo.write para verificar y revertir exclusivamente esas escrituras." },
             verificationFailure: { type: "string", maxLength: 1000, description: "Fallo observado al comprobar el navegador; solo puede rechazar la reparacion y revertir los receipts, nunca acreditar exito." },
             cwd: { type: "string" },
@@ -9239,7 +9240,8 @@ JarvisToolRuntime.register({
                 "test",
                 "ci:test",
                 "responsive",
-                "pilot:security"
+                "pilot:security",
+                "v142:security-emulator"
             ]);
 
         if (!allowedCommands.has(command)) {
@@ -9262,6 +9264,8 @@ JarvisToolRuntime.register({
         const npmCommand =
             command === "pilot:security"
                 ? "node --test tests/hotfix-legacy.test.mjs tests/secure-financial-entry.test.mjs"
+                : command === "v142:security-emulator"
+                ? "npm run test:v142:payout-emulator"
                 : command === "responsive"
                 ? "node --test tests/jarvis-current-turn-production-regressions.test.mjs tests/jarvis-actuator-pack.test.mjs tests/jarvis-repair-engines-v2.test.mjs"
                 : command === "test"
@@ -9361,12 +9365,11 @@ JarvisToolRuntime.register({
                 ? result.exitCode
                 : null;
 
+        // A launched process is not evidence of passing tests. A numeric zero
+        // exit code is mandatory; missing exitCode is never a green receipt.
         const passed =
             result?.ok === true &&
-            (
-                exitCode === null ||
-                exitCode === 0
-            );
+            exitCode === 0;
 
         const executionOk =
             passed ||

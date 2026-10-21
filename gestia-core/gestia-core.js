@@ -4096,7 +4096,7 @@ export const GestiaCore = {
         if (globalThis.location?.protocol==='http:' && ['localhost','127.0.0.1'].includes(globalThis.location?.hostname) &&
             globalThis.location?.port==='5000' && (!localQwenMode||localQwenMode==='general-v1')) {
             try {
-                const {runQwenGeneralPilot}=await import('../modules/terminal/qwen-general-pilot.js?pilot=engineering-audit-20261021-v10');
+                const {runQwenGeneralPilot}=await import('../modules/terminal/qwen-general-pilot.js?release=v142-code-audit-20261021-v12');
                 const result=await runQwenGeneralPilot({instruction:inputRaw,
                     auth,bridge:window.JarvisLocalBridge,toolRuntime:window.JarvisToolRuntime,
                     toolsBridge:window.ToolsBridge,sessionContext:{...context,tenantId,analysisId},

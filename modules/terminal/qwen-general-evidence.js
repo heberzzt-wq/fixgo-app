@@ -26,6 +26,27 @@ export function generalRestrictedActionRequested(instruction){
         return false;
     });
 }
+// A negative sentence such as "no inventes un parche" is a constraint,
+// never evidence that the user authorized or requested a code change.
+export function codeConcurrencyRequested(instruction=''){
+ return /\b(?:concurrenc\w*|idempotenc\w*|duplicad\w*|simult[aá]ne\w*|replay)\b/iu.test(String(instruction||''));
+}
+export function codeRepairRequested(instruction=''){
+ const clauses=String(instruction||'').split(/[.;\n]/u);
+ const change=/\b(?:corrige|corregir|repara|reparar|implementa|implementar|aplica|aplicar|modifica|modificar)\b/giu;
+ const patch=/\b(?:prepara|preparar|crea|crear|genera|generar|entrega|entregar|produce|producir)\b[^.;\n]{0,75}\b(?:parche|patch|diff|correcci[oó]n)\b/giu;
+ return clauses.some(clause=>{
+  for(const pattern of [change,patch]){
+   pattern.lastIndex=0;
+   for(const match of clause.matchAll(pattern)){
+    const prefix=clause.slice(0,match.index).split(/\b(?:pero|en cambio|entonces)\b/iu).at(-1);
+    if(/\b(?:no|sin|nunca|evita|evitar|prohibido|prohibida)\b/iu.test(prefix))continue;
+    return true;
+   }
+  }
+  return false;
+ });
+}
 export function generalObjectives(instruction){
     const s=String(instruction).toLowerCase();
     const reel=/tiktok|reel|video|vídeo|mp4|h[.]?264/.test(s);
@@ -110,7 +131,9 @@ export function summarizeGeneralEvidence(receipts,objectives,instruction=''){
         if(!has('repo.grep')||!has('repo.read'))gaps.push({goal:'repository code proof',requiredTool:'repo.read',reason:'CODE_SOURCE_EVIDENCE_REQUIRED'});
         if(!rows.some(r=>r.name==='tests.run'&&r.observation.testsPassed===true&&r.observation.objectiveSatisfied===true))
             gaps.push({goal:'passing physical repository tests',requiredTool:'tests.run',reason:'CODE_TESTS_PASSING_REQUIRED'});
-        if(/\b(?:corrige|corregir|repara|reparar|parche|patch|correcci[oó]n)\b/iu.test(instruction))
+        if(codeConcurrencyRequested(instruction)&&!rows.some(r=>r.name==='tests.run'&&r.args?.command==='v142:security-emulator'&&r.observation?.status==='PASSED'&&r.observation?.testsPassed===true&&r.observation?.objectiveSatisfied===true&&r.observation?.exitCode===0))
+            gaps.push({goal:'physical concurrent payout and idempotency emulator tests',requiredTool:'tests.run',command:'v142:security-emulator',reason:'CODE_CONCURRENCY_EMULATOR_EVIDENCE_REQUIRED'});
+        if(codeRepairRequested(instruction))
             gaps.push({goal:'governed isolated repair and before-after regression receipts',requiredTool:'repo.prepareWrite',reason:'ISOLATED_CODE_REPAIR_NOT_IMPLEMENTED'});
     }
     if(objectives.research&&!objectives.advertising&&(requiredDeliveryFormats(instruction).length?independentResearchProofs(receipts,instruction).length:new Set(proofs.map(p=>p.url)).size)<3)gaps.push({goal:'three independently opened and quoted sources',requiredTool:'browser.inspect'});
@@ -150,9 +173,13 @@ export async function verifyGeneralMission({instruction,receipts,proposedReport,
         const tested=rows.find(r=>r.name==='tests.run'&&r.observation?.testsPassed===true&&
             r.observation?.objectiveSatisfied===true&&r.observation?.status==='PASSED');
         check('real repository tests pass',!!tested,'CODE_TESTS_PASSING_REQUIRED');
+        if(codeConcurrencyRequested(instruction)){
+            const emulator=rows.find(r=>r.name==='tests.run'&&r.args?.command==='v142:security-emulator'&&r.observation?.status==='PASSED'&&r.observation?.testsPassed===true&&r.observation?.objectiveSatisfied===true&&r.observation?.exitCode===0);
+            check('physical concurrent payout and idempotency emulator tests',!!emulator,'CODE_CONCURRENCY_EMULATOR_EVIDENCE_REQUIRED');
+        }
         // A prepared patch is not a write. Even a passing baseline suite cannot
         // certify a requested fix without isolated after-tests and verified diff.
-        if(/\b(?:corrige|corregir|repara|reparar|parche|patch|correcci[oó]n)\b/iu.test(instruction)){
+        if(codeRepairRequested(instruction)){
             const preview=rows.some(r=>r.name==='repo.prepareWrite'&&r.observation?.status==='WRITE_PREPARED'&&r.observation?.written===false);
             check('governed exact patch preview',preview,'CODE_PATCH_PREVIEW_REQUIRED');
             check('isolated fix and before-after regression receipts',false,'ISOLATED_CODE_REPAIR_NOT_IMPLEMENTED');

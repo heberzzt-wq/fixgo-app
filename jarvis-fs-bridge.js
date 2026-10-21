@@ -8136,6 +8136,7 @@ export function createJarvisFsBridgeApp({
                     "npm test",
                     "npm run ci:test",
                     "node --test tests/hotfix-legacy.test.mjs tests/secure-financial-entry.test.mjs",
+                    "npm run test:v142:payout-emulator",
                     "node --test tests/jarvis-current-turn-production-regressions.test.mjs tests/jarvis-actuator-pack.test.mjs tests/jarvis-repair-engines-v2.test.mjs"
                 ]);
 

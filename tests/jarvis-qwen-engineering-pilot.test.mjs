@@ -32,7 +32,7 @@ test('engineering routes to real grep then observed file then tests',()=>{
  const run=prioritizeGeneralCodeCatalog(cat,[grep,...read],instruction);
  assert.equal(run[0].name,'tests.run');
  assert.equal(run[0].inputSchema.properties.command.const,'pilot:security');
- const tested={name:'tests.run',ok:true,args:{command:'test'},observation:{ok:true,status:'TESTS_GREEN'}};
+ const tested={name:'tests.run',ok:true,args:{command:'pilot:security'},observation:{ok:true,status:'PASSED',testsPassed:true,objectiveSatisfied:true,exitCode:0}};
  assert.deepEqual(prioritizeGeneralCodeCatalog(cat,[grep,...read,tested],instruction),[]);
 });
 test('prepare patch requires exact read content and cannot self-authorize',()=>{
@@ -141,4 +141,62 @@ test('tests.run maps pilot:security to that fixed command and never claims faile
  assert.equal(command,'node --test tests/hotfix-legacy.test.mjs tests/secure-financial-entry.test.mjs');
  assert.equal(success.testsPassed,true);
  assert.equal(success.objectiveSatisfied,true);
+});
+
+test('negative patch instructions do not require code modifications',async()=>{
+ const {codeRepairRequested,codeConcurrencyRequested,verifyGeneralMission}=await import('../modules/terminal/qwen-general-evidence.js');
+ assert.equal(codeRepairRequested('Audita requestPayout y no inventes un parche.'),false);
+ assert.equal(codeRepairRequested('No debes generar un parche. Solo diagnostica código.'),false);
+ assert.equal(codeRepairRequested('Corrige requestPayout y entrega un parche verificable.'),true);
+ assert.equal(codeRepairRequested('Prepara un parche exacto para revisión.'),true);
+ assert.equal(codeConcurrencyRequested('Revisa solicitudes duplicadas e idempotencia bajo concurrencia.'),true);
+ assert.equal(codeConcurrencyRequested('Audita la validación de importes.'),false);
+ const instruction='Audita requestPayout y no inventes un parche; distingue duplicados, idempotencia y concurrencia de una suite unitaria.';
+ const receipts=[
+  {name:'repo.grep',ok:true,args:{term:'requestPayout'},observation:{ok:true,matches:[{file:'functions/secure-entry.js'}]}},
+  {name:'repo.read',ok:true,args:{file:'functions/secure-entry.js'},observation:{ok:true,verifiedRead:{file:'functions/secure-entry.js',content:'function solicitarRetiro(){}'}}},
+  {name:'tests.run',ok:true,args:{command:'pilot:security'},observation:{ok:true,status:'PASSED',testsPassed:true,objectiveSatisfied:true,exitCode:0}}
+ ];
+ const result=await verifyGeneralMission({instruction,receipts,proposedReport:'Summary of observed code',objectives:generalObjectives(instruction)});
+ assert.equal(result.ok,false);
+ assert.equal(result.objectives.some(x=>x.reason==='CODE_PATCH_PREVIEW_REQUIRED'),false);
+ assert.equal(result.objectives.some(x=>x.reason==='CODE_CONCURRENCY_EMULATOR_EVIDENCE_REQUIRED'),true);
+ const emulated=[...receipts,{name:'tests.run',ok:true,args:{command:'v142:security-emulator'},observation:{ok:true,status:'PASSED',testsPassed:true,objectiveSatisfied:true,exitCode:0}}];
+ const done=await verifyGeneralMission({instruction,receipts:emulated,proposedReport:'Summary of observed code',objectives:generalObjectives(instruction)});
+ assert.equal(done.ok,true);
+});
+
+test('concurrent payout audit runs the scoped emulator after unit tests and does not loop',()=>{
+ const instruction='Audita requestPayout, duplicados e idempotencia con concurrencia. No inventes un parche.';
+ const catalog=generalToolCatalog({list:()=>tools},policy,{...objectives,code:true},instruction);
+ const grep={name:'repo.grep',ok:true,args:{term:'requestPayout'},observation:{ok:true,matches:[{file:'functions/index.js'},{file:'tests/hotfix-legacy.test.mjs'}]}};
+ const reads=['functions/index.js','tests/hotfix-legacy.test.mjs'].map(file=>({
+  name:'repo.read',ok:true,args:{file},observation:{ok:true,verifiedRead:{file,content:'source'}}
+ }));
+ const baseline={name:'tests.run',ok:true,args:{command:'pilot:security'},observation:{ok:true,status:'PASSED',testsPassed:true,objectiveSatisfied:true,exitCode:0}};
+ const next=prioritizeGeneralCodeCatalog(catalog,[grep,...reads,baseline],instruction);
+ assert.equal(next.length,1);
+ assert.equal(next[0].name,'tests.run');
+ assert.equal(next[0].inputSchema.properties.command.const,'v142:security-emulator');
+ const emulator={name:'tests.run',ok:true,args:{command:'v142:security-emulator'},observation:{ok:true,status:'PASSED',testsPassed:true,objectiveSatisfied:true,exitCode:0}};
+ assert.deepEqual(prioritizeGeneralCodeCatalog(catalog,[grep,...reads,baseline,emulator],instruction),[]);
+});
+
+test('V142 Firestore emulation launcher binds only the fixed project, tests and user-owned Java',async()=>{
+ const {emulatorLaunchPlan,FIRESTORE_TEST_PROJECT,FIRESTORE_TEST_COMMAND}=await import('../scripts/v142-payout-emulator.mjs');
+ const home='C:\\Users\\demo';
+ const plan=emulatorLaunchPlan({home,win:true,env:{PATH:'sentinel-path'},
+  exists:path=>path.endsWith('firebase.js')||path.endsWith('java.exe'),node:'node-test'});
+ assert.equal(plan.ok,true);
+ assert.equal(plan.command,'node-test');
+ assert.deepEqual(plan.args.slice(1),['emulators:exec','--project',FIRESTORE_TEST_PROJECT,
+   '--only','firestore',FIRESTORE_TEST_COMMAND]);
+ assert.match(plan.env.JAVA_HOME,/temurin-jre-21$/);
+ assert.equal(plan.shell,false);
+ assert.equal(plan.env.CI,'true');
+ assert.equal(plan.env.GOOGLE_CLOUD_PROJECT,'fixgo-b2c-rules-test');
+ assert.ok(plan.env.PATH.endsWith('sentinel-path'));
+ const missing=emulatorLaunchPlan({home,win:true,env:{PATH:'base'},exists:()=>false});
+ assert.equal(missing.ok,false);
+ assert.equal(missing.reason,'FIREBASE_CLI_NOT_INSTALLED');
 });

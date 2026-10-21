@@ -3,7 +3,7 @@ import {LOCAL_VIDEO_EVIDENCE_CAPABILITIES,MEDIA_TOOLS,mediaEntries,producedMedia
 import {createQwenBridgeActionSelector} from './qwen-direct-transport.js';
 import {runQwenTerminalReadPilot} from './qwen-direct-pilot.js';
 import {createGeneralToolPolicy,normalizeGeneralSchema} from '../../jarvis-qwen-general-policy.js?pilot=engineering-read-20261021-v9';
-import {advertisingSourceText,generalObjectives,GENERAL_COUNT_FIELDS,summarizeGeneralEvidence,verifyGeneralMission,independentResearchProofs,researchOfficeContent,researchSourceProofs,researchQuoteRelevant,researchTopic} from './qwen-general-evidence.js?pilot=engineering-audit-20261021-v10';
+import {advertisingSourceText,generalObjectives,GENERAL_COUNT_FIELDS,summarizeGeneralEvidence,verifyGeneralMission,independentResearchProofs,researchOfficeContent,researchSourceProofs,researchQuoteRelevant,researchTopic,codeConcurrencyRequested} from './qwen-general-evidence.js?pilot=engineering-audit-20261021-v12';
 import {receiptBoundProductionContent,prioritizeReceiptBoundProduction} from './qwen-production-document.js';
 import {resumedMissionId,originalResumedMissionId,readSavedMission,verifiedResumeReceipts,verifiedResearchResumeReceipts} from './qwen-general-resume.js?pilot=research-resume-20261021-v4';
 import {classifyEmptyGeneralCatalog,requestQwenGeneralConversation} from './qwen-empty-catalog.js?pilot=concise-20261021-v8';
@@ -515,7 +515,7 @@ export async function runQwenGeneralPilot(options){
                 route==='CONVERSATION'?'Respuesta local no disponible':'Capacidad no habilitada en este piloto',
                 text:message}};
     }
-    const instruction=options.instruction+'\nFecha de ejecución UTC: '+new Date().toISOString()+'. Contrato experimental: solo herramientas autorizadas. No escribir registros ni publicar. '+
+    const instruction=options.instruction+'\nFecha de ejecución UTC: '+new Date().toISOString()+'. Contrato V142 oficial: solo herramientas autorizadas. No escribir registros ni publicar. '+
         'Cada archivo debe usar un nombre nuevo dentro de '+policy.artifactRoot+'. '+
         (objectives.advertising?'Publicidad: investiga prácticas de composición publicitaria con advertising.research usando una consulta GENERICA sin nombre de marca o dominio del cliente; evita empresas homónimas, abre dos fuentes independientes realmente útiles y exige advertisingSemanticReview.verified antes de renderizar. Accesibilidad no acredita pertinencia. Si la revisión rechaza las fuentes, investiga de nuevo con una consulta distinta y pertinente al tema, sector, identidad y objetivo. No inventes descuentos, evaluaciones gratuitas, promociones ni ventajas comerciales. Usa la biblioteca compartida observada. usedSourceAndLayouts contiene combinaciones entregadas: no repitas fotografía, layout y dimensiones. Los formatos sin dimensiones conocidas bloquean ese par fotografía/layout. Si el usuario fijó texto comercial exacto, no escribas titulares, correos, CTA, especialidades o promesas distintos: utiliza solo los fragmentos autorizados del esquema. Si NO existe texto exacto, redacta contenido original sustentado. Elige una combinación de foto/layout no utilizada. El historial no es un ejemplo para copiar. Si el historial indica format, otras dimensiones sociales del mismo original pueden ser válidas; no repitas las dimensiones entregadas con el mismo diseño. Selecciona material por contenido y procedencia, conserva la identidad solicitada. No inventes logos ni contactos. Evita duplicar una misma URL entre body, cta y contact: incluyela visualmente una sola vez y deja cta vacio cuando uses contact; puedes colocar en body solo la frase autorizada sin repetir la URL. El logotipo oficial cuenta como identidad visual independiente. Importa el original seleccionado con media.library e inspecciona sus pixeles con media.analyze antes de componer. Usa photoRegion EXACTA para photoCrop, gráficos nuevos con image.adapt y logo observado. image.adapt outputPrefix debe comenzar '+policy.imagePrefix+'. Para reel sintetiza narración original española con speech.synthesize; reel.create requiere al menos tres escenas y 30 segundos. audioOutput debe usar el WAV real, escenas deben usar imágenes producidas; define creativeDirection con dos URLs exactas de advertising.research. Exporta cada pieza con media.library; export es local experimental, no publicación. Revisa pixeles PNG y MP4 con media.analyze y lee archivos con artifact.read; nunca uses modelos de imagen/video externos. FINISH solo al comprobar entregables. ': '')+
         (objectives.research&&!objectives.advertising?'Para investigación busca tres ORGANIZACIONES realmente distintas y pertinentes al tema, y verifica con browser.inspect sus textos antes de crear archivos. Dos sitios de la misma marca o sus filiales cuentan como una sola fuente; ayuda del sitio, publicidad de contacto y textos de navegación NO son evidencia temática. Si una página no tiene un párrafo pertinente con cita literal, busca otra URL y otra organización en web.research, sin reciclar llamadas. No inventes clasificación primaria/oficial. Entrega FINISH como JSON {sources:[{url,title,date,quote}]} con al menos tres fuentes: título y cita literal de 8 a 20 palabras (al menos 32 caracteres) presentes en DOM, fecha exacta observada o null si no se puede comprobar. Nunca inventes fecha; una fuente sin fecha solo aporta contexto. Esta tabla compara evidencia textual; no agregues afirmaciones sin soporte. ':'')+
@@ -741,14 +741,17 @@ export function prioritizeGeneralCodeCatalog(catalog,receipts,instruction=''){
         return [{...tool,inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties,
             file:{type:'string',enum:unread.slice(0,6)}}}}];
     }
-    const test=completed.find(r=>r.name==='tests.run');
-    if(!test){
+    const test=completed.find(r=>r.name==='tests.run'&&
+        r.args?.command===(/requestpayout/i.test(instruction)?'pilot:security':'check:syntax'));
+    const emulator=completed.find(r=>r.name==='tests.run'&&r.args?.command==='v142:security-emulator');
+    const nextCommand=!test?(/requestpayout/i.test(instruction)?'pilot:security':'check:syntax'):
+        codeConcurrencyRequested(instruction)&&!emulator?'v142:security-emulator':null;
+    if(nextCommand){
         const tool=catalog.find(t=>t.name==='tests.run');
         if(!tool)return [];
         return [{...tool,inputSchema:{...tool.inputSchema,
-          properties:{command:{type:'string',const:/requestpayout/i.test(instruction)?'pilot:security':'check:syntax'}},required:['command'],additionalProperties:false}}];
+          properties:{command:{type:'string',const:nextCommand}},required:['command'],additionalProperties:false}}];
     }
-    // Test success alone cannot prove the requested bug was repaired. Actual
-    // code modification needs separately authorized human review.
+    // Tests alone never authorize a production write or a fictional patch.
     return [];
 }
