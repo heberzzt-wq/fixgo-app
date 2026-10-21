@@ -183,3 +183,68 @@ test('complete WCAG DOCX/PDF research stays research and office delivery, not co
  assert.equal(generalObjectives('Audita el codigo backend y entrega un informe en PDF').code,true);
  assert.equal(generalObjectives('Entrega documento DOCX sobre formularios web accesibles').code,false);
 });
+
+test('actual local office export status binds hash, bytes and physical path without media-only experimental flag',async()=>{
+ const {createHash}=await import('node:crypto');
+ const outputRoot='.jarvis-artifacts/qwen-general/general-fixture/';
+ const mk=(format,body)=>{
+  const bytes=Buffer.from(body,'latin1'),sha=createHash('sha256').update(bytes).digest('hex');
+  const output=outputRoot+'report.'+format;
+  const artifact={file:output,sha256:sha,bytes:bytes.length,mimeType:format==='pdf'?'application/pdf':'application/vnd.openxmlformats-officedocument.wordprocessingml.document'};
+  const created={name:'document.create',ok:true,args:{format,output},observation:{ok:true,output,artifact,documentValidation:{ok:true}}};
+  const read={name:'artifact.read',ok:true,args:{output},observation:{ok:true,output,sha256:sha,bytes:bytes.length,dataBase64:bytes.toString('base64')}};
+  const exported={name:'media.library',ok:true,args:{action:'export',output},observation:{ok:true,status:'MATERIAL_EXPORTED_VERIFIED',output,sha256:sha,bytes:bytes.length,directory:'C:/isolated-library',relativePath:'Salidas/'+sha.slice(0,12)+'-report.'+format}};
+  return {created,read,exported};
+ };
+ const pdf=mk('pdf','%PDF-1.4\n'+('test source '.repeat(20))+'\n%%EOF\n');
+ const docx=mk('docx','PK\x03\x04'+('test source '.repeat(20))+'word/document.xml');
+ const instruction='Crea PDF y DOCX de datos ficticios en el entorno local';
+ const receipts=[pdf.created,pdf.read,pdf.exported,docx.created,docx.read,docx.exported];
+ assert.deepEqual(unfulfilledDownloadFormats(instruction,receipts),[]);
+ const damaged=structuredClone(receipts);
+ damaged[2].observation.relativePath='Salidas/wrong.pdf';
+ assert.deepEqual(unfulfilledDownloadFormats(instruction,damaged),['pdf']);
+ damaged[2]=structuredClone(pdf.exported);
+ damaged[5].observation.sha256='0'.repeat(64);
+ assert.deepEqual(unfulfilledDownloadFormats(instruction,damaged),['docx']);
+ damaged[5]=structuredClone(docx.exported);
+ damaged[4].observation.dataBase64=Buffer.from('bad bytes').toString('base64');
+ assert.deepEqual(unfulfilledDownloadFormats(instruction,damaged),['docx']);
+});
+
+test('WCAG office research produces requested FixGo technician checklist with explicit untested limitations',async()=>{
+ const {researchOfficeContent}=await import('../modules/terminal/qwen-general-evidence.js');
+ const instruction='Investiga accesibilidad web WCAG 2.2 y formularios moviles; crea DOCX y PDF con checklist para registro de tecnicos.';
+ const sources=['w3.org','example-standards.org','example-academy.edu'].map((host,i)=>({
+  url:'https://'+host+'/wcag/accessibility',
+  title:'WCAG 2.2 accessibility guidance '+i,
+  quote:'WCAG 2.2 accessibility guidance emphasizes keyboard operation clear labels error messages and usable mobile forms.'
+ }));
+ const receipts=[
+  {ok:true,name:'web.research',observation:{ok:true,sources:sources.map(s=>({url:s.url}))}},
+  ...sources.map(s=>({ok:true,name:'browser.inspect',args:{url:s.url},
+    observation:{ok:true,url:s.url,dom:'<html><title>'+s.title+'</title><main><p>'+s.quote+'</p></main></html>'}}))
+ ];
+ const content=researchOfficeContent(receipts,instruction);
+ assert.equal(typeof content,'string');
+ for(const phrase of ['Checklist de accesibilidad para registro de técnicos','P0 · Etiquetas e instrucciones','P0 · Teclado y foco','P1 · Reflow móvil','Prioridades, responsables y evidencia pendiente','NO pruebas ejecutadas'])
+  assert.ok(content.includes(phrase),phrase);
+ for(const s of sources)assert.ok(content.includes(s.url));
+ assert.ok(!content.includes('certifica cumplimiento WCAG'));
+});
+
+test('WCAG boilerplate cannot count as technical evidence from three independent sources',async()=>{
+ const {independentResearchProofs}=await import('../modules/terminal/qwen-general-evidence.js');
+ const instruction='Investiga WCAG 2.2 y buenas practicas de formularios moviles con tres fuentes.';
+ const cases=[
+  {url:'https://site-one.example/wcag',quote:'Somos especialistas en accesibilidad digital y ofrecemos soluciones adaptadas a empresas de todo tipo.'},
+  {url:'https://site-two.example/wcag',quote:'Conoce nuestra mision equipo y trayectoria en accesibilidad digital para todas las organizaciones.'},
+  {url:'https://site-three.example/wcag',quote:'Las pautas de accesibilidad WCAG 2.2 incluyen criterios operables y perceptibles para formularios moviles.'}
+ ];
+ const receipts=[{name:'web.research',ok:true,observation:{ok:true,sources:cases.map(c=>({url:c.url}))}},
+  ...cases.map(c=>({name:'browser.inspect',ok:true,args:{url:c.url},
+   observation:{ok:true,url:c.url,dom:'<title>WCAG 2.2 y formularios</title><main><p>'+c.quote+'</p></main>'}}))];
+ const proofs=independentResearchProofs(receipts,instruction);
+ assert.equal(proofs.length,1);
+ assert.equal(proofs[0].url,cases[2].url);
+});

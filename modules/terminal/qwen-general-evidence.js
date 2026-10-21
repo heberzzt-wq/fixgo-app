@@ -470,6 +470,22 @@ export function researchOfficeContent(receipts,instruction=''){
   '## Introducción',
   'Este informe reúne tres fuentes de sitios independientes cuya respuesta HTML fue leída durante esta misión. Se presentan fragmentos literales atribuidos a sus páginas de origen. No se fabrican entrevistas, pruebas de campo, cifras, resultados ni fechas de publicación.',
   ...sections,
+  ...(/\bwcag\b/i.test(instruction)&&/formularios?/iu.test(instruction)&&/tecnicos?|técnicos?/iu.test(instruction)?[
+    '## Checklist de accesibilidad para registro de técnicos — propuesta de revisión',
+    'Estas verificaciones son tareas sugeridas para el equipo FixGo, NO pruebas ejecutadas ni una declaración de cumplimiento WCAG 2.2. Deben comprobarse en la interfaz real, con teclado y tecnologías de asistencia.',
+    '- [ ] P0 · Etiquetas e instrucciones: cada entrada INE, nombre, teléfono, documento y rostro debe tener etiqueta visible y nombre accesible; comprobar con lector de pantalla.',
+    '- [ ] P0 · Errores recuperables: mostrar qué campo falló y cómo corregirlo, sin perder información capturada; comprobar formulario vacío, formato inválido y fallo de cámara.',
+    '- [ ] P0 · Teclado y foco: completar registro sin ratón, con orden lógico de tabulación y foco siempre identificable, incluso en modal de cámara.',
+    '- [ ] P0 · Sesiones y autenticación: ofrecer ayuda comprensible para recuperar sesión; probar caducidad sin perder evidencias y sin mostrar expedientes de otra persona.',
+    '- [ ] P1 · Tamaño y separación de controles: comprobar que botones de cámara, recapturar, volver y enviar se pueden activar en pantalla táctil sin errores.',
+    '- [ ] P1 · Reflow móvil y zoom: probar 320 píxeles CSS, orientación, zoom de texto y tamaños de pantalla sin recortes ni desplazamiento horizontal injustificado.',
+    '- [ ] P1 · Contraste: revisar texto, etiquetas, indicadores de error, borde del foco y controles en sus estados normales y deshabilitados.',
+    '- [ ] P1 · Cámara e identidad: explicar permisos, distancia adecuada, recaptura, vista previa y alternativa accesible cuando falle la cámara; validar el flujo sin biometría real.',
+    '- [ ] P1 · Estado del trámite: avisar cambios de validación KYC y aprobación administrativa de forma perceptible sin depender exclusivamente de color.',
+    '- [ ] P2 · Validación humana: documentar resultados de teclado, lector de pantalla, móvil y pruebas con usuarios antes de afirmar cumplimiento.',
+    '## Prioridades, responsables y evidencia pendiente',
+    'Prioridad P0: etiquetas, errores, teclado, foco y recuperación de sesión; responsable sugerido: frontend, QA y seguridad. Prioridad P1: móvil, controles táctiles, cámara y mensajes de estado; responsables: UX, QA y backend. Prioridad P2: evaluación asistida y documentación. Evidencia aún necesaria: capturas por viewport, pruebas con tecnologías de asistencia, tickets y resultados reproducibles.'
+  ]:[]),
   '## Comparación y límites',
   'Las tres fuentes se citan por separado para que puedan consultarse directamente. Su selección no significa que sus autores hayan validado este informe ni que los fragmentos, sin leer el contexto completo, autoricen afirmaciones adicionales. Las fechas se omiten cuando no existe comprobación inequívoca.',
   '## Conclusión',
@@ -494,6 +510,13 @@ export function researchQuoteRelevant(quote,instruction='',title=''){
  if(/\b(help mode|click on any control|sign in|privacy policy|accept cookies|terms of use|find a carrier expert nearby)\b/i.test(q))return false;
  if(!instruction)return true;
  const request=String(instruction).normalize('NFD').replace(/\p{M}/gu,'').toLowerCase();
+ if(/\bwcag\b|accesibilidad web|formularios moviles/i.test(request)){
+   // Marketing boilerplate saying "accesibilidad digital" is not
+   // technical guidance for a WCAG and accessible forms assignment.
+   const subject=/\bwcag\b|accesib|accessib/iu.test(q);
+   const actionable=/pautas?|criterios?|guideline|keyboard|teclado|foco|focus|contraste|labels?|etiquetas?|errores?|error|formularios?|formulario|perceptible|operable|comprensible|robusto|target size|reflow/iu.test(q);
+   return subject&&actionable;
+ }
  if(/aire acondicionado|acondicionador|climatizacion|air condition|hvac/i.test(request)){
    const subject=/aire acondicionado|acondicionad|climatiz|air condition|hvac|cooling system|cooling equipment/i.test(q);
    const actionable=/mantenimient|maintenance|maintain|filter|filtro|clean|limpi|service|servicio|refrigerant|refrigerante|inspec|preventiv/i.test(q);

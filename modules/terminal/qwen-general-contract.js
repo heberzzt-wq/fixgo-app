@@ -48,8 +48,16 @@ export function unfulfilledDownloadFormats(instruction,receipts=[]){
       return bytes.length===r.observation.bytes&&documentStructureVerified(format,bytes,candidate,instruction);
     }catch{return false;}
   });
+  // Authenticated local office exports record a physical Salidas file and hash,
+  // not "experimental:true" (reserved for the advertising media branch).
+  const name=output.split('/').at(-1),physicalRelative='Salidas/'+sha.slice(0,12)+'-'+name;
   const exported=receipts.some(r=>r.ok===true&&r.name==='media.library'&&r.args?.action==='export'&&r.args.output===output&&
-      r.observation?.sha256===sha&&r.observation?.experimental===true);
+      r.observation?.sha256===sha&&
+      (r.observation?.experimental===true||
+       r.observation?.status==='MATERIAL_EXPORTED_VERIFIED'&&
+       r.observation?.bytes===candidate.observation?.artifact?.bytes&&
+       typeof r.observation?.directory==='string'&&r.observation.directory.length>0&&
+       r.observation?.relativePath===physicalRelative));
   if(format==='pdf'&&financialRequestedAmounts(instruction).length>0&&!verifiedFinancialPdfContent(instruction,receipts))return true;
   return !(read&&exported);
  });
