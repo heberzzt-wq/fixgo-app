@@ -46,3 +46,14 @@ export function createWorkstationAuthorization({identity,verifyIdToken,ownerUid}
             return true;
         };
 }
+// Read-only, minimal status used by the local singleton supervisor.
+// Full workstation diagnostics still require the owner's Firebase ID token.
+export function supervisorHeartbeat({state=workstationRuntimeState,processId=process.pid,bridgeVersion='' }={}){
+    return {
+        workstationContractVersion:state.workstationContractVersion,
+        loadedHead:state.loadedHead,
+        workerStarted:state.workerStarted===true,
+        processId,
+        bridgeVersion
+    };
+}

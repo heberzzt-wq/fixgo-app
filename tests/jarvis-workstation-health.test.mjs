@@ -44,3 +44,31 @@ test('workstation telemetry accepts only V142 official identity even with a vali
  identity={...identity,contract:{branch:'v142-official',releaseId:'release'}};
  assert.equal(await authorize(req,result),true);
 });
+
+test('supervisor heartbeat is minimal and its GET does not bypass owner authentication',async()=>{
+ const {supervisorHeartbeat}=await import('../jarvis-workstation-health.js');
+ const {readFileSync}=await import('node:fs');
+ const state={workstationContractVersion:'2.0.0-singleton-exact-sync',
+   loadedHead:'a'.repeat(40),workerStarted:true,
+   internalToken:'must-not-be-exposed',firebaseUid:'must-not-be-exposed'};
+ const report=supervisorHeartbeat({state,processId:4321,bridgeVersion:'v142-test'});
+ assert.deepEqual(report,{
+  workstationContractVersion:'2.0.0-singleton-exact-sync',
+  loadedHead:'a'.repeat(40),workerStarted:true,processId:4321,bridgeVersion:'v142-test'
+ });
+ const bridge=readFileSync(new URL('../jarvis-fs-bridge.js',import.meta.url),'utf8');
+ assert.match(bridge,/supervisor:\s*supervisorHeartbeat/);
+ for(const file of ['jarvis-workstation-start.cjs','jarvis-workstation-supervisor.cjs']){
+  const source=readFileSync(new URL('../scripts/'+file,import.meta.url),'utf8');
+  assert.match(source,/port:3344,path:'\/health'/);
+  assert.doesNotMatch(source,/port:3344,path:'\/workstation\/health'/);
+ }
+ const authorized=createWorkstationAuthorization({identity:()=>({ok:true,contract:{branch:'v142-official',releaseId:'r'}}),
+  ownerUid:'owner',verifyIdToken:async()=>({uid:'owner'})});
+ let code;
+ const res={status(v){code=v;return this;},json(){return this;}};
+ const req={socket:{remoteAddress:'127.0.0.1'},get:header=>
+  header==='X-Jarvis-Release-Id'?'r':''};
+ assert.equal(await authorized(req,res),false);
+ assert.equal(code,401);
+});

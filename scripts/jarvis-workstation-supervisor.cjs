@@ -26,7 +26,7 @@ const STALE_SETTLE_MS=10000;
 let child=null,childStartedAt=0,childWasHealthy=false,unhealthySince=0,stopping=false,lockServer=null,loopTimer=null,loopRunning=false;
 const inspect=()=>new Promise(resolve=>{
     const req=http.get({
-        host:'127.0.0.1',port:3344,path:'/workstation/health',timeout:2000}
+        host:'127.0.0.1',port:3344,path:'/health',timeout:2000}
     ,res=>{
         let body='';
         res.on('data',c=>body+=c);
@@ -34,7 +34,7 @@ const inspect=()=>new Promise(resolve=>{
             try{
                 const json=JSON.parse(body||'{}');
                 resolve({
-                    healthy:res.statusCode===200,isJarvis:Boolean(json?.uploadTransportVersion||json?.bridgeVersion),contractVersion:String(json?.runtime?.workstationContractVersion||''),workerStarted:json?.runtime?.workerStarted===true,processId:Number(json?.runtime?.processId||0),bridgeVersion:String(json?.bridgeVersion||''),loadedHead:String(json?.runtime?.loadedHead||'')}
+                    healthy:res.statusCode===200&&json?.identity?.ok===true,isJarvis:Boolean(json?.supervisor?.bridgeVersion),contractVersion:String(json?.supervisor?.workstationContractVersion||''),workerStarted:json?.supervisor?.workerStarted===true,processId:Number(json?.supervisor?.processId||0),bridgeVersion:String(json?.supervisor?.bridgeVersion||''),loadedHead:String(json?.supervisor?.loadedHead||'')}
                 )}
             catch{
                 resolve({

@@ -1,6 +1,6 @@
 import {qwenArtifactWriteGuard} from './jarvis-qwen-artifact-write-guard.js';
 import {createPilotVersionGate,qwenRuntimeEnabled} from './jarvis-qwen-pilot-version.js';
-import {registerWorkstationHealth,createWorkstationAuthorization} from './jarvis-workstation-health.js';
+import {registerWorkstationHealth,createWorkstationAuthorization,supervisorHeartbeat} from './jarvis-workstation-health.js';
 import {verifyBrowserIdToken} from './jarvis-qwen-decision-http.js';
 import {JARVIS_PRIVATE_RELAY as workstationRelay} from './gestia-core/jarvis/jarvis.semantic.transport.js';
 import {createQwenArtifactPreview} from './jarvis-qwen-artifact-preview.js';
@@ -6977,7 +6977,10 @@ export function createJarvisFsBridgeApp({
             identity:
                 requestIdentity(),
             semantic:
-                semanticEngine.describe()
+                semanticEngine.describe(),
+            // Minimal loopback supervisor heartbeat. Browser workstation
+            // diagnostics remain owner-token protected on /workstation/health.
+            supervisor: supervisorHeartbeat({bridgeVersion:JARVIS_FS_BRIDGE_VERSION})
         });
     });
 
