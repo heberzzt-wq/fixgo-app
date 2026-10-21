@@ -173,3 +173,13 @@ test('research about web forms and PDF DOCX is not authenticated interactive bro
   'Rellena un formulario de login en la pagina.',
  ])assert.ok(unavailableMissionOperations(s).some(x=>x.includes('navegación interactiva')),s);
 });
+
+test('complete WCAG DOCX/PDF research stays research and office delivery, not code or Firestore census',async()=>{
+ const {generalObjectives}=await import('../modules/terminal/qwen-general-evidence.js');
+ const prompt='MISION SENIOR 07, solo experimento local sin publicar. Investiga accesibilidad web WCAG 2.2 y buenas practicas de formularios moviles usando tres fuentes independientes con contenido y citas exactas verificadas. Crea DOS archivos fisicos en el expediente de esta mision: informe-accesibilidad.docx e informe-accesibilidad.pdf. Incluye un checklist concreto para el formulario de registro de tecnicos, limitaciones, referencias y acciones priorizadas. Ejecuta document.create y artifact.read para cada archivo y media.library para exportarlos; no inventes fuentes, pruebas ni entregables. Si falla alguna capacidad declara PARCIAL con motivo exacto; no uses IA externa de pago ni modifiques FixGo.';
+ const result=generalObjectives(prompt);
+ assert.deepEqual({code:result.code,research:result.research,records:result.records,document:result.document},{code:false,research:true,records:false,document:true});
+ assert.equal(generalObjectives('Consulta la coleccion users en Firestore y cuenta tecnicos B2C').records,true);
+ assert.equal(generalObjectives('Audita el codigo backend y entrega un informe en PDF').code,true);
+ assert.equal(generalObjectives('Entrega documento DOCX sobre formularios web accesibles').code,false);
+});

@@ -71,7 +71,10 @@ export function generalEngineeringRequested(instruction=''){
  // data mentions KYC, security or tests. Keep true mixed requests in both tracks.
  const pageArtifact=/\b(?:crea|crear|genera|generar|disena|disenar|construye|construir|haz)\b[\s\S]{0,130}\b(?:pagina|landing|html)\b/u.test(s);
  const explicitCodeAudit=/\b(?:audita|auditar|revisa|revisar|depura|depurar|corrige|corregir|refactoriza|refactorizar|analiza|analizar)\b[\s\S]{0,90}\b(?:codigo|repositorio|repo|backend|frontend|handler|endpoint|funcion|funciones)\b/u.test(s);
- if(pageArtifact&&!explicitCodeAudit)return false;
+ const officeArtifact=/\b(?:crea|crear|genera|generar|entrega|entregar|prepara|preparar|exporta|exportar|produce|producir)\b[\s\S]{0,180}\b(?:docx|pdf|xlsx|pptx|csv|documento\s+word|informe\s+descargable)\b/u.test(s);
+ // Document creation is not a software engineering task just because the brief
+ // names tests.run, a web form, APIs, login or a code-change prohibition.
+ if((pageArtifact||officeArtifact)&&!explicitCodeAudit)return false;
  const engineeringObject=/\b(?:codigo|repositorio|repo|javascript|typescript|backend|frontend|funcion(?:es)?|handler|endpoint|webhook|api|autenticacion|sesiones?|firebase|bridge|arquitectura|dependencias|seguridad|kyc|pruebas?|tests?|programacion|implementacion|modulos?\s+de\s+codigo)\b/u;
  const engineeringAction=/\b(?:audita|auditar|rastrea|rastrear|revisa|revisar|analiza|analizar|depura|depurar|diagnostica|diagnosticar|investiga|investigar|verifica|verificar|evalua|evaluar|refactoriza|refactorizar|implementa|implementar|programa|programar|escribe|escribir|desarrolla|desarrollar|prueba|probar|ejecuta|ejecutar|corrige|corregir|repara|reparar|explica|explicar)\b/u;
  const softwareContext=/\b(?:codigo|repositorio|repo|javascript|typescript|backend|frontend|funcion(?:es)?|handler|endpoint|webhook|api|firebase|bridge|kyc|arquitectura\s+de\s+(?:autenticacion|software)|pruebas?|tests?|programacion)\b/u;
@@ -84,7 +87,7 @@ export function generalObjectives(instruction){
     const code=generalEngineeringRequested(instruction)||unavailableMissionOperations(instruction).some(x=>x.includes('parches'))||/\b(?:requestpayout|bug)\b/iu.test(s);
     const requestedImageFormats=advertising?[...new Map([...s.matchAll(/\b(\d{2,4})\s*[x×]\s*(\d{2,4})\b/g)].map(m=>[m[1]+'x'+m[2],{width:Number(m[1]),height:Number(m[2])}])).values()]:[];
     return {code,reel,prohibited:generalRestrictedActionRequested(s),advertising,capabilities:/capacidades|system\.capabilities|inventario de herramientas/.test(s),research:!code&&/investig|fuentes|webgpu|actualidad/.test(s),page:/landing|(?:crea|genera|diseña|construye|haz)[\s\S]{0,100}(?:página|pagina|html)/.test(s),
-        records:!code&&/firestore|b2c|técnicos|tecnicos|users/.test(s),document:/documento|document\.create|export|informe descargable/.test(s)||requiredDeliveryFormats(s).length>0||(advertising&&reel),
+        records:!code&&/\b(?:consulta|consultar|lista|listar|cuenta|contar|conteo|cuantos|cuantas|muestra|mostrar|extrae|extraer|obten|obtener|lee|leer|inventaria|inventariar)\b/iu.test(s)&&/\b(?:firestore|b2c|tecnicos|técnicos|users|usuarios|colecciones|coleccion|servicios|vehiculos|registros)\b/iu.test(s),document:/documento|document\.create|export|informe descargable/.test(s)||requiredDeliveryFormats(s).length>0||(advertising&&reel),
         ...(requestedImageFormats.length?{requestedImageFormats}:{}),current:/actual|reciente|hoy|vigente/.test(s),unsupported:reel||advertising||/imagen/.test(s)||generalRestrictedActionRequested(s)};
 }
 export function verifyGeneralCount(receipts,now=Date.now()){
