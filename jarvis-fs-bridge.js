@@ -1,4 +1,5 @@
 import {qwenArtifactWriteGuard} from './jarvis-qwen-artifact-write-guard.js';
+import {pendingExternalConnectorInventory} from './jarvis-external-connector-contract.js';
 import {createPilotVersionGate,qwenRuntimeEnabled} from './jarvis-qwen-pilot-version.js';
 import {registerWorkstationHealth,createWorkstationAuthorization,supervisorHeartbeat} from './jarvis-workstation-health.js';
 import {verifyBrowserIdToken} from './jarvis-qwen-decision-http.js';
@@ -6377,6 +6378,7 @@ export async function inspectLocalConnectors({
                 : "NO_CONNECTORS_VERIFIED",
         connectors,
         connectedCount: connectors.filter(item => item.connected).length,
+        externalReadiness: pendingExternalConnectorInventory(),
         checkedAt: new Date().toISOString(),
         readOnly: true
     };
