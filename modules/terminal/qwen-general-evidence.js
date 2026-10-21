@@ -67,6 +67,11 @@ export function codeRepairRequested(instruction=''){
 export function generalEngineeringRequested(instruction=''){
  const s=String(instruction||'').normalize('NFD').replace(/[\u0300-\u036f]/gu,'').toLowerCase()
   .replace(/\b(?:sin|no|nunca|evita)\s+(?:modificar|modifiques|tocar|cambiar|editar|publicar|escribir)\s+(?:el\s+)?(?:codigo|repositorio|repo)\b/gu,'');
+ // Building an HTML artifact is not a repository audit merely because its sample
+ // data mentions KYC, security or tests. Keep true mixed requests in both tracks.
+ const pageArtifact=/\b(?:crea|crear|genera|generar|disena|disenar|construye|construir|haz)\b[\s\S]{0,130}\b(?:pagina|landing|html)\b/u.test(s);
+ const explicitCodeAudit=/\b(?:audita|auditar|revisa|revisar|depura|depurar|corrige|corregir|refactoriza|refactorizar|analiza|analizar)\b[\s\S]{0,90}\b(?:codigo|repositorio|repo|backend|frontend|handler|endpoint|funcion|funciones)\b/u.test(s);
+ if(pageArtifact&&!explicitCodeAudit)return false;
  const engineeringObject=/\b(?:codigo|repositorio|repo|javascript|typescript|backend|frontend|funcion(?:es)?|handler|endpoint|webhook|api|autenticacion|sesiones?|firebase|bridge|arquitectura|dependencias|seguridad|kyc|pruebas?|tests?|programacion|implementacion|modulos?\s+de\s+codigo)\b/u;
  const engineeringAction=/\b(?:audita|auditar|rastrea|rastrear|revisa|revisar|analiza|analizar|depura|depurar|diagnostica|diagnosticar|investiga|investigar|verifica|verificar|evalua|evaluar|refactoriza|refactorizar|implementa|implementar|programa|programar|escribe|escribir|desarrolla|desarrollar|prueba|probar|ejecuta|ejecutar|corrige|corregir|repara|reparar|explica|explicar)\b/u;
  const softwareContext=/\b(?:codigo|repositorio|repo|javascript|typescript|backend|frontend|funcion(?:es)?|handler|endpoint|webhook|api|firebase|bridge|kyc|arquitectura\s+de\s+(?:autenticacion|software)|pruebas?|tests?|programacion)\b/u;

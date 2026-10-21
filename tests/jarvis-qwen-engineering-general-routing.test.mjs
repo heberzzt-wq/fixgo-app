@@ -120,3 +120,14 @@ test('KYC source excerpts surface identity ownership checks and the approval han
   assert.ok(excerpt.sourceExcerpt.includes(name),file+': '+excerpt.sourceExcerpt.slice(0,100));
  }
 });
+
+test('HTML page creation with security sample data is not diverted into repository audit',()=>{
+ const request='Mision de ingenieria 06: crea una pagina HTML LOCAL de demostracion para un tablero de auditoria de seguridad de FixGo, NO la publiques ni modifiques produccion. La pagina debe incluir encabezado, tres secciones (autenticacion, KYC, retiros), tabla de verificaciones con estados de ejemplo claramente ficticios, etiquetas accesibles y diseno responsive para movil y laptop. Guarda un archivo real con page.create, abre la URL con browser.open, verifica estructura DOM con browser.inspect, toma screenshot con browser.screenshot, revisa pixeles con media.analyze y realiza read-back con artifact.read. No declares exito si falta algun recibo; si alguna capacidad no existe, informa el bloqueo exacto.';
+ const got=generalObjectives(request);
+ assert.equal(got.page,true);
+ assert.equal(got.code,false,'HTML artifact must route to page tools, not generic source audit');
+ const mixed=generalObjectives('Crea una pagina HTML local y audita el codigo backend que la atiende.');
+ assert.equal(mixed.page,true);
+ assert.equal(mixed.code,true,'explicitly mixed requests keep both real objectives');
+ assert.equal(generalObjectives('Audita el codigo de KYC y ejecuta pruebas').code,true);
+});
