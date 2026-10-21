@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  isEngineeringMission, codeCandidates, physicalTestVerdict, engineeringEvidence,
+  isEngineeringMission, codeCandidates, validateEngineeringPatch, physicalTestVerdict, engineeringEvidence,
   engineeringNextAction, PAYOUT_SECURITY_SUITE, PAYOUT_SECURITY_COMMAND
 } from '../modules/terminal/qwen-engineering-acceptance.js';
 
@@ -77,4 +77,22 @@ test('a write instruction does not authorize write tools as receipts', () => {
     {name:'repo.write',ok:true,observation:{executionOk:true}}];
   assert.equal(engineeringEvidence(receipts,{instruction}).ok,false);
   assert.ok(engineeringEvidence(receipts,{instruction}).forbiddenSideEffects.includes('repo.write'));
+});
+
+test('after tests a model-proposed patch can be prepared only when exact source appears once', () => {
+  const source = 'const amount = input.amount; if (amount < 0) throw Error();';
+  const readActual = {name:'repo.read',ok:true,args:{file:'functions/secure-entry.js'},
+    observation:{verifiedRead:{file:'functions/secure-entry.js',content:source}}};
+  const patch = {file:'functions/secure-entry.js',operation:'replace',
+    search:'if (amount < 0)',replace:'if (!Number.isFinite(amount) || amount <= 0)',matchCount:1};
+  const result = engineeringNextAction({instruction,receipts:[grep,readActual,read('tests/hotfix-legacy.test.mjs'),suite()],
+    allowedTools:['repo.grep','repo.read','tests.run','repo.prepareWrite'],proposedPatch:patch});
+  assert.equal(result.type,'tool');
+  assert.equal(result.name,'repo.prepareWrite');
+  assert.equal(result.args.matchCount,1);
+  assert.equal(validateEngineeringPatch({...patch,file:'functions/other.js'},[readActual]).ok,false);
+  assert.equal(validateEngineeringPatch({...patch,search:'missing original code'},[readActual]).ok,false);
+  assert.equal(validateEngineeringPatch({...patch,search:'',matchCount:0},[readActual]).ok,false);
+  assert.equal(validateEngineeringPatch({...patch,operation:'create'},[readActual]).ok,false);
+  assert.equal(validateEngineeringPatch({...patch,file:'../../something'},[readActual]).ok,false);
 });
