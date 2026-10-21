@@ -165,3 +165,28 @@ test('grammar excludes completed source reads and filters lacking field evidence
         {name:'platform.query',inputSchema:{properties:{filters:{type:'array',enum:[[],[{field:'rol',op:'==',value:'tecnico'}]]}}}}],
         missionLedger:{completedSources:['app-registro.js']},observations:[{name:'repo.read',ok:true,observation:{verifiedRead:{file:'app-registro.js',sourceStructure:{dataBindings:{writeShapes:[{collection:'users',fields:['estado']}]}}}}}]});
 });
+
+test('real report-only engineering turn gets exact verified source paths and suite receipts last',async()=>{
+ let messages;
+ const selector=createLocalQwenActionSelector({fetchImpl:async(_url,request)=>{
+  messages=JSON.parse(request.body).messages;
+  return {ok:true,json:async()=>({message:{content:JSON.stringify({action:'FINISH',name:'',args:{},report:'Reporte de prueba'})},done_reason:'stop',prompt_eval_count:40,eval_count:15})};
+ }});
+ const context={instruction:'Audita KYC y biometria',tools:[],
+ observations:[{name:'tests.run',ok:true,observation:{status:'PASSED'}}],
+ evidenceSummary:{reportOnly:true,finishEligible:true,objectives:{code:true},
+   engineeringSourceRequirements:['functions/b2c-biometric-identity.js','functions/b2c-technician-approval.js'],
+   engineeringExecutedTests:[{command:'check:syntax',status:'PASSED',testsPassed:true,exitCode:0}],
+   reportRevisionInstruction:'Cita las rutas exactas y el comando.'}
+ };
+ const result=await selector(context);
+ assert.equal(result.finish,true);
+ const final=messages.at(-1).content;
+ assert.match(final,/CONTRATO DE INFORME TECNICO PARA FINISH/);
+ for(const path of context.evidenceSummary.engineeringSourceRequirements)assert.ok(final.includes(path));
+ assert.ok(final.includes('check:syntax'));
+ assert.ok(final.includes('CORRECCION DEL RECHAZO PREVIO'));
+ assert.ok(final.includes('NO ausencia de vulnerabilidades'));
+ // No fabricated shell outputs or secret identity tokens are inserted into final contract.
+ assert.doesNotMatch(final,/Bearer |ID_TOKEN=|CIERTO_QUE_PASO/);
+});

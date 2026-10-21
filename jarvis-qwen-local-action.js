@@ -109,6 +109,19 @@ export function createLocalQwenActionSelector({
             'Respeta requiresEvidence: primero ejecuta una herramienta que produzca ese evidenceKind y verifica sus valores observados. El mapa no sustituye un recibo de lectura. '+
             'Para CALL usa name de una herramienta, args objeto y report vacio. '+
             'Para FINISH usa name vacio, args {} y report con los resultados observados.';
+        const finishEngineering=toolsForModel.length===0&&evidenceSummary?.reportOnly===true&&evidenceSummary?.objectives?.code===true;
+        const sourcePaths=finishEngineering&&Array.isArray(evidenceSummary.engineeringSourceRequirements)?
+            evidenceSummary.engineeringSourceRequirements.filter(file=>typeof file==='string').slice(0,6):[];
+        const testCommands=finishEngineering&&Array.isArray(evidenceSummary.engineeringExecutedTests)?
+            evidenceSummary.engineeringExecutedTests.filter(t=>t?.status==='PASSED'&&t.testsPassed===true&&t.exitCode===0).map(t=>t.command).filter(x=>typeof x==='string').slice(0,5):[];
+        const finalReportContract=finishEngineering?
+            'CONTRATO DE INFORME TECNICO PARA FINISH. Redacta en espanol un dictamen tecnico original de al menos 180 caracteres, concreto y fundamentado. '+
+            'CITA LITERALMENTE las siguientes rutas completas, incluida su carpeta, y explica para cada una la responsabilidad observada: '+JSON.stringify(sourcePaths)+'. '+
+            'Estas son las UNICAS suites con recibo de ejecucion exitosa; menciona su comando exacto, sin abreviarlo ni decir solo pruebas de sintaxis: '+JSON.stringify(testCommands)+'. '+
+            'No confundas leer un test con ejecutarlo. Una prueba check:syntax comprueba sintaxis, NO ausencia de vulnerabilidades ni seguridad entre usuarios. '+
+            'Para KYC diferencia vinculo UID-rutas-INE-rostro de comportamiento de autorizacion aun no probado. No afirmes que no hay fallos sin evidencia. '+
+            (evidenceSummary.reportRevisionInstruction?'CORRECCION DEL RECHAZO PREVIO: '+evidenceSummary.reportRevisionInstruction+'. ':'')+
+            'Estructura report como FUENTES LEIDAS, PRUEBAS EJECUTADAS y LIMITES NO DEMOSTRADOS. No inventes rutas, resultados ni cambios.':null;
         const messages=[
             {role:'system',content:policy},
             ...(repositoryMap&&!observations.length?[{role:'system',content:String(repositoryMap).slice(0,3000)}]:[]),
@@ -117,7 +130,8 @@ export function createLocalQwenActionSelector({
             {role:'user',content:'RESULTADOS_VERIFICADOS='+JSON.stringify(latest)},
             ...(evidenceSummary?[{role:'user',content:'COMPROBACION_INDEPENDIENTE='+JSON.stringify(evidenceSummary)}]:[]),
             ...(missionLedger?[{role:'user',content:'ESTADO_PERSISTENTE_DE_ESTA_MISION='+JSON.stringify(missionLedger)+
-                '\nElige una accion NUEVA que aporte la evidencia faltante. Los IDs no contienen valores de los campos. No repitas consultas completadas. Si el esquema ya acredita nombres, solicita sus valores pertinentes; si hay error de campo, lee fuentes especificas o descubre nombres antes de reintentar. FINISH requiere comprobacion independiente positiva.'}]:[])
+                '\nElige una accion NUEVA que aporte la evidencia faltante. Los IDs no contienen valores de los campos. No repitas consultas completadas. Si el esquema ya acredita nombres, solicita sus valores pertinentes; si hay error de campo, lee fuentes especificas o descubre nombres antes de reintentar. FINISH requiere comprobacion independiente positiva.'}]:[]),
+            ...(finalReportContract?[{role:'user',content:finalReportContract}]:[])
         ];
         const timeout=AbortSignal.timeout(Math.max(1000,Math.min(240000,Number(requestTimeoutMs)||120000)));
         const controller=signal?AbortSignal.any([signal,timeout]):timeout;
