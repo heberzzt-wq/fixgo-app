@@ -7,7 +7,7 @@ import { pathToFileURL } from "node:url";
 
 const BRIDGE_URL = process.env.JARVIS_FS_BRIDGE_URL || "http://127.0.0.1:3344";
 const REMOTE = process.env.SIA7_REMOTE || "origin";
-const BRANCH = process.env.SIA7_BRANCH || "v94-media-v4n-negative-claims";
+const BRANCH = process.env.SIA7_BRANCH || "v142-official";
 const JOB_PATH = process.env.SIA7_JOB_PATH || ".sia7/remote-job.json";
 const RESULT_PATH = process.env.SIA7_RESULT_PATH || ".sia7/remote-result.json";
 const POLL_MS = Math.max(5000, Number(process.env.SIA7_POLL_MS) || 30000);

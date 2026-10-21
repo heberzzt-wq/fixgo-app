@@ -27,13 +27,13 @@ if(rebaseActive){
     else console.warn('[JARVIS_GIT_SYNC_REBASE_STATE_ACTIVE] could not clear stale rebase; continuing with local HEAD');
 }
 if(syncOk){
-    const fetchSync=spawnSync(git,['fetch','--quiet','origin','+refs/heads/v94-media-v4n-negative-claims:refs/remotes/origin/v94-media-v4n-negative-claims'],{
+    const fetchSync=spawnSync(git,['fetch','--quiet','origin','+refs/heads/v142-official:refs/remotes/origin/v142-official'],{
         stdio:'inherit',windowsHide:true,timeout:45000}
     );
     syncOk=fetchSync.status===0;
 }
 if(syncOk){
-    const rebaseSync=spawnSync(git,['rebase','origin/v94-media-v4n-negative-claims'],{
+    const rebaseSync=spawnSync(git,['rebase','origin/v142-official'],{
         stdio:'inherit',windowsHide:true,timeout:45000}
     );
     syncOk=rebaseSync.status===0;
@@ -179,7 +179,7 @@ Promise.all([import('../jarvis-upload-bridge.js'),import('../jarvis-github-worke
         server.once('listening',resolve);
         server.once('error',reject)}
     );
-    console.log('[JARVIS_WORKSTATION] online branch=v94-media-v4n-negative-claims bridge=http://127.0.0.1:3344 contract='+EXPECTED);
+    console.log('[JARVIS_WORKSTATION] online branch=v142-official bridge=http://127.0.0.1:3344 contract='+EXPECTED);
     const poll=worker.createWorkerPoller();
     const runPoll=async()=>{
         bridge.markJarvisWorkstationRuntime({
