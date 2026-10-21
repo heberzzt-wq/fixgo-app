@@ -553,7 +553,7 @@ export async function runQwenGeneralPilot(options){
             maximumSteps:stepsPerPhase,repairIncomplete:!objectives.unsupported||objectives.advertising,requireFinalReport:objectives.code===true,
             compactObservation:compactGeneralObservation,catalogForEvidence:(catalog,receipts)=>prioritizeGeneralAdvertisingCatalog(catalog,receipts,objectives,options.instruction),
             summarizeEvidence:receipts=>{const preflight=generalMissionPreflight(toolRuntime.list(),receipts,objectives,audioReadiness);return {...summarizeGeneralEvidence(receipts,objectives,options.instruction),preflight,...(!preflight.ok&&!preflight.pending?{blockedReason:preflight.reason}:{})};},
-            verifyObjectives:args=>verifyGeneralMission({...args,objectives})})
+            verifyObjectives:args=>verifyGeneralMission({...args,instruction:options.instruction,objectives})})
     });
     for(const u of visualUsages){result.metrics.inferences+=u.inferenceCount??1;result.metrics.promptTokens+=u.promptTokens||0;result.metrics.outputTokens+=u.outputTokens||0;result.metrics.inferenceMs+=u.durationMs||0;}
     const resultMissionId=continuationId?'resume-'+crypto.randomUUID():missionId;

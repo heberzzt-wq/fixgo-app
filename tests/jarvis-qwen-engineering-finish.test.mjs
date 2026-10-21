@@ -52,3 +52,24 @@ test('report citing unobserved files is refused, even with a passing suite',asyn
  assert.equal(result.status,'PARTIAL');
  assert.equal(result.certification?.objectives?.some(x=>x.reason==='ENGINEERING_SOURCE_BOUND_REPORT_REQUIRED'),true);
 });
+
+test('internal planning instructions cannot add an unrequested emulator objective',async()=>{
+ const {codeConcurrencyRequested}=await import('../modules/terminal/qwen-general-evidence.js');
+ const original=instruction;
+ const modelText=original+' No atribuyas cobertura de concurrencia a pruebas unitarias.';
+ assert.equal(codeConcurrencyRequested(original),false);
+ assert.equal(codeConcurrencyRequested(modelText),true);
+ const authentic=await verifyGeneralMission({
+  instruction:original,receipts,proposedReport:report,objectives:generalObjectives(original)
+ });
+ assert.equal(authentic.ok,true);
+ const erroneouslyExpanded=await verifyGeneralMission({
+  instruction:modelText,receipts,proposedReport:report,objectives:generalObjectives(original)
+ });
+ assert.equal(erroneouslyExpanded.ok,false);
+ assert.ok(erroneouslyExpanded.objectives.some(x=>x.reason==='CODE_CONCURRENCY_EMULATOR_EVIDENCE_REQUIRED'));
+ const fs=await import('node:fs');
+ const source=fs.readFileSync(new URL('../modules/terminal/qwen-general-pilot.js',import.meta.url),'utf8');
+ assert.match(source,/verifyObjectives:args=>verifyGeneralMission\(\{\.\.\.args,instruction:options\.instruction,objectives\}\)/);
+ assert.match(source,/catalogForEvidence:\(catalog,receipts\)=>prioritizeGeneralAdvertisingCatalog\(catalog,receipts,objectives,options\.instruction\)/);
+});
