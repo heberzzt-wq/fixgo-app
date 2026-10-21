@@ -301,6 +301,18 @@ function genericEngineeringReportIssues(report,receipts=[],instruction=''){
        issues.push('UNVERIFIED_KYC_SECURITY_SUCCESS_CLAIM');
    }
  }
+ if(codePreviewOnlyRequested(instruction)){
+   const prepIndex=receipts.findIndex(r=>r.name==='repo.prepareWrite'&&r.observation?.status==='WRITE_PREPARED');
+   const baselineIndex=receipts.findIndex(r=>r.name==='tests.run'&&r.args?.command==='check:syntax'&&r.observation?.status==='PASSED');
+   if(prepIndex>=0&&baselineIndex>=0&&baselineIndex<prepIndex){
+     const normalized=text.normalize('NFD').replace(/[\u0300-\u036f]/gu,'').toLowerCase();
+     const disclosed=/(?:antes\s+de\s+(?:preparar|proponer|generar)[\s\S]{0,30}parche|(?:suite|check:syntax)[\s\S]{0,170}(?:codigo\s+original|repositorio\s+original|no\s+(?:incluyo|valido|ejecuto)[\s\S]{0,55}(?:parche|propuesta|archivo))|(?:parche|codigo\s+propuesto)[\s\S]{0,90}(?:no\s+(?:fue\s+)?(?:probado|validado|ejecutado)|sin\s+pruebas))/iu.test(normalized);
+     if(!disclosed)issues.push('PREPARED_PATCH_TESTS_BASELINE_ONLY_DISCLOSURE_REQUIRED');
+     const falseClaim=/\b(?:verific\w*|valid\w*|comprob\w*|demostr\w*)\b[\s\S]{0,130}\b(?:codigo\s+propuesto|parche\s+propuesto|sintaxis\s+del\s+parche)\b/iu.test(normalized)&&
+        !/\b(?:no|sin|nunca)\b[\s\S]{0,24}\b(?:verific\w*|valid\w*|comprob\w*|demostr\w*)\b/iu.test(normalized);
+     if(falseClaim)issues.push('UNVERIFIED_PREPARED_PATCH_SUCCESS_CLAIM');
+   }
+ }
  return issues;
 }
 export function engineeringReportIssues(report,receipts=[],instruction=''){

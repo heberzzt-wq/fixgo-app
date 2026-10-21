@@ -230,9 +230,15 @@ test('preview-only bugfix preparation uses exact read-backed fixture and never a
  assert.equal(witness?.written,false);
  assert.equal(witness?.requiresHumanApproval,true);
  assert.equal(prioritizeGeneralCodeCatalog(catalog,[grep,read,tested,prepared],instruction).length,0);
- const report='Auditoria de codigo tests/fixtures/v142-rebate-preview.js: applyRebate acepta un rebate superior al importe y puede producir un resultado negativo. Ejecute la suite check:syntax satisfactoriamente, pero una prueba sintactica no verifica el comportamiento financiero ni la seguridad. Se preparo un parche exacto para revision humana sin escribir codigo ni ejecutarlo; quedan pendientes pruebas funcionales aisladas antes y despues.';
+ const report='Auditoria de codigo tests/fixtures/v142-rebate-preview.js: applyRebate acepta un rebate superior al importe y puede producir un resultado negativo. Ejecute la suite check:syntax sobre el repositorio original antes de preparar el parche, por lo que esa suite no valido el codigo propuesto ni comprobo el comportamiento financiero. Se preparo un parche exacto para revision humana sin escribir codigo ni ejecutarlo; quedan pendientes pruebas funcionales aisladas antes y despues.';
  const result=await verifyGeneralMission({instruction,receipts:[grep,read,tested,prepared],proposedReport:report,objectives:goals});
  assert.equal(result.ok,true,JSON.stringify(result.objectives));
+ const misleading=report.replace('Ejecute la suite check:syntax sobre el repositorio original antes de preparar el parche, por lo que esa suite no valido el codigo propuesto ni comprobo el comportamiento financiero.',
+   'La suite de sintaxis ejecutada con el comando exacto check:syntax reporto PASSED, verificando solo la correccion gramatical del codigo propuesto en repo.prepareWrite.');
+ const inaccurate=await verifyGeneralMission({instruction,receipts:[grep,read,tested,prepared],proposedReport:misleading,objectives:goals});
+ assert.equal(inaccurate.ok,false);
+ assert.ok(inaccurate.objectives.find(x=>x.reason==='ENGINEERING_SOURCE_BOUND_REPORT_REQUIRED')?.details?.missingClauses?.includes('UNVERIFIED_PREPARED_PATCH_SUCCESS_CLAIM'));
+
  assert.equal((await verifyGeneralMission({instruction,receipts:[grep,read,tested],proposedReport:report,objectives:goals})).ok,false);
  assert.equal(verifiedPreparedCodePreview([grep,read,tested,prepared,{name:'repo.write',ok:true}]),null);
 });

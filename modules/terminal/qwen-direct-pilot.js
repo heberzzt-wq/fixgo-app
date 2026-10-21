@@ -1,5 +1,5 @@
-import {createQwenAuthenticatedToolBridge} from '../../jarvis-qwen-tool-bridge.js?release=v142-code-preview-20261021-v31';
-import {runQwenDirectReadCycle,runQwenAuthorizedCycle} from '../../jarvis-qwen-direct-cycle.js?release=v142-code-preview-20261021-v31';
+import {createQwenAuthenticatedToolBridge} from '../../jarvis-qwen-tool-bridge.js?release=v142-code-preview-20261021-v32';
+import {runQwenDirectReadCycle,runQwenAuthorizedCycle} from '../../jarvis-qwen-direct-cycle.js?release=v142-code-preview-20261021-v32';
 import {createQwenBridgeActionSelector} from './qwen-direct-transport.js';
 import {resolveGestiaRole} from '../../gestia-core/auth/role-authority.js';
 import {JARVIS_PRIVATE_RELAY} from '../../gestia-core/jarvis/jarvis.semantic.transport.js';
