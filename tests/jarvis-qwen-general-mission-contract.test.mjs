@@ -248,3 +248,23 @@ test('WCAG boilerplate cannot count as technical evidence from three independent
  assert.equal(proofs.length,1);
  assert.equal(proofs[0].url,cases[2].url);
 });
+
+test('research verifier uses topic-grounded WCAG quotes even when page boilerplate fills generic snippet limit',async()=>{
+ const {researchSourceProofs,independentResearchProofs,verifyGeneralMission}=await import('../modules/terminal/qwen-general-evidence.js');
+ const instruction='Investiga WCAG 2.2 y formularios moviles con tres fuentes independientes.';
+ const urls=['guidelines-alpha.org','research-beta.edu','standards-gamma.net'].map(host=>'https://'+host+'/wcag');
+ const relevant='Los criterios WCAG 2.2 proponen pautas operables para formularios moviles y manejo del foco visible de teclado.';
+ const receipts=[{ok:true,name:'web.research',observation:{ok:true,sources:urls.map(url=>({url}))}},
+  ...urls.map((url,i)=>{
+   const filler=Array.from({length:10},(_,n)=>'<p>Nuestro equipo presenta soluciones innovadoras de accesibilidad digital para empresas de la region '+i+' categoria '+n+'.</p>').join('');
+   return {ok:true,name:'browser.inspect',observation:{ok:true,url,dom:'<html><title>WCAG 2.2 formularios moviles '+i+'</title><main>'+filler+'<p>'+relevant+'</p></main></html>'}};
+  })];
+ const generic=researchSourceProofs(receipts);
+ assert.equal(generic.length,3);
+ assert.ok(generic.every(p=>!p.quotes.includes(relevant)));
+ const grounded=independentResearchProofs(receipts,instruction);
+ assert.equal(grounded.length,3);
+ const report=JSON.stringify({sources:grounded.map(p=>({url:p.url,title:p.title,date:null,quote:p.quotes[0]}))});
+ assert.equal((await verifyGeneralMission({instruction,receipts,proposedReport:report})).ok,true);
+ assert.equal((await verifyGeneralMission({instruction,receipts,proposedReport:report.replace('foco visible','requisitos inventados')})).ok,false);
+});
