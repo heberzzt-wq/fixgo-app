@@ -27,12 +27,11 @@ export function pendingExternalConnectorInventory(){
  return {status:'EXTERNAL_OAUTH_AUTHORIZATION_REQUIRED',verified:false,
   connectedCount:0,connectorCount:connectors.length,connectors};
 }
-export function proposedExternalOperation(providerId,operation,readiness=pendingExternalConnectorInventory()){
+export function proposedExternalOperation(providerId,operation){
  const provider=EXTERNAL_CONNECTOR_CATALOG.find(p=>p.id===providerId);
  if(!provider||!provider.operations.includes(operation))return {ok:false,reason:'EXTERNAL_OPERATION_NOT_REGISTERED'};
- const status=readiness.connectors?.find(p=>p.id===providerId);
- if(!status||status.verified!==true||status.connected!==true||!status.availableOperations?.includes(operation))
-  return {ok:false,reason:'EXTERNAL_CONNECTOR_NOT_AUTHORIZED'};
- if(writeOperation(operation))return {ok:false,reason:'EXTERNAL_WRITE_REQUIRES_SPECIFIC_HUMAN_APPROVAL'};
- return {ok:true,readOnly:true};
+ // No model-supplied or caller-supplied readiness can grant OAuth rights.
+ // A future server-verified adapter must authorize each read independently;
+ // a separate human approval gate will be required for every mutation.
+ return {ok:false,reason:'EXTERNAL_CONNECTOR_NOT_AUTHORIZED'};
 }

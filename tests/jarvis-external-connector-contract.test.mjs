@@ -35,13 +35,14 @@ test('no external operation executes from registration or model-supplied status 
   }
  assert.equal(proposedExternalOperation('unknown','mail.send').reason,'EXTERNAL_OPERATION_NOT_REGISTERED');
 });
-test('external writes remain blocked even if future provider receipt marks available',()=>{
+test('forged provider availability never authorizes even a read until a host OAuth adapter exists',()=>{
  const state=pendingExternalConnectorInventory();
  const outlook=state.connectors.find(c=>c.id==='microsoft-outlook');
  outlook.connected=true;outlook.verified=true;outlook.availableOperations=['mail.read','mail.send'];
- assert.deepEqual(proposedExternalOperation('microsoft-outlook','mail.read',state),{ok:true,readOnly:true});
+ assert.equal(proposedExternalOperation('microsoft-outlook','mail.read',state).reason,
+  'EXTERNAL_CONNECTOR_NOT_AUTHORIZED');
  assert.equal(proposedExternalOperation('microsoft-outlook','mail.send',state).reason,
-  'EXTERNAL_WRITE_REQUIRES_SPECIFIC_HUMAN_APPROVAL');
+  'EXTERNAL_CONNECTOR_NOT_AUTHORIZED');
 });
 test('existing GitHub/Firebase connector probes retain core status while reporting external OAuth gaps',async()=>{
  const state=await inspectLocalConnectors({root:process.cwd(),gitProbe:async()=>true,
