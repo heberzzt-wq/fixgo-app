@@ -99,7 +99,7 @@ test('official V142 HTML-to-runner imports use a fresh version and expose the re
  const core=readFileSync(new URL('gestia-core/gestia-core.js',root),'utf8');
  const general=readFileSync(new URL('modules/terminal/qwen-general-pilot.js',root),'utf8');
  const direct=readFileSync(new URL('modules/terminal/qwen-direct-pilot.js',root),'utf8');
- const version='v142-engineering-report-20261021-v16';
+ const version='v142-engineering-report-20261021-v17';
  assert.ok(core.includes('qwen-general-pilot.js?release='+version));
  assert.ok(general.includes('qwen-direct-pilot.js?release='+version));
  assert.ok(general.includes('qwen-general-evidence.js?release='+version));
@@ -163,4 +163,20 @@ test('payout source discovery first reads the canonical function, not generic to
  const after=prioritizeGeneralCodeCatalog(offered,[alias,read,canonical],query);
  assert.equal(after[0].name,'repo.read');
  assert.equal(after[0].inputSchema.properties.file.enum[0],'functions/index.js');
+});
+
+test('live duplicate handler and unexecuted emulator can never be silently claimed verified',()=>{
+ const handler='exports.solicitarRetiro = functions.https.onCall(async (data) => parseFloat(data.monto));\n'+
+   'exports.solicitarRetiro = functions.https.onCall(createRequestB2cWithdrawalHandler({admin,db,functions}));';
+ const original=[
+  {name:'repo.grep',ok:true,args:{term:'solicitarRetiro'},observation:{ok:true,matches:[{file:'functions/index.js'}]}},
+  {name:'repo.read',ok:true,args:{file:'functions/index.js'},
+    observation:{ok:true,verifiedRead:{file:'functions/index.js',content:handler}}},
+  {name:'tests.run',ok:true,args:{command:'pilot:security'},
+    observation:{ok:true,status:'PASSED',testsPassed:true,objectiveSatisfied:true,exitCode:0}}
+ ];
+ const inaccurate='Auditoría requestPayout: functions/index.js valida importe con parseFloat, y las pruebas unitarias tests/hotfix-legacy-emulator.test.mjs demuestran rechazo de NaN y cero. tests.run pasó, por lo que el monto se sanea en la función vigente de solicitarRetiro. No se ha mostrado otra autoridad financiera ni evidencia adicional.';
+ assert.equal(engineeringReportVerified(inaccurate,original),false);
+ const accurate='Auditoría requestPayout: functions/index.js contiene dos definiciones de solicitarRetiro: la segunda asignación sobrescribe la primera, por lo que parseFloat pertenece a la definición histórica, no necesariamente a la vigente. La suite tests.run pilot:security pasó. El archivo tests/hotfix-legacy-emulator.test.mjs fue solo leído y no se ejecutó el emulador; por ello el rechazo de NaN y cero bajo concurrencia no está demostrado aquí.';
+ assert.equal(engineeringReportVerified(accurate,original),true);
 });

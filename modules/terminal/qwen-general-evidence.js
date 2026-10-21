@@ -167,7 +167,19 @@ export function engineeringReportVerified(report,receipts=[]){
  const tested=good(receipts).some(r=>r.name==='tests.run'&&r.observation?.testsPassed===true&&
    r.observation?.objectiveSatisfied===true&&r.observation?.status==='PASSED'&&r.observation?.exitCode===0);
  const confessedMissingSource=/sourceTextOmitted|source\s*text\s*omitted|no\s+(?:se\s+)?(?:expone|dispone|recuper[oó]|ley[oó])\s+(?:del?\s+)?contenido\s+(?:textual|del?\s+c[oó]digo)|sin\s+evidencia\s+directa\s+del?\s+c[oó]digo/iu.test(text);
+ // A legacy function name assigned more than once is not proof that its first
+ // definition is the live one. Demand that the report acknowledges replacement.
+ const definitions=[...String(canonical?.observation?.verifiedRead?.content||'')
+  .matchAll(/\bexports\.(?:solicitarRetiro|requestPayout)\s*=/gu)];
+ const duplicateExportAcknowledged=definitions.length<2||
+   /\b(?:sobrescri\w*|redefin\w*|reemplaz\w*|segunda\s+asignaci[oó]n|[uú]ltima\s+asignaci[oó]n|definici[oó]n\s+final|asignaci[oó]n\s+final)\b/iu.test(text);
+ const emulatorExecuted=good(receipts).some(r=>r.name==='tests.run'&&
+   r.args?.command==='v142:security-emulator'&&r.observation?.status==='PASSED'&&
+   r.observation?.exitCode===0&&r.observation?.testsPassed===true);
+ const citedUnexecutedEmulator=/\bhotfix-legacy-emulator\.test\.mjs\b/iu.test(text)&&
+   !emulatorExecuted&&!/\b(?:no\s+se\s+ejecut[oó]|sin\s+ejecutar|pendiente\s+de\s+ejecutar|solo\s+le[ií]d[oa]|no\s+ejecutad[oa]s?)\b/iu.test(text);
  return tested&&!!canonical&&text.includes(canonical.args.file)&&!confessedMissingSource&&
+   duplicateExportAcknowledged&&!citedUnexecutedEmulator&&
    /requestPayout|solicitarRetiro/iu.test(text)&&
    /\b(?:pruebas?|tests?|suite|regresiones?)\b/iu.test(text)&&
    /\b(?:importe|monto|cantidad|negativ|finito|nan|cero|validaci[oó]n)\b/iu.test(text);
