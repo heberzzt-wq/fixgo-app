@@ -40,6 +40,22 @@ export function codeCandidates(grepReceipt, alreadyRead = []) {
     .sort((a, b) => priority(a) - priority(b) || a.localeCompare(b));
 }
 
+export function validateEngineeringPatch(proposedPatch, receipts = []) {
+  if (!proposedPatch || typeof proposedPatch !== 'object' ||
+    !validRepoPath(proposedPatch.file) || proposedPatch.operation === 'create')
+    return {ok: false, reason: 'PATCH_SCOPE_INVALID'};
+  const { file, search, replace, matchCount } = proposedPatch;
+  if (typeof search !== 'string' || !search.length ||
+    typeof replace !== 'string' || !replace.length || search === replace ||
+    matchCount !== 1 || search.length > 20000 || replace.length > 20000)
+    return {ok: false, reason: 'PATCH_EXACT_REPLACEMENT_REQUIRED'};
+  const source = receipts.find(r => r?.ok === true && r.name === 'repo.read' &&
+    r.args?.file === file && r.observation?.verifiedRead?.file === file)?.observation?.verifiedRead?.content;
+  if (typeof source !== 'string' || source.split(search).length !== 2)
+    return {ok: false, reason: 'PATCH_SOURCE_SNAPSHOT_NOT_MATCHED'};
+  return {ok: true, args: {file, operation: 'replace', search, replace, matchCount: 1}};
+}
+
 export function physicalTestVerdict(receipt, expectedSuite = PAYOUT_SECURITY_SUITE) {
   if (!receipt || receipt.name !== 'tests.run') return { executed: false, passed: false, reason: 'TEST_RECEIPT_MISSING' };
   const observation = receipt.observation || {};
@@ -87,7 +103,7 @@ export function engineeringEvidence(receipts = [], { instruction = '', requiredC
   };
 }
 
-export function engineeringNextAction({ instruction = '', receipts = [], allowedTools = [] } = {}) {
+export function engineeringNextAction({ instruction = '', receipts = [], allowedTools = [], proposedPatch = null } = {}) {
   if (!isEngineeringMission(instruction)) return { type: 'blocked', reason: 'NOT_AN_ENGINEERING_MISSION' };
   const catalog = new Set(allowedTools);
   // This planner proposes only read/diagnostic and predefined tests.
@@ -96,15 +112,25 @@ export function engineeringNextAction({ instruction = '', receipts = [], allowed
   if (!grep) return catalog.has('repo.grep')
     ? { type: 'tool', name: 'repo.grep', args: { term: /requestpayout/i.test(instruction) ? 'requestPayout' : 'source' } }
     : { type: 'blocked', reason: 'REPO_GREP_UNAVAILABLE' };
+  const anyTest = receipts.find(r => r.name === 'tests.run');
+  if (anyTest) {
+    const evidence = engineeringEvidence(receipts, { instruction });
+    if (evidence.ok) return {type: 'verified', reason: evidence.reason, evidence};
+    if (proposedPatch && !receipts.some(r => r.name === 'repo.prepareWrite')) {
+      const proposal = validateEngineeringPatch(proposedPatch, receipts);
+      if (!proposal.ok) return {type: 'partial', reason: proposal.reason, evidence};
+      if (!catalog.has('repo.prepareWrite'))
+        return {type: 'partial', reason: 'GOVERNED_PATCH_PREVIEW_TOOL_REQUIRED', evidence};
+      return {type: 'tool', name: 'repo.prepareWrite', args: proposal.args};
+    }
+    return {type: 'partial', reason: evidence.reason, evidence};
+  }
   const readFiles = successful.filter(r => r.name === 'repo.read').map(r => r.args?.file);
   const candidate = codeCandidates(grep, readFiles).find(f => priority(f) < 4);
   if (candidate && readFiles.length < 8) return catalog.has('repo.read')
     ? { type: 'tool', name: 'repo.read', args: { file: candidate } }
     : { type: 'blocked', reason: 'REPO_READ_UNAVAILABLE' };
-  const anyTest = receipts.find(r => r.name === 'tests.run');
-  if (!anyTest) return catalog.has('tests.run')
+  return catalog.has('tests.run')
     ? { type: 'tool', name: 'tests.run', args: { command: PAYOUT_SECURITY_SUITE } }
     : { type: 'blocked', reason: 'TESTS_RUN_UNAVAILABLE' };
-  const evidence = engineeringEvidence(receipts, { instruction });
-  return { type: evidence.ok ? 'verified' : 'partial', reason: evidence.reason, evidence };
 }
