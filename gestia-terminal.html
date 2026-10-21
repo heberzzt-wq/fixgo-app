@@ -2395,23 +2395,12 @@ const normalizedMemoryQuestion =
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "");
 
-const isToolMemoryQuestion =
-    (
-        normalizedMemoryQuestion.includes("pasaron") ||
-        normalizedMemoryQuestion.includes("paso") ||
-        normalizedMemoryQuestion.includes("ultimo resultado") ||
-        normalizedMemoryQuestion.includes("que comando corriste") ||
-        normalizedMemoryQuestion.includes("cuanto tardo") ||
-        normalizedMemoryQuestion.includes("resultado")
-    ) &&
-    (
-        normalizedMemoryQuestion.includes("test") ||
-        normalizedMemoryQuestion.includes("tests") ||
-        normalizedMemoryQuestion.includes("prueba") ||
-        normalizedMemoryQuestion.includes("pruebas") ||
-        normalizedMemoryQuestion.includes("comando") ||
-        normalizedMemoryQuestion.includes("resultado")
-    );
+// Only a genuine retrospective question can use cached tool memory.
+    // Imperative engineering or creation requests always reach GestiaCore/Qwen.
+const {isExplicitToolMemoryQuestion} = await import(
+    './modules/terminal/qwen-tool-memory-gate.js?release=v142-memory-question-20261021-v1'
+);
+const isToolMemoryQuestion = isExplicitToolMemoryQuestion(comando);
 
 if (
     isToolMemoryQuestion &&
