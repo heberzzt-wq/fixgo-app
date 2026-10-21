@@ -154,6 +154,20 @@ export function summarizeGeneralEvidence(receipts,objectives,instruction=''){
         artifacts:rows.filter(r=>['page.create','document.create'].includes(r.name)).map(r=>({output:r.observation.output,sha256:r.observation.sha256,url:r.observation.url})),
         rule:'FINISH requires independent verification. Search snippets alone do not establish current facts. Read sources with browser.inspect. Read produced files with artifact.read. A screenshot is a capture, not semantic visual inspection.'};
 }
+// A successful tool loop is not a finished engineering deliverable. Ground the
+// written diagnosis in source paths actually read and a passing test receipt.
+export function engineeringReportVerified(report,receipts=[]){
+ const text=String(report||'').trim();
+ if(text.length<180||text.length>10000)return false;
+ const reads=good(receipts).filter(r=>r.name==='repo.read'&&
+   typeof r.args?.file==='string'&&r.observation?.verifiedRead?.file===r.args.file);
+ const tested=good(receipts).some(r=>r.name==='tests.run'&&r.observation?.testsPassed===true&&
+   r.observation?.objectiveSatisfied===true&&r.observation?.status==='PASSED'&&r.observation?.exitCode===0);
+ return tested&&reads.some(r=>text.includes(r.args.file))&&
+   /requestPayout|solicitarRetiro/iu.test(text)&&
+   /\b(?:pruebas?|tests?|suite|regresiones?)\b/iu.test(text)&&
+   /\b(?:importe|monto|cantidad|negativ|finito|nan|cero|validaci[oó]n)\b/iu.test(text);
+}
 export async function verifyGeneralMission({instruction,receipts,proposedReport,objectives=generalObjectives(instruction)}){
     const rows=good(receipts),checks=[];
     const check=(objective,satisfied,reason)=>checks.push({objective,satisfied,reason});
@@ -170,6 +184,7 @@ export async function verifyGeneralMission({instruction,receipts,proposedReport,
         const sourceReads=rows.filter(r=>r.name==='repo.read'&&r.observation?.verifiedRead?.file===r.args?.file);
         check('real repository grep and source reads',!!grep&&grep.observation.matches.length>0&&sourceReads.length>0,
             'CODE_SOURCE_EVIDENCE_REQUIRED');
+        check('source-anchored engineering diagnosis',engineeringReportVerified(proposedReport,receipts),'ENGINEERING_SOURCE_BOUND_REPORT_REQUIRED');
         const tested=rows.find(r=>r.name==='tests.run'&&r.observation?.testsPassed===true&&
             r.observation?.objectiveSatisfied===true&&r.observation?.status==='PASSED');
         check('real repository tests pass',!!tested,'CODE_TESTS_PASSING_REQUIRED');

@@ -162,7 +162,10 @@ test('negative patch instructions do not require code modifications',async()=>{
  assert.equal(result.objectives.some(x=>x.reason==='CODE_PATCH_PREVIEW_REQUIRED'),false);
  assert.equal(result.objectives.some(x=>x.reason==='CODE_CONCURRENCY_EMULATOR_EVIDENCE_REQUIRED'),true);
  const emulated=[...receipts,{name:'tests.run',ok:true,args:{command:'v142:security-emulator'},observation:{ok:true,status:'PASSED',testsPassed:true,objectiveSatisfied:true,exitCode:0}}];
- const done=await verifyGeneralMission({instruction,receipts:emulated,proposedReport:'Summary of observed code',objectives:generalObjectives(instruction)});
+ const report='Auditoría de requestPayout: leí functions/secure-entry.js, donde se ubica solicitarRetiro. Las pruebas tests.run de seguridad unitaria pasaron en el escenario simulado; la ejecución de Firebase Emulator sobre el conjunto de concurrencia e idempotencia también tiene un recibo PASS en esta prueba controlada; se verifica el alcance de validación de monto negativo. Se distingue esa cobertura del código no inspeccionado.';
+ const ungrounded=await verifyGeneralMission({instruction,receipts:emulated,proposedReport:'Summary of observed code',objectives:generalObjectives(instruction)});
+ assert.equal(ungrounded.ok,false,'a generic finish cannot certify a complex code audit');
+ const done=await verifyGeneralMission({instruction,receipts:emulated,proposedReport:report,objectives:generalObjectives(instruction)});
  assert.equal(done.ok,true);
 });
 

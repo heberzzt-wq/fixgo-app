@@ -91,7 +91,7 @@ export function runQwenDirectReadCycle(options={}){
 export async function runQwenAuthorizedCycle({
     instruction='', catalog=[], repositoryMap=null,
     selectNextAction, authorize, execute, verifyCompletion,
-    maximumSteps=8, stepLimit=MAX_STEPS, signal, onProgress=()=>{},summarizeEvidence=null,compactObservation=null,repairIncomplete=false,catalogForEvidence=null,initialReceipts=[]
+    maximumSteps=8, stepLimit=MAX_STEPS, signal, onProgress=()=>{},summarizeEvidence=null,compactObservation=null,repairIncomplete=false,catalogForEvidence=null,initialReceipts=[],requireFinalReport=false
 }={}){
     if(typeof selectNextAction!=='function' || typeof authorize!=='function' ||
         typeof execute!=='function' || typeof verifyCompletion!=='function'){
@@ -142,6 +142,32 @@ export async function runQwenAuthorizedCycle({
         // just a hint to the model. It may be stricter than the static catalog.
         const offered=catalogForEvidence?catalogForEvidence(available,structuredClone(receipts)):available;
         if(!offered.length){
+            // Engineering deliverables must contain a source-anchored written
+            // report from Qwen. Physical tool receipts alone are insufficient.
+            if(requireFinalReport&&evidenceSummary?.finishEligible===true){
+                let summaryDecision;
+                try{
+                    modelDecisionCount++;
+                    summaryDecision=await selectNextAction({
+                        instruction,repositoryMap,tools:[],observations:structuredClone(forModel.slice(-12)),
+                        evidenceSummary,missionLedger:missionLedger(),iteration,signal
+                    });
+                }catch{return done('PARTIAL','ENGINEERING_FINAL_REPORT_UNAVAILABLE');}
+                if(summaryDecision?.finish!==true||typeof summaryDecision.report!=='string'||
+                    !summaryDecision.report.trim())return done('PARTIAL','ENGINEERING_FINAL_REPORT_REQUIRED');
+                decisions.push(structuredClone(summaryDecision));
+                let certification;
+                try{
+                    certification=await verifyCompletion({
+                        instruction,receipts:structuredClone(receipts),
+                        proposedReport:summaryDecision.report,signal
+                    });
+                }catch{return done('PARTIAL','INDEPENDENT_CERTIFICATION_FAILED');}
+                const independentlyVerified=certification?.ok===true&&receipts.some(r=>r.ok===true);
+                return done(independentlyVerified?'SUCCESS':'PARTIAL',
+                    independentlyVerified?'VERIFIED_COMPLETE':certification?.reason||'ENGINEERING_REPORT_NOT_CERTIFIED',
+                    independentlyVerified?summaryDecision.report:'',certification||null);
+            }
             // An exhausted catalog is a request to the independent verifier,
             // never proof that the mission succeeded or permission to make up a receipt.
             let certification;

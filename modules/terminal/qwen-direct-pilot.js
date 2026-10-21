@@ -9,7 +9,7 @@ const activeSessions=new WeakSet();
 // Opt-in host integration. The authenticated Terminal supplies its existing
 // runtime and objective verifier; neither can be chosen by model output.
 export async function runQwenTerminalReadPilot({instruction,auth,bridge,toolRuntime,toolsBridge,
-    sessionContext,verifyObjectives,repositoryMap,signal,onProgress=()=>{},maximumSteps=8,summarizeEvidence=null,hostToolPolicy=null,compactObservation=null,repairIncomplete=false,catalogForEvidence=null,pilotVersion=null,initialReceipts=[]}={}){
+    sessionContext,verifyObjectives,repositoryMap,signal,onProgress=()=>{},maximumSteps=8,summarizeEvidence=null,hostToolPolicy=null,compactObservation=null,repairIncomplete=false,catalogForEvidence=null,pilotVersion=null,initialReceipts=[],requireFinalReport=false}={}){
     if(!auth||typeof verifyObjectives!=='function'||!sessionContext?.tenantId)
         throw new Error('QWEN_TERMINAL_AUTHORITY_REQUIRED');
     if(activeSessions.has(auth))throw new Error('QWEN_TERMINAL_MISSION_BUSY');
@@ -37,7 +37,7 @@ export async function runQwenTerminalReadPilot({instruction,auth,bridge,toolRunt
             metrics.outputTokens+=Number(usage.outputTokens)||0;
             metrics.inferenceMs+=Number(usage.durationMs)||0;
         }});
-        const result=await (hostToolPolicy?runQwenAuthorizedCycle:runQwenDirectReadCycle)({instruction,repositoryMap,maximumSteps,stepLimit:hostToolPolicy?96:12,signal,summarizeEvidence,compactObservation,repairIncomplete,catalogForEvidence,initialReceipts,
+        const result=await (hostToolPolicy?runQwenAuthorizedCycle:runQwenDirectReadCycle)({instruction,repositoryMap,maximumSteps,stepLimit:hostToolPolicy?96:12,signal,summarizeEvidence,compactObservation,repairIncomplete,catalogForEvidence,initialReceipts,requireFinalReport,
             ...adapter,selectNextAction:selector,onProgress,
             execute:async(call,context)=>{
                 const receipt=await adapter.execute(call,context);
