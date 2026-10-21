@@ -203,3 +203,36 @@ test('V142 Firestore emulation launcher binds only the fixed project, tests and 
  assert.equal(missing.ok,false);
  assert.equal(missing.reason,'FIREBASE_CLI_NOT_INSTALLED');
 });
+
+test('preview-only bugfix preparation uses exact read-backed fixture and never authorizes writing',async()=>{
+ const {codePreviewOnlyRequested,verifiedPreparedCodePreview,verifyGeneralMission}=await import('../modules/terminal/qwen-general-evidence.js');
+ const instruction='Prepara un parche exacto para el codigo tests/fixtures/v142-rebate-preview.js: applyRebate(10,20) no debe producir un importe negativo. Solo para revision humana, sin aplicar ni modificar el repositorio. Lee el archivo, corre pruebas de sintaxis y explica lo no demostrado.';
+ assert.equal(codePreviewOnlyRequested(instruction),true);
+ assert.equal(codePreviewOnlyRequested('Corrige el codigo en produccion y ejecuta pruebas antes y despues.'),false);
+ assert.equal(codePreviewOnlyRequested('Prepara un parche y ejecuta pruebas antes y despues sin aplicar.'),false);
+ const goals=generalObjectives(instruction);
+ assert.equal(goals.code,true);
+ const catalog=generalToolCatalog({list:()=>tools},policy,goals,instruction);
+ const file='tests/fixtures/v142-rebate-preview.js',source=(await import('node:fs')).readFileSync(new URL('../'+file,import.meta.url),'utf8');
+ const grep={name:'repo.grep',ok:true,args:{term:'applyRebate'},observation:{ok:true,matches:[{file}]}};
+ const read={name:'repo.read',ok:true,args:{file},observation:{ok:true,verifiedRead:{file,content:source}}};
+ const tested={name:'tests.run',ok:true,args:{command:'check:syntax'},observation:{ok:true,status:'PASSED',testsPassed:true,objectiveSatisfied:true,exitCode:0}};
+ const option=prioritizeGeneralCodeCatalog(catalog,[grep,read,tested],instruction);
+ assert.equal(option.length,1);assert.equal(option[0].name,'repo.prepareWrite');
+ assert.deepEqual(option[0].inputSchema.properties.file.enum,[file]);
+ const prepared={name:'repo.prepareWrite',ok:true,args:{file,search:'amount-rebate',replace:'Math.max(0,amount-rebate)',matchCount:1,operation:'replace'},
+  observation:{ok:true,status:'WRITE_PREPARED',file,written:false,fingerprint:'a'.repeat(64),snapshotSha256:'b'.repeat(64),expectedSha256:'c'.repeat(64)}};
+ assert.equal(policy.authorize(prepared,[read]).ok,true);
+ const fixturePolicy=createGeneralToolPolicy({location,missionId:mission,objectives:goals,instruction});
+ assert.equal(fixturePolicy.authorize(prepared,[read]).ok,true);
+ assert.equal(fixturePolicy.authorize({...prepared,args:{...prepared.args,file:'functions/index.js'}},[read]).reason,'CODE_PREVIEW_TEST_FIXTURE_SCOPE_ONLY');
+ const witness=verifiedPreparedCodePreview([grep,read,tested,prepared]);
+ assert.equal(witness?.written,false);
+ assert.equal(witness?.requiresHumanApproval,true);
+ assert.equal(prioritizeGeneralCodeCatalog(catalog,[grep,read,tested,prepared],instruction).length,0);
+ const report='Auditoria de codigo tests/fixtures/v142-rebate-preview.js: applyRebate acepta un rebate superior al importe y puede producir un resultado negativo. Ejecute la suite check:syntax satisfactoriamente, pero una prueba sintactica no verifica el comportamiento financiero ni la seguridad. Se preparo un parche exacto para revision humana sin escribir codigo ni ejecutarlo; quedan pendientes pruebas funcionales aisladas antes y despues.';
+ const result=await verifyGeneralMission({instruction,receipts:[grep,read,tested,prepared],proposedReport:report,objectives:goals});
+ assert.equal(result.ok,true,JSON.stringify(result.objectives));
+ assert.equal((await verifyGeneralMission({instruction,receipts:[grep,read,tested],proposedReport:report,objectives:goals})).ok,false);
+ assert.equal(verifiedPreparedCodePreview([grep,read,tested,prepared,{name:'repo.write',ok:true}]),null);
+});

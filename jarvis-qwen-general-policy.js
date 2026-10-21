@@ -1,4 +1,4 @@
-import {validateProductionDocument} from './modules/terminal/qwen-general-evidence.js';
+import {validateProductionDocument,codePreviewOnlyRequested} from './modules/terminal/qwen-general-evidence.js';
 import {MEDIA_TOOLS,mediaPaths,authorizeMedia,producedMedia} from './modules/terminal/qwen-general-media.js';
 // Host-owned capability policy. Model arguments never grant authority.
 const READS=new Set(['repo.search','repo.grep','repo.read','repo.diagnose','repo.gitStatus','tests.run','platform.query','web.research','browser.inspect','artifact.read','media.analyze','system.capabilities','advertising.research']);
@@ -36,6 +36,8 @@ export function createGeneralToolPolicy({location,missionId,objectives={},instru
             }
             if(call.name==='repo.prepareWrite'){
                 const file=call.args?.file,search=call.args?.search,matchCount=call.args?.matchCount;
+                if(codePreviewOnlyRequested(instruction)&&!/^tests\/fixtures\/[a-zA-Z0-9_-]+\.(?:js|mjs)$/.test(file||''))
+                    return {ok:false,reason:'CODE_PREVIEW_TEST_FIXTURE_SCOPE_ONLY'};
                 const origin=receipts.find(r=>r.ok===true&&r.name==='repo.read'&&r.args?.file===file&&r.observation?.verifiedRead?.file===file);
                 const content=origin?.observation?.verifiedRead?.content;
                 if(!objectives.code||!origin||typeof content!=='string'||typeof search!=='string'||!search.length||!Number.isInteger(matchCount)||matchCount!==1||content.split(search).length!==2||call.args?.operation==='create')

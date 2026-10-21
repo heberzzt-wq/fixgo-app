@@ -2,9 +2,9 @@ import {planImageAdaptation} from '../../gestia-core/jarvis/jarvis.image.adapter
 import {compactVerifiedEngineeringSource} from './qwen-engineering-source-excerpt.js';
 import {LOCAL_VIDEO_EVIDENCE_CAPABILITIES,MEDIA_TOOLS,mediaEntries,producedMedia,deliveredImageHistory,producedImageHistory} from './qwen-general-media.js';
 import {createQwenBridgeActionSelector} from './qwen-direct-transport.js';
-import {runQwenTerminalReadPilot} from './qwen-direct-pilot.js?release=v142-finance-mission-20261021-v28';
-import {createGeneralToolPolicy,normalizeGeneralSchema} from '../../jarvis-qwen-general-policy.js?pilot=engineering-read-20261021-v9';
-import {advertisingSourceText,generalObjectives,GENERAL_COUNT_FIELDS,summarizeGeneralEvidence,verifyGeneralMission,independentResearchProofs,researchOfficeContent,researchSourceProofs,researchQuoteRelevant,researchTopic,codeConcurrencyRequested,requiredEngineeringSourceFiles} from './qwen-general-evidence.js?release=v142-finance-mission-20261021-v28';
+import {runQwenTerminalReadPilot} from './qwen-direct-pilot.js?release=v142-code-preview-20261021-v29';
+import {createGeneralToolPolicy,normalizeGeneralSchema} from '../../jarvis-qwen-general-policy.js?pilot=engineering-read-20261021-v10';
+import {advertisingSourceText,generalObjectives,GENERAL_COUNT_FIELDS,summarizeGeneralEvidence,verifyGeneralMission,independentResearchProofs,researchOfficeContent,researchSourceProofs,researchQuoteRelevant,researchTopic,codeConcurrencyRequested,codePreviewOnlyRequested,verifiedPreparedCodePreview,requiredEngineeringSourceFiles} from './qwen-general-evidence.js?release=v142-code-preview-20261021-v29';
 import {receiptBoundProductionContent,prioritizeReceiptBoundProduction} from './qwen-production-document.js';
 import {resumedMissionId,originalResumedMissionId,readSavedMission,verifiedResumeReceipts,verifiedResearchResumeReceipts} from './qwen-general-resume.js?pilot=research-resume-20261021-v4';
 import {classifyEmptyGeneralCatalog,requestQwenGeneralConversation} from './qwen-empty-catalog.js?pilot=concise-20261021-v8';
@@ -782,6 +782,19 @@ export function prioritizeGeneralCodeCatalog(catalog,receipts,instruction=''){
         if(!tool)return [];
         return [{...tool,inputSchema:{...tool.inputSchema,
           properties:{command:{type:'string',const:nextCommand}},required:['command'],additionalProperties:false}}];
+    }
+    // A preview-only instruction may prepare a single exact read-backed patch.
+    // Preparation does not apply the change or execute untrusted patched code.
+    if(codePreviewOnlyRequested(instruction)&&!verifiedPreparedCodePreview(receipts)){
+        const t=catalog.find(t=>t.name==='repo.prepareWrite');
+        const readFiles=[...new Set(completed.filter(r=>r.name==='repo.read'&&
+          r.args?.file===r.observation?.verifiedRead?.file&&
+          typeof r.observation.verifiedRead.content==='string').map(r=>r.args.file))]
+          .filter(f=>/^tests\/fixtures\/[\w/-]+\.(?:js|mjs)$/iu.test(f));
+        if(!t||!readFiles.length)return [];
+        return [{...t,inputSchema:{...t.inputSchema,properties:{...t.inputSchema.properties,
+           file:{type:'string',enum:readFiles},operation:{type:'string',const:'replace'},
+           matchCount:{type:'integer',const:1}},required:['file','search','replace','matchCount','operation']}}];
     }
     // Tests alone never authorize a production write or a fictional patch.
     return [];

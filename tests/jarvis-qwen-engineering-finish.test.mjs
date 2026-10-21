@@ -130,7 +130,7 @@ test('official V142 HTML-to-runner imports use a fresh version and expose the re
  const core=readFileSync(new URL('gestia-core/gestia-core.js',root),'utf8');
  const general=readFileSync(new URL('modules/terminal/qwen-general-pilot.js',root),'utf8');
  const direct=readFileSync(new URL('modules/terminal/qwen-direct-pilot.js',root),'utf8');
- const version='v142-finance-mission-20261021-v28';
+ const version='v142-code-preview-20261021-v29';
  assert.ok(core.includes('qwen-general-pilot.js?release='+version));
  assert.ok(general.includes('qwen-direct-pilot.js?release='+version));
  assert.ok(general.includes('qwen-general-evidence.js?release='+version));

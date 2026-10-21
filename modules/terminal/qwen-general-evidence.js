@@ -63,6 +63,15 @@ export function codeRepairRequested(instruction=''){
   return false;
  });
 }
+// Preview-only is a distinct, explicitly non-mutating deliverable.
+// It never asserts that proposed code passed a before/after regression.
+export function codePreviewOnlyRequested(instruction=''){
+ const s=String(instruction||'').normalize('NFD').replace(/[\u0300-\u036f]/gu,'').toLowerCase();
+ const prepare=/\b(?:prepara|preparar|propone|proponer|presenta|presentar|genera|generar)\b[^\n.;]{0,100}\b(?:parche|patch|diff|cambio\s+exacto)\b/u.test(s);
+ const readOnly=/\b(?:sin\s+aplicar|no\s+apliques|sin\s+modificar|no\s+modifiques|solo\s+(?:para\s+)?revision|unicamente\s+(?:para\s+)?revision|sin\s+escribir)\b/u.test(s);
+ const requiresAfter=/\b(?:pruebas\s+(?:despues|posteriores)|antes\s+y\s+despues|before.after|aplica(?:r)?\s+(?:en|sobre)\s+el\s+(?:codigo|repositorio))\b/u.test(s);
+ return prepare&&readOnly&&!requiresAfter;
+}
 // General engineering intent must not depend on one historical financial bug.
 export function generalEngineeringRequested(instruction=''){
  const s=String(instruction||'').normalize('NFD').replace(/[\u0300-\u036f]/gu,'').toLowerCase()
@@ -180,6 +189,26 @@ export function verifiedEngineeringAssignmentWitness(receipts=[]){
      interpretation:assignments.length>1?'Last top-level assignment replaces the earlier export; do not attribute old handler checks to the effective one.':'Do not infer overwritten handlers.'};
  }).filter(w=>w.assignments.length>0);
 }
+export function verifiedPreparedCodePreview(receipts=[]){
+ const rows=good(receipts);
+ const patch=rows.find(r=>r.name==='repo.prepareWrite'&&r.observation?.status==='WRITE_PREPARED'&&
+   r.observation?.written===false&&typeof r.observation.fingerprint==='string'&&
+   /^[a-f0-9]{64}$/iu.test(r.observation.fingerprint)&&
+   /^[a-f0-9]{64}$/iu.test(r.observation.snapshotSha256||'')&&
+   /^[a-f0-9]{64}$/iu.test(r.observation.expectedSha256||'')&&
+   r.observation.snapshotSha256!==r.observation.expectedSha256&&
+   r.observation.file===r.args?.file&&r.args?.matchCount===1&&
+   typeof r.args.search==='string'&&r.args.search.length>0&&
+   typeof r.args.replace==='string'&&r.args.search!==r.args.replace&&
+   rows.some(read=>read.name==='repo.read'&&read.args?.file===r.args.file&&
+    read.observation?.verifiedRead?.file===r.args.file&&
+    typeof read.observation.verifiedRead.content==='string'&&
+    read.observation.verifiedRead.content.split(r.args.search).length===2));
+ const forbidden=receipts.some(r=>['repo.write','repo.authorizeWrite','repo.safePatchApply','git.push','deploy'].includes(r.name));
+ return !patch||forbidden?null:{file:patch.args.file,fingerprint:patch.observation.fingerprint,
+   snapshotSha256:patch.observation.snapshotSha256,expectedSha256:patch.observation.expectedSha256,
+   written:false,requiresHumanApproval:true};
+}
 export function summarizeGeneralEvidence(receipts,objectives,instruction=''){
     const rows=good(receipts),sources=rows.filter(r=>r.name==='web.research').flatMap(r=>r.observation.sources||[]);
     const proofs=researchSourceProofs(receipts);
@@ -198,7 +227,9 @@ export function summarizeGeneralEvidence(receipts,objectives,instruction=''){
             gaps.push({goal:'passing physical repository tests',requiredTool:'tests.run',reason:'CODE_TESTS_PASSING_REQUIRED'});
         if(codeConcurrencyRequested(instruction)&&!rows.some(r=>r.name==='tests.run'&&r.args?.command==='v142:security-emulator'&&r.observation?.status==='PASSED'&&r.observation?.testsPassed===true&&r.observation?.objectiveSatisfied===true&&r.observation?.exitCode===0))
             gaps.push({goal:'physical concurrent payout and idempotency emulator tests',requiredTool:'tests.run',command:'v142:security-emulator',reason:'CODE_CONCURRENCY_EMULATOR_EVIDENCE_REQUIRED'});
-        if(codeRepairRequested(instruction))
+        if(codePreviewOnlyRequested(instruction)&&!verifiedPreparedCodePreview(receipts))
+            gaps.push({goal:'read-only exact source patch for human review',requiredTool:'repo.prepareWrite',reason:'CODE_PATCH_PREVIEW_REQUIRED'});
+        else if(codeRepairRequested(instruction)&&!codePreviewOnlyRequested(instruction))
             gaps.push({goal:'governed isolated repair and before-after regression receipts',requiredTool:'repo.prepareWrite',reason:'ISOLATED_CODE_REPAIR_NOT_IMPLEMENTED'});
     }
     if(objectives.research&&!objectives.advertising&&(requiredDeliveryFormats(instruction).length?independentResearchProofs(receipts,instruction).length:new Set(proofs.map(p=>p.url)).size)<3)gaps.push({goal:'three independently opened and quoted sources',requiredTool:'browser.inspect'});
@@ -212,6 +243,7 @@ export function summarizeGeneralEvidence(receipts,objectives,instruction=''){
     }
     return {objectives,records,...(objectives.code?{sourceAssignmentWitness:verifiedEngineeringAssignmentWitness(receipts),
         engineeringSourceRequirements:requiredEngineeringSourceFiles(instruction),
+        engineeringPatchPreview:verifiedPreparedCodePreview(receipts),
         engineeringExecutedTests:rows.filter(r=>r.name==='tests.run'&&r.observation?.status==='PASSED'&&r.observation?.testsPassed===true&&r.observation?.exitCode===0).map(r=>({command:r.args.command,status:r.observation.status,testsPassed:true,exitCode:0}))}:{}),deliveryGaps:gaps,finishEligible:gaps.length===0&&(!objectives.unsupported||objectives.advertising||has('system.capabilities')),
 
         pendingVisualReviews:objectives.page?rows.filter(r=>r.name==='browser.screenshot'&&!rows.some(v=>v.name==='media.analyze'&&v.observation.output===r.observation.output)).map(r=>({requiredTool:'media.analyze',output:r.observation.output,reason:'Screenshot alone is not visual review. Execute media.analyze on these pixels before FINISH.'})):[],
@@ -354,9 +386,11 @@ export async function verifyGeneralMission({instruction,receipts,proposedReport,
         // A prepared patch is not a write. Even a passing baseline suite cannot
         // certify a requested fix without isolated after-tests and verified diff.
         if(codeRepairRequested(instruction)){
-            const preview=rows.some(r=>r.name==='repo.prepareWrite'&&r.observation?.status==='WRITE_PREPARED'&&r.observation?.written===false);
-            check('governed exact patch preview',preview,'CODE_PATCH_PREVIEW_REQUIRED');
-            check('isolated fix and before-after regression receipts',false,'ISOLATED_CODE_REPAIR_NOT_IMPLEMENTED');
+            const preview=verifiedPreparedCodePreview(receipts);
+            check('governed exact patch preview',!!preview,'CODE_PATCH_PREVIEW_REQUIRED');
+            if(!codePreviewOnlyRequested(instruction))
+                check('isolated fix and before-after regression receipts',false,'ISOLATED_CODE_REPAIR_NOT_IMPLEMENTED');
+            else check('patch explicitly remains unapplied',!!preview&&preview.written===false,'CODE_PREVIEW_MUTATION_FORBIDDEN');
         }
     }
     if(objectives.research&&!objectives.advertising){
