@@ -236,3 +236,13 @@ test('preview-only bugfix preparation uses exact read-backed fixture and never a
  assert.equal((await verifyGeneralMission({instruction,receipts:[grep,read,tested],proposedReport:report,objectives:goals})).ok,false);
  assert.equal(verifiedPreparedCodePreview([grep,read,tested,prepared,{name:'repo.write',ok:true}]),null);
 });
+
+test('only the host mission stamps write-preparation provenance, never the model',async()=>{
+ const {trustedCodePreviewContext}=await import('../modules/terminal/qwen-general-pilot.js');
+ const instruction='Prepara un parche exacto para el codigo tests/fixtures/v142-rebate-preview.js, solo para revision humana sin aplicar.';
+ const expected={objectiveId:'QWEN_PREVIEW_'+mission,caseId:mission};
+ assert.deepEqual(trustedCodePreviewContext(mission,instruction),expected);
+ assert.deepEqual(trustedCodePreviewContext('../outside',instruction),{});
+ assert.deepEqual(trustedCodePreviewContext(mission,'Corrige el codigo y ejecuta pruebas antes y despues.'),{});
+ assert.ok(!Object.hasOwn(expected,'writeAllowed')&&!Object.hasOwn(expected,'approved'));
+});

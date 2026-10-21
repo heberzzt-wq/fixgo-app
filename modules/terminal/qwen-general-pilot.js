@@ -2,15 +2,20 @@ import {planImageAdaptation} from '../../gestia-core/jarvis/jarvis.image.adapter
 import {compactVerifiedEngineeringSource} from './qwen-engineering-source-excerpt.js';
 import {LOCAL_VIDEO_EVIDENCE_CAPABILITIES,MEDIA_TOOLS,mediaEntries,producedMedia,deliveredImageHistory,producedImageHistory} from './qwen-general-media.js';
 import {createQwenBridgeActionSelector} from './qwen-direct-transport.js';
-import {runQwenTerminalReadPilot} from './qwen-direct-pilot.js?release=v142-code-preview-20261021-v29';
+import {runQwenTerminalReadPilot} from './qwen-direct-pilot.js?release=v142-code-preview-20261021-v30';
 import {createGeneralToolPolicy,normalizeGeneralSchema} from '../../jarvis-qwen-general-policy.js?pilot=engineering-read-20261021-v10';
-import {advertisingSourceText,generalObjectives,GENERAL_COUNT_FIELDS,summarizeGeneralEvidence,verifyGeneralMission,independentResearchProofs,researchOfficeContent,researchSourceProofs,researchQuoteRelevant,researchTopic,codeConcurrencyRequested,codePreviewOnlyRequested,verifiedPreparedCodePreview,requiredEngineeringSourceFiles} from './qwen-general-evidence.js?release=v142-code-preview-20261021-v29';
+import {advertisingSourceText,generalObjectives,GENERAL_COUNT_FIELDS,summarizeGeneralEvidence,verifyGeneralMission,independentResearchProofs,researchOfficeContent,researchSourceProofs,researchQuoteRelevant,researchTopic,codeConcurrencyRequested,codePreviewOnlyRequested,verifiedPreparedCodePreview,requiredEngineeringSourceFiles} from './qwen-general-evidence.js?release=v142-code-preview-20261021-v30';
 import {receiptBoundProductionContent,prioritizeReceiptBoundProduction} from './qwen-production-document.js';
 import {resumedMissionId,originalResumedMissionId,readSavedMission,verifiedResumeReceipts,verifiedResearchResumeReceipts} from './qwen-general-resume.js?pilot=research-resume-20261021-v4';
 import {classifyEmptyGeneralCatalog,requestQwenGeneralConversation} from './qwen-empty-catalog.js?pilot=concise-20261021-v8';
 // Session-only conversational memory, scoped to the authenticated Firebase user.
 // Never persisted as proof of a tool result.
 const localConversationHistory=new WeakMap();
+export function trustedCodePreviewContext(missionId,instruction=''){
+    if(!/^general-[a-z0-9-]{8,80}$/i.test(String(missionId||''))||
+       !codePreviewOnlyRequested(instruction))return {};
+    return {objectiveId:'QWEN_PREVIEW_'+missionId,caseId:missionId};
+}
 import {requiredDeliveryFormats,missingMissionInputs,unavailableMissionOperations,unfulfilledDownloadFormats,prioritizeGeneralOfficeCatalog} from './qwen-general-contract.js';
 
 function variantSelections(formats){
@@ -527,7 +532,11 @@ export async function runQwenGeneralPilot(options){
         'Lee cada archivo creado con artifact.read antes de FINISH. No inventes recibos de revisión visual. Si solo esta disponible system.capabilities, inspecciona una vez y termina informando el bloqueo; inventariar no ejecuta ni certifica esas capacidades.';
     const visualUsages=[];
     const visualSelector=createQwenBridgeActionSelector({bridge:options.bridge,auth:options.auth,pilotVersion,onInference:u=>visualUsages.push(u)});
-    const sessionContext={...options.sessionContext,qwenCapabilityPolicy:tools=>tools.map(t=>({name:t.name,registered:true,executionStatus:policy.accept(t)?'ELIGIBLE_UNVERIFIED':t.requiresApproval||t.mutates?'BLOCKED_BY_SCOPE':'PENDING_INTEGRATION',physicallyVerified:false})),qwenWorkstationHealth:async()=>{
+    // The bridge's /write/prepare requires objectiveId and caseId. They must
+    // originate from the host-created mission, never from Qwen arguments.
+    // This only identifies a review-only preparation, not write authorization.
+    const previewContext=trustedCodePreviewContext(missionId,options.instruction);
+    const sessionContext={...options.sessionContext,...previewContext,qwenCapabilityPolicy:tools=>tools.map(t=>({name:t.name,registered:true,executionStatus:policy.accept(t)?'ELIGIBLE_UNVERIFIED':t.requiresApproval||t.mutates?'BLOCKED_BY_SCOPE':'PENDING_INTEGRATION',physicallyVerified:false})),qwenWorkstationHealth:async()=>{
         await options.auth.authStateReady?.();
         const user=options.auth.currentUser;
         if(!user)throw Error('QWEN_BROWSER_SESSION_REQUIRED');
