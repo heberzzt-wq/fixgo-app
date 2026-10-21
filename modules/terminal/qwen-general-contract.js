@@ -116,7 +116,10 @@ export function unavailableMissionOperations(instruction=''){
   out.push('aplicación segura de parches y pruebas de código desde este piloto');
  if(/\b(?:consultar|consulta)\b[\s\S]{0,150}\btecnicos\b[\s\S]{0,130}\b(?:servicios|vehiculos|vencidos)\b/iu.test(t))
   out.push('consulta completa de colecciones operativas de técnicos, servicios, vehículos y vencimientos');
- if(/\b(?:click|clic|rellenar|formularios|inicio de sesion|login)\b/iu.test(t)&&/\b(?:navega|sitio|web|pagina)\b/iu.test(t))
+ // Only explicit browser *actions* require interactive authorization.
+ // Merely researching responsive web forms, login usability or page designs does not.
+ const interactiveAction=/(?:\b(?:haz|hacer|da|dar|pulsa|pulsar|realiza|realizar)\s+(?:un\s+)?(?:click|clic)\b|\b(?:click|clic)\s+en\b|\b(?:rellena|rellenar|completa|completar|envia|enviar|introduce|introducir|inicia|iniciar)\b[\s\S]{0,90}\b(?:formulario|form|login|sesion|cuenta|credenciales)\b|\b(?:navega|navegar|entra|entrar|accede|acceder)\b[\s\S]{0,90}\b(?:sitio|pagina|web)\b[\s\S]{0,90}\b(?:login|inicia\s+sesion|credenciales|autenticado)\b)/iu;
+ if(hasPositive(interactiveAction))
   out.push('navegación interactiva autenticada con acciones en formularios');
  return out;
 }

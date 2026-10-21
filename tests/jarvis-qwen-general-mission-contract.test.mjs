@@ -157,3 +157,19 @@ test('financial payment records are not money-transfer authorization',async()=>{
  for(const s of ['haz un informe de pagos','consulta los pagos','registra pagos ficticios'])assert.equal(generalRestrictedActionRequested(s),false,s);
  for(const s of ['realiza un pago','efectúa pagos','haz deploy','pagar 100 MXN'])assert.equal(generalRestrictedActionRequested(s),true,s);
 });
+
+test('research about web forms and PDF DOCX is not authenticated interactive browser operation',()=>{
+ const research='MISION SENIOR 07, solo experimento local sin publicar. Investiga accesibilidad web WCAG 2.2 y buenas practicas de formularios moviles usando tres fuentes independientes con contenido y citas exactas verificadas. Crea DOS archivos fisicos en el expediente de esta mision: informe-accesibilidad.docx e informe-accesibilidad.pdf. Incluye un checklist concreto para el formulario de registro de tecnicos, limitaciones, referencias y acciones priorizadas. Ejecuta document.create y artifact.read para cada archivo y media.library para exportarlos; no inventes fuentes, pruebas ni entregables. Si falla alguna capacidad declara PARCIAL con motivo exacto; no uses IA externa de pago ni modifiques FixGo.';
+ assert.deepEqual(unavailableMissionOperations(research),[]);
+ assert.deepEqual(requiredDeliveryFormats(research),['pdf','docx']);
+ for(const s of [
+  'Investiga diseno de formularios web accesibles.',
+  'Documenta login web responsive sin abrir ninguna cuenta.',
+  'No rellenes formularios web; prepara un informe DOCX.',
+ ])assert.deepEqual(unavailableMissionOperations(s),[],s);
+ for(const s of [
+  'Navega al sitio web e inicia sesion con mis credenciales.',
+  'Haz click en el boton del formulario web.',
+  'Rellena un formulario de login en la pagina.',
+ ])assert.ok(unavailableMissionOperations(s).some(x=>x.includes('navegación interactiva')),s);
+});
