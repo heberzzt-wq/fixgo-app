@@ -47,11 +47,20 @@ export function codeRepairRequested(instruction=''){
   return false;
  });
 }
+// General engineering intent must not depend on one historical financial bug.
+export function generalEngineeringRequested(instruction=''){
+ const s=String(instruction||'').normalize('NFD').replace(/[\u0300-\u036f]/gu,'').toLowerCase()
+  .replace(/\b(?:sin|no|nunca|evita)\s+(?:modificar|modifiques|tocar|cambiar|editar|publicar|escribir)\s+(?:el\s+)?(?:codigo|repositorio|repo)\b/gu,'');
+ const engineeringObject=/\b(?:codigo|repositorio|repo|javascript|typescript|backend|frontend|funcion(?:es)?|handler|endpoint|webhook|api|autenticacion|sesiones?|firebase|bridge|arquitectura|dependencias|seguridad|kyc|pruebas?|tests?|programacion|implementacion|modulos?\s+de\s+codigo)\b/u;
+ const engineeringAction=/\b(?:audita|auditar|rastrea|rastrear|revisa|revisar|analiza|analizar|depura|depurar|diagnostica|diagnosticar|investiga|investigar|verifica|verificar|evalua|evaluar|refactoriza|refactorizar|implementa|implementar|programa|programar|escribe|escribir|desarrolla|desarrollar|prueba|probar|ejecuta|ejecutar|corrige|corregir|repara|reparar|explica|explicar)\b/u;
+ const softwareContext=/\b(?:codigo|repositorio|repo|javascript|typescript|backend|frontend|funcion(?:es)?|handler|endpoint|webhook|api|firebase|bridge|kyc|arquitectura\s+de\s+(?:autenticacion|software)|pruebas?|tests?|programacion)\b/u;
+ return engineeringAction.test(s)&&engineeringObject.test(s)&&softwareContext.test(s);
+}
 export function generalObjectives(instruction){
     const s=String(instruction).toLowerCase();
     const reel=/tiktok|reel|video|vídeo|mp4|h[.]?264/.test(s);
     const advertising=/tiktok|campaña|publicitari|publicidad/.test(s)||reel&&/texto comercial|logo oficial|contacto verificado|anuncio|marketing/.test(s);
-    const code=unavailableMissionOperations(instruction).some(x=>x.includes('parches'))||/\b(?:requestpayout|bug)\b/iu.test(s);
+    const code=generalEngineeringRequested(instruction)||unavailableMissionOperations(instruction).some(x=>x.includes('parches'))||/\b(?:requestpayout|bug)\b/iu.test(s);
     const requestedImageFormats=advertising?[...new Map([...s.matchAll(/\b(\d{2,4})\s*[x×]\s*(\d{2,4})\b/g)].map(m=>[m[1]+'x'+m[2],{width:Number(m[1]),height:Number(m[2])}])).values()]:[];
     return {code,reel,prohibited:generalRestrictedActionRequested(s),advertising,capabilities:/capacidades|system\.capabilities|inventario de herramientas/.test(s),research:!code&&/investig|fuentes|webgpu|actualidad/.test(s),page:/landing|(?:crea|genera|diseña|construye|haz)[\s\S]{0,100}(?:página|pagina|html)/.test(s),
         records:!code&&/firestore|b2c|técnicos|tecnicos|users/.test(s),document:/documento|document\.create|export|informe descargable/.test(s)||requiredDeliveryFormats(s).length>0||(advertising&&reel),
@@ -170,7 +179,37 @@ export function summarizeGeneralEvidence(receipts,objectives,instruction=''){
 }
 // A successful tool loop is not a finished engineering deliverable. Ground the
 // written diagnosis in source paths actually read and a passing test receipt.
-export function engineeringReportIssues(report,receipts=[]){
+// A non-financial engineering report is certified against its own source
+// receipts, never forced to cite the payout handler from an unrelated mission.
+function genericEngineeringReportIssues(report,receipts=[],instruction=''){
+ const text=String(report||'').trim(),issues=[],rows=good(receipts);
+ const reads=rows.filter(r=>r.name==='repo.read'&&r.args?.file===r.observation?.verifiedRead?.file&&
+  typeof r.observation.verifiedRead.content==='string'&&r.observation.verifiedRead.content.length>=120&&
+  /^(?:functions|modules|gestia-core|tests)\/|^jarvis-[\w.-]+\.[cm]?js$/i.test(r.args.file));
+ const executed=rows.filter(r=>r.name==='tests.run'&&r.observation?.status==='PASSED'&&
+  r.observation?.testsPassed===true&&r.observation?.objectiveSatisfied===true&&r.observation?.exitCode===0);
+ const cited=reads.filter(r=>text.includes(r.args.file));
+ if(text.length<180||text.length>10000)issues.push('ENGINEERING_DIAGNOSIS_LENGTH_INVALID');
+ if(!reads.length)issues.push('VERIFIED_ENGINEERING_SOURCE_REQUIRED');
+ if(!cited.length)issues.push('CITE_ACTUALLY_READ_SOURCE_PATH');
+ if(!executed.length)issues.push('EXECUTED_PASSING_TEST_RECEIPT_REQUIRED');
+ else if(!executed.some(r=>text.includes(r.args.command)))issues.push('REPORT_EXECUTED_TEST_COMMAND_REQUIRED');
+ if(!/\b(?:tests?|pruebas?|suite|regresiones?)\b/iu.test(text))issues.push('TEST_SCOPE_EXPLANATION_REQUIRED');
+ const domain=String(instruction||'').normalize('NFD').replace(/[\u0300-\u036f]/gu,'').toLowerCase();
+ if(/\b(?:autenticacion|sesion|permisos|firebase|bridge|uid)\b/.test(domain)){
+  const src=cited.some(r=>/\b(?:auth|token|session|role|uid|firebase|verifyidtoken|bridge)\b/i.test(r.observation.verifiedRead.content));
+  const reportDomain=/\b(?:auth|autenticaci\w*|sesion(?:es)?|token|rol(?:es)?|permisos?|uid|firebase|bridge)\b/iu.test(text);
+  if(!src||!reportDomain)issues.push('AUTHENTICATION_SOURCE_AND_DIAGNOSIS_REQUIRED');
+ }
+ if(/\b(?:kyc|biometria|identidad)\b/.test(domain)){
+  const src=cited.some(r=>/\b(?:kyc|identity|identidad|biometric|verification|verificacion)\b/iu.test(r.observation.verifiedRead.content));
+  if(!src||!/\b(?:kyc|identidad|biometria|verificacion)\b/iu.test(text))
+   issues.push('IDENTITY_SOURCE_AND_DIAGNOSIS_REQUIRED');
+ }
+ return issues;
+}
+export function engineeringReportIssues(report,receipts=[],instruction=''){
+ if(instruction&&!/\b(?:requestpayout|solicitarretiro)\b/i.test(instruction))return genericEngineeringReportIssues(report,receipts,instruction);
  const text=String(report||'').trim(),rows=good(receipts),issues=[];
  const reads=rows.filter(r=>r.name==='repo.read'&&r.observation?.verifiedRead?.file===r.args?.file);
  const canonical=reads.find(r=>/^functions\/(?:index|secure-entry)\.[cm]?js$/i.test(r.args?.file)&&typeof r.observation?.verifiedRead?.content==='string'&&/solicitarRetiro|Number\.isFinite/iu.test(r.observation.verifiedRead.content));
@@ -194,7 +233,8 @@ export function engineeringReportIssues(report,receipts=[]){
  if(/sourceTextOmitted|sin\s+evidencia\s+directa\s+del?\s+c[oó]digo/iu.test(text))issues.push('NO_CERTIFICAR_FUENTE_OMITIDA');
  return issues;
 }
-export function engineeringReportVerified(report,receipts=[]){
+export function engineeringReportVerified(report,receipts=[],instruction=''){
+ if(instruction&&!/\b(?:requestpayout|solicitarretiro)\b/i.test(instruction))return genericEngineeringReportIssues(report,receipts,instruction).length===0;
  const text=String(report||'').trim();
  if(text.length<180||text.length>10000)return false;
  const reads=good(receipts).filter(r=>r.name==='repo.read'&&
@@ -238,9 +278,9 @@ export async function verifyGeneralMission({instruction,receipts,proposedReport,
         const sourceReads=rows.filter(r=>r.name==='repo.read'&&r.observation?.verifiedRead?.file===r.args?.file);
         check('real repository grep and source reads',!!grep&&grep.observation.matches.length>0&&sourceReads.length>0,
             'CODE_SOURCE_EVIDENCE_REQUIRED');
-        const reportAccepted=engineeringReportVerified(proposedReport,receipts);
+        const reportAccepted=engineeringReportVerified(proposedReport,receipts,instruction);
         check('source-anchored engineering diagnosis',reportAccepted,'ENGINEERING_SOURCE_BOUND_REPORT_REQUIRED',
-            reportAccepted?null:{missingClauses:engineeringReportIssues(proposedReport,receipts)});
+            reportAccepted?null:{missingClauses:engineeringReportIssues(proposedReport,receipts,instruction)});
         const tested=rows.find(r=>r.name==='tests.run'&&r.observation?.testsPassed===true&&
             r.observation?.objectiveSatisfied===true&&r.observation?.status==='PASSED');
         check('real repository tests pass',!!tested,'CODE_TESTS_PASSING_REQUIRED');
