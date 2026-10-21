@@ -1,5 +1,5 @@
 import {createQwenAuthenticatedToolBridge} from '../../jarvis-qwen-tool-bridge.js';
-import {runQwenDirectReadCycle,runQwenAuthorizedCycle} from '../../jarvis-qwen-direct-cycle.js?release=v142-finance-export-20261021-v27';
+import {runQwenDirectReadCycle,runQwenAuthorizedCycle} from '../../jarvis-qwen-direct-cycle.js?release=v142-finance-mission-20261021-v28';
 import {createQwenBridgeActionSelector} from './qwen-direct-transport.js';
 import {resolveGestiaRole} from '../../gestia-core/auth/role-authority.js';
 import {JARVIS_PRIVATE_RELAY} from '../../gestia-core/jarvis/jarvis.semantic.transport.js';

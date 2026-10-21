@@ -294,3 +294,14 @@ test('financial PDF requires physically exported XLSX calculations even when loc
  altered[2].observation.relativePath='Salidas/other.xlsx';
  assert.equal(verifiedFinancialPdfFromWorkbook(instruction,altered),null);
 });
+
+test('no consultar usuarios is not a Firestore census even in a financial XLSX and PDF brief',async()=>{
+ const {generalObjectives,generalRecordsRequested}=await import('../modules/terminal/qwen-general-evidence.js');
+ const instruction='MISION SENIOR 08. Crear un XLSX y un PDF financieros con DATOS FICTICIOS, sin consultar bancos ni usuarios reales: deuda inicial 50000 MXN; pago 1 de 1350.50 MXN; pago 2 de 4200.00 MXN; pago 3 de 999.99 MXN; pago 4 de 3100.25 MXN; total pagado 9650.74 MXN; saldo pendiente 40349.26 MXN. Hoja llamada Control con formulas =SUM(B3:B6) y =B2-B7; verificar formulas con calculo local, crear PDF solo desde el resultado comprobado del XLSX, leer ambos archivos con artifact.read y exportarlos con media.library. No efectuar pagos, no acceder a cuentas, no publicar ni modificar produccion.';
+ assert.equal(generalObjectives(instruction).code,false);
+ assert.equal(generalObjectives(instruction).records,false);
+ assert.equal(generalObjectives(instruction).document,true);
+ assert.equal(generalRecordsRequested('No consultar la coleccion users de Firestore'),false);
+ assert.equal(generalRecordsRequested('Consulta la coleccion users de Firestore y cuenta tecnicos B2C'),true);
+ assert.equal(generalRecordsRequested('No consultar los usuarios. Consulta tecnicos B2C en Firestore.'),true);
+});

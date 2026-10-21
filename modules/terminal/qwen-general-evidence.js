@@ -80,6 +80,20 @@ export function generalEngineeringRequested(instruction=''){
  const softwareContext=/\b(?:codigo|repositorio|repo|javascript|typescript|backend|frontend|funcion(?:es)?|handler|endpoint|webhook|api|firebase|bridge|kyc|arquitectura\s+de\s+(?:autenticacion|software)|pruebas?|tests?|programacion)\b/u;
  return engineeringAction.test(s)&&engineeringObject.test(s)&&softwareContext.test(s);
 }
+export function generalRecordsRequested(instruction=''){
+ const s=String(instruction||'').normalize('NFD').replace(/[\u0300-\u036f]/gu,'').toLowerCase();
+ const verb=/\b(?:consulta|consultar|lista|listar|cuenta|contar|conteo|cuantos|cuantas|muestra|mostrar|extrae|extraer|obten|obtener|lee|leer|inventaria|inventariar)\b/gu;
+ const domain=/\b(?:firestore|b2c|tecnicos|users|usuarios|colecciones|coleccion|servicios|vehiculos|registros)\b/u;
+ for(const clause of s.split(/[.;\n]/u)){
+  for(const match of clause.matchAll(verb)){
+   const prefix=clause.slice(0,match.index).split(/\b(?:pero|en cambio|excepto)\b/gu).at(-1);
+   // A negative constraint never requests access to private records.
+   if(/\b(?:no|sin|nunca|evita|evitar|prohibido|prohibida)\b(?:\s+[a-z]+){0,6}\s*$/u.test(prefix))continue;
+   if(domain.test(clause.slice(match.index,match.index+140)))return true;
+  }
+ }
+ return false;
+}
 export function generalObjectives(instruction){
     const s=String(instruction).toLowerCase();
     const reel=/tiktok|reel|video|vídeo|mp4|h[.]?264/.test(s);
@@ -87,7 +101,7 @@ export function generalObjectives(instruction){
     const code=generalEngineeringRequested(instruction)||unavailableMissionOperations(instruction).some(x=>x.includes('parches'))||/\b(?:requestpayout|bug)\b/iu.test(s);
     const requestedImageFormats=advertising?[...new Map([...s.matchAll(/\b(\d{2,4})\s*[x×]\s*(\d{2,4})\b/g)].map(m=>[m[1]+'x'+m[2],{width:Number(m[1]),height:Number(m[2])}])).values()]:[];
     return {code,reel,prohibited:generalRestrictedActionRequested(s),advertising,capabilities:/capacidades|system\.capabilities|inventario de herramientas/.test(s),research:!code&&/investig|fuentes|webgpu|actualidad/.test(s),page:/landing|(?:crea|genera|diseña|construye|haz)[\s\S]{0,100}(?:página|pagina|html)/.test(s),
-        records:!code&&/\b(?:consulta|consultar|lista|listar|cuenta|contar|conteo|cuantos|cuantas|muestra|mostrar|extrae|extraer|obten|obtener|lee|leer|inventaria|inventariar)\b/iu.test(s)&&/\b(?:firestore|b2c|tecnicos|técnicos|users|usuarios|colecciones|coleccion|servicios|vehiculos|registros)\b/iu.test(s),document:/documento|document\.create|export|informe descargable/.test(s)||requiredDeliveryFormats(s).length>0||(advertising&&reel),
+        records:!code&&generalRecordsRequested(instruction),document:/documento|document\.create|export|informe descargable/.test(s)||requiredDeliveryFormats(s).length>0||(advertising&&reel),
         ...(requestedImageFormats.length?{requestedImageFormats}:{}),current:/actual|reciente|hoy|vigente/.test(s),unsupported:reel||advertising||/imagen/.test(s)||generalRestrictedActionRequested(s)};
 }
 export function verifyGeneralCount(receipts,now=Date.now()){
