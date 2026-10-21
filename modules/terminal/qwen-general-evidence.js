@@ -222,6 +222,14 @@ function genericEngineeringReportIssues(report,receipts=[],instruction=''){
   const src=cited.some(r=>/\b(?:auth|token|session|role|uid|firebase|verifyidtoken|bridge)\b/i.test(r.observation.verifiedRead.content));
   const reportDomain=/\b(?:auth|autenticaci\w*|sesion(?:es)?|token|rol(?:es)?|permisos?|uid|firebase|bridge)\b/iu.test(text);
   if(!src||!reportDomain)issues.push('AUTHENTICATION_SOURCE_AND_DIAGNOSIS_REQUIRED');
+  const staticOnly=executed.length>0&&executed.every(r=>r.args?.command==='check:syntax');
+  if(staticOnly){
+    const normalized=text.normalize('NFD').replace(/[\u0300-\u036f]/gu,'').toLowerCase();
+    const caveat=/\b(?:no\s+(?:se\s+)?(?:ejecutaron?|realizaron?|probaron?)|sin\s+pruebas|requiere(?:n)?\s+pruebas?|no\s+demuestra|no\s+certifica|no\s+se\s+demostro)\b/iu.test(normalized);
+    if(!caveat)issues.push('STATIC_SYNTAX_TESTS_CANNOT_CERTIFY_AUTH_BEHAVIOR');
+    if(/(?:controles?|verificaciones?)[\s\S]{0,100}\b(?:son\s+)?(?:funcionales\s+y\s+)?efectiv\w*|\briesgo\s+residual\s+bajo\b|\bno\s+se\s+detectaron?\s+(?:mezclas?|escalamientos?)/iu.test(normalized))
+      issues.push('UNVERIFIED_AUTH_SECURITY_SUCCESS_CLAIM');
+  }
  }
  if(/\b(?:kyc|biometria|identidad)\b/.test(domain)){
   const src=cited.some(r=>/\b(?:kyc|identity|identidad|biometric|verification|verificacion)\b/iu.test(r.observation.verifiedRead.content));

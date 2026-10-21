@@ -77,3 +77,19 @@ test('real source excerpts expose authentication checks to local Qwen, not just 
   assert.ok(excerpt.sourceExcerpt.length<=3200);
  }
 });
+
+test('syntax-only tests cannot certify effective security controls or low residual risk',()=>{
+ const claims=[
+  report+' Los controles contra cambio de sesion son funcionales y efectivos.',
+  report+' El riesgo residual bajo esta confirmado.',
+  report+' No se detectaron mezclas de usuarios ni escalamiento de permisos.',
+ ];
+ for(const draft of claims){
+  assert.equal(engineeringReportVerified(draft,receipts,instruction),false,draft);
+  assert.ok(engineeringReportIssues(draft,receipts,instruction).includes('UNVERIFIED_AUTH_SECURITY_SUCCESS_CLAIM'));
+ }
+ const withoutLimit=report.replace('pero esa suite sintactica no demuestra bypass de autenticacion, multiusuario ni concurrencia con tokens reales. Las pruebas de autorizacion autenticada requieren una prueba independiente y aislada.',
+ 'por lo que los controles estan implementados.');
+ assert.ok(engineeringReportIssues(withoutLimit,receipts,instruction).includes('STATIC_SYNTAX_TESTS_CANNOT_CERTIFY_AUTH_BEHAVIOR'));
+ assert.equal(engineeringReportVerified(report,receipts,instruction),true);
+});
