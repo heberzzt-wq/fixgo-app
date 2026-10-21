@@ -1,0 +1,30 @@
+name: V142 engineering recovery (isolated)
+
+on:
+  push:
+    branches:
+      - codex/v142-engineering-recovery-20261021
+    paths:
+      - modules/terminal/qwen-engineering-acceptance.js
+      - tests/jarvis-v142-engineering-acceptance.test.mjs
+      - .github/workflows/v142-engineering-recovery-ci.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  engineering-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax contract
+        run: node --check modules/terminal/qwen-engineering-acceptance.js
+      - name: Engineering acceptance tests
+        run: node --test tests/jarvis-v142-engineering-acceptance.test.mjs
+      - name: Whitespace checks
+        run: git diff --check HEAD^
