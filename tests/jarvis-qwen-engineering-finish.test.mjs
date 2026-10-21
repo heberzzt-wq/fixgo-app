@@ -73,3 +73,22 @@ test('internal planning instructions cannot add an unrequested emulator objectiv
  assert.match(source,/verifyObjectives:args=>verifyGeneralMission\(\{\.\.\.args,instruction:options\.instruction,objectives\}\)/);
  assert.match(source,/catalogForEvidence:\(catalog,receipts\)=>prioritizeGeneralAdvertisingCatalog\(catalog,receipts,objectives,options\.instruction\)/);
 });
+
+test('Qwen can draft a final report with unresolved objectives, but independent audit still rejects success',async()=>{
+ let finalDraftRequested=false;
+ const result=await runQwenAuthorizedCycle({...options,
+  summarizeEvidence:()=>({finishEligible:false,deliveryGaps:[{reason:'CODE_CONCURRENCY_EMULATOR_EVIDENCE_REQUIRED'}]}),
+  selectNextAction:async ctx=>{
+   finalDraftRequested=ctx.tools.length===0&&ctx.evidenceSummary.reportOnly===true&&
+     ctx.evidenceSummary.unverifiedObjectives[0].reason==='CODE_CONCURRENCY_EMULATOR_EVIDENCE_REQUIRED';
+   return {finish:true,report};
+  },
+  verifyCompletion:async()=>({ok:false,reason:'CODE_CONCURRENCY_EMULATOR_EVIDENCE_REQUIRED',
+    objectives:[{reason:'CODE_CONCURRENCY_EMULATOR_EVIDENCE_REQUIRED',satisfied:false}]})
+ });
+ assert.equal(finalDraftRequested,true);
+ assert.equal(result.status,'PARTIAL');
+ assert.equal(result.reason,'CODE_CONCURRENCY_EMULATOR_EVIDENCE_REQUIRED');
+ assert.equal(result.report,'');
+ assert.equal(result.modelDecisions,1);
+});

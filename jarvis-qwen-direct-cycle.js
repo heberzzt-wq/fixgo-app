@@ -144,13 +144,18 @@ export async function runQwenAuthorizedCycle({
         if(!offered.length){
             // Engineering deliverables must contain a source-anchored written
             // report from Qwen. Physical tool receipts alone are insufficient.
-            if(requireFinalReport&&evidenceSummary?.finishEligible===true){
+            if(requireFinalReport){
                 let summaryDecision;
                 try{
                     modelDecisionCount++;
                     summaryDecision=await selectNextAction({
                         instruction,repositoryMap,tools:[],observations:structuredClone(forModel.slice(-12)),
-                        evidenceSummary,missionLedger:missionLedger(),iteration,signal
+                        // Allow a report-only model turn even when some audited
+                        // objectives remain missing. The verifier (not Qwen)
+                        // still decides success, and keeps missing gaps.
+                        evidenceSummary:{...evidenceSummary,finishEligible:true,reportOnly:true,
+                            unverifiedObjectives:evidenceSummary?.deliveryGaps||[]},
+                        missionLedger:missionLedger(),iteration,signal
                     });
                 }catch{return done('PARTIAL','ENGINEERING_FINAL_REPORT_UNAVAILABLE');}
                 if(summaryDecision?.finish!==true||typeof summaryDecision.report!=='string'||
