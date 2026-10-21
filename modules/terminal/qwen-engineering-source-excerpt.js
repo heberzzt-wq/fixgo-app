@@ -12,6 +12,7 @@ export function compactVerifiedEngineeringSource(verifiedRead={}, {maxChars=3200
  const first=Number.isInteger(verifiedRead.startLine)&&verifiedRead.startLine>0?verifiedRead.startLine:1;
  const relevant=/requestPayout|solicitarRetiro|amount|monto|importe|cantidad|saldo|Number\.isFinite|NaN|Infinity|negative|negativ|assert|describe\s*\(|test\s*\(|it\s*\(|idempot|concurr|duplicad|wallet|payment|retiro|withdraw|module\.exports|https\.onCall|getIdToken|verifyIdToken|createWorkstationAuthorization|validateAuthenticatedContext|principalId|tenantId|Authorization|sessionContext|auth\.currentUser|QWEN_BROWSER_SESSION|QWEN_PILOT_OWNER_REQUIRED|role/iu;
  const authSource=/qwen-direct-transport|workstation-health|qwen-tool-bridge|auth|session/i.test(file);
+ const identitySource=/biometric|kyc|identity|technician-approval/i.test(file);
  const authAnchor=/getIdToken|verifyIdToken|createWorkstationAuthorization|validateAuthenticatedContext|principalId|X-Jarvis-Release-Id|auth\.currentUser|QWEN_PILOT_OWNER_REQUIRED|role/iu;
  const indices=[];
  const anchors=[];
@@ -23,9 +24,14 @@ export function compactVerifiedEngineeringSource(verifiedRead={}, {maxChars=3200
  const chosen=new Set();
  // Canonical function definitions outrank unrelated early matches, especially
  // in large index.js files where the payout handler is near the end.
- const hits=[...anchors.slice(0,authSource?4:3),...indices.filter(i=>!anchors.includes(i)).slice(0,authSource?8:15)];
+ const identityMain=identitySource?[
+  ...[...lines.keys()].filter(i=>/createVerifyB2cIdentityHandler|createApproveTechnicianHandler/iu.test(lines[i])),
+  ...[...lines.keys()].filter(i=>/isAuthorizedAdmin|context\?\.auth\?\.uid/iu.test(lines[i])),
+  ...[...lines.keys()].filter(i=>/referenceStoragePath|verifyIdentityStorage/iu.test(lines[i]))]:[];
+ const anchorSet=[...new Set([...(identitySource?identityMain.slice(0,6):[]),...anchors])];
+ const hits=[...anchorSet.slice(0,authSource||identitySource?4:3),...indices.filter(i=>!anchorSet.includes(i)).slice(0,authSource||identitySource?8:15)];
  for(const idx of (hits.length?hits:[0])){
-  const radius=anchors.includes(idx)?(authSource?7:12):3;
+  const radius=anchorSet.includes(idx)?(authSource||identitySource?7:12):3;
   for(let j=Math.max(0,idx-2);j<=Math.min(lines.length-1,idx+radius);j++)chosen.add(j);
  }
  const gathered=[...chosen];

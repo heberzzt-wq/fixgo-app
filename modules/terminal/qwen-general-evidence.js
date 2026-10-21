@@ -3,16 +3,20 @@ import {verifiedPosterCopy} from './qwen-poster-proof.js';
 import {requiredDeliveryFormats,unfulfilledDownloadFormats,unavailableMissionOperations} from './qwen-general-contract.js';
 import '../../gestia-core/contracts/b2c-platform-contract.js';
 export const GENERAL_COUNT_FIELDS=['rol','role','tipo_cuenta','account_type','b2b_activo','sub_type','subtype'];
-// Only when the instruction explicitly asks for Terminal -> local bridge -> executor
-// does the verifier demand physical source proof for each authority boundary.
+// A mission that names exact repository source paths must actually read them.
+// Additional cross-layer authorization files are required for Terminal->bridge->executor audits.
+// Paths only select sources; they grant no read or mutation authority.
 export function requiredEngineeringSourceFiles(instruction=''){
- const s=String(instruction||'').normalize('NFD').replace(/[\u0300-\u036f]/gu,'').toLowerCase();
+ const raw=String(instruction||'');
+ const s=raw.normalize('NFD').replace(/[\u0300-\u036f]/gu,'').toLowerCase();
+ const explicit=[...raw.matchAll(/\b(?:functions|modules|gestia-core)\/[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\.(?:js|mjs|ts)\b/giu)].map(m=>m[0]);
+ const boundaries=[];
  if(/\b(?:terminal|adjunto|heberto)\b/u.test(s)&&
     /\bbridge\b/u.test(s)&&
     /\b(?:ejecutor|herramientas|runtime|tool)\b/u.test(s)&&
     /\b(?:autenticacion|firebase|sesion|token|permisos)\b/u.test(s))
-   return ['modules/terminal/qwen-direct-transport.js','jarvis-workstation-health.js','jarvis-qwen-tool-bridge.js'];
- return [];
+   boundaries.push('modules/terminal/qwen-direct-transport.js','jarvis-workstation-health.js','jarvis-qwen-tool-bridge.js');
+ return [...new Set([...boundaries,...explicit])].slice(0,6);
 }
 
 // Negative operating boundaries describe forbidden actions, not requests to perform them.
@@ -235,6 +239,13 @@ function genericEngineeringReportIssues(report,receipts=[],instruction=''){
   const src=cited.some(r=>/\b(?:kyc|identity|identidad|biometric|verification|verificacion)\b/iu.test(r.observation.verifiedRead.content));
   if(!src||!/\b(?:kyc|identidad|biometria|verificacion)\b/iu.test(text))
    issues.push('IDENTITY_SOURCE_AND_DIAGNOSIS_REQUIRED');
+   if(executed.length>0&&executed.every(r=>r.args?.command==='check:syntax')){
+     const normalized=text.normalize('NFD').replace(/[\u0300-\u036f]/gu,'').toLowerCase();
+     if(!/\b(?:no\s+(?:se\s+)?(?:ejecutaron?|realizaron?|probaron?)|sin\s+pruebas|no\s+demuestra|no\s+certifica|requiere(?:n)?\s+pruebas?|limites?:|pendiente\s+de\s+validacion)\b/iu.test(normalized))
+       issues.push('KYC_SYNTAX_TESTS_CANNOT_CERTIFY_IDENTITY_SECURITY');
+     if(/\b(?:sin\s+vulnerabilidades|identidad\s+(?:es\s+)?(?:totalmente\s+)?segura|verificacion\s+infalible|riesgo\s+residual\s+bajo)\b/iu.test(normalized))
+       issues.push('UNVERIFIED_KYC_SECURITY_SUCCESS_CLAIM');
+   }
  }
  return issues;
 }

@@ -93,3 +93,30 @@ test('syntax-only tests cannot certify effective security controls or low residu
  assert.ok(engineeringReportIssues(withoutLimit,receipts,instruction).includes('STATIC_SYNTAX_TESTS_CANNOT_CERTIFY_AUTH_BEHAVIOR'));
  assert.equal(engineeringReportVerified(report,receipts,instruction),true);
 });
+
+test('explicit senior KYC file targets must be read and cited; syntax-only never proves biometric security',()=>{
+ const input='Audita el codigo KYC biometria e identidad en functions/b2c-biometric-identity.js y functions/b2c-technician-approval.js. Examina uid, INE, rostro, aprobacion y ejecuta pruebas; no modifiques produccion.';
+ const wanted=['functions/b2c-biometric-identity.js','functions/b2c-technician-approval.js'];
+ assert.deepEqual(requiredEngineeringSourceFiles(input),wanted);
+ const choices=prioritizeGeneralCodeCatalog(['repo.grep','repo.read','tests.run'].map(tool),[grep],input);
+ assert.deepEqual(choices[0].inputSchema.properties.file.enum,wanted);
+ const reads=wanted.map(sourceReceipt);
+ const rows=[grep,...reads,tests];
+ const verdict='Auditoria de KYC y biometria: en functions/b2c-biometric-identity.js se revisan rutas de storage con UID y evidencias de rostro y documento. En functions/b2c-technician-approval.js la aprobacion requiere un actor administrativo y rechaza la autoaprobacion. Se ejecuto tests.run check:syntax con resultado PASSED, pero no demuestra que la autorizacion de identidades entre usuarios sea segura en ejecucion. No se ejecutaron pruebas autenticadas de sustitucion de rostro, reutilizacion de INE o aprobacion cruzada; esas pruebas se requieren en un entorno aislado.';
+ assert.equal(engineeringReportVerified(verdict,rows,input),true,JSON.stringify(engineeringReportIssues(verdict,rows,input)));
+ const onlyOne=[grep,reads[0],tests];
+ assert.equal(engineeringReportVerified(verdict,onlyOne,input),false);
+ assert.ok(engineeringReportIssues(verdict,onlyOne,input).includes('READ_REQUIRED_BOUNDARY_SOURCE:functions/b2c-technician-approval.js'));
+ const overclaim=verdict+' La identidad es totalmente segura y no presenta vulnerabilidades.';
+ assert.ok(engineeringReportIssues(overclaim,rows,input).includes('UNVERIFIED_KYC_SECURITY_SUCCESS_CLAIM'));
+ const { }={};
+});
+test('KYC source excerpts surface identity ownership checks and the approval handler',async()=>{
+ const {compactVerifiedEngineeringSource}=await import('../modules/terminal/qwen-engineering-source-excerpt.js');
+ for(const [file,name] of [['functions/b2c-biometric-identity.js','createVerifyB2cIdentityHandler'],['functions/b2c-technician-approval.js','createApproveTechnicianHandler']]){
+  const content=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+  const excerpt=compactVerifiedEngineeringSource({file,content});
+  assert.equal(excerpt.sourceTextOmitted,false);
+  assert.ok(excerpt.sourceExcerpt.includes(name),file+': '+excerpt.sourceExcerpt.slice(0,100));
+ }
+});
