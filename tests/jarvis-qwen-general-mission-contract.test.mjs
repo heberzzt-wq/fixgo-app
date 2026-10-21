@@ -268,3 +268,29 @@ test('research verifier uses topic-grounded WCAG quotes even when page boilerpla
  assert.equal((await verifyGeneralMission({instruction,receipts,proposedReport:report})).ok,true);
  assert.equal((await verifyGeneralMission({instruction,receipts,proposedReport:report.replace('foco visible','requisitos inventados')})).ok,false);
 });
+
+test('financial PDF requires physically exported XLSX calculations even when local export lacks experimental flag',async()=>{
+ const {financialWorkbookFromInstruction,verifiedFinancialPdfFromWorkbook}=await import('../modules/terminal/qwen-general-contract.js');
+ const instruction='Crea XLSX y PDF con datos ficticios: deuda inicial 50000 MXN, pago 1 de 1350.50 MXN, pago 2 de 4200.00 MXN, pago 3 de 999.99 MXN, pago 4 de 3100.25 MXN; total pagado 9650.74 MXN y saldo pendiente 40349.26 MXN.';
+ const workbook=financialWorkbookFromInstruction(instruction);
+ assert.equal(workbook?.expected?.balance,40349.26);
+ const name=workbook.sheets[0].name,output='.jarvis-artifacts/qwen-general/general-fixture/control.xlsx',sha='c'.repeat(64),size=3800;
+ const created={name:'document.create',ok:true,args:{format:'xlsx',output,sheets:workbook.sheets},
+  observation:{ok:true,output,artifact:{file:output,sha256:sha,bytes:size},
+   workbookCalculationVerified:true,workbookCalculation:{verified:true,sourceSha256:sha,
+    results:[{sheet:name,cell:'B7',formula:'SUM(B3:B6)',value:9650.74},{sheet:name,cell:'B8',formula:'B2-B7',value:40349.26}]}}};
+ const read={name:'artifact.read',ok:true,args:{output},
+  observation:{ok:true,output,sha256:sha,dataBase64:'verified-original-binary-receipt'}};
+ const exported={name:'media.library',ok:true,args:{action:'export',output},
+  observation:{ok:true,status:'MATERIAL_EXPORTED_VERIFIED',output,sha256:sha,bytes:size,
+   directory:'C:/isolated-library',relativePath:'Salidas/'+sha.slice(0,12)+'-control.xlsx'}};
+ const receipts=[created,read,exported];
+ const report=verifiedFinancialPdfFromWorkbook(instruction,receipts);
+ assert.equal(typeof report,'string');
+ assert.match(report,/Total pagado/);
+ assert.match(report,/Saldo pendiente/);
+ assert.match(report,/fórmula/);
+ const altered=structuredClone(receipts);
+ altered[2].observation.relativePath='Salidas/other.xlsx';
+ assert.equal(verifiedFinancialPdfFromWorkbook(instruction,altered),null);
+});

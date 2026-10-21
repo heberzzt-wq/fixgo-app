@@ -182,7 +182,12 @@ export function verifiedFinancialPdfFromWorkbook(instruction,receipts=[]){
  const read=completed.find(r=>r.name==='artifact.read'&&r.observation?.output===asset.output&&
     r.observation?.sha256===sha&&typeof r.observation?.dataBase64==='string');
  const exportReceipt=completed.find(r=>r.name==='media.library'&&r.args?.action==='export'&&
-    r.args.output===asset.output&&r.observation?.sha256===sha&&r.observation?.experimental===true);
+    r.args.output===asset.output&&r.observation?.sha256===sha&&
+    (r.observation?.experimental===true||
+     r.observation?.status==='MATERIAL_EXPORTED_VERIFIED'&&
+     r.observation?.bytes===asset.artifact?.bytes&&
+     typeof r.observation?.directory==='string'&&r.observation.directory.length>0&&
+     r.observation?.relativePath==='Salidas/'+sha.slice(0,12)+'-'+asset.output.split('/').at(-1)));
  if(!read||!exportReceipt)return null;
  const sums=asset.workbookCalculation.results;
  if(!Array.isArray(sums)||!sums.length)return null;
