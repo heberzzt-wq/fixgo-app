@@ -4,7 +4,7 @@ import express from 'express';
 import {registerWorkstationHealth,createWorkstationAuthorization} from '../jarvis-workstation-health.js';
 test('shared GET/POST health authenticates, minimizes telemetry and registers once',async()=>{
  const app=express();let valid=true;
- const identity=()=>({ok:valid,contract:{branch:'codex/v142-qwen-auth-pilot',releaseId:'release'}});
+ const identity=()=>({ok:valid,contract:{branch:'v142-official',releaseId:'release'}});
  const authorize=createWorkstationAuthorization({identity,ownerUid:'owner',verifyIdToken:async token=>{
   if(token==='invalid')throw Error('private diagnostic');return {uid:token};
  }});
@@ -28,4 +28,19 @@ test('health rejects a non-loopback peer before token verification',async()=>{
  let status,verified=false;const auth=createWorkstationAuthorization({identity:()=>({ok:true}),verifyIdToken:()=>{verified=true;},ownerUid:'owner'});
  const res={status(code){status=code;return this;},json(){return this;}};
  assert.equal(await auth({socket:{remoteAddress:'192.168.1.4'}},res),false);assert.equal(status,403);assert.equal(verified,false);
+});
+
+test('workstation telemetry accepts only V142 official identity even with a valid owner token',async()=>{
+ let code=0;
+ const result={status(value){code=value;return this;},json(){return this;}};
+ let identity={ok:true,contract:{branch:'codex/v142-qwen-auth-pilot',releaseId:'release'}};
+ const authorize=createWorkstationAuthorization({
+  identity:()=>identity,ownerUid:'owner',verifyIdToken:async()=>({uid:'owner'})
+ });
+ const req={socket:{remoteAddress:'127.0.0.1'},get:key=>
+  key==='X-Jarvis-Release-Id'?'release':key==='Authorization'?'Bearer owner':''};
+ assert.equal(await authorize(req,result),false);
+ assert.equal(code,503);
+ identity={...identity,contract:{branch:'v142-official',releaseId:'release'}};
+ assert.equal(await authorize(req,result),true);
 });

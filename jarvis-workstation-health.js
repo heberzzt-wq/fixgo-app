@@ -36,7 +36,7 @@ export function createWorkstationAuthorization({identity,verifyIdToken,ownerUid}
             const current=identity();
             const deny=(code,error)=>{res.status(code).json({ok:false,error});return false;};
             if(!['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket?.remoteAddress))return deny(403,'WORKSTATION_LOOPBACK_REQUIRED');
-            if(current.ok!==true||current.contract?.branch!=='codex/v142-qwen-auth-pilot')return deny(503,'BRIDGE_IDENTITY_INVALID');
+            if(current.ok!==true||current.contract?.branch!=='v142-official')return deny(503,'BRIDGE_IDENTITY_INVALID');
             if(req.get('X-Jarvis-Release-Id')!==current.contract.releaseId)return deny(409,'BRIDGE_RELEASE_MISMATCH');
             const bearer=String(req.get('Authorization')||'');
             if(!/^Bearer [^\s]{1,8192}$/.test(bearer))return deny(401,'QWEN_BROWSER_TOKEN_REQUIRED');
