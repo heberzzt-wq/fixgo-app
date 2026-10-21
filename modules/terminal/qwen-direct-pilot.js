@@ -1,5 +1,5 @@
 import {createQwenAuthenticatedToolBridge} from '../../jarvis-qwen-tool-bridge.js';
-import {runQwenDirectReadCycle,runQwenAuthorizedCycle} from '../../jarvis-qwen-direct-cycle.js';
+import {runQwenDirectReadCycle,runQwenAuthorizedCycle} from '../../jarvis-qwen-direct-cycle.js?release=v142-engineering-report-20261021-v15';
 import {createQwenBridgeActionSelector} from './qwen-direct-transport.js';
 import {resolveGestiaRole} from '../../gestia-core/auth/role-authority.js';
 import {JARVIS_PRIVATE_RELAY} from '../../gestia-core/jarvis/jarvis.semantic.transport.js';
@@ -45,6 +45,8 @@ export async function runQwenTerminalReadPilot({instruction,auth,bridge,toolRunt
                     metrics.firstUsefulToolMs=Date.now()-startedAt;
                 return receipt;
             }});
+        metrics.modelDecisions=result.modelDecisions||0;
+        metrics.finalReportFromQwen=Array.isArray(result.decisions)&&result.decisions.some(d=>d?.finish===true&&typeof d.report==='string'&&d.report.trim().length>0);
         const objectives=result.certification?.objectives;
         if(Array.isArray(objectives)&&objectives.length)
             metrics.objectivesCompletedPercent=100*objectives.filter(x=>x.satisfied===true).length/objectives.length;

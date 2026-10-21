@@ -92,3 +92,18 @@ test('Qwen can draft a final report with unresolved objectives, but independent 
  assert.equal(result.report,'');
  assert.equal(result.modelDecisions,1);
 });
+
+test('official V142 HTML-to-runner imports use a fresh version and expose the report provenance',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const root=new URL('../',import.meta.url);
+ const core=readFileSync(new URL('gestia-core/gestia-core.js',root),'utf8');
+ const general=readFileSync(new URL('modules/terminal/qwen-general-pilot.js',root),'utf8');
+ const direct=readFileSync(new URL('modules/terminal/qwen-direct-pilot.js',root),'utf8');
+ const version='v142-engineering-report-20261021-v15';
+ assert.ok(core.includes('qwen-general-pilot.js?release='+version));
+ assert.ok(general.includes('qwen-direct-pilot.js?release='+version));
+ assert.ok(general.includes('qwen-general-evidence.js?release='+version));
+ assert.ok(direct.includes('jarvis-qwen-direct-cycle.js?release='+version));
+ assert.match(direct,/metrics\.finalReportFromQwen=/);
+ assert.match(general,/Informe Qwen generado:/);
+});

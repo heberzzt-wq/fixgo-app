@@ -1,9 +1,9 @@
 import {planImageAdaptation} from '../../gestia-core/jarvis/jarvis.image.adapter.js';
 import {LOCAL_VIDEO_EVIDENCE_CAPABILITIES,MEDIA_TOOLS,mediaEntries,producedMedia,deliveredImageHistory,producedImageHistory} from './qwen-general-media.js';
 import {createQwenBridgeActionSelector} from './qwen-direct-transport.js';
-import {runQwenTerminalReadPilot} from './qwen-direct-pilot.js';
+import {runQwenTerminalReadPilot} from './qwen-direct-pilot.js?release=v142-engineering-report-20261021-v15';
 import {createGeneralToolPolicy,normalizeGeneralSchema} from '../../jarvis-qwen-general-policy.js?pilot=engineering-read-20261021-v9';
-import {advertisingSourceText,generalObjectives,GENERAL_COUNT_FIELDS,summarizeGeneralEvidence,verifyGeneralMission,independentResearchProofs,researchOfficeContent,researchSourceProofs,researchQuoteRelevant,researchTopic,codeConcurrencyRequested} from './qwen-general-evidence.js?pilot=engineering-audit-20261021-v12';
+import {advertisingSourceText,generalObjectives,GENERAL_COUNT_FIELDS,summarizeGeneralEvidence,verifyGeneralMission,independentResearchProofs,researchOfficeContent,researchSourceProofs,researchQuoteRelevant,researchTopic,codeConcurrencyRequested} from './qwen-general-evidence.js?release=v142-engineering-report-20261021-v15';
 import {receiptBoundProductionContent,prioritizeReceiptBoundProduction} from './qwen-production-document.js';
 import {resumedMissionId,originalResumedMissionId,readSavedMission,verifiedResumeReceipts,verifiedResearchResumeReceipts} from './qwen-general-resume.js?pilot=research-resume-20261021-v4';
 import {classifyEmptyGeneralCatalog,requestQwenGeneralConversation} from './qwen-empty-catalog.js?pilot=concise-20261021-v8';
@@ -571,6 +571,7 @@ export async function runQwenGeneralPilot(options){
         artifactPaths:producedMedia(result.receipts).map(a=>a.output),
         finalResponse:{ok,title:ok?'Misión general verificada':'Misión general no certificada',text:[
             ok?result.report:'Causa: '+reason,
+            ...(objectives.code?['Informe Qwen generado: '+(result.metrics.finalReportFromQwen===true?'sí, sujeto a verificación':'no')]:[]),
             'Misión: '+resultMissionId+(continuationId?' (continuación de '+continuationId+')':''),
             'Llamadas registradas: '+result.receipts.length+'; exitosas: '+result.receipts.filter(r=>r.ok).length+'; inferencias: '+result.metrics.inferences,
             'Tokens: '+result.metrics.promptTokens+' entrada / '+result.metrics.outputTokens+' salida; duración: '+result.metrics.totalMs+' ms.',
