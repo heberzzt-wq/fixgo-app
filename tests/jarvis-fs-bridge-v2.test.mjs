@@ -1949,7 +1949,7 @@ test("Jarvis FS bridge loads the release identity contract", async () => {
     assert.equal(contract.ok, true);
     assert.equal(contract.projectId, "fixgo-app");
     assert.equal(contract.repository, "heberzzt-wq/fixgo-app");
-    assert.equal(contract.branch, "v94-media-v4n-negative-claims");
+    assert.equal(contract.branch, "codex/v142-qwen-auth-pilot");
     assert.match(
         contract.releaseId,
         /^v94-source-grounded-research-v124-20260810$/
@@ -2019,6 +2019,31 @@ test("Jarvis FS bridge loads the release identity contract", async () => {
                 force: true
             }
         );
+    }
+});
+
+test("linked worktree identity reads common loose and packed refs and rejects unpushed HEAD", async () => {
+    const fixture = createBridgeIdentityFixture();
+    const linked = path.join(fixture.fixtureRoot, "linked");
+    let server;
+    try {
+        fixture.runGit(["switch", "--detach"]);
+        fixture.runGit(["worktree", "add", linked, fixture.branch]);
+        server = createJarvisFsBridgeApp({root: linked}).listen(0, "127.0.0.1");
+        await new Promise(resolve => server.once("listening", resolve));
+        const health = async () => (await (await fetch(
+            `http://127.0.0.1:${server.address().port}/health`)).json()).identity;
+        assert.equal((await health()).ok, true, "common loose refs must resolve");
+        fixture.runGit(["pack-refs", "--all"]);
+        assert.equal((await health()).ok, true, "common packed refs must resolve");
+        execFileSync(gitExecutable, ["commit", "--allow-empty", "-m", "unpublished change"], {cwd: linked, stdio: "ignore"});
+        const changed = await health();
+        assert.equal(changed.ok, false);
+        assert.equal(changed.status, "BRIDGE_IDENTITY_INVALID");
+        assert.notEqual(changed.git.head, changed.contractHead);
+    } finally {
+        if (server) await new Promise(resolve => server.close(resolve));
+        fs.rmSync(fixture.fixtureRoot, {recursive: true, force: true});
     }
 });
 

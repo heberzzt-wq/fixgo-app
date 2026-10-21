@@ -3146,6 +3146,8 @@ export function recoverJarvisMission(missionId, { storage } = {}) {
     return readMissions(storageOrMemory(storage)).find(item => item.missionId === missionId) || null;
 }
 
+export {safeObservation as normalizeJarvisMissionObservation};
+
 export const __test = {
     callSignature,
     explicitObligationId,

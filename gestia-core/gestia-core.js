@@ -4092,6 +4092,49 @@ export const GestiaCore = {
             workspaceId: tenantId,
             projectId: "adjunto"
         };
+        const localQwenMode=new URLSearchParams(globalThis.location?.search||'').get('qwenPilot');
+        if (globalThis.location?.protocol==='http:' && ['localhost','127.0.0.1'].includes(globalThis.location?.hostname) &&
+            globalThis.location?.port==='5000' && (!localQwenMode||localQwenMode==='general-v1')) {
+            try {
+                const {runQwenGeneralPilot}=await import('../modules/terminal/qwen-general-pilot.js?pilot=engineering-audit-20261021-v10');
+                const result=await runQwenGeneralPilot({instruction:inputRaw,
+                    auth,bridge:window.JarvisLocalBridge,toolRuntime:window.JarvisToolRuntime,
+                    toolsBridge:window.ToolsBridge,sessionContext:{...context,tenantId,analysisId},
+                    onProgress:detail=>globalThis.dispatchEvent?.(new CustomEvent('jarvis:work-progress',{detail}))});
+                traceJarvisMission('qwen-general-pilot',{status:result.status,reason:result.reason,missionId:result.missionId,metrics:result.metrics,evidence:result.evidence});
+                return result;
+            } catch(error) {
+                const reason=String(error?.message||'QWEN_GENERAL_UNAVAILABLE');
+                return {ok:false,blocked:true,status:'QWEN_GENERAL_BLOCKED',reason,
+                    finalResponse:{ok:false,title:'Piloto general bloqueado',text:reason}};
+            }
+        }
+        // Explicit isolated pilot; no keyword routing or fallback to a second
+        // planner. The existing authenticated runtime still executes all reads.
+        if (globalThis.location?.search && new URLSearchParams(globalThis.location.search).get("qwenPilot") === "b2c-census-v1") {
+            const {runQwenB2cCensusPilot,QWEN_B2C_CENSUS_INSTRUCTION} =
+                await import('../modules/terminal/qwen-b2c-census-pilot.js');
+            if (inputRaw !== QWEN_B2C_CENSUS_INSTRUCTION) return {
+                ok:false,blocked:true,status:'QWEN_PILOT_CONTRACT_REQUIRED',
+                report:'Este piloto verifica un censo B2C de solo lectura. Solicitud admitida: '+QWEN_B2C_CENSUS_INSTRUCTION
+            };
+            try {
+                const result = await runQwenB2cCensusPilot({
+                    auth,bridge:window.JarvisLocalBridge,toolRuntime:window.JarvisToolRuntime,
+                    toolsBridge:window.ToolsBridge,sessionContext:{...context,tenantId,analysisId},
+                    onProgress:detail=>globalThis.dispatchEvent?.(new CustomEvent('jarvis:work-progress',{detail}))
+                });
+                traceJarvisMission('qwen-direct-pilot', result);
+                const {presentB2cCensusPilot}=await import('../modules/terminal/qwen-b2c-census-evidence.js');
+                return {...result,ok:result.status==='SUCCESS',
+                    finalResponse:presentB2cCensusPilot(result),
+                    report:result.status==='SUCCESS'?result.report:
+                        'Censo B2C no certificado: '+result.reason+'. No se afirman totales completos.'};
+            } catch(error) {
+                return {ok:false,blocked:true,status:'QWEN_PILOT_UNAVAILABLE',
+                    report:'Piloto B2C detenido: '+String(error?.message||'UNAVAILABLE')};
+            }
+        }
         try {
             await JarvisSemanticMemory.rememberTurn({
                 identity: semanticMemoryIdentity,

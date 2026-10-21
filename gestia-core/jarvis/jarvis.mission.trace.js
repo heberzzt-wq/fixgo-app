@@ -2,6 +2,12 @@
 export function traceJarvisMission(stage, value) {
     try {
         if (new URLSearchParams(globalThis.location?.search || "").get("jarvisTrace") !== "1") return;
+        if (new URLSearchParams(globalThis.location?.search || '').get('qwenPilot') === 'general-v1') {
+            console.info('[JARVIS_GENERAL_TRACE]',JSON.stringify({stage,status:value?.status,reason:value?.reason,
+                tool:value?.tool,missionId:value?.missionId,metrics:value?.metrics,
+                evidenceHash:value?.evidence?.sha256}));
+            return;
+        }
         const taskTrace = task => {
             const {evidence, ...observation} = task.observation || {};
             return {...task, observation};

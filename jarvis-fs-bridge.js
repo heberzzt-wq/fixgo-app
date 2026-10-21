@@ -1,4 +1,12 @@
+import {qwenArtifactWriteGuard} from './jarvis-qwen-artifact-write-guard.js';
+import {createPilotVersionGate} from './jarvis-qwen-pilot-version.js';
+import {registerWorkstationHealth,createWorkstationAuthorization} from './jarvis-workstation-health.js';
+import {verifyBrowserIdToken} from './jarvis-qwen-decision-http.js';
+import {JARVIS_PRIVATE_RELAY as workstationRelay} from './gestia-core/jarvis/jarvis.semantic.transport.js';
+import {createQwenArtifactPreview} from './jarvis-qwen-artifact-preview.js';
 import { semanticPlanHandler, semanticResponseHandler, fetchLocalSemanticResponse } from "./jarvis-semantic-http.js";
+import { createQwenDecisionHandler } from "./jarvis-qwen-decision-http.js";
+import {localAsrHealth} from "./jarvis-qwen-local-asr.js";
 import {createLocalCandidateRanker} from './gestia-core/jarvis/jarvis.local.retrieval.js';
 import { JARVIS_LOCAL_MODEL } from './gestia-core/jarvis/jarvis.local.policy.js';
 import { SEMANTIC_MAX_BUDGET_MS } from "./gestia-core/jarvis/jarvis.semantic.transport.js";
@@ -38,6 +46,8 @@ import {
     buildDocxArtifactBuffer,
     validateDocxArtifactFile
 } from "./jarvis-docx-artifact.js";
+import {verifyXlsxWorkbookCalculations} from "./jarvis-xlsx-calculation.js";
+import {verifyPdfContentPhysically} from "./jarvis-pdf-content-proof.js";
 import {
     buildReelStudioHtml,
     describeReelStudio
@@ -73,6 +83,7 @@ import {
     describeLocalSpeechCapability,
     synthesizeSpeechArtifact
 } from "./jarvis-speech-artifact.js";
+import {synthesizeSceneTimedSpeechArtifact} from "./jarvis-speech-timeline.js";
 import {
     buildHuMoIdentityRuntimeAuthority,
     buildNextIdentityRuntimeCandidate,
@@ -1767,7 +1778,7 @@ export function createSelfHostedSemanticEngine({
                         const sources = getConfiguredSources();
                         const messages = Array.isArray(config.chatMessages) ? [...config.chatMessages] : [{role:'user',content:String(request.contents || input)}];
                         const occupied = messages.reduce((sum,message)=>sum+String(message.content || '').length,0);
-                        const sourceMessage = configuredSourcesMessage(sources,Math.max(0,Math.min(18000,48000-occupied-1500)));
+                        const sourceMessage = configuredSourcesMessage(sources,Math.max(0,Math.min(18000,48000-occupied-1500)),{instruction:input});
                         if (sourceMessage) {
                             messages.splice(Math.max(0,messages.length-1),0,sourceMessage);
                             config.chatMessages=messages;
@@ -2915,6 +2926,10 @@ export async function persistReelMasterArtifact({
     }
 }
 
+export function reelExportStartExpression() {
+    return "(() => { const button = document.querySelector('#export'); if (!button) return 'REEL_EXPORT_BUTTON_MISSING'; if (typeof button.onclick !== 'function') return 'REEL_EXPORT_HANDLER_NOT_READY'; window.__JARVIS_HEADLESS_EXPORT__ = true; button.click(); return 'REEL_EXPORT_STARTED'; })()";
+}
+
 export async function exportReelVideoWithChrome({
     studioPath = "",
     output = "",
@@ -2988,7 +3003,7 @@ export async function exportReelVideoWithChrome({
             try {
                 startResult = await evaluateCdpExpression(
                     target.webSocketDebuggerUrl,
-                    `(() => { const button = document.querySelector('#export'); if (!button) return 'REEL_EXPORT_BUTTON_MISSING'; window.__JARVIS_HEADLESS_EXPORT__ = true; button.click(); return 'REEL_EXPORT_STARTED'; })()`,
+                    reelExportStartExpression(),
                     3000
                 );
             }
@@ -3400,7 +3415,7 @@ function readGitRefFast(
     gitDir = "",
     ref = ""
 ) {
-    const cleanGitDir =
+    let cleanGitDir =
         String(gitDir || "").trim();
     const cleanRef =
         String(ref || "").trim();
@@ -3413,6 +3428,17 @@ function readGitRefFast(
     ) {
         return "";
     }
+
+    // Linked worktrees keep shared branch/remote refs in Git's commondir.
+    // Resolve the real storage location; SHA equality remains mandatory.
+    try {
+        const commonFile = path.join(cleanGitDir, "commondir");
+        if (/^refs\/(?:heads|remotes)\//.test(cleanRef) && fs.existsSync(commonFile)) {
+            const common = fs.readFileSync(commonFile, "utf8").trim();
+            if (!common) return "";
+            cleanGitDir = path.resolve(cleanGitDir, common);
+        }
+    } catch { return ""; }
 
     try {
         const loose =
@@ -6902,7 +6928,7 @@ export function createJarvisFsBridgeApp({
             return callback(new Error("BRIDGE_ORIGIN_NOT_ALLOWED"));
         },
         methods: ["GET", "POST", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "X-Jarvis-Release-Id"]
+        allowedHeaders: ["Content-Type", "X-Jarvis-Release-Id", "Authorization"]
     }));
 
     app.use(express.json({
@@ -6928,6 +6954,12 @@ export function createJarvisFsBridgeApp({
         };
         return next();
     });
+
+    app.get('/qwen-artifact', createQwenArtifactPreview({
+        enabled:process.env.JARVIS_QWEN_DIRECT_PILOT === '1',identity:requestIdentity,
+        readArtifact:output=>readArtifactPayload({output,root}),
+        findArtifact:output=>findArtifact({output,root})
+    }));
 
     app.get("/health", (_req, res) => {
         res.json({
@@ -7024,6 +7056,7 @@ export function createJarvisFsBridgeApp({
         return next();
     });
 
+    app.use(qwenArtifactWriteGuard(root));
     registerJarvisWebMediaRoutes(app, { root });
 
     app.post("/semantic/local/health", (_req, res) => {
@@ -7031,7 +7064,30 @@ export function createJarvisFsBridgeApp({
         return res.status(health.ok === true ? 200 : 503).json({ ...health, bridgeVersion: JARVIS_FS_BRIDGE_VERSION, identity: requestIdentity(), root: path.resolve(root) });
     });
 
-    app.post("/semantic/plan", semanticPlanHandler(semanticEngine));
+    if(process.env.JARVIS_QWEN_DIRECT_PILOT === '1') registerWorkstationHealth(app, {
+        bridgeVersion:JARVIS_FS_BRIDGE_VERSION, experimental:true, identity:requestIdentity,
+        authorize:createWorkstationAuthorization({identity:requestIdentity,verifyIdToken:verifyBrowserIdToken,ownerUid:workstationRelay.ownerUid}),
+        capabilities:()=>localAsrHealth({root})
+    });
+    const pilotVersionGate=process.env.JARVIS_QWEN_DIRECT_PILOT === '1'?createPilotVersionGate(root):null;
+    if(pilotVersionGate)app.post('/qwen-pilot/preflight',(req,res)=>{
+        const result=pilotVersionGate.inspect(req.body||{});
+        return res.status(result.ok?200:409).json(result);
+    });
+    const legacySemanticPlan = semanticPlanHandler(semanticEngine);
+    const qwenDecision = createQwenDecisionHandler({
+        checkPilotVersion:pilotVersionGate?.inspect,
+        enabled: process.env.JARVIS_QWEN_DIRECT_PILOT === "1",
+        visualArtifacts: {root,inspectVideo:file=>inspectReelVideoFile({file}),validateVideo:(inspection,opts)=>validateReelMp4Master(inspection,opts),readArtifact: output => readArtifactPayload({output,root}), findArtifact: output => findArtifact({output,root})},
+        getRepositoryMap: instruction => {
+            const sources = configuredRepositorySources(root);
+            return sources ? configuredSourcesMessage(sources, 6000, {instruction})?.content || null : null;
+        }
+    });
+    app.post("/semantic/plan", (req, res) =>
+        req.body?.missionState?.phase === "DIRECT_READ_ONLY_ACTION"
+            ? qwenDecision(req, res)
+            : legacySemanticPlan(req, res));
 
     app.post("/semantic/respond", semanticResponseHandler(semanticEngine));
 
@@ -8073,6 +8129,7 @@ export function createJarvisFsBridgeApp({
                     "npm run smoke:release",
                     "npm test",
                     "npm run ci:test",
+                    "node --test tests/hotfix-legacy.test.mjs tests/secure-financial-entry.test.mjs",
                     "node --test tests/jarvis-current-turn-production-regressions.test.mjs tests/jarvis-actuator-pack.test.mjs tests/jarvis-repair-engines-v2.test.mjs"
                 ]);
 
@@ -8529,9 +8586,12 @@ export function createJarvisFsBridgeApp({
             let speech;
             let speechRecovery = null;
             try {
-                speech = synthesizeSpeechArtifact(speechInput);
+                speech = Array.isArray(speechInput.timingScenes)
+                    ? synthesizeSceneTimedSpeechArtifact(speechInput)
+                    : synthesizeSpeechArtifact(speechInput);
             }
             catch (initialSpeechError) {
+                if (Array.isArray(speechInput.timingScenes)) throw initialSpeechError;
                 const recoveryInputs =
                     speechSynthesisRecoveryInputs(
                         speechInput,
@@ -8622,7 +8682,7 @@ export function createJarvisFsBridgeApp({
             const embedArtifact = (output, expectedFamily) => {
                 if (!output) return "";
                 output = resolveMaterialReference({ root, output, caseId: req.body?.caseId, objectiveId: req.body?.objectiveId });
-                assertOfficialMaterial({ root, output });
+                assertOfficialMaterial({ root, output, allowGeneratedSpeech:expectedFamily === "audio" });
                 const artifact = readArtifactPayload({ output, root });
                 if (!artifact.mimeType.startsWith(`${expectedFamily}/`)) throw new Error("REEL_MEDIA_TYPE_MISMATCH");
                 embeddedBytes += artifact.bytes;
@@ -8812,6 +8872,8 @@ export function createJarvisFsBridgeApp({
             const target = artifactPath(resolvedOutput, root, [`.${normalizedFormat}`]);
             let body = content;
             let documentVerification = null;
+            let workbookCalculation = null;
+            let pdfContentProof = null;
 
             if (normalizedFormat === "html") {
                 body = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${safeTitle}</title><style>body{font:16px/1.55 system-ui;max-width:960px;margin:48px auto;padding:0 24px;color:#172033}pre{white-space:pre-wrap}</style></head><body><h1>${safeTitle}</h1><pre>${content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre></body></html>`;
@@ -9006,6 +9068,13 @@ export function createJarvisFsBridgeApp({
                 workbook.calcProperties.fullCalcOnLoad = true;
                 workbook.calcProperties.forceFullCalc = true;
                 await workbook.xlsx.writeFile(target);
+                workbookCalculation=await verifyXlsxWorkbookCalculations(target,{requireFormulas});
+                if(workbookCalculation.verified!==true){
+                    fs.rmSync(target,{force:true});
+                    return res.status(422).json({ok:false,status:"XLSX_CALCULATION_UNVERIFIED",
+                        error:"XLSX_CALCULATION_UNVERIFIED",output:null,workbookCalculation,
+                        version:JARVIS_FS_BRIDGE_VERSION});
+                }
             }
             else if (normalizedFormat === "pptx") {
                 const PptxGenJS = (await import("pptxgenjs")).default;
@@ -9062,6 +9131,13 @@ export function createJarvisFsBridgeApp({
                     });
                     document.end();
                 });
+                pdfContentProof=await verifyPdfContentPhysically(target);
+                if(pdfContentProof.verified!==true){
+                    fs.rmSync(target,{force:true});
+                    return res.status(422).json({ok:false,status:"PDF_CONTENT_UNVERIFIED",
+                        error:"PDF_CONTENT_UNVERIFIED",output:null,pdfContentProof,
+                        version:JARVIS_FS_BRIDGE_VERSION});
+                }
             }
 
             const bytes = fs.statSync(target).size;
@@ -9078,6 +9154,9 @@ export function createJarvisFsBridgeApp({
             return res.json({
                 documentValidation:
                     documentVerification,
+                workbookCalculationVerified: normalizedFormat==="xlsx"&&workbookCalculation?.verified===true,
+                workbookCalculation,
+                pdfContentProof,
                 ok: true,
                 status: "DOCUMENT_CREATED",
                 format: normalizedFormat,

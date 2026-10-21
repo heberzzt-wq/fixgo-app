@@ -155,6 +155,15 @@
             #gestia-output .terminal-welcome { margin-top: 0; }
         }
         @media (prefers-reduced-motion: reduce) { .animate-fade-in { animation: none; } *, *::before, *::after { scroll-behavior: auto; transition: none; } }
+        .jarvis-download-panel { background: #17283d; border: 1px solid #3c7590; border-radius: 18px; padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; color: #e9f3fc; box-shadow: 0 8px 22px rgba(0,0,0,.15); }
+        .jarvis-download-heading { display: flex; flex-direction: column; gap: 5px; }
+        .jarvis-download-heading strong { font-size: 1.05rem; color: #f6fcff; }
+        .jarvis-download-heading span, .jarvis-download-panel small { font-size: .84rem; color: #bfd2e1; }
+        .jarvis-download-links { display: flex; flex-wrap: wrap; gap: 10px; }
+        .jarvis-download-button { display: inline-flex; gap: 10px; justify-content: center; align-items: center; min-height: 48px; padding: 12px 17px; border-radius: 12px; text-align: center; background: #147eb1; color: white; font-size: .93rem; font-weight: 700; border: 1px solid #49b0d8; text-decoration: none; transition: background .15s; }
+        .jarvis-download-button:hover, .jarvis-download-button:focus-visible { background: #08628c; color: white; outline: 2px solid #71d9ff; outline-offset: 2px; }
+        .jarvis-download-evidence { color: #9bd8f6; font-size: .85rem; text-decoration: underline; width: fit-content; }
+        @media (max-width: 560px) { .jarvis-download-panel { padding: 16px; } .jarvis-download-links { flex-direction: column; } .jarvis-download-button { width: 100%; } }
     </style>
 </head>
 <body class="terminal-shell">
@@ -452,11 +461,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         ? '<i class="fa-solid fa-check text-emerald-400"></i>'
                         : state === "failed"
                             ? '<i class="fa-solid fa-xmark text-rose-400"></i>'
-                            : '<i class="fa-solid fa-circle-notch fa-spin text-blue-300"></i>';
+                            : state === "unconfirmed"
+                                ? '<i class="fa-solid fa-circle-question text-amber-400"></i>'
+                                : '<i class="fa-solid fa-circle-notch fa-spin text-blue-300"></i>';
                 const tone =
                     state === "failed"
                         ? "text-rose-300"
-                        : state === "completed"
+                        : state === "unconfirmed"
+                            ? "text-amber-300"
+                            : state === "completed"
                             ? "text-slate-400"
                             : "text-slate-200";
 
@@ -556,7 +569,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 fail(label = "No pude completar la misión") {
                     if (finished) return;
                     for (const [id, row] of rows) {
-                        if (row.dataset.state === "active") setRow(id, row.textContent.trim(), "failed");
+                        if (row.dataset.state !== "active") continue;
+                        // Mission failure is not evidence that every tool failed.
+                        // A tool without its completion event remains unconfirmed;
+                        // only the active core decision is marked failed.
+                        if (id.startsWith("tool:")) setRow(id, row.textContent.trim() + " · sin recibo de cierre", "unconfirmed");
+                        else setRow(id, row.textContent.trim(), "failed");
                     }
                     finished = true;
                     if (summaryNode) summaryNode.textContent = label;
@@ -638,6 +656,28 @@ const terminalAuthGateInterval = setInterval(() => {
         console.log("✅ [TERMINAL_AUTH_GATE_READY]");
     }
 }, 250);
+
+// After reloading a local Terminal, restore download controls for the last
+// certified mission without rerunning its tools or exposing internal paths.
+// The current Firebase identity and authenticated bridge revalidate the bytes.
+let terminalDownloadRestoreChecks=0;
+const terminalDownloadRestoreInterval=setInterval(()=>{
+    if(++terminalDownloadRestoreChecks>120){
+        clearInterval(terminalDownloadRestoreInterval);
+        return;
+    }
+    if(!window.auth?.currentUser?.getIdToken||typeof window.JarvisLocalBridge?.requestJson!=='function')return;
+    clearInterval(terminalDownloadRestoreInterval);
+    void import('./modules/terminal/qwen-download-ui.js?pilot=downloads-evidence-20261021-v2')
+        .then(async({restoreLatestMissionDownloadCard,restoreLatestMissionFailureCard})=>{
+            const host=document.getElementById('gestia-output');
+            await restoreLatestMissionFailureCard(host);
+            await restoreLatestMissionDownloadCard({
+                host,auth:window.auth,bridge:window.JarvisLocalBridge
+            });
+        })
+        .catch(error=>console.warn('[JARVIS_DOWNLOAD_RESTORE_UNAVAILABLE]',error?.message||error));
+},500);
 
     /* =====================================================
         🛡️ SISTEMA DE AUDITORÍA Y NORMALIZACIÓN (NÚCLEO RESILIENTE)
@@ -3786,6 +3826,26 @@ if (
                 return;
             }
 
+            const appendGeneralEvidenceLink=()=>{
+                if(!/^(?:general|resume)-[a-f0-9-]{36}$/i.test(coreResult?.missionId||''))return;
+                void import('./modules/terminal/qwen-download-ui.js?pilot=downloads-20261021-v1')
+                    .then(({appendMissionDownloadCard})=>appendMissionDownloadCard(
+                        document.getElementById('gestia-output'),{
+                            missionId:coreResult.missionId,
+                            evidenceUrl:coreResult?.evidence?.downloadUrl||null,
+                            downloads:coreResult?.artifactDownloads||[]
+                        }))
+                    .catch(error=>console.warn('[JARVIS_DOWNLOAD_UI_UNAVAILABLE]',error?.message||error));
+            };
+            if (coreResult?.ok === false || coreResult?.blocked === true) {
+                const reason=coreResult.reason || coreResult.report || coreResult.status || 'MISSION_BLOCKED';
+                activeWorkTracker?.fail?.('Misión bloqueada: '+reason);
+                window.renderJarvisResponse?.(coreResult.finalResponse?.title || 'Misión bloqueada',
+                    coreResult.finalResponse?.text || String(reason),'warning');
+                appendGeneralEvidenceLink();
+                handled=true;
+                return;
+            }
             activeWorkTracker?.complete(
                 "core",
                 "Ejecución principal completada"
@@ -3850,6 +3910,7 @@ if (
                         ? "warning"
                         : "info"
                 );
+                appendGeneralEvidenceLink();
                 activeWorkTracker?.complete(
                     "response",
                     "Respuesta preparada"
