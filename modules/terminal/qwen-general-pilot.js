@@ -2,9 +2,9 @@ import {planImageAdaptation} from '../../gestia-core/jarvis/jarvis.image.adapter
 import {compactVerifiedEngineeringSource} from './qwen-engineering-source-excerpt.js';
 import {LOCAL_VIDEO_EVIDENCE_CAPABILITIES,MEDIA_TOOLS,mediaEntries,producedMedia,deliveredImageHistory,producedImageHistory} from './qwen-general-media.js';
 import {createQwenBridgeActionSelector} from './qwen-direct-transport.js';
-import {runQwenTerminalReadPilot} from './qwen-direct-pilot.js?release=v142-senior-engineering-20261021-v19';
+import {runQwenTerminalReadPilot} from './qwen-direct-pilot.js?release=v142-senior-engineering-20261021-v20';
 import {createGeneralToolPolicy,normalizeGeneralSchema} from '../../jarvis-qwen-general-policy.js?pilot=engineering-read-20261021-v9';
-import {advertisingSourceText,generalObjectives,GENERAL_COUNT_FIELDS,summarizeGeneralEvidence,verifyGeneralMission,independentResearchProofs,researchOfficeContent,researchSourceProofs,researchQuoteRelevant,researchTopic,codeConcurrencyRequested} from './qwen-general-evidence.js?release=v142-senior-engineering-20261021-v19';
+import {advertisingSourceText,generalObjectives,GENERAL_COUNT_FIELDS,summarizeGeneralEvidence,verifyGeneralMission,independentResearchProofs,researchOfficeContent,researchSourceProofs,researchQuoteRelevant,researchTopic,codeConcurrencyRequested,requiredEngineeringSourceFiles} from './qwen-general-evidence.js?release=v142-senior-engineering-20261021-v20';
 import {receiptBoundProductionContent,prioritizeReceiptBoundProduction} from './qwen-production-document.js';
 import {resumedMissionId,originalResumedMissionId,readSavedMission,verifiedResumeReceipts,verifiedResearchResumeReceipts} from './qwen-general-resume.js?pilot=research-resume-20261021-v4';
 import {classifyEmptyGeneralCatalog,requestQwenGeneralConversation} from './qwen-empty-catalog.js?pilot=concise-20261021-v8';
@@ -740,6 +740,13 @@ export function prioritizeGeneralCodeCatalog(catalog,receipts,instruction=''){
         .map(m=>m.file||m.path||m.relativePath).filter(f=>typeof f==='string'&&
         /^(?:(?:functions|modules|tests|gestia-core)\/[-\w./]+|jarvis-[\w.-]+)\.(?:js|mjs|ts)$/i.test(f)))];
     const already=new Set(completed.filter(r=>r.name==='repo.read').map(r=>r.args?.file));
+    const required=requiredEngineeringSourceFiles(instruction),missingRequired=required.filter(f=>!already.has(f));
+    if(missingRequired.length){
+        const tool=catalog.find(t=>t.name==='repo.read');
+        if(!tool)return [];
+        return [{...tool,inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties,
+            file:{type:'string',enum:missingRequired.slice(0,3)}}}}];
+    }
     const payout=/requestpayout/i.test(instruction);
     const authMission=/autenticaci[oó]n|firebase|bridge|sesi[oó]n|permisos|roles/iu.test(instruction);
     const rank=f=>authMission&&/workstation-health|qwen-tool-bridge|direct-transport|role-authority|auth/i.test(f)?0:
@@ -759,7 +766,7 @@ export function prioritizeGeneralCodeCatalog(catalog,receipts,instruction=''){
         return [{...tool,inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties,
             term:{type:'string',const:'solicitarRetiro'}}}}];
     }
-    if(unread.length&&already.size<6){
+    if(!required.length&&unread.length&&already.size<6){
         const tool=catalog.find(t=>t.name==='repo.read');
         if(!tool)return [];
         return [{...tool,inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties,

@@ -3,6 +3,18 @@ import {verifiedPosterCopy} from './qwen-poster-proof.js';
 import {requiredDeliveryFormats,unfulfilledDownloadFormats,unavailableMissionOperations} from './qwen-general-contract.js';
 import '../../gestia-core/contracts/b2c-platform-contract.js';
 export const GENERAL_COUNT_FIELDS=['rol','role','tipo_cuenta','account_type','b2b_activo','sub_type','subtype'];
+// Only when the instruction explicitly asks for Terminal -> local bridge -> executor
+// does the verifier demand physical source proof for each authority boundary.
+export function requiredEngineeringSourceFiles(instruction=''){
+ const s=String(instruction||'').normalize('NFD').replace(/[\u0300-\u036f]/gu,'').toLowerCase();
+ if(/\b(?:terminal|adjunto|heberto)\b/u.test(s)&&
+    /\bbridge\b/u.test(s)&&
+    /\b(?:ejecutor|herramientas|runtime|tool)\b/u.test(s)&&
+    /\b(?:autenticacion|firebase|sesion|token|permisos)\b/u.test(s))
+   return ['modules/terminal/qwen-direct-transport.js','jarvis-workstation-health.js','jarvis-qwen-tool-bridge.js'];
+ return [];
+}
+
 // Negative operating boundaries describe forbidden actions, not requests to perform them.
 // Evaluate each clause independently so "sin deploy, pagos ni publicación" cannot
 // cancel an actual positive request in a different sentence.
@@ -151,6 +163,10 @@ export function summarizeGeneralEvidence(receipts,objectives,instruction=''){
     if(objectives.capabilities&&!has('system.capabilities'))gaps.push({goal:'live registered capability inventory',requiredTool:'system.capabilities'});
     if(objectives.records&&!records?.ok)gaps.push({goal:'authorized complete counts',requiredTool:'platform.query',reason:records.reason});
     if(objectives.code){
+        for(const file of requiredEngineeringSourceFiles(instruction)){
+            if(!rows.some(r=>r.name==='repo.read'&&r.args?.file===file&&r.observation?.verifiedRead?.file===file&&typeof r.observation.verifiedRead.content==='string'))
+                gaps.push({goal:'verified authentication boundary: '+file,requiredTool:'repo.read',file,reason:'ENGINEERING_AUTH_BOUNDARY_SOURCE_REQUIRED'});
+        }
         if(!has('repo.grep')||!has('repo.read'))gaps.push({goal:'repository code proof',requiredTool:'repo.read',reason:'CODE_SOURCE_EVIDENCE_REQUIRED'});
         if(!rows.some(r=>r.name==='tests.run'&&r.observation.testsPassed===true&&r.observation.objectiveSatisfied===true))
             gaps.push({goal:'passing physical repository tests',requiredTool:'tests.run',reason:'CODE_TESTS_PASSING_REQUIRED'});
@@ -168,7 +184,9 @@ export function summarizeGeneralEvidence(receipts,objectives,instruction=''){
         if(!validation.ok)gaps.push({goal:'production document bound to receipts',requiredTool:'document.create',reason:validation.reason});
         if(!rows.some(r=>r.name==='media.library'&&r.args?.action==='export'&&r.args.output===doc.observation.output&&r.observation.sha256===doc.observation.sha256&&r.observation.experimental===true))gaps.push({goal:'registered production document export',requiredTool:'media.library',action:'export',output:doc.observation.output});
     }
-    return {objectives,records,...(objectives.code?{sourceAssignmentWitness:verifiedEngineeringAssignmentWitness(receipts)}:{}),deliveryGaps:gaps,finishEligible:gaps.length===0&&(!objectives.unsupported||objectives.advertising||has('system.capabilities')),
+    return {objectives,records,...(objectives.code?{sourceAssignmentWitness:verifiedEngineeringAssignmentWitness(receipts),
+        engineeringSourceRequirements:requiredEngineeringSourceFiles(instruction),
+        engineeringExecutedTests:rows.filter(r=>r.name==='tests.run'&&r.observation?.status==='PASSED'&&r.observation?.testsPassed===true&&r.observation?.exitCode===0).map(r=>({command:r.args.command,status:r.observation.status,testsPassed:true,exitCode:0}))}:{}),deliveryGaps:gaps,finishEligible:gaps.length===0&&(!objectives.unsupported||objectives.advertising||has('system.capabilities')),
 
         pendingVisualReviews:objectives.page?rows.filter(r=>r.name==='browser.screenshot'&&!rows.some(v=>v.name==='media.analyze'&&v.observation.output===r.observation.output)).map(r=>({requiredTool:'media.analyze',output:r.observation.output,reason:'Screenshot alone is not visual review. Execute media.analyze on these pixels before FINISH.'})):[],
         openedSources:rows.filter(r=>r.name==='browser.inspect').map(r=>({url:r.observation.url,title:String(r.observation.dom||'').match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.trim(),hasDom:!!r.observation.dom})),
@@ -189,6 +207,10 @@ function genericEngineeringReportIssues(report,receipts=[],instruction=''){
  const executed=rows.filter(r=>r.name==='tests.run'&&r.observation?.status==='PASSED'&&
   r.observation?.testsPassed===true&&r.observation?.objectiveSatisfied===true&&r.observation?.exitCode===0);
  const cited=reads.filter(r=>text.includes(r.args.file));
+ for(const required of requiredEngineeringSourceFiles(instruction)){
+    if(!reads.some(r=>r.args.file===required))issues.push('READ_REQUIRED_BOUNDARY_SOURCE:'+required);
+    else if(!text.includes(required))issues.push('CITE_REQUIRED_BOUNDARY_SOURCE:'+required);
+ }
  if(text.length<180||text.length>10000)issues.push('ENGINEERING_DIAGNOSIS_LENGTH_INVALID');
  if(!reads.length)issues.push('VERIFIED_ENGINEERING_SOURCE_REQUIRED');
  if(!cited.length)issues.push('CITE_ACTUALLY_READ_SOURCE_PATH');

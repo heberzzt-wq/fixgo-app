@@ -156,7 +156,11 @@ export async function runQwenAuthorizedCycle({
                         // still decides success, and keeps missing gaps.
                         evidenceSummary:{...evidenceSummary,finishEligible:true,reportOnly:true,
                             reportRevisionAttempt:reportAttempt,
-                            reportRevisionInstruction:reportAttempt>0?'Previous final report failed independent source-bound verification. Correct only the rejected claims using verified source excerpts and the exact tests.run receipt; do not invent tests or files.':undefined,
+                            reportRevisionInstruction:reportAttempt>0?
+                            'Correct only failed source-bound clauses: '+JSON.stringify(certificationFailures.at(-1)?.objectives?.flatMap(x=>x.details?.missingClauses||[])||[])+
+                            '. Include exactly the actually executed tests.run command from verified receipts: '+
+                            JSON.stringify(receipts.filter(r=>r.ok&&r.name==='tests.run').map(r=>r.args?.command))+
+                            '. Do not invent tests, sources, claims or completed objectives.':undefined,
                             unverifiedObjectives:evidenceSummary?.deliveryGaps||[]},
                         missionLedger:missionLedger(),iteration,signal
                     });
