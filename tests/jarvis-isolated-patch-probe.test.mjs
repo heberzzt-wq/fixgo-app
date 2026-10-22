@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {
  CONTROLLED_FIXTURE,ISOLATED_IMAGE,ISOLATED_IMAGE_SHA,sealedDockerArguments,
- verifyPreparedFixture,inspectDockerPreflight,runIsolatedFixtureVerification
+ verifyPreparedFixture,inspectDockerPreflight,runIsolatedFixtureVerification,parseIsolatedTestReport
 } from '../scripts/jarvis-isolated-patch-probe.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const original=fs.readFileSync(path.join(root,CONTROLLED_FIXTURE),'utf8');
@@ -137,4 +137,64 @@ test('changed image digest is blocked before the first container starts',()=>{
  assert.equal(result.verified,false);
  assert.deepEqual(calls,['info','image']);
  assert.equal(fs.readFileSync(path.join(root,CONTROLLED_FIXTURE),'utf8'),original);
+});
+
+test('real Node 24 spec reporter correctly certifies the exact failure and subsequent fix',()=>{
+ const before=[
+  '\u2714 ordinary rebate is deterministic (1.158915ms)',
+  '\u2714 zero rebate preserves amount (0.175251ms)',
+  '\u2714 negative amounts are rejected (0.564696ms)',
+  '\u2716 rebate larger than amount is rejected (0.735642ms)',
+  '\u2139 tests 4','\u2139 suites 0','\u2139 pass 3','\u2139 fail 1',
+  '\u2139 cancelled 0','\u2139 skipped 0','\u2139 todo 0',
+  '\u2139 duration_ms 101.956428',
+  '',
+  '\u2716 failing tests:',
+  'test at rebate.test.mjs:7:1',
+  '\u2716 rebate larger than amount is rejected (0.735642ms)',
+  '  AssertionError [ERR_ASSERTION]: Missing expected exception.'
+ ].join('\n');
+ const after=[
+  '\u2714 ordinary rebate is deterministic (1.121092ms)',
+  '\u2714 zero rebate preserves amount (0.152799ms)',
+  '\u2714 negative amounts are rejected (0.51461ms)',
+  '\u2714 rebate larger than amount is rejected (0.194198ms)',
+  '\u2139 tests 4','\u2139 suites 0','\u2139 pass 4','\u2139 fail 0',
+  '\u2139 cancelled 0','\u2139 skipped 0','\u2139 todo 0',
+  '\u2139 duration_ms 81.767672'
+ ].join('\n');
+ const b=parseIsolatedTestReport(before),a=parseIsolatedTestReport(after);
+ assert.equal(b.targetFailure,true);
+ assert.equal(b.targetPass,false);
+ assert.deepEqual(b.counts,{tests4:true,pass3:true,pass4:false,fail1:true,fail0:false});
+ assert.equal(a.targetPass,true);
+ assert.equal(a.targetFailure,false);
+ assert.deepEqual(a.counts,{tests4:true,pass3:false,pass4:true,fail1:false,fail0:true});
+ let calls=0;
+ const run=(bin,args)=>{
+  if(args[0]==='info')return {status:0,stdout:'29.9.2\n'};
+  if(args[0]==='image')return {status:0,stdout:ISOLATED_IMAGE_SHA+'\n'};
+  assert.ok(args.includes('--test-reporter=tap'),'new runs request a deterministic TAP reporter');
+  calls++;
+  return calls===1?{status:1,stdout:before}:{status:0,stdout:after};
+ };
+ const result=runIsolatedFixtureVerification(receipt(),{root,run});
+ assert.equal(result.status,'ISOLATED_BEFORE_AFTER_VERIFIED');
+ assert.equal(result.verified,true);
+ assert.equal(result.baselineFailed,true);
+ assert.equal(result.fixedPassed,true);
+ assert.equal(result.originalUnchanged,true);
+ assert.equal(calls,2);
+ assert.equal(fs.readFileSync(path.join(root,CONTROLLED_FIXTURE),'utf8'),original);
+});
+
+test('spec output of an unrelated failing test is never accepted as the targeted bug',()=>{
+ const bad=[
+  '\u2716 ordinary rebate is deterministic (0.1ms)',
+  '\u2714 rebate larger than amount is rejected (0.1ms)',
+  '\u2139 tests 4','\u2139 pass 3','\u2139 fail 1'
+ ].join('\n');
+ const parsed=parseIsolatedTestReport(bad);
+ assert.equal(parsed.targetFailure,false);
+ assert.equal(parsed.targetPass,true);
 });

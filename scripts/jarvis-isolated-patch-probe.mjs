@@ -14,6 +14,19 @@ const projectRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'
 const sha=text=>crypto.createHash('sha256').update(text,'utf8').digest('hex');
 const digest=x=>/^[a-f0-9]{64}$/i.test(String(x||''));
 const outcome=x=>({exitCode:x.status,signal:x.signal||null,stdout:String(x.stdout||'').slice(-1800),stderr:String(x.stderr||'').slice(-1200)});
+
+// Node 24 may emit TAP in non-interactive runs or its Unicode "spec" reporter
+// on a Windows terminal. Count only anchored runner summary lines and the
+// exact regression case; unrelated failures must never certify a repair.
+export function parseIsolatedTestReport(output=''){
+ const raw=String(output||'');
+
+ const failure=/^(?:not ok 4 - |\u2716 )rebate larger than amount is rejected(?: \([^\r\n]*\))?\r?$/m;
+ const success=/^(?:ok 4 - |\u2714 )rebate larger than amount is rejected(?: \([^\r\n]*\))?\r?$/m;
+ const count=name=>new RegExp('^(?:# |\\u2139 )?'+name+'\\r?$','m').test(raw);
+ const counts={tests4:count('tests 4'),pass3:count('pass 3'),pass4:count('pass 4'),fail1:count('fail 1'),fail0:count('fail 0')};
+ return {targetFailure:failure.test(raw),targetPass:success.test(raw),counts};
+}
 const testSource=[
  "import test from 'node:test';",
  "import assert from 'node:assert/strict';",
@@ -60,7 +73,7 @@ export function sealedDockerArguments(folder,imageId=ISOLATED_IMAGE_SHA){
     '--pids-limit','64','--memory','384m','--cpus','1',
     '--user','65534:65534','--tmpfs','/tmp:rw,nosuid,noexec,size=16m',
     '--mount','type=bind,src='+folder+',dst=/work,readonly',
-    '--workdir','/work',imageId,'node','--test','/work/rebate.test.mjs'];
+    '--workdir','/work',imageId,'node','--test','--test-reporter=tap','/work/rebate.test.mjs'];
 }
 
 export function inspectDockerPreflight({run=spawnSync}={}){
@@ -99,17 +112,8 @@ export function runIsolatedFixtureVerification(receipt,{root=projectRoot,run=spa
    const result=run('docker',sealedDockerArguments(dir,preflight.imageId),{
      encoding:'utf8',timeout:90000,maxBuffer:500000,windowsHide:true
    });
-   const tap=String(result.stdout||'');
-   const marker=/(?:^|\r?\n)not ok 4 - rebate larger than amount is rejected(?:\r?\n|$)/.test(tap);
-   const repaired=/(?:^|\r?\n)ok 4 - rebate larger than amount is rejected(?:\r?\n|$)/.test(tap);
-   const counts={
-     tests4:/(?:^|\r?\n)(?:# )?tests 4(?:\r?\n|$)/.test(tap),
-     pass3:/(?:^|\r?\n)(?:# )?pass 3(?:\r?\n|$)/.test(tap),
-     pass4:/(?:^|\r?\n)(?:# )?pass 4(?:\r?\n|$)/.test(tap),
-     fail1:/(?:^|\r?\n)(?:# )?fail 1(?:\r?\n|$)/.test(tap),
-     fail0:/(?:^|\r?\n)(?:# )?fail 0(?:\r?\n|$)/.test(tap)
-   };
-   stages.push({stage:name,...outcome(result),targetFailure:marker,targetPass:repaired,counts});
+   const parsed=parseIsolatedTestReport(result.stdout);
+   stages.push({stage:name,...outcome(result),...parsed});
    if(result.error||result.signal||result.status===null)throw Error('SANDBOX_CONTAINER_EXECUTION_FAILED');
   }
   // The baseline must specifically fail the requested assertion. A different
