@@ -131,13 +131,78 @@ export function runIsolatedFixtureVerification(receipt,{root=projectRoot,run=spa
  }finally{fs.rmSync(base,{recursive:true,force:true});}
 }
 
+// The local CLI can archive a bounded, physically observed fixture run. This is
+// evidence for review, NOT authorization to modify the repository and NOT a
+// general Qwen tool. Caller-supplied booleans alone are never enough.
+export function verifyIsolatedRepairEvidence(receipt,result,{root=projectRoot}={}){
+ const target=path.join(root,...CONTROLLED_FIXTURE.split('/'));
+ const source=fs.readFileSync(target,'utf8');
+ const patch=verifyPreparedFixture(source,receipt);
+ const proposal=receipt.receipts.findLast(r=>r.name==='repo.prepareWrite');
+ const missionId=proposal?.observation?.caseId;
+ if(!/^general-[a-f0-9-]{36}$/i.test(missionId||'')||
+    proposal.observation.objectiveId!=='QWEN_PREVIEW_'+missionId)
+    throw Error('ISOLATED_EVIDENCE_MISSION_ID_INVALID');
+ if(result?.verified!==true||result.status!=='ISOLATED_BEFORE_AFTER_VERIFIED'||
+    result.baselineFailed!==true||result.fixedPassed!==true||
+    result.originalUnchanged!==true||
+    result.sourceSha256!==patch.sourceSha256||result.expectedSha256!==patch.expectedSha256)
+    throw Error('ISOLATED_EVIDENCE_RESULT_MISMATCH');
+ const iso=result.isolation;
+ if(iso?.imageId!==ISOLATED_IMAGE_SHA||iso.network!=='none'||
+    iso.readOnlyRoot!==true||iso.sourceRepoMounted!==false||
+    iso.droppedCapabilities!=='ALL'||iso.nonRootUser!=='65534:65534')
+    throw Error('ISOLATED_EVIDENCE_BOUNDARY_MISMATCH');
+ if(!Array.isArray(result.stages)||result.stages.length!==2||
+    result.stages[0].stage!=='before'||result.stages[1].stage!=='after')
+    throw Error('ISOLATED_EVIDENCE_STAGE_ORDER_INVALID');
+ const [before,after]=result.stages;
+ const b=parseIsolatedTestReport(before.stdout),a=parseIsolatedTestReport(after.stdout);
+ if(before.exitCode!==1||!b.targetFailure||b.targetPass||
+    !b.counts.tests4||!b.counts.pass3||!b.counts.fail1||
+    after.exitCode!==0||!a.targetPass||a.targetFailure||
+    !a.counts.tests4||!a.counts.pass4||!a.counts.fail0)
+    throw Error('ISOLATED_EVIDENCE_TEST_PROOF_INVALID');
+ if(sha(fs.readFileSync(target,'utf8'))!==patch.sourceSha256)
+    throw Error('ISOLATED_EVIDENCE_ORIGINAL_MODIFIED');
+ const evidence={schema:'jarvis-v142-controlled-isolation-v1',missionId,
+    sourceFile:CONTROLLED_FIXTURE,sourceSha256:patch.sourceSha256,
+    expectedSha256:patch.expectedSha256,
+    imageId:ISOLATED_IMAGE_SHA,patchFingerprint:proposal.observation.fingerprint,
+    status:'ISOLATED_BEFORE_AFTER_VERIFIED',
+    before:{exitCode:before.exitCode,tests:4,passed:3,failed:1,
+        targetFailure:b.targetFailure,stdout:before.stdout},
+    after:{exitCode:after.exitCode,tests:4,passed:4,failed:0,
+        targetPass:a.targetPass,stdout:after.stdout},
+    sourceRepoUnchanged:true,patchApplied:false,
+    humanApprovalStillRequired:true,productionRepairCertified:false,
+    reviewNote:'A fixture-only physical before/after test; not an authorized production write.'};
+ return {...evidence,evidenceSha256:sha(JSON.stringify(evidence))};
+}
+
+export function saveIsolatedRepairEvidence(receipt,result,{root=projectRoot}={}){
+ const evidence=verifyIsolatedRepairEvidence(receipt,result,{root});
+ const folder=path.join(root,'.jarvis-artifacts','isolated-repair',evidence.missionId);
+ fs.mkdirSync(folder,{recursive:true});
+ const destination=path.join(folder,crypto.randomUUID()+'.json');
+ fs.writeFileSync(destination,JSON.stringify(evidence,null,2)+'\n',{flag:'wx',mode:0o600,encoding:'utf8'});
+ return {path:destination,evidenceSha256:evidence.evidenceSha256,missionId:evidence.missionId};
+}
+
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  try{
-  const flag=process.argv.indexOf('--receipt');
-  if(flag<0||flag+2!==process.argv.length)throw Error('USAGE: --receipt <diagnostic.json>');
+  const flag=process.argv.indexOf('--receipt'),args=process.argv.slice(2);
+  const save=args.includes('--save-report');
+  if(flag!==2||!args[1]||args.some(v=>v==='--save-report')&&args.at(-1)!=='--save-report'||
+     args.length!==(save?3:2))throw Error('USAGE: --receipt <diagnostic.json> [--save-report]');
   const receipt=JSON.parse(fs.readFileSync(path.resolve(process.argv[flag+1]),'utf8'));
   const result=runIsolatedFixtureVerification(receipt);
   console.log(JSON.stringify(result,null,2));
+  if(save&&result.verified){
+    const saved=saveIsolatedRepairEvidence(receipt,result);
+    console.log('ISOLATED_PHYSICAL_EVIDENCE_ARCHIVED='+saved.path);
+    console.log('ISOLATED_EVIDENCE_SHA256='+saved.evidenceSha256);
+  }
   if(!result.verified)process.exitCode=result.status==='SANDBOX_RUNTIME_NOT_READY'?3:2;
  }catch(error){console.error('ISOLATED_PATCH_BLOCKED: '+error.message);process.exitCode=4;}
 }

@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {
  CONTROLLED_FIXTURE,ISOLATED_IMAGE,ISOLATED_IMAGE_SHA,sealedDockerArguments,
- verifyPreparedFixture,inspectDockerPreflight,runIsolatedFixtureVerification,parseIsolatedTestReport
+ verifyPreparedFixture,inspectDockerPreflight,runIsolatedFixtureVerification,parseIsolatedTestReport,verifyIsolatedRepairEvidence,saveIsolatedRepairEvidence
 } from '../scripts/jarvis-isolated-patch-probe.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const original=fs.readFileSync(path.join(root,CONTROLLED_FIXTURE),'utf8');
@@ -197,4 +198,49 @@ test('spec output of an unrelated failing test is never accepted as the targeted
  const parsed=parseIsolatedTestReport(bad);
  assert.equal(parsed.targetFailure,false);
  assert.equal(parsed.targetPass,true);
+});
+
+test('archive ties a successful isolated repair to the exact mission/source/hash and never applies it',()=>{
+ const repo=fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-proof-test-'));
+ try{
+  const folder=path.join(repo,'tests','fixtures');
+  fs.mkdirSync(folder,{recursive:true});
+  fs.writeFileSync(path.join(folder,'v142-rebate-preview.js'),original,'utf8');
+  let containers=0;
+  const run=(bin,args)=>{
+   if(args[0]==='info')return {status:0,stdout:'29.9.2\n'};
+   if(args[0]==='image')return {status:0,stdout:ISOLATED_IMAGE_SHA+'\n'};
+   containers++;
+   return containers===1
+    ?{status:1,stdout:'TAP version 13\nnot ok 4 - rebate larger than amount is rejected\n# tests 4\n# pass 3\n# fail 1\n'}
+    :{status:0,stdout:'TAP version 13\nok 4 - rebate larger than amount is rejected\n# tests 4\n# pass 4\n# fail 0\n'};
+  };
+  const missionId='general-38f6031b-b7cc-4ead-b056-43d349e9fa3a';
+  const originalReceipt=receipt();
+  const prepared=originalReceipt.receipts.find(r=>r.name==='repo.prepareWrite');
+  prepared.observation.caseId=missionId;
+  prepared.observation.objectiveId='QWEN_PREVIEW_'+missionId;
+  const result=runIsolatedFixtureVerification(originalReceipt,{root:repo,run});
+  const evidence=verifyIsolatedRepairEvidence(originalReceipt,result,{root:repo});
+  assert.equal(result.verified,true);
+  assert.equal(containers,2);
+  assert.equal(evidence.status,'ISOLATED_BEFORE_AFTER_VERIFIED');
+  assert.equal(evidence.patchApplied,false);
+  assert.equal(evidence.humanApprovalStillRequired,true);
+  assert.equal(evidence.productionRepairCertified,false);
+  assert.equal(evidence.sourceRepoUnchanged,true);
+  assert.equal(evidence.sourceFile,CONTROLLED_FIXTURE);
+  assert.equal(evidence.sourceSha256,sum(original));
+  assert.equal(evidence.expectedSha256,sum(patched));
+  const saved=saveIsolatedRepairEvidence(originalReceipt,result,{root:repo});
+  assert.ok(saved.path.startsWith(path.join(repo,'.jarvis-artifacts','isolated-repair')+path.sep));
+  const json=JSON.parse(fs.readFileSync(saved.path,'utf8'));
+  assert.equal(json.evidenceSha256,evidence.evidenceSha256);
+  assert.equal(json.patchApplied,false);
+  assert.equal(fs.readFileSync(path.join(folder,'v142-rebate-preview.js'),'utf8'),original);
+  assert.throws(()=>verifyIsolatedRepairEvidence(originalReceipt,{...result,expectedSha256:'a'.repeat(64)},{root:repo}),/RESULT_MISMATCH/);
+  assert.throws(()=>verifyIsolatedRepairEvidence(originalReceipt,{...result,verified:false},{root:repo}),/RESULT_MISMATCH/);
+  const corrupted=structuredClone(result);corrupted.stages[0].stdout=corrupted.stages[0].stdout.replace('not ok 4','ok 4');
+  assert.throws(()=>verifyIsolatedRepairEvidence(originalReceipt,corrupted,{root:repo}),/TEST_PROOF_INVALID/);
+ }finally{fs.rmSync(repo,{recursive:true,force:true});}
 });
