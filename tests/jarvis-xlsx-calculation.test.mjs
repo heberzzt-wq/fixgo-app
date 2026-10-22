@@ -51,3 +51,27 @@ test('full original Excel/PDF physical receipts are accredited only after SHA-bo
  xlsx.observation.workbookCalculation.sourceSha256='f'.repeat(64);
  assert.deepEqual(unfulfilledDownloadFormats(instruction,rows),['xlsx']);
 });
+
+test('restricted recalculation covers monetary cell multiplication/division while guarding zero divisor and unsafe formulas',async t=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-xlsx-safe-arithmetic-'));
+ t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+ const book=new ExcelJS.Workbook(),sheet=book.addWorksheet('APU');
+ sheet.addRow(['Concepto','Cantidad','Precio','Importe']);
+ sheet.addRow(['Block supuesto',13,20,{formula:'B2*C2'}]);
+ sheet.addRow(['Costo directo',null,null,{formula:'SUM(D2:D2)'}]);
+ sheet.addRow(['Relación',2,1,{formula:'B4/C4'}]);
+ const file=path.join(dir,'apu.xlsx');
+ await book.xlsx.writeFile(file);
+ const result=await verifyXlsxWorkbookCalculations(file,{requireFormulas:true});
+ assert.equal(result.verified,true,JSON.stringify(result.failures));
+ assert.deepEqual(result.results.map(x=>[x.cell,x.value]),[['D2',260],['D3',260],['D4',2]]);
+ sheet.getCell('C4').value=0;await book.xlsx.writeFile(file);
+ const zero=await verifyXlsxWorkbookCalculations(file,{requireFormulas:true});
+ assert.equal(zero.verified,false);
+ assert.ok(zero.failures.some(x=>x.reason==='XLSX_DIVISION_BY_ZERO'));
+ sheet.getCell('D4').value={formula:'WEBSERVICE("https://example.invalid")'};
+ await book.xlsx.writeFile(file);
+ const unsafe=await verifyXlsxWorkbookCalculations(file,{requireFormulas:true});
+ assert.equal(unsafe.verified,false);
+ assert.match(unsafe.failures[0].reason,/NOT_SUPPORTED_FOR_VERIFIED_RECALC/);
+});

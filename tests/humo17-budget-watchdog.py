@@ -60,7 +60,9 @@ class GuardianTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             receipt=Path(d)/'state.json'
             subprocess.run([sys.executable,__file__,'--spawn',str(receipt)],check=True,timeout=5)
-            limit=time.monotonic()+6
+            # Windows process start under the full Node bridge suite can be slow;
+            # never accept a timeout as termination. Wait for verified receipt.
+            limit=time.monotonic()+(15 if sys.platform=='win32' else 6)
             while time.monotonic()<limit:
                 try:
                     if json.loads(receipt.read_text()).get('terminationVerified'):break
@@ -69,11 +71,13 @@ class GuardianTests(unittest.TestCase):
                     # briefly deny a concurrent read. Keep the bounded deadline.
                     pass
                 time.sleep(.1)
-            self.assertTrue(json.loads(receipt.read_text())['terminationVerified'])
+            final=json.loads(receipt.read_text())
+            self.assertTrue(final['terminationVerified'],final)
 
 if __name__=='__main__':
     if '--spawn' in sys.argv:
-        subprocess.Popen([sys.executable,__file__,'--orphan',sys.argv[-1]],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
+        flags=(subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS) if sys.platform=='win32' else 0
+        subprocess.Popen([sys.executable,__file__,'--orphan',sys.argv[-1]],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=sys.platform!='win32',creationflags=flags)
     elif '--orphan' in sys.argv:
         m.guard('fixture',time.time()+1,sys.argv[-1],lambda method:(200,{'id':'fixture'}) if method=='GET' else (404,None))
     else: unittest.main()

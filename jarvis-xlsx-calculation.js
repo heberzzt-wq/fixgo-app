@@ -43,8 +43,15 @@ export async function verifyXlsxWorkbookCalculations(file,{requireFormulas=false
      for(let row=first;row<=last;row++)sum+=valueAt(name+row);
     }return sum;
    }
-   m=/^([A-Z]{1,3}[1-9]\d{0,5})\s*([+-])\s*([A-Z]{1,3}[1-9]\d{0,5})$/iu.exec(expr);
-   if(m)return m[2]==='+'?valueAt(m[1])+valueAt(m[3]):valueAt(m[1])-valueAt(m[3]);
+   m=/^([A-Z]{1,3}[1-9]\d{0,5})\s*([+*/-])\s*([A-Z]{1,3}[1-9]\d{0,5})$/iu.exec(expr);
+   if(m){
+    const left=valueAt(m[1]),right=valueAt(m[3]);
+    if(m[2]==='+')return left+right;
+    if(m[2]==='-')return left-right;
+    if(m[2]==='*')return left*right;
+    if(right===0)throw Error('XLSX_DIVISION_BY_ZERO');
+    return left/right;
+   }
    throw Error('XLSX_FORMULA_NOT_SUPPORTED_FOR_VERIFIED_RECALC');
   };
   sheet.eachRow({includeEmpty:false},row=>row.eachCell({includeEmpty:false},cell=>{

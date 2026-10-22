@@ -1419,6 +1419,7 @@ test("Jarvis creates a multi-sheet XLSX with executable formulas", async () => {
             })
         });
         const result = await response.json();
+        assert.equal(response.status, 200, JSON.stringify(result));
         const ExcelJS = (await import("exceljs")).default;
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.readFile(path.join(root, result.output));
@@ -1949,7 +1950,7 @@ test("Jarvis FS bridge loads the release identity contract", async () => {
     assert.equal(contract.ok, true);
     assert.equal(contract.projectId, "fixgo-app");
     assert.equal(contract.repository, "heberzzt-wq/fixgo-app");
-    assert.equal(contract.branch, "codex/v142-qwen-auth-pilot");
+    assert.equal(contract.branch, "v142-official");
     assert.match(
         contract.releaseId,
         /^v94-source-grounded-research-v124-20260810$/
@@ -3285,10 +3286,12 @@ test("npm bridge syncs the checkout before importing long-lived bridge modules",
     const packageJson = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
     const bridgeScript = String(readWorkstationScript("bridge") || "");
     const fetchIndex = bridgeScript.indexOf("spawnSync(git,['fetch','--quiet','origin'");
-    const rebaseIndex = bridgeScript.indexOf("spawnSync(git,['rebase','origin/v94-media-v4n-negative-claims']");
+    const rebaseIndex = bridgeScript.indexOf("spawnSync(git,['rebase','origin/v142-official']");
     const uploadImportIndex = bridgeScript.indexOf("import('../jarvis-upload-bridge.js')");
     const workerImportIndex = bridgeScript.indexOf("import('../jarvis-github-worker.js')");
     assert.ok(fetchIndex >= 0, "bridge launcher must fetch the exact remote branch");
+    assert.ok(bridgeScript.includes("+refs/heads/v142-official:refs/remotes/origin/v142-official"),
+        "bridge launcher must pin the official remote ref");
     assert.ok(rebaseIndex > fetchIndex, "bridge launcher must rebase onto exactly one remote ref");
     assert.ok(uploadImportIndex > rebaseIndex, "upload bridge import must happen after Git sync");
     assert.ok(workerImportIndex > rebaseIndex, "worker import must happen after Git sync");
