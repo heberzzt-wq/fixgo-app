@@ -84,7 +84,15 @@
         ".firebase-release-*.json",
         "security/**",
         "scripts/**",
-        "docs/**"
+        "docs/**",
+        "jarvis-fs-bridge.js",
+        "jarvis-upload-bridge.js",
+        "jarvis-workstation-health.js",
+        "jarvis-local-intrusion-guard.js",
+        "jarvis-isolated-evidence-readback.js",
+        "jarvis-structured-artifact-recovery.js",
+        "jarvis-xlsx-calculation.js",
+        "jarvis-external-connector-contract.js"
       ],
       "cleanUrls": false,
       "trailingSlash": false,
@@ -95,6 +103,13 @@
         }
       ],
       "headers": [
+        {
+          "source": "**",
+          "headers": [
+            {"key": "X-Content-Type-Options", "value": "nosniff"},
+            {"key": "Referrer-Policy", "value": "strict-origin-when-cross-origin"}
+          ]
+        },
         {
           "source": "**/*.html",
           "headers": [

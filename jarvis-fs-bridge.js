@@ -1,4 +1,5 @@
 import {qwenArtifactWriteGuard} from './jarvis-qwen-artifact-write-guard.js';
+import {createJarvisLocalIntrusionGuard,JARVIS_BROWSER_ORIGINS,localIntrusionSnapshot} from './jarvis-local-intrusion-guard.js';
 import {pendingExternalConnectorInventory} from './jarvis-external-connector-contract.js';
 import {prepareBoundedXmlArtifact,verifyStructuredArtifactOutcome} from './jarvis-structured-artifact-recovery.js';
 import {createIsolatedEvidenceReadHandler} from './jarvis-isolated-evidence-readback.js';
@@ -6917,14 +6918,10 @@ export function createJarvisFsBridgeApp({
         };
     };
 
-    const allowedOrigins = new Set([
-        "https://fixgo-44e4d.web.app",
-        "https://fixgo-44e4d.firebaseapp.com",
-        "http://localhost:5000",
-        "http://127.0.0.1:5000",
-        "http://localhost:5500",
-        "http://127.0.0.1:5500"
-    ]);
+    // Enforce browser perimeter before CORS and every route, even /health.
+    // The HTTPS origin list is shared with the host guard to avoid drift.
+    const allowedOrigins=new Set(JARVIS_BROWSER_ORIGINS);
+    app.use(createJarvisLocalIntrusionGuard());
 
     app.use(cors({
         origin(origin, callback) {
@@ -7078,6 +7075,14 @@ export function createJarvisFsBridgeApp({
         bridgeVersion:JARVIS_FS_BRIDGE_VERSION, experimental:process.env.JARVIS_QWEN_DIRECT_PILOT === '1', identity:requestIdentity,
         authorize:createWorkstationAuthorization({identity:requestIdentity,verifyIdToken:verifyBrowserIdToken,ownerUid:workstationRelay.ownerUid}),
         capabilities:()=>localAsrHealth({root})
+    });
+    // Local security events are available only to the authenticated owner.
+    // Never expose tokens, request bodies or private origins in this snapshot.
+    if(qwenEnabled)app.post('/security/local/status',async(req,res)=>{
+        const authenticate=createWorkstationAuthorization({identity:requestIdentity,
+            verifyIdToken:verifyBrowserIdToken,ownerUid:workstationRelay.ownerUid});
+        if(!await authenticate(req,res))return;
+        return res.set('Cache-Control','no-store').json({ok:true,...localIntrusionSnapshot()});
     });
     if(qwenEnabled)app.post('/qwen-isolated/evidence',createIsolatedEvidenceReadHandler({
         root,authorize:createWorkstationAuthorization({identity:requestIdentity,
