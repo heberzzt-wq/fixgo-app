@@ -8,6 +8,8 @@ import {fileURLToPath} from 'node:url';
 
 export const CONTROLLED_FIXTURE='tests/fixtures/v142-rebate-preview.js';
 export const ISOLATED_IMAGE='node:24-alpine';
+// Pinned to the Linux image physically downloaded and inspected on adjunto-jarvis.
+export const ISOLATED_IMAGE_SHA='sha256:feb76650b7195319268c59cb2d419c732d6c499b13bf5296f16ab59eb1f0a4f3';
 const projectRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const sha=text=>crypto.createHash('sha256').update(text,'utf8').digest('hex');
 const digest=x=>/^[a-f0-9]{64}$/i.test(String(x||''));
@@ -50,14 +52,15 @@ export function verifyPreparedFixture(source,receipt){
  return {proposed,sourceSha256:sha(source),expectedSha256:sha(proposed)};
 }
 
-export function sealedDockerArguments(folder){
+export function sealedDockerArguments(folder,imageId=ISOLATED_IMAGE_SHA){
+ if(imageId!==ISOLATED_IMAGE_SHA)throw Error('SANDBOX_IMAGE_DIGEST_MISMATCH');
  if(!path.isAbsolute(folder)||folder.includes(',')||folder.includes('\n'))throw Error('SANDBOX_PATH_INVALID');
  return ['run','--rm','--pull','never','--network','none','--read-only',
     '--cap-drop','ALL','--security-opt','no-new-privileges',
     '--pids-limit','64','--memory','384m','--cpus','1',
     '--user','65534:65534','--tmpfs','/tmp:rw,nosuid,noexec,size=16m',
     '--mount','type=bind,src='+folder+',dst=/work,readonly',
-    '--workdir','/work',ISOLATED_IMAGE,'node','--test','/work/rebate.test.mjs'];
+    '--workdir','/work',imageId,'node','--test','/work/rebate.test.mjs'];
 }
 
 export function inspectDockerPreflight({run=spawnSync}={}){
@@ -71,8 +74,11 @@ export function inspectDockerPreflight({run=spawnSync}={}){
  if(image.error||image.status!==0||!String(image.stdout||'').trim())
    return {ok:false,status:'SANDBOX_IMAGE_NOT_READY',
      detail:'Pull the reviewed image manually before running isolated repairs.'};
+ const observed=String(image.stdout).trim();
+ if(observed!==ISOLATED_IMAGE_SHA)return {ok:false,status:'SANDBOX_IMAGE_DIGEST_MISMATCH',
+     detail:'Review and pin the immutable image digest before running code.'};
  return {ok:true,status:'SANDBOX_DOCKER_READY',engineVersion:String(probe.stdout).trim(),
-    imageId:String(image.stdout).trim()};
+    imageId:observed};
 }
 
 export function runIsolatedFixtureVerification(receipt,{root=projectRoot,run=spawnSync,workspace=os.tmpdir()}={}){
@@ -90,7 +96,7 @@ export function runIsolatedFixtureVerification(receipt,{root=projectRoot,run=spa
    const dir=path.join(base,name);fs.mkdirSync(dir,{mode:0o755});
    fs.writeFileSync(path.join(dir,'rebate.mjs'),code,{mode:0o644,flag:'wx'});
    fs.writeFileSync(path.join(dir,'rebate.test.mjs'),testSource,{mode:0o644,flag:'wx'});
-   const result=run('docker',sealedDockerArguments(dir),{
+   const result=run('docker',sealedDockerArguments(dir,preflight.imageId),{
      encoding:'utf8',timeout:90000,maxBuffer:500000,windowsHide:true
    });
    const tap=String(result.stdout||'');
@@ -116,7 +122,7 @@ export function runIsolatedFixtureVerification(receipt,{root=projectRoot,run=spa
   return {status:verified?'ISOLATED_BEFORE_AFTER_VERIFIED':'ISOLATED_PATCH_REGRESSION_NOT_PROVEN',
     verified,baselineFailed,fixedPassed,originalUnchanged,
     sourceSha256:patch.sourceSha256,expectedSha256:patch.expectedSha256,
-    isolation:{image:ISOLATED_IMAGE,network:'none',readOnlyRoot:true,sourceRepoMounted:false,
+    isolation:{image:ISOLATED_IMAGE,imageId:preflight.imageId,network:'none',readOnlyRoot:true,sourceRepoMounted:false,
       droppedCapabilities:'ALL',nonRootUser:'65534:65534'},stages};
  }finally{fs.rmSync(base,{recursive:true,force:true});}
 }

@@ -5,7 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {
- CONTROLLED_FIXTURE,ISOLATED_IMAGE,sealedDockerArguments,
+ CONTROLLED_FIXTURE,ISOLATED_IMAGE,ISOLATED_IMAGE_SHA,sealedDockerArguments,
  verifyPreparedFixture,inspectDockerPreflight,runIsolatedFixtureVerification
 } from '../scripts/jarvis-isolated-patch-probe.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
@@ -43,10 +43,11 @@ test('Docker command is locked down: no network, privileges, root writes, Docker
  const combined=args.join(' ');
  for(const expected of ['--network none','--read-only','--cap-drop ALL','--security-opt no-new-privileges',
   '--pull never','--pids-limit 64','--memory 384m','--user 65534:65534',
-  'dst=/work,readonly',ISOLATED_IMAGE])assert.ok(combined.includes(expected),expected);
+  'dst=/work,readonly',ISOLATED_IMAGE_SHA])assert.ok(combined.includes(expected),expected);
  assert.ok(!combined.includes('docker.sock'));
  assert.ok(!combined.includes('--privileged'));
  assert.equal(args.at(-1),'/work/rebate.test.mjs');
+ assert.throws(()=>sealedDockerArguments(path.resolve('C:/isolated-test'),'sha256:forged'),/DIGEST_MISMATCH/);
 });
 
 test('without Docker engine the probe fails closed and executes no host-side patch',()=>{
@@ -66,7 +67,7 @@ test('in a Docker-backed sandbox, the baseline must fail and the proposed code p
   assert.equal(bin,'docker');
   calls.push(args);
   if(args[0]==='info')return {status:0,stdout:'28.0.0\n'};
-  if(args[0]==='image')return {status:0,stdout:'sha256:valid-image\n'};
+  if(args[0]==='image')return {status:0,stdout:ISOLATED_IMAGE_SHA+'\n'};
   assert.equal(args[0],'run');
   const i=args.indexOf('--mount');
   const hostDir=args[i+1].split(',dst=')[0].replace('type=bind,src=','');
@@ -88,7 +89,7 @@ test('in a Docker-backed sandbox, the baseline must fail and the proposed code p
 
 test('a green baseline or a failed after-test is not certified',()=>{
  const run=(bin,args)=>args[0]==='info'?{status:0,stdout:'28.0.0\n'}:args[0]==='image'?
-  {status:0,stdout:'sha256:valid-image\n'}:{status:0,stdout:'pass 4\nfail 0\n'};
+  {status:0,stdout:ISOLATED_IMAGE_SHA+'\n'}:{status:0,stdout:'pass 4\nfail 0\n'};
  const result=runIsolatedFixtureVerification(receipt(),{root,run});
  assert.equal(result.verified,false);
  assert.equal(result.status,'ISOLATED_PATCH_REGRESSION_NOT_PROVEN');
@@ -109,7 +110,7 @@ test('an unrelated failing baseline cannot masquerade as the requested broken re
  let count=0;
  const run=(bin,args)=>{
   if(args[0]==='info')return {status:0,stdout:'28.0.0\n'};
-  if(args[0]==='image')return {status:0,stdout:'sha256:valid-image\n'};
+  if(args[0]==='image')return {status:0,stdout:ISOLATED_IMAGE_SHA+'\n'};
   count++;
   if(count===1)return {status:1,stdout:
     'not ok 1 - ordinary rebate is deterministic\nok 4 - rebate larger than amount is rejected\n' +
@@ -121,4 +122,19 @@ test('an unrelated failing baseline cannot masquerade as the requested broken re
  assert.equal(result.verified,false);
  assert.equal(result.baselineFailed,false);
  assert.equal(result.status,'ISOLATED_PATCH_REGRESSION_NOT_PROVEN');
+});
+
+test('changed image digest is blocked before the first container starts',()=>{
+ const calls=[];
+ const run=(bin,args)=>{
+  calls.push(args[0]);
+  if(args[0]==='info')return {status:0,stdout:'29.9.2\n'};
+  if(args[0]==='image')return {status:0,stdout:'sha256:'+('9'.repeat(64))+'\n'};
+  throw Error('NO_CONTAINER_SHOULD_START');
+ };
+ const result=runIsolatedFixtureVerification(receipt(),{root,run});
+ assert.equal(result.status,'SANDBOX_IMAGE_DIGEST_MISMATCH');
+ assert.equal(result.verified,false);
+ assert.deepEqual(calls,['info','image']);
+ assert.equal(fs.readFileSync(path.join(root,CONTROLLED_FIXTURE),'utf8'),original);
 });
