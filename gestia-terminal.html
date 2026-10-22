@@ -245,6 +245,11 @@
                     ></textarea>
                 </div>
                 
+                <button type="button" id="btn-stop-mission" hidden disabled
+                    class="bg-red-900 hover:bg-red-800 text-white h-[58px] px-3 rounded-xl shrink-0"
+                    aria-label="Detener misión local" title="Cancelar petición a Qwen local">
+                    Detener
+                </button>
                 <button 
                     type="submit" 
                     id="btn-generate"
@@ -330,7 +335,7 @@ fetch("/gestia-terminal.js?v=v142-adjunto-flow-alignment-20261001")
 
 <script type="module" src="/modules/terminal/proposal-state.js?v=v142-adjunto-flow-alignment-20261001"></script>
 <script type="module" src="/modules/terminal/jarvis-attachments.js?v=v142-adjunto-flow-alignment-20261001"></script>
-<script type="module" src="/gestia-core/gestia-core.js?v=v142-code-preview-20261021-v32"></script>
+<script type="module" src="/gestia-core/gestia-core.js?v=v142-local-mission-cancel-20261021-v1"></script>
 <script type="module" src="/gestia-terminal.js?v=v142-adjunto-flow-alignment-20261001"></script>
 <script
 type="module"
@@ -1554,7 +1559,21 @@ window.unlockJarvisVoice = function() {
     let reconocimiento = null;
     let escuchandoAhora = false;
     let lastJarvisEnd = 0; 
-    let isProcessing = false; 
+    let isProcessing = false;
+    let localMissionAbortController = null;
+    const stopMissionButton = document.getElementById('btn-stop-mission');
+    // A cancel click interrupts the current authenticated Qwen fetch; it
+    // cannot authorize writes or claim that a mission was completed.
+    if(stopMissionButton&&!stopMissionButton.dataset.jarvisStopBound){
+        stopMissionButton.dataset.jarvisStopBound='true';
+        stopMissionButton.addEventListener('click',()=>{
+            if(!isProcessing||!localMissionAbortController||
+                localMissionAbortController.signal.aborted)return;
+            localMissionAbortController.abort('USER_REQUESTED_STOP');
+            stopMissionButton.disabled=true;
+            stopMissionButton.textContent='Deteniendo...';
+        });
+    }
     let activeUtterances = 0; 
     const COOLDOWN_ACUSTICO = 1200; 
 
@@ -1768,6 +1787,17 @@ window.unlockJarvisVoice = function() {
                 : "trace_" + Date.now();
 
             isProcessing = true;
+            const localPilotActive=location.protocol==='http:'&&
+                ['localhost','127.0.0.1'].includes(location.hostname)&&
+                location.port==='5000'&&
+                (!new URLSearchParams(location.search).get('qwenPilot')||
+                 new URLSearchParams(location.search).get('qwenPilot')==='general-v1');
+            localMissionAbortController=localPilotActive?new AbortController():null;
+            if(stopMissionButton){
+                stopMissionButton.hidden=!localPilotActive;
+                stopMissionButton.disabled=!localPilotActive;
+                stopMissionButton.textContent='Detener';
+            }
             const btnGenerate = document.getElementById("btn-generate");
             let handled = false;
             let activeWorkTracker = null;
@@ -3749,6 +3779,7 @@ if (
                         "arquitecto_supremo",
                     source:
                         "gestia_terminal_core_first_v7",
+                    missionAbortSignal:localMissionAbortController?.signal||null,
                     traceId:
                         currentTraceId,
                     naturalIntentAuthority:
@@ -3770,6 +3801,14 @@ if (
 
             lastCoreResult =
                 coreResult;
+            if(localMissionAbortController?.signal.aborted){
+                activeWorkTracker?.fail?.('Misión cancelada por el usuario');
+                window.renderJarvisResponse?.('Misión cancelada',
+                    'Se solicitó detener el piloto local. No se declara éxito ni se aplica ningún cambio. Los resultados ya confirmados permanecen en sus expedientes.',
+                    'warning');
+                handled=true;
+                return;
+            }
             activeWorkTracker?.resolveOutcome?.(coreResult);
 
             const semanticPlannerUnavailable =
@@ -5571,6 +5610,13 @@ const summary =
                 // 🔴 CIERRE DE TRAZA: Finalizamos seguimiento y calculamos latencia
                 if (typeof window.endTrace === "function") window.endTrace();
 
+                // Release the abort controller only after the active request returned.
+                localMissionAbortController=null;
+                if(stopMissionButton){
+                    stopMissionButton.hidden=true;
+                    stopMissionButton.disabled=true;
+                    stopMissionButton.textContent='Detener';
+                }
                 // Delay de seguridad de 50ms para evitar reentrada por eventos async externos
                 setTimeout(() => { isProcessing = false; }, 50);
 

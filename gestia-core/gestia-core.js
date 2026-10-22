@@ -4097,7 +4097,9 @@ export const GestiaCore = {
             globalThis.location?.port==='5000' && (!localQwenMode||localQwenMode==='general-v1')) {
             try {
                 const {runQwenGeneralPilot}=await import('../modules/terminal/qwen-general-pilot.js?release=v142-code-preview-20261021-v32');
+                context.missionAbortSignal?.throwIfAborted?.();
                 const result=await runQwenGeneralPilot({instruction:inputRaw,
+                    signal:context.missionAbortSignal||undefined,
                     auth,bridge:window.JarvisLocalBridge,toolRuntime:window.JarvisToolRuntime,
                     toolsBridge:window.ToolsBridge,sessionContext:{...context,tenantId,analysisId},
                     onProgress:detail=>globalThis.dispatchEvent?.(new CustomEvent('jarvis:work-progress',{detail}))});
