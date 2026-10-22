@@ -57,6 +57,11 @@ export function codeRepairRequested(instruction=''){
    for(const match of clause.matchAll(pattern)){
     const prefix=clause.slice(0,match.index).split(/\b(?:pero|en cambio|entonces)\b/iu).at(-1);
     if(/\b(?:no|sin|nunca|evita|evitar|prohibido|prohibida)\b/iu.test(prefix))continue;
+    // "donde se implementa" / "como se aplica" describe codigo existente;
+    // the pronominal indicative is not an instruction to mutate a repository.
+    const verb=match[0].toLowerCase();
+    if(/^(?:corrige|repara|implementa|aplica|modifica)$/u.test(verb)&&
+       /\bse\s*$/iu.test(prefix))continue;
     return true;
    }
   }
