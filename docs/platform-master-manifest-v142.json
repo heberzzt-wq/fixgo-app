@@ -863,10 +863,12 @@
       "priority": "P0",
       "anchors": [
         "docs/v142-b2c-forensic-audit-20260921.md",
-        "docs/jarvis-v142-platform-self-healing.md"
+        "docs/jarvis-v142-platform-self-healing.md",
+        "scripts/platform-manifest-daily-v142.mjs",
+        "tests/platform-manifest-daily.test.mjs"
       ],
-      "gap": "Crear catálogo con evidencia, fecha, dueño, estado y criterios de cierre.",
-      "acceptance": "Un manifiesto único actualizado y verificado en cada commit."
+      "gap": "Mantener al menos 7 cortes diarios consecutivos, recertificar avances con evidencia y cotejar el estado publico despues de releases autorizados.",
+      "acceptance": "Tarea diaria verificada, historico externo a Git, pruebas dirigidas y estado de 57 frentes sin bloquear al propietario ni inventar certificaciones productivas."
     }
   ],
   "governance": {
