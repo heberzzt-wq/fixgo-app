@@ -16,6 +16,10 @@ export const groups=['B2C','B2B','JARVIS','SEGURIDAD','OPERACIONES'];
 export function validateManifest(m,{rootDir=root}={}){
  const errors=[],ids=new Set();
  if(m.schemaVersion!=='platform-master-v142-1'||m.branch!=='v142-official')errors.push('SCHEMA_OR_BRANCH_INVALID');
+ if(!Array.isArray(m.ownerExecutionOrder)||m.ownerExecutionOrder.length!==5||
+  m.ownerExecutionOrder.some((x,i)=>x.rank!==i+1||!x.track||!x.name||!x.goal)||
+  new Set(m.ownerExecutionOrder.map(x=>x.track)).size!==5)
+  errors.push('OWNER_EXECUTION_ORDER_INVALID');
  if(!/^[a-f0-9]{40}$/i.test(m.auditedBaselineSha||''))errors.push('BASELINE_SHA_INVALID');
  if(!Array.isArray(m.workstreams)||m.workstreams.length<40)errors.push('INVENTORY_INCOMPLETE');
  if(m.governance?.noAutoDeploy!==true||m.governance?.noAutoFinancialWrites!==true||
@@ -105,18 +109,12 @@ export function renderManifest(m){
   }
   lines.push('');
  }
- lines.push('## Orden de cierre — P0 antes de funciones nuevas','',
- '1. **Acceso y dinero:** autenticar rutas privilegiadas, proteger al propietario',
- '   de bloqueos accidentales, verificar Functions legacy, retiros, KYC y reglas productivas.',
- '2. **Despliegue coordinado:** Hosting, Functions, Firestore y Storage con canarios y',
- '   validación de SHA; no publicar ni migrar usuarios automáticamente.',
- '3. **E2E real:** cliente-técnico-admin, empresa-supervisor-personal, sesiones',
- '   expiradas, cambio de red, cancelaciones, pagos sandbox y soporte.',
- '4. **Jarvis autónomo:** medir misiones reales, recuperación de errores, pruebas',
- '   Docker antes/después, calidad de documentos y observabilidad sin inventar éxito.',
- '5. **Conectores:** OAuth de lectura Gmail/Outlook/Zoho/Drive/Calendar/Meta;',
- '   aprobar individualmente cada operación de envío/publicación.',
- '6. **Resiliencia:** restauración, RTO/RPO, pruebas de caos, alarmas y rollback.',
+ lines.push('## Orden de ejecución decidido por el propietario — '+esc(m.ownerExecutionDecisionDate),'',
+ ...m.ownerExecutionOrder.map(x=>x.rank+'. **'+esc(x.name)+':** '+esc(x.goal)+'.'),
+ '',
+ '**Alcance:** la clasificación P0 sigue indicando bloqueos de lanzamiento, no el orden de desarrollo.',
+ 'Se mantienen permisos mínimos, prohibición de despliegue y operaciones financieras sin aprobación.',
+ 'La auditoría integral de seguridad queda para la quinta etapa, antes de la apertura general.',
  '',
  '## Requisito no-lockout del propietario',
  '',

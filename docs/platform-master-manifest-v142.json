@@ -3,6 +3,14 @@
   "snapshotDate": "2026-10-21",
   "repository": "heberzzt-wq/fixgo-app",
   "branch": "v142-official",
+  "ownerExecutionDecisionDate": "2026-10-22",
+  "ownerExecutionOrder": [
+    {"rank": 1, "track": "jarvis_autonomy", "name": "Autonomía real de JARVIS", "goal": "Misiones Qwen completas, recuperación, herramientas verificadas y entregables reales"},
+    {"rank": 2, "track": "external_connectors", "name": "Conectores", "goal": "Gmail, Outlook, Zoho, Drive, Calendar y redes sociales mediante autorización del propietario"},
+    {"rank": 3, "track": "coordinated_release", "name": "Alineación y despliegue", "goal": "Versiones coherentes de código, Hosting, Functions y reglas, con canario y aprobación"},
+    {"rank": 4, "track": "end_to_end", "name": "Certificación E2E B2C/B2B/JARVIS", "goal": "Recorridos completos desde cuentas y dispositivos reales de prueba"},
+    {"rank": 5, "track": "security_hardening", "name": "Seguridad integral", "goal": "Auditoría ofensiva, controles avanzados, sesiones y operación resiliente"}
+  ],
   "auditedBaselineSha": "9dc302bab83177cbcd848461bfb6804b5452778f",
   "productionEvidence": {
     "site": "https://fixgo-44e4d.web.app",

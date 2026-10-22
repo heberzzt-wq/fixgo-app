@@ -121,19 +121,17 @@ Las suites pueden solaparse: NO se suman como número de casos independientes.
 | OPS-06 | **P1** | SLO, disponibilidad y trazas centralizadas | Parcialmente cubierto | `no_verificado` | `jarvis-observability.js`, `tests/jarvis-observability.test.mjs` | **Pendiente:** Medir % de misiones completas, latencias, errores, saturación y costo. **Certificar:** Tablero 7/30 días con alertas, sin registrar secretos. |
 | OPS-07 | **P0** | Documentación de release y manifiesto maestro | Implementado y con pruebas locales | `no_verificado` | `docs/v142-b2c-forensic-audit-20260921.md`, `docs/jarvis-v142-platform-self-healing.md`, `scripts/platform-manifest-daily-v142.mjs` | **Pendiente:** Mantener al menos 7 cortes diarios consecutivos, recertificar avances con evidencia y cotejar el estado publico despues de releases autorizados. **Certificar:** Tarea diaria verificada, historico externo a Git, pruebas dirigidas y estado de 57 frentes sin bloquear al propietario ni inventar certificaciones productivas. |
 
-## Orden de cierre — P0 antes de funciones nuevas
+## Orden de ejecución decidido por el propietario — 2026-10-22
 
-1. **Acceso y dinero:** autenticar rutas privilegiadas, proteger al propietario
-   de bloqueos accidentales, verificar Functions legacy, retiros, KYC y reglas productivas.
-2. **Despliegue coordinado:** Hosting, Functions, Firestore y Storage con canarios y
-   validación de SHA; no publicar ni migrar usuarios automáticamente.
-3. **E2E real:** cliente-técnico-admin, empresa-supervisor-personal, sesiones
-   expiradas, cambio de red, cancelaciones, pagos sandbox y soporte.
-4. **Jarvis autónomo:** medir misiones reales, recuperación de errores, pruebas
-   Docker antes/después, calidad de documentos y observabilidad sin inventar éxito.
-5. **Conectores:** OAuth de lectura Gmail/Outlook/Zoho/Drive/Calendar/Meta;
-   aprobar individualmente cada operación de envío/publicación.
-6. **Resiliencia:** restauración, RTO/RPO, pruebas de caos, alarmas y rollback.
+1. **Autonomía real de JARVIS:** Misiones Qwen completas, recuperación, herramientas verificadas y entregables reales.
+2. **Conectores:** Gmail, Outlook, Zoho, Drive, Calendar y redes sociales mediante autorización del propietario.
+3. **Alineación y despliegue:** Versiones coherentes de código, Hosting, Functions y reglas, con canario y aprobación.
+4. **Certificación E2E B2C/B2B/JARVIS:** Recorridos completos desde cuentas y dispositivos reales de prueba.
+5. **Seguridad integral:** Auditoría ofensiva, controles avanzados, sesiones y operación resiliente.
+
+**Alcance:** la clasificación P0 sigue indicando bloqueos de lanzamiento, no el orden de desarrollo.
+Se mantienen permisos mínimos, prohibición de despliegue y operaciones financieras sin aprobación.
+La auditoría integral de seguridad queda para la quinta etapa, antes de la apertura general.
 
 ## Requisito no-lockout del propietario
 
