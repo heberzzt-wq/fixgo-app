@@ -3864,6 +3864,8 @@ if (
                 void import('./modules/terminal/qwen-download-ui.js?pilot=downloads-20261021-v3')
                     .then(async({appendMissionDownloadCard})=>{
                         const host=document.getElementById('gestia-output');
+                        if(coreResult?.ok===true)host?.querySelectorAll('[data-jarvis-failure-evidence]')
+                            .forEach(panel=>panel.remove());
                         appendMissionDownloadCard(host,{
                             missionId:coreResult.missionId,
                             evidenceUrl:coreResult?.evidence?.downloadUrl||null,

@@ -113,6 +113,13 @@ export async function restoreLatestMissionDownloadCard({host,auth,bridge}){
 
 // Failed missions need user-visible, verifiable evidence too, even when no
 // physical deliverable was produced. Never treat a failure panel as success.
+// Select the newest mission of ANY outcome. A prior PARTIAL must not appear
+// as the latest outcome after a newer independently verified SUCCESS.
+export function newestMissionEntry(previous,entry){
+ if(!validMissionId(entry?.missionId))return previous;
+ if(!previous||String(entry.createdAt||'')>String(previous.createdAt||''))return entry;
+ return previous;
+}
 export async function restoreLatestMissionFailureCard(host){
  if(!host||!globalThis.indexedDB)return null;
  const candidate=await new Promise((resolve,reject)=>{
@@ -127,11 +134,10 @@ export async function restoreLatestMissionFailureCard(host){
    cursor.onsuccess=()=>{
     const item=cursor.result;if(!item)return;
     const entry=item.value;
-    if(validMissionId(entry?.missionId)&&entry.record?.status==='PARTIAL'&&
-       (!latest||String(entry.createdAt||'')>String(latest.createdAt||'')))latest=entry;
+    latest=newestMissionEntry(latest,entry);
     item.continue();
    };
-   tx.oncomplete=()=>{db.close();resolve(latest);};
+   tx.oncomplete=()=>{db.close();resolve(latest?.record?.status==='PARTIAL'?latest:null);};
    tx.onerror=()=>{db.close();reject(Error('FAILED_MISSION_RECORD_READ_FAILED'));};
   };
  });
