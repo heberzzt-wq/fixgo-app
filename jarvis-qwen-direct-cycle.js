@@ -1,4 +1,5 @@
 import {validateOfferedArguments} from './jarvis-qwen-argument-schema.js';
+import {planPlatformRecovery,runAuthenticatedReadRecovery} from './jarvis-platform-self-healing.js';
 // Prototype for an optional local-Qwen read-only mission loop.
 // This module is not wired to production. It cannot grant permissions or
 // certify success: those decisions are mandatory independent host callbacks.
@@ -351,17 +352,45 @@ export async function runQwenAuthorizedCycle({
             return done('PARTIAL','INDEPENDENT_AUTHORIZATION_DENIED');
         }
         onProgress({phase:'TOOL_EXECUTION',iteration,name:tool.name,tool:tool.name,state:'active',executionId:'qwen-'+iteration});
-        let observation;
+        let observation,executionThrew=false;
         try{
             observation=await execute(invocation,{
                 instruction,signal,receipts:structuredClone(receipts),
                 authorization:structuredClone(authorization)
             });
         }catch(error){
-            const code=/^(?:ADVERTISING_SEMANTIC|LOCAL_QWEN)_[A-Z0-9_]+$/.test(String(error?.message||''))?error.message:'READ_TOOL_EXECUTION_FAILED';
-            receipts.push({name:tool.name,args:invocation.args,ok:false,observation:{ok:false,status:code,error:{code}}});
-            onProgress({phase:'TOOL_RESULT',iteration,name:tool.name,tool:tool.name,state:'failed',executionId:'qwen-'+iteration});
-            return done('PARTIAL','READ_TOOL_EXECUTION_FAILED');
+            if(signal?.aborted)return done('CANCELLED','SIGNAL_ABORTED');
+            executionThrew=true;
+            const value=String(error?.code||error?.message||'');
+            const code=/^(?:ADVERTISING_SEMANTIC|LOCAL_QWEN)_[A-Z0-9_]+$/.test(value)||
+              ['NETWORK_TRANSIENT','REMOTE_FETCH_FAILED','ETIMEDOUT','ECONNRESET',
+               'READ_TOOL_TRANSPORT_INTERRUPTED'].includes(value)?value:'READ_TOOL_EXECUTION_FAILED';
+            observation={ok:false,status:code,error:{code}};
+        }
+        // The shared platform policy, never Qwen, decides recovery eligibility.
+        const recoveryPlan=planPlatformRecovery({system:tool.name.split('.')[0],
+            tool,failure:observation,attempt:1});
+        if(repairIncomplete&&recoveryPlan.autoExecute===true){
+            onProgress({phase:'TOOL_RETRY',iteration,name:tool.name,state:'retrying',
+                executionId:'qwen-'+iteration,reason:recoveryPlan.code,attempt:2,maxAttempts:2});
+            const retry=await runAuthenticatedReadRecovery({
+                plan:recoveryPlan,tool,call:invocation,execute,authorize,signal,
+                instruction,receipts
+            });
+            if(retry.status==='RECOVERY_REAUTHORIZATION_UNAVAILABLE'||
+                retry.status==='RECOVERY_REAUTHORIZATION_DENIED'){
+                receipts.push({name:tool.name,args:invocation.args,ok:false,
+                    observation:{...observation,recovery:{attempts:1,transientError:recoveryPlan.code,
+                        retryBlocked:true,reason:'INDEPENDENT_REAUTHORIZATION_REQUIRED'}}});
+                onProgress({phase:'TOOL_RESULT',iteration,name:tool.name,state:'failed',executionId:'qwen-'+iteration});
+                return done('PARTIAL','INDEPENDENT_AUTHORIZATION_DENIED');
+            }
+            const second=retry.observation;
+            observation={...second,recovery:{attempts:retry.attempts,
+                transientError:recoveryPlan.code,
+                previousObservationStatus:observation?.status||null,
+                hostAuthorizedRetry:true,firstExecutionSucceeded:false,
+                finalExecutionSucceeded:second?.ok===true}};
         }
         const successful=observation?.ok===true && observation.executionOk!==false &&
             observation.blocked!==true && observation.requiresInput!==true &&
@@ -385,7 +414,8 @@ export async function runQwenAuthorizedCycle({
             // bounded action. Auth, permissions and execution failures still stop.
             if(['PLATFORM_QUERY_FIELD_NOT_DISCOVERED','PLATFORM_QUERY_FILTER_FIELD_NOT_DISCOVERED',
                 'PLATFORM_QUERY_ORDER_FIELD_NOT_DISCOVERED'].includes(code)){attempt.schemaFailure=true;continue;}
-            return done('PARTIAL',tool.name==='tests.run'?'CODE_TESTS_NOT_PASSING':'READ_TOOL_NOT_SUCCESSFUL');
+            return done('PARTIAL',executionThrew?'READ_TOOL_EXECUTION_FAILED':
+                tool.name==='tests.run'?'CODE_TESTS_NOT_PASSING':'READ_TOOL_NOT_SUCCESSFUL');
         }
     }
     return done('PARTIAL','STEP_LIMIT_REACHED');

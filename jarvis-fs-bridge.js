@@ -1,5 +1,6 @@
 import {qwenArtifactWriteGuard} from './jarvis-qwen-artifact-write-guard.js';
 import {pendingExternalConnectorInventory} from './jarvis-external-connector-contract.js';
+import {prepareBoundedXmlArtifact,verifyStructuredArtifactOutcome} from './jarvis-structured-artifact-recovery.js';
 import {createIsolatedEvidenceReadHandler} from './jarvis-isolated-evidence-readback.js';
 import {createPilotVersionGate,qwenRuntimeEnabled} from './jarvis-qwen-pilot-version.js';
 import {registerWorkstationHealth,createWorkstationAuthorization,supervisorHeartbeat} from './jarvis-workstation-health.js';
@@ -8837,7 +8838,7 @@ export function createJarvisFsBridgeApp({
             const normalizedFormat = String(format).toLowerCase();
             const allowed = new Set([
                 "html", "md", "txt", "csv", "json",
-                "docx", "xlsx", "pptx", "pdf"
+                "docx", "xlsx", "pptx", "pdf", "xml"
             ]);
 
             if (!allowed.has(normalizedFormat)) {
@@ -8888,6 +8889,7 @@ export function createJarvisFsBridgeApp({
             let documentVerification = null;
             let workbookCalculation = null;
             let pdfContentProof = null;
+            let xmlContentProof = null;
 
             if (normalizedFormat === "html") {
                 body = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${safeTitle}</title><style>body{font:16px/1.55 system-ui;max-width:960px;margin:48px auto;padding:0 24px;color:#172033}pre{white-space:pre-wrap}</style></head><body><h1>${safeTitle}</h1><pre>${content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre></body></html>`;
@@ -8895,6 +8897,28 @@ export function createJarvisFsBridgeApp({
             }
             else if (["md", "txt", "csv", "json"].includes(normalizedFormat)) {
                 fs.writeFileSync(target, body, "utf8");
+            }
+            else if(normalizedFormat === "xml"){
+                // Host-only recovery for a narrowly unescaped entity in text.
+                // XML structure must pass a real parser after repair and readback.
+                // Never overwrite a previous XML artifact.
+                if(fs.existsSync(target))return res.status(409).json({ok:false,
+                    status:'XML_ARTIFACT_OVERWRITE_FORBIDDEN',output:null,version:JARVIS_FS_BRIDGE_VERSION});
+                const prepared=prepareBoundedXmlArtifact(content);
+                if(prepared.ok!==true)return res.status(422).json({ok:false,
+                    status:prepared.status,xmlRecovery:prepared.diagnostic||null,
+                    output:null,version:JARVIS_FS_BRIDGE_VERSION});
+                fs.writeFileSync(target,prepared.content,{encoding:'utf8',flag:'wx'});
+                const readback=fs.readFileSync(target,'utf8');
+                if(!verifyStructuredArtifactOutcome({format:'xml',source:content,
+                    result:{...prepared,content:readback}})){
+                    fs.rmSync(target,{force:true});
+                    return res.status(422).json({ok:false,status:'XML_READBACK_UNVERIFIED',
+                        output:null,version:JARVIS_FS_BRIDGE_VERSION});
+                }
+                xmlContentProof={verified:true,status:prepared.status,
+                    sourceSha256:prepared.sourceSha256,finalSha256:prepared.finalSha256,
+                    recovery:prepared.recovery||null};
             }
             else if (normalizedFormat === "docx") {
                 const artifact =
@@ -9171,6 +9195,7 @@ export function createJarvisFsBridgeApp({
                 workbookCalculationVerified: normalizedFormat==="xlsx"&&workbookCalculation?.verified===true,
                 workbookCalculation,
                 pdfContentProof,
+                xmlContentProof,
                 ok: true,
                 status: "DOCUMENT_CREATED",
                 format: normalizedFormat,
