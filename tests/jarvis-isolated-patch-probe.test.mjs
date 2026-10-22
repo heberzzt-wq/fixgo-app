@@ -73,9 +73,9 @@ test('in a Docker-backed sandbox, the baseline must fail and the proposed code p
   const source=fs.readFileSync(path.join(hostDir,'rebate.mjs'),'utf8');
   const tests=fs.readFileSync(path.join(hostDir,'rebate.test.mjs'),'utf8');
   assert.ok(tests.includes('REBATE_EXCEEDS_AMOUNT'));
-  if(calls.length===3){assert.equal(source,original);return {status:1,stdout:'not ok 4 - rebate larger than amount is rejected\nfail 1\n'};}
+  if(calls.length===3){assert.equal(source,original);return {status:1,stdout:'not ok 4 - rebate larger than amount is rejected\ntests 4\npass 3\nfail 1\n'};}
   assert.equal(source,patched);
-  return {status:0,stdout:'ok 4 - rebate larger than amount is rejected\npass 4\nfail 0\n'};
+  return {status:0,stdout:'ok 4 - rebate larger than amount is rejected\ntests 4\npass 4\nfail 0\n'};
  };
  const result=runIsolatedFixtureVerification(receipt(),{root,run});
  assert.equal(result.verified,true);
@@ -103,4 +103,22 @@ test('Docker available but reviewed image absent does not execute or pull any co
  assert.equal(x.verified,false);
  assert.deepEqual(calls.map(a=>a[0]),['info','image']);
  assert.equal(fs.readFileSync(path.join(root,CONTROLLED_FIXTURE),'utf8'),original);
+});
+
+test('an unrelated failing baseline cannot masquerade as the requested broken rebate case',()=>{
+ let count=0;
+ const run=(bin,args)=>{
+  if(args[0]==='info')return {status:0,stdout:'28.0.0\n'};
+  if(args[0]==='image')return {status:0,stdout:'sha256:valid-image\n'};
+  count++;
+  if(count===1)return {status:1,stdout:
+    'not ok 1 - ordinary rebate is deterministic\nok 4 - rebate larger than amount is rejected\n' +
+    'tests 4\npass 3\nfail 1\n'};
+  return {status:0,stdout:
+    'ok 4 - rebate larger than amount is rejected\n'+'tests 4\npass 4\nfail 0\n'};
+ };
+ const result=runIsolatedFixtureVerification(receipt(),{root,run});
+ assert.equal(result.verified,false);
+ assert.equal(result.baselineFailed,false);
+ assert.equal(result.status,'ISOLATED_PATCH_REGRESSION_NOT_PROVEN');
 });

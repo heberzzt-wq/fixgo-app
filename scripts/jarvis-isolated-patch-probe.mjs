@@ -93,11 +93,24 @@ export function runIsolatedFixtureVerification(receipt,{root=projectRoot,run=spa
    const result=run('docker',sealedDockerArguments(dir),{
      encoding:'utf8',timeout:90000,maxBuffer:500000,windowsHide:true
    });
-   stages.push({stage:name,...outcome(result)});
+   const tap=String(result.stdout||'');
+   const marker=/(?:^|\r?\n)not ok 4 - rebate larger than amount is rejected(?:\r?\n|$)/.test(tap);
+   const repaired=/(?:^|\r?\n)ok 4 - rebate larger than amount is rejected(?:\r?\n|$)/.test(tap);
+   const counts={
+     tests4:/(?:^|\r?\n)(?:# )?tests 4(?:\r?\n|$)/.test(tap),
+     pass3:/(?:^|\r?\n)(?:# )?pass 3(?:\r?\n|$)/.test(tap),
+     pass4:/(?:^|\r?\n)(?:# )?pass 4(?:\r?\n|$)/.test(tap),
+     fail1:/(?:^|\r?\n)(?:# )?fail 1(?:\r?\n|$)/.test(tap),
+     fail0:/(?:^|\r?\n)(?:# )?fail 0(?:\r?\n|$)/.test(tap)
+   };
+   stages.push({stage:name,...outcome(result),targetFailure:marker,targetPass:repaired,counts});
    if(result.error||result.signal||result.status===null)throw Error('SANDBOX_CONTAINER_EXECUTION_FAILED');
   }
-  const baselineFailed=stages[0].exitCode!==0&&/rebate larger than amount is rejected/.test(stages[0].stdout);
-  const fixedPassed=stages[1].exitCode===0&&/pass 4/.test(stages[1].stdout)&&/fail 0/.test(stages[1].stdout);
+  // The baseline must specifically fail the requested assertion. A different
+  // test failing while this test passes does NOT prove the requested bug.
+  const before=stages[0],after=stages[1];
+  const baselineFailed=before.exitCode!==0&&before.targetFailure&&before.counts.tests4&&before.counts.pass3&&before.counts.fail1;
+  const fixedPassed=after.exitCode===0&&after.targetPass&&after.counts.tests4&&after.counts.pass4&&after.counts.fail0;
   const originalUnchanged=sha(fs.readFileSync(target,'utf8'))===patch.sourceSha256;
   const verified=baselineFailed&&fixedPassed&&originalUnchanged;
   return {status:verified?'ISOLATED_BEFORE_AFTER_VERIFIED':'ISOLATED_PATCH_REGRESSION_NOT_PROVEN',
