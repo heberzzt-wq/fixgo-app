@@ -62,3 +62,12 @@ test('published Markdown is deterministically generated and contains all 57 fron
  assert.match(actual,/OPS-01/);
  assert.match(actual,/No equivale|NO una certificación/i);
 });
+
+test('root agent entrypoint locates the canonical manifest without granting implicit authority',()=>{
+ const text=readFileSync(new URL('../AGENTS.md',import.meta.url),'utf8');
+ assert.match(text,/docs\/platform-master-manifest-v142\.md/);
+ assert.match(text,/docs\/platform-master-manifest-v142\.json/);
+ assert.match(text,/no bloquear ni revocar autom[aá]ticamente/i);
+ assert.match(text,/no ejecutar cobros, retiros/i);
+ assert.match(text,/node scripts\/platform-master-manifest-v142\.mjs --check/);
+});
