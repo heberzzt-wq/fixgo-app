@@ -53,3 +53,17 @@ test('invalid or incomplete inventory can never become an updated daily status r
  assert.throws(()=>buildDailyReport({manifest:bad,head:HEAD,date:day}),/MANIFEST_INVALID/);
  assert.throws(()=>buildDailyReport({manifest:data,head:'forged',date:day}),/HEAD_INVALID/);
 });
+
+test('daily report exposes exact failing test names without concealing a failed gate',()=>{
+ const manifest=structuredClone(data);
+ const evidence=buildDailyReport({manifest,head:HEAD,date:day,
+  tests:{status:'DIRECTED_SUITE_FAILED',passed:11,failed:2,
+   failingCases:['✖ owner session recovery test','✖ public server file exclusion']},
+  services:{5000:true,3344:true,3345:true,11434:true}});
+ assert.equal(evidence.tests.status,'DIRECTED_SUITE_FAILED');
+ assert.ok(evidence.warnings.includes('DAILY_DIRECTED_TESTS_NOT_CONFIRMED'));
+ const markdown=renderDailyReport(evidence,manifest);
+ assert.match(markdown,/Pruebas con problemas/);
+ assert.match(markdown,/owner session recovery test/);
+ assert.match(markdown,/11 aprobadas \/ 2 fallidas/);
+});

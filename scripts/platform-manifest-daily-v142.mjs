@@ -41,9 +41,11 @@ function runFastTests(root){
     .filter(Boolean);
   return match.length?Number(match.at(-1)[1]):null;
  };
+ const failingCases=lines.filter(line=>line.startsWith('✖ ')||/^not ok \d+ - /u.test(line))
+  .slice(0,12).map(line=>safe(line).slice(0,145));
  return {status:result.status===0?'DIRECTED_SUITE_PASSED':'DIRECTED_SUITE_FAILED',
   passed:n('pass'),failed:n('fail'),exitCode:result.status,
-  timedOut:result.error?.code==='ETIMEDOUT',
+  timedOut:result.error?.code==='ETIMEDOUT',failingCases,
   suite:'manifiesto + superficie de hosting + protección web localhost'};
 }
 function dateForZone(date){
@@ -118,6 +120,10 @@ export function renderDailyReport(report,manifest){
   ' · '+(report.tests.passed??'s/d')+' aprobadas / '+
   (report.tests.failed??'s/d')+' fallidas.','',
   '## Frentes modificados que requieren comprobación','');
+ if(report.tests.failingCases?.length){
+  lines.push('','**Pruebas con problemas:**','');
+  for(const name of report.tests.failingCases)lines.push('- '+safe(name));
+ }
  for(const id of report.platform.workstreamsTouched){
   const w=manifest.workstreams.find(x=>x.id===id);
   lines.push('- '+id+' ['+w.priority+'] '+safe(w.title)+': **pendiente** '+
