@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {verifiedCodePreviewRecord} from '../modules/terminal/qwen-code-preview-download.js';
+import {verifiedCodePreviewRecord,verifiedHostIsolatedProof} from '../modules/terminal/qwen-code-preview-download.js';
 
 const id='general-38f6031b-b7cc-4ead-b056-43d349e9fa3a';
 const file='tests/fixtures/v142-rebate-preview.js';
@@ -59,8 +59,29 @@ test('Terminal restores code preview across reloads and offers a non-mutating do
  const html=readFileSync(new URL('../gestia-terminal.html',import.meta.url),'utf8');
  const ui=readFileSync(new URL('../modules/terminal/qwen-code-preview-download.js',import.meta.url),'utf8');
  assert.match(html,/restoreLatestCodePreviewReceiptCard/);
- assert.match(html,/code-preview-evidence-20261021-v1/);
+ assert.match(html,/code-preview-evidence-20261021-v2/);
  assert.match(ui,/Parche preparado para revisión — NO aplicado/);
  assert.match(ui,/Falta comprobar el parche en aislamiento antes\/después/);
  assert.ok(!ui.includes("window.JarvisLocalBridge.write"));
+});
+
+test('Terminal trusts a host-issued controlled fixture summary only when all preview fingerprints match',()=>{
+ const preview={missionId:id,file,sha256:original,preparedSha256:patched,fingerprint:'a'.repeat(64)};
+ const physical={ok:true,status:'ISOLATED_FIXTURE_BEFORE_AFTER_VERIFIED',
+  missionId:id,sourceFile:file,sourceSha256:original,expectedSha256:patched,
+  fingerprint:preview.fingerprint,
+  before:{passed:3,failed:1},after:{passed:4,failed:0},
+  sourceRepoUnchanged:true,patchApplied:false,productionRepairCertified:false,
+  humanApprovalStillRequired:true,scope:'controlled-fixture-only'};
+ assert.equal(verifiedHostIsolatedProof(preview,physical),true);
+ for(const change of [
+  {missionId:'general-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'},
+  {sourceFile:'functions/index.js'},
+  {sourceSha256:'c'.repeat(64)},{expectedSha256:'d'.repeat(64)},
+  {fingerprint:'e'.repeat(64)},{patchApplied:true},
+  {productionRepairCertified:true},{humanApprovalStillRequired:false},
+  {sourceRepoUnchanged:false},{scope:'production'},
+  {after:{passed:0,failed:4}}
+ ])assert.equal(verifiedHostIsolatedProof(preview,{...physical,...change}),false);
+ assert.equal(verifiedHostIsolatedProof(preview,{ok:false}),false);
 });

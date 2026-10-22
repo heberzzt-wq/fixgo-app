@@ -677,9 +677,9 @@ const terminalDownloadRestoreInterval=setInterval(()=>{
             });
         })
         .catch(error=>console.warn('[JARVIS_DOWNLOAD_RESTORE_UNAVAILABLE]',error?.message||error));
-     void import('./modules/terminal/qwen-code-preview-download.js?pilot=code-preview-evidence-20261021-v1')
+     void import('./modules/terminal/qwen-code-preview-download.js?pilot=code-preview-evidence-20261021-v2')
          .then(({restoreLatestCodePreviewReceiptCard})=>restoreLatestCodePreviewReceiptCard({
-             host:document.getElementById('gestia-output'),auth:window.auth
+             host:document.getElementById('gestia-output'),auth:window.auth,bridge:window.JarvisLocalBridge
          }))
          .catch(error=>console.warn('[JARVIS_CODE_PREVIEW_RESTORE_UNAVAILABLE]',error?.message||error));
 },500);
@@ -3832,8 +3832,8 @@ if (
                         });
                         if(coreResult?.ok===true){
                             const {restoreLatestCodePreviewReceiptCard}=
-                                await import('./modules/terminal/qwen-code-preview-download.js?pilot=code-preview-evidence-20261021-v1');
-                            await restoreLatestCodePreviewReceiptCard({host,auth:window.auth});
+                                await import('./modules/terminal/qwen-code-preview-download.js?pilot=code-preview-evidence-20261021-v2');
+                            await restoreLatestCodePreviewReceiptCard({host,auth:window.auth,bridge:window.JarvisLocalBridge});
                         }
                     })
                     .catch(error=>console.warn('[JARVIS_DOWNLOAD_UI_UNAVAILABLE]',error?.message||error));

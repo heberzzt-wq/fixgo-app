@@ -44,7 +44,17 @@ export async function verifiedCodePreviewRecord(record,missionId){
     requiresHumanApproval:true};
 }
 
-export function appendCodePreviewReceiptCard(host,{missionId,url,file}={}){
+export function verifiedHostIsolatedProof(preview,proof){
+ return proof?.ok===true&&proof?.status==='ISOLATED_FIXTURE_BEFORE_AFTER_VERIFIED'&&
+    proof.missionId===preview?.missionId&&proof.sourceFile===preview?.file&&
+    proof.sourceSha256===preview?.sha256&&proof.expectedSha256===preview?.preparedSha256&&
+    proof.fingerprint===preview?.fingerprint&&
+    proof.before?.passed===3&&proof.before?.failed===1&&proof.after?.passed===4&&proof.after?.failed===0&&
+    proof.sourceRepoUnchanged===true&&proof.patchApplied===false&&
+    proof.productionRepairCertified===false&&proof.humanApprovalStillRequired===true&&
+    proof.scope==='controlled-fixture-only';
+}
+export function appendCodePreviewReceiptCard(host,{missionId,url,file,isolatedProof=false}={}){
  if(!host||!validMissionId(missionId)||!FIXTURE.test(file||'')||
     typeof url!=='string'||!url.startsWith('blob:'+location.origin+'/'))return null;
  host.querySelectorAll('[data-jarvis-code-preview]').forEach(n=>n.remove());
@@ -56,7 +66,9 @@ export function appendCodePreviewReceiptCard(host,{missionId,url,file}={}){
  const detail=document.createElement('span');
  detail.textContent=missionId+' · '+file;
  const disclaimer=document.createElement('small');
- disclaimer.textContent='Solo se ejecutaron pruebas del código original. Falta comprobar el parche en aislamiento antes/después. No es autorización para escribir ni publicar.';
+ disclaimer.textContent=isolatedProof?
+  'Docker: verificación física local 3/4 antes y 4/4 después. Archivo original intacto. Solo caso ficticio; el parche NO está aplicado ni autorizado para producción.':
+  'Solo se ejecutaron pruebas del código original. Falta comprobar el parche en aislamiento antes/después. No es autorización para escribir ni publicar.';
  const link=document.createElement('a');
  link.className='jarvis-download-button';
  link.href=url;
@@ -67,7 +79,7 @@ export function appendCodePreviewReceiptCard(host,{missionId,url,file}={}){
  return section;
 }
 
-export async function restoreLatestCodePreviewReceiptCard({host,auth}={}){
+export async function restoreLatestCodePreviewReceiptCard({host,auth,bridge}={}){
  if(!host||!auth?.currentUser||!globalThis.indexedDB)return null;
  const identity=auth.currentUser;
  if(identity.uid!==JARVIS_PRIVATE_RELAY.ownerUid||typeof identity.getIdToken!=='function')return null;
@@ -98,7 +110,18 @@ export async function restoreLatestCodePreviewReceiptCard({host,auth}={}){
  if(actual!==candidate.sha256)return null;
  const preview=await verifiedCodePreviewRecord(candidate.record,candidate.missionId);
  if(!preview||auth.currentUser!==identity)return null;
+ let proof=null;
+ if(typeof bridge?.requestJson==='function'){
+  try{
+   const idToken=await identity.getIdToken();
+   if(auth.currentUser!==identity)return null;
+   const observed=await bridge.requestJson('/qwen-isolated/evidence',
+       {missionId:candidate.missionId},{idToken,timeoutMs:12000});
+   if(verifiedHostIsolatedProof(preview,observed))proof=observed;
+  }catch{/* No host archive or invalid authorization: keep truthful pending status. */}
+ }
+ if(auth.currentUser!==identity)return null;
  const url=URL.createObjectURL(new Blob([serialized],{type:'application/json'}));
  return appendCodePreviewReceiptCard(host,{missionId:candidate.missionId,
-    url,file:preview.file});
+    url,file:preview.file,isolatedProof:!!proof});
 }

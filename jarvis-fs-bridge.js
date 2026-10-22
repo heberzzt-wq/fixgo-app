@@ -1,5 +1,6 @@
 import {qwenArtifactWriteGuard} from './jarvis-qwen-artifact-write-guard.js';
 import {pendingExternalConnectorInventory} from './jarvis-external-connector-contract.js';
+import {createIsolatedEvidenceReadHandler} from './jarvis-isolated-evidence-readback.js';
 import {createPilotVersionGate,qwenRuntimeEnabled} from './jarvis-qwen-pilot-version.js';
 import {registerWorkstationHealth,createWorkstationAuthorization,supervisorHeartbeat} from './jarvis-workstation-health.js';
 import {verifyBrowserIdToken} from './jarvis-qwen-decision-http.js';
@@ -7077,6 +7078,10 @@ export function createJarvisFsBridgeApp({
         authorize:createWorkstationAuthorization({identity:requestIdentity,verifyIdToken:verifyBrowserIdToken,ownerUid:workstationRelay.ownerUid}),
         capabilities:()=>localAsrHealth({root})
     });
+    if(qwenEnabled)app.post('/qwen-isolated/evidence',createIsolatedEvidenceReadHandler({
+        root,authorize:createWorkstationAuthorization({identity:requestIdentity,
+            verifyIdToken:verifyBrowserIdToken,ownerUid:workstationRelay.ownerUid})
+    }));
     const pilotVersionGate=qwenEnabled?createPilotVersionGate(root):null;
     if(pilotVersionGate)app.post('/qwen-pilot/preflight',(req,res)=>{
         const result=pilotVersionGate.inspect(req.body||{});
