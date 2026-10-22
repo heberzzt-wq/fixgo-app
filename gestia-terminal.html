@@ -3804,7 +3804,7 @@ if (
             if(localMissionAbortController?.signal.aborted){
                 activeWorkTracker?.fail?.('Misión cancelada por el usuario');
                 window.renderJarvisResponse?.('Misión cancelada',
-                    'Se solicitó detener el piloto local. No se declara éxito ni se aplica ningún cambio. Los resultados ya confirmados permanecen en sus expedientes.',
+                    'Se solicitó detener el piloto local. No se declara éxito ni se aplica ningún cambio. Los recibos de esta misión solo se conservan si alcanzaron a guardarse en un expediente verificado.',
                     'warning');
                 handled=true;
                 return;

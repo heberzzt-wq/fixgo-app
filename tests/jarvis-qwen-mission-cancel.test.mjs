@@ -26,6 +26,7 @@ test('abort controller reaches the authorized local Qwen runner, with no write c
  assert.match(core,/context\.missionAbortSignal\?\.throwIfAborted/);
  assert.match(html,/stopMissionButton\.hidden=true/);
  assert.match(html,/Misión cancelada por el usuario/);
+ assert.match(html,/Los recibos de esta misión solo se conservan si alcanzaron a guardarse/);
 });
 test('cancel interrupts the fetch awaiting local Qwen and never accepts a fabricated result',async()=>{
  const user={uid:'owner',getIdToken:async()=> 'test-token'};
