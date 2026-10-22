@@ -1,0 +1,882 @@
+{
+  "schemaVersion": "platform-master-v142-1",
+  "snapshotDate": "2026-10-21",
+  "repository": "heberzzt-wq/fixgo-app",
+  "branch": "v142-official",
+  "auditedBaselineSha": "9dc302bab83177cbcd848461bfb6804b5452778f",
+  "productionEvidence": {
+    "site": "https://fixgo-44e4d.web.app",
+    "observedDate": "2026-10-21",
+    "publicRuntimeBranch": "v94-media-v4n-negative-claims",
+    "publicManifestSha": "e1b0ed175754ca546210cf6068d84e7d47193d7d",
+    "confidence": "HTTP read-only, not authenticated production E2E",
+    "risk": "release-version-drift",
+    "internalServerFilesPubliclyServed": [
+      "/jarvis-fs-bridge.js",
+      "/jarvis-upload-bridge.js"
+    ],
+    "lastReadOnlyProbe": "HTTP 200 observed on 2026-10-21, does not verify current Functions or financial safety"
+  },
+  "testObservations": [
+    {
+      "suite": "B2B dirigida",
+      "passed": 31,
+      "failed": 0,
+      "provenance": "Node local: b2b-* y auth-routing-consistency",
+      "asOf": "2026-10-21"
+    },
+    {
+      "suite": "B2C dirigida",
+      "passed": 63,
+      "failed": 0,
+      "provenance": "Node local: selección física b2c-*",
+      "asOf": "2026-10-21"
+    },
+    {
+      "suite": "Bridge V142",
+      "passed": 110,
+      "failed": 0,
+      "provenance": "Node local con Python funcional, último pase registrado",
+      "asOf": "2026-10-21"
+    },
+    {
+      "suite": "Qwen / aislamiento",
+      "passed": 367,
+      "failed": 0,
+      "provenance": "Node local de test bundles, no equivale a E2E productivo",
+      "asOf": "2026-10-21"
+    }
+  ],
+  "historicalAudit": "docs/v142-b2c-forensic-audit-20260921.md",
+  "statusLegend": {
+    "probado_local": "Implementado y con pruebas locales",
+    "verificado_local": "Demostrado en flujo local acotado",
+    "codigo_presente": "Existe código, falta certificación integral",
+    "inventariado_sin_integracion": "Diseño/inventario sin conexión efectiva",
+    "no_verificado": "Aún sin evidencia suficiente",
+    "brecha": "Brecha o bloqueo conocido",
+    "historico": "Componente histórico por recertificar",
+    "parcial": "Parcialmente cubierto",
+    "publico_observado": "Rutas públicas observadas (no E2E)",
+    "en_construccion": "Se está cerrando el inventario"
+  },
+  "workstreams": [
+    {
+      "id": "B2C-01",
+      "domain": "B2C",
+      "title": "Registro, acceso y sesiones",
+      "status": "probado_local",
+      "production": "sin_e2e_productivo",
+      "priority": "P0",
+      "anchors": [
+        "firebase.js",
+        "app-login.js",
+        "tests/b2c-registration-recovery.test.mjs"
+      ],
+      "gap": "E2E cliente email/Google, expiración, revocación, cambio de cuenta y recuperación sin expulsar al dueño.",
+      "acceptance": "Sesiones reales de prueba cubren entrada, refresh, cierre, revocación y regreso sin bucles."
+    },
+    {
+      "id": "B2C-02",
+      "domain": "B2C",
+      "title": "KYC técnicos, rostro, INE y aprobación",
+      "status": "probado_local",
+      "production": "bloqueo_historico",
+      "priority": "P0",
+      "anchors": [
+        "functions/b2c-technician-approval.js",
+        "tests/b2c-kyc-physical.test.cjs"
+      ],
+      "gap": "Revisar cámara móvil y documentos físicos; recertificar expedientes legacy sin autoaprobar.",
+      "acceptance": "Captura/recaptura móvil, retorno y aprobación humana con evidencia inmutable, E2E."
+    },
+    {
+      "id": "B2C-03",
+      "domain": "B2C",
+      "title": "Roles cliente, técnico, jefe y ayudante",
+      "status": "codigo_presente",
+      "production": "no_verificado",
+      "priority": "P1",
+      "anchors": [
+        "functions/b2c-platform-authority.js",
+        "functions/b2c-provider-crew.js",
+        "tests/b2c-platform-authority.test.mjs"
+      ],
+      "gap": "Probar límite de miembros, delegación, separación de cuentas y permisos reales.",
+      "acceptance": "Pruebas cross-role, cross-tenant y casos de equipo en sesión autenticada."
+    },
+    {
+      "id": "B2C-04",
+      "domain": "B2C",
+      "title": "Catálogo, solicitudes y disponibilidad",
+      "status": "probado_local",
+      "production": "sin_e2e_productivo",
+      "priority": "P0",
+      "anchors": [
+        "functions/b2c-service-marketplace.js",
+        "functions/b2c-platform-authority.js",
+        "tests/b2c-platform-authority.test.mjs"
+      ],
+      "gap": "Reconciliar oferta ROAD/TECH y validación de catálogo vivo y SLA de creación.",
+      "acceptance": "Solicitud verificada con categoría atendible, ningún técnico fantasma y confirmación de estado."
+    },
+    {
+      "id": "B2C-05",
+      "domain": "B2C",
+      "title": "Asignación, claim, bloqueo y no-show",
+      "status": "probado_local",
+      "production": "sin_e2e_productivo",
+      "priority": "P0",
+      "anchors": [
+        "functions/b2c-service-marketplace.js",
+        "b2c-technician-no-show.js",
+        "tests/b2c-workflow-emulator.test.mjs"
+      ],
+      "gap": "Correr flujo completo y concurrencia >50 listings; reintento de notificación y anulación.",
+      "acceptance": "Solo una adjudicación, locks liberados exactamente una vez y trazabilidad cliente-técnico."
+    },
+    {
+      "id": "B2C-06",
+      "domain": "B2C",
+      "title": "Cotización y autorización de cliente",
+      "status": "probado_local",
+      "production": "sin_e2e_productivo",
+      "priority": "P0",
+      "anchors": [
+        "functions/b2c-service-workflow.js",
+        "tests/b2c-workflow-emulator.test.mjs"
+      ],
+      "gap": "Probar presupuestos, rechazos, tiempos y concurrencia en navegadores reales.",
+      "acceptance": "Consentimiento y quote vinculados a servicio y actor con transacción verificable."
+    },
+    {
+      "id": "B2C-07",
+      "domain": "B2C",
+      "title": "Evidencia de trabajo y firma",
+      "status": "probado_local",
+      "production": "bloqueo_historico",
+      "priority": "P0",
+      "anchors": [
+        "b2c-evidence-orchestrator.js",
+        "functions/b2c-service-settlement.js",
+        "tests/b2c-close-recovery.test.mjs"
+      ],
+      "gap": "Comprobar consentimiento humano y bytes auténticos; inspeccionar Storage productivo.",
+      "acceptance": "Firma/imagen del actor correcto, no reuso cruzado, cierre bloqueado ante evidencia inexistente."
+    },
+    {
+      "id": "B2C-08",
+      "domain": "B2C",
+      "title": "Cierre y liquidación",
+      "status": "probado_local",
+      "production": "bloqueo_historico",
+      "priority": "P0",
+      "anchors": [
+        "functions/b2c-service-settlement.js",
+        "tests/b2c-finance-emulator.test.mjs"
+      ],
+      "gap": "Validar funciones legacy y sincronizar funciones/rules/hosting autorizadamente.",
+      "acceptance": "Un solo ledger y cierre por servicio, rollback operativo seguro."
+    },
+    {
+      "id": "B2C-09",
+      "domain": "B2C",
+      "title": "Efectivo, comisiones y saldo",
+      "status": "probado_local",
+      "production": "no_verificado",
+      "priority": "P0",
+      "anchors": [
+        "functions/b2c-financial-policy.js",
+        "b2c-commission-display.js",
+        "tests/b2c-commission-display.test.mjs"
+      ],
+      "gap": "Alinear catálogo de tasas, comisiones y reputación sin tocar wallets.",
+      "acceptance": "Política firmada, saldos reconciliados e informe financiero auditable."
+    },
+    {
+      "id": "B2C-10",
+      "domain": "B2C",
+      "title": "Tarjeta, Stripe y webhooks",
+      "status": "codigo_presente",
+      "production": "sin_sandbox_proveedor",
+      "priority": "P0",
+      "anchors": [
+        "functions/secure-entry.js",
+        "b2c-stripe-fail-closed-stub.js",
+        "tests/secure-financial-entry.test.mjs"
+      ],
+      "gap": "Flujo real en sandbox de Stripe y pago tardío tras cancelación.",
+      "acceptance": "Eventos firmados, idempotencia y refund reales sandbox, no solo mocks."
+    },
+    {
+      "id": "B2C-11",
+      "domain": "B2C",
+      "title": "Retiros requestPayout y permisos financieros",
+      "status": "probado_local",
+      "production": "bloqueo_historico",
+      "priority": "P0",
+      "anchors": [
+        "functions/index.js",
+        "tests/b2c-withdrawal-recovery.test.mjs",
+        "docs/v142-security-hotfix.md"
+      ],
+      "gap": "Revalidar versión REMOTA de requestPayout; auditoría histórica halló importe negativo.",
+      "acceptance": "Función antigua neutralizada en producción, pruebas negativas sin operaciones monetarias."
+    },
+    {
+      "id": "B2C-12",
+      "domain": "B2C",
+      "title": "Cancelaciones, disputas y reembolsos",
+      "status": "codigo_presente",
+      "production": "sin_e2e_productivo",
+      "priority": "P0",
+      "anchors": [
+        "b2c-client-dispute-ui-recovery.js",
+        "b2c-technician-no-show.js",
+        "tests/b2c-close-recovery.test.mjs"
+      ],
+      "gap": "Resolver abandono postcotización, soporte, visita y devoluciones financieras.",
+      "acceptance": "Matriz de motivos/autorización y E2E documentado por estado."
+    },
+    {
+      "id": "B2C-13",
+      "domain": "B2C",
+      "title": "Notificaciones FCM y logout",
+      "status": "codigo_presente",
+      "production": "no_verificado",
+      "priority": "P1",
+      "anchors": [
+        "b2c-client-arrival-notification.js",
+        "b2c-client-arrival-dispute-evidence.js",
+        "docs/v142-b2c-forensic-audit-20260921.md"
+      ],
+      "gap": "Entrega física en móviles, revocación de token por cuenta y replay.",
+      "acceptance": "Push recibido en dispositivo autorizado y token viejo rechazado."
+    },
+    {
+      "id": "B2C-14",
+      "domain": "B2C",
+      "title": "Offline, sincronización, recuperación de solicitud",
+      "status": "probado_local",
+      "production": "sin_e2e_productivo",
+      "priority": "P1",
+      "anchors": [
+        "b2c-request-recovery.js",
+        "tests/b2c-request-recovery.test.mjs"
+      ],
+      "gap": "Simular cambios de red, dos pestañas y reconexión sin duplicados.",
+      "acceptance": "Idempotencia física y usuario correcto tras cambios de red/refresh."
+    },
+    {
+      "id": "B2C-15",
+      "domain": "B2C",
+      "title": "Cobertura de Firestore y Storage Rules",
+      "status": "probado_local",
+      "production": "publicacion_no_verificada",
+      "priority": "P0",
+      "anchors": [
+        "security/firestore-console-snapshot-2026-07-30.rules.txt",
+        "security/storage-hardening-candidate.rules.txt",
+        "tests/b2c-security-rules-contract.test.mjs"
+      ],
+      "gap": "Comparar rules REMOTAS contra commit y emuladores; proteger cross-tenant.",
+      "acceptance": "Reglas productivas versionadas, sin permisos heredados inseguros."
+    },
+    {
+      "id": "B2C-16",
+      "domain": "B2C",
+      "title": "E2E cliente → técnico → admin → cobro",
+      "status": "no_verificado",
+      "production": "no_verificado",
+      "priority": "P0",
+      "anchors": [
+        "docs/v142-b2c-forensic-audit-20260921.md",
+        "tests/b2c-client-technician-contract.test.mjs"
+      ],
+      "gap": "Sin prueba completa certificada de dispositivos reales y cuentas TEST.",
+      "acceptance": "Recorrido completo con recibos, estrés, cancelación y tiempos de recuperación."
+    },
+    {
+      "id": "B2B-01",
+      "domain": "B2B",
+      "title": "Aislamiento de empresas/tenants y roles",
+      "status": "probado_local",
+      "production": "sin_e2e_productivo",
+      "priority": "P0",
+      "anchors": [
+        "b2b-supervisor-session.js",
+        "tests/b2b-supervisor-session.test.mjs"
+      ],
+      "gap": "Sesiones reales de varias empresas; alta baja y cambio de tenant.",
+      "acceptance": "Ninguna lectura, escucha ni edición cruzada entre empresas."
+    },
+    {
+      "id": "B2B-02",
+      "domain": "B2B",
+      "title": "Supervisor, personal y sesiones",
+      "status": "probado_local",
+      "production": "sin_e2e_productivo",
+      "priority": "P1",
+      "anchors": [
+        "panel-supervisor-b2b.js",
+        "tests/b2b-render-authority.test.mjs"
+      ],
+      "gap": "Validar refresh, sesiones expiradas, nueva red y recuperación de supervisor.",
+      "acceptance": "Acceso correcto tras revocar y reactivar, sin exponer datos de otra empresa."
+    },
+    {
+      "id": "B2B-03",
+      "domain": "B2B",
+      "title": "Expedientes y KYC de personal",
+      "status": "probado_local",
+      "production": "sin_e2e_productivo",
+      "priority": "P0",
+      "anchors": [
+        "functions/b2b-personnel-kyc.js",
+        "tests/b2b-personnel-kyc.test.cjs"
+      ],
+      "gap": "Revisión humana, documentos y almacenamiento real por tenant.",
+      "acceptance": "Aprobación administrativa y objetos físicos cruzados denegados."
+    },
+    {
+      "id": "B2B-04",
+      "domain": "B2B",
+      "title": "Offline y cache por empresa",
+      "status": "probado_local",
+      "production": "sin_e2e_productivo",
+      "priority": "P1",
+      "anchors": [
+        "b2b-offline-authority.js",
+        "tests/b2b-offline-authority.test.mjs"
+      ],
+      "gap": "Pruebas con desconexión real y cuentas alternadas.",
+      "acceptance": "Sin filas entre empresas, caché revocada y sincronización sin duplicados."
+    },
+    {
+      "id": "B2B-05",
+      "domain": "B2B",
+      "title": "Panel técnico B2B y tareas",
+      "status": "codigo_presente",
+      "production": "no_verificado",
+      "priority": "P1",
+      "anchors": [
+        "app-tecnico-b2b.js",
+        "tecnico-b2b.html"
+      ],
+      "gap": "Pruebas reales de asignación, bitácora, permisos jefe/ayudante.",
+      "acceptance": "Flujo en móvil y desktop, evidencia por empresa sin cross-tenant."
+    },
+    {
+      "id": "B2B-06",
+      "domain": "B2B",
+      "title": "Panel administración y expedientes",
+      "status": "codigo_presente",
+      "production": "no_verificado",
+      "priority": "P1",
+      "anchors": [
+        "panel-b2b-admin.js",
+        "expediente-b2b.js"
+      ],
+      "gap": "Conformidad de roles, KPIs, auditoría de cambios y desempeño en móvil.",
+      "acceptance": "Administración verificable con recuperación, permisos y trazas."
+    },
+    {
+      "id": "B2B-07",
+      "domain": "B2B",
+      "title": "Robots preventivo/predictivo",
+      "status": "historico",
+      "production": "no_verificado",
+      "priority": "P1",
+      "anchors": [
+        "docs/v142-release-preparation.md",
+        "functions/index.js"
+      ],
+      "gap": "Verificar schedulers preservados, IAM, resultados y límites productivos.",
+      "acceptance": "Robots existentes intactos, ejecución y métricas verificadas."
+    },
+    {
+      "id": "B2B-08",
+      "domain": "B2B",
+      "title": "Facturación/cobro y contratos",
+      "status": "no_verificado",
+      "production": "no_verificado",
+      "priority": "P1",
+      "anchors": [
+        "modulo-b2b.js",
+        "docs/v142-release-preparation.md"
+      ],
+      "gap": "Definir facturación contractual, roles y conciliación de empresas.",
+      "acceptance": "Contrato económico B2B probado sin mezclar wallets B2C."
+    },
+    {
+      "id": "B2B-09",
+      "domain": "B2B",
+      "title": "Pruebas E2E y multi-tenant adversarial",
+      "status": "no_verificado",
+      "production": "no_verificado",
+      "priority": "P0",
+      "anchors": [
+        "tests/b2b-supervisor-session.test.mjs",
+        "tests/b2b-render-authority.test.mjs"
+      ],
+      "gap": "Falta certificación navegadores, desconexiones y tenants reales de prueba.",
+      "acceptance": "Suite E2E firmada con al menos dos tenants y revocación en caliente."
+    },
+    {
+      "id": "JARVIS-01",
+      "domain": "JARVIS",
+      "title": "Qwen3.5:9b local como cerebro único",
+      "status": "verificado_local",
+      "production": "local_only",
+      "priority": "P1",
+      "anchors": [
+        "jarvis-runtime-contract.json",
+        "jarvis-qwen-direct-cycle.js"
+      ],
+      "gap": "Métricas de disponibilidad, saturación memoria, reinicio por red.",
+      "acceptance": "Único LLM local, sin fallback externo ni llamadas pagadas."
+    },
+    {
+      "id": "JARVIS-02",
+      "domain": "JARVIS",
+      "title": "Planner semántico y misiones largas",
+      "status": "probado_local",
+      "production": "parciales_historicos",
+      "priority": "P0",
+      "anchors": [
+        "modules/terminal/qwen-general-pilot.js",
+        "tests/jarvis-qwen-autonomy-long-missions.test.mjs"
+      ],
+      "gap": "Misiones reales consecutivas sin bucles ni falsos VERIFIED.",
+      "acceptance": "≥30 misiones E2E representativas, errores y cobertura evidenciados."
+    },
+    {
+      "id": "JARVIS-03",
+      "domain": "JARVIS",
+      "title": "Herramientas, lectura, búsquedas y evidencia",
+      "status": "probado_local",
+      "production": "sin_sla",
+      "priority": "P0",
+      "anchors": [
+        "jarvis-qwen-tool-bridge.js",
+        "tests/jarvis-qwen-tool-bridge.test.mjs"
+      ],
+      "gap": "Cobertura por herramienta, reintentos bounded y outputs autenticados.",
+      "acceptance": "Catálogo físico con tasa de éxito comprobada y límites claros."
+    },
+    {
+      "id": "JARVIS-04",
+      "domain": "JARVIS",
+      "title": "Investigación y fuentes independientes",
+      "status": "probado_local",
+      "production": "test_real_acotado",
+      "priority": "P1",
+      "anchors": [
+        "modules/terminal/qwen-general-evidence.js",
+        "tests/jarvis-qwen-research-delivery.test.mjs"
+      ],
+      "gap": "Verificar rastreo web actual, calidad y citas exactas en misión real.",
+      "acceptance": "Resultados reproducibles con evidencia original, no inferencias sueltas."
+    },
+    {
+      "id": "JARVIS-05",
+      "domain": "JARVIS",
+      "title": "DOCX, PDF, XLSX y reporte descargable",
+      "status": "probado_local",
+      "production": "test_real_acotado",
+      "priority": "P1",
+      "anchors": [
+        "jarvis-fs-bridge.js",
+        "tests/jarvis-xlsx-calculation.test.mjs"
+      ],
+      "gap": "Cobertura formatos, firmas/lecturas físicas y casos negativos.",
+      "acceptance": "Crear, leer de nuevo, verificar SHA y exportar en Terminal sin errores."
+    },
+    {
+      "id": "JARVIS-06",
+      "domain": "JARVIS",
+      "title": "XML: validación y autorreparación limitada",
+      "status": "probado_local",
+      "production": "no_integrado_ui",
+      "priority": "P1",
+      "anchors": [
+        "jarvis-structured-artifact-recovery.js",
+        "tests/jarvis-xml-self-repair-bridge.test.mjs"
+      ],
+      "gap": "Terminal aún no certifica descarga XML ni reparación semántica general.",
+      "acceptance": "XML autenticado completo: crear, corregir, revalidar, exportar, descargar."
+    },
+    {
+      "id": "JARVIS-07",
+      "domain": "JARVIS",
+      "title": "Generación de anuncios/medios/video",
+      "status": "codigo_presente",
+      "production": "parciales_historicos",
+      "priority": "P1",
+      "anchors": [
+        "jarvis-local-video-engine.js",
+        "tests/jarvis-qwen-advertising-integration.test.mjs"
+      ],
+      "gap": "E2E físico de videos, logo fiel, formatos sociales y derechos.",
+      "acceptance": "Archivo entregado, fuente autorizada y prueba visual humana."
+    },
+    {
+      "id": "JARVIS-08",
+      "domain": "JARVIS",
+      "title": "Parche exacto para revisión humana",
+      "status": "verificado_local",
+      "production": "no_aplicado",
+      "priority": "P1",
+      "anchors": [
+        "jarvis-qwen-direct-cycle.js",
+        "tests/jarvis-qwen-engineering-pilot.test.mjs"
+      ],
+      "gap": "Ampliar alcance a fuentes reales sin ceder autoridad de escritura.",
+      "acceptance": "Diff exacto, hashes, sesión y aprobación humana."
+    },
+    {
+      "id": "JARVIS-09",
+      "domain": "JARVIS",
+      "title": "Prueba Docker antes/después",
+      "status": "verificado_local",
+      "production": "fixture_only",
+      "priority": "P1",
+      "anchors": [
+        "scripts/jarvis-isolated-patch-probe.mjs",
+        "docs/jarvis-v142-mission09-isolated-result-20261021.md"
+      ],
+      "gap": "Integración del ejecutor con ciclo autónomo y aislamiento multiarchivo.",
+      "acceptance": "Antes falla caso correcto, después pasa y el origen sigue inalterado."
+    },
+    {
+      "id": "JARVIS-10",
+      "domain": "JARVIS",
+      "title": "Evidencia aislada en Terminal",
+      "status": "probado_local",
+      "production": "no_archivo_real_certificado_ui",
+      "priority": "P1",
+      "anchors": [
+        "jarvis-isolated-evidence-readback.js",
+        "tests/jarvis-isolated-evidence-readback.test.mjs"
+      ],
+      "gap": "Archivar run físico con --save-report y verificar estado positivo en navegador.",
+      "acceptance": "Recibo host autenticado, exacto y sin autoconceder escritura."
+    },
+    {
+      "id": "JARVIS-11",
+      "domain": "JARVIS",
+      "title": "Motor transversal de autorrecuperación",
+      "status": "probado_local",
+      "production": "parcial",
+      "priority": "P0",
+      "anchors": [
+        "jarvis-platform-self-healing.js",
+        "tests/jarvis-platform-self-healing.test.mjs"
+      ],
+      "gap": "Adaptadores por servicio/documento/conector y circuit-breakers.",
+      "acceptance": "Detectar → diagnosticar → reparar dentro de autoridad → verificar."
+    },
+    {
+      "id": "JARVIS-12",
+      "domain": "JARVIS",
+      "title": "Detener misión y recuperar conversación",
+      "status": "verificado_local",
+      "production": "solo_piloto",
+      "priority": "P1",
+      "anchors": [
+        "gestia-terminal.html",
+        "tests/jarvis-qwen-mission-cancel.test.mjs"
+      ],
+      "gap": "Interrumpir también herramientas largas sin efectos secundarios.",
+      "acceptance": "UI cancelar y poder relanzar sin busy ni operación fantasma."
+    },
+    {
+      "id": "JARVIS-13",
+      "domain": "JARVIS",
+      "title": "Memoria y separación memoria/evidencia",
+      "status": "codigo_presente",
+      "production": "sin_e2e_global",
+      "priority": "P1",
+      "anchors": [
+        "gestia-core/jarvis/jarvis.autonomy.engine.js",
+        "tests/jarvis-semantic-memory-integrity.test.mjs"
+      ],
+      "gap": "Pruebas multi-sesión y seguridad cross-user.",
+      "acceptance": "Memoria útil sin convertir recuerdo en evidencia del turno."
+    },
+    {
+      "id": "JARVIS-14",
+      "domain": "JARVIS",
+      "title": "Gmail, Outlook, Zoho",
+      "status": "inventariado_sin_integracion",
+      "production": "oauth_pendiente",
+      "priority": "P0",
+      "anchors": [
+        "jarvis-external-connector-contract.js",
+        "docs/jarvis-v142-external-connectors-plan.md"
+      ],
+      "gap": "OAuth/vault, scopes read-only, identidad y revocación.",
+      "acceptance": "Lecturas reales autorizadas sin exponer credenciales a Qwen."
+    },
+    {
+      "id": "JARVIS-15",
+      "domain": "JARVIS",
+      "title": "Facebook, Instagram y TikTok",
+      "status": "inventariado_sin_integracion",
+      "production": "oauth_pendiente",
+      "priority": "P1",
+      "anchors": [
+        "jarvis-external-connector-contract.js",
+        "tests/jarvis-external-connector-contract.test.mjs"
+      ],
+      "gap": "Autenticación Meta/TikTok, inspección cuentas y aprobación de publicación.",
+      "acceptance": "Read-only real, publish solo aprobado, recibos durables."
+    },
+    {
+      "id": "JARVIS-16",
+      "domain": "JARVIS",
+      "title": "Drive y Calendar",
+      "status": "inventariado_sin_integracion",
+      "production": "oauth_pendiente",
+      "priority": "P1",
+      "anchors": [
+        "jarvis-external-connector-contract.js"
+      ],
+      "gap": "Scopes mínimos, calendarios, archivos, control de escritura.",
+      "acceptance": "Readback OAuth y cuenta correcta, sin modificar recursos sin aprobación."
+    },
+    {
+      "id": "JARVIS-17",
+      "domain": "JARVIS",
+      "title": "Código GitHub y operaciones gobernadas",
+      "status": "probado_local",
+      "production": "no_autoreparacion_general",
+      "priority": "P0",
+      "anchors": [
+        "jarvis-qwen-general-policy.js",
+        "tests/jarvis-qwen-engineering-pilot.test.mjs"
+      ],
+      "gap": "Aprobar parche y rollback integrado, pruebas postcommit; sin libre push del modelo.",
+      "acceptance": "Permisos de rol, recertificación, CI y aprobación explícita."
+    },
+    {
+      "id": "JARVIS-18",
+      "domain": "JARVIS",
+      "title": "Supervisor y restablecimiento de red",
+      "status": "verificado_local",
+      "production": "sin_chaos",
+      "priority": "P1",
+      "anchors": [
+        "scripts/jarvis-workstation-supervisor.cjs",
+        "jarvis-workstation-health.js"
+      ],
+      "gap": "Caída de Wi-Fi, reposo, reinicio y reconexión automatizada completa.",
+      "acceptance": "5000/3344/11434 recuperan con verificación SHA y latencia definida."
+    },
+    {
+      "id": "SEC-01",
+      "domain": "SEGURIDAD",
+      "title": "Perímetro localhost, Host/Origin y anti-rebinding",
+      "status": "probado_local",
+      "production": "no_pentest",
+      "priority": "P0",
+      "anchors": [
+        "jarvis-local-intrusion-guard.js",
+        "tests/jarvis-local-intrusion-guard.test.mjs"
+      ],
+      "gap": "Probar más navegadores, controles CORS y ataques de origen contra rutas sensibles.",
+      "acceptance": "Rechazo de orígenes no autorizados sin bloquear dueño."
+    },
+    {
+      "id": "SEC-02",
+      "domain": "SEGURIDAD",
+      "title": "No bloqueo del dueño y cambios de red",
+      "status": "probado_local",
+      "production": "sin_login_multidispositivo",
+      "priority": "P0",
+      "anchors": [
+        "tests/jarvis-local-intrusion-guard.test.mjs",
+        "docs/jarvis-v142-cybersecurity-boundaries-20261021.md"
+      ],
+      "gap": "Pruebas de renovación de token, nueva red y recuperación multi-dispositivo.",
+      "acceptance": "Doce intentos hostiles no bloquean una sesión legítima posterior."
+    },
+    {
+      "id": "SEC-03",
+      "domain": "SEGURIDAD",
+      "title": "Autenticación de rutas legacy /write y /git",
+      "status": "brecha",
+      "production": "no_verificado",
+      "priority": "P0",
+      "anchors": [
+        "jarvis-fs-bridge.js",
+        "docs/jarvis-v142-cybersecurity-boundaries-20261021.md"
+      ],
+      "gap": "Unificar token del propietario en TODAS las rutas de efectos y sus clientes.",
+      "acceptance": "Pruebas negativas anónimas, replay, token ajeno y permiso humano por acción."
+    },
+    {
+      "id": "SEC-04",
+      "domain": "SEGURIDAD",
+      "title": "Código servidor expuesto en Firebase Hosting",
+      "status": "brecha",
+      "production": "publico_expuesto_20261021",
+      "priority": "P0",
+      "anchors": [
+        "firebase.json",
+        "tests/jarvis-hosting-web-surface-security.test.mjs"
+      ],
+      "gap": "Release autorizado de exclusiones; verificar 404 y CDN posterior.",
+      "acceptance": "JS interno servidor NO descargable; frontend B2C/B2B/Jarvis no roto."
+    },
+    {
+      "id": "SEC-05",
+      "domain": "SEGURIDAD",
+      "title": "Firestore/Storage, IDOR y cross-tenant",
+      "status": "probado_local",
+      "production": "reglas_productivas_no_certificadas",
+      "priority": "P0",
+      "anchors": [
+        "tests/b2c-security-rules-contract.test.mjs",
+        "security/storage-hardening-candidate.rules.txt"
+      ],
+      "gap": "Comparar reglas remotas + emulador, revocación y escalación.",
+      "acceptance": "Pentest dirigido autenticado y reglas producción verificadas."
+    },
+    {
+      "id": "SEC-06",
+      "domain": "SEGURIDAD",
+      "title": "CSP, XSS, cabeceras y dependencias",
+      "status": "probado_local",
+      "production": "sin_pentest",
+      "priority": "P0",
+      "anchors": [
+        "tests/jarvis-critical-dependency-security.test.mjs",
+        "tests/b2c-render-xss.test.cjs"
+      ],
+      "gap": "CSP gradual sin romper OAuth; dependencia actualizada y CI auditoría.",
+      "acceptance": "Cero críticos explotables confirmados y navegador verificado."
+    },
+    {
+      "id": "SEC-07",
+      "domain": "SEGURIDAD",
+      "title": "Alertas, incidentes, respuesta y auditoría",
+      "status": "codigo_presente",
+      "production": "sin_monitoreo_247",
+      "priority": "P0",
+      "anchors": [
+        "jarvis-observability.js",
+        "tests/jarvis-local-intrusion-guard.test.mjs"
+      ],
+      "gap": "Alertas reales dueño, rotación segura y procedimientos de intrusión.",
+      "acceptance": "Detección, triage, contención, revisión y recuperación reproducibles."
+    },
+    {
+      "id": "OPS-01",
+      "domain": "OPERACIONES",
+      "title": "Firebase Hosting B2C/B2B/Jarvis",
+      "status": "publico_observado",
+      "production": "version_desalineada",
+      "priority": "P0",
+      "anchors": [
+        "firebase.json",
+        "release-manifest.json"
+      ],
+      "gap": "Alinear live branch v94 / manifest e1b0 con HEAD V142; sin deploy implícito.",
+      "acceptance": "Manifest, js servido, funciones y repo coinciden en SHA validado."
+    },
+    {
+      "id": "OPS-02",
+      "domain": "OPERACIONES",
+      "title": "Cloud Functions legacy y 24 exports B2C",
+      "status": "codigo_presente",
+      "production": "release_pendiente_verificar",
+      "priority": "P0",
+      "anchors": [
+        "docs/v142-b2c-release-scope-20260921.json",
+        "functions/index.js"
+      ],
+      "gap": "Read-only cotejo de 24 exports y versión remota; plan canario de hotfix.",
+      "acceptance": "Retiro y cierre canónicos activos, orphans inseguros retirados."
+    },
+    {
+      "id": "OPS-03",
+      "domain": "OPERACIONES",
+      "title": "Batería local B2C, B2B y Jarvis",
+      "status": "probado_local",
+      "production": "no_equivale_prod",
+      "priority": "P1",
+      "anchors": [
+        "package.json",
+        "tests/jarvis-fs-bridge-v2.test.mjs"
+      ],
+      "gap": "Matriz de CI inequívoca y suites de emuladores en release.",
+      "acceptance": "Ejecución CI limpia con logs/artefactos y gates sin skips."
+    },
+    {
+      "id": "OPS-04",
+      "domain": "OPERACIONES",
+      "title": "Deploy, rollback, canarios y release",
+      "status": "codigo_presente",
+      "production": "sin_rollback_prod_verificado",
+      "priority": "P0",
+      "anchors": [
+        "scripts/prepare-platform-release.mjs",
+        "docs/v142-release-preparation.md"
+      ],
+      "gap": "Canario real, rollback forward-only de saldos y compatibilidad SW.",
+      "acceptance": "Releases reproducibles con bloqueo por crítico y prueba postdeploy."
+    },
+    {
+      "id": "OPS-05",
+      "domain": "OPERACIONES",
+      "title": "RTO/RPO, backups y restauración",
+      "status": "no_verificado",
+      "production": "no_verificado",
+      "priority": "P0",
+      "anchors": [
+        "docs/v142-release-preparation.md"
+      ],
+      "gap": "Definir respaldo cifrado, RTO/RPO, prueba de restauración con permisos.",
+      "acceptance": "Restauración en entorno alterno y registro de tiempo/pérdida."
+    },
+    {
+      "id": "OPS-06",
+      "domain": "OPERACIONES",
+      "title": "SLO, disponibilidad y trazas centralizadas",
+      "status": "parcial",
+      "production": "no_verificado",
+      "priority": "P1",
+      "anchors": [
+        "jarvis-observability.js",
+        "tests/jarvis-observability.test.mjs"
+      ],
+      "gap": "Medir % de misiones completas, latencias, errores, saturación y costo.",
+      "acceptance": "Tablero 7/30 días con alertas, sin registrar secretos."
+    },
+    {
+      "id": "OPS-07",
+      "domain": "OPERACIONES",
+      "title": "Documentación de release y manifiesto maestro",
+      "status": "probado_local",
+      "production": "no_verificado",
+      "priority": "P0",
+      "anchors": [
+        "docs/v142-b2c-forensic-audit-20260921.md",
+        "docs/jarvis-v142-platform-self-healing.md"
+      ],
+      "gap": "Crear catálogo con evidencia, fecha, dueño, estado y criterios de cierre.",
+      "acceptance": "Un manifiesto único actualizado y verificado en cada commit."
+    }
+  ],
+  "governance": {
+    "noAutoDeploy": true,
+    "noAutoFinancialWrites": true,
+    "noAutomatedOwnerLockout": true,
+    "noAutoOAuthSecrets": true,
+    "productionCertified": false,
+    "launchReadyB2C": false,
+    "launchReadyB2B": false,
+    "fullProfessionalJarvisCertified": false
+  }
+}

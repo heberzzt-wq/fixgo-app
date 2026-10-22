@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "manifest:v142": "node scripts/platform-master-manifest-v142.mjs",
+    "manifest:v142:check": "node scripts/platform-master-manifest-v142.mjs --check",
     "sync:b2c-contract": "node scripts/sync-b2c-platform-contract.mjs",
     "migrate:b2c-technician": "node scripts/migrate-b2c-technician.mjs",
     "prepare:release": "node scripts/prepare-platform-release.mjs",
