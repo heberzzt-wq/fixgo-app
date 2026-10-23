@@ -51,6 +51,7 @@
 1. Ejecutar mision real en Terminal Firebase con recibo verificable y luego las 12 NS1 seguidas; clasificar SUCCEEDED, PARTIAL, FAILED con evidencia y artefactos.
 1. Seguir con E2E B2C/B2B, KYC camara, dinero, no-lockout y seguridad; pruebas locales NO certifican produccion.
 1. Actualizar este manifiesto y el diario al cerrar cada hito; no confundir el diario automatico con certificacion de produccion.
+1. Registrar horas efectivas, costo de oportunidad y gastos comprobados antes de cualquier avaluo economico
 
 ### Recibos locales (en la laptop autorizada)
 
@@ -67,6 +68,28 @@
 - Fuente de verdad de los 57 frentes: `docs/platform-master-manifest-v142.json`; esta vista se regenera, nunca se edita a mano.
 
 ---
+
+## Historia e inversion de trabajo del fundador
+
+- **Inicio aproximado:** finales de febrero de 2026.
+- **Colaboracion inicial:** Propietario + ChatGPT + Gemini durante aproximadamente dos meses.
+- **Continuidad:** Desde aproximadamente finales de abril de 2026: propietario + ChatGPT, sin Gemini.
+- **Duracion historica:** aproximadamente ocho meses de trabajo desde el arranque; el atasco reciente de dos semanas no es la duracion total.
+- **Suscripcion reportada:** 1990 y tantos MXN por mes (precio aproximado informado por el propietario; no se verificaron recibos). Sin comprobantes auditados.
+
+**Trabajo personal reportado:** 12 horas diarias × 7 dias por semana = 84 h/semana.
+**Rango temporal estimado:** 2026-02-23/2026-02-28 a 2026-10-23. **Horas aproximadas:** 2,856–2,916.
+
+| Tarifa hipotetica MXN/h | Costo del trabajo estimado MXN |
+|---:|---:|
+| $100 | $285,600 – $291,600 |
+| $200 | $571,200 – $583,200 |
+| $300 | $856,800 – $874,800 |
+| $500 | $1,428,000 – $1,458,000 |
+
+**Contabilidad:** Sumar trabajo fundador por separado de efectivo erogado; evitar duplicar sueldos reales y tarifas externas. Confirmar fecha, horas efectivas y remuneracion de mercado antes de valuacion.
+**Valoracion:** La inversion de trabajo no determina por si misma precio de venta, patrimonio o valuacion de la empresa.
+**Estado del sueldo:** tarifa exacta no informada, pagos reales sin comprobar; se registra como costo de oportunidad, no efectivo pagado.
 
 ## Estado global verificable
 

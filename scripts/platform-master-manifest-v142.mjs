@@ -21,6 +21,13 @@ export function validateManifest(m,{rootDir=root}={}){
   new Set(m.ownerExecutionOrder.map(x=>x.track)).size!==5)
   errors.push('OWNER_EXECUTION_ORDER_INVALID');
  if(!/^[a-f0-9]{40}$/i.test(m.auditedBaselineSha||''))errors.push('BASELINE_SHA_INVALID');
+ if(m.projectHistory?.ownerLabor){
+  const l=m.projectHistory.ownerLabor;
+  if(l.hoursPerDay!==12||l.daysPerWeek!==7||l.hoursPerWeek!==84||
+     l.actualPaidSalaryVerified!==false||l.hourlyRateIsKnown!==false||
+     !Array.isArray(l.estimatedHoursRange)||l.estimatedHoursRange[1]<l.estimatedHoursRange[0])
+    errors.push('FOUNDERS_LABOR_EVIDENCE_INVALID');
+ }
  if(m.latestHandoff||m.latestVerifiedCandidate){
   if(!/^[a-f0-9]{40}$/i.test(m.latestVerifiedCandidate?.sha||'')||
    m.latestHandoff?.verifiedCandidateSha!==m.latestVerifiedCandidate?.sha||
@@ -53,6 +60,43 @@ export function validateManifest(m,{rootDir=root}={}){
  const counts=Object.fromEntries(groups.map(g=>[g,m.workstreams?.filter(w=>w.domain===g).length||0]));
  return {ok:errors.length===0,errors,total:m.workstreams?.length||0,
   p0:m.workstreams?.filter(w=>w.priority==='P0').length||0,counts};
+}
+
+function renderProjectHistory(m){
+ const p=m.projectHistory, labor=p?.ownerLabor;
+ if(!p)return [];
+ const lines=['## Historia e inversion de trabajo del fundador','',
+  '- **Inicio aproximado:** '+esc(p.startedApprox)+'.',
+  '- **Colaboracion inicial:** '+esc(p.initialCollaboration)+'.',
+  '- **Continuidad:** '+esc(p.continuedCollaboration)+'.',
+  '- **Duracion historica:** '+esc(p.durationAtOct2026)+'.',
+  '- **Suscripcion reportada:** '+esc(p.userReportedSubscriptionMXN)+'. Sin comprobantes auditados.',
+  ''
+ ];
+ if(labor){
+  lines.push(
+   '**Trabajo personal reportado:** '+labor.hoursPerDay+' horas diarias × '+labor.daysPerWeek+
+    ' dias por semana = '+labor.hoursPerWeek+' h/semana.',
+   '**Rango temporal estimado:** '+esc(labor.calendarStartRange)+
+    ' a '+esc(labor.estimationThrough)+'. **Horas aproximadas:** '+
+    labor.estimatedHoursRange[0].toLocaleString('en-US')+'–'+
+    labor.estimatedHoursRange[1].toLocaleString('en-US')+'.',
+   '',
+   '| Tarifa hipotetica MXN/h | Costo del trabajo estimado MXN |',
+   '|---:|---:|'
+  );
+  for(const v of labor.scenariosMXN){
+   lines.push('| $'+v.hourlyRateMXN+' | $'+v.estimatedCostRangeMXN[0].toLocaleString('en-US')+
+   ' – $'+v.estimatedCostRangeMXN[1].toLocaleString('en-US')+' |');
+  }
+  lines.push('',
+   '**Contabilidad:** '+esc(labor.accountingRule),
+   '**Valoracion:** '+esc(labor.marketValueRule),
+   '**Estado del sueldo:** tarifa exacta no informada, pagos reales sin comprobar; se registra como costo de oportunidad, no efectivo pagado.',
+   ''
+  );
+ }
+ return lines;
 }
 
 function renderLatestHandoff(m){
@@ -129,6 +173,7 @@ export function renderManifest(m){
  '> ni autorización de despliegue. Los reportes históricos no demuestran el estado productivo actual.',
  '',
  ...renderLatestHandoff(m),
+ ...renderProjectHistory(m),
  '## Estado global verificable',
  '',
  '- **'+v.total+' frentes inventariados:** '+groups.map(g=>g+': '+v.counts[g]).join(' · ')+'.',

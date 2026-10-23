@@ -2,6 +2,75 @@
   "schemaVersion": "platform-master-v142-1",
   "snapshotDate": "2026-10-22",
   "repository": "heberzzt-wq/fixgo-app",
+  "projectHistory": {
+    "timelineBasis": "Declaracion del propietario el 2026-10-23; fechas aproximadas, no facturas auditadas",
+    "startedApprox": "finales de febrero de 2026",
+    "initialCollaboration": "Propietario + ChatGPT + Gemini durante aproximadamente dos meses",
+    "continuedCollaboration": "Desde aproximadamente finales de abril de 2026: propietario + ChatGPT, sin Gemini",
+    "durationAtOct2026": "aproximadamente ocho meses de trabajo desde el arranque; el atasco reciente de dos semanas no es la duracion total",
+    "userReportedSubscriptionMXN": "1990 y tantos MXN por mes (precio aproximado informado por el propietario; no se verificaron recibos)",
+    "illustrativeSixMonthSubscriptionMXN": "aproximadamente 12,000 MXN si se pagaron seis meses completos a ese precio; confirmar meses, facturas y proporcion realmente atribuible a Jarvis",
+    "unverifiedCosts": "Trabajo fundador (12 h/dia, 7 dias/semana), suscripciones y otros gastos sin facturas o conciliacion completa",
+    "valuationNote": "El costo historico no equivale al valor de mercado; mantener separados costos comprobados, costo de reposicion y valor de venta hipotetico",
+    "ownerLabor": {
+      "reportedOn": "2026-10-23",
+      "reportedSchedule": "12 horas diarias los 7 dias de la semana",
+      "hoursPerDay": 12,
+      "daysPerWeek": 7,
+      "hoursPerWeek": 84,
+      "calendarStartRange": "2026-02-23/2026-02-28",
+      "estimationThrough": "2026-10-23",
+      "assumedCalendarDaysRange": [
+        238,
+        243
+      ],
+      "estimatedHoursRange": [
+        2856,
+        2916
+      ],
+      "approximateReferenceStart": "2026-02-26",
+      "illustrativeReferenceHours": 2880,
+      "hourlyRateIsKnown": false,
+      "actualPaidSalaryVerified": false,
+      "compensationStatus": "TRABAJO DEL FUNDADOR: COSTO DE OPORTUNIDAD NO REMUNERADO NI CONCILIADO",
+      "scenariosMXN": [
+        {
+          "hourlyRateMXN": 100,
+          "estimatedCostRangeMXN": [
+            285600,
+            291600
+          ],
+          "referenceMXN": 288000
+        },
+        {
+          "hourlyRateMXN": 200,
+          "estimatedCostRangeMXN": [
+            571200,
+            583200
+          ],
+          "referenceMXN": 576000
+        },
+        {
+          "hourlyRateMXN": 300,
+          "estimatedCostRangeMXN": [
+            856800,
+            874800
+          ],
+          "referenceMXN": 864000
+        },
+        {
+          "hourlyRateMXN": 500,
+          "estimatedCostRangeMXN": [
+            1428000,
+            1458000
+          ],
+          "referenceMXN": 1440000
+        }
+      ],
+      "accountingRule": "Sumar trabajo fundador por separado de efectivo erogado; evitar duplicar sueldos reales y tarifas externas. Confirmar fecha, horas efectivas y remuneracion de mercado antes de valuacion.",
+      "marketValueRule": "La inversion de trabajo no determina por si misma precio de venta, patrimonio o valuacion de la empresa."
+    }
+  },
   "branch": "v142-official",
   "ownerExecutionDecisionDate": "2026-10-22",
   "ownerExecutionOrder": [
@@ -90,7 +159,8 @@
       "Verificar despues de publicacion SHA servido == SHA Bridge, relay /workstation/health autenticado sin 401, y que archivos privados devuelven 404.",
       "Ejecutar mision real en Terminal Firebase con recibo verificable y luego las 12 NS1 seguidas; clasificar SUCCEEDED, PARTIAL, FAILED con evidencia y artefactos.",
       "Seguir con E2E B2C/B2B, KYC camara, dinero, no-lockout y seguridad; pruebas locales NO certifican produccion.",
-      "Actualizar este manifiesto y el diario al cerrar cada hito; no confundir el diario automatico con certificacion de produccion."
+      "Actualizar este manifiesto y el diario al cerrar cada hito; no confundir el diario automatico con certificacion de produccion.",
+      "Registrar horas efectivas, costo de oportunidad y gastos comprobados antes de cualquier avaluo economico"
     ]
   },
   "productionEvidence": {

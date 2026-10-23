@@ -72,6 +72,20 @@ test('latest handoff preserves candidate SHA, web drift, receipts and next-chat 
  assert.match(text,/ultimo.json/);
 });
 
+test('founder labor and project start remain costs of opportunity, not paid salary or guaranteed asset price',()=>{
+ const p=data.projectHistory, l=p?.ownerLabor;
+ assert.match(p.startedApprox,/febrero de 2026/);
+ assert.match(p.initialCollaboration,/Gemini/);
+ assert.equal(l.hoursPerWeek,84);
+ assert.deepEqual(l.estimatedHoursRange,[2856,2916]);
+ assert.equal(l.actualPaidSalaryVerified,false);
+ assert.equal(l.hourlyRateIsKnown,false);
+ assert.equal(l.scenariosMXN.find(s=>s.hourlyRateMXN===300).referenceMXN,864000);
+ assert.match(renderManifest(data),/864,000|856,800/);
+ const bad=structuredClone(data);bad.projectHistory.ownerLabor.actualPaidSalaryVerified=true;
+ assert.equal(validateManifest(bad).ok,false);
+});
+
 test('published Markdown is deterministically generated and contains all 57 fronts',()=>{
  const actual=readFileSync(new URL('../docs/platform-master-manifest-v142.md',import.meta.url),'utf8');
  assert.equal(actual,renderManifest(data));
