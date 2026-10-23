@@ -57,7 +57,7 @@ jobs:
       - name: Run all official platform and Jarvis regressions
         run: npm run ci:test
       - name: Require browser surface and local-owner security contracts
-        run: node --test tests/jarvis-hosting-web-surface-security.test.mjs tests/jarvis-workstation-health.test.mjs tests/nexo-terminal-bootstrap.test.mjs tests/jarvis-repo-intelligence.test.mjs
+        run: node --test tests/jarvis-deploy-gate.test.mjs tests/jarvis-hosting-web-surface-security.test.mjs tests/jarvis-workstation-health.test.mjs tests/nexo-terminal-bootstrap.test.mjs tests/jarvis-repo-intelligence.test.mjs
       - name: Prepare exact candidate release (no deployment)
         run: node scripts/prepare-platform-release.mjs
       - name: Verify candidate SHA and cleanliness
