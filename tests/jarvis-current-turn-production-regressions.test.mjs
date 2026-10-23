@@ -1206,6 +1206,8 @@ test("CURRENT_TURN renders the model-authored answer and limitation once, preser
             GESTIA_MASTER_EMAIL: "master@example.test", SIA7_UTILS: { generarUUID: () => "test-turn" },
             JarvisSemanticMemory: { recall: async () => contaminatedMemory, rememberTurn: async turn => history.push(turn) },
             compactJarvisSemanticMemoryForPlanner: memory => memory,
+            simpleJarvisGreeting: () => null,
+            scopeJarvisToolsForQuestion: tools => tools,
             location: { href: "https://runtime.test/terminal", origin: "https://runtime.test" },
             URLSearchParams,
             JarvisToolRuntime: tools, window: { ToolsBridge: bridge }, console: quietConsole,

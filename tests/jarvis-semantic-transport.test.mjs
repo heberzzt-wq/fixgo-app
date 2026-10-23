@@ -265,6 +265,8 @@ test("CURRENT_TURN never replays an exhausted local deadline or truncated answer
     for (const message of ["SEMANTIC_AUTHENTICATED_PROVIDER_LOCAL_SEMANTIC_TIMEOUT", "JARVIS_LOCAL_BRIDGE_TIMEOUT_REQUEST", "SEMANTIC_AUTHENTICATED_PROVIDER_SEMANTIC_RESPONSE_INCOMPLETE", "SEMANTIC_AUTHENTICATED_PROVIDER_LOCAL_SEMANTIC_RESPONSE_EMPTY"]) {
         let calls = 0;
         const analyze = runInNewContext(`({${source.slice(start, end)}}).analizarIntencionLigera`, {
+            simpleJarvisGreeting: () => null,
+            scopeJarvisToolsForQuestion: tools => tools,
             JarvisSemanticMemory: { recall: async () => null },
             auth: { currentUser: { uid: "test" } },
             JarvisToolRuntime: { list: () => [{ name: "conversation.respond" }] },

@@ -2010,7 +2010,8 @@ function attachPlanMetadata(calls = [], plan = {}) {
     return calls;
 }
 
-async function callSemanticPlanner(input = "", catalog = [], missionState = null) {
+async function callSemanticPlanner(input = "", catalog = [], missionState = null, signal = null) {
+    signal?.throwIfAborted?.();
     traceJarvisMission("planner.request", { input, catalog, missionState });
     const timeoutMs = semanticPlanBudgetMs({ input, missionState, timeoutMs:
         [
@@ -2044,8 +2045,8 @@ async function callSemanticPlanner(input = "", catalog = [], missionState = null
             timeoutMs
         },
         {
-            timeoutMs:
-                timeoutMs + 10000
+            timeoutMs: timeoutMs + 10000,
+            ...(signal ? {signal} : {})
         }
     );
 
@@ -2098,7 +2099,8 @@ function planCacheKey(input = "", catalog = [], missionState = null) {
     });
 }
 
-async function resolveSemanticPlan(input = "", catalog = [], semanticPlanner = null, missionState = null) {
+async function resolveSemanticPlan(input = "", catalog = [], semanticPlanner = null, missionState = null, signal = null) {
+    signal?.throwIfAborted?.();
     const key = planCacheKey(input, catalog, missionState);
     const cached = planCache.get(key);
 
@@ -2112,8 +2114,8 @@ async function resolveSemanticPlan(input = "", catalog = [], semanticPlanner = n
 
     const request = Promise.resolve()
         .then(() => typeof semanticPlanner === "function"
-            ? semanticPlanner({ input, catalog, missionState })
-            : callSemanticPlanner(input, catalog, missionState))
+            ? semanticPlanner({ input, catalog, missionState, signal })
+            : callSemanticPlanner(input, catalog, missionState, signal))
         .then(plan => {
             const currentTurn =
                 String(missionState?.phase || "") === "CURRENT_TURN";
@@ -2708,7 +2710,8 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
             instruction,
             catalog,
             contractPlanner,
-            activeMissionState
+            activeMissionState,
+            context.missionAbortSignal || null
         );
         let calls = trustedPlanCalls(
             plan,
@@ -2800,7 +2803,8 @@ export async function buildJarvisMultifunctionToolCalls(input = "", context = {}
                 instruction,
                 catalog,
                 contractPlanner,
-                activeMissionState
+                activeMissionState,
+                context.missionAbortSignal || null
             );
             calls = trustedPlanCalls(
                 plan,
@@ -2874,6 +2878,8 @@ export function describeJarvisMultifunctionPlanner() {
 }
 
 export const __test = {
+    callSemanticPlanner,
+    resolveSemanticPlan,
     GENERALIST_CURRENT_TURN_POLICY,
     runtimeCatalog,
     trustedPlanCalls,

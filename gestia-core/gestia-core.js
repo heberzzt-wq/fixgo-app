@@ -78,6 +78,10 @@ import {
 import {
     GESTIA_MASTER_EMAIL
 } from '/gestia-core/auth/role-authority.js?v=v142-adjunto-flow-alignment-20261001';
+import {
+    simpleJarvisGreeting,
+    scopeJarvisToolsForQuestion
+} from '/gestia-core/jarvis/jarvis.current-turn-scope.js';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
 
 // ======================================================================================
@@ -3871,6 +3875,16 @@ function composeRepoGlobalAnalysisFinalResponse({
 export const GestiaCore = {
     version: "16.0.0-SUPREME",
     async analizarIntencionLigera(inputRaw = "", state = {}) {
+        // Plain greetings are deterministic UI conversation, not a tool mission.
+        // Do not spend a multi-tool Qwen planning turn to say hello.
+        const greeting = simpleJarvisGreeting(inputRaw);
+        if (greeting && !state?.protectedCommand &&
+            !state?.hasProposalAdjustmentRequest && !state?.hasSafeWritePending) {
+            return {mode:"CASUAL_NOOP",confidence:1,objective:"",
+                useAgentLoop:false,useRepoTools:false,renderCard:false,
+                prepareCommand:false,reason:"EXACT_GREETING_FAST_PATH",
+                toolCalls:[{name:"conversation.respond",args:{prompt:greeting,maxOutputTokens:48}}]};
+        }
         if (state?.hasProposalAdjustmentRequest) {
             return {
                 mode: "PROPOSAL_ADJUSTMENT",
@@ -3900,9 +3914,10 @@ export const GestiaCore = {
                 }
             });
         const registeredCurrentTurnTools =
-            globalThis.JarvisToolRuntime
-                ?.list?.() ||
-            [];
+            scopeJarvisToolsForQuestion(
+                globalThis.JarvisToolRuntime?.list?.() || [],
+                inputRaw
+            );
         const conversationTool =
             registeredCurrentTurnTools.find(tool =>
                 tool?.name === "conversation.respond"
@@ -3921,6 +3936,7 @@ export const GestiaCore = {
                         inputRaw,
                         {
                             state,
+                            missionAbortSignal: state.missionAbortSignal || null,
                             throwOnUnavailable: true,
                             toolCatalog: currentTurnToolCatalog,
                             allowCurrentTurnDelegationOnEmpty: true,
@@ -3981,6 +3997,7 @@ export const GestiaCore = {
                     inputRaw,
                     {
                         state,
+                        missionAbortSignal: state.missionAbortSignal || null,
                         throwOnUnavailable: true,
                         toolCatalog: registeredCurrentTurnTools,
                         missionState: {
@@ -4679,19 +4696,14 @@ if (
             ).trim();
 
     const registeredMissionTools =
-        globalThis.JarvisToolRuntime
-            ?.list?.()
-            ?.filter(tool =>
-                tool?.name !== "conversation.respond" &&
-                (
-                    tool?.mutates !== true ||
-                    (
-                        tool?.userArtifact === true &&
-                        tool?.requiresApproval !== true
-                    )
-                )
-            ) ||
-        [];
+        scopeJarvisToolsForQuestion(
+            globalThis.JarvisToolRuntime?.list?.() || [],
+            effectiveMissionInstruction
+        ).filter(tool =>
+            tool?.name !== "conversation.respond" &&
+            (tool?.mutates !== true ||
+                (tool?.userArtifact === true && tool?.requiresApproval !== true))
+        );
     const conversationalPlan =
         prepareEvidenceGroundedConversationPlan({
             instruction:
@@ -5156,6 +5168,7 @@ if (
                 64,
             maximumRetries:
                 2,
+            signal: context.missionAbortSignal || undefined,
             noDeadline:
                 true,
             planner:

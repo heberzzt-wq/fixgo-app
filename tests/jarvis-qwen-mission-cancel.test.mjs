@@ -19,7 +19,10 @@ test('Terminal includes an actual non-submit stop control and a parseable submit
  assert.doesNotThrow(()=>new vm.Script(html.slice(start+'<script defer>'.length,end),{filename:'terminal-mission-submit.js'}));
 });
 test('abort controller reaches the authorized local Qwen runner, with no write capability added',()=>{
- assert.match(html,/localMissionAbortController=localPilotActive\?new AbortController\(\):null/);
+ assert.match(html,/localMissionAbortController=new AbortController\(\)/);
+ assert.match(html,/stopMissionButton\.hidden=false/);
+ assert.match(html,/stopMissionButton\.disabled=false/);
+ assert.match(html,/addEventListener\('pagehide'/);
  assert.match(html,/localMissionAbortController\.abort\('USER_REQUESTED_STOP'\)/);
  assert.match(html,/missionAbortSignal:localMissionAbortController\?\.signal\|\|null/);
  assert.match(core,/signal:context\.missionAbortSignal\|\|undefined/);

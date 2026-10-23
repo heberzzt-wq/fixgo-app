@@ -1570,10 +1570,19 @@ window.unlockJarvisVoice = function() {
             if(!isProcessing||!localMissionAbortController||
                 localMissionAbortController.signal.aborted)return;
             localMissionAbortController.abort('USER_REQUESTED_STOP');
+            window.dispatchEvent(new CustomEvent('jarvis:mission-cancel-requested', {detail:{reason:'USER_REQUESTED_STOP'}}));
             stopMissionButton.disabled=true;
             stopMissionButton.textContent='Deteniendo...';
         });
     }
+    // Reload or navigation must abandon the active fetch, never silently leave
+    // the browser waiting for a now-ownerless semantic result.
+    window.addEventListener('pagehide', () => {
+        if (isProcessing && localMissionAbortController &&
+            !localMissionAbortController.signal.aborted) {
+            localMissionAbortController.abort('PAGE_UNLOAD');
+        }
+    });
     let activeUtterances = 0; 
     const COOLDOWN_ACUSTICO = 1200; 
 
@@ -1792,10 +1801,10 @@ window.unlockJarvisVoice = function() {
                 location.port==='5000'&&
                 (!new URLSearchParams(location.search).get('qwenPilot')||
                  new URLSearchParams(location.search).get('qwenPilot')==='general-v1');
-            localMissionAbortController=localPilotActive?new AbortController():null;
+            localMissionAbortController=new AbortController();
             if(stopMissionButton){
-                stopMissionButton.hidden=!localPilotActive;
-                stopMissionButton.disabled=!localPilotActive;
+                stopMissionButton.hidden=false;
+                stopMissionButton.disabled=false;
                 stopMissionButton.textContent='Detener';
             }
             const btnGenerate = document.getElementById("btn-generate");
@@ -5583,10 +5592,18 @@ const summary =
                 }
 
             } catch (error) {
+                if (localMissionAbortController?.signal.aborted) {
+                    activeWorkTracker?.fail?.('Misión cancelada por el propietario');
+                    window.renderJarvisResponse?.('Misión cancelada',
+                        'Se solicitó cancelar esta misión. No se declara éxito ni se reintenta automáticamente.',
+                        'warning');
+                    handled = true;
+                    return;
+                }
                 if (typeof window.audit === "function") {
-                    window.audit("MISSION_CRASH", { 
-                        error: error.message, 
-                        traceId: currentTraceId 
+                    window.audit("MISSION_CRASH", {
+                        error: error.message,
+                        traceId: currentTraceId
                     }, "error");
                 }
                 activeWorkTracker?.fail?.(
