@@ -7,7 +7,7 @@
 
 ## LEE ESTO PRIMERO - relevo y continuidad inmediata
 
-**Actualizado:** 2026-10-22 | **Candidato certificado en local:** `3caa2f3899aab488f90edef7535beac55f6ca96e` | **Rama:** `v142-official`
+**Actualizado:** 2026-10-23 | **Candidato certificado en local:** `3caa2f3899aab488f90edef7535beac55f6ca96e` | **Rama:** `v142-official`
 
 **Meta:** LEER PRIMERO: usar este documento y el informe diario, comprobar SHA real y recibos antes de continuar; no repetir preguntas resueltas ni dar por hecho un despliegue.
 
@@ -31,6 +31,8 @@
 - Verificacion de cierre de imports: 201 JS y 30 HTML; 0 importaciones locales ausentes y 0 errores de parseo.
 - Dry-run Firebase solo Hosting EXIT 0, sin publicar; repositorio oficial limpio y bridge cargado desde el SHA candidato.
 - Propuesta GitHub Actions Windows/Linux preparada pero envio rechazado por token OAuth sin scope workflow; se conservo fuera del repositorio y se restauro la rama.
+- 2026-10-23: el propietario fija la ESTRELLA POLAR de ADJUNTO: exclusivo y local para Peninsula Tech, no copiar ni competir con otras IA, excelencia original comprobable por misiones/servicios reales; registrada como objetivo no certificado, con refrigerios Tecate incluidos en gastos historicos reportados no auditados.
+- 2026-10-23: gastos de refrigerios reportados por el propietario: 2 six Tecate diarios a MXN 112 cada uno, total MXN 224 por dia; costo calendario ilustrativo MXN 53,312-54,432, SIN recibos ni tratamiento fiscal determinado.
 
 ### Evidencia tecnica certificada (sin elevarla a produccion)
 
@@ -52,6 +54,7 @@
 1. Seguir con E2E B2C/B2B, KYC camara, dinero, no-lockout y seguridad; pruebas locales NO certifican produccion.
 1. Actualizar este manifiesto y el diario al cerrar cada hito; no confundir el diario automatico con certificacion de produccion.
 1. Registrar horas efectivas, costo de oportunidad y gastos comprobados antes de cualquier avaluo economico
+1. Antes de construir funciones nuevas, validar la ESTRELLA POLAR: autonomia comprobada, excelencia original, privacidad y servicios propios; no competir, clonar ni vender ADJUNTO como IA al publico.
 
 ### Recibos locales (en la laptop autorizada)
 
@@ -82,6 +85,30 @@
 - **Relación con el cliente:** El cliente contrata a Peninsula Tech por el trabajo, producto o servicio realizado; no compra ni opera el modelo Qwen ni el motor privado ADJUNTO.
 
 > **Alcance de esta decisión:** Vision y mandato de producto; no evidencia de que cada funcion ya este operativa ni de autonomia 99.9%, seguridad certificada o equivalencia con otras IA.
+
+## ESTRELLA POLAR - Meta irrenunciable de ADJUNTO
+
+**Palabras y voluntad del propietario:** Ser el mejor sin meternos con otras plataformas o inteligencias artificiales: no copiar, no replicar productos existentes, sino construir algo unico, original y mejor en resultados verificables.
+
+- **No competencia:** No competir por ser otro ChatGPT, Gemini, Claude, Codex ni similares; no enfocar roadmap en alcanzar listas de funciones ajenas.
+- **Originalidad:** Arquitectura y procesos propios que resuelvan problemas reales de Peninsula Tech; no plagiar codigo, marca, experiencia de usuario, prompts ni productos ajenos. Utilizar componentes de terceros solo conforme a sus licencias.
+- **Identidad unica:** ADJUNTO es el equipo digital privado que coordina produccion empresarial, desarrollo de software, publicidad, documentos, operaciones, ciberseguridad e investigacion de tecnologia, integrado con FixGo B2C y B2B.
+- **Uso privado:** Cerebro local Qwen3.5:9b mediante Ollama; no vender ADJUNTO como IA publica, ni rentar acceso como chatbot; vender servicios y resultados a clientes.
+- **Que significa ser el mejor:** Ser mejor significa alcanzar nuestro estandar original de confiabilidad, calidad, seguridad, autonomia, control del propietario y utilidad economica; se mide contra requisitos de nuestros clientes y pruebas objetivas, no contra promesas comerciales de otras IA.
+- **Orden para llevarlo a la realidad:** Primero terminar ADJUNTO internamente (relay Firebase/Bridge, misiones reales, recuperacion, conectores); luego cerrar B2C/B2B, seguridad, estabilidad y evidencia de servicios vendibles. No cambiar criterios solo para declarar exito.
+- **Autoridad:** El propietario mantiene autorizaciones sobre despliegues, dinero, permisos, secretos, cuentas y cambios sensibles; no autoaprobar ni suprimir barreras legitimas para aparentar eficiencia.
+- **Regla para futuras decisiones:** Antes de proponer cualquier caracteristica, comprobar si desarrolla esta identidad propia y aporta evidencia medible; rechazar la imitacion por imitacion.
+
+### Resultados que demostrarian la meta
+
+- Misiones autorizadas concluidas con evidencia y archivos reales, sin falsos VERIFIED.
+- Recuperacion ante errores reales con limites claros, sin bucles interminables ni bloqueos falsos.
+- Seguridad sin bloquear al propietario, datos aislados, privacidad y permisos correctos.
+- B2C y B2B funcionando de punta a punta, con dinero de prueba y protecciones activas.
+- Entregables de publicidad, software y gestion con calidad y costo unitario medidos.
+- Mejora del propio ecosistema por ciclos disenar-ejecutar-probar-corregir-verificar, cambios sensibles autorizados.
+
+> **Sin triunfalismos:** Es una META del propietario y no prueba de ser el mejor del mercado, de autonomia general ilimitada ni de un 99.9% certificado. Comparaciones se permiten solo para aprender criterios generales sin copiar.
 
 ## Certificacion operativa y valor de activos de Península Tech
 
@@ -124,6 +151,7 @@
 - **Continuidad:** Desde aproximadamente finales de abril de 2026: propietario + ChatGPT, sin Gemini.
 - **Duracion historica:** aproximadamente ocho meses de trabajo desde el arranque; el atasco reciente de dos semanas no es la duracion total.
 - **Suscripcion reportada:** 1990 y tantos MXN por mes (precio aproximado informado por el propietario; no se verificaron recibos). Sin comprobantes auditados.
+- **Refrigerios de desarrollo reportados (sin comprobantes):** 2 six Tecate × MXN $112/six = **MXN $224/dia**; periodo ilustrativo de 238–243 dias: **MXN $53,312–$54,432**. Tratamiento contable y posible deducibilidad fiscal por verificar con contador; no asumir que es deducible ni aplicable a activos capitalizables. Incluir separado como egreso de refrigerios declarado dentro de los costos historicos reportados del desarrollo. No se suma automaticamente a un precio de venta de software.
 
 **Trabajo personal reportado:** 12 horas diarias × 7 dias por semana = 84 h/semana.
 **Rango temporal estimado:** 2026-02-23/2026-02-28 a 2026-10-23. **Horas aproximadas:** 2,856–2,916.

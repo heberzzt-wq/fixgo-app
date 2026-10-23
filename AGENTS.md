@@ -1,5 +1,7 @@
 # Punto de entrada para trabajar en FixGo / ADJUNTO V142
 
+**ESTRELLA POLAR DEL PROPIETARIO (2026-10-23):** ADJUNTO no compite ni copia ninguna IA/plataforma; construir algo unico, original y mejor en resultados medidos. Es tecnologia privada de Peninsula Tech, no IA de suscripcion publica. Vender servicios finales; primero lograr autonomia y seguridad reales. Meta NO implica certificacion.
+
 Lee SIEMPRE antes de planear cambios:
 - `docs/platform-master-manifest-v142.md` — vista humana y matriz de cierre.
 - `docs/platform-master-manifest-v142.json` — inventario canónico editable.

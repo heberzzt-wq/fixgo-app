@@ -48,6 +48,28 @@ export function validateManifest(m,{rootDir=root}={}){
   }
   if(expected.size)errors.push("VALUE_GATE_MISSING");
  }
+ if(m.productStrategy?.northStar){
+  const x=m.productStrategy.northStar;
+  if(x.decisionDate!=="2026-10-23"||!x.nonCompetition.includes("No competir")||
+   !x.originality.includes("no plagiar")||!x.privateOperation.includes("no vender ADJUNTO")||
+   !x.executionOrder.includes("Primero terminar ADJUNTO")||
+   !Array.isArray(x.measurableOutcomes)||x.measurableOutcomes.length<6||
+   !x.realityCheck.includes("META")||!x.decisionBoundary.includes("propietario"))
+   errors.push("ADJUNTO_NORTH_STAR_INVALID");
+ }
+ if(m.projectHistory?.refreshmentExpenses){
+  const x=m.projectHistory.refreshmentExpenses;
+  if(x.sixPacksPerReportedDay!==2||x.pricePerSixMXN!==112||
+    x.reportedDailyTotalMXN!==224||!Array.isArray(x.illustrativeDaysRange)||
+    x.illustrativeDaysRange[0]!==238||x.illustrativeDaysRange[1]!==243||
+    !Array.isArray(x.illustrativeCostRangeMXN)||
+    x.illustrativeCostRangeMXN[0]!==224*238||x.illustrativeCostRangeMXN[1]!==224*243||
+    x.invoicesVerified!==false||x.verifiedDailyRecord!==false||
+    !x.taxTreatment.includes("por verificar")||
+    !x.valuationTreatment.includes("No se suma automaticamente"))
+    errors.push("REFRESHMENT_EXPENSE_MATH_OR_PROVENANCE_INVALID");
+ }
+
  if(m.latestHandoff||m.latestVerifiedCandidate){
   if(!/^[a-f0-9]{40}$/i.test(m.latestVerifiedCandidate?.sha||'')||
    m.latestHandoff?.verifiedCandidateSha!==m.latestVerifiedCandidate?.sha||
@@ -80,6 +102,27 @@ export function validateManifest(m,{rootDir=root}={}){
  const counts=Object.fromEntries(groups.map(g=>[g,m.workstreams?.filter(w=>w.domain===g).length||0]));
  return {ok:errors.length===0,errors,total:m.workstreams?.length||0,
   p0:m.workstreams?.filter(w=>w.priority==='P0').length||0,counts};
+}
+
+function renderOwnerNorthStar(m){
+ const n=m.productStrategy?.northStar;
+ if(!n)return [];
+ const lines=[
+  "## ESTRELLA POLAR - Meta irrenunciable de ADJUNTO","",
+  "**Palabras y voluntad del propietario:** "+esc(n.ownerWords),"",
+  "- **No competencia:** "+esc(n.nonCompetition),
+  "- **Originalidad:** "+esc(n.originality),
+  "- **Identidad unica:** "+esc(n.uniqueness),
+  "- **Uso privado:** "+esc(n.privateOperation),
+  "- **Que significa ser el mejor:** "+esc(n.excellenceDefinition),
+  "- **Orden para llevarlo a la realidad:** "+esc(n.executionOrder),
+  "- **Autoridad:** "+esc(n.decisionBoundary),
+  "- **Regla para futuras decisiones:** "+esc(n.futureDecisionRule),
+  "","### Resultados que demostrarian la meta",""
+ ];
+ for(const result of n.measurableOutcomes)lines.push("- "+esc(result));
+ lines.push("","> **Sin triunfalismos:** "+esc(n.realityCheck),"");
+ return lines;
 }
 
 function renderValueReadiness(m){
@@ -137,6 +180,7 @@ function renderProjectHistory(m){
   '- **Continuidad:** '+esc(p.continuedCollaboration)+'.',
   '- **Duracion historica:** '+esc(p.durationAtOct2026)+'.',
   '- **Suscripcion reportada:** '+esc(p.userReportedSubscriptionMXN)+'. Sin comprobantes auditados.',
+  ...(p.refreshmentExpenses?['- **Refrigerios de desarrollo reportados (sin comprobantes):** 2 six Tecate × MXN $112/six = **MXN $224/dia**; periodo ilustrativo de 238–243 dias: **MXN $53,312–$54,432**. '+esc(p.refreshmentExpenses.taxTreatment)+' '+esc(p.refreshmentExpenses.valuationTreatment)]:[]),
   ''
  ];
  if(labor){
@@ -240,6 +284,7 @@ export function renderManifest(m){
  '',
  ...renderLatestHandoff(m),
  ...renderPrivateProductStrategy(m),
+ ...renderOwnerNorthStar(m),
  ...renderValueReadiness(m),
  ...renderProjectHistory(m),
  '## Estado global verificable',

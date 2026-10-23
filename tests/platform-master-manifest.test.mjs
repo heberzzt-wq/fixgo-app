@@ -112,6 +112,37 @@ test('11 value gates need physical evidence and never automatically reprice ADJU
  assert.equal(validateManifest(fakeReference).ok,false);
 });
 
+test('owner north star is non-competing, original, private and measured honestly',()=>{
+ const n=data.productStrategy.northStar;
+ assert.match(n.ownerWords,/unico, original y mejor/);
+ assert.match(n.nonCompetition,/No competir/);
+ assert.match(n.originality,/no plagiar/);
+ assert.match(n.privateOperation,/no vender ADJUNTO/);
+ assert.match(n.executionOrder,/Primero terminar ADJUNTO/);
+ assert.match(n.realityCheck,/META/);
+ assert.ok(n.measurableOutcomes.length>=6);
+ assert.match(renderManifest(data),/ESTRELLA POLAR/);
+ const wrong=structuredClone(data);wrong.productStrategy.northStar.nonCompetition='Copiar a otros';
+ assert.equal(validateManifest(wrong).ok,false);
+});
+
+test('Tecate development refreshments are reported expenses with exact arithmetic, not audited invoices or tax deduction',()=>{
+ const x=data.projectHistory.refreshmentExpenses;
+ assert.equal(x.sixPacksPerReportedDay,2);
+ assert.equal(x.pricePerSixMXN,112);
+ assert.equal(x.reportedDailyTotalMXN,224);
+ assert.deepEqual(x.illustrativeCostRangeMXN,[53312,54432]);
+ assert.equal(x.invoicesVerified,false);
+ assert.equal(x.verifiedDailyRecord,false);
+ assert.match(x.taxTreatment,/por verificar/);
+ assert.match(renderManifest(data),/53,312/);
+ assert.match(renderManifest(data),/54,432/);
+ const forged=structuredClone(data);forged.projectHistory.refreshmentExpenses.invoicesVerified=true;
+ assert.equal(validateManifest(forged).ok,false);
+ const wrong=structuredClone(data);wrong.projectHistory.refreshmentExpenses.pricePerSixMXN=120;
+ assert.equal(validateManifest(wrong).ok,false);
+});
+
 test('published Markdown is deterministically generated and contains all 57 fronts',()=>{
  const actual=readFileSync(new URL('../docs/platform-master-manifest-v142.md',import.meta.url),'utf8');
  assert.equal(actual,renderManifest(data));
