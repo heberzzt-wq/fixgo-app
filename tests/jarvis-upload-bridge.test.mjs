@@ -37,9 +37,13 @@ test("supervisor tolerates a slow health response after startup and only recycle
     const scheduled = [];
     const recycled = [];
     const launched = [];
+    // Supervisor reads the minimal loopback /health response. The privileged
+    // /workstation/health endpoint requires an owner token and is not used here.
     const healthy = {
-        uploadTransportVersion: "test", bridgeVersion: "2.64.0-semantic-progress-deadline-v142",
-        runtime: { workstationContractVersion: "2.0.0-singleton-exact-sync", workerStarted: true, loadedHead: "head", processId: 4242 }
+        identity: { ok: true },
+        supervisor: { bridgeVersion: "2.64.0-semantic-progress-deadline-v142",
+            workstationContractVersion: "2.0.0-singleton-exact-sync",
+            workerStarted: true, loadedHead: "head", processId: 4242 }
     };
     const http = { get(_options, callback) {
         const request = new EventEmitter();
@@ -225,7 +229,8 @@ test("VS Code workspace auto-starts one local-only Jarvis workstation", () => {
     assert.match(readWorkstationScript("bridge"), /recycled stale verified Jarvis/);
     assert.match(readWorkstationScript("bridge:supervise"), /recycled stale verified Jarvis/);
     assert.match(readWorkstationScript("bridge:supervise"), /refusing duplicate bind/);
-    assert.match(readWorkstationScript("bridge:supervise"), /workstation\/health/);
+    assert.match(readWorkstationScript("bridge:supervise"), /path:\s*[\x27\x22]\/health[\x27\x22]/);
+    assert.doesNotMatch(readWorkstationScript("bridge:supervise"), /path:\s*[\x27\x22]\/workstation\/health[\x27\x22]/);
     assert.match(readWorkstationScript("bridge:supervise"), /workerStarted/);
     assert.match(readWorkstationScript("bridge:supervise"), /loadedHead/);
     assert.match(readWorkstationScript("bridge:supervise"), /currentHead\(\)/);
