@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 
 const config=JSON.parse(fs.readFileSync(new URL('../firebase.json',import.meta.url),'utf8'));
 const hosting=config.hosting.find(x=>x.site==='fixgo-44e4d');
@@ -32,6 +34,31 @@ test('FixGo hosting release excludes server-only local Jarvis files and leaves b
  assert.ok(hosting.ignore.includes('security/**'));
  assert.ok(hosting.ignore.includes('functions/**'));
  assert.ok(hosting.ignore.includes('.jarvis-artifacts/**'));
+});
+
+test('actual Hosting upload inventory contains no Node-only server entrypoints or developer tools',()=>{
+ const root=fileURLToPath(new URL('../',import.meta.url));
+ // Firebase CLI uses glob('**/*', {dot:true,follow:true,nodir:true,posix:true,ignore}).
+ const {sync:listFiles}=createRequire(import.meta.url)('glob');
+ const files=listFiles('**/*',{
+  cwd:root,dot:true,follow:true,nodir:true,posix:true,
+  ignore:['**/firebase-debug.log','**/firebase-debug.*.log','.firebase/*',...hosting.ignore]
+ });
+ assert.ok(files.length>=100,'the browser bundle must not be empty');
+ for(const required of ['gestia-terminal.html','gestia-core/gestia-core.js','modules/terminal/nexo-bootstrap.js','jarvis-runtime-contract.json']){
+  assert.ok(files.includes(required),'browser dependency missing: '+required);
+ }
+ assert.ok(!files.some(file=>file.startsWith('tools/')),'server MCP toolkit must not ship to Hosting');
+ assert.ok(!files.includes('ZUM_CORE.config'),'internal configuration must not ship');
+ assert.ok(!files.some(file=>/(^|\/)test-[^/]*\.js$/.test(file)),'development test entrypoint must not ship');
+ const unsafe=[];
+ for(const file of files.filter(file=>/\.(?:js|cjs|mjs)$/.test(file))){
+  const source=fs.readFileSync(new URL('../'+file,import.meta.url),'utf8');
+  if(/\bfrom\s*['"]node:|\b(?:require|import)\s*\(\s*['"](?:node:|fs['"]|child_process['"]|http['"]|https['"]|net['"]|os['"]|worker_threads['"])/.test(source)){
+   unsafe.push(file);
+  }
+ }
+ assert.deepEqual(unsafe,[],'Node-only sources leaked into public upload manifest');
 });
 
 test('FixGo hosting sends minimal safe response headers without breaking JS and OAuth popups',()=>{
