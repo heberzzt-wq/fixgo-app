@@ -69,6 +69,20 @@
 
 ---
 
+## Decision estrategica del propietario - ADJUNTO privado (2026-10-23)
+
+**Identidad y posicionamiento:** ADJUNTO es infraestructura operativa privada de Peninsula Tech, no un producto IA para vender al publico ni un competidor de ChatGPT/Gemini/Claude.
+
+- **Marca:** ADJUNTO. Jarvis solo como apodo interno; marca comercial propuesta ADJUNTO, sujeta a revision legal.
+- **Modelo comercial:** Peninsula Tech vende resultados: publicidad, programacion, contenidos, servicios empresariales y operaciones B2C/B2B. No vende suscripciones ni acceso publico general al asistente IA.
+- **Infraestructura:** Cerebro unico Qwen3.5:9b alojado localmente en entorno privado autorizado; sin fallback cognitivo a otras APIs de IA.
+- **Conectores:** Permitir conectores/servicios de red autorizados para operar correo, GitHub, plataformas sociales, Firebase y clientes sin exponer el LLM como servicio publico.
+- **Alcance previsto:** ADJUNTO coordina investigacion, programacion, diseno, campanas, soporte documental, operaciones, mantenimiento y desarrollo experimental de nuevas herramientas/IA.
+- **Autoridad:** Investiga, ejecuta dentro de permisos, prueba y verifica; cambios de codigo con impacto, despliegues, dinero, cuentas y decisiones de alto riesgo bajo aprobacion del propietario.
+- **Relación con el cliente:** El cliente contrata a Peninsula Tech por el trabajo, producto o servicio realizado; no compra ni opera el modelo Qwen ni el motor privado ADJUNTO.
+
+> **Alcance de esta decisión:** Vision y mandato de producto; no evidencia de que cada funcion ya este operativa ni de autonomia 99.9%, seguridad certificada o equivalencia con otras IA.
+
 ## Historia e inversion de trabajo del fundador
 
 - **Inicio aproximado:** finales de febrero de 2026.

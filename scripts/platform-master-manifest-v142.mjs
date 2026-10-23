@@ -28,6 +28,13 @@ export function validateManifest(m,{rootDir=root}={}){
      !Array.isArray(l.estimatedHoursRange)||l.estimatedHoursRange[1]<l.estimatedHoursRange[0])
     errors.push('FOUNDERS_LABOR_EVIDENCE_INVALID');
  }
+ if(m.productStrategy){
+  const p=m.productStrategy;
+  if(p.brand!=='ADJUNTO'||p.decisionDate!=='2026-10-23'||!p.businessModel.includes('No vende suscripciones')||
+     !p.deployment.includes('Qwen3.5:9b')||!p.commercialBoundary.includes('no compra ni opera')||
+     !p.autonomyBoundary.includes('aprobacion del propietario')||!p.notClaimed.includes('Vision'))
+    errors.push('ADJUNTO_PRIVATE_STRATEGY_INVALID');
+ }
  if(m.latestHandoff||m.latestVerifiedCandidate){
   if(!/^[a-f0-9]{40}$/i.test(m.latestVerifiedCandidate?.sha||'')||
    m.latestHandoff?.verifiedCandidateSha!==m.latestVerifiedCandidate?.sha||
@@ -60,6 +67,26 @@ export function validateManifest(m,{rootDir=root}={}){
  const counts=Object.fromEntries(groups.map(g=>[g,m.workstreams?.filter(w=>w.domain===g).length||0]));
  return {ok:errors.length===0,errors,total:m.workstreams?.length||0,
   p0:m.workstreams?.filter(w=>w.priority==='P0').length||0,counts};
+}
+
+function renderPrivateProductStrategy(m){
+ const p=m.productStrategy;
+ if(!p)return [];
+ return [
+ '## Decision estrategica del propietario - ADJUNTO privado ('+esc(p.decisionDate)+')','',
+ '**Identidad y posicionamiento:** '+esc(p.ownerDecision),
+ '',
+ '- **Marca:** '+esc(p.brand)+'. '+esc(p.naming)+'.',
+ '- **Modelo comercial:** '+esc(p.businessModel),
+ '- **Infraestructura:** '+esc(p.deployment),
+ '- **Conectores:** '+esc(p.integrationBoundary),
+ '- **Alcance previsto:** '+esc(p.ambition),
+ '- **Autoridad:** '+esc(p.autonomyBoundary),
+ '- **Relación con el cliente:** '+esc(p.commercialBoundary),
+ '',
+ '> **Alcance de esta decisión:** '+esc(p.notClaimed),
+ ''
+ ];
 }
 
 function renderProjectHistory(m){
@@ -173,6 +200,7 @@ export function renderManifest(m){
  '> ni autorización de despliegue. Los reportes históricos no demuestran el estado productivo actual.',
  '',
  ...renderLatestHandoff(m),
+ ...renderPrivateProductStrategy(m),
  ...renderProjectHistory(m),
  '## Estado global verificable',
  '',

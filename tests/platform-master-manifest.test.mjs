@@ -86,6 +86,18 @@ test('founder labor and project start remain costs of opportunity, not paid sala
  assert.equal(validateManifest(bad).ok,false);
 });
 
+test('owner strategy keeps ADJUNTO internal-only and never confuses vision with delivered capability',()=>{
+ const s=data.productStrategy;
+ assert.equal(s.brand,'ADJUNTO');
+ assert.match(s.businessModel,/No vende suscripciones/);
+ assert.match(s.deployment,/Qwen3\.5:9b/);
+ assert.match(s.notClaimed,/Vision/);
+ assert.match(s.commercialBoundary,/no compra ni opera/);
+ assert.match(renderManifest(data),/Decision estrategica del propietario/);
+ const bad=structuredClone(data);bad.productStrategy.deployment='Hosted external model';
+ assert.equal(validateManifest(bad).ok,false);
+});
+
 test('published Markdown is deterministically generated and contains all 57 fronts',()=>{
  const actual=readFileSync(new URL('../docs/platform-master-manifest-v142.md',import.meta.url),'utf8');
  assert.equal(actual,renderManifest(data));

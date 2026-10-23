@@ -72,6 +72,19 @@
     }
   },
   "branch": "v142-official",
+  "productStrategy": {
+    "decisionDate": "2026-10-23",
+    "ownerDecision": "ADJUNTO es infraestructura operativa privada de Peninsula Tech, no un producto IA para vender al publico ni un competidor de ChatGPT/Gemini/Claude.",
+    "brand": "ADJUNTO",
+    "naming": "Jarvis solo como apodo interno; marca comercial propuesta ADJUNTO, sujeta a revision legal",
+    "businessModel": "Peninsula Tech vende resultados: publicidad, programacion, contenidos, servicios empresariales y operaciones B2C/B2B. No vende suscripciones ni acceso publico general al asistente IA.",
+    "deployment": "Cerebro unico Qwen3.5:9b alojado localmente en entorno privado autorizado; sin fallback cognitivo a otras APIs de IA.",
+    "integrationBoundary": "Permitir conectores/servicios de red autorizados para operar correo, GitHub, plataformas sociales, Firebase y clientes sin exponer el LLM como servicio publico.",
+    "ambition": "ADJUNTO coordina investigacion, programacion, diseno, campanas, soporte documental, operaciones, mantenimiento y desarrollo experimental de nuevas herramientas/IA.",
+    "autonomyBoundary": "Investiga, ejecuta dentro de permisos, prueba y verifica; cambios de codigo con impacto, despliegues, dinero, cuentas y decisiones de alto riesgo bajo aprobacion del propietario.",
+    "commercialBoundary": "El cliente contrata a Peninsula Tech por el trabajo, producto o servicio realizado; no compra ni opera el modelo Qwen ni el motor privado ADJUNTO.",
+    "notClaimed": "Vision y mandato de producto; no evidencia de que cada funcion ya este operativa ni de autonomia 99.9%, seguridad certificada o equivalencia con otras IA."
+  },
   "ownerExecutionDecisionDate": "2026-10-22",
   "ownerExecutionOrder": [
     {"rank": 1, "track": "jarvis_autonomy", "name": "Autonomía real de JARVIS", "goal": "Misiones Qwen completas, recuperación, herramientas verificadas y entregables reales"},
