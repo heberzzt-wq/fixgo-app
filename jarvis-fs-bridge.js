@@ -3,6 +3,7 @@ import {createJarvisLocalIntrusionGuard,JARVIS_BROWSER_ORIGINS,localIntrusionSna
 import {pendingExternalConnectorInventory} from './jarvis-external-connector-contract.js';
 import {prepareBoundedXmlArtifact,verifyStructuredArtifactOutcome} from './jarvis-structured-artifact-recovery.js';
 import {createIsolatedEvidenceReadHandler} from './jarvis-isolated-evidence-readback.js';
+import {bindOwnedCommandLifecycle,terminateOwnedProcessTree} from './jarvis-run-command-cancellation.js';
 import {createPilotVersionGate,qwenRuntimeEnabled} from './jarvis-qwen-pilot-version.js';
 import {registerWorkstationHealth,createWorkstationAuthorization,supervisorHeartbeat} from './jarvis-workstation-health.js';
 import {verifyBrowserIdToken} from './jarvis-qwen-decision-http.js';
@@ -8208,6 +8209,7 @@ export function createJarvisFsBridgeApp({
 
             let finished =
                 false;
+            let commandLifecycle = null;
 
             const timer =
                 setTimeout(
@@ -8218,10 +8220,9 @@ export function createJarvisFsBridgeApp({
 
                         finished =
                             true;
-
-                        child.kill(
-                            "SIGTERM"
-                        );
+                        commandLifecycle?.complete();
+                        terminateOwnedProcessTree(child);
+                        if (res.destroyed) return;
 
                         return res.status(408).json({
                             ok: false,
@@ -8240,6 +8241,18 @@ export function createJarvisFsBridgeApp({
                     },
                     Number(timeoutMs) || 120000
                 );
+
+            // A cancelled Terminal request must stop its owned command tree.
+            // A normal response close never terminates a completed command.
+            commandLifecycle = bindOwnedCommandLifecycle({
+                req, res, child,
+                onCancel: () => {
+                    if (finished) return;
+                    finished = true;
+                    clearTimeout(timer);
+                    terminateOwnedProcessTree(child);
+                }
+            });
 
             const appendRunTail = (
                 current,
@@ -8285,6 +8298,7 @@ export function createJarvisFsBridgeApp({
 
                     finished =
                         true;
+                    commandLifecycle?.complete();
 
                     clearTimeout(
                         timer
@@ -8316,6 +8330,7 @@ export function createJarvisFsBridgeApp({
 
                     finished =
                         true;
+                    commandLifecycle?.complete();
 
                     clearTimeout(
                         timer
