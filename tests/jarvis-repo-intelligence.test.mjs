@@ -41,6 +41,13 @@ test('configured sources preserve modular SDK bindings without record examples a
         const legacy=buildRepoIntelligence({root:f.root});
         assert.deepEqual(legacy.nodes['capture.js'].collections,[],'reproduce the legacy graph omission');
         const catalog=configuredRepositorySources(f.root);
+        if (!catalog && process.env.GITHUB_ACTIONS === 'true') {
+            const top=f.run(['rev-parse','--show-toplevel']);
+            console.error('SOURCE_FIXTURE_DIAGNOSTIC',JSON.stringify({
+                root:f.root,gitTop:top,sameRoot:sameConfiguredRepositoryRoot(top,f.root),
+                status:f.run(['status','--porcelain']),head:f.run(['rev-parse','HEAD'])
+            }));
+        }
         assert.equal(catalog.operationalEvidence,false);
         assert.equal(catalog.permissionsGranted,false);
         assert.equal(catalog.exhaustiveOperationalCoverage,false);
