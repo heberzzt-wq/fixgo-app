@@ -7,12 +7,20 @@ import {analyzeRepoSourceStructure} from './gestia-core/repo/repo.source.structu
 
 const cache = new Map();
 
-// Git on Windows may change path capitalization while still naming the exact
-// same directory. Do not mistake that for an untrusted alternate repository.
+// Git on Windows may return the expanded long name for a short 8.3 path.
+// Accept only the same physical directory, never an untrusted alternate repo.
 export function sameConfiguredRepositoryRoot(reported, expected, platform = process.platform) {
     const actual = path.resolve(reported);
     const required = path.resolve(expected);
-    return platform === 'win32' ? actual.toLowerCase() === required.toLowerCase() : actual === required;
+    if (platform !== 'win32') return actual === required;
+    if (actual.toLowerCase() === required.toLowerCase()) return true;
+    try {
+        // Windows 8.3 aliases (RUNNER~1) and long names may point to one exact
+        // directory. Canonicalize or compare nonzero filesystem IDs, never prefixes.
+        if (fs.realpathSync.native(actual).toLowerCase() === fs.realpathSync.native(required).toLowerCase()) return true;
+        const a = fs.statSync(actual, {bigint:true}), b = fs.statSync(required, {bigint:true});
+        return a.isDirectory() && b.isDirectory() && a.dev === b.dev && a.ino > 0n && a.ino === b.ino;
+    } catch { return false; }
 }
 
 // Configuration describes where the application stores data. It contains no

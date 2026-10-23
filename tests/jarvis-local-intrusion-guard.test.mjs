@@ -8,6 +8,10 @@ import {evaluateJarvisWebPerimeter,JARVIS_BROWSER_ORIGINS,
 test('local bridge perimeter allows only exact loopback host and known browser origins',()=>{
  const options={host:'127.0.0.1:3344',localPort:3344,localAddress:'127.0.0.1'};
  assert.equal(evaluateJarvisWebPerimeter(options).ok,true);
+ const ipv6Local={...options,host:'localhost:3344',localAddress:'::1',origin:'https://fixgo-44e4d.web.app'};
+ assert.equal(evaluateJarvisWebPerimeter(ipv6Local).ok,true,'IPv6 loopback is local, not a remote host');
+ assert.equal(evaluateJarvisWebPerimeter({...ipv6Local,origin:'https://evil.example'}).ok,false);
+ assert.equal(evaluateJarvisWebPerimeter({...ipv6Local,localAddress:'2001:db8::1'}).ok,false);
  for(const origin of JARVIS_BROWSER_ORIGINS)
   assert.equal(evaluateJarvisWebPerimeter({...options,origin,fetchSite:'cross-site'}).ok,true,origin);
  for(const adversarial of [

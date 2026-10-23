@@ -26,7 +26,7 @@ export function evaluateJarvisWebPerimeter({host='',origin=null,fetchSite='',
  if(target[2]&&Number(target[2])>65535)return deny('HOST_PORT_INVALID');
  if(Number.isInteger(localPort)&&localPort>0&&Number(target[2]||80)!==localPort)
    return deny('HOST_PORT_MISMATCH');
- if(!['127.0.0.1','::ffff:127.0.0.1'].includes(String(localAddress||'')))
+ if(!['127.0.0.1','::1','::ffff:127.0.0.1'].includes(String(localAddress||'')))
    return deny('LISTENER_NOT_LOOPBACK');
  if(origin!==null&&origin!==undefined&&origin!==''){
    if(!ALLOWED.has(origin))return deny('UNTRUSTED_BROWSER_ORIGIN');
