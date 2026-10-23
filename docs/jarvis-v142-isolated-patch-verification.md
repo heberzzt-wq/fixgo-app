@@ -37,3 +37,23 @@ Windows operation and possibly a controlled reboot are necessary.
 After physical Docker verification succeeds, the authenticated V142 executor must
 bind this result to the original tool receipts and user approval workflow.
 Only then may a full before/after code repair be considered for certification.
+
+## Actualización física — 22 de octubre de 2026
+
+Los requisitos anteriores describen el bloqueo de instalación observado el
+21 de octubre. Ahora WSL2 y Docker Desktop Linux 29.9.2 funcionan en
+adjunto-jarvis; el digest exacto fijado de node:24-alpine se verificó.
+
+El expediente auténtico de Qwen
+general-38f6031b-b7cc-4ead-b056-43d349e9fa3a
+pasó RED 3/4 y GREEN 4/4 mediante dos contenedores reales sin red,
+privilegios ni acceso de escritura a fuentes. La copia original quedó intacta.
+
+Se agregó un endpoint autenticado limitado a ese fixture
+(/qwen-isolated/verify) y el mecanismo de revisión de recibos en la Terminal.
+La implementación y sus pruebas se detallan en
+docs/v142-ns1-10-authenticated-docker-20261022.md.
+
+La certificación formal NS1-10 sigue pendiente: la prueba aún no representa
+un ciclo autónomo RED → GREEN → REFACTOR de cualquier especificación ni
+autoriza aplicar parches en producción.

@@ -3,6 +3,7 @@ import {createJarvisLocalIntrusionGuard,JARVIS_BROWSER_ORIGINS,localIntrusionSna
 import {pendingExternalConnectorInventory} from './jarvis-external-connector-contract.js';
 import {prepareBoundedXmlArtifact,verifyStructuredArtifactOutcome} from './jarvis-structured-artifact-recovery.js';
 import {createIsolatedEvidenceReadHandler} from './jarvis-isolated-evidence-readback.js';
+import {createIsolatedEvidenceVerifyHandler} from './jarvis-isolated-evidence-verify.js';
 import {bindOwnedCommandLifecycle,terminateOwnedProcessTree} from './jarvis-run-command-cancellation.js';
 import {createPilotVersionGate,qwenRuntimeEnabled} from './jarvis-qwen-pilot-version.js';
 import {registerWorkstationHealth,createWorkstationAuthorization,supervisorHeartbeat} from './jarvis-workstation-health.js';
@@ -7086,6 +7087,12 @@ export function createJarvisFsBridgeApp({
         return res.set('Cache-Control','no-store').json({ok:true,...localIntrusionSnapshot()});
     });
     if(qwenEnabled)app.post('/qwen-isolated/evidence',createIsolatedEvidenceReadHandler({
+        root,authorize:createWorkstationAuthorization({identity:requestIdentity,
+            verifyIdToken:verifyBrowserIdToken,ownerUid:workstationRelay.ownerUid})
+    }));
+    // Bounded fixture-only NS1-10 physical verification, never an arbitrary
+    // command runner or authorization to apply a prepared patch to production.
+    if(qwenEnabled)app.post('/qwen-isolated/verify',createIsolatedEvidenceVerifyHandler({
         root,authorize:createWorkstationAuthorization({identity:requestIdentity,
             verifyIdToken:verifyBrowserIdToken,ownerUid:workstationRelay.ownerUid})
     }));

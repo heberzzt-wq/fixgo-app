@@ -119,6 +119,19 @@ export async function restoreLatestCodePreviewReceiptCard({host,auth,bridge}={})
        {missionId:candidate.missionId},{idToken,timeoutMs:12000});
    if(verifiedHostIsolatedProof(preview,observed))proof=observed;
   }catch{/* No host archive or invalid authorization: keep truthful pending status. */}
+  // Once a source-bound, read-only patch preview is independently verified,
+  // the authenticated host can run its fixed fixture in pinned Docker.
+  // This never applies the patch, changes repository files or grants approval.
+  if(!proof&&preview.file==='tests/fixtures/v142-rebate-preview.js'){
+   try{
+    const idToken=await identity.getIdToken();
+    if(auth.currentUser!==identity)return null;
+    const observed=await bridge.requestJson('/qwen-isolated/verify',
+      {missionId:candidate.missionId,record:candidate.record},
+      {idToken,timeoutMs:120000});
+    if(verifiedHostIsolatedProof(preview,observed))proof=observed;
+   }catch{/* Docker unavailable or verification rejected: retain explicit pending status. */}
+  }
  }
  if(auth.currentUser!==identity)return null;
  const url=URL.createObjectURL(new Blob([serialized],{type:'application/json'}));
