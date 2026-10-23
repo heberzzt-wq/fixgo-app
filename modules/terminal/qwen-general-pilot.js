@@ -4,7 +4,7 @@ import {LOCAL_VIDEO_EVIDENCE_CAPABILITIES,MEDIA_TOOLS,mediaEntries,producedMedia
 import {createQwenBridgeActionSelector} from './qwen-direct-transport.js';
 import {runQwenTerminalReadPilot} from './qwen-direct-pilot.js?release=v142-code-preview-20261021-v32';
 import {createGeneralToolPolicy,normalizeGeneralSchema} from '../../jarvis-qwen-general-policy.js?pilot=engineering-read-20261021-v10';
-import {advertisingSourceText,generalObjectives,GENERAL_COUNT_FIELDS,summarizeGeneralEvidence,verifyGeneralMission,independentResearchProofs,researchOfficeContent,researchSourceProofs,researchQuoteRelevant,researchTopic,codeConcurrencyRequested,codePreviewOnlyRequested,verifiedPreparedCodePreview,requiredEngineeringSourceFiles} from './qwen-general-evidence.js?release=v142-code-preview-20261021-v32';
+import {advertisingSourceText,generalObjectives,GENERAL_COUNT_FIELDS,summarizeGeneralEvidence,verifyGeneralMission,independentResearchProofs,researchOfficeContent,researchSourceProofs,researchQuoteRelevant,researchTopic,codeConcurrencyRequested,codePreviewOnlyRequested,verifiedPreparedCodePreview,requiredEngineeringSourceFiles,verifiedRepositoryGraphCoverage} from './qwen-general-evidence.js?release=v142-code-preview-20261021-v32';
 import {receiptBoundProductionContent,prioritizeReceiptBoundProduction} from './qwen-production-document.js';
 import {resumedMissionId,originalResumedMissionId,readSavedMission,verifiedResumeReceipts,verifiedResearchResumeReceipts} from './qwen-general-resume.js?pilot=research-resume-20261021-v4';
 import {classifyEmptyGeneralCatalog,requestQwenGeneralConversation} from './qwen-empty-catalog.js?pilot=concise-20261021-v8';
@@ -35,7 +35,7 @@ export function generalToolCatalog(runtime,policy,objectives,instruction=''){
     const needed=new Set([
         ...(objectives?.advertising?['advertising.research','media.library','image.adapt','media.analyze','artifact.read','browser.inspect',...(objectives.reel?['speech.synthesize','reel.create']:[])]:[]),
         ...(objectives?.capabilities?['system.capabilities']:[]),
-        ...(objectives?.code?['repo.search','repo.grep','repo.read','repo.diagnose','repo.prepareWrite','tests.run','repo.gitStatus']:[]),
+        ...(objectives?.code?['repo.search','repo.grep','repo.read',...(objectives.architecture?['repo.graph']:[]),'repo.diagnose','repo.prepareWrite','tests.run','repo.gitStatus']:[]),
         ...(objectives?.research&&!objectives?.advertising?['web.research','browser.inspect']:[]),
         ...(objectives?.records?['repo.search','repo.read','platform.query']:[]),
         ...(objectives?.page?['page.create','browser.open','browser.inspect','browser.screenshot','media.analyze','artifact.read']:[]),
@@ -51,6 +51,11 @@ export function generalToolCatalog(runtime,policy,objectives,instruction=''){
             t.inputSchema.required=[...new Set([...(t.inputSchema.required||[]),'query'])];
         }
         if(tool.name==='media.analyze'){t.description='Revisa con Qwen local los pixeles del PNG importado, grafico producido o captura, y tres fotogramas y audio del MP4 producido. Usa output exacto observado.';p.output={type:'string'};t.inputSchema.required=['output'];}
+        if(tool.name==='repo.graph'){
+            t.description='Construye el grafo real de los archivos de código compatibles, funciones, imports, endpoints y dependencias; nunca afirma haber leído en detalle todos los archivos ni autoriza modificaciones.';
+            p.refresh={type:'boolean',const:true};p.maxFiles={type:'integer',const:5000};p.maxFileSizeBytes={type:'integer',const:800000};
+            t.inputSchema.required=['refresh','maxFiles','maxFileSizeBytes'];t.inputSchema.additionalProperties=false;
+        }
         if(tool.name==='repo.read'&&!objectives.code)p.file={type:'string',enum:['app-registro.js','panel-admin.js','b2c-technician-profile.js','gestia-core/contracts/b2c-platform-contract.js']};
         if(tool.name==='platform.query'){
             p.collection={type:'string',const:'users'};p.mode={type:'string',const:'query'};
@@ -401,6 +406,12 @@ export function compactGeneralObservation(o,includeEngineeringSource=false){
     if(o?.status==='LOCAL_VIDEO_REVIEW_FAILED')return {...base,sourceSha256:o.sourceSha256,frames:o.frames?.map(f=>({timestampSeconds:f.timestampSeconds,review:f.review,visualPassed:f.visualPassed})),audioEvidence:o.audioEvidence,repairLimit:1};
     if(o?.ok!==true)return {...base,error:o?.error?.context?.runtimeResult?.error||o?.error,...(o?.creativeSemanticReview?{creativeSemanticReview:compactReview(o.creativeSemanticReview)}:{})};
     if(o?.status==='LOCAL_VISUAL_REVIEW')return {...base,imageSha256:o.imageSha256,model:o.model,review:o.review};
+    if(o?.tool==='repo.graph'||o?.status==='REPO_GRAPH_READY'){
+        const names=Object.keys(o.nodes||{});
+        return {...base,tool:'repo.graph',source:o.source,summary:o.summary,
+            nodeCount:names.length,sourceFilesSample:names.slice(0,12),
+            coverageNote:'El grafo inventaría código compatible; no acredita lectura detallada de cada archivo.'};
+    }
     if(o?.tool==='repo.search')return {...base,tool:o.tool,results:(o.results||[]).slice(0,12).map(r=>({file:r.file,score:r.score}))};
     if(o?.totalTools!==undefined)return {...base,totalTools:o.totalTools,groups:o.groups,inventory:o.inventory,readiness:o.readiness,workstation:o.workstation};
     if(o?.recordEvidence){const e=o.recordEvidence;return {...base,recordEvidence:{source:e.source,scope:e.scope,
@@ -608,6 +619,7 @@ export function generalPilotSourceSignature(){
         receiptBoundProductionContent,
         prioritizeReceiptBoundProduction,
         verifyGeneralMission,
+        verifiedRepositoryGraphCoverage,
         independentResearchProofs,
         researchSourceProofs,
         researchQuoteRelevant,
@@ -736,6 +748,16 @@ export async function runGeneralAutonomousPhases({initialReceipts=[],budget,exec
 // repo.write, repo.authorizeWrite, deployments, git mutations or payments.
 export function prioritizeGeneralCodeCatalog(catalog,receipts,instruction=''){
     const completed=receipts.filter(r=>r.ok===true);
+    if(generalObjectives(instruction).architecture){
+        const graph=completed.find(r=>r.name==='repo.graph');
+        if(!graph){
+            const tool=catalog.find(t=>t.name==='repo.graph');
+            return tool?[tool]:[];
+        }
+        // An incomplete/truncated live graph is a PARTIAL result, never
+        // permission to claim a full architecture inventory.
+        if(!verifiedRepositoryGraphCoverage(graph).ok)return [];
+    }
     const grep=completed.find(r=>r.name==='repo.grep');
     if(!grep){
         const tool=catalog.find(t=>t.name==='repo.grep');

@@ -3,6 +3,27 @@ import {verifiedPosterCopy} from './qwen-poster-proof.js';
 import {requiredDeliveryFormats,unfulfilledDownloadFormats,unavailableMissionOperations} from './qwen-general-contract.js';
 import '../../gestia-core/contracts/b2c-platform-contract.js';
 export const GENERAL_COUNT_FIELDS=['rol','role','tipo_cuenta','account_type','b2b_activo','sub_type','subtype'];
+// A code architecture survey requires the REAL repository graph, not six
+// hand-picked source reads or a model-authored inventory. This certifies a
+// bounded supported-source inventory, never a claim to have read every byte.
+export function verifiedRepositoryGraphCoverage(receipt){
+ const graph=receipt?.observation,summary=graph?.summary,nodes=graph?.nodes;
+ const keys=nodes&&typeof nodes==='object'&&!Array.isArray(nodes)?Object.keys(nodes):[];
+ const count=keys.length;
+ const valid=receipt?.ok===true&&receipt?.name==='repo.graph'&&
+  receipt.args?.refresh===true&&receipt.args?.maxFiles===5000&&
+  receipt.args?.maxFileSizeBytes===800000&&
+  graph?.ok===true&&graph?.status==='REPO_GRAPH_READY'&&
+  graph?.source==='live_repo_ast_graph'&&
+  Number.isSafeInteger(summary?.filesScanned)&&summary.filesScanned>0&&
+  summary.filesScanned<5000&&summary?.nodes===count&&count===summary.filesScanned&&
+  Number.isSafeInteger(summary?.dependencyEdges)&&
+  keys.every(file=>nodes[file]?.file===file&&Array.isArray(nodes[file]?.dependencies))&&
+  summary.dependencyEdges===keys.reduce((sum,file)=>sum+nodes[file].dependencies.length,0);
+ return {ok:valid===true,reason:valid===true?null:'REPOSITORY_GRAPH_INCOMPLETE',
+  filesScanned:valid?count:0,dependencyEdges:valid?summary.dependencyEdges:0,
+  scope:'BOUNDED_SUPPORTED_SOURCE_FILES_NOT_FULL_REPOSITORY_BYTE_COVERAGE'};
+}
 // A mission that names exact repository source paths must actually read them.
 // Additional cross-layer authorization files are required for Terminal->bridge->executor audits.
 // Paths only select sources; they grant no read or mutation authority.
@@ -114,7 +135,9 @@ export function generalObjectives(instruction){
     const advertising=/tiktok|campaña|publicitari|publicidad/.test(s)||reel&&/texto comercial|logo oficial|contacto verificado|anuncio|marketing/.test(s);
     const code=generalEngineeringRequested(instruction)||unavailableMissionOperations(instruction).some(x=>x.includes('parches'))||/\b(?:requestpayout|bug)\b/iu.test(s);
     const requestedImageFormats=advertising?[...new Map([...s.matchAll(/\b(\d{2,4})\s*[x×]\s*(\d{2,4})\b/g)].map(m=>[m[1]+'x'+m[2],{width:Number(m[1]),height:Number(m[2])}])).values()]:[];
-    return {code,reel,prohibited:generalRestrictedActionRequested(s),advertising,capabilities:/capacidades|system\.capabilities|inventario de herramientas/.test(s),research:!code&&/investig|fuentes|webgpu|actualidad/.test(s),page:/landing|(?:crea|genera|diseña|construye|haz)[\s\S]{0,100}(?:página|pagina|html)/.test(s),
+    const normalized=s.normalize('NFD').replace(/\p{M}/gu,'');
+    const architecture=code&&/\b(?:arquitectura|grafo|dependencias?|arbol|arboles)\b/u.test(normalized)&&/\b(?:repositorio|repo|codigo|proyecto)\b/u.test(normalized);
+    return {code,architecture,reel,prohibited:generalRestrictedActionRequested(s),advertising,capabilities:/capacidades|system\.capabilities|inventario de herramientas/.test(s),research:!code&&/investig|fuentes|webgpu|actualidad/.test(s),page:/landing|(?:crea|genera|diseña|construye|haz)[\s\S]{0,100}(?:página|pagina|html)/.test(s),
         records:!code&&generalRecordsRequested(instruction),document:/documento|document\.create|export|informe descargable/.test(s)||requiredDeliveryFormats(s).length>0||(advertising&&reel),
         ...(requestedImageFormats.length?{requestedImageFormats}:{}),current:/actual|reciente|hoy|vigente/.test(s),unsupported:reel||advertising||/imagen/.test(s)||generalRestrictedActionRequested(s)};
 }
@@ -386,6 +409,11 @@ export async function verifyGeneralMission({instruction,receipts,proposedReport,
         }catch{}
     }
     if(objectives.code){
+        if(objectives.architecture){
+            const coverage=verifiedRepositoryGraphCoverage(rows.find(r=>r.name==='repo.graph'));
+            check('live bounded repository source graph and dependency coverage',coverage.ok,
+                'REPOSITORY_GRAPH_INCOMPLETE',coverage);
+        }
         const grep=rows.find(r=>r.name==='repo.grep'&&Array.isArray(r.observation?.matches));
         const sourceReads=rows.filter(r=>r.name==='repo.read'&&r.observation?.verifiedRead?.file===r.args?.file);
         check('real repository grep and source reads',!!grep&&grep.observation.matches.length>0&&sourceReads.length>0,

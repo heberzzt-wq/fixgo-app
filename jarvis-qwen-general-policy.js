@@ -1,7 +1,7 @@
 import {validateProductionDocument,codePreviewOnlyRequested} from './modules/terminal/qwen-general-evidence.js';
 import {MEDIA_TOOLS,mediaPaths,authorizeMedia,producedMedia} from './modules/terminal/qwen-general-media.js';
 // Host-owned capability policy. Model arguments never grant authority.
-const READS=new Set(['repo.search','repo.grep','repo.read','repo.diagnose','repo.gitStatus','tests.run','platform.query','web.research','browser.inspect','artifact.read','media.analyze','system.capabilities','advertising.research']);
+const READS=new Set(['repo.search','repo.grep','repo.read','repo.graph','repo.diagnose','repo.gitStatus','tests.run','platform.query','web.research','browser.inspect','artifact.read','media.analyze','system.capabilities','advertising.research']);
 const PREPARES=new Set(['repo.prepareWrite']);
 const CREATES=new Set(['page.create','document.create']);
 const BROWSER=new Set(['browser.open','browser.screenshot']);
