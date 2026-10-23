@@ -52,6 +52,13 @@ test('configured sources preserve modular SDK bindings without record examples a
     } finally {f.cleanup();}
 });
 
+test('missing source inventory fails closed without the null collections crash',()=>{
+    const tools=[{name:'repo.search',investigationReadOnly:true}];
+    assert.equal(configuredSourcesMessage(null,18000,{instruction:'NS1-01 Audita la refactorizacion multicapa'}),null);
+    assert.equal(configuredSourcesMessage(null,18000),null);
+    assert.equal(bindConfiguredSourceArguments(tools,null,{recordFlow:true}),tools);
+});
+
 test('configured source hints respect the prompt budget without dropping file and path associations',()=>{
     const f=configuredSourceFixture();
     try {

@@ -298,7 +298,19 @@ export async function startJarvisBrowserRelay({ auth, db, sdk, contract, request
     const parent = sdk.doc(db, policy.collection, policy.ownerUid), jobs = sdk.collection(parent, "requests");
     const workerId = uuid(), pending = new Map();
     let stopped = false, busy = false, unsubscribe, timer, lastHeartbeat = 0;
-    const health = await requestLocal("/workstation/health", {}, { timeoutMs: 4000 });
+    const requestOwnerHealth = async () => {
+        const owner = auth.currentUser;
+        if (owner?.uid !== policy.ownerUid || typeof owner.getIdToken !== "function") {
+            throw new Error("JARVIS_RELAY_OWNER_TOKEN_REQUIRED");
+        }
+        // Firebase refreshes the token as needed. Never save it in Firestore or browser storage.
+        const idToken = await owner.getIdToken();
+        if (!idToken || auth.currentUser?.uid !== policy.ownerUid) {
+            throw new Error("JARVIS_RELAY_OWNER_TOKEN_REQUIRED");
+        }
+        return requestLocal("/workstation/health", {}, { timeoutMs: 4000, idToken });
+    };
+    const health = await requestOwnerHealth();
     if (health?.ok !== true || health.status !== "JARVIS_WORKSTATION_LIVE" || !health.runtime?.bridgeStarted) {
         throw new Error("JARVIS_RELAY_LOCAL_HEALTH_REQUIRED");
     }
@@ -310,7 +322,7 @@ export async function startJarvisBrowserRelay({ auth, db, sdk, contract, request
     }
     const heartbeat = async () => {
         if (stopped || auth.currentUser?.uid !== policy.ownerUid) throw new Error("JARVIS_RELAY_OWNER_REQUIRED");
-        const local = await requestLocal("/workstation/health", {}, { timeoutMs: 4000 });
+        const local = await requestOwnerHealth();
         if (local?.ok !== true || local.status !== "JARVIS_WORKSTATION_LIVE") throw new Error("JARVIS_RELAY_LOCAL_HEALTH_REQUIRED");
         if (
             contract.gitSha &&

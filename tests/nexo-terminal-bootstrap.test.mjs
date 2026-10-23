@@ -523,11 +523,24 @@ function relayFakeSdk() {
     return { sdk, docs, writes, emit, watchers };
 }
 
+test('private relay rejects owner workstations without a Firebase identity token', async () => {
+    const fake = relayFakeSdk();
+    const auth = { currentUser: { uid: JARVIS_PRIVATE_RELAY.ownerUid }, async authStateReady() {} };
+    await assert.rejects(startJarvisBrowserRelay({
+        auth, db: {}, sdk: fake.sdk, contract: { releaseId: 'relay-test' },
+        requestLocal: async () => { throw new Error('HEALTH_MUST_NOT_BE_CALLED_UNAUTHENTICATED'); }
+    }), /JARVIS_RELAY_OWNER_TOKEN_REQUIRED/);
+    assert.equal(fake.writes.length, 0);
+});
+
 test('private relay crosses the authenticated queue and delivers an exact correlated local result once', async () => {
-    const fake = relayFakeSdk(), auth = { currentUser: { uid: JARVIS_PRIVATE_RELAY.ownerUid }, async authStateReady() {} };
+    const fake = relayFakeSdk(), auth = { currentUser: { uid: JARVIS_PRIVATE_RELAY.ownerUid, async getIdToken() { return 'fixture-owner-token'; } }, async authStateReady() {} };
     const state = [], calls = [], progress = [];
-    const local = async (route, payload) => {
-        if (route === '/workstation/health') return { ok: true, status: 'JARVIS_WORKSTATION_LIVE', runtime: { bridgeStarted: true, loadedHead: 'test' } };
+    const local = async (route, payload, options) => {
+        if (route === '/workstation/health') {
+            assert.equal(options?.idToken, 'fixture-owner-token');
+            return { ok: true, status: 'JARVIS_WORKSTATION_LIVE', runtime: { bridgeStarted: true, loadedHead: 'test' } };
+        }
         calls.push({ route, payload });
         return { ok: true, text: 'Hola pariente', localSemanticInferenceUsed: true, cloudSemanticInferenceUsed: false };
     };
@@ -551,6 +564,7 @@ test('private relay crosses the authenticated queue and delivers an exact correl
         assert.ok(state.some(item => item.status === 'EXECUTING'));
         assert.ok(progress.some(item => item.requestId === relayId));
         assert.ok(!fake.writes.some(item => item.path.includes('services/') || item.path.includes('users/')));
+        assert.ok(!fake.writes.some(item => JSON.stringify(item).includes('fixture-owner-token')));
     } finally { await worker.stop(); }
     assert.equal(fake.watchers.size, 0);
 });
@@ -647,7 +661,7 @@ test('private relay recovers a completed receipt by server polling when snapshot
         onSnapshot() { return () => {}; }
     };
     const auth = {
-        currentUser: { uid: JARVIS_PRIVATE_RELAY.ownerUid },
+        currentUser: { uid: JARVIS_PRIVATE_RELAY.ownerUid, async getIdToken() { return 'fixture-owner-token'; } },
         async authStateReady() {}
     };
     const client = createJarvisPrivateRelayClient({
@@ -688,7 +702,7 @@ test('private relay recovers a completed receipt by server polling when snapshot
 
 test('private relay lease uses the same verified-presence contract as relay clients', async () => {
     const auth = {
-        currentUser: { uid: JARVIS_PRIVATE_RELAY.ownerUid },
+        currentUser: { uid: JARVIS_PRIVATE_RELAY.ownerUid, async getIdToken() { return 'fixture-owner-token'; } },
         async authStateReady() {}
     };
     const currentHead = 'a'.repeat(40);
@@ -755,7 +769,7 @@ test('private relay lease uses the same verified-presence contract as relay clie
 
 test('relay worker refuses to register when local bridge head differs from the public release head', async () => {
     const auth = {
-        currentUser: { uid: JARVIS_PRIVATE_RELAY.ownerUid },
+        currentUser: { uid: JARVIS_PRIVATE_RELAY.ownerUid, async getIdToken() { return 'fixture-owner-token'; } },
         async authStateReady() {}
     };
     const fake = relayFakeSdk();

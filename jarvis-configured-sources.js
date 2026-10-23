@@ -73,6 +73,9 @@ export function configuredRepositorySources(root) {
 }
 
 export function configuredSourcesMessage(catalog, budget = 18000, {instruction = ""} = {}) {
+    // A dirty or stale checkout has no certified schema. Do not dereference it,
+    // substitute guessed collections, or treat missing configuration as proof.
+    if (!catalog) return null;
     // A revision-bound navigation index is cheaper than repeatedly asking
     // Qwen to discover the same files. The full verified catalog remains
     // outside the context; this is neither evidence nor permission.

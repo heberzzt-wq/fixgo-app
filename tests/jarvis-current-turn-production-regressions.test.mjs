@@ -1207,6 +1207,7 @@ test("CURRENT_TURN renders the model-authored answer and limitation once, preser
             JarvisSemanticMemory: { recall: async () => contaminatedMemory, rememberTurn: async turn => history.push(turn) },
             compactJarvisSemanticMemoryForPlanner: memory => memory,
             location: { href: "https://runtime.test/terminal", origin: "https://runtime.test" },
+            URLSearchParams,
             JarvisToolRuntime: tools, window: { ToolsBridge: bridge }, console: quietConsole,
             buildJarvisMultifunctionToolCalls: async (_input, options) => {
                 assert.equal(options.missionState.phase, "CURRENT_TURN");
