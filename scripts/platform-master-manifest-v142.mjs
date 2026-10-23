@@ -35,6 +35,15 @@ export function validateManifest(m,{rootDir=root}={}){
      !p.autonomyBoundary.includes('aprobacion del propietario')||!p.notClaimed.includes('Vision'))
     errors.push('ADJUNTO_PRIVATE_STRATEGY_INVALID');
  }
+ if(m.securityAutonomousGuardians){
+  const g=m.securityAutonomousGuardians;
+  if(g.status!=='META_PENDIENTE_NO_IMPLEMENTADA_NI_CERTIFICADA'||
+     !Array.isArray(g.roles)||g.roles.length<6||
+     !Array.isArray(g.guardrails)||!g.guardrails.some(x=>x.includes('propietario'))||
+     !Array.isArray(g.acceptance)||g.acceptance.length<4||
+     !Array.isArray(g.refs)||g.refs.some(id=>!m.workstreams?.some(w=>w.id===id))||
+     !g.authority?.includes('activos propios'))errors.push('AUTONOMOUS_GUARDIANS_UNSAFE_OR_INCOMPLETE');
+ }
  if(m.valueReadiness){
   const v=m.valueReadiness, expected=new Set(Array.from({length:11},(_,i)=>"VAL-"+String(i+1).padStart(2,"0")));
   if(v.baseline?.class!=="HIPOTESIS_CONVERSACIONAL_NO_AVALUO"||v.baseline.autoReprice!==false||
@@ -125,6 +134,34 @@ function renderOwnerNorthStar(m){
  return lines;
 }
 
+function renderSecurityAutonomousGuardians(m){
+ const g=m.securityAutonomousGuardians;
+ if(!g)return [];
+ const lines=[
+  '## Escuadra de robots guardianes — ADJUNTO CYBER GUARDIANS',
+  '',
+  '**Decisión del propietario:** '+esc(g.decisionDate)+' · **Estado:** '+code(g.status),
+  '',
+  '**Inspiración B2B/Uxmal 39:** '+esc(g.inspiration),
+  '',
+  '**Misión:** '+esc(g.mission),
+  '',
+  '### Robots y responsabilidades',''
+ ];
+ for(const r of g.roles)lines.push('- **'+esc(r.id)+' '+esc(r.name)+':** '+esc(r.duty));
+ lines.push('','### Superficies protegidas','');
+ for(const item of g.coverage)lines.push('- '+esc(item));
+ lines.push('','### Rondas y simulaciones','');
+ for(const item of g.cadence)lines.push('- '+esc(item));
+ lines.push('','### Reglas obligatorias','');
+ for(const item of g.guardrails)lines.push('- '+esc(item));
+ lines.push('','### Pruebas de cierre','');
+ for(const item of g.acceptance)lines.push('- '+esc(item));
+ lines.push('','**Frentes enlazados:** '+g.refs.map(code).join(', ')+'.');
+ lines.push('','**Límite y orden de ejecución:** '+esc(g.authority),'');
+ return lines;
+}
+
 function renderValueReadiness(m){
  const v=m.valueReadiness;
  if(!v)return [];
@@ -181,6 +218,7 @@ function renderProjectHistory(m){
   '- **Duracion historica:** '+esc(p.durationAtOct2026)+'.',
   '- **Suscripcion reportada:** '+esc(p.userReportedSubscriptionMXN)+'. Sin comprobantes auditados.',
   ...(p.refreshmentExpenses?['- **Refrigerios de desarrollo reportados (sin comprobantes):** 2 six Tecate × MXN $112/six = **MXN $224/dia**; periodo ilustrativo de 238–243 dias: **MXN $53,312–$54,432**. '+esc(p.refreshmentExpenses.taxTreatment)+' '+esc(p.refreshmentExpenses.valuationTreatment)]:[]),
+  ...(p.refreshmentExpenses?.actualDailyReports||[]).map(x=>'- **Refrigerios del '+esc(x.date)+' (declarado):** MXN $'+x.amountMXN+'; '+esc(x.source)+'. No se suma dos veces al calculo ilustrativo.'),
   ''
  ];
  if(labor){
@@ -285,6 +323,7 @@ export function renderManifest(m){
  ...renderLatestHandoff(m),
  ...renderPrivateProductStrategy(m),
  ...renderOwnerNorthStar(m),
+ ...renderSecurityAutonomousGuardians(m),
  ...renderValueReadiness(m),
  ...renderProjectHistory(m),
  '## Estado global verificable',

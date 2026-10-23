@@ -110,6 +110,61 @@
 
 > **Sin triunfalismos:** Es una META del propietario y no prueba de ser el mejor del mercado, de autonomia general ilimitada ni de un 99.9% certificado. Comparaciones se permiten solo para aprender criterios generales sin copiar.
 
+## Escuadra de robots guardianes — ADJUNTO CYBER GUARDIANS
+
+**Decisión del propietario:** 2026-10-23 · **Estado:** `META_PENDIENTE_NO_IMPLEMENTADA_NI_CERTIFICADA`
+
+**Inspiración B2B/Uxmal 39:** Como los robots de mantenimiento preventivo y predictivo de B2B/Uxmal 39: rondas sistematicas, bitacora, diagnostico, trabajo preventivo y escalamiento; sin compartir datos ni permisos entre B2B y ciberseguridad.
+
+**Misión:** Proteger las superficies propias y autorizadas de ADJUNTO, Jarvis, B2C, B2B y la laptop; reconocer patrones de automatizacion hostil, contener intentos indebidos y ensayar la resiliencia continuamente con evidencia.
+
+### Robots y responsabilidades
+
+- **GUARD-01 Centinela:** Observa en produccion de forma pasiva logs, autenticaciones, cambios, puertos, integridad, accesos anormales y señales de abuso sin inspeccionar secretos en claro.
+- **GUARD-02 Simulador adversarial:** En laboratorio aislado y con objetivos propios autorizados simula abuso de bots, credenciales de prueba, peticiones maliciosas, archivos peligrosos y fallos; no ataca terceros ni lanza pruebas invasivas en produccion.
+- **GUARD-03 Escudo:** Aplica reglas defensivas preaprobadas de minimo privilegio, rate limiting, validacion, segmentacion y mitigacion reversible; no toma represalias ni contraataca sistemas externos.
+- **GUARD-04 Inspector de entradas:** Examina documentos/enlaces de SharePoint, correo y conectores como datos no confiables; aisla adjuntos sospechosos y bloquea prompt injection, ejecucion de macros/comandos o exfiltracion desde el planner.
+- **GUARD-05 Forense:** Conserva trazas pertinentes y evidencia de intentos, causa raiz y cobertura sin retener contrasenas, tokens o datos personales innecesarios.
+- **GUARD-06 Rescate del propietario:** Verifica que despues de cualquier mitigacion el propietario autorizado pueda entrar por laptop y movil, aun al cambiar de Wi-Fi; dispone de rollback y recuperacion autenticada.
+
+### Superficies protegidas
+
+- Firebase Hosting, Functions, Firestore/Storage, IAM, reglas, IDOR y separacion de tenants B2C/B2B
+- Bridge local 3344, terminal 5000, supervisor 3345, Ollama 11434, endpoints, equipos y credenciales
+- Sesiones/OAuth, correo, SharePoint, Google Drive, GitHub/CI, TikTok/redes sociales y enlaces externos
+- Codigo, dependencias, artefactos, archivos subidos, permisos de herramientas y manipulacion del LLM
+
+### Rondas y simulaciones
+
+- Vigilancia pasiva continua con alertas por umbrales y deduplicacion.
+- Ronda diaria automatizada de comprobaciones seguras de configuracion, salud, logs, permisos, caducidad y deteccion de cambios.
+- Ronda adversarial diaria en entorno aislado o de prueba autorizado, con casos negativos y comprobacion de acceso legitimo posterior.
+- Prueba semanal de escenarios compuestos y recuperacion; regresiones al cambiar codigo o configuracion.
+- Ensayo escalable de hasta 1000 clientes/bots SIMULADOS en laboratorio y con limites de recursos; nunca inundacion de servicios publicos.
+
+### Reglas obligatorias
+
+- Confianza cero: no conceder autoridad a peticiones, documentos, SharePoint, mensajes, herramientas ni resultados del LLM.
+- Prohibido contraatacar, rastrear invasivamente, afectar sistemas de terceros o lanzar denegacion de servicio.
+- Produccion en modo observacion y bloqueos preaprobados, reversibles, medidos y sujetos a limites para prevenir falsos positivos.
+- Nunca borrar datos, bloquear al propietario, desactivar autenticacion, cambiar credenciales, revocar sesiones propias ni modificar pagos sin aprobacion humana verificable.
+- No compartir tokens, historiales o datos entre tenants; secretos solo en gestores y herramientas con privilegios minimos.
+- Cualquier cambio a firewalls, WAF, IAM, OAuth, reglas de Firebase o despliegues requiere canario, confirmacion del propietario y rollback probado.
+- Bot y humano legitimo se distinguen por identidad, contexto y comportamiento; ningun mecanismo promete detectar el 100 por ciento de los atacantes.
+
+### Pruebas de cierre
+
+- Matriz por superficie y amenaza con casos positivos/negativos, fecha, version y recibos verificables.
+- Bitacora de 30 dias de rondas diarias sin falsos VERIFICADO ni afectacion de clientes reales.
+- Simulaciones documentadas de autenticacion indebida, scraping/abuso, IDOR, prompt injection desde SharePoint, archivos inseguros y acceso cruzado entre tenants.
+- Prueba reproducible de hasta 1000 clientes sinteticos aislados sin degradar entornos reales.
+- Tras toda simulacion o bloqueo: acceso legitimo del propietario en laptop/movil y recuperacion reversible verificados.
+- Alertas, deteccion, contencion y restauracion con medicion de falsos positivos y tiempos; auditoria humana externa antes de declarar certificacion.
+
+**Frentes enlazados:** `B2B-07`, `SEC-01`, `SEC-02`, `SEC-03`, `SEC-05`, `SEC-06`, `SEC-07`, `OPS-05`, `OPS-06`, `JARVIS-11`.
+
+**Límite y orden de ejecución:** Primero cerrar el motor de misiones y la plataforma; implementar guardianes por fases antes de apertura publica. Solo con activos propios o autorizacion explicita. No implica que exista ya un SOC, red team operativo, pentest ni seguridad certificada.
+
 ## Certificacion operativa y valor de activos de Península Tech
 
 **Proposito:** Demostrar la capacidad productiva, la independencia operativa y el valor interno de Península Tech. ADJUNTO permanece privado: no se venden suscripciones ni acceso público a la IA.
@@ -152,6 +207,7 @@
 - **Duracion historica:** aproximadamente ocho meses de trabajo desde el arranque; el atasco reciente de dos semanas no es la duracion total.
 - **Suscripcion reportada:** 1990 y tantos MXN por mes (precio aproximado informado por el propietario; no se verificaron recibos). Sin comprobantes auditados.
 - **Refrigerios de desarrollo reportados (sin comprobantes):** 2 six Tecate × MXN $112/six = **MXN $224/dia**; periodo ilustrativo de 238–243 dias: **MXN $53,312–$54,432**. Tratamiento contable y posible deducibilidad fiscal por verificar con contador; no asumir que es deducible ni aplicable a activos capitalizables. Incluir separado como egreso de refrigerios declarado dentro de los costos historicos reportados del desarrollo. No se suma automaticamente a un precio de venta de software.
+- **Refrigerios del 2026-10-23 (declarado):** MXN $230; Declaracion del propietario en chat, sin recibo. No se suma dos veces al calculo ilustrativo.
 
 **Trabajo personal reportado:** 12 horas diarias × 7 dias por semana = 84 h/semana.
 **Rango temporal estimado:** 2026-02-23/2026-02-28 a 2026-10-23. **Horas aproximadas:** 2,856–2,916.

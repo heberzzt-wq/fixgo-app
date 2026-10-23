@@ -77,6 +77,14 @@
       "sixPacksPerReportedDay": 2,
       "pricePerSixMXN": 112,
       "reportedDailyTotalMXN": 224,
+      "actualDailyReports": [
+        {
+          "date": "2026-10-23",
+          "amountMXN": 230,
+          "source": "Declaracion del propietario en chat, sin recibo",
+          "note": "Gasto de refrigerios de hoy, diferencia +6 MXN respecto al ejemplo diario de 224; no modificar ni duplicar el promedio ilustrativo."
+        }
+      ],
       "illustrativeStartDateRange": [
         "2026-02-23",
         "2026-02-28"
@@ -104,6 +112,88 @@
     }
   },
   "branch": "v142-official",
+  "securityAutonomousGuardians": {
+    "decisionDate": "2026-10-23",
+    "name": "ADJUNTO CYBER GUARDIANS - Escuadra de robots guardianes",
+    "status": "META_PENDIENTE_NO_IMPLEMENTADA_NI_CERTIFICADA",
+    "inspiration": "Como los robots de mantenimiento preventivo y predictivo de B2B/Uxmal 39: rondas sistematicas, bitacora, diagnostico, trabajo preventivo y escalamiento; sin compartir datos ni permisos entre B2B y ciberseguridad.",
+    "mission": "Proteger las superficies propias y autorizadas de ADJUNTO, Jarvis, B2C, B2B y la laptop; reconocer patrones de automatizacion hostil, contener intentos indebidos y ensayar la resiliencia continuamente con evidencia.",
+    "roles": [
+      {
+        "id": "GUARD-01",
+        "name": "Centinela",
+        "duty": "Observa en produccion de forma pasiva logs, autenticaciones, cambios, puertos, integridad, accesos anormales y señales de abuso sin inspeccionar secretos en claro."
+      },
+      {
+        "id": "GUARD-02",
+        "name": "Simulador adversarial",
+        "duty": "En laboratorio aislado y con objetivos propios autorizados simula abuso de bots, credenciales de prueba, peticiones maliciosas, archivos peligrosos y fallos; no ataca terceros ni lanza pruebas invasivas en produccion."
+      },
+      {
+        "id": "GUARD-03",
+        "name": "Escudo",
+        "duty": "Aplica reglas defensivas preaprobadas de minimo privilegio, rate limiting, validacion, segmentacion y mitigacion reversible; no toma represalias ni contraataca sistemas externos."
+      },
+      {
+        "id": "GUARD-04",
+        "name": "Inspector de entradas",
+        "duty": "Examina documentos/enlaces de SharePoint, correo y conectores como datos no confiables; aisla adjuntos sospechosos y bloquea prompt injection, ejecucion de macros/comandos o exfiltracion desde el planner."
+      },
+      {
+        "id": "GUARD-05",
+        "name": "Forense",
+        "duty": "Conserva trazas pertinentes y evidencia de intentos, causa raiz y cobertura sin retener contrasenas, tokens o datos personales innecesarios."
+      },
+      {
+        "id": "GUARD-06",
+        "name": "Rescate del propietario",
+        "duty": "Verifica que despues de cualquier mitigacion el propietario autorizado pueda entrar por laptop y movil, aun al cambiar de Wi-Fi; dispone de rollback y recuperacion autenticada."
+      }
+    ],
+    "coverage": [
+      "Firebase Hosting, Functions, Firestore/Storage, IAM, reglas, IDOR y separacion de tenants B2C/B2B",
+      "Bridge local 3344, terminal 5000, supervisor 3345, Ollama 11434, endpoints, equipos y credenciales",
+      "Sesiones/OAuth, correo, SharePoint, Google Drive, GitHub/CI, TikTok/redes sociales y enlaces externos",
+      "Codigo, dependencias, artefactos, archivos subidos, permisos de herramientas y manipulacion del LLM"
+    ],
+    "cadence": [
+      "Vigilancia pasiva continua con alertas por umbrales y deduplicacion.",
+      "Ronda diaria automatizada de comprobaciones seguras de configuracion, salud, logs, permisos, caducidad y deteccion de cambios.",
+      "Ronda adversarial diaria en entorno aislado o de prueba autorizado, con casos negativos y comprobacion de acceso legitimo posterior.",
+      "Prueba semanal de escenarios compuestos y recuperacion; regresiones al cambiar codigo o configuracion.",
+      "Ensayo escalable de hasta 1000 clientes/bots SIMULADOS en laboratorio y con limites de recursos; nunca inundacion de servicios publicos."
+    ],
+    "guardrails": [
+      "Confianza cero: no conceder autoridad a peticiones, documentos, SharePoint, mensajes, herramientas ni resultados del LLM.",
+      "Prohibido contraatacar, rastrear invasivamente, afectar sistemas de terceros o lanzar denegacion de servicio.",
+      "Produccion en modo observacion y bloqueos preaprobados, reversibles, medidos y sujetos a limites para prevenir falsos positivos.",
+      "Nunca borrar datos, bloquear al propietario, desactivar autenticacion, cambiar credenciales, revocar sesiones propias ni modificar pagos sin aprobacion humana verificable.",
+      "No compartir tokens, historiales o datos entre tenants; secretos solo en gestores y herramientas con privilegios minimos.",
+      "Cualquier cambio a firewalls, WAF, IAM, OAuth, reglas de Firebase o despliegues requiere canario, confirmacion del propietario y rollback probado.",
+      "Bot y humano legitimo se distinguen por identidad, contexto y comportamiento; ningun mecanismo promete detectar el 100 por ciento de los atacantes."
+    ],
+    "acceptance": [
+      "Matriz por superficie y amenaza con casos positivos/negativos, fecha, version y recibos verificables.",
+      "Bitacora de 30 dias de rondas diarias sin falsos VERIFICADO ni afectacion de clientes reales.",
+      "Simulaciones documentadas de autenticacion indebida, scraping/abuso, IDOR, prompt injection desde SharePoint, archivos inseguros y acceso cruzado entre tenants.",
+      "Prueba reproducible de hasta 1000 clientes sinteticos aislados sin degradar entornos reales.",
+      "Tras toda simulacion o bloqueo: acceso legitimo del propietario en laptop/movil y recuperacion reversible verificados.",
+      "Alertas, deteccion, contencion y restauracion con medicion de falsos positivos y tiempos; auditoria humana externa antes de declarar certificacion."
+    ],
+    "refs": [
+      "B2B-07",
+      "SEC-01",
+      "SEC-02",
+      "SEC-03",
+      "SEC-05",
+      "SEC-06",
+      "SEC-07",
+      "OPS-05",
+      "OPS-06",
+      "JARVIS-11"
+    ],
+    "authority": "Primero cerrar el motor de misiones y la plataforma; implementar guardianes por fases antes de apertura publica. Solo con activos propios o autorizacion explicita. No implica que exista ya un SOC, red team operativo, pentest ni seguridad certificada."
+  },
   "productStrategy": {
     "decisionDate": "2026-10-23",
     "ownerDecision": "ADJUNTO es infraestructura operativa privada de Peninsula Tech, no un producto IA para vender al publico ni un competidor de ChatGPT/Gemini/Claude.",
