@@ -83,6 +83,40 @@
 
 > **Alcance de esta decisión:** Vision y mandato de producto; no evidencia de que cada funcion ya este operativa ni de autonomia 99.9%, seguridad certificada o equivalencia con otras IA.
 
+## Certificacion operativa y valor de activos de Península Tech
+
+**Proposito:** Demostrar la capacidad productiva, la independencia operativa y el valor interno de Península Tech. ADJUNTO permanece privado: no se venden suscripciones ni acceso público a la IA.
+**Avance verificable:** 0/11 puertas certificadas; los 57 frentes de ingeniería continúan independientes.
+**Precio referencial HOY:** MXN $900,000 (hipótesis conversacional, NO avalúo ni comprador).
+**Escenario condicional sin clientes:** MXN $1,500,000–$4,000,000 (no automático y dependiente de evidencia y mercado).
+
+| ID | Criterio de cierre | Evidencia exigida | Beneficio | Frentes | Estado |
+|---|---|---|---|---|---|
+| VAL-01 Versión productiva coherente | Firebase, Bridge, repo y modelo compatibles; release firmado/autorizado, relay autenticado y archivos internos privados. | SHA servidos, recibo del despliegue, smoke autenticado y casos denegados. | Elimina divergencias que impiden utilizar la plataforma. | `OPS-01`, `OPS-04`, `JARVIS-02` | `PENDIENTE` |
+| VAL-02 ADJUNTO autónomo | 30/30 misiones reales de prueba, autorizadas y representativas, sin rescate humano y sin falsos VERIFIED. | IDs, entradas, salidas, artefactos, relectura, tiempos y fallos por categoría. | Sustituye promesas por productividad reproducible. | `JARVIS-02`, `JARVIS-03`, `JARVIS-11` | `PENDIENTE` |
+| VAL-03 B2C funcionando de punta a punta | Registro, KYC, solicitud, asignación, ejecución, cancelación y cobro sandbox; rechazar importes negativos. | Usuarios TEST y recibos de navegador, funciones, Storage, reglas y proveedor sandbox. | Convierte código de marketplace en operación comprobable. | `B2C-02`, `B2C-08`, `B2C-10`, `B2C-11`, `B2C-16` | `PENDIENTE` |
+| VAL-04 B2B con dos empresas | Dos empresas TEST; contratos, roles, expedientes y tareas; cero acceso cruzado; revocación efectiva. | Sesiones reales, aislamiento multi-tenant y auditoría reproducible. | Demuestra utilidad empresarial independiente. | `B2B-01`, `B2B-03`, `B2B-08`, `B2B-09` | `PENDIENTE` |
+| VAL-05 Servicios internos vendibles | Tres entregables verificados por cada área: publicidad, software y documentos/administración; ADJUNTO no se comercializa como IA. | Brief, archivo original y final, QA, tiempo y aprobación humana. | Permite vender resultados de Península Tech, no modelos. | `JARVIS-04`, `JARVIS-05`, `JARVIS-07`, `JARVIS-17` | `PENDIENTE` |
+| VAL-06 Costo por servicio y ahorro | Calcular costo unitario total por servicio y contrastarlo con una línea base manual de calidad comparable. | Horas y gastos comprobados, energía, equipo, infraestructura, mantenimiento, reprocesos y horas ahorradas. | Fundamenta valor de uso interno y margen potencial. | `OPS-06`, `JARVIS-05`, `JARVIS-18` | `PENDIENTE` |
+| VAL-07 Seguridad y continuidad | Probar permisos, ataques de prueba autorizados, recuperación del propietario, backup/restauración y ausencia de críticos abiertos. | Pruebas adversariales, restauración física, verificación de roles y reporte de riesgos. | Reduce riesgo técnico y de operación. | `SEC-01`, `SEC-02`, `SEC-03`, `SEC-05`, `OPS-05` | `PENDIENTE` |
+| VAL-08 Titularidad y licencias | Inventariar propiedad de código, contribuciones, software tercero, modelo Qwen, licencia y marca ADJUNTO. | Licencias, inventario de dependencias, historial de derechos y dictamen marcario cuando proceda. | Evita vender como propio lo que pertenece a terceros. | `OPS-07`, `JARVIS-01`, `JARVIS-17` | `PENDIENTE` |
+| VAL-09 Portabilidad y mantenimiento | Instalación limpia en equipo autorizado alternativo, recuperación de secretos por vía segura, rollback, manual y soporte. | Manual versionado, instalación/reinstalación comprobada, checks de salud y restauración. | Disminuye dependencia de laptop y autor. | `OPS-04`, `OPS-05`, `OPS-07`, `JARVIS-18` | `PENDIENTE` |
+| VAL-10 Estabilidad sostenida | Registrar disponibilidad, cancelación, reinicio, caídas de red, fallos y tiempos en cortes de 7 y 30 días. | Métricas y recibos con muestras, periodos, fallos incluidos e incidentes sin datos sensibles. | Demuestra confiabilidad operativa. | `OPS-03`, `OPS-06`, `JARVIS-12`, `JARVIS-18` | `PENDIENTE` |
+| VAL-11 Valuación respaldada | Separar costo histórico, reposición, valor por ahorro y precio de venta; obtener referencias externas antes de declarar precio comercial comprobado. | Costos y contratos documentados; referencias independientes, pilotos o propuestas reales cuando existan; ingresos cero mientras no existan. | Evita inflar la cifra y permite negociar sobre evidencia. | `OPS-07`, `B2B-08` | `PENDIENTE` |
+
+### Prueba de autonomía y límites
+
+- **Muestra:** 30 misiones; 30/30 misiones representativas, ejecutables y autorizadas con entregable válido y recibo; ninguna requiere rescate humano; 0 éxitos falsos; bloqueos legítimos se documentan por separado.
+- **Confiabilidad aspiracional:** 99.9% es un objetivo futuro de SLO, nunca demostrado por solo 30/30 misiones; requiere muchos más ensayos y periodo definido.
+
+### Reglas que impiden inflar la valuación
+
+- Las 11 puertas son un tablero complementario: no sustituyen ni duplican los 57 frentes técnicos.
+- No se aumenta automáticamente el valor cuando pasan pruebas; debe existir respaldo de utilidad, riesgo, mercado o transferencia.
+- Las protecciones legítimas y autorizaciones no son bloqueos falsos y no deben eliminarse para subir una métrica.
+- Los costos por horas del propietario no se suman automáticamente al valor comercial, de reposición ni a los ingresos.
+- No afirmar autonomía 99.9%, seguridad certificada ni ventas mientras no se demuestren.
+
 ## Historia e inversion de trabajo del fundador
 
 - **Inicio aproximado:** finales de febrero de 2026.

@@ -35,6 +35,19 @@ export function validateManifest(m,{rootDir=root}={}){
      !p.autonomyBoundary.includes('aprobacion del propietario')||!p.notClaimed.includes('Vision'))
     errors.push('ADJUNTO_PRIVATE_STRATEGY_INVALID');
  }
+ if(m.valueReadiness){
+  const v=m.valueReadiness, expected=new Set(Array.from({length:11},(_,i)=>"VAL-"+String(i+1).padStart(2,"0")));
+  if(v.baseline?.class!=="HIPOTESIS_CONVERSACIONAL_NO_AVALUO"||v.baseline.autoReprice!==false||
+     v.evaluation?.missionSample!==30||v.evaluation?.noFakeSuccess!==true||!Array.isArray(v.gates)||v.gates.length!==11)
+    errors.push("VALUE_READINESS_INVALID");
+  for(const g of v.gates||[]){
+   if(!expected.delete(g.id)||!["PENDIENTE","CERTIFICADO"].includes(g.status)||
+      (g.status==="CERTIFICADO"&&(!Array.isArray(g.receipts)||g.receipts.length===0))||
+      !g.criterion||!g.proof||!g.benefit||!Array.isArray(g.refs)||
+      g.refs.some(id=>!m.workstreams?.some(w=>w.id===id)))errors.push("VALUE_GATE_INVALID:"+g.id);
+  }
+  if(expected.size)errors.push("VALUE_GATE_MISSING");
+ }
  if(m.latestHandoff||m.latestVerifiedCandidate){
   if(!/^[a-f0-9]{40}$/i.test(m.latestVerifiedCandidate?.sha||'')||
    m.latestHandoff?.verifiedCandidateSha!==m.latestVerifiedCandidate?.sha||
@@ -67,6 +80,32 @@ export function validateManifest(m,{rootDir=root}={}){
  const counts=Object.fromEntries(groups.map(g=>[g,m.workstreams?.filter(w=>w.domain===g).length||0]));
  return {ok:errors.length===0,errors,total:m.workstreams?.length||0,
   p0:m.workstreams?.filter(w=>w.priority==='P0').length||0,counts};
+}
+
+function renderValueReadiness(m){
+ const v=m.valueReadiness;
+ if(!v)return [];
+ const lines=[
+  "## Certificacion operativa y valor de activos de Península Tech","",
+  "**Proposito:** "+esc(v.purpose),
+  "**Avance verificable:** "+v.gates.filter(g=>g.status==="CERTIFICADO").length+"/"+v.gates.length+
+   " puertas certificadas; los 57 frentes de ingeniería continúan independientes.",
+  "**Precio referencial HOY:** MXN $"+v.baseline.estimatedAssetsValueMXN.toLocaleString("en-US")+
+   " (hipótesis conversacional, NO avalúo ni comprador).",
+  "**Escenario condicional sin clientes:** MXN $"+v.baseline.potentialNoClientCertifiedRangeMXN[0].toLocaleString("en-US")+
+   "–$"+v.baseline.potentialNoClientCertifiedRangeMXN[1].toLocaleString("en-US")+
+   " (no automático y dependiente de evidencia y mercado).","",
+  "| ID | Criterio de cierre | Evidencia exigida | Beneficio | Frentes | Estado |",
+  "|---|---|---|---|---|---|"
+ ];
+ for(const g of v.gates)lines.push("| "+g.id+" "+esc(g.name)+" | "+esc(g.criterion)+
+  " | "+esc(g.proof)+" | "+esc(g.benefit)+" | "+g.refs.map(code).join(", ")+" | "+code(g.status)+" |");
+ lines.push("","### Prueba de autonomía y límites","",
+  "- **Muestra:** "+v.evaluation.missionSample+" misiones; "+esc(v.evaluation.passCriterion),
+  "- **Confiabilidad aspiracional:** "+esc(v.evaluation.futureReliabilityGoal),
+  "","### Reglas que impiden inflar la valuación","");
+ for(const rule of v.guardrails)lines.push("- "+esc(rule));
+ lines.push("");return lines;
 }
 
 function renderPrivateProductStrategy(m){
@@ -201,6 +240,7 @@ export function renderManifest(m){
  '',
  ...renderLatestHandoff(m),
  ...renderPrivateProductStrategy(m),
+ ...renderValueReadiness(m),
  ...renderProjectHistory(m),
  '## Estado global verificable',
  '',

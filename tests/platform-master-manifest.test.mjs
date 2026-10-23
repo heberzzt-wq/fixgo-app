@@ -98,6 +98,20 @@ test('owner strategy keeps ADJUNTO internal-only and never confuses vision with 
  assert.equal(validateManifest(bad).ok,false);
 });
 
+test('11 value gates need physical evidence and never automatically reprice ADJUNTO',()=>{
+ const v=data.valueReadiness;
+ assert.equal(v.gates.length,11);
+ assert.equal(v.baseline.estimatedAssetsValueMXN,900000);
+ assert.equal(v.baseline.autoReprice,false);
+ assert.equal(v.evaluation.missionSample,30);
+ assert.ok(v.gates.every(g=>g.status==='PENDIENTE'&&g.receipts.length===0));
+ assert.match(renderManifest(data),/valor de activos de Península Tech/);
+ const falsePositive=structuredClone(data);falsePositive.valueReadiness.gates[0].status='CERTIFICADO';
+ assert.equal(validateManifest(falsePositive).ok,false);
+ const fakeReference=structuredClone(data);fakeReference.valueReadiness.gates[0].refs=['FAKE-00'];
+ assert.equal(validateManifest(fakeReference).ok,false);
+});
+
 test('published Markdown is deterministically generated and contains all 57 fronts',()=>{
  const actual=readFileSync(new URL('../docs/platform-master-manifest-v142.md',import.meta.url),'utf8');
  assert.equal(actual,renderManifest(data));

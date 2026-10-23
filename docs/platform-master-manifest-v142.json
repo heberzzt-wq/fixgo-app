@@ -85,6 +85,207 @@
     "commercialBoundary": "El cliente contrata a Peninsula Tech por el trabajo, producto o servicio realizado; no compra ni opera el modelo Qwen ni el motor privado ADJUNTO.",
     "notClaimed": "Vision y mandato de producto; no evidencia de que cada funcion ya este operativa ni de autonomia 99.9%, seguridad certificada o equivalencia con otras IA."
   },
+  "valueReadiness": {
+    "asOf": "2026-10-23",
+    "purpose": "Demostrar la capacidad productiva, la independencia operativa y el valor interno de Península Tech. ADJUNTO permanece privado: no se venden suscripciones ni acceso público a la IA.",
+    "baseline": {
+      "estimatedAssetsValueMXN": 900000,
+      "componentsMXN": {
+        "B2C": 300000,
+        "B2B": 180000,
+        "ADJUNTO": 420000
+      },
+      "potentialNoClientCertifiedRangeMXN": [
+        1500000,
+        4000000
+      ],
+      "class": "HIPOTESIS_CONVERSACIONAL_NO_AVALUO",
+      "autoReprice": false
+    },
+    "evaluation": {
+      "missionSample": 30,
+      "passCriterion": "30/30 misiones representativas, ejecutables y autorizadas con entregable válido y recibo; ninguna requiere rescate humano; 0 éxitos falsos; bloqueos legítimos se documentan por separado.",
+      "futureReliabilityGoal": "99.9% es un objetivo futuro de SLO, nunca demostrado por solo 30/30 misiones; requiere muchos más ensayos y periodo definido.",
+      "serviceAreas": [
+        "publicidad",
+        "programacion",
+        "documentos",
+        "B2C",
+        "B2B"
+      ],
+      "noFakeSuccess": true
+    },
+    "gates": [
+      {
+        "id": "VAL-01",
+        "name": "Versión productiva coherente",
+        "refs": [
+          "OPS-01",
+          "OPS-04",
+          "JARVIS-02"
+        ],
+        "criterion": "Firebase, Bridge, repo y modelo compatibles; release firmado/autorizado, relay autenticado y archivos internos privados.",
+        "proof": "SHA servidos, recibo del despliegue, smoke autenticado y casos denegados.",
+        "benefit": "Elimina divergencias que impiden utilizar la plataforma.",
+        "status": "PENDIENTE",
+        "receipts": []
+      },
+      {
+        "id": "VAL-02",
+        "name": "ADJUNTO autónomo",
+        "refs": [
+          "JARVIS-02",
+          "JARVIS-03",
+          "JARVIS-11"
+        ],
+        "criterion": "30/30 misiones reales de prueba, autorizadas y representativas, sin rescate humano y sin falsos VERIFIED.",
+        "proof": "IDs, entradas, salidas, artefactos, relectura, tiempos y fallos por categoría.",
+        "benefit": "Sustituye promesas por productividad reproducible.",
+        "status": "PENDIENTE",
+        "receipts": []
+      },
+      {
+        "id": "VAL-03",
+        "name": "B2C funcionando de punta a punta",
+        "refs": [
+          "B2C-02",
+          "B2C-08",
+          "B2C-10",
+          "B2C-11",
+          "B2C-16"
+        ],
+        "criterion": "Registro, KYC, solicitud, asignación, ejecución, cancelación y cobro sandbox; rechazar importes negativos.",
+        "proof": "Usuarios TEST y recibos de navegador, funciones, Storage, reglas y proveedor sandbox.",
+        "benefit": "Convierte código de marketplace en operación comprobable.",
+        "status": "PENDIENTE",
+        "receipts": []
+      },
+      {
+        "id": "VAL-04",
+        "name": "B2B con dos empresas",
+        "refs": [
+          "B2B-01",
+          "B2B-03",
+          "B2B-08",
+          "B2B-09"
+        ],
+        "criterion": "Dos empresas TEST; contratos, roles, expedientes y tareas; cero acceso cruzado; revocación efectiva.",
+        "proof": "Sesiones reales, aislamiento multi-tenant y auditoría reproducible.",
+        "benefit": "Demuestra utilidad empresarial independiente.",
+        "status": "PENDIENTE",
+        "receipts": []
+      },
+      {
+        "id": "VAL-05",
+        "name": "Servicios internos vendibles",
+        "refs": [
+          "JARVIS-04",
+          "JARVIS-05",
+          "JARVIS-07",
+          "JARVIS-17"
+        ],
+        "criterion": "Tres entregables verificados por cada área: publicidad, software y documentos/administración; ADJUNTO no se comercializa como IA.",
+        "proof": "Brief, archivo original y final, QA, tiempo y aprobación humana.",
+        "benefit": "Permite vender resultados de Península Tech, no modelos.",
+        "status": "PENDIENTE",
+        "receipts": []
+      },
+      {
+        "id": "VAL-06",
+        "name": "Costo por servicio y ahorro",
+        "refs": [
+          "OPS-06",
+          "JARVIS-05",
+          "JARVIS-18"
+        ],
+        "criterion": "Calcular costo unitario total por servicio y contrastarlo con una línea base manual de calidad comparable.",
+        "proof": "Horas y gastos comprobados, energía, equipo, infraestructura, mantenimiento, reprocesos y horas ahorradas.",
+        "benefit": "Fundamenta valor de uso interno y margen potencial.",
+        "status": "PENDIENTE",
+        "receipts": []
+      },
+      {
+        "id": "VAL-07",
+        "name": "Seguridad y continuidad",
+        "refs": [
+          "SEC-01",
+          "SEC-02",
+          "SEC-03",
+          "SEC-05",
+          "OPS-05"
+        ],
+        "criterion": "Probar permisos, ataques de prueba autorizados, recuperación del propietario, backup/restauración y ausencia de críticos abiertos.",
+        "proof": "Pruebas adversariales, restauración física, verificación de roles y reporte de riesgos.",
+        "benefit": "Reduce riesgo técnico y de operación.",
+        "status": "PENDIENTE",
+        "receipts": []
+      },
+      {
+        "id": "VAL-08",
+        "name": "Titularidad y licencias",
+        "refs": [
+          "OPS-07",
+          "JARVIS-01",
+          "JARVIS-17"
+        ],
+        "criterion": "Inventariar propiedad de código, contribuciones, software tercero, modelo Qwen, licencia y marca ADJUNTO.",
+        "proof": "Licencias, inventario de dependencias, historial de derechos y dictamen marcario cuando proceda.",
+        "benefit": "Evita vender como propio lo que pertenece a terceros.",
+        "status": "PENDIENTE",
+        "receipts": []
+      },
+      {
+        "id": "VAL-09",
+        "name": "Portabilidad y mantenimiento",
+        "refs": [
+          "OPS-04",
+          "OPS-05",
+          "OPS-07",
+          "JARVIS-18"
+        ],
+        "criterion": "Instalación limpia en equipo autorizado alternativo, recuperación de secretos por vía segura, rollback, manual y soporte.",
+        "proof": "Manual versionado, instalación/reinstalación comprobada, checks de salud y restauración.",
+        "benefit": "Disminuye dependencia de laptop y autor.",
+        "status": "PENDIENTE",
+        "receipts": []
+      },
+      {
+        "id": "VAL-10",
+        "name": "Estabilidad sostenida",
+        "refs": [
+          "OPS-03",
+          "OPS-06",
+          "JARVIS-12",
+          "JARVIS-18"
+        ],
+        "criterion": "Registrar disponibilidad, cancelación, reinicio, caídas de red, fallos y tiempos en cortes de 7 y 30 días.",
+        "proof": "Métricas y recibos con muestras, periodos, fallos incluidos e incidentes sin datos sensibles.",
+        "benefit": "Demuestra confiabilidad operativa.",
+        "status": "PENDIENTE",
+        "receipts": []
+      },
+      {
+        "id": "VAL-11",
+        "name": "Valuación respaldada",
+        "refs": [
+          "OPS-07",
+          "B2B-08"
+        ],
+        "criterion": "Separar costo histórico, reposición, valor por ahorro y precio de venta; obtener referencias externas antes de declarar precio comercial comprobado.",
+        "proof": "Costos y contratos documentados; referencias independientes, pilotos o propuestas reales cuando existan; ingresos cero mientras no existan.",
+        "benefit": "Evita inflar la cifra y permite negociar sobre evidencia.",
+        "status": "PENDIENTE",
+        "receipts": []
+      }
+    ],
+    "guardrails": [
+      "Las 11 puertas son un tablero complementario: no sustituyen ni duplican los 57 frentes técnicos.",
+      "No se aumenta automáticamente el valor cuando pasan pruebas; debe existir respaldo de utilidad, riesgo, mercado o transferencia.",
+      "Las protecciones legítimas y autorizaciones no son bloqueos falsos y no deben eliminarse para subir una métrica.",
+      "Los costos por horas del propietario no se suman automáticamente al valor comercial, de reposición ni a los ingresos.",
+      "No afirmar autonomía 99.9%, seguridad certificada ni ventas mientras no se demuestren."
+    ]
+  },
   "ownerExecutionDecisionDate": "2026-10-22",
   "ownerExecutionOrder": [
     {"rank": 1, "track": "jarvis_autonomy", "name": "Autonomía real de JARVIS", "goal": "Misiones Qwen completas, recuperación, herramientas verificadas y entregables reales"},

@@ -6,6 +6,8 @@ Lee SIEMPRE antes de planear cambios:
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/ultimo.md` — corte automatico mas reciente, fuera de Git.
 - `docs/v142-b2c-forensic-audit-20260921.md` — riesgos históricos, no garantías actuales.
 
+- Leer también la sección de 11 puertas de evidencia de valor del maestro. No subir valores ni marcar certificación sin recibos físicos.
+
 Verifica:
 1. Rama oficial `v142-official`, estado de Git y SHA local/remoto; comprueba si el bridge 3344 ejecuta ese mismo SHA.
 2. Ejecuta `node scripts/platform-master-manifest-v142.mjs --check` y revisa los P0 del área solicitada.
