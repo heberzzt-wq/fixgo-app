@@ -31,6 +31,23 @@ export function missingMissionInputs(instruction){
  return [];
 }
 const digest=o=>o?.sha256||(o?.artifact?.file===o?.output?o.artifact.sha256:undefined);
+// Office delivery must be bound to the physical material-library export receipt.
+// The media-only experimental marker is not proof that PDF/XLSX/DOCX bytes
+// were copied to Salidas, and must never certify an office mission on its own.
+export function verifiedOfficeExportReceipt(receipt,created){
+ const asset=created?.observation,output=asset?.output,sha=digest(asset);
+ const actual=receipt?.observation,bytes=asset?.artifact?.bytes;
+ if(asset?.artifact?.file!==output||asset?.artifact?.sha256!==sha||
+    !receipt?.ok||receipt.name!=='media.library'||receipt.args?.action!=='export'||
+    receipt.args?.output!==output||actual?.ok!==true||actual?.output!==output||
+    !/^[a-f0-9]{64}$/i.test(sha||'')||actual?.sha256!==sha||
+    !Number.isSafeInteger(bytes)||bytes<=0||actual?.bytes!==bytes||
+    actual?.status!=='MATERIAL_EXPORTED_VERIFIED'||
+    typeof actual?.directory!=='string'||!actual.directory.trim()||
+    typeof output!=='string')return false;
+ const basename=output.split('/').at(-1);
+ return actual.relativePath==='Salidas/'+sha.slice(0,12)+'-'+basename;
+}
 export function unfulfilledDownloadFormats(instruction,receipts=[]){
  const formats=requiredDeliveryFormats(instruction);
  return formats.filter(format=>{
@@ -50,14 +67,7 @@ export function unfulfilledDownloadFormats(instruction,receipts=[]){
   });
   // Authenticated local office exports record a physical Salidas file and hash,
   // not "experimental:true" (reserved for the advertising media branch).
-  const name=output.split('/').at(-1),physicalRelative='Salidas/'+sha.slice(0,12)+'-'+name;
-  const exported=receipts.some(r=>r.ok===true&&r.name==='media.library'&&r.args?.action==='export'&&r.args.output===output&&
-      r.observation?.sha256===sha&&
-      (r.observation?.experimental===true||
-       r.observation?.status==='MATERIAL_EXPORTED_VERIFIED'&&
-       r.observation?.bytes===candidate.observation?.artifact?.bytes&&
-       typeof r.observation?.directory==='string'&&r.observation.directory.length>0&&
-       r.observation?.relativePath===physicalRelative));
+  const exported=receipts.some(r=>verifiedOfficeExportReceipt(r,candidate));
   if(format==='pdf'&&financialRequestedAmounts(instruction).length>0&&!verifiedFinancialPdfContent(instruction,receipts))return true;
   return !(read&&exported);
  });
@@ -181,13 +191,7 @@ export function verifiedFinancialPdfFromWorkbook(instruction,receipts=[]){
  if(!sha||asset.workbookCalculation?.sourceSha256!==sha)return null;
  const read=completed.find(r=>r.name==='artifact.read'&&r.observation?.output===asset.output&&
     r.observation?.sha256===sha&&typeof r.observation?.dataBase64==='string');
- const exportReceipt=completed.find(r=>r.name==='media.library'&&r.args?.action==='export'&&
-    r.args.output===asset.output&&r.observation?.sha256===sha&&
-    (r.observation?.experimental===true||
-     r.observation?.status==='MATERIAL_EXPORTED_VERIFIED'&&
-     r.observation?.bytes===asset.artifact?.bytes&&
-     typeof r.observation?.directory==='string'&&r.observation.directory.length>0&&
-     r.observation?.relativePath==='Salidas/'+sha.slice(0,12)+'-'+asset.output.split('/').at(-1)));
+ const exportReceipt=completed.find(r=>verifiedOfficeExportReceipt(r,book));
  if(!read||!exportReceipt)return null;
  const sums=asset.workbookCalculation.results;
  if(!Array.isArray(sums)||!sums.length)return null;

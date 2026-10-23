@@ -43,9 +43,9 @@ test('read real PDF bytes, certify required financial figures; rejection remains
  const bytes=fs.readFileSync(f),sha=createHash('sha256').update(bytes).digest('hex');
  const output='.jarvis-artifacts/qwen-general/general-example/reporte.pdf';
  const rows=xlsxOnly().concat([
-  {name:'document.create',ok:true,args:{format:'pdf',content:text,output},observation:{ok:true,output,sha256:sha,artifact:{file:output,sha256:sha,mimeType:'application/pdf'},pdfContentProof:proof}},
+  {name:'document.create',ok:true,args:{format:'pdf',content:text,output},observation:{ok:true,output,sha256:sha,artifact:{file:output,sha256:sha,bytes:bytes.length,mimeType:'application/pdf'},pdfContentProof:proof}},
   {name:'artifact.read',ok:true,args:{output},observation:{ok:true,output,bytes:bytes.length,sha256:sha,dataBase64:bytes.toString('base64')}},
-  {name:'media.library',ok:true,args:{action:'export',output},observation:{ok:true,output,sha256:sha,experimental:true}}
+  {name:'media.library',ok:true,args:{action:'export',output},observation:{ok:true,output,sha256:sha,bytes:bytes.length,status:'MATERIAL_EXPORTED_VERIFIED',directory:dir,relativePath:'Salidas/'+sha.slice(0,12)+'-reporte.pdf'}}
  ]);
  assert.equal(verifiedFinancialPdfContent(instruction,rows),true);
  assert.deepEqual(unfulfilledDownloadFormats(instruction,rows),[]);
