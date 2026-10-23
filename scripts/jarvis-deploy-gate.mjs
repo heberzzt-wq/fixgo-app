@@ -8,7 +8,9 @@ const result = evaluateDeployGate({
     commitSha: process.env.GITHUB_SHA,
     projectId: process.env.JARVIS_FIREBASE_PROJECT,
     ciPassed: process.env.JARVIS_CI_PASSED === "true",
-    hostingOnly: process.env.JARVIS_HOSTING_ONLY === "true"
+    hostingOnly: process.env.JARVIS_HOSTING_ONLY === "true",
+    siteId: process.env.JARVIS_HOSTING_SITE,
+    manualApprovalSha: process.env.JARVIS_OWNER_APPROVED_SHA
 });
 
 const summary = [
