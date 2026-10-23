@@ -1,0 +1,75 @@
+name: V142 official CI certification
+
+# Certification only. Deployment is controlled by the separate sovereign release gate.
+on:
+  push:
+    branches:
+      - v142-official
+    paths:
+      - ".github/workflows/v142-official-ci-certification.yml"
+      - "firebase.json"
+      - "jarvis-runtime-contract.json"
+      - "gestia-core/**"
+      - "modules/**"
+      - "functions/**"
+      - "tests/**"
+      - "scripts/**"
+      - "*.js"
+      - "*.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v142-official-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  certify:
+    name: Full CI / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Assert exact official checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/v142-official"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked dependencies
+        run: |
+          npm ci
+          npm ci --prefix functions
+      - name: Run all official platform and Jarvis regressions
+        run: npm run ci:test
+      - name: Require browser surface and local-owner security contracts
+        run: node --test tests/jarvis-hosting-web-surface-security.test.mjs tests/jarvis-workstation-health.test.mjs tests/nexo-terminal-bootstrap.test.mjs tests/jarvis-repo-intelligence.test.mjs
+      - name: Prepare exact candidate release (no deployment)
+        run: node scripts/prepare-platform-release.mjs
+      - name: Verify candidate SHA and cleanliness
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('release-manifest.json','utf8'));if(m.git_sha!==process.env.GITHUB_SHA)throw Error('RELEASE_SHA_MISMATCH');const f=JSON.parse(fs.readFileSync('firebase.release.json','utf8'));const h=f.hosting.filter(x=>x.site==='fixgo-44e4d');if(h.length!==1)throw Error('HOSTING_SITE_AMBIGUOUS');for(const p of ['jarvis-fs-bridge.js','jarvis-upload-bridge.js','jarvis-github-worker.js','jarvis-semantic-http.js','jarvis-qwen-decision-http.js','jarvis-repo-intelligence.js','jarvis-local-video-engine.js'])if(!h[0].ignore.includes(p))throw Error('PUBLIC_SERVER_SOURCE:'+p);console.log('V142_RELEASE_CANDIDATE_VALIDATED',m.git_sha)"
+          test -z "$(git status --porcelain)"
+      - name: Report production promotion as separate authority
+        shell: bash
+        run: |
+          echo "CI_CERTIFICATION_ONLY=true"
+          echo "HOSTING_DEPLOYED=false"
+          echo "FIRESTORE_RULES_DEPLOYED=false"
+          echo "FUNCTIONS_DEPLOYED=false"
