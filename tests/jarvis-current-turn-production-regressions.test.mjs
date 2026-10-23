@@ -1245,6 +1245,7 @@ async function prepareContract(calls, catalog, options = {}) {
         resolveExplicitRepositoryTargets: () => [],
         normalizeObservationFilePath: value => String(value || "").replaceAll("\\", "/"),
         addRepositoryDiscoveryPreflights: ({ toolCalls }) => toolCalls,
+        appendExplicitReadOnlySourceCalls: ({toolCalls}) => toolCalls,
         window: {}, console: quietConsole
     });
     return { ...result, expansions };

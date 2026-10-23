@@ -72,6 +72,7 @@ import {
 } from '/gestia-core/jarvis/jarvis.mission.planner-state.js?v=v142-adjunto-flow-alignment-20261001';
 import {
     addRepositoryDiscoveryPreflights,
+    appendExplicitReadOnlySourceCalls,
     resolveExplicitRepositoryTargets
 } from '/gestia-core/repo/repo.source.structure.js?v=v142-adjunto-flow-alignment-20261001';
 import {
@@ -5042,8 +5043,14 @@ if (
                     "EXPLICIT_REPOSITORY_TARGET_EVIDENCE"
             }));
     const missionInitialToolCalls =
-        missionIsIsolated || boundedCurrentTurnMission || observationFirstCurrentTurnMission
+        missionIsIsolated
             ? missionContractToolCalls
+            : boundedCurrentTurnMission || observationFirstCurrentTurnMission
+                ? appendExplicitReadOnlySourceCalls({
+                    toolCalls: missionContractToolCalls,
+                    explicitReadCalls: explicitRepositoryReadCalls,
+                    catalog: missionToolCatalog
+                })
             : addRepositoryDiscoveryPreflights({
                 toolCalls: [
                     ...missionContractToolCalls,
@@ -5119,6 +5126,7 @@ if (
             initialToolCalls:
                 missionInitialToolCalls,
             initialEvidenceObjectives: initialCoverageContract?.completionAssessment?.objectives || [],
+            requiredRepositorySourceFiles: missionIsIsolated ? [] : explicitRepositoryTargets,
             requiredToolNames:
                 [...new Set(missionInitialToolCalls.map(call => call.name))],
             toolCatalog: boundedCurrentTurnMission || observationFirstCurrentTurnMission ? missionToolCatalog : registeredMissionTools,

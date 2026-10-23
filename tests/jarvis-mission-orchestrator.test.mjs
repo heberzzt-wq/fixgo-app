@@ -66,6 +66,7 @@ test("responsive repair executes the semantic inspection seed before planning re
         },
         compactJarvisSemanticMemoryForPlanner: () => null,
         resolveExplicitRepositoryTargets: () => [], addRepositoryDiscoveryPreflights: ({ toolCalls }) => toolCalls,
+        appendExplicitReadOnlySourceCalls: ({toolCalls}) => toolCalls,
         runJarvisMission: options => {
             assert.ok(!options.toolCatalog.some(tool => /^(web|media|page|document)\./.test(tool.name)), "repair mission does not offer unrelated production capabilities");
             return runJarvisMission({ ...options, storage: memoryStorage() });

@@ -310,6 +310,30 @@ function normalizedRepositoryPath(value = "") {
     return clean.toLocaleLowerCase();
 }
 
+// A model-selected read-only plan may include only repo.graph even when the
+// original instruction names source files. Preserve the actual user targets.
+export function appendExplicitReadOnlySourceCalls({
+    toolCalls = [], explicitReadCalls = [], catalog = []
+} = {}) {
+    const calls = Array.isArray(toolCalls) ? toolCalls : [];
+    const reader = (Array.isArray(catalog) ? catalog : []).find(tool =>
+        tool?.name === "repo.read" && tool?.mutates !== true &&
+        tool?.requiresApproval !== true && tool?.investigationReadOnly === true
+    );
+    if (!reader) return calls.slice();
+    const paths = new Set(calls.filter(call => call?.name === "repo.read")
+        .map(call => normalizedRepositoryPath(call?.args?.file || call?.args?.path)));
+    const additions = (Array.isArray(explicitReadCalls) ? explicitReadCalls : [])
+        .filter(call => {
+            if (call?.name !== "repo.read") return false;
+            const file = normalizedRepositoryPath(call?.args?.file);
+            if (!file || file.includes("..") || paths.has(file)) return false;
+            paths.add(file);
+            return true;
+        }).map(call => ({...call, args:{file:call.args.file}}));
+    return [...calls, ...additions].slice(0, 20);
+}
+
 export function addRepositoryDiscoveryPreflights({
     toolCalls = [],
     catalog = [],

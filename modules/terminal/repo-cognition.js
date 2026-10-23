@@ -580,6 +580,19 @@ async function() {
             "🧠 [DEPENDENCY_GRAPH_BUILD]"
         );
 
+        // A public Hosting page is not a repository file server. Private
+        // code is available exclusively through the authenticated repo.graph
+        // and repo.read tools, never by HTTP GET against Firebase Hosting.
+        const browserHost = typeof location !== "undefined"
+            ? String(location.hostname || "").toLowerCase()
+            : "";
+        if (browserHost && !["localhost", "127.0.0.1"].includes(browserHost)) {
+            window.__REPO_DEP_GRAPH__ = {};
+            console.info("[REPO_PRIVATE_SOURCE_FETCH_DISABLED]", browserHost);
+            return {ok:true,status:"REPOSITORY_GRAPH_REQUIRES_AUTHORIZED_BRIDGE",
+                graphNodes:0,source:"AUTHENTICATED_REPO_GRAPH_ONLY"};
+        }
+
         window.__REPO_DEP_GRAPH__ = {};
 
         const entries =

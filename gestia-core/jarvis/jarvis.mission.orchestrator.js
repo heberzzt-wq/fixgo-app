@@ -2266,10 +2266,23 @@ export function unmetMissionEvidenceRequirements(task = {}, completedTasks = [],
     });
 }
 
+// Never credit an explicit file request from a graph or another file's receipt.
+export function missingExplicitRepositorySourceEvidence(requiredFiles = [], completedTasks = []) {
+    const clean = value => String(value || "").trim().replaceAll("\\", "/").replace(/^\.\//, "").toLowerCase();
+    const observed = new Set((Array.isArray(completedTasks) ? completedTasks : [])
+        .filter(task => task?.name === "repo.read" && task?.observation?.ok === true)
+        .filter(task => task.observation?.verifiedRead?.file)
+        .filter(task => clean(task.args?.file || task.args?.path) === clean(task.observation.verifiedRead.file))
+        .map(task => clean(task.observation.verifiedRead.file)));
+    return [...new Set((Array.isArray(requiredFiles) ? requiredFiles : [])
+        .map(clean).filter(Boolean))].filter(file => !observed.has(file));
+}
+
 export async function runJarvisMission({
     instruction,
     initialToolCalls = [],
     requiredToolNames = [],
+    requiredRepositorySourceFiles = [],
     executionContractLocked = false,
     toolCatalog = [],
     planner,
@@ -2327,6 +2340,8 @@ export async function runJarvisMission({
         plannedTools: [],
         planRevision: 0,
         executionContractLocked: executionContractLocked === true,
+        requiredRepositorySourceFiles: [...new Set((Array.isArray(requiredRepositorySourceFiles) ? requiredRepositorySourceFiles : [])
+            .map(file => text(file, 500).replaceAll("\\", "/")).filter(Boolean))],
         requiredToolNames: [...new Set(
             (Array.isArray(requiredToolNames) ? requiredToolNames : [])
                 .map(name => text(name, 100))
@@ -3123,6 +3138,13 @@ export async function runJarvisMission({
     }
 
     if (!mission.reason) mission.reason = mission.iterations >= maximumSteps ? "MAXIMUM_STEPS_REACHED" : "MISSION_STOPPED";
+    const missingSources = missingExplicitRepositorySourceEvidence(
+        mission.requiredRepositorySourceFiles, mission.completedTasks
+    );
+    mission.contractMissingSourceFiles = missingSources;
+    if (mission.reason === "ALL_EXECUTABLE_TASKS_COMPLETED" && missingSources.length) {
+        mission.reason = "EXPLICIT_REPOSITORY_READ_EVIDENCE_REQUIRED";
+    }
     mission.status = mission.reason === "ALL_EXECUTABLE_TASKS_COMPLETED" ? "COMPLETED" : "PARTIAL";
     if (requiresEvidenceAudit() && mission.status !== "COMPLETED" &&
         !mission.completionAssessment?.objectives?.some(item => item.satisfied === false)) {
