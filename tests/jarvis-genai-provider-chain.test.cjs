@@ -50,7 +50,10 @@ globalThis.fetch = async (url, options = {}) => {
                 }
             },
             async text() {
-                return '<script type="application/ld+json">{"datePublished":"2026-08-19T12:00:00Z"}</script>';
+                // Keep the fixture inside the real freshness window without
+                // weakening the production cutoff or claiming a stale page is new.
+                const publishedAt = new Date(Date.now() - 2 * 86400000).toISOString();
+                return `<script type="application/ld+json">${JSON.stringify({ datePublished: publishedAt })}</script>`;
             }
         };
     }
