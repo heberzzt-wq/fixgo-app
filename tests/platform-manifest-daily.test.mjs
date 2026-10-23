@@ -32,6 +32,11 @@ test('daily inventory enumerates all 57 real fronts while distinguishing code ch
  assert.equal(result.evidence.updatedStatusesAutomatically,false);
  assert.ok(result.warnings.includes('PUBLIC_RELEASE_NOT_RECHECKED'));
 });
+test('daily cut uses Cancun civil date even when Chicago is one hour behind in winter',()=>{
+ const result=buildDailyReport({manifest:data,head:HEAD,date:new Date('2026-12-15T05:30:00Z')});
+ assert.equal(result.dateLocal,'2026-12-15');
+});
+
 test('daily report never promotes unverified production statuses or exposes credentials',()=>{
  const md=renderDailyReport(report(),data);
  for(const section of ['B2C','B2B','JARVIS','SEGURIDAD','OPERACIONES',

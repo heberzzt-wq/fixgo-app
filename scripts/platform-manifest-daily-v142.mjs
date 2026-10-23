@@ -49,7 +49,7 @@ function runFastTests(root){
   suite:'manifiesto + superficie de hosting + protección web localhost'};
 }
 function dateForZone(date){
- const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',
+ const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/Cancun',
   year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
  const pick=type=>parts.find(x=>x.type===type)?.value;
  return pick('year')+'-'+pick('month')+'-'+pick('day');

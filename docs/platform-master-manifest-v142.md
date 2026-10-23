@@ -1,9 +1,72 @@
 # Manifiesto maestro — Península Tech / FixGo / ADJUNTO V142
 
-**Corte de evidencia:** 2026-10-21 · **Base local:** `v142-official` / `9dc302ba` · **Repositorio:** `heberzzt-wq/fixgo-app`
+**Corte de evidencia:** 2026-10-22 · **Base local:** `v142-official` / `9dc302ba` · **Repositorio:** `heberzzt-wq/fixgo-app`
 
 > Este documento es un INVENTARIO y plan de pruebas, NO una certificación de seguridad
 > ni autorización de despliegue. Los reportes históricos no demuestran el estado productivo actual.
+
+## LEE ESTO PRIMERO - relevo y continuidad inmediata
+
+**Actualizado:** 2026-10-22 | **Candidato certificado en local:** `3caa2f3899aab488f90edef7535beac55f6ca96e` | **Rama:** `v142-official`
+
+**Meta:** LEER PRIMERO: usar este documento y el informe diario, comprobar SHA real y recibos antes de continuar; no repetir preguntas resueltas ni dar por hecho un despliegue.
+
+**Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
+
+**Resumen:** Jarvis/ADJUNTO V142: reparacion del nulo collections, token Firebase del propietario para /workstation/health, endurecimiento Hosting y tests del supervisor/frescura; CI completa verde sobre el candidato.
+
+**Infraestructura actual al corte:** BRIDGE_IDENTITY_OK sobre el candidato; supervisor 3345; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
+
+**Control de ventanas:** No tocar foco ni ventanas de Chrome; el propietario usa TikTok durante las pruebas.
+
+### Entregas y acciones verificadas
+
+- 12 NS1 originales se intentaron por web, todas fallaron por SEMANTIC_AUTHENTICATED_PROVIDER null collections; sin IDs de recibos. No repetir como exitos.
+- NS1-08 RETEST WEB completado con repo.graph y conversation.respond; solo certifica alcance estructural, no E2E general ni relay multi-dispositivo.
+- Correccion protegida contra catalogo null; solicitud health del relay con Firebase ID token del propietario, sin rebajar autorizacion.
+- Pruebas desactualizadas de health supervisor y fixture de frescura corregidas; no se debilitaron gates de seguridad.
+- CI oficial completa 1692 PASS, 0 FAIL, 1 SKIP sobre candidato; Qwen real ejecuto dos pruebas de lectura ingenieril sobre SHA anterior.
+- Firebase Hosting candidato: reduccion 325 a 269 archivos al excluir modulos Node, herramientas MCP, backend admin, pruebas y configuraciones no web.
+- Staging aislado de los archivos reales seleccionados por firebase-tools: 7 rutas publicas HTTP 200 + 9 privadas HTTP 404, 16/16 PASS.
+- Verificacion de cierre de imports: 201 JS y 30 HTML; 0 importaciones locales ausentes y 0 errores de parseo.
+- Dry-run Firebase solo Hosting EXIT 0, sin publicar; repositorio oficial limpio y bridge cargado desde el SHA candidato.
+- Propuesta GitHub Actions Windows/Linux preparada pero envio rechazado por token OAuth sin scope workflow; se conservo fuera del repositorio y se restauro la rama.
+
+### Evidencia tecnica certificada (sin elevarla a produccion)
+
+- CI completa: 1692 PASS, 0 FAIL, 1 SKIP. `npm run ci:test` (exit 0).
+- Hosting candidato: 269 archivos; 7 HTTP publicos 200, 9 privados 404, 0 imports ausentes.
+- Pruebas fisicas de Qwen: 2. read-only local physical pilot; not authenticated web E2E.
+
+### BLOQUEO ACTUAL: NO PUBLICADO
+
+- Estado: `BLOCKED_NOT_DEPLOYED`; causa: `SOVEREIGN_DEPLOY_BLOCKED: DEPLOY_BRANCH_NOT_ALLOWED; workflow permissions also missing`.
+- SHA web: `e1b0ed175754ca546210cf6068d84e7d47193d7d`; candidato: `3caa2f3899aab488f90edef7535beac55f6ca96e`.
+- No alterar gate; no escribir fondos, reglas ni Functions sin autorizacion.
+
+### Ruta de recuperacion para el siguiente chat
+
+1. Resolver la promocion autorizada de Hosting desde una rama/revision permitida con CI y permiso workflow adecuados, sin saltarse protecciones ni desplegar otros sitios/Functions/reglas.
+1. Verificar despues de publicacion SHA servido == SHA Bridge, relay /workstation/health autenticado sin 401, y que archivos privados devuelven 404.
+1. Ejecutar mision real en Terminal Firebase con recibo verificable y luego las 12 NS1 seguidas; clasificar SUCCEEDED, PARTIAL, FAILED con evidencia y artefactos.
+1. Seguir con E2E B2C/B2B, KYC camara, dinero, no-lockout y seguridad; pruebas locales NO certifican produccion.
+1. Actualizar este manifiesto y el diario al cerrar cada hito; no confundir el diario automatico con certificacion de produccion.
+
+### Recibos locales (en la laptop autorizada)
+
+- `C:/Users/heber/Downloads/Jarvis-V142-certificacion-3caa2f38-20261022.zip`
+- `C:/Users/heber/Downloads/jarvis-v142-hosting-preview-20261022.json`
+- `C:/Users/heber/Downloads/jarvis-v142-browser-import-closure-20261022.json`
+- `C:/Users/heber/Downloads/jarvis-ns1-web-12-missions-20261022.json`
+- `C:/Users/heber/Downloads/jarvis-ns1-web-12-misiones-diagnostico-20261022.md`
+- `C:/Users/heber/Downloads/v142-official-ci-certification-proposal.yml`
+
+### Reporte diario automatico
+
+- Leer `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/ultimo.md` y `ultimo.json` para observar cambios posteriores a este corte. Ese diario NO certifica cambios automaticamente.
+- Fuente de verdad de los 57 frentes: `docs/platform-master-manifest-v142.json`; esta vista se regenera, nunca se edita a mano.
+
+---
 
 ## Estado global verificable
 
@@ -24,9 +87,9 @@
 | Código V142 auditado | `9dc302ba` | Código de la rama; NO prueba despliegue |
 | Contrato servido desde https://fixgo-44e4d.web.app | `v94-media-v4n-negative-claims` | Rama diferente de V142 |
 | Manifiesto release de Hosting | `e1b0ed17` | SHA publicado distinto del local |
-| JS interno servido públicamente | `/jarvis-fs-bridge.js`, `/jarvis-upload-bridge.js` | HTTP 200 observado; no implica acceso al proceso local |
+| JS interno servido públicamente | `/jarvis-github-worker.js`, `/jarvis-semantic-http.js`, `/jarvis-qwen-decision-http.js`, `/jarvis-repo-intelligence.js`, `/jarvis-local-video-engine.js` | HTTP 200 observado; no implica acceso al proceso local |
 
-**Fecha de observación pública:** 2026-10-21. Se requiere volver a consultar tras cualquier despliegue autorizado.
+**Fecha de observación pública:** 2026-10-22. Se requiere volver a consultar tras cualquier despliegue autorizado.
 
 ## Baterías observadas
 
@@ -36,6 +99,9 @@
 | B2C dirigida | 63 | 0 | Node local: selección física b2c-* (2026-10-21) |
 | Bridge V142 | 110 | 0 | Node local con Python funcional, último pase registrado (2026-10-21) |
 | Qwen / aislamiento | 367 | 0 | Node local de test bundles, no equivale a E2E productivo (2026-10-21) |
+| CI oficial V142 SHA 3caa2f38 | 1692 | 0 | npm run ci:test; PowerShell Node real, B2C/B2B/Jarvis/artefactos; exit code 0; 8 grupos, pueden solaparse; no es E2E Firebase (2026-10-22) |
+| Hosting staging filtrado SHA 3caa2f38 | 16 | 0 | Firebase Hosting emulator isolated; 7 rutas HTTP 200 y 9 rutas HTTP 404, candidato no publicado (2026-10-22) |
+| Closure imports y seguridad SHA 3caa2f38 | 4 | 0 | tests/jarvis-hosting-web-surface-security.test.mjs; 269 files, 201 JS y 30 HTML, 0 missing imports (2026-10-22) |
 
 Las suites pueden solaparse: NO se suman como número de casos independientes.
 

@@ -50,6 +50,28 @@ test('unknown scope, missing real file, forged status and missing lockout requir
  assert.equal(validateManifest(short).ok,false);
 });
 
+test('latest handoff preserves candidate SHA, web drift, receipts and next-chat recovery without upgrading production',()=>{
+ const handoff=data.latestHandoff,verified=data.latestVerifiedCandidate;
+ assert.equal(data.snapshotDate,'2026-10-22');
+ assert.equal(handoff.verifiedCandidateSha,'3caa2f3899aab488f90edef7535beac55f6ca96e');
+ assert.equal(handoff.deployment.status,'BLOCKED_NOT_DEPLOYED');
+ assert.notEqual(handoff.deployment.publishedSha,handoff.verifiedCandidateSha);
+ assert.equal(verified.ci.passed,1692);
+ assert.equal(verified.ci.failed,0);
+ assert.equal(verified.ci.skipped,1);
+ assert.equal(verified.hostingPreview.uploadFiles,269);
+ assert.equal(verified.hostingPreview.brokenImports,0);
+ assert.ok(handoff.completedActions.some(action=>action.includes('12 NS1')));
+ assert.ok(handoff.nextSteps.some(step=>step.includes('autorizada')));
+ assert.ok(handoff.receipts.some(file=>file.endsWith('Jarvis-V142-certificacion-3caa2f38-20261022.zip')));
+ assert.equal(data.governance.productionCertified,false);
+ const text=renderManifest(data);
+ assert.match(text,/LEE ESTO PRIMERO/);
+ assert.match(text,/1692 PASS/);
+ assert.match(text,/BLOCKED_NOT_DEPLOYED/);
+ assert.match(text,/ultimo.json/);
+});
+
 test('published Markdown is deterministically generated and contains all 57 fronts',()=>{
  const actual=readFileSync(new URL('../docs/platform-master-manifest-v142.md',import.meta.url),'utf8');
  assert.equal(actual,renderManifest(data));

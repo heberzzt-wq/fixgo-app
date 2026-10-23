@@ -1,6 +1,6 @@
 {
   "schemaVersion": "platform-master-v142-1",
-  "snapshotDate": "2026-10-21",
+  "snapshotDate": "2026-10-22",
   "repository": "heberzzt-wq/fixgo-app",
   "branch": "v142-official",
   "ownerExecutionDecisionDate": "2026-10-22",
@@ -12,18 +12,102 @@
     {"rank": 5, "track": "security_hardening", "name": "Seguridad integral", "goal": "Auditoría ofensiva, controles avanzados, sesiones y operación resiliente"}
   ],
   "auditedBaselineSha": "9dc302bab83177cbcd848461bfb6804b5452778f",
+  "latestVerifiedCandidate": {
+    "sha": "3caa2f3899aab488f90edef7535beac55f6ca96e",
+    "verifiedAt": "2026-10-22",
+    "branch": "v142-official",
+    "ci": {
+      "command": "npm run ci:test",
+      "passed": 1692,
+      "failed": 0,
+      "skipped": 1,
+      "exitCode": 0
+    },
+    "hostingPreview": {
+      "uploadFiles": 269,
+      "httpPublicPassed": 7,
+      "httpPrivateDenied": 9,
+      "brokenImports": 0,
+      "syntaxFailures": 0,
+      "jsFilesChecked": 201,
+      "htmlFilesChecked": 30
+    },
+    "localQwenSmokes": {
+      "completed": 2,
+      "scope": "read-only local physical pilot; not authenticated web E2E",
+      "candidateShaScope": "prior HEAD, not final SHA"
+    },
+    "productionCertified": false
+  },
+  "latestHandoff": {
+    "asOf": "2026-10-22",
+    "instruction": "LEER PRIMERO: usar este documento y el informe diario, comprobar SHA real y recibos antes de continuar; no repetir preguntas resueltas ni dar por hecho un despliegue.",
+    "workstation": "adjunto-jarvis",
+    "repositoryPath": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
+    "branch": "v142-official",
+    "verifiedCandidateSha": "3caa2f3899aab488f90edef7535beac55f6ca96e",
+    "lastSessionSummary": "Jarvis/ADJUNTO V142: reparacion del nulo collections, token Firebase del propietario para /workstation/health, endurecimiento Hosting y tests del supervisor/frescura; CI completa verde sobre el candidato.",
+    "infrastructure": {
+      "bridge": "BRIDGE_IDENTITY_OK sobre el candidato; supervisor 3345",
+      "model": "Ollama qwen3.5:9b LOCAL_ONLY",
+      "ports": [
+        "5000",
+        "3344",
+        "3345",
+        "11434"
+      ],
+      "browser": "No tocar foco ni ventanas de Chrome; el propietario usa TikTok durante las pruebas."
+    },
+    "completedActions": [
+      "12 NS1 originales se intentaron por web, todas fallaron por SEMANTIC_AUTHENTICATED_PROVIDER null collections; sin IDs de recibos. No repetir como exitos.",
+      "NS1-08 RETEST WEB completado con repo.graph y conversation.respond; solo certifica alcance estructural, no E2E general ni relay multi-dispositivo.",
+      "Correccion protegida contra catalogo null; solicitud health del relay con Firebase ID token del propietario, sin rebajar autorizacion.",
+      "Pruebas desactualizadas de health supervisor y fixture de frescura corregidas; no se debilitaron gates de seguridad.",
+      "CI oficial completa 1692 PASS, 0 FAIL, 1 SKIP sobre candidato; Qwen real ejecuto dos pruebas de lectura ingenieril sobre SHA anterior.",
+      "Firebase Hosting candidato: reduccion 325 a 269 archivos al excluir modulos Node, herramientas MCP, backend admin, pruebas y configuraciones no web.",
+      "Staging aislado de los archivos reales seleccionados por firebase-tools: 7 rutas publicas HTTP 200 + 9 privadas HTTP 404, 16/16 PASS.",
+      "Verificacion de cierre de imports: 201 JS y 30 HTML; 0 importaciones locales ausentes y 0 errores de parseo.",
+      "Dry-run Firebase solo Hosting EXIT 0, sin publicar; repositorio oficial limpio y bridge cargado desde el SHA candidato.",
+      "Propuesta GitHub Actions Windows/Linux preparada pero envio rechazado por token OAuth sin scope workflow; se conservo fuera del repositorio y se restauro la rama."
+    ],
+    "receipts": [
+      "C:/Users/heber/Downloads/Jarvis-V142-certificacion-3caa2f38-20261022.zip",
+      "C:/Users/heber/Downloads/jarvis-v142-hosting-preview-20261022.json",
+      "C:/Users/heber/Downloads/jarvis-v142-browser-import-closure-20261022.json",
+      "C:/Users/heber/Downloads/jarvis-ns1-web-12-missions-20261022.json",
+      "C:/Users/heber/Downloads/jarvis-ns1-web-12-misiones-diagnostico-20261022.md",
+      "C:/Users/heber/Downloads/v142-official-ci-certification-proposal.yml"
+    ],
+    "deployment": {
+      "status": "BLOCKED_NOT_DEPLOYED",
+      "publishedSha": "e1b0ed175754ca546210cf6068d84e7d47193d7d",
+      "candidateSha": "3caa2f3899aab488f90edef7535beac55f6ca96e",
+      "reason": "SOVEREIGN_DEPLOY_BLOCKED: DEPLOY_BRANCH_NOT_ALLOWED; workflow permissions also missing",
+      "governance": "No alterar gate; no escribir fondos, reglas ni Functions sin autorizacion."
+    },
+    "nextSteps": [
+      "Resolver la promocion autorizada de Hosting desde una rama/revision permitida con CI y permiso workflow adecuados, sin saltarse protecciones ni desplegar otros sitios/Functions/reglas.",
+      "Verificar despues de publicacion SHA servido == SHA Bridge, relay /workstation/health autenticado sin 401, y que archivos privados devuelven 404.",
+      "Ejecutar mision real en Terminal Firebase con recibo verificable y luego las 12 NS1 seguidas; clasificar SUCCEEDED, PARTIAL, FAILED con evidencia y artefactos.",
+      "Seguir con E2E B2C/B2B, KYC camara, dinero, no-lockout y seguridad; pruebas locales NO certifican produccion.",
+      "Actualizar este manifiesto y el diario al cerrar cada hito; no confundir el diario automatico con certificacion de produccion."
+    ]
+  },
   "productionEvidence": {
     "site": "https://fixgo-44e4d.web.app",
-    "observedDate": "2026-10-21",
+    "observedDate": "2026-10-22",
     "publicRuntimeBranch": "v94-media-v4n-negative-claims",
     "publicManifestSha": "e1b0ed175754ca546210cf6068d84e7d47193d7d",
     "confidence": "HTTP read-only, not authenticated production E2E",
-    "risk": "release-version-drift",
+    "risk": "release-version-drift; five node-only files still HTTP 200 in OLD production release, excluded in unpromoted candidate",
     "internalServerFilesPubliclyServed": [
-      "/jarvis-fs-bridge.js",
-      "/jarvis-upload-bridge.js"
+      "/jarvis-github-worker.js",
+      "/jarvis-semantic-http.js",
+      "/jarvis-qwen-decision-http.js",
+      "/jarvis-repo-intelligence.js",
+      "/jarvis-local-video-engine.js"
     ],
-    "lastReadOnlyProbe": "HTTP 200 observed on 2026-10-21, does not verify current Functions or financial safety"
+    "lastReadOnlyProbe": "2026-10-22: old Hosting manifest e1b0ed17; five Node-only roots HTTP 200; /jarvis-fs-bridge.js and /jarvis-upload-bridge.js HTTP 404; no Functions/rules/E2E certification"
   },
   "testObservations": [
     {
@@ -53,6 +137,30 @@
       "failed": 0,
       "provenance": "Node local de test bundles, no equivale a E2E productivo",
       "asOf": "2026-10-21"
+    },
+    {
+      "suite": "CI oficial V142 SHA 3caa2f38",
+      "passed": 1692,
+      "failed": 0,
+      "skipped": 1,
+      "provenance": "npm run ci:test; PowerShell Node real, B2C/B2B/Jarvis/artefactos; exit code 0; 8 grupos, pueden solaparse; no es E2E Firebase",
+      "asOf": "2026-10-22"
+    },
+    {
+      "suite": "Hosting staging filtrado SHA 3caa2f38",
+      "passed": 16,
+      "failed": 0,
+      "skipped": 0,
+      "provenance": "Firebase Hosting emulator isolated; 7 rutas HTTP 200 y 9 rutas HTTP 404, candidato no publicado",
+      "asOf": "2026-10-22"
+    },
+    {
+      "suite": "Closure imports y seguridad SHA 3caa2f38",
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "provenance": "tests/jarvis-hosting-web-surface-security.test.mjs; 269 files, 201 JS y 30 HTML, 0 missing imports",
+      "asOf": "2026-10-22"
     }
   ],
   "historicalAudit": "docs/v142-b2c-forensic-audit-20260921.md",

@@ -21,6 +21,16 @@ export function validateManifest(m,{rootDir=root}={}){
   new Set(m.ownerExecutionOrder.map(x=>x.track)).size!==5)
   errors.push('OWNER_EXECUTION_ORDER_INVALID');
  if(!/^[a-f0-9]{40}$/i.test(m.auditedBaselineSha||''))errors.push('BASELINE_SHA_INVALID');
+ if(m.latestHandoff||m.latestVerifiedCandidate){
+  if(!/^[a-f0-9]{40}$/i.test(m.latestVerifiedCandidate?.sha||'')||
+   m.latestHandoff?.verifiedCandidateSha!==m.latestVerifiedCandidate?.sha||
+   m.latestHandoff?.deployment?.candidateSha!==m.latestVerifiedCandidate?.sha||
+   !Array.isArray(m.latestHandoff?.completedActions)||m.latestHandoff.completedActions.length<1||
+   !Array.isArray(m.latestHandoff?.nextSteps)||m.latestHandoff.nextSteps.length<1||
+   m.latestVerifiedCandidate.productionCertified!==false||
+   m.latestHandoff.deployment.status!=='BLOCKED_NOT_DEPLOYED')
+   errors.push('LATEST_HANDOFF_UNVERIFIED');
+ }
  if(!Array.isArray(m.workstreams)||m.workstreams.length<40)errors.push('INVENTORY_INCOMPLETE');
  if(m.governance?.noAutoDeploy!==true||m.governance?.noAutoFinancialWrites!==true||
   m.governance?.noAutomatedOwnerLockout!==true||m.governance?.productionCertified!==false)
@@ -45,6 +55,67 @@ export function validateManifest(m,{rootDir=root}={}){
   p0:m.workstreams?.filter(w=>w.priority==='P0').length||0,counts};
 }
 
+function renderLatestHandoff(m){
+ const h=m.latestHandoff,c=m.latestVerifiedCandidate;
+ if(!h||!c)return [];
+ const lines=[
+  '## LEE ESTO PRIMERO - relevo y continuidad inmediata',
+  '',
+  '**Actualizado:** '+esc(h.asOf)+' | **Candidato certificado en local:** '+code(c.sha)+' | **Rama:** '+code(h.branch),
+  '',
+  '**Meta:** '+esc(h.instruction),
+  '',
+  '**Laptop:** '+code(h.workstation)+' | **Repositorio:** '+code(h.repositoryPath),
+  '',
+  '**Resumen:** '+esc(h.lastSessionSummary),
+  '',
+  '**Infraestructura actual al corte:** '+esc(h.infrastructure.bridge)+'; '+esc(h.infrastructure.model)+
+   '; puertos '+h.infrastructure.ports.map(code).join(', ')+'.',
+  '',
+  '**Control de ventanas:** '+esc(h.infrastructure.browser),
+  '',
+  '### Entregas y acciones verificadas',
+  ''
+ ];
+ for(const item of h.completedActions)lines.push('- '+esc(item));
+ lines.push('',
+  '### Evidencia tecnica certificada (sin elevarla a produccion)',
+  '',
+  '- CI completa: '+c.ci.passed+' PASS, '+c.ci.failed+' FAIL, '+c.ci.skipped+' SKIP. '+code(c.ci.command)+' (exit '+c.ci.exitCode+').',
+  '- Hosting candidato: '+c.hostingPreview.uploadFiles+' archivos; '+c.hostingPreview.httpPublicPassed+
+    ' HTTP publicos 200, '+c.hostingPreview.httpPrivateDenied+' privados 404, '+
+    c.hostingPreview.brokenImports+' imports ausentes.',
+  '- Pruebas fisicas de Qwen: '+c.localQwenSmokes.completed+'. '+esc(c.localQwenSmokes.scope)+'.',
+  '',
+  '### BLOQUEO ACTUAL: NO PUBLICADO',
+  '',
+  '- Estado: '+code(h.deployment.status)+'; causa: '+code(h.deployment.reason)+'.',
+  '- SHA web: '+code(h.deployment.publishedSha)+'; candidato: '+code(h.deployment.candidateSha)+'.',
+  '- '+esc(h.deployment.governance),
+  '',
+  '### Ruta de recuperacion para el siguiente chat',
+  ''
+ );
+ for(const task of h.nextSteps)lines.push('1. '+esc(task));
+ lines.push('',
+  '### Recibos locales (en la laptop autorizada)',
+  ''
+ );
+ for(const f of h.receipts)lines.push('- '+code(f));
+ lines.push('',
+  '### Reporte diario automatico',
+  '',
+  '- Leer '+code('C:/Users/heber/Documents/Jarvis-V142-Manifiestos/ultimo.md')+' y '+code('ultimo.json')+
+    ' para observar cambios posteriores a este corte. Ese diario NO certifica cambios automaticamente.',
+  '- Fuente de verdad de los 57 frentes: '+code('docs/platform-master-manifest-v142.json')+
+    '; esta vista se regenera, nunca se edita a mano.',
+  '',
+  '---',
+  ''
+ );
+ return lines;
+}
+
 export function renderManifest(m){
  const v=validateManifest(m);
  if(!v.ok)throw Error(v.errors.join('\n'));
@@ -57,6 +128,7 @@ export function renderManifest(m){
  '> Este documento es un INVENTARIO y plan de pruebas, NO una certificación de seguridad',
  '> ni autorización de despliegue. Los reportes históricos no demuestran el estado productivo actual.',
  '',
+ ...renderLatestHandoff(m),
  '## Estado global verificable',
  '',
  '- **'+v.total+' frentes inventariados:** '+groups.map(g=>g+': '+v.counts[g]).join(' · ')+'.',
