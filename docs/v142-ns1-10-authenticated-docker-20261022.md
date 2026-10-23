@@ -101,3 +101,33 @@ preparado**, no un ejecutor autónomo de parches arbitrarios:
 - No se ha desplegado Firebase.
 
 **NS1-10 formal sigue `NOT_CERTIFIED` hasta esas pruebas.**
+
+## Extensión: cancelación de Docker vinculada a la misión
+
+Tras la integración inicial se detectó que una petición HTTP interrumpida
+podía dejar activo el proceso hijo que verificaba el parche, porque el
+endpoint de verificación no propagaba un AbortSignal hasta el executor.
+
+Se añadió una cancelación por solicitud al handler
+`createIsolatedEvidenceVerifyHandler`:
+- `req.aborted` y `res.close` prematuro abortan la verificación.
+- Solo se termina el árbol de procesos nacido de esa solicitud.
+- El verificador limpia los listeners y el archivo temporal.
+- El singleton de ejecución se libera al concluir el cancelado.
+- Una sesión desconectada no recibe falsa respuesta exitosa.
+
+El ejecutor `executeControlledIsolation` rechaza señales ya
+canceladas **antes de crear el proceso** y, si se aborta durante la
+verificación, termina el proceso propio con el mecanismo validado de
+NS1-12 y rechaza con `ISOLATED_VERIFICATION_CANCELLED`.
+
+Evidencia: `tests/jarvis-isolated-evidence-verify.test.mjs`,
+10/10 incluyendo dos pruebas físicas Docker con motor Linux 29.9.2:
+éxito RED 3/4 → GREEN 4/4 y cancelación deliberada durante la
+ejecución. Tras cancelar, se verificaron original intacto,
+sin archivo de certificación para esa misión y sin contenedores
+adicionales activos al realizar la comprobación.
+
+**Límite:** la cancelación detiene el proceso lanzado por la verificación;
+no crea un motor genérico de rollback, ni sustituye la certificación
+autónoma de una nueva misión desde la Terminal.

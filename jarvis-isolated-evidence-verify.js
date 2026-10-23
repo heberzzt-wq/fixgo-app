@@ -59,7 +59,8 @@ function matchingArchive({root,request}){
 }
 
 export async function executeControlledIsolation({root=projectRoot,serialized,
- timeoutMs=120000,spawnImpl=spawn}={}){
+ timeoutMs=120000,spawnImpl=spawn,signal,terminate=terminateOwnedProcessTree}={}){
+ if(signal?.aborted)throw exception('ISOLATED_VERIFICATION_CANCELLED');
  if(typeof serialized!=='string'||Buffer.byteLength(serialized,'utf8')>MAX_RECEIPT_BYTES)
   throw exception('ISOLATED_PREVIEW_SIZE_INVALID');
  const folder=fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-ns1-authenticated-'));
@@ -74,19 +75,29 @@ export async function executeControlledIsolation({root=projectRoot,serialized,
     child=spawnImpl(process.execPath,[executable,'--receipt',receipt,'--save-report'],
      {cwd:root,windowsHide:true,shell:false,stdio:['ignore','pipe','pipe']});
    }catch(error){reject(error);return}
-   let stdout='',stderr='',ended=false,expired=false;
+   let stdout='',stderr='',ended=false,expired=false,cancelled=false;
    const retain=(old,chunk)=>String(old+String(chunk)).slice(-25000);
+   const cleanup=()=>signal?.removeEventListener('abort',onAbort);
+   const onAbort=()=>{
+    if(ended||cancelled)return;
+    cancelled=true;
+    terminate(child);
+   };
+   signal?.addEventListener('abort',onAbort,{once:true});
+   if(signal?.aborted)onAbort();
    const timer=setTimeout(()=>{
     expired=true;
-    terminateOwnedProcessTree(child);
+    terminate(child);
    },Math.min(120000,Math.max(1000,timeoutMs)));
    child.stdout?.on('data',chunk=>{stdout=retain(stdout,chunk)});
    child.stderr?.on('data',chunk=>{stderr=retain(stderr,chunk)});
    child.once('error',error=>{
-    if(ended)return;ended=true;clearTimeout(timer);reject(error);
+    if(ended)return;ended=true;clearTimeout(timer);cleanup();
+    reject(cancelled?exception('ISOLATED_VERIFICATION_CANCELLED'):error);
    });
    child.once('close',code=>{
-    if(ended)return;ended=true;clearTimeout(timer);
+    if(ended)return;ended=true;clearTimeout(timer);cleanup();
+    if(cancelled||signal?.aborted)return reject(exception('ISOLATED_VERIFICATION_CANCELLED'));
     if(expired)return reject(exception('ISOLATED_CONTAINER_TIMEOUT'));
     if(code!==0||!stdout.includes('ISOLATED_PHYSICAL_EVIDENCE_ARCHIVED=')||
        !/ISOLATED_EVIDENCE_SHA256=[a-f0-9]{64}/i.test(stdout))
@@ -118,14 +129,33 @@ export function createIsolatedEvidenceVerifyHandler({
   if(existing)return res.json({...existing,fromArchive:true});
   if(busy)return res.status(409).json({ok:false,status:'ISOLATED_VERIFICATION_ALREADY_RUNNING'});
   busy=true;
+  const controller=new AbortController();
+  const onAbort=()=>controller.abort();
+  const onClose=()=>{
+   // A normal completed response emits "close"; only an abandoned request
+   // should cancel Docker and its owned CLI/Node process tree.
+   if(res.writableEnded!==true)controller.abort();
+  };
+  req.once?.('aborted',onAbort);
+  res.once?.('close',onClose);
+  if(req.aborted===true||(res.destroyed===true&&res.writableEnded!==true))
+   controller.abort();
   try{
-   await execute({root,serialized:verified.serialized,missionId:verified.missionId});
+   if(controller.signal.aborted)throw exception('ISOLATED_VERIFICATION_CANCELLED');
+   await execute({root,serialized:verified.serialized,
+    missionId:verified.missionId,signal:controller.signal});
+   if(controller.signal.aborted||res.destroyed===true)return;
    const final=matchingArchive({root,request:verified});
    if(!final)throw exception('ISOLATED_ARCHIVE_NOT_VERIFIED');
    return res.json({...final,fromArchive:false});
   }catch(error){
+   if(controller.signal.aborted||res.destroyed===true)return;
    const status=error?.code||'ISOLATED_EXECUTION_NOT_VERIFIED';
    return res.status(503).json({ok:false,status,productionRepairCertified:false});
-  }finally{busy=false}
+  }finally{
+   req.removeListener?.('aborted',onAbort);
+   res.removeListener?.('close',onClose);
+   busy=false;
+  }
  };
 }
