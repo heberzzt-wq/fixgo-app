@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {execFileSync} from 'node:child_process';
-import {configuredRepositorySources,configuredSourcesMessage,bindConfiguredSourceArguments} from '../jarvis-configured-sources.js';
+import {configuredRepositorySources,configuredSourcesMessage,bindConfiguredSourceArguments,sameConfiguredRepositoryRoot} from '../jarvis-configured-sources.js';
 import {
     buildRepoEmbeddingDocuments,
     scoreRepoSemanticPreselection,
@@ -27,6 +27,13 @@ function configuredSourceFixture() {
     commit();
     return {root,run,commit,cleanup(){assert.equal(path.dirname(path.resolve(root)),path.resolve(os.tmpdir()));assert.ok(path.basename(root).startsWith('jarvis-schema-fixture-'));fs.rmSync(root,{recursive:true,force:true});}};
 }
+
+test('Git root comparison ignores Windows case only and never admits different directories',()=>{
+    const root=path.resolve('C:/Users/Runner/AppData/Local/Temp/schema-fixture');
+    assert.equal(sameConfiguredRepositoryRoot(root.toUpperCase(),root,'win32'),true);
+    assert.equal(sameConfiguredRepositoryRoot(root+'-foreign',root,'win32'),false);
+    assert.equal(sameConfiguredRepositoryRoot(root.toUpperCase(),root,'linux'),false);
+});
 
 test('configured sources preserve modular SDK bindings without record examples and refresh on revision changes',()=>{
     const f=configuredSourceFixture();

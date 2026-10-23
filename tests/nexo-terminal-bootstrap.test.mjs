@@ -136,7 +136,7 @@ test("V142 predeploy Chrome verifies production loopback transport while source 
     execFileSync("git", ["init", "--bare", remoteRoot], {
         stdio: "ignore"
     });
-    execFileSync("git", ["init", "-b", "v94-media-v4n-negative-claims"], {
+    execFileSync("git", ["init", "-b", contract.branch], {
         cwd: bridgeRoot,
         stdio: "ignore"
     });

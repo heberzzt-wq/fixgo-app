@@ -7,6 +7,14 @@ import {analyzeRepoSourceStructure} from './gestia-core/repo/repo.source.structu
 
 const cache = new Map();
 
+// Git on Windows may change path capitalization while still naming the exact
+// same directory. Do not mistake that for an untrusted alternate repository.
+export function sameConfiguredRepositoryRoot(reported, expected, platform = process.platform) {
+    const actual = path.resolve(reported);
+    const required = path.resolve(expected);
+    return platform === 'win32' ? actual.toLowerCase() === required.toLowerCase() : actual === required;
+}
+
 // Configuration describes where the application stores data. It contains no
 // record values, intent rules, model decisions or permission grants.
 export function configuredRepositorySources(root) {
@@ -15,7 +23,7 @@ export function configuredRepositorySources(root) {
     const options = {encoding:'utf8',windowsHide:true,timeout:15000,stdio:['ignore','pipe','pipe']};
     let revision;
     try {
-        if (path.resolve(execFileSync(git, ['-C', directory, 'rev-parse', '--show-toplevel'], options).trim()) !== directory) return null;
+        if (!sameConfiguredRepositoryRoot(execFileSync(git, ['-C', directory, 'rev-parse', '--show-toplevel'], options).trim(), directory)) return null;
         revision = execFileSync(git, ['-C', directory, 'rev-parse', 'HEAD'], options).trim();
         if (execFileSync(git, ['-C', directory, 'status', '--porcelain'], options).trim()) return null;
     } catch { return null; }
