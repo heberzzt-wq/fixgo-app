@@ -54,6 +54,8 @@
         "build/**",
         ".gradle/**",
         ".firebase/**",
+        ".firebase-release/**",
+        "**/.firebase-release/**",
         ".vscode/**",
         "package.json",
         "package-lock.json",
