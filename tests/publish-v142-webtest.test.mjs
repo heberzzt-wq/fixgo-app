@@ -1,0 +1,66 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {WEBTEST,validateBridge,validateSingleSite,inspectWebtest}
+  from '../scripts/publish-v142-webtest.mjs';
+
+const sha='a'.repeat(40);
+const identity={status:'BRIDGE_IDENTITY_OK',git:{head:sha},
+  contractHead:sha,contract:{branch:'v142-official'}};
+const response=(status,data={},headers={})=>({
+  status,headers:{get:name=>headers[String(name).toLowerCase()]||null},
+  async json(){return data;}
+});
+function fixture({origin=WEBTEST.origin,bridge=identity,spoof=403,auth=409,
+  servedSha=sha,privateStatus=404}={}){
+  const seen=[];
+  const fetchImpl=async(url,config={})=>{
+    seen.push({url,headers:config.headers});
+    if(url===WEBTEST.bridge+'/health'){
+      if(config.headers?.Origin===WEBTEST.origin+'.evil.example')return response(spoof);
+      return response(200,{identity:bridge},{'access-control-allow-origin':origin});
+    }
+    if(url===WEBTEST.bridge+'/workstation/health')return response(auth);
+    if(url===WEBTEST.origin+'/release-manifest.json')return response(200,{git_sha:servedSha});
+    if(url===WEBTEST.origin+'/gestia-terminal.html')return response(200);
+    if(url===WEBTEST.origin+'/jarvis-runtime-contract.json')return response(200);
+    if(['/jarvis-fs-bridge.js','/jarvis-github-worker.js','/functions/index.js']
+      .some(path=>url===WEBTEST.origin+path))return response(privateStatus);
+    throw Error('UNEXPECTED_TEST_URL');
+  };
+  return {fetchImpl,seen};
+}
+test('valid same-version private preview is verifiable without claiming an authenticated mission',async()=>{
+  const {fetchImpl,seen}=fixture();
+  const result=await inspectWebtest(sha,{fetchImpl});
+  assert.equal(Object.values(result).every(Boolean),true);
+  assert.equal(seen.length,9);
+  assert.equal(seen[0].headers.Origin,WEBTEST.origin);
+  assert.ok(!seen.some(v=>v.url.includes('multiservicios')));
+});
+test('preview checks fail closed on spoofed or missing CORS, stale bridge or wrong release gate',async()=>{
+  for(const bad of [
+    {origin:'https://evil.example'},
+    {bridge:{...identity,contractHead:'b'.repeat(40)}},
+    {spoof:200},
+    {auth:503}
+  ]){
+    await assert.rejects(inspectWebtest(sha,fixture(bad)),/WEBTEST_/);
+  }
+});
+test('preview checks reject public SHA drift and any exposed server source',async()=>{
+  for(const bad of [{servedSha:'b'.repeat(40)},{privateStatus:200}]){
+    await assert.rejects(inspectWebtest(sha,fixture(bad)),/WEBTEST_/);
+  }
+});
+test('single hosting site and bridge identity cannot be forged',()=>{
+  const one={status:'success',result:{
+    'fixgo-44e4d':{site:'fixgo-44e4d',url:WEBTEST.origin}
+  }};
+  assert.equal(validateSingleSite(one),true);
+  assert.equal(validateSingleSite({status:'success',result:{...one.result,other:{site:'other'}}}),false);
+  assert.equal(validateSingleSite({status:'success',result:{
+    'fixgo-44e4d':{site:'fixgo-44e4d',url:'https://evil.example'}}}),false);
+  assert.equal(validateBridge(identity,sha),true);
+  assert.equal(validateBridge({...identity,status:'BRIDGE_IDENTITY_INVALID'},sha),false);
+  assert.equal(validateBridge(identity,'b'.repeat(40)),false);
+});

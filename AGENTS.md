@@ -21,6 +21,8 @@ Verifica:
 8. Al cerrar un frente, actualiza su evidencia, estado, pendiente y criterio de aceptacion en el JSON solo si el criterio realmente se cumplio; no promover estados automaticamente.
 9. Documenta cambios con recibos físicos y conserva las pruebas negativas. No edites funciones financieras, autenticación productiva ni despliegues sin autorización explícita.
 
+Ciclo web de prueba autorizado: `npm run test:jarvis:webtest`, luego `npm run webtest:v142:check` para verificar la version publicada o `npm run webtest:v142:publish` para actualizar el unico canal preview de ADJUNTO. Si hace falta sincronizar un commit autorizado con GitHub, `node scripts/publish-v142-webtest.mjs --publish --push` comprueba avance fast-forward antes de enviar. Requiere rama oficial, Git limpio, Bridge sano, SHA exacto, CORS exacto y rutas privadas bloqueadas. NO publica el canal live, Functions ni reglas. Una preview HTTP 200 nunca se declara mision autenticada.
+
 Protecciones obligatorias:
 - No bloquear ni revocar automáticamente sesiones del propietario por cambiar de red, errores, pruebas o alertas de intrusión.
 - No crear bypass anónimos: recuperar el acceso solo por una identidad autorizada y verificada.

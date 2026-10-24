@@ -100,6 +100,9 @@ export function validateManifest(m,{rootDir=root}={}){
    !Array.isArray(dev.authorized)||dev.authorized.length<4||
    !Array.isArray(dev.limits)||dev.limits.length<4||
    !String(dev.pushPolicy||'').includes('despliegue')||
+   dev.webTesting?.decision!=='CADA_CAMBIO_PROBABLE_EN_WEB'||
+   dev.webTesting?.productionFunctionsRulesPaymentsAndOwnerAccessRequireSeparateGates!==true||
+   !existsSync(resolve(rootDir,dev.webTesting?.automationScript||''))||
    m.governance.noAutoDeploy!==true||m.governance.noAutoFinancialWrites!==true))
    errors.push('OWNER_DEVELOPMENT_AUTHORIZATION_SCOPE_INVALID');
  for(const w of m.workstreams||[]){

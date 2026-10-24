@@ -1477,6 +1477,10 @@
         "controlledLocalBridgeRefreshAuthorized": true,
         "productionHostingAllowedOnlyAfterVerifiedGates": true,
         "noRepeatApprovalForEachTestRelease": true,
+        "automationScript": "scripts/publish-v142-webtest.mjs",
+        "testCommand": "npm run test:jarvis:webtest",
+        "previewCheckCommand": "npm run webtest:v142:check",
+        "previewPublishCommand": "npm run webtest:v142:publish",
         "neverPublishWithKnownCriticalSecurityFailures": true,
         "productionFunctionsRulesPaymentsAndOwnerAccessRequireSeparateGates": true,
         "claimPolicy": "El canal preview prueba Hosting, no funciones cloud ni Qwen local por si mismo. Certificar la Terminal web solo con sesion autenticada, version coherente, Bridge sano y mision real."
