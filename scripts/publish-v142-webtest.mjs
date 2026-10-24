@@ -58,8 +58,14 @@ export async function inspectWebtest(sha,{fetchImpl=request}={}){
   const spoof=await fetchImpl(WEBTEST.bridge+'/health',{
     headers:{Origin:WEBTEST.origin+'.evil.example','Sec-Fetch-Site':'cross-site'}});
   if(spoof.status!==403)throw Error('WEBTEST_BRIDGE_ACCEPTED_SPOOFED_ORIGIN');
-  const auth=await fetchImpl(WEBTEST.bridge+'/workstation/health');
-  if(auth.status!==409)throw Error('WEBTEST_RELEASE_ID_GATE_MISSING_OR_BRIDGE_UNHEALTHY');
+  // The local singleton supervisor uses a minimal GET heartbeat (200).
+  // Browser access to private workstation diagnostics uses POST with the
+  // owner release-id/Firebase-token gate (409 when release-id is missing).
+  const heartbeat=await fetchImpl(WEBTEST.bridge+'/workstation/health');
+  if(heartbeat.status!==200)throw Error('WEBTEST_SUPERVISOR_HEARTBEAT_UNHEALTHY');
+  const auth=await fetchImpl(WEBTEST.bridge+'/workstation/health',{
+    method:'POST',headers:{'content-type':'application/json'},body:'{}'});
+  if(auth.status!==409)throw Error('WEBTEST_POST_RELEASE_GATE_MISSING_OR_BRIDGE_UNHEALTHY');
   const release=await fetchImpl(WEBTEST.origin+'/release-manifest.json');
   if(release.status!==200||(await release.json()).git_sha!==sha)throw Error('WEBTEST_PUBLIC_SHA_MISMATCH');
   const page=await fetchImpl(WEBTEST.origin+'/gestia-terminal.html');

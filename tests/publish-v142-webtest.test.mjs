@@ -11,15 +11,15 @@ const response=(status,data={},headers={})=>({
   async json(){return data;}
 });
 function fixture({origin=WEBTEST.origin,bridge=identity,spoof=403,auth=409,
-  servedSha=sha,privateStatus=404}={}){
+  heartbeat=200,servedSha=sha,privateStatus=404}={}){
   const seen=[];
   const fetchImpl=async(url,config={})=>{
-    seen.push({url,headers:config.headers});
+    seen.push({url,headers:config.headers,method:config.method||'GET'});
     if(url===WEBTEST.bridge+'/health'){
       if(config.headers?.Origin===WEBTEST.origin+'.evil.example')return response(spoof);
       return response(200,{identity:bridge},{'access-control-allow-origin':origin});
     }
-    if(url===WEBTEST.bridge+'/workstation/health')return response(auth);
+    if(url===WEBTEST.bridge+'/workstation/health')return response(config.method==='POST'?auth:heartbeat);
     if(url===WEBTEST.origin+'/release-manifest.json')return response(200,{git_sha:servedSha});
     if(url===WEBTEST.origin+'/gestia-terminal.html')return response(200);
     if(url===WEBTEST.origin+'/jarvis-runtime-contract.json')return response(200);
@@ -33,7 +33,9 @@ test('valid same-version private preview is verifiable without claiming an authe
   const {fetchImpl,seen}=fixture();
   const result=await inspectWebtest(sha,{fetchImpl});
   assert.equal(Object.values(result).every(Boolean),true);
-  assert.equal(seen.length,9);
+  assert.equal(seen.length,10);
+  assert.ok(seen.some(item=>item.method==='GET'&&item.url.endsWith('/workstation/health')));
+  assert.ok(seen.some(item=>item.method==='POST'&&item.url.endsWith('/workstation/health')));
   assert.equal(seen[0].headers.Origin,WEBTEST.origin);
   assert.ok(!seen.some(v=>v.url.includes('multiservicios')));
 });
@@ -42,6 +44,7 @@ test('preview checks fail closed on spoofed or missing CORS, stale bridge or wro
     {origin:'https://evil.example'},
     {bridge:{...identity,contractHead:'b'.repeat(40)}},
     {spoof:200},
+    {heartbeat:503},
     {auth:503}
   ]){
     await assert.rejects(inspectWebtest(sha,fixture(bad)),/WEBTEST_/);
