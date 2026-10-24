@@ -6,6 +6,8 @@
 const LOOPBACK_HOSTS=new Set(['127.0.0.1','localhost']);
 export const JARVIS_BROWSER_ORIGINS=Object.freeze([
  'https://fixgo-44e4d.web.app',
+ // Exact owner-controlled Firebase preview; no wildcard or arbitrary channel.
+ 'https://fixgo-44e4d--v142-jarvis-webtest-20261023-zht01nmx.web.app',
  'https://fixgo-44e4d.firebaseapp.com',
  'http://localhost:5000','http://127.0.0.1:5000',
  'http://localhost:5500','http://127.0.0.1:5500'

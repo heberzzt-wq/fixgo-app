@@ -24,6 +24,8 @@ test('local bridge perimeter allows only exact loopback host and known browser o
   {origin:'https://evil.example'},
   {origin:'null'},
   {origin:'https://fixgo-44e4d.web.app.evil.example'},
+  {origin:'https://fixgo-44e4d--v142-jarvis-webtest-20261023-zht01nmx.web.app.evil.example'},
+  {origin:'https://fixgo-44e4d--v142-jarvis-webtest-20261023-zht01nmx.web.app:8443'},
   {origin:'https://fixgo-44e4d.web.app:8443'},
   {fetchSite:'cross-site'},
   {localAddress:'192.168.1.9'},
