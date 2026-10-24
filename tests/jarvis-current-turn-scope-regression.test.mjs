@@ -71,13 +71,13 @@ test('normal Terminal passes its mission signal to the Qwen planner and orchestr
 
 test('real user Git-change audit requires actual Git evidence instead of chat',()=>{
  const request='Revisa los últimos cambios realizados por GPT en el repositorio oficial V142. Identifica los archivos modificados, explica las reparaciones realizadas, las pruebas aprobadas y lo que todavía falta. Utiliza evidencia real de Git y no realices modificaciones.';
- const tools=[{name:'conversation.respond',mutates:false},{name:'repo.gitStatus',mutates:false},
+ const tools=[{name:'conversation.respond',mutates:false},{name:'repo.gitStatus',mutates:false},{name:'repo.gitHistory',mutates:false},
   {name:'repo.gitDiff',mutates:false},{name:'repo.search',mutates:false},
   {name:'repo.read',mutates:false},{name:'repo.gitCommit',mutates:true,requiresApproval:true},
   {name:'system.health',mutates:false},{name:'repo.audit',mutates:false}];
  assert.equal(jarvisRepositoryEvidenceRequest(request),true);
  assert.deepEqual(scopeJarvisToolsForQuestion(tools,request).map(t=>t.name),
-  ['repo.gitStatus','repo.gitDiff','repo.search','repo.read']);
+  ['repo.gitStatus','repo.gitHistory','repo.gitDiff','repo.search','repo.read']);
 });
 test('conceptual Git conversation does not get forced into repository operations',()=>{
  for(const q of ['¿Qué es Git y para qué sirve?', 'Explícame Git sin revisar archivos', '¿Qué hace un commit?',
@@ -88,12 +88,12 @@ test('conceptual Git conversation does not get forced into repository operations
 });
 test('tool-only Git scope never widens into writes or other tenants',()=>{
  const q='Checa el estado actual del repositorio y dime qué archivos modificaste';
- const tools=[{name:'repo.gitStatus',mutates:false},{name:'repo.gitDiff',mutates:false},
+ const tools=[{name:'repo.gitStatus',mutates:false},{name:'repo.gitHistory',mutates:false},{name:'repo.gitDiff',mutates:false},
   {name:'repo.gitCommitPlan',mutates:false},{name:'repo.gitCommit',mutates:true},
   {name:'repo.read',mutates:false,requiresApproval:true},{name:'repo.search',mutates:false},
   {name:'conversation.respond',mutates:false}];
  assert.deepEqual(scopeJarvisToolsForQuestion(tools,q).map(t=>t.name),
-  ['repo.gitStatus','repo.gitDiff','repo.search']);
+  ['repo.gitStatus','repo.gitHistory','repo.gitDiff','repo.search']);
 });
 
 test('light current-turn planner delegates a real Git request to read-only Qwen tools, not CASUAL_NOOP',async()=>{
@@ -101,7 +101,7 @@ test('light current-turn planner delegates a real Git request to read-only Qwen 
  const start=source.indexOf('    async analizarIntencionLigera(');
  const end=source.indexOf('    // Helper de seguridad para identificar planes Read-Only',start);
  assert.ok(start>0 && end>start);
- const tools=[{name:'conversation.respond',mutates:false},{name:'repo.gitStatus',mutates:false},
+ const tools=[{name:'conversation.respond',mutates:false},{name:'repo.gitStatus',mutates:false},{name:'repo.gitHistory',mutates:false},
   {name:'repo.gitDiff',mutates:false},{name:'repo.search',mutates:false},
   {name:'repo.gitCommit',mutates:true,requiresApproval:true}];
  const seen=[];
@@ -124,7 +124,7 @@ test('light current-turn planner delegates a real Git request to read-only Qwen 
  assert.equal(seen[0].context.missionState.conversationalGate,false);
  assert.equal(seen[0].context.missionState.writeAllowed,false);
  assert.deepEqual(Array.from(seen[0].context.toolCatalog,x=>x.name),
-  ['repo.gitStatus','repo.gitDiff','repo.search']);
+  ['repo.gitStatus','repo.gitHistory','repo.gitDiff','repo.search']);
  assert.ok(!seen[0].context.toolCatalog.some(x=>x.mutates===true));
  assert.equal(plan.toolCalls[0].name,'repo.gitStatus');
 });
@@ -133,6 +133,7 @@ test('Git status and diff remain investigative so a multi-source mission is not 
  const {isBoundedReadOnlyMission}=await import('../gestia-core/jarvis/jarvis.multifunction.planner.js');
  const runtime=fs.readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
  for(const [name,receipt] of [['repo.gitStatus','REPO_GIT_STATUS_RESULT_V7'],
+  ['repo.gitHistory','REPO_GIT_HISTORY_RESULT_V142'],
   ['repo.gitDiff','REPO_GIT_DIFF_RESULT_V7']]){
   const at=runtime.indexOf('"'+name+'"');
   const begin=runtime.lastIndexOf('JarvisToolRuntime.register({',at);

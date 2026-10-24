@@ -4882,6 +4882,37 @@ const JarvisGitWorkflowBridge =
 window.JarvisGitWorkflowBridge =
     JarvisGitWorkflowBridge;
 
+// Local Repomix is strictly an optional discovery/preview step. Physical
+// source reads and Git receipts remain necessary for factual mission closure.
+JarvisToolRuntime.register({
+    name: "repo.context",
+    description: "Comprime hasta seis ARCHIVOS DE CODIGO ya identificados del repositorio mediante Repomix local. Solo devuelve un adelanto de contexto (no certifica lectura completa, cambios ni tests). No usa nube, no modifica archivos. Selecciona las rutas exactas por evidencia previa; nunca lo uses como prueba de cumplimiento.",
+    evidenceKinds: ["repository_search"],
+    investigationReadOnly: true,
+    mutates: false,
+    requiresApproval: false,
+    inputSchema: {
+        type: "object",
+        required: ["files"],
+        properties: {
+            files: {type: "array", minItems: 1, maxItems: 6, items: {type: "string"}},
+            tokenBudget: {type:"integer",minimum:256,maximum:2200}
+        },
+        additionalProperties: false
+    },
+    output: "REPO_CONTEXT_PREVIEW_V142",
+    execute: async (args={}) => {
+        const response = await window.JarvisLocalBridge.requestJson(
+            "/repo/context",
+            {files:args.files,tokenBudget:args.tokenBudget||1800},
+            {timeoutMs:35000}
+        );
+        return {...response,tool:"repo.context",
+            source:"LOCAL_REPOMIX_CONTEXT_PREVIEW",
+            independentlyCertified:false,writePerformed:false};
+    }
+});
+
 JarvisToolRuntime.register({
     name:
         "repo.gitStatus",
@@ -4936,6 +4967,39 @@ JarvisToolRuntime.register({
                     "repo_git_status_v7"
             };
         }
+});
+
+// Authenticated, read-only history complements status/diff in a clean repo.
+// It cannot execute arbitrary Git arguments or write/push a commit.
+JarvisToolRuntime.register({
+    name:
+        "repo.gitHistory",
+    inputSchema: {type: "object", properties: {limit: {type: "integer", minimum: 1, maximum: 8}}, additionalProperties: false},
+    description:
+        "Lee hasta ocho commits locales recientes de Git con SHA, fecha, asunto y nombres de archivos cambiados. No modifica archivos.",
+    mutates: false,
+    requiresApproval: false,
+    investigationReadOnly: true,
+    output: "REPO_GIT_HISTORY_RESULT_V142",
+    execute: async (args = {}) => {
+        const count = Number(args.limit);
+        const limit = Number.isInteger(count) && count >= 1 && count <= 8 ? count : 6;
+        const result = await JarvisGitWorkflowBridge.request({
+            action: "history", limit, timeoutMs: 15000
+        });
+        const history = String(result.stdout || "");
+        return {
+            ok: result.ok === true,
+            success: result.ok === true,
+            status: result.status || "GIT_HISTORY_FAILED",
+            stdout: history,
+            commitCount: history.split(/\r?\n/).filter(line => line.startsWith("COMMIT\t")).length,
+            limit,
+            stderr: String(result.stderr || ""),
+            tool: "repo.gitHistory",
+            source: "repo_git_history_v142"
+        };
+    }
 });
 
 JarvisToolRuntime.register({

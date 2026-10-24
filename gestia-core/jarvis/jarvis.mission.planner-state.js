@@ -156,10 +156,55 @@ export function materialReferencesForPlanning(observation = {}) {
         }));
 }
 
+// Git tool stdout stays in the physical receipt. This is the bounded,
+// explicitly incomplete when necessary, model-facing source index. Never
+// mistake working-tree status/diff for committed history.
+export function compactGitPlannerEvidence(observation = {}) {
+    const item=object(observation);
+    if(item.ok!==true || item.executionOk===false || item.blocked===true || item.requiresInput===true)return null;
+    if(item.tool==='repo.gitStatus' && item.status==='GIT_STATUS_OK') {
+        const names=Array.isArray(item.changedFiles)?item.changedFiles:
+            String(item.stdout||'').split(/\r?\n/).filter(line=>line&&!line.startsWith('##'));
+        return {kind:'git_worktree',branchLine:text(item.branchLine,180),
+            files:names.slice(0,32).map(name=>text(name,280)),totalFiles:names.length,
+            filesOmitted:Math.max(0,names.length-32),committedHistory:false};
+    }
+    if(item.tool==='repo.gitDiff' && item.status==='GIT_DIFF_OK') {
+        const diff=String(item.diff||'');
+        const names=[...new Set([...diff.matchAll(/^diff --git a\/(.+?) b\/(.+)$/gm)].map(match=>match[2]))];
+        return {kind:'git_worktree_diff',files:names.slice(0,32).map(name=>text(name,280)),
+            totalFiles:names.length,filesOmitted:Math.max(0,names.length-32),
+            hasDiff:diff.length>0,contentExcerpt:text(diff,1000),
+            excerptTruncated:diff.length>1000,committedHistory:false};
+    }
+    if(item.tool==='repo.gitHistory' && item.status==='GIT_HISTORY_OK') {
+        const commits=[];let current=null;
+        for(const line of String(item.stdout||'').split(/\r?\n/)) {
+            if(line.startsWith('COMMIT\t')) {
+                const [,sha,date,...subject]=line.split('\t');
+                if(!/^[0-9a-f]{40}$/i.test(String(sha||'')) || commits.length>=8) {current=null;continue;}
+                current={sha,date:text(date,40),subject:text(subject.join(' '),180),
+                    files:[],fileCount:0,filesOmitted:0};
+                commits.push(current);
+            } else if(current && /^[AMDT]\t/.test(line)) {
+                current.fileCount+=1;
+                if(current.files.length<14)current.files.push(String(line).slice(0,320));
+                else current.filesOmitted+=1;
+            }
+        }
+        return {kind:'git_committed_history',source:'LOCAL_GIT_LOG',
+            commits,reportedCommits:Number(item.commitCount)||commits.length,
+            limit:Number(item.limit)||6,detailsBounded:true,
+            originalReceiptRetained:true};
+    }
+    return null;
+}
+
 export function compactMissionPlannerObservation(observation = {}) {
     const source = object(observation);
     const evidence = object(source.evidence);
     const verifiedRead = compactVerifiedRead(source, evidence);
+    const gitEvidence = compactGitPlannerEvidence(source);
     const materialReferences = materialReferencesForPlanning(source);
     const interfaceEvidence = source.ok === true && source.executionOk !== false && source.blocked !== true && source.requiresInput !== true
         ? compactBrowserInterfaceEvidence(source.interfaceEvidence || evidence.interfaceEvidence) : null;
@@ -269,6 +314,19 @@ export function compactMissionPlannerObservation(observation = {}) {
         retryable: source.retryable === true,
         sourceCount,
         ...(verifiedRead ? { verifiedRead } : {}),
+        ...(gitEvidence ? { gitEvidence } : {}),
+        ...(source.ok === true && source.executionOk !== false &&
+            source.tool === "repo.context" && source.status === "REPO_CONTEXT_READY" &&
+            source.contextIsUnverifiedPreview === true ? { contextPreview: {
+                source: "LOCAL_REPOMIX_READ_ONLY", sha256: text(source.sha256,80),
+                files: (Array.isArray(source.files) ? source.files : [])
+                    .slice(0,6).map(entry=>({
+                        file:text(entry.file,220),sha256:text(entry.sha256,80)
+                    })),
+                excerpt:text(source.packedContext,4500),
+                truncated: String(source.packedContext||"").length>4500,
+                evidenceOnly:true,independentlyCertified:false
+            }} : {}),
         ...(source.ok === true && source.executionOk !== false && source.blocked !== true && Array.isArray(source.repoCandidates || evidence.candidates) ? { repoCandidates: (source.repoCandidates || evidence.candidates).slice(0, 12).map(item => ({file: text(item.file || item.path, 500),
             // Observed function names guide the same model's source selection;
             // they are discovery hints, never read schemas or operational values.

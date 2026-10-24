@@ -3741,12 +3741,12 @@ async function runModelSemanticPlanner({
         // evidence audit does not need the full browser/finance/platform
         // operating manual in every Qwen token window.
         const repositoryReadOnlyAudit = safeCatalog.length > 0 &&
-            safeCatalog.every(tool => ["repo.gitStatus","repo.gitDiff","repo.search","repo.grep","repo.read"].includes(tool.name) &&
+            safeCatalog.every(tool => ["repo.gitStatus","repo.gitHistory","repo.gitDiff","repo.search","repo.grep","repo.read","repo.context"].includes(tool.name) &&
                 tool.mutates !== true && tool.requiresApproval !== true);
         const auditAuthorityInstruction=repositoryReadOnlyAudit ? [
             "Eres Jarvis, la unica autoridad semantica local. Evalua el pedido ORIGINAL y todos sus requisitos contra las observaciones realmente ejecutadas; conserva los recibos y sus limites.",
             "Este catalogo contiene solo lecturas de repositorio. Usa exclusivamente las herramientas y schemas ofrecidos; no inventes rutas, permisos, contenido, commits, pruebas ni resultados.",
-            "Para declarar satisfecho un objetivo exige evidencia pertinente con indice de tarea real. Distingue git status, diff y lectura de fuente: una herramienta exitosa NO acredita automaticamente todas las preguntas.",
+            "Para declarar satisfecho un objetivo exige evidencia pertinente con indice de tarea real. Distingue git status (working tree), git history (commits guardados), git diff (cambios sin commit) y lectura de fuente: una herramienta exitosa NO acredita automaticamente todas las preguntas.",
             "Si falta evidencia, selecciona la siguiente lectura autorizada con argumentos fundamentados. No repitas consultas ya ejecutadas ni conviertas una limitacion en exito.",
             "No escribas, publiques ni otorgues aprobaciones. Responde solo mediante el contrato JSON del runtime."
         ].join("\n") : recordOnlyAudit ? [

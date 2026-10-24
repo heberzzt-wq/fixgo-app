@@ -4063,3 +4063,40 @@ test('repo grep promotes actual function definitions over test-only references w
         fs.rmSync(root, { recursive:true, force:true });
     }
 });
+
+test('Git history is a bounded local-only read with no arbitrary commands or changes', async () => {
+    const fixture=createBridgeIdentityFixture();
+    try {
+        const post=directBridgePost(createJarvisFsBridgeApp({root:fixture.root}));
+        const before=fixture.runGit(['rev-parse','HEAD']);
+        const one=await post('/git',{action:'history',limit:1,cwd:'../../elsewhere',approved:true});
+        assert.equal(one.status,200);
+        assert.equal(one.body.ok,true,JSON.stringify(one.body));
+        assert.equal(one.body.status,'GIT_HISTORY_OK');
+        assert.equal(one.body.limit,1);
+        assert.match(one.body.stdout,/COMMIT\s+[a-f0-9]{40}/);
+        assert.match(one.body.stdout,/identity-marker\.txt/);
+        const all=await post('/git',{action:'history',limit:999});
+        assert.equal(all.body.ok,true);
+        assert.equal(all.body.limit,6,'untrusted count cannot increase the maximum');
+        assert.equal(fixture.runGit(['rev-parse','HEAD']),before);
+        assert.equal(fixture.runGit(['status','--porcelain']),'');
+        const blocked=await post('/git',{action:'reset',approved:true});
+        assert.equal(blocked.status,400);
+        assert.equal(blocked.body.status,'GIT_ACTION_NOT_ALLOWED');
+    } finally {fs.rmSync(fixture.fixtureRoot,{recursive:true,force:true});}
+});
+
+test('Repomix Bridge endpoint denies arbitrary source paths without invoking tools',async()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-repomix-route-'));
+ try{
+   const post=directBridgePost(createJarvisFsBridgeApp({root}));
+   const invalid=await post('/repo/context',{files:['.env'],tokenBudget:1800});
+   assert.equal(invalid.status,422);
+   assert.equal(invalid.body.status,'REPO_CONTEXT_UNAVAILABLE');
+   assert.equal(invalid.body.error,'REPO_CONTEXT_FILE_SCOPE_DENIED');
+   const traversal=await post('/repo/context',{files:['../../private.js']});
+   assert.equal(traversal.status,422);
+   assert.equal(traversal.body.error,'REPO_CONTEXT_FILE_SCOPE_DENIED');
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
+});

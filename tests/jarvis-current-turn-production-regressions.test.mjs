@@ -6206,3 +6206,26 @@ test('a mismatched release cannot fall through to direct localhost from public T
         /JARVIS_RELAY_LOCAL_RELEASE_MISMATCH/);
     assert.equal(directCalls,0);
 });
+
+test('real Git status, history and diff receipts survive bounded mission audit compaction',async()=>{
+ const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
+ const sha='a'.repeat(40);
+ const stdout='COMMIT\t'+sha+'\t2026-10-24T12:00:00-05:00\tfix(v142): archive changes\nM\tgestia-core/gestia-core.js\nA\ttests/suite.test.mjs\n';
+ const history={ok:true,tool:'repo.gitHistory',status:'GIT_HISTORY_OK',stdout,limit:6,commitCount:1};
+ const compact=compactMissionPlannerObservation(history);
+ assert.equal(compact.gitEvidence?.kind,'git_committed_history');
+ assert.equal(compact.gitEvidence.commits[0].sha,sha);
+ assert.equal(compact.gitEvidence.commits[0].subject,'fix(v142): archive changes');
+ assert.equal(compact.gitEvidence.commits[0].fileCount,2);
+ assert.deepEqual(compact.gitEvidence.commits[0].files,['M\tgestia-core/gestia-core.js','A\ttests/suite.test.mjs']);
+ assert.equal(compact.gitEvidence.originalReceiptRetained,true);
+ const working=compactMissionPlannerObservation({ok:true,tool:'repo.gitStatus',status:'GIT_STATUS_OK',branchLine:'## v142-official',changedFiles:[]});
+ assert.equal(working.gitEvidence?.kind,'git_worktree');
+ assert.equal(working.gitEvidence.totalFiles,0);
+ assert.equal(working.gitEvidence.committedHistory,false);
+ const diff=compactMissionPlannerObservation({ok:true,tool:'repo.gitDiff',status:'GIT_DIFF_OK',
+   diff:'diff --git a/a.js b/a.js\n@@ -1 +1 @@\n-old\n+new\n'});
+ assert.deepEqual(diff.gitEvidence.files,['a.js']);
+ assert.equal(diff.gitEvidence.committedHistory,false);
+ assert.equal(compactMissionPlannerObservation({...history,ok:false}).gitEvidence,undefined);
+});

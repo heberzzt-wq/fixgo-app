@@ -29,7 +29,7 @@ export function jarvisRepositoryEvidenceRequest(text = "") {
     const request=/\b(?:revisa|revisar|verifica|verificar|consulta|consultar|investiga|investigar|busca|buscar|muestra|mostrar|enumera|enumerar|lista|listar|dime|identifica|identificar|compara|comparar|analiza|analizar|checa|checar)\b/u.test(s);
     return repository && changes && request;
 }
-const gitEvidenceNames=new Set(["repo.gitStatus","repo.gitDiff","repo.search","repo.grep","repo.read"]);
+const gitEvidenceNames=new Set(["repo.gitStatus","repo.gitHistory","repo.gitDiff","repo.search","repo.grep","repo.read","repo.context"]);
 export function scopeJarvisToolsForQuestion(tools = [], instruction = "") {
     const source=Array.isArray(tools)?tools:[];
     if (jarvisExternalEducationQuery(instruction)) return source.filter(tool =>

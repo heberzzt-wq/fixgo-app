@@ -2,6 +2,7 @@ import {qwenArtifactWriteGuard} from './jarvis-qwen-artifact-write-guard.js';
 import {resolveLocalQwenContextTokens,assertLocalQwenPromptPreflight} from './jarvis-qwen-context-policy.js';
 import {createVerifiedEvidencePages,reviewVerifiedEvidencePages} from './jarvis-qwen-evidence-pages.js';
 import {createEvidenceCheckpointStore} from './jarvis-qwen-evidence-checkpoint.js';
+import {packAuthorizedRepositoryContext} from './jarvis-repomix-context.js';
 import {createJarvisLocalIntrusionGuard,JARVIS_BROWSER_ORIGINS,localIntrusionSnapshot} from './jarvis-local-intrusion-guard.js';
 import {pendingExternalConnectorInventory} from './jarvis-external-connector-contract.js';
 import {prepareBoundedXmlArtifact,verifyStructuredArtifactOutcome} from './jarvis-structured-artifact-recovery.js';
@@ -10232,6 +10233,22 @@ export function createJarvisFsBridgeApp({
         }
     });
 
+    app.post("/repo/context", async (req,res) => {
+        try{
+            const packet=await packAuthorizedRepositoryContext({
+                root, files:req.body?.files,
+                tokenBudget:req.body?.tokenBudget ?? 1800
+            });
+            return res.json(packet);
+        }catch(error){
+            const code=String(error?.message||'REPO_CONTEXT_ERROR');
+            return res.status(422).json({
+                ok:false,status:'REPO_CONTEXT_UNAVAILABLE',
+                error:/^REPO_CONTEXT_[A-Z_]+$/.test(code)?code:'REPO_CONTEXT_PACK_FAILED'
+            });
+        }
+    });
+
     app.post("/git", async (req, res) => {
         try {
             const {
@@ -10283,6 +10300,32 @@ export function createJarvisFsBridgeApp({
                         result.ok
                             ? "GIT_STATUS_OK"
                             : "GIT_STATUS_FAILED"
+                });
+            }
+
+            if (normalizedAction === "history") {
+                // Safe, bounded, local-only Git metadata: no patch contents,
+                // remote access, credentials or mutating subcommands.
+                const count = Number(req.body?.limit);
+                const limit = Number.isInteger(count) && count >= 1 && count <= 8 ? count : 6;
+                result = await runGitWorkflowCommand({
+                    args: [
+                        "log",
+                        "--max-count=" + limit,
+                        "--no-renames",
+                        "--no-ext-diff",
+                        "--format=COMMIT%x09%H%x09%cI%x09%s",
+                        "--name-status"
+                    ],
+                    cwd: ".",
+                    timeoutMs: Math.min(15000, Math.max(1000, Number(timeoutMs) || 15000)),
+                    root
+                });
+                return res.json({
+                    ...result,
+                    action: "history",
+                    limit,
+                    status: result.ok ? "GIT_HISTORY_OK" : "GIT_HISTORY_FAILED"
                 });
             }
 
@@ -10693,6 +10736,7 @@ export function createJarvisFsBridgeApp({
                     normalizedAction,
                 allowedActions: [
                     "status",
+                    "history",
                     "diff",
                     "diffCached",
                     "add",
