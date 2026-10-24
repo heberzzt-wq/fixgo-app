@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {WEBTEST,buildFirebasePreviewCommand,validateBridge,validateSingleSite,inspectWebtest}
+import {WEBTEST,buildFirebasePreviewCommand,validateBridge,waitForBridge,validateSingleSite,inspectWebtest}
   from '../scripts/publish-v142-webtest.mjs';
 
 const sha='a'.repeat(40);
@@ -77,4 +77,18 @@ test('Windows Firebase launcher uses a safe unquoted literal cmd path and one pr
     'C:\\valid\\firebase.exe',
     ''
   ])assert.throws(()=>buildFirebasePreviewCommand(invalid),/UNSAFE_FIREBASE_CLI_PATH/);
+});
+
+test('supervisor identity must converge before tests; stale releases never pass',async()=>{
+  let n=0;
+  const fetchImpl=async()=>{
+    n++;
+    if(n===1)return response(503);
+    if(n===2)return response(200,{identity:{...identity,contractHead:'b'.repeat(40)}});
+    return response(200,{identity});
+  };
+  assert.equal(await waitForBridge(sha,{fetchImpl,attempts:3,delayMs:0}),true);
+  assert.equal(n,3);
+  await assert.rejects(waitForBridge(sha,{fetchImpl:async()=>response(503),
+    attempts:2,delayMs:0}),/WEBTEST_BRIDGE_NOT_READY_FOR_SHA/);
 });

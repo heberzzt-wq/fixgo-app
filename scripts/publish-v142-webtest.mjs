@@ -31,6 +31,17 @@ export function validateBridge(identity,expectedSha){
     identity.git?.head===expectedSha && identity.contractHead===expectedSha &&
     identity.contract?.branch===WEBTEST.branch;
 }
+export async function waitForBridge(sha,{fetchImpl=request,attempts=45,delayMs=1000}={}){
+  for(let i=0;i<attempts;i++){
+    try{
+      const response=await fetchImpl(WEBTEST.bridge+'/health');
+      if(response.status===200 && validateBridge((await response.json()).identity,sha))
+        return true;
+    }catch{/* singleton restart or temporary unavailability */}
+    if(i+1<attempts)await new Promise(resolve=>setTimeout(resolve,delayMs));
+  }
+  throw Error('WEBTEST_BRIDGE_NOT_READY_FOR_SHA');
+}
 export function validateSingleSite(response){
   return response?.status==='success' &&
     Object.keys(response.result||{}).length===1 &&
@@ -80,6 +91,9 @@ async function run(){
     remote=git(['rev-parse','FETCH_HEAD']);
     if(remote!==sha)throw Error('WEBTEST_PUSH_SHA_MISMATCH');
   }
+  // Wait for the supervised singleton to adopt the pushed revision BEFORE
+  // running security tests. Otherwise their 409 expectation sees a 503.
+  await waitForBridge(sha,{attempts:flags.has('--publish')?45:1});
   if(flags.has('--publish')){
     const tests=spawnSync(process.execPath,['--test',
       'tests/jarvis-local-intrusion-guard.test.mjs',
