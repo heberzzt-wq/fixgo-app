@@ -19,7 +19,7 @@ function fixture({origin=WEBTEST.origin,bridge=identity,spoof=403,auth=409,
       if(config.headers?.Origin===WEBTEST.origin+'.evil.example')return response(spoof);
       return response(200,{identity:bridge},{'access-control-allow-origin':origin});
     }
-    if(url===WEBTEST.bridge+'/workstation/health')return response(config.method==='POST'?auth:heartbeat);
+    if(url===WEBTEST.bridge+'/workstation/health')return response(config.method==='POST'?auth:heartbeat,{status:'JARVIS_WORKSTATION_LIVE'});
     if(url===WEBTEST.origin+'/release-manifest.json')return response(200,{git_sha:servedSha});
     if(url===WEBTEST.origin+'/gestia-terminal.html')return response(200);
     if(url===WEBTEST.origin+'/jarvis-runtime-contract.json')return response(200);
@@ -38,6 +38,8 @@ test('valid same-version private preview is verifiable without claiming an authe
   assert.ok(seen.some(item=>item.method==='POST'&&item.url.endsWith('/workstation/health')));
   assert.equal(seen[0].headers.Origin,WEBTEST.origin);
   assert.ok(!seen.some(v=>v.url.includes('multiservicios')));
+  const guardedGet=await inspectWebtest(sha,fixture({heartbeat:409}));
+  assert.equal(guardedGet.releaseIdGate,true);
 });
 test('preview checks fail closed on spoofed or missing CORS, stale bridge or wrong release gate',async()=>{
   for(const bad of [

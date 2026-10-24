@@ -62,7 +62,10 @@ export async function inspectWebtest(sha,{fetchImpl=request}={}){
   // Browser access to private workstation diagnostics uses POST with the
   // owner release-id/Firebase-token gate (409 when release-id is missing).
   const heartbeat=await fetchImpl(WEBTEST.bridge+'/workstation/health');
-  if(heartbeat.status!==200)throw Error('WEBTEST_SUPERVISOR_HEARTBEAT_UNHEALTHY');
+  if(heartbeat.status!==200 && heartbeat.status!==409)
+    throw Error('WEBTEST_SUPERVISOR_HEARTBEAT_UNHEALTHY');
+  if(heartbeat.status===200 && (await heartbeat.json()).status!=='JARVIS_WORKSTATION_LIVE')
+    throw Error('WEBTEST_UNEXPECTED_PUBLIC_HEARTBEAT');
   const auth=await fetchImpl(WEBTEST.bridge+'/workstation/health',{
     method:'POST',headers:{'content-type':'application/json'},body:'{}'});
   if(auth.status!==409)throw Error('WEBTEST_POST_RELEASE_GATE_MISSING_OR_BRIDGE_UNHEALTHY');
