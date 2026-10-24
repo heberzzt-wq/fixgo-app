@@ -80,7 +80,8 @@ import {
 } from '/gestia-core/auth/role-authority.js?v=v142-adjunto-flow-alignment-20261001';
 import {
     simpleJarvisGreeting,
-    scopeJarvisToolsForQuestion
+    scopeJarvisToolsForQuestion,
+    jarvisRepositoryEvidenceRequest
 } from '/gestia-core/jarvis/jarvis.current-turn-scope.js';
 //import { ejecutarCambios } from '/gestia-core/operations-executor.engine.js';
 
@@ -3922,8 +3923,11 @@ export const GestiaCore = {
             registeredCurrentTurnTools.find(tool =>
                 tool?.name === "conversation.respond"
             ) || null;
+        // A request for current Git evidence must never close with chat only.
+        // Qwen still chooses which authorized read tool to use.
+        const repositoryEvidenceRequired = jarvisRepositoryEvidenceRequest(inputRaw);
         const currentTurnToolCatalog =
-            conversationTool
+            (conversationTool || repositoryEvidenceRequired)
                 ? registeredCurrentTurnTools
                 : [];
 
@@ -3947,7 +3951,7 @@ export const GestiaCore = {
                                     compactJarvisSemanticMemoryForPlanner(
                                         semanticMemory
                                     ),
-                                conversationalGate: true,
+                                conversationalGate: !repositoryEvidenceRequired,
                                 writeAllowed: false
                             }
                         }

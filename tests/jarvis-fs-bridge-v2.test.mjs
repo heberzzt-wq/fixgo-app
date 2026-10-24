@@ -4044,3 +4044,22 @@ test('repo grep ranks executable source evidence ahead of noisy UI text and igno
         fs.rmSync(root, { recursive: true, force: true });
     }
 });
+
+test('repo grep promotes actual function definitions over test-only references without hiding tests', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'jarvis-grep-def-'));
+    try {
+        fs.mkdirSync(path.join(root, 'tests'));
+        fs.writeFileSync(path.join(root, 'tests', 'mission.test.mjs'),
+            Array.from({length:40}, (_, i) => `const ref${i} = "runJarvisMission";`).join('\n'));
+        fs.writeFileSync(path.join(root, 'runtime.js'),
+            'export async function runJarvisMission() { return true; }\n');
+        const result = grepRepo({term:'runJarvisMission', root, maxMatches:10});
+        assert.equal(result.matches[0].file, 'runtime.js');
+        assert.match(result.matches[0].snippet, /export async function runJarvisMission/);
+        assert.ok(result.matches.some(m => m.file === 'tests/mission.test.mjs'),
+            'test evidence is still discoverable');
+        assert.ok(result.totalMatches > result.matches.length);
+    } finally {
+        fs.rmSync(root, { recursive:true, force:true });
+    }
+});

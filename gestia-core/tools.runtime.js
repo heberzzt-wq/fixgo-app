@@ -4892,6 +4892,7 @@ JarvisToolRuntime.register({
         false,
     requiresApproval:
         false,
+    investigationReadOnly: true,
     output:
         "REPO_GIT_STATUS_RESULT_V7",
     execute:
@@ -4947,6 +4948,7 @@ JarvisToolRuntime.register({
         false,
     requiresApproval:
         false,
+    investigationReadOnly: true,
     output:
         "REPO_GIT_DIFF_RESULT_V7",
     execute:

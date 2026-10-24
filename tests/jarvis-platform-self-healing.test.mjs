@@ -87,3 +87,14 @@ test('XML repair backend must not be advertised as a certified Terminal download
  assert.deepEqual(requiredDeliveryFormats(request),[]);
  assert.deepEqual(verifiedDownloadRows({status:'PARTIAL',receipts:[]}),[]);
 });
+
+test('404 source error requests bounded replanning without retry, permissions or mutation',()=>{
+ const read={name:'repo.read',mutates:false,requiresApproval:false};
+ const recovery=planPlatformRecovery({system:'repo',tool:read,failure:{ok:false,status:'REPOSITORY_PATH_NOT_FOUND'}});
+ assert.equal(recovery.status,'RECOVERY_READ_REPLAN_REQUIRED');
+ assert.equal(recovery.autoExecute,false);
+ assert.equal(recovery.action,'SELECT_DIFFERENT_AUTHORIZED_READ');
+ assert.equal(planPlatformRecovery({tool:read,failure:{ok:false,status:'HTTP_404'},attempt:2}).autoExecute,false);
+ assert.equal(planPlatformRecovery({tool:{...read,mutates:true},failure:{ok:false,status:'HTTP_404'}}).status,'RECOVERY_SECURITY_BLOCKED');
+ assert.equal(planPlatformRecovery({tool:read,failure:{ok:false,status:'HTTP_403'}}).status,'RECOVERY_SECURITY_BLOCKED');
+});

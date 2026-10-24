@@ -1,3 +1,5 @@
+import {resolveLocalQwenContextTokens,assertLocalQwenPromptPreflight} from './jarvis-qwen-context-policy.js';
+
 // Local-only decision adapter for the isolated V142 read-only agent pilot.
 // The selected model decides a next action; the host still authorizes and
 // executes every tool and independently certifies mission completion.
@@ -27,6 +29,7 @@ export function createLocalQwenActionSelector({
     requestTimeoutMs=120000,
     maxOutputTokens=256,
     retryIncompleteOnce=false,
+    contextTokens=undefined,
     onInference=()=>{}
 }={}){
     if(typeof window!=='undefined')throw new Error('LOCAL_QWEN_SERVER_ONLY');
@@ -36,6 +39,8 @@ export function createLocalQwenActionSelector({
         throw new Error('LOCAL_QWEN_LOOPBACK_ENDPOINT_REQUIRED');
     }
     if(model!=='qwen3.5:9b')throw new Error('LOCAL_QWEN_SINGLE_MODEL_REQUIRED');
+    const resolvedContext=resolveLocalQwenContextTokens(contextTokens ??
+        (typeof process!=='undefined'?process.env.JARVIS_LOCAL_LLM_CONTEXT_TOKENS:undefined));
     return async function selectNextAction({
         instruction,repositoryMap,tools=[],observations=[],evidenceSummary=null,missionLedger=null,iteration=0,signal
     }={}){
@@ -138,14 +143,17 @@ export function createLocalQwenActionSelector({
         const startedAt=Date.now();
         const numPredict=Math.max(64,Math.min(2400,Number(maxOutputTokens)||256));
         const request=async(predictionLimit,priorTruncated=false)=>{
+            const outgoingMessages=priorTruncated?[...messages,{role:'user',content:
+                'La respuesta anterior se truncó. Devuelve SOLO la siguiente llamada JSON completa, con cadenas breves y sin razonamiento ni informe adicional.'}]:messages;
+            assertLocalQwenPromptPreflight({contextTokens:resolvedContext,messages:outgoingMessages,
+                format:outputSchema,maxOutputTokens:predictionLimit});
             const response=await fetchImpl(endpoint,{
                 method:'POST',headers:{'Content-Type':'application/json'},redirect:'error',
                 body:JSON.stringify({
-                    model,stream:false,think:false,
+                    model,stream:false,think:false,truncate:false,shift:false,
                     format:outputSchema,
-                    options:{temperature:0,num_ctx:16384,num_predict:predictionLimit},
-                    messages:priorTruncated?[...messages,{role:'user',content:
-                        'La respuesta anterior se truncó. Devuelve SOLO la siguiente llamada JSON completa, con cadenas breves y sin razonamiento ni informe adicional.'}]:messages
+                    options:{temperature:0,num_ctx:resolvedContext,num_predict:predictionLimit},
+                    messages:outgoingMessages
                 }),
                 signal:controller
             });

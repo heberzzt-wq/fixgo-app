@@ -236,8 +236,14 @@ export async function runQwenAuthorizedCycle({
                 missionLedger:missionLedger(),iteration,signal
             });}
         }catch(error){
+            const code=String(error?.message||'');
+            // Context pressure is an actionable data-size failure, not an
+            // offline model. Preserve it for the page/checkpoint recovery route.
+            if(code==='LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION')
+                return {...done('PARTIAL','EVIDENCE_SEGMENTATION_REQUIRED'),failureCode:code,
+                    recoveryAction:'REVIEW_VERIFIED_EVIDENCE_PAGES'};
             return {...done('PARTIAL','MODEL_UNAVAILABLE'),failureCode:
-                /^(?:LOCAL_QWEN|QWEN)_[A-Z0-9_]+$/.test(String(error?.message||''))?error.message:'MODEL_DECISION_FAILED'};
+                /^(?:LOCAL_QWEN|QWEN)_[A-Z0-9_]+$/.test(code)?code:'MODEL_DECISION_FAILED'};
         }
         if(signal?.aborted)return done('CANCELLED','SIGNAL_ABORTED');
         decisions.push(structuredClone(decision));
@@ -402,6 +408,19 @@ export async function runQwenAuthorizedCycle({
             observation:typeof compactObservation==='function'?compactObservation(observation):shortReceipt(observation,selected.find(t=>t.name==='platform.query')?.inputSchema?.properties?.fields?.items?.enum)});
         if(successful)lastUsefulStep=iteration+1;
         if(!successful){
+            // Recover from a missing path/HTTP 404 by choosing a different
+            // authorized read. Never repeat the failed call automatically.
+            const readReplans=rejectedToolChoices.filter(item=>
+                item.reason==='FAILED_SOURCE_REQUIRES_ALTERNATIVE').length;
+            if(repairIncomplete&&recoveryPlan.status==='RECOVERY_READ_REPLAN_REQUIRED'&&
+                readReplans<2){
+                rejectedToolChoices.push({name:tool.name,args:invocation.args,
+                    reason:'FAILED_SOURCE_REQUIRES_ALTERNATIVE',allowed:offered.map(x=>x.name),
+                    warning:'Read failed: locate a different valid source. The failed call is not evidence.'});
+                onProgress({phase:'READ_RECOVERY_REPLAN',iteration,name:tool.name,
+                    state:'replanning',reason:recoveryPlan.code});
+                continue;
+            }
             if(repairIncomplete&&tool.name==='media.analyze'&&observation?.status==='LOCAL_VIDEO_REVIEW_FAILED'){
                 if(receipts.filter(r=>r.name==='media.analyze'&&r.observation?.status==='LOCAL_VIDEO_REVIEW_FAILED').length===1)continue;
                 return done('PARTIAL','LOCAL_VIDEO_REPAIR_EXHAUSTED');

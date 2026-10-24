@@ -499,6 +499,11 @@ function configureJarvisPrivateRelay(bridge) {
         const contract = await readRuntimeContract();
         const publicOrigin = ["fixgo-44e4d.web.app", "fixgo-44e4d.firebaseapp.com"].includes(globalThis.location?.hostname);
         const workstationEnabled = privateRelayWorkstationEnabled();
+        // Never silently bypass the release SHA check via direct localhost
+        // after the private workstation has reported a hard mismatch.
+        if (publicOrigin && contract.privateRelayEnabled === true && workstationEnabled &&
+            bridge.privateRelayState?.status === "RELEASE_MISMATCH")
+            throw new Error("JARVIS_RELAY_LOCAL_RELEASE_MISMATCH");
         const useRelay = shouldUseJarvisPrivateRelay({
             publicOrigin,
             privateRelayEnabled: contract.privateRelayEnabled === true,
@@ -547,12 +552,16 @@ function configureJarvisPrivateRelay(bridge) {
     const resumeWorkstation = () => bridge.enablePrivateRelay().catch(error => {
         const code = error.code || error.message;
         const peerOwnsLease = code === "JARVIS_RELAY_LEASE_HELD";
-        bridge.privateRelayState = { status: peerOwnsLease ? "STANDBY" : "RECONNECTING", connected: false, error: code };
+        // A mismatched public SHA cannot be repaired by retrying the same tab.
+        // Fail closed until an explicit reload or re-enable after a release sync.
+        const releaseMismatch = code === "JARVIS_RELAY_LOCAL_RELEASE_MISMATCH";
+        bridge.privateRelayState = { status: releaseMismatch ? "RELEASE_MISMATCH" : peerOwnsLease ? "STANDBY" : "RECONNECTING", connected: false, error: code };
         if (lastRelayError !== code) {
             (peerOwnsLease ? console.info : console.warn)(peerOwnsLease ? "[JARVIS_PRIVATE_RELAY_PEER_ACTIVE]" : "[JARVIS_PRIVATE_RELAY_NOT_READY]", code);
             lastRelayError = code;
         }
-        if (privateRelayWorkstationEnabled()) autoRetry = setTimeout(resumeWorkstation, peerOwnsLease ? 30000 : 15000);
+        if (!releaseMismatch && privateRelayWorkstationEnabled())
+            autoRetry = setTimeout(resumeWorkstation, peerOwnsLease ? 30000 : 15000);
     });
     if (privateRelayWorkstationEnabled()) autoRetry = setTimeout(resumeWorkstation, 0);
     return bridge;

@@ -1208,6 +1208,7 @@ test("CURRENT_TURN renders the model-authored answer and limitation once, preser
             compactJarvisSemanticMemoryForPlanner: memory => memory,
             simpleJarvisGreeting: () => null,
             scopeJarvisToolsForQuestion: tools => tools,
+            jarvisRepositoryEvidenceRequest: () => false,
             location: { href: "https://runtime.test/terminal", origin: "https://runtime.test" },
             URLSearchParams,
             JarvisToolRuntime: tools, window: { ToolsBridge: bridge }, console: quietConsole,
@@ -6154,4 +6155,54 @@ test('restored per-goal field requirements exclude metadata padding before the n
  const second=await runJarvisSemanticPlanner({input:goals.map(g=>g.objective).join('; '),catalog:[reader,query],missionState:{...state,completionAssessment:first.completionAssessment},ai});
  assert.deepEqual(second.toolCalls[0].args,next.args);const observed=await f.execute(next.args,f.dependencies,{...f.context,completedTasks:tasks});assert.equal(observed.ok,true,JSON.stringify(observed));assert.equal(observed.recordEvidence.scope.collection,'registry/approved/holders');
  assert.deepEqual(stages,['EVIDENCE_NEXT_ACTION','QUERY_POPULATION_VERIFICATION']);assert.ok(second.completionAssessment.objectives.every(g=>!g.satisfied&&g.requiredEvidenceKind==='platform_records'));
+});
+
+test('a mismatched public release stops futile private relay auto-retries, without bypassing SHA verification',async()=>{
+    const source=readFileSync(new URL('../modules/terminal/nexo-bootstrap.js',import.meta.url),'utf8');
+    const node=parse(source,{sourceType:'module',ecmaVersion:'latest'}).body.find(n=>
+        n.type==='FunctionDeclaration'&&n.id.name==='configureJarvisPrivateRelay');
+    const timers=[],messages=[];let attempts=0;
+    const configure=runInNewContext('('+source.slice(node.start,node.end)+')',{
+        console:{info:(...a)=>messages.push(['info',...a]),warn:(...a)=>messages.push(['warn',...a])},
+        setTimeout:(f,ms)=>{timers.push({f,ms});return timers.length;},
+        clearTimeout(){},privateRelayWorkstationEnabled:()=>true,
+        privateRelayDependencies:async()=>({}),
+        readRuntimeContract:async()=>({privateRelayEnabled:true}),
+        startJarvisBrowserRelay:async()=>{attempts++;throw new Error('JARVIS_RELAY_LOCAL_RELEASE_MISMATCH');}
+    });
+    const bridge={requestJson:async()=>{throw Error('NO_DIRECT_FALLBACK');}};
+    configure(bridge);
+    assert.equal(timers.length,1);
+    timers.shift().f();
+    await new Promise(setImmediate);
+    assert.equal(attempts,1);
+    assert.equal(bridge.privateRelayState.status,'RELEASE_MISMATCH');
+    assert.equal(bridge.privateRelayState.connected,false);
+    assert.equal(timers.length,0,'same stale public release must not keep retrying');
+    assert.equal(messages.length,1);
+    assert.equal(messages[0][0],'warn');
+    await assert.rejects(bridge.enablePrivateRelay(),/JARVIS_RELAY_LOCAL_RELEASE_MISMATCH/,
+        'explicit retry still checks the exact SHA and is not locked out');
+    assert.equal(attempts,2);
+    assert.equal(bridge.privateRelayState.status,'RELEASE_MISMATCH');
+});
+
+test('a mismatched release cannot fall through to direct localhost from public Terminal',async()=>{
+    const source=readFileSync(new URL('../modules/terminal/nexo-bootstrap.js',import.meta.url),'utf8');
+    const node=parse(source,{sourceType:'module',ecmaVersion:'latest'}).body.find(n=>
+        n.type==='FunctionDeclaration'&&n.id.name==='configureJarvisPrivateRelay');
+    let directCalls=0;
+    const configure=runInNewContext('('+source.slice(node.start,node.end)+')',{
+        globalThis:{location:{hostname:'fixgo-44e4d.web.app'}},
+        setTimeout:()=>1,clearTimeout:()=>{},privateRelayWorkstationEnabled:()=>true,
+        readRuntimeContract:async()=>({privateRelayEnabled:true}),
+        shouldUseJarvisPrivateRelay:()=>{throw Error('BYPASS_CHECK_REACHED');}
+    });
+    const bridge={requestJson:async()=>{directCalls++;return {ok:true};}};
+    configure(bridge);
+    bridge.privateRelayState={status:'RELEASE_MISMATCH',connected:false,
+        error:'JARVIS_RELAY_LOCAL_RELEASE_MISMATCH'};
+    await assert.rejects(bridge.requestJson('/semantic/plan',{input:'check'},{}),
+        /JARVIS_RELAY_LOCAL_RELEASE_MISMATCH/);
+    assert.equal(directCalls,0);
 });

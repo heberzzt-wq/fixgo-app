@@ -267,6 +267,7 @@ test("CURRENT_TURN never replays an exhausted local deadline or truncated answer
         const analyze = runInNewContext(`({${source.slice(start, end)}}).analizarIntencionLigera`, {
             simpleJarvisGreeting: () => null,
             scopeJarvisToolsForQuestion: tools => tools,
+            jarvisRepositoryEvidenceRequest: () => false,
             JarvisSemanticMemory: { recall: async () => null },
             auth: { currentUser: { uid: "test" } },
             JarvisToolRuntime: { list: () => [{ name: "conversation.respond" }] },

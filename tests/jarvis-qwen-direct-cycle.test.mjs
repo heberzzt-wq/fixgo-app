@@ -239,3 +239,62 @@ test('mission ledger preserves exhausted query and missing-field errors independ
             {ok:false,error:{code:'PLATFORM_QUERY_FIELD_NOT_DISCOVERED'}},verifyCompletion:async()=>({ok:false})});
     assert.equal(result.status,'PARTIAL');assert.equal(result.decisions.length,3);assert.equal(result.receipts.length,2);
 });
+
+test('self-healing recovers from a missing repo path by selecting another authenticated read',async()=>{
+ const tools=[
+  {name:'repo.read',investigationReadOnly:true,mutates:false,inputSchema:{type:'object',
+   properties:{file:{type:'string'}},required:['file']}},
+  {name:'repo.grep',investigationReadOnly:true,mutates:false,inputSchema:{type:'object',
+   properties:{term:{type:'string'}},required:['term']}}
+ ];
+ const actions=[
+  {toolCall:{name:'repo.read',args:{file:'missing.js'}}},
+  {toolCall:{name:'repo.grep',args:{term:'runJarvisMission'}}},
+  {finish:true,report:'Source grounded'}
+ ];
+ const called=[];
+ const result=await runQwenDirectReadCycle({instruction:'Localiza el codigo real',catalog:tools,
+  repairIncomplete:true,selectNextAction:async()=>actions.shift(),
+  authorize:async()=>({ok:true,principalId:'owner'}),
+  execute:async call=>{called.push(call);
+   return call.name==='repo.read'?{ok:false,status:'REPOSITORY_PATH_NOT_FOUND'}:
+    {ok:true,status:'VERIFIED_GREP',matches:[{file:'mission.js',line:1}]};
+  },
+  verifyCompletion:async({receipts})=>({ok:receipts.some(r=>r.ok&&r.name==='repo.grep')})});
+ assert.equal(result.status,'SUCCESS');
+ assert.equal(called.length,2);
+ assert.deepEqual(called.map(x=>x.name),['repo.read','repo.grep']);
+ assert.equal(result.receipts[0].ok,false);
+ assert.equal(result.receipts[1].ok,true);
+ assert.ok(result.missionLedger.errors.some(x=>x.name==='repo.read'));
+});
+test('self-healing never repeats an identical missing-source call without progress',async()=>{
+ let executed=0,plans=0;
+ const result=await runQwenDirectReadCycle({instruction:'Find source',
+  catalog:[{name:'repo.read',investigationReadOnly:true,mutates:false,
+   inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}}],
+  repairIncomplete:true,catalogForEvidence:catalog=>catalog,
+  selectNextAction:async()=>{plans++;return {toolCall:{name:'repo.read',args:{file:'missing.js'}}};},
+  authorize:async()=>({ok:true}),
+  execute:async()=>{executed++;return {ok:false,status:'HTTP_404'};},
+  verifyCompletion:async()=>({ok:false})});
+ assert.equal(result.status,'PARTIAL');
+ assert.equal(executed,1);
+ assert.ok(plans<=4);
+});
+
+test('context pressure is not mislabeled as offline Qwen and never executes any tool',async()=>{
+ let invoked=0;
+ const result=await runQwenDirectReadCycle({instruction:'Review verified long evidence',
+  catalog:[{name:'repo.read',investigationReadOnly:true,mutates:false,
+   inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}}],
+  selectNextAction:async()=>{throw Error('LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION');},
+  authorize:async()=>{invoked++;throw Error('DO_NOT_AUTHORIZE');},
+  execute:async()=>{invoked++;throw Error('DO_NOT_EXECUTE');},
+  verifyCompletion:async()=>({ok:false})});
+ assert.equal(result.status,'PARTIAL');
+ assert.equal(result.reason,'EVIDENCE_SEGMENTATION_REQUIRED');
+ assert.equal(result.failureCode,'LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION');
+ assert.equal(result.recoveryAction,'REVIEW_VERIFIED_EVIDENCE_PAGES');
+ assert.equal(invoked,0);
+});

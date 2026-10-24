@@ -36,6 +36,13 @@ export function planPlatformRecovery({system='',tool={},failure={},attempt=1,
  if(destructive)return {...noAuthority(),reason:'RECOVERY_MUTATION_NEEDS_EXPLICIT_AUTHORITY',system:subsystem,code};
  if(PERMISSION.test(code)||failure?.blocked===true||failure?.requiresInput===true)
    return {...noAuthority(),reason:'RECOVERY_AUTH_OR_SCOPE_DENIED',system:subsystem,code};
+ // A 404/missing repository path is not a broken bridge and must not
+ // provoke an identical blind retry. Replan only through the existing catalog.
+ if(READS.has(op)&&failure?.ok===false&&phase===1&&
+    ['REPOSITORY_PATH_NOT_FOUND','SOURCE_FILE_NOT_FOUND','HTTP_404','NOT_FOUND','REPO_READ_NOT_FOUND'].includes(code))
+  return {status:'RECOVERY_READ_REPLAN_REQUIRED',action:'SELECT_DIFFERENT_AUTHORIZED_READ',
+   autoExecute:false,maxAttempts:2,requiresApproval:false,code,system:subsystem,
+   originalFailurePreserved:true,independentAuthorizationRequired:true};
  // Same authenticated read only, at most two physical tool invocations total.
  if(READS.has(op)&&TRANSIENT.has(code)&&failure?.ok===false&&phase===1)
   return {status:'RECOVERY_SAFE_READ_RETRY',action:'REAUTHORIZE_AND_RETRY_READ',

@@ -1,4 +1,5 @@
 import {workstationRuntimeState, registerWorkstationHealth} from './jarvis-workstation-health.js';
+import {resolveLocalQwenContextTokens} from './jarvis-qwen-context-policy.js';
 import fs from "node:fs";
 import { JARVIS_LOCAL_MODEL, hasExactLocalModel } from './gestia-core/jarvis/jarvis.local.policy.js';
 import path from "node:path";
@@ -1328,7 +1329,7 @@ export async function warmJarvisLocalModel({
                                 "30m"
                             ),
                         options: {
-                            num_ctx: 16384,
+                            num_ctx: resolveLocalQwenContextTokens(process.env.JARVIS_LOCAL_LLM_CONTEXT_TOKENS),
                             num_predict:
                                 1,
                             temperature:

@@ -19,9 +19,24 @@ export function jarvisExternalEducationQuery(text = "") {
     return education && request && !coding;
 }
 const researchNames=new Set(["web.research","browser.inspect","conversation.respond"]);
+// Hard evidence boundary, not an intent-to-tool mapping or a second model.
+// A request to inspect *current* changes in the owner's repo cannot be
+// satisfied by conversation.respond without ever reading repository state.
+export function jarvisRepositoryEvidenceRequest(text = "") {
+    const s=fold(text);
+    const repository=/\b(?:repositorios?|repo|git|github|checkout|commits?|diff|rama|branch|codigo fuente)\b/u.test(s);
+    const changes=/\b(?:ultimos?|recientes?|actuales?|cambios?|modificad[oa]s?|modificaciones?|estado|historial|diferencias?|commits?|diff|sin publicar)\b/u.test(s);
+    const request=/\b(?:revisa|revisar|verifica|verificar|consulta|consultar|investiga|investigar|busca|buscar|muestra|mostrar|enumera|enumerar|lista|listar|dime|identifica|identificar|compara|comparar|analiza|analizar|checa|checar)\b/u.test(s);
+    return repository && changes && request;
+}
+const gitEvidenceNames=new Set(["repo.gitStatus","repo.gitDiff","repo.search","repo.grep","repo.read"]);
 export function scopeJarvisToolsForQuestion(tools = [], instruction = "") {
-    if (!jarvisExternalEducationQuery(instruction)) return Array.isArray(tools) ? tools.slice() : [];
-    return (Array.isArray(tools) ? tools : []).filter(tool =>
+    const source=Array.isArray(tools)?tools:[];
+    if (jarvisExternalEducationQuery(instruction)) return source.filter(tool =>
         researchNames.has(tool?.name) && tool?.mutates !== true &&
         tool?.requiresApproval !== true);
+    if (jarvisRepositoryEvidenceRequest(instruction)) return source.filter(tool =>
+        gitEvidenceNames.has(tool?.name) && tool?.mutates !== true &&
+        tool?.requiresApproval !== true && tool?.userArtifact !== true);
+    return source.slice();
 }
