@@ -20,6 +20,21 @@ test('all B2C/B2B/Jarvis/security/operations rows have real source paths and cri
  }
 });
 
+test('owner authorizes ongoing verified commits but not production side effects',()=>{
+ const a=data.governance.ownerDevelopmentAuthorization;
+ assert.equal(a.decision,'AUTORIZACION_CONTINUA_DE_DESARROLLO_Y_COMMITS');
+ assert.equal(a.branch,'v142-official');
+ assert.ok(a.authorized.some(item=>item.includes('commits Git locales')));
+ assert.match(a.pushPolicy,/CI/);
+ assert.match(a.pushPolicy,/despliegue/);
+ assert.equal(data.governance.noAutoDeploy,true);
+ assert.equal(data.governance.noAutoFinancialWrites,true);
+ assert.match(renderManifest(data),/Autorizacion de trabajo y commits del propietario/);
+ assert.match(renderManifest(data),/AUTORIZACION_CONTINUA_DE_DESARROLLO_Y_COMMITS/);
+ const forged=structuredClone(data);forged.governance.ownerDevelopmentAuthorization.branch='main';
+ assert.equal(validateManifest(forged).ok,false);
+});
+
 test('manifest never claims historical local tests equal a production launch certificate',()=>{
  assert.equal(data.governance.productionCertified,false);
  assert.equal(data.governance.launchReadyB2C,false);

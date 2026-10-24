@@ -93,6 +93,15 @@ export function validateManifest(m,{rootDir=root}={}){
  if(m.governance?.noAutoDeploy!==true||m.governance?.noAutoFinancialWrites!==true||
   m.governance?.noAutomatedOwnerLockout!==true||m.governance?.productionCertified!==false)
   errors.push('AUTHORITY_GATES_MISSING');
+ const dev=m.governance?.ownerDevelopmentAuthorization;
+ if(dev && (dev.decision!=='AUTORIZACION_CONTINUA_DE_DESARROLLO_Y_COMMITS' ||
+   dev.branch!=='v142-official'||dev.repository!==m.repository||
+   dev.status!=='OWNER_DIRECTIVE_RECORDED_NOT_PRODUCTION_RELEASE'||
+   !Array.isArray(dev.authorized)||dev.authorized.length<4||
+   !Array.isArray(dev.limits)||dev.limits.length<4||
+   !String(dev.pushPolicy||'').includes('despliegue')||
+   m.governance.noAutoDeploy!==true||m.governance.noAutoFinancialWrites!==true))
+   errors.push('OWNER_DEVELOPMENT_AUTHORIZATION_SCOPE_INVALID');
  for(const w of m.workstreams||[]){
   if(!/^(?:B2C|B2B|JARVIS|SEC|OPS)-\d{2}$/.test(w?.id||'')||ids.has(w.id))errors.push('INVALID_ID:'+w?.id);
   ids.add(w.id);
@@ -260,6 +269,17 @@ function renderLatestHandoff(m){
   '**Laptop:** '+code(h.workstation)+' | **Repositorio:** '+code(h.repositoryPath),
   '',
   '**Resumen:** '+esc(h.lastSessionSummary),
+  '',
+  '### Autorizacion de trabajo y commits del propietario',
+  '',
+  '**Decision:** '+esc(m.governance?.ownerDevelopmentAuthorization?.decision||'SIN AUTORIZACION CONTINUA REGISTRADA')+
+    ' ('+esc(m.governance?.ownerDevelopmentAuthorization?.authorizedOn||'fecha no registrada')+').',
+  '',
+  '**Alcance:** '+esc(m.governance?.ownerDevelopmentAuthorization?.ownerInstruction||'Revisar con el propietario')+'.',
+  '',
+  '**CI y push:** '+esc(m.governance?.ownerDevelopmentAuthorization?.pushPolicy||'Sin permisos adicionales')+'.',
+  '',
+  '**Limite:** Los commits no son despliegues; mantienen controles de produccion, dinero, secretos y acceso.',
   '',
   '**Infraestructura actual al corte:** '+esc(h.infrastructure.bridge)+'; '+esc(h.infrastructure.model)+
    '; puertos '+h.infrastructure.ports.map(code).join(', ')+'.',

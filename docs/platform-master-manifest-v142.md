@@ -13,7 +13,17 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** Jarvis/ADJUNTO V142: reparacion del nulo collections, token Firebase del propietario para /workstation/health, endurecimiento Hosting y tests del supervisor/frescura; CI completa verde sobre el candidato.
+**Resumen:** 2026-10-23: el propietario autoriza desarrollo, pruebas y commits locales continuos en v142-official sin nuevas confirmaciones por cada commit. Reparaciones de planner locales: 463/463 pruebas y Qwen fisico SUCCESS; despliegue y promocion productivos siguen pendientes.
+
+### Autorizacion de trabajo y commits del propietario
+
+**Decision:** AUTORIZACION_CONTINUA_DE_DESARROLLO_Y_COMMITS (2026-10-23).
+
+**Alcance:** Resolver sin detener el trabajo por autorizaciones repetitivas para editar codigo, ejecutar pruebas y registrar commits..
+
+**CI y push:** Un push hacia v142-official para CI debe validar previamente la rama, el SHA, el alcance de workflows y que no exista despliegue productivo automatico; nunca saltar controles de GitHub ni publicar por confusion entre push y deploy..
+
+**Limite:** Los commits no son despliegues; mantienen controles de produccion, dinero, secretos y acceso.
 
 **Infraestructura actual al corte:** BRIDGE_IDENTITY_OK sobre el candidato; supervisor 3345; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
 
@@ -33,6 +43,8 @@
 - Propuesta GitHub Actions Windows/Linux preparada pero envio rechazado por token OAuth sin scope workflow; se conservo fuera del repositorio y se restauro la rama.
 - 2026-10-23: el propietario fija la ESTRELLA POLAR de ADJUNTO: exclusivo y local para Peninsula Tech, no copiar ni competir con otras IA, excelencia original comprobable por misiones/servicios reales; registrada como objetivo no certificado, con refrigerios Tecate incluidos en gastos historicos reportados no auditados.
 - 2026-10-23: gastos de refrigerios reportados por el propietario: 2 six Tecate diarios a MXN 112 cada uno, total MXN 224 por dia; costo calendario ilustrativo MXN 53,312-54,432, SIN recibos ni tratamiento fiscal determinado.
+- 2026-10-23: nueva autorizacion continua de edicion, pruebas y commits locales verificados sin pedir permiso repetitivo; no habilita despliegue ni escrituras de produccion. Ver governance.ownerDevelopmentAuthorization.
+- 2026-10-23: reparaciones locales de catalogo web/repositorio y retencion de fuentes en planificador; 463/463 regresiones PASS y Qwen local 1 mision SUCCESS/VERIFIED_COMPLETE con 4 pruebas fisicas. Cambios locales no publicados.
 
 ### Evidencia tecnica certificada (sin elevarla a produccion)
 

@@ -497,7 +497,7 @@
     "repositoryPath": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
     "branch": "v142-official",
     "verifiedCandidateSha": "3caa2f3899aab488f90edef7535beac55f6ca96e",
-    "lastSessionSummary": "Jarvis/ADJUNTO V142: reparacion del nulo collections, token Firebase del propietario para /workstation/health, endurecimiento Hosting y tests del supervisor/frescura; CI completa verde sobre el candidato.",
+    "lastSessionSummary": "2026-10-23: el propietario autoriza desarrollo, pruebas y commits locales continuos en v142-official sin nuevas confirmaciones por cada commit. Reparaciones de planner locales: 463/463 pruebas y Qwen fisico SUCCESS; despliegue y promocion productivos siguen pendientes.",
     "infrastructure": {
       "bridge": "BRIDGE_IDENTITY_OK sobre el candidato; supervisor 3345",
       "model": "Ollama qwen3.5:9b LOCAL_ONLY",
@@ -521,7 +521,9 @@
       "Dry-run Firebase solo Hosting EXIT 0, sin publicar; repositorio oficial limpio y bridge cargado desde el SHA candidato.",
       "Propuesta GitHub Actions Windows/Linux preparada pero envio rechazado por token OAuth sin scope workflow; se conservo fuera del repositorio y se restauro la rama.",
       "2026-10-23: el propietario fija la ESTRELLA POLAR de ADJUNTO: exclusivo y local para Peninsula Tech, no copiar ni competir con otras IA, excelencia original comprobable por misiones/servicios reales; registrada como objetivo no certificado, con refrigerios Tecate incluidos en gastos historicos reportados no auditados.",
-      "2026-10-23: gastos de refrigerios reportados por el propietario: 2 six Tecate diarios a MXN 112 cada uno, total MXN 224 por dia; costo calendario ilustrativo MXN 53,312-54,432, SIN recibos ni tratamiento fiscal determinado."
+      "2026-10-23: gastos de refrigerios reportados por el propietario: 2 six Tecate diarios a MXN 112 cada uno, total MXN 224 por dia; costo calendario ilustrativo MXN 53,312-54,432, SIN recibos ni tratamiento fiscal determinado.",
+      "2026-10-23: nueva autorizacion continua de edicion, pruebas y commits locales verificados sin pedir permiso repetitivo; no habilita despliegue ni escrituras de produccion. Ver governance.ownerDevelopmentAuthorization.",
+      "2026-10-23: reparaciones locales de catalogo web/repositorio y retencion de fuentes en planificador; 463/463 regresiones PASS y Qwen local 1 mision SUCCESS/VERIFIED_COMPLETE con 4 pruebas fisicas. Cambios locales no publicados."
     ],
     "receipts": [
       "C:/Users/heber/Downloads/Jarvis-V142-certificacion-3caa2f38-20261022.zip",
@@ -1443,6 +1445,30 @@
     }
   ],
   "governance": {
+    "ownerDevelopmentAuthorization": {
+      "authorizedOn": "2026-10-23",
+      "decision": "AUTORIZACION_CONTINUA_DE_DESARROLLO_Y_COMMITS",
+      "ownerInstruction": "Resolver sin detener el trabajo por autorizaciones repetitivas para editar codigo, ejecutar pruebas y registrar commits.",
+      "repository": "heberzzt-wq/fixgo-app",
+      "branch": "v142-official",
+      "authorized": [
+        "Leer y corregir codigo del proyecto en alcance autorizado",
+        "Crear y actualizar pruebas automatizadas, diagnosticos y recibos",
+        "Ejecutar pruebas locales, regresiones y smoke tests sin alterar datos reales",
+        "Crear commits Git locales de cambios comprobados en la rama oficial sin pedir permiso por cada commit",
+        "Actualizar manifiesto maestro, diario y expedientes despues de cada hito"
+      ],
+      "pushPolicy": "Un push hacia v142-official para CI debe validar previamente la rama, el SHA, el alcance de workflows y que no exista despliegue productivo automatico; nunca saltar controles de GitHub ni publicar por confusion entre push y deploy.",
+      "limits": [
+        "No equivale a autorizar despliegues, cambios de reglas productivas ni escritura de datos reales",
+        "No equivale a autorizar cobros, retiros, OAuth, secretos ni revocacion de sesiones",
+        "No quitar controles de seguridad, gates soberanos ni protecciones del propietario",
+        "Si un control externo exige aprobacion, respetarlo; no falsificar ni eludir autorizaciones",
+        "Una prueba verde no demuestra por si sola una mision web autenticada o exito productivo"
+      ],
+      "successRule": "Diagnosticar, reparar, probar, registrar recibo y continuar con la siguiente tarea permitida sin pedir confirmacion repetitiva; si faltan permisos reales, informar el bloqueo exacto.",
+      "status": "OWNER_DIRECTIVE_RECORDED_NOT_PRODUCTION_RELEASE"
+    },
     "noAutoDeploy": true,
     "noAutoFinancialWrites": true,
     "noAutomatedOwnerLockout": true,

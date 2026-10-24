@@ -3321,7 +3321,9 @@ async function runModelSemanticPlanner({
             for (const {stage,operation} of operations) {
                 const kind = stage === "sourceReview" ? operationsObject.sourceKind : stage === "work" ? operationsObject.workKind : null;
                 const compatible = tool => (!tool.contractStages || tool.contractStages.includes(stage)) &&
-                    (!kind || kind === "none" || !Array.isArray(tool.contractKinds) || tool.contractKinds.length === 0 || tool.contractKinds.includes(kind));
+                    (!kind || kind === "none" || !Array.isArray(tool.contractKinds) || tool.contractKinds.length === 0 || tool.contractKinds.includes(kind)) &&
+                    !(stage === "sourceReview" && kind === "web" &&
+                        (tool.name.startsWith("repo.") || tool.name === "platform.query"));
                 const candidates = await retrieveToolCandidates(String(operation), 12);
                 const canonicalCandidates = [];
                 // Qwen declares the required result; registry metadata enforces
@@ -5793,6 +5795,15 @@ async function runModelSemanticPlanner({
         for (const tool of normalizedCatalog) {
             if (tool.investigationReadOnly === true && !tool.mutates && !tool.requiresApproval && !tool.userArtifact &&
                 !safeCatalog.some(candidate => candidate.name === tool.name)) safeCatalog.push(tool);
+        }
+        // A public-web research operation must not gain unrelated repository
+        // tools merely because those tools are read-only. Preserve repository
+        // discovery when the user actually requests code or platform records.
+        const webResearchAction = /\b(?:web|internet|online|websites?|search engines?)\b|fuentes? p[uú]blicas|p[aá]ginas? web/i.test(String(action));
+        const asksForLocalRepository = /\b(?:repo(?:sitorio)?s?|github|git|c[oó]digo(?: fuente)?|codebase|firestore|platform\.query|archivos? del proyecto)\b/i.test(currentTurnInstruction);
+        if (webResearchAction && !asksForLocalRepository) {
+            safeCatalog = safeCatalog.filter(tool =>
+                !tool.name.startsWith("repo.") && tool.name !== "platform.query");
         }
         if (conversation) safeCatalog.push(conversation);
         if (!safeCatalog.length) throw new Error("SEMANTIC_TOOL_CANDIDATES_REQUIRED");

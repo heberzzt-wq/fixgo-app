@@ -11,7 +11,7 @@ export function missionEvidenceDecisionPhase(objectives = []) {
         ? 'EVIDENCE_NEXT_ACTION' : 'COMPLETION_AUDIT';
 }
 
-export function compactRepositoryMatches(matches = [], maximum = 16) {
+export function compactRepositoryMatches(matches = [], maximum = 24) {
     const normalized = matches.map(item => ({file: text(item.file || item.path, 500),
         line: Number.isInteger(item.line) && item.line > 0 ? item.line : null,
         snippet: text(item.snippet || item.content || item.text, 320)})).filter(item => item.file);
