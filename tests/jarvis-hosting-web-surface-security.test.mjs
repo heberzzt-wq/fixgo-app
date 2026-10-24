@@ -13,7 +13,9 @@ test('FixGo hosting release excludes server-only local Jarvis files and leaves b
  const denied=[
   'jarvis-fs-bridge.js','jarvis-upload-bridge.js',
   'jarvis-github-worker.js','jarvis-semantic-http.js',
-  'jarvis-qwen-decision-http.js','jarvis-repo-intelligence.js',
+  'jarvis-qwen-decision-http.js','jarvis-qwen-local-action.js',
+  'jarvis-qwen-context-policy.js','jarvis-qwen-evidence-pages.js',
+  'jarvis-qwen-evidence-checkpoint.js','jarvis-repo-intelligence.js',
   'jarvis-local-video-engine.js',
   'fixgo-core-backend.js','firebase-shim.js','firebase-node-adapter.js',
   'jarvis-workstation-health.js','jarvis-local-intrusion-guard.js',
