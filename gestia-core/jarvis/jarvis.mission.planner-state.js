@@ -204,7 +204,7 @@ export function compactMissionPlannerObservation(observation = {}) {
     const source = object(observation);
     const evidence = object(source.evidence);
     const verifiedRead = compactVerifiedRead(source, evidence);
-    const gitEvidence = compactGitPlannerEvidence(source);
+    const gitEvidence = source.gitEvidence?.kind?.startsWith('git_') ? source.gitEvidence : compactGitPlannerEvidence(source);
     const materialReferences = materialReferencesForPlanning(source);
     const interfaceEvidence = source.ok === true && source.executionOk !== false && source.blocked !== true && source.requiresInput !== true
         ? compactBrowserInterfaceEvidence(source.interfaceEvidence || evidence.interfaceEvidence) : null;
@@ -315,6 +315,13 @@ export function compactMissionPlannerObservation(observation = {}) {
         sourceCount,
         ...(verifiedRead ? { verifiedRead } : {}),
         ...(gitEvidence ? { gitEvidence } : {}),
+        ...(source.ok === true && source.contextPreview?.source === "LOCAL_REPOMIX_READ_ONLY" ?
+            {contextPreview:{source:"LOCAL_REPOMIX_READ_ONLY",
+                sha256:text(source.contextPreview.sha256,80),
+                files:(Array.isArray(source.contextPreview.files)?source.contextPreview.files:[]).slice(0,6),
+                excerpt:text(source.contextPreview.excerpt,4500),
+                truncated:source.contextPreview.truncated===true,
+                evidenceOnly:true,independentlyCertified:false}} : {}),
         ...(source.ok === true && source.executionOk !== false &&
             source.tool === "repo.context" && source.status === "REPO_CONTEXT_READY" &&
             source.contextIsUnverifiedPreview === true ? { contextPreview: {

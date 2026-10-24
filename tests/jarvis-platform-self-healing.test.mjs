@@ -88,6 +88,20 @@ test('XML repair backend must not be advertised as a certified Terminal download
  assert.deepEqual(verifiedDownloadRows({status:'PARTIAL',receipts:[]}),[]);
 });
 
+test('Repomix read failures require new grounded source instead of blind retry',()=>{
+ const tool={name:'repo.context',mutates:false,requiresApproval:false,investigationReadOnly:true};
+ for(const code of ['REPO_CONTEXT_SOURCE_NOT_FOUND','REPO_CONTEXT_BUDGET_EXCEEDED',
+   'REPO_CONTEXT_SOURCE_TOO_LARGE','REPO_CONTEXT_PROCESS_FAILED']){
+  const plan=planPlatformRecovery({system:'repo',tool,failure:{ok:false,status:code}});
+  assert.equal(plan.status,'RECOVERY_READ_REPLAN_REQUIRED',code);
+  assert.equal(plan.autoExecute,false);
+  assert.equal(plan.maxAttempts,2);
+  assert.equal(plan.action,'SELECT_DIFFERENT_AUTHORIZED_READ');
+ }
+ assert.equal(planPlatformRecovery({tool:{...tool,mutates:true},
+  failure:{ok:false,status:'REPO_CONTEXT_SOURCE_NOT_FOUND'}}).status,'RECOVERY_SECURITY_BLOCKED');
+});
+
 test('404 source error requests bounded replanning without retry, permissions or mutation',()=>{
  const read={name:'repo.read',mutates:false,requiresApproval:false};
  const recovery=planPlatformRecovery({system:'repo',tool:read,failure:{ok:false,status:'REPOSITORY_PATH_NOT_FOUND'}});

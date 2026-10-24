@@ -1,6 +1,6 @@
 import { marketingMediaDeliveryIssue, marketingRequirementMetadata } from "./jarvis.marketing.presenter.js";
 import { compactBrowserInterfaceEvidence } from "./jarvis.browser.grounding.js";
-import { compactMissionPlannerObservation, compactRepositoryMatches } from "./jarvis.mission.planner-state.js";
+import { compactMissionPlannerObservation, compactRepositoryMatches, compactGitPlannerEvidence } from "./jarvis.mission.planner-state.js";
 const VERSION =
     "1.20.0-v142-deadline-reconciliation";
 const REEL_MEDIA_RECOVERY_MAX_ATTEMPTS = 3;
@@ -681,7 +681,7 @@ function unwrapObservationPayload(
         : result;
 }
 
-function safeObservation(result = {}) {
+export function safeObservation(result = {}) {
     const payload =
         unwrapObservationPayload(
             result
@@ -797,6 +797,21 @@ function safeObservation(result = {}) {
         explicitRetryable !== null
             ? explicitRetryable
             : !executionOk && !blocked;
+    const sourceTool=payload?.tool||result?.tool;
+    const gitEvidence=executionOk && !blocked && !requiresInput && !requiresApproval
+        ? compactGitPlannerEvidence({...payload,tool:sourceTool,status})
+        : null;
+    const contextPreview=executionOk && !blocked && !requiresInput && !requiresApproval &&
+        sourceTool==='repo.context' && status==='REPO_CONTEXT_READY' &&
+        payload?.contextIsUnverifiedPreview===true
+        ? {source:'LOCAL_REPOMIX_READ_ONLY',sha256:text(payload?.sha256,80),
+           files:(Array.isArray(payload?.files)?payload.files:[]).slice(0,6).map(item=>({
+               file:text(item?.file,220),sha256:text(item?.sha256,80)
+           })),
+           excerpt:text(payload?.packedContext,4500),
+           truncated:String(payload?.packedContext||'').length>4500,
+           evidenceOnly:true,independentlyCertified:false}
+        : null;
     // Preserve bounded typed measurements before generic evidence depth limits.
     // A successful wrapper must not upgrade blocked or failed browser results.
     const interfaceEvidence = executionOk && !blocked && !requiresInput &&
@@ -1106,6 +1121,8 @@ function safeObservation(result = {}) {
         sourceCount: Number(payload?.sourceCount || payload?.sources?.length || 0),
         validSources: Array.isArray(payload?.sources) ? payload.sources.slice(0, 12) : [],
         discardedSources: Array.isArray(payload?.discardedSources) ? payload.discardedSources.slice(0, 12) : [],
+        ...(gitEvidence ? {gitEvidence} : {}),
+        ...(contextPreview ? {contextPreview} : {}),
         summary: text(
             [
                 payload?.message,

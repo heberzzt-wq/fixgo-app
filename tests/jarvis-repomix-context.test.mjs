@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {packAuthorizedRepositoryContext} from '../jarvis-repomix-context.js';
 import {compactMissionPlannerObservation} from '../gestia-core/jarvis/jarvis.mission.planner-state.js';
+import {safeObservation} from '../gestia-core/jarvis/jarvis.mission.orchestrator.js';
 const fixture=()=> {
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'jarvis-repomix-tests-'));
  fs.writeFileSync(path.join(root,'jarvis-safe.js'),'export const sum=(a,b)=>a+b;\n');
@@ -21,7 +22,7 @@ test('Repomix scope rejects traversal, env, secrets, duplicates, untrusted sourc
   ])await assert.rejects(packAuthorizedRepositoryContext({root,files}),/REPO_CONTEXT_FILE_SCOPE_DENIED/);
   await assert.rejects(packAuthorizedRepositoryContext({root,files:['jarvis-safe.js'],tokenBudget:12000}),/REPO_CONTEXT_BUDGET_INVALID/);
   await assert.rejects(packAuthorizedRepositoryContext({root,files:['jarvis-safe.js'],outputMaxBytes:999999}),/REPO_CONTEXT_OUTPUT_LIMIT_INVALID/);
-  await assert.rejects(packAuthorizedRepositoryContext({root,files:['jarvis-absent.js']}),/ENOENT/);
+  await assert.rejects(packAuthorizedRepositoryContext({root,files:['jarvis-absent.js']}),/REPO_CONTEXT_SOURCE_NOT_FOUND/);
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 test('Repomix rejects symlink source and too-large inputs without executing CLI',async()=>{
@@ -44,4 +45,30 @@ test('Repomix context survives model compaction only as uncertified preview with
  assert.equal(output.contextPreview.independentlyCertified,false);
  assert.equal(output.contextPreview.files[0].file,'jarvis-safe.js');
  assert.equal(compactMissionPlannerObservation({...packet,ok:false}).contextPreview,undefined);
+});
+
+test('orchestrator retains grounded committed Git metadata after actual tool execution',()=>{
+ const sha='c'.repeat(40);
+ const history=safeObservation({ok:true,status:'GIT_HISTORY_OK',tool:'repo.gitHistory',
+  commitCount:1,limit:6,stdout:'COMMIT\t'+sha+'\t2026-10-24T17:00:00-05:00\tfix(v142): restore evidence\nM\tjarvis-repomix-context.js\n'});
+ const packet=compactMissionPlannerObservation(history);
+ assert.equal(history.ok,true);
+ assert.equal(packet.gitEvidence?.kind,'git_committed_history');
+ assert.equal(packet.gitEvidence.commits[0]?.sha,sha);
+ assert.equal(packet.gitEvidence.commits[0]?.fileCount,1);
+ assert.equal(packet.gitEvidence.commits[0]?.files[0],'M\tjarvis-repomix-context.js');
+});
+test('orchestrator retains a bounded Repomix preview but never certifies it as original source',()=>{
+ const excerpt='<files><file path="jarvis-safe.js">export const a=1</file></files>';
+ const packet=safeObservation({ok:true,status:'REPO_CONTEXT_READY',tool:'repo.context',
+  contextIsUnverifiedPreview:true,packedContext:excerpt,sha256:'a'.repeat(64),
+  files:[{file:'jarvis-safe.js',sha256:'b'.repeat(64)}]});
+ const compact=compactMissionPlannerObservation(packet);
+ assert.equal(compact.contextPreview?.excerpt,excerpt);
+ assert.equal(compact.contextPreview?.independentlyCertified,false);
+ assert.equal(compact.contextPreview?.evidenceOnly,true);
+ assert.equal(compact.contextPreview?.files[0].file,'jarvis-safe.js');
+ const bad=compactMissionPlannerObservation(safeObservation({ok:false,status:'REPO_CONTEXT_SOURCE_NOT_FOUND',
+  tool:'repo.context',contextIsUnverifiedPreview:true,packedContext:excerpt}));
+ assert.equal(bad.contextPreview,undefined);
 });

@@ -4095,6 +4095,9 @@ test('Repomix Bridge endpoint denies arbitrary source paths without invoking too
    assert.equal(invalid.status,422);
    assert.equal(invalid.body.status,'REPO_CONTEXT_UNAVAILABLE');
    assert.equal(invalid.body.error,'REPO_CONTEXT_FILE_SCOPE_DENIED');
+   const missing=await post('/repo/context',{files:['jarvis-absent.js']});
+   assert.equal(missing.status,422);
+   assert.equal(missing.body.error,'REPO_CONTEXT_SOURCE_NOT_FOUND');
    const traversal=await post('/repo/context',{files:['../../private.js']});
    assert.equal(traversal.status,422);
    assert.equal(traversal.body.error,'REPO_CONTEXT_FILE_SCOPE_DENIED');

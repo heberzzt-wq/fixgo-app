@@ -31,7 +31,13 @@ export async function packAuthorizedRepositoryContext({
     let totalSize=0;
     for(const file of files) {
         const target=path.resolve(resolvedRoot,file);
-        const real=await fs.realpath(target);
+        let real;
+        try {real=await fs.realpath(target);}
+        catch(error){
+            if(['ENOENT','ENOTDIR'].includes(error?.code))
+                throw new Error('REPO_CONTEXT_SOURCE_NOT_FOUND');
+            throw error;
+        }
         if(!real.startsWith(resolvedRoot+path.sep)||real!==target)
             throw Error('REPO_CONTEXT_SYMLINK_OR_TRAVERSAL_DENIED');
         const stat=await fs.stat(real);
@@ -70,8 +76,18 @@ export async function packAuthorizedRepositoryContext({
             packedContext:text,contextIsUnverifiedPreview:true,
             independentlyCertified:false,writePerformed:false,externalModelUsed:false};
     }catch(error){
-        if(error?.code!==undefined || error?.killed)
+        if(error?.code === 'ENOENT' || error?.code === 'ENOTDIR')
+            throw Error('REPO_CONTEXT_SOURCE_NOT_FOUND');
+        if(error?.code!==undefined || error?.killed || error?.signal){
+            const diagnostics=String(error?.stderr||'').slice(0,4000).toLowerCase();
+            if(/token.budget|exceed.*token|token.*exceed/.test(diagnostics))
+                throw Error('REPO_CONTEXT_BUDGET_EXCEEDED');
+            if(/no files|no matching files|no files found/.test(diagnostics))
+                throw Error('REPO_CONTEXT_NO_FILES_MATCHED');
+            if(error?.killed || error?.signal==='SIGTERM')
+                throw Error('REPO_CONTEXT_PROCESS_TIMEOUT');
             throw Error('REPO_CONTEXT_PROCESS_FAILED');
+        }
         throw error;
     }finally{await fs.rm(tmp,{recursive:true,force:true});}
 }

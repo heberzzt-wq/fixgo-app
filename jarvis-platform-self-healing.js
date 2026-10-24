@@ -3,7 +3,7 @@
 // Automatic actions require independently authenticated adapters and receipts.
 export const JARVIS_PLATFORM_SELF_HEALING_VERSION='1.0.0-bounded-platform-recovery';
 const READS=new Set(['repo.read','repo.grep','repo.search','browser.inspect','web.research',
-  'artifact.read','system.capabilities']);
+  'artifact.read','system.capabilities','repo.context']);
 const TRANSIENT=new Set(['NETWORK_TRANSIENT','REMOTE_FETCH_FAILED','ETIMEDOUT','ECONNRESET',
   'READ_TOOL_TRANSPORT_INTERRUPTED','ECONNABORTED']);
 const PERMISSION=/^(?:UNAUTHORIZED|FORBIDDEN|PERMISSION_DENIED|AUTH_FAILED|TENANT_SCOPE_DENIED|QWEN_BROWSER_TOKEN_INVALID|SESSION_EXPIRED|RESOURCE_EXHAUSTED|HTTP_401|HTTP_403)$/u;
@@ -39,7 +39,11 @@ export function planPlatformRecovery({system='',tool={},failure={},attempt=1,
  // A 404/missing repository path is not a broken bridge and must not
  // provoke an identical blind retry. Replan only through the existing catalog.
  if(READS.has(op)&&failure?.ok===false&&phase===1&&
-    ['REPOSITORY_PATH_NOT_FOUND','SOURCE_FILE_NOT_FOUND','HTTP_404','NOT_FOUND','REPO_READ_NOT_FOUND'].includes(code))
+    ['REPOSITORY_PATH_NOT_FOUND','SOURCE_FILE_NOT_FOUND','HTTP_404','NOT_FOUND','REPO_READ_NOT_FOUND',
+     'REPO_CONTEXT_SOURCE_NOT_FOUND','REPO_CONTEXT_NO_FILES_MATCHED',
+     'REPO_CONTEXT_BUDGET_EXCEEDED','REPO_CONTEXT_OUTPUT_TOO_LARGE',
+     'REPO_CONTEXT_SOURCE_TOO_LARGE','REPO_CONTEXT_PROCESS_FAILED',
+     'REPO_CONTEXT_PROCESS_TIMEOUT'].includes(code))
   return {status:'RECOVERY_READ_REPLAN_REQUIRED',action:'SELECT_DIFFERENT_AUTHORIZED_READ',
    autoExecute:false,maxAttempts:2,requiresApproval:false,code,system:subsystem,
    originalFailurePreserved:true,independentAuthorizationRequired:true};
