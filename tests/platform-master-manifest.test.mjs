@@ -28,6 +28,11 @@ test('owner authorizes ongoing verified commits but not production side effects'
  assert.match(a.pushPolicy,/CI/);
  assert.match(a.pushPolicy,/despliegue/);
  assert.equal(data.governance.noAutoDeploy,true);
+ assert.equal(a.webTesting.decision,'CADA_CAMBIO_PROBABLE_EN_WEB');
+ assert.equal(a.webTesting.automatedPreviewHostingAuthorized,true);
+ assert.equal(a.webTesting.controlledLocalBridgeRefreshAuthorized,true);
+ assert.equal(a.webTesting.productionFunctionsRulesPaymentsAndOwnerAccessRequireSeparateGates,true);
+ assert.match(renderManifest(data),/Prueba web por cambio/);
  assert.equal(data.governance.noAutoFinancialWrites,true);
  assert.match(renderManifest(data),/Autorizacion de trabajo y commits del propietario/);
  assert.match(renderManifest(data),/AUTORIZACION_CONTINUA_DE_DESARROLLO_Y_COMMITS/);

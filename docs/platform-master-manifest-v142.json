@@ -1460,13 +1460,27 @@
       ],
       "pushPolicy": "Un push hacia v142-official para CI debe validar previamente la rama, el SHA, el alcance de workflows y que no exista despliegue productivo automatico; nunca saltar controles de GitHub ni publicar por confusion entre push y deploy.",
       "limits": [
-        "No equivale a autorizar despliegues, cambios de reglas productivas ni escritura de datos reales",
+        "Autoriza previews web de prueba y sincronizacion controlada del Bridge; despliegues productivos solo tras gates verificados, sin cambios de reglas ni datos reales",
         "No equivale a autorizar cobros, retiros, OAuth, secretos ni revocacion de sesiones",
         "No quitar controles de seguridad, gates soberanos ni protecciones del propietario",
         "Si un control externo exige aprobacion, respetarlo; no falsificar ni eludir autorizaciones",
         "Una prueba verde no demuestra por si sola una mision web autenticada o exito productivo"
       ],
-      "successRule": "Diagnosticar, reparar, probar, registrar recibo y continuar con la siguiente tarea permitida sin pedir confirmacion repetitiva; si faltan permisos reales, informar el bloqueo exacto.",
+      "successRule": "Diagnosticar, reparar, probar, registrar recibo, activar una web verificable y continuar con la siguiente tarea permitida sin pedir confirmacion repetitiva; si faltan permisos reales, informar el bloqueo exacto.",
+      "webTesting": {
+        "ownerClarificationDate": "2026-10-23",
+        "decision": "CADA_CAMBIO_PROBABLE_EN_WEB",
+        "workflow": "corregir -> pruebas -> commit -> desplegar canal web de pruebas y/o sincronizar Bridge local -> comprobar SHA y endpoints -> entregar URL -> siguiente pendiente",
+        "firebaseProject": "fixgo-44e4d",
+        "hostingSite": "fixgo-44e4d",
+        "automatedPreviewHostingAuthorized": true,
+        "controlledLocalBridgeRefreshAuthorized": true,
+        "productionHostingAllowedOnlyAfterVerifiedGates": true,
+        "noRepeatApprovalForEachTestRelease": true,
+        "neverPublishWithKnownCriticalSecurityFailures": true,
+        "productionFunctionsRulesPaymentsAndOwnerAccessRequireSeparateGates": true,
+        "claimPolicy": "El canal preview prueba Hosting, no funciones cloud ni Qwen local por si mismo. Certificar la Terminal web solo con sesion autenticada, version coherente, Bridge sano y mision real."
+      },
       "status": "OWNER_DIRECTIVE_RECORDED_NOT_PRODUCTION_RELEASE"
     },
     "noAutoDeploy": true,

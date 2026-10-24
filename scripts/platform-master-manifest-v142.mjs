@@ -279,6 +279,8 @@ function renderLatestHandoff(m){
   '',
   '**CI y push:** '+esc(m.governance?.ownerDevelopmentAuthorization?.pushPolicy||'Sin permisos adicionales')+'.',
   '',
+  '**Prueba web por cambio:** '+esc(m.governance?.ownerDevelopmentAuthorization?.webTesting?.workflow||'No configurado')+'.',
+  '',
   '**Limite:** Los commits no son despliegues; mantienen controles de produccion, dinero, secretos y acceso.',
   '',
   '**Infraestructura actual al corte:** '+esc(h.infrastructure.bridge)+'; '+esc(h.infrastructure.model)+

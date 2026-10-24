@@ -23,6 +23,8 @@
 
 **CI y push:** Un push hacia v142-official para CI debe validar previamente la rama, el SHA, el alcance de workflows y que no exista despliegue productivo automatico; nunca saltar controles de GitHub ni publicar por confusion entre push y deploy..
 
+**Prueba web por cambio:** corregir -> pruebas -> commit -> desplegar canal web de pruebas y/o sincronizar Bridge local -> comprobar SHA y endpoints -> entregar URL -> siguiente pendiente.
+
 **Limite:** Los commits no son despliegues; mantienen controles de produccion, dinero, secretos y acceso.
 
 **Infraestructura actual al corte:** BRIDGE_IDENTITY_OK sobre el candidato; supervisor 3345; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
