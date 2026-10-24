@@ -523,7 +523,8 @@
       "2026-10-23: el propietario fija la ESTRELLA POLAR de ADJUNTO: exclusivo y local para Peninsula Tech, no copiar ni competir con otras IA, excelencia original comprobable por misiones/servicios reales; registrada como objetivo no certificado, con refrigerios Tecate incluidos en gastos historicos reportados no auditados.",
       "2026-10-23: gastos de refrigerios reportados por el propietario: 2 six Tecate diarios a MXN 112 cada uno, total MXN 224 por dia; costo calendario ilustrativo MXN 53,312-54,432, SIN recibos ni tratamiento fiscal determinado.",
       "2026-10-23: nueva autorizacion continua de edicion, pruebas y commits locales verificados sin pedir permiso repetitivo; no habilita despliegue ni escrituras de produccion. Ver governance.ownerDevelopmentAuthorization.",
-      "2026-10-23: reparaciones locales de catalogo web/repositorio y retencion de fuentes en planificador; 463/463 regresiones PASS y Qwen local 1 mision SUCCESS/VERIFIED_COMPLETE con 4 pruebas fisicas. Cambios locales no publicados."
+      "2026-10-23: reparaciones locales de catalogo web/repositorio y retencion de fuentes en planificador; 463/463 regresiones PASS y Qwen local 1 mision SUCCESS/VERIFIED_COMPLETE con 4 pruebas fisicas. Cambios locales no publicados.",
+      "2026-10-23: bateria nueva de 20 pruebas-misiones locales de V142: 16 lecturas fisicas con SHA de fuente y 4 denegaciones/antiduplicacion; 20/20 PASS. Decisiones programadas para probar motor y permisos, no 20 inferencias de Qwen ni 20 envios autenticados desde la web. Script versionado tests/jarvis-v142-20-readonly-missions.test.mjs."
     ],
     "receipts": [
       "C:/Users/heber/Downloads/Jarvis-V142-certificacion-3caa2f38-20261022.zip",
