@@ -12,6 +12,17 @@ export const WEBTEST=Object.freeze({
   bridge:'http://127.0.0.1:3344'
 });
 const PRIVATE_FILES=['/jarvis-fs-bridge.js','/jarvis-github-worker.js','/functions/index.js'];
+export function buildFirebasePreviewCommand(firebaseCli){
+  // cmd.exe /s strips executable quotes from a command passed by Node on
+  // Windows. Restrict the CLI to a literal, safe, no-space .cmd path instead
+  // of using shell:true or accepting arbitrary arguments from the user.
+  if(typeof firebaseCli!=='string' ||
+     !/^[a-z]:\\[a-z0-9_.\\-]+\.cmd$/i.test(firebaseCli))
+    throw Error('WEBTEST_UNSAFE_FIREBASE_CLI_PATH');
+  return firebaseCli+' hosting:channel:deploy '+WEBTEST.channel+
+    ' --only '+WEBTEST.site+' --project '+WEBTEST.project+
+    ' --config firebase.release.json --expires 7d --non-interactive --json';
+}
 const git=args=>execFileSync('git',args,{cwd:ROOT,encoding:'utf8',windowsHide:true,timeout:90000}).trim();
 const request=(url,options={})=>fetch(url,{...options,cache:'no-store',redirect:'error',signal:AbortSignal.timeout(15000)});
 
@@ -82,9 +93,7 @@ async function run(){
     if(manifest.git_sha!==sha)throw Error('WEBTEST_RELEASE_SHA_MISMATCH');
     const firebaseCli=join(process.env.APPDATA||'','npm','firebase.cmd');
     if(process.platform!=='win32'||!existsSync(firebaseCli))throw Error('WEBTEST_FIREBASE_CLI_UNAVAILABLE');
-    const command='"'+firebaseCli+'" hosting:channel:deploy '+WEBTEST.channel+
-      ' --only '+WEBTEST.site+' --project '+WEBTEST.project+
-      ' --config firebase.release.json --expires 7d --non-interactive --json';
+    const command=buildFirebasePreviewCommand(firebaseCli);
     const response=spawnSync('cmd.exe',['/d','/s','/c',command],{
       cwd:ROOT,encoding:'utf8',windowsHide:true,timeout:120000,maxBuffer:2000000
     });

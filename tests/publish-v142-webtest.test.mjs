@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {WEBTEST,validateBridge,validateSingleSite,inspectWebtest}
+import {WEBTEST,buildFirebasePreviewCommand,validateBridge,validateSingleSite,inspectWebtest}
   from '../scripts/publish-v142-webtest.mjs';
 
 const sha='a'.repeat(40);
@@ -63,4 +63,18 @@ test('single hosting site and bridge identity cannot be forged',()=>{
   assert.equal(validateBridge(identity,sha),true);
   assert.equal(validateBridge({...identity,status:'BRIDGE_IDENTITY_INVALID'},sha),false);
   assert.equal(validateBridge(identity,'b'.repeat(40)),false);
+});
+
+test('Windows Firebase launcher uses a safe unquoted literal cmd path and one preview site',()=>{
+  const cmd=buildFirebasePreviewCommand('C:\\Users\\heber\\AppData\\Roaming\\npm\\firebase.cmd');
+  assert.match(cmd,/^C:\\Users\\heber\\AppData\\Roaming\\npm\\firebase\.cmd hosting:channel:deploy /);
+  assert.match(cmd,/ --only fixgo-44e4d --project fixgo-44e4d /);
+  assert.ok(!cmd.includes('""'));
+  for(const invalid of [
+    'C:\\Program Files\\firebase.cmd',
+    'C:\\valid\\firebase.cmd & echo hacked',
+    '../firebase.cmd',
+    'C:\\valid\\firebase.exe',
+    ''
+  ])assert.throws(()=>buildFirebasePreviewCommand(invalid),/UNSAFE_FIREBASE_CLI_PATH/);
 });
