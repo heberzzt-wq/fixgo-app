@@ -767,3 +767,18 @@ test("terminal progress honors partial mission and failed composition inside a s
         }
     }
 });
+
+test('16k Ollama context overflow is not retried as a transient planner outage', () => {
+    const source = fs.readFileSync('gestia-core/gestia-core.js','utf8');
+    const start=source.indexOf('function isPermanentSemanticPlannerFailure(');
+    const end=source.indexOf('async function waitForAuthenticatedUser(',start);
+    assert.ok(start>0 && end>start);
+    const classify=runInNewContext('('+source.slice(start,end).trim()+')');
+    for(const message of [
+        'SEMANTIC_AUTHENTICATED_PROVIDER_request (16535 tokens) exceeds the available context size (16384 tokens), try increasing it',
+        'LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION',
+        'context length exceeded'
+    ])assert.equal(classify(message),true,message);
+    for(const message of ['NETWORK_TRANSIENT','REMOTE_FETCH_FAILED','ECONNRESET'])
+        assert.equal(classify(message),false,message);
+});

@@ -3737,7 +3737,19 @@ async function runModelSemanticPlanner({
                 return [{...tool,inputSchema:{...tool.inputSchema,properties:{...tool.inputSchema.properties,file:{...file,enum:allowed}}}}];
             });
         }
-        const auditAuthorityInstruction=recordOnlyAudit ? [
+        // Tool-metadata scope, never user-word routing: a repository-only
+        // evidence audit does not need the full browser/finance/platform
+        // operating manual in every Qwen token window.
+        const repositoryReadOnlyAudit = safeCatalog.length > 0 &&
+            safeCatalog.every(tool => ["repo.gitStatus","repo.gitDiff","repo.search","repo.grep","repo.read"].includes(tool.name) &&
+                tool.mutates !== true && tool.requiresApproval !== true);
+        const auditAuthorityInstruction=repositoryReadOnlyAudit ? [
+            "Eres Jarvis, la unica autoridad semantica local. Evalua el pedido ORIGINAL y todos sus requisitos contra las observaciones realmente ejecutadas; conserva los recibos y sus limites.",
+            "Este catalogo contiene solo lecturas de repositorio. Usa exclusivamente las herramientas y schemas ofrecidos; no inventes rutas, permisos, contenido, commits, pruebas ni resultados.",
+            "Para declarar satisfecho un objetivo exige evidencia pertinente con indice de tarea real. Distingue git status, diff y lectura de fuente: una herramienta exitosa NO acredita automaticamente todas las preguntas.",
+            "Si falta evidencia, selecciona la siguiente lectura autorizada con argumentos fundamentados. No repitas consultas ya ejecutadas ni conviertas una limitacion en exito.",
+            "No escribas, publiques ni otorgues aprobaciones. Responde solo mediante el contrato JSON del runtime."
+        ].join("\n") : recordOnlyAudit ? [
             "Eres Jarvis, la única autoridad semántica local. Interpreta el pedido completo sin diccionarios de intención ni reglas de negocio hardcodeadas.",
             "Conserva cada objetivo, negación, identidad y restricción del usuario. Usa sólo el catálogo y sus schemas para herramientas y argumentos; nunca inventes rutas, campos, valores o resultados.",
             "Para datos actuales usa consultas autenticadas de registros. Descubre sus fuentes y campos en el código: éste acredita esquemas, nunca datos operativos. Cada lectura acredita únicamente su ruta, filtros, campos y páginas. Un cero no acredita otras fuentes ni un inventario global.",
@@ -3745,6 +3757,12 @@ async function runModelSemanticPlanner({
             "El runtime controla permisos, seguridad, aislamiento, escritura y publicación. Nunca concedas aprobación: approved=false. Respeta restricciones y denegaciones; no retires filtros para eludirlas. Una preparación no es escritura y un éxito técnico no demuestra cobertura.",
             "Sólo las observaciones ejecutadas prueban resultados. Las propuestas anteriores no son hechos. No cierres por agotar herramientas: todos los objetivos necesitan evidencia pertinente. Devuelve únicamente el contrato estructurado solicitado."
         ].join("\n") : buildSemanticSystemInstruction(safeCatalog, missionState, false);
+        // Model-facing audit instructions must not repeat the immutable user
+        // request or unrelated domain rules. The full request is preserved
+        // in the final user message and in the separate host audit contents.
+        const recordCoverageGuidanceRequired =
+            (missionState.evidenceObjectives || []).some(item => item.requiredEvidenceKind === 'platform_records') ||
+            safeCatalog.some(tool => (tool.evidenceKinds || []).includes('platform_records'));
         const auditInstruction = [
             auditAuthorityInstruction,
             "Evalúa cada objetivo original contra las observaciones ejecutadas. Primero comprueba que la URL observada coincide con el objeto o pagina solicitado; una página nunca acredita otra.",
@@ -3753,8 +3771,7 @@ async function runModelSemanticPlanner({
             "Selecciona una sola siguiente herramienta NUEVA con argumentos fundamentados para un objetivo pendiente. Si no hay operación ejecutable, toolCalls=[] y explica qué falta. No repitas trabajo ya satisfecho. Nunca inventes rutas ni resultados.",
             "Las lecturas resumidas con contentTruncated/partial no muestran todo el archivo. Para entender un campo o relación, usa repo.read con startLine/endLine alrededor de una coincidencia o referencia observada; no declares inexistente lo que quedó fuera del fragmento. Una mención en otro objeto del mismo archivo no prueba que el campo pertenezca a la colección elegida. Si una búsqueda es demasiado amplia, enfoca un objetivo pendiente o un identificador observado; repo.grep busca un literal, no una lista de conceptos.",
             "Escribe en español. No generes missionComplete: el runtime lo calcula con tus objetivos, referencias y toolCalls. Tus evaluaciones no sustituyen validaciones físicas. La aprobación y publicación quedan fuera de la autoridad del modelo.",
-            "Antes de consultar o contar registros, compara explícitamente cada objetivo de datos con collection, filters, fields y relaciones observadas. Una colección compartida puede contener varias clases, estados o relaciones; su conteo total NO representa automáticamente un subconjunto pedido. Si la solicitud contiene varios grupos, conteos o relaciones, no los fusiones en filtros AND incompatibles: ejecuta consultas separadas o una unión que conserve el discriminador y permita separar los resultados. Una consulta sólo acredita su scope exacto y no satisface objetivos vecinos. Si falta comprobar un campo, valor o relación, sigue leyendo la fuente o sus referencias. No inventes que todos los registros pertenecen a la misma categoría ni conviertas un cero scoped en ausencia global.",
-            `INSTRUCCION_ORIGINAL_INMUTABLE=${instruction}`
+            ...(recordCoverageGuidanceRequired ? ["Antes de consultar o contar registros, compara explícitamente cada objetivo de datos con collection, filters, fields y relaciones observadas. Una colección compartida puede contener varias clases, estados o relaciones; su conteo total NO representa automáticamente un subconjunto pedido. Si la solicitud contiene varios grupos, conteos o relaciones, no los fusiones en filtros AND incompatibles: ejecuta consultas separadas o una unión que conserve el discriminador y permita separar los resultados. Una consulta sólo acredita su scope exacto y no satisface objetivos vecinos. Si falta comprobar un campo, valor o relación, sigue leyendo la fuente o sus referencias. No inventes que todos los registros pertenecen a la misma categoría ni conviertas un cero scoped en ausencia global."] : [])
         ].join("\n");
         const measuredAuditEvidence = (missionState.completedTasks || []).map((task, index) => ({
             index, name: task.name, observation: task.observation

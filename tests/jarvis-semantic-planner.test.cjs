@@ -3194,3 +3194,30 @@ test("unresolved and mutating calls cannot enter contract reuse", async () => {
         } } } }), /FULL_CONTRACT_REACHED/);
     }
 });
+
+test('Qwen Git completion audit sends one immutable user request and omits irrelevant record-coverage boilerplate', async () => {
+    const input='Revisa los ultimos cambios reales de Git en el repositorio y enumera archivos y pruebas, sin modificarlos.';
+    let captured=null;
+    const jobs=[
+      {name:'repo.gitStatus',args:{},observation:{ok:true,status:'GIT_STATUS_OK',summary:'Cambios locales observados'}},
+      {name:'repo.read',args:{file:'gestia-core/gestia-core.js'},observation:{ok:true,verifiedRead:{file:'gestia-core/gestia-core.js',sha256:'a'.repeat(64),startLine:1,endLine:10,content:'export const GestiaCore = {};'}}}
+    ];
+    await assert.rejects(runGeminiSemanticPlanner({
+      input,catalog:[
+        {name:'repo.gitStatus',description:'Read current Git status',investigationReadOnly:true,mutates:false,requiresApproval:false,inputSchema:{type:'object',properties:{}}},
+        {name:'repo.gitDiff',description:'Read current Git diff',investigationReadOnly:true,mutates:false,requiresApproval:false,inputSchema:{type:'object',properties:{}}},
+        {name:'repo.read',description:'Read verified source file',investigationReadOnly:true,mutates:false,requiresApproval:false,inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']}}
+      ],
+      missionState:{phase:'COMPLETION_AUDIT',completedTasks:jobs,pendingTasks:[],blockedTasks:[],requiredToolNames:['repo.gitStatus','repo.read']},
+      ai:{models:{generateContent:async request=>{captured=request;throw Error('CAPTURE_GIT_AUDIT');}}}
+    }),/CAPTURE_GIT_AUDIT/);
+    assert.equal(captured?.config?.semanticStage,'COMPLETION_AUDIT');
+    const messages=captured.config.chatMessages;
+    assert.equal(messages.filter(message=>message.content.includes(input)).length,1,'full instruction appears exactly once in Ollama chat messages');
+    assert.equal(messages.at(-1).role,'user');
+    assert.equal(messages.at(-1).content,input);
+    assert.ok(messages.some(message=>message.content.includes('OBSERVACION_EJECUTADA=')),'executed physical evidence retained');
+    const system=messages.filter(message=>message.role==='system').map(message=>message.content).join('\n');
+    assert.ok(!system.includes('Antes de consultar o contar registros, compara explícitamente cada objetivo de datos'),'Firestore-only policy must not inflate Git audits');
+    assert.ok(captured.contents.includes('INSTRUCCION_ORIGINAL_INMUTABLE='+input),'non-chat fallback still retains the original instruction');
+});

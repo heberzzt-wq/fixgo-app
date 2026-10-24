@@ -240,6 +240,11 @@ const AUTH_RESTORE_TIMEOUT_MS =
 
 function isPermanentSemanticPlannerFailure(message = "") {
     const normalized = String(message || "").toLowerCase();
+    // Ollama cannot recover a context overflow by replaying identical bytes.
+    // Keep the physical receipts and surface the overflow as a real failure;
+    // a separate compact audit/page path must supply a smaller next request.
+    if (/exceeds the available context size|context length exceeded|context window exceeded|local_qwen_context_needs_segmentation/.test(normalized))
+        return true;
     const permanentMarkers = [
         "api_key_invalid",
         "api key not valid",
