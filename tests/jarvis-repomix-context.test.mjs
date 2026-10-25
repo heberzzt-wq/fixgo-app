@@ -136,3 +136,18 @@ test('oversize recovery offers bounded physical metadata only inside the existin
   });
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
+
+test('Git read tools declare repository evidence so real commits remain eligible for closure',async()=>{
+ const {runInNewContext}=await import('node:vm');
+ const source=fs.readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
+ for(const name of ['repo.gitHistory','repo.gitStatus','repo.gitDiff']){
+  const marker=source.indexOf('"'+name+'"',source.indexOf('// Local Repomix'));
+  const start=source.lastIndexOf('JarvisToolRuntime.register({',marker);
+  const end=source.indexOf('\n});',marker)+4;
+  let definition;
+  runInNewContext(source.slice(start,end),{JarvisToolRuntime:{register:t=>{definition=t;}}});
+  assert.equal(definition.name,name);
+  assert.deepEqual(Array.from(definition.evidenceKinds||[]),['repository_search']);
+  assert.equal(definition.mutates,false);assert.equal(definition.requiresApproval,false);
+ }
+});

@@ -4925,6 +4925,7 @@ JarvisToolRuntime.register({
 JarvisToolRuntime.register({
     name:
         "repo.gitStatus",
+    evidenceKinds: ["repository_search"],
     inputSchema: {type: "object", properties: {cwd: {type: "string"}, timeoutMs: {type: "number"}}, additionalProperties: false},
     description:
         "Ejecuta git status --short --branch mediante Local FS Bridge.",
@@ -4983,6 +4984,7 @@ JarvisToolRuntime.register({
 JarvisToolRuntime.register({
     name:
         "repo.gitHistory",
+    evidenceKinds: ["repository_search"],
     inputSchema: {type: "object", properties: {limit: {type: "integer", minimum: 1, maximum: 8}}, additionalProperties: false},
     description:
         "Lee hasta ocho commits locales recientes de Git con SHA, fecha, asunto y nombres de archivos cambiados. No modifica archivos.",
@@ -5014,6 +5016,7 @@ JarvisToolRuntime.register({
 JarvisToolRuntime.register({
     name:
         "repo.gitDiff",
+    evidenceKinds: ["repository_search"],
     inputSchema: {type: "object", properties: {cwd: {type: "string"}, timeoutMs: {type: "number"}, cached: {type: "boolean"}}, additionalProperties: false},
     description:
         "Ejecuta git diff mediante Local FS Bridge.",

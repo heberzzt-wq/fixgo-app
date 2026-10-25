@@ -256,3 +256,80 @@ test('canonical reuse never resolves aliases, mutating tools or approval-gated r
   assert.equal(retrievals,1);
  }
 });
+
+test('six immutable repository goals and recovered context fit the 8192-token audit without dropping receipts',async()=>{
+ const fs=await import('node:fs');
+ const fixture=JSON.parse(fs.readFileSync(new URL('./v142-four-step-audit.fixture.json',import.meta.url),'utf8'));
+ const objectives=[
+  ['Revisar los últimos commits reales de Git','repository_search'],
+  ['Preparar contexto de dos archivos de código existentes y autorizados','repository_source'],
+  ['Verificar el contenido de los archivos','repository_source'],
+  ['Explicar los cambios','repository_search'],
+  ['Explicar las pruebas aprobadas','repository_search'],
+  ['Explicar lo pendiente','repository_search']
+ ].map(([objective,requiredEvidenceKind])=>({objective,requiredEvidenceKind,requestQuote:objective}));
+ fixture.missionState.evidenceObjectives=objectives;
+ fixture.missionState.completionAssessment={evaluatedTaskCount:0,objectives:objectives.map(g=>({...g,satisfied:false,evidenceTaskIndexes:[],limitation:'Evidencia pendiente.'}))};
+ fixture.missionState.completedTasks.push({name:'repo.context',args:{files:['jarvis-safe-a.js','jarvis-safe-b.js']},
+ observation:{ok:true,executionOk:true,blocked:false,status:'REPO_CONTEXT_READY',contextPreview:{
+ files:[{file:'jarvis-safe-a.js',sha256:'a'.repeat(64)},{file:'jarvis-safe-b.js',sha256:'b'.repeat(64)}],
+ packedContext:'<files>Contexto acotado no certificado.</files>',independentlyCertified:false,evidenceOnly:true}}});
+ const before=JSON.stringify(fixture);let calls=0;
+ const engine=createSelfHostedSemanticEngine({env:{JARVIS_LOCAL_LLM_CONTEXT_TOKENS:'8192',JARVIS_LOCAL_LLM_PREWARM:'0'},
+ fetchImpl:async(_url,request)=>{
+  calls++;const packet=JSON.parse(request.body);
+  assert.equal(packet.options.num_ctx,8192);assert.equal(packet.truncate,false);assert.equal(packet.shift,false);
+  if(packet.format.properties.proven){
+   assert.equal(calls,8,'positive source claim still independently reviewed');
+   const cited=JSON.parse(packet.messages.at(-1).content).evidence;
+   assert.equal(cited[0].observation.verifiedRead.file,fixture.missionState.completedTasks[2].observation.verifiedRead.file);
+   throw Error('SIX_GOAL_MODEL_REACHED');
+  }
+  const observations=packet.messages.filter(m=>m.content.startsWith('OBSERVACION_EJECUTADA='));
+  assert.equal(observations.length,5);
+  assert.ok(packet.messages.some(m=>m.content.includes('REPO_CONTEXT_SOURCE_TOO_LARGE')),'failed receipt retained');
+  assert.equal(packet.messages.at(-1).content,fixture.input);
+  if(calls<=objectives.length){
+   assert.ok(JSON.stringify(packet.messages).includes(objectives[calls-1].objective),'each immutable goal reviewed separately');
+   return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify(calls===3?{s:true,r:[2],l:''}:{s:false,r:[],l:'Falta evidencia pertinente.'})},done_reason:'stop'})};
+  }
+  for(const goal of objectives)assert.ok(JSON.stringify(packet.messages).includes(goal.objective),'all verdicts retained before continuation');
+  const choices=JSON.stringify(packet.format.properties.toolCalls);
+  assert.ok(choices.includes('jarvis-safe-a.js') && choices.includes('jarvis-safe-b.js'),'context source identities remain available for independent repo.read');
+  return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify({toolCalls:[{name:'repo.read',args:{file:'jarvis-safe-a.js'}}],explanation:'Verificar fuente del contexto.'})},done_reason:'stop'})};
+ }});
+ await assert.rejects(engine.plan(fixture),/SIX_GOAL_MODEL_REACHED/);
+ assert.equal(calls,8);assert.equal(JSON.stringify(fixture),before);
+});
+
+test('atomic repository audit rejects invented proof, missing gaps and truncation without a closure claim',async()=>{
+ const {createRequire}=await import('node:module');
+ const {generateRepositoryAudit}=createRequire(import.meta.url)('../functions/jarvis-repository-audit-codec.cjs');
+ const branch=s=>({properties:{objective:{enum:['Verificar dos archivos']},requiredEvidenceKind:{enum:['repository_source']},
+  evidenceTaskIndexes:{type:'array',maxItems:1,items:{enum:[0]}},satisfied:{enum:[s]}}});
+ const request={config:{chatMessages:[{role:'user',content:'Verifica dos archivos.'}],
+  responseJsonSchema:{properties:{completionAssessment:{properties:{objectives:{properties:{objective_0:{anyOf:[branch(false),branch(true)]}}}}},
+   toolCalls:{type:'array',maxItems:0}}}}};
+ for(const value of [{s:true,r:[],l:''},{s:true,r:[7],l:''},{s:true,r:[0,0],l:''},{s:false,r:[],l:''},
+  {s:true,r:[0],l:'Falta archivo'},{s:true,r:[0],l:'',objective:'Otro objetivo'}]){
+  let calls=0;
+  await assert.rejects(generateRepositoryAudit({enabled:true,request,ai:{models:{generateContent:async()=>{
+   calls++;return{text:JSON.stringify(value)};
+  }}}}),/COMPLETION_EVIDENCE_INVALID/);
+  assert.equal(calls,1);
+ }
+ await assert.rejects(generateRepositoryAudit({enabled:true,request,ai:{models:{generateContent:async()=>({
+  text:'{"s":true,"r":[0],"l":""}',providerResponse:{finishReason:'length'}
+ })}}}),/AUDIT_INCOMPLETE/);
+ const before=JSON.stringify(request);let calls=0;
+ const result=await generateRepositoryAudit({enabled:true,request,ai:{models:{generateContent:async()=>{
+  calls++;return{text:JSON.stringify(calls===1?{s:false,r:[0],l:'Falta segundo archivo.'}:
+   {toolCalls:[],explanation:'Lectura parcial.',completionAssessment:{objectives:[]},missionComplete:true})};
+ }}}});
+ const plan=JSON.parse(result.text);
+ assert.equal(plan.completionAssessment.objectives.objective_0.objective,'Verificar dos archivos');
+ assert.equal(plan.completionAssessment.objectives.objective_0.requiredEvidenceKind,'repository_source');
+ assert.equal(plan.completionAssessment.objectives.objective_0.satisfied,false);
+ assert.equal(plan.missionComplete,undefined);
+ assert.equal(JSON.stringify(request),before);
+});

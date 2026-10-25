@@ -13,7 +13,7 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** 2026-10-25: prueba web autenticada sobre6b82cd83 llego a Qwen tras recarga. Qwen devolvio6 objetivos, pero GestiaCore solo entregaba initialCoverageContract al orquestador y descartaba metadatos del contrato de repositorio. Mision cancelada mediante UI al diagnosticarlo; no COMPLETED. Correccion local: clonar objetivos antes de transformar llamadas y usarlos al iniciar mision si no existe contrato operativo. Regresion RED lista vacia -> GREEN;384 pruebas afectadas PASS, prueba adicional de aislamiento de metadatos PASS, CI completa final EXIT0. Nueva correccion pendiente de publicacion y retest. Timeout de auditoria global sigue sin certificarse resuelto.
+**Resumen:** 2026-10-25: e08333c0 publicado en preview y Bridge; CI40236030480 Windows/Ubuntu SUCCESS. Mision web autentica MISSION-98c17374-35f5-4bbd-9875-3b6c0aadef64: seis objetivos conservados entre pasos, gitHistory/gitStatus/repo.read fisicos. repo.context fallo por85KB y Qwen recupero automaticamente con2 fuentes permitidas en62.674s, Repomix READY. Auditoria final rechazo paquete por LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION; PARTIAL/PLANNER_UNAVAILABLE, no COMPLETED. Duracion interna513847ms excluye plan inicial. RAM minima muestreada838608KiB, tras descarga automatica8653500KiB;0 modelos/0 inferencias. Regresion de6 objetivos reproduce rechazo antes del modelo; reparacion de empaquetado en investigacion. Reparacion local: auditoria por objetivo para repo readonly con8192/4096, conserva indices/identidades/errores y verificacion independiente; declara evidencia Git y ofrece rutas observadas de contexto para repo.read.148 regresiones afectadas PASS. Replay Qwen real del paquete fallido con adapter:7 llamadas completas en298.23s, cada una39.85-44.93s, todos los objetivos pendientes; no ejecuto herramientas ni certifica mision web. Dos intentos globales compactados agotaron150s y no se publicaron. Pendiente CI completa y preview/retest. CI completa local EXIT0 (159.22s); cambios certificados en local, pendiente CI GitHub y preview/retest.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -27,7 +27,7 @@
 
 **Limite:** Los commits no son despliegues; mantienen controles de produccion, dinero, secretos y acceso.
 
-**Infraestructura actual al corte:** Base62dc56ff sincronizada GitHub/Bridge/preview/live; nueva reparacion local de contrato aun pendiente de CI y publicacion.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
+**Infraestructura actual al corte:** Bridge/preview e08333c0; live d2f7a799. Qwen8192/45s/prewarmfalse/max150000ms verificados;0 externos.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
 
 **Control de ventanas:** Chrome extension conectado; Terminal autentica controlada y mision real enviada, sin nuevos bloqueos de permisos de navegador observados.
 
@@ -60,6 +60,8 @@
 - 2026-10-25: replay fisico local de recuperacion con Qwen3.5:9b,8192/45s/150000ms en56.361s; Repomix1.18.1 preparo contexto de2 fuentes permitidas, verificador independiente confirmo bytes y SHA256. No certifica Terminal autenticada ni COMPLETED global.
 - 2026-10-25: CI final completa EXIT0; 45 dirigidas PASS; arranque real sin precarga ni retencion30m (0 modelos antes/despues). No implica cierre global ni mision web COMPLETED.
 - 2026-10-25: investigadas fuentes oficiales Qwen/Ollama/Repomix y paper de interfaces; doc docs/v142-local-agent-reconfiguration-20261025.md registra configuracion, evidencia y limites.24 regresiones PASS; replay real de contrato92.351s/4 llamadas; selector de argumentos98.089s dentro de alcance. Son replays locales, no mision completa.
+- 2026-10-25: mision web e08333c0 verifica handoff6 objetivos y recuperacion Repomix real. PARTIAL por paquete global excesivo; no certificacion.
+- 2026-10-25: RED6 objetivos por preflight y RED rutas de contexto ausentes -> GREEN;148 afectadas PASS. Replay atomico7 llamadas reales termina sin truncacion ni timeout, sin declarar COMPLETED.
 
 ### Evidencia tecnica certificada (sin elevarla a produccion)
 
@@ -119,6 +121,14 @@
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/audit-timing-probe-20261025.json`
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/web-objective-handoff-6b82cd83-20261025.jsonl`
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/objective-handoff-ci-final-20261025.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/web-acceptance-e08333c0-20261025.jsonl`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/failed-web-audit-e08333c0.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/six-goal-audit-red.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/atomic-repository-audit-real.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/atomic-audit-directed-final.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/compact-indexed-audit-result.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/compact-verdict-audit-result.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/atomic-audit-ci-final.txt`
 
 ### Reporte diario automatico
 

@@ -180,8 +180,10 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
     if(!successful.length)return catalog;
     const readFiles=new Set(successful.map(task=>task.observation.verifiedRead?.file).filter(Boolean));
     const known=[...new Set([...configuredFiles,...readFiles,...successful.flatMap(task=>[
-        ...(task.observation.repoCandidates||[]).map(item=>item.file),...(task.observation.repositoryMatches||[]).map(item=>item.file)
-    ])].filter(Boolean))];
+        ...(task.observation.repoCandidates||[]).map(item=>item.file),...(task.observation.repositoryMatches||[]).map(item=>item.file),
+        // A successful local preview discovers identities, never source coverage.
+        ...(task.name==='repo.context' ? (task.observation.contextPreview?.files||[]).map(item=>item.file) : [])
+    ])].filter(file=>typeof file==='string' && file.trim()))];
     // A full physical read can lose its body during context compaction. Use
     // retained windows for readable gaps: replaying that whole file would only
     // retain the same prefix. Durable consultation/schema evidence stays intact.
@@ -4933,10 +4935,13 @@ async function runModelSemanticPlanner({
             completionAssessment.evidenceDecision.rejections=currentQueryRejections();
             evidenceRecoveryUsed=true;
         }
+        const generateAudit = request => require('./jarvis-repository-audit-codec.cjs').generateRepositoryAudit({
+            ai,request,enabled:repositoryReadOnlyAudit && [4096,8192].includes(Number(missionState.modelContextTokens))
+        });
         for (let auditAttempt = 0; auditAttempt < 2; auditAttempt++) {
             let auditPlan = null;
             try {
-                const auditResponse = evidenceDecisionAudit ? {text:JSON.stringify(evidenceDecisionAudit)} : await ai.models.generateContent({
+                const auditResponse = evidenceDecisionAudit ? {text:JSON.stringify(evidenceDecisionAudit)} : await generateAudit({
                     model,
                     contents: [
                         buildSemanticSystemInstruction(safeCatalog, missionState),
