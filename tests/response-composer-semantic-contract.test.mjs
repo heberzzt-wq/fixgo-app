@@ -604,7 +604,9 @@ test("tool bridge preserves the runtime error code and actionable details", asyn
 test('flat Repomix error details reach recovery through the real tool composition boundary',async()=>{
  const previousRuntime=globalThis.window.JarvisToolRuntime;
  const details={file:'gestia-core/jarvis/jarvis.multifunction.planner.js',sourceBytes:102569,sourceLimitBytes:85000,
-  totalBytes:102569,totalLimitBytes:240000,requiresDifferentSources:true};
+  totalBytes:102569,totalLimitBytes:240000,requiresDifferentSources:true,
+  sourceDiscovery:{source:'LOCAL_REPOSITORY_FILE_METADATA',operationalEvidence:false,
+   candidates:[{file:'jarvis-qwen-context-policy.js',sourceBytes:1600}],partial:true}};
  globalThis.window.JarvisToolRuntime={execute:async()=>({ok:false,status:'REPO_CONTEXT_SOURCE_TOO_LARGE',
   error:'REPO_CONTEXT_SOURCE_TOO_LARGE',errorDetails:details,retryable:false})};
  try{
@@ -616,6 +618,7 @@ test('flat Repomix error details reach recovery through the real tool compositio
   assert.equal(observation.errorCode,'REPO_CONTEXT_SOURCE_TOO_LARGE');
   assert.equal(observation.errorDetails?.file,details.file);
   assert.equal(observation.errorDetails?.sourceBytes,102569);
+  assert.deepEqual(observation.errorDetails?.sourceDiscovery,details.sourceDiscovery);
   assert.equal(observation.errorDetails?.requiresDifferentSources,true);
  }finally{globalThis.window.JarvisToolRuntime=previousRuntime;}
 });

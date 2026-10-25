@@ -7,13 +7,13 @@
 
 ## LEE ESTO PRIMERO - relevo y continuidad inmediata
 
-**Actualizado:** 2026-10-24 | **Candidato certificado en local:** `3caa2f3899aab488f90edef7535beac55f6ca96e` | **Rama:** `v142-official`
+**Actualizado:** 2026-10-25 | **Candidato certificado en local:** `3caa2f3899aab488f90edef7535beac55f6ca96e` | **Rama:** `v142-official`
 
 **Meta:** LEER PRIMERO: usar este documento y el informe diario, comprobar SHA real y recibos antes de continuar; no repetir preguntas resueltas ni dar por hecho un despliegue.
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** Relevo 2026-10-24: ba91eb64 publicado solo Hosting, CI Windows/Ubuntu 40148771598 SUCCESS y Bridge mismo SHA; health efectivo 8192/45s/prewarm false/150000ms. Retest autentico MISSION-f170ad70-86b9-4f82-a295-b86999da71f6 PARTIAL / PLANNER_UNAVAILABLE: archivo Repomix 102569>85000 bytes, presupuesto Qwen 256, detalles perdidos en adaptador y paquete de evidencia incompatible con 8192 tokens. Segunda reparacion local: conservar errorDetails, presupuesto host 1800, evidencias ligadas al contexto efectivo y referencias sin duplicar fuentes. 58 pruebas dirigidas PASS; CI completa local EXIT 0; GitHub y nueva mision web de esta revision pendientes. No certificacion general. Propietario solicita apagar adjunto-jarvis al terminar y dejar vieja encendida.
+**Resumen:** 2026-10-25: servicios recuperados desde f0cc2358. Corregido ensure que precargaba Qwen30m pese al perfil8192/45s/prewarm0. Regresion real de auditoria de4 pasos reproducida y reparada sin mutar recibos: compartir Git identico y omitir solo schema AST no aplicable en vistas de repo-only. Replay global alcanzo150s y fallo cerrado: no se certifica cierre general. Nueva recuperacion de lectura por tamano antes de auditoria global: metadatos fisicos limitados al allowlist, Qwen elige otras fuentes, no el host; denegaciones no activan este camino, fuentes exactas pueden rechazarse sin sustituir. Replay Qwen real56.361s: REPO_CONTEXT_READY para2 archivos reales, lectura independiente y hashes coinciden; NO es mision autenticada web.45 dirigidas PASS. CI completa final npm run ci:test EXIT0. Arranque real corregido: beforeModels0,afterModels0,mainModelWarmfalse,OLLAMA_MODEL_WARMUP_DISABLED. Browser bloqueado por contexto originario de extension, mision web pendiente.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -27,9 +27,9 @@
 
 **Limite:** Los commits no son despliegues; mantienen controles de produccion, dinero, secretos y acceso.
 
-**Infraestructura actual al corte:** Base oficial 2f15e0c verificada; revision reparada pendiente de CI y recarga controlada.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
+**Infraestructura actual al corte:** Base f0cc2358 recuperada en3344 con identidad correcta; revision nueva pendiente de commit/recarga controlada.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
 
-**Control de ventanas:** Chrome Work conectado y Terminal existente controlada con autorizacion expresa del propietario. Traza detallada jarvisTrace=1 para retest.
+**Control de ventanas:** El conector Browser informa: Browser access requires the originating browser context. Open ChatGPT in the browser with the connected extension and try again. Sin bypass por CDP.
 
 ### Entregas y acciones verificadas
 
@@ -56,6 +56,9 @@
 - Causa raiz reproducida con paquete real sanitizado: 8192 tokens rechazaba audit por contexto; campos de fuente repetidos en briefing y tareas. Ajustes locales con 58 pruebas PASS; sin elevar produccionCertified.
 - Capturas antiguas: Desktop/respaldo usb 4/478 decodificables, muestra 3314 inicia FF. Otras 29 en Pictures/Screenshots son legibles pero no muestran camaras. ivms.sia7.zip sigue sin acreditar deteccion de vehiculos.
 - Segunda reparacion: npm run ci:test final EXIT 0, 58 dirigidas PASS, compatibilidad con recibos genericos preservada; replay del paquete real grounded reducido a 16685 caracteres y audit 8192 llega al modelo. Son regresiones/replay, no mision autentica COMPLETED.
+- 2026-10-25: reproducidas dos regresiones RED (auditoria real de cuatro pasos y mainModelWarm incorrecto); correcciones locales con35/35 dirigidas PASS. Preserva ventanas fuente, cada indice de tarea, errores y recibos brutos; metadatos AST operativos siguen completos si hay herramientas fuera de repo.
+- 2026-10-25: replay fisico local de recuperacion con Qwen3.5:9b,8192/45s/150000ms en56.361s; Repomix1.18.1 preparo contexto de2 fuentes permitidas, verificador independiente confirmo bytes y SHA256. No certifica Terminal autenticada ni COMPLETED global.
+- 2026-10-25: CI final completa EXIT0; 45 dirigidas PASS; arranque real sin precarga ni retencion30m (0 modelos antes/despues). No implica cierre global ni mision web COMPLETED.
 
 ### Evidencia tecnica certificada (sin elevarla a produccion)
 
@@ -65,13 +68,13 @@
 
 ### BLOQUEO ACTUAL: NO PUBLICADO
 
-- Estado: `BLOCKED_NOT_DEPLOYED`; causa: `Base ba91eb64 publicada y verificada, retest web PARTIAL. Segunda reparacion local aun pendiente de CI exacta y retest. El candidato 3caa2f38 conserva solo su evidencia historica.`.
-- SHA web: `ba91eb64603229d082ef4b4adb7b9fa85349ab6e`; candidato: `3caa2f3899aab488f90edef7535beac55f6ca96e`.
+- Estado: `BLOCKED_NOT_DEPLOYED`; causa: `f0cc2358 publicado solo Hosting en sesion anterior; nueva reparacion aun local. El candidato3caa2f38 y BLOCKED_NOT_DEPLOYED conservan evidencia historica, no describen el SHA live actual.`.
+- SHA web: `f0cc2358604ad6c0884de5285cb42107ea495407`; candidato: `3caa2f3899aab488f90edef7535beac55f6ca96e`.
 - No alterar gate; no escribir fondos, reglas ni Functions sin autorizacion.
 
 ### Ruta de recuperacion para el siguiente chat
 
-1. Certificar correccion de cancelacion, health efectivo y feedback Repomix; publicar solo Hosting bajo gates y repetir mision autenticada con jarvisTrace=1. No declarar COMPLETED sin objetivos y recibos.
+1. Terminar CI final/Windows-Ubuntu y sincronizar SHA Bridge/preview/Hosting bajo gates. Repetir mision autenticada cuando Browser disponga del contexto originario. Verificar cierre global y lectura de2 fuentes; el replay local no lo certifica.
 1. Resolver la promocion autorizada de Hosting desde una rama/revision permitida con CI y permiso workflow adecuados, sin saltarse protecciones ni desplegar otros sitios/Functions/reglas.
 1. Verificar despues de publicacion SHA servido == SHA Bridge, relay /workstation/health autenticado sin 401, y que archivos privados devuelven 404.
 1. Ejecutar mision real en Terminal Firebase con recibo verificable y luego las 12 NS1 seguidas; clasificar SUCCEEDED, PARTIAL, FAILED con evidencia y artefactos.
@@ -94,6 +97,16 @@
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/v142-web-acceptance-ba91eb64-trace.jsonl`
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/v142-acceptance-ba91eb64-telemetry.jsonl`
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/v142-context-root-ci-final.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/v142-cierre-20261024.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/v142-f0cc2358-failed-audit-packet.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/regression-red-20261025.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/regression-green-20261025.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/ci-local-20261025.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/qwen-real-audit-20261025.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/qwen-recovery-physical-20261025.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/context-recovery-red-20261025.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/ci-final-20261025.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/startup-no-prewarm-20261025.json`
 
 ### Reporte diario automatico
 

@@ -152,3 +152,65 @@ test('8192-token audit reaches the model after bounding large source receipts to
  await assert.rejects(engine.plan(fixture),/MODEL_WAS_REACHED/);
  assert.equal(calls,1);
 });
+
+test('real four-step Git audit shares identical history receipts without losing evidence or mutating originals',async()=>{
+ const fs=await import('node:fs');
+ const fixture=JSON.parse(fs.readFileSync(new URL('./v142-four-step-audit.fixture.json',import.meta.url),'utf8'));
+ fixture.missionState.blockedTasks=[];
+ const before=JSON.stringify(fixture);
+ let calls=0;
+ const engine=createSelfHostedSemanticEngine({env:{JARVIS_LOCAL_LLM_CONTEXT_TOKENS:'8192',JARVIS_LOCAL_LLM_PREWARM:'0'},
+  fetchImpl:async(_url,request)=>{
+   calls++;
+   const packet=JSON.parse(request.body);
+   const observations=packet.messages.filter(m=>m.content.startsWith('OBSERVACION_EJECUTADA='))
+    .map(m=>JSON.parse(m.content.slice('OBSERVACION_EJECUTADA='.length)));
+   assert.equal(observations.length,4,'retain every real operation index');
+   assert.deepEqual(observations[0].observation.gitEvidence,fixture.missionState.completedTasks[0].observation.gitEvidence);
+   assert.equal(observations[3].observation.sharedGitEvidenceTaskIndex,0);
+   assert.equal(observations[2].observation.verifiedRead.file,fixture.missionState.completedTasks[2].observation.verifiedRead.file);
+   throw Error('MODEL_WAS_REACHED');
+  }});
+ await assert.rejects(engine.plan(fixture),/MODEL_WAS_REACHED/);
+ assert.equal(calls,1);
+ assert.equal(JSON.stringify(fixture),before);
+});
+
+test('oversized repository context is recovered before global closure, with observed paths and no success claim',async()=>{
+ const fs=await import('node:fs');
+ const fixture=JSON.parse(fs.readFileSync(new URL('./v142-four-step-audit.fixture.json',import.meta.url),'utf8'));
+ const before=JSON.stringify(fixture);
+ const files=['jarvis-qwen-context-policy.js','jarvis-repomix-context.js'];
+ fixture.missionState.blockedTasks[0].observation.errorDetails.sourceDiscovery={
+  source:'LOCAL_REPOSITORY_FILE_METADATA',operationalEvidence:false,
+  candidates:files.map((file,i)=>({file,sourceBytes:1000+i})),partial:true};
+ const enrichedBefore=JSON.stringify(fixture);
+ let calls=0;
+ const engine=createSelfHostedSemanticEngine({env:{JARVIS_LOCAL_LLM_CONTEXT_TOKENS:'8192',JARVIS_LOCAL_LLM_PREWARM:'0'},
+  fetchImpl:async(_url,request)=>{
+   calls++;const body=JSON.parse(request.body);
+   assert.ok(JSON.stringify(body).length<12000,'a read recovery must not include the global closure packet');
+   return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify({
+    toolCalls:[{name:'repo.context',args:{files,tokenBudget:1800}}],explanation:'Preparar contexto con otras fuentes observadas.'})},done_reason:'stop'})};
+  }});
+ const plan=await engine.plan(fixture);
+ assert.equal(calls,1);
+ assert.equal(plan.missionComplete,false);
+ assert.deepEqual(plan.toolCalls[0].args.files,files);
+ assert.equal(plan.planKind,'REPOSITORY_CONTEXT_RECOVERY');
+ assert.equal(JSON.stringify(fixture),enrichedBefore);
+});
+
+test('recovery can decline exact-file substitution and rejects unobserved or duplicate sources',async()=>{
+ const fs=await import('node:fs');
+ for(const files of [null,['jarvis-qwen-context-policy.js','jarvis-qwen-context-policy.js'],['jarvis-invented.js','jarvis-qwen-context-policy.js']]){
+  const fixture=JSON.parse(fs.readFileSync(new URL('./v142-four-step-audit.fixture.json',import.meta.url),'utf8'));
+  fixture.missionState.blockedTasks[0].observation.errorDetails.sourceDiscovery={
+   source:'LOCAL_REPOSITORY_FILE_METADATA',operationalEvidence:false,candidates:[
+    {file:'jarvis-qwen-context-policy.js',sourceBytes:1000},{file:'jarvis-repomix-context.js',sourceBytes:2000}]};
+  const engine=createSelfHostedSemanticEngine({env:{JARVIS_LOCAL_LLM_CONTEXT_TOKENS:'8192',JARVIS_LOCAL_LLM_PREWARM:'0'},
+   fetchImpl:async()=>({ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify({
+    toolCalls:files?[{name:'repo.context',args:{files,tokenBudget:1800}}]:[],explanation:'No cambiar las fuentes exactas solicitadas.'})},done_reason:'stop'})})});
+  await assert.rejects(engine.plan(fixture),/RECOVERY_UNAVAILABLE|TOOL_ARGUMENTS_INVALID/);
+ }
+});

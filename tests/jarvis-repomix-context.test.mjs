@@ -110,3 +110,22 @@ test('Repomix model calls use the host context budget instead of choosing the gr
  assert.equal(request.payload.tokenBudget,1800);
  assert.equal(tool.inputSchema.properties.tokenBudget.const,1800);
 });
+
+test('oversize recovery offers bounded physical metadata only inside the existing source allowlist',async()=>{
+ const root=fixture();
+ try{
+  fs.writeFileSync(path.join(root,'jarvis-long.js'),'x'.repeat(90000));
+  fs.writeFileSync(path.join(root,'jarvis-secret.js'),'private');
+  fs.writeFileSync(path.join(root,'outside.js'),'not authorized');
+  await assert.rejects(packAuthorizedRepositoryContext({root,files:['jarvis-long.js']}),error=>{
+   const d=error.details.sourceDiscovery;
+   assert.equal(d.source,'LOCAL_REPOSITORY_FILE_METADATA');
+   assert.equal(d.operationalEvidence,false);
+   assert.deepEqual(d.candidates,[{file:'jarvis-safe.js',sourceBytes:fs.statSync(path.join(root,'jarvis-safe.js')).size}]);
+   const compact=compactMissionPlannerObservation(safeObservation({ok:false,tool:'repo.context',
+    errorCode:error.message,errorDetails:error.details}));
+   assert.deepEqual(compact.errorDetails.sourceDiscovery,d);
+   return true;
+  });
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
+});

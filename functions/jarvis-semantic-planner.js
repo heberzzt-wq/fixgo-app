@@ -2273,13 +2273,44 @@ function compactActionCatalog(catalog) { return catalog.map(({ name, description
 });
 }
 
-function planningAuditTasks(tasks, missionState) {
+function planningAuditTasks(tasks, missionState, {repositoryOnly = false} = {}) {
     const tokens=Number(missionState?.modelContextTokens);
     const lowMemory=[4096,8192].includes(tokens);
-    return boundedAuditTasks(tasks,lowMemory ? Math.floor(tokens*1.5) : 28000,lowMemory ? 1800 : 4000);
+    // A repository-only read audit needs source windows and Git facts, not the
+    // database schema inferred from arbitrary code. Keep that schema in the raw
+    // receipt for validation; never omit it when operational tools are available.
+    const views = lowMemory && repositoryOnly ? tasks.map(task => {
+        const read=task.observation?.verifiedRead;
+        if (!read?.sourceStructure?.dataBindings) return task;
+        const {dataBindings, ...structure}=read.sourceStructure;
+        return {...task,observation:{...task.observation,verifiedRead:{...read,
+            sourceStructure:{...structure,sourceSchemaOmitted:true,
+                omissionScope:"Repository-only planning view; full AST schema retained in original receipt. This view grants no operational data authority."}}}};
+    }) : tasks;
+    return boundedAuditTasks(views,lowMemory ? Math.floor(tokens*1.5) : 28000,lowMemory ? 1800 : 4000);
 }
 
 function boundedAuditTasks(tasks, maximumCharacters = 28000, latestSourceBodyLimit = 4000) {
+    // Exact repeated Git snapshots cost context but add no new values. Share the
+    // immutable payload only; keep each call, status and timestamp at its index.
+    // Never share across tools or unequal results, and never mutate raw receipts.
+    if (JSON.stringify(tasks).length > maximumCharacters) {
+        const owners = new Map();
+        let shared = false;
+        tasks = tasks.map((task, index) => {
+            const observation = task.observation;
+            if (!["repo.gitHistory","repo.gitStatus","repo.gitDiff"].includes(task.name) ||
+                observation?.ok !== true || observation.executionOk === false ||
+                observation.blocked === true || !observation.gitEvidence) return task;
+            const key = JSON.stringify([task.name, observation.gitEvidence]);
+            if (!owners.has(key)) { owners.set(key,index); return task; }
+            shared = true;
+            const {gitEvidence, ...retained} = observation;
+            return {...task, observation:{...retained, sharedGitEvidenceTaskIndex:owners.get(key)}};
+        });
+        if (shared) tasks[0] = {...tasks[0], sharedGitEvidenceEncoding:
+            "sharedGitEvidenceTaskIndex references an identical gitEvidence payload for the same tool at that original task index. Resolve there; call arguments, status, timestamps and coverage stay local. Sharing adds no evidence or objective completion."};
+    }
     // The runtime search envelope exposes the same candidates as both results
     // and candidates. Deferred argument completion receives that raw envelope,
     // unlike the selection phase's compact observation. Share only exact copies
@@ -3749,6 +3780,57 @@ async function runModelSemanticPlanner({
         const repositoryReadOnlyAudit = safeCatalog.length > 0 &&
             safeCatalog.every(tool => ["repo.gitStatus","repo.gitHistory","repo.gitDiff","repo.search","repo.grep","repo.read","repo.context"].includes(tool.name) &&
                 tool.mutates !== true && tool.requiresApproval !== true);
+        // Recover an oversized read before asking Qwen to audit every objective.
+        // The model still selects new sources; runtime scope and size checks stay
+        // authoritative. This branch cannot declare completion or widen access.
+        const contextFailure=[...(missionState.blockedTasks||[])].reverse().find(task=>
+            task.name==="repo.context" && task.observation?.errorCode==="REPO_CONTEXT_SOURCE_TOO_LARGE" &&
+            task.observation.errorDetails?.requiresDifferentSources===true);
+        const contextTool=selectableCatalog.find(tool=>tool.name==="repo.context");
+        const contextRecovered=completedTasksForAudit.some(task=>task.name==="repo.context" &&
+            task.observation?.ok===true && task.observation.executionOk!==false && task.observation.blocked!==true);
+        if (repositoryReadOnlyAudit && contextFailure && contextTool && !contextRecovered) {
+            const rejected=new Set((missionState.blockedTasks||[]).filter(task=>task.name==="repo.context")
+                .flatMap(task=>task.args?.files||[]));
+            const discovery=contextFailure.observation.errorDetails.sourceDiscovery;
+            const candidates=discovery?.source==="LOCAL_REPOSITORY_FILE_METADATA" && discovery.operationalEvidence===false
+                ? (discovery.candidates||[]).filter(item=>typeof item.file==="string" &&
+                    Number.isInteger(item.sourceBytes) && item.sourceBytes>0 && item.sourceBytes<=contextFailure.observation.errorDetails.sourceLimitBytes &&
+                    !rejected.has(item.file)) : [];
+            const observedFiles=[...new Set(candidates.map(item=>item.file))];
+            const fileCount=contextFailure.args?.files?.length;
+            if (Number.isInteger(fileCount) && fileCount>0 && fileCount<=6 && observedFiles.length>=fileCount) {
+                const originalSchema=buildNativeInputSchema(contextTool.inputSchema);
+                const properties=originalSchema.properties||{};
+                const recoverySchema={...originalSchema,properties:{...properties,
+                    files:{...properties.files,minItems:fileCount,maxItems:fileCount,uniqueItems:true,items:{type:"string",enum:observedFiles}}}};
+                const recoveryTool={...contextTool,inputSchema:recoverySchema};
+                const response=await ai.models.generateContent({model,contents:instruction,config:{
+                    semanticStage:"REPOSITORY_CONTEXT_RECOVERY",temperature:0,maxOutputTokens:256,
+                    responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{
+                        toolCalls:{type:"array",minItems:0,maxItems:1,items:{type:"object",properties:{
+                            name:{type:"string",enum:["repo.context"]},args:recoverySchema
+                        },required:["name","args"],additionalProperties:false}},
+                        explanation:{type:"string",maxLength:160}
+                    },required:["toolCalls","explanation"],additionalProperties:false},
+                    chatMessages:[
+                        {role:"system",content:"Recupera SOLO la lectura repo.context rechazada por tamano. Elige otras fuentes de codigo pertinentes entre las rutas permitidas con tamano fisicamente observado; conserva la cantidad de archivos y el presupuesto del intento fallido. Prefiere fuentes pequenas de alcance acotado. Usa exclusivamente el schema ofrecido; el runtime comprobara permisos, existencia y limites. No repitas rutas rechazadas, no escribas y no declares objetivos satisfechos. Esta seleccion repara una lectura; no es una auditoria de cierre. Si el pedido exige archivos exactos y no admite sustitucion, devuelve toolCalls=[] y explica el limite."},
+                        {role:"system",content:"FALLO_REAL="+JSON.stringify({args:contextFailure.args,errorDetails:contextFailure.observation.errorDetails})},
+                        {role:"system",content:"FUENTES_PERMITIDAS_OBSERVADAS_CON_TAMANO="+JSON.stringify(candidates)},
+                        {role:"user",content:instruction}
+                    ]
+                }});
+                if(response?.providerResponse?.finishReason==="length")throw new Error("SEMANTIC_REPOSITORY_RECOVERY_INCOMPLETE");
+                const selected=validatePlan({...extractJsonObject(String(response.text||"")),missionComplete:false},[recoveryTool],instruction);
+                if(!selected.toolCalls?.length)throw Object.assign(new Error("SEMANTIC_REPOSITORY_CONTEXT_RECOVERY_UNAVAILABLE"),{retryable:false});
+                const selectedFiles=selected.toolCalls[0].args?.files;
+                if(selected.toolCalls.length!==1 || !Array.isArray(selectedFiles) || selectedFiles.length!==fileCount ||
+                    new Set(selectedFiles).size!==fileCount || selectedFiles.some(file=>!observedFiles.includes(file)))
+                    throw new Error("SEMANTIC_TOOL_ARGUMENTS_INVALID");
+                return requireExecutablePlan({...selected,missionComplete:false,planKind:"REPOSITORY_CONTEXT_RECOVERY",
+                    provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:1});
+            }
+        }
         const auditAuthorityInstruction=repositoryReadOnlyAudit ? [
             "Eres Jarvis, la unica autoridad semantica local. Evalua el pedido ORIGINAL y todos sus requisitos contra las observaciones realmente ejecutadas; conserva los recibos y sus limites.",
             "Este catalogo contiene solo lecturas de repositorio. Usa exclusivamente las herramientas y schemas ofrecidos; no inventes rutas, permisos, contenido, commits, pruebas ni resultados.",
@@ -3794,7 +3876,9 @@ async function runModelSemanticPlanner({
         const fullAuditTasks = (missionState.completedTasks || []).map((task, index) => ({ index, name: task.name, args: task.args,
             allowedEvidenceKinds: safeCatalog.find(tool => tool.name === task.name)?.evidenceKinds || ["tool_result"],
             observation: Object.fromEntries(Object.entries(task.observation || {}).filter(([key]) => key !== "interfaceEvidence")) }));
-        const auditTasks = measuredRepair ? fullAuditTasks : planningAuditTasks(fullAuditTasks,missionState);
+        const auditTasks = measuredRepair ? fullAuditTasks : planningAuditTasks(fullAuditTasks,missionState,{
+            repositoryOnly:safeCatalog.every(tool=>tool.name.startsWith("repo.") && tool.mutates===false && !tool.requiresApproval)
+        });
         if(!measuredRepair && JSON.stringify(auditTasks).length>16000) {
             const schemaTaskIndexes=auditTasks.flatMap((task,index)=>task.observation?.verifiedRead?.sourceStructure?.dataBindings ? [index] : []);
             const recordFieldSchemaTaskIndexes=auditTasks.flatMap((task,index)=>task.observation?.recordEvidence?.fieldSchema ? [index] : []);

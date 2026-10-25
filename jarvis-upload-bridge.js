@@ -1810,10 +1810,12 @@ export async function ensureJarvisLocalAiRuntime({
         };
     }
 
+    const prewarmEnabled = String(env.JARVIS_LOCAL_LLM_PREWARM || "0") === "1";
     let mainModelWarmup = {
         ok: true,
-        status:
-            "OLLAMA_MODEL_WARMUP_SKIPPED_CUSTOM_COMMAND_IMPL",
+        status: prewarmEnabled
+            ? "OLLAMA_MODEL_WARMUP_SKIPPED_CUSTOM_COMMAND_IMPL"
+            : "OLLAMA_MODEL_WARMUP_DISABLED",
         model:
             expectedModel,
         externalApiUsed: false,
@@ -1821,6 +1823,7 @@ export async function ensureJarvisLocalAiRuntime({
     };
 
     if (
+        prewarmEnabled &&
         commandImpl ===
         workstationCommand
     ) {
@@ -1841,7 +1844,7 @@ export async function ensureJarvisLocalAiRuntime({
                     ),
                 keepAlive:
                     env.JARVIS_LOCAL_LLM_KEEP_ALIVE ||
-                    "30m"
+                    "45s"
             });
 
         if (
@@ -1889,7 +1892,7 @@ export async function ensureJarvisLocalAiRuntime({
         mainModelReady,
         embeddingModelReady,
         mainModelWarm:
-            mainModelWarmup.ok === true,
+            mainModelWarmup.ok === true && mainModelWarmup.status === "OLLAMA_MODEL_WARM",
         mainModelWarmup,
         installationAttempted,
         installation,

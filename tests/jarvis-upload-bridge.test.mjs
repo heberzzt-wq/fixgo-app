@@ -1411,3 +1411,17 @@ test("warmup refuses a thinking-only model before inference and never falls back
         assert.equal(result.externalApiUsed,false);
     }
 });
+
+test('startup keeps the installed model unloaded unless prewarming is explicitly enabled',async()=>{
+ for(const prewarm of [undefined,'0']){
+  const result=await ensureJarvisLocalAiRuntime({root:process.cwd(),platform:'win32',
+   env:{JARVIS_LOCAL_LLM_MODEL:'qwen3.5:9b',...(prewarm===undefined?{}:{JARVIS_LOCAL_LLM_PREWARM:prewarm})},
+   commandImpl:()=>({ok:true,stdout:'ollama version test'}),
+   probeImpl:async()=>({ok:true,reachable:true,body:{models:[{name:'qwen3.5:9b'}]}}),
+   spawnImpl:()=>{throw Error('UNEXPECTED_PROCESS');},waitMs:async()=>{}});
+  assert.equal(result.ok,true);
+  assert.equal(result.mainModelReady,true);
+  assert.equal(result.mainModelWarm,false);
+  assert.equal(result.mainModelWarmup.status,'OLLAMA_MODEL_WARMUP_DISABLED');
+ }
+});
