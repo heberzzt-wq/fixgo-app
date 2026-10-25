@@ -5271,6 +5271,7 @@ if (
                                                 })),
                                             blockedTasks:
                                                 mission.blockedTasks.map(item => ({
+                                                    obligationId: item.obligationId,
                                                     completedAt: item.completedAt,
                                                     name:
                                                         item.name,
@@ -5421,6 +5422,7 @@ if (
                                     })),
                                     pendingTasks: mission.pendingTasks.map(item => ({ name: item.name, args: item.args })),
                                     blockedTasks: mission.blockedTasks.map(item => ({
+                                        obligationId: item.obligationId,
                                         completedAt: item.completedAt,
                                         name: item.name,
                                         args: item.args,

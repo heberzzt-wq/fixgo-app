@@ -3849,8 +3849,68 @@ async function runModelSemanticPlanner({
                 if(selected.toolCalls.length!==1 || !Array.isArray(selectedFiles) || selectedFiles.length!==fileCount ||
                     new Set(selectedFiles).size!==fileCount || selectedFiles.some(file=>!observedFiles.includes(file)))
                     throw new Error("SEMANTIC_TOOL_ARGUMENTS_INVALID");
+                // This is the same failed obligation with model-selected replacement
+                // sources. Bind its engine-owned identity after argument validation.
+                if(typeof contextFailure.obligationId==='string' && contextFailure.obligationId.trim())
+                    selected.toolCalls[0].obligationId=contextFailure.obligationId;
                 return requireExecutablePlan({...selected,missionComplete:false,planKind:"REPOSITORY_CONTEXT_RECOVERY",
                     provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:1});
+            }
+        }
+        // Acquire a missing source before spending a full closure audit on it.
+        // The model may decline; immutable goals and all receipts stay in the
+        // orchestrator. This decision never certifies or rewrites an objective.
+        const pendingSourceGoal=(missionState.evidenceObjectives||[]).some(goal=>
+            goal.requiredEvidenceKind==="repository_source" &&
+            !missionState.completionAssessment?.objectives?.some(prior=>prior.objective===goal.objective && prior.satisfied===true));
+        const sourceReader=selectableCatalog.find(tool=>tool.name==="repo.read" &&
+            tool.investigationReadOnly===true && tool.mutates!==true && tool.requiresApproval!==true);
+        if(repositoryReadOnlyAudit && contextRecovered && pendingSourceGoal && sourceReader){
+            const schema=buildNativeInputSchema(sourceReader.inputSchema);
+            const attempted=new Set([...completedTasksForAudit,...(missionState.blockedTasks||[])]
+                .filter(task=>task.name==="repo.read").map(task=>task.observation?.verifiedRead?.file || task.args?.file).filter(Boolean));
+            const contextFiles=[...new Set(completedTasksForAudit.filter(task=>task.name==="repo.context" &&
+                task.observation?.ok===true && task.observation.executionOk!==false && task.observation.blocked!==true)
+                .flatMap(task=>task.observation.contextPreview?.files||[]).map(file=>typeof file==="string"?file:file?.file)
+                .filter(file=>typeof file==="string" && !attempted.has(file)))];
+            const branches=(schema.anyOf||[schema]).flatMap(branch=>{
+                const fileProperty=branch.properties?.file;
+                const files=fileProperty?contextFiles.filter(file=>(!fileProperty.enum || fileProperty.enum.includes(file)) &&
+                    (fileProperty.const===undefined || fileProperty.const===file)):[];
+                return files.length?[{...branch,properties:{...branch.properties,file:{...fileProperty,enum:files}}}]:[];
+            });
+            const unread=[...new Set(branches.flatMap(branch=>branch.properties.file.enum))];
+            if(unread.length && unread.length<=6){
+                const boundedReader={...sourceReader,inputSchema:branches.length===1?branches[0]:{anyOf:branches}};
+                const response=await ai.models.generateContent({model,contents:instruction,config:{
+                    semanticStage:"REPOSITORY_SOURCE_ACQUISITION",temperature:0,maxOutputTokens:192,
+                    responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{
+                        toolCalls:{type:"array",minItems:0,maxItems:1,items:{type:"object",properties:{
+                            name:{type:"string",enum:["repo.read"]},args:boundedReader.inputSchema
+                        },required:["name","args"],additionalProperties:false}}
+                    },required:["toolCalls"],additionalProperties:false},
+                    chatMessages:[
+                        {role:"system",content:"SELECCION_DE_LECTURA_DE_CONTEXTO: hay fuentes de repo.context aun no leidas y un objetivo de contenido pendiente. Elige UNA repo.read pertinente de las rutas permitidas para obtener evidencia antes de auditar el cierre. No repitas lecturas, no certifiques objetivos ni inventes resultados. Si ninguna fuente sirve al pedido original, toolCalls=[]. Los metadatos no prueban contenido."},
+                        {role:"system",content:"OBJETIVOS_INMUTABLES="+JSON.stringify(missionState.evidenceObjectives)},
+                        {role:"system",content:"FUENTES_DE_CONTEXTO_NO_LEIDAS="+JSON.stringify(unread)},
+                        {role:"system",content:"METADATOS_DE_LECTURAS="+JSON.stringify(completedTasksForAudit.map((task,index)=>({
+                            index,name:task.name,args:task.args,ok:task.observation?.ok,status:task.observation?.status,
+                            file:task.observation?.verifiedRead?.file,partial:task.observation?.verifiedRead?.partial
+                        })))},
+                        {role:"system",content:"INTENTOS_FALLIDOS="+JSON.stringify((missionState.blockedTasks||[]).map(task=>({
+                            name:task.name,args:task.args,errorCode:task.observation?.errorCode,status:task.observation?.status
+                        })))},
+                        {role:"user",content:instruction}
+                    ]
+                }});
+                if(response?.providerResponse?.finishReason==="length")throw new Error("SEMANTIC_REPOSITORY_SOURCE_SELECTION_INCOMPLETE");
+                const rawSelection=extractJsonObject(String(response.text||""));
+                const selection=validatePlan({...rawSelection,missionComplete:false},[boundedReader],instruction);
+                if(!Array.isArray(rawSelection.toolCalls) || rawSelection.toolCalls.length>1 ||
+                    rawSelection.toolCalls.length!==selection.toolCalls.length)
+                    throw new Error("SEMANTIC_TOOL_ARGUMENTS_INVALID");
+                if(selection.toolCalls.length)return {...selection,missionComplete:false,planKind:"REPOSITORY_SOURCE_ACQUISITION",
+                    provider:String(ai.lastProvider||"jarvis-local"),model,catalogSize:1};
             }
         }
         const auditAuthorityInstruction=repositoryReadOnlyAudit ? [

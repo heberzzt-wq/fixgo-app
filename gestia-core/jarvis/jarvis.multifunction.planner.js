@@ -1661,6 +1661,13 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
             };
         }
         const deferredObligation = candidate?.deferred === true ? String(candidate.obligationId || "").slice(0, 300) : "";
+        const recoveryObligation = plan?.planKind === "REPOSITORY_CONTEXT_RECOVERY" &&
+            tool.name === "repo.context" && tool.mutates !== true && tool.requiresApproval !== true &&
+            context?.missionState?.blockedTasks?.some(task => task.name === tool.name &&
+                typeof task.obligationId === "string" && task.obligationId === candidate.obligationId &&
+                task.observation?.errorCode === "REPO_CONTEXT_SOURCE_TOO_LARGE" &&
+                task.observation.errorDetails?.requiresDifferentSources === true)
+            ? String(candidate.obligationId).slice(0, 300) : "";
         const signature =
             `${tool.name}:${JSON.stringify(args)}:${deferredObligation}`;
         if (seen.has(signature)) continue;
@@ -1706,7 +1713,7 @@ function trustedPlanCalls(plan = {}, catalog = [], context = {}) {
             ...Object.fromEntries(CONTRACT_SCOPE_FIELDS
                 .filter(key => candidate?.[key] !== undefined)
                 .map(key => [key, candidate[key]])),
-            ...(deferredObligation ? { obligationId: deferredObligation } : {}),
+            ...((deferredObligation || recoveryObligation) ? { obligationId: deferredObligation || recoveryObligation } : {}),
             ...(dedupeKey ? { missionDedupeKey: dedupeKey } : {}),
             ...(
                 argumentsComplete && candidate?.deferred !== true

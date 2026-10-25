@@ -274,10 +274,15 @@ test('six immutable repository goals and recovered context fit the 8192-token au
  observation:{ok:true,executionOk:true,blocked:false,status:'REPO_CONTEXT_READY',contextPreview:{
  files:[{file:'jarvis-safe-a.js',sha256:'a'.repeat(64)},{file:'jarvis-safe-b.js',sha256:'b'.repeat(64)}],
  packedContext:'<files>Contexto acotado no certificado.</files>',independentlyCertified:false,evidenceOnly:true}}});
- const before=JSON.stringify(fixture);let calls=0;
+ const before=JSON.stringify(fixture);let calls=0,sourceSelections=0;
  const engine=createSelfHostedSemanticEngine({env:{JARVIS_LOCAL_LLM_CONTEXT_TOKENS:'8192',JARVIS_LOCAL_LLM_PREWARM:'0'},
  fetchImpl:async(_url,request)=>{
-  calls++;const packet=JSON.parse(request.body);
+  const packet=JSON.parse(request.body);
+  if(packet.messages.some(m=>m.content.startsWith('SELECCION_DE_LECTURA_DE_CONTEXTO'))){
+   sourceSelections++;assert.equal(packet.messages.at(-1).content,fixture.input);
+   return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:'{"toolCalls":[]}'},done_reason:'stop'})};
+  }
+  calls++;
   assert.equal(packet.options.num_ctx,8192);assert.equal(packet.truncate,false);assert.equal(packet.shift,false);
   if(packet.format.properties?.proven){
    assert.equal(calls,8,'positive source claim still independently reviewed');
@@ -299,7 +304,7 @@ test('six immutable repository goals and recovered context fit the 8192-token au
   return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify({toolCalls:[{name:'repo.read',args:{file:'jarvis-safe-a.js'}}],explanation:'Verificar fuente del contexto.'})},done_reason:'stop'})};
  }});
  await assert.rejects(engine.plan(fixture),/SIX_GOAL_MODEL_REACHED/);
- assert.equal(calls,8);assert.equal(JSON.stringify(fixture),before);
+ assert.equal(calls,8);assert.equal(sourceSelections,1);assert.equal(JSON.stringify(fixture),before);
 });
 
 test('atomic repository audit rejects invented proof, missing gaps and truncation without a closure claim',async()=>{

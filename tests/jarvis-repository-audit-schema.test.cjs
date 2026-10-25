@@ -70,6 +70,7 @@ test('repository recovery exposes its required source alternative in the native 
  observation:{ok:true,executionOk:true,status:'REPO_CONTEXT_READY',contextPreview:{files:[{file:'jarvis-safe-a.js'},{file:'jarvis-safe-b.js'}]}}});
  let goal=0,reached=false;
  await assert.rejects(runJarvisSemanticPlanner({...packet,ai:{models:{generateContent:async req=>{
+  if(req.config.semanticStage==='REPOSITORY_SOURCE_ACQUISITION')return {text:'{"toolCalls":[]}'};
   if(req.config.semanticStage==='REPOSITORY_OBJECTIVE_AUDIT')return{text:JSON.stringify(++goal===1?{s:true,r:[0],l:''}:{s:false,r:[2],l:'Falta segundo archivo.'})};
   if(req.config.semanticStage==='REPOSITORY_AUDIT_NEXT_ACTION')return{text:JSON.stringify({toolCalls:[{name:packet.missionState.completedTasks[0].name,args:packet.missionState.completedTasks[0].args}],explanation:'Repetida.'})};
   if(req.config.semanticStage==='CLOSURE_OBJECTIVE_VERIFICATION')return{text:'{"proven":true}'};

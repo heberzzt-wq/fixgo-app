@@ -13,7 +13,7 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** 2026-10-25: cd35faad sincronizado Bridge/preview, CI40238778762 Windows/Ubuntu SUCCESS; live permanece d2f7a799. Mision web MISSION-95689e15-c257-49ee-abf5-65e587d13fd5 termino PARTIAL/PLANNER_UNAVAILABLE por SEMANTIC_COMPLETION_EVIDENCE_INVALID, duracion interna629029ms, sin timeout ni overflow. GitHistory/status/read fisicos; repo.context SOURCE_TOO_LARGE recuperado con2 fuentes autorizadas, REPO_CONTEXT_READY. Las2 fuentes aun no se leyeron con repo.read. Captura Qwen exacta: s=true,r=[0,1,3,4],l no vacio; schema plano permitia contradiccion rechazada correctamente por validador. Reparacion local correlaciona s/r/l en schema nativo anyOf sin relajar validacion ni verificacion independiente. Regresion RED->GREEN y20 dirigidas PASS; replay real en progreso, CI/retest pendientes. RAM libre antes7890756KiB, minima470044KiB, tras descarga8348096KiB (0 runner); no se mato llama-server. Replay fisico con schema correlacionado:6 respuestas locales en424.47s, veredictos validos y verificacion independiente positiva de Git; fallo posterior de recuperacion por contexto. Reparacion adicional compacta solo metadatos de seleccion sin alterar recibos y expone sourceFallback requerido en JSON nativo (antes solo solicitado en prosa pero ausente de nativeToolChat).89 dirigidas PASS. Replay de continuacion reutiliza6 respuestas reales anteriores y ejecuta UNA inferencia nueva:74.091s,2672 tokens entrada/100 salida; SEMANTIC_PLAN_READY elige repo.read gestia-core/jarvis/jarvis.local.policy.js, preserva4 objetivos y missionComplete=false. No ejecuta herramientas ni certifica web. CI completa pendiente. CI completa local EXIT0 en164.63s;89 dirigidas y12 manifiesto PASS. Pendientes CI GitHub, preview exacta y retest web.
+**Resumen:** 2026-10-25: SHA3adcc9ec Bridge/preview sincronizados y CI40242290348 Windows/Ubuntu SUCCESS; live d2f7a799 sin promocion. Mision autentica MISSION-ada3cfd4-16de-4a1c-b700-6914264102bc cancelada mediante UI tras rechazo del propietario a31min sin resultado; ~37min totales,1957920ms internos. PARTIAL/PLANNER_UNAVAILABLE con timeout causado por cancelacion autorizada. GitHistory/status/read y Repomix fisicos, ambas fuentes del contexto leidas, sin COMPLETED. Causas: evaluacion completa repetida antes de cada lectura (566883ms y490154ms); recuperacion perdia obligationId semantic:repo.context y retenia bloqueo ya recuperado. Reparacion local preserva ID exacto entre backend/frontend y ambos handoffs; seleccion acotada de lectura faltante antes de auditoria completa sin certificar objetivos.28 regresiones dirigidas PASS. Replay REAL primer paso32.194s,649 tokens entrada/56 salida, una inferencia Qwen local, plan repo.read autorizado sin ejecutar herramienta ni certificar web. Segundo replay REAL22.984s,687 tokens entrada/57 salida, una inferencia selecciona la fuente restante; antes490154ms. Ambos replays suman55.178s frente1057037ms de los dos ciclos web originales; no equivale a mision E2E. CI local completa EXIT0 en165.85s;28 dirigidas y12 manifiesto PASS. CI GitHub/retest pendientes. RAM libre minima muestreada343244KiB en112 muestras; antes8208536KiB, tras cancelacion y descarga automatica8389368KiB; no se termino llama-server. Qwen8192/45s/prewarmfalse/max150000ms, sin proveedor externo.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -27,7 +27,7 @@
 
 **Limite:** Los commits no son despliegues; mantienen controles de produccion, dinero, secretos y acceso.
 
-**Infraestructura actual al corte:** Bridge/preview cd35faad; live d2f7a799. Qwen8192/45s/prewarmfalse/max150000ms verificados;0 externos.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
+**Infraestructura actual al corte:** Bridge/preview3adcc9ec; live d2f7a799. Configuracion efectiva8192/45s/prewarmfalse/150000ms. Reparacion local aun no publicada.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
 
 **Control de ventanas:** Chrome extension conectado; Terminal autentica controlada y mision real enviada, sin nuevos bloqueos de permisos de navegador observados.
 
@@ -78,7 +78,7 @@
 
 ### Ruta de recuperacion para el siguiente chat
 
-1. Verificar replay del paquete cd35 con schema correlacionado; ejecutar CI local/Windows/Ubuntu y publicar preview exacta antes de una sola nueva mision autentica. No declarar COMPLETED por pruebas unitarias.
+1. Medir segunda seleccion Qwen real; ejecutar CI local y Windows/Ubuntu. Preview exacta solo tras gates. Validar cierre completo y latencia mediante UNA mision autentica; no repetir ciegamente ni certificar por unitarias.
 1. Resolver la promocion autorizada de Hosting desde una rama/revision permitida con CI y permiso workflow adecuados, sin saltarse protecciones ni desplegar otros sitios/Functions/reglas.
 1. Verificar despues de publicacion SHA servido == SHA Bridge, relay /workstation/health autenticado sin 401, y que archivos privados devuelven 404.
 1. Ejecutar mision real en Terminal Firebase con recibo verificable y luego las 12 NS1 seguidas; clasificar SUCCEEDED, PARTIAL, FAILED con evidencia y artefactos.
@@ -138,6 +138,12 @@
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/replay-cd35-correlated-verdict.json`
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/replay-cd35-continuation.json`
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/correlated-verdict-ci-final.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/web-acceptance-3adcc9ec-20261025.jsonl`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/web-acceptance-3adcc9ec-telemetry.jsonl`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/cancelled-mission-3adcc9ec.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/source-acquisition-directed.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/probe-source-acquisition.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/probe-source-acquisition-second.json`
 
 ### Reporte diario automatico
 
