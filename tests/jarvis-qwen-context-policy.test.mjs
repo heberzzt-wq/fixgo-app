@@ -279,7 +279,7 @@ test('six immutable repository goals and recovered context fit the 8192-token au
  fetchImpl:async(_url,request)=>{
   calls++;const packet=JSON.parse(request.body);
   assert.equal(packet.options.num_ctx,8192);assert.equal(packet.truncate,false);assert.equal(packet.shift,false);
-  if(packet.format.properties.proven){
+  if(packet.format.properties?.proven){
    assert.equal(calls,8,'positive source claim still independently reviewed');
    const cited=JSON.parse(packet.messages.at(-1).content).evidence;
    assert.equal(cited[0].observation.verifiedRead.file,fixture.missionState.completedTasks[2].observation.verifiedRead.file);

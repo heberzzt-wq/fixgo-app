@@ -13,7 +13,7 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** 2026-10-25: e08333c0 publicado en preview y Bridge; CI40236030480 Windows/Ubuntu SUCCESS. Mision web autentica MISSION-98c17374-35f5-4bbd-9875-3b6c0aadef64: seis objetivos conservados entre pasos, gitHistory/gitStatus/repo.read fisicos. repo.context fallo por85KB y Qwen recupero automaticamente con2 fuentes permitidas en62.674s, Repomix READY. Auditoria final rechazo paquete por LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION; PARTIAL/PLANNER_UNAVAILABLE, no COMPLETED. Duracion interna513847ms excluye plan inicial. RAM minima muestreada838608KiB, tras descarga automatica8653500KiB;0 modelos/0 inferencias. Regresion de6 objetivos reproduce rechazo antes del modelo; reparacion de empaquetado en investigacion. Reparacion local: auditoria por objetivo para repo readonly con8192/4096, conserva indices/identidades/errores y verificacion independiente; declara evidencia Git y ofrece rutas observadas de contexto para repo.read.148 regresiones afectadas PASS. Replay Qwen real del paquete fallido con adapter:7 llamadas completas en298.23s, cada una39.85-44.93s, todos los objetivos pendientes; no ejecuto herramientas ni certifica mision web. Dos intentos globales compactados agotaron150s y no se publicaron. Pendiente CI completa y preview/retest. CI completa local EXIT0 (159.22s); cambios certificados en local, pendiente CI GitHub y preview/retest.
+**Resumen:** 2026-10-25: cd35faad sincronizado Bridge/preview, CI40238778762 Windows/Ubuntu SUCCESS; live permanece d2f7a799. Mision web MISSION-95689e15-c257-49ee-abf5-65e587d13fd5 termino PARTIAL/PLANNER_UNAVAILABLE por SEMANTIC_COMPLETION_EVIDENCE_INVALID, duracion interna629029ms, sin timeout ni overflow. GitHistory/status/read fisicos; repo.context SOURCE_TOO_LARGE recuperado con2 fuentes autorizadas, REPO_CONTEXT_READY. Las2 fuentes aun no se leyeron con repo.read. Captura Qwen exacta: s=true,r=[0,1,3,4],l no vacio; schema plano permitia contradiccion rechazada correctamente por validador. Reparacion local correlaciona s/r/l en schema nativo anyOf sin relajar validacion ni verificacion independiente. Regresion RED->GREEN y20 dirigidas PASS; replay real en progreso, CI/retest pendientes. RAM libre antes7890756KiB, minima470044KiB, tras descarga8348096KiB (0 runner); no se mato llama-server. Replay fisico con schema correlacionado:6 respuestas locales en424.47s, veredictos validos y verificacion independiente positiva de Git; fallo posterior de recuperacion por contexto. Reparacion adicional compacta solo metadatos de seleccion sin alterar recibos y expone sourceFallback requerido en JSON nativo (antes solo solicitado en prosa pero ausente de nativeToolChat).89 dirigidas PASS. Replay de continuacion reutiliza6 respuestas reales anteriores y ejecuta UNA inferencia nueva:74.091s,2672 tokens entrada/100 salida; SEMANTIC_PLAN_READY elige repo.read gestia-core/jarvis/jarvis.local.policy.js, preserva4 objetivos y missionComplete=false. No ejecuta herramientas ni certifica web. CI completa pendiente. CI completa local EXIT0 en164.63s;89 dirigidas y12 manifiesto PASS. Pendientes CI GitHub, preview exacta y retest web.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -27,7 +27,7 @@
 
 **Limite:** Los commits no son despliegues; mantienen controles de produccion, dinero, secretos y acceso.
 
-**Infraestructura actual al corte:** Bridge/preview e08333c0; live d2f7a799. Qwen8192/45s/prewarmfalse/max150000ms verificados;0 externos.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
+**Infraestructura actual al corte:** Bridge/preview cd35faad; live d2f7a799. Qwen8192/45s/prewarmfalse/max150000ms verificados;0 externos.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
 
 **Control de ventanas:** Chrome extension conectado; Terminal autentica controlada y mision real enviada, sin nuevos bloqueos de permisos de navegador observados.
 
@@ -62,6 +62,7 @@
 - 2026-10-25: investigadas fuentes oficiales Qwen/Ollama/Repomix y paper de interfaces; doc docs/v142-local-agent-reconfiguration-20261025.md registra configuracion, evidencia y limites.24 regresiones PASS; replay real de contrato92.351s/4 llamadas; selector de argumentos98.089s dentro de alcance. Son replays locales, no mision completa.
 - 2026-10-25: mision web e08333c0 verifica handoff6 objetivos y recuperacion Repomix real. PARTIAL por paquete global excesivo; no certificacion.
 - 2026-10-25: RED6 objetivos por preflight y RED rutas de contexto ausentes -> GREEN;148 afectadas PASS. Replay atomico7 llamadas reales termina sin truncacion ni timeout, sin declarar COMPLETED.
+- 2026-10-25: cd35faad web PARTIAL; captura exacta identifica contradiccion s=true/l no vacio. Nuevo schema correlacionado probado RED->GREEN, sin fabricar exito.
 
 ### Evidencia tecnica certificada (sin elevarla a produccion)
 
@@ -77,7 +78,7 @@
 
 ### Ruta de recuperacion para el siguiente chat
 
-1. Certificar schema de contexto y reutilizacion de IDs model-selected con CI exacta. Implementar auditoria atomica por objetivo, verificar trazas y luego una sola mision autenticada; no repetir paquetes que ya agotaron150s ni declarar COMPLETED por herramientas ONLINE.
+1. Verificar replay del paquete cd35 con schema correlacionado; ejecutar CI local/Windows/Ubuntu y publicar preview exacta antes de una sola nueva mision autentica. No declarar COMPLETED por pruebas unitarias.
 1. Resolver la promocion autorizada de Hosting desde una rama/revision permitida con CI y permiso workflow adecuados, sin saltarse protecciones ni desplegar otros sitios/Functions/reglas.
 1. Verificar despues de publicacion SHA servido == SHA Bridge, relay /workstation/health autenticado sin 401, y que archivos privados devuelven 404.
 1. Ejecutar mision real en Terminal Firebase con recibo verificable y luego las 12 NS1 seguidas; clasificar SUCCEEDED, PARTIAL, FAILED con evidencia y artefactos.
@@ -129,6 +130,14 @@
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/compact-indexed-audit-result.json`
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/compact-verdict-audit-result.json`
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/atomic-audit-ci-final.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/web-acceptance-cd35faad-20261025.jsonl`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/web-acceptance-cd35faad-telemetry.jsonl`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/cd35-first-verdict-capture.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/publish-cd35faad-20261025.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/correlated-verdict-directed.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/replay-cd35-correlated-verdict.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/replay-cd35-continuation.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/correlated-verdict-ci-final.txt`
 
 ### Reporte diario automatico
 

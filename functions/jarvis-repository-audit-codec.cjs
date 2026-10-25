@@ -43,11 +43,15 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
     {role:'system',content:'OBJETIVO_INMUTABLE='+JSON.stringify({objective:template.objective.enum[0],requiredEvidenceKind:template.requiredEvidenceKind.enum[0]})},
     ...tasks.map(task=>({role:'system',content:observationPrefix+JSON.stringify(allowed.includes(task.index)?task:metadata(task))})),
     ...failures,user
-   ],responseJsonSchema:{type:'object',properties:{
-    s:entry.anyOf.some(b=>b.properties.satisfied.enum.includes(true))?{type:'boolean'}:{type:'boolean',enum:[false]},
-    r:{type:'array',maxItems:allowed.length,items:allowed.length?{type:'integer',enum:allowed}:{type:'integer'}},
-    l:{type:'string',maxLength:100}
-   },required:['s','r','l'],additionalProperties:false}
+   ],responseJsonSchema:{anyOf:entry.anyOf.map(branch=>{
+    const satisfied=branch.properties.satisfied.enum[0];
+    return {type:'object',properties:{
+     s:{type:'boolean',enum:[satisfied]},
+     r:{type:'array',minItems:satisfied?1:0,maxItems:allowed.length,
+      items:allowed.length?{type:'integer',enum:allowed}:{type:'integer'}},
+     l:satisfied?{type:'string',enum:['']}:{type:'string',minLength:1,maxLength:100}
+    },required:['s','r','l'],additionalProperties:false};
+   })}
   }});
   const v=parse(response),branch=entry.anyOf.find(b=>b.properties.satisfied.enum.includes(v.s));
   if(!branch || Object.keys(v).some(k=>!['s','r','l'].includes(k)) || !Array.isArray(v.r) || typeof v.l!=='string' ||
@@ -72,4 +76,14 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
  const value=parse(next);
  return {...next,text:JSON.stringify({completionAssessment:{objectives},toolCalls:value.toolCalls,explanation:value.explanation})};
 }
-module.exports={generateRepositoryAudit};
+// Continuation chooses an action; it cannot certify objectives. Full receipts
+// already fed the objective auditors and remain unchanged in missionState.
+function compactRepositoryContinuation(request) {
+ const prefix='EVIDENCIA_OBTENIDA=';
+ return {...request,config:{...request.config,chatMessages:request.config.chatMessages.map(message=>{
+  if(!message.content.startsWith(prefix))return message;
+  const task=JSON.parse(message.content.slice(prefix.length));
+  return {...message,content:prefix+JSON.stringify(metadata(task))};
+ })}};
+}
+module.exports={generateRepositoryAudit,compactRepositoryContinuation};

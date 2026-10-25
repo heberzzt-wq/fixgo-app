@@ -4619,7 +4619,8 @@ async function runModelSemanticPlanner({
 
                 const recoveryCatalog=[...new Map([...nextReaders,...sourceFallbackReaders].map(tool=>[tool.name,tool])).values()];
 
-                    const compactContinuation=JSON.stringify(auditTasks).length>16000;
+                    const compactContinuation=JSON.stringify(auditTasks).length>16000 ||
+                        (repositoryReadOnlyAudit && [4096,8192].includes(Number(missionState.modelContextTokens)));
                     const continuationRequest = {model,contents:instruction,config:{
                         semanticStage:initialDecision?"EVIDENCE_NEXT_ACTION":"READ_ONLY_EVIDENCE_CONTINUATION",maxOutputTokens:768,temperature:0,
                         ...(initialDecision || compactContinuation || error ? {responseMimeType:"application/json",responseJsonSchema:{type:"object",properties:{
@@ -4711,7 +4712,10 @@ async function runModelSemanticPlanner({
                         let taskIndex=0;
                         for(const message of continuationMessages)if(message.content.startsWith(evidencePrefix))message.content=evidencePrefix+JSON.stringify(decisionTasks[taskIndex++]);
                     }
-                    const continuation = await ai.models.generateContent(continuationRequest);
+                    const boundedContinuation = repositoryReadOnlyAudit && [4096,8192].includes(Number(missionState.modelContextTokens))
+                        ? require('./jarvis-repository-audit-codec.cjs').compactRepositoryContinuation(continuationRequest)
+                        : continuationRequest;
+                    const continuation = await ai.models.generateContent(boundedContinuation);
                     let selectionCatalog=nextReaders;
                     let next = extractGeminiToolCallPlan(continuation,nextReaders);
                     let continuationPayload=null;
