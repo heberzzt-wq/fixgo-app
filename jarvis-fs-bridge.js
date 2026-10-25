@@ -1820,7 +1820,7 @@ export function createSelfHostedSemanticEngine({
             if (recordFlow || initialRecordSource) catalog=bindConfiguredSourceArguments(catalog,getConfiguredSources(),{
                 recordFlow:true,...(initialSearch ? {locatedFilesOnly:true,discoveredFiles:[...discoveredFiles,...namedFiles]} : recordFlow ? {discoveredFiles} : {})});
             const sourceDirectory = recordFlow ? getConfiguredSources() : null;
-            const planningState = missionState ? {...missionState,configuredSourceDiscovery:sourceDirectory ? {
+            const planningState = missionState ? {...missionState,modelContextTokens:contextTokens,configuredSourceDiscovery:sourceDirectory ? {
                 source:sourceDirectory.source,revision:sourceDirectory.revision,digest:sourceDirectory.digest,
                 files:sourceDirectory.files,collections:sourceDirectory.collections,
                 references:sourceDirectory.references.map(([file,collection])=>[file,collection]),operationalEvidence:false

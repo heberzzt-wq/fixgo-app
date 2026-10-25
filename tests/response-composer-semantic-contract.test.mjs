@@ -599,3 +599,23 @@ test("tool bridge preserves the runtime error code and actionable details", asyn
         globalThis.window.JarvisToolRuntime = previousRuntime;
     }
 });
+
+
+test('flat Repomix error details reach recovery through the real tool composition boundary',async()=>{
+ const previousRuntime=globalThis.window.JarvisToolRuntime;
+ const details={file:'gestia-core/jarvis/jarvis.multifunction.planner.js',sourceBytes:102569,sourceLimitBytes:85000,
+  totalBytes:102569,totalLimitBytes:240000,requiresDifferentSources:true};
+ globalThis.window.JarvisToolRuntime={execute:async()=>({ok:false,status:'REPO_CONTEXT_SOURCE_TOO_LARGE',
+  error:'REPO_CONTEXT_SOURCE_TOO_LARGE',errorDetails:details,retryable:false})};
+ try{
+  const result=await ToolsBridge.executeAndCompose('repo.context',{files:[details.file]},{});
+  const {safeObservation}=await import('../gestia-core/jarvis/jarvis.mission.orchestrator.js');
+  const {compactMissionPlannerObservation}=await import('../gestia-core/jarvis/jarvis.mission.planner-state.js');
+  const observation=compactMissionPlannerObservation(safeObservation(result));
+  assert.equal(observation.ok,false);
+  assert.equal(observation.errorCode,'REPO_CONTEXT_SOURCE_TOO_LARGE');
+  assert.equal(observation.errorDetails?.file,details.file);
+  assert.equal(observation.errorDetails?.sourceBytes,102569);
+  assert.equal(observation.errorDetails?.requiresDifferentSources,true);
+ }finally{globalThis.window.JarvisToolRuntime=previousRuntime;}
+});

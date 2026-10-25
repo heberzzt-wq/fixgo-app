@@ -2,7 +2,7 @@ import { semanticPlanBudgetMs } from "./jarvis.semantic.transport.js";
 import { traceJarvisMission } from "./jarvis.mission.trace.js";
 import { advertisingContacts, validateAdvertisingDirection } from "./jarvis.advertising.benchmark.js";
 import { documentEvidenceEnvelope, documentExcerpt } from "./jarvis.document.context.js";
-import { materialReferencesForPlanning } from "./jarvis.mission.planner-state.js?v=v142-material-handoff-20261002";
+import { materialReferencesForPlanning, compactMissionPlannerObservation } from "./jarvis.mission.planner-state.js?v=v142-material-handoff-20261002";
 import {
     rejectCorruptedIdentityArgs
 } from "./jarvis.identity.integrity.js?v=v142-adjunto-flow-alignment-20261001";
@@ -2475,8 +2475,18 @@ export async function completeJarvisPlanningArguments({
     };
     for (const read of [...repositoryReads].reverse().sort((a,b) =>
         Number(b.file === currentArgs.sourceFile) - Number(a.file === currentArgs.sourceFile))) {
-        const source = {file:read.file,dataBindings:read.sourceStructure.dataBindings,
-            ...(read.sourceStructure.dataBindings.references?.length ? {} : {content:read.content,partial:read.partial})};
+        const sharedSourceTaskIndex=completedTasks.findIndex(task=>{
+            const candidate=task.observation?.verifiedRead;
+            return task.observation?.ok===true && task.observation.executionOk!==false &&
+                task.observation.blocked!==true && candidate?.file===read.file &&
+                candidate.startLine===read.startLine && typeof candidate.content==='string' &&
+                typeof read.content==='string' && candidate.content.startsWith(read.content) &&
+                JSON.stringify(candidate.sourceStructure?.dataBindings)===JSON.stringify(read.sourceStructure.dataBindings);
+        });
+        const source = sharedSourceTaskIndex>=0 ? {file:read.file,sharedSourceTaskIndex,
+            sharedSourceEncoding:'The same source and bindings are in TAREAS_YA_OBSERVADAS at this original task index. Its model view may be partial; retained receipts are unchanged. Read another grounded range when needed.'}
+            : {file:read.file,dataBindings:read.sourceStructure.dataBindings,
+                ...(read.sourceStructure.dataBindings.references?.length ? {} : {content:read.content,partial:read.partial})};
         if (JSON.stringify({...repositoryPacket,sources:[...repositoryPacket.sources,source]}).length <= 20000) repositoryPacket.sources.push(source);
         else repositoryPacket.omittedSources.push(read.file);
     }
@@ -2523,10 +2533,15 @@ export async function completeJarvisPlanningArguments({
         ].join("\n") : briefingInstruction;
         plan=await resolveSemanticPlan(activeInstruction+repairFeedback,activeCatalog,semanticPlanner,{
             phase:"GROUNDED_ARGUMENT_COMPLETION",toolName:name,
-            // The server bounds model context after computing eligibility.
-            // Clipping bodies here would turn a complete read into a partial
-            // read and incorrectly authorize the same full-file request.
-            completedTasks,
+            // Use the same explicitly partial planner view as the audit path.
+            // Full receipts stay in completedTasks; raw runtime envelopes must
+            // not duplicate source bodies and Git evidence in the model window.
+            completedTasks:completedTasks.map(task=>{
+                if(!['repo.read','repo.gitHistory','repo.gitStatus','repo.gitDiff','repo.grep','repo.search','repo.context'].includes(task.name))return task;
+                const observation=compactMissionPlannerObservation(task.observation);
+                if(task.observation?.verifiedRead && !observation.verifiedRead)return task;
+                return {...task,observation};
+            }),
             blockedTasks,
             evidenceObjectives,
             creativeCopyRepair: messageRepair,

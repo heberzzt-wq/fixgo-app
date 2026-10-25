@@ -726,6 +726,8 @@ export function normalizeToolRuntimeFailure(result = {}) {
     const details =
         nestedRuntimeError?.details ||
         runtimeError?.details ||
+        runtimeError?.context?.runtimeResult?.errorDetails ||
+        result?.errorDetails ||
         result?.details ||
         null;
     return {

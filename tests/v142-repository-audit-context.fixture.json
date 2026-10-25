@@ -1,0 +1,735 @@
+{
+  "input": "Revisa los últimos commits reales de Git mediante repo.gitHistory y repo.gitStatus. Usa repo.context para preparar contexto de dos archivos de código existentes y autorizados, y repo.read para verificar su contenido. Explica los cambios, las pruebas aprobadas y lo pendiente. No modifiques archivos ni inventes evidencias.",
+  "catalog": [
+    {
+      "name": "repo.read",
+      "description": "Devuelve el CONTENIDO y LÍNEAS de UN ARCHIVO de código fuente del repositorio por su ruta real ya localizada. También lee configuración, HTML y package.json. Requiere file exacto. No inventaría el proyecto, no lista rutas, no ejecuta pruebas ni modifica código.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "repository_source"
+      ],
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "Ruta real verificada del archivo que se debe leer."
+          },
+          "startLine": {
+            "type": "integer",
+            "description": "Primera línea de un rango solicitado o necesario para investigar una coincidencia/referencia observada o ampliar una lectura truncada. Omitir para leer desde el inicio. La longitud pedida para la respuesta no determina este rango."
+          },
+          "endLine": {
+            "type": "integer",
+            "description": "Última línea del rango de fuente solicitado o necesario para investigar. Un resumen o respuesta de N líneas NO limita la lectura: no derives endLine de la extensión de la respuesta."
+          },
+          "maxBytes": {
+            "type": "integer",
+            "description": "Limite opcional de bytes."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.context",
+      "description": "Comprime hasta seis archivos reales de codigo mediante Repomix local. RUTAS PERMITIDAS: gestia-core/jarvis/*.js, gestia-core/repo/*.js, modules/terminal/*.js y jarvis-*.js en raiz; no admite gestia-core/gestia-core.js, gestia-core/tools.runtime.js, tests, .env ni archivos inexistentes. Maximo 85KB por archivo y 240KB total, presupuesto 256-2200 tokens. Elige fuentes existentes ya identificadas por repo.read/grep/historial, no adivines. Solo adelanto incompleto: no acredita contenido entero, comm",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "repository_search"
+      ],
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "properties": {
+          "files": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 6,
+            "items": {
+              "type": "string"
+            }
+          },
+          "tokenBudget": {
+            "type": "integer",
+            "minimum": 256,
+            "maximum": 2200
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.gitStatus",
+      "description": "Ejecuta git status --short --branch mediante Local FS Bridge.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "cwd": {
+            "type": "string"
+          },
+          "timeoutMs": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.gitHistory",
+      "description": "Lee hasta ocho commits locales recientes de Git con SHA, fecha, asunto y nombres de archivos cambiados. No modifica archivos.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.gitDiff",
+      "description": "Ejecuta git diff mediante Local FS Bridge.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": null,
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "cwd": {
+            "type": "string"
+          },
+          "timeoutMs": {
+            "type": "number"
+          },
+          "cached": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.search",
+      "description": "LOCALIZA rutas existentes y fragmentos de código por símbolo, texto o descripción. Úsala cuando todavía no conoces la fuente. Conserva el vocabulario del pedido original. Si ya devolvió candidatos para el mismo objetivo, no encadenes otra búsqueda semántica antes de inspeccionar una fuente: usa repo.read sobre un candidato o repo.grep para localizar un término literal. Sólo vuelve a buscar después de comprobar una fuente y necesitar evidencia distinta. No adivines rutas.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "repository_search"
+      ],
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Consulta de búsqueda de código que conserva el vocabulario y los identificadores del pedido original. No traduzcas los términos de negocio a un idioma distinto ni uses la descripción genérica de una acción. Si aún no conoces nombres de campos, busca palabras del usuario, sin inventar un campo."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "repo.grep",
+      "description": "Busca un término literal o símbolo en los archivos reales del checkout y devuelve rutas y líneas coincidentes. Sirve para localizar una definición antes de leer su archivo. No es una búsqueda de negocios en internet.",
+      "contractStages": null,
+      "contractKinds": null,
+      "evidenceKinds": [
+        "repository_search"
+      ],
+      "investigationReadOnly": true,
+      "requiresEvidence": null,
+      "mutates": false,
+      "requiresApproval": false,
+      "userArtifact": false,
+      "semanticArgumentCompletion": false,
+      "missionIsolation": null,
+      "missionDedupeBy": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "term": {
+            "type": "string",
+            "description": "Término literal o identificador a localizar."
+          }
+        },
+        "required": [
+          "term"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "missionState": {
+    "phase": "COMPLETION_AUDIT",
+    "currentPage": {
+      "url": "https://fixgo-44e4d.web.app/gestia-terminal.html?jarvisTrace=1",
+      "origin": "https://fixgo-44e4d.web.app"
+    },
+    "missionId": "MISSION-f170ad70-86b9-4f82-a295-b86999da71f6",
+    "caseId": "CASE-f67a41b2-55d7-4a04-8172-e150e60b4a0d",
+    "objectiveId": "OBJ-902a5967-7cca-48d8-b44f-8b6ac9c310d6",
+    "instructionHash": "68f7b258035624bea530c1bb22321e86dacd5174daa90b6f5ed24b2a4e56c1a8",
+    "rawInstructionLength": 322,
+    "routingInstructionLength": 322,
+    "requiredToolNames": [
+      "repo.gitHistory",
+      "repo.gitStatus",
+      "repo.context",
+      "repo.read"
+    ],
+    "evidenceObjectives": [],
+    "completionAssessment": null,
+    "completedTasks": [
+      {
+        "completedAt": "2026-10-25T01:08:05.057Z",
+        "name": "repo.gitHistory",
+        "args": {
+          "limit": 8
+        },
+        "observation": {
+          "status": "GIT_HISTORY_OK",
+          "ok": true,
+          "executionOk": true,
+          "objectiveSatisfied": true,
+          "blocked": false,
+          "requiresInput": false,
+          "retryable": false,
+          "sourceCount": 0,
+          "gitEvidence": {
+            "kind": "git_committed_history",
+            "source": "LOCAL_GIT_LOG",
+            "commits": [
+              {
+                "sha": "ba91eb64603229d082ef4b4adb7b9fa85349ab6e",
+                "date": "2026-10-24T19:58:15-05:00",
+                "subject": "fix(v142): propagate mission cancellation and expose effective inference policy",
+                "files": [
+                  "M\tdocs/platform-master-manifest-v142.json",
+                  "M\tdocs/platform-master-manifest-v142.md",
+                  "M\tgestia-core/gestia-core.js",
+                  "M\tgestia-core/jarvis/jarvis.multifunction.planner.js",
+                  "M\tjarvis-fs-bridge.js",
+                  "M\tjarvis-repomix-context.js",
+                  "M\tpackage.json",
+                  "M\ttests/jarvis-current-turn-scope-regression.test.mjs",
+                  "M\ttests/jarvis-qwen-context-policy.test.mjs",
+                  "M\ttests/jarvis-repomix-context.test.mjs"
+                ],
+                "fileCount": 10,
+                "filesOmitted": 0
+              },
+              {
+                "sha": "2f15e0c53a0077029afbe9b3273b3304d9988f81",
+                "date": "2026-10-24T19:28:03-05:00",
+                "subject": "fix(v142): load Qwen on demand with bounded CPU memory profile",
+                "files": [
+                  "M\tjarvis-fs-bridge.js",
+                  "M\tscripts/jarvis-workstation-start.cjs",
+                  "M\ttests/jarvis-qwen-context-policy.test.mjs"
+                ],
+                "fileCount": 3,
+                "filesOmitted": 0
+              },
+              {
+                "sha": "1ef3342e535c6e86fa6ab0c844a0b4d4b449833d",
+                "date": "2026-10-24T18:39:58-05:00",
+                "subject": "fix(v142): retain Git and Repomix evidence and classify context recovery",
+                "files": [
+                  "M\tgestia-core/jarvis/jarvis.mission.orchestrator.js",
+                  "M\tgestia-core/jarvis/jarvis.mission.planner-state.js",
+                  "M\tgestia-core/tools.runtime.js",
+                  "M\tjarvis-platform-self-healing.js",
+                  "M\tjarvis-repomix-context.js",
+                  "M\ttests/jarvis-fs-bridge-v2.test.mjs",
+                  "M\ttests/jarvis-platform-self-healing.test.mjs",
+                  "M\ttests/jarvis-repomix-context.test.mjs"
+                ],
+                "fileCount": 8,
+                "filesOmitted": 0
+              },
+              {
+                "sha": "c0ca302b3f228a586e3aec86b137d40d84fee9cf",
+                "date": "2026-10-24T17:53:58-05:00",
+                "subject": "feat(v142): integrate bounded local Repomix context and grounded Git history",
+                "files": [
+                  "M\tfirebase.json",
+                  "M\tfunctions/jarvis-semantic-planner.js",
+                  "M\tgestia-core/jarvis/jarvis.current-turn-scope.js",
+                  "M\tgestia-core/jarvis/jarvis.mission.planner-state.js",
+                  "M\tgestia-core/tools.runtime.js",
+                  "M\tjarvis-fs-bridge.js",
+                  "A\tjarvis-repomix-context.js",
+                  "M\ttests/jarvis-current-turn-production-regressions.test.mjs",
+                  "M\ttests/jarvis-current-turn-scope-regression.test.mjs",
+                  "M\ttests/jarvis-fs-bridge-v2.test.mjs",
+                  "M\ttests/jarvis-hosting-web-surface-security.test.mjs",
+                  "A\ttests/jarvis-repomix-context.test.mjs"
+                ],
+                "fileCount": 12,
+                "filesOmitted": 0
+              },
+              {
+                "sha": "d3dd808e53cf700942c345819effb10245e30afa",
+                "date": "2026-10-24T17:02:02-05:00",
+                "subject": "fix(v142): bound Qwen completion audit context without losing receipts",
+                "files": [
+                  "M\tfunctions/jarvis-semantic-planner.js",
+                  "M\tgestia-core/gestia-core.js",
+                  "M\ttests/jarvis-semantic-planner.test.cjs",
+                  "M\ttests/jarvis-semantic-transport.test.mjs"
+                ],
+                "fileCount": 4,
+                "filesOmitted": 0
+              },
+              {
+                "sha": "76bf8333ddeac6a799c1a3273a46550f212bdf43",
+                "date": "2026-10-24T16:38:03-05:00",
+                "subject": "fix(v142): exclude private Qwen modules from Firebase Hosting",
+                "files": [
+                  "M\tfirebase.json",
+                  "M\ttests/jarvis-hosting-web-surface-security.test.mjs"
+                ],
+                "fileCount": 2,
+                "filesOmitted": 0
+              },
+              {
+                "sha": "f21eb1ce5e6fa7e4d782e99f8d4babcfa7d88e92",
+                "date": "2026-10-24T16:32:22-05:00",
+                "subject": "fix(v142): require grounded Git reads and checkpoint Qwen recovery",
+                "files": [
+                  "M\tgestia-core/gestia-core.js",
+                  "M\tgestia-core/jarvis/jarvis.current-turn-scope.js",
+                  "M\tgestia-core/tools.runtime.js",
+                  "M\tjarvis-fs-bridge.js",
+                  "M\tjarvis-platform-self-healing.js",
+                  "A\tjarvis-qwen-context-policy.js",
+                  "M\tjarvis-qwen-direct-cycle.js",
+                  "A\tjarvis-qwen-evidence-checkpoint.js",
+                  "A\tjarvis-qwen-evidence-pages.js",
+                  "M\tjarvis-qwen-local-action.js",
+                  "M\tjarvis-upload-bridge.js",
+                  "M\tmodules/terminal/nexo-bootstrap.js",
+                  "M\ttests/jarvis-current-turn-production-regressions.test.mjs",
+                  "M\ttests/jarvis-current-turn-scope-regression.test.mjs"
+                ],
+                "fileCount": 21,
+                "filesOmitted": 7
+              },
+              {
+                "sha": "b4790628c12d2a373193bbe76bac7ec917ac7535",
+                "date": "2026-10-23T22:13:23-05:00",
+                "subject": "test(v142): certify twenty read-only mission engine scenarios",
+                "files": [
+                  "M\tdocs/platform-master-manifest-v142.json",
+                  "M\tdocs/platform-master-manifest-v142.md",
+                  "M\tpackage.json",
+                  "A\ttests/jarvis-v142-20-readonly-missions.test.mjs"
+                ],
+                "fileCount": 4,
+                "filesOmitted": 0
+              }
+            ],
+            "reportedCommits": 8,
+            "limit": 8,
+            "detailsBounded": true,
+            "originalReceiptRetained": true
+          },
+          "repoCandidates": []
+        }
+      },
+      {
+        "completedAt": "2026-10-25T01:09:25.266Z",
+        "name": "repo.gitStatus",
+        "args": {
+          "cwd": ".",
+          "timeoutMs": 5000
+        },
+        "observation": {
+          "status": "GIT_STATUS_OK",
+          "ok": true,
+          "executionOk": true,
+          "objectiveSatisfied": true,
+          "blocked": false,
+          "requiresInput": false,
+          "retryable": false,
+          "sourceCount": 0,
+          "gitEvidence": {
+            "kind": "git_worktree",
+            "branchLine": "## v142-official",
+            "files": [],
+            "totalFiles": 0,
+            "filesOmitted": 0,
+            "committedHistory": false
+          },
+          "repoCandidates": []
+        }
+      },
+      {
+        "completedAt": "2026-10-25T01:13:22.081Z",
+        "name": "repo.read",
+        "args": {
+          "file": "gestia-core/gestia-core.js"
+        },
+        "observation": {
+          "status": "SUCCESS",
+          "ok": true,
+          "executionOk": true,
+          "objectiveSatisfied": true,
+          "blocked": false,
+          "requiresInput": false,
+          "retryable": false,
+          "sourceCount": 0,
+          "verifiedRead": {
+            "tool": "repo.read",
+            "file": "gestia-core/gestia-core.js",
+            "sourceStructure": {
+              "dataBindings": {
+                "source": "ACORN_SOURCE_REFERENCES",
+                "collections": [],
+                "fieldPaths": [
+                  "hashCache",
+                  "hashCache.size",
+                  "subtle",
+                  "FIREWALL.RATE_LIMIT",
+                  "FIREWALL.RATE_LIMIT.MAX_REQUESTS_PER_MIN",
+                  "FIREWALL.RATE_LIMIT.MAX_REQUESTS_PER_HOUR",
+                  "FIREWALL.COST_CONTROL",
+                  "FIREWALL.COST_CONTROL.MAX_TOKENS_PER_DAY",
+                  "FIREWALL.COST_CONTROL.MAX_TOKENS_PER_OP",
+                  "FIREWALL.COST_CONTROL.MULTIMODAL",
+                  "FIREWALL.COST_CONTROL.MULTIMODAL.IMAGE",
+                  "FIREWALL.COST_CONTROL.MULTIMODAL.FILE",
+                  "FIREWALL.COST_CONTROL.MULTIMODAL.DEFAULT",
+                  "FIREWALL.ABUSE",
+                  "FIREWALL.ABUSE.MAX_ERRORS_WEIGHT",
+                  "FIREWALL.ABUSE.BLOCK_TIME_MS",
+                  "WATCHDOG.MAX_HASHES_PERSISTED",
+                  "WATCHDOG.MAX_ANALYSIS_IDS",
+                  "WATCHDOG.HASH_EXPIRATION_MS",
+                  "WATCHDOG.LOCK_TIMEOUT_MS",
+                  "RATE_LIMIT.MAX_REQUESTS_PER_MIN",
+                  "RATE_LIMIT.MAX_REQUESTS_PER_HOUR",
+                  "COST_CONTROL.MAX_TOKENS_PER_DAY",
+                  "COST_CONTROL.MAX_TOKENS_PER_OP",
+                  "COST_CONTROL.MULTIMODAL",
+                  "COST_CONTROL.MULTIMODAL.IMAGE",
+                  "COST_CONTROL.MULTIMODAL.FILE",
+                  "COST_CONTROL.MULTIMODAL.DEFAULT",
+                  "ABUSE.MAX_ERRORS_WEIGHT",
+                  "ABUSE.BLOCK_TIME_MS",
+                  "MULTIMODAL.IMAGE",
+                  "MULTIMODAL.FILE",
+                  "MULTIMODAL.DEFAULT",
+                  "context.learningPolicy",
+                  "context.learningPolicy.proposalAutonomy",
+                  "context.learningPolicy.writeAllowed",
+                  "context.learningPolicy.writeAuthorization",
+                  "context.learningPolicy.approvalRequiredForWrite",
+                  "learningPolicy.proposalAutonomy",
+                  "learningPolicy.writeAllowed",
+                  "learningPolicy.writeAuthorization",
+                  "learningPolicy.approvalRequiredForWrite",
+                  "context.source",
+                  "lessons",
+                  "lesson.diagnosis",
+                  "evidence.anchorScore",
+                  "response.data",
+                  "data.response.data",
+                  "data.response",
+                  "data.data",
+                  "meta.tool",
+                  "followUpCall.name",
+                  "evidence.length",
+                  "evidence",
+                  "args.file",
+                  "args.path",
+                  "result.sourceDefinitions",
+                  "data.sourceDefinitions",
+                  "result.definitionFiles",
+                  "data.definitionFiles",
+                  "result.matches",
+                  "data.matches",
+                  "result.results",
+                  "data.results",
+                  "lineRange.startLine",
+                  "args.maxBytes",
+                  "args.mode",
+                  "args.rawInput",
+                  "ToolsBridge.executeAndCompose",
+                  "ToolsBridge",
+                  "followUpCall.args",
+                  "results.length",
+                  "matches.length",
+                  "lineRange.endLine",
+                  "validation.ok",
+                  "validation.issues",
+                  "response.error",
+                  "data.error",
+                  "context.tool",
+                  "context.runtimeResult",
+                  "followUpCall.args.file",
+                  "liveProbe.status",
+                  "liveProbe.score",
+                  "summary.failed",
+                  "liveProbe.summary.failed",
+                  "liveProbe.summary",
+                  "findings.length",
+                  "liveProbe.findings",
+                  "patchPreviewBlocked.file",
+                  "patchPreviewBlocked.issues",
+                  "analysis.file",
+                  "sections",
+                  "signals.length",
+                  "signals",
+                  "analysis.propagatedRisk",
+                  "analysis.risk",
+                  "findings",
+                  "sections.length",
+                  "lesson.avoid",
+                  "verifiedRead.tool",
+                  "execution.status",
+                  "observation.status",
+                  "observation.summary",
+                  "args.researchGoal",
+                  "args.query",
+                  "args.prompt",
+                  "parity.canClaimParity",
+                  "gaps",
+                  "validSources",
+                  "result.files",
+                  "data.files",
+                  "result.modules",
+                  "data.modules",
+                  "diagnosis.resolvedFile",
+                  "diagnosis.file",
+                  "diagnosis.module",
+                  "diagnosis.type",
+                  "finding.severity",
+                  "diagnosis.risk",
+                  "result.totalFiles",
+                  "data.totalFiles",
+                  "result.totalModules",
+                  "data.totalModules",
+                  "evidence.lines",
+                  "args.maxOutputTokens",
+                  "identity.userId",
+                  "identity.workspaceId",
+                  "identity.projectId",
+                  "currentUser.uid",
+                  "JarvisToolRuntime",
+                  "missionState.phase",
+                  "missionState.semanticMemoryAvailable",
+                  "missionState.advisorySemanticContext",
+                  "missionState.conversationalGate",
+                  "missionState.writeAllowed",
+                  "location.href",
+                  "location.origin",
+                  "location.search",
+                  "location.protocol",
+                  "location.hostname",
+                  "location.port",
+                  "missionAbortSignal",
+                  "sessionContext.tenantId",
+                  "sessionContext.analysisId",
+                  "finalResponse.ok",
+                  "finalResponse.title",
+                  "finalResponse.text",
+                  "toolCalls.length",
+                  "data.message",
+                  "response.data.message",
+                  "toolCalls",
+                  "name",
+                  "historyToAdd.id",
+                  "historyToAdd.t",
+                  "cognition.strategicMode",
+                  "cognition.reason",
+                  "cognition.writeAllowed",
+                  "cognition.writeAuthorization",
+                  "cognition.approvalRequiredForWrite",
+                  "reasoning.strategicMode",
+                  "reasoning.reason",
+                  "reasoning.toolCalls",
+                  "reasoning.writeAllowed",
+                  "reasoning.writeAuthorization",
+                  "reasoning.approvalRequiredForWrite",
+                  "finalResponse.source",
+                  "ToolsBridge.executeMany",
+                  "content",
+                  "operationalCalls.length",
+                  "args.followUp",
+                  "missionState.currentPage",
+                  "missionState.userArtifactAllowed",
+                  "missionState.existingInitialTools",
+                  "missionState.existingInitialToolCalls",
+                  "args.productionRequested",
+                  "args.productionArtifacts",
+                  "args.productionArtifacts.length",
+                  "productionArtifacts.length",
+                  "requiresEvidence.length",
+                  "evidenceKinds",
+                  "completionAssessment.objectives",
+                  "completedTasks",
+                  "blockedTasks",
+                  "requiredToolNames",
+                  "completionAssessment.status",
+                  "completionAssessment.completed",
+                  "completionAssessment.blocked",
+                  "completionAssessment.missing",
+                  "missionState.missionId",
+                  "missionState.caseId",
+                  "missionState.objectiveId",
+                  "missionState.instructionHash",
+                  "missionState.rawInstructionLength",
+                  "missionState.routingInstructionLength",
+                  "missionState.requiredToolNames",
+                  "missionState.evidenceObjectives",
+                  "missionState.completionAssessment",
+                  "missionState.completedTasks",
+                  "missionState.pendingTasks",
+                  "missionState.blockedTasks"
+                ],
+                "fieldPathsComplete": false,
+                "writeShapes": [],
+                "queryShapes": [],
+                "references": [],
+                "referencesComplete": true,
+                "collectionAnchors": [],
+                "complete": true,
+                "scope": "Static code references and bounded source excerpts, not a database inventory or query result."
+              }
+            },
+            "path": "gestia-core/gestia-core.js",
+            "startLine": 1,
+            "endLine": 172,
+            "readEndLine": 8037,
+            "totalLines": 8037,
+            "partial": true,
+            "truncated": true,
+            "evidenceTextTruncated": true,
+            "exactContent": true,
+            "rereadRequiredForPatch": false,
+            "content": "xxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxx\r\n\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxx\r\nxxxxxxxxx\r\nxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxx\r\nxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\n\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\n\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\n\r\nxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxx\r\n\r\nxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxx\r\nxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxx\r\nxxxxxx\r\n\r\nxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxx\r\n\r\nxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\n\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxx\r\n\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxx\r\n\r\nxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxx\r\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\r\n",
+            "contentLength": 297889,
+            "contentTruncated": true
+          },
+          "repoCandidates": []
+        }
+      }
+    ],
+    "pendingTasks": [],
+    "blockedTasks": [
+      {
+        "completedAt": "2026-10-25T01:11:20.538Z",
+        "name": "repo.context",
+        "args": {
+          "files": [
+            "gestia-core/jarvis/jarvis.multifunction.planner.js",
+            "jarvis-repomix-context.js"
+          ],
+          "tokenBudget": 256
+        },
+        "reason": "ERROR",
+        "observation": {
+          "status": "ERROR",
+          "ok": false,
+          "executionOk": false,
+          "objectiveSatisfied": false,
+          "blocked": true,
+          "requiresInput": false,
+          "retryable": false,
+          "sourceCount": 0,
+          "error": "REPO_CONTEXT_SOURCE_TOO_LARGE",
+          "errorCode": "REPO_CONTEXT_SOURCE_TOO_LARGE"
+        }
+      },
+      {
+        "completedAt": "2026-10-25T01:13:22.731Z",
+        "name": "repo.gitHistory",
+        "args": {},
+        "reason": "TOOL_FAILED",
+        "observation": {
+          "status": "TOOL_FAILED",
+          "ok": false,
+          "executionOk": false,
+          "objectiveSatisfied": false,
+          "blocked": false,
+          "requiresInput": false,
+          "retryable": true,
+          "sourceCount": 0,
+          "error": "SEMANTIC_AUTHENTICATED_PROVIDER_LOCAL_QWEN_CONTEXT_NEEDS_SEGMENTATION"
+        }
+      }
+    ],
+    "iterations": 7,
+    "writeAllowed": false,
+    "userArtifactAllowed": true,
+    "semanticMemoryAvailable": true
+  }
+}

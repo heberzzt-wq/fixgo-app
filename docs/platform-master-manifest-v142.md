@@ -13,7 +13,7 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** Relevo 2026-10-24: base 2f15e0c verificada en GitHub, Bridge y Firebase live/preview; 17/17 rutas. Mision web autentica iniciada 00:38Z reprodujo REPO_CONTEXT_SOURCE_TOO_LARGE y fallo repo.read; cancelada, NO COMPLETED. Se reprodujo y reparo localmente perdida de AbortSignal en grounded arguments; se anadio politica efectiva/actividad a health y detalles de fuente Repomix. CI y retest de la revision reparada pendientes al registrar este hito; diario externo conserva SHA posterior.
+**Resumen:** Relevo 2026-10-24: ba91eb64 publicado solo Hosting, CI Windows/Ubuntu 40148771598 SUCCESS y Bridge mismo SHA; health efectivo 8192/45s/prewarm false/150000ms. Retest autentico MISSION-f170ad70-86b9-4f82-a295-b86999da71f6 PARTIAL / PLANNER_UNAVAILABLE: archivo Repomix 102569>85000 bytes, presupuesto Qwen 256, detalles perdidos en adaptador y paquete de evidencia incompatible con 8192 tokens. Segunda reparacion local: conservar errorDetails, presupuesto host 1800, evidencias ligadas al contexto efectivo y referencias sin duplicar fuentes. 58 pruebas dirigidas PASS; CI completa local EXIT 0; GitHub y nueva mision web de esta revision pendientes. No certificacion general. Propietario solicita apagar adjunto-jarvis al terminar y dejar vieja encendida.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -52,6 +52,10 @@
 - 2026-10-24 relevo: mision autentica Git/Repomix cancelada tras errores fisicos; Stop no llegaba a grounded argument completion. Regresion fallo con signal=null; correccion local pasa. Retest web pendiente.
 - 2026-10-24 relevo: RAM inicial 6736028 KiB; minimo muestreado 306012 KiB con Qwen; tras cancelacion y descarga automatica 8276160 KiB. No se termino llama-server a la fuerza.
 - 2026-10-24 relevo: encontrado respaldo ivms.sia7.zip con DeviceManagement/Video/EventCenter junio-julio en Migrado laptop vieja; aun no demuestra detector de vehiculos. Sin inspeccion de red.
+- Relevo segundo hito: ba91eb64 GitHub/Bridge/preview/live sincronizados; health efectivo confirmado, CI Windows/Ubuntu SUCCESS, superficie 17/17. Mision autentica 11 minutos aproximadamente termino PARTIAL por contexto; no confundir con duracion interna 338512 ms.
+- Causa raiz reproducida con paquete real sanitizado: 8192 tokens rechazaba audit por contexto; campos de fuente repetidos en briefing y tareas. Ajustes locales con 58 pruebas PASS; sin elevar produccionCertified.
+- Capturas antiguas: Desktop/respaldo usb 4/478 decodificables, muestra 3314 inicia FF. Otras 29 en Pictures/Screenshots son legibles pero no muestran camaras. ivms.sia7.zip sigue sin acreditar deteccion de vehiculos.
+- Segunda reparacion: npm run ci:test final EXIT 0, 58 dirigidas PASS, compatibilidad con recibos genericos preservada; replay del paquete real grounded reducido a 16685 caracteres y audit 8192 llega al modelo. Son regresiones/replay, no mision autentica COMPLETED.
 
 ### Evidencia tecnica certificada (sin elevarla a produccion)
 
@@ -61,8 +65,8 @@
 
 ### BLOQUEO ACTUAL: NO PUBLICADO
 
-- Estado: `BLOCKED_NOT_DEPLOYED`; causa: `El candidato certificado almacenado conserva su recibo historico 3caa2f38. La base oficial actual 2f15e0c si fue publicada/verificada; la nueva reparacion local aun no esta publicada ni certificada por mision web. Ver currentRuntimeBaseline y diario externo.`.
-- SHA web: `2f15e0c53a0077029afbe9b3273b3304d9988f81`; candidato: `3caa2f3899aab488f90edef7535beac55f6ca96e`.
+- Estado: `BLOCKED_NOT_DEPLOYED`; causa: `Base ba91eb64 publicada y verificada, retest web PARTIAL. Segunda reparacion local aun pendiente de CI exacta y retest. El candidato 3caa2f38 conserva solo su evidencia historica.`.
+- SHA web: `ba91eb64603229d082ef4b4adb7b9fa85349ab6e`; candidato: `3caa2f3899aab488f90edef7535beac55f6ca96e`.
 - No alterar gate; no escribir fondos, reglas ni Functions sin autorizacion.
 
 ### Ruta de recuperacion para el siguiente chat
@@ -87,6 +91,9 @@
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/v142-acceptance-telemetry-20261024.jsonl`
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/v142-public-surface-relevo.json`
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/v142-relevo-ci-local-20261024.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/v142-web-acceptance-ba91eb64-trace.jsonl`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/v142-acceptance-ba91eb64-telemetry.jsonl`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/v142-context-root-ci-final.txt`
 
 ### Reporte diario automatico
 

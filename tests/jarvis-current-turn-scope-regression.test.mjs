@@ -170,3 +170,26 @@ test('stopping a mission aborts grounded argument inference before any read exec
  controller.abort(new Error('USER_REQUESTED_STOP'));
  await rejected;
 });
+
+
+test('argument briefing shares an observed source by task index without duplicating its schema',async()=>{
+ const {completeJarvisPlanningArguments}=await import('../gestia-core/jarvis/jarvis.multifunction.planner.js');
+ const read={tool:'repo.read',file:'fixture.js',startLine:1,content:'source line\n'.repeat(800),
+  sourceStructure:{dataBindings:{source:'ACORN_SOURCE_REFERENCES',collections:['users'],references:[]}}};
+ for(const shared of [false,true]){
+  const tasks=shared?[{name:'repo.read',observation:{ok:true,verifiedRead:{...structuredClone(read),content:read.content+'remaining source\n'}}}]:[];
+  const before=JSON.stringify(tasks);
+  await completeJarvisPlanningArguments({toolName:'repo.gitStatus',instruction:'Revisa el estado real sin modificar archivos.',
+   inputSchema:{type:'object',properties:{cwd:{type:'string'}}},missionEvidence:[{tool:'repo.read',verifiedRead:read}],completedTasks:tasks,
+   semanticPlanner:async({input,missionState})=>{
+    const line=input.split('\n').find(line=>line.startsWith('FUENTES_REPOSITORIO_VERIFICADAS='));
+    const packet=JSON.parse(line.slice(line.indexOf('=')+1));
+    if(shared){assert.equal(packet.sources[0].sharedSourceTaskIndex,0);assert.equal(packet.sources[0].dataBindings,undefined);}
+    else assert.equal(packet.sources[0].dataBindings.source,'ACORN_SOURCE_REFERENCES');
+    assert.equal(JSON.stringify(tasks),before,'raw retained receipts must remain unchanged');
+    if(shared){assert.equal(missionState.completedTasks[0].observation.verifiedRead.file,read.file);
+     assert.equal(missionState.completedTasks[0].observation.verifiedRead.contentTruncated,true);}
+    return {ok:true,toolCalls:[{name:'repo.gitStatus',args:{}}],missionComplete:false};
+   }});
+ }
+});

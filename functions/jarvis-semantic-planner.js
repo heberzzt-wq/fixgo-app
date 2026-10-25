@@ -2273,7 +2273,13 @@ function compactActionCatalog(catalog) { return catalog.map(({ name, description
 });
 }
 
-function boundedAuditTasks(tasks, maximumCharacters = 28000) {
+function planningAuditTasks(tasks, missionState) {
+    const tokens=Number(missionState?.modelContextTokens);
+    const lowMemory=[4096,8192].includes(tokens);
+    return boundedAuditTasks(tasks,lowMemory ? Math.floor(tokens*1.5) : 28000,lowMemory ? 1800 : 4000);
+}
+
+function boundedAuditTasks(tasks, maximumCharacters = 28000, latestSourceBodyLimit = 4000) {
     // The runtime search envelope exposes the same candidates as both results
     // and candidates. Deferred argument completion receives that raw envelope,
     // unlike the selection phase's compact observation. Share only exact copies
@@ -2343,7 +2349,7 @@ function boundedAuditTasks(tasks, maximumCharacters = 28000) {
             const read = task.observation?.verifiedRead;
             if (!read) return task;
             const bindings = read.sourceStructure?.dataBindings;
-            const content = String(read.content || "").slice(0,task === latestRead ? Math.max(4000,bodyLimit) : bodyLimit);
+            const content = String(read.content || "").slice(0,task === latestRead ? latestSourceBodyLimit : bodyLimit);
             return {...task,observation:{...task.observation,verifiedRead:{...read,
                 content, numberedContent: undefined,
                 partial:true,truncated:true,contentTruncated:true,
@@ -2372,7 +2378,7 @@ function boundedAuditTasks(tasks, maximumCharacters = 28000) {
         if (!read) return {...task};
         const bindings = read.sourceStructure?.dataBindings;
         const fresh = task === latestRead;
-        const content = fresh ? String(read.content || "").slice(0,4000) : "";
+        const content = fresh ? String(read.content || "").slice(0,latestSourceBodyLimit) : "";
         return {...task, observation:{ok:task.observation.ok, executionOk:task.observation.executionOk, verifiedRead:{
             file:read.file, startLine:read.startLine, totalLines:read.totalLines, readEndLine:read.readEndLine,
             endLine:content ? (read.startLine || 1) + content.split("\n").length - 1 : null,
@@ -3788,7 +3794,7 @@ async function runModelSemanticPlanner({
         const fullAuditTasks = (missionState.completedTasks || []).map((task, index) => ({ index, name: task.name, args: task.args,
             allowedEvidenceKinds: safeCatalog.find(tool => tool.name === task.name)?.evidenceKinds || ["tool_result"],
             observation: Object.fromEntries(Object.entries(task.observation || {}).filter(([key]) => key !== "interfaceEvidence")) }));
-        const auditTasks = measuredRepair ? fullAuditTasks : boundedAuditTasks(fullAuditTasks);
+        const auditTasks = measuredRepair ? fullAuditTasks : planningAuditTasks(fullAuditTasks,missionState);
         if(!measuredRepair && JSON.stringify(auditTasks).length>16000) {
             const schemaTaskIndexes=auditTasks.flatMap((task,index)=>task.observation?.verifiedRead?.sourceStructure?.dataBindings ? [index] : []);
             const recordFieldSchemaTaskIndexes=auditTasks.flatMap((task,index)=>task.observation?.recordEvidence?.fieldSchema ? [index] : []);
@@ -5194,7 +5200,7 @@ async function runModelSemanticPlanner({
                                     "Omite campos opcionales innecesarios. No inventes precios, gratuidad, direcciones, URLs, testimonios ni resultados. Conserva la identidad y todos los mercados solicitados.",
                                     `TAREA ${phaseCatalog[0].name}: ${phaseCatalog[0].description}`,
                                     `CAMPOS=${JSON.stringify(argumentPrompt)}`,
-                                    `TAREAS_YA_OBSERVADAS=${JSON.stringify(boundedAuditTasks(missionState.completedTasks || []))}`,
+                                    `TAREAS_YA_OBSERVADAS=${JSON.stringify(planningAuditTasks(missionState.completedTasks || [],missionState))}`,
                                     `OBJETIVOS_INMUTABLES=${JSON.stringify(missionState.evidenceObjectives || [])}`,
                                     ...(missionState?.currentOperation ? [`CONTEXTO_Y_EVIDENCIA_INMUTABLES:\n${instruction}`] : [])
                                 ].join("\n")},

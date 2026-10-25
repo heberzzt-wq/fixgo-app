@@ -4886,7 +4886,7 @@ window.JarvisGitWorkflowBridge =
 // source reads and Git receipts remain necessary for factual mission closure.
 JarvisToolRuntime.register({
     name: "repo.context",
-    description: "Comprime hasta seis archivos reales de codigo mediante Repomix local. RUTAS PERMITIDAS: gestia-core/jarvis/*.js, gestia-core/repo/*.js, modules/terminal/*.js y jarvis-*.js en raiz; no admite gestia-core/gestia-core.js, gestia-core/tools.runtime.js, tests, .env ni archivos inexistentes. Maximo 85KB por archivo y 240KB total, presupuesto 256-2200 tokens. Elige fuentes existentes ya identificadas por repo.read/grep/historial, no adivines. Solo adelanto incompleto: no acredita contenido entero, commits, pruebas o cumplimiento. Si falla, cambia rutas autorizadas; no repitas la misma lista. Sin escritura ni nube.",
+    description: "Comprime hasta seis archivos reales de codigo mediante Repomix local. RUTAS PERMITIDAS: gestia-core/jarvis/*.js, gestia-core/repo/*.js, modules/terminal/*.js y jarvis-*.js en raiz; no admite gestia-core/gestia-core.js, gestia-core/tools.runtime.js, tests, .env ni archivos inexistentes. Maximo 85KB por archivo y 240KB total; presupuesto fijo de 1800 tokens controlado por el runtime, no por el modelo. Elige fuentes existentes ya identificadas por repo.read/grep/historial, no adivines. Solo adelanto incompleto: no acredita contenido entero, commits, pruebas o cumplimiento. Si falla, cambia rutas autorizadas; no repitas la misma lista. Sin escritura ni nube.",
     evidenceKinds: ["repository_search"],
     investigationReadOnly: true,
     mutates: false,
@@ -4896,7 +4896,7 @@ JarvisToolRuntime.register({
         required: ["files"],
         properties: {
             files: {type: "array", minItems: 1, maxItems: 6, items: {type: "string"}},
-            tokenBudget: {type:"integer",minimum:256,maximum:2200}
+            tokenBudget: {type:"integer",const:1800}
         },
         additionalProperties: false
     },
@@ -4904,7 +4904,7 @@ JarvisToolRuntime.register({
     execute: async (args={}) => {
         const response = await window.JarvisLocalBridge.requestJson(
             "/repo/context",
-            {files:args.files,tokenBudget:args.tokenBudget||1800},
+            {files:args.files,tokenBudget:1800},
             {timeoutMs:35000}
         );
         return {...response,tool:"repo.context",

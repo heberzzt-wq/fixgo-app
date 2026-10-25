@@ -140,3 +140,15 @@ test('effective health exposes idle policy and tracks a cancellable inference un
  assert.equal(engine.describe().activeInferenceCalls,0);
  assert.equal(engine.describe().counters.failedLocalSemanticInferenceCalls,1);
 });
+
+
+test('8192-token audit reaches the model after bounding large source receipts to the active profile',async()=>{
+ let calls=0;
+ const fs=await import('node:fs');
+ // Real failing web packet; source text is masked, lengths and boundaries retained.
+ const fixture=JSON.parse(fs.readFileSync(new URL('./v142-repository-audit-context.fixture.json',import.meta.url),'utf8'));
+ const engine=createSelfHostedSemanticEngine({env:{JARVIS_LOCAL_LLM_CONTEXT_TOKENS:'8192',JARVIS_LOCAL_LLM_PREWARM:'0'},
+  fetchImpl:async()=>{calls++;throw Error('MODEL_WAS_REACHED');}});
+ await assert.rejects(engine.plan(fixture),/MODEL_WAS_REACHED/);
+ assert.equal(calls,1);
+});

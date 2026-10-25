@@ -94,3 +94,19 @@ test('Repomix rejected source identity and limits survive both observation bound
  assert.equal(compact.errorDetails.requiresDifferentSources,true);
  assert.equal(compact.contextPreview,undefined);
 });
+
+
+test('Repomix model calls use the host context budget instead of choosing the grammar minimum',async()=>{
+ const {runInNewContext}=await import('node:vm');
+ const source=fs.readFileSync(new URL('../gestia-core/tools.runtime.js',import.meta.url),'utf8');
+ const at=source.indexOf('    name: "repo.context"');
+ const start=source.lastIndexOf('JarvisToolRuntime.register({',at),end=source.indexOf('\n});',at)+5;
+ assert.ok(start>=0 && end>start);
+ let tool,request;
+ runInNewContext(source.slice(start,end),{JarvisToolRuntime:{register:value=>{tool=value;}},
+  window:{JarvisLocalBridge:{requestJson:async(route,payload)=>{request={route,payload};return {ok:true,status:'REPO_CONTEXT_READY'};}}}});
+ await tool.execute({files:['jarvis-repomix-context.js'],tokenBudget:256});
+ assert.equal(request.route,'/repo/context');
+ assert.equal(request.payload.tokenBudget,1800);
+ assert.equal(tool.inputSchema.properties.tokenBudget.const,1800);
+});
