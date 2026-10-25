@@ -497,7 +497,7 @@
     "repositoryPath": "C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker",
     "branch": "v142-official",
     "verifiedCandidateSha": "3caa2f3899aab488f90edef7535beac55f6ca96e",
-    "lastSessionSummary": "2026-10-25: d2f7a799 sincronizado GitHub/Bridge/preview/live; CI40216469257 Windows/Ubuntu PASS y rutas17/17 PASS. Nueva correccion LOCAL: contrato de lecturas repository con perfil4096/8192 extrae objetivos con Qwen, valida citas exactas, tipos, duplicados y truncamiento; todos empiezan pendientes sin evidencia. Regresion RED undefined -> GREEN;20 dirigidas PASS y npm run ci:test EXIT0. NO publicada esta correccion. Cierre atomico aun pendiente: probes un objetivo150268ms, instrucciones reducidas150021ms; wire streaming primer contenido101698ms y timeout150024ms. No hay nueva mision web COMPLETED.",
+    "lastSessionSummary": "2026-10-25: prueba web autenticada sobre6b82cd83 llego a Qwen tras recarga. Qwen devolvio6 objetivos, pero GestiaCore solo entregaba initialCoverageContract al orquestador y descartaba metadatos del contrato de repositorio. Mision cancelada mediante UI al diagnosticarlo; no COMPLETED. Correccion local: clonar objetivos antes de transformar llamadas y usarlos al iniciar mision si no existe contrato operativo. Regresion RED lista vacia -> GREEN;384 pruebas afectadas PASS, prueba adicional de aislamiento de metadatos PASS, CI completa final EXIT0. Nueva correccion pendiente de publicacion y retest. Timeout de auditoria global sigue sin certificarse resuelto.",
     "infrastructure": {
       "bridge": "Base62dc56ff sincronizada GitHub/Bridge/preview/live; nueva reparacion local de contrato aun pendiente de CI y publicacion.",
       "model": "Ollama qwen3.5:9b LOCAL_ONLY",
@@ -569,7 +569,9 @@
       "C:/Users/heber/Documents/Jarvis-V142-Manifiestos/canonical-routing-green-20261025.txt",
       "C:/Users/heber/Documents/Jarvis-V142-Manifiestos/objectives-green-20261025.txt",
       "C:/Users/heber/Documents/Jarvis-V142-Manifiestos/objectives-ci-20261025.txt",
-      "C:/Users/heber/Documents/Jarvis-V142-Manifiestos/audit-timing-probe-20261025.json"
+      "C:/Users/heber/Documents/Jarvis-V142-Manifiestos/audit-timing-probe-20261025.json",
+      "C:/Users/heber/Documents/Jarvis-V142-Manifiestos/web-objective-handoff-6b82cd83-20261025.jsonl",
+      "C:/Users/heber/Documents/Jarvis-V142-Manifiestos/objective-handoff-ci-final-20261025.txt"
     ],
     "deployment": {
       "status": "BLOCKED_NOT_DEPLOYED",

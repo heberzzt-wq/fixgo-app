@@ -4895,6 +4895,7 @@ if (
         ].filter(tool => !boundedCurrentTurnMission || operationalMissionToolNames.has(tool.name) ||
             (tool.investigationReadOnly === true && isBoundedReadOnlyMission([{ name: tool.name, args: {} }], [tool]))).slice(0, 80);
     let missionContractToolCalls = boundedCurrentTurnMission || observationFirstCurrentTurnMission ? operationalInitialToolCalls : undefined;
+    let missionContractEvidenceObjectives = [];
     let lastMissionContractError = null;
     for (let missionContractAttempt = 1; missionContractAttempt <= 3 && !boundedCurrentTurnMission && !observationFirstCurrentTurnMission; missionContractAttempt += 1) {
         try {
@@ -4917,6 +4918,9 @@ if (
                         }
                     }
                 );
+            // Array transformations below discard non-enumerable plan metadata.
+            // Preserve the model's original objectives before transforming calls.
+            missionContractEvidenceObjectives = structuredClone(missionContractToolCalls.completionAssessment?.objectives || []);
             lastMissionContractError = null;
             break;
         }
@@ -5146,7 +5150,7 @@ if (
                 effectiveMissionInstruction,
             initialToolCalls:
                 missionInitialToolCalls,
-            initialEvidenceObjectives: initialCoverageContract?.completionAssessment?.objectives || [],
+            initialEvidenceObjectives: initialCoverageContract?.completionAssessment?.objectives || missionContractEvidenceObjectives,
             requiredRepositorySourceFiles: missionIsIsolated ? [] : explicitRepositoryTargets,
             requiredToolNames:
                 [...new Set(missionInitialToolCalls.map(call => call.name))],

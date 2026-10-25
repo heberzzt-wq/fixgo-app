@@ -1235,8 +1235,9 @@ async function prepareContract(calls, catalog, options = {}) {
     let expansions = 0;
     const result = await runInNewContext(`(async () => {
         ${coreSource.slice(start, end)}
-        return { missionInitialToolCalls, missionToolCatalog, boundedCurrentTurnMission };
+        return { missionInitialToolCalls, missionToolCatalog, boundedCurrentTurnMission, missionContractEvidenceObjectives };
     })()`, {
+        structuredClone, // Browser API used to detach immutable objective metadata.
         operationalInitialToolCalls: calls,
         terminalSemanticPlan: { reason: "model_selected_multifunction_plan", toolCalls: calls },
         registeredMissionTools: catalog, context: {}, semanticMemoryContext: null,
@@ -6228,4 +6229,16 @@ test('real Git status, history and diff receipts survive bounded mission audit c
  assert.deepEqual(diff.gitEvidence.files,['a.js']);
  assert.equal(diff.gitEvidence.committedHistory,false);
  assert.equal(compactMissionPlannerObservation({...history,ok:false}).gitEvidence,undefined);
+});
+
+test('production contract preparation detaches repository objectives before call transforms',async()=>{
+ const calls=[{name:'repo.read',args:{file:'source.js'}}];
+ const objectives=[{objective:'Verificar dos archivos',requestQuote:'Lee dos archivos',requiredEvidenceKind:'repository_source',satisfied:false,evidenceTaskIndexes:[],limitation:'Pendiente'}];
+ Object.defineProperty(calls,'completionAssessment',{value:{objectives},enumerable:false});
+ const tools=[{name:'repo.read',mutates:false,investigationReadOnly:true,evidenceKinds:['repository_source']},{name:'platform.query',mutates:false,investigationReadOnly:true,evidenceKinds:['platform_records']}];
+ const result=await prepareContract(calls,tools,{expanded:calls});
+ assert.equal(result.expansions,1);
+ assert.deepEqual(JSON.parse(JSON.stringify(result.missionContractEvidenceObjectives)),objectives);
+ objectives[0].objective='Mutated later';
+ assert.equal(result.missionContractEvidenceObjectives[0].objective,'Verificar dos archivos');
 });
