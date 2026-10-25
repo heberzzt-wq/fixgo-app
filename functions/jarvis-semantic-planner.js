@@ -3361,6 +3361,19 @@ async function runModelSemanticPlanner({
                     (!kind || kind === "none" || !Array.isArray(tool.contractKinds) || tool.contractKinds.length === 0 || tool.contractKinds.includes(kind)) &&
                     !(stage === "sourceReview" && kind === "web" &&
                         (tool.name.startsWith("repo.") || tool.name === "platform.query"));
+                // Reuse only an exact registered read ID already selected by
+                // Qwen in its structured operation list. This is not user-text
+                // routing; arguments still require grounded completion later.
+                const resolved = stage==="sourceReview" && kind==="repository"
+                    ? normalizedCatalog.find(tool=>tool.name===operation.trim() && tool.name.startsWith("repo.") &&
+                        tool.mutates===false && !tool.requiresApproval && !tool.userArtifact && compatible(tool))
+                    : null;
+                if(resolved) {
+                    if(!retrieved.some(tool=>tool.name===resolved.name))retrieved.push(resolved);
+                    operationCandidates.push({id:`step${operationCandidates.length}`,stage,operation,
+                        resolvedToolName:resolved.name,catalog:[{name:resolved.name,description:resolved.description}]});
+                    continue;
+                }
                 const candidates = await retrieveToolCandidates(String(operation), 12);
                 const canonicalCandidates = [];
                 // Qwen declares the required result; registry metadata enforces
@@ -3382,6 +3395,7 @@ async function runModelSemanticPlanner({
             // small local model for a multi-step name map can swap valid tools
             // across steps even when every selected name passes the schema.
             for (const step of operationCandidates) {
+                if(step.resolvedToolName) { selections[step.id]=step.resolvedToolName; continue; }
                 const selectionResponse = await ai.models.generateContent({
                     model,
                     contents: step.operation,

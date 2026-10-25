@@ -214,3 +214,45 @@ test('recovery can decline exact-file substitution and rejects unobserved or dup
   await assert.rejects(engine.plan(fixture),/RECOVERY_UNAVAILABLE|TOOL_ARGUMENTS_INVALID/);
  }
 });
+
+
+test('model-selected canonical repository IDs are reused without redundant ranking or name selection',async()=>{
+ const {createRequire}=await import('node:module');
+ const {runJarvisSemanticPlanner}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ const names=['repo.gitHistory','repo.gitStatus','repo.context','repo.read'];
+ const calls=[];
+ const catalog=names.map(name=>({name,description:'Lectura autorizada de repositorio',mutates:false,requiresApproval:false,
+  inputSchema:{type:'object',properties:{},additionalProperties:false}}));
+ const plan=await runJarvisSemanticPlanner({input:'Investiga el repositorio sin modificarlo.',catalog,
+  missionState:{phase:'MISSION_CONTRACT',writeAllowed:false},
+  ai:{lastProvider:'ollama-openai-compatible-local',models:{generateContent:async req=>{
+   calls.push(req.config.semanticStage);
+   assert.equal(req.config.semanticStage,'MISSION_CONTRACT_OPERATIONS');
+   return {text:JSON.stringify({sourceReview:names,sourceKind:'repository',work:'',workKind:'none',verification:'',delivery:''})};
+  }}},
+  retrieveToolCandidates:async()=>{throw Error('REDUNDANT_RANKING_OF_MODEL_SELECTED_ID');}});
+ assert.deepEqual(calls,['MISSION_CONTRACT_OPERATIONS']);
+ assert.deepEqual(plan.toolCalls.map(t=>t.name),names);
+ assert.ok(plan.toolCalls.every(t=>t.deferred===true&&t.mutates===false&&t.approved===false));
+ assert.equal(plan.missionComplete,false);
+});
+
+test('canonical reuse never resolves aliases, mutating tools or approval-gated reads',async()=>{
+ const {createRequire}=await import('node:module');
+ const {runJarvisSemanticPlanner}=createRequire(import.meta.url)('../functions/jarvis-semantic-planner.js');
+ for(const [operation,tool] of [
+  ['leer repo.read',{name:'repo.read',mutates:false}],
+  ['repo.gitCommit',{name:'repo.gitCommit',mutates:true}],
+  ['repo.read',{name:'repo.read',mutates:false,requiresApproval:true}]
+ ]){
+  let retrievals=0;
+  await assert.rejects(runJarvisSemanticPlanner({input:'Investiga con los permisos vigentes.',catalog:[{...tool,
+   description:'Herramienta con contrato vigente',inputSchema:{type:'object',properties:{}}}],
+   missionState:{phase:'MISSION_CONTRACT',writeAllowed:false},
+   ai:{lastProvider:'ollama-openai-compatible-local',models:{generateContent:async()=>({text:JSON.stringify({
+    sourceReview:[operation],sourceKind:'repository',work:'',workKind:'none',verification:'',delivery:''})})}},
+   retrieveToolCandidates:async()=>{retrievals++;throw Error('SEMANTIC_SELECTION_STILL_REQUIRED');}
+  }),/SEMANTIC_SELECTION_STILL_REQUIRED/);
+  assert.equal(retrievals,1);
+ }
+});

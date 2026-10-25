@@ -13,7 +13,7 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** 2026-10-25: servicios recuperados desde f0cc2358. Corregido ensure que precargaba Qwen30m pese al perfil8192/45s/prewarm0. Regresion real de auditoria de4 pasos reproducida y reparada sin mutar recibos: compartir Git identico y omitir solo schema AST no aplicable en vistas de repo-only. Replay global alcanzo150s y fallo cerrado: no se certifica cierre general. Nueva recuperacion de lectura por tamano antes de auditoria global: metadatos fisicos limitados al allowlist, Qwen elige otras fuentes, no el host; denegaciones no activan este camino, fuentes exactas pueden rechazarse sin sustituir. Replay Qwen real56.361s: REPO_CONTEXT_READY para2 archivos reales, lectura independiente y hashes coinciden; NO es mision autenticada web.45 dirigidas PASS. CI completa final npm run ci:test EXIT0. Arranque real corregido: beforeModels0,afterModels0,mainModelWarmfalse,OLLAMA_MODEL_WARMUP_DISABLED. Browser bloqueado por contexto originario de extension, mision web pendiente.
+**Resumen:** Investigacion oficial Qwen/Ollama/Repomix + traza autentica sobre62dc56ff: MISSION-ca4ba493-c89e-4562-a39d-bb72afd81208 PARTIAL/PLANNER_UNAVAILABLE,19m03s de pared y676647ms internos. GitHistory/GitStatus/repo.read fisicos PASS; repo.context eligio functions/ y fue rechazado FILE_SCOPE_DENIED;2 auditorias de150s. Chrome YA controlado mediante extension. Nuevo trabajo local: schema de archivos acota prefijos permitidos; reutilizar IDs exactos de lecturas ya elegidos por Qwen evita ranking/seleccion repetidos, sin resolver alias ni saltar mutaciones/aprobaciones/argumentos.24 dirigidas PASS. Qwen real: contrato12→4 inferencias,264→92.351s; argumentos de contexto en alcance98.089s. Recortar salida de auditoria NO arreglo timeout150190ms y se retiro. Pendiente principal: cierre atomico por objetivo, con recibos y cobertura; NO COMPLETED general. CI local completa EXIT0 (research-ci-final-20261025.txt); GitHub Windows/Ubuntu pendiente.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -27,9 +27,9 @@
 
 **Limite:** Los commits no son despliegues; mantienen controles de produccion, dinero, secretos y acceso.
 
-**Infraestructura actual al corte:** Base f0cc2358 recuperada en3344 con identidad correcta; revision nueva pendiente de commit/recarga controlada.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
+**Infraestructura actual al corte:** Base62dc56ff sincronizada GitHub/Bridge/preview/live; nueva reparacion local de contrato aun pendiente de CI y publicacion.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
 
-**Control de ventanas:** El conector Browser informa: Browser access requires the originating browser context. Open ChatGPT in the browser with the connected extension and try again. Sin bypass por CDP.
+**Control de ventanas:** Chrome extension conectado; Terminal autentica controlada y mision real enviada, sin nuevos bloqueos de permisos de navegador observados.
 
 ### Entregas y acciones verificadas
 
@@ -59,6 +59,7 @@
 - 2026-10-25: reproducidas dos regresiones RED (auditoria real de cuatro pasos y mainModelWarm incorrecto); correcciones locales con35/35 dirigidas PASS. Preserva ventanas fuente, cada indice de tarea, errores y recibos brutos; metadatos AST operativos siguen completos si hay herramientas fuera de repo.
 - 2026-10-25: replay fisico local de recuperacion con Qwen3.5:9b,8192/45s/150000ms en56.361s; Repomix1.18.1 preparo contexto de2 fuentes permitidas, verificador independiente confirmo bytes y SHA256. No certifica Terminal autenticada ni COMPLETED global.
 - 2026-10-25: CI final completa EXIT0; 45 dirigidas PASS; arranque real sin precarga ni retencion30m (0 modelos antes/despues). No implica cierre global ni mision web COMPLETED.
+- 2026-10-25: investigadas fuentes oficiales Qwen/Ollama/Repomix y paper de interfaces; doc docs/v142-local-agent-reconfiguration-20261025.md registra configuracion, evidencia y limites.24 regresiones PASS; replay real de contrato92.351s/4 llamadas; selector de argumentos98.089s dentro de alcance. Son replays locales, no mision completa.
 
 ### Evidencia tecnica certificada (sin elevarla a produccion)
 
@@ -68,13 +69,13 @@
 
 ### BLOQUEO ACTUAL: NO PUBLICADO
 
-- Estado: `BLOCKED_NOT_DEPLOYED`; causa: `f0cc2358 publicado solo Hosting en sesion anterior; nueva reparacion aun local. El candidato3caa2f38 y BLOCKED_NOT_DEPLOYED conservan evidencia historica, no describen el SHA live actual.`.
-- SHA web: `f0cc2358604ad6c0884de5285cb42107ea495407`; candidato: `3caa2f3899aab488f90edef7535beac55f6ca96e`.
+- Estado: `BLOCKED_NOT_DEPLOYED`; causa: `62dc56ff publicado solo Hosting y probado por web: PARTIAL. Nueva optimizacion local pendiente de CI; candidato3caa2f38 y BLOCKED_NOT_DEPLOYED conservan evidencia historica, sin certificacion general.`.
+- SHA web: `62dc56ff5dfcf1b822633b622c8080810493e2a4`; candidato: `3caa2f3899aab488f90edef7535beac55f6ca96e`.
 - No alterar gate; no escribir fondos, reglas ni Functions sin autorizacion.
 
 ### Ruta de recuperacion para el siguiente chat
 
-1. Terminar CI final/Windows-Ubuntu y sincronizar SHA Bridge/preview/Hosting bajo gates. Repetir mision autenticada cuando Browser disponga del contexto originario. Verificar cierre global y lectura de2 fuentes; el replay local no lo certifica.
+1. Certificar schema de contexto y reutilizacion de IDs model-selected con CI exacta. Implementar auditoria atomica por objetivo, verificar trazas y luego una sola mision autenticada; no repetir paquetes que ya agotaron150s ni declarar COMPLETED por herramientas ONLINE.
 1. Resolver la promocion autorizada de Hosting desde una rama/revision permitida con CI y permiso workflow adecuados, sin saltarse protecciones ni desplegar otros sitios/Functions/reglas.
 1. Verificar despues de publicacion SHA servido == SHA Bridge, relay /workstation/health autenticado sin 401, y que archivos privados devuelven 404.
 1. Ejecutar mision real en Terminal Firebase con recibo verificable y luego las 12 NS1 seguidas; clasificar SUCCEEDED, PARTIAL, FAILED con evidencia y artefactos.
@@ -107,6 +108,12 @@
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/context-recovery-red-20261025.txt`
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/ci-final-20261025.txt`
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/startup-no-prewarm-20261025.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/web-acceptance-62dc56ff-20261025.jsonl`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/failed-web-audit-62dc56ff.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/compact-global-audit-20261025.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/contract-real-20261025.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/scope-real-20261025.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/canonical-routing-green-20261025.txt`
 
 ### Reporte diario automatico
 

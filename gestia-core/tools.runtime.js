@@ -4895,7 +4895,7 @@ JarvisToolRuntime.register({
         type: "object",
         required: ["files"],
         properties: {
-            files: {type: "array", minItems: 1, maxItems: 6, items: {type: "string"}},
+            files: {type: "array", minItems: 1, maxItems: 6, items: {type: "string", pattern: "^(?:(?:gestia-core/(?:jarvis|repo)/|modules/terminal/)[A-Za-z0-9_./-]+|jarvis-[A-Za-z0-9_.-]+)[.](?:js|mjs|cjs)$"}},
             tokenBudget: {type:"integer",const:1800}
         },
         additionalProperties: false

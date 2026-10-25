@@ -109,6 +109,13 @@ test('Repomix model calls use the host context budget instead of choosing the gr
  assert.equal(request.route,'/repo/context');
  assert.equal(request.payload.tokenBudget,1800);
  assert.equal(tool.inputSchema.properties.tokenBudget.const,1800);
+ const pattern=tool.inputSchema.properties.files.items.pattern;
+ assert.equal(typeof pattern,'string','source scope must constrain the generated arguments');
+ const allowed=new RegExp(pattern);
+ for(const file of ['jarvis-repomix-context.js','gestia-core/jarvis/jarvis.local.policy.js','modules/terminal/repo-cognition.js'])
+  assert.equal(allowed.test(file),true,file);
+ for(const file of ['functions/jarvis-semantic-planner.js','../jarvis-safe.js','.env','tests/example.js'])
+  assert.equal(allowed.test(file),false,file);
 });
 
 test('oversize recovery offers bounded physical metadata only inside the existing source allowlist',async()=>{
