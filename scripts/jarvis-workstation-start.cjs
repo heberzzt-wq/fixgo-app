@@ -9,6 +9,12 @@ const EXPECTED_MODEL=runtimeContract.semanticModel;
 if(EXPECTED_MODEL!=='qwen3.5:9b'||runtimeContract.inferencePolicy!=='LOCAL_ONLY'||(process.env.JARVIS_LOCAL_LLM_MODEL&&process.env.JARVIS_LOCAL_LLM_MODEL!==EXPECTED_MODEL)||(process.env.JARVIS_CONVERSATION_MODEL&&process.env.JARVIS_CONVERSATION_MODEL!==EXPECTED_MODEL))throw new Error('JARVIS_LOCAL_MODEL_CONTRACT_MISMATCH');
 process.env.JARVIS_LOCAL_LLM_MODEL=EXPECTED_MODEL;
 process.env.JARVIS_CONVERSATION_MODEL=EXPECTED_MODEL;
+// CPU-only workstation: explicitly overridable limits, without changing the
+// canonical model, tool authorization, source receipts or response fidelity.
+process.env.JARVIS_LOCAL_LLM_CONTEXT_TOKENS ||= '8192';
+process.env.JARVIS_LOCAL_LLM_KEEP_ALIVE ||= '45s';
+process.env.JARVIS_LOCAL_LLM_PREWARM ||= '0';
+process.env.JARVIS_LOCAL_LLM_MAX_INFERENCE_MS ||= '150000';
 const bridgeSource=fs.readFileSync('jarvis-fs-bridge.js','utf8');
 const EXPECTED_BRIDGE_VERSION=(((bridgeSource.split('JARVIS_FS_BRIDGE_VERSION')[1]||'').match(/\d+\.\d+\.\d+-[a-z0-9-]+-v142/)||[])[0]||'');
 const git=process.platform==='win32'&&fs.existsSync('C:\Program Files\Git\cmd\git.exe')?'C:\Program Files\Git\cmd\git.exe':'git';
@@ -165,11 +171,20 @@ Promise.all([import('../jarvis-upload-bridge.js'),import('../jarvis-github-worke
     else if(await occupied()){
         throw new Error('JARVIS_BRIDGE_PORT_3344_OCCUPIED_UNHEALTHY');
     }
-    const warm=await bridge.warmJarvisLocalModel({
-        model:process.env.JARVIS_LOCAL_LLM_MODEL||'qwen3.5:9b',keepAlive:process.env.JARVIS_LOCAL_LLM_KEEP_ALIVE||'30m',timeoutMs:Number(process.env.JARVIS_LOCAL_LLM_WARMUP_TIMEOUT_MS)||240000}
-    );
+    const coldStart=process.env.JARVIS_LOCAL_LLM_PREWARM==='0';
+    const warm=coldStart
+        ? {ok:true,status:'JARVIS_LOCAL_MODEL_ON_DEMAND',model:EXPECTED_MODEL,
+            keepAlive:process.env.JARVIS_LOCAL_LLM_KEEP_ALIVE,durationMs:0}
+        : await bridge.warmJarvisLocalModel({
+            model:process.env.JARVIS_LOCAL_LLM_MODEL||'qwen3.5:9b',
+            keepAlive:process.env.JARVIS_LOCAL_LLM_KEEP_ALIVE||'45s',
+            timeoutMs:Number(process.env.JARVIS_LOCAL_LLM_WARMUP_TIMEOUT_MS)||240000
+        });
     if(warm?.ok!==true)throw new Error('JARVIS_LOCAL_AI_WARMUP_FAILED:'+String(warm?.status||'UNKNOWN'));
-    console.log('[JARVIS_LOCAL_AI_WARM] model='+warm.model+' keepAlive='+warm.keepAlive+' durationMs='+warm.durationMs);
+    console.log('[JARVIS_LOCAL_AI_START_PROFILE] status='+warm.status+
+        ' model='+warm.model+' keepAlive='+warm.keepAlive+
+        ' context='+process.env.JARVIS_LOCAL_LLM_CONTEXT_TOKENS+
+        ' inferenceCapMs='+process.env.JARVIS_LOCAL_LLM_MAX_INFERENCE_MS);
     bridge.markJarvisWorkstationRuntime({
         bridgeStarted:true,workerStarted:true,workerPollMs:Math.max(5000,Number(process.env.SIA7_POLL_MS)||30000),loadedHead:localHead}
     );

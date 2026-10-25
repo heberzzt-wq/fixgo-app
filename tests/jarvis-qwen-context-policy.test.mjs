@@ -65,3 +65,52 @@ test('normal low-memory selector retains the original instruction and token prof
     assert.ok(payload.messages.some(m=>m.content==='Busca runJarvisMission en codigo real'));
     assert.equal(result.toolCall.args.term,'runJarvisMission');
 });
+
+test('CPU-friendly workstation profile keeps Qwen local with finite idle retention and no forced prewarm',async()=>{
+ const fs=await import('node:fs');
+ const entry=fs.readFileSync(new URL('../scripts/jarvis-workstation-start.cjs',import.meta.url),'utf8');
+ assert.match(entry,/JARVIS_LOCAL_LLM_CONTEXT_TOKENS \|\|= '8192'/);
+ assert.match(entry,/JARVIS_LOCAL_LLM_KEEP_ALIVE \|\|= '45s'/);
+ assert.match(entry,/JARVIS_LOCAL_LLM_PREWARM \|\|= '0'/);
+ assert.match(entry,/JARVIS_LOCAL_LLM_MAX_INFERENCE_MS \|\|= '150000'/);
+ assert.match(entry,/coldStart\s*\?\s*\{ok:true,status:'JARVIS_LOCAL_MODEL_ON_DEMAND'/);
+});
+test('bounded low-memory Qwen requests retain original instructions and idle unload policy',async()=>{
+ let body;
+ const engine=createSelfHostedSemanticEngine({
+  env:{JARVIS_LOCAL_LLM_MODEL:'qwen3.5:9b',
+   JARVIS_LOCAL_LLM_CONTEXT_TOKENS:'8192',
+   JARVIS_LOCAL_LLM_KEEP_ALIVE:'45s',JARVIS_LOCAL_LLM_PREWARM:'0',
+   JARVIS_LOCAL_LLM_MAX_INFERENCE_MS:'150000'},
+  fetchImpl:async(_url,options)=>{
+   body=JSON.parse(options.body);
+   return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:'Respuesta local'},done_reason:'stop'})};
+  }
+ });
+ await engine.respond({input:'Mi instruccion permanece intacta',maxOutputTokens:192});
+ assert.equal(body.options.num_ctx,8192);
+ assert.equal(body.keep_alive,'45s');
+ assert.equal(body.think,false);
+ assert.equal(body.messages.at(-1).content,'Mi instruccion permanece intacta');
+ assert.equal(body.truncate,false);
+ assert.equal(body.shift,false);
+});
+test('CPU inference watchdog aborts stalled Ollama without upgrading partial evidence to success',async()=>{
+ let calls=0;
+ const engine=createSelfHostedSemanticEngine({
+  env:{JARVIS_LOCAL_LLM_MODEL:'qwen3.5:9b',
+   JARVIS_LOCAL_LLM_CONTEXT_TOKENS:'8192',
+   JARVIS_LOCAL_LLM_MAX_INFERENCE_MS:'65',
+   JARVIS_LOCAL_LLM_PREWARM:'0'},
+  fetchImpl:async(_url,options)=>{
+   calls++;
+   await new Promise((_resolve,reject)=>{
+    if(options.signal.aborted){reject(options.signal.reason);return;}
+    options.signal.addEventListener('abort',()=>reject(options.signal.reason),{once:true});
+   });
+  }
+ });
+ await assert.rejects(engine.respond({input:'Solo se permite una llamada acotada'}),
+  /LOCAL_SEMANTIC_TIMEOUT/);
+ assert.equal(calls,1);
+});

@@ -1133,6 +1133,13 @@ export function createSelfHostedSemanticEngine({
                 if(!exact?.digest)throw new Error('LOCAL_MODEL_EXACT_IDENTITY_UNVERIFIED');
                 if(previousModelDigest && previousModelDigest!==exact.digest)objectiveCoverageCache.clear();
                 verifiedModelMode={...verifiedModelMode,digest:exact.digest};
+                if(env.JARVIS_LOCAL_LLM_PREWARM==='0'){
+                    // Verify local model identity without allocating its weights
+                    // merely because the workstation or planner was awakened.
+                    lastModelWarmAt=Date.now();
+                    return {ok:true,status:'LOCAL_MODEL_IDENTITY_VERIFIED_ON_DEMAND',
+                        model,digest:exact.digest,externalApiUsed:false};
+                }
                 const response = await fetchImpl(
                     origin + "/api/generate",
                     {
@@ -1300,14 +1307,18 @@ export function createSelfHostedSemanticEngine({
         await ensureMainModelWarm({ signal: request?.config?.signal });
         const warmWaitMs = Math.max(0, Date.now() - warmStartedAt);
         const tools = openAiToolsFromGemini(request?.config || {});
-        const noDeadline = true;
-        const inferenceTimeoutMs = noDeadline
-            ? null
-            : Math.min(
-                Math.max(1, Math.min(Number(request?.config?.timeoutMs) || timeoutMs,
-                    request?.config?.deadlineAt ? request.config.deadlineAt - Date.now() : SEMANTIC_MAX_BUDGET_MS)),
-                SEMANTIC_MAX_BUDGET_MS
-            );
+        // Optional CPU watchdog: abort one runaway model call, not the full
+        // mission. The owner may raise the cap; evidence is never truncated.
+        const boundedInferenceCapMs = Math.min(240000, Math.max(0,
+            Number(env.JARVIS_LOCAL_LLM_MAX_INFERENCE_MS) || 0));
+        const noDeadline = boundedInferenceCapMs === 0;
+        const inferenceTimeoutMs = noDeadline ? null : Math.max(1, Math.min(
+            boundedInferenceCapMs, SEMANTIC_MAX_BUDGET_MS,
+            Number(request?.config?.timeoutMs) > 0
+                ? Number(request.config.timeoutMs) : boundedInferenceCapMs,
+            request?.config?.deadlineAt
+                ? request.config.deadlineAt - Date.now() : boundedInferenceCapMs
+        ));
         request?.config?.signal?.throwIfAborted();
         if (!noDeadline && request?.config?.deadlineAt && Date.now() >= request.config.deadlineAt) throw new Error("LOCAL_SEMANTIC_TIMEOUT");
         const controller = new AbortController();
