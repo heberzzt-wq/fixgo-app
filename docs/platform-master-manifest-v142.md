@@ -13,7 +13,7 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** Investigacion oficial Qwen/Ollama/Repomix + traza autentica sobre62dc56ff: MISSION-ca4ba493-c89e-4562-a39d-bb72afd81208 PARTIAL/PLANNER_UNAVAILABLE,19m03s de pared y676647ms internos. GitHistory/GitStatus/repo.read fisicos PASS; repo.context eligio functions/ y fue rechazado FILE_SCOPE_DENIED;2 auditorias de150s. Chrome YA controlado mediante extension. Nuevo trabajo local: schema de archivos acota prefijos permitidos; reutilizar IDs exactos de lecturas ya elegidos por Qwen evita ranking/seleccion repetidos, sin resolver alias ni saltar mutaciones/aprobaciones/argumentos.24 dirigidas PASS. Qwen real: contrato12→4 inferencias,264→92.351s; argumentos de contexto en alcance98.089s. Recortar salida de auditoria NO arreglo timeout150190ms y se retiro. Pendiente principal: cierre atomico por objetivo, con recibos y cobertura; NO COMPLETED general. CI local completa EXIT0 (research-ci-final-20261025.txt); GitHub Windows/Ubuntu pendiente.
+**Resumen:** 2026-10-25: d2f7a799 sincronizado GitHub/Bridge/preview/live; CI40216469257 Windows/Ubuntu PASS y rutas17/17 PASS. Nueva correccion LOCAL: contrato de lecturas repository con perfil4096/8192 extrae objetivos con Qwen, valida citas exactas, tipos, duplicados y truncamiento; todos empiezan pendientes sin evidencia. Regresion RED undefined -> GREEN;20 dirigidas PASS y npm run ci:test EXIT0. NO publicada esta correccion. Cierre atomico aun pendiente: probes un objetivo150268ms, instrucciones reducidas150021ms; wire streaming primer contenido101698ms y timeout150024ms. No hay nueva mision web COMPLETED.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -114,6 +114,9 @@
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/contract-real-20261025.json`
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/scope-real-20261025.json`
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/canonical-routing-green-20261025.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/objectives-green-20261025.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/objectives-ci-20261025.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/audit-timing-probe-20261025.json`
 
 ### Reporte diario automatico
 

@@ -3449,8 +3449,14 @@ async function runModelSemanticPlanner({
                         allowDeferred: true
                     }
                 );
+            const repositoryObjectives = [4096,8192].includes(Number(missionState?.modelContextTokens)) &&
+                operationsObject.sourceKind === 'repository' && compactValidated.toolCalls.every(call =>
+                    contractCatalog.some(tool => tool.name === call.name && tool.name.startsWith('repo.') && tool.mutates === false && !tool.requiresApproval))
+                ? await require('./jarvis-repository-objectives.cjs').extractRepositoryObjectives({ai,model,instruction,catalog:contractCatalog})
+                : null;
             return requireExecutablePlan({
                 ...compactValidated,
+                ...(repositoryObjectives ? {completionAssessment:{objectives:repositoryObjectives}} : {}),
                 toolCalls: compactValidated.toolCalls.map(call => ({...call, args: call.args || {}, deferred: true})),
                 provider:
                     String(
