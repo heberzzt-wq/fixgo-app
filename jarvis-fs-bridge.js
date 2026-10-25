@@ -1033,6 +1033,9 @@ export function createSelfHostedSemanticEngine({
     let lastSourceConfiguration = null;
     const objectiveCoverageCache = new Map();
     const timingByStage = new Map();
+    let activeInferenceCalls = 0;
+    const inferenceCapMs = () => Math.min(240000, Math.max(0,
+        Number(env.JARVIS_LOCAL_LLM_MAX_INFERENCE_MS) || 0));
     const counters = {
         localSemanticInferenceCalls: 0,
         localEmbeddingCalls: 0,
@@ -1216,6 +1219,11 @@ export function createSelfHostedSemanticEngine({
             provider: "ollama-openai-compatible-local",
             model: model || null,
             contextTokens,
+            keepAlive: warmKeepAlive,
+            prewarmEnabled: env.JARVIS_LOCAL_LLM_PREWARM !== '0',
+            maxInferenceMs: inferenceCapMs(),
+            activeInferenceCalls,
+            warmupInProgress: Boolean(modelWarmPromise),
             verifiedModelMode,
             conversationModel:
                 conversationModel || null,
@@ -1309,8 +1317,7 @@ export function createSelfHostedSemanticEngine({
         const tools = openAiToolsFromGemini(request?.config || {});
         // Optional CPU watchdog: abort one runaway model call, not the full
         // mission. The owner may raise the cap; evidence is never truncated.
-        const boundedInferenceCapMs = Math.min(240000, Math.max(0,
-            Number(env.JARVIS_LOCAL_LLM_MAX_INFERENCE_MS) || 0));
+        const boundedInferenceCapMs = inferenceCapMs();
         const noDeadline = boundedInferenceCapMs === 0;
         const inferenceTimeoutMs = noDeadline ? null : Math.max(1, Math.min(
             boundedInferenceCapMs, SEMANTIC_MAX_BUDGET_MS,
@@ -1329,6 +1336,7 @@ export function createSelfHostedSemanticEngine({
                 inferenceTimeoutMs
             );
         counters.localSemanticInferenceCalls += 1;
+        activeInferenceCalls += 1;
         try {
             const headers = { "Content-Type": "application/json" };
             if (token) headers.Authorization = `Bearer ${token}`;
@@ -1697,6 +1705,7 @@ export function createSelfHostedSemanticEngine({
             if (request?.config?.signal?.aborted) throw new Error("LOCAL_SEMANTIC_REQUEST_ABORTED");
             throw error;
         } finally {
+            activeInferenceCalls -= 1;
             if (timer) clearTimeout(timer);
         }
     }
@@ -10255,7 +10264,9 @@ export function createJarvisFsBridgeApp({
             const code=String(error?.message||'REPO_CONTEXT_ERROR');
             return res.status(422).json({
                 ok:false,status:'REPO_CONTEXT_UNAVAILABLE',
-                error:/^REPO_CONTEXT_[A-Z_]+$/.test(code)?code:'REPO_CONTEXT_PACK_FAILED'
+                error:/^REPO_CONTEXT_[A-Z_]+$/.test(code)?code:'REPO_CONTEXT_PACK_FAILED',
+                ...(code==='REPO_CONTEXT_SOURCE_TOO_LARGE' && error.details
+                    ? {errorDetails:error.details} : {})
             });
         }
     });

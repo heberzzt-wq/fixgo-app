@@ -2439,8 +2439,10 @@ export async function completeJarvisPlanningArguments({
     completedTasks = [],
     blockedTasks = [],
     evidenceObjectives = [],
-    semanticPlanner = null
+    semanticPlanner = null,
+    signal = null
 } = {}) {
+    signal?.throwIfAborted?.();
     const name = String(toolName || "").trim();
     const originalInstruction = String(instruction || "").trim();
     const sources = boundedEvidenceSources(validSources);
@@ -2531,7 +2533,8 @@ export async function completeJarvisPlanningArguments({
             currentOperation:messageRepair ? "Redacta un titular y un cuerpo NUEVOS para el anuncio solicitado, con otro enfoque que los mensajes ya entregados. Devuelve solamente composition.headline y composition.body." : String(operation||"").trim(),
             argumentValidationFeedback: repairFeedback || (validationFeedback ? JSON.stringify(validationFeedback) : ""),
             sourceCount:sources.length,writeAllowed:false
-        });
+        },signal);
+        signal?.throwIfAborted?.();
         const call=trustedPlanCalls(plan,activeCatalog,{originalInstruction,missionState:{phase:"GROUNDED_ARGUMENT_COMPLETION"}})[0]||null;
         if(messageRepair) {
             const draft=call?.args?.composition;

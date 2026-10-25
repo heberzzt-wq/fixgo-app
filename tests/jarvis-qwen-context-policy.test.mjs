@@ -114,3 +114,29 @@ test('CPU inference watchdog aborts stalled Ollama without upgrading partial evi
   /LOCAL_SEMANTIC_TIMEOUT/);
  assert.equal(calls,1);
 });
+
+
+test('effective health exposes idle policy and tracks a cancellable inference until it settles',async()=>{
+ const controller=new AbortController();
+ let started;
+ const ready=new Promise(resolve=>{started=resolve;});
+ const engine=createSelfHostedSemanticEngine({env:{JARVIS_LOCAL_LLM_CONTEXT_TOKENS:'8192',
+  JARVIS_LOCAL_LLM_KEEP_ALIVE:'45s',JARVIS_LOCAL_LLM_PREWARM:'0',JARVIS_LOCAL_LLM_MAX_INFERENCE_MS:'150000'},
+  fetchImpl:async(_url,options)=>{
+   started();
+   return new Promise((_resolve,reject)=>options.signal.addEventListener('abort',()=>reject(options.signal.reason),{once:true}));
+  }});
+ const health=engine.describe();
+ assert.equal(health.keepAlive,'45s');
+ assert.equal(health.prewarmEnabled,false);
+ assert.equal(health.maxInferenceMs,150000);
+ assert.equal(health.activeInferenceCalls,0);
+ const pending=engine.respond({input:'Solo lectura',signal:controller.signal});
+ const rejected=assert.rejects(pending,/LOCAL_SEMANTIC_REQUEST_ABORTED/);
+ await ready;
+ assert.equal(engine.describe().activeInferenceCalls,1);
+ controller.abort(new Error('USER_REQUESTED_STOP'));
+ await rejected;
+ assert.equal(engine.describe().activeInferenceCalls,0);
+ assert.equal(engine.describe().counters.failedLocalSemanticInferenceCalls,1);
+});

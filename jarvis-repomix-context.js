@@ -43,7 +43,12 @@ export async function packAuthorizedRepositoryContext({
         const stat=await fs.stat(real);
         totalSize+=stat.size;
         if(!stat.isFile()||stat.size>85000||totalSize>240000)
-            throw Error('REPO_CONTEXT_SOURCE_TOO_LARGE');
+            throw Object.assign(Error('REPO_CONTEXT_SOURCE_TOO_LARGE'),{details:{
+                file,sourceBytes:stat.size,sourceLimitBytes:85000,
+                totalBytes:totalSize,totalLimitBytes:240000,
+                requiresDifferentSources:true,
+                recoveryAction:'SELECT_SMALLER_OBSERVED_AUTHORIZED_SOURCES'
+            }});
         filesVerified.push({file,sha256:createHash('sha256').update(await fs.readFile(real)).digest('hex')});
     }
     const actualCli=await fs.realpath(cli);

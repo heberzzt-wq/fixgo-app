@@ -146,3 +146,27 @@ test('Git status and diff remain investigative so a multi-source mission is not 
   assert.ok(declaration.includes(receipt),name);
  }
 });
+
+
+test('stopping a mission aborts grounded argument inference before any read executes',async()=>{
+ const {completeJarvisPlanningArguments}=await import('../gestia-core/jarvis/jarvis.multifunction.planner.js');
+ const controller=new AbortController();
+ let started;
+ const ready=new Promise(resolve=>{started=resolve;});
+ const pending=completeJarvisPlanningArguments({
+  toolName:'repo.read',instruction:'Lee una fuente real, solo lectura',
+  inputSchema:{type:'object',properties:{file:{type:'string'}},required:['file']},
+  signal:controller.signal,
+  semanticPlanner:async({signal})=>{
+   assert.equal(signal,controller.signal,'argument completion must retain the real mission cancellation signal');
+   started();
+   return new Promise((_resolve,reject)=>{
+    signal.addEventListener('abort',()=>reject(signal.reason),{once:true});
+   });
+  }
+ });
+ const rejected=assert.rejects(pending,/USER_REQUESTED_STOP/);
+ await Promise.race([ready,rejected]);
+ controller.abort(new Error('USER_REQUESTED_STOP'));
+ await rejected;
+});

@@ -33,7 +33,14 @@ test('Repomix rejects symlink source and too-large inputs without executing CLI'
    await assert.rejects(packAuthorizedRepositoryContext({root,files:['jarvis-link.js']}),/SYMLINK_OR_TRAVERSAL_DENIED/);
   }catch(e){if(e.code!=='EPERM'&&e.code!=='EACCES')throw e;}
   fs.writeFileSync(path.join(root,'jarvis-long.js'),'x'.repeat(90000));
-  await assert.rejects(packAuthorizedRepositoryContext({root,files:['jarvis-long.js']}),/SOURCE_TOO_LARGE/);
+  await assert.rejects(packAuthorizedRepositoryContext({root,files:['jarvis-long.js']}),error=>{
+   assert.match(error.message,/SOURCE_TOO_LARGE/);
+   assert.equal(error.details?.file,'jarvis-long.js');
+   assert.equal(error.details?.sourceBytes,90000);
+   assert.equal(error.details?.sourceLimitBytes,85000);
+   assert.equal(error.details?.requiresDifferentSources,true);
+   return true;
+  });
  }finally{fs.rmSync(root,{recursive:true,force:true});fs.rmSync(other,{recursive:true,force:true});}
 });
 test('Repomix context survives model compaction only as uncertified preview with source hashes',()=>{
@@ -71,4 +78,19 @@ test('orchestrator retains a bounded Repomix preview but never certifies it as o
  const bad=compactMissionPlannerObservation(safeObservation({ok:false,status:'REPO_CONTEXT_SOURCE_NOT_FOUND',
   tool:'repo.context',contextIsUnverifiedPreview:true,packedContext:excerpt}));
  assert.equal(bad.contextPreview,undefined);
+});
+
+
+test('Repomix rejected source identity and limits survive both observation boundaries',()=>{
+ const details={file:'jarvis-long.js',sourceBytes:90000,sourceLimitBytes:85000,totalBytes:90000,
+  totalLimitBytes:240000,requiresDifferentSources:true,recoveryAction:'SELECT_SMALLER_OBSERVED_AUTHORIZED_SOURCES'};
+ const observation=safeObservation({ok:false,tool:'repo.context',status:'REPO_CONTEXT_SOURCE_TOO_LARGE',
+  error:'REPO_CONTEXT_SOURCE_TOO_LARGE',errorDetails:details,retryable:false});
+ const compact=compactMissionPlannerObservation(observation);
+ assert.equal(observation.ok,false);
+ assert.equal(compact.ok,false);
+ assert.equal(compact.errorDetails.file,'jarvis-long.js');
+ assert.equal(compact.errorDetails.sourceBytes,90000);
+ assert.equal(compact.errorDetails.requiresDifferentSources,true);
+ assert.equal(compact.contextPreview,undefined);
 });

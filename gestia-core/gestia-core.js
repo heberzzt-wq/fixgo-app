@@ -6223,6 +6223,7 @@ if (
                         try {
                             const grounded =
                                 await completeJarvisPlanningArguments({
+                                    signal: context.missionAbortSignal || null,
                                     toolName: call.name,
                                     toolContract: toolDefinition || {},
                                     completedTasks: missionContext.completedTasks || [],
@@ -6257,6 +6258,7 @@ if (
                             }
                         }
                         catch(error) {
+                            context.missionAbortSignal?.throwIfAborted?.();
                             if (executionCall.deferred === true || error?.retryable === false) throw error;
                             console.warn(
                                 "[MISSION_ARGUMENT_AUDIT_FALLBACK]",

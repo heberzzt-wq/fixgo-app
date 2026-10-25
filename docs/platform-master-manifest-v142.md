@@ -7,13 +7,13 @@
 
 ## LEE ESTO PRIMERO - relevo y continuidad inmediata
 
-**Actualizado:** 2026-10-23 | **Candidato certificado en local:** `3caa2f3899aab488f90edef7535beac55f6ca96e` | **Rama:** `v142-official`
+**Actualizado:** 2026-10-24 | **Candidato certificado en local:** `3caa2f3899aab488f90edef7535beac55f6ca96e` | **Rama:** `v142-official`
 
 **Meta:** LEER PRIMERO: usar este documento y el informe diario, comprobar SHA real y recibos antes de continuar; no repetir preguntas resueltas ni dar por hecho un despliegue.
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** 2026-10-23: el propietario autoriza desarrollo, pruebas y commits locales continuos en v142-official sin nuevas confirmaciones por cada commit. Reparaciones de planner locales: 463/463 pruebas y Qwen fisico SUCCESS; despliegue y promocion productivos siguen pendientes.
+**Resumen:** Relevo 2026-10-24: base 2f15e0c verificada en GitHub, Bridge y Firebase live/preview; 17/17 rutas. Mision web autentica iniciada 00:38Z reprodujo REPO_CONTEXT_SOURCE_TOO_LARGE y fallo repo.read; cancelada, NO COMPLETED. Se reprodujo y reparo localmente perdida de AbortSignal en grounded arguments; se anadio politica efectiva/actividad a health y detalles de fuente Repomix. CI y retest de la revision reparada pendientes al registrar este hito; diario externo conserva SHA posterior.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -27,9 +27,9 @@
 
 **Limite:** Los commits no son despliegues; mantienen controles de produccion, dinero, secretos y acceso.
 
-**Infraestructura actual al corte:** BRIDGE_IDENTITY_OK sobre el candidato; supervisor 3345; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
+**Infraestructura actual al corte:** Base oficial 2f15e0c verificada; revision reparada pendiente de CI y recarga controlada.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
 
-**Control de ventanas:** No tocar foco ni ventanas de Chrome; el propietario usa TikTok durante las pruebas.
+**Control de ventanas:** Chrome Work conectado y Terminal existente controlada con autorizacion expresa del propietario. Traza detallada jarvisTrace=1 para retest.
 
 ### Entregas y acciones verificadas
 
@@ -48,6 +48,10 @@
 - 2026-10-23: nueva autorizacion continua de edicion, pruebas y commits locales verificados sin pedir permiso repetitivo; no habilita despliegue ni escrituras de produccion. Ver governance.ownerDevelopmentAuthorization.
 - 2026-10-23: reparaciones locales de catalogo web/repositorio y retencion de fuentes en planificador; 463/463 regresiones PASS y Qwen local 1 mision SUCCESS/VERIFIED_COMPLETE con 4 pruebas fisicas. Cambios locales no publicados.
 - 2026-10-23: bateria nueva de 20 pruebas-misiones locales de V142: 16 lecturas fisicas con SHA de fuente y 4 denegaciones/antiduplicacion; 20/20 PASS. Decisiones programadas para probar motor y permisos, no 20 inferencias de Qwen ni 20 envios autenticados desde la web. Script versionado tests/jarvis-v142-20-readonly-missions.test.mjs.
+- 2026-10-24 relevo: SHA base 2f15e0c igual en HEAD/origin/Bridge/Firebase live y preview; CI GitHub 40146816281 Windows/Ubuntu SUCCESS; superficie live 17/17 HTTP. No acredita cierre de mision.
+- 2026-10-24 relevo: mision autentica Git/Repomix cancelada tras errores fisicos; Stop no llegaba a grounded argument completion. Regresion fallo con signal=null; correccion local pasa. Retest web pendiente.
+- 2026-10-24 relevo: RAM inicial 6736028 KiB; minimo muestreado 306012 KiB con Qwen; tras cancelacion y descarga automatica 8276160 KiB. No se termino llama-server a la fuerza.
+- 2026-10-24 relevo: encontrado respaldo ivms.sia7.zip con DeviceManagement/Video/EventCenter junio-julio en Migrado laptop vieja; aun no demuestra detector de vehiculos. Sin inspeccion de red.
 
 ### Evidencia tecnica certificada (sin elevarla a produccion)
 
@@ -57,12 +61,13 @@
 
 ### BLOQUEO ACTUAL: NO PUBLICADO
 
-- Estado: `BLOCKED_NOT_DEPLOYED`; causa: `SOVEREIGN_DEPLOY_BLOCKED: DEPLOY_BRANCH_NOT_ALLOWED; workflow permissions also missing`.
-- SHA web: `e1b0ed175754ca546210cf6068d84e7d47193d7d`; candidato: `3caa2f3899aab488f90edef7535beac55f6ca96e`.
+- Estado: `BLOCKED_NOT_DEPLOYED`; causa: `El candidato certificado almacenado conserva su recibo historico 3caa2f38. La base oficial actual 2f15e0c si fue publicada/verificada; la nueva reparacion local aun no esta publicada ni certificada por mision web. Ver currentRuntimeBaseline y diario externo.`.
+- SHA web: `2f15e0c53a0077029afbe9b3273b3304d9988f81`; candidato: `3caa2f3899aab488f90edef7535beac55f6ca96e`.
 - No alterar gate; no escribir fondos, reglas ni Functions sin autorizacion.
 
 ### Ruta de recuperacion para el siguiente chat
 
+1. Certificar correccion de cancelacion, health efectivo y feedback Repomix; publicar solo Hosting bajo gates y repetir mision autenticada con jarvisTrace=1. No declarar COMPLETED sin objetivos y recibos.
 1. Resolver la promocion autorizada de Hosting desde una rama/revision permitida con CI y permiso workflow adecuados, sin saltarse protecciones ni desplegar otros sitios/Functions/reglas.
 1. Verificar despues de publicacion SHA servido == SHA Bridge, relay /workstation/health autenticado sin 401, y que archivos privados devuelven 404.
 1. Ejecutar mision real en Terminal Firebase con recibo verificable y luego las 12 NS1 seguidas; clasificar SUCCEEDED, PARTIAL, FAILED con evidencia y artefactos.
@@ -79,6 +84,9 @@
 - `C:/Users/heber/Downloads/jarvis-ns1-web-12-missions-20261022.json`
 - `C:/Users/heber/Downloads/jarvis-ns1-web-12-misiones-diagnostico-20261022.md`
 - `C:/Users/heber/Downloads/v142-official-ci-certification-proposal.yml`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/v142-acceptance-telemetry-20261024.jsonl`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/v142-public-surface-relevo.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/v142-relevo-ci-local-20261024.txt`
 
 ### Reporte diario automatico
 
