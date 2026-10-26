@@ -1,0 +1,552 @@
+[
+  {
+    "index": 0,
+    "name": "repo.gitHistory",
+    "args": {
+      "limit": 8
+    },
+    "observation": {
+      "status": "GIT_HISTORY_OK",
+      "ok": true,
+      "executionOk": true,
+      "objectiveSatisfied": true,
+      "blocked": false,
+      "requiresInput": false,
+      "retryable": false,
+      "sourceCount": 0,
+      "gitEvidence": {
+        "kind": "git_committed_history",
+        "source": "LOCAL_GIT_LOG",
+        "commits": [
+          {
+            "sha": "9e44207767bc621387c36b3e87ada01cf5366974",
+            "date": "2026-10-26T10:50:56-05:00",
+            "subject": "fix(jarvis): recover bounded source windows without repeated evidence",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md",
+              "M\tfunctions/jarvis-repository-audit-codec.cjs",
+              "M\tfunctions/jarvis-semantic-planner.js",
+              "M\tpackage.json",
+              "A\ttests/fixtures/jarvis-context-alias-budget.json",
+              "A\ttests/jarvis-context-metadata-codec.test.cjs",
+              "M\ttests/jarvis-partial-source-argument-cycle.test.cjs",
+              "M\ttests/jarvis-repository-audit-schema.test.cjs"
+            ],
+            "fileCount": 9,
+            "filesOmitted": 0
+          },
+          {
+            "sha": "315976d3cd037ae3aab892e4bcc860d7b8279b46",
+            "date": "2026-10-26T10:23:13-05:00",
+            "subject": "fix(jarvis): retain repository contract and stop after proven objectives",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md",
+              "M\tfunctions/jarvis-semantic-planner.js",
+              "M\tgestia-core/gestia-core.js",
+              "M\tgestia-core/jarvis/jarvis.current-turn-scope.js",
+              "M\tpackage.json",
+              "M\ttests/jarvis-current-turn-production-regressions.test.mjs",
+              "M\ttests/jarvis-mission-orchestrator.test.mjs",
+              "A\ttests/jarvis-repository-mission-contract.test.mjs",
+              "M\ttests/jarvis-repository-source-acquisition.test.cjs"
+            ],
+            "fileCount": 10,
+            "filesOmitted": 0
+          },
+          {
+            "sha": "32737df3d976414c239ad21154ade6e0f8f2c82d",
+            "date": "2026-10-26T10:10:49-05:00",
+            "subject": "fix(jarvis): preserve evidence scope and usable partial mission results",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md",
+              "M\tfunctions/jarvis-repository-audit-codec.cjs",
+              "M\tfunctions/jarvis-semantic-planner.js",
+              "M\tgestia-core/gestia-core.js",
+              "M\tgestia-core/jarvis/jarvis.conversation.composer.js",
+              "M\tpackage.json",
+              "M\ttests/jarvis-evidence-context-budget.test.mjs",
+              "A\ttests/jarvis-mission-final-evidence.test.mjs",
+              "M\ttests/jarvis-mobile-web-research-recovery-v142.test.mjs",
+              "M\ttests/jarvis-partial-source-argument-cycle.test.cjs",
+              "M\ttests/jarvis-repository-audit-schema.test.cjs"
+            ],
+            "fileCount": 12,
+            "filesOmitted": 0
+          },
+          {
+            "sha": "9d58add72a1860dddfff0312ef1c04761dcf5515",
+            "date": "2026-10-26T09:43:06-05:00",
+            "subject": "docs(jarvis): record partial web retest and auxiliary laptop evidence",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md"
+            ],
+            "fileCount": 2,
+            "filesOmitted": 0
+          },
+          {
+            "sha": "b81ebe2d1dfe6e0d207709aebfcd849c474cfff9",
+            "date": "2026-10-26T09:37:38-05:00",
+            "subject": "fix(jarvis): retain repository receipts within bounded audit transport",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md",
+              "M\tfunctions/jarvis-repository-audit-codec.cjs",
+              "M\tfunctions/jarvis-semantic-planner.js",
+              "M\ttests/jarvis-repository-audit-schema.test.cjs"
+            ],
+            "fileCount": 5,
+            "filesOmitted": 0
+          },
+          {
+            "sha": "16ee3ba3079301a41e0fbb9747350443265c5c74",
+            "date": "2026-10-26T09:14:17-05:00",
+            "subject": "fix(jarvis): preserve objective scope through mission lifecycle",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md",
+              "M\tgestia-core/jarvis/jarvis.mission.orchestrator.js",
+              "M\ttests/jarvis-mission-orchestrator.test.mjs"
+            ],
+            "fileCount": 4,
+            "filesOmitted": 0
+          },
+          {
+            "sha": "2da7b97c26a01cd5abb5d39bcd5e554f8bce9259",
+            "date": "2026-10-26T09:04:10-05:00",
+            "subject": "test(jarvis): isolate localhost perimeter from unpublished checkout",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md",
+              "M\ttests/jarvis-local-intrusion-guard.test.mjs"
+            ],
+            "fileCount": 3,
+            "filesOmitted": 0
+          },
+          {
+            "sha": "87cd24a122ab8599fda7e71fec543f8c17ae535a",
+            "date": "2026-10-25T23:23:17-05:00",
+            "subject": "docs(v142): record local maintenance commit and preflight",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md"
+            ],
+            "fileCount": 2,
+            "filesOmitted": 0
+          }
+        ],
+        "reportedCommits": 8,
+        "limit": 8,
+        "detailsBounded": true,
+        "originalReceiptRetained": true
+      },
+      "repoCandidates": []
+    },
+    "allowedEvidenceKinds": [
+      "repository_search"
+    ]
+  },
+  {
+    "index": 1,
+    "name": "repo.gitStatus",
+    "args": {
+      "cwd": ".",
+      "timeoutMs": 5000
+    },
+    "observation": {
+      "status": "GIT_STATUS_OK",
+      "ok": true,
+      "executionOk": true,
+      "objectiveSatisfied": true,
+      "blocked": false,
+      "requiresInput": false,
+      "retryable": false,
+      "sourceCount": 0,
+      "gitEvidence": {
+        "kind": "git_worktree",
+        "branchLine": "## v142-official",
+        "files": [],
+        "totalFiles": 0,
+        "filesOmitted": 0,
+        "committedHistory": false
+      },
+      "repoCandidates": []
+    },
+    "allowedEvidenceKinds": [
+      "repository_search"
+    ]
+  },
+  {
+    "index": 2,
+    "name": "repo.read",
+    "args": {
+      "file": "package.json"
+    },
+    "observation": {
+      "status": "SUCCESS",
+      "ok": true,
+      "executionOk": true,
+      "objectiveSatisfied": true,
+      "blocked": false,
+      "requiresInput": false,
+      "retryable": false,
+      "sourceCount": 0,
+      "verifiedRead": {
+        "tool": "repo.read",
+        "file": "package.json",
+        "sourceStructure": {
+          "dataBindings": {
+            "source": "ACORN_SOURCE_REFERENCES",
+            "collections": [],
+            "fieldPaths": [],
+            "fieldPathsComplete": false,
+            "writeShapes": [],
+            "queryShapes": [],
+            "references": [],
+            "referencesComplete": true,
+            "collectionAnchors": [],
+            "complete": false,
+            "scope": "Static code references and bounded source excerpts, not a database inventory or query result."
+          }
+        },
+        "path": "package.json",
+        "startLine": 1,
+        "endLine": 30,
+        "readEndLine": 72,
+        "totalLines": 72,
+        "partial": true,
+        "truncated": true,
+        "evidenceTextTruncated": true,
+        "exactContent": true,
+        "rereadRequiredForPatch": false,
+        "content": "{\n  \"name\": \"gestia-premium\",\n  \"version\": \"1.0.0\",\n  \"type\": \"module\",\n  \"scripts\": {\n    \"manifest:v142\": \"node scripts/platform-master-manifest-v142.mjs\",\n    \"manifest:v142:check\": \"node scripts/platform-master-manifest-v142.mjs --check\",\n    \"test:jarvis:webtest\": \"node --test tests/publish-v142-webtest.test.mjs\",\n    \"test:jarvis:20-missions\": \"node --test tests/jarvis-v142-20-readonly-missions.test.mjs\",\n    \"webtest:v142:check\": \"node scripts/publish-v142-webtest.mjs --check\",\n    \"webtest:v142:publish\": \"node scripts/publish-v142-webtest.mjs --publish\",\n    \"sync:b2c-contract\": \"node scripts/sync-b2c-platform-contract.mjs\",\n    \"migrate:b2c-technician\": \"node scripts/migrate-b2c-technician.mjs\",\n    \"prepare:release\": \"node scripts/prepare-platform-release.mjs\",\n    \"smoke:release\": \"node scripts/smoke-platform-release.mjs\",\n    \"test:b2c-platform\": \"npm run sync:b2c-contract && node --test tests/b2c-platform-authority.test.mjs tests/platform-release-authority.test.mjs && node functions/test-b2c-platform-authority.js && node functions/test-b2c-provider-crew.js && node functions/test-b2c-technician-approval.js && node functions/test-b2c-service-marketplace.js && node functions/test-b2c-financial-policy.js && node functions/test-b2c-service-workflow.js && node functions/test-b2c-service-settlement.js\",\n    \"test:v142:payout-emulator\": \"node scripts/v142-payout-emulator.mjs\",\n    \"test:b2c-emulators\": \"npx --yes firebase-tools@14.18.0 emulators:exec --project fixgo-b2c-rules-test --only firestore,storage \\\"node --test tests/b2c-rules-emulator.test.mjs\\\"\",\n    \"bridge\": \"node scripts/jarvis-workstation-start.cjs\",\n    \"bridge:smoke\": \"node -e \\\"import('./jarvis-upload-bridge.js').then(async m=>{const server=m.startJarvisUploadBridge({port:0});await new Promise((resolve,reject)=>{if(server.listening)return resolve();server.once('listening',resolve);server.once('error',reject);});const doctor=await m.inspectJarvisWorkstation();await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));console.log('[JARVIS_BRIDGE_SMOKE] ok');console.log('[JARVIS_WORKSTATION_DOCTOR] '+JSON.stringify({ok:doctor.ok,repo:doctor.repo,localAi:doctor.localAi,firebase:doctor.firebase,tooling:doctor.tooling,runtime:doctor.runtime}));}).catch(error=>{console.error(error);process.exit(1)})\\\"\",\n    \"worker:smoke\": \"node -e \\\"import('./jarvis-github-worker.js').then(async m=>{const poll=m.createWorkerPoller({reconcile:async()=>{},readJob:async()=>null,readResultId:async()=>'',sync:async()=>{},execute:async()=>({ok:true}),publish:async()=>{},persist:()=>{},readLocalResult:()=>null,log:()=>{},reportError:()=>{}});await poll();console.log('[SIA7_WORKER_SMOKE] ok');}).catch(error=>{console.error(error);process.exit(1);})\\\"\",\n    \"nexo:bridge\": \"npm run bridge\",\n    \"check:nexo:contracts\": \"npm run check:jarvis:contracts\",\n    \"test:nexo\": \"npm run test:jarvis:runtime\",\n    \"test:nexo:bridge\": \"npm run test:jarvis:bridge\",\n    \"check:nexo\": \"npm run check:jarvis\",\n    \"check:syntax\": \"node --check gestia-core/jarvis/jarvis.marketing.engine.js && node --check gestia-core/jarvis/jarvis.business.engine.js && node --check gestia-core/jarvis/jarvis.company.registry.js && node --check gestia-core/jarvis/jarvis.scanner.engine.js && node --check gestia-core/jarvis/jarvis.autofix.engine.js && node --check gestia-core/jarvis/jarvis.autopatch.engine.js && node --check gestia-core/jarvis/jarvis.autonomy.engine.js && node --check gestia-core/jarvis/jarvis.sovereign.authority.js && node --check gestia-core/jarvis/jarvis.page.creator.js && node --check gestia-core/jarvis/jarvis.media.ingestion.js && node --check gestia-core/jarvis/jarvis.document.validator.js && node --check gestia-core/nexo/nexo.real-media.tools.js && node --check nexo-web-media-bridge.js && node --check gestia-core/hubs/execution.hub.js && node --check gestia-core/hubs/repo.hub.js && node --check gestia-core/hubs/security.hub.js && node --check gestia-core/authority/authority.registry.js && node --check gestia-core/jarvis.kernel.js && node --check gestia-core/repo/resource.registry.js && node --check gestia-core/gestia.runtime.v7.js && node --check gestia-core/syntax-validator.engine.js && node --check modules/terminal/patch-workflow.js && node --check modules/terminal/repo-cognition.js && node --check modules/terminal/runtime-governance.js && node --check modules/terminal/runtime-persistence.js && node --check modules/terminal/runtime-event-bus.js && node --check modules/terminal/runtime-repair-health.js && node --check modules/terminal/runtime-platform.js && node --check modules/terminal/runtime-daemons.js && node --check modules/terminal/runtime-snapshot-daemon.js && node --check functions/index.js && node --check functions/jarvis-intent-runtime-v7.cjs && node --check functions/repo-write-auth.js && node --check functions/repo-syntax-validator.js && node --check functions/repo-semantic-tool-planner.js && node --check gestia-core/operations-executor.engine.js && node --check gestia-core/plans.engine.js && node --check gestia-terminal.js && node --check jarvis-docx-artifact.js && node --check jarvis-local-video-engine.js && node --check jarvis-fs-bridge.js && node --check jarvis-upload-bridge.js && node --check jarvis-github-worker.js && node --check sw.js && node --check test-runtime.js && npm run bridge:smoke && npm run worker:smoke\",\n    \"test\": \"node .github/scripts/v139-canonical-real-reel.mjs\",\n    \"test:raw\": \"node --test tests/nexo-real-media-tools.test.mjs tests/nexo-web-media-bridge.test.mjs tests/nexo-approval-normalization.test.mjs tests/jarvis-server-intent-contract.test.cjs tests/jarvis-repair-engines-v2.test.mjs tests/jarvis-autonomy-engine.test.mjs tests/jarvis-marketing-engine-v2.test.mjs tests/jarvis-sovereign-authority.test.mjs tests/jarvis-deploy-gate.test.mjs tests/jarvis-page-media.test.mjs tests/jarvis-page-artifact.test.mjs tests/jarvis-page-insufficient-evidence-v123.test.mjs tests/jarvis-reel-artifact.test.mjs tests/jarvis-artifact-studio.test.mjs tests/jarvis-observability.test.mjs tests/jarvis-quote-pdf.test.mjs tests/jarvis-pdf-layout.test.mjs tests/jarvis-pdf-visual.test.mjs tests/jarvis-document-validator.test.mjs tests/jarvis-docx-artifact.test.mjs tests/repo-authority-v2.test.cjs tests/jarvis-fs-bridge-v2.test.mjs tests/jarvis-upload-bridge.test.mjs tests/jarvis-repo-intelligence.test.mjs tests/jarvis-chief-architect.test.mjs tests/resource-registry-v2.test.mjs tests/proposal-state.test.mjs tests/jarvis-daily-supervisor.test.cjs tests/jarvis-web-research.test.cjs tests/single-semantic-authority.test.mjs\",\n    \"test:upload\": \"node --test tests/jarvis-upload-bridge.test.mjs\",\n",
+        "contentLength": 17633,
+        "contentTruncated": true
+      },
+      "repoCandidates": []
+    },
+    "allowedEvidenceKinds": [
+      "repository_source"
+    ]
+  },
+  {
+    "index": 3,
+    "name": "repo.context",
+    "args": {
+      "files": [
+        "modules/terminal/modules/terminal/repo-cognition.js",
+        "gestia-core/jarvis/jarvis.local.policy.js"
+      ]
+    },
+    "observation": {
+      "status": "REPO_CONTEXT_READY",
+      "ok": true,
+      "executionOk": true,
+      "objectiveSatisfied": true,
+      "blocked": false,
+      "requiresInput": false,
+      "retryable": false,
+      "sourceCount": 0,
+      "contextPreview": {
+        "source": "LOCAL_REPOMIX_READ_ONLY",
+        "sha256": "51c3d20fe8df4a86e9d612387d47c4d83d7c01444f5d4ed9730324f0c0366714",
+        "files": [
+          {
+            "file": "modules/terminal/modules/terminal/repo-cognition.js",
+            "sha256": "d9ed0ad0a32bc36042ca838d2316a4e892694cfb9cf8f63324a0994e04e3a7e5"
+          },
+          {
+            "file": "gestia-core/jarvis/jarvis.local.policy.js",
+            "sha256": "c672c70ce21d99a6c87c273c7981766adb687925b05d293f29ff38cca791fe0e"
+          }
+        ],
+        "excerpt": "<files> This section contains the contents of the repository's files. <file path=\"gestia-core/jarvis/jarvis.local.policy.js\"> // One model for planning, conversation and retrieval on the local workstation. // Deterministic tools never grant permission to invoke another AI provider. ⋮---- export function hasExactLocalModel(names, expected = JARVIS_LOCAL_MODEL) export function externalInferenceBlocked(capability) </file> <file path=\"modules/terminal/modules/terminal/repo-cognition.js\"> /* Compatibility shim: runtime-governance.js imports this nested legacy path. */ </file> </files>",
+        "truncated": false,
+        "evidenceOnly": true,
+        "independentlyCertified": false
+      },
+      "repoCandidates": [],
+      "files": [
+        "modules/terminal/modules/terminal/repo-cognition.js",
+        "gestia-core/jarvis/jarvis.local.policy.js"
+      ],
+      "inventoryExcerpt": true,
+      "sha256": "51c3d20fe8df4a86e9d612387d47c4d83d7c01444f5d4ed9730324f0c0366714"
+    },
+    "allowedEvidenceKinds": [
+      "repository_search"
+    ]
+  },
+  {
+    "index": 4,
+    "name": "repo.read",
+    "args": {
+      "file": "modules/terminal/modules/terminal/repo-cognition.js"
+    },
+    "observation": {
+      "status": "SUCCESS",
+      "ok": true,
+      "executionOk": true,
+      "objectiveSatisfied": true,
+      "blocked": false,
+      "requiresInput": false,
+      "retryable": false,
+      "sourceCount": 0,
+      "verifiedRead": {
+        "tool": "repo.read",
+        "file": "modules/terminal/modules/terminal/repo-cognition.js",
+        "sourceStructure": {
+          "dataBindings": {
+            "source": "ACORN_SOURCE_REFERENCES",
+            "collections": [],
+            "fieldPaths": [],
+            "fieldPathsComplete": true,
+            "writeShapes": [],
+            "queryShapes": [],
+            "references": [],
+            "referencesComplete": true,
+            "collectionAnchors": [],
+            "complete": true,
+            "scope": "Static code references and bounded source excerpts, not a database inventory or query result."
+          }
+        },
+        "path": "modules/terminal/modules/terminal/repo-cognition.js",
+        "startLine": 1,
+        "endLine": 3,
+        "readEndLine": 3,
+        "totalLines": 3,
+        "partial": false,
+        "truncated": false,
+        "evidenceTextTruncated": false,
+        "exactContent": true,
+        "rereadRequiredForPatch": false,
+        "content": "/* Compatibility shim: runtime-governance.js imports this nested legacy path. */\r\nexport * from \"../../repo-cognition.js\";\r\n",
+        "contentLength": 124,
+        "contentTruncated": false
+      },
+      "repoCandidates": []
+    },
+    "allowedEvidenceKinds": [
+      "repository_source"
+    ]
+  },
+  {
+    "index": 5,
+    "name": "repo.read",
+    "args": {
+      "file": "gestia-core/jarvis/jarvis.local.policy.js"
+    },
+    "observation": {
+      "status": "SUCCESS",
+      "ok": true,
+      "executionOk": true,
+      "objectiveSatisfied": true,
+      "blocked": false,
+      "requiresInput": false,
+      "retryable": false,
+      "sourceCount": 0,
+      "verifiedRead": {
+        "tool": "repo.read",
+        "file": "gestia-core/jarvis/jarvis.local.policy.js",
+        "sourceStructure": {
+          "dataBindings": {
+            "source": "ACORN_SOURCE_REFERENCES",
+            "collections": [],
+            "fieldPaths": [],
+            "fieldPathsComplete": true,
+            "writeShapes": [],
+            "queryShapes": [],
+            "references": [],
+            "referencesComplete": true,
+            "collectionAnchors": [],
+            "complete": true,
+            "scope": "Static code references and bounded source excerpts, not a database inventory or query result."
+          }
+        },
+        "path": "gestia-core/jarvis/jarvis.local.policy.js",
+        "startLine": 1,
+        "endLine": 13,
+        "readEndLine": 13,
+        "totalLines": 13,
+        "partial": false,
+        "truncated": false,
+        "evidenceTextTruncated": false,
+        "exactContent": true,
+        "rereadRequiredForPatch": false,
+        "content": "// One model for planning, conversation and retrieval on the local workstation.\n// Deterministic tools never grant permission to invoke another AI provider.\nexport const JARVIS_LOCAL_MODEL = 'qwen3.5:9b';\nexport function hasExactLocalModel(names, expected = JARVIS_LOCAL_MODEL) {\n    return Array.isArray(names) && names.includes(expected);\n}\nexport function externalInferenceBlocked(capability) {\n    return {ok:false,executionOk:false,objectiveSatisfied:false,blocked:true,retryable:false,\n        status:'LOCAL_CAPABILITY_UNAVAILABLE',error:'EXTERNAL_INFERENCE_DISABLED',\n        capability,localOnly:true,fallbackAllowed:false,externalApiUsed:false,\n        message:'Esta capacidad no tiene una implementación local disponible; la inferencia externa está deshabilitada.'};\n}\n",
+        "contentLength": 779,
+        "contentTruncated": false
+      },
+      "repoCandidates": []
+    },
+    "allowedEvidenceKinds": [
+      "repository_source"
+    ]
+  },
+  {
+    "index": 6,
+    "name": "repo.gitHistory",
+    "args": {
+      "limit": 5
+    },
+    "observation": {
+      "status": "GIT_HISTORY_OK",
+      "ok": true,
+      "executionOk": true,
+      "objectiveSatisfied": true,
+      "blocked": false,
+      "requiresInput": false,
+      "retryable": false,
+      "sourceCount": 0,
+      "gitEvidence": {
+        "kind": "git_committed_history",
+        "source": "LOCAL_GIT_LOG",
+        "commits": [
+          {
+            "sha": "9e44207767bc621387c36b3e87ada01cf5366974",
+            "date": "2026-10-26T10:50:56-05:00",
+            "subject": "fix(jarvis): recover bounded source windows without repeated evidence",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md",
+              "M\tfunctions/jarvis-repository-audit-codec.cjs",
+              "M\tfunctions/jarvis-semantic-planner.js",
+              "M\tpackage.json",
+              "A\ttests/fixtures/jarvis-context-alias-budget.json",
+              "A\ttests/jarvis-context-metadata-codec.test.cjs",
+              "M\ttests/jarvis-partial-source-argument-cycle.test.cjs",
+              "M\ttests/jarvis-repository-audit-schema.test.cjs"
+            ],
+            "fileCount": 9,
+            "filesOmitted": 0
+          },
+          {
+            "sha": "315976d3cd037ae3aab892e4bcc860d7b8279b46",
+            "date": "2026-10-26T10:23:13-05:00",
+            "subject": "fix(jarvis): retain repository contract and stop after proven objectives",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md",
+              "M\tfunctions/jarvis-semantic-planner.js",
+              "M\tgestia-core/gestia-core.js",
+              "M\tgestia-core/jarvis/jarvis.current-turn-scope.js",
+              "M\tpackage.json",
+              "M\ttests/jarvis-current-turn-production-regressions.test.mjs",
+              "M\ttests/jarvis-mission-orchestrator.test.mjs",
+              "A\ttests/jarvis-repository-mission-contract.test.mjs",
+              "M\ttests/jarvis-repository-source-acquisition.test.cjs"
+            ],
+            "fileCount": 10,
+            "filesOmitted": 0
+          },
+          {
+            "sha": "32737df3d976414c239ad21154ade6e0f8f2c82d",
+            "date": "2026-10-26T10:10:49-05:00",
+            "subject": "fix(jarvis): preserve evidence scope and usable partial mission results",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md",
+              "M\tfunctions/jarvis-repository-audit-codec.cjs",
+              "M\tfunctions/jarvis-semantic-planner.js",
+              "M\tgestia-core/gestia-core.js",
+              "M\tgestia-core/jarvis/jarvis.conversation.composer.js",
+              "M\tpackage.json",
+              "M\ttests/jarvis-evidence-context-budget.test.mjs",
+              "A\ttests/jarvis-mission-final-evidence.test.mjs",
+              "M\ttests/jarvis-mobile-web-research-recovery-v142.test.mjs",
+              "M\ttests/jarvis-partial-source-argument-cycle.test.cjs",
+              "M\ttests/jarvis-repository-audit-schema.test.cjs"
+            ],
+            "fileCount": 12,
+            "filesOmitted": 0
+          },
+          {
+            "sha": "9d58add72a1860dddfff0312ef1c04761dcf5515",
+            "date": "2026-10-26T09:43:06-05:00",
+            "subject": "docs(jarvis): record partial web retest and auxiliary laptop evidence",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md"
+            ],
+            "fileCount": 2,
+            "filesOmitted": 0
+          },
+          {
+            "sha": "b81ebe2d1dfe6e0d207709aebfcd849c474cfff9",
+            "date": "2026-10-26T09:37:38-05:00",
+            "subject": "fix(jarvis): retain repository receipts within bounded audit transport",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md",
+              "M\tfunctions/jarvis-repository-audit-codec.cjs",
+              "M\tfunctions/jarvis-semantic-planner.js",
+              "M\ttests/jarvis-repository-audit-schema.test.cjs"
+            ],
+            "fileCount": 5,
+            "filesOmitted": 0
+          }
+        ],
+        "reportedCommits": 5,
+        "limit": 5,
+        "detailsBounded": true,
+        "originalReceiptRetained": true
+      },
+      "repoCandidates": []
+    },
+    "allowedEvidenceKinds": [
+      "repository_search"
+    ]
+  },
+  {
+    "index": 7,
+    "name": "repo.gitHistory",
+    "args": {
+      "limit": 1
+    },
+    "observation": {
+      "status": "GIT_HISTORY_OK",
+      "ok": true,
+      "executionOk": true,
+      "objectiveSatisfied": true,
+      "blocked": false,
+      "requiresInput": false,
+      "retryable": false,
+      "sourceCount": 0,
+      "gitEvidence": {
+        "kind": "git_committed_history",
+        "source": "LOCAL_GIT_LOG",
+        "commits": [
+          {
+            "sha": "9e44207767bc621387c36b3e87ada01cf5366974",
+            "date": "2026-10-26T10:50:56-05:00",
+            "subject": "fix(jarvis): recover bounded source windows without repeated evidence",
+            "files": [
+              "M\tdocs/platform-master-manifest-v142.json",
+              "M\tdocs/platform-master-manifest-v142.md",
+              "M\tfunctions/jarvis-repository-audit-codec.cjs",
+              "M\tfunctions/jarvis-semantic-planner.js",
+              "M\tpackage.json",
+              "A\ttests/fixtures/jarvis-context-alias-budget.json",
+              "A\ttests/jarvis-context-metadata-codec.test.cjs",
+              "M\ttests/jarvis-partial-source-argument-cycle.test.cjs",
+              "M\ttests/jarvis-repository-audit-schema.test.cjs"
+            ],
+            "fileCount": 9,
+            "filesOmitted": 0
+          }
+        ],
+        "reportedCommits": 1,
+        "limit": 1,
+        "detailsBounded": true,
+        "originalReceiptRetained": true
+      },
+      "repoCandidates": []
+    },
+    "allowedEvidenceKinds": [
+      "repository_search"
+    ]
+  }
+]

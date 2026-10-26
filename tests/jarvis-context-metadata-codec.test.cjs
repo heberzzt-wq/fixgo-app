@@ -1,6 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),{parse}=require('acorn');
 const codec=require('../functions/jarvis-repository-audit-codec.cjs');
 const fixture=require('./fixtures/jarvis-context-alias-budget.json');
+const scopedState={modelContextTokens:8192,evidenceObjectives:[{resolvedScope:'Verify the requested sources.',requiredEvidenceKind:'repository_source'}]};
 const source=fs.readFileSync(require.resolve('../functions/jarvis-semantic-planner.js'),'utf8');
 const nodes=parse(source,{ecmaVersion:'latest'}).body;
 function fn(name,context={}){const n=nodes.find(n=>n.id?.name===name);return vm.runInNewContext('('+source.slice(n.start,n.end)+')',context);}
@@ -11,7 +12,7 @@ test('real six-task context fits with exact reversible aliases and untouched sou
  const packed=codec.packRepositoryContextMetadata(fixture);
  assert.deepEqual(codec.unpackRepositoryContextMetadata(packed),fixture);
  assert.equal(JSON.stringify(fixture),before);
- const view=planning(fixture,{modelContextTokens:8192},{repositoryOnly:true});
+ const view=planning(fixture,scopedState,{repositoryOnly:true});
  assert.ok(JSON.stringify(view).length<=12288);
  assert.equal(view[2].observation.contextPreview.excerpt,fixture[2].observation.contextPreview.excerpt);
  assert.equal(view[2].observation.contextPreview.independentlyCertified,false);
@@ -98,4 +99,15 @@ test('unresolved transport metadata is retained instead of pretending it was dec
   const result=decode([task])[0];
   for(const key of ['readArgs','sourceReadDefaults','toolEvidenceKinds','evidenceMetadataEncoding'])if(Object.hasOwn(task,key))assert.deepEqual(JSON.parse(JSON.stringify(result[key])),task[key]);
  }
+});
+test('lossless sharing precedes source eviction and retains both complete tiny prepared files',()=>{
+ const receipts=require('./fixtures/jarvis-source-retention-budget.json');const before=JSON.stringify(receipts);
+ const view=planning(receipts,scopedState,{repositoryOnly:true});
+ assert.ok(JSON.stringify(view).length<=12288);
+ for(const index of [4,5]){
+  const read=view[index].observation.verifiedRead,original=receipts[index].observation.verifiedRead;
+  assert.equal(read.content,original.content);assert.equal(read.partial,false);assert.equal(read.contentTruncated,false);assert.equal(read.endLine,original.endLine);
+ }
+ assert.equal(view[2].observation.verifiedRead.partial,true,'partial package receipt must remain partial');
+ assert.equal(JSON.stringify(receipts),before);
 });

@@ -397,7 +397,27 @@ function eligibleEvidenceActionCatalog(catalog,tasks,configuredFiles=[],dependen
             if(!schema.anyOf&&schema.additionalProperties===false&&Object.keys(schema.properties||{}).length===1&&
                 limit?.type==='integer'&&Number.isInteger(limit.minimum)&&Number.isInteger(limit.maximum)) {
                 const seen=[...new Set(successful.filter(task=>task.name===tool.name&&Object.keys(task.args||{}).length===1&&
-                    Number.isInteger(task.args.limit)).map(task=>task.args.limit))].filter(n=>n>=limit.minimum&&n<=limit.maximum).sort((a,b)=>a-b);
+                    Number.isInteger(task.args.limit)).flatMap(task=>{
+                    const g=task.observation.gitEvidence,commits=g?.commits;
+                    // git log changes only max-count. Complete retained prefix
+                    // facts cannot gain detail from another smaller max-count.
+                    // Unknown/mutating later actions or a changed history revoke
+                    // this subsumption; receipts are never claims about future HEAD.
+                    const later=tasks.slice(tasks.indexOf(task)+1);
+                    const coherent=later.every(next=>next.mutates!==true&&dependencyCatalog.some(entry=>entry.name===next.name&&entry.mutates===false)&&
+                        (next.name!==tool.name || next.observation?.ok===true&&next.observation.executionOk!==false&&
+                        next.observation.gitEvidence?.source===g?.source&&next.observation.gitEvidence?.kind===g?.kind&&
+                        Array.isArray(next.observation.gitEvidence.commits)&&next.observation.gitEvidence.commits.length>0&&Array.isArray(commits)&&
+                        next.observation.gitEvidence.commits.slice(0,commits.length).every((commit,index)=>JSON.stringify(commit)===JSON.stringify(commits[index]))));
+                    if(!coherent)return [];
+                    const complete=g?.kind==='git_committed_history'&&g.source==='LOCAL_GIT_LOG'&&g.limit===task.args.limit&&
+                        Array.isArray(commits)&&commits.length===g.reportedCommits&&commits.length===g.limit&&
+                        commits.every(commit=>typeof commit.sha==='string'&&commit.sha.length===40&&typeof commit.date==='string'&&commit.date.length<40&&
+                            typeof commit.subject==='string'&&commit.subject.length<180&&Array.isArray(commit.files)&&commit.filesOmitted===0&&
+                            commit.fileCount===commit.files.length&&commit.files.every(file=>typeof file==='string'&&file.length<320))&&
+                        new Set(commits.map(commit=>commit.sha)).size===commits.length;
+                    return complete?Array.from({length:commits.length},(_,index)=>index+1):[task.args.limit];
+                }))].filter(n=>n>=limit.minimum&&n<=limit.maximum).sort((a,b)=>a-b);
                 if(seen.length) {
                     const ranges=[];let start=limit.minimum;
                     for(const end of [...seen,limit.maximum+1]){if(start<end)ranges.push([start,end-1]);start=end+1;}
@@ -2322,20 +2342,21 @@ function planningAuditTasks(tasks, missionState, {repositoryOnly = false} = {}) 
                 omissionScope:"Repository-only planning view; full AST schema retained in original receipt. This view grants no operational data authority."}}}};
     }) : tasks;
     const budget=lowMemory ? Math.floor(tokens*1.5) : 28000, bodyLimit=lowMemory ? 1800 : 4000;
+    // Apply reversible byte sharing before evicting any source window.
+    // Waiting for total failure could discard a 124-byte complete source while
+    // duplicate Git/context metadata still occupies thousands of characters.
+    const scopedRepositoryAudit=missionState?.evidenceObjectives?.length && missionState.evidenceObjectives.every(goal=>
+        typeof goal.resolvedScope==='string' && goal.resolvedScope.trim() && typeof goal.requiredEvidenceKind==='string');
+    if(lowMemory && repositoryOnly && scopedRepositoryAudit) {
+        const codec=require('./jarvis-repository-audit-codec.cjs');
+        return boundedAuditTasks(codec.packRepositoryContextMetadata(codec.packGitCommitEvidence(views)),budget,bodyLimit);
+    }
     try { return boundedAuditTasks(views,budget,bodyLimit); }
     catch(error) {
         if(error.message!=='SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED')throw error;
-        const {packGitCommitEvidence,packRepositoryContextMetadata}=require('./jarvis-repository-audit-codec.cjs');
-        const packed=packGitCommitEvidence(views);
-        try {
-            if(packed===views)throw error;
-            return boundedAuditTasks(packed,budget,bodyLimit);
-        } catch(finalError) {
-            if(finalError.message!=='SEMANTIC_EVIDENCE_CONTEXT_BUDGET_EXCEEDED'||!repositoryOnly||!lowMemory)throw finalError;
-            const shared=packRepositoryContextMetadata(packed);
-            if(shared===packed)throw finalError;
-            return boundedAuditTasks(shared,budget,bodyLimit);
-        }
+        const packed=require('./jarvis-repository-audit-codec.cjs').packGitCommitEvidence(views);
+        if(packed===views)throw error;
+        return boundedAuditTasks(packed,budget,bodyLimit);
     }
 }
 

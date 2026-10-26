@@ -13,7 +13,7 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** 2026-10-26 continuacion de utilidad: transporte reversible de metadatos repo.context baja paquete real12432 a12174 caracteres sin perder excerpt ni hashes. Decoder retira solo instrucciones transporte ya resueltas. Auditoria por objetivo dispone razon hasta600caracteres/512tokens; contrato Git distingue historial de worktree y contexto distingue preparacion de lectura; referencias positivas requieren todas las herramientas explicitas. Seleccion vacia expone recibos compatibles a auditoria sin fabricar veredicto. Ventana totalmente evictada endLine=null ya exige rango; Git excluye limites exactos repetidos. Replay fisico paquete complejo9inferencias: Git y contexto probados independientemente, siguiente repo.read current-turn-scope.js1-58 valido; no COMPLETED global ni retest web aun. CI completa en curso. Consulta simple WEB315976d3 permanece certificada en su alcance. Sin push/deploy. CI oficial completa exit0 {"pass":1885,"fail":0,"skipped":2}; incluye nueva suite transporte contexto. Replay real9inferencias obtiene proofGit/contexto y lectura nueva1-58. Retest WEB exacto pendiente tras commit/arranque limpio, sin certificacion general.
+**Resumen:** 2026-10-26 retest WEB9e442077: obtuvo Git8, estado limpio, contexto y lecturas completas de shim3lineas/policy13lineas, pero ciclo Git5/Git1. Cancelacion fisica diagnostica, Bridge14696 detenido inactivo; no COMPLETED. Causa comprobada: sharing lossless ocurria solo tras fallo total; vista expulsaba fuente completa124bytes mientras mantenia duplicados. Fix aplica sharing antes de truncar y preserva ambos contenidos completos dentro11607/12288chars; fixture real sin mutar originales. Frontera excluye prefijos Git integros ya obtenidos y revoca esa dedupe ante mutacion/historial distinto/truncacion. Auditoria repo.read resuelve archivos requeridos desde alcance/contexto, no agrega auxiliares; probe positivo4,5 y negativo falta4 rechaza. Replay exacto11inferencias: Git/contexto/doslecturas obtienen prueba independiente; siguiente lectura valida package.json desde31, explicacion/tests pendientes. Laptop vieja16/16 auxiliares snapshot contexto-frontier con hashes. CI del fix en curso; retest web pendiente. Sin push/deploy ni certificacion general. CI final retencion exit0 {"pass":1887,"fail":0,"skipped":2}. Regresion formato legacy detectada y corregida: compartir anticipadamente solo en auditoria por objetivo con scope resuelto; recibos legacy mantienen contrato previo. Prueba fuente positiva/negativa fisica y replay11calls preservados. Pendiente commit/arranque limpio/retest web.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -27,7 +27,7 @@
 
 **Limite:** Los commits no son despliegues; mantienen controles de produccion, dinero, secretos y acceso.
 
-**Infraestructura actual al corte:** Bridge11388 mantenimiento315976d3 detenido con activeInferenceCalls=0 para correccion local. Supervisor3345 pausado; Qwen local sin segundo planner.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
+**Infraestructura actual al corte:** Bridge14696 mantenimiento9e442077 detenido tras cancelacion fisica del ciclo Git y activeInferenceCalls=0; supervisor3345 pausado.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
 
 **Control de ventanas:** Chrome extension conectado; Terminal autentica controlada y mision real enviada, sin nuevos bloqueos de permisos de navegador observados.
 
@@ -81,6 +81,8 @@
 - 2026-10-26 evidencia WEB fisica sobre315976d3: MISSION-2d1701c5-4492-4476-83a2-c3a21467f64f COMPLETED/ALL_EXECUTABLE_TASKS_COMPLETED en14134ms; repo.read jarvis.local.policy.js identifica qwen3.5:9b correctamente en Terminal local autenticada. Captura y traza guardadas. Pedido complejo exacto MISSION-562d3b08-c71e-4789-ba7f-61142cc87c98 PARTIAL/PLANNER_UNAVAILABLE en54352ms;6operaciones obtenidas, presupuesto12432>12288 al incorporar contexto y lectura parcial de compositor1383lineas. No implica Jarvis general certificado. Bridge11388 detenido inactivo; correccion reversible de metadatos duplicados en curso; sin push/deploy.
 - 2026-10-26 continuacion de utilidad: transporte reversible de metadatos repo.context baja paquete real12432 a12174 caracteres sin perder excerpt ni hashes. Decoder retira solo instrucciones transporte ya resueltas. Auditoria por objetivo dispone razon hasta600caracteres/512tokens; contrato Git distingue historial de worktree y contexto distingue preparacion de lectura; referencias positivas requieren todas las herramientas explicitas. Seleccion vacia expone recibos compatibles a auditoria sin fabricar veredicto. Ventana totalmente evictada endLine=null ya exige rango; Git excluye limites exactos repetidos. Replay fisico paquete complejo9inferencias: Git y contexto probados independientemente, siguiente repo.read current-turn-scope.js1-58 valido; no COMPLETED global ni retest web aun. CI completa en curso. Consulta simple WEB315976d3 permanece certificada en su alcance. Sin push/deploy.
 - CI oficial completa exit0 {"pass":1885,"fail":0,"skipped":2}; incluye nueva suite transporte contexto. Replay real9inferencias obtiene proofGit/contexto y lectura nueva1-58. Retest WEB exacto pendiente tras commit/arranque limpio, sin certificacion general.
+- 2026-10-26 retest WEB9e442077: obtuvo Git8, estado limpio, contexto y lecturas completas de shim3lineas/policy13lineas, pero ciclo Git5/Git1. Cancelacion fisica diagnostica, Bridge14696 detenido inactivo; no COMPLETED. Causa comprobada: sharing lossless ocurria solo tras fallo total; vista expulsaba fuente completa124bytes mientras mantenia duplicados. Fix aplica sharing antes de truncar y preserva ambos contenidos completos dentro11607/12288chars; fixture real sin mutar originales. Frontera excluye prefijos Git integros ya obtenidos y revoca esa dedupe ante mutacion/historial distinto/truncacion. Auditoria repo.read resuelve archivos requeridos desde alcance/contexto, no agrega auxiliares; probe positivo4,5 y negativo falta4 rechaza. Replay exacto11inferencias: Git/contexto/doslecturas obtienen prueba independiente; siguiente lectura valida package.json desde31, explicacion/tests pendientes. Laptop vieja16/16 auxiliares snapshot contexto-frontier con hashes. CI del fix en curso; retest web pendiente. Sin push/deploy ni certificacion general.
+- CI final retencion exit0 {"pass":1887,"fail":0,"skipped":2}. Regresion formato legacy detectada y corregida: compartir anticipadamente solo en auditoria por objetivo con scope resuelto; recibos legacy mantienen contrato previo. Prueba fuente positiva/negativa fisica y replay11calls preservados. Pendiente commit/arranque limpio/retest web.
 
 ### Evidencia tecnica certificada (sin elevarla a produccion)
 
@@ -245,6 +247,15 @@
 - `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/source-next-action-green.txt`
 - `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/context-frontier-ci.txt`
 - `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/context-frontier-ci-exit.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/frontier-web-trace.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/frontier-web-packet.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/replay-frontier-complete.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/source-scope-probe.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/source-scope-negative-probe.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/old-laptop-contexto-frontier-receipt.json`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/git-prefix-frontier-green.txt`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/retention-ci-final.txt`
+- `C:/Users/heber/Documents/Codex/2026-10-26/bu/work/retention-ci-final-exit.json`
 
 ### Reporte diario automatico
 

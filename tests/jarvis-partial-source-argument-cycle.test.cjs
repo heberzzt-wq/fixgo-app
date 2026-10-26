@@ -96,3 +96,18 @@ test('known Git history limit is not reoffered while different authorized limits
  const scoped={...history,inputSchema:{...history.inputSchema,properties:{...history.inputSchema.properties,ref:{type:'string'}}}};
  assert.deepEqual(eligibleEvidenceActionCatalog([scoped],tasks),[scoped]);
 });
+
+test('complete local Git prefixes subsume smaller limits only while their repository evidence stays coherent',()=>{
+ const history={name:'repo.gitHistory',mutates:false,evidenceKinds:['repository_search'],inputSchema:{type:'object',additionalProperties:false,properties:{limit:{type:'integer',minimum:1,maximum:8}}}};
+ const commits=Array.from({length:5},(_,i)=>({sha:String(i+1).repeat(40),date:'2026-10-26',subject:'change '+i,files:['M\tsource.js'],fileCount:1,filesOmitted:0}));
+ const task={name:history.name,args:{limit:5},observation:{ok:true,gitEvidence:{kind:'git_committed_history',source:'LOCAL_GIT_LOG',commits,reportedCommits:5,limit:5,detailsBounded:true,originalReceiptRetained:true}}};
+ const valid=(tasks,n)=>eligibleEvidenceActionCatalog([history],tasks).some(t=>hasRequiredToolArguments(t,{limit:n}));
+ for(const n of [1,2,3,4,5])assert.equal(valid([task],n),false);assert.equal(valid([task],6),true);
+ for(const mutate of [g=>g.source='other',g=>g.reportedCommits=6,g=>g.commits[0].filesOmitted=1,g=>g.commits[0].fileCount=2,g=>g.commits[0].subject='x'.repeat(180),g=>g.commits[0].files[0]='x'.repeat(320),g=>g.commits[0].sha='']){
+  const changed=structuredClone(task);mutate(changed.observation.gitEvidence);assert.equal(valid([changed],1),true);
+ }
+ const changedHead=structuredClone(task);changedHead.args.limit=1;changedHead.observation.gitEvidence={...changedHead.observation.gitEvidence,commits:[{...commits[0],sha:'f'.repeat(40)}],limit:1,reportedCommits:1};
+ assert.equal(valid([task,changedHead],4),true);
+ for(const later of [{name:'unknown',observation:{ok:true}},{name:'repo.write',mutates:true,observation:{ok:true}}])assert.equal(valid([task,later],4),true);
+ const before=JSON.stringify(task);valid([task],4);assert.equal(JSON.stringify(task),before);
+});
