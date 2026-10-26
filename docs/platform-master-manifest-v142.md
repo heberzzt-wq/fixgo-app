@@ -13,7 +13,7 @@
 
 **Laptop:** `adjunto-jarvis` | **Repositorio:** `C:/Users/heber/Documents/Codex/2026-06-17/estas-conectado-a-github-y-a/work/fixgo-app-v142-worker`
 
-**Resumen:** 2026-10-25: SHA3adcc9ec Bridge/preview sincronizados y CI40242290348 Windows/Ubuntu SUCCESS; live d2f7a799 sin promocion. Mision autentica MISSION-ada3cfd4-16de-4a1c-b700-6914264102bc cancelada mediante UI tras rechazo del propietario a31min sin resultado; ~37min totales,1957920ms internos. PARTIAL/PLANNER_UNAVAILABLE con timeout causado por cancelacion autorizada. GitHistory/status/read y Repomix fisicos, ambas fuentes del contexto leidas, sin COMPLETED. Causas: evaluacion completa repetida antes de cada lectura (566883ms y490154ms); recuperacion perdia obligationId semantic:repo.context y retenia bloqueo ya recuperado. Reparacion local preserva ID exacto entre backend/frontend y ambos handoffs; seleccion acotada de lectura faltante antes de auditoria completa sin certificar objetivos.28 regresiones dirigidas PASS. Replay REAL primer paso32.194s,649 tokens entrada/56 salida, una inferencia Qwen local, plan repo.read autorizado sin ejecutar herramienta ni certificar web. Segundo replay REAL22.984s,687 tokens entrada/57 salida, una inferencia selecciona la fuente restante; antes490154ms. Ambos replays suman55.178s frente1057037ms de los dos ciclos web originales; no equivale a mision E2E. CI local completa EXIT0 en165.85s;28 dirigidas y12 manifiesto PASS. CI GitHub/retest pendientes. RAM libre minima muestreada343244KiB en112 muestras; antes8208536KiB, tras cancelacion y descarga automatica8389368KiB; no se termino llama-server. Qwen8192/45s/prewarmfalse/max150000ms, sin proveedor externo.
+**Resumen:** 2026-10-26 UTC / 2026-10-25 local:40864ce1 oficial enviado; CI40246829314 Windows/Ubuntu SUCCESS, Bridge cargado40864ce1. Preview aun3adcc9ec, live d2f7a799; no promocion ni nueva mision web. Ultima mision autentica3ad MISSION-ada3cfd4-16de-4a1c-b700-6914264102bc cancelada por latencia (~37min total,1957920ms internos), PARTIAL/PLANNER_UNAVAILABLE causado por cancelacion. Ambas fuentes de contexto se leyeron fisicamente. Reparacion408 preserva obligationId de recuperacion y obtiene fuentes antes de auditorias repetidas: replays reales32.194s+22.984s frente566883ms+490154ms originales, no E2E. CI local165.85s EXIT0,28 dirigidas y12 manifiesto PASS; seguridad54PASS/1SKIP Chrome opt-in. Replay de cierre con identidad corregida:8 inferencias565498ms, sin COMPLETED. Auditores confundian preparacion no certificada con fallo y ampliaban lectura a manifiesto auxiliar parcial; verificador independiente rechazo explicar pruebas con solo Git y continuo repo.read manifiesto desde162. Detectado files=[object Object] en compactacion: RED->GREEN preserva rutas. Instruccion distingue preparacion/lectura y alcance original. Un nuevo contrato parafraseado produjo cita incompatible y omitio pendiente: descartado. Nuevo contrato literal deriva objective de requestQuote, valida cobertura lexical de palabras contra citas/constraints y permite solo UNA correccion; no prueba semantica por cobertura lexical. Qwen real produjo4 objetivos literales completos en53.165s/1llamada, incluyendo pruebas como repository_source; no herramientas ejecutadas.389 regresiones contrato/integracion y37 dirigidas finales PASS. Nueva reparacion aun local, CI completa/replay/certificacion web pendientes. RAM antes8208536KiB, minima343244KiB en112muestras, despues8389368KiB; Qwen8192/45s/prewarmfalse/150000ms LOCAL_ONLY, no llama-server terminado. CAUSA FISICA CONFIRMADA: captura del cuerpo exacto enviado a Ollama mostraba las dos fuentes completas de124/779 caracteres con partial/truncated/contentTruncated=true. boundedAuditTasks los asignaba incondicionalmente y retainBodies no restauraba flags. Regresion RED en limite real Ollama->GREEN: solo marca recorte si se omite contenido, restaura flags originales al recuperar cuerpo, conserva parcialidad real y no muta recibos. Un exceso adicional de401 caracteres en fixture de28000 fue corregido evitando agregar banderas redundantes;421 dirigidas PASS. Auditoria atomica separa el pedido original como contexto literal y el objetivo unico como tarea final. Contrato literal validado con Qwen, sin resultados inventados. Replay dirigido fuente con mismo paquete y reparaciones:54.390s,2074 tokens entrada/20 salida, s=true/r=[2,5,6]; otros objetivos omitidos con stub negativo y parada diagnostica, NO mision E2E ni verificacion independiente global. CI completa local EXIT0 en164.27s;421 dirigidas PASS y12 manifiesto PASS. CI GitHub/preview exacta/Terminal aun pendientes.
 
 ### Autorizacion de trabajo y commits del propietario
 
@@ -27,7 +27,7 @@
 
 **Limite:** Los commits no son despliegues; mantienen controles de produccion, dinero, secretos y acceso.
 
-**Infraestructura actual al corte:** Bridge/preview3adcc9ec; live d2f7a799. Configuracion efectiva8192/45s/prewarmfalse/150000ms. Reparacion local aun no publicada.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
+**Infraestructura actual al corte:** Bridge40864ce1; preview3adcc9ec; live d2f7a799. No nueva mision con versiones distintas. Cambios de contrato/compactacion locales pendientes de CI.; Ollama qwen3.5:9b LOCAL_ONLY; puertos `5000`, `3344`, `3345`, `11434`.
 
 **Control de ventanas:** Chrome extension conectado; Terminal autentica controlada y mision real enviada, sin nuevos bloqueos de permisos de navegador observados.
 
@@ -78,7 +78,7 @@
 
 ### Ruta de recuperacion para el siguiente chat
 
-1. Medir segunda seleccion Qwen real; ejecutar CI local y Windows/Ubuntu. Preview exacta solo tras gates. Validar cierre completo y latencia mediante UNA mision autentica; no repetir ciegamente ni certificar por unitarias.
+1. Confirmar replay dirigido de verificacion de las dos fuentes con contrato literal; ejecutar CI local y Windows/Ubuntu, publicar preview exacta y evaluar UNA mision autentica. Aun no hay COMPLETED certificado.
 1. Resolver la promocion autorizada de Hosting desde una rama/revision permitida con CI y permiso workflow adecuados, sin saltarse protecciones ni desplegar otros sitios/Functions/reglas.
 1. Verificar despues de publicacion SHA servido == SHA Bridge, relay /workstation/health autenticado sin 401, y que archivos privados devuelven 404.
 1. Ejecutar mision real en Terminal Firebase con recibo verificable y luego las 12 NS1 seguidas; clasificar SUCCEEDED, PARTIAL, FAILED con evidencia y artefactos.
@@ -144,6 +144,23 @@
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/source-acquisition-directed.txt`
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/probe-source-acquisition.json`
 - `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/probe-source-acquisition-second.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/probe-closure-after-recovery.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/context-file-shape-red.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/context-file-shape-green.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/probe-context-verdicts.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/probe-objective-scope.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/probe-literal-objectives.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/probe-literal-context-verdicts.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/literal-objectives-directed.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/literal-scope-directed-final.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/source-acquisition-ci.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/source-acquisition-security.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/source-audit-exact-model-request.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/probe-source-limitation-diagnostic.json`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/source-flags-red.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/source-flags-green.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/source-flags-directed.txt`
+- `C:/Users/heber/Documents/Jarvis-V142-Manifiestos/probe-source-flags.json`
 
 ### Reporte diario automatico
 

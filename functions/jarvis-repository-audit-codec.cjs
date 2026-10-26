@@ -39,10 +39,12 @@ async function generateRepositoryAudit({ai,request,enabled=false}) {
   const response=await ai.models.generateContent({...request,config:{...request.config,
    semanticStage:'REPOSITORY_OBJECTIVE_AUDIT',maxOutputTokens:192,temperature:0,
    chatMessages:[
-    {role:'system',content:'Verifica SOLO el objetivo indicado contra recibos reales. s=true exige TODO su alcance, indices pertinentes y l vacio. Si falta algo: s=false y l breve. Una operacion exitosa no acredita otros archivos, cantidades, pruebas o contenido omitido. Repomix es contexto previo no certificado; no sustituye repo.read. Git history acredita commits, no pruebas ejecutadas por existir un mensaje. No mezcles objetivos ni inventes resultados. Metadatos de tareas no pertinentes solo ubican archivos: no prueban contenido. Indices compartidos remiten al recibo original. No selecciones herramientas en esta evaluacion.'},
-    {role:'system',content:'OBJETIVO_INMUTABLE='+JSON.stringify({objective:template.objective.enum[0],requiredEvidenceKind:template.requiredEvidenceKind.enum[0]})},
+    {role:'system',content:'Verifica SOLO el objetivo indicado contra recibos reales. s=true exige TODO su alcance, indices pertinentes y l vacio. Si falta algo: s=false y l breve. Una operacion exitosa no acredita otros archivos, cantidades, pruebas o contenido omitido. repo.context ok con REPO_CONTEXT_READY y contextPreview.files acredita la PREPARACION de esas fuentes; independentlyCertified=false significa que ese resumen no sustituye la verificacion de contenido por repo.read, no que la preparacion haya fallado. sourceCount cuenta fuentes genericas, no los archivos de contextPreview.files. Evalua solo el alcance del pedido original: una lectura auxiliar parcial no crea por si misma una obligacion de leer completamente ese archivo. Conserva las relaciones entre operaciones pedidas y no conviertas todas las tareas auxiliares en objetivos nuevos. Git history acredita commits, no pruebas ejecutadas por existir un mensaje. No mezcles objetivos ni inventes resultados. Metadatos de tareas no pertinentes solo ubican archivos: no prueban contenido. Indices compartidos remiten al recibo original. No selecciones herramientas en esta evaluacion.'},
     ...tasks.map(task=>({role:'system',content:observationPrefix+JSON.stringify(allowed.includes(task.index)?task:metadata(task))})),
-    ...failures,user
+    ...failures,
+    {role:'system',content:'PEDIDO_ORIGINAL_PARA_RESOLVER_ALCANCE='+JSON.stringify(user.content)},
+    {role:'system',content:'El pedido original conserva el alcance y restricciones. Tu unica tarea es evaluar el objetivo indicado en el siguiente mensaje, no la mision entera. Los recibos no pertinentes se muestran como metadatos; no marques falso por evidencia que corresponde a otro objetivo.'},
+    {role:'user',content:'OBJETIVO_INMUTABLE='+JSON.stringify({objective:template.objective.enum[0],requiredEvidenceKind:template.requiredEvidenceKind.enum[0]})}
    ],responseJsonSchema:{anyOf:entry.anyOf.map(branch=>{
     const satisfied=branch.properties.satisfied.enum[0];
     return {type:'object',properties:{

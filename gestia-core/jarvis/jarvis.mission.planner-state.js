@@ -345,7 +345,7 @@ export function compactMissionPlannerObservation(observation = {}) {
         ...(interfaceEvidence ? { interfaceEvidence, url: interfaceEvidence.url } : {}),
         ...(source.repositoryTarget || evidence.repositoryTarget ? { repositoryTarget: source.repositoryTarget || evidence.repositoryTarget } : {}),
         ...(Array.isArray(source.files || evidence.files) ? {
-            files: (source.files || evidence.files).slice(0, 24).map(file => text(file, 500)).filter(Boolean),
+            files: (source.files || evidence.files).slice(0, 24).map(file => text(typeof file === "string" ? file : file?.file || file?.path || "", 500)).filter(Boolean),
             inventoryExcerpt: true
         } : {}),
         ...(summary ? { summary } : {}),

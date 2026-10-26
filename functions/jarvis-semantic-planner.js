@@ -2361,13 +2361,21 @@ function boundedAuditTasks(tasks, maximumCharacters = 28000, latestSourceBodyLim
         return JSON.stringify(dictionary).length<JSON.stringify(fields).length
             ? {fieldPathDictionary:dictionary,fieldPathEncoding:"Each exact field = prefix + member + suffix; integerRange expands inclusively when present."} : {fieldPaths:fields};
     };
+    const sourceBodyView=(read,content)=>{
+        const clipped=content.length<String(read.content || "").length;
+        return {content,
+            ...Object.fromEntries(["partial","truncated","contentTruncated"]
+                .map(flag=>[flag,clipped ? true : read[flag]])),
+            ...(Object.hasOwn(read,"evidenceTextTruncated") ? {evidenceTextTruncated:read.evidenceTextTruncated} : {}),
+            endLine:clipped ? (content ? (read.startLine || 1)+content.split("\n").length-1 : null) : read.endLine};
+    };
     const retainBodies=(result,budget)=>{
         for(let index=tasks.length-1;index>=0;index--){
             const original=tasks[index].observation?.verifiedRead, current=result[index]?.observation?.verifiedRead;
             if(!original?.content || !Number.isInteger(original.startLine) || !Number.isInteger(original.endLine) ||
                 !current || original.content.length<=String(current.content || "").length)continue;
             const candidate={...result[index],observation:{...result[index].observation,verifiedRead:{...current,
-                content:original.content,endLine:original.endLine,contentTruncated:original.contentTruncated===true}}};
+                ...sourceBodyView(original,original.content)}}};
             const previous=result[index];result[index]=candidate;
             if(JSON.stringify(result).length>budget)result[index]=previous;
         }
@@ -2384,9 +2392,7 @@ function boundedAuditTasks(tasks, maximumCharacters = 28000, latestSourceBodyLim
             const bindings = read.sourceStructure?.dataBindings;
             const content = String(read.content || "").slice(0,task === latestRead ? latestSourceBodyLimit : bodyLimit);
             return {...task,observation:{...task.observation,verifiedRead:{...read,
-                content, numberedContent: undefined,
-                partial:true,truncated:true,contentTruncated:true,
-                endLine:content ? (read.startLine || 1) + content.split("\n").length - 1 : null,
+                ...sourceBodyView(read,content), numberedContent: undefined,
                 ...(bindings ? {sourceStructure:{dataBindings:{...bindings,
                     fieldPaths:undefined,...fieldsSummary(bindings.fieldPaths || []),
                     fieldPathsComplete:bindings.fieldPathsComplete === true,
@@ -2414,9 +2420,8 @@ function boundedAuditTasks(tasks, maximumCharacters = 28000, latestSourceBodyLim
         const content = fresh ? String(read.content || "").slice(0,latestSourceBodyLimit) : "";
         return {...task, observation:{ok:task.observation.ok, executionOk:task.observation.executionOk, verifiedRead:{
             file:read.file, startLine:read.startLine, totalLines:read.totalLines, readEndLine:read.readEndLine,
-            endLine:content ? (read.startLine || 1) + content.split("\n").length - 1 : null,
-            ...(fresh ? {content} : {}),
-            partial:true, truncated:true, contentTruncated:true,
+            ...sourceBodyView(read,content),
+            content:fresh ? content : undefined,
             sourceStructure:{dataBindings:{
                 collections:bindings?.collections || [],
                 ...(bindings?.source ? {source:bindings.source} : {}),

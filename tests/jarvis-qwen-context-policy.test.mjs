@@ -293,11 +293,14 @@ test('six immutable repository goals and recovered context fit the 8192-token au
   const observations=packet.messages.filter(m=>m.content.startsWith('OBSERVACION_EJECUTADA='));
   assert.equal(observations.length,5);
   assert.ok(packet.messages.some(m=>m.content.includes('REPO_CONTEXT_SOURCE_TOO_LARGE')),'failed receipt retained');
-  assert.equal(packet.messages.at(-1).content,fixture.input);
   if(calls<=objectives.length){
+   const original=packet.messages.find(m=>m.content.startsWith('PEDIDO_ORIGINAL_PARA_RESOLVER_ALCANCE='));
+   assert.equal(JSON.parse(original.content.slice('PEDIDO_ORIGINAL_PARA_RESOLVER_ALCANCE='.length)),fixture.input);
+   assert.equal(JSON.parse(packet.messages.at(-1).content.slice('OBJETIVO_INMUTABLE='.length)).objective,objectives[calls-1].objective);
    assert.ok(JSON.stringify(packet.messages).includes(objectives[calls-1].objective),'each immutable goal reviewed separately');
    return {ok:true,status:200,text:async()=>JSON.stringify({message:{content:JSON.stringify(calls===3?{s:true,r:[2],l:''}:{s:false,r:[],l:'Falta evidencia pertinente.'})},done_reason:'stop'})};
   }
+  assert.equal(packet.messages.at(-1).content,fixture.input);
   for(const goal of objectives)assert.ok(JSON.stringify(packet.messages).includes(goal.objective),'all verdicts retained before continuation');
   const choices=JSON.stringify(packet.format.properties.toolCalls);
   assert.ok(choices.includes('jarvis-safe-a.js') && choices.includes('jarvis-safe-b.js'),'context source identities remain available for independent repo.read');
@@ -337,4 +340,33 @@ test('atomic repository audit rejects invented proof, missing gaps and truncatio
  assert.equal(plan.completionAssessment.objectives.objective_0.satisfied,false);
  assert.equal(plan.missionComplete,undefined);
  assert.equal(JSON.stringify(request),before);
+});
+
+test('budget pressure never labels fully retained source bodies as partial at the actual Ollama boundary',async()=>{
+ const fs=await import('node:fs');
+ const fixture=JSON.parse(fs.readFileSync(new URL('./v142-four-step-audit.fixture.json',import.meta.url),'utf8'));
+ fixture.missionState.blockedTasks=[];
+ fixture.missionState.evidenceObjectives=[{objective:'Verificar contenido de dos archivos',requiredEvidenceKind:'repository_source'}];
+ fixture.missionState.completionAssessment=null;
+ const small=[124,779].map((size,i)=>({name:'repo.read',args:{file:'jarvis-small-'+i+'.js'},observation:{
+  ok:true,executionOk:true,status:'SUCCESS',verifiedRead:{tool:'repo.read',file:'jarvis-small-'+i+'.js',
+   startLine:1,endLine:1,totalLines:1,readEndLine:1,content:'x'.repeat(size),contentLength:size,
+   partial:false,truncated:false,contentTruncated:false,evidenceTextTruncated:false,exactContent:true}}}));
+ fixture.missionState.completedTasks.push(...small);
+ const before=JSON.stringify(fixture);let reached=false;
+ const engine=createSelfHostedSemanticEngine({env:{JARVIS_LOCAL_LLM_CONTEXT_TOKENS:'8192',JARVIS_LOCAL_LLM_PREWARM:'0'},fetchImpl:async(_url,request)=>{
+  const body=JSON.parse(request.body);
+  const tasks=body.messages.filter(m=>m.content.startsWith('OBSERVACION_EJECUTADA=')).map(m=>JSON.parse(m.content.slice('OBSERVACION_EJECUTADA='.length)));
+  for(const original of small){
+   const read=tasks.find(t=>t.args?.file===original.args.file).observation.verifiedRead;
+   assert.equal(read.content,original.observation.verifiedRead.content);
+   for(const flag of ['partial','truncated','contentTruncated','evidenceTextTruncated'])assert.equal(read[flag],false,flag+' must reflect actual body omission');
+   assert.equal(read.endLine,1);
+  }
+  const large=tasks.find(t=>t.index===2).observation.verifiedRead;
+  assert.equal(large.partial,true);assert.equal(large.contentTruncated,true);
+  reached=true;throw Error('SOURCE_FLAGS_VERIFIED');
+ }});
+ await assert.rejects(engine.plan(fixture),/SOURCE_FLAGS_VERIFIED/);
+ assert.equal(reached,true);assert.equal(JSON.stringify(fixture),before);
 });

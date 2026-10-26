@@ -51,6 +51,8 @@ test('Repomix context survives model compaction only as uncertified preview with
  assert.equal(output.contextPreview?.evidenceOnly,true);
  assert.equal(output.contextPreview.independentlyCertified,false);
  assert.equal(output.contextPreview.files[0].file,'jarvis-safe.js');
+ assert.deepEqual(output.files,['jarvis-safe.js']);
+ assert.deepEqual(compactMissionPlannerObservation(output).files,['jarvis-safe.js']);
  assert.equal(compactMissionPlannerObservation({...packet,ok:false}).contextPreview,undefined);
 });
 
